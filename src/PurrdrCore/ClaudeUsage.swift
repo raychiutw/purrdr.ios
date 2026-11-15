@@ -37,5 +37,10 @@ public struct ClaudeUsageInspection: Equatable, Sendable {
     /// 會以這個主機使用者修改設定。
     public var user: String
     public var isInstalled: Bool
+
+    public init(user: String, isInstalled: Bool) {
+        self.user = user
+        self.isInstalled = isInstalled
+    }
 }
 

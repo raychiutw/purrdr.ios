@@ -73,8 +73,8 @@ public struct HostFiles: Sendable {
         let detail = String(decoding: result.stdout, as: UTF8.self).split(separator: "\n").first.map(String.init) ?? ""
         switch result.exitCode {
         case 0: return
-        case 3 where detail.hasPrefix("changed "): throw HostFilesError.changedSinceRead(HostPath(String(detail.dropFirst("changed ".count))))
-        case 4 where detail.hasPrefix("nodir "): throw HostFilesError.missingDirectory(HostPath(String(detail.dropFirst("nodir ".count))))
+        case HostFileRequest.ExitCode.changedSinceRead where detail.hasPrefix("changed "): throw HostFilesError.changedSinceRead(HostPath(String(detail.dropFirst("changed ".count))))
+        case HostFileRequest.ExitCode.missingDirectory where detail.hasPrefix("nodir "): throw HostFilesError.missingDirectory(HostPath(String(detail.dropFirst("nodir ".count))))
         default: throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText)
         }
     }

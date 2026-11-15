@@ -7,14 +7,22 @@ import PurrdrCore
 /// 沒有主機時它就是選取中主機——App Review 唯一連得到的東西——也是 UI 測試的資料來源。
 /// 範例內容一律自己寫，不沿用 herdrchat 的文字(行為規格 D9)。
 ///
-/// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、接受事件訂閱(不送事件)、回顯的 shell。
+/// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、接受事件訂閱(不送事件)、回顯的 shell、
+/// 記憶體裡的家目錄(主機檔案讀寫;Claude 用量裝上後回範例用量)。
 /// 完整的情境在 Demo 模式那張票補齊。
 public actor DemoHost: HostChannel {
+    /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
+    private var files = DemoFiles()
+
     public init() {}
 
     public func execute(_ command: String) async throws -> any ExecSession {
         if command == HerdrCommand.bridge() {
             return DemoBridgeSession()
+        }
+        if let request = HostFileRequest(command: command) {
+            let result = files.handle(request, now: Date())
+            return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
