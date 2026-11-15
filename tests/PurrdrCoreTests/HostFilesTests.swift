@@ -63,6 +63,7 @@ struct HostFilesTests {
     func scriptsHaveNoBackslash() async throws {
         _ = try await files.read([".claude/settings.json"])
         try await files.apply([.write(".purrdr/x", Data("a'b\\c".utf8), expecting: .anything)])
+        _ = try await files.newest(in: ".claude/plugins/store", prefix: "cc-plugin-you-should-know_", suffix: ".json")
         for command in host.commands {
             #expect(!command.contains("\\"), "指令含反斜線:\(command)")
         }

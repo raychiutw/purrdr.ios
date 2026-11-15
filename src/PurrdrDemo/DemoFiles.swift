@@ -31,6 +31,14 @@ struct DemoFiles {
             }
             changes.forEach { apply($0) }
             return (Data(), 0)
+        case .newest(let directory, let prefix, let suffix):
+            // Demo 的檔案沒有修改時間：符合的取路徑排序最後一個。
+            let match = files.keys.filter {
+                guard $0.hasPrefix(directory.relative + "/") else { return false }
+                let name = String($0.dropFirst(directory.relative.count + 1))
+                return !name.contains("/") && name.hasPrefix(prefix) && name.hasSuffix(suffix)
+            }.max()
+            return (HostFileRequest.newestOutput(match.map { HostPath($0) }), 0)
         }
     }
 

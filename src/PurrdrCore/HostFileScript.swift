@@ -146,6 +146,33 @@ enum HostFileScript {
         change "$@"
         """
 
+    /// 找最新的檔案：參數是資料夾(相對於家目錄)、檔名開頭、檔名結尾。只算可讀的一般檔案(跟隨 symlink)。
+    /// 輸出 `purrdr-newest 1`,有找到時下一行是相對於家目錄的路徑。資料夾不存在 = 沒有。
+    static let newest = prelude + """
+        newest=
+        for p in "$HOME/$1/$2"*"$3"; do
+          if [ -f "$p" ] && [ -r "$p" ]; then
+            if [ -z "$newest" ] || [ "$p" -nt "$newest" ]; then newest=$p; fi
+          fi
+        done
+        printf 'purrdr-newest 1%s' "$nl"
+        if [ -n "$newest" ]; then printf '%s%s' "${newest#"$HOME/"}" "$nl"; fi
+        """
+
+    static func parseNewest(_ output: Data) throws -> HostPath? {
+        var reader = LineReader(data: output)
+        guard reader.line() == "purrdr-newest 1" else { throw HostFilesError.malformedOutput }
+        guard let line = reader.line(), !line.isEmpty else { return nil }
+        let path = HostPath(line)
+        try path.validate()
+        return path
+    }
+
+    /// `newest` 的輸出(Demo 主機用)。
+    static func newestOutput(_ path: HostPath?) -> Data {
+        Data(("purrdr-newest 1\n" + (path.map { $0.relative + "\n" } ?? "")).utf8)
+    }
+
     static func parseRead(_ output: Data, paths: [HostPath]) throws -> HostFileRead {
         var reader = LineReader(data: output)
         guard reader.line() == "purrdr-files 1", let userLine = reader.line(), userLine.hasPrefix("user ") else {
