@@ -11,12 +11,11 @@ public enum ComposerSettings {
 /// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
 /// - 多行，長到 4 行後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
-/// - agent 在工作時有停止鈕(非 tinted);長按確認後強制結束。
+/// - 停止與強制結束在標題列(#44,`ConversationView`)。
 struct ComposerBar: View {
     @Bindable var model: ConversationModel
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
     @State private var isFocused = false
-    @State private var confirmsForceQuit = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -28,9 +27,6 @@ struct ComposerBar: View {
             }
             GlassEffectContainer(spacing: 8) {
                 HStack(alignment: .bottom, spacing: 8) {
-                    if model.canStop || model.isStopping {
-                        stopButton
-                    }
                     editor
                     if isFocused {
                         hideKeyboardButton
@@ -41,14 +37,6 @@ struct ComposerBar: View {
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
-        .confirmationDialog("Force Quit the Agent?", isPresented: $confirmsForceQuit, titleVisibility: .visible) {
-            Button("Force Quit", role: .destructive) {
-                Task { await model.forceQuit() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Control-C may end the agent process and this session. The conversation stays on the host, but the agent stops. Stop only interrupts the current turn.")
-        }
     }
 
     // MARK: - 輸入框
@@ -117,30 +105,6 @@ struct ComposerBar: View {
         .accessibilityIdentifier("composer.hideKeyboard")
     }
 
-    private var stopButton: some View {
-        Button {
-            Task { await model.stop() }
-        } label: {
-            Group {
-                if model.isStopping {
-                    ProgressView()
-                } else {
-                    Image(systemName: "stop.fill")
-                }
-            }
-            .frame(width: 30, height: 30)
-        }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
-        .frame(minWidth: 44, minHeight: 44)
-        .disabled(model.isStopping)
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.6).onEnded { _ in confirmsForceQuit = true })
-        .accessibilityLabel(Text("Stop"))
-        .accessibilityHint(Text("Interrupts the agent’s current turn. Press and hold to force quit."))
-        .accessibilityAction(named: Text("Force Quit")) { confirmsForceQuit = true }
-        .accessibilityIdentifier("composer.stop")
-    }
-
     private func send() {
         Task { await model.send() }
     }
@@ -189,12 +153,13 @@ extension SendNotice {
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
         case .stillWorking: String(localized: "The agent is still working. Tap Stop again, or press and hold to force quit.")
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
+        case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
         }
     }
 
     var symbol: String {
         switch self {
-        case .needsAnswer: "exclamationmark.circle"
+        case .needsAnswer, .interruptRefusedNeedsAnswer: "exclamationmark.circle"
         case .agentGone, .superseded: "xmark.bubble"
         case .offline: "wifi.slash"
         case .rejected, .noResponse, .interruptFailed: "exclamationmark.triangle"

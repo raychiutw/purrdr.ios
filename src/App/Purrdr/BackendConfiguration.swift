@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 /// Purrdr 後台與 Google 登入的設定。
 ///
@@ -10,4 +11,22 @@ enum BackendConfiguration {
 
     /// Google Cloud Console 的 iOS OAuth client ID(與後台 `GOOGLE_CLIENT_IDS` 相同)。
     static let googleClientID = "REPLACE-ME.apps.googleusercontent.com"
+}
+
+/// 推播(#29)。
+enum PushSettings {
+    /// 主機外掛的公開 repo(`herdr plugin install` 的來源)。發佈 `host-plugin/` 的公開 repo 前是佔位(見 backend/README.md 上線清單)。
+    static let pluginSource = "raychiutw/purrdr-host-plugin"
+
+    /// 主機外掛呼叫的後台網址，寫進主機上的配對檔。
+    static var endpoint: URL { BackendConfiguration.baseURL.appending(path: "v1/push") }
+
+    /// APNs 環境:Xcode 直接安裝的 Debug build 拿到的是 sandbox token,TestFlight／App Store 是 production。
+    static var environment: MemberSession.PushEnvironment {
+        #if DEBUG
+        .sandbox
+        #else
+        .production
+        #endif
+    }
 }

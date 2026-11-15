@@ -9,6 +9,7 @@ import Testing
 final class MemoryHostStore: HostStore {
     var hosts: [HostConfiguration] = []
     var saveError: (any Error)?
+    var deleteError: (any Error)?
 
     func loadHosts() throws -> [HostConfiguration] { hosts }
 
@@ -18,7 +19,10 @@ final class MemoryHostStore: HostStore {
         hosts.append(host)
     }
 
-    func delete(_ id: UUID) throws { hosts.removeAll { $0.id == id } }
+    func delete(_ id: UUID) throws {
+        if let deleteError { throw deleteError }
+        hosts.removeAll { $0.id == id }
+    }
 }
 
 /// 記錄 model 用哪個 pin、哪個憑證來源開了哪些連線。

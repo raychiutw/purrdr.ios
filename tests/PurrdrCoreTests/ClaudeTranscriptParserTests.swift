@@ -184,6 +184,28 @@ struct ClaudeTranscriptParserTests {
         #expect(Self.items([synthetic]).map(Self.describe) == ["agent: CSV 匯出整理好了 ✅,欄位順"])
     }
 
+    /// F5.7:最後一則 assistant 之後的 `/model` 本地指令輸出優先;之後的 assistant 行再蓋回來。
+    /// 輸出格式只依行為規格(「Set model to X …」「Kept model as X」),本機沒有真實紀錄可對照。
+    @Test("Header 中繼資料:/model 的輸出(Set model to／Kept model as)立刻改模型，之後的 assistant 行再覆蓋")
+    func modelCommandOutputSetsModel() {
+        func output(_ text: String) -> String {
+            Fixtures.transcriptLine(4) { $0["message"] = ["role": "user", "content": "<local-command-stdout>\(text)</local-command-stdout>"] }
+        }
+        let lines = Fixtures.transcriptLines()
+
+        let set = TranscriptMetadata.latest(in: lines + [output("Set model to \u{1B}[1mOpus 4.1 (claude-opus-4-1-20250805)\u{1B}[22m for this session only")])
+        #expect(set.model.map(TranscriptMetadata.displayName(ofModel:)) == "Opus 4.1")
+
+        let saved = TranscriptMetadata.latest(in: lines + [output("Set model to sonnet and saved as your default for new sessions")])
+        #expect(saved.model == "sonnet")
+
+        let kept = TranscriptMetadata.latest(in: lines + [output("Kept model as Haiku")])
+        #expect(kept.model == "Haiku")
+
+        let later = TranscriptMetadata.latest(in: lines + [output("Kept model as Haiku"), lines[27]])
+        #expect(later.model == "claude-opus-5-5")
+    }
+
     @Test("模型顯示名：去掉日期與 [] 尾碼、provider 前綴;非 Claude id 原樣")
     func modelDisplayNames() {
         #expect(TranscriptMetadata.displayName(ofModel: "claude-opus-5-5") == "Opus 5.5")

@@ -73,6 +73,11 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 內容(指令、路徑、問題)是自己寫的範例。測試用 `PaneScreens.read(_:)` 把它放進錄製的 `pane.read` envelope。
 真機第一次看到 blocked 畫面時，以唯讀的 `pane.read` 讀下來去識別化，換掉對應的檔案。
 
+## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
+
+`tailscale/check-mode.banner.txt`:Tailscale SSH 在 check mode 時送出的 SSH 認證橫幅。**不是錄製的**:作者的 Mac 無法經 Tailscale SSH 連自己，也不變更作者的 ACL。
+內容依 Tailscale 原始碼(`ssh/tailssh/tailssh.go` 以 `SendAuthBanner` 送出控制端的訊息)與使用者回報的實際文字寫成，網址是假值。來源與未驗證事項見 `docs/research/tailscale-ssh-check-mode.md`。拿到真機的橫幅後應換掉。
+
 ## 其他 agent 的對話紀錄(`other-agents/`)——依文件撰寫、未實測
 
 作者的 Mac 上沒有 Grok、Antigravity、Pi、OMP,這些檔案**不是**從真實主機擷取，而是依下列來源**手寫**的(#25)。

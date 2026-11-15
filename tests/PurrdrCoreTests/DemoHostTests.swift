@@ -126,6 +126,22 @@ struct DemoHostTests {
         try await HerdrClient(channel: DemoHost()).sendKeys(paneID: "w3:p1", keys: ["esc"])
     }
 
+    /// #44:Demo 的工作中 agent(Codex,`w3:p1`)畫面上有正在寫的散文(即時預覽);停止(一個 Esc)後變完成。
+    @Test("工作中:Demo 的 Codex 畫面有即時預覽;停止後變完成、預覽消失;「需要你」的 agent 不會被停止")
+    func workingDemoAgentShowsPreviewAndStops() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let screen = try await client.readPane(paneID: "w3:p1")
+        #expect(LivePreview.extract(screen: screen) != nil)
+
+        let delivery = PromptDelivery(client: client, sleep: { _ in })
+        #expect(await delivery.stop(paneID: "w2:p1") == .needsAnswer)
+        #expect(await delivery.stop(paneID: "w3:p1") == .stopped)
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
+        #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w3:p1")) == nil)
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w2:p1" }?.status == .blocked)
+    }
+
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")
     func unknownCommandExitsWith127() async throws {
         let session = try await DemoHost().execute("nonexistent-tool --flag")
@@ -283,5 +299,32 @@ struct DemoHostTests {
         let pty = try await DemoHost().openPTY(PTYRequest(columns: 80, rows: 24))
         var iterator = pty.output.makeAsyncIterator()
         #expect(try await iterator.next() == Data("demo@purrdr ~ % ".utf8))
+    }
+}
+
+/// Demo 情境:Tailscale SSH check mode(UI 測試用)。
+@Suite("Demo 主機:Tailscale check mode")
+struct DemoHostTailscaleCheckTests {
+    @Test("第一個指令先要求驗證，驗證完自動繼續;之後的指令不再要求")
+    func checkThenContinue() async throws {
+        let prompts = PromptLog()
+        let host = DemoHost(scenario: .tailscaleCheck(completesAfter: .milliseconds(200)), tailscaleCheck: prompts.observe)
+
+        _ = try await HerdrClient(channel: host).snapshot()
+        _ = try await HerdrClient(channel: host).snapshot()
+
+        #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
+    }
+
+    @Test("等待驗證時取消：指令以「已取消」結束")
+    func cancelCheck() async throws {
+        let prompts = PromptLog()
+        let host = DemoHost(scenario: .tailscaleCheck(completesAfter: nil), tailscaleCheck: prompts.observe)
+
+        let pending = Task { try await HerdrClient(channel: host).snapshot() }
+        try await prompts.firstPrompt().cancel()
+
+        await #expect(throws: SSHConnectionError.tailscaleCheckCancelled) { _ = try await pending.value }
+        #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
     }
 }

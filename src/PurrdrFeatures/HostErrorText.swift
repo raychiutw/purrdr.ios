@@ -86,6 +86,10 @@ enum HostErrorText {
             String(localized: "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet.")
         case SSHConnectionError.unreachable:
             String(localized: "Couldn’t reach this host. Make sure both devices are on your tailnet.")
+        case SSHConnectionError.tailscaleCheckCancelled:
+            String(localized: "Tailscale sign-in was canceled. Try again when you’re ready to sign in.")
+        case SSHConnectionError.tailscaleCheckTimedOut:
+            String(localized: "The Tailscale sign-in wasn’t finished in time. Try again.")
         case SSHConnectionError.connectionLost, SSHConnectionError.channelRejected:
             String(localized: "The connection dropped. Try again.")
         case HostProbeError.herdrNotInstalled:

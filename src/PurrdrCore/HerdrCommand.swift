@@ -26,6 +26,21 @@ public enum HerdrCommand {
         "\(pathPrefix) \(quotedPath(herdr.path)) update --handoff"
     }
 
+    /// 已安裝的某個 herdr plugin(JSON;沒裝時 `plugins` 是空陣列)。經執行中的伺服器查詢，所以帶 `--session`。
+    public static func pluginList(id: String, herdr: HerdrInstallation) -> String {
+        herdrCommand(herdr, "plugin list --plugin \(PosixShell.quote(id)) --json")
+    }
+
+    /// 從 GitHub 安裝 herdr plugin(`owner/repo[/subdir]`),不互動確認。plugin 對使用者的所有 session 生效，不帶 `--session`。
+    public static func pluginInstall(source: String, herdr: HerdrInstallation) -> String {
+        "\(pathPrefix) \(quotedPath(herdr.path)) plugin install \(PosixShell.quote(source)) --yes"
+    }
+
+    /// 移除 herdr plugin(以 plugin id)。
+    public static func pluginUninstall(id: String, herdr: HerdrInstallation) -> String {
+        "\(pathPrefix) \(quotedPath(herdr.path)) plugin uninstall \(PosixShell.quote(id))"
+    }
+
     /// 主機作業系統(POSIX)。`Darwin`、`Linux`…
     public static let operatingSystem = "\(pathPrefix) uname -s"
 

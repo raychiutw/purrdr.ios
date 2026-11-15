@@ -192,6 +192,29 @@ struct AgentListLiveUpdateTests {
         #expect(await host.executions[1].closed)
     }
 
+    @Test("取消 Tailscale 重新驗證後不自動重試(不會一直跳出驗證);按「再試一次」才重新連線並恢復即時更新")
+    func cancelledTailscaleCheckWaitsForRetry() async throws {
+        let host = FakeHost()
+        await host.failConnection(with: SSHConnectionError.tailscaleCheckCancelled)
+        let sleeper = Sleeper()
+        let (model, task) = Self.start(host, sleeper: sleeper)
+        defer { task.cancel() }
+
+        try await waitUntil { await MainActor.run { model.phase != .loading } }
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(await sleeper.durations.isEmpty, "取消驗證後還在退避重試")
+
+        await host.restoreConnection()
+        await host.expect(Self.bridge, reply: Self.snapshot)
+        await host.expect(Self.bridge, reply: Self.started)
+        await host.expect(Self.bridge, reply: Self.snapshot)
+        await model.load()
+
+        try await waitUntil { await host.consumedAll(executions: 3) }
+        #expect(model.phase == .loaded)
+        #expect(await host.executions[1].closed == false, "恢復後沒有回到即時更新")
+    }
+
     @Test("停止即時更新(離開畫面或進背景)時關閉訂閱通道")
     func cancellingClosesSubscription() async throws {
         let host = FakeHost()

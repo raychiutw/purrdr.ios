@@ -15,6 +15,8 @@ public final class AgentListModel {
     public private(set) var phase: Phase = .loading
     /// 搜尋字串。空白時列出全部。
     public var query = ""
+    /// 要直接開的聊天(pane id):從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
+    public var openedChat: String?
     /// 各 Agent(以 pane id)對話中最後一則訊息。來源是對話紀錄，由對話閱讀(#12)提供。
     public var previews: [String: MessagePreview] = [:]
 
@@ -23,6 +25,9 @@ public final class AgentListModel {
     private let client: HerdrClient
     private let transcripts: TranscriptReader?
     private let sleep: @Sendable (Duration) async throws -> Void
+    /// 使用者取消了 Tailscale 重新驗證：即時更新停下來等「再試一次」(`load()`)。
+    /// 與退避的 `retryWaiter` 分開：網路恢復、回到前景(`retryNow()`)不會讓它重連而又跳出驗證。
+    private var checkCancelWaiter: CheckedContinuation<Void, Never>?
 
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
     public init(
@@ -47,8 +52,17 @@ public final class AgentListModel {
     /// 主機上有沒有任何 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { snapshot?.agents.isEmpty == false }
 
-    /// 讀一次主機的 snapshot。
+    /// 即時更新停著，等使用者按「再試一次」(取消了 Tailscale 重新驗證)。
+    public var isWaitingForRetry: Bool { checkCancelWaiter != nil }
+
+    /// 讀一次主機的 snapshot。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
     public func load() async {
+        if let checkCancelWaiter {
+            self.checkCancelWaiter = nil
+            phase = .loading
+            checkCancelWaiter.resume()
+            return
+        }
         do {
             try await refresh()
         } catch {
@@ -64,6 +78,7 @@ public final class AgentListModel {
     /// - `events_lost`:快取已過期，立刻重新訂閱並重讀。
     /// - 重讀後 Agent pane 的集合變了：訂閱不能修改，關掉舊的、用新集合重新訂閱。
     /// - 其他失敗(含訂閱在 ack 前就結束):退避 1 秒起倍增、上限 30 秒;收到 ack 即歸零。
+    /// - 使用者取消了 Tailscale 重新驗證：不自動重試(否則每次重試又跳出驗證),等使用者按「再試一次」。
     public func run() async {
         var failures = 0
         var needsSnapshot = true
@@ -86,6 +101,13 @@ public final class AgentListModel {
             } catch HerdrError.herdr(code: "events_lost", _) {
                 needsSnapshot = true
                 resubscribeNow = true
+            } catch SSHConnectionError.tailscaleCheckCancelled {
+                fail(with: SSHConnectionError.tailscaleCheckCancelled)
+                await waitForUserRetry()
+                if Task.isCancelled { return }
+                failures = 0
+                needsSnapshot = true
+                continue
             } catch {
                 if Task.isCancelled { return }
                 fail(with: error)
@@ -97,11 +119,78 @@ public final class AgentListModel {
             failures += 1
             needsSnapshot = true
             do {
-                try await sleep(Self.backoff(afterFailures: failures))
+                try await backoff(Self.backoff(afterFailures: failures))
             } catch {
                 return
             }
         }
+    }
+
+    /// 使用者按「重試」或網路恢復：正在退避就立刻重連;正在連就讓下一次退避直接跳過。
+    public func retryNow() {
+        if let waiter = retryWaiter {
+            retryWaiter = nil
+            waiter.resume()
+        } else {
+            retryRequested = true
+        }
+    }
+
+    private var retryRequested = false
+    private var retryWaiter: CheckedContinuation<Void, Never>?
+
+    /// 退避等待：時間到，或有人要求立刻重試。
+    private func backoff(_ duration: Duration) async throws {
+        if retryRequested {
+            retryRequested = false
+            return
+        }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { [sleep] in try await sleep(duration) }
+            group.addTask { await self.waitForRetry() }
+            try await group.next()
+            group.cancelAll()
+        }
+    }
+
+    /// 等使用者按「再試一次」(`load()`);所在的 task 被取消時也結束。
+    private func waitForUserRetry() async {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume()
+                } else {
+                    checkCancelWaiter = continuation
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.resumeCheckCancelWaiter() }
+        }
+    }
+
+    private func resumeCheckCancelWaiter() {
+        let waiter = checkCancelWaiter
+        checkCancelWaiter = nil
+        waiter?.resume()
+    }
+
+    private func waitForRetry() async {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume()
+                } else {
+                    retryWaiter = continuation
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.cancelRetryWait() }
+        }
+    }
+
+    private func cancelRetryWait() {
+        retryWaiter?.resume()
+        retryWaiter = nil
     }
 
     /// 事件去抖：連續的事件只觸發一次重讀的機會變大，也不會讓列表跳動得太頻繁。

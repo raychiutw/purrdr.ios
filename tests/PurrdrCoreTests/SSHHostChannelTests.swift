@@ -108,6 +108,41 @@ struct SSHHostChannelTests {
         await server.stop()
     }
 
+    @Test("長駐連線定期送 keepalive;主機有回應(即使是拒絕)就繼續用同一條連線", .timeLimit(.minutes(1)))
+    func keepaliveKeepsHealthyConnection() async throws {
+        let server = try await TestSSHServer.start(keepalive: .reject) { _ in .reply(stdout: "ok") }
+        let channel = SSHHostChannel(
+            endpoint: server.endpoint, hostKeyPin: server.fingerprint,
+            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(500)))
+
+        _ = try await collect(channel.execute("first"))
+        try await Task.sleep(for: .milliseconds(700))
+        _ = try await collect(channel.execute("second"))
+
+        #expect(server.snapshot.keepalives >= 3)
+        #expect(server.snapshot.connections == 1, "主機有回 keepalive,連線卻被丟掉重撥")
+        await channel.disconnect()
+        await server.stop()
+    }
+
+    @Test("主機不回 keepalive(半開連線):期限到就丟棄連線，下一個指令重新撥號、不重送", .timeLimit(.minutes(1)))
+    func unansweredKeepaliveDropsConnection() async throws {
+        let server = try await TestSSHServer.start(keepalive: .ignore) { _ in .reply(stdout: "ok") }
+        let channel = SSHHostChannel(
+            endpoint: server.endpoint, hostKeyPin: server.fingerprint,
+            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)))
+
+        _ = try await collect(channel.execute("first"))
+        try await Task.sleep(for: .milliseconds(800))
+        let next = try await collect(channel.execute("second"))
+
+        #expect(next.stdout == "ok")
+        #expect(server.snapshot.connections == 2, "keepalive 沒回應，卻繼續用舊連線")
+        #expect(server.snapshot.commands == ["first", "second"])
+        await channel.disconnect()
+        await server.stop()
+    }
+
     @Test("連不上(拒絕連線)回報白話的原因，不是函式庫的錯誤字串")
     func connectionRefused() async throws {
         let server = try await TestSSHServer.start { _ in .reply() }

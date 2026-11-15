@@ -24,11 +24,25 @@ public struct SSHTimeouts: Sendable, Equatable {
     public var handshake: TimeAmount
     /// 開 channel 與等 exec／pty-req 的回覆。
     public var channelOpen: TimeAmount
+    /// 連線閒置時多久送一次 keepalive(`nil` 不送)。iOS 沒有 TCP 層的提早發現，半開連線靠它在使用者動作前就被丟棄。
+    public var keepaliveInterval: TimeAmount?
+    /// keepalive 送出後等主機回應的期限;到了視為半開連線，整條丟棄(下一個指令重撥)。
+    public var keepaliveReply: TimeAmount
+    /// Tailscale SSH check mode:收到驗證網址後，等使用者驗證的上限(取代 `handshake`)。
+    /// tailscaled 自己最多等約 30 分鐘(`delegateFetchTimeout`),這裡取相同值。
+    public var tailscaleCheck: TimeAmount
 
-    public init(connect: TimeAmount = .seconds(10), handshake: TimeAmount = .seconds(15), channelOpen: TimeAmount = .seconds(20)) {
+    public init(
+        connect: TimeAmount = .seconds(10), handshake: TimeAmount = .seconds(15), channelOpen: TimeAmount = .seconds(20),
+        keepaliveInterval: TimeAmount? = .seconds(20), keepaliveReply: TimeAmount = .seconds(15),
+        tailscaleCheck: TimeAmount = .minutes(30)
+    ) {
         self.connect = connect
         self.handshake = handshake
         self.channelOpen = channelOpen
+        self.keepaliveInterval = keepaliveInterval
+        self.keepaliveReply = keepaliveReply
+        self.tailscaleCheck = tailscaleCheck
     }
 }
 
@@ -54,6 +68,10 @@ public enum SSHConnectionError: Error, Equatable, Sendable {
     case connectionLost
     /// 連線健康，但主機拒絕開新的 channel 或拒絕 exec／pty 請求(例如 `MaxSessions`)。
     case channelRejected
+    /// 使用者取消了 Tailscale SSH check mode 的等待。
+    case tailscaleCheckCancelled
+    /// 等 Tailscale SSH check mode 驗證等到期限(`SSHTimeouts.tailscaleCheck`)。
+    case tailscaleCheckTimedOut
 }
 
 /// 真 SSH 的主機通道(ADR-0003:swift-nio-ssh)。
@@ -62,28 +80,36 @@ public enum SSHConnectionError: Error, Equatable, Sendable {
 /// - 失敗的連線不快取;斷掉的連線在下一個指令前丟棄重撥。
 /// - 連線層失敗的指令不自動重送(行為規格 §7.3)。
 /// - 沒有 pin 時不登入，回報主機出示的指紋讓使用者確認(TOFU,行為規格 §8.2)。
+/// - Tailscale SSH check mode:認證時收到驗證網址就經 `tailscaleCheck` 回報、改用較長的期限等使用者驗證，
+///   驗證完連線照常建立，等待中的指令自動繼續。等待期間連線斷了(例如 app 在背景被系統關掉 socket)就重新撥號:
+///   還沒登入、指令還沒送出，重撥不違反「不重送」。使用者可經提示取消等待。
 public actor SSHHostChannel: HostChannel {
     public nonisolated let endpoint: SSHEndpoint
     private let hostKeyPin: HostKeyFingerprint?
     private let credential: SSHCredentialProvider
     private let timeouts: SSHTimeouts
     private let group: any EventLoopGroup
+    private let tailscaleCheck: TailscaleCheckObserver?
 
     private var connection: SSHConnection?
     private var dial: (id: Int, task: Task<SSHConnection, any Error>)?
     private var dialCount = 0
+    /// 使用者取消了這次撥號的 check mode 等待(讓等待中的指令拿到 `.tailscaleCheckCancelled`)。
+    private var checkCancelled = false
 
     /// - Parameter credential: 登入用的憑證，第一次撥號時才取得(Tailscale SSH 是 `none`)。
     public init(
         endpoint: SSHEndpoint, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts = SSHTimeouts(),
         eventLoopGroup: any EventLoopGroup = MultiThreadedEventLoopGroup.singleton,
-        credential: @escaping SSHCredentialProvider = { .none }
+        credential: @escaping SSHCredentialProvider = { .none },
+        tailscaleCheck: TailscaleCheckObserver? = nil
     ) {
         self.endpoint = endpoint
         self.hostKeyPin = hostKeyPin
         self.credential = credential
         self.timeouts = timeouts
         group = eventLoopGroup
+        self.tailscaleCheck = tailscaleCheck
     }
 
     public func execute(_ command: String) async throws -> any ExecSession {
@@ -107,8 +133,9 @@ public actor SSHHostChannel: HostChannel {
         }
     }
 
-    /// 關掉連線(編輯／刪除主機、信任新 key、app 結束時)。進行中的撥號完成後也會自行關閉。
+    /// 關掉連線(編輯／刪除主機、信任新 key、app 結束時)。進行中的撥號(含等待 check mode 驗證)一併取消。
     public func disconnect() async {
+        dial?.task.cancel()
         dial = nil
         let connection = connection
         self.connection = nil
@@ -122,15 +149,38 @@ public actor SSHHostChannel: HostChannel {
             if connection.isActive { return connection }
             self.connection = nil
         }
-        if let dial { return try await dial.task.value }
+        if let dial {
+            do {
+                return try await dial.task.value
+            } catch {
+                throw dialFailure(error)
+            }
+        }
 
         dialCount += 1
         let id = dialCount
-        let task = Task { [endpoint, hostKeyPin, timeouts, group, credential] in
+        checkCancelled = false
+        let cancel: @Sendable () async -> Void = { [weak self] in await self?.cancelTailscaleCheck() }
+        let task = Task { [endpoint, hostKeyPin, timeouts, group, credential, tailscaleCheck] in
             // 讀不到憑證(祕密不在、金鑰壞了)就不撥號。
             let user = try await credential()
-            return try await SSHConnection.connect(
-                to: endpoint, credential: user, hostKeyPin: hostKeyPin, timeouts: timeouts, group: group)
+            let prompt: @Sendable (URL) -> Void = { url in tailscaleCheck?(TailscaleCheckPrompt(url: url, cancel: cancel)) }
+            var prompted = false
+            defer { if prompted { tailscaleCheck?(nil) } }
+            while true {
+                do {
+                    let (connection, checked) = try await SSHConnection.connect(
+                        to: endpoint, credential: user, hostKeyPin: hostKeyPin, timeouts: timeouts, group: group, onCheck: prompt)
+                    prompted = prompted || checked
+                    return connection
+                } catch let interrupted as CheckInterrupted {
+                    prompted = true
+                    try Task.checkCancellation()
+                    // 等驗證時連線斷了：還沒登入，重撥安全;其他失敗(被拒、逾時)照常回報。
+                    guard interrupted.error == .connectionLost else { throw interrupted.error }
+                    try await Task.sleep(for: .seconds(1))
+                }
+            }
         }
         dial = (id, task)
         do {
@@ -145,8 +195,21 @@ public actor SSHHostChannel: HostChannel {
             return connection
         } catch {
             if dial?.id == id { dial = nil }
-            throw error
+            throw dialFailure(error)
         }
+    }
+
+    /// 取消等待 check mode 驗證：關掉這次撥號的連線。
+    func cancelTailscaleCheck() {
+        guard let dial else { return }
+        checkCancelled = true
+        dial.task.cancel()
+    }
+
+    /// 撥號被取消時，依原因換成使用者看得懂的錯誤。
+    private func dialFailure(_ error: any Error) -> any Error {
+        guard error is CancellationError else { return error }
+        return checkCancelled ? SSHConnectionError.tailscaleCheckCancelled : SSHConnectionError.connectionLost
     }
 
     /// 開 channel 失敗時：連線本身斷了才丟棄(下一個指令重撥);連線健康只讓這個請求失敗(行為規格 §7.3)。
@@ -192,12 +255,16 @@ final class SSHConnection: Sendable {
 
     var isActive: Bool { channel.isActive }
 
+    /// 撥號、握手、登入。回傳的 `checked` 表示途中經過 Tailscale SSH check mode。
+    ///
+    /// 經過 check mode 之後才失敗的，丟 `CheckInterrupted`(呼叫端決定要不要重撥);其他失敗丟 `SSHConnectionError`。
+    /// 取消(Task cancellation)會關掉連線。
     static func connect(
         to endpoint: SSHEndpoint, credential: SSHUserCredential, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts,
-        group: any EventLoopGroup
-    ) async throws -> SSHConnection {
+        group: any EventLoopGroup, onCheck: @escaping @Sendable (URL) -> Void
+    ) async throws -> (SSHConnection, checked: Bool) {
         let eventLoop = group.next()
-        let authenticated = eventLoop.makePromise(of: Void.self)
+        let authenticated = eventLoop.makePromise(of: Bool.self)
         let bootstrap = ClientBootstrap(group: eventLoop)
             .connectTimeout(timeouts.connect)
             .channelInitializer { channel in
@@ -207,7 +274,8 @@ final class SSHConnection: Sendable {
                         serverAuthDelegate: HostKeyVerifier(pin: hostKeyPin))
                     try channel.pipeline.syncOperations.addHandler(
                         NIOSSHHandler(role: .client(configuration), allocator: channel.allocator, inboundChildChannelInitializer: nil))
-                    try channel.pipeline.syncOperations.addHandler(HandshakeHandler(authenticated: authenticated))
+                    try channel.pipeline.syncOperations.addHandler(
+                        HandshakeHandler(authenticated: authenticated, timeouts: timeouts, onCheck: onCheck))
                 }
             }
 
@@ -218,17 +286,20 @@ final class SSHConnection: Sendable {
             authenticated.fail(error)
             throw Self.connectFailure(error)
         }
-        let deadline = eventLoop.scheduleTask(in: timeouts.handshake) {
-            authenticated.fail(SSHConnectionError.timedOut)
-        }
         do {
-            try await authenticated.futureResult.get()
-            deadline.cancel()
-            return SSHConnection(channel: channel)
+            let checked = try await withTaskCancellationHandler {
+                try await authenticated.futureResult.get()
+            } onCancel: {
+                channel.close(promise: nil)
+            }
+            if let interval = timeouts.keepaliveInterval {
+                startKeepalive(on: channel, every: interval, replyWithin: timeouts.keepaliveReply)
+            }
+            return (SSHConnection(channel: channel), checked)
         } catch {
             // 握手或認證失敗時一定要關 TCP,否則每次重試留下一個未認證連線(行為規格 §7.1)。
-            deadline.cancel()
             try? await channel.close()
+            if error is CheckInterrupted { throw error }
             throw error as? SSHConnectionError ?? .connectionLost
         }
     }
@@ -274,6 +345,33 @@ final class SSHConnection: Sendable {
 
     func close() async {
         try? await channel.close()
+    }
+
+    /// keepalive(行為規格 §7.4:swift-nio-ssh 可自行實作，Android 版 20 秒)。
+    ///
+    /// swift-nio-ssh 沒有公開送任意 global request 的 API,所以送一個「取消不存在的轉送」
+    /// (`cancel-tcpip-forward`,位址是 `.invalid` 網域、埠 0):主機回成功或失敗都證明連線活著，
+    /// 而且不會影響任何東西。期限內沒有任何回應 = 半開連線 → 關掉整條連線，下一個指令重新撥號;
+    /// 進行中的指令以 `connectionLost` 結束(不重送)。
+    private static func startKeepalive(on channel: any Channel, every interval: TimeAmount, replyWithin limit: TimeAmount) {
+        let eventLoop = channel.eventLoop
+        let task = eventLoop.scheduleRepeatedAsyncTask(initialDelay: interval, delay: interval) { _ in
+            let round = eventLoop.makePromise(of: Void.self)
+            guard channel.isActive, let handler = try? channel.pipeline.syncOperations.handler(type: NIOSSHHandler.self) else {
+                round.succeed()
+                return round.futureResult
+            }
+            let reply = eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+            // 關閉連線時未回應的請求會失敗，這一輪也就跟著結束。
+            let deadline = eventLoop.scheduleTask(in: limit) { channel.close(promise: nil) }
+            reply.futureResult.whenComplete { _ in
+                deadline.cancel()
+                round.succeed()
+            }
+            handler.sendTCPForwardingRequest(.cancel(host: "purrdr-keepalive.invalid", port: 0), promise: reply)
+            return round.futureResult
+        }
+        channel.closeFuture.whenComplete { _ in task.cancel() }
     }
 
     private static func connectFailure(_ error: any Error) -> SSHConnectionError {
@@ -370,28 +468,70 @@ private final class HostKeyVerifier: NIOSSHClientServerAuthenticationDelegate {
     }
 }
 
-/// 等認證成功;握手期間的錯誤或斷線讓撥號失敗。之後的錯誤一律關閉連線。
+/// 經過 Tailscale SSH check mode 之後才失敗的撥號(`error` 是原因)。
+struct CheckInterrupted: Error {
+    let error: SSHConnectionError
+}
+
+/// 等認證成功(值 = 途中是否經過 check mode);握手期間的錯誤、斷線或期限到讓撥號失敗。之後的錯誤一律關閉連線。
+///
+/// 期限從 TCP 連上開始算 `handshake`;收到 Tailscale SSH check mode 的驗證網址後改成 `tailscaleCheck`。
 private final class HandshakeHandler: ChannelInboundHandler {
     typealias InboundIn = Any
-    private let authenticated: EventLoopPromise<Void>
+    private let authenticated: EventLoopPromise<Bool>
+    private let timeouts: SSHTimeouts
+    private let onCheck: @Sendable (URL) -> Void
+    private var deadline: Scheduled<Void>?
+    private var checked = false
 
-    init(authenticated: EventLoopPromise<Void>) {
+    init(authenticated: EventLoopPromise<Bool>, timeouts: SSHTimeouts, onCheck: @escaping @Sendable (URL) -> Void) {
         self.authenticated = authenticated
+        self.timeouts = timeouts
+        self.onCheck = onCheck
+    }
+
+    func channelActive(context: ChannelHandlerContext) {
+        arm(in: timeouts.handshake, failing: .timedOut, context: context)
+        context.fireChannelActive()
     }
 
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
-        if event is UserAuthSuccessEvent { authenticated.succeed() }
+        switch event {
+        case is UserAuthSuccessEvent:
+            deadline?.cancel()
+            authenticated.succeed(checked)
+        case let banner as NIOUserAuthBannerEvent:
+            if let url = TailscaleCheck.authenticationURL(inBanner: banner.message) {
+                checked = true
+                arm(in: timeouts.tailscaleCheck, failing: .tailscaleCheckTimedOut, context: context)
+                onCheck(url)
+            }
+        default:
+            break
+        }
         context.fireUserInboundEventTriggered(event)
     }
 
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
-        authenticated.fail(error)
+        fail(error as? SSHConnectionError ?? .connectionLost)
         context.close(promise: nil)
     }
 
-    func channelInactive(context: ChannelHandlerContext) {
-        authenticated.fail(SSHConnectionError.connectionLost)
-        context.fireChannelInactive()
+    /// NIOSSHHandler 不把 channelInactive 往後傳，所以改看 channel 的 closeFuture 判斷握手期間斷線。
+    func handlerAdded(context: ChannelHandlerContext) {
+        let handler = NIOLoopBound(self, eventLoop: context.eventLoop)
+        context.channel.closeFuture.whenComplete { _ in handler.value.fail(.connectionLost) }
+    }
+
+    private func arm(in time: TimeAmount, failing error: SSHConnectionError, context: ChannelHandlerContext) {
+        deadline?.cancel()
+        let handler = NIOLoopBound(self, eventLoop: context.eventLoop)
+        deadline = context.eventLoop.scheduleTask(in: time) { handler.value.fail(error) }
+    }
+
+    private func fail(_ error: SSHConnectionError) {
+        deadline?.cancel()
+        authenticated.fail(checked ? CheckInterrupted(error: error) : error)
     }
 }
 

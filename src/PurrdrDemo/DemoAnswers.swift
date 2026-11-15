@@ -5,6 +5,7 @@ import Foundation
 /// - weather-app(`w2:p1`)一開始就卡在 Bash 權限提示;依 Claude 的規則只送數字(1–3)就回答掉，變成完成。
 /// - 在 ledger(`w1:p1`)輸入觸發語:「ask me」→ 兩題 AskUserQuestion(逐題數字作答)再到檢閱畫面;
 ///   「trust」→ 資料夾信任(狀態仍是完成，prompt 被 `agent_input_pending` 拒絕;游標起在「No, exit」)。
+/// - 工作中的 Codex(`w3:p1`)畫面上有正在寫的散文(即時預覽);收到 Esc 或 ctrl+c(停止、強制結束)就變完成(#44)。
 /// 錯的按鍵(例如 Claude 的數字加 Enter)不算回答，方便看出規則錯了。範例文字是自己寫的。
 struct DemoAnswers {
     enum Stage: Equatable {
@@ -17,9 +18,15 @@ struct DemoAnswers {
 
     private(set) var stages: [String: Stage] = ["w2:p1": .bashPermission]
 
+    /// 工作中、可以被停止的 pane。
+    static let workingPanes: Set<String> = ["w3:p1"]
+    /// 已經被停止的 pane(變完成)。
+    private(set) var stopped: Set<String> = []
+
     /// snapshot 上要改的 Agent 狀態(沒列的照範例)。
     var statuses: [String: String] {
         var result: [String: String] = ["w2:p1": "done"]
+        for pane in stopped { result[pane] = "done" }
         for (pane, stage) in stages {
             result[pane] = stage == .trust ? "done" : "blocked"
         }
@@ -46,6 +53,10 @@ struct DemoAnswers {
 
     /// 收到按鍵：照 Claude 的規則(只送數字;信任提示用方向鍵)推進。
     mutating func receivedKeys(_ keys: [String], paneID: String) {
+        if Self.workingPanes.contains(paneID), keys == ["esc"] || keys == ["ctrl+c"] {
+            stopped.insert(paneID)
+            return
+        }
         guard let stage = stages[paneID] else { return }
         switch (stage, keys) {
         case (.bashPermission, ["1"]), (.bashPermission, ["2"]), (.bashPermission, ["3"]):
@@ -74,7 +85,7 @@ struct DemoAnswers {
                                 options: ["Small", "Medium", "Large"])
         case .askReview: Self.review
         case .trust: Self.trust
-        case nil: Self.idle
+        case nil: Self.workingPanes.contains(paneID) && !stopped.contains(paneID) ? Self.codexWorking : Self.idle
         }
     }
 
@@ -147,6 +158,20 @@ struct DemoAnswers {
            Yes, I trust this folder
 
          Enter to confirm · Esc to cancel
+
+        """
+
+    /// Codex 工作中：正在寫的散文、狀態行、輸入框。
+    private static let codexWorking = """
+        • Explored
+          └ Read sync.swift, README.md
+
+        • The notes sync now writes one Markdown file per notebook, so the
+          export folder mirrors the sidebar on your Mac.
+
+        • Working (14s • esc to interrupt)
+
+        › Ask Codex to do anything
 
         """
 
