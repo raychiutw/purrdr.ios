@@ -101,13 +101,13 @@
         }
       }
     },
-    "%lld images" : {
+    "%lld lines of output" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 張圖片"
+            "value" : "%lld 行輸出"
           }
         }
       }
@@ -215,6 +215,17 @@
         }
       }
     },
+    "1 line of output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 行輸出"
+          }
+        }
+      }
+    },
     "1 month" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -314,6 +325,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增主機"
+          }
+        }
+      }
+    },
+    "Add Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入圖片"
           }
         }
       }
@@ -513,6 +535,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "問了 1 個問題"
+          }
+        }
+      }
+    },
+    "Attached image %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加的第 %lld 張圖片"
           }
         }
       }
@@ -1111,6 +1144,17 @@
         }
       }
     },
+    "Copy Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝輸出"
+          }
+        }
+      }
+    },
     "Copy Public Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1254,6 +1298,17 @@
         }
       }
     },
+    "Couldn’t read that image." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這張圖片。"
+          }
+        }
+      }
+    },
     "Couldn’t read the choices. These send common answers; check the terminal if you’re not sure." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1382,6 +1437,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法更新對話，正在重試…"
+          }
+        }
+      }
+    },
+    "Couldn’t upload the image to the host. Your message wasn’t sent; try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法把圖片上傳到主機。訊息沒有送出，請再試一次。"
           }
         }
       }
@@ -1936,6 +2002,39 @@
         }
       }
     },
+    "Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片"
+          }
+        }
+      }
+    },
+    "Image %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 張圖片"
+          }
+        }
+      }
+    },
+    "Image on the host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片在主機上"
+          }
+        }
+      }
+    },
     "Imported Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2442,6 +2541,28 @@
         }
       }
     },
+    "No output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無輸出"
+          }
+        }
+      }
+    },
+    "No output recorded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有記錄輸出"
+          }
+        }
+      }
+    },
     "None" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2739,6 +2860,17 @@
         }
       }
     },
+    "Opens the image full screen." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以全螢幕打開圖片。"
+          }
+        }
+      }
+    },
     "Opens the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2768,6 +2900,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他 Skill"
+          }
+        }
+      }
+    },
+    "Output truncated at 20,000 characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出超過 20,000 字，已截斷"
           }
         }
       }
@@ -2816,6 +2959,17 @@
         }
       }
     },
+    "Paste Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上圖片"
+          }
+        }
+      }
+    },
     "Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys aren’t supported. The key and passphrase are kept in this device’s keychain." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2845,6 +2999,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認後即收取 %@。"
+          }
+        }
+      }
+    },
+    "Photo Library" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片圖庫"
           }
         }
       }
@@ -3146,6 +3311,17 @@
         }
       }
     },
+    "Remove Image %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除第 %lld 張圖片"
+          }
+        }
+      }
+    },
     "Removing the plugin…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3340,6 +3516,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行中"
+          }
+        }
+      }
+    },
+    "Running…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行中…"
           }
         }
       }
@@ -3593,6 +3780,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示"
+          }
+        }
+      }
+    },
+    "Show All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示全部"
           }
         }
       }
@@ -4015,6 +4213,17 @@
         }
       }
     },
+    "Take Photo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍照"
+          }
+        }
+      }
+    },
     "Taken Over" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4022,6 +4231,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已被接管"
+          }
+        }
+      }
+    },
+    "Tap to close." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下關閉。"
           }
         }
       }
@@ -4774,6 +4994,17 @@
         }
       }
     },
+    "This runs in the agent’s shell and won’t be sent to Claude." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會在 agent 的 shell 執行，不會送給 Claude。"
+          }
+        }
+      }
+    },
     "This subagent’s transcript isn’t on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5309,6 +5540,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "昨天"
+          }
+        }
+      }
+    },
+    "You can attach up to 4 images to a message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一則訊息最多附加 4 張圖片。"
           }
         }
       }

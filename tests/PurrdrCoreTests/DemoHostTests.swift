@@ -113,6 +113,59 @@ struct DemoHostTests {
         #expect(window.end == after.size)
     }
 
+    @Test("圖片：Demo 收下上傳(stdin 到 EOF)回傳上傳資料夾的路徑;送出帶路徑的 prompt 後對話紀錄像 Claude 一樣記成圖片")
+    func uploadAndImagePrompt() async throws {
+        let host = DemoHost()
+        let name = try #require(UploadFileName("mh1a2b3c-k9x2m4p7.jpg"))
+        let path = try await ImageUploader(channel: host).upload(Data(count: 200_000), named: name)
+        #expect(path == "/Users/demo/.purrdr/uploads/mh1a2b3c-k9x2m4p7.jpg")
+        // 大小不符(上傳中斷)時 Demo 也失敗。
+        let short = try await host.execute(ImageUploadCommand.posix(name: name, size: 10))
+        try await short.write(Data(count: 3))
+        await short.closeStdin()
+        var exit: Int32?
+        for try await case .exit(let code, _) in short.output { exit = code }
+        #expect(exit != 0)
+
+        let client = HerdrClient(channel: host)
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        let prompt = UploadedImages.prompt(text: "What is this?", paths: [path])
+        _ = await PromptDelivery(client: client).send(prompt, to: try #require(try await client.snapshot().agents.first))
+
+        guard case .appended(let chunk) = try await reader.tail(path: before.path, from: before.size),
+              case .user(let bubble)? = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:))).first else {
+            Issue.record("對話紀錄應接上使用者訊息")
+            return
+        }
+        #expect(bubble.text == "What is this?")
+        #expect(bubble.imageCount == 1)
+        #expect(bubble.imagePaths == [path])
+    }
+
+    @Test("送出 `!` 指令:Demo 的 Claude 不等待就收下，對話紀錄接著出現 shell 交換(輸入行與輸出行)")
+    func shellCommandAppendsShellExchange() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+
+        let outcome = await PromptDelivery(client: client).send("!ls Sources", to: try #require(try await client.snapshot().agents.first))
+
+        #expect(outcome == .submittedCommand)
+        guard case .appended(let chunk) = try await reader.tail(path: before.path, from: before.size) else {
+            Issue.record("對話紀錄應接上新的行")
+            return
+        }
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        guard items.count == 1, case .shell(let run) = items[0], case .recorded(let output) = run.output else {
+            Issue.record("應該只有一個有輸出的 shell 區塊：\(items)")
+            return
+        }
+        #expect(run.command == "ls Sources")
+        #expect(!output.stdout.isEmpty)
+    }
+
     @Test("送出 prompt:Demo 的「需要你」agent 拒絕(agent_blocked),要先回答")
     func blockedDemoAgentNeedsAnswer() async throws {
         let client = HerdrClient(channel: DemoHost())

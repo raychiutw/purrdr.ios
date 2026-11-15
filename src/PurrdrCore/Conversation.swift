@@ -16,6 +16,8 @@ public enum ConversationItem: Sendable, Equatable, Identifiable {
     case subagent(SubagentCard)
     /// Workflow 卡(`Workflow` 工具,F10)。
     case workflow(WorkflowCard)
+    /// Shell `!` 指令與它的輸出(F5.9)。
+    case shell(ShellRun)
 
     public var id: String {
         switch self {
@@ -26,6 +28,7 @@ public enum ConversationItem: Sendable, Equatable, Identifiable {
         case .note(let item): item.id
         case .subagent(let item): item.id
         case .workflow(let item): item.id
+        case .shell(let item): item.id
         }
     }
 }
@@ -35,12 +38,15 @@ public struct UserBubble: Sendable, Equatable {
     public var text: String
     public var date: Date?
     public var imageCount: Int
+    /// 主機上的圖片路徑(Purrdr 上傳的圖片;畫面依檔名找手機上的副本)。
+    public var imagePaths: [String]
 
-    public init(id: String, text: String, date: Date?, imageCount: Int) {
+    public init(id: String, text: String, date: Date?, imageCount: Int, imagePaths: [String] = []) {
         self.id = id
         self.text = text
         self.date = date
         self.imageCount = imageCount
+        self.imagePaths = imagePaths
     }
 }
 
@@ -59,6 +65,30 @@ public struct AgentText: Sendable, Equatable {
 public struct SkillLoaded: Sendable, Equatable {
     public var id: String
     public var name: String
+}
+
+/// 使用者在 Claude 輸入 `!指令` 後，在 agent 的 shell 執行的一個指令(行為規格 F5.9)。
+public struct ShellRun: Sendable, Equatable {
+    public enum Output: Sendable, Equatable {
+        /// 對話紀錄最後一行就是這個指令：還在執行。
+        case running
+        /// 下一行不是它的輸出(中斷):沒有記錄輸出。
+        case notRecorded
+        case recorded(ShellOutput)
+    }
+
+    public var id: String
+    /// 修剪過的指令(不解 HTML 跳脫)。
+    public var command: String
+    public var date: Date?
+    public var output: Output
+
+    public init(id: String, command: String, date: Date?, output: Output) {
+        self.id = id
+        self.command = command
+        self.date = date
+        self.output = output
+    }
 }
 
 public struct SystemNote: Sendable, Equatable {
@@ -157,10 +187,15 @@ public enum Conversation {
     public static func preview(of messages: [TranscriptMessage]) -> MessagePreview? {
         for message in messages.reversed() where !message.isSidechain && message.role != .system {
             let texts = message.parts.compactMap { part -> String? in
-                if case .text(let text) = part { return text }
-                return nil
+                switch part {
+                case .text(let text): text
+                case .shellInput(let command): "! " + command
+                default: nil
+                }
             }
-            guard let text = texts.last else { continue }
+            // 使用者訊息的圖片路徑不進預覽(F6.6)。
+            let candidate = message.role == .user ? UploadedImages.extract(from: texts.joined(separator: "\n")).text : texts.last
+            guard let text = candidate else { continue }
             let plain = text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "__", with: "")
                 .replacingOccurrences(of: "`", with: "")
                 .split(separator: "\n", omittingEmptySubsequences: false)
@@ -207,8 +242,17 @@ public enum Conversation {
         var delegationsByTask: [String: Int] = [:]
         /// 卡片收到的 hand-back 報告(回報內容優先取它，F10)。
         var handBacks: [Int: String] = [:]
+        /// 還在等輸出的 shell 區塊(在 `items` 中的位置)。
+        var pendingShell: Int?
 
         mutating func add(_ message: TranscriptMessage) {
+            // Shell 指令只和**下一則**訊息配對：下一則不是輸出 → 中斷(沒有記錄輸出,F5.9)。
+            let shellAwaitingOutput = pendingShell
+            pendingShell = nil
+            if let index = shellAwaitingOutput, !message.parts.contains(where: \.isShellOutput), case .shell(var run) = items[index] {
+                run.output = .notRecorded
+                items[index] = .shell(run)
+            }
             var images = 0
             var userTexts: [String] = []
             for (index, part) in message.parts.enumerated() {
@@ -248,11 +292,23 @@ public enum Conversation {
                     items.append(.note(SystemNote(id: partID, text: text)))
                 case .images(let count):
                     images += count
+                case .shellInput(let command):
+                    close()
+                    items.append(.shell(ShellRun(id: partID, command: command, date: message.date, output: .running)))
+                    pendingShell = items.count - 1
+                case .shellOutput(let output):
+                    if let index = shellAwaitingOutput, case .shell(var run) = items[index] {
+                        run.output = .recorded(output)
+                        items[index] = .shell(run)
+                    }
                 }
             }
-            if !userTexts.isEmpty || images > 0 {
+            let (text, paths) = UploadedImages.extract(from: userTexts.joined(separator: "\n"))
+            // Claude 同一張圖有圖片區塊也有來源註記：取兩者較大者，不重複計算。
+            let imageCount = max(images, paths.count)
+            if !text.isEmpty || imageCount > 0 {
                 close()
-                items.append(.user(UserBubble(id: message.id, text: userTexts.joined(separator: "\n"), date: message.date, imageCount: images)))
+                items.append(.user(UserBubble(id: message.id, text: text, date: message.date, imageCount: imageCount, imagePaths: paths)))
             }
         }
 
@@ -419,5 +475,11 @@ public enum Conversation {
             }
         }
         return summary
+    }
+}
+
+extension TranscriptPart {
+    var isShellOutput: Bool {
+        if case .shellOutput = self { true } else { false }
     }
 }

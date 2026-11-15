@@ -154,8 +154,17 @@ enum DemoTranscripts {
     static func reply(to prompt: String, number: Int, at date: Date) -> [String] {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if prompt.hasPrefix("!") {
+            // Shell `!` 指令(F5.9):Claude 記成兩個連續的使用者行——輸入與輸出。
+            let command = String(prompt.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            return [
+                user("d3m0-p-\(number)-i", formatter.string(from: date), "<bash-input>\(command)</bash-input>"),
+                user("d3m0-p-\(number)-o", formatter.string(from: date.addingTimeInterval(1)),
+                     "<bash-stdout>demo: this is the demo host, so the command did not run.\nOn your own computer, its output would appear here.</bash-stdout><bash-stderr></bash-stderr>"),
+            ]
+        }
         return [
-            user("d3m0-p-\(number)-u", formatter.string(from: date), prompt),
+            userPrompt("d3m0-p-\(number)-u", formatter.string(from: date), prompt),
             assistantText("d3m0-p-\(number)-a", formatter.string(from: date.addingTimeInterval(2)), """
             This is the demo host, so nothing actually ran. On your own computer, the agent would pick up your message \
             and its reply would appear here.
@@ -245,6 +254,24 @@ enum DemoTranscripts {
         object["promptId"] = uuid
         object["origin"] = ["kind": "human"]
         object["message"] = ["role": "user", "content": text]
+        return line(object)
+    }
+
+    /// 送出的 prompt 記成使用者行。帶上傳圖片時照 Claude Code 的寫法：路徑行換成 `[Image #N]`,
+    /// 每張另有圖片區塊與 `[Image: source: <路徑>]`(行為規格 F6.6)。
+    private static func userPrompt(_ uuid: String, _ timestamp: String, _ prompt: String) -> String {
+        let (text, paths) = UploadedImages.extract(from: prompt)
+        guard !paths.isEmpty else { return user(uuid, timestamp, prompt) }
+        var object = base("user", uuid, timestamp)
+        object["promptId"] = uuid
+        object["origin"] = ["kind": "human"]
+        let markers = paths.indices.map { "[Image #\($0 + 1)]" }.joined(separator: " ")
+        var content: [[String: Any]] = [["type": "text", "text": text.isEmpty ? markers : text + "\n\n" + markers]]
+        for path in paths {
+            content.append(["type": "text", "text": "[Image: source: \(path)]"])
+            content.append(["type": "image", "source": ["type": "base64", "media_type": "image/jpeg", "data": ""]])
+        }
+        object["message"] = ["role": "user", "content": content]
         return line(object)
     }
 

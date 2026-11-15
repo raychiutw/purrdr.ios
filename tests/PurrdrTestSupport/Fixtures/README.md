@@ -50,6 +50,15 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - **兩份來源合在一起**:第 5–7 行(`SendMessage`、續跑結果、排隊中的通知)取自另一份對話紀錄，收件的 agent id 換成第 0–2 行背景 agent 的 id,好組成「完成 → 續跑 → 再回報」的序列;因此第 7 行的時間戳早於第 5、6 行(判斷依檔案順序，不看時間戳)。
 - 擷取腳本的做法：以 Python 讀 JSON、依欄位名換值，再 `grep` 確認沒有真實的使用者名稱、專案名稱、主機名或原始 id。
 
+`claude-code/shell.jsonl`(#43):從作者 Mac 上真實的 Claude Code 2.1.317–2.1.322 對話紀錄擷取六組 `!` 指令(`<bash-input>` 行 + 下一行 `<bash-stdout>`/`<bash-stderr>`),2026-11-16。只讀取來源，不改動。
+
+- 六組涵蓋：一行輸出(行首空白)、67 行 stdout + stderr、HTML 跳脫的 `-&gt;`、`(Bash completed with no output)`、只有 stderr、含 ANSI 色碼的輸出。每組之後接一行 `file-history-snapshot`(真實紀錄也是這樣交錯)。
+- **保留原樣**:行的欄位與旗標(`promptId`、`turnOrigin`、`turnPosition`、`userType`、`entrypoint`、`version`)、指令與輸出的前導空白與換行位置、`<bash-stderr>` 開頭的換行、ANSI 序列、跳脫字、空的 stderr 標籤;同一組內兩行的時間差。
+- **換成假值**:指令與輸出中的路徑、專案與資料名稱、網址、雜湊、資料庫 id、金鑰名稱;uuid(`00000000-0000-4000-8000-0000000001…`)、session id、cwd、gitBranch;時間戳平移到 2026-11-14,各組間隔 5 分鐘。拿掉 `slug` 等其他欄位。
+- **最後一行(執行中)是手寫的**:以第一組的輸入行為底，只換指令與時間;真實紀錄中執行中的指令就是檔尾的 `<bash-input>` 行。
+- 中斷、`&amp;`、`<persisted-output>`、超長輸出錄不到，測試以其中一行為底改動(見 `ShellExchangeTests`)。
+- 擷取腳本的做法：以 Python 讀 JSON、只留上列欄位、依字串表換值，再 `grep` 確認沒有真實的使用者名稱、專案名稱、主機名或原始 id。
+
 `claude-code/workflow/`(#17):**不是錄製的**。作者 Mac 上所有 `~/.claude/projects` 都沒有 `Workflow` 工具的紀錄、run 檔或 journal,所以 `run.json` 與 `journal.jsonl` 依行為規格 §4.6 描述的欄位寫成(journal 最後一行刻意撕裂)。測試裡 `Workflow` 呼叫與「Workflow launched」結果也是以 `delegation.jsonl` 的行為底改成。之後錄得到真實 workflow 時應換掉。
 
 ## 錄不到、以真實回應為底改動的情境

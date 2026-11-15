@@ -17,6 +17,8 @@ public struct ConversationView: View {
     @State private var userIsScrolling = false
     /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
+    /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
+    @State private var viewerImage: ViewerImage?
 
     public init(model: ConversationModel) {
         self.model = model
@@ -49,6 +51,11 @@ public struct ConversationView: View {
                 }
             }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model) }
+            .environment(\.bubbleImages, BubbleImageContext(
+                localImage: { [model] in model.localImage(forHostPath: $0) },
+                show: { viewerImage = ViewerImage(url: $0) }
+            ))
+            .imageViewer(item: $viewerImage)
             .environment(\.delegationContext, DelegationContext(
                 workflowModel: { [model] in model.workflowModel(for: $0) },
                 canOpen: { [model] in model.canOpen($0) }
@@ -336,6 +343,8 @@ struct ConversationItemView: View {
             SubagentCardView(card: card)
         case .workflow(let card):
             WorkflowCardView(card: card)
+        case .shell(let run):
+            ShellRunView(run: run)
         }
     }
 }
@@ -343,21 +352,24 @@ struct ConversationItemView: View {
 /// 使用者泡泡：右對齊、tint 填色(#D91E36 配白字 5.0:1)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
 struct UserBubbleView: View {
     let bubble: UserBubble
+    @Environment(\.bubbleImages) private var context
 
     var body: some View {
         HStack {
             Spacer(minLength: 44)
             VStack(alignment: .trailing, spacing: 4) {
-                Text(bubble.text)
-                    .foregroundStyle(.white)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.tint, in: RoundedRectangle(cornerRadius: 18))
                 if bubble.imageCount > 0 {
-                    Label("\(bubble.imageCount) images", systemImage: "photo")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    // 主機路徑依檔名找手機上的副本;路徑數不足(例如只有圖片區塊)的部分顯示「Image」標籤。
+                    let known = bubble.imagePaths.map { context.localImage($0) }
+                    BubbleImagesView(images: known + Array(repeating: nil, count: max(0, bubble.imageCount - known.count)))
+                }
+                if !bubble.text.isEmpty {
+                    Text(bubble.text)
+                        .foregroundStyle(.white)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(.tint, in: RoundedRectangle(cornerRadius: 18))
                 }
                 if let date = bubble.date {
                     Text(date, format: .dateTime.hour().minute())
@@ -366,7 +378,7 @@ struct UserBubbleView: View {
                 }
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Your message. \(bubble.text)"))
         .accessibilityIdentifier("conversation.user")
     }

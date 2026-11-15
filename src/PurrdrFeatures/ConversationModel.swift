@@ -129,6 +129,84 @@ public final class ConversationModel {
     /// 輸入 `/` 時的 slash 選單(#15)。
     public let slash: SlashMenuModel
     public private(set) var isSending = false
+
+    // MARK: 圖片(F7)
+
+    /// 一則最多幾張圖片。
+    public static let maximumImages = 4
+    /// 輸入列上的圖片附件(送出被接受時才清)。
+    public private(set) var attachments: [ComposerAttachment] = []
+    @ObservationIgnored private let images: ComposerImages?
+    /// 這台主機能不能附加圖片(有上傳器;目前只有 Unix 主機)。
+    public var canAttachImages: Bool { images != nil }
+    public var remainingImageSlots: Int { max(0, Self.maximumImages - attachments.count) }
+
+    /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過 4 張的部分不加入並提示。
+    public func addImages(_ items: [Data]) async {
+        guard let images, !items.isEmpty else { return }
+        if items.count > remainingImageSlots { notice = .imageLimit }
+        for data in items.prefix(remainingImageSlots) {
+            let prepared = await Task.detached(priority: .userInitiated) { ImagePreparation.prepare(data) }.value
+            guard let prepared, remainingImageSlots > 0 else {
+                if prepared == nil { notice = .imageUnreadable }
+                continue
+            }
+            let name = images.makeName()
+            do {
+                try images.store.save(prepared.jpeg, as: name.value)
+            } catch {
+                notice = .imageUnreadable
+                continue
+            }
+            attachments.append(ComposerAttachment(fileName: name, pixelWidth: prepared.width, pixelHeight: prepared.height))
+            saveAttachments()
+        }
+    }
+
+    /// 已滿 4 張時點「加入圖片」:提示上限(F7)。
+    public func noteImageLimit() { notice = .imageLimit }
+
+    /// 移除附件。送出(上傳)中不能移除。
+    public func removeAttachment(_ id: String) {
+        guard !isSending else { return }
+        attachments.removeAll { $0.id == id }
+        saveAttachments()
+    }
+
+    /// 泡泡裡的主機圖片路徑 → 手機上的副本(依檔名;找不到就是 `nil`,畫面顯示「圖片」標籤)。
+    public func localImage(forHostPath path: String) -> URL? {
+        guard let name = path.split(separator: "/").last else { return nil }
+        return localImage(named: String(name))
+    }
+
+    public func localImage(named name: String) -> URL? {
+        images?.store.url(of: name)
+    }
+
+    private func saveAttachments() {
+        drafts.saveAttachments(attachments, chatKey: chatKey)
+    }
+
+    /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗回傳 `nil`:整則不送(F6.5)。
+    private func uploadAttachments() async -> [String]? {
+        guard let images else { return attachments.isEmpty ? [] : nil }
+        var paths: [String] = []
+        for index in attachments.indices {
+            if let path = attachments[index].uploadedPath {
+                paths.append(path)
+                continue
+            }
+            let name = attachments[index].fileName
+            guard let url = images.store.url(of: name.value), let data = try? Data(contentsOf: url),
+                  let path = try? await images.uploader.upload(data, named: name) else { return nil }
+            if let current = attachments.firstIndex(where: { $0.fileName == name }) {
+                attachments[current].uploadedPath = path
+            }
+            paths.append(path)
+        }
+        saveAttachments()
+        return paths
+    }
     /// 還沒被對話紀錄確認的回音。
     public private(set) var echoes: [PromptEcho] = []
     /// 畫面上的列：對話紀錄的項目，加上依時間併入的回音。
@@ -199,8 +277,10 @@ public final class ConversationModel {
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: ClaudeSlashDiscovery? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: String? = nil,
+        images: ComposerImages? = nil,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
+        self.images = images
         self.client = client
         self.transcripts = transcripts
         self.paneID = paneID
@@ -217,6 +297,7 @@ public final class ConversationModel {
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
+        if images != nil { attachments = drafts.attachments(chatKey: paneID) }
         slash.loader = { [weak self] in await self?.slashCatalog() }
         slash.onPick = { [weak self] in self?.draft = $0 }
         slash.update(draft: draft)
@@ -478,9 +559,15 @@ public final class ConversationModel {
 
     // MARK: - 送出
 
-    /// 可送 = 修剪後非空、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
+    /// 可送 = 修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     public var canSend: Bool {
-        !isSending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasTarget
+        !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
+    }
+
+    /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
+    public var isShellMode: Bool {
+        guard let kind = currentAgent?.kind else { return false }
+        return PromptDelivery.isShellCommand(draft, kind: kind)
     }
 
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
@@ -506,12 +593,30 @@ public final class ConversationModel {
         }
         notice = nil
         draft = ""
-        let echo = PromptEcho(id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs)
+        let sentImages = attachments
+        let echo = PromptEcho(
+            id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs,
+            imageCount: sentImages.count, imageFiles: sentImages.map(\.fileName.value)
+        )
         echoes.append(echo)
         rebuildEntries()
+        // 圖片先逐張上傳;任何一張失敗 → 整則不送，草稿與圖片保留(F6.5、F7)。
+        guard let paths = await uploadAttachments() else {
+            removeEcho(echo.id)
+            restoreDraft(text)
+            notice = .uploadFailed
+            return
+        }
+        if let index = echoes.firstIndex(where: { $0.id == echo.id }) { echoes[index].imagePaths = paths }
+        let prompt = UploadedImages.prompt(text: text, paths: paths)
         switch await freshTarget() {
         case .success(let agent):
-            apply(await delivery.send(text, to: agent), toEcho: echo.id, text: text, isRetry: false)
+            apply(await delivery.send(prompt, to: agent), toEcho: echo.id, text: text, isRetry: false)
+            // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
+            if !Self.nothingSent(notice) {
+                attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
+                saveAttachments()
+            }
             if notice == .needsAnswer {
                 // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
                 probeScreen = true
@@ -528,12 +633,14 @@ public final class ConversationModel {
     public func retry(echoID: String) async {
         guard let index = echoes.firstIndex(where: { $0.id == echoID }), case .failed(let failure) = echoes[index].state else { return }
         let text = echoes[index].text
+        // 重試送同樣文字與已上傳的路徑，不重傳(F6.5)。
+        let prompt = UploadedImages.prompt(text: text, paths: echoes[index].imagePaths)
         echoes[index].state = .sending
         rebuildEntries()
         notice = nil
         switch await freshTarget() {
         case .success(let agent):
-            apply(await delivery.send(text, to: agent), toEcho: echoID, text: text, isRetry: true)
+            apply(await delivery.send(prompt, to: agent), toEcho: echoID, text: text, isRetry: true)
         case .failure(let targetFailure):
             setEcho(echoID, state: .failed(failure))
             notice = targetFailure.notice
@@ -754,6 +861,14 @@ public final class ConversationModel {
         }
     }
 
+    /// 什麼都沒送出的提示(草稿放回)。
+    private static func nothingSent(_ notice: SendNotice?) -> Bool {
+        switch notice {
+        case .needsAnswer?, .rejected?: true
+        default: false
+        }
+    }
+
     /// 被拒的文字放回輸入框(使用者這段時間又打了字就不蓋掉)。
     private func restoreDraft(_ text: String) {
         if draft.isEmpty { draft = text }
@@ -771,16 +886,23 @@ public final class ConversationModel {
     }
 
     private var userMessageIDs: Set<String> {
-        Set(items.compactMap { item in
-            if case .user(let bubble) = item { bubble.id } else { nil }
-        })
+        Set(userTurns.map(\.id))
+    }
+
+    /// 使用者送出的內容：泡泡，以及 shell 區塊(以 `!指令` 比對回音,F6.4)。
+    private var userTurns: [UserBubble] {
+        items.compactMap { item -> UserBubble? in
+            switch item {
+            case .user(let bubble): bubble
+            case .shell(let run): UserBubble(id: run.id, text: "!" + run.command, date: run.date, imageCount: 0)
+            default: nil
+            }
+        }
     }
 
     /// 以對話紀錄確認回音;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
     private func rebuildEntries() {
-        let bubbles = items.compactMap { item -> UserBubble? in
-            if case .user(let bubble) = item { bubble } else { nil }
-        }
+        let bubbles = userTurns
         let remaining = EchoMatching.confirm(echoes, against: bubbles, consumed: &consumedUserIDs)
         if remaining.count < echoes.count {
             echoes = remaining
@@ -892,6 +1014,12 @@ public enum SendNotice: Sendable, Equatable {
     case noResponse
     /// 不知道有沒有送到。
     case unconfirmed(UnconfirmedReason)
+    /// 一則最多 4 張圖片(F7)。
+    case imageLimit
+    /// 讀不出圖片。
+    case imageUnreadable
+    /// 圖片上傳失敗：整則沒送出，草稿與圖片保留。
+    case uploadFailed
     /// 停止後 3 秒仍在工作。
     case stillWorking
     /// 送不出中斷的按鍵。

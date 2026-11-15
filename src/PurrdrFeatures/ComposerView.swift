@@ -22,11 +22,20 @@ struct ComposerBar: View {
             if model.slash.isVisible {
                 SlashMenuView(menu: model.slash)
             }
+            if model.isShellMode {
+                ShellModeHint()
+            }
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
+            if !model.attachments.isEmpty {
+                AttachmentStrip(model: model)
+            }
             GlassEffectContainer(spacing: 8) {
                 HStack(alignment: .bottom, spacing: 8) {
+                    if model.canAttachImages {
+                        AddImageButton(model: model)
+                    }
                     editor
                     if isFocused {
                         hideKeyboardButton
@@ -44,7 +53,17 @@ struct ComposerBar: View {
     private var editor: some View {
         ComposerTextEditor(
             text: $model.draft, isFocused: $isFocused, returnSends: returnSends, canSend: model.canSend,
-            slashKey: { model.slash.handle($0) }
+            slashKey: { model.slash.handle($0) },
+            pasteAction: { [model] in
+                ComposerPaste.action(
+                    hasImages: model.canAttachImages && ImageSources.pasteboardHasImages,
+                    hasStrings: ImageSources.pasteboardHasStrings, remainingSlots: model.remainingImageSlots)
+            },
+            onPasteImages: { [model] in
+                // Command-V 貼上剪貼簿裡的圖片(只有圖片、沒有文字時,F6.3)。
+                let images = ImageSources.pasteboardImages()
+                Task { await model.addImages(images) }
+            }
         ) {
             send()
         }
@@ -112,6 +131,20 @@ struct ComposerBar: View {
 
 // MARK: - 提示
 
+/// Shell 模式提示(F6.4):Claude 聊天的草稿以 `!` 開頭時，說明這會在 agent 的 shell 執行，不會送給 Claude。
+struct ShellModeHint: View {
+    var body: some View {
+        Label("This runs in the agent’s shell and won’t be sent to Claude.", systemImage: "terminal")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+            .accessibilityIdentifier("composer.shellHint")
+    }
+}
+
 /// 送出與中斷的提示：留在畫面上直到使用者關閉、下一次送出或對話紀錄確認(不自動消失,R-P11)。
 struct SendNoticeView: View {
     let notice: SendNotice
@@ -154,6 +187,9 @@ extension SendNotice {
         case .stillWorking: String(localized: "The agent is still working. Tap Stop again, or press and hold to force quit.")
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
         case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
+        case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
+        case .imageUnreadable: String(localized: "Couldn’t read that image.")
+        case .uploadFailed: String(localized: "Couldn’t upload the image to the host. Your message wasn’t sent; try again.")
         }
     }
 
@@ -162,7 +198,8 @@ extension SendNotice {
         case .needsAnswer, .interruptRefusedNeedsAnswer: "exclamationmark.circle"
         case .agentGone, .superseded: "xmark.bubble"
         case .offline: "wifi.slash"
-        case .rejected, .noResponse, .interruptFailed: "exclamationmark.triangle"
+        case .rejected, .noResponse, .interruptFailed, .uploadFailed: "exclamationmark.triangle"
+        case .imageLimit, .imageUnreadable: "photo"
         case .unconfirmed: "questionmark.circle"
         case .stillWorking: "ellipsis.circle"
         }
@@ -175,18 +212,24 @@ extension SendNotice {
 struct EchoBubbleView: View {
     let echo: PromptEcho
     let retry: () -> Void
+    @Environment(\.bubbleImages) private var context
 
     var body: some View {
         HStack {
             Spacer(minLength: 44)
             VStack(alignment: .trailing, spacing: 4) {
-                Text(echo.text)
-                    .foregroundStyle(.white)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.tint, in: RoundedRectangle(cornerRadius: 18))
-                    .accessibilityLabel(Text("Your message. \(echo.text)"))
+                if !echo.imageFiles.isEmpty {
+                    BubbleImagesView(images: echo.imageFiles.map { context.localImage($0) })
+                }
+                if !echo.text.isEmpty {
+                    Text(echo.text)
+                        .foregroundStyle(.white)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(.tint, in: RoundedRectangle(cornerRadius: 18))
+                        .accessibilityLabel(Text("Your message. \(echo.text)"))
+                }
                 status
             }
         }
@@ -241,6 +284,9 @@ struct ComposerTextEditor: UIViewRepresentable {
     var canSend: Bool
     /// slash 選單顯示時攔截硬體鍵盤的上下、Return、Tab、Esc(回傳 true 表示已處理)。
     var slashKey: (SlashMenuModel.Key) -> Bool
+    /// 貼上(Command-V 或編輯選單)時要當圖片附件還是交給系統。
+    var pasteAction: () -> ComposerPaste.Action
+    var onPasteImages: () -> Void
     var onSend: () -> Void
 
     /// 長到 4 行後內捲(F6.1)。
@@ -271,6 +317,8 @@ struct ComposerTextEditor: UIViewRepresentable {
         }
         view.onSend = onSend
         view.slashKey = slashKey
+        view.pasteAction = pasteAction
+        view.onPasteImages = onPasteImages
         if view.text != text {
             // 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3)。
             let fromEnd = (view.text as NSString).length - view.selectedRange.location - view.selectedRange.length
@@ -323,6 +371,22 @@ final class KeyHandlingTextView: UITextView {
     var onSend: (() -> Void)?
     var slashKey: ((SlashMenuModel.Key) -> Bool)?
     private var handled = Set<UIPress>()
+    var pasteAction: (() -> ComposerPaste.Action)?
+    var onPasteImages: (() -> Void)?
+
+    /// 剪貼簿只有圖片時，貼上是加成附件(#37 故事 33);其他照系統貼上文字。
+    override func paste(_ sender: Any?) {
+        if pasteAction?() == .attachImages {
+            onPasteImages?()
+            return
+        }
+        super.paste(sender)
+    }
+
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)), pasteAction?() == .attachImages { return true }
+        return super.canPerformAction(action, withSender: sender)
+    }
 
     /// 硬體鍵盤的按鍵 → slash 選單操作(沒有修飾鍵、不在組字中)。
     private func slashMenuKey(for key: UIKey) -> SlashMenuModel.Key? {
@@ -387,6 +451,8 @@ struct ComposerTextEditor: View {
     var returnSends: Bool
     var canSend: Bool
     var slashKey: (SlashMenuModel.Key) -> Bool
+    var pasteAction: () -> ComposerPaste.Action
+    var onPasteImages: () -> Void
     var onSend: () -> Void
     @FocusState private var focused: Bool
 

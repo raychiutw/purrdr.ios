@@ -21,12 +21,17 @@ struct ConversationSendTests {
         let drafts: DraftStore
     }
 
-    static func setup(drafts: DraftStore = DraftStore(), sleeper: RecordingSleeper = RecordingSleeper()) async throws -> Setup {
+    /// 建立畫面 model(client、對話紀錄讀取、草稿)。預設不帶圖片功能。
+    typealias MakeModel = @MainActor (HerdrClient, TranscriptReader, DraftStore) -> ConversationModel
+
+    static func setup(
+        drafts: DraftStore = DraftStore(), sleeper: RecordingSleeper = RecordingSleeper(), make: MakeModel? = nil
+    ) async throws -> Setup {
         let shell = try LocalShellHost.temporary()
         try shell.write(ConversationModelTests.fixture, to: ConversationModelTests.transcriptPath)
         let host = RoutingHost(shell: shell)
         let client = HerdrClient(channel: host, sleep: sleeper.sleep)
-        let model = ConversationModel(
+        let model = make?(client, TranscriptReader(channel: host), drafts) ?? ConversationModel(
             client: client, transcripts: TranscriptReader(channel: host), paneID: paneID,
             knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
             clock: TestClock().clock, drafts: drafts, sleep: sleeper.sleep
@@ -35,8 +40,10 @@ struct ConversationSendTests {
     }
 
     /// 開啟並讀完一次(輸入列在載入中不能送)。
-    static func opened(drafts: DraftStore = DraftStore(), sleeper: RecordingSleeper = RecordingSleeper()) async throws -> Setup {
-        let setup = try await setup(drafts: drafts, sleeper: sleeper)
+    static func opened(
+        drafts: DraftStore = DraftStore(), sleeper: RecordingSleeper = RecordingSleeper(), make: MakeModel? = nil
+    ) async throws -> Setup {
+        let setup = try await setup(drafts: drafts, sleeper: sleeper, make: make)
         await setup.host.bridge.expect(bridge, reply: snapshot())
         await setup.model.poll()
         return setup
