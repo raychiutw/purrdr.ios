@@ -198,9 +198,18 @@ public struct ConversationView: View {
     @ViewBuilder
     private var banner: some View {
         if let banner = model.banner {
-            Label(banner.text, systemImage: banner.symbol)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            HStack {
+                Label(banner.text, systemImage: banner.symbol)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if banner == .offline {
+                    // 中斷標示留在畫面上直到重新連上;也可以手動立刻重試(輪詢本身仍會每幾秒重試)。
+                    Button("Try Again") { Task { await model.poll() } }
+                        .font(.footnote)
+                        .accessibilityIdentifier("conversation.retry")
+                }
+            }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal)
                 .padding(.vertical, 8)

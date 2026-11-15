@@ -115,7 +115,7 @@ struct HostsModelTests {
     }
 
     @Test("移除主機：從儲存刪除、清除該主機的所有主機寫入同意，選取改回其他主機或 Demo")
-    func removingHostRevokesConsent() throws {
+    func removingHostRevokesConsent() async throws {
         let store = MemoryHostStore()
         var other = Self.studio
         other.id = UUID()
@@ -128,7 +128,7 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
         model.load()
 
-        try model.remove(Self.studio.id)
+        try await model.delete(Self.studio.id)
 
         #expect(store.hosts.map(\.id) == [other.id])
         #expect(model.rows.map(\.id) == [other.id])
@@ -137,7 +137,7 @@ struct HostsModelTests {
         #expect(!hostConsent.isGranted("theme", host: Self.studio.id.uuidString))
         #expect(hostConsent.isGranted(ClaudeUsageHost.feature.id, host: other.id.uuidString))
 
-        try model.remove(other.id)
+        try await model.delete(other.id)
         #expect(model.selection == .demo)
     }
 }

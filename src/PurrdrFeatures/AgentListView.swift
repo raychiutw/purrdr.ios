@@ -58,7 +58,8 @@ public struct AgentListView: View {
             } description: {
                 Text(message)
             } actions: {
-                Button("Try Again") { Task { await model.load() } }
+                Button("Try Again") { model.retryNow() }
+                    .accessibilityIdentifier("agentList.retry")
             }
         case .loaded where !model.hasAgents:
             ContentUnavailableView(
@@ -87,12 +88,18 @@ public struct AgentListView: View {
                 }
             }
             if case .failed(let message) = model.phase {
-                // 列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。
+                // 列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。不用 alert,也不自動消失:
+                // 重新連上才會消失;列保持最後一次讀到的樣子(HIG 20.5)。
                 Section {
-                    Label(message, systemImage: "exclamationmark.triangle")
+                    Label(message, systemImage: "wifi.exclamationmark")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("agentList.error")
+                    Button("Try Again", systemImage: "arrow.clockwise") { model.retryNow() }
+                        .font(.footnote)
+                        .accessibilityIdentifier("agentList.retry")
+                } header: {
+                    Text("Connection Lost")
                 }
             } else if let usage {
                 Section { ClaudeUsageFooter(model: usage) }

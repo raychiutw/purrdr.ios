@@ -101,6 +101,22 @@ public final class HostEditorModel {
         }
     }
 
+    /// 從主機分享連結匯入：新主機，欄位帶入分享內容。分享內容附的 host key 指紋視為已確認，
+    /// 所以連線測試只接受那一把 key(主機出示別的 key 時一樣阻擋);仍要測試通過才能儲存。
+    public convenience init(
+        store: any HostStore, importing shared: SharedHost, credentials: HostCredentials = HostCredentials(),
+        makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
+    ) {
+        self.init(store: store, editing: nil, credentials: credentials, makeChannel: makeChannel)
+        name = shared.name
+        address = shared.endpoint.host
+        port = String(shared.endpoint.port)
+        username = shared.endpoint.username
+        herdrPath = shared.herdr.path == "herdr" ? "" : shared.herdr.path
+        herdrSession = shared.herdr.session ?? ""
+        if let pin = shared.hostKeyPin { accepted = (pin, shared.endpoint) }
+    }
+
     // MARK: - 狀態
 
     public var canTest: Bool { draft != nil && phase != .testing && phase != .updating }

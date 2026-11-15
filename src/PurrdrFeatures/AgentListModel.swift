@@ -97,11 +97,57 @@ public final class AgentListModel {
             failures += 1
             needsSnapshot = true
             do {
-                try await sleep(Self.backoff(afterFailures: failures))
+                try await backoff(Self.backoff(afterFailures: failures))
             } catch {
                 return
             }
         }
+    }
+
+    /// 使用者按「重試」或網路恢復：正在退避就立刻重連;正在連就讓下一次退避直接跳過。
+    public func retryNow() {
+        if let waiter = retryWaiter {
+            retryWaiter = nil
+            waiter.resume()
+        } else {
+            retryRequested = true
+        }
+    }
+
+    private var retryRequested = false
+    private var retryWaiter: CheckedContinuation<Void, Never>?
+
+    /// 退避等待：時間到，或有人要求立刻重試。
+    private func backoff(_ duration: Duration) async throws {
+        if retryRequested {
+            retryRequested = false
+            return
+        }
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { [sleep] in try await sleep(duration) }
+            group.addTask { await self.waitForRetry() }
+            try await group.next()
+            group.cancelAll()
+        }
+    }
+
+    private func waitForRetry() async {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume()
+                } else {
+                    retryWaiter = continuation
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.cancelRetryWait() }
+        }
+    }
+
+    private func cancelRetryWait() {
+        retryWaiter?.resume()
+        retryWaiter = nil
     }
 
     /// 事件去抖：連續的事件只觸發一次重讀的機會變大，也不會讓列表跳動得太頻繁。

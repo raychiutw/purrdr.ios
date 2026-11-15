@@ -33,7 +33,8 @@ struct PurrdrApp: App {
             // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
             let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
             hosts = HostsModel(
-                store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo,
+                conversationCache: cache, preferences: preferences, selectionStore: InMemoryHostSelectionStore(),
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, makeChannel: { _, _, _ in demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
@@ -42,7 +43,7 @@ struct PurrdrApp: App {
             // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials
+                selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials
             ) { endpoint, pin, credential in
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential)
             }
@@ -79,6 +80,11 @@ struct PurrdrApp: App {
             platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks
         )
     }
+
+    /// UI 測試情境 `-seedHost`:已存一台主機(通道仍是 Demo 主機)，測主機清單的管理動作。
+    private static let seededHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!, name: "Studio Mac",
+        endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), operatingSystem: .macOS)
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
     private static func makeMemberSession(uiTesting: Bool) -> MemberSession {
