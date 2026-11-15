@@ -13,12 +13,18 @@ public struct SettingsView: View {
     let member: MemberModel
     /// Purrdr Plus(#28):會員畫面已登入時顯示狀態與入口;`nil` 時不顯示。
     let plus: SubscriptionModel?
+    /// 主機同步(#30);`nil` 時不顯示。
+    let hostSync: HostSyncModel?
     let done: () -> Void
 
-    public init(model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, done: @escaping () -> Void) {
+    public init(
+        model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, hostSync: HostSyncModel? = nil,
+        done: @escaping () -> Void
+    ) {
         self.model = model
         self.member = member
         self.plus = plus
+        self.hostSync = hostSync
         self.done = done
     }
 
@@ -32,6 +38,10 @@ public struct SettingsView: View {
                         Label("Purrdr Member", systemImage: "person.crop.circle")
                     }
                     .accessibilityIdentifier("settings.member")
+                }
+
+                if let hostSync {
+                    HostSyncSection(model: hostSync, plus: plus, member: member)
                 }
 
                 Section {
