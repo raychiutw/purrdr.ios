@@ -148,6 +148,8 @@ public final class ConversationModel {
     public private(set) var answerNotice: AnswerNotice?
 
     public let paneID: String
+    /// 不是選取中主機時的主機名(標題列第一段);選取中主機為 `nil`。
+    private let hostName: String?
     private let client: HerdrClient
     private let transcripts: TranscriptReader
     private let cache: any ConversationCache
@@ -196,6 +198,7 @@ public final class ConversationModel {
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: ClaudeSlashDiscovery? = nil, haptics: any Haptics = SilentHaptics(),
+        hostName: String? = nil,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.client = client
@@ -208,6 +211,7 @@ public final class ConversationModel {
         self.pageLines = pageLines
         self.drafts = drafts
         self.haptics = haptics
+        self.hostName = hostName
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
         self.slashDiscovery = slashDiscovery
@@ -293,11 +297,13 @@ public final class ConversationModel {
             unbind()
             phase = .agentGone
             agentStatus = nil
+            updateWorkingSince()
             return
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         screenThisPoll = nil
         await refreshPrompt(agent)
+        await refreshLivePreview()
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
             unbind()
@@ -442,6 +448,7 @@ public final class ConversationModel {
     private func showOffline() async {
         isOffline = true
         banner = .offline
+        updateWorkingSince()
         if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID) {
             recent = cached.messages
             metadata = cached.metadata
@@ -492,7 +499,11 @@ public final class ConversationModel {
         guard canSend else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         isSending = true
-        defer { isSending = false }
+        updateWorkingSince()
+        defer {
+            isSending = false
+            updateWorkingSince()
+        }
         notice = nil
         draft = ""
         let echo = PromptEcho(id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs)
@@ -538,17 +549,17 @@ public final class ConversationModel {
         case .stopped: notice = nil
         case .stillWorking: notice = .stillWorking
         case .failed: notice = .interruptFailed
+        case .needsAnswer: notice = .interruptRefusedNeedsAnswer
         }
     }
 
     /// 強制結束(ctrl+c,F6.7)。呼叫端先請使用者確認;只對 working 的 agent。
     public func forceQuit() async {
         guard agentStatus == .working else { return }
-        do {
-            try await delivery.forceQuit(paneID: paneID)
-            notice = nil
-        } catch {
-            notice = .interruptFailed
+        switch await delivery.forceQuit(paneID: paneID) {
+        case .sent, .notWorking: notice = nil
+        case .needsAnswer: notice = .interruptRefusedNeedsAnswer
+        case .failed: notice = .interruptFailed
         }
     }
 
@@ -778,6 +789,59 @@ public final class ConversationModel {
         entries = EchoTimeline.merge(items: items, echoes: echoes)
     }
 
+    // MARK: - 標題列(#44)
+
+    /// 標題下一行的資訊(F5.7)。
+    public var header: ConversationHeader {
+        ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName)
+    }
+
+    /// 標題列的動作鈕:working(或停止進行中)時「停止」,其他時候「重新載入」;還沒輪詢過時沒有。
+    public var headerAction: HeaderAction? {
+        if agentStatus == .working || isStopping { return .stop }
+        return phase == .loading ? nil : .reload
+    }
+
+    /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
+    public func reload() async {
+        await cache.remove(chatKey: chatKey)
+        unbind()
+        banner = nil
+        await poll()
+    }
+
+    // MARK: - 工作中指示(F5.11)
+
+    /// 對話底部的工作中指示：agent 在工作或送出中，且沒有問題在等、連得上。
+    public var showsWorkingIndicator: Bool {
+        (agentStatus == .working || isSending) && prompt == nil && !isOffline
+    }
+
+    /// 指示出現的時間(經過時間從這裡起算)。
+    public private(set) var workingSince: Date?
+    /// 從 pane 可見畫面擷取到的散文(只在 working 時);沒有真正的散文為 `nil`。
+    public private(set) var livePreview: String?
+
+    /// working 時讀 pane 可見畫面擷取即時預覽(與背景 agents 窗格共用同一次讀取)。
+    private func refreshLivePreview() async {
+        if agentStatus == .working, prompt == nil {
+            if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+            livePreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
+        } else {
+            livePreview = nil
+        }
+        updateWorkingSince()
+    }
+
+    private func updateWorkingSince() {
+        if !showsWorkingIndicator {
+            workingSince = nil
+            livePreview = nil
+        } else if workingSince == nil {
+            workingSince = clock.now()
+        }
+    }
+
     // MARK: - 內部
 
     private func unbind() {
@@ -832,4 +896,6 @@ public enum SendNotice: Sendable, Equatable {
     case stillWorking
     /// 送不出中斷的按鍵。
     case interruptFailed
+    /// agent 在等你回答，所以沒有送出中斷(F6.7)。
+    case interruptRefusedNeedsAnswer
 }

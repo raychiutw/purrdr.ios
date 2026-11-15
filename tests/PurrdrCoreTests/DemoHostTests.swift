@@ -126,6 +126,22 @@ struct DemoHostTests {
         try await HerdrClient(channel: DemoHost()).sendKeys(paneID: "w3:p1", keys: ["esc"])
     }
 
+    /// #44:Demo 的工作中 agent(Codex,`w3:p1`)畫面上有正在寫的散文(即時預覽);停止(一個 Esc)後變完成。
+    @Test("工作中:Demo 的 Codex 畫面有即時預覽;停止後變完成、預覽消失;「需要你」的 agent 不會被停止")
+    func workingDemoAgentShowsPreviewAndStops() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let screen = try await client.readPane(paneID: "w3:p1")
+        #expect(LivePreview.extract(screen: screen) != nil)
+
+        let delivery = PromptDelivery(client: client, sleep: { _ in })
+        #expect(await delivery.stop(paneID: "w2:p1") == .needsAnswer)
+        #expect(await delivery.stop(paneID: "w3:p1") == .stopped)
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
+        #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w3:p1")) == nil)
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w2:p1" }?.status == .blocked)
+    }
+
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")
     func unknownCommandExitsWith127() async throws {
         let session = try await DemoHost().execute("nonexistent-tool --flag")

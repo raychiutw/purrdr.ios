@@ -10,6 +10,7 @@ import SwiftUI
 /// 一律只用 Demo 主機：主機存在記憶體、不碰 Keychain,任何主機的通道也都是 Demo 主機，不連網路。
 @main
 struct PurrdrApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @State private var hosts: HostsModel
     private let navigation = TopNavigationModel()
     private let member: MemberModel
@@ -30,29 +31,6 @@ struct PurrdrApp: App {
         // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
         let preferences: any ChatPreferencesStore = uiTesting
             ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
-        let hosts: HostsModel
-        if uiTesting {
-            // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
-            let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
-            hosts = HostsModel(
-                store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo,
-                conversationCache: cache, preferences: preferences, selectionStore: InMemoryHostSelectionStore(),
-                hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, makeChannel: { _, _, _ in demo })
-        } else {
-            // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
-            let credentials = HostCredentials(
-                secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
-            // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
-            hosts = HostsModel(
-                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials
-            ) { endpoint, pin, credential in
-                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential)
-            }
-        }
-        hosts.haptics = SystemHaptics()
-        hosts.load()
-        _hosts = State(initialValue: hosts)
         let session = Self.makeMemberSession(uiTesting: uiTesting)
         member = MemberModel(
             session: session,
@@ -61,8 +39,44 @@ struct PurrdrApp: App {
         // StoreKit:在 Xcode 執行時，scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品，不連 App Store。
         // UI 測試用內容相同的替身(不連網路;命令列 xcodebuild test 不套用 StoreKit 設定檔)。
         let store: any PlusStore = uiTesting ? UITestingPlusStore() : StoreKitPlusStore()
-        plus = SubscriptionModel(session: session, store: store)
-        // UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
+        let plus = SubscriptionModel(session: session, store: store)
+        self.plus = plus
+        // 推播(#29):UI 測試不請求權限、不註冊 APNs、配對只在記憶體。
+        let push = PushService(
+            session: session,
+            platform: uiTesting ? UITestingPushPlatform() : PushAppDelegate.platform,
+            store: uiTesting ? InMemoryPushPairingStore() : UserDefaultsPushPairingStore(),
+            configuration: PushConfiguration(
+                endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource)
+        ) {
+            await plus.refresh()
+            return plus.isPlusActive
+        }
+        let hosts: HostsModel
+        if uiTesting {
+            // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
+            let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
+            hosts = HostsModel(
+                store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo,
+                conversationCache: cache, preferences: preferences, selectionStore: InMemoryHostSelectionStore(),
+                hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, makeChannel: { _, _, _ in demo })
+        } else {
+            // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
+            let credentials = HostCredentials(
+                secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
+            // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
+            hosts = HostsModel(
+                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
+                push: push
+            ) { endpoint, pin, credential in
+                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential)
+            }
+        }
+        hosts.haptics = SystemHaptics()
+        hosts.load()
+        _hosts = State(initialValue: hosts)
+        // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
         hostSync = HostSyncModel(
             session: session, plus: plus, hosts: hosts, store: uiTesting ? InMemoryHostSyncStore() : UserDefaultsHostSyncStore())
         settings = Self.makeSettings(hosts: hosts)
@@ -100,7 +114,9 @@ struct PurrdrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TopNavigationView(navigation: navigation, hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync)
+            TopNavigationView(
+                navigation: navigation, hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync,
+                notifications: PushAppDelegate.router)
         }
     }
 }

@@ -12,11 +12,13 @@ public struct TopNavigationView: View {
     let plus: SubscriptionModel?
     /// 主機同步(#30);`nil` 時設定頁不顯示。
     let hostSync: HostSyncModel?
+    /// 點了推播通知(#29);`nil` 時沒有推播。
+    let notifications: PushNotificationRouter?
     @Environment(\.scenePhase) private var scenePhase
 
     public init(
         navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
-        hostSync: HostSyncModel? = nil
+        hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil
     ) {
         self.hostSync = hostSync
         self.navigation = navigation
@@ -24,6 +26,7 @@ public struct TopNavigationView: View {
         self.member = member
         self.settings = settings
         self.plus = plus
+        self.notifications = notifications
     }
 
     public var body: some View {
@@ -43,7 +46,11 @@ public struct TopNavigationView: View {
             case .hosts:
                 HostListView(model: hosts, importURL: $navigation.pendingHostImport)
             case .settings:
-                SettingsView(model: settings, member: member, plus: plus, hostSync: hostSync) { navigation.sheet = nil }
+                SettingsView(
+                    model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync, openPlus: { navigation.sheet = .plus }
+                ) {
+                    navigation.sheet = nil
+                }
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member, plus: plus)
@@ -74,6 +81,15 @@ public struct TopNavigationView: View {
                 Task { await hostSync?.sync() }
             default: break
             }
+        }
+        // 推播：APNs token 換了就向後台重新註冊(不請求權限)。
+        .task { await hosts.refreshPushRegistrations() }
+        // 點了通知：先收起 sheet(否則聊天會推到 sheet 下面),再切換主機、開該 Agent 的聊天。
+        .onChange(of: notifications?.pending, initial: true) { _, route in
+            guard let route else { return }
+            notifications?.pending = nil
+            navigation.sheet = nil
+            hosts.open(route)
         }
     }
 

@@ -24,10 +24,24 @@ public struct ConversationView: View {
 
     public var body: some View {
         content
-            .navigationTitle(model.title.isEmpty ? String(localized: "Chat") : model.title)
+            .navigationTitle(displayTitle)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    ConversationTitleView(title: displayTitle, header: model.header)
+                }
+                if let action = model.headerAction {
+                    ToolbarItem(placement: .primaryAction) {
+                        HeaderActionButton(model: model, action: action) {
+                            // 重新載入後切回跟隨尾端並捲到底(F5.12)。
+                            scroll.jumpToLatest()
+                            position.scrollTo(edge: .bottom)
+                        }
+                    }
+                }
+            }
             .safeAreaInset(edge: .top, spacing: 0) { banner }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let pane = model.agentsPane, !pane.rows.isEmpty {
@@ -48,9 +62,13 @@ public struct ConversationView: View {
             }
     }
 
+    private var displayTitle: String {
+        model.title.isEmpty ? String(localized: "Chat") : model.title
+    }
+
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil {
+        if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil && !model.showsWorkingIndicator {
             placeholder
         } else {
             messages
@@ -79,6 +97,11 @@ public struct ConversationView: View {
                 // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
                 BlockedPromptView(model: model)
                     .id("prompt")
+                // 工作中指示在列表最底下;agent 停止工作就消失(F5.11)。
+                if model.showsWorkingIndicator, let since = model.workingSince {
+                    WorkingIndicatorView(since: since, preview: model.livePreview)
+                        .id("working")
+                }
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
@@ -108,6 +131,9 @@ public struct ConversationView: View {
             }
         }
         .onChange(of: model.entries.last?.id) {
+            if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+        }
+        .onChange(of: model.livePreview) {
             if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
         }
         .onChange(of: model.prompt?.signature) {
@@ -215,6 +241,45 @@ public struct ConversationView: View {
                 .padding(.vertical, 8)
                 .background(.bar)
                 .accessibilityIdentifier("conversation.banner")
+        }
+    }
+}
+
+/// 標題列的動作鈕(F5.7、F6.7):不在工作中「重新載入」;工作中「停止」——點一下送一個 Esc,
+/// 長按打開選單，選「強制結束」才送 Ctrl-C(選單本身就是說明與確認)。「需要你」的 agent 永不中斷(model 與核心都擋)。
+private struct HeaderActionButton: View {
+    let model: ConversationModel
+    let action: HeaderAction
+    let didReload: () -> Void
+
+    var body: some View {
+        switch action {
+        case .reload:
+            Button {
+                Task {
+                    await model.reload()
+                    didReload()
+                }
+            } label: {
+                Label("Reload", systemImage: "arrow.clockwise")
+            }
+            .accessibilityIdentifier("conversation.reload")
+        case .stop:
+            Menu {
+                Section("Control-C may end the agent process and this session. The conversation stays on the host, but the agent stops. Stop only interrupts the current turn.") {
+                    Button("Force Quit Agent", systemImage: "xmark.octagon", role: .destructive) {
+                        Task { await model.forceQuit() }
+                    }
+                    .accessibilityIdentifier("conversation.forceQuit")
+                }
+            } label: {
+                Label("Stop", systemImage: "stop.fill")
+            } primaryAction: {
+                Task { await model.stop() }
+            }
+            .disabled(model.isStopping)
+            .accessibilityHint(Text("Interrupts the agent’s current turn. Press and hold to force quit."))
+            .accessibilityIdentifier("conversation.stop")
         }
     }
 }
