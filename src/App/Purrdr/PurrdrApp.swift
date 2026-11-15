@@ -11,6 +11,7 @@ import SwiftUI
 struct PurrdrApp: App {
     private let agentList: AgentListModel
     private let terminals: PaneTerminalClient
+    private let workspaceActions: WorkspaceActionsModel
     private let navigation = TopNavigationModel()
     private let client: HerdrClient
     private let transcripts: TranscriptReader
@@ -22,15 +23,22 @@ struct PurrdrApp: App {
         // UI 測試情境：桌機正在操作 Demo 的 Pane。
         let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
         let channel: any HostChannel = DemoHost(scenario: scenario)
-        client = HerdrClient(channel: channel)
-        transcripts = TranscriptReader(channel: channel)
-        agentList = AgentListModel(client: client, transcripts: transcripts)
+        let client = HerdrClient(channel: channel)
+        let transcripts = TranscriptReader(channel: channel)
+        let agentList = AgentListModel(client: client, transcripts: transcripts)
+        // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
+        let preferences: any ChatPreferencesStore = arguments.contains("-uiTesting")
+            ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
+        self.client = client
+        self.transcripts = transcripts
+        self.agentList = agentList
         terminals = PaneTerminalClient(channel: channel)
+        workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
     }
 
     var body: some Scene {
         WindowGroup {
-            TopNavigationView(navigation: navigation, agentList: agentList) { paneID, sessionID in
+            TopNavigationView(navigation: navigation, agentList: agentList, workspaceActions: workspaceActions) { paneID, sessionID in
                 ConversationModel(
                     client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
                 )

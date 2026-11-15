@@ -6,18 +6,20 @@ import SwiftUI
 public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let agentList: AgentListModel
+    let workspaceActions: WorkspaceActionsModel
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
     let conversation: @MainActor (String, String?) -> ConversationModel
     /// 建立某個 Pane 的終端機 model(pane id、標題)。
     let terminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
     public init(
-        navigation: TopNavigationModel, agentList: AgentListModel,
+        navigation: TopNavigationModel, agentList: AgentListModel, workspaceActions: WorkspaceActionsModel,
         conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
     ) {
         self.navigation = navigation
         self.agentList = agentList
+        self.workspaceActions = workspaceActions
         self.conversation = conversation
         self.terminal = terminal
     }
@@ -25,7 +27,7 @@ public struct TopNavigationView: View {
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
-            AgentListView(model: agentList, conversation: conversation, terminal: terminal)
+            AgentListView(model: agentList, actions: workspaceActions, conversation: conversation, terminal: terminal)
                 .toolbar { toolbar }
         }
         .sheet(item: $navigation.sheet) { sheet in

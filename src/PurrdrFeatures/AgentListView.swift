@@ -7,6 +7,10 @@ import SwiftUI
 /// app 在前景時，新的「需要你」只出現在列表裡，這個畫面不發任何系統通知。
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
+    let actions: WorkspaceActionsModel
+    @State private var presentation = WorkspacePresentation()
+    /// 從版面圖選了 Agent 之後要開的聊天(pane id)。
+    @State private var openedChat: String?
     @Environment(\.scenePhase) private var scenePhase
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (String, String?) -> ConversationModel
@@ -14,11 +18,12 @@ public struct AgentListView: View {
     private let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
     public init(
-        model: AgentListModel,
+        model: AgentListModel, actions: WorkspaceActionsModel,
         conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
     ) {
         self.model = model
+        self.actions = actions
         self.makeConversation = conversation
         self.makeTerminal = terminal
     }
@@ -28,6 +33,9 @@ public struct AgentListView: View {
         content
             .navigationTitle("Agents")
             .navigationDestination(for: String.self) { paneID in
+                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
+            }
+            .navigationDestination(item: $openedChat) { paneID in
                 ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
             }
             .task(id: scenePhase == .active) {
@@ -68,6 +76,10 @@ public struct AgentListView: View {
                     ForEach(section.rows) { row in
                         NavigationLink(value: row.id) { AgentRowView(row: row) }
                             .accessibilityIdentifier("agent.row.\(row.id)")
+                            .workspaceRowActions(
+                                WorkspaceRowContext(paneID: row.id, snapshot: model.snapshot),
+                                actions: actions, presentation: presentation, snapshot: model.snapshot
+                            )
                     }
                 }
             }
@@ -92,6 +104,10 @@ public struct AgentListView: View {
                     description: Text("Try a different name, agent, or folder.")
                 )
             }
+        }
+        // 版面圖選的 Pane:聊天推入對話;Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
+        .workspaceActionsPresentation(actions: actions, presentation: presentation) { target in
+            if case .chat(let paneID) = target { openedChat = paneID }
         }
         .searchable(text: $model.query, prompt: Text("Search"))
         .autocorrectionDisabled()
