@@ -27,6 +27,17 @@ jobs:
           xcodebuild -version
           swift --version
 
+      # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
+      # 先用 -showComponent 檢查，已安裝就不下載。
+      - name: 安裝 Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed'; then
+            echo "Metal Toolchain 已安裝，略過下載"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcodebuild -showComponent MetalToolchain
+
       # warning 當 error 寫在 Package.swift(只對 macOS 套用)。
       # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo。
       - name: swift test
@@ -36,6 +47,8 @@ jobs:
       # 不能用 SWIFT_TREAT_WARNINGS_AS_ERRORS=YES:它也會套到 SwiftTerm、swift-nio 這類遠端 package,
       # 跟 Xcode 給遠端 package 的 -suppress-warnings 衝突。改用 result bundle 數 warning
       # (遠端 package 的 warning 已被壓掉，數到的都是我們自己的)。
+      # -skipPackagePluginValidation:SwiftTerm(1.19 起)帶 build-tool plugin(SwiftTermBuildInfoPlugin),
+      # 命令列建置沒辦法像 Xcode 介面那樣按「信任」,不跳過驗證會直接失敗。
       - name: 以 iOS 編譯 package
         run: >
           xcodebuild build
@@ -43,6 +56,7 @@ jobs:
           -destination 'generic/platform=iOS Simulator'
           -derivedDataPath .derivedData/package
           -resultBundlePath .derivedData/package/Package.xcresult
+          -skipPackagePluginValidation
 
       - name: 檢查 package 零 warning
         run: |
@@ -89,6 +103,18 @@ jobs:
       - name: 工具鏈版本
         run: xcodebuild -version
 
+      # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
+      # 先用 -showComponent 檢查，已安裝就不下載。
+      - name: 安裝 Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed'; then
+            echo "Metal Toolchain 已安裝，略過下載"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcodebuild -showComponent MetalToolchain
+
+      # -skipPackagePluginValidation:同 package job,SwiftTerm 的 build-tool plugin 在命令列無法手動信任。
       - name: xcodebuild build
         run: >
           xcodebuild build
@@ -97,6 +123,7 @@ jobs:
           -destination 'generic/platform=iOS Simulator'
           -derivedDataPath .derivedData
           -resultBundlePath .derivedData/Purrdr.xcresult
+          -skipPackagePluginValidation
 
       - name: 檢查零 warning
         run: |
