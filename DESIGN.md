@@ -1,10 +1,10 @@
 # DESIGN.md
 
-Drover Chat 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單見 `docs/research/apple-hig-drover-chat.md`)。詞彙見 `GLOSSARY.md`。設計原型(三個方向與選定組合)保存在 `prototype/design-directions` 分支。
+Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單見 `docs/research/apple-hig-drover-chat.md`)。詞彙見 `GLOSSARY.md`。設計原型(三個方向與選定組合)保存在 `prototype/design-directions` 分支。
 
 ## 選定方向
 
-- **App 圖示：方向 B1「羊群」**。三隻沿虛線小徑前進的羊，領頭那隻是品牌紅、停下來等你;淺色底。三個圖層(小徑、兩隻跟隨的羊、領頭羊),以 Icon Composer 製作，六種外觀(default、dark、clear light／dark、tinted light／dark)都要辨識得出。不採用紅底白羊(B2),因為「紅漸層底 + 白色圖形」跟 Apple Music 圖示太像。
+- **App 圖示：貓掌泡泡(T3,ADR-0009)**。四顆圓形腳趾(中間兩顆大、外側兩顆小)加上一個帶尾巴的圓角對話泡泡當肉墊，泡泡裡是白色「…」:貓正在打字。淺色底、品牌紅貓掌。兩個圖層(貓掌、「…」),以 Icon Composer 製作，六種外觀(default、dark、clear light／dark、tinted light／dark)都要辨識得出;tinted 外觀貓掌為白色、「…」為深灰。不用紅色滿版底，因為「紅漸層底 + 白色圖形」跟 Apple Music 圖示太像。原型見 https://claude.ai/artifact/2P1YePb33dgAnAGgsWsoCT。
 - **畫面：方向 A「系統清單風」**。Agent 列表是 iOS 標準 grouped list,依「需要你／工作中／閒置」分 section;對話用標準泡泡;終端機全螢幕，按鍵列是單一玻璃容器。
 
 ## 顏色(ADR-0008)
