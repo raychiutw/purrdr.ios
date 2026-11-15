@@ -41,6 +41,7 @@ src/PurrdrFeatures/            # SwiftUI 畫面 + 每畫面一個 @MainActor @Ob
 tests/PurrdrTestSupport/       # 假主機 FakeHost、錄製回應 Fixtures/
 tests/PurrdrCoreTests/  tests/PurrdrFeaturesTests/
 tests/PurrdrUITests/           # XCUITest
+backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript),說明見 backend/README.md
 ```
 
 依賴方向:`App → Features → Core ← Demo ← App`。**Features 不 import Demo**:畫面只透過 `HostChannel` 拿資料，不知道背後是真主機、假主機或 Demo。
@@ -49,6 +50,7 @@ tests/PurrdrUITests/           # XCUITest
 - **主機通道**(`HostChannel`):`execute(command)` 回傳 `ExecSession`(stdout／stderr／exit 串流，可寫 stdin、送 EOF、關閉);`openPTY(PTYRequest)` 回傳 `PTYSession`。連線重用、逾時、「連線層失敗不重送」都封裝在實作內。
 - **herdr client**:每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
 - **主機指令建構**(`HerdrCommand`):POSIX 指令前綴明確 PATH、引號用 `'"'"'`(行為規格 §3.2)。Windows 的 `-EncodedCommand` 尚未實作。
+- **Purrdr 後台(會員)**:核心的 `MemberSession`(actor)管登入與權杖(更新權杖存 `TokenStore`,iOS 是 Keychain;401 自動換權杖重送一次),經 `BackendTransport` 送出;iOS 傳輸是 Features 的 `URLSessionBackendTransport`。wire format(camelCase)只在 `MemberSession.swift`,契約在 `backend/README.md`。`-uiTesting` 時權杖只放記憶體、後台指向 `backend.invalid`。app 端測試用 `HTTPStub`(URLProtocol)擋後台。
 - **DI**:只用 initializer 注入;畫面 model 由 composition root 建立後傳入。
 - **Concurrency**:核心型別是 `Sendable` value type 或 actor;畫面 model 放在 main actor。
 
@@ -67,10 +69,12 @@ tests/PurrdrUITests/           # XCUITest
   ```
 
   - `expect` 的指令字串必須完全相同;沒預期的指令一律丟 `FakeHostError.unexpectedCommand`。`unmetExpectations` 列出沒被執行到的預期。
+  - `.recorded(檔名, keepsOpen: true)`:回完不結束(像訂閱串流),之後用 `host.send(stdout:toExecution:)`／`host.finish(execution:)` 推事件或斷線。
+  - 錄不到的情境用 `.recorded(檔名) { SnapshotEdit.agent("w1:pA", in: &$0) { … } }` 以真實回應為底改動，改了什麼寫在測試裡。
   - `.recorded(檔名)` 回放 `Fixtures/herdr-<版本>/` 的錄製檔，等 stdin 收到一行才回(模擬 bridge);一般指令用 `FakeReply(stdout:stderr:exitCode:)`,立即回應。
   - PTY:`expectPTY(request, output:)`,之後看 `host.ptys` 的輸入與尺寸變更。
   - 錄製檔一律從真實主機錄(`scripts/record-herdr-fixture.sh`),個人資料換成假值，不照程式碼手寫。
-- **Demo 主機**(`DemoHost`,行為規格 F21):對真正 client 送出的**精確指令字串**回應，所以走的是正式程式路徑。App Review 與 UI 測試都靠它;Release 也會帶。目前內容：一個 Claude Code 的 Agent(workspace `ledger`、pane `w1:p1`、狀態 done)、回顯的 PTY shell、不認得的指令 exit 127。範例內容自己寫，不沿用 herdrchat 的文字。Demo 演不出來的功能，先加 Demo 情境。
+- **Demo 主機**(`DemoHost`,行為規格 F21):對真正 client 送出的**精確指令字串**回應，所以走的是正式程式路徑。App Review 與 UI 測試都靠它;Release 也會帶。目前內容：三個 Agent——`w1:p1` Claude Code done(workspace `ledger`)、`w2:p1` Claude Code blocked(`weather-app`)、`w3:p1` Codex working(`notes`);接受 `events.subscribe`(回 ack 後保持開著、不送事件);回顯的 PTY shell、不認得的指令 exit 127。範例內容自己寫，不沿用 herdrchat 的文字。Demo 演不出來的功能，先加 Demo 情境。
 - **UI 測試**一律用 `XCUIApplication.launchUITesting(flags:contentSize:)` 啟動(帶 `-uiTesting`,只用 Demo 主機、不連網路)。元素用 accessibility identifier 找(例：Agent 列是 `agent.row.<pane id>`)。
 - TDD 紅綠燈的本機紀錄放 `.tdd-logs/`(不進 git),摘要寫在 PR。
 
