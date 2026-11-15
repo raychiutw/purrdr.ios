@@ -16,7 +16,7 @@ final class SlashMenuUITests: XCTestCase {
     @MainActor
     func testTypingSlashShowsGroupedMenuAndPicking() {
         let app = XCUIApplication.launchUITesting()
-        let row = element("agent.row.w1:p1", in: app)
+        let row = element("agent.row.demo/w1:p1", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
 

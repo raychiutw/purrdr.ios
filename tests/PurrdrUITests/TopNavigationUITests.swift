@@ -99,6 +99,6 @@ final class TopNavigationUITests: XCTestCase {
     @MainActor
     private func assertBackOnAgentList(_ app: XCUIApplication) {
         XCTAssertTrue(app.buttons["sheet.done"].waitForNonExistence(timeout: 5), "sheet 沒有關閉")
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.w1:p1"].firstMatch.exists, "沒有回到 Agent 列表")
+        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch.exists, "沒有回到 Agent 列表")
     }
 }

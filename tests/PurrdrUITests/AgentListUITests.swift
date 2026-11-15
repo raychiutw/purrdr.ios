@@ -7,7 +7,7 @@ final class AgentListUITests: XCTestCase {
 
     @MainActor
     private func row(_ paneID: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)["agent.row.\(paneID)"].firstMatch
+        app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
     }
 
     /// tracer bullet:app → 畫面 model → herdr client → 主機通道(Demo 主機)整條路徑都走正式程式。

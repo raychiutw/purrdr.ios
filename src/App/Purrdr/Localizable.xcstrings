@@ -68,6 +68,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "%@: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@：%2$@"
+          }
+        }
+      }
+    },
     "%d failed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -373,13 +384,13 @@
         }
       }
     },
-    "Agents you start in herdr on this host appear here." : {
+    "Agents you start in herdr on your hosts appear here." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你在這台主機的 herdr 裡啟動的 Agent 會顯示在這裡。"
+            "value" : "你在各台主機的 herdr 啟動的 Agent 會出現在這裡。"
           }
         }
       }
@@ -898,6 +909,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要關閉「%@」嗎?"
+          }
+        }
+      }
+    },
+    "Cloud" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端"
           }
         }
       }
@@ -1529,6 +1551,28 @@
         }
       }
     },
+    "Demo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo"
+          }
+        }
+      }
+    },
+    "Desktop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "桌上型電腦"
+          }
+        }
+      }
+    },
     "Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1569,6 +1613,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉"
+          }
+        }
+      }
+    },
+    "Display" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示器"
           }
         }
       }
@@ -1947,6 +2002,17 @@
         }
       }
     },
+    "Icon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖示"
+          }
+        }
+      }
+    },
     "Idle" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2123,6 +2189,17 @@
         }
       }
     },
+    "Laptop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筆記型電腦"
+          }
+        }
+      }
+    },
     "Larger Text" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2251,6 +2328,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "紀錄"
+          }
+        }
+      }
+    },
+    "Mac mini" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac mini"
           }
         }
       }
@@ -2427,6 +2515,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增 Worktree…"
+          }
+        }
+      }
+    },
+    "New chats start on the selected host. Agents on every host stay in the list." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新聊天會開在選取中主機。所有主機的 Agent 都會留在列表上。"
           }
         }
       }
@@ -2845,6 +2944,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他 Skill"
+          }
+        }
+      }
+    },
+    "PC" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PC"
           }
         }
       }
@@ -3542,6 +3652,17 @@
         }
       }
     },
+    "Selected Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取中主機"
+          }
+        }
+      }
+    },
     "Send" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3593,6 +3714,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已送給 Codex,但它的對話紀錄還沒有確認收到。再試一次前請先檢查主機。"
+          }
+        }
+      }
+    },
+    "Server" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "伺服器"
           }
         }
       }
@@ -5027,13 +5159,13 @@
         }
       }
     },
-    "Try a different name, agent, or folder." : {
+    "Try a different name, agent, folder, or host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "試試其他名稱、Agent 或資料夾。"
+            "value" : "試試其他名稱、Agent、資料夾或主機。"
           }
         }
       }

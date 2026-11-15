@@ -102,7 +102,7 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
 - **Demo 主機**(`DemoHost`,行為規格 F21):對真正 client 送出的**精確指令字串**回應，所以走的是正式程式路徑。App Review 與 UI 測試都靠它;Release 也會帶。目前內容：三個 Agent——`w1:p1` Claude Code done(workspace `ledger`)、`w2:p1` Claude Code blocked(`weather-app`)、`w3:p1` Codex working(`notes`,畫面有即時預覽;收到 Esc／ctrl+c 變 done);接受 `events.subscribe`(回 ack 後保持開著、不送事件);Claude Code 的 slash 清單發現(`DemoSlash`:plugin `demo-kit` 以 `plugin.json` 宣告兩個巢狀 skill、停用的 `old-kit`、使用者層一個 skill 與一個指令);回顯的 PTY shell、不認得的指令 exit 127。範例內容自己寫，不沿用 herdrchat 的文字。Demo 演不出來的功能，先加 Demo 情境。
 - **SSH 通道**的測試對 `tests/PurrdrCoreTests/Support/TestSSHServer.swift`(swift-nio-ssh server 角色，只接受 `none` 認證)跑，斷言連線數、收到的指令、PTY 請求。
 - **真實主機整合測試**(`RealHostIntegrationTests`)以環境變數開啟、只跑唯讀指令:`PURRDR_REAL_HOST=user@host[:port]`(可加 `PURRDR_REAL_HOST_FINGERPRINT`、`PURRDR_REAL_HOST_SESSION`)經 Tailscale SSH;`PURRDR_LOCAL_HERDR=1` 讓本機的真 herdr 經測試用 SSH 伺服器跑。Tailscale SSH 不接受同一台機器連自己的 tailnet IP,要從另一台裝置跑。
-- **UI 測試**一律用 `XCUIApplication.launchUITesting(flags:contentSize:)` 啟動(帶 `-uiTesting`,只用 Demo 主機、不連網路;主機存在記憶體，任何主機的通道也是 Demo 主機)。元素用 accessibility identifier 找(例：Agent 列是 `agent.row.<pane id>`)。
+- **UI 測試**一律用 `XCUIApplication.launchUITesting(flags:contentSize:)` 啟動(帶 `-uiTesting`,只用 Demo 主機、不連網路;主機存在記憶體，任何主機的通道也是 Demo 主機)。元素用 accessibility identifier 找(例：Agent 列是 `agent.row.<主機身分>/<pane id>`,主機身分是主機 id,Demo 主機是 `demo`,如 `agent.row.demo/w1:p1`)。多主機情境旗標:`-seedHost`(Studio Mac,通道是 Demo)、`-seedUnreachableHost`(Lab Server,一律連不上)、`-selectDemo`。
 - TDD 紅綠燈的本機紀錄放 `.tdd-logs/`(不進 git),摘要寫在 PR。
 
 ## 開發流程
