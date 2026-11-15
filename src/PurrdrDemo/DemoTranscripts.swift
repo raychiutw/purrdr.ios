@@ -20,6 +20,7 @@ enum DemoTranscripts {
 
     /// 對指令的 stdout;不是對話紀錄指令時回傳 `nil`。
     static func respond(to command: String) -> Data? {
+        if let delegation = respondToDelegation(command) { return delegation }
         for session in sessions {
             let size = session.data.count
             if command == TranscriptCommand.locate(sessionID: session.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: session.cwd)) {
@@ -112,12 +113,95 @@ enum DemoTranscripts {
             assistantText("d3m0-w-02", "2026-11-16T08:40:06.000Z", "I'll add a small on-disk cache keyed by location and hour."),
             assistantTool("d3m0-w-03", "2026-11-16T08:40:08.000Z", id: "toolu_demo_11", name: "Grep", input: ["pattern": "fetchHourly"]),
             toolResult("d3m0-w-04", "2026-11-16T08:40:08.400Z", id: "toolu_demo_11", text: "Sources/Forecast/ForecastClient.swift:31"),
+            assistantTool("d3m0-w-04a", "2026-11-16T08:40:09.000Z", id: subagentCall, name: "Agent", input: [
+                "description": "Check how the widget refreshes", "subagent_type": "Explore", "model": "sonnet",
+                "prompt": "Find where the widget asks for a new forecast and how often.",
+            ]),
+            toolResult("d3m0-w-04b", "2026-11-16T08:41:15.000Z", id: subagentCall, text: """
+            [Subagent hand-back] The text below is the final report of a subagent this session delegated to. The report follows:
+              The widget's timeline asks for a new entry every 15 minutes.
+              Each entry calls `ForecastClient.fetchHourly()`, so a cache keyed by hour saves three of every four calls.
+            agentId: \(subagentID) (use SendMessage with to: '\(subagentID)' to continue this agent)
+            <usage>subagent_tokens: 21500
+            tool_uses: 6
+            duration_ms: 66000</usage>
+            """),
+            assistantTool("d3m0-w-04c", "2026-11-16T08:41:20.000Z", id: "toolu_demo_14", name: "Workflow", input: [
+                "script": "export const meta = {\n  name: 'forecast-audit',\n  description: 'Check the cache, then review the widget copy',\n}\n",
+            ]),
+            toolResult("d3m0-w-04d", "2026-11-16T08:41:20.200Z", id: "toolu_demo_14", text: "Workflow launched in the background.\nRun ID: \(workflowRun)\nYou will be notified when it finishes."),
             assistantTool("d3m0-w-05", "2026-11-16T08:40:15.000Z", id: "toolu_demo_12", name: "Write", input: [
                 "file_path": "/Users/demo/weather-app/Sources/Forecast/ForecastCache.swift", "content": "struct ForecastCache {}",
             ]),
             assistantText("d3m0-w-06", "2026-11-16T08:40:16.000Z", "I need permission to create `ForecastCache.swift`."),
         ]
     )
+
+    // MARK: - Subagent 與 workflow(行為規格 F21:已完成的 subagent、執行中的 workflow)
+
+    static let subagentCall = "toolu_demo_13"
+    static let subagentID = "ad3m0000000000001"
+    static let workflowRun = "wf_demo01"
+    static let workflowAgentID = "aw0demo0000000001"
+
+    static var weatherFolder: String { String(weather.path.dropLast(".jsonl".count)) }
+
+    /// 唯讀的附屬檔案：subagent 對話紀錄與 workflow 裡 agent 的對話紀錄。
+    static var sideFiles: [(path: String, lines: [String])] {
+        [
+            ("\(weatherFolder)/subagents/agent-\(subagentID).jsonl", [
+                sidechain(user("d3m0-s-01", "2026-11-16T08:40:09.100Z", "Find where the widget asks for a new forecast and how often.")),
+                sidechain(assistantTool("d3m0-s-02", "2026-11-16T08:40:12.000Z", id: "toolu_demo_s1", name: "Grep", input: ["pattern": "TimelineProvider"])),
+                sidechain(toolResult("d3m0-s-03", "2026-11-16T08:40:12.300Z", id: "toolu_demo_s1", text: "Widget/ForecastTimeline.swift:12")),
+                sidechain(assistantText("d3m0-s-04", "2026-11-16T08:41:14.000Z", "The timeline refreshes every 15 minutes and fetches each time.")),
+            ]),
+            ("\(weatherFolder)/subagents/workflows/\(workflowRun)/agent-\(workflowAgentID).jsonl", [
+                sidechain(user("d3m0-f-01", "2026-11-16T08:41:21.000Z", "Check that cached forecasts expire after an hour.")),
+                sidechain(assistantText("d3m0-f-02", "2026-11-16T08:41:40.000Z", "Entries older than an hour are dropped on read.")),
+            ]),
+        ]
+    }
+
+    static let subagentMeta = #"{"agentType":"Explore","description":"Check how the widget refreshes","toolUseId":"toolu_demo_13","spawnDepth":1,"requestShape":"foreground"}"#
+
+    static let journal = [
+        #"{"type":"launched","runId":"wf_demo01"}"#,
+        #"{"type":"started","agentId":"aw0demo0000000001","label":"cache expiry","phase":"Check"}"#,
+        #"{"type":"started","agentId":"aw0demo0000000002","label":"offline mode","phase":"Check"}"#,
+        #"{"type":"result","agentId":"aw0demo0000000001","result":"Entries older than an hour are dropped on read."}"#,
+        #"{"type":"started","agentId":"aw0demo0000000003","label":"widget copy","phase":"Review"}"#,
+    ]
+    static let journalChecksum = "journal 2718281828 412"
+
+    /// subagent 定位、附屬檔案的大小與視窗、workflow journal。
+    static func respondToDelegation(_ command: String) -> Data? {
+        if command == TranscriptCommand.findSubagent(sessionFolder: weatherFolder, callID: subagentCall) {
+            return Data("\(weatherFolder)/subagents/agent-\(subagentID).meta.json\n\(subagentMeta)\n".utf8)
+        }
+        for file in sideFiles {
+            let size = Data(file.lines.map { $0 + "\n" }.joined().utf8).count
+            if command == TranscriptCommand.tail(path: file.path, from: TranscriptReader.probeCursor, limit: 64 << 10) {
+                return Data("\(size)\n".utf8)
+            }
+            if command == TranscriptCommand.window(path: file.path, end: size, lines: 300) {
+                return Data("0 \(size)\n".utf8) + records(file.lines)
+            }
+            if command == TranscriptCommand.tail(path: file.path, from: size, limit: 64 << 10) {
+                return Data("\(size)\n".utf8)
+            }
+        }
+        if command == TranscriptCommand.readWorkflow(sessionFolder: weatherFolder, runID: workflowRun, knownChecksum: "") {
+            return Data((journalChecksum + "\n" + journal.map { $0 + "\n" }.joined()).utf8)
+        }
+        if command == TranscriptCommand.readWorkflow(sessionFolder: weatherFolder, runID: workflowRun, knownChecksum: journalChecksum) {
+            return Data((journalChecksum + "\n").utf8)
+        }
+        return nil
+    }
+
+    private static func sidechain(_ line: String) -> String {
+        line.replacingOccurrences(of: #""isSidechain":false"#, with: #""isSidechain":true"#)
+    }
 
     // MARK: - 行
 

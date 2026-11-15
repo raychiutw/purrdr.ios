@@ -80,6 +80,11 @@ public final class ConversationModel {
         return SubagentModel(transcripts: transcripts, parentTranscript: path, card: currentCard(card))
     }
 
+    /// 卡片的箭頭能不能開(不建立 model)。
+    public func canOpen(_ card: SubagentCard) -> Bool {
+        file != nil && card.callID != nil
+    }
+
     /// Workflow 的進度 model:每個 run 一個，卡片與畫面共用(每個 run 同時只有一個讀取在途)。
     public func workflowModel(for card: WorkflowCard) -> WorkflowModel? {
         guard let path = file?.path else { return nil }
@@ -129,7 +134,8 @@ public final class ConversationModel {
     private var olderMessages: [TranscriptMessage] = []
     private var waitingSince: Date?
     private var lastPolledStatus: AgentStatus?
-    private var workflowModels: [String: WorkflowModel] = [:]
+    /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
+    @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
     private var lastPresenceSeq: UInt64 = 0
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
     private var generation = 0

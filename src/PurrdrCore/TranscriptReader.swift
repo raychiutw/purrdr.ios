@@ -90,7 +90,7 @@ public struct TranscriptReader: Sendable {
         }
     }
 
-    static let probeCursor = 1 << 50
+    public static let probeCursor = 1 << 50
 
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {

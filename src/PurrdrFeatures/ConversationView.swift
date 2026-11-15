@@ -28,6 +28,18 @@ public struct ConversationView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .safeAreaInset(edge: .top, spacing: 0) { banner }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let pane = model.agentsPane, !pane.rows.isEmpty {
+                    AgentsBarView(pane: pane, readAt: model.agentsPaneReadAt, conversation: model)
+                }
+            }
+            .environment(\.delegationContext, DelegationContext(
+                workflowModel: { [model] in model.workflowModel(for: $0) },
+                canOpen: { [model] in model.canOpen($0) }
+            ))
+            .navigationDestination(for: DelegationRoute.self) { [model] route in
+                DelegationDestination(route: route, conversation: model)
+            }
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
                 await model.run()
@@ -221,8 +233,10 @@ struct ConversationItemView: View {
         case .note(let note):
             CapsuleNote(text: note.text, symbol: "info.circle")
                 .accessibilityIdentifier("conversation.note")
-        case .subagent, .workflow:
-            EmptyView()
+        case .subagent(let card):
+            SubagentCardView(card: card)
+        case .workflow(let card):
+            WorkflowCardView(card: card)
         }
     }
 }
