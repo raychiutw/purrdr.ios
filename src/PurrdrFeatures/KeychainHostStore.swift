@@ -33,10 +33,8 @@ public struct SystemKeychain: KeychainAPI {
     }
 }
 
-/// Keychain 回了非成功的狀態碼。
-public struct KeychainError: Error, Equatable, LocalizedError {
-    public var status: OSStatus
-
+/// 讓 Keychain 錯誤在畫面上有可讀的說明(`KeychainError` 定義在 `KeychainTokenStore.swift`)。
+extension KeychainError: LocalizedError {
     public var errorDescription: String? {
         let detail = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
         return "Keychain error: \(detail)"

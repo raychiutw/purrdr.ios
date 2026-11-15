@@ -27,7 +27,7 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params] [ssh 目的地]  # �
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
 
-CI(`.github/workflows/ci.yml`):`swift test` + package iOS 編譯、app 編譯(零 warning)、可攜核心用 Swift SDK for Android 交叉編譯(aarch64、x86_64,API 28)。
+CI(`.github/workflows/ci.yml`):`swift test` + package iOS 編譯、app 編譯(零 warning)、可攜核心用 Swift SDK for Android 交叉編譯(aarch64、x86_64,API 28)、後台測試(`backend/`,vitest)。
 
 ## 架構
 
@@ -43,6 +43,7 @@ src/PurrdrFeatures/            # SwiftUI 畫面 + 每畫面一個 @MainActor @Ob
 tests/PurrdrTestSupport/       # 假主機 FakeHost、錄製回應 Fixtures/
 tests/PurrdrCoreTests/  tests/PurrdrFeaturesTests/
 tests/PurrdrUITests/           # XCUITest
+backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript),說明見 backend/README.md
 ```
 
 依賴方向:`App → Features → Core ← Demo ← App`。**Features 不 import Demo**:畫面只透過 `HostChannel` 拿資料，不知道背後是真主機、假主機或 Demo。
@@ -52,6 +53,7 @@ tests/PurrdrUITests/           # XCUITest
 - **真 SSH**(`SSHHostChannel`,ADR-0003):swift-nio-ssh,Tailscale SSH 用 `none` 認證。沒有 host key pin 時**不登入**,丟 `SSHConnectionError.hostKeyUnverified(presented:)` 讓畫面請使用者確認;指紋不符丟 `hostKeyChanged`。主機設定與 pin 存 Keychain(`KeychainHostStore`,解鎖時、僅此裝置)。
 - **herdr client**:每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
 - **主機指令建構**(`HerdrCommand`):POSIX 指令前綴明確 PATH、引號用 `'"'"'`(行為規格 §3.2)。herdr 路徑與具名 session 由 `HerdrInstallation` 帶入(`--session <name>` 放在子指令前;`--version`、`update` 不帶)。Windows 的 `-EncodedCommand` 尚未實作。
+- **Purrdr 後台(會員)**:核心的 `MemberSession`(actor)管登入與權杖(更新權杖存 `TokenStore`,iOS 是 Keychain;401 自動換權杖重送一次),經 `BackendTransport` 送出;iOS 傳輸是 Features 的 `URLSessionBackendTransport`。wire format(camelCase)只在 `MemberSession.swift`,契約在 `backend/README.md`。`-uiTesting` 時權杖只放記憶體、後台指向 `backend.invalid`。app 端測試用 `HTTPStub`(URLProtocol)擋後台。
 - **DI**:只用 initializer 注入;畫面 model 由 composition root 建立後傳入。
 - **Concurrency**:核心型別是 `Sendable` value type 或 actor;畫面 model 放在 main actor。
 

@@ -187,6 +187,7 @@ extension ConversationModel.Banner {
         case .offline: "Offline — showing the last loaded conversation."
         case .unreadable: "Can’t read this chat’s transcript on the host. Check the file’s permissions."
         case .readFailed: "Couldn’t update the conversation. Retrying…"
+        case .ambiguous: "More than one transcript matches this chat’s session, so none is shown."
         }
     }
 
@@ -195,6 +196,7 @@ extension ConversationModel.Banner {
         case .offline: "wifi.slash"
         case .unreadable: "lock"
         case .readFailed: "arrow.clockwise"
+        case .ambiguous: "questionmark.folder"
         }
     }
 }

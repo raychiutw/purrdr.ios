@@ -32,6 +32,8 @@ public final class HostsModel {
     public private(set) var selection: HostSelection = .demo
     public private(set) var hosts: [HostConfiguration] = []
     public private(set) var agentList: AgentListModel
+    /// 選取中主機的 Workspace 操作(釘選、靜音、重新命名、關閉)。
+    public private(set) var workspaceActions: WorkspaceActionsModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
 
@@ -39,27 +41,34 @@ public final class HostsModel {
     private let demoChannel: any HostChannel
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
     private let conversationCache: any ConversationCache
+    private let preferences: any ChatPreferencesStore
     private var channel: any HostChannel
     private var client: HerdrClient
     private var transcripts: TranscriptReader
     private var terminals: PaneTerminalClient
 
-    /// - Parameter conversationCache: 對話快取(所有主機共用;快取以 session 為鍵)。
+    /// - Parameters:
+    ///   - conversationCache: 對話快取(所有主機共用;快取以 session 為鍵)。
+    ///   - preferences: 釘選、靜音等本機偏好(目前所有主機共用，以 pane id 為鍵;多主機合併時要加上主機身分)。
     public init(
         store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
+        preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
     ) {
         self.store = store
         self.demoChannel = demoChannel
         self.makeChannel = makeChannel
         self.conversationCache = conversationCache
+        self.preferences = preferences
         channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)
         self.client = client
         self.transcripts = transcripts
         terminals = PaneTerminalClient(channel: demoChannel)
-        agentList = AgentListModel(client: client, transcripts: transcripts)
+        let agentList = AgentListModel(client: client, transcripts: transcripts)
+        self.agentList = agentList
+        workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
     }
 
     /// 選取中主機上某個 Pane 的終端機 model(pane id、標題)。
@@ -118,7 +127,9 @@ public final class HostsModel {
             terminals = PaneTerminalClient(channel: demoChannel)
         }
         transcripts = TranscriptReader(channel: channel)
-        agentList = AgentListModel(client: client, transcripts: transcripts)
+        let agentList = AgentListModel(client: client, transcripts: transcripts)
+        self.agentList = agentList
+        workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         self.selection = selection
         Task { await previous.disconnect() }
     }

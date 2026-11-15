@@ -81,7 +81,7 @@ public enum ClaudeTranscriptParser {
         }
     }
 
-    private static func filePath(in input: [String: Any]) -> String? {
+    static func filePath(in input: [String: Any]) -> String? {
         for key in ["file_path", "notebook_path", "path"] {
             if let value = input[key] as? String, !value.isEmpty { return value }
         }
@@ -289,13 +289,14 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
     }
 
     /// 模型顯示名：去掉 `[…]` 尾碼與 `provider/` 前綴;`claude-opus-4-1-…` → 「Opus 4.1」;
-    /// 舊式 `claude-3-5-sonnet` → 「Sonnet 3.5」;非 Claude id 原樣(行為規格 F5.7)。
+    /// 舊式 `claude-3-5-sonnet` → 「Sonnet 3.5」;非 Claude id 只去掉 `provider/` 前綴(行為規格 F5.7、R-I18:
+    /// Pi／OMP 的模型帶 provider 前綴)。
     public static func displayName(ofModel model: String) -> String {
-        var id = model
+        let unprefixed = model.lastIndex(of: "/").map { String(model[model.index(after: $0)...]) } ?? model
+        var id = unprefixed
         if let bracket = id.firstIndex(of: "[") { id = String(id[..<bracket]) }
-        if let slash = id.lastIndex(of: "/") { id = String(id[id.index(after: slash)...]) }
         let tokens = id.split(separator: "-").map(String.init)
-        guard tokens.first == "claude", tokens.count >= 2 else { return model }
+        guard tokens.first == "claude", tokens.count >= 2 else { return unprefixed }
         let isVersion = { (token: String) in token.count <= 2 && token.allSatisfy(\.isNumber) }
         let family: String
         let version: [String]

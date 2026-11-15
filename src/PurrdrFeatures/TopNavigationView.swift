@@ -6,17 +6,19 @@ import SwiftUI
 public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let hosts: HostsModel
+    let member: MemberModel
 
-    public init(navigation: TopNavigationModel, hosts: HostsModel) {
+    public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel) {
         self.navigation = navigation
         self.hosts = hosts
+        self.member = member
     }
 
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
             // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
-            AgentListView(model: hosts.agentList) { paneID, sessionID in
+            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions) { paneID, sessionID in
                 hosts.conversation(paneID: paneID, sessionID: sessionID)
             } terminal: { paneID, title in
                 hosts.terminal(paneID: paneID, title: title)
@@ -28,6 +30,9 @@ public struct TopNavigationView: View {
             switch sheet {
             case .hosts:
                 HostListView(model: hosts)
+            case .member:
+                // 會員畫面自帶 NavigationStack 與「完成」。
+                MemberView(model: member)
             case .settings, .newChat:
                 TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
             }
@@ -44,6 +49,8 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.settings")
                 Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
                     .accessibilityIdentifier("menu.hosts")
+                Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
+                    .accessibilityIdentifier("menu.member")
             } label: {
                 Label("More", systemImage: "ellipsis")
             }
@@ -89,6 +96,7 @@ extension TopLevelSheet {
         case .settings: "Settings"
         case .hosts: "Hosts"
         case .newChat: "New Chat"
+        case .member: "Purrdr Member"
         }
     }
 
@@ -97,6 +105,7 @@ extension TopLevelSheet {
         case .settings: "gearshape"
         case .hosts: "desktopcomputer"
         case .newChat: "plus.bubble"
+        case .member: "person.crop.circle"
         }
     }
 }

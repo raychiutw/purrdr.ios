@@ -31,6 +31,8 @@ public enum TopLevelSheet: String, Identifiable, Sendable {
     case settings
     case hosts
     case newChat
+    /// 會員(登入、登入方式、刪除會員,#27)。設定頁(#32)做好後可改從設定進入。
+    case member
 
     public var id: String { rawValue }
 }
