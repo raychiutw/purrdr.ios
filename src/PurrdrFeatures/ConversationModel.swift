@@ -121,8 +121,13 @@ public final class ConversationModel {
 
     /// 輸入框的文字。改動即存進 `DraftStore`(離開聊天保留)。
     public var draft = "" {
-        didSet { drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID) }
+        didSet {
+            drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
+            slash.update(draft: draft)
+        }
     }
+    /// 輸入 `/` 時的 slash 選單(#15)。
+    public let slash: SlashMenuModel
     public private(set) var isSending = false
     /// 還沒被對話紀錄確認的回音。
     public private(set) var echoes: [PromptEcho] = []
@@ -143,6 +148,7 @@ public final class ConversationModel {
     private let knownSessionID: String?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
+    private let slashDiscovery: ClaudeSlashDiscovery?
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -168,7 +174,8 @@ public final class ConversationModel {
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
-        drafts: DraftStore = DraftStore(), sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        drafts: DraftStore = DraftStore(), slashDiscovery: ClaudeSlashDiscovery? = nil,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.client = client
         self.transcripts = transcripts
@@ -180,7 +187,31 @@ public final class ConversationModel {
         self.pageLines = pageLines
         self.drafts = drafts
         delivery = PromptDelivery(client: client, sleep: sleep)
+        self.slashDiscovery = slashDiscovery
+        slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
+        slash.loader = { [weak self] in await self?.slashCatalog() }
+        slash.onPick = { [weak self] in self?.draft = $0 }
+        slash.update(draft: draft)
+    }
+
+    /// 這個 agent 的 slash 清單(#15):Claude 在主機上發現;Grok、Antigravity 用固定清單;其他沒有選單(`nil`)。
+    /// 還沒輪詢過時先讀一次 snapshot 以知道 agent 種類。沒有發現器時(測試)只有內建指令並標示不完整。
+    private func slashCatalog() async -> SlashCatalog? {
+        var agent = currentAgent
+        if agent == nil {
+            agent = (try? await client.snapshot())?.agents.first { $0.paneID == paneID }
+        }
+        guard let agent else { return nil }
+        switch AgentSlashMenu(agentKind: agent.kind) {
+        case .none:
+            return nil
+        case .fixed(let commands):
+            return SlashCatalog(fixed: commands)
+        case .discovered:
+            guard let slashDiscovery else { return SlashCatalog(sections: [SlashSection(source: .builtIn, commands: ClaudeBuiltinCommands.all)], isComplete: false) }
+            return await slashDiscovery.catalog(cwd: agent.cwd, transcriptPath: file?.path)
+        }
     }
 
     /// 快取 key。目前一個聊天對應一個 pane;多 agent 的 workspace 聊天(合併多個 pane)是之後的票。

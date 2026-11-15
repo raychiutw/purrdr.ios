@@ -205,6 +205,18 @@ struct DemoHostTests {
         #expect(events == [.closed(.notFound)])
     }
 
+    @Test("Slash 清單:Demo 的 Claude Code agent 有 plugin 宣告的巢狀 skill,停用的 plugin 不出現")
+    func slashCatalog() async throws {
+        let host = DemoHost()
+        let agent = try await HerdrClient(channel: host).snapshot().agents.first { $0.paneID == "w1:p1" }
+        let file = try await TranscriptReader(channel: host).locate(sessionID: try #require(agent?.sessionID), cwd: try #require(agent?.cwd))
+        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: agent?.cwd, transcriptPath: file.path)
+        #expect(catalog.isComplete)
+        #expect(catalog.sections.map(\.source) == [.builtIn, .user, .plugin("demo-kit")])
+        #expect(catalog.sections.last?.commands.map(\.name) == ["demo-kit:changelog", "demo-kit:check-diff"])
+        #expect(catalog.sections[1].commands.map(\.name) == ["standup", "weekly-summary"])
+    }
+
     /// 行為規格 F21:Demo 的 Claude 聊天有已完成的 subagent 與執行中的 workflow,走正式的定位與讀取指令。
     @Test("Demo 的 subagent 與 workflow:卡片、依呼叫 id 找到的 subagent 對話紀錄、執行中的 journal 與其中 agent 的對話紀錄")
     func demoDelegations() async throws {

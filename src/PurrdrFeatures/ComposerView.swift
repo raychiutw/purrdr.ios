@@ -20,6 +20,9 @@ struct ComposerBar: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            if model.slash.isVisible {
+                SlashMenuView(menu: model.slash)
+            }
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
@@ -51,7 +54,10 @@ struct ComposerBar: View {
     // MARK: - 輸入框
 
     private var editor: some View {
-        ComposerTextEditor(text: $model.draft, isFocused: $isFocused, returnSends: returnSends, canSend: model.canSend) {
+        ComposerTextEditor(
+            text: $model.draft, isFocused: $isFocused, returnSends: returnSends, canSend: model.canSend,
+            slashKey: { model.slash.handle($0) }
+        ) {
             send()
         }
         .overlay(alignment: .topLeading) {
@@ -268,6 +274,8 @@ struct ComposerTextEditor: UIViewRepresentable {
     @Binding var isFocused: Bool
     var returnSends: Bool
     var canSend: Bool
+    /// slash 選單顯示時攔截硬體鍵盤的上下、Return、Tab、Esc(回傳 true 表示已處理)。
+    var slashKey: (SlashMenuModel.Key) -> Bool
     var onSend: () -> Void
 
     /// 長到 4 行後內捲(F6.1)。
@@ -297,6 +305,7 @@ struct ComposerTextEditor: UIViewRepresentable {
             ComposerKeys.actionForReturn(modifiers: modifiers, returnSends: returnSends, canSend: canSend, isComposing: isComposing)
         }
         view.onSend = onSend
+        view.slashKey = slashKey
         if view.text != text {
             // 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3)。
             let fromEnd = (view.text as NSString).length - view.selectedRange.location - view.selectedRange.length
@@ -347,11 +356,28 @@ struct ComposerTextEditor: UIViewRepresentable {
 final class KeyHandlingTextView: UITextView {
     var returnAction: ((ReturnModifiers, Bool) -> ComposerKeyAction)?
     var onSend: (() -> Void)?
+    var slashKey: ((SlashMenuModel.Key) -> Bool)?
     private var handled = Set<UIPress>()
+
+    /// 硬體鍵盤的按鍵 → slash 選單操作(沒有修飾鍵、不在組字中)。
+    private func slashMenuKey(for key: UIKey) -> SlashMenuModel.Key? {
+        guard markedTextRange == nil, key.modifierFlags.intersection([.command, .shift, .alternate, .control]).isEmpty else { return nil }
+        switch key.keyCode {
+        case .keyboardUpArrow: return .up
+        case .keyboardDownArrow: return .down
+        case .keyboardReturnOrEnter, .keyboardTab: return .select
+        case .keyboardEscape: return .dismiss
+        default: return nil
+        }
+    }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         var passThrough = Set<UIPress>()
         for press in presses {
+            if let key = press.key, let menuKey = slashMenuKey(for: key), slashKey?(menuKey) == true {
+                handled.insert(press)
+                continue
+            }
             guard let key = press.key, key.keyCode == .keyboardReturnOrEnter, let returnAction else {
                 passThrough.insert(press)
                 continue
@@ -395,6 +421,7 @@ struct ComposerTextEditor: View {
     @Binding var isFocused: Bool
     var returnSends: Bool
     var canSend: Bool
+    var slashKey: (SlashMenuModel.Key) -> Bool
     var onSend: () -> Void
     @FocusState private var focused: Bool
 

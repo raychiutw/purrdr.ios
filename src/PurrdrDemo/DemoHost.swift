@@ -48,6 +48,9 @@ public actor DemoHost: HostChannel {
         if let control = DemoPaneControl(command: command) {
             return openPane(control)
         }
+        if let stdout = DemoSlash.respond(to: command) {
+            return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }

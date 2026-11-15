@@ -95,7 +95,7 @@ public final class HostsModel {
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
         ConversationModel(client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache,
-            drafts: drafts)
+            drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel))
     }
 
     public var rows: [HostRow] {
