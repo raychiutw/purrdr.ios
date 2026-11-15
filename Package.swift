@@ -29,11 +29,11 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
         .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.11.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
-        // 終端機模擬器(MIT)。固定 1.11.2:
-        // - 1.12 起帶 Metal shader,Xcode 27 沒裝 Metal Toolchain(另外下載的元件)就編不過，本機與 CI 都要多一步;
-        // - 1.19 起再加 build-tool plugin,Xcode 建置 app 時要逐一信任 plugin。
-        // 我們只用 CoreGraphics 繪製，不需要 Metal。
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", exact: "1.11.2"),
+        // 終端機模擬器(MIT)。固定最新穩定版 1.19.0(1.20 是 prerelease;1.99.x 是 2.0 前的破壞性系列，暫不採用):
+        // - 1.12 起帶 Metal shader:Xcode 27 要先裝 Metal Toolchain(`xcodebuild -downloadComponent MetalToolchain`);
+        // - 1.19 起帶 build-tool plugin(SwiftTermBuildInfoPlugin):命令列 xcodebuild 要加 `-skipPackagePluginValidation`。
+        // 本機與 CI 的步驟見 AGENTS.md「常用指令」。
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", exact: "1.19.0"),
     ],
     targets: [
         // 可攜核心：主機通道(含 SSH)、herdr client、領域型別。只用 Foundation 與 swift-nio／swift-nio-ssh／swift-crypto。

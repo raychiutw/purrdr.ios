@@ -16,9 +16,11 @@ public struct AgentListView: View {
     private let makeConversation: @MainActor (String, String?) -> ConversationModel
     /// 建立某個 Pane 的終端機 model(pane id、標題)。由 composition root 提供。
     private let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
+    /// 選取中主機的 Claude 用量，畫在列表最下方;讀取失敗時不顯示(行為規格 F2.9、F18)。
+    private let usage: ClaudeUsageModel?
 
     public init(
-        model: AgentListModel, actions: WorkspaceActionsModel,
+        model: AgentListModel, actions: WorkspaceActionsModel, usage: ClaudeUsageModel? = nil,
         conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
     ) {
@@ -26,6 +28,7 @@ public struct AgentListView: View {
         self.actions = actions
         self.makeConversation = conversation
         self.makeTerminal = terminal
+        self.usage = usage
     }
 
     /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
@@ -96,6 +99,8 @@ public struct AgentListView: View {
                             .accessibilityIdentifier("agentList.retry")
                     }
                 }
+            } else if let usage {
+                Section { ClaudeUsageFooter(model: usage) }
             }
         }
         #if os(iOS)

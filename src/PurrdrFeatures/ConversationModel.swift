@@ -121,8 +121,13 @@ public final class ConversationModel {
 
     /// 輸入框的文字。改動即存進 `DraftStore`(離開聊天保留)。
     public var draft = "" {
-        didSet { drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID) }
+        didSet {
+            drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
+            slash.update(draft: draft)
+        }
     }
+    /// 輸入 `/` 時的 slash 選單(#15)。
+    public let slash: SlashMenuModel
     public private(set) var isSending = false
     /// 還沒被對話紀錄確認的回音。
     public private(set) var echoes: [PromptEcho] = []
@@ -131,6 +136,16 @@ public final class ConversationModel {
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
     public private(set) var isStopping = false
+
+    // MARK: 回答「需要你」(F8)
+
+    /// 畫面上正在等回答的提示。
+    public private(set) var prompt: BlockedPrompt?
+    /// 已送出、還在等結果的回答(選項全部鎖住)。
+    public private(set) var answerInFlight: PromptAnswer?
+    /// 最近一次已送達的回答(畫面清楚顯示選了什麼)。
+    public private(set) var lastAnswer: AnsweredPrompt?
+    public private(set) var answerNotice: AnswerNotice?
 
     public let paneID: String
     private let client: HerdrClient
@@ -143,6 +158,18 @@ public final class ConversationModel {
     private let knownSessionID: String?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
+    private let slashDiscovery: ClaudeSlashDiscovery?
+    private let haptics: any Haptics
+    /// 下一次輪詢要讀畫面(送出時 agent 在等回答)。
+    private var probeScreen = false
+    private var answerSignature: String?
+    private var answerQuestion: String?
+    /// 按鍵送達主機的時間;還在送時為 `nil`(不判定)。
+    private var answerSentAt: Date?
+    @ObservationIgnored private var kickTask: Task<Void, Never>?
+    /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
+    @ObservationIgnored private var screenThisPoll: String?
+    private let sleep: @Sendable (Duration) async throws -> Void
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -168,7 +195,8 @@ public final class ConversationModel {
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
-        drafts: DraftStore = DraftStore(), sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        drafts: DraftStore = DraftStore(), slashDiscovery: ClaudeSlashDiscovery? = nil, haptics: any Haptics = SilentHaptics(),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.client = client
         self.transcripts = transcripts
@@ -179,8 +207,34 @@ public final class ConversationModel {
         self.openLines = openLines
         self.pageLines = pageLines
         self.drafts = drafts
+        self.haptics = haptics
+        self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
+        self.slashDiscovery = slashDiscovery
+        slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
+        slash.loader = { [weak self] in await self?.slashCatalog() }
+        slash.onPick = { [weak self] in self?.draft = $0 }
+        slash.update(draft: draft)
+    }
+
+    /// 這個 agent 的 slash 清單(#15):Claude 在主機上發現;Grok、Antigravity 用固定清單;其他沒有選單(`nil`)。
+    /// 還沒輪詢過時先讀一次 snapshot 以知道 agent 種類。沒有發現器時(測試)只有內建指令並標示不完整。
+    private func slashCatalog() async -> SlashCatalog? {
+        var agent = currentAgent
+        if agent == nil {
+            agent = (try? await client.snapshot())?.agents.first { $0.paneID == paneID }
+        }
+        guard let agent else { return nil }
+        switch AgentSlashMenu(agentKind: agent.kind) {
+        case .none:
+            return nil
+        case .fixed(let commands):
+            return SlashCatalog(fixed: commands)
+        case .discovered:
+            guard let slashDiscovery else { return SlashCatalog(sections: [SlashSection(source: .builtIn, commands: ClaudeBuiltinCommands.all)], isComplete: false) }
+            return await slashDiscovery.catalog(cwd: agent.cwd, transcriptPath: file?.path)
+        }
     }
 
     /// 快取 key。目前一個聊天對應一個 pane;多 agent 的 workspace 聊天(合併多個 pane)是之後的票。
@@ -242,6 +296,8 @@ public final class ConversationModel {
             return
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
+        screenThisPoll = nil
+        await refreshPrompt(agent)
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
             unbind()
@@ -276,7 +332,11 @@ public final class ConversationModel {
         case .blocked: false
         default: agentsPane != nil || lastPolledStatus == .working
         }
-        guard shouldRead, let screen = try? await client.readPane(paneID: paneID) else { return }
+        guard shouldRead else { return }
+        // 這次輪詢找提示時已經讀過畫面就沿用，不再多一個主機指令。
+        let read: String?
+        if let screenThisPoll { read = screenThisPoll } else { read = try? await client.readPane(paneID: paneID) }
+        guard let screen = read else { return }
         agentsPane = AgentsPane.parse(screen: screen)
         agentsPaneReadAt = clock.now()
     }
@@ -441,6 +501,11 @@ public final class ConversationModel {
         switch await freshTarget() {
         case .success(let agent):
             apply(await delivery.send(text, to: agent), toEcho: echo.id, text: text, isRetry: false)
+            if notice == .needsAnswer {
+                // 什麼都沒送出，因為 agent 在等回答：立刻找出問題(資料夾信任這類提示 herdr 可能回報 idle)。
+                probeScreen = true
+                await refreshPrompt(agent)
+            }
         case .failure(let failure):
             removeEcho(echo.id)
             restoreDraft(text)
@@ -488,6 +553,137 @@ public final class ConversationModel {
     }
 
     public func dismissNotice() { notice = nil }
+
+    // MARK: - 回答「需要你」
+
+    /// 這個回答現在能不能送:沒有回答在途、提示還在，且有按鍵可送(編號 10 以上不行,R-Q04)。
+    public func canAnswer(_ answer: PromptAnswer) -> Bool {
+        guard answerInFlight == nil, let prompt, keys(for: answer) != nil else { return false }
+        switch answer {
+        case .option(let option): return prompt.options.contains(option)
+        case .continueMultiSelect: return prompt.isMultiSelect
+        case .closePicker: return prompt.kind == .filePicker
+        case .generic: return prompt.kind == .unrecognized
+        }
+    }
+
+    /// 回答提示(F8):依 agent 規則送出按鍵(§5.5)。
+    ///
+    /// 送出前就鎖住所有選項(兩次快速點擊在重繪前就會到);之後每次輪詢判定：提示不見了或換成別的 → 已送達;
+    /// 同一個提示超過期限 → 逾時、解鎖並提示可能沒送到;按鍵送不出去 → 立刻解鎖並顯示錯誤(R-Q05)。
+    public func answer(_ answer: PromptAnswer) async {
+        guard canAnswer(answer), let prompt, let keys = keys(for: answer) else { return }
+        answerInFlight = answer
+        answerSignature = prompt.signature
+        answerQuestion = prompt.question
+        answerSentAt = nil
+        answerNotice = nil
+        haptics.play(.selection)
+        do {
+            try await client.sendKeys(paneID: paneID, keys: keys)
+        } catch {
+            guard answerInFlight == answer else { return }
+            clearAnswer()
+            answerNotice = .sendFailed
+            haptics.play(.error)
+            return
+        }
+        guard answerInFlight == answer else { return }
+        answerSentAt = clock.now()
+        // 下一題常緊接著出現：0.4 秒與 1.2 秒各多看一次(R-Q09)。
+        kickTask?.cancel()
+        kickTask = Task { [weak self, sleep] in
+            for delay in [Duration.milliseconds(400), .milliseconds(800)] {
+                do { try await sleep(delay) } catch { return }
+                guard let self, !Task.isCancelled else { return }
+                await self.poll()
+            }
+        }
+    }
+
+    public func dismissAnswerNotice() { answerNotice = nil }
+
+    private func keys(for answer: PromptAnswer) -> [String]? {
+        AnswerKeys.keys(for: answer, agentKind: currentAgent?.kind ?? "")
+    }
+
+    /// 回答期限:max(12 秒, 3 × 輪詢間隔)(blocked 時每 2 秒輪詢;慢輪詢下好答案曾被判逾時,R-Q05)。
+    private static let answerDeadline: TimeInterval = max(12, 3 * 2)
+
+    /// 讀 pane 畫面找出提示(§5.1)。
+    ///
+    /// - `blocked`(或 `input_pending`)每次輪詢都讀;看不出選單就給通用鈕。
+    /// - herdr 0.9.5 沒有 `input_pending`:Claude 首次啟動的資料夾信任時 agent 是閒置、還沒有 session,
+    ///   所以閒置且沒有 session、送出時被告知在等回答、或畫面上已有提示時也讀，但**只認資料夾信任**
+    ///   (閒置畫面上對話中的編號清單不是提示)。
+    private func refreshPrompt(_ agent: Agent) async {
+        let blocked = agent.status == .blocked || (agent.inputPending && agent.status != .working)
+        // 工作中 = 沒有在等任何回答(提示已經被回答掉了)。
+        let probe = agent.status != .working && (probeScreen || prompt != nil || agent.session == nil)
+        probeScreen = false
+        guard blocked || probe else {
+            update(prompt: nil)
+            return
+        }
+        screenThisPoll = try? await client.readPane(paneID: agent.paneID)
+        guard let screen = screenThisPoll else {
+            // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
+            if blocked, prompt == nil { prompt = .unrecognized }
+            if prompt != nil { agentStatus = .blocked }
+            checkAnswerDeadline()
+            return
+        }
+        let parsed = BlockedPromptParser.parse(screen: screen, agentKind: agent.kind)
+        let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
+        if next != nil { agentStatus = .blocked }
+        update(prompt: next)
+    }
+
+    /// 以新的畫面判定在途的回答，再換上新的提示(同一提示保持原物件)。
+    private func update(prompt next: BlockedPrompt?) {
+        if let answer = answerInFlight, answerSentAt != nil {
+            if next == nil || next?.signature != answerSignature {
+                // 不再 blocked = 已送達;換成別的提示 = 被取代(通常是下一題),新問題不繼承鎖。
+                if case .option(let option) = answer, option.checked != nil {
+                    // 勾選只是切換，不是最終的回答。
+                } else {
+                    lastAnswer = AnsweredPrompt(question: answerQuestion, choice: Self.choiceText(answer))
+                }
+                clearAnswer()
+                haptics.play(.success)
+            } else {
+                checkAnswerDeadline()
+            }
+        }
+        if next?.signature != prompt?.signature || (next == nil) != (prompt == nil) { prompt = next }
+    }
+
+    private func checkAnswerDeadline() {
+        guard answerInFlight != nil, let sentAt = answerSentAt,
+              clock.now().timeIntervalSince(sentAt) > Self.answerDeadline else { return }
+        clearAnswer()
+        answerNotice = .mayNotHaveArrived
+        haptics.play(.error)
+    }
+
+    private func clearAnswer() {
+        answerInFlight = nil
+        answerSignature = nil
+        answerQuestion = nil
+        answerSentAt = nil
+    }
+
+    private static func choiceText(_ answer: PromptAnswer) -> String {
+        switch answer {
+        case .option(let option): option.label
+        case .continueMultiSelect: String(localized: "Continue")
+        case .closePicker: String(localized: "Close File Picker")
+        case .generic(.confirm): String(localized: "Confirm")
+        case .generic(.one): "1"
+        case .generic(.two): "2"
+        case .generic(.escape): String(localized: "Esc")
+        }
+    }
 
     // MARK: - 送出(內部)
 

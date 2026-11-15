@@ -7,18 +7,21 @@ public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let hosts: HostsModel
     let member: MemberModel
+    /// Purrdr Plus(#28);`nil` 時選單不顯示。
+    let plus: SubscriptionModel?
 
-    public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel) {
+    public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, plus: SubscriptionModel? = nil) {
         self.navigation = navigation
         self.hosts = hosts
         self.member = member
+        self.plus = plus
     }
 
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
             // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
-            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions) { paneID, sessionID in
+            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions, usage: hosts.claudeUsage) { paneID, sessionID in
                 hosts.conversation(paneID: paneID, sessionID: sessionID)
             } terminal: { paneID, title in
                 hosts.terminal(paneID: paneID, title: title)
@@ -33,13 +36,19 @@ public struct TopNavigationView: View {
                 HostListView(model: hosts)
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
-                MemberView(model: member)
+                MemberView(model: member, plus: plus)
+            case .plus:
+                if let plus {
+                    PlusSheet(model: plus, member: member)
+                }
             case .settings, .newChat:
                 TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
             }
         }
         // 冷啟動與從背景回來的深層連結都會走到這裡。
         .onOpenURL { navigation.open($0) }
+        // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
+        .task { await plus?.observeTransactionUpdates() }
     }
 
     @ToolbarContentBuilder
@@ -52,6 +61,10 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.hosts")
                 Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
                     .accessibilityIdentifier("menu.member")
+                if plus != nil {
+                    Button("Purrdr Plus", systemImage: "bell.badge") { navigation.sheet = .plus }
+                        .accessibilityIdentifier("menu.plus")
+                }
             } label: {
                 Label("More", systemImage: "ellipsis")
             }
@@ -91,7 +104,7 @@ struct TopLevelSheetView: View {
         switch sheet {
         case .settings:
             SettingsForm()
-        case .hosts, .newChat, .member:
+        case .hosts, .newChat, .member, .plus:
             ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
         }
     }
@@ -104,6 +117,7 @@ extension TopLevelSheet {
         case .hosts: "Hosts"
         case .newChat: "New Chat"
         case .member: "Purrdr Member"
+        case .plus: "Purrdr Plus"
         }
     }
 
@@ -113,6 +127,7 @@ extension TopLevelSheet {
         case .hosts: "desktopcomputer"
         case .newChat: "plus.bubble"
         case .member: "person.crop.circle"
+        case .plus: "bell.badge"
         }
     }
 }
@@ -120,6 +135,7 @@ extension TopLevelSheet {
 /// 設定(目前只有硬體鍵盤;完整設定頁在 #32)。
 struct SettingsForm: View {
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
+    @AppStorage(HapticSettings.enabledKey) private var haptics = true
 
     var body: some View {
         Form {
@@ -130,6 +146,12 @@ struct SettingsForm: View {
                 Text("Hardware Keyboard")
             } footer: {
                 Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+            }
+            Section {
+                Toggle("Haptics", isOn: $haptics)
+                    .accessibilityIdentifier("settings.haptics")
+            } footer: {
+                Text("Feel a tap when you answer an agent, and whether the answer arrived.")
             }
         }
     }

@@ -30,6 +30,7 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `herdr-0.9.5/error.workspace-not-found.ndjson` | `workspace.get {"workspace_id":"w99"}` | 2026-11-16 | `workspace_not_found`;也當作其他 workspace 錯誤的 envelope 底 |
 | `herdr-0.9.5/error.not-git-worktree.ndjson` | `worktree.list {"cwd":"/tmp"}`(唯讀) | 2026-11-16 | 建 worktree 時資料夾不在 git repo(`not_git_worktree`) |
 | `herdr-0.9.5/pane.report-metadata.ndjson` | `pane.report_metadata`(`phone:on`、`model`、`ttl_ms` 45000、`seq`) | 2026-11-16 | 在場回報被接受(`{"type":"ok"}`) |
+| `herdr-0.9.5/pane.read.visible.ndjson` | `pane.read {pane_id, source:"visible", lines:40}`,對一個**已經閒置**的 Claude pane(唯讀) | 2026-11-16 | `pane_read` envelope 的形狀。**`text` 整段換成手寫的 `screens/claude-idle.txt`**、pane／tab id 換成假值(原畫面含個人內容) |
 | `herdr-0.9.5/pane.read.agents-pane.ndjson` | `pane.read {"pane_id":…,"source":"visible","lines":40}`(一個有 5 個背景 agent 在跑的 Claude Code pane) | 2026-11-16 | 背景 agents 窗格的解析與讀取時機(#17)。窗格的記號、種類、經過時間、tokens、`↓ 4 more` 與欄寬原樣;回覆內容、輸入框、狀態列(專案、分支、費用)與每列的任務文字換成假值 |
 
 ## Claude Code 對話紀錄(`claude-code/`)
@@ -63,6 +64,15 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - **會改主機狀態的 workspace 操作**(`workspace.rename`、`workspace.close`、`worktree.create`)**不在作者主機上執行**。成功回應：rename 以 `workspace.get.ndjson` 為底改 label;close 的 `{"type":"ok"}` 與 worktree 的 `worktree_created` 依 `herdr api schema --json` 寫在測試裡。`workspace_group_close_required` 碼取自 herdr CLI 文件(cli-reference「Worktrees」),envelope 沿用 `error.workspace-not-found.ndjson`。
 - **切分、zoomed、只出現在版面的 tab／pane**:錄製時主機上每個 tab 都只有一個 pane,以 `layouts[]` 改動模擬(見 `SpacesLayoutTests`)。
 
+## 「需要你」的畫面(`screens/`)——依行為規格手寫、未實測
+
+`screens/*.txt` 是 pane 的 visible 畫面(`pane.read` 的 `text`),給提示解析與作答測試用(#14)。**不是錄製的**:
+作者主機上沒有正在問問題的 agent,而為了錄製去製造 blocked 狀態會把按鍵送進真的 agent,所以一律不錄。
+形狀依 `docs/research/herdrchat-behavior-spec.md` §5.2–§5.4 的描述(Claude 2.1.286／2.1.299 的權限與信任提示、
+AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you like to…` 段落、Grok 的 `(●)` 列、agy 的折行資料夾),
+內容(指令、路徑、問題)是自己寫的範例。測試用 `PaneScreens.read(_:)` 把它放進錄製的 `pane.read` envelope。
+真機第一次看到 blocked 畫面時，以唯讀的 `pane.read` 讀下來去識別化，換掉對應的檔案。
+
 ## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
 
 `tailscale/check-mode.banner.txt`:Tailscale SSH 在 check mode 時送出的 SSH 認證橫幅。**不是錄製的**:作者的 Mac 無法經 Tailscale SSH 連自己，也不變更作者的 ACL。
@@ -80,3 +90,18 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `other-agents/pi/session.jsonl` | 行為規格 §4.5;Pi 官方文件 `packages/coding-agent/docs/session-format.md`、`message-types.md`(github.com/badlogic/pi-mono,2026-11-16 取用) | session header、`model_change`、`thinking_level_change`、system 訊息(忽略)、user(字串與 block、圖片)、assistant(thinking、redacted、`redactedThinking`、toolCall、usage、stopReason)、toolResult(含錯誤)、`compaction`、`branch_summary`、`reset_boundary`、中斷的輪次(usage 為 0) |
 
 `message.timestamp`(毫秒)刻意和 entry 的 ISO 時間不同，測試才分得出取的是哪一個。OMP 的標題槽(`{"type":"title",…}`)寫在測試裡。
+
+## Claude Code plugin／skill 結構(`claude-plugins/home/`)與 `skill_listing`(`claude-code/skill-listing.jsonl`)
+
+`scripts/record-claude-plugins-fixture.py` 從作者 Mac 的 `~/.claude` **唯讀**錄製(2026-11-16),給 slash 清單的發現測試(#15)。
+
+- **保留原樣**:`installed_plugins.json` 的結構與各筆安裝(版本、scope、多筆安裝);每個已安裝 plugin 的 `.claude-plugin/plugin.json`;
+  所有 `SKILL.md` 與指令 `.md` 的路徑與 frontmatter(公開 plugin 的內容)。`mattpocock-skills` 1.3.2 有 38 個 SKILL.md,
+  `plugin.json` 以 `skills/<分類>/<名稱>` 宣告其中 27 個,`skills/in-progress`、`skills/misc` 的 11 個沒有宣告。
+- **換成假值或刪掉**:家目錄換成 `/Users/demo`;專案層安裝的 `projectPath` 換成 `/Users/demo/Projects/other-project-1`;
+  `settings.json` 只留 `enabledPlugins`;`.md` 的內文換成「(內容略)」;作者自己寫的使用者層 skill(`apim-*`、
+  `skill-creator-advanced` 等)不錄，`skill_listing` 中也一併拿掉(名稱、說明、digest);attachment 行的 uuid、session id、cwd、分支換成假值。
+- **測試裡的改動**(錄不到的情境):停用 plugin(作者 Mac 上全部啟用)——測試把 `frontend-design` 在使用者層設成 `false`、
+  `webwright` 在專案層 `settings.local.json` 設成 `false`;專案層 skills／commands(作者 Mac 沒有)寫在測試裡;
+  `skill_listing` 的增量行(`isInitial: false`)以錄製行為底改動。
+- 存檔後以 `grep` 確認沒有真實的使用者名稱、主機名或專案名。

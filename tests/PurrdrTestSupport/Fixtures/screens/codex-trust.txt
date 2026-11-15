@@ -1,0 +1,9 @@
+> You are running Codex in /Users/demo/weather-app
+
+  Since this folder is version controlled, you may wish to allow Codex to work
+  in this folder without asking for approval.
+
+› 1. Yes, continue
+  2. No, quit
+
+  Press enter to continue

@@ -9,7 +9,7 @@ import PurrdrCore
 ///
 /// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、兩個 Claude Code agent 的對話紀錄(`DemoTranscripts`;
 /// 送出 prompt 後接上使用者那一行與固定回覆，「需要你」的 agent 回 `agent_blocked`)、接受按鍵(中斷)、
-/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell。
+/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell、記憶體裡的家目錄(主機檔案讀寫;Claude 用量裝上後回範例用量)。
 /// 完整的情境在 Demo 模式那張票補齊。
 public actor DemoHost: HostChannel {
     /// Demo 主機的情境(UI 測試以啟動旗標切換)。
@@ -36,6 +36,12 @@ public actor DemoHost: HostChannel {
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
 
+    /// 「需要你」情境的進度。
+    private var answers = DemoAnswers()
+
+    /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
+    private var files = DemoFiles()
+
     private let tailscaleCheck: TailscaleCheckObserver?
 
     public init(scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil) {
@@ -54,8 +60,15 @@ public actor DemoHost: HostChannel {
         if let control = DemoPaneControl(command: command) {
             return openPane(control)
         }
+        if let stdout = DemoSlash.respond(to: command) {
+            return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        if let request = HostFileRequest(command: command) {
+            let result = files.handle(request, now: Date())
+            return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
@@ -112,15 +125,17 @@ public actor DemoHost: HostChannel {
             return DemoSnapshot.error(id: request?["id"] as? String ?? "", code: "invalid_request", message: "invalid params")
         }
         let id = request?["id"] as? String ?? ""
+        if let rejection = answers.promptRejection(for: target) {
+            // 在等回答的 agent:herdr 在送出任何輸入前就拒絕。
+            return DemoSnapshot.error(id: id, code: rejection.code, message: rejection.message)
+        }
         switch target {
-        case "w2:p1":
-            // 「需要你」的 agent:herdr 在送出任何輸入前就拒絕。
-            return DemoSnapshot.error(id: id, code: "agent_blocked", message: "agent is blocked waiting for input; answer it first")
-        case "w1:p1", "w3:p1":
+        case "w1:p1", "w2:p1", "w3:p1":
             if let session = DemoTranscripts.sessions.first(where: { $0.paneID == target }) {
                 prompts += 1
                 appended[session.sessionID, default: []] += DemoTranscripts.reply(to: text, number: prompts, at: Date())
             }
+            answers.receivedPrompt(text, paneID: target)
             return DemoSnapshot.prompted(id: id, paneID: target)
         default:
             return DemoSnapshot.error(id: id, code: "agent_not_found", message: "agent not found: \(target)")
@@ -149,7 +164,26 @@ public actor DemoHost: HostChannel {
     }
 
     private func respond(to requestLine: Data) -> (line: Data, keepsOpen: Bool) {
-        promptResponse(to: requestLine) ?? DemoSnapshot.response(to: requestLine, state: &state)
+        if let response = promptResponse(to: requestLine) ?? paneResponse(to: requestLine) { return response }
+        state.statuses = answers.statuses
+        return DemoSnapshot.response(to: requestLine, state: &state)
+    }
+
+    /// `pane.read`(各 pane 畫面上的提示)與 `pane.send_keys`(回答提示)。其他請求回 `nil`。
+    private func paneResponse(to requestLine: Data) -> (line: Data, keepsOpen: Bool)? {
+        let request = (try? JSONSerialization.jsonObject(with: requestLine)) as? [String: Any]
+        let id = request?["id"] as? String ?? ""
+        let params = request?["params"] as? [String: Any] ?? [:]
+        let paneID = params["pane_id"] as? String ?? ""
+        switch request?["method"] as? String {
+        case "pane.read":
+            return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID))
+        case "pane.send_keys":
+            answers.receivedKeys(params["keys"] as? [String] ?? [], paneID: paneID)
+            return DemoSnapshot.ok(id: id)
+        default:
+            return nil
+        }
     }
 }
 
@@ -361,6 +395,8 @@ enum DemoSnapshot {
     struct State {
         var labels: [String: String] = [:]
         var closed: Set<String> = []
+        /// 依「需要你」情境改過的 Agent 狀態(pane id → 狀態)。
+        var statuses: [String: String] = [:]
     }
 
     /// 依 socket API 的請求產生一行回應(`{id,result}` 或 `{id,error}`)。
@@ -388,7 +424,7 @@ enum DemoSnapshot {
             return (result(id: id, ["type": "workspace_info", "workspace": workspace ?? [:]]), false)
         case "workspace.create", "worktree.create", "tab.create", "pane.split":
             return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
-        case "pane.report_metadata", "pane.send_keys":
+        case "pane.report_metadata":
             return (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
         case "events.subscribe":
             // Demo 的內容不會變，所以只接受訂閱、不送事件。
@@ -409,6 +445,19 @@ enum DemoSnapshot {
         (line(#"{"id":\#(quoted(id)),"result":{"type":"agent_prompted","agent":{"pane_id":\#(quoted(paneID)),"agent_status":"working"}}}"#), false)
     }
 
+    /// `pane.read` 的結果(形狀依錄製的 `pane.read.visible.ndjson`)。
+    static func paneRead(id: String, paneID: String, text: String) -> (line: Data, keepsOpen: Bool) {
+        let read: [String: Any] = [
+            "pane_id": paneID, "workspace_id": String(paneID.prefix { $0 != ":" }), "source": "visible", "format": "text",
+            "text": text, "revision": 0, "truncated": false,
+        ]
+        return (result(id: id, ["type": "pane_read", "read": read]), false)
+    }
+
+    static func ok(id: String) -> (line: Data, keepsOpen: Bool) {
+        (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
+    }
+
     private static let workspaceIDs: Set<String> = ["w1", "w2", "w3"]
 
     /// 範例 snapshot 套上這次啟動中的改動：關掉的 workspace 連同 tab、pane、版面、Agent 一起拿掉;改過的名稱換掉。
@@ -416,6 +465,13 @@ enum DemoSnapshot {
         guard var snapshot = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] else { return [:] }
         for key in ["workspaces", "tabs", "panes", "layouts", "agents"] {
             snapshot[key] = (snapshot[key] as? [[String: Any]])?.filter { !state.closed.contains($0["workspace_id"] as? String ?? "") }
+        }
+        for key in ["agents", "panes"] {
+            snapshot[key] = (snapshot[key] as? [[String: Any]])?.map { item in
+                var item = item
+                if let pane = item["pane_id"] as? String, let status = state.statuses[pane] { item["agent_status"] = status }
+                return item
+            }
         }
         snapshot["workspaces"] = (snapshot["workspaces"] as? [[String: Any]])?.map { workspace in
             var workspace = workspace
