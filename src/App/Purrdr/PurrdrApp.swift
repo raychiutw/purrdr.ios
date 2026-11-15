@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let terminals: PaneTerminalClient
     private let navigation = TopNavigationModel()
     private let client: HerdrClient
     private let transcripts: TranscriptReader
@@ -17,10 +18,14 @@ struct PurrdrApp: App {
     private let conversationCache = InMemoryConversationCache()
 
     init() {
-        let channel: any HostChannel = DemoHost()
+        let arguments = ProcessInfo.processInfo.arguments
+        // UI 測試情境：桌機正在操作 Demo 的 Pane。
+        let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
+        let channel: any HostChannel = DemoHost(scenario: scenario)
         client = HerdrClient(channel: channel)
         transcripts = TranscriptReader(channel: channel)
         agentList = AgentListModel(client: client, transcripts: transcripts)
+        terminals = PaneTerminalClient(channel: channel)
     }
 
     var body: some Scene {
@@ -29,6 +34,8 @@ struct PurrdrApp: App {
                 ConversationModel(
                     client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
                 )
+            } terminal: { [terminals] paneID, title in
+                PaneTerminalModel(client: terminals, paneID: paneID, title: title)
             }
         }
     }

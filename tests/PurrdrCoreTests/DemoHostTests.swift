@@ -105,4 +105,61 @@ struct DemoHostTests {
         #expect(prompt == Data("demo@purrdr ~ % ".utf8))
         #expect(echo == Data("hi".utf8))
     }
+
+    // MARK: - Pane 終端機
+
+    static func text(_ event: PaneTerminalEvent?) -> String {
+        guard case .frame(let frame) = event else { return "" }
+        return String(decoding: frame.bytes, as: UTF8.self)
+    }
+
+    @Test("Pane 終端機:Demo 的 Pane 先送一個 full frame 的 prompt,輸入回顯，控制字元以 ^ 表示")
+    func paneTerminalEchoes() async throws {
+        let connection = try await PaneTerminalClient(channel: DemoHost()).control(target: "w1:p1", columns: 40, rows: 12)
+        var events = connection.events.makeAsyncIterator()
+
+        let first = await events.next()
+        guard case .frame(let frame) = first else { Issue.record("第一個事件不是 frame:\(String(describing: first))"); return }
+        #expect(frame.full && frame.columns == 40 && frame.rows == 12)
+        #expect(Self.text(first).contains("demo@purrdr ledger % "))
+
+        try await connection.send(bytes: Data("hi".utf8))
+        #expect(Self.text(await events.next()).contains("hi"))
+        try await connection.send(bytes: TerminalKey.character("c").bytes(modifiers: .control))
+        #expect(Self.text(await events.next()).contains("^C"))
+        try await connection.send(bytes: TerminalKey.escape.bytes())
+        #expect(Self.text(await events.next()).contains("^["))
+
+        try await connection.send(.resize(columns: 60, rows: 15))
+        guard case .frame(let resized) = await events.next() else { Issue.record("resize 後沒有 frame"); return }
+        #expect(resized.full && resized.columns == 60 && resized.rows == 15)
+
+        await connection.release()
+        var rest: [PaneTerminalEvent] = []
+        while let event = await events.next() { rest.append(event) }
+        #expect(rest.last == .closed(.detached))
+    }
+
+    @Test("Pane 終端機:「桌機正在操作」情境下，不帶 --takeover 被拒，接管後就能用")
+    func paneInUseNeedsTakeover() async throws {
+        let client = PaneTerminalClient(channel: DemoHost(scenario: .paneInUse))
+
+        let rejected = try await client.control(target: "w1:p1", columns: 40, rows: 12)
+        var events: [PaneTerminalEvent] = []
+        for await event in rejected.events { events.append(event) }
+        #expect(events == [.closed(.alreadyAttached)])
+
+        let taken = try await client.control(target: "w1:p1", columns: 40, rows: 12, takeover: true)
+        var iterator = taken.events.makeAsyncIterator()
+        #expect(Self.text(await iterator.next()).contains("demo@purrdr ledger % "))
+        await taken.release()
+    }
+
+    @Test("Pane 終端機：不存在的 Pane 回 not found")
+    func unknownPaneNotFound() async throws {
+        let connection = try await PaneTerminalClient(channel: DemoHost()).control(target: "w9:p9", columns: 40, rows: 12)
+        var events: [PaneTerminalEvent] = []
+        for await event in connection.events { events.append(event) }
+        #expect(events == [.closed(.notFound)])
+    }
 }

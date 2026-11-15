@@ -8,20 +8,24 @@ public struct TopNavigationView: View {
     let agentList: AgentListModel
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
     let conversation: @MainActor (String, String?) -> ConversationModel
+    /// 建立某個 Pane 的終端機 model(pane id、標題)。
+    let terminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
     public init(
         navigation: TopNavigationModel, agentList: AgentListModel,
-        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel
+        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
+        terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
     ) {
         self.navigation = navigation
         self.agentList = agentList
         self.conversation = conversation
+        self.terminal = terminal
     }
 
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
-            AgentListView(model: agentList, conversation: conversation)
+            AgentListView(model: agentList, conversation: conversation, terminal: terminal)
                 .toolbar { toolbar }
         }
         .sheet(item: $navigation.sheet) { sheet in

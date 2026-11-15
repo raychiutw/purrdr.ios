@@ -10,10 +10,17 @@ public struct AgentListView: View {
     @Environment(\.scenePhase) private var scenePhase
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (String, String?) -> ConversationModel
+    /// 建立某個 Pane 的終端機 model(pane id、標題)。由 composition root 提供。
+    private let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
-    public init(model: AgentListModel, conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel) {
+    public init(
+        model: AgentListModel,
+        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
+        terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
+    ) {
         self.model = model
         self.makeConversation = conversation
+        self.makeTerminal = terminal
     }
 
     /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
@@ -21,7 +28,7 @@ public struct AgentListView: View {
         content
             .navigationTitle("Agents")
             .navigationDestination(for: String.self) { paneID in
-                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)))
+                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
             }
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
@@ -97,13 +104,31 @@ public struct AgentListView: View {
 /// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
 private struct ConversationScreen: View {
     @State private var model: ConversationModel
+    let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
+    @State private var terminal: PaneTerminalModel?
 
-    init(model: @autoclosure () -> ConversationModel) {
+    init(model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?) {
         _model = State(wrappedValue: model())
+        self.makeTerminal = makeTerminal
     }
 
     var body: some View {
         ConversationView(model: model)
+            .toolbar {
+                if let makeTerminal {
+                    // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
+                    ToolbarItem(placement: .primaryAction) {
+                        PaneTerminalButton { terminal = makeTerminal(model.paneID, model.title.isEmpty ? model.paneID : model.title) }
+                    }
+                }
+            }
+            #if canImport(UIKit)
+            .navigationDestination(isPresented: Binding(
+                get: { terminal != nil }, set: { if !$0 { terminal = nil } }
+            )) {
+                if let terminal { PaneTerminalView(model: terminal) }
+            }
+            #endif
     }
 }
 
