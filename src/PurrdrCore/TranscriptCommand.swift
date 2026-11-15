@@ -104,6 +104,25 @@ public enum TranscriptCommand {
         return command(script, arguments: [marker] + requests.flatMap { [$0.key, $0.sessionID, $0.projectFolder] })
     }
 
+    /// 找 subagent:在 `<session>/subagents/` 用 `find`(不用 glob,R-S11)列出 `agent-*.meta.json`,
+    /// 內容含呼叫 id 的每個 meta 印兩行「路徑」與「內容(去掉換行)」。是否**完全相等**由 client 解析 JSON 後確認(R-W02)。
+    /// 沒有資料夾 → exit 3。參數:session 資料夾、呼叫 id。
+    public static func findSubagent(sessionFolder: String, callID: String) -> String {
+        let script = #"""
+        d=$1/subagents
+        if [ ! -d "$d" ]; then exit 3; fi
+        if [ ! -x "$d" ]; then exit 4; fi
+        find "$d" -maxdepth 1 -type f -name 'agent-*.meta.json' -print | while IFS= read -r m; do
+        if grep -q -F -e "$2" "$m"; then
+        printf '%s\n' "$m"
+        tr -d '\n' < "$m"
+        printf '\n'
+        fi
+        done
+        """#
+        return command(script, arguments: [sessionFolder, callID])
+    }
+
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 
     static func command(_ script: String, arguments: [String]) -> String {

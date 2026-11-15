@@ -18,6 +18,8 @@ struct ClaudeTranscriptParserTests {
         case .agentText(let text): "agent: \(text.markdown.prefix(16))"
         case .skill(let skill): "skill: \(skill.name)"
         case .note(let note): "note: \(note.text.prefix(26))"
+        case .subagent(let card): "subagent: \(card.title)"
+        case .workflow(let card): "workflow: \(card.name)"
         case .toolRun(let run):
             "tools: " + run.steps.map { step in
                 switch step.kind {

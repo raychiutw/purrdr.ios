@@ -12,6 +12,10 @@ public enum ConversationItem: Sendable, Equatable, Identifiable {
     case skill(SkillLoaded)
     /// 系統註記(置中膠囊)。
     case note(SystemNote)
+    /// Subagent 卡(`Agent`／`Task` 工具,F10)。
+    case subagent(SubagentCard)
+    /// Workflow 卡(`Workflow` 工具,F10)。
+    case workflow(WorkflowCard)
 
     public var id: String {
         switch self {
@@ -20,6 +24,8 @@ public enum ConversationItem: Sendable, Equatable, Identifiable {
         case .toolRun(let item): item.id
         case .skill(let item): item.id
         case .note(let item): item.id
+        case .subagent(let item): item.id
+        case .workflow(let item): item.id
         }
     }
 }
@@ -178,6 +184,11 @@ public enum Conversation {
         /// 呼叫 id → (項目位置, 步驟位置),結果可以晚到。
         var callsByID: [String: (item: Int, step: Int)] = [:]
         var callsWithoutID: [(item: Int, step: Int)] = []
+        /// 委派卡：呼叫 id → 項目位置;agent id 或 workflow run id → 項目位置(通知、hand-back、續跑依此對應)。
+        var delegationsByCall: [String: Int] = [:]
+        var delegationsByTask: [String: Int] = [:]
+        /// 卡片收到的 hand-back 報告(回報內容優先取它，F10)。
+        var handBacks: [Int: String] = [:]
 
         mutating func add(_ message: TranscriptMessage) {
             var images = 0
@@ -198,7 +209,19 @@ public enum Conversation {
                     let location = append(ToolStep(id: partID, kind: .call(call)))
                     if let callID { callsByID[callID] = location } else { callsWithoutID.append(location) }
                 case .toolResult(let callID, let text, let isError):
-                    attach(result: text, isError: isError, to: callID)
+                    if let callID, let index = delegationsByCall[callID] {
+                        delegationResult(text: text, isError: isError, date: message.date, at: index)
+                    } else {
+                        if let resumed = DelegationResultText.resumedAgentID(in: text) { resume(agentID: resumed) }
+                        attach(result: text, isError: isError, to: callID)
+                    }
+                case .delegation(let call):
+                    close()
+                    addCard(call, id: partID, date: message.date)
+                case .taskNotification(let notification):
+                    report(notification)
+                case .handBack(let from, let text):
+                    if let index = delegationsByTask[from] { handBack(text, at: index) }
                 case .skill(let name):
                     close()
                     items.append(.skill(SkillLoaded(id: partID, name: name)))
@@ -244,6 +267,102 @@ public enum Conversation {
         }
 
         mutating func close() { openRun = nil }
+
+        // MARK: 委派卡(F10「狀態判定」)
+
+        mutating func addCard(_ call: DelegationCall, id: String, date: Date?) {
+            switch call.kind {
+            case .subagent:
+                items.append(.subagent(SubagentCard(
+                    id: id, callID: call.callID, title: call.title ?? "Agent", agentType: call.agentType, model: call.model,
+                    isBackground: call.isBackground, startedAt: date
+                )))
+            case .workflow:
+                items.append(.workflow(WorkflowCard(id: id, callID: call.callID, name: call.title ?? "Workflow", detail: call.detail, startedAt: date)))
+            }
+            if let callID = call.callID { delegationsByCall[callID] = items.count - 1 }
+        }
+
+        /// 呼叫的工具結果：背景 agent 與 workflow 的啟動結果不算結束(R-W01);前景 agent 的結果就是結束。
+        mutating func delegationResult(text: String, isError: Bool, date: Date?, at index: Int) {
+            switch items[index] {
+            case .subagent(var card):
+                if !isError, let agentID = DelegationResultText.asyncAgentID(in: text) {
+                    card.agentID = agentID
+                    card.isBackground = true
+                    delegationsByTask[agentID] = index
+                } else {
+                    card.status = isError ? .failed : .completed
+                    if let start = card.startedAt, let date { card.duration = max(0, date.timeIntervalSince(start)) }
+                    let usage = DelegationResultText.usage(in: text)
+                    card.tokens = usage.tokens
+                    card.toolCalls = usage.toolUses
+                    card.result = DelegationResultText.report(in: text)
+                    if let agentID = DelegationResultText.agentID(in: text) {
+                        card.agentID = agentID
+                        delegationsByTask[agentID] = index
+                    }
+                }
+                items[index] = .subagent(card)
+            case .workflow(var card):
+                if !isError, let runID = DelegationResultText.workflowRunID(in: text) {
+                    card.runID = runID
+                    delegationsByTask[runID] = index
+                } else {
+                    card.status = isError ? .failed : .completed
+                    if let start = card.startedAt, let date { card.duration = max(0, date.timeIntervalSince(start)) }
+                    card.result = DelegationResultText.report(in: text)
+                }
+                items[index] = .workflow(card)
+            default:
+                break
+            }
+        }
+
+        /// 任務通知：依呼叫 id 或 task id(agent id／run id)對應;依序處理，所以最新一則為準。
+        mutating func report(_ notification: TaskNotification) {
+            guard let index = notification.callID.flatMap({ delegationsByCall[$0] }) ?? notification.taskID.flatMap({ delegationsByTask[$0] }) else { return }
+            let status = DelegationStatus.reported(notification.status)
+            let duration = notification.durationMs.map { Double($0) / 1000 }
+            let result = handBacks[index] ?? notification.result ?? notification.summary
+            switch items[index] {
+            case .subagent(var card):
+                card.status = status
+                card.duration = duration ?? card.duration
+                card.tokens = notification.tokens ?? card.tokens
+                card.toolCalls = notification.toolUses ?? card.toolCalls
+                card.result = result
+                if card.agentID == nil, let taskID = notification.taskID {
+                    card.agentID = taskID
+                    delegationsByTask[taskID] = index
+                }
+                items[index] = .subagent(card)
+            case .workflow(var card):
+                card.status = status
+                card.duration = duration ?? card.duration
+                card.tokens = notification.tokens ?? card.tokens
+                card.result = result
+                items[index] = .workflow(card)
+            default:
+                break
+            }
+        }
+
+        mutating func handBack(_ report: String, at index: Int) {
+            handBacks[index] = report
+            if case .subagent(var card) = items[index], card.status != .running {
+                card.result = report
+                items[index] = .subagent(card)
+            }
+        }
+
+        /// `SendMessage` 讓 agent 續跑：變回執行中，直到下一次回報。
+        mutating func resume(agentID: String) {
+            guard let index = delegationsByTask[agentID], case .subagent(var card) = items[index] else { return }
+            card.status = .running
+            handBacks[index] = nil
+            items[index] = .subagent(card)
+        }
 
         func finish() -> [ConversationItem] {
             items.map { item in

@@ -45,3 +45,35 @@ extension Agent {
         return session.value
     }
 }
+
+extension ClaudeTranscript {
+    /// 對話紀錄的 session 資料夾(放 subagent 與 workflow 檔,§4.6):主對話紀錄去掉 `.jsonl`;subagent 的對話紀錄
+    /// 取 `/subagents/` 之前的部分(subagent 的 subagent 平放在同一個主 session 下)。
+    public static func sessionFolder(ofTranscript path: String) -> String {
+        if let range = path.range(of: "/subagents/") { return String(path[..<range.lowerBound]) }
+        return path.hasSuffix(".jsonl") ? String(path.dropLast(6)) : path
+    }
+
+    /// Workflow 裡 agent 的對話紀錄:`<session>/subagents/workflows/<runId>/agent-<id>.jsonl`。id 不安全時沒有。
+    public static func workflowAgentTranscript(sessionFolder: String, runID: String, agentID: String) -> String? {
+        guard isSafeDelegationID(runID), isSafeDelegationID(agentID), isValidFolder(sessionFolder) else { return nil }
+        return "\(sessionFolder)/subagents/workflows/\(runID)/agent-\(agentID).jsonl"
+    }
+
+    /// subagent／workflow／呼叫 id 只能是 `^[A-Za-z0-9_-]{1,128}$`(§4.0):不符合就拒絕，不是引號化了事。
+    static func isSafeDelegationID(_ id: String) -> Bool {
+        (1...128).contains(id.utf8.count) && id.utf8.allSatisfy { byte in
+            switch byte {
+            case UInt8(ascii: "0")...UInt8(ascii: "9"), UInt8(ascii: "A")...UInt8(ascii: "Z"),
+                 UInt8(ascii: "a")...UInt8(ascii: "z"), UInt8(ascii: "-"), UInt8(ascii: "_"): true
+            default: false
+            }
+        }
+    }
+
+    /// 主機上的資料夾：絕對路徑、沒有 `..` 段、沒有 NUL／CR／LF。
+    static func isValidFolder(_ path: String) -> Bool {
+        path.hasPrefix("/") && !path.split(separator: "/").contains("..")
+            && !path.contains { $0 == "\0" || $0 == "\r" || $0 == "\n" }
+    }
+}

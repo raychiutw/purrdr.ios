@@ -51,6 +51,15 @@ public enum Fixtures {
         return data
     }
 
+    /// 去識別化的 subagent 檔(`Fixtures/claude-code/subagents/<名稱>`:meta 與對話紀錄)。
+    public static func subagentFile(_ name: String) -> Data {
+        guard let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/claude-code/subagents"),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到 Fixtures/claude-code/subagents/\(name)")
+        }
+        return data
+    }
+
     /// 對話紀錄的每一行(不含換行)。
     public static func transcriptLines(_ name: String = "session.jsonl") -> [String] {
         transcript(name).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }

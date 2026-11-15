@@ -221,6 +221,8 @@ struct ConversationItemView: View {
         case .note(let note):
             CapsuleNote(text: note.text, symbol: "info.circle")
                 .accessibilityIdentifier("conversation.note")
+        case .subagent, .workflow:
+            EmptyView()
         }
     }
 }
