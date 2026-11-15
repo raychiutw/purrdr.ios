@@ -38,7 +38,7 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty {
+        if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil {
             placeholder
         } else {
             messages
@@ -64,6 +64,9 @@ public struct ConversationView: View {
                     }
                     .id(entry.id)
                 }
+                // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
+                BlockedPromptView(model: model)
+                    .id("prompt")
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
@@ -94,6 +97,9 @@ public struct ConversationView: View {
         }
         .onChange(of: model.entries.last?.id) {
             if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+        }
+        .onChange(of: model.prompt?.signature) {
+            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation { position.scrollTo(edge: .bottom) } }
         }
         .onChange(of: model.echoes.count) { old, new in
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。

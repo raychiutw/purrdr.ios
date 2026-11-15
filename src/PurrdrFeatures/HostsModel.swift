@@ -44,6 +44,8 @@ public final class HostsModel {
     private let preferences: any ChatPreferencesStore
     /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。所有主機共用，以 pane id 為鍵(同 `preferences`)。
     private let drafts = DraftStore()
+    /// 對話作答的觸覺(composition root 注入系統觸覺;測試不播放)。
+    public var haptics: any Haptics = SilentHaptics()
     private var channel: any HostChannel
     private var client: HerdrClient
     private var transcripts: TranscriptReader
@@ -81,7 +83,7 @@ public final class HostsModel {
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
         ConversationModel(client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache,
-            drafts: drafts)
+            drafts: drafts, haptics: haptics)
     }
 
     public var rows: [HostRow] {

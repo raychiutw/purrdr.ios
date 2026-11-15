@@ -30,6 +30,7 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `herdr-0.9.5/error.workspace-not-found.ndjson` | `workspace.get {"workspace_id":"w99"}` | 2026-11-16 | `workspace_not_found`;也當作其他 workspace 錯誤的 envelope 底 |
 | `herdr-0.9.5/error.not-git-worktree.ndjson` | `worktree.list {"cwd":"/tmp"}`(唯讀) | 2026-11-16 | 建 worktree 時資料夾不在 git repo(`not_git_worktree`) |
 | `herdr-0.9.5/pane.report-metadata.ndjson` | `pane.report_metadata`(`phone:on`、`model`、`ttl_ms` 45000、`seq`) | 2026-11-16 | 在場回報被接受(`{"type":"ok"}`) |
+| `herdr-0.9.5/pane.read.visible.ndjson` | `pane.read {pane_id, source:"visible", lines:40}`,對一個**已經閒置**的 Claude pane(唯讀) | 2026-11-16 | `pane_read` envelope 的形狀。**`text` 整段換成手寫的 `screens/claude-idle.txt`**、pane／tab id 換成假值(原畫面含個人內容) |
 
 ## Claude Code 對話紀錄(`claude-code/`)
 
@@ -50,6 +51,15 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - 其他狀態組合(blocked、改名、移除 pane、workspace 順序)用 `SnapshotEdit` 改錄製的 snapshot。
 - **會改主機狀態的 workspace 操作**(`workspace.rename`、`workspace.close`、`worktree.create`)**不在作者主機上執行**。成功回應：rename 以 `workspace.get.ndjson` 為底改 label;close 的 `{"type":"ok"}` 與 worktree 的 `worktree_created` 依 `herdr api schema --json` 寫在測試裡。`workspace_group_close_required` 碼取自 herdr CLI 文件(cli-reference「Worktrees」),envelope 沿用 `error.workspace-not-found.ndjson`。
 - **切分、zoomed、只出現在版面的 tab／pane**:錄製時主機上每個 tab 都只有一個 pane,以 `layouts[]` 改動模擬(見 `SpacesLayoutTests`)。
+
+## 「需要你」的畫面(`screens/`)——依行為規格手寫、未實測
+
+`screens/*.txt` 是 pane 的 visible 畫面(`pane.read` 的 `text`),給提示解析與作答測試用(#14)。**不是錄製的**:
+作者主機上沒有正在問問題的 agent,而為了錄製去製造 blocked 狀態會把按鍵送進真的 agent,所以一律不錄。
+形狀依 `docs/research/herdrchat-behavior-spec.md` §5.2–§5.4 的描述(Claude 2.1.286／2.1.299 的權限與信任提示、
+AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you like to…` 段落、Grok 的 `(●)` 列、agy 的折行資料夾),
+內容(指令、路徑、問題)是自己寫的範例。測試用 `PaneScreens.read(_:)` 把它放進錄製的 `pane.read` envelope。
+真機第一次看到 blocked 畫面時，以唯讀的 `pane.read` 讀下來去識別化，換掉對應的檔案。
 
 ## 其他 agent 的對話紀錄(`other-agents/`)——依文件撰寫、未實測
 

@@ -19,3 +19,17 @@ public enum AnswerNotice: Sendable, Equatable {
     /// 按鍵送不出去。
     case sendFailed
 }
+
+/// 選項的樣式規則(HIG 20.7)。
+public enum PromptOptionStyle {
+    /// 建議選項(prominent):agent 游標所在的那一列，但**不把會結束 agent 的選項設為預設**。
+    public static func isRecommended(_ option: PromptOption) -> Bool {
+        option.isCursor && !endsAgent(option.label)
+    }
+
+    /// 「No, exit」「No, quit」這類會關掉 agent 的選項。
+    static func endsAgent(_ label: String) -> Bool {
+        let words = label.lowercased().split { !$0.isLetter }
+        return words.contains("exit") || words.contains("quit")
+    }
+}
