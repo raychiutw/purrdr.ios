@@ -5,6 +5,11 @@ public struct HostThemeInspection: Equatable, Sendable {
     /// 會以這個主機使用者寫入參考檔。
     public var user: String
     public var isInstalled: Bool
+
+    public init(user: String, isInstalled: Bool) {
+        self.user = user
+        self.isInstalled = isInstalled
+    }
 }
 
 /// 主機主題的主機端(#23;ADR-0002 的寫入例外)。
