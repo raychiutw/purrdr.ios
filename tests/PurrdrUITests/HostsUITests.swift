@@ -11,9 +11,12 @@ final class HostsUITests: XCTestCase {
     func testAddHostFormRequiresTestBeforeSaving() {
         let app = XCUIApplication.launchUITesting()
 
-        let hostsButton = app.buttons["toolbar.hosts"]
-        XCTAssertTrue(hostsButton.waitForExistence(timeout: 10))
-        hostsButton.tap()
+        let more = app.buttons["toolbar.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
+        let hostsItem = app.buttons["menu.hosts"]
+        XCTAssertTrue(hostsItem.waitForExistence(timeout: 5))
+        hostsItem.tap()
 
         let demo = app.buttons["hosts.demo"]
         XCTAssertTrue(demo.waitForExistence(timeout: 5))

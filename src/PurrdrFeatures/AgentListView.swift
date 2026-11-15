@@ -9,31 +9,18 @@ public struct AgentListView: View {
     @Bindable var model: AgentListModel
     @Environment(\.scenePhase) private var scenePhase
 
-    /// 開主機清單;`nil` 時不顯示主機鈕。
-    let showHosts: (() -> Void)?
-
-    public init(model: AgentListModel, showHosts: (() -> Void)? = nil) {
+    public init(model: AgentListModel) {
         self.model = model
-        self.showHosts = showHosts
     }
 
+    /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Agents")
-                .toolbar {
-                    if let showHosts {
-                        ToolbarItem(placement: .navigation) {
-                            Button("Hosts", systemImage: "desktopcomputer", action: showHosts)
-                                .accessibilityIdentifier("toolbar.hosts")
-                        }
-                    }
-                }
-        }
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active else { return }
-            await model.run()
-        }
+        content
+            .navigationTitle("Agents")
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await model.run()
+            }
     }
 
     @ViewBuilder

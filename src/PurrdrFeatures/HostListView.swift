@@ -58,10 +58,12 @@ public struct HostListView: View {
                     }
                 }
             }
+            .accessibilityIdentifier("sheet.hosts")
             .navigationTitle("Hosts")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .accessibilityIdentifier("sheet.done")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add Host", systemImage: "plus") { path.append(.add) }

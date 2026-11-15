@@ -11,6 +11,7 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     @State private var hosts: HostsModel
+    private let navigation = TopNavigationModel()
 
     init() {
         let demo = DemoHost()
@@ -28,7 +29,7 @@ struct PurrdrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(hosts: hosts)
+            TopNavigationView(navigation: navigation, hosts: hosts)
         }
     }
 }
