@@ -39,6 +39,41 @@ struct HerdrClientTests {
         ])
     }
 
+    @Test("讀 snapshot:workspace 帶主機順序(number)與名稱")
+    func snapshotDecodesWorkspaces() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridgeCommand, reply: .recorded("session.snapshot.ndjson"))
+
+        let snapshot = try await HerdrClient(channel: host).snapshot()
+
+        #expect(snapshot.workspaces == [
+            Workspace(id: "w1", number: 1, label: "garden-journal"),
+            Workspace(id: "w2", number: 2, label: "scratch"),
+        ])
+    }
+
+    /// herdr 0.9.5 的 schema 有 `title`;`input_pending` 在 0.9.5 不存在(schema 與執行檔都找不到),
+    /// 但行為規格 F2.2 要求出現時要讀，所以以錄製回應為底加上這兩個欄位。
+    @Test("讀 snapshot:Agent 的 session 標題(title)與 input_pending 有就讀，缺席當作沒有")
+    func snapshotDecodesSessionTitleAndInputPending() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridgeCommand, reply: .recorded("session.snapshot.ndjson") { response in
+            SnapshotEdit.agent("w1:p6", in: &response) {
+                $0["title"] = "整理植物照片的標籤(session)"
+                $0["input_pending"] = true
+            }
+        })
+
+        let snapshot = try await HerdrClient(channel: host).snapshot()
+
+        let edited = try #require(snapshot.agents.first { $0.paneID == "w1:p6" })
+        #expect(edited.sessionTitle == "整理植物照片的標籤(session)")
+        #expect(edited.inputPending == true)
+        let untouched = try #require(snapshot.agents.first { $0.paneID == "w1:pA" })
+        #expect(untouched.sessionTitle == nil)
+        #expect(untouched.inputPending == false)
+    }
+
     @Test("bridge 規則：請求送出後不送 EOF,讀到回應後由 app 關閉通道")
     func bridgeKeepsStdinOpenUntilResponse() async throws {
         let host = FakeHost()
