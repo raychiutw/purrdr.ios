@@ -15,7 +15,7 @@ struct ClaudeUsageModelTests {
     let consent = InMemoryHostWriteConsentStore()
 
     init() throws {
-        host = try LocalShellHost()
+        host = try LocalShellHost.temporary()
         try write(Self.settings, to: ".claude/settings.json")
     }
 

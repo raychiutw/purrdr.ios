@@ -19,19 +19,29 @@ public final class AgentListModel {
     public var previews: [String: MessagePreview] = [:]
 
     /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
-    private var snapshot: HostSnapshot?
+    public private(set) var snapshot: HostSnapshot?
     private let client: HerdrClient
+    private let transcripts: TranscriptReader?
     private let sleep: @Sendable (Duration) async throws -> Void
 
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
-    public init(client: HerdrClient, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(
+        client: HerdrClient, transcripts: TranscriptReader? = nil,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.client = client
+        self.transcripts = transcripts
         self.sleep = sleep
     }
 
     /// 依「需要你／工作中／閒置」分組、套用搜尋後的列表。
     public var sections: [AgentSection] {
         AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews)
+    }
+
+    /// 列表看到的 pane 的 session 參照(id 或路徑;開對話時用來比對快取)。
+    public func sessionID(ofPane paneID: String) -> String? {
+        snapshot?.agents.first { $0.paneID == paneID }?.transcriptTarget?.sessionKey
     }
 
     /// 主機上有沒有任何 Agent(不看搜尋)。沒有時不顯示搜尋欄。
@@ -107,6 +117,29 @@ public final class AgentListModel {
     private func refresh() async throws {
         snapshot = try await client.snapshot()
         phase = .loaded
+        await refreshPreviews()
+    }
+
+    /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04)。
+    private var previewSessions: [String: String] = [:]
+
+    /// 以一次往返讀所有可讀 agent(Claude、Grok、agy、Pi／OMP)對話紀錄的檔尾，更新預覽與時間(行為規格 §4.7)。
+    /// 預覽帶讀取時的 session:pane 離開或 session 改變(herdr 回收 pane 給新聊天)就丟(R-I04)。讀取失敗保留現有預覽。
+    private func refreshPreviews() async {
+        guard let transcripts, let snapshot else { return }
+        let sessions = Dictionary(
+            snapshot.agents.compactMap { agent in agent.transcriptTarget.map { (agent.paneID, $0.sessionKey) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        previews = previews.filter { sessions[$0.key] != nil && previewSessions[$0.key] == sessions[$0.key] }
+        let requests = snapshot.agents.compactMap { agent in
+            agent.transcriptTarget.map { PreviewRequest(key: agent.paneID, target: $0) }
+        }
+        guard !requests.isEmpty, let fresh = try? await transcripts.previews(of: requests) else { return }
+        for (paneID, preview) in fresh {
+            previews[paneID] = preview
+            previewSessions[paneID] = sessions[paneID]
+        }
     }
 
     private func fail(with error: any Error) {
@@ -114,6 +147,8 @@ public final class AgentListModel {
         case HerdrError.herdr(_, let message):
             // 未知碼保留 herdr 原文(行為規格 §3.8)。
             phase = .failed(message)
+        case is SSHConnectionError:
+            phase = .failed(HostErrorText.message(for: error))
         default:
             phase = .failed(String(localized: "Couldn’t read this host’s herdr status."))
         }

@@ -14,7 +14,7 @@ struct ReversibleHostWriteTests {
     let toy: ReversibleHostWrite
 
     init() throws {
-        host = try LocalShellHost()
+        host = try LocalShellHost.temporary()
         toy = ReversibleHostWrite(channel: host, feature: HostWriteFeature(id: "toy", userFiles: [Self.rc]))
     }
 

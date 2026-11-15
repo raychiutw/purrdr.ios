@@ -55,6 +55,7 @@ public actor FakeHost: HostChannel {
     public private(set) var ptys: [PTYOpening] = []
 
     private var expectations: [(command: String, reply: FakeReply)] = []
+    private var connectionError: (any Error)?
     private var ptyExpectations: [(request: PTYRequest, output: Data)] = []
     private var pending: [Int: (reply: FakeReply, continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation)] = [:]
     /// 回應完仍保持開著的串流(`FakeReply.keepsOpen`),測試可以再 `send`／`finish`。
@@ -75,7 +76,20 @@ public actor FakeHost: HostChannel {
     /// 還沒被執行到的預期指令。測試結尾可斷言它是空的。
     public var unmetExpectations: [String] { expectations.map(\.command) }
 
+    /// 之後的每個指令都以 `error` 失敗(模擬連線層錯誤，例如 host key 待確認、連不上)。
+    public func failConnection(with error: any Error) {
+        connectionError = error
+    }
+
+    /// 測試結束或主機設定改變時 app 關掉了連線。
+    public private(set) var disconnectCount = 0
+
+    public func disconnect() async {
+        disconnectCount += 1
+    }
+
     public func execute(_ command: String) async throws -> any ExecSession {
+        if let connectionError { throw connectionError }
         guard let index = expectations.firstIndex(where: { $0.command == command }) else {
             throw FakeHostError.unexpectedCommand(command)
         }
@@ -101,6 +115,32 @@ public actor FakeHost: HostChannel {
         let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
         if !output.isEmpty { continuation.yield(output) }
         return FakePTYSession(host: self, id: id, output: stream, continuation: continuation)
+    }
+
+    /// 對第 `index` 次執行(`keepsOpen` 的串流)送出任一種輸出事件(stdout 或 stderr)。
+    public func send(_ output: ExecOutput, toExecution index: Int) {
+        open[index]?.yield(output)
+    }
+
+    /// 等到 app 執行了 `count` 個指令(測試與 app 的非同步工作對齊用)。逾時則回傳目前數量。
+    public func waitForExecutions(_ count: Int, timeout: Duration = .seconds(2)) async -> Int {
+        let deadline = ContinuousClock.now + timeout
+        while executions.count < count, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return executions.count
+    }
+
+    /// 等到第 `index` 個執行的 stdin 滿足 `condition`。逾時則回傳 `false`。
+    public func waitForStdin(
+        ofExecution index: Int, timeout: Duration = .seconds(2), until condition: @Sendable (Execution) -> Bool
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if index < executions.count, condition(executions[index]) { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return false
     }
 
     // MARK: - 給 session 回報

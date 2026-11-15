@@ -12,10 +12,10 @@ struct HerdrClientTests {
     @Test("主機指令：bridge 指令前綴 PATH,herdr 路徑以單引號引起來")
     func bridgeCommandPrefixesPathAndQuotesHerdr() {
         #expect(HerdrCommand.bridge() == Self.bridgeCommand)
-        #expect(HerdrCommand.bridge(herdrPath: "/opt/my herdr/it's") ==
+        #expect(HerdrCommand.bridge(HerdrInstallation(path: "/opt/my herdr/it's")) ==
             #"PATH="$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" '/opt/my herdr/it'"'"'s' remote-api-bridge"#)
         // 引號內的 `~` 不會展開(exit 127):只把開頭的 `~/` 換成家目錄。
-        #expect(HerdrCommand.bridge(herdrPath: "~/.local/bin/herdr").hasSuffix(#" "$HOME"/'.local/bin/herdr' remote-api-bridge"#))
+        #expect(HerdrCommand.bridge(HerdrInstallation(path: "~/.local/bin/herdr")).hasSuffix(#" "$HOME"/'.local/bin/herdr' remote-api-bridge"#))
     }
 
     @Test("讀 snapshot:對 bridge 送一行 session.snapshot 請求，解出錄製回應裡的每個 Agent")
@@ -31,11 +31,14 @@ struct HerdrClientTests {
         #expect(snapshot.version == "0.9.5")
         #expect(snapshot.agents == [
             Agent(paneID: "w1:p6", workspaceID: "w1", kind: "claude", status: .idle,
-                  terminalTitle: "整理植物照片的標籤", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/garden-journal"),
+                  terminalTitle: "整理植物照片的標籤", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/garden-journal",
+                  session: AgentSessionReference(kind: "id", value: "00000000-0000-0000-0000-000000000001"), tabID: "w1:t6"),
             Agent(paneID: "w1:pA", workspaceID: "w1", kind: "claude", status: .working,
-                  terminalTitle: "規劃天氣小工具", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects"),
+                  terminalTitle: "規劃天氣小工具", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects",
+                  session: AgentSessionReference(kind: "id", value: "00000000-0000-0000-0000-000000000002"), tabID: "w1:tA"),
             Agent(paneID: "w1:pB", workspaceID: "w1", kind: "claude", status: .working,
-                  terminalTitle: "重構食譜匯入", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/recipe-box"),
+                  terminalTitle: "重構食譜匯入", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/recipe-box",
+                  session: AgentSessionReference(kind: "id", value: "00000000-0000-0000-0000-000000000003"), tabID: "w1:tB"),
         ])
     }
 
@@ -47,8 +50,8 @@ struct HerdrClientTests {
         let snapshot = try await HerdrClient(channel: host).snapshot()
 
         #expect(snapshot.workspaces == [
-            Workspace(id: "w1", number: 1, label: "garden-journal"),
-            Workspace(id: "w2", number: 2, label: "scratch"),
+            Workspace(id: "w1", number: 1, label: "garden-journal", activeTabID: "w1:tA"),
+            Workspace(id: "w2", number: 2, label: "scratch", activeTabID: "w2:t1"),
         ])
     }
 
@@ -99,11 +102,29 @@ struct HerdrClientTests {
     @Test("bridge 沒有任何回應就結束時，帶上 exit code 與 stderr 失敗")
     func bridgeWithoutResponseReportsExitAndStderr() async {
         let host = FakeHost()
-        let stderr = "failed to connect to remote Herdr API socket"
+        let stderr = "sh: herdr: Permission denied"
         await host.expect(Self.bridgeCommand, reply: FakeReply(stderr: Data(stderr.utf8), exitCode: 1))
 
         await #expect(throws: HerdrError.noResponse(exitCode: 1, stderr: stderr)) {
             try await HerdrClient(channel: host).snapshot()
         }
+    }
+
+    /// 行為規格 F5.13:讓桌機 herdr 側欄顯示「手機正在看、用什麼模型」。
+    @Test("在場回報:pane.report_metadata 帶 phone on、模型顯示名、45 秒 TTL 與 seq")
+    func reportPresenceSendsMetadata() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridgeCommand, reply: .recorded("pane.report-metadata.ndjson"))
+        await host.expect(Self.bridgeCommand, reply: .recorded("pane.report-metadata.ndjson"))
+
+        let client = HerdrClient(channel: host)
+        try await client.reportPresence(paneID: "w1:pA", model: "Opus 5.5", seq: 1_763_251_200_000)
+        // 模型未知時省略該 token(空 token 在側欄是空欄)。
+        try await client.reportPresence(paneID: "w1:pA", model: nil, seq: 1_763_251_200_001)
+
+        let executions = await host.executions
+        #expect(executions.first?.stdinText == #"{"id":"purrdr:pane.report_metadata","method":"pane.report_metadata","params":{"pane_id":"w1:pA","seq":1763251200000,"source":"purrdr:presence","tokens":{"model":"Opus 5.5","phone":"on"},"ttl_ms":45000}}"# + "\n")
+        #expect(executions.last?.stdinText == #"{"id":"purrdr:pane.report_metadata","method":"pane.report_metadata","params":{"pane_id":"w1:pA","seq":1763251200001,"source":"purrdr:presence","tokens":{"phone":"on"},"ttl_ms":45000}}"# + "\n")
+        #expect(executions.allSatisfy { $0.closed && !$0.closedStdin })
     }
 }

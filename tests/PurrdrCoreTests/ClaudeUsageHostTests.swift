@@ -28,7 +28,7 @@ struct ClaudeUsageHostTests {
     let usage: ClaudeUsageHost
 
     init() throws {
-        host = try LocalShellHost()
+        host = try LocalShellHost.temporary()
         usage = ClaudeUsageHost(channel: host)
     }
 
@@ -43,12 +43,10 @@ struct ClaudeUsageHostTests {
         try JSONSerialization.jsonObject(with: Data(contentsOf: host.url(path))) as? [String: Any] ?? [:]
     }
 
-    /// 以 Claude Code 的方式執行設定裡的 status line 指令，stdin 給 `input`。
+    /// 以 Claude Code 的方式執行設定裡的 status line 指令(交給 shell),stdin 給 `input`。
     func runStatusLine(input: String) async throws -> String {
         let command = try #require((try settings()["statusLine"] as? [String: Any])?["command"] as? String)
-        let session = try await host.execute(command)
-        try await session.write(Data(input.utf8))
-        await session.closeStdin()
+        let session = try await host.execute("printf '%s\\n' \(PosixShell.quote(input)) | \(command)")
         var stdout = Data()
         for try await event in session.output {
             if case .stdout(let data) = event { stdout.append(data) }

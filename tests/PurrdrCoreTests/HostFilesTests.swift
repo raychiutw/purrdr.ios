@@ -11,7 +11,7 @@ struct HostFilesTests {
     let files: HostFiles
 
     init() throws {
-        host = try LocalShellHost()
+        host = try LocalShellHost.temporary()
         files = HostFiles(channel: host)
     }
 

@@ -212,4 +212,52 @@ struct AgentListModelTests {
         #expect(model.phase == .failed("invalid request: key must be a string at line 1 column 56"))
         #expect(model.sections.isEmpty)
     }
+
+    /// 預覽與時間來自對話紀錄(§4.7);fixture 是從真實 Claude Code 對話紀錄擷取的。
+    @Test("預覽：讀完 snapshot 後以一次往返讀對話紀錄檔尾，列顯示最後一則訊息與時間")
+    func previewsComeFromTranscripts() async throws {
+        let shell = try LocalShellHost.temporary()
+        try shell.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects-garden-journal/00000000-0000-0000-0000-000000000001.jsonl")
+        let host = RoutingHost(shell: shell)
+        await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host))
+
+        await model.load()
+
+        let row = try #require(Self.row("w1:p6", in: model))
+        guard case .message(let text, let fromYou) = row.preview else {
+            Issue.record("w1:p6 沒有預覽：\(row.preview)")
+            return
+        }
+        #expect(text.hasPrefix("CSV 匯出整理好了 ✅"))
+        #expect(fromYou == false)
+        guard case .date(let date) = row.time else {
+            Issue.record("w1:p6 沒有訊息時間")
+            return
+        }
+        // fixture 最後一則 agent 文字的時間戳 2026-11-13T23:59:52.797Z。
+        #expect(abs(date.timeIntervalSince1970 - 1_794_614_392.797) < 0.001)
+        #expect(await host.shellCommands.count == 1)
+    }
+
+    /// R-I04:預覽帶讀取時的 session;session 改變(herdr 回收 pane 給新聊天)就丟，不顯示舊聊天的最後一行。
+    @Test("預覽：pane 的 session 改變後不再顯示舊 session 的預覽")
+    func previewIsDroppedWhenSessionChanges() async throws {
+        let shell = try LocalShellHost.temporary()
+        try shell.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects-garden-journal/00000000-0000-0000-0000-000000000001.jsonl")
+        let host = RoutingHost(shell: shell)
+        await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson") {
+            SnapshotEdit.agent("w1:p6", in: &$0) {
+                $0["agent_session"] = ["source": "herdr:claude", "agent": "claude", "kind": "id", "value": "00000000-0000-0000-0000-0000000000cc"]
+            }
+        })
+        let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host))
+        await model.load()
+        #expect(Self.row("w1:p6", in: model)?.preview != .status(.idle))
+
+        await model.load()
+
+        #expect(Self.row("w1:p6", in: model)?.preview == .status(.idle))
+    }
 }
