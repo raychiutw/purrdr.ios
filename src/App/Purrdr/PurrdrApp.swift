@@ -21,9 +21,9 @@ struct PurrdrApp: App {
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         let uiTesting = arguments.contains("-uiTesting")
-        // UI 測試情境：桌機正在操作 Demo 的 Pane。
-        let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
-        let demo = DemoHost(scenario: scenario)
+        // Tailscale SSH check mode 的提示：所有主機通道共用。
+        let tailscaleCheck = TailscaleCheckModel()
+        let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
         // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
         let cache = InMemoryConversationCache()
         // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
@@ -57,7 +57,8 @@ struct PurrdrApp: App {
             hosts = HostsModel(
                 store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo,
                 conversationCache: cache, preferences: preferences, selectionStore: InMemoryHostSelectionStore(),
-                hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, makeChannel: { _, _, _ in demo })
+                hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, tailscaleCheck: tailscaleCheck,
+                makeChannel: { _, _, _ in demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
@@ -66,9 +67,9 @@ struct PurrdrApp: App {
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
                 selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
-                push: push
+                push: push, tailscaleCheck: tailscaleCheck
             ) { endpoint, pin, credential in
-                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential)
+                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer)
             }
         }
         hosts.haptics = SystemHaptics()
@@ -99,6 +100,14 @@ struct PurrdrApp: App {
     private static let seededHost = HostConfiguration(
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!, name: "Studio Mac",
         endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), operatingSystem: .macOS)
+
+    /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成)。
+    private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
+        if arguments.contains("-demoPaneInUse") { return .paneInUse }
+        if arguments.contains("-demoTailscaleCheck") { return .tailscaleCheck(completesAfter: nil) }
+        if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: .seconds(3)) }
+        return .standard
+    }
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
     private static func makeMemberSession(uiTesting: Bool) -> MemberSession {

@@ -22,6 +22,10 @@ _避免_:目前主機、Active host
 把一台主機的連線設定(名稱、位址、埠、使用者名稱、連線方式、herdr 路徑與 session、host key 指紋)編成 `purrdr://host?d=…` 的連結;QR code 的內容就是它。永不含私鑰、密碼或 passphrase。匯入後仍要通過連線測試才儲存。
 _避免_:匯出檔、Config QR、邀請連結
 
+**Tailscale 重新驗證**(Tailscale check):
+Tailscale SSH 的規則要求連線端定期在瀏覽器重新登入 Tailscale(Tailscale 稱 check mode)。主機給一個驗證網址，驗證完連線才會繼續。UI 稱「Sign In to Tailscale」。
+_避免_:二次驗證、2FA、re-auth
+
 ## herdr
 
 **Workspace**／**Tab**／**Pane**:

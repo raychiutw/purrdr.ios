@@ -2673,6 +2673,17 @@
         }
       }
     },
+    "Open Sign-In Page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟登入頁面"
+          }
+        }
+      }
+    },
     "Open Subagent" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2702,6 +2713,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OpenSSH 私鑰，共 %lld 行"
+          }
+        }
+      }
+    },
+    "Opens the Tailscale sign-in page in your browser." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在瀏覽器開啟 Tailscale 登入頁面。"
           }
         }
       }
@@ -3729,6 +3751,17 @@
         }
       }
     },
+    "Sign In to Tailscale" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入 Tailscale"
+          }
+        }
+      }
+    },
     "Sign Out" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3960,6 +3993,17 @@
         }
       }
     },
+    "Tailscale sign-in was canceled. Try again when you’re ready to sign in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消登入 Tailscale。準備好登入時再試一次。"
+          }
+        }
+      }
+    },
     "Take Over" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4044,6 +4088,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這種登入方式原本有一個沒有資料的會員，已合併到目前的會員。"
+          }
+        }
+      }
+    },
+    "The Tailscale sign-in wasn’t finished in time. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有及時完成 Tailscale 登入，請再試一次。"
           }
         }
       }
@@ -4451,6 +4506,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置無法接收通知。%@"
+          }
+        }
+      }
+    },
+    "This host asks you to sign in to Tailscale again. Purrdr continues on its own after you sign in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機要求你重新登入 Tailscale。登入後 Purrdr 會自動繼續。"
           }
         }
       }
@@ -5089,6 +5155,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等候 Claude Code 回報用量"
+          }
+        }
+      }
+    },
+    "Waiting for sign-in…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在等待登入…"
           }
         }
       }

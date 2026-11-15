@@ -56,7 +56,7 @@ public struct AgentListView: View {
             } description: {
                 Text(message)
             } actions: {
-                Button("Try Again") { model.retryNow() }
+                Button("Try Again") { retry() }
                     .accessibilityIdentifier("agentList.retry")
             }
         case .loaded where !model.hasAgents:
@@ -93,7 +93,7 @@ public struct AgentListView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("agentList.error")
-                    Button("Try Again", systemImage: "arrow.clockwise") { model.retryNow() }
+                    Button("Try Again", systemImage: "arrow.clockwise") { retry() }
                         .font(.footnote)
                         .accessibilityIdentifier("agentList.retry")
                 } header: {
@@ -124,6 +124,15 @@ public struct AgentListView: View {
         #if os(iOS)
         .textInputAutocapitalization(.never)
         #endif
+    }
+
+    /// 「再試一次」:取消 Tailscale 重新驗證後停著的即時更新重新開始(#9);否則跳過退避立刻重連(#10)。
+    private func retry() {
+        if model.isWaitingForRetry {
+            Task { await model.load() }
+        } else {
+            model.retryNow()
+        }
     }
 }
 

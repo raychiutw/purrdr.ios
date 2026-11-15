@@ -111,33 +111,36 @@ public struct HostListView: View {
         }
     }
 
-    @ViewBuilder
     private func destination(_ route: HostRoute) -> some View {
-        switch route {
-        case .add, .edit:
-            HostEditorView(model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } })) { host in
-                saved(host)
-            } onCancel: {
-                path.removeLast()
-            }
-        case .share(let id):
-            if let host = model.hosts.first(where: { $0.id == id }), let link = model.shareLink(for: id) {
-                HostShareView(name: host.name, link: link)
-            }
-        case .importLink(let url):
-            if let editor = try? model.makeImportEditor(url) {
-                HostEditorView(model: editor) { host in
+        Group {
+            switch route {
+            case .add, .edit:
+                HostEditorView(model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } })) { host in
                     saved(host)
                 } onCancel: {
                     path.removeLast()
                 }
-            } else {
-                ContentUnavailableView(
-                    "Can’t Add This Host", systemImage: "qrcode",
-                    description: Text("This link isn’t a Purrdr host, or it was made by a newer version of Purrdr."))
-                    .accessibilityIdentifier("hosts.importFailed")
+            case .share(let id):
+                if let host = model.hosts.first(where: { $0.id == id }), let link = model.shareLink(for: id) {
+                    HostShareView(name: host.name, link: link)
+                }
+            case .importLink(let url):
+                if let editor = try? model.makeImportEditor(url) {
+                    HostEditorView(model: editor) { host in
+                        saved(host)
+                    } onCancel: {
+                        path.removeLast()
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "Can’t Add This Host", systemImage: "qrcode",
+                        description: Text("This link isn’t a Purrdr host, or it was made by a newer version of Purrdr."))
+                        .accessibilityIdentifier("hosts.importFailed")
+                }
             }
         }
+        // 主機編輯器的「測試連線」也可能遇到 check mode;sheet 蓋住 Agent 列表，所以這裡也要顯示。
+        .tailscaleCheckPrompt(model.tailscaleCheck)
     }
 
     private func saved(_ host: HostConfiguration) {

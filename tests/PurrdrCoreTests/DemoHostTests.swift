@@ -269,3 +269,30 @@ struct DemoHostTests {
         #expect(try await reader.window(path: agentPath, endingAt: agentSize, lines: 300).lines.isEmpty == false)
     }
 }
+
+/// Demo 情境:Tailscale SSH check mode(UI 測試用)。
+@Suite("Demo 主機:Tailscale check mode")
+struct DemoHostTailscaleCheckTests {
+    @Test("第一個指令先要求驗證，驗證完自動繼續;之後的指令不再要求")
+    func checkThenContinue() async throws {
+        let prompts = PromptLog()
+        let host = DemoHost(scenario: .tailscaleCheck(completesAfter: .milliseconds(200)), tailscaleCheck: prompts.observe)
+
+        _ = try await HerdrClient(channel: host).snapshot()
+        _ = try await HerdrClient(channel: host).snapshot()
+
+        #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
+    }
+
+    @Test("等待驗證時取消：指令以「已取消」結束")
+    func cancelCheck() async throws {
+        let prompts = PromptLog()
+        let host = DemoHost(scenario: .tailscaleCheck(completesAfter: nil), tailscaleCheck: prompts.observe)
+
+        let pending = Task { try await HerdrClient(channel: host).snapshot() }
+        try await prompts.firstPrompt().cancel()
+
+        await #expect(throws: SSHConnectionError.tailscaleCheckCancelled) { _ = try await pending.value }
+        #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
+    }
+}

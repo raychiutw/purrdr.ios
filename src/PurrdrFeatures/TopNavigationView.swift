@@ -38,6 +38,7 @@ public struct TopNavigationView: View {
             .id(hosts.selection)
                 .toolbar { toolbar }
         }
+        .tailscaleCheckPrompt(hosts.tailscaleCheck)
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
             case .hosts:
