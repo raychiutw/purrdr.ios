@@ -532,6 +532,9 @@ private struct SSHExecSession: ExecSession {
 }
 
 /// 一個 PTY。stdout 與 stderr 都是畫面輸出。
+///
+/// 程式自己結束(主機送了 exit-status／exit-signal)時輸出正常結束;沒有結束狀態就關閉 = 連線中斷，
+/// 丟 `connectionLost`(登入 Shell 依此分辨「已結束」與「連線中斷」)。
 private struct SSHPTYSession: PTYSession {
     let channel: any Channel
     let output: AsyncThrowingStream<Data, any Error>
@@ -540,13 +543,19 @@ private struct SSHPTYSession: PTYSession {
         self.channel = channel
         output = AsyncThrowingStream { continuation in
             let task = Task {
+                var exited = false
                 for await event in events {
                     switch event {
                     case .stdout(let data), .stderr(let data): continuation.yield(data)
-                    case .exitStatus, .exitSignal, .closed: break
+                    case .exitStatus, .exitSignal: exited = true
+                    case .closed: break
                     }
                 }
-                continuation.finish()
+                if exited {
+                    continuation.finish()
+                } else {
+                    continuation.finish(throwing: SSHConnectionError.connectionLost)
+                }
             }
             continuation.onTermination = { _ in task.cancel() }
         }

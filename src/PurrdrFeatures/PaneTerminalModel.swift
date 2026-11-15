@@ -8,27 +8,12 @@ import PurrdrCore
 /// herdr 不轉送終端機模式，模擬器自己編碼滑鼠或滾輪一定會錯)。
 @MainActor
 @Observable
-public final class PaneTerminalModel {
-    public enum Status: Equatable {
-        /// 畫面還沒回報格數，還不能開連線(handshake 要帶格數)。
-        case waitingForSize
-        case connecting
-        case connected
-        /// 連線斷了或已掛斷，可以重新連線。
-        case disconnected
-        /// 已經有別的 client 在操作這個 Pane,要「接管」才能接上。
-        case inUse
-        /// 別的 client 接管走了。
-        case takenOver
-        /// Pane 裡的程式結束了。
-        case ended
-        /// 這個 Pane 開不起來，重試也不會成功;附上原因。
-        case unavailable(String)
-    }
+public final class PaneTerminalModel: TerminalSessionModel {
+    public typealias Status = TerminalStatus
 
     /// 字級範圍：小於 8pt 讀不了;大於 28pt 直立 iPad 放不下 80 欄(行為規格 §6.4)。
-    public static let fontSizes: ClosedRange<Double> = 8...28
-    public static let defaultFontSize: Double = 13
+    public static let fontSizes = TerminalFontSize.range
+    public static let defaultFontSize = TerminalFontSize.default
     /// 格數上限：herdr 會接受 5000 欄並回很大的 full frame。
     static let maxColumns = 500
     static let maxRows = 200
@@ -96,6 +81,8 @@ public final class PaneTerminalModel {
     public var canTakeOver: Bool { status == .inUse || status == .takenOver }
     /// 按鍵列與貼上是否可用。
     public var isInteractive: Bool { status == .connected }
+    /// 本機 scrollback 是空的(herdr 每次都重畫整個 viewport):滑動送 `terminal.scroll`。
+    public var usesRemoteScroll: Bool { true }
 
     // MARK: - 畫面
 
@@ -273,7 +260,11 @@ public final class PaneTerminalModel {
         modifiers.formSymmetricDifference(modifier)
     }
 
-    /// 貼上：永遠包 bracketed paste 標記，由 herdr 依 Pane 的模式決定要不要保留。
+    /// 貼上：永遠包 bracketed paste 標記，由 herdr 依 Pane 的模式決定要不要保留(模擬器看不到 Pane 的模式)。
+    public func paste(_ text: String, bracketed: Bool) {
+        paste(text)
+    }
+
     public func paste(_ text: String) {
         guard isInteractive, !text.isEmpty else { return }
         let body = Data(text.utf8)
@@ -295,20 +286,14 @@ public final class PaneTerminalModel {
     // MARK: - 字級
 
     public func setFontSize(_ size: Double) {
-        fontSize = min(max(size, Self.fontSizes.lowerBound), Self.fontSizes.upperBound)
-    }
-
-    public func adjustFontSize(by delta: Double) {
-        setFontSize(fontSize + delta)
+        fontSize = TerminalFontSize.clamped(size)
     }
 
     // MARK: - 連結
 
     /// 只開 http／https 連結;其他 scheme 一律忽略。
     public static func openableURL(_ link: String) -> URL? {
-        guard let url = URL(string: link), let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https", url.host != nil else { return nil }
-        return url
+        TerminalLinks.openableURL(link)
     }
 
     private enum Outgoing {
