@@ -12,8 +12,11 @@ final class SettingsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
 
+        // 由上往下逐列捲到(列表變長後下方的列還沒建立，直接找會找不到)。
         for identifier in ["settings.member", "settings.returnSends", "settings.haptics", "settings.rate", "settings.support"] {
-            XCTAssertTrue(element(identifier, in: app).waitForExistence(timeout: 5), "設定頁沒有 \(identifier)")
+            let row = element(identifier, in: app)
+            scrollTo(row, in: app)
+            XCTAssertTrue(row.waitForExistence(timeout: 5), "設定頁沒有 \(identifier)")
         }
         let herdrVersion = element("settings.herdrVersion", in: app)
         // 捲到最後一列(隱私權政策):herdr 版本列可能只露出一部分，露出部分就算 hittable,值卻還沒進 accessibility 樹。
