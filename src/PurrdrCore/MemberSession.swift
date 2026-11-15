@@ -78,6 +78,21 @@ public actor MemberSession {
         try clear()
     }
 
+    // MARK: - 訂閱(Purrdr Plus)
+
+    /// 會員目前的訂閱;從來沒訂閱過是 `nil`。沒有登入時丟 `BackendError.signedOut`。
+    public func subscription() async throws -> MemberSubscription? {
+        let response = try await authorized(BackendRequest(method: "GET", path: "/v1/members/me/subscription"))
+        return try Wire.decode(Wire.SubscriptionEnvelope.self, from: response).subscription?.domain()
+    }
+
+    /// 把 StoreKit 2 的簽章交易(JWS)交給後台驗證並記到會員身上，回傳更新後的訂閱。
+    public func submitAppStoreTransaction(_ signedTransaction: String) async throws -> MemberSubscription? {
+        let body = try JSONEncoder().encode(["signedTransaction": signedTransaction])
+        let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/subscription/app-store", body: body))
+        return try Wire.decode(Wire.SubscriptionEnvelope.self, from: response).subscription?.domain()
+    }
+
     // MARK: - 權杖
 
     private func authorized(_ request: BackendRequest) async throws -> BackendResponse {
@@ -199,6 +214,30 @@ private enum Wire {
                 return MemberIdentity(method: method, email: identity.email, linkedAt: linkedAt)
             }
             return Member(id: id, identities: identities)
+        }
+    }
+
+    struct SubscriptionEnvelope: Decodable {
+        var subscription: SubscriptionBody?
+    }
+
+    struct SubscriptionBody: Decodable {
+        var status: String
+        var store: String
+        var productId: String
+        var expiresAt: String
+        var gracePeriodExpiresAt: String?
+        var willAutoRenew: Bool?
+
+        func domain() throws -> MemberSubscription {
+            guard let status = MemberSubscription.Status(rawValue: status),
+                  let store = MemberSubscription.Store(rawValue: store),
+                  let expiresAt = Wire.date(expiresAt)
+            else { throw BackendError.invalidResponse }
+            return MemberSubscription(
+                status: status, store: store, productID: productId, expiresAt: expiresAt,
+                gracePeriodExpiresAt: gracePeriodExpiresAt.flatMap(Wire.date), willAutoRenew: willAutoRenew
+            )
         }
     }
 
