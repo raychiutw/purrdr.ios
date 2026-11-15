@@ -13,15 +13,14 @@ public struct AgentListView: View {
         self.model = model
     }
 
+    /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Agents")
-        }
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active else { return }
-            await model.run()
-        }
+        content
+            .navigationTitle("Agents")
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await model.run()
+            }
     }
 
     @ViewBuilder
