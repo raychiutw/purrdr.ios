@@ -27,13 +27,20 @@ struct PurrdrApp: App {
             ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
         let hosts: HostsModel
         if uiTesting {
+            // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
+            let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
             hosts = HostsModel(
                 store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                makeChannel: { _, _ in demo })
+                credentials: credentials, makeChannel: { _, _, _ in demo })
         } else {
-            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences) {
-                endpoint, pin in
-                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+            // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
+            let credentials = HostCredentials(
+                secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
+            hosts = HostsModel(
+                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                credentials: credentials
+            ) { endpoint, pin, credential in
+                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential)
             }
         }
         hosts.load()
