@@ -33,8 +33,9 @@ jobs:
         run: swift test --explicit-target-dependency-import-check error
 
       # Xcode 建置 app 時會把 package 的 warning 壓掉，所以另外在 package 根目錄以 iOS 編譯一次。
-      # 不能用 SWIFT_TREAT_WARNINGS_AS_ERRORS=YES:遠端依賴(swift-nio 等)被加上 -suppress-warnings,
-      # 兩個旗標衝突會直接建置失敗。改從建置結果數 warning(遠端依賴的 warning 已被壓掉，只剩我們的)。
+      # 不能用 SWIFT_TREAT_WARNINGS_AS_ERRORS=YES:它也會套到 SwiftTerm、swift-nio 這類遠端 package,
+      # 跟 Xcode 給遠端 package 的 -suppress-warnings 衝突。改用 result bundle 數 warning
+      # (遠端 package 的 warning 已被壓掉，數到的都是我們自己的)。
       - name: 以 iOS 編譯 package
         run: >
           xcodebuild build

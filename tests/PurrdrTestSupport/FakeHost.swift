@@ -117,6 +117,32 @@ public actor FakeHost: HostChannel {
         return FakePTYSession(host: self, id: id, output: stream, continuation: continuation)
     }
 
+    /// 對第 `index` 次執行(`keepsOpen` 的串流)送出任一種輸出事件(stdout 或 stderr)。
+    public func send(_ output: ExecOutput, toExecution index: Int) {
+        open[index]?.yield(output)
+    }
+
+    /// 等到 app 執行了 `count` 個指令(測試與 app 的非同步工作對齊用)。逾時則回傳目前數量。
+    public func waitForExecutions(_ count: Int, timeout: Duration = .seconds(2)) async -> Int {
+        let deadline = ContinuousClock.now + timeout
+        while executions.count < count, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return executions.count
+    }
+
+    /// 等到第 `index` 個執行的 stdin 滿足 `condition`。逾時則回傳 `false`。
+    public func waitForStdin(
+        ofExecution index: Int, timeout: Duration = .seconds(2), until condition: @Sendable (Execution) -> Bool
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if index < executions.count, condition(executions[index]) { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return false
+    }
+
     // MARK: - 給 session 回報
 
     fileprivate func received(_ data: Data, for id: Int) throws {

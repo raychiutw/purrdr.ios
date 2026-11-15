@@ -14,11 +14,14 @@ struct PurrdrApp: App {
     private let navigation = TopNavigationModel()
 
     init() {
-        let demo = DemoHost()
+        let arguments = ProcessInfo.processInfo.arguments
+        // UI 測試情境：桌機正在操作 Demo 的 Pane。
+        let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
+        let demo = DemoHost(scenario: scenario)
         // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
         let cache = InMemoryConversationCache()
         let hosts: HostsModel
-        if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
+        if arguments.contains("-uiTesting") {
             hosts = HostsModel(store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, makeChannel: { _, _ in demo })
         } else {
             hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo, conversationCache: cache) { endpoint, pin in

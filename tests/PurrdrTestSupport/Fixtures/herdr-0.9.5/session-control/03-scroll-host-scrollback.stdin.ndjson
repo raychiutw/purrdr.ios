@@ -1,0 +1,9 @@
+{"type": "terminal.input", "text": "seq 1 60\r"}
+{"type": "terminal.scroll", "direction": "up", "lines": 5, "source": "wheel", "column": 0, "row": 0, "modifiers": 0}
+{"type": "terminal.scroll", "direction": "up", "lines": 3, "source": "page_key", "column": 0, "row": 0, "modifiers": 0}
+{"type": "terminal.scroll", "direction": "down", "lines": 2, "source": "wheel", "column": 0, "row": 0, "modifiers": 0}
+{"type": "terminal.mouse", "action": "down", "button": "left", "column": 3, "row": 3, "modifiers": 0}
+{"type": "terminal.mouse", "action": "up", "button": "left", "column": 3, "row": 3, "modifiers": 0}
+{"type": "terminal.input", "text": "#"}
+{"type": "terminal.input", "bytes": "FQ=="}
+{"type": "terminal.release"}

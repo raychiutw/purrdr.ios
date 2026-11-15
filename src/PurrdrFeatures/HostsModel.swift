@@ -42,6 +42,7 @@ public final class HostsModel {
     private var channel: any HostChannel
     private var client: HerdrClient
     private var transcripts: TranscriptReader
+    private var terminals: PaneTerminalClient
 
     /// - Parameter conversationCache: 對話快取(所有主機共用;快取以 session 為鍵)。
     public init(
@@ -57,7 +58,13 @@ public final class HostsModel {
         let transcripts = TranscriptReader(channel: demoChannel)
         self.client = client
         self.transcripts = transcripts
+        terminals = PaneTerminalClient(channel: demoChannel)
         agentList = AgentListModel(client: client, transcripts: transcripts)
+    }
+
+    /// 選取中主機上某個 Pane 的終端機 model(pane id、標題)。
+    public func terminal(paneID: String, title: String) -> PaneTerminalModel {
+        PaneTerminalModel(client: terminals, paneID: paneID, title: title)
     }
 
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
@@ -104,9 +111,11 @@ public final class HostsModel {
         if let host {
             channel = makeChannel(host.endpoint, host.hostKeyPin)
             client = HerdrClient(channel: channel, herdr: host.herdr)
+            terminals = PaneTerminalClient(channel: channel, herdr: host.herdr)
         } else {
             channel = demoChannel
             client = HerdrClient(channel: demoChannel)
+            terminals = PaneTerminalClient(channel: demoChannel)
         }
         transcripts = TranscriptReader(channel: channel)
         agentList = AgentListModel(client: client, transcripts: transcripts)

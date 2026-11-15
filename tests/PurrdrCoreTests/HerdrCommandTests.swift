@@ -18,6 +18,13 @@ struct HerdrCommandTests {
         #expect(HerdrCommand.version(herdr) == #"\#(Self.path) "$HOME"/'bin/herdr' --version"#)
     }
 
+    @Test("Pane 終端機也帶具名 session")
+    func terminalUsesNamedSession() {
+        let herdr = HerdrInstallation(session: "work")
+        #expect(HerdrCommand.terminalSessionControl(target: "w1:p1", columns: 80, rows: 24, herdr: herdr)
+            == "\(Self.path) 'herdr' --session 'work' terminal session control 'w1:p1' --cols 80 --rows 24")
+    }
+
     @Test("session 空白或 default 都是預設 session;路徑空白是 herdr")
     func blankAndDefaultSession() {
         #expect(HerdrInstallation(path: "  ", session: "default") == HerdrInstallation())

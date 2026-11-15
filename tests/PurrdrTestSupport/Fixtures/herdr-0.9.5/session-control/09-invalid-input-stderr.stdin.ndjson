@@ -1,0 +1,8 @@
+{"type": "terminal.resize", "cols": 0, "rows": 10}
+{"type": "terminal.resize", "cols": 40}
+this is not json
+{"type": "terminal.bogus"}
+{"type": "terminal.input", "text": "x", "bytes": "eA=="}
+
+{"type": "terminal.input", "text": "echo still-alive\r"}
+{"type": "terminal.release"}
