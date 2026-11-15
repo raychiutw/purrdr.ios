@@ -6,6 +6,7 @@ import SwiftUI
 public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let agentList: AgentListModel
+    let member: MemberModel
     let workspaceActions: WorkspaceActionsModel
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
     let conversation: @MainActor (String, String?) -> ConversationModel
@@ -13,12 +14,14 @@ public struct TopNavigationView: View {
     let terminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
     public init(
-        navigation: TopNavigationModel, agentList: AgentListModel, workspaceActions: WorkspaceActionsModel,
+        navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel,
+        workspaceActions: WorkspaceActionsModel,
         conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
     ) {
         self.navigation = navigation
         self.agentList = agentList
+        self.member = member
         self.workspaceActions = workspaceActions
         self.conversation = conversation
         self.terminal = terminal
@@ -31,7 +34,13 @@ public struct TopNavigationView: View {
                 .toolbar { toolbar }
         }
         .sheet(item: $navigation.sheet) { sheet in
-            TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
+            switch sheet {
+            case .member:
+                // 會員畫面自帶 NavigationStack 與「完成」。
+                MemberView(model: member)
+            default:
+                TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
+            }
         }
         // 冷啟動與從背景回來的深層連結都會走到這裡。
         .onOpenURL { navigation.open($0) }
@@ -45,6 +54,8 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.settings")
                 Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
                     .accessibilityIdentifier("menu.hosts")
+                Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
+                    .accessibilityIdentifier("menu.member")
             } label: {
                 Label("More", systemImage: "ellipsis")
             }
@@ -90,6 +101,7 @@ extension TopLevelSheet {
         case .settings: "Settings"
         case .hosts: "Hosts"
         case .newChat: "New Chat"
+        case .member: "Purrdr Member"
         }
     }
 
@@ -98,6 +110,7 @@ extension TopLevelSheet {
         case .settings: "gearshape"
         case .hosts: "desktopcomputer"
         case .newChat: "plus.bubble"
+        case .member: "person.crop.circle"
         }
     }
 }
