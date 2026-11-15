@@ -22,6 +22,9 @@ struct ComposerBar: View {
             if model.slash.isVisible {
                 SlashMenuView(menu: model.slash)
             }
+            if model.isShellMode {
+                ShellModeHint()
+            }
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
@@ -146,6 +149,20 @@ struct ComposerBar: View {
 }
 
 // MARK: - 提示
+
+/// Shell 模式提示(F6.4):Claude 聊天的草稿以 `!` 開頭時，說明這會在 agent 的 shell 執行，不會送給 Claude。
+struct ShellModeHint: View {
+    var body: some View {
+        Label("This runs in the agent’s shell and won’t be sent to Claude.", systemImage: "terminal")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+            .accessibilityIdentifier("composer.shellHint")
+    }
+}
 
 /// 送出與中斷的提示：留在畫面上直到使用者關閉、下一次送出或對話紀錄確認(不自動消失,R-P11)。
 struct SendNoticeView: View {

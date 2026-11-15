@@ -568,6 +568,12 @@ public final class ConversationModel {
         !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
     }
 
+    /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
+    public var isShellMode: Bool {
+        guard let kind = currentAgent?.kind else { return false }
+        return PromptDelivery.isShellCommand(draft, kind: kind)
+    }
+
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping }
 
@@ -888,16 +894,23 @@ public final class ConversationModel {
     }
 
     private var userMessageIDs: Set<String> {
-        Set(items.compactMap { item in
-            if case .user(let bubble) = item { bubble.id } else { nil }
-        })
+        Set(userTurns.map(\.id))
+    }
+
+    /// 使用者送出的內容：泡泡，以及 shell 區塊(以 `!指令` 比對回音,F6.4)。
+    private var userTurns: [UserBubble] {
+        items.compactMap { item -> UserBubble? in
+            switch item {
+            case .user(let bubble): bubble
+            case .shell(let run): UserBubble(id: run.id, text: "!" + run.command, date: run.date, imageCount: 0)
+            default: nil
+            }
+        }
     }
 
     /// 以對話紀錄確認回音;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
     private func rebuildEntries() {
-        let bubbles = items.compactMap { item -> UserBubble? in
-            if case .user(let bubble) = item { bubble } else { nil }
-        }
+        let bubbles = userTurns
         let remaining = EchoMatching.confirm(echoes, against: bubbles, consumed: &consumedUserIDs)
         if remaining.count < echoes.count {
             echoes = remaining

@@ -143,6 +143,29 @@ struct DemoHostTests {
         #expect(bubble.imagePaths == [path])
     }
 
+    @Test("送出 `!` 指令:Demo 的 Claude 不等待就收下，對話紀錄接著出現 shell 交換(輸入行與輸出行)")
+    func shellCommandAppendsShellExchange() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+
+        let outcome = await PromptDelivery(client: client).send("!ls Sources", to: try #require(try await client.snapshot().agents.first))
+
+        #expect(outcome == .submittedCommand)
+        guard case .appended(let chunk) = try await reader.tail(path: before.path, from: before.size) else {
+            Issue.record("對話紀錄應接上新的行")
+            return
+        }
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        guard items.count == 1, case .shell(let run) = items[0], case .recorded(let output) = run.output else {
+            Issue.record("應該只有一個有輸出的 shell 區塊：\(items)")
+            return
+        }
+        #expect(run.command == "ls Sources")
+        #expect(!output.stdout.isEmpty)
+    }
+
     @Test("送出 prompt:Demo 的「需要你」agent 拒絕(agent_blocked),要先回答")
     func blockedDemoAgentNeedsAnswer() async throws {
         let client = HerdrClient(channel: DemoHost())

@@ -351,6 +351,8 @@ struct ConversationItemView: View {
             SubagentCardView(card: card)
         case .workflow(let card):
             WorkflowCardView(card: card)
+        case .shell(let run):
+            ShellRunView(run: run)
         }
     }
 }
