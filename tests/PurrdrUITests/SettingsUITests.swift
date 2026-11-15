@@ -16,11 +16,12 @@ final class SettingsUITests: XCTestCase {
             XCTAssertTrue(element(identifier, in: app).waitForExistence(timeout: 5), "設定頁沒有 \(identifier)")
         }
         let herdrVersion = element("settings.herdrVersion", in: app)
-        scrollTo(herdrVersion, in: app)
+        // 捲到最後一列(隱私權政策):herdr 版本列可能只露出一部分，露出部分就算 hittable,值卻還沒進 accessibility 樹。
+        scrollTo(element("settings.privacy", in: app), in: app)
         // Demo 主機回報 herdr 0.9.5。
         let version = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "0.9.5", "0.9.5")).firstMatch
-        XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有顯示主機的 herdr 版本")
+        XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有顯示主機的 herdr 版本:\(herdrVersion.debugDescription)")
         XCTAssertTrue(element("settings.version", in: app).exists)
         XCTAssertTrue(element("settings.privacy", in: app).exists)
         // 外觀跟隨系統：沒有深淺色設定。
