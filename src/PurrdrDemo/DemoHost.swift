@@ -72,6 +72,9 @@ public actor DemoHost: HostChannel {
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
+        if let listing = DemoFolders.respond(to: command) {
+            return DemoFinishedSession(events: (listing.stdout.isEmpty ? [] : [.stdout(listing.stdout)]) + [.exit(code: listing.exitCode)])
+        }
         if let request = HostFileRequest(command: command) {
             let result = files.handle(request, now: Date())
             return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])

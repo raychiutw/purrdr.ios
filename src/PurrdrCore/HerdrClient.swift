@@ -154,6 +154,25 @@ public struct HerdrClient: Sendable {
         return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
     }
 
+    // MARK: - 新對話(行為規格 F3.2)
+
+    /// 在 `cwd`(主機上的絕對路徑，呼叫端先確認存在)建立 workspace(`workspace.create`,期限 60 秒)。
+    /// `focus:false`:不搶桌機的焦點。`label` 為 `nil` 時由 herdr 命名。
+    public func createWorkspace(cwd: String, label: String?) async throws -> CreatedWorkspace {
+        let result = try await request(
+            method: "workspace.create", params: WorkspaceCreateParams(cwd: cwd, label: label), as: WorktreeCreatedResult.self, deadline: .seconds(60)
+        )
+        return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
+    }
+
+    /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
+    /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
+    public func startAgent(name: String, kind: String, paneID: String, arguments: [String], timeout: Duration) async throws {
+        let params = AgentStartParams(
+            name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, timeoutMs: Self.milliseconds(timeout))
+        _ = try await request(method: "agent.start", params: params, as: TypedResult.self, deadline: timeout + .seconds(60))
+    }
+
     // MARK: - 送出 prompt 與按鍵(行為規格 F6.5、§3.6)
 
     /// `agent.prompt`。`wait` 有值時帶 `wait: {until: [working, blocked], timeout_ms}`,我方期限是 herdr 的等待 + 20 秒
@@ -387,6 +406,27 @@ private struct WorktreeCreateParams: Encodable {
     }
 }
 
+private struct WorkspaceCreateParams: Encodable {
+    var cwd: String
+    var label: String?
+    var focus = false
+}
+
+private struct AgentStartParams: Encodable {
+    var name: String
+    var kind: String
+    var paneID: String
+    var args: [String]?
+    var timeoutMs: Int
+
+    enum CodingKeys: String, CodingKey {
+        case name, kind, args
+        case paneID = "pane_id"
+        case timeoutMs = "timeout_ms"
+    }
+}
+
+/// `workspace_created` 與 `worktree_created` 共用:都有 workspace 與 root_pane。
 private struct WorktreeCreatedResult: Decodable {
     var workspace: WireWorkspace
     var rootPane: RootPane

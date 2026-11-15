@@ -1,3 +1,4 @@
+import PurrdrCore
 import SwiftUI
 
 /// iPhone 頂層導覽(#37 故事 21):Agent 列表 + 工具列的「⋯」選單與「+」,其餘畫面以 sheet 開啟。
@@ -55,7 +56,13 @@ public struct TopNavigationView: View {
                     PlusSheet(model: plus, member: member)
                 }
             case .newChat:
-                TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
+                NewChatSheet(model: hosts.newChat()) {
+                    navigation.sheet = nil
+                } onStarted: { workspace in
+                    // 先收起 sheet,再推入新 workspace 的聊天(否則聊天會推到 sheet 下面)。
+                    navigation.sheet = nil
+                    Task { await hosts.openStartedChat(workspace) }
+                }
             }
         }
         // 冷啟動與從背景回來的深層連結都會走到這裡。
@@ -113,48 +120,19 @@ public struct TopNavigationView: View {
     }
 }
 
-/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(新增對話)。
-struct TopLevelSheetView: View {
-    let sheet: TopLevelSheet
-    let done: () -> Void
+/// 新增對話的 sheet:model 在 sheet 開啟時建立一次(選取中主機),之後重繪不重建。
+private struct NewChatSheet: View {
+    @State private var model: NewChatModel
+    let onCancel: () -> Void
+    let onStarted: (CreatedWorkspace) -> Void
+
+    init(model: @autoclosure () -> NewChatModel, onCancel: @escaping () -> Void, onStarted: @escaping (CreatedWorkspace) -> Void) {
+        _model = State(wrappedValue: model())
+        self.onCancel = onCancel
+        self.onStarted = onStarted
+    }
 
     var body: some View {
-        NavigationStack {
-            placeholder
-                .accessibilityIdentifier("sheet.\(sheet.rawValue)")
-                .navigationTitle(sheet.title)
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done", action: done)
-                            .accessibilityIdentifier("sheet.done")
-                    }
-                }
-        }
-    }
-
-    private var placeholder: some View {
-        ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
-    }
-}
-
-extension TopLevelSheet {
-    var title: LocalizedStringKey {
-        switch self {
-        case .settings: "Settings"
-        case .hosts: "Hosts"
-        case .newChat: "New Chat"
-        case .member: "Purrdr Member"
-        case .plus: "Purrdr Plus"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .settings: "gearshape"
-        case .hosts: "desktopcomputer"
-        case .newChat: "plus.bubble"
-        case .member: "person.crop.circle"
-        case .plus: "bell.badge"
-        }
+        NewChatView(model: model, onCancel: onCancel, onStarted: onStarted)
     }
 }
