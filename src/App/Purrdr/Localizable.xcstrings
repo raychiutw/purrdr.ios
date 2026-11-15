@@ -20,6 +20,17 @@
         }
       }
     },
+    "%@ keys aren’t supported. Use this device’s key, or an ed25519 or ECDSA key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援 %@ 金鑰。請改用這支裝置的金鑰，或 ed25519、ECDSA 金鑰。"
+          }
+        }
+      }
+    },
     "%@ per %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -681,6 +692,17 @@
         }
       }
     },
+    "Checking key…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在檢查金鑰…"
+          }
+        }
+      }
+    },
     "Checking the host…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1000,6 +1022,17 @@
         }
       }
     },
+    "Copy Command" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝指令"
+          }
+        }
+      }
+    },
     "Copy Diagnostics" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1007,6 +1040,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝診斷資訊"
+          }
+        }
+      }
+    },
+    "Copy Public Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝公鑰"
           }
         }
       }
@@ -1150,6 +1194,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法在這台裝置上儲存這台主機。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t save this host’s password or key on this device. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在這支裝置上儲存這台主機的密碼或金鑰。%@"
           }
         }
       }
@@ -1550,6 +1605,17 @@
         }
       }
     },
+    "Fingerprint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指紋"
+          }
+        }
+      }
+    },
     "Focused" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1737,6 +1803,28 @@
         }
       }
     },
+    "If %@ is an administrator, Windows OpenSSH reads this file instead. Run this in PowerShell as administrator." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果 %@ 是管理員，Windows OpenSSH 會改讀這個檔案。請以管理員身分在 PowerShell 執行這段指令。"
+          }
+        }
+      }
+    },
+    "Imported Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入的金鑰"
+          }
+        }
+      }
+    },
     "In Use Elsewhere" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1832,6 +1920,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "除非這台主機執行多個 herdr session,否則 Session 留空即可。"
+          }
+        }
+      }
+    },
+    "Leave blank to keep the saved key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留白即保留已儲存的金鑰。"
           }
         }
       }
@@ -2188,6 +2287,17 @@
         }
       }
     },
+    "None" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無"
+          }
+        }
+      }
+    },
     "Not Available" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2342,6 +2452,17 @@
         }
       }
     },
+    "OpenSSH private key, %lld lines" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenSSH 私鑰，共 %lld 行"
+          }
+        }
+      }
+    },
     "Opens the chat." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2397,6 +2518,28 @@
         }
       }
     },
+    "Passphrase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passphrase"
+          }
+        }
+      }
+    },
+    "Password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼"
+          }
+        }
+      }
+    },
     "Paste" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2404,6 +2547,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上"
+          }
+        }
+      }
+    },
+    "Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys aren’t supported. The key and passphrase are kept in this device’s keychain." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上 OpenSSH 格式的 ed25519 或 ECDSA 私鑰。不支援 RSA 金鑰。金鑰與 passphrase 存放在這支裝置的鑰匙圈。"
           }
         }
       }
@@ -2463,6 +2617,17 @@
         }
       }
     },
+    "Private Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰"
+          }
+        }
+      }
+    },
     "Project" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2470,6 +2635,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "專案"
+          }
+        }
+      }
+    },
+    "Public Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公鑰"
           }
         }
       }
@@ -2529,6 +2705,17 @@
         }
       }
     },
+    "Purrdr signs in to the host’s own SSH server with a key or password." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 以金鑰或密碼登入主機自己的 SSH 伺服器。"
+          }
+        }
+      }
+    },
     "Purrdr supports macOS and Linux hosts for now." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2547,6 +2734,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會先測試連線，再儲存主機。"
+          }
+        }
+      }
+    },
+    "RSA keys aren’t supported. Use this device’s key, or an ed25519 or ECDSA key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援 RSA 金鑰。請改用這支裝置的金鑰，或 ed25519、ECDSA 金鑰。"
           }
         }
       }
@@ -2672,6 +2870,28 @@
         }
       }
     },
+    "Replace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取代"
+          }
+        }
+      }
+    },
+    "Required" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必填"
+          }
+        }
+      }
+    },
     "Resets %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2734,6 +2954,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向右鍵"
+          }
+        }
+      }
+    },
+    "Run this in PowerShell on the host, signed in as %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請以 %@ 登入主機，在 PowerShell 執行這段指令。"
+          }
+        }
+      }
+    },
+    "Run this in Terminal on the host, signed in as %@. On a Mac, also turn on Remote Login in System Settings › General › Sharing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請以 %@ 登入主機，在「終端機」執行這段指令。如果是 Mac,還要到「系統設定」›「一般」›「共享」開啟「遠端登入」。"
           }
         }
       }
@@ -2903,6 +3145,17 @@
         }
       }
     },
+    "Share Public Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享公鑰"
+          }
+        }
+      }
+    },
     "Show" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3031,6 +3284,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登入"
+          }
+        }
+      }
+    },
+    "Sign In With" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入方式"
           }
         }
       }
@@ -3497,6 +3761,39 @@
         }
       }
     },
+    "The host didn’t accept this device’s key. Add the public key to ~/.ssh/authorized_keys on the host, and check the user name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機不接受這支裝置的金鑰。請把公鑰加進主機上的 ~/.ssh/authorized_keys,並檢查使用者名稱。"
+          }
+        }
+      }
+    },
+    "The host didn’t accept this key. Check that its public key is in ~/.ssh/authorized_keys on the host, and check the user name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機不接受這把金鑰。請確認它的公鑰在主機上的 ~/.ssh/authorized_keys 裡，並檢查使用者名稱。"
+          }
+        }
+      }
+    },
+    "The host didn’t accept this user name and password." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機不接受這組使用者名稱與密碼。"
+          }
+        }
+      }
+    },
     "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3508,6 +3805,28 @@
         }
       }
     },
+    "The host didn’t let this user sign in. Edit the host to check the user name and how Purrdr signs in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機不允許這個使用者登入。請編輯主機，檢查使用者名稱與 Purrdr 的登入方式。"
+          }
+        }
+      }
+    },
+    "The host refused the connection. Check that Remote Login (SSH) is on and the port is right." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機拒絕了連線。請確認「遠端登入」(SSH)已開啟，port 也正確。"
+          }
+        }
+      }
+    },
     "The host refused the connection. Check that Tailscale SSH is on and the port is right." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3515,6 +3834,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機拒絕了連線。請確認 Tailscale SSH 已開啟，port 也正確。"
+          }
+        }
+      }
+    },
+    "The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰在這支裝置的 Secure Enclave 裡產生，私鑰永遠不會離開它。請先把它的公鑰加到主機上。"
+          }
+        }
+      }
+    },
+    "The passphrase is incorrect." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "passphrase 不正確。"
+          }
+        }
+      }
+    },
+    "The password is kept in this device’s keychain." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼存放在這支裝置的鑰匙圈。"
+          }
+        }
+      }
+    },
+    "The private key stays in this device’s Secure Enclave and never leaves it. Add this public key to each host you sign in to." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰留在這支裝置的 Secure Enclave 裡，永遠不會離開它。請把這把公鑰加到你要登入的每台主機。"
           }
         }
       }
@@ -3618,6 +3981,17 @@
         }
       }
     },
+    "This Device’s Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置的金鑰"
+          }
+        }
+      }
+    },
     "This agent’s transcript can’t be read yet. Use the host’s terminal to see it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3625,6 +3999,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前還無法讀取這個 Agent 的對話紀錄，請用主機的終端機查看。"
+          }
+        }
+      }
+    },
+    "This device can’t create a key in the Secure Enclave. Import a key or use a password." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置無法在 Secure Enclave 裡產生金鑰。請匯入金鑰或改用密碼。"
+          }
+        }
+      }
+    },
+    "This host doesn’t accept key sign-in over SSH. Check PubkeyAuthentication in the host’s sshd settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機不接受以金鑰透過 SSH 登入。請檢查主機 sshd 設定裡的 PubkeyAuthentication。"
+          }
+        }
+      }
+    },
+    "This host doesn’t accept password sign-in over SSH. Use a key instead, or turn on PasswordAuthentication in the host’s sshd settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機不接受以密碼透過 SSH 登入。請改用金鑰，或在主機的 sshd 設定裡開啟 PasswordAuthentication。"
           }
         }
       }
@@ -3673,6 +4080,28 @@
         }
       }
     },
+    "This host’s password or key isn’t on this device. Edit the host and enter it again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置上沒有這台主機的密碼或金鑰。請編輯主機並重新輸入。"
+          }
+        }
+      }
+    },
+    "This is a public key. Paste the private key file instead (the one without .pub)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是公鑰。請改貼私鑰檔(沒有 .pub 的那個)。"
+          }
+        }
+      }
+    },
     "This is the first connection to %@. It identifies itself with this key:\n\n%@\n\nTrust it only if it matches ssh-keygen -lf on that computer." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3680,6 +4109,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這是第一次連線到 %@。它以這個 key 表明身分:\n\n%@\n\n請在那台主機上執行 ssh-keygen -lf,確認相符才信任。"
+          }
+        }
+      }
+    },
+    "This isn’t an OpenSSH private key. Paste the whole file, starting with “-----BEGIN OPENSSH PRIVATE KEY-----”. To convert an older key, run ssh-keygen -p -f on it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這不是 OpenSSH 私鑰。請貼上整個檔案，開頭是「-----BEGIN OPENSSH PRIVATE KEY-----」。舊格式的金鑰可以對它執行 ssh-keygen -p -f 轉換。"
+          }
+        }
+      }
+    },
+    "This key is encrypted with %@, which isn’t supported. Run ssh-keygen -p -f on the key to re-encrypt it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這把金鑰以 %@ 加密，目前不支援。請對金鑰執行 ssh-keygen -p -f 重新加密。"
+          }
+        }
+      }
+    },
+    "This key is incomplete or damaged. Paste the whole file again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這把金鑰不完整或已損壞。請重新貼上整個檔案。"
+          }
+        }
+      }
+    },
+    "This key is protected by a passphrase. Enter it below." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這把金鑰有 passphrase 保護，請在下方輸入。"
           }
         }
       }
@@ -3937,6 +4410,17 @@
         }
       }
     },
+    "Unchanged" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未變更"
+          }
+        }
+      }
+    },
     "Unknown" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4043,6 +4527,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在更新 %@ 上的 herdr…"
+          }
+        }
+      }
+    },
+    "Use This Device’s Key Instead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用這支裝置的金鑰"
           }
         }
       }
@@ -4197,6 +4692,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉時，Return 會換行。Command-Return 一律送出,Shift-Return 一律換行。"
+          }
+        }
+      }
+    },
+    "Windows" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows"
+          }
+        }
+      }
+    },
+    "Windows Administrator Account" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows 管理員帳號"
           }
         }
       }
@@ -4491,6 +5008,17 @@
         }
       }
     },
+    "macOS and Linux" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 與 Linux"
+          }
+        }
+      }
+    },
     "month" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4505,6 +5033,17 @@
     "my-mac or 100.64.0.1" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
+    },
+    "the user Purrdr signs in as" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 登入時使用的使用者"
+          }
+        }
+      }
     },
     "week" : {
       "extractionState" : "manual",
