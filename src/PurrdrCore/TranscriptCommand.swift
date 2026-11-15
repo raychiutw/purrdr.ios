@@ -123,6 +123,22 @@ public enum TranscriptCommand {
         return command(script, arguments: [sessionFolder, callID])
     }
 
+    /// 讀 workflow 進度:`<session>/workflows/<runId>.json`(結束時才寫)優先，否則
+    /// `<session>/subagents/workflows/<runId>/journal.jsonl`。先印「種類 checksum」一行;與參數 3 相同就不印內容(R-W03)。
+    /// 兩個都沒有 → exit 3。參數:session 資料夾、run id、上次的「種類 checksum」(沒有給空字串)。
+    public static func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String) -> String {
+        let script = #"""
+        r=$1/workflows/$2.json
+        j=$1/subagents/workflows/$2/journal.jsonl
+        if [ -f "$r" ]; then k=run; f=$r; elif [ -f "$j" ]; then k=journal; f=$j; else exit 3; fi
+        if [ ! -r "$f" ]; then exit 5; fi
+        c=$(cksum < "$f")
+        printf '%s %s\n' "$k" "$c"
+        if [ "$k $c" != "$3" ]; then cat "$f"; fi
+        """#
+        return command(script, arguments: [sessionFolder, runID, knownChecksum])
+    }
+
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 
     static func command(_ script: String, arguments: [String]) -> String {

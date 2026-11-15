@@ -60,6 +60,16 @@ public enum Fixtures {
         return data
     }
 
+    /// Workflow 的 run 檔與 journal(`Fixtures/claude-code/workflow/<名稱>`)。依行為規格 §4.6 寫成，不是錄製的
+    /// (作者 Mac 上沒有 workflow 紀錄)。
+    public static func workflowFile(_ name: String) -> Data {
+        guard let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/claude-code/workflow"),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到 Fixtures/claude-code/workflow/\(name)")
+        }
+        return data
+    }
+
     /// 對話紀錄的每一行(不含換行)。
     public static func transcriptLines(_ name: String = "session.jsonl") -> [String] {
         transcript(name).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }

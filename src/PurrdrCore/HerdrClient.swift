@@ -30,6 +30,13 @@ public struct HerdrClient: Sendable {
         _ = try await request(method: "pane.report_metadata", params: params, as: TypedResult.self)
     }
 
+    /// 讀 pane 目前看得到的畫面(`pane.read`,source `visible`,行為規格 §4.8)。Claude 在 alternate screen,
+    /// `recent` 會是空的，所以一定用 `visible`。
+    public func readPane(paneID: String, lines: Int = 40) async throws -> String {
+        let result = try await request(method: "pane.read", params: PaneReadParams(paneID: paneID, source: "visible", lines: lines), as: PaneReadResult.self)
+        return result.read.text
+    }
+
     /// 訂閱事件(`events.subscribe`)。
     ///
     /// 跟其他請求一樣開一個 bridge、寫一行請求、**不送 EOF**(bridge 在 EOF 時只回 ack 就結束);
@@ -269,6 +276,26 @@ private struct ReportMetadataParams: Encodable {
         case ttlMs = "ttl_ms"
         case seq
     }
+}
+
+private struct PaneReadParams: Encodable {
+    var paneID: String
+    var source: String
+    var lines: Int
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case source
+        case lines
+    }
+}
+
+private struct PaneReadResult: Decodable {
+    struct Read: Decodable {
+        var text: String
+    }
+
+    var read: Read
 }
 
 /// 只有 `{"type":…}` 的結果(例如 `{"type":"ok"}`)。
