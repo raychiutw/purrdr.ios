@@ -186,6 +186,42 @@ public final class HostsModel {
         HostEditorModel(store: store, importing: try HostShareLink.decode(url), makeChannel: makeChannel)
     }
 
+    // MARK: - 連線韌性(行為規格 §7.4、§7.5)
+
+    /// 網路路徑改變(狀態 + 可用介面類型組成的字串):丟棄所有主機的連線，下一個指令在新路由上撥號;
+    /// 列表立刻重連。第一次回報只記錄。被丟棄連線上的 Pane 終端機以「連線中斷」結束(不自動重連)。
+    public func networkPathChanged(_ signature: String) {
+        defer { networkPath = signature }
+        guard let previous = networkPath, previous != signature else { return }
+        let dropped = Array(channels.values) + [demoChannel]
+        Task {
+            for channel in dropped { await channel.disconnect() }
+            agentList.retryNow()
+        }
+    }
+
+    public func sceneDidEnterBackground(at date: Date) {
+        backgroundSince = date
+    }
+
+    /// 回到前景：背景超過 60 秒就對已建立的連線跑喚醒探測，死掉的連線在 3 秒內被丟棄;有丟棄就讓列表立刻重連。
+    public func sceneDidBecomeActive(at date: Date) async {
+        guard let since = backgroundSince else { return }
+        backgroundSince = nil
+        guard date.timeIntervalSince(since) > Double(WakeProbe.backgroundThreshold.components.seconds) else { return }
+        let probed = Array(channels.values)
+        let allAlive = await withTaskGroup(of: Bool.self) { group in
+            for channel in probed { group.addTask { await WakeProbe(channel: channel).run() } }
+            var allAlive = true
+            for await alive in group { allAlive = allAlive && alive }
+            return allAlive
+        }
+        if !allAlive { agentList.retryNow() }
+    }
+
+    private var networkPath: String?
+    private var backgroundSince: Date?
+
     // MARK: - 內部
 
     private func sortedHosts() throws -> [HostConfiguration] {
