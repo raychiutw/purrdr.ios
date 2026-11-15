@@ -118,7 +118,7 @@ public final class HostEditorModel {
         case .failure(HostProbeError.herdrOutdated(let version)):
             phase = .needsUpdate(version)
         case .failure(let error):
-            phase = .failed(Self.message(for: error))
+            phase = .failed(HostErrorText.message(for: error))
         }
     }
 
@@ -155,7 +155,7 @@ public final class HostEditorModel {
             await channel.disconnect()
         } catch {
             await channel.disconnect()
-            phase = .failed(Self.message(for: error))
+            phase = .failed(HostErrorText.message(for: error))
             return
         }
         await test()
@@ -218,37 +218,5 @@ public final class HostEditorModel {
 
     private static func sameMachine(_ lhs: SSHEndpoint, _ rhs: SSHEndpoint) -> Bool {
         lhs.host == rhs.host && lhs.port == rhs.port
-    }
-
-    /// 錯誤換成一句白話，不給使用者看函式庫的錯誤字串(行為規格 §7.6)。
-    static func message(for error: any Error) -> String {
-        switch error {
-        case SSHConnectionError.connectionRefused:
-            "The host refused the connection. Check that Tailscale SSH is on and the port is right."
-        case SSHConnectionError.hostNotFound:
-            "Couldn’t find this host name. Check the address and that this device is on your tailnet."
-        case SSHConnectionError.timedOut:
-            "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."
-        case SSHConnectionError.unreachable:
-            "Couldn’t reach this host. Make sure both devices are on your tailnet."
-        case SSHConnectionError.authenticationFailed:
-            "Tailscale SSH didn’t let this user log in. Check the user name and your tailnet’s SSH rules."
-        case SSHConnectionError.connectionLost, SSHConnectionError.channelRejected:
-            "The connection dropped. Try again."
-        case HostProbeError.herdrNotInstalled:
-            "herdr isn’t installed on this host, or it isn’t at the herdr path."
-        case HostProbeError.notHerdr:
-            "The herdr path runs a different program. Check the herdr path."
-        case HostProbeError.serverNotRunning:
-            "herdr isn’t running in this session on the host. Start herdr on the host, then test again."
-        case HostProbeError.unsupportedOperatingSystem:
-            "Purrdr supports macOS and Linux hosts for now."
-        case HostProbeError.herdr(let message):
-            message
-        case HostProbeError.updateFailed(let message):
-            "Couldn’t update herdr. \(message)"
-        default:
-            "Couldn’t test this host. Try again."
-        }
     }
 }

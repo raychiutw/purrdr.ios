@@ -114,6 +114,8 @@ public final class AgentListModel {
         case HerdrError.herdr(_, let message):
             // 未知碼保留 herdr 原文(行為規格 §3.8)。
             phase = .failed(message)
+        case is SSHConnectionError:
+            phase = .failed(HostErrorText.message(for: error))
         default:
             phase = .failed(String(localized: "Couldn’t read this host’s herdr status."))
         }

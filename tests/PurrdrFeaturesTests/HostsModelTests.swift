@@ -78,4 +78,19 @@ struct HostsModelTests {
         #expect(model.rows.map(\.id) == [Self.studio.id])
         #expect(factory.pins == [Self.pin])
     }
+
+    @Test("連不上選取中主機時，列表說明原因(白話),不是泛用的讀取失敗")
+    func connectionFailureExplainedInAgentList() async {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let refused = FakeHost()
+        await refused.failConnection(with: SSHConnectionError.timedOut)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(refused).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.agentList.phase == .failed(
+            "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."))
+    }
 }
