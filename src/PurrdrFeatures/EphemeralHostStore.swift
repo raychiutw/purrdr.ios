@@ -4,9 +4,11 @@ import PurrdrCore
 /// 只存在記憶體的主機儲存。UI 測試用(`-uiTesting` 不碰 Keychain、不連網路)。
 @MainActor
 public final class EphemeralHostStore: HostStore {
-    private var hosts: [HostConfiguration] = []
+    private var hosts: [HostConfiguration]
 
-    public init() {}
+    public init(hosts: [HostConfiguration] = []) {
+        self.hosts = hosts
+    }
 
     public func loadHosts() throws -> [HostConfiguration] { hosts }
 

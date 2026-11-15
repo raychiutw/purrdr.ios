@@ -142,7 +142,7 @@ struct HostManagementTests {
     }
 
     @Test("編輯既有主機儲存後：關掉舊設定的連線，以新設定重建")
-    func editRebuildsConnection() async {
+    func editRebuildsConnection() async throws {
         let old = FakeHost()
         let factory = ChannelFactory(old, FakeHost())
         let (model, store) = Self.model(hosts: [Self.studio], channels: factory)
@@ -154,8 +154,7 @@ struct HostManagementTests {
         model.didSave(edited)
 
         #expect(factory.endpoints.last == edited.endpoint)
-        try? await Task.sleep(for: .milliseconds(50))
-        #expect(await old.disconnectCount == 1)
+        try await waitUntil { await old.disconnectCount == 1 }
     }
 
     @Test("匯入分享連結：開新增主機的編輯器並帶入欄位(仍要連線測試才能儲存)")

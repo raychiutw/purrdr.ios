@@ -28,10 +28,13 @@ struct PurrdrApp: App {
         let hosts: HostsModel
         if uiTesting {
             hosts = HostsModel(
-                store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                makeChannel: { _, _ in demo })
+                store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                selectionStore: InMemoryHostSelectionStore(), makeChannel: { _, _ in demo })
         } else {
-            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences) {
+            hosts = HostsModel(
+                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                selectionStore: UserDefaultsHostSelectionStore()
+            ) {
                 endpoint, pin in
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
             }
@@ -40,6 +43,11 @@ struct PurrdrApp: App {
         _hosts = State(initialValue: hosts)
         member = Self.makeMember(uiTesting: uiTesting)
     }
+
+    /// UI 測試情境 `-seedHost`:已存一台主機(通道仍是 Demo 主機)，測主機清單的管理動作。
+    private static let seededHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!, name: "Studio Mac",
+        endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), operatingSystem: .macOS)
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
     private static func makeMember(uiTesting: Bool) -> MemberModel {

@@ -7,6 +7,7 @@ public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let hosts: HostsModel
     let member: MemberModel
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel) {
         self.navigation = navigation
@@ -29,7 +30,7 @@ public struct TopNavigationView: View {
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
             case .hosts:
-                HostListView(model: hosts)
+                HostListView(model: hosts, importURL: $navigation.pendingHostImport)
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member)
@@ -39,6 +40,17 @@ public struct TopNavigationView: View {
         }
         // 冷啟動與從背景回來的深層連結都會走到這裡。
         .onOpenURL { navigation.open($0) }
+        // 連線韌性(行為規格 §7.4、§7.5):網路切換丟棄連線;背景太久回前景先探測連線。
+        .task {
+            for await signature in NetworkPaths.signatures() { hosts.networkPathChanged(signature) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background: hosts.sceneDidEnterBackground(at: .now)
+            case .active: Task { await hosts.sceneDidBecomeActive(at: .now) }
+            default: break
+            }
+        }
     }
 
     @ToolbarContentBuilder

@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 import PurrdrFeatures
 import Testing
 
@@ -13,6 +14,19 @@ struct TopNavigationModelTests {
 
         #expect(handled)
         #expect(model.sheet == .settings)
+    }
+
+    @Test("主機分享連結(掃 QR code 或點連結)開啟主機 sheet,並帶著要匯入的連結")
+    func hostLinkOpensHostsForImport() throws {
+        let model = TopNavigationModel()
+        model.sheet = .settings
+        let link = HostShareLink.url(for: HostConfiguration(name: "Box", endpoint: SSHEndpoint(host: "box", username: "ops")))
+
+        let handled = model.open(link)
+
+        #expect(handled)
+        #expect(model.sheet == .hosts)
+        #expect(model.pendingHostImport == link)
     }
 
     @Test(
