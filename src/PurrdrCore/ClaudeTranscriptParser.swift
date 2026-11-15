@@ -296,10 +296,20 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
         case "user":
             for case .note(let note) in ClaudeTranscriptParser.messages(in: line).flatMap(\.parts) {
                 if let match = note.firstMatch(of: /Set effort level to ([a-z]{1,16})/) { effort = String(match.output.1) }
+                if let model = Self.model(fromModelCommandOutput: note) { self.model = model }
             }
         default:
             break
         }
+    }
+
+    /// `/model` 本地指令的輸出(註記，已去 ANSI):「Set model to X for this session only」「Set model to X and saved as…」
+    /// 「Kept model as X」(行為規格 F5.7)。X 帶括號的 `claude-…` id 時取 id;不是這種輸出回 `nil`。
+    static func model(fromModelCommandOutput note: String) -> String? {
+        guard let match = note.firstMatch(of: /^(?:Set model to|Kept model as) (.+?)(?: for this session only.*| and saved as.*)?$/.dotMatchesNewlines()) else { return nil }
+        let value = String(match.output.1).trimmingCharacters(in: .whitespaces)
+        if let id = value.firstMatch(of: /\((claude-[A-Za-z0-9.\-\[\]]+)\)/) { return String(id.output.1) }
+        return value.isEmpty ? nil : value
     }
 
     /// 模型顯示名：去掉 `[…]` 尾碼與 `provider/` 前綴;`claude-opus-4-1-…` → 「Opus 4.1」;

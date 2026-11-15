@@ -14,6 +14,14 @@ _避免_:電腦、伺服器、機器、Device、Computer
 app 登入主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)與 **OpenSSH**(主機自己的 sshd,用金鑰或密碼)。
 _避免_:Transport、Auth mode
 
+**選取中主機**:
+新聊天開在它上面、套用它的主題、它的錯誤佔滿畫面的那台主機。存在本機，重新啟動後選回同一台。
+_避免_:目前主機、Active host
+
+**主機分享連結**:
+把一台主機的連線設定(名稱、位址、埠、使用者名稱、連線方式、herdr 路徑與 session、host key 指紋)編成 `purrdr://host?d=…` 的連結;QR code 的內容就是它。永不含私鑰、密碼或 passphrase。匯入後仍要通過連線測試才儲存。
+_避免_:匯出檔、Config QR、邀請連結
+
 ## herdr
 
 **Workspace**／**Tab**／**Pane**:
