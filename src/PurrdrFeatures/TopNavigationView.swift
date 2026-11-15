@@ -10,15 +10,20 @@ public struct TopNavigationView: View {
     let settings: SettingsModel
     /// Purrdr Plus(#28);`nil` 時選單不顯示。
     let plus: SubscriptionModel?
+    /// 點了推播通知(#29);`nil` 時沒有推播。
+    let notifications: PushNotificationRouter?
+    @Environment(\.scenePhase) private var scenePhase
 
     public init(
-        navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil
+        navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
+        notifications: PushNotificationRouter? = nil
     ) {
         self.navigation = navigation
         self.hosts = hosts
         self.member = member
         self.settings = settings
         self.plus = plus
+        self.notifications = notifications
     }
 
     public var body: some View {
@@ -36,9 +41,11 @@ public struct TopNavigationView: View {
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
             case .hosts:
-                HostListView(model: hosts)
+                HostListView(model: hosts, importURL: $navigation.pendingHostImport)
             case .settings:
-                SettingsView(model: settings, member: member, plus: plus) { navigation.sheet = nil }
+                SettingsView(model: settings, member: member, plus: plus, push: hosts.push, openPlus: { navigation.sheet = .plus }) {
+                    navigation.sheet = nil
+                }
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member, plus: plus)
@@ -54,6 +61,26 @@ public struct TopNavigationView: View {
         .onOpenURL { navigation.open($0) }
         // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
         .task { await plus?.observeTransactionUpdates() }
+        // 連線韌性(行為規格 §7.4、§7.5):網路切換丟棄連線;背景太久回前景先探測連線。
+        .task {
+            for await signature in NetworkPaths.signatures() { hosts.networkPathChanged(signature) }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background: hosts.sceneDidEnterBackground(at: .now)
+            case .active: Task { await hosts.sceneDidBecomeActive(at: .now) }
+            default: break
+            }
+        }
+        // 推播：APNs token 換了就向後台重新註冊(不請求權限)。
+        .task { await hosts.refreshPushRegistrations() }
+        // 點了通知：先收起 sheet(否則聊天會推到 sheet 下面),再切換主機、開該 Agent 的聊天。
+        .onChange(of: notifications?.pending, initial: true) { _, route in
+            guard let route else { return }
+            notifications?.pending = nil
+            navigation.sheet = nil
+            hosts.open(route)
+        }
     }
 
     @ToolbarContentBuilder

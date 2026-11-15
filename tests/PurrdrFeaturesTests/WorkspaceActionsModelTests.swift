@@ -60,6 +60,18 @@ struct WorkspaceActionsModelTests {
         #expect(!model.isMuted(sessionID: "s1"))
     }
 
+    @Test("靜音改變時通知推播(改寫主機上的靜音清單,#29)")
+    func muteChangeIsReported() {
+        let model = Self.model(host: FakeHost(), store: InMemoryChatPreferencesStore())
+        var reported: [Set<String>] = []
+        model.mutedChanged = { reported.append($0) }
+
+        model.toggleMute(sessionID: "s1")
+        model.toggleMute(sessionID: "s1")
+
+        #expect(reported == [["s1"], []])
+    }
+
     // MARK: - 重新命名
 
     @Test("重新命名:修剪後非空且不同於原名稱才可儲存")

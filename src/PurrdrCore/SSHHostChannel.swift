@@ -24,11 +24,20 @@ public struct SSHTimeouts: Sendable, Equatable {
     public var handshake: TimeAmount
     /// 開 channel 與等 exec／pty-req 的回覆。
     public var channelOpen: TimeAmount
+    /// 連線閒置時多久送一次 keepalive(`nil` 不送)。iOS 沒有 TCP 層的提早發現，半開連線靠它在使用者動作前就被丟棄。
+    public var keepaliveInterval: TimeAmount?
+    /// keepalive 送出後等主機回應的期限;到了視為半開連線，整條丟棄(下一個指令重撥)。
+    public var keepaliveReply: TimeAmount
 
-    public init(connect: TimeAmount = .seconds(10), handshake: TimeAmount = .seconds(15), channelOpen: TimeAmount = .seconds(20)) {
+    public init(
+        connect: TimeAmount = .seconds(10), handshake: TimeAmount = .seconds(15), channelOpen: TimeAmount = .seconds(20),
+        keepaliveInterval: TimeAmount? = .seconds(20), keepaliveReply: TimeAmount = .seconds(15)
+    ) {
         self.connect = connect
         self.handshake = handshake
         self.channelOpen = channelOpen
+        self.keepaliveInterval = keepaliveInterval
+        self.keepaliveReply = keepaliveReply
     }
 }
 
@@ -224,6 +233,9 @@ final class SSHConnection: Sendable {
         do {
             try await authenticated.futureResult.get()
             deadline.cancel()
+            if let interval = timeouts.keepaliveInterval {
+                startKeepalive(on: channel, every: interval, replyWithin: timeouts.keepaliveReply)
+            }
             return SSHConnection(channel: channel)
         } catch {
             // 握手或認證失敗時一定要關 TCP,否則每次重試留下一個未認證連線(行為規格 §7.1)。
@@ -274,6 +286,33 @@ final class SSHConnection: Sendable {
 
     func close() async {
         try? await channel.close()
+    }
+
+    /// keepalive(行為規格 §7.4:swift-nio-ssh 可自行實作，Android 版 20 秒)。
+    ///
+    /// swift-nio-ssh 沒有公開送任意 global request 的 API,所以送一個「取消不存在的轉送」
+    /// (`cancel-tcpip-forward`,位址是 `.invalid` 網域、埠 0):主機回成功或失敗都證明連線活著，
+    /// 而且不會影響任何東西。期限內沒有任何回應 = 半開連線 → 關掉整條連線，下一個指令重新撥號;
+    /// 進行中的指令以 `connectionLost` 結束(不重送)。
+    private static func startKeepalive(on channel: any Channel, every interval: TimeAmount, replyWithin limit: TimeAmount) {
+        let eventLoop = channel.eventLoop
+        let task = eventLoop.scheduleRepeatedAsyncTask(initialDelay: interval, delay: interval) { _ in
+            let round = eventLoop.makePromise(of: Void.self)
+            guard channel.isActive, let handler = try? channel.pipeline.syncOperations.handler(type: NIOSSHHandler.self) else {
+                round.succeed()
+                return round.futureResult
+            }
+            let reply = eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+            // 關閉連線時未回應的請求會失敗，這一輪也就跟著結束。
+            let deadline = eventLoop.scheduleTask(in: limit) { channel.close(promise: nil) }
+            reply.futureResult.whenComplete { _ in
+                deadline.cancel()
+                round.succeed()
+            }
+            handler.sendTCPForwardingRequest(.cancel(host: "purrdr-keepalive.invalid", port: 0), promise: reply)
+            return round.futureResult
+        }
+        channel.closeFuture.whenComplete { _ in task.cancel() }
     }
 
     private static func connectFailure(_ error: any Error) -> SSHConnectionError {

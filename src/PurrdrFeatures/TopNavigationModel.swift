@@ -9,16 +9,25 @@ import Observation
 public final class TopNavigationModel {
     /// 目前開著的 sheet;`nil` 表示停在 Agent 列表。
     public var sheet: TopLevelSheet?
+    /// 等著匯入的主機分享連結(`purrdr://host?d=…`)。主機 sheet 開啟時帶入新增主機編輯器，之後清掉。
+    public var pendingHostImport: URL?
 
     public init() {}
 
     /// 處理深層連結。認得就開對應畫面並回傳 `true`;不認得的連結不改變畫面。
     @discardableResult
     public func open(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == Self.urlScheme,
-              url.host()?.lowercased() == "settings"
-        else { return false }
-        sheet = .settings
+        guard url.scheme?.lowercased() == Self.urlScheme else { return false }
+        switch url.host()?.lowercased() {
+        case "settings":
+            sheet = .settings
+        case "host":
+            // 系統相機掃 QR code 或點分享連結都會走到這裡;內容在主機 sheet 裡解析與說明。
+            pendingHostImport = url
+            sheet = .hosts
+        default:
+            return false
+        }
         return true
     }
 
