@@ -109,4 +109,22 @@ struct HerdrClientTests {
             try await HerdrClient(channel: host).snapshot()
         }
     }
+
+    /// 行為規格 F5.13:讓桌機 herdr 側欄顯示「手機正在看、用什麼模型」。
+    @Test("在場回報:pane.report_metadata 帶 phone on、模型顯示名、45 秒 TTL 與 seq")
+    func reportPresenceSendsMetadata() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridgeCommand, reply: .recorded("pane.report-metadata.ndjson"))
+        await host.expect(Self.bridgeCommand, reply: .recorded("pane.report-metadata.ndjson"))
+
+        let client = HerdrClient(channel: host)
+        try await client.reportPresence(paneID: "w1:pA", model: "Opus 5.5", seq: 1_763_251_200_000)
+        // 模型未知時省略該 token(空 token 在側欄是空欄)。
+        try await client.reportPresence(paneID: "w1:pA", model: nil, seq: 1_763_251_200_001)
+
+        let executions = await host.executions
+        #expect(executions.first?.stdinText == #"{"id":"purrdr:pane.report_metadata","method":"pane.report_metadata","params":{"pane_id":"w1:pA","seq":1763251200000,"source":"purrdr:presence","tokens":{"model":"Opus 5.5","phone":"on"},"ttl_ms":45000}}"# + "\n")
+        #expect(executions.last?.stdinText == #"{"id":"purrdr:pane.report_metadata","method":"pane.report_metadata","params":{"pane_id":"w1:pA","seq":1763251200001,"source":"purrdr:presence","tokens":{"phone":"on"},"ttl_ms":45000}}"# + "\n")
+        #expect(executions.allSatisfy { $0.closed && !$0.closedStdin })
+    }
 }

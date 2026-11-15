@@ -46,11 +46,15 @@ public enum TranscriptReadError: Error, Equatable {
 public struct TranscriptReader: Sendable {
     private let channel: any HostChannel
     private let windowChunkBytes: Int
+    private let marker: @Sendable () -> String
 
-    /// - Parameter windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
-    public init(channel: any HostChannel, windowChunkBytes: Int = 4 << 20) {
+    /// - Parameters:
+    ///   - windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
+    ///   - marker: 列表預覽的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
+    public init(channel: any HostChannel, windowChunkBytes: Int = 4 << 20, marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }) {
         self.channel = channel
         self.windowChunkBytes = windowChunkBytes
+        self.marker = marker
     }
 
     /// 找出 Claude Code session 的對話紀錄並取得大小。
@@ -142,5 +146,48 @@ public struct TranscriptReader: Sendable {
         path.hasPrefix("/") && path.hasSuffix(".jsonl")
             && !path.split(separator: "/").contains("..")
             && !path.contains { $0 == "\0" || $0 == "\r" || $0 == "\n" }
+    }
+}
+
+/// 一個要讀預覽的聊天。
+public struct PreviewRequest: Sendable, Equatable {
+    public var key: String
+    public var sessionID: String
+    public var cwd: String
+
+    public init(key: String, sessionID: String, cwd: String) {
+        self.key = key
+        self.sessionID = sessionID
+        self.cwd = cwd
+    }
+}
+
+extension TranscriptReader {
+    /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 不安全的請求略過。
+    /// 回傳 key → 最後一則可讀訊息;沒有檔案或沒有可讀訊息的聊天不在結果裡。
+    public func previews(of requests: [PreviewRequest]) async throws -> [String: MessagePreview] {
+        let safe = requests.filter { ClaudeTranscript.isSafeSessionID($0.sessionID) }
+        guard !safe.isEmpty else { return [:] }
+        let marker = marker()
+        let command = TranscriptCommand.previews(
+            marker: marker,
+            requests: safe.map { ($0.key, $0.sessionID, ClaudeTranscript.projectFolder(forCWD: $0.cwd)) }
+        )
+        let output = try await run(command)
+        var linesByKey: [String: [String]] = [:]
+        var current: String?
+        let prefix = marker + " "
+        for line in String(decoding: output.stdout, as: UTF8.self).split(separator: "\n") {
+            if line.hasPrefix(prefix) {
+                current = String(line.dropFirst(prefix.count))
+                if let current { linesByKey[current, default: []] = [] }
+            } else if let current {
+                linesByKey[current, default: []].append(String(line))
+            }
+        }
+        // 檔尾的第一行多半被切在中間，解析時自然略過。
+        return linesByKey.compactMapValues { lines in
+            Conversation.preview(of: lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        }
     }
 }

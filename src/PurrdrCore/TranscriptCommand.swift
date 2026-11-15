@@ -13,7 +13,7 @@ public enum TranscriptCommand {
 
     /// 一行 `len TAB 行`,再剝除圖片。
     static let annotateAndStrip =
-        ##"awk '{ print length($0) "\t" $0 }' | sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
+        ##"awk '{ print length($0) "\t" $0 }' | "## + stripImages
 
     /// 檢查並印出大小。缺席、不可搜尋、不可讀各有 exit code。
     static let probe = #"""
@@ -83,6 +83,28 @@ public enum TranscriptCommand {
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
         return command(script, arguments: [path, String(cursor), String(limit)])
     }
+
+    /// 列表預覽：每個請求印一行「分隔標記 key」,再印剝除圖片後的檔尾 48,000 bytes(§4.7)。
+    /// 一個檔不存在不讓整批失敗。參數：標記，接著每個請求三個(key、session id、資料夾名)。
+    public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
+        let script = #"""
+        m=$1
+        shift
+        c=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+        while [ $# -ge 3 ]; do
+        printf '%s %s\n' "$m" "$1"
+        f="$c/projects/$3/$2.jsonl"
+        if [ -r "$f" ]; then
+        tail -c 48000 "$f" | STRIP
+        printf '\n'
+        fi
+        shift 3
+        done
+        """#.replacingOccurrences(of: "STRIP", with: stripImages)
+        return command(script, arguments: [marker] + requests.flatMap { [$0.key, $0.sessionID, $0.projectFolder] })
+    }
+
+    static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 
     static func command(_ script: String, arguments: [String]) -> String {
         ([prefix + PosixShell.quote(script), "sh"] + arguments.map(PosixShell.quote)).joined(separator: " ")

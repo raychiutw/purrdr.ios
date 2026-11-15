@@ -198,3 +198,36 @@ struct TranscriptReaderTests {
         #expect(collected == Self.fixtureLines)
     }
 }
+
+@Suite("列表預覽(主機腳本)")
+struct TranscriptPreviewTests {
+    /// 行為規格 §4.7、R-L01:所有聊天的預覽合成一次往返;每個請求以「隨機分隔標記 + key」分段
+    /// (固定標記曾被對話內容撞到);一個檔不存在不讓整批失敗。
+    @Test("一次往返讀所有聊天的檔尾，依 key 回傳預覽;沒有檔案的沒有預覽")
+    func previewsAreBatchedInOneCommand() async throws {
+        let host = try LocalShellHost.temporary()
+        try host.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects-ledger/\(TranscriptReaderTests.sessionID).jsonl")
+        let recorder = RoutingHost(shell: host)
+        let reader = TranscriptReader(channel: recorder, marker: { "MARK-1234" })
+
+        let previews = try await reader.previews(of: [
+            PreviewRequest(key: "w1:p1", sessionID: TranscriptReaderTests.sessionID, cwd: "/Users/demo/Projects/ledger"),
+            PreviewRequest(key: "w2:p1", sessionID: "00000000-0000-4000-8000-0000000000ff", cwd: "/Users/demo/Projects/ledger"),
+        ])
+
+        #expect(await recorder.shellCommands.count == 1)
+        #expect(previews.keys.sorted() == ["w1:p1"])
+        #expect(previews["w1:p1"]?.text.hasPrefix("CSV 匯出整理好了 ✅") == true)
+        #expect(previews["w1:p1"]?.isFromUser == false)
+    }
+
+    @Test("Session id 不安全的請求直接略過，不進 shell")
+    func unsafePreviewRequestsAreSkipped() async throws {
+        let host = FakeHost()
+        let previews = try await TranscriptReader(channel: host).previews(of: [
+            PreviewRequest(key: "w1:p1", sessionID: "$(reboot)", cwd: "/Users/demo"),
+        ])
+        #expect(previews.isEmpty)
+        #expect(await host.executions.isEmpty)
+    }
+}

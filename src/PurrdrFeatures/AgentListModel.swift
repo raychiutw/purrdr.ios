@@ -21,11 +21,16 @@ public final class AgentListModel {
     /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
     private var snapshot: HostSnapshot?
     private let client: HerdrClient
+    private let transcripts: TranscriptReader?
     private let sleep: @Sendable (Duration) async throws -> Void
 
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
-    public init(client: HerdrClient, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(
+        client: HerdrClient, transcripts: TranscriptReader? = nil,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.client = client
+        self.transcripts = transcripts
         self.sleep = sleep
     }
 
@@ -107,6 +112,29 @@ public final class AgentListModel {
     private func refresh() async throws {
         snapshot = try await client.snapshot()
         phase = .loaded
+        await refreshPreviews()
+    }
+
+    /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04)。
+    private var previewSessions: [String: String] = [:]
+
+    /// 以一次往返讀所有 Claude Code agent 對話紀錄的檔尾，更新預覽與時間(行為規格 §4.7)。
+    /// 預覽帶讀取時的 session:pane 離開或 session 改變(herdr 回收 pane 給新聊天)就丟(R-I04)。讀取失敗保留現有預覽。
+    private func refreshPreviews() async {
+        guard let transcripts, let snapshot else { return }
+        let sessions = Dictionary(
+            snapshot.agents.compactMap { agent in agent.claudeSessionID.map { (agent.paneID, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        previews = previews.filter { sessions[$0.key] != nil && previewSessions[$0.key] == sessions[$0.key] }
+        let requests = snapshot.agents.compactMap { agent in
+            agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
+        }
+        guard !requests.isEmpty, let fresh = try? await transcripts.previews(of: requests) else { return }
+        for (paneID, preview) in fresh {
+            previews[paneID] = preview
+            previewSessions[paneID] = sessions[paneID]
+        }
     }
 
     private func fail(with error: any Error) {
