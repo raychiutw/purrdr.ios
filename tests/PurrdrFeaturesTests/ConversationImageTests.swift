@@ -132,7 +132,7 @@ struct ConversationImageTests {
     @Test("上傳中斷：不送出 prompt,草稿與圖片都保留，提示上傳失敗")
     func interruptedUploadSendsNothing() async throws {
         let setup = try await Self.opened(interruptAfter: 100)
-        await setup.model.addImages([TestImage.png(width: 800, height: 800, noise: true)])
+        await setup.model.addImages([TestImage.png(width: 64, height: 64)])
         setup.model.draft = "看這張"
         // 主機準備好收 prompt:若 app 照樣送出，這裡會被用掉。
         await setup.base.host.bridge.expect(Self.bridge, reply: ConversationSendTests.snapshot())
@@ -253,22 +253,12 @@ final class NameSequence: @unchecked Sendable {
 }
 
 enum TestImage {
-    /// 指定大小的 PNG。`noise` 讓 JPEG 壓不小(上傳超過中斷點)。
-    static func png(width: Int, height: Int, noise: Bool = false) -> Data {
+    /// 指定大小的單色 PNG(重新編碼成 JPEG 後仍有數百 bytes,超過上傳中斷點)。
+    static func png(width: Int, height: Int) -> Data {
         let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
                                 space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         context.setFillColor(red: 0.85, green: 0.12, blue: 0.21, alpha: 1)
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-        if noise {
-            var random = SystemRandomNumberGenerator()
-            for x in stride(from: 0, to: width, by: 2) {
-                for y in stride(from: 0, to: height, by: 2) {
-                    context.setFillColor(red: .random(in: 0...1, using: &random), green: .random(in: 0...1, using: &random),
-                                         blue: .random(in: 0...1, using: &random), alpha: 1)
-                    context.fill(CGRect(x: x, y: y, width: 2, height: 2))
-                }
-            }
-        }
         let image = context.makeImage()!
         let data = NSMutableData()
         let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil)!
