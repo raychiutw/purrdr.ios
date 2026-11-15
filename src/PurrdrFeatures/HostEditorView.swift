@@ -1,9 +1,10 @@
 import PurrdrCore
 import SwiftUI
 
-/// 新增／編輯主機(行為規格 F1.2、§8.2;HIG 檢核 20.3)。
+/// 新增／編輯主機(行為規格 F1.2、§8.2、§8.3;HIG 檢核 20.3)。
 ///
 /// 儲存前必須通過連線測試;第一次連線以 alert 確認 host key 指紋;herdr 過舊時確認後更新。
+/// OpenSSH 主機可用這支裝置的金鑰、匯入的私鑰或密碼登入;公鑰與加入指令在同一個 sheet 內 push。
 struct HostEditorView: View {
     @State private var model: HostEditorModel
     @State private var confirmingDiscard = false
@@ -28,9 +29,24 @@ struct HostEditorView: View {
             }
 
             Section {
-                LabeledContent("Connection", value: "Tailscale SSH")
+                Picker("Connection", selection: $model.connectionMethod) {
+                    Text(verbatim: "Tailscale SSH").tag(HostConfiguration.ConnectionMethod.tailscaleSSH)
+                    Text(verbatim: "OpenSSH").tag(HostConfiguration.ConnectionMethod.openSSH)
+                }
+                // 選單樣式：AX5 字級時分段控制會把「Tailscale SSH」截斷。
+                .accessibilityIdentifier("hostEditor.connection")
+            } header: {
+                Text("Connection")
             } footer: {
-                Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
+                if model.connectionMethod == .tailscaleSSH {
+                    Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
+                } else {
+                    Text("Purrdr signs in to the host’s own SSH server with a key or password.")
+                }
+            }
+
+            if model.connectionMethod == .openSSH {
+                signInSection
             }
 
             Section {
@@ -108,6 +124,134 @@ struct HostEditorView: View {
             if case .needsUpdate(let version) = model.phase {
                 Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will run “herdr update --handoff” as \(model.username)@\(model.address).")
             }
+        }
+    }
+
+    // MARK: - OpenSSH 登入
+
+    @ViewBuilder
+    private var signInSection: some View {
+        Section {
+            Picker("Sign In With", selection: $model.authentication) {
+                Text("This Device’s Key").tag(HostConfiguration.OpenSSHAuthentication.deviceKey)
+                Text("Imported Key").tag(HostConfiguration.OpenSSHAuthentication.importedKey)
+                Text("Password").tag(HostConfiguration.OpenSSHAuthentication.password)
+            }
+            .accessibilityIdentifier("hostEditor.signIn")
+            switch model.authentication {
+            case .deviceKey: deviceKeyRows
+            case .importedKey: importedKeyRows
+            case .password:
+                LabeledContent("Password") {
+                    SecureField("Password", text: $model.password, prompt: Text(model.hasStoredSecret ? "Unchanged" : "Required"))
+                        .multilineTextAlignment(.trailing)
+                        .accessibilityIdentifier("hostEditor.password")
+                }
+            }
+        } header: {
+            Text("Sign In")
+        } footer: {
+            switch model.authentication {
+            case .deviceKey:
+                Text("The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first.")
+            case .importedKey:
+                Text("Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys aren’t supported. The key and passphrase are kept in this device’s keychain.")
+            case .password:
+                Text("The password is kept in this device’s keychain.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var deviceKeyRows: some View {
+        if let publicKey = model.devicePublicKey {
+            NavigationLink {
+                DevicePublicKeyView(publicKey: publicKey, username: model.username)
+            } label: {
+                LabeledContent {
+                    Text(verbatim: publicKey.fingerprint.description)
+                        .font(.footnote.monospaced())
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } label: {
+                    Text("Public Key")
+                }
+            }
+            .accessibilityIdentifier("hostEditor.devicePublicKey")
+        } else if let problem = model.deviceKeyProblem {
+            Label(problem, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
+        } else {
+            ProgressView()
+                .task { await model.loadDeviceKey() }
+        }
+    }
+
+    @ViewBuilder
+    private var importedKeyRows: some View {
+        if case .valid(let publicKey) = model.keyCheck {
+            LabeledContent {
+                Button("Replace") { model.privateKeyText = ""; model.passphrase = "" }
+                    .accessibilityIdentifier("hostEditor.replaceKey")
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("OpenSSH private key, \(model.privateKeyText.split(whereSeparator: \.isNewline).count) lines")
+                    Text(verbatim: publicKey.fingerprint.description)
+                        .font(.footnote.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+            .accessibilityIdentifier("hostEditor.importedKey")
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Private Key")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                TextEditor(text: $model.privateKeyText)
+                    .font(.footnote.monospaced())
+                    .frame(minHeight: 120)
+                    .autocorrectionDisabled()
+                    .plainTextInput()
+                    .accessibilityLabel("Private Key")
+                    .accessibilityIdentifier("hostEditor.privateKey")
+                if model.privateKeyText.isEmpty && model.hasStoredSecret {
+                    Text("Leave blank to keep the saved key.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        LabeledContent("Passphrase") {
+            SecureField("Passphrase", text: $model.passphrase, prompt: Text("None"))
+                .multilineTextAlignment(.trailing)
+                .accessibilityIdentifier("hostEditor.passphrase")
+        }
+        .task(id: KeyInput(text: model.privateKeyText, passphrase: model.passphrase)) {
+            // 打字時不要每個字都跑一次 bcrypt。
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            await model.checkKey()
+        }
+        switch model.keyCheck {
+        case .unchecked:
+            HStack {
+                ProgressView()
+                Text("Checking key…")
+            }
+        case .invalid(let error):
+            Label {
+                Text(HostErrorText.keyImportMessage(error))
+                    .accessibilityIdentifier("hostEditor.keyProblem")
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+            }
+            if error == .rsaNotSupported || error.isUnsupportedKeyType {
+                Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
+                    .accessibilityIdentifier("hostEditor.useDeviceKey")
+            }
+        case .empty, .valid:
+            EmptyView()
         }
     }
 
@@ -205,6 +349,18 @@ extension HostProbeReport {
         let agents = String(localized: "\(agentCount) agents")
         guard !integrations.isEmpty else { return agents }
         return agents + " · " + String(localized: "Integrations: \(integrations.map(\.label).joined(separator: ", "))")
+    }
+}
+
+private struct KeyInput: Equatable {
+    var text: String
+    var passphrase: String
+}
+
+private extension SSHKeyImportError {
+    var isUnsupportedKeyType: Bool {
+        if case .unsupportedKeyType = self { return true }
+        return false
     }
 }
 

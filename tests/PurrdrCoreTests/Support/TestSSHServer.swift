@@ -8,7 +8,7 @@ import Synchronization
 
 /// 測試用的 SSH 伺服器(swift-nio-ssh 的 server 角色),在本機 127.0.0.1 隨機埠上跑。
 ///
-/// 模擬 Tailscale SSH:只接受 `none` 認證。每個 exec 依 `behavior` 決定怎麼回應，並記錄連線數、
+/// 預設模擬 Tailscale SSH(只接受 `none` 認證);也可以改成 OpenSSH 的公鑰或密碼登入(`Authentication`)。每個 exec 依 `behavior` 決定怎麼回應，並記錄連線數、
 /// 收到的指令與 PTY 請求，讓測試從外部斷言主機通道的行為(連線重用、不重送、TOFU)。
 final class TestSSHServer: Sendable {
     /// 一個 exec 指令的回應方式。
@@ -25,6 +25,18 @@ final class TestSSHServer: Sendable {
         case runLocally
     }
 
+    /// 接受哪種登入。
+    enum Authentication: Sendable {
+        /// Tailscale SSH:`none` 就放行。
+        case none
+        /// OpenSSH 公鑰登入：只接受這些公鑰(簽章由 swift-nio-ssh 驗證)。
+        case publicKeys([NIOSSHPublicKey])
+        /// OpenSSH 密碼登入。
+        case password(String)
+        /// 只提供 keyboard-interactive(swift-nio-ssh 不支援),其他一律拒絕。
+        case keyboardInteractiveOnly
+    }
+
     struct PTYRecord: Sendable, Equatable {
         var term: String
         var columns: Int
@@ -37,6 +49,8 @@ final class TestSSHServer: Sendable {
     struct Log: Sendable {
         var connections = 0
         var usernames: [String] = []
+        /// 每次登入嘗試的方式:`none`、`publickey`、`password`。
+        var authenticationAttempts: [String] = []
         var commands: [String] = []
         var ptys: [PTYRecord] = []
     }
@@ -61,7 +75,9 @@ final class TestSSHServer: Sendable {
         self.log = Mutex(Log())
     }
 
-    static func start(behavior: @escaping @Sendable (String) -> Behavior) async throws -> TestSSHServer {
+    static func start(
+        authentication: Authentication = .none, behavior: @escaping @Sendable (String) -> Behavior
+    ) async throws -> TestSSHServer {
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let recorder = Recorder()
         let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
@@ -70,7 +86,7 @@ final class TestSSHServer: Sendable {
                 recorder.update { $0.connections += 1 }
                 return channel.eventLoop.makeCompletedFuture {
                     let handler = NIOSSHHandler(
-                        role: .server(.init(hostKeys: [hostKey], userAuthDelegate: AcceptNoneDelegate(recorder: recorder))),
+                        role: .server(.init(hostKeys: [hostKey], userAuthDelegate: AuthenticationDelegate(recorder: recorder, accepts: authentication))),
                         allocator: channel.allocator,
                         inboundChildChannelInitializer: { child, _ in
                             child.eventLoop.makeCompletedFuture {
@@ -119,20 +135,46 @@ private final class Recorder: Sendable {
     }
 }
 
-private final class AcceptNoneDelegate: NIOSSHServerUserAuthenticationDelegate, Sendable {
+private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelegate, Sendable {
     let recorder: Recorder
-    init(recorder: Recorder) { self.recorder = recorder }
+    let accepts: TestSSHServer.Authentication
 
-    var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods { .publicKey }
+    init(recorder: Recorder, accepts: TestSSHServer.Authentication) {
+        self.recorder = recorder
+        self.accepts = accepts
+    }
+
+    var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods {
+        switch accepts {
+        case .none, .publicKeys: .publicKey
+        case .password: .password
+        case .keyboardInteractiveOnly: []
+        }
+    }
 
     func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
         let username = request.username
-        recorder.update { $0.usernames.append(username) }
-        if case .none = request.request {
-            responsePromise.succeed(.success)
-        } else {
-            responsePromise.succeed(.failure)
+        let method: String
+        let accepted: Bool
+        switch request.request {
+        case .none:
+            method = "none"
+            if case .none = accepts { accepted = true } else { accepted = false }
+        case .publicKey(let offer):
+            method = "publickey"
+            if case .publicKeys(let keys) = accepts { accepted = keys.contains(offer.publicKey) } else { accepted = false }
+        case .password(let offer):
+            method = "password"
+            if case .password(let password) = accepts { accepted = offer.password == password } else { accepted = false }
+        default:
+            method = "other"
+            accepted = false
         }
+        recorder.update {
+            $0.usernames.append(username)
+            $0.authenticationAttempts.append(method)
+        }
+        responsePromise.succeed(accepted ? .success : .failure)
     }
 }
 

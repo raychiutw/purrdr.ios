@@ -30,17 +30,21 @@ struct PurrdrApp: App {
             ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
         let hosts: HostsModel
         if uiTesting {
+            // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
+            let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
             hosts = HostsModel(
                 store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                hostConsent: InMemoryHostWriteConsentStore(), makeChannel: { _, _ in demo })
+                hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, makeChannel: { _, _, _ in demo })
         } else {
+            // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
+            let credentials = HostCredentials(
+                secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
             // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                hostConsent: UserDefaultsHostWriteConsentStore()
-            ) {
-                endpoint, pin in
-                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+                hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials
+            ) { endpoint, pin, credential in
+                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential)
             }
         }
         hosts.haptics = SystemHaptics()

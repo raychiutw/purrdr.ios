@@ -38,8 +38,10 @@ public enum SSHConnectionError: Error, Equatable, Sendable {
     case hostKeyUnverified(presented: HostKeyFingerprint)
     /// 主機出示的 key 與已存的不同。可能重灌過，也可能有人攔截連線(行為規格 §8.2)。
     case hostKeyChanged(presented: HostKeyFingerprint, pinned: HostKeyFingerprint)
-    /// 主機拒絕登入(Tailscale SSH 不放行這個使用者)。
+    /// 主機拒絕登入:Tailscale SSH 不放行這個使用者，或 OpenSSH 的金鑰／密碼不對。
     case authenticationFailed
+    /// 主機不接受這種登入方式(例如沒開密碼登入、只開 keyboard-interactive)。祕密沒有送出。
+    case authenticationMethodNotAccepted
     /// 主機拒絕連線:埠不對，或 SSH 沒開。
     case connectionRefused
     /// 找不到這個主機名稱。
@@ -63,6 +65,7 @@ public enum SSHConnectionError: Error, Equatable, Sendable {
 public actor SSHHostChannel: HostChannel {
     public nonisolated let endpoint: SSHEndpoint
     private let hostKeyPin: HostKeyFingerprint?
+    private let credential: SSHCredentialProvider
     private let timeouts: SSHTimeouts
     private let group: any EventLoopGroup
 
@@ -70,12 +73,15 @@ public actor SSHHostChannel: HostChannel {
     private var dial: (id: Int, task: Task<SSHConnection, any Error>)?
     private var dialCount = 0
 
+    /// - Parameter credential: 登入用的憑證，第一次撥號時才取得(Tailscale SSH 是 `none`)。
     public init(
         endpoint: SSHEndpoint, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts = SSHTimeouts(),
-        eventLoopGroup: any EventLoopGroup = MultiThreadedEventLoopGroup.singleton
+        eventLoopGroup: any EventLoopGroup = MultiThreadedEventLoopGroup.singleton,
+        credential: @escaping SSHCredentialProvider = { .none }
     ) {
         self.endpoint = endpoint
         self.hostKeyPin = hostKeyPin
+        self.credential = credential
         self.timeouts = timeouts
         group = eventLoopGroup
     }
@@ -120,8 +126,11 @@ public actor SSHHostChannel: HostChannel {
 
         dialCount += 1
         let id = dialCount
-        let task = Task { [endpoint, hostKeyPin, timeouts, group] in
-            try await SSHConnection.connect(to: endpoint, hostKeyPin: hostKeyPin, timeouts: timeouts, group: group)
+        let task = Task { [endpoint, hostKeyPin, timeouts, group, credential] in
+            // 讀不到憑證(祕密不在、金鑰壞了)就不撥號。
+            let user = try await credential()
+            return try await SSHConnection.connect(
+                to: endpoint, credential: user, hostKeyPin: hostKeyPin, timeouts: timeouts, group: group)
         }
         dial = (id, task)
         do {
@@ -184,7 +193,8 @@ final class SSHConnection: Sendable {
     var isActive: Bool { channel.isActive }
 
     static func connect(
-        to endpoint: SSHEndpoint, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts, group: any EventLoopGroup
+        to endpoint: SSHEndpoint, credential: SSHUserCredential, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts,
+        group: any EventLoopGroup
     ) async throws -> SSHConnection {
         let eventLoop = group.next()
         let authenticated = eventLoop.makePromise(of: Void.self)
@@ -193,7 +203,7 @@ final class SSHConnection: Sendable {
             .channelInitializer { channel in
                 channel.eventLoop.makeCompletedFuture {
                     let configuration = SSHClientConfiguration(
-                        userAuthDelegate: NoneAuthentication(username: endpoint.username),
+                        userAuthDelegate: CredentialAuthentication(username: endpoint.username, credential: credential),
                         serverAuthDelegate: HostKeyVerifier(pin: hostKeyPin))
                     try channel.pipeline.syncOperations.addHandler(
                         NIOSSHHandler(role: .client(configuration), allocator: channel.allocator, inboundChildChannelInitializer: nil))
@@ -288,13 +298,19 @@ final class SSHConnection: Sendable {
 
 // MARK: - NIO handlers
 
-/// Tailscale SSH 的 `none` 認證：只提一次，被拒就是不放行。
-private final class NoneAuthentication: NIOSSHClientUserAuthenticationDelegate {
+/// 依憑證登入，每種方式只試一次(OpenSSH 會懲罰重複失敗的登入，行為規格 §7.3)。
+///
+/// - `none`(Tailscale SSH):直接提出 `none`,被拒就是不放行。
+/// - 密碼與公鑰：先以 `none` 問主機接受哪些方式(與 OpenSSH client 相同),主機沒開這種方式就不送出祕密。
+private final class CredentialAuthentication: NIOSSHClientUserAuthenticationDelegate {
     private let username: String
+    private let credential: SSHUserCredential
+    private var askedForMethods = false
     private var offered = false
 
-    init(username: String) {
+    init(username: String, credential: SSHUserCredential) {
         self.username = username
+        self.credential = credential
     }
 
     func nextAuthenticationType(
@@ -305,8 +321,31 @@ private final class NoneAuthentication: NIOSSHClientUserAuthenticationDelegate {
             nextChallengePromise.fail(SSHConnectionError.authenticationFailed)
             return
         }
+        let method: NIOSSHAvailableUserAuthenticationMethods
+        let offer: NIOSSHUserAuthenticationOffer.Offer
+        switch credential {
+        case .none:
+            offered = true
+            nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: .none))
+            return
+        case .password(let password):
+            method = .password
+            offer = .password(.init(password: password))
+        case .privateKey(let key):
+            method = .publicKey
+            offer = .privateKey(.init(privateKey: key.key))
+        }
+        guard askedForMethods else {
+            askedForMethods = true
+            nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: .none))
+            return
+        }
+        guard availableMethods.contains(method) else {
+            nextChallengePromise.fail(SSHConnectionError.authenticationMethodNotAccepted)
+            return
+        }
         offered = true
-        nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: .none))
+        nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: offer))
     }
 }
 

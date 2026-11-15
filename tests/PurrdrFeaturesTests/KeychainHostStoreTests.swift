@@ -27,6 +27,11 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
     }
 
     func copyMatching(_ query: [String: Any]) -> (OSStatus, AnyObject?) {
+        if query[kSecMatchLimit as String] as? String == kSecMatchLimitOne as String {
+            let account = query[kSecAttrAccount as String] as! String
+            guard let data = items[account] else { return (errSecItemNotFound, nil) }
+            return (errSecSuccess, data as NSData)
+        }
         guard !items.isEmpty else { return (errSecItemNotFound, nil) }
         let all = items.sorted { $0.key < $1.key }.map { [kSecValueData as String: $0.value] as NSDictionary }
         return (errSecSuccess, all as NSArray)

@@ -41,7 +41,8 @@ public final class HostsModel {
 
     private let store: any HostStore
     private let demoChannel: any HostChannel
-    private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
+    private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
+    private let credentials: HostCredentials
     private let conversationCache: any ConversationCache
     private let preferences: any ChatPreferencesStore
     /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
@@ -60,16 +61,19 @@ public final class HostsModel {
     /// - Parameters:
     ///   - conversationCache: 對話快取(所有主機共用;快取以 session 為鍵)。
     ///   - preferences: 釘選、靜音等本機偏好(目前所有主機共用，以 pane id 為鍵;多主機合併時要加上主機身分)。
+    ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
+    ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
         store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
         preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
-        hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
-        makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
+        hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
+        makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
         self.demoChannel = demoChannel
         self.makeChannel = makeChannel
+        self.credentials = credentials
         self.conversationCache = conversationCache
         self.preferences = preferences
         self.demoConsent = demoConsent
@@ -139,7 +143,7 @@ public final class HostsModel {
         }
         let previous = channel
         if let host {
-            channel = makeChannel(host.endpoint, host.hostKeyPin)
+            channel = makeChannel(host.endpoint, host.hostKeyPin, credentials.provider(for: host))
             client = HerdrClient(channel: channel, herdr: host.herdr)
             terminals = PaneTerminalClient(channel: channel, herdr: host.herdr)
         } else {
@@ -164,8 +168,10 @@ public final class HostsModel {
         select(.host(host.id))
     }
 
-    /// 移除主機：從儲存刪除、清除這台主機的所有主機寫入同意(行為規格 F18),選取中就改選其他主機或 Demo。
+    /// 移除主機：先刪這台主機的祕密(刪不掉就整個停下，避免留下孤兒祕密，行為規格 §8.1),再從儲存刪除、
+    /// 清除這台主機的所有主機寫入同意(行為規格 F18),選取中就改選其他主機或 Demo。
     public func remove(_ id: UUID) throws {
+        try credentials.secrets.setSecret(nil, for: id)
         try store.delete(id)
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
@@ -176,6 +182,6 @@ public final class HostsModel {
 
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。
     public func makeEditor(editing: HostConfiguration? = nil) -> HostEditorModel {
-        HostEditorModel(store: store, editing: editing, makeChannel: makeChannel)
+        HostEditorModel(store: store, editing: editing, credentials: credentials, makeChannel: makeChannel)
     }
 }
