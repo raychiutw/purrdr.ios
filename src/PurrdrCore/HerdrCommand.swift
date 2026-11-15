@@ -11,6 +11,17 @@ public enum HerdrCommand {
         "\(pathPrefix) \(quotedPath(herdrPath)) remote-api-bridge"
     }
 
+    /// 以 controller 身分接上 Pane 的終端機(`herdr terminal session control`,ADR-0005):
+    /// stdout 是 NDJSON 畫面更新，stdin 是 NDJSON 輸入，不需要 PTY。
+    ///
+    /// `takeover` 只在使用者按「接管」時才帶——首次開啟與重新連線都不自動搶(行為規格 §6.3)。
+    public static func terminalSessionControl(
+        target: String, columns: Int, rows: Int, takeover: Bool = false, herdrPath: String = "herdr"
+    ) -> String {
+        "\(pathPrefix) \(quotedPath(herdrPath)) terminal session control \(PosixShell.quote(target))"
+            + " --cols \(columns) --rows \(rows)" + (takeover ? " --takeover" : "")
+    }
+
     /// herdr 路徑以 `~/` 開頭時，只把 `~/` 換成 `"$HOME"/`,其餘照樣引號(引號內的 `~` 不展開)。
     static func quotedPath(_ path: String) -> String {
         if path.hasPrefix("~/") {

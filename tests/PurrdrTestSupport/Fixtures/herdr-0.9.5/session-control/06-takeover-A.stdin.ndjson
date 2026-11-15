@@ -1,0 +1,2 @@
+{"type": "terminal.input", "text": "echo A\"\"OWNS\r"}
+{"type": "terminal.input", "text": "echo A-after\r"}

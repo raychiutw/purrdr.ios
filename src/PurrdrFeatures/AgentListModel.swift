@@ -19,7 +19,7 @@ public final class AgentListModel {
     public var previews: [String: MessagePreview] = [:]
 
     /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
-    private var snapshot: HostSnapshot?
+    public private(set) var snapshot: HostSnapshot?
     private let client: HerdrClient
     private let transcripts: TranscriptReader?
     private let sleep: @Sendable (Duration) async throws -> Void

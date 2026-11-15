@@ -1,0 +1,14 @@
+{"type": "terminal.input", "text": "seq 1 100 | vim -u NONE -N -c 'set mouse=a nu' -\r"}
+{"type": "terminal.scroll", "direction": "down", "lines": 1, "source": "wheel", "column": 10, "row": 5, "modifiers": 0}
+{"type": "terminal.scroll", "direction": "down", "lines": 3, "source": "wheel", "column": 10, "row": 5, "modifiers": 0}
+{"type": "terminal.mouse", "action": "down", "button": "left", "column": 6, "row": 4, "modifiers": 0}
+{"type": "terminal.mouse", "action": "up", "button": "left", "column": 6, "row": 4, "modifiers": 0}
+{"type": "terminal.input", "text": ":echo line('.') col('.')\r"}
+{"type": "terminal.mouse", "action": "down", "button": "left", "column": 5, "row": 2, "modifiers": 0}
+{"type": "terminal.mouse", "action": "drag", "button": "left", "column": 6, "row": 3, "modifiers": 0}
+{"type": "terminal.mouse", "action": "drag", "button": "left", "column": 7, "row": 6, "modifiers": 0}
+{"type": "terminal.mouse", "action": "up", "button": "left", "column": 7, "row": 6, "modifiers": 0}
+{"type": "terminal.input", "bytes": "Gw=="}
+{"type": "terminal.input", "text": ":q!\r"}
+{"type": "terminal.input", "text": "clear\r"}
+{"type": "terminal.release"}
