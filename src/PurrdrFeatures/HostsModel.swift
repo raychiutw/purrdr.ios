@@ -36,6 +36,8 @@ public final class HostsModel {
     public private(set) var workspaceActions: WorkspaceActionsModel
     /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
     public private(set) var claudeUsage: ClaudeUsageModel
+    /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
+    public private(set) var codexLauncher: CodexLauncherModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
 
@@ -88,6 +90,7 @@ public final class HostsModel {
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
+        codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
     }
 
     /// Demo 主機在同意紀錄裡的主機 id。
@@ -157,6 +160,9 @@ public final class HostsModel {
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(
             host: ClaudeUsageHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
+            consent: host == nil ? demoConsent : hostConsent)
+        codexLauncher = CodexLauncherModel(
+            host: CodexLauncherHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
             consent: host == nil ? demoConsent : hostConsent)
         self.selection = selection
         Task { await previous.disconnect() }

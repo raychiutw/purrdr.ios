@@ -13,12 +13,18 @@ public struct SettingsView: View {
     let member: MemberModel
     /// Purrdr Plus(#28):會員畫面已登入時顯示狀態與入口;`nil` 時不顯示。
     let plus: SubscriptionModel?
+    /// 選取中主機的 Codex 啟動器;`nil` 時不顯示。
+    let codexLauncher: CodexLauncherModel?
     let done: () -> Void
 
-    public init(model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, done: @escaping () -> Void) {
+    public init(
+        model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, codexLauncher: CodexLauncherModel? = nil,
+        done: @escaping () -> Void
+    ) {
         self.model = model
         self.member = member
         self.plus = plus
+        self.codexLauncher = codexLauncher
         self.done = done
     }
 
@@ -41,6 +47,10 @@ public struct SettingsView: View {
                     Text("Hardware Keyboard")
                 } footer: {
                     Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+                }
+
+                if let codexLauncher {
+                    CodexLauncherSection(model: codexLauncher)
                 }
 
                 Section {

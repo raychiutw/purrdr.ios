@@ -12,6 +12,8 @@ public struct TranscriptTarget: Sendable, Equatable, Hashable {
         case antigravity(sessionID: String)
         /// 在 Pi／OMP 的 sessions 資料夾找 `*_<id>.jsonl` 或 `<id>.jsonl`(§4.5)。
         case piJournal(sessionID: String)
+        /// 在 `${CODEX_HOME:-$HOME/.codex}` 的 sessions 與 archived_sessions 下找 `rollout-*-<id>.jsonl`(§4.2)。
+        case codex(sessionID: String)
         /// integration 以路徑回報的對話紀錄(agy、Pi、OMP)。
         case reportedPath(String)
     }
@@ -44,6 +46,7 @@ extension Agent {
             case .grok: location = .grok(sessionID: session.value)
             case .antigravity: location = .antigravity(sessionID: session.value)
             case .piJournal: location = .piJournal(sessionID: session.value)
+            case .codex: location = .codex(sessionID: session.value)
             }
         case "path":
             guard format == .antigravity || format == .piJournal, TranscriptReader.isValidPath(session.value) else { return nil }

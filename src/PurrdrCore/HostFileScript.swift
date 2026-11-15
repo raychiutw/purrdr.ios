@@ -82,19 +82,25 @@ enum HostFileScript {
         done
         """
 
-    /// 套用變更：參數每五個一組(`put`／`del`／`rmtree`、路徑、`any`／`missing`／版本、base64、是否可執行)。
+    /// 套用變更：參數每五個一組(`put`／`del`／`rmtree`／`mkdir`／`rmdir`、路徑、`any`／`missing`／版本、base64、是否可執行)。
     /// 先檢查全部(不符 → 印 `changed <路徑>` exit 3;資料夾不存在 → `nodir <路徑>` exit 4),
     /// 全部符合才依序寫。覆寫既有檔案時先 `cp -p` 到暫存檔保留權限，再寫入內容、`mv` 換上。
     static let apply = prelude + """
         tmp=
         trap 'if [ -n "$tmp" ]; then rm -f "$tmp"; fi' EXIT
+        made=
         check() {
           while [ "$#" -ge 5 ]; do
             kind=$1
             rel=$2
             expect=$3
             shift 5
-            if [ "$kind" = rmtree ]; then continue; fi
+            if [ "$kind" = rmtree ] || [ "$kind" = rmdir ]; then continue; fi
+            if [ "$kind" = mkdir ]; then
+              if [ -e "$HOME/$rel" ] || [ -L "$HOME/$rel" ]; then printf 'changed %s%s' "$rel" "$nl"; exit 3; fi
+              made="$made$nl$HOME/$rel$nl"
+              continue
+            fi
             p=$(resolve "$HOME/$rel")
             case $expect in
               any) ;;
@@ -106,7 +112,13 @@ enum HostFileScript {
             if [ "$kind" = put ]; then
               case $rel in
                 .purrdr/*) ;;
-                *) if [ ! -d "$(dirname "$p")" ]; then printf 'nodir %s%s' "$rel" "$nl"; exit 4; fi ;;
+                *)
+                  if [ ! -d "$(dirname "$p")" ]; then
+                    case $made in
+                      *"$nl$(dirname "$p")$nl"*) ;;
+                      *) printf 'nodir %s%s' "$rel" "$nl"; exit 4 ;;
+                    esac
+                  fi ;;
               esac
             fi
           done
@@ -139,6 +151,10 @@ enum HostFileScript {
                   *) exit 64 ;;
                 esac
                 rmdir "$HOME/.purrdr" 2> /dev/null || : ;;
+              mkdir)
+                mkdir "$HOME/$rel" || exit 71 ;;
+              rmdir)
+                rmdir "$HOME/$rel" 2> /dev/null || : ;;
             esac
           done
         }

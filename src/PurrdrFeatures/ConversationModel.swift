@@ -45,6 +45,8 @@ public final class ConversationModel {
         case readFailed
         /// 符合這個 session 的對話紀錄不只一個:不猜(行為規格 §4.3、§4.5)。
         case ambiguous
+        /// 對話紀錄被壓縮了(Codex 會壓縮 7 天未動的 rollout,行為規格 §4.2):目前讀不了，但不是不存在。
+        case compressed
     }
 
     public enum Older: Equatable {
@@ -183,6 +185,8 @@ public final class ConversationModel {
     private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     private var currentAgent: Agent?
+    /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
+    public var agentKind: String? { currentAgent?.kind }
     /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
     private var consumedUserIDs = Set<String>()
     private var lastPolledStatus: AgentStatus?
@@ -385,6 +389,12 @@ public final class ConversationModel {
             guard generation == self.generation else { return }
             file = nil
             banner = .ambiguous
+            phase = .ready
+        } catch TranscriptReadError.compressed {
+            // 只有 `.zst`:不是「還沒有檔案」,也不在手機上解壓;下次輪詢重新定位(Codex 可能又寫了新的 rollout)。
+            guard generation == self.generation else { return }
+            file = nil
+            banner = .compressed
             phase = .ready
         } catch {
             // 保留畫面上的內容，下次輪詢重試;永不退回從 byte 0 追蹤。

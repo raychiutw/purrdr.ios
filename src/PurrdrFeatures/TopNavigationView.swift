@@ -38,7 +38,7 @@ public struct TopNavigationView: View {
             case .hosts:
                 HostListView(model: hosts)
             case .settings:
-                SettingsView(model: settings, member: member, plus: plus) { navigation.sheet = nil }
+                SettingsView(model: settings, member: member, plus: plus, codexLauncher: hosts.codexLauncher) { navigation.sheet = nil }
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member, plus: plus)
