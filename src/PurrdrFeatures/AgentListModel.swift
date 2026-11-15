@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 import PurrdrCore
 
@@ -12,70 +13,109 @@ public final class AgentListModel {
     }
 
     public private(set) var phase: Phase = .loading
-    public private(set) var sections: [AgentSection] = []
+    /// 搜尋字串。空白時列出全部。
+    public var query = ""
+    /// 各 Agent(以 pane id)對話中最後一則訊息。來源是對話紀錄，由對話閱讀(#12)提供。
+    public var previews: [String: MessagePreview] = [:]
 
+    /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
+    private var snapshot: HostSnapshot?
     private let client: HerdrClient
+    private let sleep: @Sendable (Duration) async throws -> Void
 
-    public init(client: HerdrClient) {
+    /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
+    public init(client: HerdrClient, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.client = client
+        self.sleep = sleep
     }
 
-    /// 讀主機的 snapshot,依 Agent 狀態分組。
+    /// 依「需要你／工作中／閒置」分組、套用搜尋後的列表。
+    public var sections: [AgentSection] {
+        AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews)
+    }
+
+    /// 主機上有沒有任何 Agent(不看搜尋)。沒有時不顯示搜尋欄。
+    public var hasAgents: Bool { snapshot?.agents.isEmpty == false }
+
+    /// 讀一次主機的 snapshot。
     public func load() async {
         do {
-            let snapshot = try await client.snapshot()
-            sections = Self.sections(for: snapshot.agents)
-            phase = .loaded
-        } catch let HerdrError.herdr(_, message) {
+            try await refresh()
+        } catch {
+            fail(with: error)
+        }
+    }
+
+    /// 即時更新，直到所在的 task 被取消(行為規格 §3.7)。只在畫面可見、app 在前景時執行。
+    ///
+    /// - 先讀 snapshot 得知有哪些 Agent pane,再訂閱每個 pane 的狀態改變與全主機事件。
+    /// - 事件不重播，所以訂閱開始(ack)時重讀一次對帳;之後事件只當「重讀」的觸發，不把內容套到列表上。
+    ///   事件是依序處理的，重讀進行中到達的事件會在讀完後再觸發一次。
+    /// - `events_lost`:快取已過期，立刻重新訂閱並重讀。
+    /// - 重讀後 Agent pane 的集合變了：訂閱不能修改，關掉舊的、用新集合重新訂閱。
+    /// - 其他失敗(含訂閱在 ack 前就結束):退避 1 秒起倍增、上限 30 秒;收到 ack 即歸零。
+    public func run() async {
+        var failures = 0
+        var needsSnapshot = true
+        while !Task.isCancelled {
+            var resubscribeNow = false
+            do {
+                if needsSnapshot { try await refresh() }
+                needsSnapshot = false
+                let panes = agentPaneIDs
+                let events = try await client.subscribe(panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide)
+                for try await event in events {
+                    if case .event = event { try await sleep(Self.debounce) }
+                    if event == .subscriptionStarted { failures = 0 }
+                    try await refresh()
+                    if Set(agentPaneIDs) != Set(panes) {
+                        resubscribeNow = true
+                        break
+                    }
+                }
+            } catch HerdrError.herdr(code: "events_lost", _) {
+                needsSnapshot = true
+                resubscribeNow = true
+            } catch {
+                if Task.isCancelled { return }
+                fail(with: error)
+                needsSnapshot = true
+            }
+            if Task.isCancelled { return }
+            guard !resubscribeNow else { continue }
+            // 主機那端結束了串流，或失敗:退避後重連。
+            failures += 1
+            needsSnapshot = true
+            do {
+                try await sleep(Self.backoff(afterFailures: failures))
+            } catch {
+                return
+            }
+        }
+    }
+
+    /// 事件去抖：連續的事件只觸發一次重讀的機會變大，也不會讓列表跳動得太頻繁。
+    static let debounce: Duration = .milliseconds(250)
+
+    /// 1 秒起倍增、上限 30 秒。
+    static func backoff(afterFailures failures: Int) -> Duration {
+        .seconds(min(30, 1 << min(failures - 1, 5)))
+    }
+
+    private var agentPaneIDs: [String] { snapshot?.agents.map(\.paneID) ?? [] }
+
+    private func refresh() async throws {
+        snapshot = try await client.snapshot()
+        phase = .loaded
+    }
+
+    private func fail(with error: any Error) {
+        switch error {
+        case HerdrError.herdr(_, let message):
             // 未知碼保留 herdr 原文(行為規格 §3.8)。
             phase = .failed(message)
-        } catch {
-            phase = .failed("Couldn’t read this host’s herdr status.")
-        }
-    }
-
-    private static func sections(for agents: [Agent]) -> [AgentSection] {
-        let rows = Dictionary(grouping: agents, by: \.status.group)
-        return AgentGroup.allCases.compactMap { group in
-            guard let agents = rows[group], !agents.isEmpty else { return nil }
-            return AgentSection(group: group, rows: agents.map(AgentRow.init(agent:)))
-        }
-    }
-}
-
-extension AgentStatus {
-    /// 「需要你」只有 `blocked`;`done`、`idle`、`unknown` 都算閒置。
-    var group: AgentGroup {
-        switch self {
-        case .blocked: .needsYou
-        case .working: .working
-        case .done, .idle, .unknown: .idle
-        }
-    }
-}
-
-extension AgentRow {
-    /// 標題：agent 名稱 > session 標題 > workspace 名稱;副標：agent 種類 · 資料夾。
-    init(agent: Agent) {
-        let title = agent.name ?? agent.terminalTitle ?? agent.workspaceLabel ?? agent.paneID
-        let folder = agent.cwd.flatMap { $0.split(separator: "/").last.map(String.init) }
-        let subtitle = [AgentKind.displayName(agent.kind), folder].compactMap { $0 }.joined(separator: " · ")
-        self.init(id: agent.paneID, title: title, subtitle: subtitle, status: agent.status)
-    }
-}
-
-/// agent 種類的顯示名稱。不認得的種類照 herdr 原文。
-enum AgentKind {
-    static func displayName(_ kind: String) -> String? {
-        switch kind {
-        case "": nil
-        case "claude": "Claude Code"
-        case "codex": "Codex"
-        case "grok": "Grok"
-        case "antigravity": "Antigravity"
-        case "pi": "Pi"
-        case "omp": "OMP"
-        default: kind
+        default:
+            phase = .failed(String(localized: "Couldn’t read this host’s herdr status."))
         }
     }
 }
@@ -100,15 +140,39 @@ public struct AgentSection: Identifiable, Equatable, Sendable {
 
 /// 列表的一列。
 public struct AgentRow: Identifiable, Equatable, Sendable {
+    /// Pane id。
     public var id: String
     public var title: String
     public var subtitle: String
+    public var preview: Preview
+    public var time: Time?
+    /// 列表上的狀態(`input_pending` 已折算成 `blocked`)。
     public var status: AgentStatus
 
-    public init(id: String, title: String, subtitle: String, status: AgentStatus) {
+    public init(id: String, title: String, subtitle: String, preview: Preview, time: Time?, status: AgentStatus) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
+        self.preview = preview
+        self.time = time
         self.status = status
+    }
+
+    /// 預覽行(行為規格 F2.4)。
+    public enum Preview: Equatable, Sendable {
+        /// 「需要你」:等待你的輸入。
+        case needsInput
+        /// 最後一則訊息;`fromYou` 為使用者自己送出的。
+        case message(String, fromYou: Bool)
+        /// 沒有訊息時顯示狀態字。
+        case status(AgentStatus)
+    }
+
+    /// 右欄時間。
+    public enum Time: Equatable, Sendable {
+        /// 工作中：「現在」。
+        case now
+        /// 最後一則訊息的時間。
+        case date(Date)
     }
 }
