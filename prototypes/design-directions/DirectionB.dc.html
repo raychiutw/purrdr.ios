@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>方向 B 羊群</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#8A4B12}a:hover{color:#5E320A}
+</style>
+</helmet>
+<div style="width: 1800px; height: 1000px; box-sizing: border-box; padding: 48px; display: flex; gap: 56px; background: #F7F3EC; font-family: -apple-system, 'SF Pro Text', 'PingFang TC', system-ui, sans-serif; color: #1F1A14">
+
+<div style="width: 340px; display: flex; flex-direction: column; gap: 20px">
+<h1 style="margin: 0; font-size: 34px; font-weight: 700">B 羊群 Flock</h1>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #4A4036">三隻沿著弧線前進的羊(agent)，最前面一隻停下來等你。介面是「收件匣」:需要你的事放最上面、直接在列表裡核准；對話像文件一樣全寬閱讀，終端機是從下方拉起的半高 sheet。</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 B 圖示，預設外觀"><defs><linearGradient id="gb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6E7CF"/><stop offset="1" stop-color="#E9CFA4"/></linearGradient></defs><rect width="1024" height="1024" rx="230" fill="url(#gb)"/><path d="M170 700 C 360 520, 640 520, 860 380" fill="none" stroke="#C99B5E" stroke-width="28" stroke-linecap="round" stroke-dasharray="2 64"/><circle cx="300" cy="610" r="92" fill="#FFFFFF"/><circle cx="520" cy="540" r="104" fill="#FFFFFF"/><circle cx="760" cy="420" r="118" fill="#8A4B12"/></svg>
+<span style="font-size: 13px; color: #4A4036">預設</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 B 圖示，深色外觀"><rect width="1024" height="1024" rx="230" fill="#1D1813"/><path d="M170 700 C 360 520, 640 520, 860 380" fill="none" stroke="#6E5638" stroke-width="28" stroke-linecap="round" stroke-dasharray="2 64"/><circle cx="300" cy="610" r="92" fill="#E9DCC6"/><circle cx="520" cy="540" r="104" fill="#E9DCC6"/><circle cx="760" cy="420" r="118" fill="#E8A55A"/></svg>
+<span style="font-size: 13px; color: #4A4036">深色</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 B 圖示，tinted 外觀"><rect width="1024" height="1024" rx="230" fill="#1B2430"/><circle cx="300" cy="610" r="92" fill="#9FB6CF"/><circle cx="520" cy="540" r="104" fill="#9FB6CF"/><circle cx="760" cy="420" r="118" fill="#FFFFFF"/></svg>
+<span style="font-size: 13px; color: #4A4036">Tinted</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 B 圖示，clear 外觀"><defs><linearGradient id="gbc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D9D2C6"/><stop offset="1" stop-color="#A69B8A"/></linearGradient></defs><rect width="1024" height="1024" rx="230" fill="url(#gbc)"/><circle cx="300" cy="610" r="92" fill="#FFFFFF" fill-opacity="0.6"/><circle cx="520" cy="540" r="104" fill="#FFFFFF" fill-opacity="0.75"/><circle cx="760" cy="420" r="118" fill="#FFFFFF" fill-opacity="0.95"/></svg>
+<span style="font-size: 13px; color: #4A4036">Clear</span>
+</div>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: #4A4036">三個圖層：小徑、兩隻跟隨的羊、領頭的羊。主色 #8A4B12 皮革棕，背景象牙色。</p>
+</div>
+
+<div style="width: 390px; height: 844px; border-radius: 48px; background: #FBF8F3; box-shadow: 0 0 0 10px #1F1A14, 0 24px 60px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column">
+<div style="padding: 56px 16px 6px; display: flex; justify-content: space-between; align-items: center">
+<h2 style="margin: 0; font-size: 34px; font-weight: 700">收件匣</h2>
+<button aria-label="新增對話" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.8); background: rgba(255,255,255,0.75); box-shadow: 0 2px 10px rgba(0,0,0,0.08); font-size: 22px">+</button>
+</div>
+<div style="padding: 0 16px 10px; display: flex; gap: 8px">
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: none; background: #8A4B12; color: #FFFFFF; font-size: 15px">全部主機</button>
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #D8CCBB; background: #FFFFFF; font-size: 15px">ray-mac-mini</button>
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #D8CCBB; background: #FFFFFF; font-size: 15px">raychiu-pc</button>
+</div>
+<div style="padding: 0 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08)">
+<div style="display: flex; justify-content: space-between; font-size: 13px; color: #6B4100; font-weight: 600"><span>! 需要你 · drover-chat.ios</span><span style="color: #6E6255; font-weight: 400">剛剛</span></div>
+<div style="font-size: 17px; line-height: 1.35">Claude 想執行 <code style="font-family: ui-monospace, Menlo, monospace; font-size: 15px">swift test --parallel</code></div>
+<div style="display: flex; gap: 8px">
+<button style="flex: 1; height: 44px; border-radius: 12px; border: none; background: #8A4B12; color: #FFFFFF; font-size: 17px; font-weight: 600">允許</button>
+<button style="flex: 1; height: 44px; border-radius: 12px; border: 1px solid #D8CCBB; background: #FFFFFF; font-size: 17px">開啟對話</button>
+</div>
+</div>
+<div style="background: #FFFFFF; border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08)">
+<div style="display: flex; justify-content: space-between; font-size: 13px; color: #6B4100; font-weight: 600"><span>! 需要你 · raychiu-pc / scanner</span><span style="color: #6E6255; font-weight: 400">4 分鐘</span></div>
+<div style="font-size: 17px; line-height: 1.35">Codex 問：要用哪個資料庫?</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap">
+<button style="height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid #D8CCBB; background: #FFFFFF; font-size: 15px">1 SQLite</button>
+<button style="height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid #D8CCBB; background: #FFFFFF; font-size: 15px">2 Postgres</button>
+<button style="height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid #D8CCBB; background: #FFFFFF; font-size: 15px">其他…</button>
+</div>
+</div>
+<div style="font-size: 13px; color: #6E6255; margin-top: 6px">其他 agent</div>
+<div style="display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid #E8DFD2; font-size: 17px"><span>my-money.ios</span><span style="font-size: 15px; color: #2F6B4F">◐ 工作中</span></div>
+<div style="display: flex; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid #E8DFD2; font-size: 17px"><span>trip-planner-api</span><span style="font-size: 15px; color: #2F6B4F">◐ 工作中</span></div>
+<div style="display: flex; justify-content: space-between; padding: 12px 4px; font-size: 17px"><span>vocaby</span><span style="font-size: 15px; color: #6E6255">– 閒置</span></div>
+</div>
+</div>
+</div>
+
+<div style="width: 390px; height: 844px; border-radius: 48px; background: #FBF8F3; box-shadow: 0 0 0 10px #1F1A14, 0 24px 60px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column">
+<div style="padding: 56px 16px 10px; display: flex; align-items: center; gap: 8px">
+<button aria-label="返回" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.8); background: rgba(255,255,255,0.75); font-size: 20px">‹</button>
+<div style="flex: 1"><div style="font-size: 17px; font-weight: 600">drover-chat.ios</div><div style="font-size: 12px; color: #6E6255">Claude Code · ray-mac-mini</div></div>
+</div>
+<div style="flex: 1; padding: 6px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden">
+<div style="border-left: 3px solid #8A4B12; padding-left: 12px; font-size: 17px; line-height: 1.4; font-weight: 600">把 Package.swift 的 platforms 補上 macOS 26,然後跑測試</div>
+<div style="font-size: 17px; line-height: 1.5">已加上 <code style="font-family: ui-monospace, Menlo, monospace; font-size: 15px">.macOS(.v26)</code>。這樣在 Mac 上跑 <code style="font-family: ui-monospace, Menlo, monospace; font-size: 15px">swift test</code> 時 Observation 才編得過。</div>
+<div style="font-family: ui-monospace, Menlo, monospace; font-size: 13px; line-height: 1.6; color: #4A4036; background: #F1EBE1; border-radius: 10px; padding: 10px 12px">› Read  Package.swift<br>› Edit  Package.swift  +1 −0<br>› Bash  swift build  ✓ 6.1s</div>
+<div style="font-size: 17px; line-height: 1.5">接下來跑完整測試。</div>
+<div style="font-size: 13px; color: #6E6255">▸ 思考了 4 秒</div>
+</div>
+<div style="margin: 0 0 0; background: #1A1714; border-radius: 28px 28px 0 0; padding: 10px 14px 34px; display: flex; flex-direction: column; gap: 8px; color: #E9DCC6">
+<div style="align-self: center; width: 40px; height: 5px; border-radius: 3px; background: #5A5048"></div>
+<div style="display: flex; justify-content: space-between; font-size: 13px"><span>終端機 · Pane 1</span><span style="color: #E8A55A">拉高全螢幕</span></div>
+<pre style="margin: 0; font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap">✔ TranscriptTests.byteOffsetIsUTF8
+✘ SlashCatalogTests.readsPluginManifest
+Test run with 41 tests, 1 failure</pre>
+<div style="display: flex; gap: 8px; align-items: center; background: #FFFFFF; border-radius: 22px; padding: 4px 4px 4px 14px">
+<span style="flex: 1; font-size: 15px; color: #6E6255">回覆 Claude…</span>
+<button aria-label="送出" style="width: 40px; height: 40px; border-radius: 20px; border: none; background: #8A4B12; color: #FFFFFF; font-size: 18px">↑</button>
+</div>
+</div>
+</div>
+
+<div style="width: 390px; height: 844px; border-radius: 48px; background: #14110E; box-shadow: 0 0 0 10px #1F1A14, 0 24px 60px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column; color: #E9DCC6">
+<div style="padding: 56px 16px 8px; display: flex; align-items: center; gap: 8px">
+<button aria-label="縮回半高" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.10); color: #FFFFFF; font-size: 18px">⌄</button>
+<div style="flex: 1; display: flex; gap: 6px; justify-content: center">
+<button style="height: 32px; padding: 0 12px; border-radius: 16px; border: none; background: #E8A55A; color: #14110E; font-size: 13px; font-weight: 600">Pane 1</button>
+<button style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #E9DCC6; font-size: 13px">Pane 2</button>
+<button style="height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #E9DCC6; font-size: 13px">登入 Shell</button>
+</div>
+</div>
+<pre style="flex: 1; margin: 0; padding: 8px 14px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow: hidden">$ herdr status
+server  running  0.9.5  protocol 22
+workspaces 4 · agents 5
+
+$ git status --short
+ M Package.swift
+?? docs/research/
+
+<span style="color: #E8A55A">ray@ray-mac-mini</span> % <span style="background: #E9DCC6; color: #14110E"> </span></pre>
+<div style="padding: 8px 8px 30px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+<button style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">Esc</button>
+<button style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">Tab</button>
+<button style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">Ctrl</button>
+<button style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">Alt</button>
+<button aria-label="向左鍵" style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">←</button>
+<button aria-label="向上鍵" style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">↑</button>
+<button aria-label="向下鍵" style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">↓</button>
+<button aria-label="向右鍵" style="height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.08); color: #FFFFFF; font-size: 15px">→</button>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1800,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

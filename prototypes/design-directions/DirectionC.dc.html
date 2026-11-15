@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>方向 C 小徑</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#3D4FB5}a:hover{color:#2A3884}
+</style>
+</helmet>
+<div style="width: 1800px; height: 1000px; box-sizing: border-box; padding: 48px; display: flex; gap: 56px; background: #EEF0F7; font-family: -apple-system, 'SF Pro Text', 'PingFang TC', system-ui, sans-serif; color: #15172A">
+
+<div style="width: 340px; display: flex; flex-direction: column; gap: 20px">
+<h1 style="margin: 0; font-size: 34px; font-weight: 700">C 小徑 Trail</h1>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #3A3D55">夜裡穿過兩座山丘的小徑，盡頭是一個游標方塊：「趕路的人」。介面以主機為根：主機 → Workspace → Agent 的樹狀導覽；對話與終端機是同一畫面的兩個分頁，用時間軸呈現 agent 的每一步。</p>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 C 圖示，預設外觀"><defs><linearGradient id="gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A5BC4"/><stop offset="1" stop-color="#232C6E"/></linearGradient></defs><rect width="1024" height="1024" rx="230" fill="url(#gc)"/><path d="M0 760 C 200 600, 380 600, 520 700 C 660 800, 840 760, 1024 640 V1024 H0 Z" fill="#1A2058"/><path d="M200 900 C 300 760, 520 760, 560 640 C 600 520, 700 470, 720 400" fill="none" stroke="#E7EAFF" stroke-width="56" stroke-linecap="round"/><rect x="664" y="200" width="112" height="150" rx="18" fill="#7EE0B5"/></svg>
+<span style="font-size: 13px; color: #3A3D55">預設</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 C 圖示，深色外觀"><rect width="1024" height="1024" rx="230" fill="#0F1226"/><path d="M0 760 C 200 600, 380 600, 520 700 C 660 800, 840 760, 1024 640 V1024 H0 Z" fill="#1C2148"/><path d="M200 900 C 300 760, 520 760, 560 640 C 600 520, 700 470, 720 400" fill="none" stroke="#AEB6F2" stroke-width="56" stroke-linecap="round"/><rect x="664" y="200" width="112" height="150" rx="18" fill="#7EE0B5"/></svg>
+<span style="font-size: 13px; color: #3A3D55">深色</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 C 圖示，tinted 外觀"><rect width="1024" height="1024" rx="230" fill="#1B2430"/><path d="M0 760 C 200 600, 380 600, 520 700 C 660 800, 840 760, 1024 640 V1024 H0 Z" fill="#2C3A4C"/><path d="M200 900 C 300 760, 520 760, 560 640 C 600 520, 700 470, 720 400" fill="none" stroke="#9FB6CF" stroke-width="56" stroke-linecap="round"/><rect x="664" y="200" width="112" height="150" rx="18" fill="#FFFFFF"/></svg>
+<span style="font-size: 13px; color: #3A3D55">Tinted</span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<svg width="132" height="132" viewBox="0 0 1024 1024" role="img" aria-label="方向 C 圖示，clear 外觀"><defs><linearGradient id="gcc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#C9CEE6"/><stop offset="1" stop-color="#8E95B8"/></linearGradient></defs><rect width="1024" height="1024" rx="230" fill="url(#gcc)"/><path d="M0 760 C 200 600, 380 600, 520 700 C 660 800, 840 760, 1024 640 V1024 H0 Z" fill="#FFFFFF" fill-opacity="0.35"/><path d="M200 900 C 300 760, 520 760, 560 640 C 600 520, 700 470, 720 400" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="56" stroke-linecap="round"/><rect x="664" y="200" width="112" height="150" rx="18" fill="#FFFFFF" fill-opacity="0.95"/></svg>
+<span style="font-size: 13px; color: #3A3D55">Clear</span>
+</div>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: #3A3D55">三個圖層：山丘、小徑、游標。主色 #3D4FB5 靛藍，強調色 #7EE0B5 薄荷綠(終端機游標色)。</p>
+</div>
+
+<div style="width: 390px; height: 844px; border-radius: 48px; background: #F5F6FB; box-shadow: 0 0 0 10px #15172A, 0 24px 60px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column">
+<div style="padding: 56px 16px 6px; display: flex; justify-content: space-between; align-items: center">
+<h2 style="margin: 0; font-size: 34px; font-weight: 700">主機</h2>
+<button aria-label="新增主機" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.8); background: rgba(255,255,255,0.75); box-shadow: 0 2px 10px rgba(0,0,0,0.08); font-size: 22px">+</button>
+</div>
+<div style="padding: 6px 16px; display: flex; flex-direction: column; gap: 14px">
+<div style="background: #FFFFFF; border-radius: 16px; padding: 4px 0">
+<div style="padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #E3E5EF">
+<span style="width: 10px; height: 10px; border-radius: 5px; background: #2E9E6A"></span>
+<div style="flex: 1"><div style="font-size: 17px; font-weight: 600">ray-mac-mini</div><div style="font-size: 13px; color: #4D5170">macOS · Tailscale SSH · herdr 0.9.5</div></div>
+<span style="font-size: 13px; color: #4D5170">已連線</span>
+</div>
+<div style="padding: 10px 16px 10px 36px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 13px; color: #4D5170">drover-chat.ios</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 17px"><span style="color: #8A5300; font-weight: 700">!</span><span style="flex: 1">Claude Code</span><span style="font-size: 13px; color: #8A5300; font-weight: 600">需要你</span></div>
+<div style="font-size: 13px; color: #4D5170; margin-top: 4px">my-money.ios</div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 17px"><span style="color: #2A3884">◐</span><span style="flex: 1">Claude Code</span><span style="font-size: 13px; color: #2A3884">工作中</span></div>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 17px"><span style="color: #4D5170">–</span><span style="flex: 1">登入 Shell</span><span style="font-size: 13px; color: #4D5170">終端機</span></div>
+</div>
+</div>
+<div style="background: #FFFFFF; border-radius: 16px; padding: 4px 0">
+<div style="padding: 12px 16px; display: flex; align-items: center; gap: 10px">
+<span style="width: 10px; height: 10px; border-radius: 5px; border: 2px solid #8C90AA; box-sizing: border-box"></span>
+<div style="flex: 1"><div style="font-size: 17px; font-weight: 600">raychiu-pc</div><div style="font-size: 13px; color: #4D5170">Windows · OpenSSH · 未連線</div></div>
+<button style="height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid #C9CCDD; background: #FFFFFF; font-size: 15px; color: #2A3884">連線</button>
+</div>
+</div>
+<div style="background: #FFFFFF; border-radius: 16px; padding: 14px 16px; display: flex; gap: 10px; align-items: center">
+<span style="font-size: 20px; color: #2A3884">◉</span>
+<div style="flex: 1"><div style="font-size: 15px; font-weight: 600">Drover Chat Plus</div><div style="font-size: 13px; color: #4D5170">推播通知與主機同步</div></div>
+<span style="font-size: 15px; color: #2A3884">›</span>
+</div>
+</div>
+</div>
+
+<div style="width: 390px; height: 844px; border-radius: 48px; background: #FFFFFF; box-shadow: 0 0 0 10px #15172A, 0 24px 60px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column">
+<div style="padding: 56px 16px 8px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px">
+<button aria-label="返回" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.8); background: rgba(238,240,247,0.9); font-size: 20px">‹</button>
+<div style="flex: 1; text-align: center; font-size: 17px; font-weight: 600">drover-chat.ios</div>
+<button aria-label="更多" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.8); background: rgba(238,240,247,0.9); font-size: 18px">⋯</button>
+</div>
+<div style="display: flex; background: #EEF0F7; border-radius: 10px; padding: 3px">
+<button style="flex: 1; height: 32px; border-radius: 8px; border: none; background: #FFFFFF; font-size: 15px; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.1)">對話</button>
+<button style="flex: 1; height: 32px; border-radius: 8px; border: none; background: transparent; font-size: 15px">終端機</button>
+</div>
+</div>
+<div style="flex: 1; padding: 8px 16px; display: flex; flex-direction: column; overflow: hidden">
+<div style="display: flex; gap: 12px"><div style="display: flex; flex-direction: column; align-items: center"><span style="width: 12px; height: 12px; border-radius: 6px; background: #3D4FB5"></span><span style="width: 2px; flex: 1; background: #D6D9E8"></span></div><div style="padding-bottom: 14px"><div style="font-size: 13px; color: #4D5170">你 · 10:42</div><div style="font-size: 17px; line-height: 1.4">把 Package.swift 的 platforms 補上 macOS 26,然後跑測試</div></div></div>
+<div style="display: flex; gap: 12px"><div style="display: flex; flex-direction: column; align-items: center"><span style="width: 12px; height: 12px; border-radius: 6px; border: 2px solid #8C90AA; box-sizing: border-box"></span><span style="width: 2px; flex: 1; background: #D6D9E8"></span></div><div style="padding-bottom: 14px; display: flex; flex-direction: column; gap: 6px"><div style="font-size: 13px; color: #4D5170">Claude · 3 個步驟 ▸</div><div style="font-family: ui-monospace, Menlo, monospace; font-size: 13px; color: #3A3D55">Read Package.swift · Edit +1 −0 · Bash swift build ✓</div></div></div>
+<div style="display: flex; gap: 12px"><div style="display: flex; flex-direction: column; align-items: center"><span style="width: 12px; height: 12px; border-radius: 6px; border: 2px solid #8C90AA; box-sizing: border-box"></span><span style="width: 2px; flex: 1; background: #D6D9E8"></span></div><div style="padding-bottom: 14px"><div style="font-size: 13px; color: #4D5170">Claude · 10:43</div><div style="font-size: 17px; line-height: 1.4">已加上 <code style="font-family: ui-monospace, Menlo, monospace; font-size: 15px">.macOS(.v26)</code>,build 通過。接著跑完整測試。</div></div></div>
+<div style="display: flex; gap: 12px"><div style="display: flex; flex-direction: column; align-items: center"><span style="width: 14px; height: 14px; border-radius: 7px; background: #F2B33D"></span></div><div style="flex: 1; display: flex; flex-direction: column; gap: 8px"><div style="font-size: 13px; color: #8A5300; font-weight: 600">! 需要你 · 允許執行?</div><div style="font-family: ui-monospace, Menlo, monospace; font-size: 15px; background: #F5F6FB; border-radius: 8px; padding: 8px 10px">swift test --parallel</div><div style="display: flex; gap: 8px"><button style="flex: 1; height: 44px; border-radius: 12px; border: none; background: #3D4FB5; color: #FFFFFF; font-size: 17px; font-weight: 600">允許</button><button style="flex: 1; height: 44px; border-radius: 12px; border: 1px solid #C9CCDD; background: #FFFFFF; font-size: 17px">更多選項…</button></div></div></div>
+</div>
+<div style="padding: 8px 12px 34px; display: flex; gap: 8px; align-items: center">
+<div style="flex: 1; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.9); background: rgba(238,240,247,0.9); box-shadow: 0 2px 10px rgba(0,0,0,0.08); display: flex; align-items: center; padding: 0 8px 0 16px; font-size: 17px; color: #5A5E7A; gap: 8px"><span style="flex: 1">回覆…</span><span style="font-family: ui-monospace, Menlo, monospace; font-size: 15px; color: #2A3884">/</span></div>
+<button aria-label="送出" style="width: 44px; height: 44px; border-radius: 22px; border: none; background: #3D4FB5; color: #FFFFFF; font-size: 20px">↑</button>
+</div>
+</div>
+
+<div style="width: 390px; height: 844px; border-radius: 48px; background: #0D0F1E; box-shadow: 0 0 0 10px #15172A, 0 24px 60px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column; color: #D9DCF5">
+<div style="padding: 56px 16px 8px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; gap: 8px">
+<button aria-label="返回" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.10); color: #FFFFFF; font-size: 20px">‹</button>
+<div style="flex: 1; text-align: center; font-size: 17px; font-weight: 600; color: #FFFFFF">drover-chat.ios</div>
+<button aria-label="全螢幕" style="width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.10); color: #FFFFFF; font-size: 16px">⤢</button>
+</div>
+<div style="display: flex; background: rgba(255,255,255,0.10); border-radius: 10px; padding: 3px">
+<button style="flex: 1; height: 32px; border-radius: 8px; border: none; background: transparent; color: #D9DCF5; font-size: 15px">對話</button>
+<button style="flex: 1; height: 32px; border-radius: 8px; border: none; background: rgba(255,255,255,0.22); color: #FFFFFF; font-size: 15px; font-weight: 600">終端機</button>
+</div>
+</div>
+<pre style="flex: 1; margin: 0; padding: 8px 14px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; line-height: 1.45; white-space: pre-wrap; overflow: hidden">✔ TranscriptTests.byteOffsetIsUTF8
+✔ PromptTests.timeoutIsNotResent
+✘ SlashCatalogTests.readsPluginManifest
+  Expected 38 skills, got 0
+Test run with 41 tests, 1 failure
+
+<span style="color: #7EE0B5">❯</span> <span style="background: #7EE0B5; color: #0D0F1E"> </span></pre>
+<div style="background: #D1D4DE; padding: 6px 6px 0; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; gap: 6px; background: rgba(255,255,255,0.55); border-radius: 22px; padding: 4px">
+<button style="flex: 1; height: 40px; border-radius: 18px; border: none; background: transparent; color: #15172A; font-size: 15px">Esc</button>
+<button style="flex: 1; height: 40px; border-radius: 18px; border: none; background: transparent; color: #15172A; font-size: 15px">Tab</button>
+<button style="flex: 1; height: 40px; border-radius: 18px; border: none; background: transparent; color: #15172A; font-size: 15px">Ctrl</button>
+<button aria-label="向上鍵" style="flex: 1; height: 40px; border-radius: 18px; border: none; background: transparent; color: #15172A; font-size: 15px">↑</button>
+<button aria-label="向下鍵" style="flex: 1; height: 40px; border-radius: 18px; border: none; background: transparent; color: #15172A; font-size: 15px">↓</button>
+<button aria-label="貼上" style="flex: 1; height: 40px; border-radius: 18px; border: none; background: transparent; color: #15172A; font-size: 15px">⎘</button>
+</div>
+<div style="height: 210px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #3A3D55">(系統鍵盤)</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1800,"height":1000}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
