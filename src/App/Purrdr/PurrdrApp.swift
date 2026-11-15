@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let navigation = TopNavigationModel()
     private let client: HerdrClient
     private let transcripts: TranscriptReader
     /// 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
@@ -24,7 +25,7 @@ struct PurrdrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList) { paneID, sessionID in
+            TopNavigationView(navigation: navigation, agentList: agentList) { paneID, sessionID in
                 ConversationModel(
                     client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
                 )
