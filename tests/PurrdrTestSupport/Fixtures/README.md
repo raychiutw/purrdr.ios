@@ -63,3 +63,18 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `other-agents/pi/session.jsonl` | 行為規格 §4.5;Pi 官方文件 `packages/coding-agent/docs/session-format.md`、`message-types.md`(github.com/badlogic/pi-mono,2026-11-16 取用) | session header、`model_change`、`thinking_level_change`、system 訊息(忽略)、user(字串與 block、圖片)、assistant(thinking、redacted、`redactedThinking`、toolCall、usage、stopReason)、toolResult(含錯誤)、`compaction`、`branch_summary`、`reset_boundary`、中斷的輪次(usage 為 0) |
 
 `message.timestamp`(毫秒)刻意和 entry 的 ISO 時間不同，測試才分得出取的是哪一個。OMP 的標題槽(`{"type":"title",…}`)寫在測試裡。
+
+## Claude Code plugin／skill 結構(`claude-plugins/home/`)與 `skill_listing`(`claude-code/skill-listing.jsonl`)
+
+`scripts/record-claude-plugins-fixture.py` 從作者 Mac 的 `~/.claude` **唯讀**錄製(2026-11-16),給 slash 清單的發現測試(#15)。
+
+- **保留原樣**:`installed_plugins.json` 的結構與各筆安裝(版本、scope、多筆安裝);每個已安裝 plugin 的 `.claude-plugin/plugin.json`;
+  所有 `SKILL.md` 與指令 `.md` 的路徑與 frontmatter(公開 plugin 的內容)。`mattpocock-skills` 1.3.2 有 38 個 SKILL.md,
+  `plugin.json` 以 `skills/<分類>/<名稱>` 宣告其中 27 個,`skills/in-progress`、`skills/misc` 的 11 個沒有宣告。
+- **換成假值或刪掉**:家目錄換成 `/Users/demo`;專案層安裝的 `projectPath` 換成 `/Users/demo/Projects/other-project-1`;
+  `settings.json` 只留 `enabledPlugins`;`.md` 的內文換成「(內容略)」;作者自己寫的使用者層 skill(`apim-*`、
+  `skill-creator-advanced` 等)不錄，`skill_listing` 中也一併拿掉(名稱、說明、digest);attachment 行的 uuid、session id、cwd、分支換成假值。
+- **測試裡的改動**(錄不到的情境):停用 plugin(作者 Mac 上全部啟用)——測試把 `frontend-design` 在使用者層設成 `false`、
+  `webwright` 在專案層 `settings.local.json` 設成 `false`;專案層 skills／commands(作者 Mac 沒有)寫在測試裡;
+  `skill_listing` 的增量行(`isInitial: false`)以錄製行為底改動。
+- 存檔後以 `grep` 確認沒有真實的使用者名稱、主機名或專案名。

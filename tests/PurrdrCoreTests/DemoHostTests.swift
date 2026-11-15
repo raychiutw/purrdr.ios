@@ -204,4 +204,16 @@ struct DemoHostTests {
         for await event in connection.events { events.append(event) }
         #expect(events == [.closed(.notFound)])
     }
+
+    @Test("Slash 清單:Demo 的 Claude Code agent 有 plugin 宣告的巢狀 skill,停用的 plugin 不出現")
+    func slashCatalog() async throws {
+        let host = DemoHost()
+        let agent = try await HerdrClient(channel: host).snapshot().agents.first { $0.paneID == "w1:p1" }
+        let file = try await TranscriptReader(channel: host).locate(sessionID: try #require(agent?.sessionID), cwd: try #require(agent?.cwd))
+        let catalog = await ClaudeSlashDiscovery(channel: host).catalog(cwd: agent?.cwd, transcriptPath: file.path)
+        #expect(catalog.isComplete)
+        #expect(catalog.sections.map(\.source) == [.builtIn, .user, .plugin("demo-kit")])
+        #expect(catalog.sections.last?.commands.map(\.name) == ["demo-kit:changelog", "demo-kit:check-diff"])
+        #expect(catalog.sections[1].commands.map(\.name) == ["standup", "weekly-summary"])
+    }
 }
