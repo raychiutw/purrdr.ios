@@ -9,7 +9,7 @@ struct ClaudeTranscriptLocationTests {
     @Test("資料夾名：非英數的 UTF-16 code unit 換成 -(emoji 兩個 unit 變 --)")
     func projectFolderReplacesEachNonAlphanumericUTF16Unit() {
         #expect(ClaudeTranscript.projectFolder(forCWD: "/Users/x/Documents/obsidian/07_homelab") == "-Users-x-Documents-obsidian-07-homelab")
-        // 實測:作者 Mac 上 `/Users/ray/Projects/trip-planner.flutter` 的資料夾是 `-Users-ray-Projects-trip-planner-flutter`。
+        // 實測：真實 Mac 上含 `.` 的資料夾名稱，Claude Code 會把 `/` 與 `.` 都換成 `-`。
         #expect(ClaudeTranscript.projectFolder(forCWD: "/Users/demo/Projects/trip-planner.flutter") == "-Users-demo-Projects-trip-planner-flutter")
         #expect(ClaudeTranscript.projectFolder(forCWD: "/Users/demo/🐱貓") == "-Users-demo----")
     }
