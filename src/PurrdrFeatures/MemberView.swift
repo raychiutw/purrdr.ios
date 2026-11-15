@@ -7,10 +7,13 @@ import SwiftUI
 /// 只有訂閱功能需要會員;聊天與終端機不需要登入，所以這個畫面只從選單進來，不會擋在任何功能前面。
 public struct MemberView: View {
     @Bindable var model: MemberModel
+    /// 已登入時顯示 Purrdr Plus 的狀態與入口;`nil` 時不顯示(例如從付費牆開來登入)。
+    let plus: SubscriptionModel?
     @Environment(\.dismiss) private var dismiss
 
-    public init(model: MemberModel) {
+    public init(model: MemberModel, plus: SubscriptionModel? = nil) {
         self.model = model
+        self.plus = plus
     }
 
     public var body: some View {
@@ -23,6 +26,7 @@ public struct MemberView: View {
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
+                            .accessibilityIdentifier("member.done")
                     }
                 }
         }
@@ -57,7 +61,7 @@ public struct MemberView: View {
         case .signedOut:
             SignInView(model: model)
         case .signedIn(let member):
-            AccountView(model: model, member: member)
+            AccountView(model: model, member: member, plus: plus)
         }
     }
 
@@ -189,10 +193,29 @@ struct SignInButtons: View {
 struct AccountView: View {
     let model: MemberModel
     let member: Member
+    let plus: SubscriptionModel?
     @State private var confirmingDeletion = false
 
     var body: some View {
         List {
+            if let plus {
+                Section {
+                    NavigationLink {
+                        PlusView(model: plus, member: model)
+                    } label: {
+                        LabeledContent("Purrdr Plus") {
+                            Text(plus.statusText)
+                        }
+                    }
+                    .accessibilityIdentifier("member.plus")
+                } footer: {
+                    if plus.needsRenewal {
+                        Text("Your subscription has ended. Notifications and host sync are paused until you subscribe again.")
+                    }
+                }
+                .task { await plus.refresh() }
+            }
+
             Section {
                 ForEach(member.identities, id: \.method) { identity in
                     LabeledContent {
