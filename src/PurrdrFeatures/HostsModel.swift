@@ -36,6 +36,8 @@ public final class HostsModel {
     public private(set) var workspaceActions: WorkspaceActionsModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
+    /// Tailscale SSH check mode 的提示。所有主機通道共用;composition root 把它的 `observer` 交給主機通道。
+    public let tailscaleCheck: TailscaleCheckModel
 
     private let store: any HostStore
     private let demoChannel: any HostChannel
@@ -55,6 +57,7 @@ public final class HostsModel {
     public init(
         store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
         preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(),
+        tailscaleCheck: TailscaleCheckModel? = nil,
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
     ) {
         self.store = store
@@ -62,6 +65,7 @@ public final class HostsModel {
         self.makeChannel = makeChannel
         self.conversationCache = conversationCache
         self.preferences = preferences
+        self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)

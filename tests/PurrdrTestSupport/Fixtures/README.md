@@ -63,6 +63,11 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - **會改主機狀態的 workspace 操作**(`workspace.rename`、`workspace.close`、`worktree.create`)**不在作者主機上執行**。成功回應：rename 以 `workspace.get.ndjson` 為底改 label;close 的 `{"type":"ok"}` 與 worktree 的 `worktree_created` 依 `herdr api schema --json` 寫在測試裡。`workspace_group_close_required` 碼取自 herdr CLI 文件(cli-reference「Worktrees」),envelope 沿用 `error.workspace-not-found.ndjson`。
 - **切分、zoomed、只出現在版面的 tab／pane**:錄製時主機上每個 tab 都只有一個 pane,以 `layouts[]` 改動模擬(見 `SpacesLayoutTests`)。
 
+## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
+
+`tailscale/check-mode.banner.txt`:Tailscale SSH 在 check mode 時送出的 SSH 認證橫幅。**不是錄製的**:作者的 Mac 無法經 Tailscale SSH 連自己，也不變更作者的 ACL。
+內容依 Tailscale 原始碼(`ssh/tailssh/tailssh.go` 以 `SendAuthBanner` 送出控制端的訊息)與使用者回報的實際文字寫成，網址是假值。來源與未驗證事項見 `docs/research/tailscale-ssh-check-mode.md`。拿到真機的橫幅後應換掉。
+
 ## 其他 agent 的對話紀錄(`other-agents/`)——依文件撰寫、未實測
 
 作者的 Mac 上沒有 Grok、Antigravity、Pi、OMP,這些檔案**不是**從真實主機擷取，而是依下列來源**手寫**的(#25)。

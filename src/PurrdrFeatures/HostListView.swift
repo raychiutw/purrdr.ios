@@ -79,6 +79,8 @@ public struct HostListView: View {
                 }
             }
         }
+        // 主機編輯器的「測試連線」也可能遇到 check mode;sheet 蓋住 Agent 列表，所以這裡也要顯示。
+        .tailscaleCheckPrompt(model.tailscaleCheck)
     }
 }
 

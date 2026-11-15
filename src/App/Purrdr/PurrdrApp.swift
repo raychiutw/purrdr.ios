@@ -17,9 +17,9 @@ struct PurrdrApp: App {
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         let uiTesting = arguments.contains("-uiTesting")
-        // UI 測試情境：桌機正在操作 Demo 的 Pane。
-        let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
-        let demo = DemoHost(scenario: scenario)
+        // Tailscale SSH check mode 的提示：所有主機通道共用。
+        let tailscaleCheck = TailscaleCheckModel()
+        let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
         // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
         let cache = InMemoryConversationCache()
         // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
@@ -29,16 +29,26 @@ struct PurrdrApp: App {
         if uiTesting {
             hosts = HostsModel(
                 store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                makeChannel: { _, _ in demo })
+                tailscaleCheck: tailscaleCheck, makeChannel: { _, _ in demo })
         } else {
-            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences) {
-                endpoint, pin in
-                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+            hosts = HostsModel(
+                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                tailscaleCheck: tailscaleCheck
+            ) { endpoint, pin in
+                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, tailscaleCheck: tailscaleCheck.observer)
             }
         }
         hosts.load()
         _hosts = State(initialValue: hosts)
         member = Self.makeMember(uiTesting: uiTesting)
+    }
+
+    /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成)。
+    private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
+        if arguments.contains("-demoPaneInUse") { return .paneInUse }
+        if arguments.contains("-demoTailscaleCheck") { return .tailscaleCheck(completesAfter: nil) }
+        if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: .seconds(3)) }
+        return .standard
     }
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。

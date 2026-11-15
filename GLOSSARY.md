@@ -14,6 +14,10 @@ _避免_:電腦、伺服器、機器、Device、Computer
 app 登入主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)與 **OpenSSH**(主機自己的 sshd,用金鑰或密碼)。
 _避免_:Transport、Auth mode
 
+**Tailscale 重新驗證**(Tailscale check):
+Tailscale SSH 的規則要求連線端定期在瀏覽器重新登入 Tailscale(Tailscale 稱 check mode)。主機給一個驗證網址，驗證完連線才會繼續。UI 稱「Sign In to Tailscale」。
+_避免_:二次驗證、2FA、re-auth
+
 ## herdr
 
 **Workspace**／**Tab**／**Pane**:

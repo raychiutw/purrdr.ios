@@ -13,11 +13,16 @@ import PurrdrCore
 /// 完整的情境在 Demo 模式那張票補齊。
 public actor DemoHost: HostChannel {
     /// Demo 主機的情境(UI 測試以啟動旗標切換)。
-    public enum Scenario: Sendable {
+    public enum Scenario: Sendable, Equatable {
         case standard
         /// 桌機(或另一台裝置)正在操作 Demo 的 Pane:不帶 `--takeover` 會被拒。
         case paneInUse
+        /// Tailscale SSH check mode:第一個指令先要求重新驗證(經 `tailscaleCheck` 回報)。
+        case tailscaleCheck(completesAfter: Duration?)
     }
+
+    /// check mode 情境的驗證網址(不存在的示範網址)。
+    public static let tailscaleCheckURL = URL(string: "https://login.tailscale.com/a/demo")!
 
     /// Demo 不建立 workspace、worktree、tab、split(行為規格 F3.1)。
     public static let unsupportedMessage = "The demo host can’t create workspaces or worktrees. Add your own host to try this."
@@ -31,11 +36,15 @@ public actor DemoHost: HostChannel {
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
 
-    public init(scenario: Scenario = .standard) {
+    private let tailscaleCheck: TailscaleCheckObserver?
+
+    public init(scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil) {
         self.scenario = scenario
+        self.tailscaleCheck = tailscaleCheck
     }
 
     public func execute(_ command: String) async throws -> any ExecSession {
+        try await passTailscaleCheck()
         if command == HerdrCommand.bridge() {
             return DemoBridgeSession { [weak self] line in
                 guard let self else { return (Data(), false) }
@@ -56,7 +65,42 @@ public actor DemoHost: HostChannel {
     }
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
-        DemoEchoShell()
+        try await passTailscaleCheck()
+        return DemoEchoShell()
+    }
+
+    // MARK: - Tailscale check mode 情境
+
+    private var checkPassed = false
+    private var checkWait: Task<Void, any Error>?
+
+    /// check mode 情境：還沒驗證過就回報驗證網址並等待(`completesAfter` 後視為驗證完成;`nil` = 等到取消)。
+    /// 同時的指令一起等同一次驗證;取消後下一個指令重新要求驗證。
+    private func passTailscaleCheck() async throws {
+        guard case .tailscaleCheck(let completesAfter) = scenario, !checkPassed else { return }
+        let wait: Task<Void, any Error>
+        if let checkWait {
+            wait = checkWait
+        } else {
+            let cancel: @Sendable () async -> Void = { [weak self] in await self?.cancelTailscaleCheck() }
+            wait = Task { [tailscaleCheck] in
+                tailscaleCheck?(TailscaleCheckPrompt(url: Self.tailscaleCheckURL, cancel: cancel))
+                defer { tailscaleCheck?(nil) }
+                try await Task.sleep(for: completesAfter ?? .seconds(60 * 60))
+            }
+            checkWait = wait
+        }
+        do {
+            try await wait.value
+            checkPassed = true
+        } catch {
+            checkWait = nil
+            throw SSHConnectionError.tailscaleCheckCancelled
+        }
+    }
+
+    private func cancelTailscaleCheck() {
+        checkWait?.cancel()
     }
 
     /// `agent.prompt` 的回應：閒置的 Claude Code agent 收下後，對話紀錄接上新的行;不是 `agent.prompt` 回 `nil`。

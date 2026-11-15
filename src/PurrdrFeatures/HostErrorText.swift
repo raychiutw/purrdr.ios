@@ -18,6 +18,10 @@ enum HostErrorText {
             "Couldn’t reach this host. Make sure both devices are on your tailnet."
         case SSHConnectionError.authenticationFailed:
             "Tailscale SSH didn’t let this user log in. Check the user name and your tailnet’s SSH rules."
+        case SSHConnectionError.tailscaleCheckCancelled:
+            "Tailscale sign-in was canceled. Try again when you’re ready to sign in."
+        case SSHConnectionError.tailscaleCheckTimedOut:
+            "The Tailscale sign-in wasn’t finished in time. Try again."
         case SSHConnectionError.connectionLost, SSHConnectionError.channelRejected:
             "The connection dropped. Try again."
         case HostProbeError.herdrNotInstalled:
