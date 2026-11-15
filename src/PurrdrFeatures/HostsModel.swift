@@ -205,6 +205,11 @@ public final class HostsModel {
         if let paneID = route.paneID { agentList.openedChat = paneID }
     }
 
+    /// 啟動時：APNs token 換了就向後台重新註冊推播配對。
+    public func refreshPushRegistrations() async {
+        await pushService?.refreshRegistrations()
+    }
+
     /// 點了推播通知(用 app 的推播紀錄)。
     public func open(_ route: PushRoute) {
         guard let pushService else { return }

@@ -9,12 +9,18 @@ public struct TopNavigationView: View {
     let member: MemberModel
     /// Purrdr Plus(#28);`nil` 時選單不顯示。
     let plus: SubscriptionModel?
+    /// 點了推播通知(#29);`nil` 時沒有推播。
+    let notifications: PushNotificationRouter?
 
-    public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, plus: SubscriptionModel? = nil) {
+    public init(
+        navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, plus: SubscriptionModel? = nil,
+        notifications: PushNotificationRouter? = nil
+    ) {
         self.navigation = navigation
         self.hosts = hosts
         self.member = member
         self.plus = plus
+        self.notifications = notifications
     }
 
     public var body: some View {
@@ -41,13 +47,22 @@ public struct TopNavigationView: View {
                     PlusSheet(model: plus, member: member)
                 }
             case .settings, .newChat:
-                TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
+                TopLevelSheetView(sheet: sheet, push: hosts.push, openPlus: { navigation.sheet = .plus }) { navigation.sheet = nil }
             }
         }
         // 冷啟動與從背景回來的深層連結都會走到這裡。
         .onOpenURL { navigation.open($0) }
         // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
         .task { await plus?.observeTransactionUpdates() }
+        // 推播：APNs token 換了就向後台重新註冊(不請求權限)。
+        .task { await hosts.refreshPushRegistrations() }
+        // 點了通知：先收起 sheet(否則聊天會推到 sheet 下面),再切換主機、開該 Agent 的聊天。
+        .onChange(of: notifications?.pending, initial: true) { _, route in
+            guard let route else { return }
+            notifications?.pending = nil
+            navigation.sheet = nil
+            hosts.open(route)
+        }
     }
 
     @ToolbarContentBuilder
@@ -82,6 +97,8 @@ public struct TopNavigationView: View {
 /// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(設定 #32)。
 struct TopLevelSheetView: View {
     let sheet: TopLevelSheet
+    var push: PushModel?
+    var openPlus: () -> Void = {}
     let done: () -> Void
 
     var body: some View {
@@ -102,7 +119,7 @@ struct TopLevelSheetView: View {
     private var placeholder: some View {
         switch sheet {
         case .settings:
-            SettingsForm()
+            SettingsForm(push: push, openPlus: openPlus)
         case .hosts, .newChat, .member, .plus:
             ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
         }
@@ -133,11 +150,17 @@ extension TopLevelSheet {
 
 /// 設定(目前只有硬體鍵盤;完整設定頁在 #32)。
 struct SettingsForm: View {
+    /// 選取中主機的推播開關(#29);`nil` 或沒有推播服務時不顯示。
+    var push: PushModel?
+    var openPlus: () -> Void = {}
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
     @AppStorage(HapticSettings.enabledKey) private var haptics = true
 
     var body: some View {
         Form {
+            if let push, push.isAvailable {
+                PushSettingsSection(model: push, openPlus: openPlus)
+            }
             Section {
                 Toggle("Return Key Sends", isOn: $returnSends)
                     .accessibilityIdentifier("settings.returnSends")

@@ -355,3 +355,21 @@ public struct PushRoute: Equatable, Sendable {
         self.init(keyHash: keyHash, paneID: userInfo["pane"] as? String)
     }
 }
+
+/// 點了推播通知 → 等畫面處理(`TopNavigationView` 收起 sheet、切換主機、開聊天)。
+///
+/// 以通知的 request id 去重：冷啟動時同一則通知可能送來兩次(行為規格 F14)。
+@MainActor
+@Observable
+public final class PushNotificationRouter {
+    /// 還沒處理的點擊;畫面處理完設回 `nil`。
+    public var pending: PushRoute?
+    @ObservationIgnored private var handled: Set<String> = []
+
+    public init() {}
+
+    public func receive(_ route: PushRoute, requestID: String) {
+        guard handled.insert(requestID).inserted else { return }
+        pending = route
+    }
+}

@@ -313,6 +313,20 @@ struct PushRouteTests {
         #expect(model.agentList.openedChat == "w2:p1")
     }
 
+    @Test("同一則通知(request id)只處理一次(冷啟動會收到兩次)")
+    func routerDeduplicates() {
+        let router = PushNotificationRouter()
+        let route = PushRoute(keyHash: "abc", paneID: "w2:p1")
+
+        router.receive(route, requestID: "n1")
+        #expect(router.pending == route)
+        router.pending = nil
+        router.receive(route, requestID: "n1")
+        #expect(router.pending == nil)
+        router.receive(route, requestID: "n2")
+        #expect(router.pending == route)
+    }
+
     @Test("不認得的配對(主機已移除)不切換")
     func unknownPairingIsIgnored() {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
