@@ -20,13 +20,15 @@ public struct Agent: Sendable, Equatable, Identifiable {
     public var workspaceLabel: String?
     /// 工作目錄。
     public var cwd: String?
+    /// herdr integration 回報的 session 參照(snapshot 的 `agent_session`)。聊天的身分是它，不是 pane(行為規格 F5.1)。
+    public var session: AgentSessionReference?
 
     public var id: String { paneID }
 
     public init(
         paneID: String, workspaceID: String, kind: String, status: AgentStatus,
         name: String? = nil, terminalTitle: String? = nil, sessionTitle: String? = nil, inputPending: Bool = false,
-        workspaceLabel: String? = nil, cwd: String? = nil
+        workspaceLabel: String? = nil, cwd: String? = nil, session: AgentSessionReference? = nil
     ) {
         self.paneID = paneID
         self.workspaceID = workspaceID
@@ -38,6 +40,19 @@ public struct Agent: Sendable, Equatable, Identifiable {
         self.inputPending = inputPending
         self.workspaceLabel = workspaceLabel
         self.cwd = cwd
+        self.session = session
+    }
+}
+
+/// herdr 回報的 agent session 參照(`agent_session`)。`kind` 為 `id` 時 `value` 是 agent 原生的 session id;
+/// 為 `path` 時是對話紀錄的絕對路徑(行為規格 §4.0)。
+public struct AgentSessionReference: Sendable, Equatable, Hashable, Codable {
+    public var kind: String
+    public var value: String
+
+    public init(kind: String, value: String) {
+        self.kind = kind
+        self.value = value
     }
 }
 
