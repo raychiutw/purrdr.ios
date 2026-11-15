@@ -9,6 +9,39 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "%@ free, then %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費 %1$@，之後 %2$@"
+          }
+        }
+      }
+    },
+    "%@ per %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@／%2$@"
+          }
+        }
+      }
+    },
+    "%@ renews automatically at %@ unless you cancel at least 24 hours before the end of the current period. Payment is charged to your Apple Account. Manage or cancel anytime in Settings › Apple Account › Subscriptions." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "除非在本期結束前至少 24 小時取消，%1$@ 會以 %2$@ 自動續訂。款項向你的 Apple 帳號收取。隨時可以在「設定」›「Apple 帳號」›「訂閱項目」管理或取消。"
+          }
+        }
+      }
+    },
     "%@ · %@" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
@@ -35,6 +68,17 @@
         }
       }
     },
+    "%lld days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 天"
+          }
+        }
+      }
+    },
     "%lld images" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -42,6 +86,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 張圖片"
+          }
+        }
+      }
+    },
+    "%lld months" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個月"
           }
         }
       }
@@ -68,9 +123,64 @@
         }
       }
     },
+    "%lld weeks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 週"
+          }
+        }
+      }
+    },
+    "%lld years" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 年"
+          }
+        }
+      }
+    },
+    "%lld%% left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘 %lld%%"
+          }
+        }
+      }
+    },
+    "%lld%% used" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用 %lld%%"
+          }
+        }
+      }
+    },
     "%lld." : {
       "extractionState" : "manual",
       "shouldTranslate" : false
+    },
+    "1 day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 天"
+          }
+        }
+      }
     },
     "1 failed" : {
       "extractionState" : "manual",
@@ -83,9 +193,53 @@
         }
       }
     },
+    "1 month" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個月"
+          }
+        }
+      }
+    },
+    "1 week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 週"
+          }
+        }
+      }
+    },
+    "1 year" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 年"
+          }
+        }
+      }
+    },
     "22" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
+    },
+    "5h" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 小時"
+          }
+        }
+      }
     },
     "A member account is only needed for Purrdr Plus: notifications when an agent needs you, and syncing your hosts between devices." : {
       "extractionState" : "manual",
@@ -197,6 +351,17 @@
         }
       }
     },
+    "Almost Done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快完成了"
+          }
+        }
+      }
+    },
     "Already Linked" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -237,6 +402,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "另一個裝置接管了這個 Pane。"
+          }
+        }
+      }
+    },
+    "Answer this option in the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個選項請在終端機回答。"
+          }
+        }
+      }
+    },
+    "Apple couldn’t charge your payment method. Update it by %@ to keep Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 無法向你的付款方式收費。請在 %@ 前更新，才能繼續使用 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "As of %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 更新"
           }
         }
       }
@@ -285,6 +483,17 @@
         }
       }
     },
+    "Built-in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內建"
+          }
+        }
+      }
+    },
     "Called %d tools" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -314,6 +523,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消"
+          }
+        }
+      }
+    },
+    "Cancel (Esc)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消(Esc)"
           }
         }
       }
@@ -395,6 +615,28 @@
         }
       }
     },
+    "Change Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改設定"
+          }
+        }
+      }
+    },
+    "Changing the host’s Claude settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在更改主機的 Claude 設定…"
+          }
+        }
+      }
+    },
     "Chat" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -417,6 +659,17 @@
         }
       }
     },
+    "Chat and terminal are free and never need a subscription." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對話與終端機免費，永遠不需要訂閱。"
+          }
+        }
+      }
+    },
     "Chat and terminal never need an account, and your conversations never pass through our servers." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -424,6 +677,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "對話與終端機都不需要登入，你的對話也不會經過 Purrdr 後台。"
+          }
+        }
+      }
+    },
+    "Checking the host…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在檢查主機…"
           }
         }
       }
@@ -439,6 +703,50 @@
         }
       }
     },
+    "Choose 1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選 1"
+          }
+        }
+      }
+    },
+    "Choose 2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選 2"
+          }
+        }
+      }
+    },
+    "Claude Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 用量"
+          }
+        }
+      }
+    },
+    "Claude Usage Options" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 用量選項"
+          }
+        }
+      }
+    },
     "Close" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -446,6 +754,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉"
+          }
+        }
+      }
+    },
+    "Close File Picker" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉檔案選擇器"
           }
         }
       }
@@ -490,6 +809,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "程式碼"
+          }
+        }
+      }
+    },
+    "Codex has its file picker open. Close it here, or choose a file in the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 開著檔案選擇器。可以在這裡關閉，或在終端機選擇檔案。"
+          }
+        }
+      }
+    },
+    "Commands" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令"
+          }
+        }
+      }
+    },
+    "Confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認"
+          }
+        }
+      }
+    },
+    "Confirm (Return)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認(Return)"
           }
         }
       }
@@ -560,6 +923,17 @@
         }
       }
     },
+    "Continue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續"
+          }
+        }
+      }
+    },
     "Continue with Google" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -600,6 +974,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已拷貝"
+          }
+        }
+      }
+    },
+    "Copy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝"
           }
         }
       }
@@ -655,6 +1040,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找不到這個主機名稱。請檢查位址，並確認這台裝置在你的 tailnet 上。"
+          }
+        }
+      }
+    },
+    "Couldn’t load subscription options. Check your connection and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入訂閱方案。請檢查網路連線後再試一次。"
           }
         }
       }
@@ -725,6 +1121,17 @@
         }
       }
     },
+    "Couldn’t read the choices. These send common answers; check the terminal if you’re not sure." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取選項。這些按鈕會送出常見的回答；不確定的話請查看終端機。"
+          }
+        }
+      }
+    },
     "Couldn’t read this host’s herdr status." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -743,6 +1150,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法在這台裝置上儲存這台主機。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t send the answer to the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法把回答送到主機。"
           }
         }
       }
@@ -956,6 +1374,17 @@
         }
       }
     },
+    "Each subscription period includes notifications when an agent needs you, and your host list synced across your devices." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個訂閱週期都包含 Agent 需要你時的通知，以及在你的各裝置之間同步主機清單。"
+          }
+        }
+      }
+    },
     "Edit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1022,6 +1451,28 @@
         }
       }
     },
+    "Ends on %@. It won’t renew." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 到期，不會續訂。"
+          }
+        }
+      }
+    },
+    "Esc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esc"
+          }
+        }
+      }
+    },
     "Escape" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1044,6 +1495,17 @@
         }
       }
     },
+    "Expired" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已到期"
+          }
+        }
+      }
+    },
     "Failed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1051,6 +1513,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "失敗"
+          }
+        }
+      }
+    },
+    "Feel a tap when you answer an agent, and whether the answer arrived." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答 Agent 時，以及回答是否送達時，會感覺到輕觸。"
           }
         }
       }
@@ -1110,6 +1583,17 @@
         }
       }
     },
+    "Free for %@. When the trial ends, %@ is charged automatically unless you cancel at least 24 hours before it ends. " : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費 %1$@。除非在試用結束前至少 24 小時取消，試用結束時會自動收取 %2$@。"
+          }
+        }
+      }
+    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1117,6 +1601,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Google 登入沒有完成，請再試一次。"
+          }
+        }
+      }
+    },
+    "Haptics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觸覺回饋"
           }
         }
       }
@@ -1385,6 +1880,17 @@
         }
       }
     },
+    "Loading Commands…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在載入指令…"
+          }
+        }
+      }
+    },
     "Loading agents…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1425,6 +1931,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "紀錄"
+          }
+        }
+      }
+    },
+    "Manage Subscription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "管理訂閱"
           }
         }
       }
@@ -1550,6 +2067,17 @@
         }
       }
     },
+    "Needs You: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要你：%@"
+          }
+        }
+      }
+    },
     "New Chat" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1627,6 +2155,17 @@
         }
       }
     },
+    "No Matching Commands" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合的指令"
+          }
+        }
+      }
+    },
     "No Messages Yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1682,6 +2221,28 @@
         }
       }
     },
+    "Not Selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未選取"
+          }
+        }
+      }
+    },
+    "Not Subscribed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未訂閱"
+          }
+        }
+      }
+    },
     "Not on This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1689,6 +2250,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不在這台主機上"
+          }
+        }
+      }
+    },
+    "Nothing to Restore" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可恢復的購買項目"
+          }
+        }
+      }
+    },
+    "Notifications when an agent needs you and host sync are now available. Turn them on for each host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在可以使用 Agent 需要你時的通知與主機同步。請在每台主機分別開啟。"
           }
         }
       }
@@ -1781,6 +2364,28 @@
         }
       }
     },
+    "Options above 9 can’t be entered from here. Answer them in the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "9 以後的選項無法從這裡輸入，請在終端機回答。"
+          }
+        }
+      }
+    },
+    "Other Skills" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他 Skill"
+          }
+        }
+      }
+    },
     "Pane" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1799,6 +2404,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上"
+          }
+        }
+      }
+    },
+    "Payment Issue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "付款問題"
+          }
+        }
+      }
+    },
+    "Payment of %@ is charged when you confirm. " : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認後即收取 %@。"
           }
         }
       }
@@ -1836,6 +2463,39 @@
         }
       }
     },
+    "Project" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "專案"
+          }
+        }
+      }
+    },
+    "Purchases Restored" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已恢復購買項目"
+          }
+        }
+      }
+    },
+    "Purchases aren’t allowed on this device, for example because of Screen Time. You can still restore a subscription you already have." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台裝置不允許購買(例如因為「螢幕使用時間」)。你仍然可以恢復已有的訂閱。"
+          }
+        }
+      }
+    },
     "Purrdr Member" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1843,6 +2503,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會員"
+          }
+        }
+      }
+    },
+    "Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Purrdr Plus belongs to your Purrdr member account. Sign in, and your purchase is added automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr Plus 屬於你的 Purrdr 會員。登入後，你的購買項目會自動加入。"
           }
         }
       }
@@ -1946,6 +2628,17 @@
         }
       }
     },
+    "Redeem Code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兌換代碼"
+          }
+        }
+      }
+    },
     "Rename Workspace" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1964,6 +2657,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名 Workspace…"
+          }
+        }
+      }
+    },
+    "Renews on %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 續訂。"
+          }
+        }
+      }
+    },
+    "Resets %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 重設"
+          }
+        }
+      }
+    },
+    "Restore Purchases" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復購買項目"
+          }
+        }
+      }
+    },
+    "Restoring the host’s Claude settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在還原主機的 Claude 設定…"
           }
         }
       }
@@ -2067,6 +2804,17 @@
         }
       }
     },
+    "Selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選取"
+          }
+        }
+      }
+    },
     "Send" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2155,6 +2903,50 @@
         }
       }
     },
+    "Show" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示"
+          }
+        }
+      }
+    },
+    "Show All %lld Lines" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示全部 %lld 行"
+          }
+        }
+      }
+    },
+    "Show Claude Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示 Claude 用量"
+          }
+        }
+      }
+    },
+    "Show Claude Usage?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要顯示 Claude 用量嗎？"
+          }
+        }
+      }
+    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2177,6 +2969,39 @@
         }
       }
     },
+    "Show Less" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示較少"
+          }
+        }
+      }
+    },
+    "Show Remaining" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示剩餘"
+          }
+        }
+      }
+    },
+    "Show Used" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示已用"
+          }
+        }
+      }
+    },
     "Shows the background agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2195,6 +3020,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示結果"
+          }
+        }
+      }
+    },
+    "Sign In" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入"
+          }
+        }
+      }
+    },
+    "Sign In to Continue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入以繼續"
+          }
+        }
+      }
+    },
+    "Sign In to Subscribe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入以訂閱"
           }
         }
       }
@@ -2320,6 +3178,17 @@
         }
       }
     },
+    "Start Free Trial" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始免費試用"
+          }
+        }
+      }
+    },
     "Starting" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2349,6 +3218,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作室的 Mac"
+          }
+        }
+      }
+    },
+    "Subscribe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱"
           }
         }
       }
@@ -2437,6 +3317,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終端機"
+          }
+        }
+      }
+    },
+    "Terms of Use" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用條款"
           }
         }
       }
@@ -2540,6 +3431,17 @@
         }
       }
     },
+    "The agent is waiting for you." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在等你。"
+          }
+        }
+      }
+    },
     "The agent is working. Its reply will appear here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2547,6 +3449,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 正在工作，回覆會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "The answer may not have arrived. Check the agent, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答可能沒有送達。請查看 Agent 後再試一次。"
           }
         }
       }
@@ -2617,6 +3530,17 @@
         }
       }
     },
+    "The purchase is waiting for approval. Purrdr Plus turns on as soon as it’s approved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這筆購買正在等候核准。核准後 Purrdr Plus 就會開啟。"
+          }
+        }
+      }
+    },
     "The sign-in didn’t go through. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2624,6 +3548,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登入沒有成功，請再試一次。"
+          }
+        }
+      }
+    },
+    "The start of this prompt is off screen. Check the terminal for the details." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個提示的開頭超出畫面，詳細內容請查看終端機。"
           }
         }
       }
@@ -2657,6 +3592,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "思考"
+          }
+        }
+      }
+    },
+    "This Apple Account has no active Purrdr Plus subscription." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Apple 帳號沒有有效的 Purrdr Plus 訂閱。"
+          }
+        }
+      }
+    },
+    "This Apple Account’s Purrdr Plus subscription belongs to another Purrdr member. Sign in with that member to use it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Apple 帳號的 Purrdr Plus 訂閱屬於另一位 Purrdr 會員。請以該會員登入後使用。"
           }
         }
       }
@@ -2723,6 +3680,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這是第一次連線到 %@。它以這個 key 表明身分:\n\n%@\n\n請在那台主機上執行 ssh-keygen -lf,確認相符才信任。"
+          }
+        }
+      }
+    },
+    "This list may be incomplete. The host took too long to list every command." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份清單可能不完整：主機列出所有指令花了太久。"
           }
         }
       }
@@ -2822,6 +3790,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 Subagent 的對話紀錄不在這台主機上。"
+          }
+        }
+      }
+    },
+    "This subscription is billed through Google Play. Manage it there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個訂閱透過 Google Play 計費，請在 Google Play 管理。"
           }
         }
       }
@@ -2932,6 +3911,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "試試其他名稱、Agent 或資料夾。"
+          }
+        }
+      }
+    },
+    "Turn Off Claude Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Claude 用量"
           }
         }
       }
@@ -3057,6 +4047,17 @@
         }
       }
     },
+    "Used by Another Member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已由其他會員使用"
+          }
+        }
+      }
+    },
     "Used tools" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3064,6 +4065,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用了工具"
+          }
+        }
+      }
+    },
+    "User" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用者"
           }
         }
       }
@@ -3112,6 +4124,28 @@
         }
       }
     },
+    "Waiting for Approval" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等候核准"
+          }
+        }
+      }
+    },
+    "Waiting for Claude Code to report usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等候 Claude Code 回報用量"
+          }
+        }
+      }
+    },
     "Waiting for the Session" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3130,6 +4164,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待你的輸入"
+          }
+        }
+      }
+    },
+    "Week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一週"
+          }
+        }
+      }
+    },
+    "Welcome to Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歡迎使用 Purrdr Plus"
           }
         }
       }
@@ -3189,6 +4245,17 @@
         }
       }
     },
+    "You chose: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你選了：%@"
+          }
+        }
+      }
+    },
     "You: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3196,6 +4263,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你:%@"
+          }
+        }
+      }
+    },
+    "Your Purrdr Plus subscription has ended. Notifications and host sync are paused until you subscribe again. Chat and terminal keep working." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 Purrdr Plus 訂閱已結束。通知與主機同步會暫停，直到你再次訂閱。對話與終端機仍可使用。"
+          }
+        }
+      }
+    },
+    "Your Purrdr Plus subscription is active on this member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 Purrdr Plus 訂閱已在這個會員啟用。"
           }
         }
       }
@@ -3255,6 +4344,17 @@
         }
       }
     },
+    "Your subscription has ended. Notifications and host sync are paused until you subscribe again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訂閱已結束。通知與主機同步會暫停，直到你再次訂閱。"
+          }
+        }
+      }
+    },
     "Your user on that computer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3266,6 +4366,28 @@
         }
       }
     },
+    "You’re subscribed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你已訂閱"
+          }
+        }
+      }
+    },
+    "You’ve paid, but Purrdr couldn’t be reached to turn on Purrdr Plus. It will finish automatically next time you open Purrdr online." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你已付款，但無法連上 Purrdr 來開啟 Purrdr Plus。下次在連網狀態下開啟 Purrdr 時會自動完成。"
+          }
+        }
+      }
+    },
     "Zoomed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3273,6 +4395,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已放大"
+          }
+        }
+      }
+    },
+    "day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "天"
           }
         }
       }
@@ -3358,9 +4491,42 @@
         }
       }
     },
+    "month" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "月"
+          }
+        }
+      }
+    },
     "my-mac or 100.64.0.1" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
+    },
+    "week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "週"
+          }
+        }
+      }
+    },
+    "year" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "年"
+          }
+        }
+      }
     },
     "•" : {
       "extractionState" : "manual",
