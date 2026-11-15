@@ -46,4 +46,22 @@ public enum TranscriptPart: Sendable, Equatable, Codable {
     case taskNotification(TaskNotification)
     /// Subagent 的 hand-back 報告(§4.6,2.1.294 起)。只更新卡片，不自成一列。
     case handBack(from: String, report: String)
+    /// 使用者打的 `!` 指令(`<bash-input>`,已修剪)。
+    case shellInput(String)
+    /// 上一個 `!` 指令的輸出(`<bash-stdout>`、`<bash-stderr>`)。
+    case shellOutput(ShellOutput)
+}
+
+/// Shell `!` 指令的輸出(行為規格 F5.9):已解 HTML 跳脫、去掉 ANSI 色碼與前後換行，各自最多 20,000 字。
+public struct ShellOutput: Sendable, Equatable, Codable {
+    public var stdout: String
+    public var stderr: String
+    /// 有任一邊超過上限被截斷。
+    public var isTruncated: Bool
+
+    public init(stdout: String, stderr: String, isTruncated: Bool = false) {
+        self.stdout = stdout
+        self.stderr = stderr
+        self.isTruncated = isTruncated
+    }
 }
