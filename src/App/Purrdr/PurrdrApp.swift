@@ -15,6 +15,8 @@ struct PurrdrApp: App {
     private let transcripts: TranscriptReader
     /// 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
     private let conversationCache = InMemoryConversationCache()
+    /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。
+    private let drafts = DraftStore()
 
     init() {
         let channel: any HostChannel = DemoHost()
@@ -27,7 +29,8 @@ struct PurrdrApp: App {
         WindowGroup {
             TopNavigationView(navigation: navigation, agentList: agentList) { paneID, sessionID in
                 ConversationModel(
-                    client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
+                    client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache,
+                    drafts: drafts
                 )
             }
         }

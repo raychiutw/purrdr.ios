@@ -73,8 +73,14 @@ struct TopLevelSheetView: View {
         }
     }
 
+    @ViewBuilder
     private var placeholder: some View {
-        ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
+        switch sheet {
+        case .settings:
+            SettingsForm()
+        case .hosts, .newChat:
+            ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
+        }
     }
 }
 
@@ -92,6 +98,24 @@ extension TopLevelSheet {
         case .settings: "gearshape"
         case .hosts: "desktopcomputer"
         case .newChat: "plus.bubble"
+        }
+    }
+}
+
+/// 設定(目前只有硬體鍵盤;完整設定頁在 #32)。
+struct SettingsForm: View {
+    @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Return Key Sends", isOn: $returnSends)
+                    .accessibilityIdentifier("settings.returnSends")
+            } header: {
+                Text("Hardware Keyboard")
+            } footer: {
+                Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+            }
         }
     }
 }
