@@ -227,11 +227,19 @@ struct PromptDeliveryTests {
 
     // MARK: - 中斷
 
+    static let escKeys = #"{"id":"purrdr:pane.send_keys","method":"pane.send_keys","params":{"keys":["esc"],"pane_id":"w1:p6"}}"# + "\n"
+    static let controlCKeys = #"{"id":"purrdr:pane.send_keys","method":"pane.send_keys","params":{"keys":["ctrl+c"],"pane_id":"w1:p6"}}"# + "\n"
+
+    static func keyRequests(_ host: FakeHost) async -> [String] {
+        await host.executions.map(\.stdinText).filter { $0.contains("send_keys") }
+    }
+
     /// R-P13:只送一個 Esc(第二個會開 Claude 的回溯選單);主機會收下不認得的鍵名，所以要確認離開 working。
-    @Test("停止：送一個 Esc,之後每 500ms 讀狀態，離開 working 就算停了")
+    @Test("停止：先讀新鮮的狀態，在 working 才送一個 Esc,之後每 500ms 讀狀態，離開 working 就算停了")
     func stopSendsOneEscAndConfirms() async throws {
         let host = FakeHost()
         let sleeper = RecordingSleeper { $0 == .milliseconds(500) }
+        await host.expect(Self.bridge, reply: Self.snapshot(status: "working"))
         await host.expect(Self.bridge, reply: Self.keysAccepted)
         await host.expect(Self.bridge, reply: Self.snapshot(status: "working"))
         await host.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
@@ -240,28 +248,30 @@ struct PromptDeliveryTests {
 
         #expect(outcome == .stopped)
         let requests = await host.executions.map(\.stdinText)
-        #expect(requests.first == #"{"id":"purrdr:pane.send_keys","method":"pane.send_keys","params":{"keys":["esc"],"pane_id":"w1:p6"}}"# + "\n")
-        #expect(requests.filter { $0.contains("send_keys") }.count == 1)
+        #expect(requests.first?.contains(#""method":"session.snapshot""#) == true)
+        #expect(await Self.keyRequests(host) == [Self.escKeys])
     }
 
     @Test("停止：3 秒內一直在 working → 還在工作(不再送第二個 Esc)")
     func stopReportsStillWorking() async throws {
         let host = FakeHost()
         let sleeper = RecordingSleeper { $0 == .milliseconds(500) }
+        await host.expect(Self.bridge, reply: Self.snapshot(status: "working"))
         await host.expect(Self.bridge, reply: Self.keysAccepted)
         for _ in 0..<6 { await host.expect(Self.bridge, reply: Self.snapshot(status: "working")) }
 
         let outcome = await Self.delivery(host, sleeper: sleeper).stop(paneID: Self.paneID)
 
         #expect(outcome == .stillWorking)
-        #expect(await host.executions.filter { $0.stdinText.contains("send_keys") }.count == 1)
+        #expect(await Self.keyRequests(host).count == 1)
         #expect(await host.unmetExpectations.isEmpty)
     }
 
-    @Test("停止：讀不到狀態視為成功")
+    @Test("停止：送出 Esc 之後讀不到狀態視為成功")
     func stopTreatsUnreadableStatusAsStopped() async throws {
         let host = FakeHost()
         let sleeper = RecordingSleeper { $0 == .milliseconds(500) }
+        await host.expect(Self.bridge, reply: Self.snapshot(status: "working"))
         await host.expect(Self.bridge, reply: Self.keysAccepted)
         await host.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
 
@@ -270,15 +280,76 @@ struct PromptDeliveryTests {
         #expect(outcome == .stopped)
     }
 
-    @Test("強制結束：送 ctrl+c,不確認結果")
+    /// F6.7:停止**永不**送給「需要你」的 agent——中斷可能把問題關掉。畫面上的狀態可能是 2 秒前的，所以送前重讀。
+    @Test("停止：送前重讀到「需要你」(blocked 或 input_pending)→ 一個按鍵都不送")
+    func stopNeverInterruptsAgentThatNeedsYou() async throws {
+        for change in [
+            { (agent: inout [String: Any]) in agent["agent_status"] = "blocked" },
+            { (agent: inout [String: Any]) in agent["agent_status"] = "idle"; agent["input_pending"] = true },
+        ] {
+            let host = FakeHost()
+            await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson") { SnapshotEdit.agent(Self.paneID, in: &$0, change) })
+            // 主機會收下按鍵：實作若錯送了，會留在送出紀錄裡。
+            await host.expect(Self.bridge, reply: Self.keysAccepted)
+
+            // 等待立刻結束：實作若錯送了 Esc,測試不會卡在 500ms 的確認迴圈。
+            let outcome = await Self.delivery(host, sleeper: RecordingSleeper { _ in true }).stop(paneID: Self.paneID)
+
+            #expect(outcome == .needsAnswer)
+            #expect(await Self.keyRequests(host).isEmpty)
+        }
+    }
+
+    @Test("停止：送前重讀到已經不在 working → 不送 Esc(多一個 Esc 會開回溯選單);讀不到狀態 → 不送，回報失敗")
+    func stopSendsNothingWhenNotWorkingOrUnknown() async throws {
+        let idle = FakeHost()
+        await idle.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        #expect(await Self.delivery(idle).stop(paneID: Self.paneID) == .stopped)
+        #expect(await Self.keyRequests(idle).isEmpty)
+
+        let offline = FakeHost()
+        await offline.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        #expect(await Self.delivery(offline).stop(paneID: Self.paneID) == .failed)
+        #expect(await Self.keyRequests(offline).isEmpty)
+    }
+
+    @Test("強制結束：送前重讀在 working 才送 ctrl+c,不確認結果")
     func forceQuitSendsControlC() async throws {
         let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.snapshot(status: "working"))
         await host.expect(Self.bridge, reply: Self.keysAccepted)
 
-        try await Self.delivery(host).forceQuit(paneID: Self.paneID)
+        let outcome = await Self.delivery(host).forceQuit(paneID: Self.paneID)
 
-        #expect(await host.executions.map(\.stdinText) == [
-            #"{"id":"purrdr:pane.send_keys","method":"pane.send_keys","params":{"keys":["ctrl+c"],"pane_id":"w1:p6"}}"# + "\n",
-        ])
+        #expect(outcome == .sent)
+        #expect(await Self.keyRequests(host) == [Self.controlCKeys])
+    }
+
+    @Test("強制結束：「需要你」的 agent 永不送 ctrl+c;不在 working 或讀不到狀態也不送")
+    func forceQuitNeverInterruptsAgentThatNeedsYou() async throws {
+        let blocked = FakeHost()
+        await blocked.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
+        await blocked.expect(Self.bridge, reply: Self.keysAccepted)
+        #expect(await Self.delivery(blocked).forceQuit(paneID: Self.paneID) == .needsAnswer)
+        #expect(await Self.keyRequests(blocked).isEmpty)
+
+        let pending = FakeHost()
+        await pending.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson") {
+            SnapshotEdit.agent(Self.paneID, in: &$0) { $0["agent_status"] = "idle"; $0["input_pending"] = true }
+        })
+        await pending.expect(Self.bridge, reply: Self.keysAccepted)
+        #expect(await Self.delivery(pending).forceQuit(paneID: Self.paneID) == .needsAnswer)
+        #expect(await Self.keyRequests(pending).isEmpty)
+
+        let idle = FakeHost()
+        await idle.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
+        await idle.expect(Self.bridge, reply: Self.keysAccepted)
+        #expect(await Self.delivery(idle).forceQuit(paneID: Self.paneID) == .notWorking)
+        #expect(await Self.keyRequests(idle).isEmpty)
+
+        let offline = FakeHost()
+        await offline.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        #expect(await Self.delivery(offline).forceQuit(paneID: Self.paneID) == .failed)
+        #expect(await Self.keyRequests(offline).isEmpty)
     }
 }

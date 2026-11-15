@@ -9,6 +9,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "%@ effort" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ effort"
+          }
+        }
+      }
+    },
     "%@ free, then %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1749,24 +1760,13 @@
         }
       }
     },
-    "Force Quit" : {
+    "Force Quit Agent" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "強制結束"
-          }
-        }
-      }
-    },
-    "Force Quit the Agent?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要強制結束 Agent 嗎?"
+            "value" : "強制結束 Agent"
           }
         }
       }
@@ -2629,6 +2629,17 @@
         }
       }
     },
+    "Offline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離線"
+          }
+        }
+      }
+    },
     "Offline — showing the last loaded conversation." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2636,6 +2647,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "離線中，顯示上次載入的對話。"
+          }
+        }
+      }
+    },
+    "Online" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "線上"
           }
         }
       }
@@ -3087,6 +3109,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "兌換代碼"
+          }
+        }
+      }
+    },
+    "Reload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新載入"
           }
         }
       }
@@ -4055,6 +4088,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 仍在工作。再點一次「停止」,或按住以強制結束。"
+          }
+        }
+      }
+    },
+    "The agent is waiting for an answer, so nothing was interrupted. Answer it instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在等你回答，所以沒有中斷任何東西。請直接回答它。"
           }
         }
       }
@@ -5137,6 +5181,17 @@
         }
       }
     },
+    "Working…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作中…"
+          }
+        }
+      }
+    },
     "Workspace" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5155,6 +5210,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace 名稱"
+          }
+        }
+      }
+    },
+    "Writing…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撰寫中…"
           }
         }
       }
