@@ -24,10 +24,13 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `herdr-0.9.5/events.subscribe.started.ndjson` | `events.subscribe`(3 個 agent pane 的 `pane.agent_status_changed` + 全主機事件),只留 ack | 2026-11-15 | 訂閱開始(`subscription_started`) |
 | `herdr-0.9.5/error.pane-not-found.ndjson` | `events.subscribe` 訂閱不存在的 pane `w9:pZ` | 2026-11-15 | 訂閱被拒;也當作 `events_lost` 的底(見下) |
 | `herdr-0.9.5/error.unknown-subscription-type.ndjson` | `events.subscribe` 訂閱 herdr 不認得的型別 `pane.turn_completed` | 2026-11-15 | 未知型別讓整個訂閱被拒(保留備查) |
+| `herdr-0.9.5/agent.wait.matched.ndjson` | `agent.wait {target, until:[idle,done], timeout_ms:300}`,對一個已閒置的 agent(唯讀：只等待，不送任何輸入) | 2026-11-16 | 等待符合(`agent_info`);也當 `agent.prompt` 成功回應的底(見下) |
+| `herdr-0.9.5/error.agent-wait-timeout.ndjson` | `agent.wait {target, until:[working,blocked], timeout_ms:300}`(唯讀) | 2026-11-16 | herdr 自己的 `timeout`(停滯);也當其他 `agent.prompt` 錯誤的底 |
 | `herdr-0.9.5/workspace.get.ndjson` | `workspace.get {"workspace_id":"w1"}`(唯讀;label 換成假值) | 2026-11-16 | `workspace_info` 形狀，當作 `workspace.rename` 成功回應的底 |
 | `herdr-0.9.5/error.workspace-not-found.ndjson` | `workspace.get {"workspace_id":"w99"}` | 2026-11-16 | `workspace_not_found`;也當作其他 workspace 錯誤的 envelope 底 |
 | `herdr-0.9.5/error.not-git-worktree.ndjson` | `worktree.list {"cwd":"/tmp"}`(唯讀) | 2026-11-16 | 建 worktree 時資料夾不在 git repo(`not_git_worktree`) |
 | `herdr-0.9.5/pane.report-metadata.ndjson` | `pane.report_metadata`(`phone:on`、`model`、`ttl_ms` 45000、`seq`) | 2026-11-16 | 在場回報被接受(`{"type":"ok"}`) |
+| `herdr-0.9.5/pane.read.agents-pane.ndjson` | `pane.read {"pane_id":…,"source":"visible","lines":40}`(一個有 5 個背景 agent 在跑的 Claude Code pane) | 2026-11-16 | 背景 agents 窗格的解析與讀取時機(#17)。窗格的記號、種類、經過時間、tokens、`↓ 4 more` 與欄寬原樣;回覆內容、輸入框、狀態列(專案、分支、費用)與每列的任務文字換成假值 |
 
 ## Claude Code 對話紀錄(`claude-code/`)
 
@@ -37,6 +40,17 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - **換成假值**:所有文字內容、工具輸入與結果、路徑(`/Users/demo/Projects/ledger`)、session id、uuid(`00000000-0000-4000-8000-…`)、簽章;拿掉 `wireToolInputs`、`requestRef` 等可能帶原文的欄位。一個 Bash 呼叫改名為 Edit(輸入一起換)。
 - 存檔後以 `grep` 確認沒有真實的使用者名稱、專案名稱或主機名。
 
+`claude-code/delegation.jsonl` 與 `claude-code/subagents/`(#17):從作者 Mac 上兩份真實對話紀錄(Claude Code 2.1.317 與 2.1.325)與其 session 資料夾的 `subagents/` 擷取，2026-11-16。只讀取來源，不改動。
+
+- `delegation.jsonl` 8 行：背景 `Agent` 呼叫、它的「Async agent launched」結果、harness 寫的任務通知、前景 `Agent` 呼叫與 hand-back 結果(含 `<usage>`)、`SendMessage` 呼叫與 `resumedAgentId` 結果、`queued_command` 的任務通知(只有 task-id)。
+- `subagents/`:背景與前景 agent 的 `agent-<id>.meta.json`,以及背景 agent 對話紀錄的前 6 行(sidechain 的 user／assistant／tool_result,加一個 attachment)。
+- **保留原樣**:行的結構、旗標(`origin.kind`、`promptSource`、`isSidechain`…)、harness 固定說明句、`<task-notification>` 的標籤與 `<usage>` 數字、hand-back 框的格式與兩格縮排、meta 的欄位、model、usage、時間戳。
+- **換成假值**:所有文字內容(description、prompt、報告、結果、summary)、工具輸入與結果、路徑(`/Users/demo/Projects/ledger`、`/private/tmp/demo/tasks/…`)、session id、uuid(`00000000-0000-4000-9000-…`)、tool use id(`toolu_demo_d0N`)、agent id(`ad3e…`);拿掉 `wireToolInputs`、`requestRef`、`pin`、`outputFile`、`<worktree>` 等可能帶原文的欄位。
+- **兩份來源合在一起**:第 5–7 行(`SendMessage`、續跑結果、排隊中的通知)取自另一份對話紀錄，收件的 agent id 換成第 0–2 行背景 agent 的 id,好組成「完成 → 續跑 → 再回報」的序列;因此第 7 行的時間戳早於第 5、6 行(判斷依檔案順序，不看時間戳)。
+- 擷取腳本的做法：以 Python 讀 JSON、依欄位名換值，再 `grep` 確認沒有真實的使用者名稱、專案名稱、主機名或原始 id。
+
+`claude-code/workflow/`(#17):**不是錄製的**。作者 Mac 上所有 `~/.claude/projects` 都沒有 `Workflow` 工具的紀錄、run 檔或 journal,所以 `run.json` 與 `journal.jsonl` 依行為規格 §4.6 描述的欄位寫成(journal 最後一行刻意撕裂)。測試裡 `Workflow` 呼叫與「Workflow launched」結果也是以 `delegation.jsonl` 的行為底改成。之後錄得到真實 workflow 時應換掉。
+
 ## 錄不到、以真實回應為底改動的情境
 
 測試以 `FakeReply.recorded(_:modify:)`／`Fixtures.modifiedLine` 改動真實回應，改了什麼寫在測試裡:
@@ -44,6 +58,7 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - **`input_pending`**:herdr 0.9.5 的 schema(`herdr api schema --json`)與執行檔都沒有這個欄位，主機永遠不會送;行為規格 F2.2 要求出現時要讀，測試在錄製的 snapshot 上加上它。
 - **`events_lost`**:要讓伺服器的事件歷史溢出才會發生。錯誤碼與訊息取自 herdr 0.9.5 執行檔的字串,envelope 形狀沿用 `error.pane-not-found.ndjson`。
 - **事件行**(`{"event":"pane_agent_status_changed","data":{…}}`):錄製期間(兩次共約 45 分鐘)主機上沒有狀態改變，依 schema 的 EventEnvelope 寫在測試裡。事件只當重讀的觸發，內容不影響結果。
+- **`agent.prompt`／`pane.send_keys`**:錄製會把文字或按鍵送進真的 agent,**一律不錄**。`PromptReplies` 以上面兩份唯讀的 `agent.wait` 錄製為底改動：成功換成 `agent_prompted`(`herdr api schema --json`),錯誤碼換成 `agent_prompt_stalled`(訊息取自執行檔字串)、`agent_blocked`、`agent_input_pending`;`delivery: "written_to_pty"` 只有 fork 會送，用來測「無法驗證」的 fallback Enter。按鍵成功的 `{"type":"ok"}` 沿用 `pane.report-metadata.ndjson`。
 - 其他狀態組合(blocked、改名、移除 pane、workspace 順序)用 `SnapshotEdit` 改錄製的 snapshot。
 - **會改主機狀態的 workspace 操作**(`workspace.rename`、`workspace.close`、`worktree.create`)**不在作者主機上執行**。成功回應：rename 以 `workspace.get.ndjson` 為底改 label;close 的 `{"type":"ok"}` 與 worktree 的 `worktree_created` 依 `herdr api schema --json` 寫在測試裡。`workspace_group_close_required` 碼取自 herdr CLI 文件(cli-reference「Worktrees」),envelope 沿用 `error.workspace-not-found.ndjson`。
 - **切分、zoomed、只出現在版面的 tab／pane**:錄製時主機上每個 tab 都只有一個 pane,以 `layouts[]` 改動模擬(見 `SpacesLayoutTests`)。
@@ -60,3 +75,18 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `other-agents/pi/session.jsonl` | 行為規格 §4.5;Pi 官方文件 `packages/coding-agent/docs/session-format.md`、`message-types.md`(github.com/badlogic/pi-mono,2026-11-16 取用) | session header、`model_change`、`thinking_level_change`、system 訊息(忽略)、user(字串與 block、圖片)、assistant(thinking、redacted、`redactedThinking`、toolCall、usage、stopReason)、toolResult(含錯誤)、`compaction`、`branch_summary`、`reset_boundary`、中斷的輪次(usage 為 0) |
 
 `message.timestamp`(毫秒)刻意和 entry 的 ISO 時間不同，測試才分得出取的是哪一個。OMP 的標題槽(`{"type":"title",…}`)寫在測試裡。
+
+## Claude Code plugin／skill 結構(`claude-plugins/home/`)與 `skill_listing`(`claude-code/skill-listing.jsonl`)
+
+`scripts/record-claude-plugins-fixture.py` 從作者 Mac 的 `~/.claude` **唯讀**錄製(2026-11-16),給 slash 清單的發現測試(#15)。
+
+- **保留原樣**:`installed_plugins.json` 的結構與各筆安裝(版本、scope、多筆安裝);每個已安裝 plugin 的 `.claude-plugin/plugin.json`;
+  所有 `SKILL.md` 與指令 `.md` 的路徑與 frontmatter(公開 plugin 的內容)。`mattpocock-skills` 1.3.2 有 38 個 SKILL.md,
+  `plugin.json` 以 `skills/<分類>/<名稱>` 宣告其中 27 個,`skills/in-progress`、`skills/misc` 的 11 個沒有宣告。
+- **換成假值或刪掉**:家目錄換成 `/Users/demo`;專案層安裝的 `projectPath` 換成 `/Users/demo/Projects/other-project-1`;
+  `settings.json` 只留 `enabledPlugins`;`.md` 的內文換成「(內容略)」;作者自己寫的使用者層 skill(`apim-*`、
+  `skill-creator-advanced` 等)不錄，`skill_listing` 中也一併拿掉(名稱、說明、digest);attachment 行的 uuid、session id、cwd、分支換成假值。
+- **測試裡的改動**(錄不到的情境):停用 plugin(作者 Mac 上全部啟用)——測試把 `frontend-design` 在使用者層設成 `false`、
+  `webwright` 在專案層 `settings.local.json` 設成 `false`;專案層 skills／commands(作者 Mac 沒有)寫在測試裡;
+  `skill_listing` 的增量行(`isInitial: false`)以錄製行為底改動。
+- 存檔後以 `grep` 確認沒有真實的使用者名稱、主機名或專案名。

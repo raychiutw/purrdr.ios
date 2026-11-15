@@ -37,6 +37,8 @@ public final class HostsModel {
     public private(set) var agentList: AgentListModel
     /// 選取中主機的 Workspace 操作(釘選、靜音、重新命名、關閉)。
     public private(set) var workspaceActions: WorkspaceActionsModel
+    /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
+    public private(set) var claudeUsage: ClaudeUsageModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
 
@@ -48,6 +50,14 @@ public final class HostsModel {
     private let preferences: any ChatPreferencesStore
     /// 已建立的主機通道(以主機 id)。
     private var channels: [UUID: any HostChannel] = [:]
+    /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
+    private let demoConsent: any HostWriteConsentStore
+    /// 真主機的主機寫入同意(以主機 id 為鍵);移除主機時清除。
+    private let hostConsent: any HostWriteConsentStore
+    /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。所有主機共用，以 pane id 為鍵(同 `preferences`)。
+    private let drafts = DraftStore()
+    /// 選取中主機的通道。
+    private var channel: any HostChannel
     private var client: HerdrClient
     private var transcripts: TranscriptReader
     private var terminals: PaneTerminalClient
@@ -60,6 +70,8 @@ public final class HostsModel {
         store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
         preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(),
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
+        demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
+        hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
     ) {
         self.store = store
@@ -68,6 +80,9 @@ public final class HostsModel {
         self.makeChannel = makeChannel
         self.conversationCache = conversationCache
         self.preferences = preferences
+        self.demoConsent = demoConsent
+        self.hostConsent = hostConsent
+        channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)
         self.client = client
@@ -76,7 +91,11 @@ public final class HostsModel {
         let agentList = AgentListModel(client: client, transcripts: transcripts)
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
+        claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
     }
+
+    /// Demo 主機在同意紀錄裡的主機 id。
+    static let demoID = "demo"
 
     /// 選取中主機上某個 Pane 的終端機 model(pane id、標題)。
     public func terminal(paneID: String, title: String) -> PaneTerminalModel {
@@ -86,7 +105,8 @@ public final class HostsModel {
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
         ConversationModel(
-            client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache(for: selection))
+            client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache(for: selection),
+            drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel))
     }
 
     /// 某台主機的對話快取(key 加上主機身分)。
@@ -122,23 +142,25 @@ public final class HostsModel {
 
     /// 選取主機並存起來：Agent 列表改讀那台(換主機時整個列表重建)。其他主機的連線不關閉。
     public func select(_ selection: HostSelection) {
-        let channel: any HostChannel
-        let herdr: HerdrInstallation
+        let host: HostConfiguration?
         switch selection {
-        case .demo:
-            channel = demoChannel
-            herdr = HerdrInstallation()
+        case .demo: host = nil
         case .host(let id):
-            guard let host = hosts.first(where: { $0.id == id }) else { return }
-            channel = self.channel(for: host)
-            herdr = host.herdr
+            guard let found = hosts.first(where: { $0.id == id }) else { return }
+            host = found
         }
+        let channel = host.map(self.channel(for:)) ?? demoChannel
+        let herdr = host?.herdr ?? HerdrInstallation()
+        self.channel = channel
         client = HerdrClient(channel: channel, herdr: herdr)
         terminals = PaneTerminalClient(channel: channel, herdr: herdr)
         transcripts = TranscriptReader(channel: channel)
         let agentList = AgentListModel(client: client, transcripts: transcripts)
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
+        claudeUsage = ClaudeUsageModel(
+            host: ClaudeUsageHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
+            consent: host == nil ? demoConsent : hostConsent)
         self.selection = selection
         selectionStore.save(selection)
     }
@@ -160,10 +182,12 @@ public final class HostsModel {
         hosts = (try? sortedHosts()) ?? hosts
     }
 
-    /// 刪除主機(使用者刻意的動作，不另外確認):刪掉此裝置上的設定與 host key pin、關閉連線、清掉對話快取。
-    /// 主機本身不受影響。刪的是選取中主機時，改選第一台剩下的主機(沒有就選 Demo 主機)並存起來。
+    /// 刪除主機(使用者刻意的動作，不另外確認):刪掉此裝置上的設定與 host key pin、清除這台主機的所有主機寫入同意
+    /// (行為規格 F18)、關閉連線、清掉對話快取。主機本身不受影響。
+    /// 刪的是選取中主機時，改選第一台剩下的主機(沒有就選 Demo 主機)並存起來。
     public func delete(_ id: UUID) async throws {
         try store.delete(id)
+        hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
         let channel = channels.removeValue(forKey: id)
         if selection == .host(id) { select(validSelection(nil)) }

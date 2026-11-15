@@ -1,0 +1,6 @@
+---
+name: cloudflare-one-migrations
+description: Assess and plan migrations from existing VPN, SWG, or SASE platforms to Cloudflare One, including policy mapping, parity gaps, and rollout.
+---
+
+(內容略)

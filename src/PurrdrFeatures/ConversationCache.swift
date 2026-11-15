@@ -35,7 +35,8 @@ public struct HostScopedConversationCache: ConversationCache {
 /// 一個聊天的快取內容。
 public struct CachedConversation: Sendable, Equatable, Codable {
     /// 解析器版本：解析規則改了就遞增，讓舊快取失效(否則舊的解析結果永遠不更新)。
-    public static let parserVersion = 1
+    /// 2:加入 subagent／workflow 卡、任務通知與 hand-back(#17;否則快取中的背景 agent 卡永遠「執行中」)。
+    public static let parserVersion = 2
     /// 每個聊天最多保留的訊息數。
     public static let maxMessages = 500
 

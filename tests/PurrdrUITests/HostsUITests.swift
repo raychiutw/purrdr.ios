@@ -96,7 +96,8 @@ final class HostsUITests: XCTestCase {
         // - alert 內 TextField 不會帶上 SwiftUI 的 `accessibilityIdentifier("hosts.rename.name")`
         //   → 改用 `app.alerts["Rename Host"].textFields.firstMatch`,已找得到並輸入。
         // - `hosts.rename.confirm` 在 tree 裡有兩個相同 identifier 的 Button(巢狀)→ 改用 `firstMatch`,已點得到。
-        throw XCTSkip("重新命名後 row 名稱未更新，原因待查(見上方註解);行為由 HostManagementTests 證明")
+        // 用 XCTSkipIf 而非 `throw XCTSkip`:後者讓下面的程式碼變成 unreachable warning(app 專案 warning 當 error)。
+        try XCTSkipIf(true, "重新命名後 row 名稱未更新，原因待查(見上方註解);行為由 HostManagementTests 證明")
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openHosts(app)
         let row = app.buttons[Self.seededRow]

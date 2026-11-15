@@ -93,4 +93,51 @@ struct HostsModelTests {
         #expect(model.agentList.phase == .failed(
             "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."))
     }
+
+    @Test("Claude 用量跟著選取中主機：Demo 用 Demo 的同意紀錄，真主機以主機 id 用另一份同意紀錄")
+    func claudeUsageFollowsSelectedHost() {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let demoConsent = InMemoryHostWriteConsentStore()
+        let hostConsent = InMemoryHostWriteConsentStore()
+        hostConsent.grant(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), demoConsent: demoConsent, hostConsent: hostConsent,
+                               makeChannel: ChannelFactory(FakeHost()).make)
+
+        model.load()
+        #expect(model.claudeUsage.state == .on)
+
+        model.select(.demo)
+        #expect(model.claudeUsage.state == .off)
+        demoConsent.grant(ClaudeUsageHost.feature.id, host: "demo")
+        model.select(.demo)
+        #expect(model.claudeUsage.state == .on)
+    }
+
+    @Test("移除主機：從儲存刪除、清除該主機的所有主機寫入同意，選取改回其他主機或 Demo")
+    func removingHostRevokesConsent() async throws {
+        let store = MemoryHostStore()
+        var other = Self.studio
+        other.id = UUID()
+        other.name = "Zeta"
+        store.hosts = [Self.studio, other]
+        let hostConsent = InMemoryHostWriteConsentStore()
+        hostConsent.grant(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString)
+        hostConsent.grant("theme", host: Self.studio.id.uuidString)
+        hostConsent.grant(ClaudeUsageHost.feature.id, host: other.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+
+        try await model.delete(Self.studio.id)
+
+        #expect(store.hosts.map(\.id) == [other.id])
+        #expect(model.rows.map(\.id) == [other.id])
+        #expect(model.selection == .host(other.id))
+        #expect(!hostConsent.isGranted(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString))
+        #expect(!hostConsent.isGranted("theme", host: Self.studio.id.uuidString))
+        #expect(hostConsent.isGranted(ClaudeUsageHost.feature.id, host: other.id.uuidString))
+
+        try await model.delete(other.id)
+        #expect(model.selection == .demo)
+    }
 }

@@ -19,7 +19,7 @@ public struct TopNavigationView: View {
         @Bindable var navigation = navigation
         NavigationStack {
             // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
-            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions) { paneID, sessionID in
+            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions, usage: hosts.claudeUsage) { paneID, sessionID in
                 hosts.conversation(paneID: paneID, sessionID: sessionID)
             } terminal: { paneID, title in
                 hosts.terminal(paneID: paneID, title: title)
@@ -97,8 +97,14 @@ struct TopLevelSheetView: View {
         }
     }
 
+    @ViewBuilder
     private var placeholder: some View {
-        ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
+        switch sheet {
+        case .settings:
+            SettingsForm()
+        case .hosts, .newChat, .member:
+            ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
+        }
     }
 }
 
@@ -118,6 +124,24 @@ extension TopLevelSheet {
         case .hosts: "desktopcomputer"
         case .newChat: "plus.bubble"
         case .member: "person.crop.circle"
+        }
+    }
+}
+
+/// 設定(目前只有硬體鍵盤;完整設定頁在 #32)。
+struct SettingsForm: View {
+    @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Return Key Sends", isOn: $returnSends)
+                    .accessibilityIdentifier("settings.returnSends")
+            } header: {
+                Text("Hardware Keyboard")
+            } footer: {
+                Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+            }
         }
     }
 }

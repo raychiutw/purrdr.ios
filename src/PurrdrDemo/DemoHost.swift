@@ -7,8 +7,9 @@ import PurrdrCore
 /// 沒有主機時它就是選取中主機——App Review 唯一連得到的東西——也是 UI 測試的資料來源。
 /// 範例內容一律自己寫，不沿用 herdrchat 的文字(行為規格 D9)。
 ///
-/// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、兩個 Claude Code agent 的對話紀錄(`DemoTranscripts`)、
-/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell。
+/// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、兩個 Claude Code agent 的對話紀錄(`DemoTranscripts`;
+/// 送出 prompt 後接上使用者那一行與固定回覆，「需要你」的 agent 回 `agent_blocked`)、接受按鍵(中斷)、
+/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell、記憶體裡的家目錄(主機檔案讀寫;Claude 用量裝上後回範例用量)。
 /// 完整的情境在 Demo 模式那張票補齊。
 public actor DemoHost: HostChannel {
     /// Demo 主機的情境(UI 測試以啟動旗標切換)。
@@ -23,8 +24,15 @@ public actor DemoHost: HostChannel {
 
     private let scenario: Scenario
 
+    /// 送出 prompt 後各 session 接上的對話紀錄行(只在記憶體)。
+    private var appended: [String: [String]] = [:]
+    private var prompts = 0
+
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
+
+    /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
+    private var files = DemoFiles()
 
     public init(scenario: Scenario = .standard) {
         self.scenario = scenario
@@ -40,8 +48,15 @@ public actor DemoHost: HostChannel {
         if let control = DemoPaneControl(command: command) {
             return openPane(control)
         }
-        if let stdout = DemoTranscripts.respond(to: command) {
+        if let stdout = DemoSlash.respond(to: command) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
+            return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        if let request = HostFileRequest(command: command) {
+            let result = files.handle(request, now: Date())
+            return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
@@ -52,6 +67,30 @@ public actor DemoHost: HostChannel {
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
         DemoEchoShell()
+    }
+
+    /// `agent.prompt` 的回應：閒置的 Claude Code agent 收下後，對話紀錄接上新的行;不是 `agent.prompt` 回 `nil`。
+    private func promptResponse(to requestLine: Data) -> (line: Data, keepsOpen: Bool)? {
+        let request = (try? JSONSerialization.jsonObject(with: requestLine)) as? [String: Any]
+        guard request?["method"] as? String == "agent.prompt" else { return nil }
+        guard let params = request?["params"] as? [String: Any],
+              let target = params["target"] as? String, let text = params["text"] as? String else {
+            return DemoSnapshot.error(id: request?["id"] as? String ?? "", code: "invalid_request", message: "invalid params")
+        }
+        let id = request?["id"] as? String ?? ""
+        switch target {
+        case "w2:p1":
+            // 「需要你」的 agent:herdr 在送出任何輸入前就拒絕。
+            return DemoSnapshot.error(id: id, code: "agent_blocked", message: "agent is blocked waiting for input; answer it first")
+        case "w1:p1", "w3:p1":
+            if let session = DemoTranscripts.sessions.first(where: { $0.paneID == target }) {
+                prompts += 1
+                appended[session.sessionID, default: []] += DemoTranscripts.reply(to: text, number: prompts, at: Date())
+            }
+            return DemoSnapshot.prompted(id: id, paneID: target)
+        default:
+            return DemoSnapshot.error(id: id, code: "agent_not_found", message: "agent not found: \(target)")
+        }
     }
 
     /// 「桌機正在操作」的情境下，Pane 被別人佔著，直到有人接管。
@@ -76,7 +115,7 @@ public actor DemoHost: HostChannel {
     }
 
     private func respond(to requestLine: Data) -> (line: Data, keepsOpen: Bool) {
-        DemoSnapshot.response(to: requestLine, state: &state)
+        promptResponse(to: requestLine) ?? DemoSnapshot.response(to: requestLine, state: &state)
     }
 }
 
@@ -315,7 +354,7 @@ enum DemoSnapshot {
             return (result(id: id, ["type": "workspace_info", "workspace": workspace ?? [:]]), false)
         case "workspace.create", "worktree.create", "tab.create", "pane.split":
             return (line(#"{"id":\#(quoted(id)),"error":{"code":"demo_unsupported","message":\#(quoted(DemoHost.unsupportedMessage))}}"#), false)
-        case "pane.report_metadata":
+        case "pane.report_metadata", "pane.send_keys":
             return (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
         case "events.subscribe":
             // Demo 的內容不會變，所以只接受訂閱、不送事件。
@@ -325,6 +364,15 @@ enum DemoSnapshot {
         case nil:
             return (line(#"{"id":"","error":{"code":"invalid_request","message":"invalid request"}}"#), false)
         }
+    }
+
+    static func error(id: String, code: String, message: String) -> (line: Data, keepsOpen: Bool) {
+        (line(#"{"id":\#(quoted(id)),"error":{"code":\#(quoted(code)),"message":\#(quoted(message))}}"#), false)
+    }
+
+    /// `agent.prompt` 成功(`agent_prompted`,形狀依 `herdr api schema --json`,只放 client 會看的欄位)。
+    static func prompted(id: String, paneID: String) -> (line: Data, keepsOpen: Bool) {
+        (line(#"{"id":\#(quoted(id)),"result":{"type":"agent_prompted","agent":{"pane_id":\#(quoted(paneID)),"agent_status":"working"}}}"#), false)
     }
 
     private static let workspaceIDs: Set<String> = ["w1", "w2", "w3"]
