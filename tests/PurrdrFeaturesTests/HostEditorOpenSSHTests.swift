@@ -268,4 +268,38 @@ struct OpenSSHHostConnectionTests {
         try secrets.setSecret(.password("hunter2"), for: host.id)
         #expect(try await describe(factory.credentials.first) == "password:hunter2")
     }
+
+    @Test("移除主機：先刪這台主機的祕密，再刪主機設定(行為規格 §8.1)")
+    func removingHostDeletesSecret() throws {
+        let secrets = MemorySecretStore()
+        let host = HostEditorOpenSSHTests.existing
+        try secrets.setSecret(.password("hunter2"), for: host.id)
+        let store = MemoryHostStore()
+        store.hosts = [host]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(), credentials: HostCredentials(secrets: secrets, deviceKey: EphemeralDeviceKey()),
+            makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+
+        try model.remove(host.id)
+
+        #expect(secrets.stored(host.id) == nil, "移除主機後祕密還留在 Keychain")
+        #expect(store.hosts.isEmpty)
+    }
+
+    @Test("祕密刪不掉時不刪主機(避免留下找不到主人的祕密)")
+    func secretDeleteFailureKeepsHost() throws {
+        let secrets = MemorySecretStore()
+        secrets.failWrites()
+        let host = HostEditorOpenSSHTests.existing
+        let store = MemoryHostStore()
+        store.hosts = [host]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(), credentials: HostCredentials(secrets: secrets, deviceKey: EphemeralDeviceKey()),
+            makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+
+        #expect(throws: SaveFailed.self) { try model.remove(host.id) }
+        #expect(store.hosts == [host])
+    }
 }

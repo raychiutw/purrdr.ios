@@ -1,0 +1,7 @@
+{"type":"launched","runId":"wf_demo01"}
+{"type":"started","agentId":"aw0000000000000001","label":"links","phase":"Check"}
+{"type":"started","agentId":"aw0000000000000002","label":"images","phase":"Check"}
+{"type":"result","agentId":"aw0000000000000001","result":"All 12 links work."}
+{"type":"started","agentId":"aw0000000000000003","label":"wording","phase":"Review"}
+{"type":"result","agentId":"aw0000000000000002","error":"Image folder not found"}
+{"type":"started","agentId":"aw00000000000

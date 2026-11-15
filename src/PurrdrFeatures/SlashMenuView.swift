@@ -1,0 +1,119 @@
+import PurrdrCore
+import SwiftUI
+
+/// 輸入列上方的 slash 選單(#15;HIG 20.6、DESIGN.md「輸入列」)。
+///
+/// - 依來源分組(內建、專案、使用者、各 plugin、其他),每列以指令名開頭，參數提示淡色等寬，說明在第二行。
+/// - 高度最多 260pt,內捲;點選不收鍵盤。硬體鍵盤上下選擇時高亮列捲進畫面。
+/// - 清單不完整(主機上的發現逾時)時，底部照實標示。
+/// - 內容層：不用玻璃，用 bar 背景(和送出提示一樣)。
+struct SlashMenuView: View {
+    let menu: SlashMenuModel
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if menu.isLoading {
+                        Label("Loading Commands…", systemImage: "ellipsis")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .padding(.horizontal, 12)
+                    } else if menu.sections.isEmpty {
+                        Text("No Matching Commands")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .padding(.horizontal, 12)
+                    }
+                    ForEach(menu.sections) { section in
+                        Section {
+                            ForEach(section.commands, id: \.name) { command in
+                                row(command)
+                                    .id(command.name)
+                            }
+                        } header: {
+                            Text(section.source.title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(.bar)
+                                .accessibilityAddTraits(.isHeader)
+                        }
+                    }
+                    if menu.isIncomplete {
+                        Label("This list may be incomplete. The host took too long to list every command.", systemImage: "exclamationmark.circle")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(12)
+                            .accessibilityIdentifier("slash.incomplete")
+                    }
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .onChange(of: menu.highlighted) { _, name in
+                guard let name else { return }
+                proxy.scrollTo(name)
+            }
+        }
+        .frame(maxHeight: 260)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(.bar, in: RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Commands"))
+        .accessibilityIdentifier("slash.menu")
+    }
+
+    private func row(_ command: SlashCommand) -> some View {
+        Button {
+            menu.pick(command)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(verbatim: "/\(command.name)")
+                        .font(.body.monospaced())
+                        .foregroundStyle(.primary)
+                    if let hint = command.argumentHint {
+                        Text(verbatim: hint)
+                            .font(.footnote.monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                if !command.summary.isEmpty {
+                    Text(verbatim: command.summary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .background(menu.highlighted == command.name ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(verbatim: "/\(command.name)"))
+        .accessibilityValue(Text(verbatim: [command.argumentHint, command.summary].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")))
+        .accessibilityAddTraits(menu.highlighted == command.name ? .isSelected : [])
+        .accessibilityIdentifier("slash.row.\(command.name)")
+    }
+}
+
+extension SlashSource {
+    /// 分組標題。plugin 用它自己的名稱。
+    var title: String {
+        switch self {
+        case .builtIn: String(localized: "Built-in")
+        case .project: String(localized: "Project")
+        case .user: String(localized: "User")
+        case .plugin(let name): name
+        case .session: String(localized: "Other Skills")
+        }
+    }
+}

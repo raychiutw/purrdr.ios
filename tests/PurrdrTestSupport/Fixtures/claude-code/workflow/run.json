@@ -1,0 +1,21 @@
+{
+  "runId": "wf_demo01",
+  "workflowName": "release-review",
+  "summary": "Checked the release notes, then reviewed their wording.",
+  "status": "completed",
+  "phases": [
+    {"title": "Check", "detail": "Open every link in the release notes"},
+    {"title": "Review", "detail": "Read the notes for tone and typos"}
+  ],
+  "logs": ["Started 3 agents", "All agents finished"],
+  "durationMs": 125000,
+  "agentCount": 3,
+  "totalTokens": 48200,
+  "workflowProgress": [
+    {"type": "workflow_phase", "index": 0, "title": "Check"},
+    {"type": "workflow_agent", "index": 0, "label": "links", "phaseIndex": 0, "phaseTitle": "Check", "agentId": "aw0000000000000001", "model": "claude-sonnet-5-5", "state": "done", "startedAt": "2026-11-16T09:10:00.000Z", "durationMs": 40000, "tokens": 15100, "toolCalls": 9, "lastToolName": "WebFetch", "lastToolSummary": "docs/release.md", "resultPreview": "All 12 links work."},
+    {"type": "workflow_agent", "index": 1, "label": "images", "phaseIndex": 0, "phaseTitle": "Check", "agentId": "aw0000000000000002", "model": "claude-sonnet-5-5", "state": "error", "durationMs": 12000, "tokens": 3100, "toolCalls": 2, "error": "Image folder not found"},
+    {"type": "workflow_phase", "index": 1, "title": "Review"},
+    {"type": "workflow_agent", "index": 2, "label": "wording", "phaseIndex": 1, "phaseTitle": "Review", "agentId": "aw0000000000000003", "model": "claude-opus-5-5", "state": "completed", "durationMs": 61000, "tokens": 30000, "toolCalls": 4, "resultPreview": "Two sentences reworded."}
+  ]
+}

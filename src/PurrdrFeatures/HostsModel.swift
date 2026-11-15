@@ -34,6 +34,8 @@ public final class HostsModel {
     public private(set) var agentList: AgentListModel
     /// 選取中主機的 Workspace 操作(釘選、靜音、重新命名、關閉)。
     public private(set) var workspaceActions: WorkspaceActionsModel
+    /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
+    public private(set) var claudeUsage: ClaudeUsageModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
 
@@ -43,6 +45,12 @@ public final class HostsModel {
     private let credentials: HostCredentials
     private let conversationCache: any ConversationCache
     private let preferences: any ChatPreferencesStore
+    /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
+    private let demoConsent: any HostWriteConsentStore
+    /// 真主機的主機寫入同意(以主機 id 為鍵);移除主機時清除。
+    private let hostConsent: any HostWriteConsentStore
+    /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。所有主機共用，以 pane id 為鍵(同 `preferences`)。
+    private let drafts = DraftStore()
     private var channel: any HostChannel
     private var client: HerdrClient
     private var transcripts: TranscriptReader
@@ -55,7 +63,9 @@ public final class HostsModel {
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
         store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
-        preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(), credentials: HostCredentials = HostCredentials(),
+        preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(),
+        demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
+        hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
@@ -64,6 +74,8 @@ public final class HostsModel {
         self.credentials = credentials
         self.conversationCache = conversationCache
         self.preferences = preferences
+        self.demoConsent = demoConsent
+        self.hostConsent = hostConsent
         channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)
@@ -73,7 +85,11 @@ public final class HostsModel {
         let agentList = AgentListModel(client: client, transcripts: transcripts)
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
+        claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
     }
+
+    /// Demo 主機在同意紀錄裡的主機 id。
+    static let demoID = "demo"
 
     /// 選取中主機上某個 Pane 的終端機 model(pane id、標題)。
     public func terminal(paneID: String, title: String) -> PaneTerminalModel {
@@ -82,7 +98,8 @@ public final class HostsModel {
 
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
-        ConversationModel(client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache)
+        ConversationModel(client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache,
+            drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel))
     }
 
     public var rows: [HostRow] {
@@ -134,6 +151,9 @@ public final class HostsModel {
         let agentList = AgentListModel(client: client, transcripts: transcripts)
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
+        claudeUsage = ClaudeUsageModel(
+            host: ClaudeUsageHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
+            consent: host == nil ? demoConsent : hostConsent)
         self.selection = selection
         Task { await previous.disconnect() }
     }
@@ -142,6 +162,18 @@ public final class HostsModel {
     public func didSave(_ host: HostConfiguration) {
         hosts = (try? store.loadHosts())?.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } ?? hosts
         select(.host(host.id))
+    }
+
+    /// 移除主機：先刪這台主機的祕密(刪不掉就整個停下，避免留下孤兒祕密，行為規格 §8.1),再從儲存刪除、
+    /// 清除這台主機的所有主機寫入同意(行為規格 F18),選取中就改選其他主機或 Demo。
+    public func remove(_ id: UUID) throws {
+        try credentials.secrets.setSecret(nil, for: id)
+        try store.delete(id)
+        hostConsent.revokeAll(host: id.uuidString)
+        hosts.removeAll { $0.id == id }
+        if selection == .host(id) {
+            select(hosts.first.map { .host($0.id) } ?? .demo)
+        }
     }
 
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。
