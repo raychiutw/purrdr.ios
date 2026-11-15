@@ -20,6 +20,32 @@
     {
       "layers": [
         {
+          "glass": false,
+          "image-name": "2-typing.svg",
+          "name": "2-typing",
+          "fill-specializations": [
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:0.20000,0.20000,0.20000,1.00000"
+              }
+            }
+          ]
+        }
+      ],
+      "name": "Typing",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    },
+    {
+      "layers": [
+        {
           "fill-specializations": [
             {
               "appearance": "dark",
@@ -35,11 +61,11 @@
             }
           ],
           "glass": true,
-          "image-name": "3-leader.svg",
-          "name": "3-leader"
+          "image-name": "1-paw.svg",
+          "name": "1-paw"
         }
       ],
-      "name": "Leader",
+      "name": "Paw",
       "shadow": {
         "kind": "neutral",
         "opacity": 0.5
@@ -47,64 +73,6 @@
       "translucency": {
         "enabled": false,
         "value": 0.2
-      }
-    },
-    {
-      "layers": [
-        {
-          "fill-specializations": [
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "srgb:0.91373,0.88235,0.86275,1.00000"
-              }
-            },
-            {
-              "appearance": "tinted",
-              "value": {
-                "solid": "srgb:0.55000,0.55000,0.55000,1.00000"
-              }
-            }
-          ],
-          "glass": true,
-          "image-name": "2-flock.svg",
-          "name": "2-flock"
-        }
-      ],
-      "name": "Flock",
-      "shadow": {
-        "kind": "neutral",
-        "opacity": 0.5
-      },
-      "translucency": {
-        "enabled": true,
-        "value": 0.25
-      }
-    },
-    {
-      "layers": [
-        {
-          "fill-specializations": [
-            {
-              "appearance": "dark",
-              "value": {
-                "solid": "srgb:0.41569,0.22745,0.25882,1.00000"
-              }
-            }
-          ],
-          "glass": false,
-          "image-name": "1-trail.svg",
-          "name": "1-trail"
-        }
-      ],
-      "name": "Trail",
-      "shadow": {
-        "kind": "none",
-        "opacity": 0.5
-      },
-      "translucency": {
-        "enabled": false,
-        "value": 0.5
       }
     }
   ],
