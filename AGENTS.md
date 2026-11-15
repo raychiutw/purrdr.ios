@@ -13,7 +13,7 @@ Purrdr:在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理的 co
 
 - 走 Matt Pocock skill 工作流:`/grill-with-docs` → `/to-spec` → `/to-tickets` → `/implement`。
 - TDD:production code 變更先寫失敗測試，並真的跑出紅燈、留下輸出。
-- 不直接 commit 到 `main`:開 feature branch,push 後開 PR,合併用 **merge commit**,不用 squash。
+- 不直接 commit 到 `master`:開 feature branch,push 後開 PR,合併用 **merge commit**,不用 squash。
 - 文件、註解、commit message 用繁體中文(台灣用語),技術名詞保留英文。
 
 ## Agent skills
