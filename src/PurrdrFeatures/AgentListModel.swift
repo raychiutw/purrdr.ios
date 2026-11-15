@@ -23,6 +23,8 @@ public final class AgentListModel {
     private let client: HerdrClient
     private let transcripts: TranscriptReader?
     private let sleep: @Sendable (Duration) async throws -> Void
+    /// 使用者取消了 Tailscale 重新驗證：即時更新停下來等「再試一次」(`load()`)。
+    private var retryWaiter: CheckedContinuation<Void, Never>?
 
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
     public init(
@@ -47,8 +49,17 @@ public final class AgentListModel {
     /// 主機上有沒有任何 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { snapshot?.agents.isEmpty == false }
 
-    /// 讀一次主機的 snapshot。
+    /// 即時更新停著，等使用者按「再試一次」(取消了 Tailscale 重新驗證)。
+    public var isWaitingForRetry: Bool { retryWaiter != nil }
+
+    /// 讀一次主機的 snapshot。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
     public func load() async {
+        if let retryWaiter {
+            self.retryWaiter = nil
+            phase = .loading
+            retryWaiter.resume()
+            return
+        }
         do {
             try await refresh()
         } catch {
@@ -64,6 +75,7 @@ public final class AgentListModel {
     /// - `events_lost`:快取已過期，立刻重新訂閱並重讀。
     /// - 重讀後 Agent pane 的集合變了：訂閱不能修改，關掉舊的、用新集合重新訂閱。
     /// - 其他失敗(含訂閱在 ack 前就結束):退避 1 秒起倍增、上限 30 秒;收到 ack 即歸零。
+    /// - 使用者取消了 Tailscale 重新驗證：不自動重試(否則每次重試又跳出驗證),等使用者按「再試一次」。
     public func run() async {
         var failures = 0
         var needsSnapshot = true
@@ -86,6 +98,13 @@ public final class AgentListModel {
             } catch HerdrError.herdr(code: "events_lost", _) {
                 needsSnapshot = true
                 resubscribeNow = true
+            } catch SSHConnectionError.tailscaleCheckCancelled {
+                fail(with: SSHConnectionError.tailscaleCheckCancelled)
+                await waitForRetry()
+                if Task.isCancelled { return }
+                failures = 0
+                needsSnapshot = true
+                continue
             } catch {
                 if Task.isCancelled { return }
                 fail(with: error)
@@ -102,6 +121,27 @@ public final class AgentListModel {
                 return
             }
         }
+    }
+
+    /// 等使用者按「再試一次」;所在的 task 被取消時也結束。
+    private func waitForRetry() async {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled {
+                    continuation.resume()
+                } else {
+                    retryWaiter = continuation
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.resumeRetryWaiter() }
+        }
+    }
+
+    private func resumeRetryWaiter() {
+        let waiter = retryWaiter
+        retryWaiter = nil
+        waiter?.resume()
     }
 
     /// 事件去抖：連續的事件只觸發一次重讀的機會變大，也不會讓列表跳動得太頻繁。

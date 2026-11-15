@@ -90,6 +90,11 @@ public struct AgentListView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("agentList.error")
+                    if model.isWaitingForRetry {
+                        // 取消 Tailscale 重新驗證後不自動重試，由使用者決定何時再連。
+                        Button("Try Again") { Task { await model.load() } }
+                            .accessibilityIdentifier("agentList.retry")
+                    }
                 }
             }
         }

@@ -81,6 +81,11 @@ public actor FakeHost: HostChannel {
         connectionError = error
     }
 
+    /// 連線恢復：之後的指令照預期回應。
+    public func restoreConnection() {
+        connectionError = nil
+    }
+
     /// 測試結束或主機設定改變時 app 關掉了連線。
     public private(set) var disconnectCount = 0
 

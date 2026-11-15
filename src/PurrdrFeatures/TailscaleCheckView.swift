@@ -58,6 +58,8 @@ struct TailscaleCheckCard: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background.secondary, in: .rect(cornerRadius: 16))
+        // 容器自己是一個元素，裡面的按鈕保留各自的 identifier(否則容器的 identifier 會蓋掉它們)。
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("tailscaleCheck.prompt")
     }
 
