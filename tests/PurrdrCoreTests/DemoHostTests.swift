@@ -84,6 +84,48 @@ struct DemoHostTests {
         try await HerdrClient(channel: DemoHost()).reportPresence(paneID: "w1:p1", model: "Opus 5.5", seq: 1)
     }
 
+    @Test("送出 prompt:Demo 的閒置 agent 收下，對話紀錄接著出現使用者那一行與 agent 的回覆")
+    func promptAppendsToDemoTranscript() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+
+        let outcome = await PromptDelivery(client: client).send("Also add a header row?", to: try #require(try await client.snapshot().agents.first))
+
+        #expect(outcome == .delivered)
+        guard case .appended(let chunk) = try await reader.tail(path: before.path, from: before.size) else {
+            Issue.record("對話紀錄應接上新的行")
+            return
+        }
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        guard case .user(let bubble) = items.first else {
+            Issue.record("第一則應是使用者訊息")
+            return
+        }
+        #expect(bubble.text == "Also add a header row?")
+        #expect(items.count == 2)
+        // 新的大小之後，游標再讀就沒有新內容;重新開啟也讀得到。
+        let after = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        #expect(after.size == chunk.end)
+        #expect(try await reader.tail(path: after.path, from: after.size) == .unchanged)
+        let window = try await reader.window(path: after.path, endingAt: after.size, lines: 300)
+        #expect(window.end == after.size)
+    }
+
+    @Test("送出 prompt:Demo 的「需要你」agent 拒絕(agent_blocked),要先回答")
+    func blockedDemoAgentNeedsAnswer() async throws {
+        let client = HerdrClient(channel: DemoHost())
+        let blocked = try #require(try await client.snapshot().agents.first { $0.status == .blocked })
+
+        #expect(await PromptDelivery(client: client).send("Go ahead", to: blocked) == .needsAnswer)
+    }
+
+    @Test("中斷:Demo 主機接受按鍵")
+    func acceptsKeys() async throws {
+        try await HerdrClient(channel: DemoHost()).sendKeys(paneID: "w3:p1", keys: ["esc"])
+    }
+
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")
     func unknownCommandExitsWith127() async throws {
         let session = try await DemoHost().execute("nonexistent-tool --flag")
