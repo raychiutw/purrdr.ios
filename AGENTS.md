@@ -12,20 +12,25 @@ Purrdr:在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理的 co
 ## 常用指令
 
 ```bash
+xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed' \
+  || xcodebuild -downloadComponent MetalToolchain               # 一次性：SwiftTerm 的 Metal shader 需要(Xcode 27 不內建，約 900 MB)
 swift test --explicit-target-dependency-import-check error     # package 全部測試，並檢查依賴方向
 swift test --filter PurrdrCoreTests                             # 單一 test target(或 --filter 測試 suite 的型別名)
 xcodebuild test -project src/App/Purrdr.xcodeproj -scheme Purrdr \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -derivedDataPath .derivedData -parallel-testing-enabled NO -disable-concurrent-destination-testing \
+  -skipPackagePluginValidation \
   -only-testing:PurrdrUITests/AgentListUITests                  # UI 測試：本機跑，只跑有修改到的類別(CI 不做)。模擬器固定一台「iPhone 17」,不要另外建立或讓 Xcode clone
 rm -rf .derivedData/package/Package.xcresult && xcodebuild build -scheme Purrdr-Package \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath .derivedData/package \
-  -resultBundlePath .derivedData/package/Package.xcresult \
+  -resultBundlePath .derivedData/package/Package.xcresult -skipPackagePluginValidation \
   && xcrun xcresulttool get build-results --path .derivedData/package/Package.xcresult | jq .warningCount  # 以 iOS 編譯 package,warning 要是 0
 scripts/record-herdr-fixture.sh <檔名> <method> [params] [ssh 目的地]  # 從真實主機錄 herdr 回應，見 tests/PurrdrTestSupport/Fixtures/README.md
 ```
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
+
+SwiftTerm(1.19)的需求：編譯 `Shaders.metal` 要 **Metal Toolchain**(上面第一行，裝過就好);它也帶 build-tool plugin(`SwiftTermBuildInfoPlugin`),命令列 `xcodebuild` 沒辦法像 Xcode 介面那樣按「信任」,所以**每個 `xcodebuild build`／`test` 都要加 `-skipPackagePluginValidation`**,否則停在「Validate plug-in」。`swift test` 不需要。
 
 CI(`.github/workflows/ci.yml`):`swift test` + package iOS 編譯、app 編譯(零 warning)、可攜核心用 Swift SDK for Android 交叉編譯(aarch64、x86_64,API 28)、後台測試(`backend/`,vitest)。
 
