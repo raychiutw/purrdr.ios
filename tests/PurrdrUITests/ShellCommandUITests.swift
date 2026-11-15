@@ -44,11 +44,3 @@ final class ShellCommandUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Copy Command"].exists, "長按沒有「Copy Command」")
     }
 }
-
-private extension XCUIElement {
-    /// 清空文字欄位後輸入。
-    func clearAndType(_ text: String) {
-        let current = value as? String ?? ""
-        typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count) + text)
-    }
-}
