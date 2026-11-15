@@ -15,6 +15,8 @@ struct PurrdrApp: App {
     private let workspaceActions: WorkspaceActionsModel
     private let navigation = TopNavigationModel()
     private let member: MemberModel
+    /// Purrdr Plus(#28)。跟會員共用同一個 `MemberSession`(同一組權杖)。
+    private let plus: SubscriptionModel
     private let client: HerdrClient
     private let transcripts: TranscriptReader
     /// 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
@@ -37,23 +39,28 @@ struct PurrdrApp: App {
         self.agentList = agentList
         terminals = PaneTerminalClient(channel: channel)
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
-        member = Self.makeMember(uiTesting: uiTesting)
+        let session = Self.makeMemberSession(uiTesting: uiTesting)
+        member = MemberModel(
+            session: session,
+            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID))
+        )
+        // StoreKit:在 Xcode 執行時，scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品，不連 App Store。
+        // UI 測試用內容相同的替身(不連網路;命令列 xcodebuild test 不套用 StoreKit 設定檔)。
+        let store: any PlusStore = uiTesting ? UITestingPlusStore() : StoreKitPlusStore()
+        plus = SubscriptionModel(session: session, store: store)
     }
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
-    private static func makeMember(uiTesting: Bool) -> MemberModel {
+    private static func makeMemberSession(uiTesting: Bool) -> MemberSession {
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
-        return MemberModel(
-            session: MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore),
-            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID))
-        )
+        return MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore)
     }
 
     var body: some Scene {
         WindowGroup {
             TopNavigationView(
-                navigation: navigation, agentList: agentList, member: member, workspaceActions: workspaceActions
+                navigation: navigation, agentList: agentList, member: member, workspaceActions: workspaceActions, plus: plus
             ) { paneID, sessionID in
                 ConversationModel(
                     client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache

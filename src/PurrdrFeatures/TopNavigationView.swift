@@ -8,6 +8,8 @@ public struct TopNavigationView: View {
     let agentList: AgentListModel
     let member: MemberModel
     let workspaceActions: WorkspaceActionsModel
+    /// Purrdr Plus(#28);`nil` 時選單不顯示。
+    let plus: SubscriptionModel?
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
     let conversation: @MainActor (String, String?) -> ConversationModel
     /// 建立某個 Pane 的終端機 model(pane id、標題)。
@@ -16,6 +18,7 @@ public struct TopNavigationView: View {
     public init(
         navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel,
         workspaceActions: WorkspaceActionsModel,
+        plus: SubscriptionModel? = nil,
         conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
     ) {
@@ -23,6 +26,7 @@ public struct TopNavigationView: View {
         self.agentList = agentList
         self.member = member
         self.workspaceActions = workspaceActions
+        self.plus = plus
         self.conversation = conversation
         self.terminal = terminal
     }
@@ -37,13 +41,19 @@ public struct TopNavigationView: View {
             switch sheet {
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
-                MemberView(model: member)
+                MemberView(model: member, plus: plus)
+            case .plus:
+                if let plus {
+                    PlusSheet(model: plus, member: member)
+                }
             default:
                 TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
             }
         }
         // 冷啟動與從背景回來的深層連結都會走到這裡。
         .onOpenURL { navigation.open($0) }
+        // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
+        .task { await plus?.observeTransactionUpdates() }
     }
 
     @ToolbarContentBuilder
@@ -56,6 +66,10 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.hosts")
                 Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
                     .accessibilityIdentifier("menu.member")
+                if plus != nil {
+                    Button("Purrdr Plus", systemImage: "bell.badge") { navigation.sheet = .plus }
+                        .accessibilityIdentifier("menu.plus")
+                }
             } label: {
                 Label("More", systemImage: "ellipsis")
             }
@@ -102,6 +116,7 @@ extension TopLevelSheet {
         case .hosts: "Hosts"
         case .newChat: "New Chat"
         case .member: "Purrdr Member"
+        case .plus: "Purrdr Plus"
         }
     }
 
@@ -111,6 +126,7 @@ extension TopLevelSheet {
         case .hosts: "desktopcomputer"
         case .newChat: "plus.bubble"
         case .member: "person.crop.circle"
+        case .plus: "bell.badge"
         }
     }
 }
