@@ -93,6 +93,28 @@ public actor MemberSession {
         return try Wire.decode(Wire.SubscriptionEnvelope.self, from: response).subscription?.domain()
     }
 
+    // MARK: - 推播配對(#29)
+
+    /// APNs 的環境：App Store／TestFlight 是 production,Xcode 直接安裝的 Debug build 是 sandbox。
+    public enum PushEnvironment: String, Sendable {
+        case production
+        case sandbox
+    }
+
+    /// 向後台註冊(或更新 device token)一組推播配對。只送配對密鑰的**雜湊**,密鑰本身不離開 app 與主機。
+    /// 需要有效訂閱(否則 403 `subscription_required`)。
+    public func registerPushPairing(keyHash: String, deviceToken: String, environment: PushEnvironment) async throws {
+        let body = try JSONEncoder().encode([
+            "keyHash": keyHash, "platform": "apns", "deviceToken": deviceToken, "environment": environment.rawValue,
+        ])
+        _ = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/push-pairings", body: body))
+    }
+
+    /// 撤銷推播配對(只撤銷自己的;不存在也算成功)。
+    public func revokePushPairing(keyHash: String) async throws {
+        _ = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/push-pairings/\(keyHash)"))
+    }
+
     // MARK: - 權杖
 
     private func authorized(_ request: BackendRequest) async throws -> BackendResponse {

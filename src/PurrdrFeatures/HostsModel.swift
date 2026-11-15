@@ -39,6 +39,8 @@ public final class HostsModel {
     public private(set) var workspaceActions: WorkspaceActionsModel
     /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
     public private(set) var claudeUsage: ClaudeUsageModel
+    /// 選取中主機的推播開關(#29)。
+    public private(set) var push: PushModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
 
@@ -55,6 +57,8 @@ public final class HostsModel {
     private let demoConsent: any HostWriteConsentStore
     /// 真主機的主機寫入同意(以主機 id 為鍵);移除主機時清除。
     private let hostConsent: any HostWriteConsentStore
+    /// 推播(後台、權限、配對紀錄);`nil` 時沒有推播。
+    private let pushService: PushService?
     /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。所有主機共用，以 pane id 為鍵(同 `preferences`)。
     private let drafts = DraftStore()
     /// 對話作答的觸覺(composition root 注入系統觸覺;測試不播放)。
@@ -77,6 +81,7 @@ public final class HostsModel {
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
+        push pushService: PushService? = nil,
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
@@ -88,6 +93,7 @@ public final class HostsModel {
         self.preferences = preferences
         self.demoConsent = demoConsent
         self.hostConsent = hostConsent
+        self.pushService = pushService
         channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)
@@ -98,6 +104,14 @@ public final class HostsModel {
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
+        push = PushModel(service: pushService, hostID: nil, channel: demoChannel, herdr: HerdrInstallation()) { preferences.load().muted }
+        connectMutes()
+    }
+
+    /// 靜音改變時，推播開著就改寫主機上的靜音清單。
+    private func connectMutes() {
+        let push = push
+        workspaceActions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
     }
 
     /// Demo 主機在同意紀錄裡的主機 id。
@@ -169,6 +183,11 @@ public final class HostsModel {
         claudeUsage = ClaudeUsageModel(
             host: ClaudeUsageHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
             consent: host == nil ? demoConsent : hostConsent)
+        let preferences = preferences
+        push = PushModel(
+            service: pushService, hostID: host?.id.uuidString, channel: channel, herdr: host?.herdr ?? HerdrInstallation()
+        ) { preferences.load().muted }
+        connectMutes()
         self.selection = selection
         selectionStore.save(selection)
     }
@@ -192,10 +211,15 @@ public final class HostsModel {
 
     /// 刪除主機(使用者刻意的動作，不另外確認):先刪這台主機的祕密(刪不掉就整個停下，避免留下孤兒祕密，行為規格 §8.1),
     /// 再刪掉此裝置上的設定與 host key pin、清除這台主機的所有主機寫入同意(行為規格 F18)、關閉連線、清掉對話快取。
-    /// 主機本身不受影響。刪的是選取中主機時，改選第一台剩下的主機(沒有就選 Demo 主機)並存起來。
+    /// 推播配對則不等待地從主機上刪掉並撤銷(行為規格 F14)。
+    /// 刪的是選取中主機時，改選第一台剩下的主機(沒有就選 Demo 主機)並存起來。
     public func delete(_ id: UUID) async throws {
+        let removed = hosts.first { $0.id == id }
+        // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
+        let secret = try? credentials.secrets.secret(for: id)
         try credentials.secrets.setSecret(nil, for: id)
         try store.delete(id)
+        if let removed { forgetPush(of: removed, secret: secret) }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
         let channel = channels.removeValue(forKey: id)
@@ -207,6 +231,25 @@ public final class HostsModel {
     /// 主機的分享連結(QR code 內容)。不含任何祕密。
     public func shareLink(for id: UUID) -> URL? {
         hosts.first { $0.id == id }.map(HostShareLink.url(for:))
+    }
+
+    /// 點了推播通知：切換到配對的主機，開該 Agent 的聊天。不認得的配對(主機已移除)不動。
+    public func open(_ route: PushRoute, pairings: any PushPairingStore) {
+        guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
+              hosts.contains(where: { $0.id == id }) else { return }
+        if selection != .host(id) { select(.host(id)) }
+        if let paneID = route.paneID { agentList.openedChat = paneID }
+    }
+
+    /// 啟動時：APNs token 換了就向後台重新註冊推播配對。
+    public func refreshPushRegistrations() async {
+        await pushService?.refreshRegistrations()
+    }
+
+    /// 點了推播通知(用 app 的推播紀錄)。
+    public func open(_ route: PushRoute) {
+        guard let pushService else { return }
+        open(route, pairings: pushService.store)
     }
 
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。
@@ -274,6 +317,14 @@ public final class HostsModel {
         let channel = makeChannel(host.endpoint, host.hostKeyPin, credentials.provider(for: host))
         channels[host.id] = channel
         return channel
+    }
+
+    /// 推播配對：另開一條不放進 `channels` 的連線刪掉主機上的配對(刪除主機會關閉它原本的連線)。
+    private func forgetPush(of host: HostConfiguration, secret: HostSecret?) {
+        guard let pushService else { return }
+        let provider = credentials.provider(
+            method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
+        pushService.forget(hostID: host.id.uuidString, channel: makeChannel(host.endpoint, host.hostKeyPin, provider), herdr: host.herdr)
     }
 
     private func dropChannel(of id: UUID) {

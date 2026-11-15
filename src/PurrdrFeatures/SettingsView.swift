@@ -13,12 +13,21 @@ public struct SettingsView: View {
     let member: MemberModel
     /// Purrdr Plus(#28):會員畫面已登入時顯示狀態與入口;`nil` 時不顯示。
     let plus: SubscriptionModel?
+    /// 選取中主機的推播開關(#29);`nil` 或沒有推播服務時不顯示「通知」區。
+    let push: PushModel?
+    /// 推播需要 Purrdr Plus 時開付費牆。
+    let openPlus: () -> Void
     let done: () -> Void
 
-    public init(model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, done: @escaping () -> Void) {
+    public init(
+        model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil,
+        openPlus: @escaping () -> Void = {}, done: @escaping () -> Void
+    ) {
         self.model = model
         self.member = member
         self.plus = plus
+        self.push = push
+        self.openPlus = openPlus
         self.done = done
     }
 
@@ -32,6 +41,10 @@ public struct SettingsView: View {
                         Label("Purrdr Member", systemImage: "person.crop.circle")
                     }
                     .accessibilityIdentifier("settings.member")
+                }
+
+                if let push, push.isAvailable {
+                    PushSettingsSection(model: push, openPlus: openPlus)
                 }
 
                 Section {

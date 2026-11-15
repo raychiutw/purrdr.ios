@@ -417,6 +417,29 @@
         }
       }
     },
+    "An agent needs you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 Agent 需要你"
+          }
+        }
+      }
+    },
+    "An agent needs you." : {
+      "extractionState" : "manual",
+      "comment" : "推播內文(後台 APNs payload 的 loc-key)",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 Agent 需要你。"
+          }
+        }
+      }
+    },
     "Another device took over this pane." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -769,6 +792,17 @@
         }
       }
     },
+    "Choose your own host first. The demo host can’t send notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先選擇你自己的主機。Demo 主機無法傳送通知。"
+          }
+        }
+      }
+    },
     "Claude Usage" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1088,6 +1122,17 @@
         }
       }
     },
+    "Couldn’t ask herdr about plugins. Make sure herdr is running on the host. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法向 herdr 查詢 plugin。請確認主機上的 herdr 正在執行。%@"
+          }
+        }
+      }
+    },
     "Couldn’t confirm delivery. The message may be stuck in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1139,6 +1184,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法連上 Purrdr。請檢查網路連線後再試一次。"
+          }
+        }
+      }
+    },
+    "Couldn’t reach Purrdr’s server. Check your connection and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法連上 Purrdr 後台。請檢查網路連線後再試一次。"
           }
         }
       }
@@ -1282,6 +1338,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法送出:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t turn on notifications: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟通知:%@"
           }
         }
       }
@@ -1902,6 +1969,28 @@
         }
       }
     },
+    "Install" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安裝"
+          }
+        }
+      }
+    },
+    "Install the Purrdr Plugin?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要安裝 Purrdr 主機外掛嗎?"
+          }
+        }
+      }
+    },
     "Integrations: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2441,6 +2530,50 @@
         }
       }
     },
+    "Notifications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        }
+      }
+    },
+    "Notifications are off for Purrdr in iOS Settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS「設定」裡 Purrdr 的通知已關閉。"
+          }
+        }
+      }
+    },
+    "Notifications are off, but herdr couldn’t remove the Purrdr plugin: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知已關閉，但 herdr 無法移除 Purrdr 主機外掛:%@"
+          }
+        }
+      }
+    },
+    "Notifications need Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
     "Notifications when an agent needs you and host sync are now available. Turn them on for each host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2448,6 +2581,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在可以使用 Agent 需要你時的通知與主機同步。請在每台主機分別開啟。"
+          }
+        }
+      }
+    },
+    "Notify When an Agent Needs You" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 需要你時通知"
           }
         }
       }
@@ -2492,6 +2636,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "離線中，顯示上次載入的對話。"
+          }
+        }
+      }
+    },
+    "Open Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開設定"
           }
         }
       }
@@ -2771,6 +2926,17 @@
         }
       }
     },
+    "Purrdr adds a small herdr plugin to this host. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會在這台主機加裝一個小型 herdr plugin。Agent 需要你時，主機會告知 Purrdr 後台，再由後台通知這支裝置。通知只顯示 Workspace 名稱，絕不包含 Agent 說的內容。Windows 主機的通知為盡力傳送，不保證送達。"
+          }
+        }
+      }
+    },
     "Purrdr signs in to the host’s own SSH server with a key or password." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2800,6 +2966,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會先測試連線，再儲存主機。"
+          }
+        }
+      }
+    },
+    "Purrdr will run “herdr plugin install” on this host as %@ and save a pairing key in ~/.purrdr. Turning notifications off removes both." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存一把配對密鑰。關閉通知時兩者都會移除。"
           }
         }
       }
@@ -2910,6 +3087,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "兌換代碼"
+          }
+        }
+      }
+    },
+    "Removing the plugin…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在移除主機外掛…"
           }
         }
       }
@@ -3167,6 +3355,17 @@
         }
       }
     },
+    "See Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看 Purrdr Plus"
+          }
+        }
+      }
+    },
     "Selected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3251,6 +3450,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Session:%@"
+          }
+        }
+      }
+    },
+    "Setting up notifications…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在設定通知…"
           }
         }
       }
@@ -4190,6 +4400,17 @@
         }
       }
     },
+    "This device can’t receive notifications. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置無法接收通知。%@"
+          }
+        }
+      }
+    },
     "This host doesn’t accept key sign-in over SSH. Check PubkeyAuthentication in the host’s sshd settings." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5125,6 +5346,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "herdr 路徑"
+          }
+        }
+      }
+    },
+    "herdr couldn’t install the Purrdr plugin: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr 無法安裝 Purrdr 主機外掛:%@"
           }
         }
       }

@@ -18,6 +18,8 @@ public final class WorkspaceActionsModel {
     public var actionError: String?
     /// 有操作正在主機上執行。
     public private(set) var isWorking = false
+    /// 靜音清單改變時呼叫(推播開著時改寫主機上的靜音清單,#29)。
+    public var mutedChanged: (@MainActor (Set<String>) -> Void)?
 
     private let client: HerdrClient
     private let store: any ChatPreferencesStore
@@ -49,6 +51,7 @@ public final class WorkspaceActionsModel {
     public func toggleMute(sessionID: String) {
         if preferences.muted.remove(sessionID) == nil { preferences.muted.insert(sessionID) }
         store.save(preferences)
+        mutedChanged?(preferences.muted)
     }
 
     // MARK: - 重新命名
