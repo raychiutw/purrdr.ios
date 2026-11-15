@@ -44,6 +44,8 @@ let package = Package(
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOSSH", package: "swift-nio-ssh"),
                 .product(name: "Crypto", package: "swift-crypto"),
+                // 匯入私鑰時解 aes-ctr(CryptoKit 沒有 CTR 模式)。
+                .product(name: "_CryptoExtras", package: "swift-crypto"),
             ],
             path: "src/PurrdrCore",
             swiftSettings: strictSettings
