@@ -92,6 +92,8 @@ public final class HostsModel {
 
     /// Demo 主機在同意紀錄裡的主機 id。
     static let demoID = "demo"
+    /// 選取中主機的 herdr client(設定頁讀 herdr 版本用)。
+    public var herdrClient: HerdrClient { client }
 
     /// 選取中主機上某個 Pane 的終端機 model(pane id、標題)。
     public func terminal(paneID: String, title: String) -> PaneTerminalModel {
@@ -127,7 +129,7 @@ public final class HostsModel {
             hosts = try store.loadHosts().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
             loadError = nil
         } catch {
-            loadError = "Couldn’t read saved hosts on this device. \(error.localizedDescription)"
+            loadError = String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)")
         }
         select(hosts.first.map { .host($0.id) } ?? .demo)
     }

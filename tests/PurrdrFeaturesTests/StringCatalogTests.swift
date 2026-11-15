@@ -1,0 +1,102 @@
+import Foundation
+import Testing
+
+/// String Catalog(`src/App/Purrdr/Localizable.xcstrings`)的完整性(#32)。
+///
+/// 英文是開發語言(key 就是英文原文);每個要翻譯的字串都要有繁體中文(台灣用語，詞彙依 GLOSSARY.md)。
+/// 「程式碼裡的每個字串都在 catalog 裡」由 `scripts/strings.sh check` 以編譯器抽出的字串檢查(CI 也跑)。
+@Suite("String Catalog")
+struct StringCatalogTests {
+    static let catalogURL = URL(filePath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appending(path: "src/App/Purrdr/Localizable.xcstrings")
+
+    struct Entry {
+        var key: String
+        var shouldTranslate: Bool
+        /// zh-Hant 的所有字串(含複數變化);沒有翻譯時是空陣列。
+        var chinese: [String]
+        var chineseStates: [String]
+    }
+
+    static func entries() throws -> [Entry] {
+        let data = try Data(contentsOf: catalogURL)
+        let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(root["sourceLanguage"] as? String == "en")
+        let strings = try #require(root["strings"] as? [String: [String: Any]])
+        return strings.map { key, value in
+            var texts: [String] = []
+            var states: [String] = []
+            let localization = (value["localizations"] as? [String: Any])?["zh-Hant"] as? [String: Any]
+            collectUnits(localization, into: &texts, states: &states)
+            return Entry(
+                key: key, shouldTranslate: value["shouldTranslate"] as? Bool ?? true, chinese: texts, chineseStates: states
+            )
+        }
+    }
+
+    /// 收集 stringUnit(含 variations 裡的複數／裝置變化)。
+    static func collectUnits(_ node: [String: Any]?, into texts: inout [String], states: inout [String]) {
+        guard let node else { return }
+        if let unit = node["stringUnit"] as? [String: Any] {
+            texts.append(unit["value"] as? String ?? "")
+            states.append(unit["state"] as? String ?? "")
+        }
+        for case let child as [String: Any] in (node["variations"] as? [String: Any])?.values.map({ $0 }) ?? [] {
+            for case let variation as [String: Any] in child.values {
+                collectUnits(variation, into: &texts, states: &states)
+            }
+        }
+    }
+
+    /// printf 格式符(`%@`、`%lld`、`%1$@`…),依出現順序。
+    static func specifiers(_ text: String) -> [String] {
+        let pattern = /%(?:\d+\$)?(?:ll|l|h)?[@dDuUxXoOfeEgGcCsSpaA]/
+        return text.matches(of: pattern).map { String($0.output) }.filter { $0 != "%%" }
+    }
+
+    @Test("catalog 存在且至少有設定頁的字串")
+    func catalogExists() throws {
+        let keys = Set(try Self.entries().map(\.key))
+        #expect(keys.contains("Settings"))
+        #expect(keys.contains("Rate Purrdr"))
+    }
+
+    @Test("每個要翻譯的字串都有繁體中文，狀態是 translated")
+    func everyStringHasTraditionalChinese() throws {
+        for entry in try Self.entries() where entry.shouldTranslate {
+            #expect(!entry.chinese.isEmpty, "「\(entry.key)」沒有繁體中文")
+            #expect(entry.chinese.allSatisfy { !$0.isEmpty }, "「\(entry.key)」有空白的繁體中文")
+            #expect(entry.chineseStates.allSatisfy { $0 == "translated" }, "「\(entry.key)」的繁體中文不是 translated")
+        }
+    }
+
+    @Test("繁體中文的格式符與英文相同(數量與型別)")
+    func formatSpecifiersMatch() throws {
+        for entry in try Self.entries() where entry.shouldTranslate {
+            let english = Self.specifiers(entry.key).map { $0.replacing(/\d+\$/, with: "") }.sorted()
+            for chinese in entry.chinese {
+                let translated = Self.specifiers(chinese).map { $0.replacing(/\d+\$/, with: "") }.sorted()
+                #expect(translated == english, "「\(entry.key)」→「\(chinese)」格式符不同")
+            }
+        }
+    }
+
+    /// GLOSSARY.md 的「避免」用詞，以及常見的中國大陸用語(台灣用語為準)。
+    static let avoidedWords = [
+        "電腦", "伺服器", "機器", "帳號", "帳戶", "授權碼", "會話",
+        "信息", "默認", "設置", "文件夾", "屏幕", "軟件", "網絡", "登錄", "用戶", "視頻", "粘貼", "復制", "鏈接",
+    ]
+
+    @Test("繁體中文不用 GLOSSARY 避免的詞與中國大陸用語")
+    func usesGlossaryTerms() throws {
+        for entry in try Self.entries() {
+            // 「Apple 帳號」是 iOS 系統設定裡的正式名稱(引導使用者去取消訂閱時要照抄)。
+            for chinese in entry.chinese.map({ $0.replacingOccurrences(of: "Apple 帳號", with: "") }) {
+                for word in Self.avoidedWords {
+                    #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」")
+                }
+            }
+        }
+    }
+}

@@ -69,13 +69,13 @@ public final class PaneTerminalModel {
 
     public var statusText: String {
         switch status {
-        case .waitingForSize, .connecting: "Connecting…"
-        case .connected: "Connected"
-        case .disconnected: "Connection Lost"
-        case .inUse: "In Use Elsewhere"
-        case .takenOver: "Taken Over"
-        case .ended: "Ended"
-        case .unavailable: "Unavailable"
+        case .waitingForSize, .connecting: String(localized: "Connecting…")
+        case .connected: String(localized: "Connected")
+        case .disconnected: String(localized: "Connection Lost")
+        case .inUse: String(localized: "In Use Elsewhere")
+        case .takenOver: String(localized: "Taken Over")
+        case .ended: String(localized: "Ended")
+        case .unavailable: String(localized: "Unavailable")
         }
     }
 
@@ -83,10 +83,10 @@ public final class PaneTerminalModel {
     public var bannerText: String? {
         switch status {
         case .waitingForSize, .connecting, .connected: nil
-        case .disconnected: "Reconnect to pick up where this pane is now."
-        case .inUse: "Someone else is controlling this pane. Take over to use it here."
-        case .takenOver: "Another device took over this pane."
-        case .ended: "The program in this pane has exited."
+        case .disconnected: String(localized: "Reconnect to pick up where this pane is now.")
+        case .inUse: String(localized: "Someone else is controlling this pane. Take over to use it here.")
+        case .takenOver: String(localized: "Another device took over this pane.")
+        case .ended: String(localized: "The program in this pane has exited.")
         case .unavailable(let reason): reason
         }
     }
@@ -214,8 +214,8 @@ public final class PaneTerminalModel {
             finish(.disconnected, generation: generation)
         case .failed(_, let message):
             finish(.unavailable(message.contains("command not found")
-                ? "herdr isn’t installed on this host, or isn’t on its PATH."
-                : (message.isEmpty ? "herdr couldn’t open this pane." : message)), generation: generation)
+                ? String(localized: "herdr isn’t installed on this host, or isn’t on its PATH.")
+                : (message.isEmpty ? String(localized: "herdr couldn’t open this pane.") : message)), generation: generation)
         }
     }
 
@@ -224,7 +224,7 @@ public final class PaneTerminalModel {
         case .detached: .disconnected
         case .takenOver: .takenOver
         case .alreadyAttached: .inUse
-        case .notFound: .unavailable("This pane no longer exists on the host.")
+        case .notFound: .unavailable(String(localized: "This pane no longer exists on the host."))
         case .exited: .ended
         case .other: .disconnected
         }
@@ -278,7 +278,7 @@ public final class PaneTerminalModel {
         guard isInteractive, !text.isEmpty else { return }
         let body = Data(text.utf8)
         guard body.count <= Self.maxPasteBytes else {
-            notice = "This paste is too large to send to the terminal."
+            notice = String(localized: "This paste is too large to send to the terminal.")
             return
         }
         outbox?.yield(.input(.bytes(Data("\u{1B}[200~".utf8) + body + Data("\u{1B}[201~".utf8))))

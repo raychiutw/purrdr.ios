@@ -26,6 +26,7 @@ rm -rf .derivedData/package/Package.xcresult && xcodebuild build -scheme Purrdr-
   -resultBundlePath .derivedData/package/Package.xcresult -skipPackagePluginValidation \
   && xcrun xcresulttool get build-results --path .derivedData/package/Package.xcresult | jq .warningCount  # 以 iOS 編譯 package,warning 要是 0
 scripts/record-herdr-fixture.sh <檔名> <method> [params] [ssh 目的地]  # 從真實主機錄 herdr 回應，見 tests/PurrdrTestSupport/Fixtures/README.md
+scripts/strings.sh sync                                          # 把畫面新字串加進 String Catalog(之後補繁中);check 只檢查(CI 也跑)
 ```
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
@@ -59,8 +60,22 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
 - **herdr client**:每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
 - **主機指令建構**(`HerdrCommand`):POSIX 指令前綴明確 PATH、引號用 `'"'"'`(行為規格 §3.2)。herdr 路徑與具名 session 由 `HerdrInstallation` 帶入(`--session <name>` 放在子指令前;`--version`、`update` 不帶)。Windows 的 `-EncodedCommand` 尚未實作。
 - **Purrdr 後台(會員)**:核心的 `MemberSession`(actor)管登入與權杖(更新權杖存 `TokenStore`,iOS 是 Keychain;401 自動換權杖重送一次),經 `BackendTransport` 送出;iOS 傳輸是 Features 的 `URLSessionBackendTransport`。wire format(camelCase)只在 `MemberSession.swift`,契約在 `backend/README.md`。`-uiTesting` 時權杖只放記憶體、後台指向 `backend.invalid`。app 端測試用 `HTTPStub`(URLProtocol)擋後台。
+- **訂閱(Purrdr Plus)**:StoreKit 2 在 Features 的 `StoreKitPlusStore`(`PlusStore` 協定，測試用假 store);購買帶 `appAccountToken` = 會員 ID,簽章交易(JWS)原封交給後台驗證，送到後台才 finish。`SubscriptionModel.isPlusActive` 是推播與主機同步的開關。StoreKit 設定檔 `src/App/Purrdr.storekit` 由 scheme 的 Run 指定(在 Xcode 執行時用);命令列 `xcodebuild test` 不套用它，所以 `-uiTesting` 改用 app 內容相同的替身 `UITestingPlusStore`(也保證不連網路),設定檔內容由 `StoreKitConfigurationTests` 檢查。`SKTestSession` 需要 app 宿主，`swift test` 不能用。後台的權限判定見 `backend/README.md`。
+- **平台服務**(Seam 3):`PlatformServices`(開外部網址、剪貼簿;系統實作 `SystemPlatformServices`),測試用記錄呼叫的假實作。App Store id 等上架常數在 app 的 `AppStoreConfiguration`(佔位 `REPLACE_ME`)。
 - **DI**:只用 initializer 注入;畫面 model 由 composition root 建立後傳入。
 - **Concurrency**:核心型別是 `Sendable` value type 或 actor;畫面 model 放在 main actor。
+
+## 在地化
+
+- 英文是開發語言(key 就是英文原文),另有繁體中文(台灣用語，詞彙依 `GLOSSARY.md`;Agent、Workspace、Tab、Pane、session 保留英文)。
+- String Catalog 只有一份：`src/App/Purrdr/Localizable.xcstrings`(放在 app,因為 SwiftUI 與 `String(localized:)` 預設查 `Bundle.main`,package 程式碼不必加 `bundle:`)。
+- 寫畫面時：吃 `LocalizedStringKey` 的 API(`Text("…")`、`Button("…")`、`.navigationTitle("…")`)直接寫英文;回傳 `String` 的地方用 `String(localized: "…")`;
+  不翻譯的值用 `Text(verbatim:)`。不要用 `Text(英文 String 常數)`(verbatim,不會翻)。
+- 加了字串就跑 `scripts/strings.sh sync`(以編譯器抽出 package 字串、標 `extractionState: manual`),再補 `zh-Hant`。
+  `scripts/strings.sh check`(CI)擋缺 key／沒翻／已不用;`StringCatalogTests` 擋格式符不符與 GLOSSARY 避免的詞。
+- 可攜核心(PurrdrCore)不放顯示字串;要翻的英文在 Features 對應。
+- 不提供 app 內深淺色設定(跟隨系統)。
+- UI 測試預設以英文啟動(`LaunchHelper` 帶 `-AppleLanguages (en)`;模擬器系統語言是繁中)。測繁中：`launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])`。
 
 ## 測試慣例
 

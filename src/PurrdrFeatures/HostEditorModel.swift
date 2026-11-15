@@ -172,7 +172,7 @@ public final class HostEditorModel {
             try store.save(host)
             return host
         } catch {
-            phase = .failed("Couldn’t save this host on this device. \(error.localizedDescription)")
+            phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
             return nil
         }
     }

@@ -182,20 +182,20 @@ struct TerminalKeyBar: View {
     let screen: TerminalScreenHandle
 
     static let keys: [BarKey] = [
-        BarKey(id: "esc", title: "esc", label: "Escape", key: .escape),
-        BarKey(id: "tab", title: "tab", label: "Tab", key: .tab),
-        BarKey(id: "ctrl", title: "ctrl", label: "Control", modifier: .control),
-        BarKey(id: "alt", title: "alt", label: "Alt", modifier: .alt),
-        BarKey(id: "left", symbol: "arrow.left", label: "Left Arrow", key: .left),
-        BarKey(id: "down", symbol: "arrow.down", label: "Down Arrow", key: .down),
-        BarKey(id: "up", symbol: "arrow.up", label: "Up Arrow", key: .up),
-        BarKey(id: "right", symbol: "arrow.right", label: "Right Arrow", key: .right),
-        BarKey(id: "slash", title: "/", label: "Slash", key: .character("/")),
-        BarKey(id: "hyphen", title: "-", label: "Hyphen", key: .character("-")),
-        BarKey(id: "pipe", title: "|", label: "Vertical Bar", key: .character("|")),
-        BarKey(id: "tilde", title: "~", label: "Tilde", key: .character("~")),
-        BarKey(id: "home", title: "home", label: "Home", key: .home),
-        BarKey(id: "end", title: "end", label: "End", key: .end),
+        BarKey(id: "esc", title: "esc", label: String(localized: "Escape"), key: .escape),
+        BarKey(id: "tab", title: "tab", label: String(localized: "Tab"), key: .tab),
+        BarKey(id: "ctrl", title: "ctrl", label: String(localized: "Control"), modifier: .control),
+        BarKey(id: "alt", title: "alt", label: String(localized: "Alt"), modifier: .alt),
+        BarKey(id: "left", symbol: "arrow.left", label: String(localized: "Left Arrow"), key: .left),
+        BarKey(id: "down", symbol: "arrow.down", label: String(localized: "Down Arrow"), key: .down),
+        BarKey(id: "up", symbol: "arrow.up", label: String(localized: "Up Arrow"), key: .up),
+        BarKey(id: "right", symbol: "arrow.right", label: String(localized: "Right Arrow"), key: .right),
+        BarKey(id: "slash", title: "/", label: String(localized: "Slash"), key: .character("/")),
+        BarKey(id: "hyphen", title: "-", label: String(localized: "Hyphen"), key: .character("-")),
+        BarKey(id: "pipe", title: "|", label: String(localized: "Vertical Bar"), key: .character("|")),
+        BarKey(id: "tilde", title: "~", label: String(localized: "Tilde"), key: .character("~")),
+        BarKey(id: "home", title: "home", label: String(localized: "Home"), key: .home),
+        BarKey(id: "end", title: "end", label: String(localized: "End"), key: .end),
     ]
 
     var body: some View {
