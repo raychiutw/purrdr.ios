@@ -30,6 +30,7 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `herdr-0.9.5/error.workspace-not-found.ndjson` | `workspace.get {"workspace_id":"w99"}` | 2026-11-16 | `workspace_not_found`;也當作其他 workspace 錯誤的 envelope 底 |
 | `herdr-0.9.5/error.not-git-worktree.ndjson` | `worktree.list {"cwd":"/tmp"}`(唯讀) | 2026-11-16 | 建 worktree 時資料夾不在 git repo(`not_git_worktree`) |
 | `herdr-0.9.5/pane.report-metadata.ndjson` | `pane.report_metadata`(`phone:on`、`model`、`ttl_ms` 45000、`seq`) | 2026-11-16 | 在場回報被接受(`{"type":"ok"}`) |
+| `herdr-0.9.5/pane.read.agents-pane.ndjson` | `pane.read {"pane_id":…,"source":"visible","lines":40}`(一個有 5 個背景 agent 在跑的 Claude Code pane) | 2026-11-16 | 背景 agents 窗格的解析與讀取時機(#17)。窗格的記號、種類、經過時間、tokens、`↓ 4 more` 與欄寬原樣;回覆內容、輸入框、狀態列(專案、分支、費用)與每列的任務文字換成假值 |
 
 ## Claude Code 對話紀錄(`claude-code/`)
 
@@ -38,6 +39,17 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - **保留原樣**:每行的 `type`、欄位與旗標(`isMeta`、`promptId`、`origin`、`sourceToolUseID`、`isSidechain`、`is_error`…)、content block 的種類與順序、model、usage、時間戳。涵蓋：本地指令(`/effort` 的 caveat、command-name、local-command-stdout)、`api-request-blob`、使用者打的字、空的與有內容的 thinking、Bash／Edit／Skill 工具呼叫與結果(含失敗)、`Skill` 載入時的 meta 行、`queued_command` attachment、slash 指令載入 skill 的 meta 行、表格與程式碼的回覆、`system` 行。
 - **換成假值**:所有文字內容、工具輸入與結果、路徑(`/Users/demo/Projects/ledger`)、session id、uuid(`00000000-0000-4000-8000-…`)、簽章;拿掉 `wireToolInputs`、`requestRef` 等可能帶原文的欄位。一個 Bash 呼叫改名為 Edit(輸入一起換)。
 - 存檔後以 `grep` 確認沒有真實的使用者名稱、專案名稱或主機名。
+
+`claude-code/delegation.jsonl` 與 `claude-code/subagents/`(#17):從作者 Mac 上兩份真實對話紀錄(Claude Code 2.1.317 與 2.1.325)與其 session 資料夾的 `subagents/` 擷取，2026-11-16。只讀取來源，不改動。
+
+- `delegation.jsonl` 8 行：背景 `Agent` 呼叫、它的「Async agent launched」結果、harness 寫的任務通知、前景 `Agent` 呼叫與 hand-back 結果(含 `<usage>`)、`SendMessage` 呼叫與 `resumedAgentId` 結果、`queued_command` 的任務通知(只有 task-id)。
+- `subagents/`:背景與前景 agent 的 `agent-<id>.meta.json`,以及背景 agent 對話紀錄的前 6 行(sidechain 的 user／assistant／tool_result,加一個 attachment)。
+- **保留原樣**:行的結構、旗標(`origin.kind`、`promptSource`、`isSidechain`…)、harness 固定說明句、`<task-notification>` 的標籤與 `<usage>` 數字、hand-back 框的格式與兩格縮排、meta 的欄位、model、usage、時間戳。
+- **換成假值**:所有文字內容(description、prompt、報告、結果、summary)、工具輸入與結果、路徑(`/Users/demo/Projects/ledger`、`/private/tmp/demo/tasks/…`)、session id、uuid(`00000000-0000-4000-9000-…`)、tool use id(`toolu_demo_d0N`)、agent id(`ad3e…`);拿掉 `wireToolInputs`、`requestRef`、`pin`、`outputFile`、`<worktree>` 等可能帶原文的欄位。
+- **兩份來源合在一起**:第 5–7 行(`SendMessage`、續跑結果、排隊中的通知)取自另一份對話紀錄，收件的 agent id 換成第 0–2 行背景 agent 的 id,好組成「完成 → 續跑 → 再回報」的序列;因此第 7 行的時間戳早於第 5、6 行(判斷依檔案順序，不看時間戳)。
+- 擷取腳本的做法：以 Python 讀 JSON、依欄位名換值，再 `grep` 確認沒有真實的使用者名稱、專案名稱、主機名或原始 id。
+
+`claude-code/workflow/`(#17):**不是錄製的**。作者 Mac 上所有 `~/.claude/projects` 都沒有 `Workflow` 工具的紀錄、run 檔或 journal,所以 `run.json` 與 `journal.jsonl` 依行為規格 §4.6 描述的欄位寫成(journal 最後一行刻意撕裂)。測試裡 `Workflow` 呼叫與「Workflow launched」結果也是以 `delegation.jsonl` 的行為底改成。之後錄得到真實 workflow 時應換掉。
 
 ## 錄不到、以真實回應為底改動的情境
 

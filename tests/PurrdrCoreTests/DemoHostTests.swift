@@ -216,4 +216,40 @@ struct DemoHostTests {
         #expect(catalog.sections.last?.commands.map(\.name) == ["demo-kit:changelog", "demo-kit:check-diff"])
         #expect(catalog.sections[1].commands.map(\.name) == ["standup", "weekly-summary"])
     }
+
+    /// 行為規格 F21:Demo 的 Claude 聊天有已完成的 subagent 與執行中的 workflow,走正式的定位與讀取指令。
+    @Test("Demo 的 subagent 與 workflow:卡片、依呼叫 id 找到的 subagent 對話紀錄、執行中的 journal 與其中 agent 的對話紀錄")
+    func demoDelegations() async throws {
+        let host = DemoHost()
+        let reader = TranscriptReader(channel: host)
+        let file = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000002", cwd: "/Users/demo/weather-app")
+        let chunk = try await reader.window(path: file.path, endingAt: file.size, lines: 300)
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        let subagent = try #require(items.lazy.compactMap { item -> SubagentCard? in if case .subagent(let card) = item { card } else { nil } }.first)
+        let workflow = try #require(items.lazy.compactMap { item -> WorkflowCard? in if case .workflow(let card) = item { card } else { nil } }.first)
+        #expect(subagent.status == .completed)
+        #expect(workflow.status == .running)
+        #expect(workflow.name == "forecast-audit")
+
+        let folder = ClaudeTranscript.sessionFolder(ofTranscript: file.path)
+        let callID = try #require(subagent.callID)
+        let path = try await reader.locateSubagent(sessionFolder: folder, callID: callID)
+        let size = try await reader.size(path: path)
+        let subagentChunk = try await reader.window(path: path, endingAt: size, lines: 300)
+        #expect(!Conversation.items(from: subagentChunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)), showSidechain: true).isEmpty)
+
+        let runID = try #require(workflow.runID)
+        guard case .journal(let checksum, let lines) = try await reader.readWorkflow(sessionFolder: folder, runID: runID, knownChecksum: nil) else {
+            Issue.record("執行中應讀到 journal")
+            return
+        }
+        let run = WorkflowRun.parse(journal: lines)
+        #expect(run.phases.count == 2)
+        #expect(try await reader.readWorkflow(sessionFolder: folder, runID: "wf_demo01", knownChecksum: checksum) == .unchanged)
+
+        let agentID = try #require(run.agents.first?.agentID)
+        let agentPath = try #require(ClaudeTranscript.workflowAgentTranscript(sessionFolder: folder, runID: "wf_demo01", agentID: agentID))
+        let agentSize = try await reader.size(path: agentPath)
+        #expect(try await reader.window(path: agentPath, endingAt: agentSize, lines: 300).lines.isEmpty == false)
+    }
 }
