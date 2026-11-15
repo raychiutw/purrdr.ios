@@ -8,26 +8,36 @@ import SwiftUI
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
     let actions: WorkspaceActionsModel
-    /// 從版面圖選了要開的 Pane(sheet 關閉之後才呼叫)。
-    let onOpen: (PaneOpenTarget) -> Void
     @State private var presentation = WorkspacePresentation()
+    /// 從版面圖選了 Agent 之後要開的聊天(pane id)。
+    @State private var openedChat: String?
     @Environment(\.scenePhase) private var scenePhase
+    /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。由 composition root 提供。
+    private let makeConversation: @MainActor (String, String?) -> ConversationModel
 
-    public init(model: AgentListModel, actions: WorkspaceActionsModel, onOpen: @escaping (PaneOpenTarget) -> Void = { _ in }) {
+    public init(
+        model: AgentListModel, actions: WorkspaceActionsModel,
+        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel
+    ) {
         self.model = model
         self.actions = actions
-        self.onOpen = onOpen
+        self.makeConversation = conversation
     }
 
+    /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Agents")
-        }
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active else { return }
-            await model.run()
-        }
+        content
+            .navigationTitle("Agents")
+            .navigationDestination(for: String.self) { paneID in
+                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)))
+            }
+            .navigationDestination(item: $openedChat) { paneID in
+                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)))
+            }
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await model.run()
+            }
     }
 
     @ViewBuilder
@@ -60,7 +70,8 @@ public struct AgentListView: View {
             ForEach(sections) { section in
                 Section(section.group.title) {
                     ForEach(section.rows) { row in
-                        AgentRowView(row: row)
+                        NavigationLink(value: row.id) { AgentRowView(row: row) }
+                            .accessibilityIdentifier("agent.row.\(row.id)")
                             .workspaceRowActions(
                                 WorkspaceRowContext(paneID: row.id, snapshot: model.snapshot),
                                 actions: actions, presentation: presentation, snapshot: model.snapshot
@@ -90,12 +101,28 @@ public struct AgentListView: View {
                 )
             }
         }
-        .workspaceActionsPresentation(actions: actions, presentation: presentation, onOpen: onOpen)
+        // 版面圖選的 Pane:聊天推入對話;Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
+        .workspaceActionsPresentation(actions: actions, presentation: presentation) { target in
+            if case .chat(let paneID) = target { openedChat = paneID }
+        }
         .searchable(text: $model.query, prompt: Text("Search"))
         .autocorrectionDisabled()
         #if os(iOS)
         .textInputAutocapitalization(.never)
         #endif
+    }
+}
+
+/// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
+private struct ConversationScreen: View {
+    @State private var model: ConversationModel
+
+    init(model: @autoclosure () -> ConversationModel) {
+        _model = State(wrappedValue: model())
+    }
+
+    var body: some View {
+        ConversationView(model: model)
     }
 }
 
@@ -122,7 +149,6 @@ struct AgentRowView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("agent.row.\(row.id)")
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。

@@ -24,6 +24,15 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `herdr-0.9.5/workspace.get.ndjson` | `workspace.get {"workspace_id":"w1"}`(唯讀;label 換成假值) | 2026-11-16 | `workspace_info` 形狀，當作 `workspace.rename` 成功回應的底 |
 | `herdr-0.9.5/error.workspace-not-found.ndjson` | `workspace.get {"workspace_id":"w99"}` | 2026-11-16 | `workspace_not_found`;也當作其他 workspace 錯誤的 envelope 底 |
 | `herdr-0.9.5/error.not-git-worktree.ndjson` | `worktree.list {"cwd":"/tmp"}`(唯讀) | 2026-11-16 | 建 worktree 時資料夾不在 git repo(`not_git_worktree`) |
+| `herdr-0.9.5/pane.report-metadata.ndjson` | `pane.report_metadata`(`phone:on`、`model`、`ttl_ms` 45000、`seq`) | 2026-11-16 | 在場回報被接受(`{"type":"ok"}`) |
+
+## Claude Code 對話紀錄(`claude-code/`)
+
+`claude-code/session.jsonl`:從作者 Mac 上真實的 Claude Code 2.1.317–2.1.323 對話紀錄(`~/.claude/projects/…/*.jsonl`)擷取 30 行，2026-11-16。只讀取來源，不改動。
+
+- **保留原樣**:每行的 `type`、欄位與旗標(`isMeta`、`promptId`、`origin`、`sourceToolUseID`、`isSidechain`、`is_error`…)、content block 的種類與順序、model、usage、時間戳。涵蓋：本地指令(`/effort` 的 caveat、command-name、local-command-stdout)、`api-request-blob`、使用者打的字、空的與有內容的 thinking、Bash／Edit／Skill 工具呼叫與結果(含失敗)、`Skill` 載入時的 meta 行、`queued_command` attachment、slash 指令載入 skill 的 meta 行、表格與程式碼的回覆、`system` 行。
+- **換成假值**:所有文字內容、工具輸入與結果、路徑(`/Users/demo/Projects/ledger`)、session id、uuid(`00000000-0000-4000-8000-…`)、簽章;拿掉 `wireToolInputs`、`requestRef` 等可能帶原文的欄位。一個 Bash 呼叫改名為 Edit(輸入一起換)。
+- 存檔後以 `grep` 確認沒有真實的使用者名稱、專案名稱或主機名。
 
 ## 錄不到、以真實回應為底改動的情境
 

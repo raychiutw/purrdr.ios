@@ -20,17 +20,20 @@ public struct Agent: Sendable, Equatable, Identifiable {
     public var workspaceLabel: String?
     /// 工作目錄。
     public var cwd: String?
-    /// Agent 的 session(`agent_session.value`)。聊天以 session 識別，herdr 回收 pane 編號時才不會看到別人的對話。
-    public var sessionID: String?
+    /// herdr integration 回報的 session 參照(snapshot 的 `agent_session`)。聊天的身分是它，不是 pane(行為規格 F5.1)。
+    public var session: AgentSessionReference?
     /// 所在的 Tab。
     public var tabID: String?
+
+    /// session 的值：本機的釘選、靜音以它為 key。沒有 session 時為 `nil`。
+    public var sessionID: String? { session?.value }
 
     public var id: String { paneID }
 
     public init(
         paneID: String, workspaceID: String, kind: String, status: AgentStatus,
         name: String? = nil, terminalTitle: String? = nil, sessionTitle: String? = nil, inputPending: Bool = false,
-        workspaceLabel: String? = nil, cwd: String? = nil, sessionID: String? = nil, tabID: String? = nil
+        workspaceLabel: String? = nil, cwd: String? = nil, session: AgentSessionReference? = nil, tabID: String? = nil
     ) {
         self.paneID = paneID
         self.workspaceID = workspaceID
@@ -42,8 +45,20 @@ public struct Agent: Sendable, Equatable, Identifiable {
         self.inputPending = inputPending
         self.workspaceLabel = workspaceLabel
         self.cwd = cwd
-        self.sessionID = sessionID
+        self.session = session
         self.tabID = tabID
+    }
+}
+
+/// herdr 回報的 agent session 參照(`agent_session`)。`kind` 為 `id` 時 `value` 是 agent 原生的 session id;
+/// 為 `path` 時是對話紀錄的絕對路徑(行為規格 §4.0)。
+public struct AgentSessionReference: Sendable, Equatable, Hashable, Codable {
+    public var kind: String
+    public var value: String
+
+    public init(kind: String, value: String) {
+        self.kind = kind
+        self.value = value
     }
 }
 
