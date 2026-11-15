@@ -72,6 +72,34 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
     }
 
+    /// Codex 啟動器(#24,ADR-0002):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。Demo 主機的家目錄在記憶體。
+    @MainActor
+    func testCodexLauncherAsksConsentThenInstallsAndRemoves() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+
+        let toggle = app.switches["settings.codexLauncher"]
+        scrollTo(toggle, in: app)
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有 Codex 啟動器")
+        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.switches.firstMatch.tap()
+
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
+        let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        XCTAssertTrue(message.contains("~/.local/bin/codex"), "沒說明會加什麼:\(message)")
+        XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
+        alert.buttons["Install"].tap()
+
+        expectation(for: NSPredicate(format: "value == %@", "1"), evaluatedWith: toggle)
+        waitForExpectations(timeout: 10)
+
+        toggle.switches.firstMatch.tap()
+        expectation(for: NSPredicate(format: "value == %@", "0"), evaluatedWith: toggle)
+        waitForExpectations(timeout: 10)
+        XCTAssertFalse(app.alerts.firstMatch.exists, "移除不該再問同意")
+    }
+
     // MARK: - 輔助
 
     @MainActor
