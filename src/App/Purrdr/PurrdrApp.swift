@@ -40,6 +40,7 @@ struct PurrdrApp: App {
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
             }
         }
+        hosts.haptics = SystemHaptics()
         hosts.load()
         _hosts = State(initialValue: hosts)
         member = Self.makeMember(uiTesting: uiTesting)

@@ -119,6 +119,7 @@ extension TopLevelSheet {
 /// 設定(目前只有硬體鍵盤;完整設定頁在 #32)。
 struct SettingsForm: View {
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
+    @AppStorage(HapticSettings.enabledKey) private var haptics = true
 
     var body: some View {
         Form {
@@ -129,6 +130,12 @@ struct SettingsForm: View {
                 Text("Hardware Keyboard")
             } footer: {
                 Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+            }
+            Section {
+                Toggle("Haptics", isOn: $haptics)
+                    .accessibilityIdentifier("settings.haptics")
+            } footer: {
+                Text("Feel a tap when you answer an agent, and whether the answer arrived.")
             }
         }
     }

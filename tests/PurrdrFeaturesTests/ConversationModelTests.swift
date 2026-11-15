@@ -107,6 +107,8 @@ struct ConversationModelTests {
         }
         for reply in [noSession, noSession, blocked, noSession, noSession] {
             await setup.host.bridge.expect(Self.bridge, reply: reply)
+            // 沒有 session 的 agent 每次輪詢也讀畫面(找資料夾信任提示,#14);這裡畫面上沒有提示。
+            await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-idle"))
         }
 
         await setup.model.poll()

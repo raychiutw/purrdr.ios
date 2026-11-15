@@ -1,0 +1,18 @@
+────────────────────────────────────────────────────────────────────────────────
+ ←  ☐ Region  ✔ Submit  →
+
+Which region should the forecast default to?
+
+❯ 1. Taipei
+  2. Tainan
+  3. Taichung
+  4. Kaohsiung
+  5. Hsinchu
+  6. Keelung
+  7. Yilan
+  8. Hualien
+  9. Taitung
+  10. Pingtung
+  11. Type something.
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel
