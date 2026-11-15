@@ -7,6 +7,7 @@ public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let agentList: AgentListModel
     let member: MemberModel
+    let settings: SettingsModel
     let workspaceActions: WorkspaceActionsModel
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
     let conversation: @MainActor (String, String?) -> ConversationModel
@@ -14,7 +15,7 @@ public struct TopNavigationView: View {
     let terminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
     public init(
-        navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel,
+        navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel, settings: SettingsModel,
         workspaceActions: WorkspaceActionsModel,
         conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
@@ -22,6 +23,7 @@ public struct TopNavigationView: View {
         self.navigation = navigation
         self.agentList = agentList
         self.member = member
+        self.settings = settings
         self.workspaceActions = workspaceActions
         self.conversation = conversation
         self.terminal = terminal
@@ -35,6 +37,8 @@ public struct TopNavigationView: View {
         }
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
+            case .settings:
+                SettingsView(model: settings, member: member) { navigation.sheet = nil }
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member)
@@ -71,7 +75,7 @@ public struct TopNavigationView: View {
     }
 }
 
-/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(設定 #32、主機 #10)。
+/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(主機 #10)。
 struct TopLevelSheetView: View {
     let sheet: TopLevelSheet
     let done: () -> Void

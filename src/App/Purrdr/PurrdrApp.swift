@@ -15,6 +15,7 @@ struct PurrdrApp: App {
     private let workspaceActions: WorkspaceActionsModel
     private let navigation = TopNavigationModel()
     private let member: MemberModel
+    private let settings: SettingsModel
     private let client: HerdrClient
     private let transcripts: TranscriptReader
     /// 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
@@ -38,6 +39,32 @@ struct PurrdrApp: App {
         terminals = PaneTerminalClient(channel: channel)
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         member = Self.makeMember(uiTesting: uiTesting)
+        settings = Self.makeSettings(client: client, uiTesting: uiTesting)
+    }
+
+    /// 設定頁。UI 測試用獨立的 UserDefaults suite,每次啟動清空，不讀寫這台模擬器的偏好。
+    private static func makeSettings(client: HerdrClient, uiTesting: Bool) -> SettingsModel {
+        let defaults: UserDefaults
+        if uiTesting, let suite = UserDefaults(suiteName: "purrdr.uiTesting") {
+            suite.removePersistentDomain(forName: "purrdr.uiTesting")
+            defaults = suite
+        } else {
+            defaults = .standard
+        }
+        let info = Bundle.main.infoDictionary ?? [:]
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let app = AppInfo(
+            version: info["CFBundleShortVersionString"] as? String ?? "?",
+            build: info["CFBundleVersion"] as? String ?? "?",
+            system: "\(UIDevice.current.systemName) \(system.majorVersion).\(system.minorVersion).\(system.patchVersion)",
+            // 只用裝置種類(model),不用 UIDevice.name:裝置名稱常含使用者本名。
+            device: UIDevice.current.model
+        )
+        return SettingsModel(
+            // 目前唯一的主機是 Demo 主機，不算在主機數裡(真主機清單在之後的票)。
+            app: app, client: client, hostCount: { 0 }, defaults: defaults,
+            platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks
+        )
     }
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
@@ -53,7 +80,8 @@ struct PurrdrApp: App {
     var body: some Scene {
         WindowGroup {
             TopNavigationView(
-                navigation: navigation, agentList: agentList, member: member, workspaceActions: workspaceActions
+                navigation: navigation, agentList: agentList, member: member, settings: settings,
+                workspaceActions: workspaceActions
             ) { paneID, sessionID in
                 ConversationModel(
                     client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
