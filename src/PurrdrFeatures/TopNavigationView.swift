@@ -7,17 +7,23 @@ public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let agentList: AgentListModel
     let member: MemberModel
+    /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
+    let conversation: @MainActor (String, String?) -> ConversationModel
 
-    public init(navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel) {
+    public init(
+        navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel,
+        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel
+    ) {
         self.navigation = navigation
         self.agentList = agentList
         self.member = member
+        self.conversation = conversation
     }
 
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
-            AgentListView(model: agentList)
+            AgentListView(model: agentList, conversation: conversation)
                 .toolbar { toolbar }
         }
         .sheet(item: $navigation.sheet) { sheet in
