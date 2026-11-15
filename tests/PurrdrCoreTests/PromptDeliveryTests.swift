@@ -225,6 +225,32 @@ struct PromptDeliveryTests {
         #expect(!PromptDelivery.isSlashCommand("/model", kind: "pi"))
     }
 
+    // MARK: - Shell `!` 指令
+
+    /// F6.4、#43:`!指令` 在 agent 的 shell 執行，Claude 不會開始工作，等 working 只會逾時;補的 Enter 也不該送。
+    @Test("Claude 的 `!` 指令：照打的內容送出、不帶 wait、期限 20 秒，送出就算數，絕不補 Enter")
+    func shellCommandIsNotAwaited() async throws {
+        let host = FakeHost()
+        let sleeper = RecordingSleeper()
+        await host.expect(Self.bridge, reply: Self.prompted(delivery: "written_to_pty"))
+
+        let outcome = await Self.delivery(host, sleeper: sleeper).send("!git status", to: Self.claude)
+
+        #expect(outcome == .submittedCommand)
+        #expect(await host.executions.map(\.stdinText) == [
+            #"{"id":"purrdr:agent.prompt","method":"agent.prompt","params":{"target":"w1:p6","text":"!git status"}}"# + "\n",
+        ])
+        #expect(await sleeper.requested == [.seconds(20)])
+    }
+
+    @Test("Shell 指令的判斷：只有 Claude、且以 `!` 開頭")
+    func shellCommandDetection() {
+        #expect(PromptDelivery.isShellCommand("!ls -la", kind: "claude"))
+        #expect(PromptDelivery.isShellCommand("! git status", kind: "claude"))
+        #expect(!PromptDelivery.isShellCommand("run !ls", kind: "claude"))
+        #expect(!PromptDelivery.isShellCommand("!ls", kind: "codex"))
+    }
+
     // MARK: - 中斷
 
     /// R-P13:只送一個 Esc(第二個會開 Claude 的回溯選單);主機會收下不認得的鍵名，所以要確認離開 working。

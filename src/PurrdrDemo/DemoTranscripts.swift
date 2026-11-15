@@ -154,6 +154,15 @@ enum DemoTranscripts {
     static func reply(to prompt: String, number: Int, at date: Date) -> [String] {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if prompt.hasPrefix("!") {
+            // Shell `!` 指令(F5.9):Claude 記成兩個連續的使用者行——輸入與輸出。
+            let command = String(prompt.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            return [
+                user("d3m0-p-\(number)-i", formatter.string(from: date), "<bash-input>\(command)</bash-input>"),
+                user("d3m0-p-\(number)-o", formatter.string(from: date.addingTimeInterval(1)),
+                     "<bash-stdout>demo: this is the demo host, so the command did not run.\nOn your own computer, its output would appear here.</bash-stdout><bash-stderr></bash-stderr>"),
+            ]
+        }
         return [
             user("d3m0-p-\(number)-u", formatter.string(from: date), prompt),
             assistantText("d3m0-p-\(number)-a", formatter.string(from: date.addingTimeInterval(2)), """

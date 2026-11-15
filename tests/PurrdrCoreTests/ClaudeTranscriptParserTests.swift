@@ -20,6 +20,7 @@ struct ClaudeTranscriptParserTests {
         case .note(let note): "note: \(note.text.prefix(26))"
         case .subagent(let card): "subagent: \(card.title)"
         case .workflow(let card): "workflow: \(card.name)"
+        case .shell(let run): "shell: \(run.command)"
         case .toolRun(let run):
             "tools: " + run.steps.map { step in
                 switch step.kind {
