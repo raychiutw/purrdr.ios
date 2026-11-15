@@ -57,6 +57,8 @@ public actor FakeHost: HostChannel {
     private var expectations: [(command: String, reply: FakeReply)] = []
     private var ptyExpectations: [(request: PTYRequest, output: Data)] = []
     private var pending: [Int: (reply: FakeReply, continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation)] = [:]
+    /// 回應完仍保持開著的串流(`FakeReply.keepsOpen`),測試可以再 `send`／`finish`。
+    private var open: [Int: AsyncThrowingStream<ExecOutput, any Error>.Continuation] = [:]
 
     public init() {}
 
@@ -82,7 +84,7 @@ public actor FakeHost: HostChannel {
         executions.append(Execution(command: command, stdin: Data(), closedStdin: false, closed: false))
         let (stream, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
         if reply.trigger == .immediately {
-            Self.emit(reply, to: continuation)
+            emit(reply, to: continuation, for: id)
         } else {
             pending[id] = (reply, continuation)
         }
@@ -101,16 +103,9 @@ public actor FakeHost: HostChannel {
         return FakePTYSession(host: self, id: id, output: stream, continuation: continuation)
     }
 
-    /// 對第 `index` 個執行(`executions` 的索引,`.manual` 回應)送出一個輸出事件。
+    /// 對第 `index` 次執行(`keepsOpen` 的串流)送出任一種輸出事件(stdout 或 stderr)。
     public func send(_ output: ExecOutput, toExecution index: Int) {
-        pending[index]?.continuation.yield(output)
-    }
-
-    /// 對第 `index` 個執行(`.manual` 回應)送出結束狀態並結束串流。
-    public func finish(execution index: Int, exitCode: Int32 = 0) {
-        guard let waiting = pending.removeValue(forKey: index) else { return }
-        waiting.continuation.yield(.exit(code: exitCode))
-        waiting.continuation.finish()
+        open[index]?.yield(output)
     }
 
     /// 等到 app 執行了 `count` 個指令(測試與 app 的非同步工作對齊用)。逾時則回傳目前數量。
@@ -141,13 +136,12 @@ public actor FakeHost: HostChannel {
         executions[id].stdin.append(data)
         if let waiting = pending[id], waiting.reply.trigger == .afterStdinLine, executions[id].stdin.contains(0x0A) {
             pending[id] = nil
-            Self.emit(waiting.reply, to: waiting.continuation)
+            emit(waiting.reply, to: waiting.continuation, for: id)
         }
     }
 
     fileprivate func closedStdin(for id: Int) {
         executions[id].closedStdin = true
-        if pending[id]?.reply.trigger == .manual { return }
         // 真的 bridge 在 stdin 一行都沒收到就 EOF 時，什麼都不回、exit 0(行為規格 §3.3)。
         if let waiting = pending.removeValue(forKey: id) {
             waiting.continuation.yield(.exit(code: 0))
@@ -158,17 +152,37 @@ public actor FakeHost: HostChannel {
     fileprivate func closed(_ id: Int) {
         executions[id].closed = true
         pending.removeValue(forKey: id)?.continuation.finish()
+        open.removeValue(forKey: id)?.finish()
     }
 
     fileprivate func ptyReceived(_ data: Data, for id: Int) { ptys[id].input.append(data) }
     fileprivate func ptyResized(_ id: Int, columns: Int, rows: Int) { ptys[id].sizes.append(.init(columns: columns, rows: rows)) }
     fileprivate func ptyClosed(_ id: Int) { ptys[id].closed = true }
 
-    private static func emit(_ reply: FakeReply, to continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation) {
+    private func emit(_ reply: FakeReply, to continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation, for id: Int) {
         if !reply.stdout.isEmpty { continuation.yield(.stdout(reply.stdout)) }
         if !reply.stderr.isEmpty { continuation.yield(.stderr(reply.stderr)) }
+        if reply.keepsOpen {
+            open[id] = continuation
+            return
+        }
         continuation.yield(.exit(code: reply.exitCode))
         continuation.finish()
+    }
+
+    // MARK: - 給測試推送(`keepsOpen` 的串流)
+
+    /// 對第 `execution` 次執行(從 0 起算)再送出 stdout,例如訂閱中的一行事件。
+    public func send(stdout: Data, toExecution execution: Int) {
+        open[execution]?.yield(.stdout(stdout))
+    }
+
+    /// 結束第 `execution` 次執行(例如主機那端的串流斷了)。
+    public func finish(execution: Int, exitCode: Int32 = 0) {
+        open.removeValue(forKey: execution).map {
+            $0.yield(.exit(code: exitCode))
+            $0.finish()
+        }
     }
 }
 
@@ -179,26 +193,37 @@ public struct FakeReply: Sendable {
         case immediately
         /// 等 stdin 收到第一個換行才回應(`herdr remote-api-bridge`:讀到一行請求才轉給 socket)。
         case afterStdinLine
-        /// 什麼都不自動送;由測試以 `FakeHost.send(_:toExecution:)`／`finish(execution:exitCode:)` 逐步送出
-        /// (`herdr terminal session control` 這種長時間串流)。
-        case manual
     }
 
     public var stdout: Data
     public var stderr: Data
     public var exitCode: Int32
     public var trigger: Trigger
+    /// 送出 stdout 後不結束(像 `events.subscribe` 的串流),之後由測試 `send`／`finish`。
+    public var keepsOpen: Bool
 
-    public init(stdout: Data = Data(), stderr: Data = Data(), exitCode: Int32 = 0, trigger: Trigger = .immediately) {
+    public init(stdout: Data = Data(), stderr: Data = Data(), exitCode: Int32 = 0, trigger: Trigger = .immediately, keepsOpen: Bool = false) {
         self.stdout = stdout
         self.stderr = stderr
         self.exitCode = exitCode
         self.trigger = trigger
+        self.keepsOpen = keepsOpen
     }
 
     /// 回放錄製的 `herdr remote-api-bridge` 回應(`Fixtures/herdr-<版本>/<檔名>`):等請求那一行到了才回。
-    public static func recorded(_ fixture: String, herdr version: String = Fixtures.defaultHerdrVersion) -> FakeReply {
-        FakeReply(stdout: Fixtures.data(fixture, herdr: version), trigger: .afterStdinLine)
+    public static func recorded(_ fixture: String, herdr version: String = Fixtures.defaultHerdrVersion, keepsOpen: Bool = false) -> FakeReply {
+        FakeReply(stdout: Fixtures.data(fixture, herdr: version), trigger: .afterStdinLine, keepsOpen: keepsOpen)
+    }
+
+    /// 回放錄製回應的**第一行**,先以 `modify` 改動其中的 JSON。
+    ///
+    /// 用在真實主機錄不到的情境(例如 herdr 0.9.5 不會送出的欄位、難以觸發的錯誤):以真實回應為底，
+    /// 只改測試關心的那幾個值，改了什麼寫在測試裡，一眼看得出不是原樣錄製。
+    public static func recorded(
+        _ fixture: String, herdr version: String = Fixtures.defaultHerdrVersion,
+        modify: (inout [String: Any]) -> Void
+    ) -> FakeReply {
+        FakeReply(stdout: Fixtures.modifiedLine(fixture, herdr: version, modify: modify), trigger: .afterStdinLine)
     }
 }
 

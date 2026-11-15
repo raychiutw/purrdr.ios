@@ -74,7 +74,7 @@ struct PaneTerminalModelTests {
 
     /// 開好一條連線並收到第一個 frame。
     static func connected(_ host: FakeHost, debounce: Duration = .milliseconds(30)) async -> PaneTerminalModel {
-        await host.expect(control(), reply: FakeReply(trigger: .manual))
+        await host.expect(control(), reply: FakeReply(keepsOpen: true))
         let model = makeModel(host, debounce: debounce)
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1)
@@ -88,7 +88,7 @@ struct PaneTerminalModelTests {
     @Test("畫面回報格數前不開連線;回報後以該格數開 control(不帶 --takeover),錄製的 frame 畫進模擬器")
     func connectsAfterSizeAndRendersFrames() async {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         let screen = Screen()
         model.attach { screen.feed($0) }
@@ -111,7 +111,7 @@ struct PaneTerminalModelTests {
     @Test("中文、emoji 寬字元與組合字元畫在正確的格子")
     func rendersWideCharacters() async {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         let screen = Screen()
         model.attach { screen.feed($0) }
@@ -130,7 +130,7 @@ struct PaneTerminalModelTests {
     @Test("模擬器還沒接上前到達的 frame 先暫存，接上時依序補畫")
     func buffersFramesUntilAttached() async {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1)
@@ -149,8 +149,8 @@ struct PaneTerminalModelTests {
     @Test("已有別的 client 在操作 → 顯示被佔用並提供「接管」;接管以 --takeover 重開")
     func rejectedOffersTakeover() async {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
-        await host.expect(Self.control(takeover: true), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
+        await host.expect(Self.control(takeover: true), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1)
@@ -183,8 +183,8 @@ struct PaneTerminalModelTests {
     @Test("沒有 terminal.closed 就 EOF → 連線中斷，可重新連線;重新連線不帶 --takeover、沿用目前格數")
     func disconnectOffersReconnect() async {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1)
@@ -205,7 +205,7 @@ struct PaneTerminalModelTests {
     @Test("Pane 裡的程式結束 → 已結束，不提供重新連線")
     func exitedEnds() async {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1)
@@ -221,7 +221,7 @@ struct PaneTerminalModelTests {
     @Test("找不到 Pane 或 herdr 沒跑起來 → 說明原因，不提供重新連線(永遠不會成功)")
     func notFoundIsUnavailable() async {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1)

@@ -11,6 +11,7 @@ import SwiftUI
 struct PurrdrApp: App {
     private let agentList: AgentListModel
     private let terminals: PaneTerminalClient
+    private let navigation = TopNavigationModel()
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -23,7 +24,7 @@ struct PurrdrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList) { [terminals] row in
+            TopNavigationView(navigation: navigation, agentList: agentList) { [terminals] row in
                 PaneTerminalModel(client: terminals, paneID: row.id, title: row.title)
             }
         }

@@ -34,7 +34,7 @@ struct PaneTerminalClientTests {
     @Test("錄製的 frame 依序解出(seq、尺寸、full、base64 解開的畫面 bytes),release 後收到 detached")
     func framesFromFixture() async throws {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let connection = try await PaneTerminalClient(channel: host).control(target: "w1:p1", columns: 40, rows: 12)
 
         await Self.replay("01-handshake-echo-release.stdout.ndjson", on: host)
@@ -58,7 +58,7 @@ struct PaneTerminalClientTests {
     ])
     func closeReasons(fixture: String, reason: TerminalCloseReason) async throws {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let connection = try await PaneTerminalClient(channel: host).control(target: "w1:p1", columns: 40, rows: 12)
 
         await Self.replay(fixture, on: host)
@@ -76,7 +76,7 @@ struct PaneTerminalClientTests {
     ])
     func eofWithoutClosedIsDisconnect(fixture: String) async throws {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let connection = try await PaneTerminalClient(channel: host).control(target: "w1:p1", columns: 40, rows: 12)
 
         await Self.replay(fixture, on: host)
@@ -98,7 +98,7 @@ struct PaneTerminalClientTests {
     @Test("輸入、resize、捲動、release 的格式與 spike 實際送給 herdr 的訊息相同")
     func inputWireFormat() async throws {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let connection = try await PaneTerminalClient(channel: host).control(target: "w1:p1", columns: 40, rows: 12)
 
         try await connection.send(bytes: Data([0x15]))
@@ -125,7 +125,7 @@ struct PaneTerminalClientTests {
     @Test("大量輸入切成每則 ≤ 64 KiB,串起來等於原文(herdr 收到 > 1 MiB 的單則會斷線)")
     func largeInputIsChunked() async throws {
         let host = FakeHost()
-        await host.expect(Self.control(), reply: FakeReply(trigger: .manual))
+        await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let connection = try await PaneTerminalClient(channel: host).control(target: "w1:p1", columns: 40, rows: 12)
         let payload = Data((0..<200_000).map { UInt8(truncatingIfNeeded: $0 % 95 + 32) })
 
