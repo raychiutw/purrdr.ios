@@ -75,6 +75,23 @@ public enum Fixtures {
         transcript(name).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }
     }
 
+    /// 依各 agent 文件撰寫、**未實測**的對話紀錄(`Fixtures/other-agents/<路徑>`,來源見 `Fixtures/README.md`)。
+    public static func otherAgentTranscript(_ path: String) -> Data {
+        let components = path.split(separator: "/").map(String.init)
+        let folder = (["Fixtures/other-agents"] + components.dropLast()).joined(separator: "/")
+        guard let name = components.last,
+              let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: folder),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到對話紀錄 Fixtures/other-agents/\(path)")
+        }
+        return data
+    }
+
+    /// `otherAgentTranscript` 的每一行(不含換行)。
+    public static func otherAgentTranscriptLines(_ path: String) -> [String] {
+        otherAgentTranscript(path).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }
+    }
+
     /// 對話紀錄的第 `index` 行(從 0 起算),先以 `modify` 改動其中的 JSON。用在錄不到的情境(改了什麼寫在測試裡)。
     public static func transcriptLine(_ index: Int, of name: String = "session.jsonl", modify: (inout [String: Any]) -> Void) -> String {
         let lines = transcriptLines(name)

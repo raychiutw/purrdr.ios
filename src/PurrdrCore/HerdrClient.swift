@@ -6,17 +6,31 @@ import Foundation
 /// 「需要等待」的請求),讀到第一行回應後由我方關閉通道(行為規格 §3.3)。
 public struct HerdrClient: Sendable {
     private let channel: any HostChannel
-    private let herdrPath: String
+    private let herdr: HerdrInstallation
 
-    public init(channel: any HostChannel, herdrPath: String = "herdr") {
+    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation()) {
         self.channel = channel
-        self.herdrPath = herdrPath
+        self.herdr = herdr
     }
 
     /// 讀主機目前的全量狀態(`session.snapshot`)。
     public func snapshot() async throws -> HostSnapshot {
         let result = try await request(method: "session.snapshot", as: SnapshotResult.self)
         return result.snapshot.hostSnapshot
+    }
+
+    /// 健康檢查：伺服器版本(行為規格 §3.4 `ping`)。
+    public func ping() async throws -> String {
+        try await request(method: "ping", as: PingResult.self).version
+    }
+
+    /// 主機上 herdr 的 agent 整合(`integration.list`)。
+    public func integrations() async throws -> [AgentIntegration] {
+        try await request(method: "integration.list", as: IntegrationListResult.self).integrations.map {
+            AgentIntegration(
+                target: $0.target, label: $0.label ?? $0.target,
+                state: AgentIntegration.State(rawValue: $0.state ?? "") ?? .unknown, available: $0.available ?? false)
+        }
     }
 
     /// 在場回報(`pane.report_metadata`,行為規格 F5.13):讓桌機 herdr 側欄顯示「手機正在看這個 Agent、用什麼模型」。
@@ -43,7 +57,7 @@ public struct HerdrClient: Sendable {
     /// 之後持續讀事件，直到主機那端結束、herdr 回錯誤(例如 `events_lost`),或呼叫端不再讀(此時關閉通道)。
     /// 串流第一項是 `.subscriptionStarted`;在它之前就結束算失敗(行為規格 §3.7)。
     public func subscribe(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
-        let session = try await channel.execute(HerdrCommand.bridge(herdrPath: herdrPath))
+        let session = try await channel.execute(HerdrCommand.bridge(herdr))
         do {
             try await session.write(Self.requestLine(method: "events.subscribe", params: SubscribeParams(subscriptions: subscriptions)))
         } catch {
@@ -135,7 +149,7 @@ public struct HerdrClient: Sendable {
     }
 
     private func request<Result: Decodable>(method: String, params: some Encodable = NoParams(), as: Result.Type) async throws -> Result {
-        let session = try await channel.execute(HerdrCommand.bridge(herdrPath: herdrPath))
+        let session = try await channel.execute(HerdrCommand.bridge(herdr))
         let line: Data
         do {
             try await session.write(Self.requestLine(method: method, params: params))
@@ -174,6 +188,11 @@ public struct HerdrClient: Sendable {
         // herdr 失敗時可能把錯誤 envelope 印在 stderr(行為規格 §3.2)。
         if stdout.isEmpty, let envelope = stderr.split(separator: 0x0A).first(where: { $0.first == UInt8(ascii: "{") }) {
             return Data(envelope)
+        }
+        // bridge 連不到 socket = 這個 session 沒有在跑 herdr(行為規格 §3.3)。
+        let stderrText = String(decoding: stderr, as: UTF8.self)
+        if stdout.isEmpty, stderrText.contains("failed to connect to remote Herdr API socket") {
+            throw HerdrError.herdr(code: "server_not_running", message: stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         guard !stdout.isEmpty else {
             throw HerdrError.noResponse(exitCode: exitCode, stderr: String(decoding: stderr, as: UTF8.self))
@@ -357,6 +376,21 @@ private struct Envelope<Result: Decodable>: Decodable {
 private struct WireError: Decodable {
     var code: String
     var message: String
+}
+
+private struct PingResult: Decodable {
+    var version: String
+}
+
+private struct IntegrationListResult: Decodable {
+    var integrations: [WireIntegration]
+}
+
+private struct WireIntegration: Decodable {
+    var target: String
+    var label: String?
+    var available: Bool?
+    var state: String?
 }
 
 private struct SnapshotResult: Decodable {

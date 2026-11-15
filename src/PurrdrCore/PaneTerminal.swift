@@ -6,17 +6,17 @@ import Foundation
 /// 只在這個檔案處理。
 public struct PaneTerminalClient: Sendable {
     private let channel: any HostChannel
-    private let herdrPath: String
+    private let herdr: HerdrInstallation
 
-    public init(channel: any HostChannel, herdrPath: String = "herdr") {
+    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation()) {
         self.channel = channel
-        self.herdrPath = herdrPath
+        self.herdr = herdr
     }
 
     /// 以 controller 身分接上 `target`(pane id 或 terminal id),以 `columns`×`rows` 做 handshake。
     public func control(target: String, columns: Int, rows: Int, takeover: Bool = false) async throws -> PaneTerminalConnection {
         let command = HerdrCommand.terminalSessionControl(
-            target: target, columns: columns, rows: rows, takeover: takeover, herdrPath: herdrPath
+            target: target, columns: columns, rows: rows, takeover: takeover, herdr: herdr
         )
         return PaneTerminalConnection(session: try await channel.execute(command))
     }

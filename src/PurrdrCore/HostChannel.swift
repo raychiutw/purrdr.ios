@@ -13,6 +13,13 @@ public protocol HostChannel: Sendable {
 
     /// 開一個 PTY(`pty-req` + `shell`／`exec`)。`command` 為 `nil` 時開登入 shell。
     func openPTY(_ request: PTYRequest) async throws -> any PTYSession
+
+    /// 關掉底層連線(編輯／刪除主機、信任新 key、連線測試結束時)。下一個指令會重新連線。
+    func disconnect() async
+}
+
+extension HostChannel {
+    public func disconnect() async {}
 }
 
 /// 一次指令執行。stdout／stderr 以串流送出，最後一個事件是 `.exit`。

@@ -26,6 +26,9 @@ let package = Package(
         .library(name: "PurrdrTestSupport", targets: ["PurrdrTestSupport"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
+        .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.11.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
         // 終端機模擬器(MIT)。固定 1.11.2:
         // - 1.12 起帶 Metal shader,Xcode 27 沒裝 Metal Toolchain(另外下載的元件)就編不過，本機與 CI 都要多一步;
         // - 1.19 起再加 build-tool plugin,Xcode 建置 app 時要逐一信任 plugin。
@@ -33,9 +36,15 @@ let package = Package(
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", exact: "1.11.2"),
     ],
     targets: [
-        // 可攜核心：主機通道、herdr client、領域型別。只用 Foundation(之後加 swift-nio、swift-nio-ssh、swift-crypto)。
+        // 可攜核心：主機通道(含 SSH)、herdr client、領域型別。只用 Foundation 與 swift-nio／swift-nio-ssh／swift-crypto。
         .target(
             name: "PurrdrCore",
+            dependencies: [
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOSSH", package: "swift-nio-ssh"),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ],
             path: "src/PurrdrCore",
             swiftSettings: strictSettings
         ),
@@ -63,7 +72,14 @@ let package = Package(
         ),
         .testTarget(
             name: "PurrdrCoreTests",
-            dependencies: ["PurrdrCore", "PurrdrDemo", "PurrdrTestSupport"],
+            dependencies: [
+                "PurrdrCore", "PurrdrDemo", "PurrdrTestSupport",
+                // 測試用 SSH 伺服器(swift-nio-ssh server 角色)。
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOSSH", package: "swift-nio-ssh"),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ],
             path: "tests/PurrdrCoreTests",
             swiftSettings: strictSettings
         ),

@@ -33,6 +33,10 @@ public enum TranscriptReadError: Error, Equatable {
     case absent
     case unreadable
     case invalidReference
+    /// 符合 session 的檔案不只一個:不開任何檔、不依新舊猜(行為規格 §4.3、§4.5)。
+    case ambiguous
+    /// 檔案的 header 與回報的 session 不符(Pi／OMP,§4.5)。下次重新定位。
+    case mismatch
     /// 讀取中檔案變了或回應格式不對：重試。
     case changed
     /// 指令以其他 exit code 結束。
@@ -66,6 +70,36 @@ public struct TranscriptReader: Sendable {
         let output = try await run(TranscriptCommand.locate(sessionID: sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: cwd)))
         let lines = output.lines
         guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]) else { throw TranscriptReadError.changed }
+        return TranscriptFile(path: lines[0], size: size)
+    }
+
+    /// 找出任一種 agent 的對話紀錄並取得大小。
+    ///
+    /// - Throws: `.absent`(還沒有檔案)、`.unreadable`(權限)、`.ambiguous`(不只一個候選)、`.mismatch`(header 不符)、
+    ///   `.invalidReference`(id 或路徑不安全，不執行任何指令)。
+    public func locate(_ target: TranscriptTarget) async throws -> TranscriptFile {
+        let expectedSuffix: String?
+        switch target.location {
+        case .claude(let sessionID, let cwd):
+            return try await locate(sessionID: sessionID, cwd: cwd)
+        case .grok(let id):
+            guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
+            expectedSuffix = "/\(id)/updates.jsonl"
+        case .antigravity(let id), .piJournal(let id):
+            guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
+            expectedSuffix = nil
+        case .reportedPath(let path):
+            guard Self.isValidPath(path) else { throw TranscriptReadError.invalidReference }
+            expectedSuffix = nil
+        }
+        let readsHeader = target.format == .piJournal
+        let lines = try await run(TranscriptCommand.locate(target.location, readsHeader: readsHeader)).lines
+        guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]),
+              expectedSuffix.map(lines[0].hasSuffix) ?? true else { throw TranscriptReadError.changed }
+        if readsHeader {
+            let expectedID: String? = if case .piJournal(let id) = target.location { id } else { nil }
+            guard PiJournalParser.headerMatches(Array(lines.dropFirst(2)), expectedID: expectedID) else { throw TranscriptReadError.mismatch }
+        }
         return TranscriptFile(path: lines[0], size: size)
     }
 
@@ -134,6 +168,7 @@ public struct TranscriptReader: Sendable {
         case 0?: return Output(stdout: stdout)
         case 3?: throw TranscriptReadError.absent
         case 4?, 5?: throw TranscriptReadError.unreadable
+        case 6?: throw TranscriptReadError.ambiguous
         default: throw TranscriptReadError.failed(exitCode: exitCode)
         }
     }
@@ -162,43 +197,56 @@ public struct TranscriptReader: Sendable {
 /// 一個要讀預覽的聊天。
 public struct PreviewRequest: Sendable, Equatable {
     public var key: String
-    public var sessionID: String
-    public var cwd: String
+    public var target: TranscriptTarget
 
-    public init(key: String, sessionID: String, cwd: String) {
+    public init(key: String, target: TranscriptTarget) {
         self.key = key
-        self.sessionID = sessionID
-        self.cwd = cwd
+        self.target = target
+    }
+
+    /// Claude Code session 的預覽。
+    public init(key: String, sessionID: String, cwd: String) {
+        self.init(key: key, target: TranscriptTarget(format: .claude, location: .claude(sessionID: sessionID, cwd: cwd), sessionKey: sessionID))
     }
 }
 
 extension TranscriptReader {
-    /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 不安全的請求略過。
-    /// 回傳 key → 最後一則可讀訊息;沒有檔案或沒有可讀訊息的聊天不在結果裡。
+    /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 或路徑不安全的請求略過。
+    /// 回傳 key → 最後一則可讀訊息;沒有檔案、有歧義、header 不符(Pi／OMP)或沒有可讀訊息的聊天不在結果裡。
     public func previews(of requests: [PreviewRequest]) async throws -> [String: MessagePreview] {
-        let safe = requests.filter { ClaudeTranscript.isSafeSessionID($0.sessionID) }
-        guard !safe.isEmpty else { return [:] }
+        let entries = requests.compactMap(TranscriptCommand.PreviewEntry.init)
+        guard !entries.isEmpty else { return [:] }
         let marker = marker()
-        let command = TranscriptCommand.previews(
-            marker: marker,
-            requests: safe.map { ($0.key, $0.sessionID, ClaudeTranscript.projectFolder(forCWD: $0.cwd)) }
-        )
-        let output = try await run(command)
-        var linesByKey: [String: [String]] = [:]
-        var current: String?
-        let prefix = marker + " "
+        let output = try await run(TranscriptCommand.previews(marker: marker, entries: entries))
+        var bodies: [String: [String]] = [:]
+        var headers: [String: [String]] = [:]
+        var current: (key: String, isHeader: Bool)?
+        let bodyPrefix = marker + " "
+        let headerPrefix = marker + "! "
         for line in String(decoding: output.stdout, as: UTF8.self).split(separator: "\n") {
-            if line.hasPrefix(prefix) {
-                current = String(line.dropFirst(prefix.count))
-                if let current { linesByKey[current, default: []] = [] }
+            if line.hasPrefix(headerPrefix) {
+                let key = String(line.dropFirst(headerPrefix.count))
+                current = (key, true)
+                headers[key] = []
+            } else if line.hasPrefix(bodyPrefix) {
+                let key = String(line.dropFirst(bodyPrefix.count))
+                current = (key, false)
+                bodies[key] = []
             } else if let current {
-                linesByKey[current, default: []].append(String(line))
+                if current.isHeader { headers[current.key, default: []].append(String(line)) } else { bodies[current.key, default: []].append(String(line)) }
             }
         }
-        // 檔尾的第一行多半被切在中間，解析時自然略過。
-        return linesByKey.compactMapValues { lines in
-            Conversation.preview(of: lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        var previews: [String: MessagePreview] = [:]
+        for request in requests {
+            guard let lines = bodies[request.key] else { continue }
+            if request.target.format == .piJournal {
+                let expectedID: String? = if case .piJournal(let id) = request.target.location { id } else { nil }
+                guard PiJournalParser.headerMatches(headers[request.key] ?? [], expectedID: expectedID) else { continue }
+            }
+            // 檔尾的第一行多半被切在中間，解析時自然略過。
+            previews[request.key] = Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
         }
+        return previews
     }
 }
 
