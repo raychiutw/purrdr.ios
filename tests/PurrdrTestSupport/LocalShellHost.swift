@@ -1,6 +1,9 @@
 import Foundation
 import PurrdrCore
 
+// 用 `Process` 在本機跑 shell,只在 macOS(`swift test`)提供。
+#if os(macOS)
+
 /// 在這台 Mac 上用 `/bin/sh -c` 真的執行指令的主機通道(只給測試用)。
 ///
 /// 對話紀錄的讀取靠主機上的 POSIX 腳本(`TranscriptCommand`):用假主機只能比對字串，驗不出腳本本身對不對。
@@ -72,3 +75,5 @@ private struct LocalExecSession: ExecSession {
     func closeStdin() async {}
     func close() async {}
 }
+
+#endif

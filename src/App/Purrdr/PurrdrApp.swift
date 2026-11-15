@@ -10,15 +10,25 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let client: HerdrClient
+    private let transcripts: TranscriptReader
+    /// 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
+    private let conversationCache = InMemoryConversationCache()
 
     init() {
         let channel: any HostChannel = DemoHost()
-        agentList = AgentListModel(client: HerdrClient(channel: channel))
+        client = HerdrClient(channel: channel)
+        transcripts = TranscriptReader(channel: channel)
+        agentList = AgentListModel(client: client, transcripts: transcripts)
     }
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList)
+            AgentListView(model: agentList) { paneID, sessionID in
+                ConversationModel(
+                    client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
+                )
+            }
         }
     }
 }

@@ -41,6 +41,49 @@ struct DemoHostTests {
         #expect(try await next.value == nil)
     }
 
+    /// Demo 主機對真正 client 送出的精確指令回應，所以對話畫面走的是正式程式路徑(行為規格 F21)。
+    @Test("對話紀錄:Demo 的 Claude Code agent 有可讀的對話(文字、工具串、skill、表格)")
+    func claudeAgentsHaveTranscripts() async throws {
+        let host = DemoHost()
+        let snapshot = try await HerdrClient(channel: host).snapshot()
+        let reader = TranscriptReader(channel: host)
+
+        for agent in snapshot.agents where agent.kind == "claude" {
+            let sessionID = try #require(agent.claudeSessionID)
+            let file = try await reader.locate(sessionID: sessionID, cwd: agent.cwd ?? "")
+            let chunk = try await reader.window(path: file.path, endingAt: file.size, lines: 300)
+            let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+
+            #expect(chunk.start == 0)
+            #expect(chunk.end == file.size)
+            #expect(items.contains { if case .user = $0 { true } else { false } })
+            #expect(items.contains { if case .toolRun = $0 { true } else { false } })
+            #expect(try await reader.tail(path: file.path, from: file.size) == .unchanged)
+        }
+        let ledgerFile = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        let ledger = try await reader.window(path: ledgerFile.path, endingAt: ledgerFile.size, lines: 300)
+        let items = Conversation.items(from: ledger.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        #expect(items.contains { if case .skill(let skill) = $0 { skill.name == "tdd" } else { false } })
+    }
+
+    @Test("列表預覽:Demo 的 Claude Code agent 各有一則預覽")
+    func previewsForDemoAgents() async throws {
+        let host = DemoHost()
+        let snapshot = try await HerdrClient(channel: host).snapshot()
+        let requests = snapshot.agents.compactMap { agent in
+            agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
+        }
+
+        let previews = try await TranscriptReader(channel: host).previews(of: requests)
+
+        #expect(previews.keys.sorted() == ["w1:p1", "w2:p1"])
+    }
+
+    @Test("在場回報:Demo 主機接受 pane.report_metadata")
+    func acceptsPresenceReports() async throws {
+        try await HerdrClient(channel: DemoHost()).reportPresence(paneID: "w1:p1", model: "Opus 5.5", seq: 1)
+    }
+
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")
     func unknownCommandExitsWith127() async throws {
         let session = try await DemoHost().execute("nonexistent-tool --flag")

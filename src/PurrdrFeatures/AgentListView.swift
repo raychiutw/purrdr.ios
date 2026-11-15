@@ -8,15 +8,21 @@ import SwiftUI
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
     @Environment(\.scenePhase) private var scenePhase
+    /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。由 composition root 提供。
+    private let makeConversation: @MainActor (String, String?) -> ConversationModel
 
-    public init(model: AgentListModel) {
+    public init(model: AgentListModel, conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel) {
         self.model = model
+        self.makeConversation = conversation
     }
 
     public var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Agents")
+                .navigationDestination(for: String.self) { paneID in
+                    ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)))
+                }
         }
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
@@ -53,7 +59,10 @@ public struct AgentListView: View {
         return List {
             ForEach(sections) { section in
                 Section(section.group.title) {
-                    ForEach(section.rows) { AgentRowView(row: $0) }
+                    ForEach(section.rows) { row in
+                        NavigationLink(value: row.id) { AgentRowView(row: row) }
+                            .accessibilityIdentifier("agent.row.\(row.id)")
+                    }
                 }
             }
             if case .failed(let message) = model.phase {
@@ -86,6 +95,19 @@ public struct AgentListView: View {
     }
 }
 
+/// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
+private struct ConversationScreen: View {
+    @State private var model: ConversationModel
+
+    init(model: @autoclosure () -> ConversationModel) {
+        _model = State(wrappedValue: model())
+    }
+
+    var body: some View {
+        ConversationView(model: model)
+    }
+}
+
 struct AgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -109,7 +131,6 @@ struct AgentRowView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("agent.row.\(row.id)")
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。

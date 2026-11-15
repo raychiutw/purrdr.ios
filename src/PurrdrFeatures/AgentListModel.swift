@@ -39,6 +39,11 @@ public final class AgentListModel {
         AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews)
     }
 
+    /// 列表看到的 pane 的 Claude Code session id(開對話時用來比對快取)。
+    public func sessionID(ofPane paneID: String) -> String? {
+        snapshot?.agents.first { $0.paneID == paneID }?.claudeSessionID
+    }
+
     /// 主機上有沒有任何 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { snapshot?.agents.isEmpty == false }
 
