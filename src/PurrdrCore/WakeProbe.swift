@@ -1,0 +1,59 @@
+import Foundation
+
+/// 喚醒探測(行為規格 §7.5):app 在背景超過 60 秒後回前景，先在主機上跑一個無害指令(`true`),期限 3 秒。
+///
+/// 掛起期間死掉的連線在 3 秒內被發現並丟棄，接著的列表讀取在新連線上快速重撥，
+/// 而不是每個請求各自等到自己的期限。探測只執行 `true`,所以丟棄連線不會讓任何寫入被重送。
+public struct WakeProbe: Sendable {
+    /// 無害指令。POSIX shell 與 PowerShell 都認得。
+    public static let command = "true"
+    /// 背景超過這麼久才探測。
+    public static let backgroundThreshold: Duration = .seconds(60)
+    public static let timeout: Duration = .seconds(3)
+
+    private let channel: any HostChannel
+    private let sleep: @Sendable (Duration) async throws -> Void
+
+    public init(channel: any HostChannel, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+        self.channel = channel
+        self.sleep = sleep
+    }
+
+    /// 連線活著回傳 `true`;期限到或連線層錯誤時丟棄連線(下一個指令重新撥號)並回傳 `false`。
+    @discardableResult
+    public func run() async -> Bool {
+        let started = StartedSession()
+        let alive = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { [channel] in
+                do {
+                    let session = try await channel.execute(Self.command)
+                    await started.set(session)
+                    // 有結束狀態就代表通道與連線都正常(exit code 不重要)。
+                    for try await event in session.output {
+                        if case .exit = event { return true }
+                    }
+                    return false
+                } catch {
+                    return false
+                }
+            }
+            group.addTask { [sleep] in
+                try? await sleep(Self.timeout)
+                return false
+            }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        if !alive {
+            await started.session?.close()
+            await channel.disconnect()
+        }
+        return alive
+    }
+}
+
+private actor StartedSession {
+    private(set) var session: (any ExecSession)?
+    func set(_ session: any ExecSession) { self.session = session }
+}
