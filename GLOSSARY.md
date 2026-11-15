@@ -1,4 +1,4 @@
-# Drover Chat(drover-chat.ios)
+# Purrdr(purrdr.ios)
 
 在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理的 coding agent,並開終端機進那台電腦。這份文件只定義本專案的共同語彙;同一個東西有多種叫法時挑一個，其餘列在 _避免_。UI 文字、型別名稱、測試名稱一律用這裡的詞。實作細節不寫在這裡。
 
@@ -41,12 +41,12 @@ _避免_:Raw SSH、Console
 
 ## 推播
 
-**Drover 後台**(Backend):
-由 Drover Chat 營運的伺服器，負責會員登入、訂閱權限、主機同步與推播轉送;保管 APNs 金鑰。聊天與終端機不經過它。
+**Purrdr 後台**(Backend):
+由 Purrdr 營運的伺服器，負責會員登入、訂閱權限、主機同步與推播轉送;保管 APNs 金鑰。聊天與終端機不經過它。
 _避免_:推播中繼、Relay、Push server、API server
 
 **主機外掛**(Host plugin):
-裝在主機 herdr 上的 plugin,在 Agent 狀態改變時通知 Drover 後台。是推播的選用元件，聊天與終端機不需要它。
+裝在主機 herdr 上的 plugin,在 Agent 狀態改變時通知 Purrdr 後台。是推播的選用元件，聊天與終端機不需要它。
 _避免_:Watcher、Daemon、Agent(會跟 Agent 混淆)
 
 **推播配對**:
@@ -56,13 +56,13 @@ _避免_:Registration、Pairing token
 ## 會員
 
 **會員**(Member):
-以 Sign in with Apple 或 Google 登入 Drover 後台的使用者身分;一個會員可以連結兩種登入方式，用任一種都登入同一個會員。只有訂閱功能需要會員;聊天與終端機不需要登入。
+以 Sign in with Apple 或 Google 登入 Purrdr 後台的使用者身分;一個會員可以連結兩種登入方式，用任一種都登入同一個會員。只有訂閱功能需要會員;聊天與終端機不需要登入。
 _避免_:帳號、User、Account
 
 **訂閱**(Subscription):
-會員的自動續訂方案(商品名稱 Drover Chat Plus)，開通推播與主機同步。可以購買，也可以用 Apple 的 Offer Code 兌換;權限記在會員身上，不記在裝置上。
+會員的自動續訂方案(商品名稱 Purrdr Plus)，開通推播與主機同步。可以購買，也可以用 Apple 的 Offer Code 兌換;權限記在會員身上，不記在裝置上。
 _避免_:授權碼、License、Pro、Plus(單獨使用時)、推播訂閱
 
 **主機同步**:
-把會員的主機清單(主機名稱、連線方式、使用者名稱、host key 指紋)存在 Drover 後台，讓會員的各支裝置共用。私鑰與密碼永不同步。與 QR code 匯出匯入並存。
+把會員的主機清單(主機名稱、連線方式、使用者名稱、host key 指紋)存在 Purrdr 後台，讓會員的各支裝置共用。私鑰與密碼永不同步。與 QR code 匯出匯入並存。
 _避免_:Backup、Cloud sync

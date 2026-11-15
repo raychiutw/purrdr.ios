@@ -1,6 +1,6 @@
 # Issue tracker:GitHub
 
-本 repo 的 issue 與 spec 都是 GitHub issue(`raychiutw/drover-chat.ios`),一律用 `gh` CLI 操作。
+本 repo 的 issue 與 spec 都是 GitHub issue(`raychiutw/purrdr.ios`),一律用 `gh` CLI 操作。
 
 ## 慣例
 

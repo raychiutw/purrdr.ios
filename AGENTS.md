@@ -2,10 +2,11 @@
 
 ## 專案性質
 
-Drover Chat:在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理的 coding agent,並開終端機進那台電腦。原生 SwiftUI,最低 iOS 26,用 Xcode 27 建置,Universal,要上架 App Store。尚未開始實作。
+Purrdr:在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理的 coding agent,並開終端機進那台電腦。原生 SwiftUI,最低 iOS 26,用 Xcode 27 建置,Universal,要上架 App Store。尚未開始實作。
 
 - 詞彙在 `GLOSSARY.md`,UI 規範在 `DESIGN.md`,難以逆轉的決策在 `docs/adr/`,一手來源研究在 `docs/research/`。
 - **clean-room**(ADR-0001):不閱讀、不複製 herdrchat 原始碼;只依據 `docs/research/herdrchat-behavior-spec.md`、herdr 官方文件與真實主機實測。
+- 舊名 Drover Chat 已改為 Purrdr(ADR-0009);ADR-0001～0008 與 `docs/research/` 保留舊名，對照表見 ADR-0009。
 - 設計原型保存在 `prototype/design-directions` 分支，不合併。
 
 ## 開發流程
@@ -19,7 +20,7 @@ Drover Chat:在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理�
 
 ### Issue tracker
 
-Issues 與 spec 放在 GitHub Issues(`raychiutw/drover-chat.ios`),用 `gh` CLI 操作。見 `docs/agents/issue-tracker.md`。
+Issues 與 spec 放在 GitHub Issues(`raychiutw/purrdr.ios`),用 `gh` CLI 操作。見 `docs/agents/issue-tracker.md`。
 
 ### Triage labels
 
