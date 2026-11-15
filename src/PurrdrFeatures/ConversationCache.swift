@@ -9,6 +9,27 @@ public protocol ConversationCache: Sendable {
     func load(chatKey: String) async -> CachedConversation?
     func save(_ conversation: CachedConversation, chatKey: String) async
     func remove(chatKey: String) async
+    /// 移除 key 以 `prefix` 開頭的所有聊天(刪除主機時清掉那台主機的快取)。
+    func removeAll(chatKeyPrefix prefix: String) async
+}
+
+/// 某台主機的對話快取：key 前面加上主機身分，因為 pane id(`w1:p1`)在每台主機都會重複(行為規格 F1.3)。
+public struct HostScopedConversationCache: ConversationCache {
+    private let base: any ConversationCache
+    private let prefix: String
+
+    /// - Parameter scope: 主機身分(主機 id;Demo 主機是 `demo`)。
+    public init(base: any ConversationCache, scope: String) {
+        self.base = base
+        prefix = Self.prefix(scope: scope)
+    }
+
+    static func prefix(scope: String) -> String { scope + "/" }
+
+    public func load(chatKey: String) async -> CachedConversation? { await base.load(chatKey: prefix + chatKey) }
+    public func save(_ conversation: CachedConversation, chatKey: String) async { await base.save(conversation, chatKey: prefix + chatKey) }
+    public func remove(chatKey: String) async { await base.remove(chatKey: prefix + chatKey) }
+    public func removeAll(chatKeyPrefix: String) async { await base.removeAll(chatKeyPrefix: prefix + chatKeyPrefix) }
 }
 
 /// 一個聊天的快取內容。
@@ -54,4 +75,5 @@ public actor InMemoryConversationCache: ConversationCache {
     public func load(chatKey: String) -> CachedConversation? { entries[chatKey] }
     public func save(_ conversation: CachedConversation, chatKey: String) { entries[chatKey] = conversation }
     public func remove(chatKey: String) { entries[chatKey] = nil }
+    public func removeAll(chatKeyPrefix prefix: String) { entries = entries.filter { !$0.key.hasPrefix(prefix) } }
 }
