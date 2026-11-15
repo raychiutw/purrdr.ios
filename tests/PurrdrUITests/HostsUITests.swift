@@ -24,7 +24,8 @@ final class HostsUITests: XCTestCase {
         XCTAssertTrue(test.waitForExistence(timeout: 5))
         XCTAssertFalse(test.isEnabled, "必填欄位沒填就能測試")
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled, "沒測試就能儲存")
-        XCTAssertTrue(app.staticTexts["Tailscale SSH"].exists)
+        let method = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Tailscale SSH")).firstMatch
+        XCTAssertTrue(method.exists, "沒有顯示連線方式")
 
         for (identifier, text) in [("name", "Studio"), ("address", "studio-mac"), ("username", "demo")] {
             let field = app.textFields["hostEditor.\(identifier)"]
