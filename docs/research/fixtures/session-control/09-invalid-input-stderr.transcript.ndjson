@@ -1,0 +1,19 @@
+{"t_ms": 46.2, "dir": "stdout", "line": "{\"bytes\":\"G1s/MjAyNmgbWz8yNWwbXTg7OxtcG1syShtbMTsxSBtbMDszOTs0OW0kICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgG1syOzFIICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBtbMzsxSCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAbWzQ7MUggICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgG1s1OzFIICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBtbNjsxSCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAbWzc7MUggICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgG1s4OzFIICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBtbOTsxSCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAbWzEwOzFIICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIBtbMTE7MUggICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgG1sxMjsxSCAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAbWzBtG1sxOzNIG1s/MjVoG1s/MjAyNmwbWzE7M0gbWz8yNWg=\",\"encoding\":\"ansi\",\"full\":true,\"height\":12,\"seq\":1,\"type\":\"terminal.frame\",\"width\":40}"}
+{"t_ms": 412.8, "dir": "stdin", "line": "{\"type\": \"terminal.resize\", \"cols\": 0, \"rows\": 10}"}
+{"t_ms": 413.1, "dir": "stderr", "line": "herdr: terminal session control input ignored: terminal.resize cols and rows must be greater than 0"}
+{"t_ms": 723.1, "dir": "stdin", "line": "{\"type\": \"terminal.resize\", \"cols\": 40}"}
+{"t_ms": 723.5, "dir": "stderr", "line": "herdr: terminal session control input ignored: invalid json command: missing field `rows`"}
+{"t_ms": 1033.4, "dir": "stdin", "line": "this is not json"}
+{"t_ms": 1034.0, "dir": "stderr", "line": "herdr: terminal session control input ignored: invalid json command: expected ident at line 1 column 2"}
+{"t_ms": 1343.7, "dir": "stdin", "line": "{\"type\": \"terminal.bogus\"}"}
+{"t_ms": 1344.2, "dir": "stderr", "line": "herdr: terminal session control input ignored: invalid json command: unknown variant `terminal.bogus`, expected one of `terminal.input`, `terminal.resize`, `terminal.scroll`, `terminal.mouse`, `terminal.release` at line 1 column 25"}
+{"t_ms": 1645.2, "dir": "stdin", "line": "{\"type\": \"terminal.input\", \"text\": \"x\", \"bytes\": \"eA==\"}"}
+{"t_ms": 1645.4, "dir": "stderr", "line": "herdr: terminal session control input ignored: terminal.input accepts text or bytes, not both"}
+{"t_ms": 1951.5, "dir": "stdin", "line": ""}
+{"t_ms": 2258.3, "dir": "stdin", "line": "{\"type\": \"terminal.input\", \"text\": \"echo still-alive\\r\"}"}
+{"t_ms": 2258.8, "dir": "stdout", "line": "{\"bytes\":\"G1s/MjAyNmgbWz8yNWwbXTg7OxtcG1sxOzE2SBtbPzI1aBtbPzIwMjZsG1sxOzE2SBtbPzI1aA==\",\"encoding\":\"ansi\",\"full\":false,\"height\":12,\"seq\":2,\"type\":\"terminal.frame\",\"width\":40}"}
+{"t_ms": 2276.8, "dir": "stdout", "line": "{\"bytes\":\"G1s/MjAyNmgbWz8yNWwbXTg7OxtcG1sxOzNIG1swOzM5OzQ5bWVjaG8bWzE7OEhzdGlsbC1hbGl2ZRtbMjsxSHN0aWxsLWFsaXZlG1szOzFIJBtbMG0bWzM7M0gbWz8yNWgbWz8yMDI2bBtbMzszSBtbPzI1aA==\",\"encoding\":\"ansi\",\"full\":false,\"height\":12,\"seq\":3,\"type\":\"terminal.frame\",\"width\":40}"}
+{"t_ms": 2768.6, "dir": "stdin", "line": "{\"type\": \"terminal.release\"}"}
+{"t_ms": 2769.0, "dir": "stdout", "line": "{\"reason\":\"detached\",\"type\":\"terminal.closed\"}"}
+{"t_ms": 2770.4, "dir": "stdout_eof", "line": null}
+{"t_ms": 3388.9, "dir": "exit", "line": 0}

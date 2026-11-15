@@ -1,0 +1,6 @@
+{"type": "terminal.input", "text": "printf '\\033[1;31mred\\033[0m \\033[38;5;214morange\\033[0m \\033[4munder\\033[0m\\n'\r"}
+{"type": "terminal.input", "text": "/usr/bin/python3 -c \"print('\\u4e2d\\u6587 \\U0001F431 e\\u0301 x')\"\r"}
+{"type": "terminal.input", "text": "echo 中文輸入\r"}
+{"type": "terminal.input", "text": "\u001b[200~echo pasted\u001b[201~"}
+{"type": "terminal.input", "text": "\r"}
+{"type": "terminal.release"}

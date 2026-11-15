@@ -1,0 +1,4 @@
+{"t_ms": 231.8, "dir": "stdout", "line": "{\"reason\":\"terminal session observe failed: terminal target term_doesnotexist not found\",\"type\":\"terminal.closed\"}"}
+{"t_ms": 232.8, "dir": "stdout_eof", "line": null}
+{"t_ms": 1013.4, "dir": "stdin_eof", "line": null}
+{"t_ms": 1323.6, "dir": "exit", "line": 0}
