@@ -213,6 +213,15 @@ struct PiJournalParserTests {
         #expect(metadata == TranscriptMetadata(model: "gpt-5.6", contextTokens: 2800, effort: "high"))
     }
 
+    /// 出錯的輪次 usage 可能只有部分數字，同樣不算(stopReason 為 aborted／error 一律不看 usage)。
+    @Test("Header:出錯輪次的 usage 不更新 context")
+    func erroredTurnUsageIsIgnored() {
+        let lines = Array(Self.lines[0...9]) + [
+            #"{"type":"message","id":"e1","timestamp":"2026-10-14T09:13:00.000Z","message":{"role":"assistant","content":[],"model":"claude-sonnet-5","usage":{"input":7,"cacheRead":0,"cacheWrite":0},"stopReason":"error","errorMessage":"overloaded"}}"#,
+        ]
+        #expect(TranscriptFormat.piJournal.latestMetadata(in: lines).contextTokens == 2800)
+    }
+
     @Test("Header:contextSnapshot.promptTokens 優先;model_change 的 model 帶 provider 前綴，顯示時去掉")
     func contextSnapshotAndProviderPrefix() {
         let lines = [

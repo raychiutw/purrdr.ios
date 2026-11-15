@@ -24,7 +24,7 @@ public struct ConversationClock: Sendable {
 public final class ConversationModel {
     public enum Phase: Equatable {
         case loading
-        /// 有 Claude Code agent,但還沒回報 session。
+        /// 有可讀對話紀錄的 agent,但還沒回報 session。
         case waitingForSession
         /// 等了 80 秒仍沒有 session:無法分辨是哪個對話(integration 可能沒裝)。
         case missingSession
@@ -43,6 +43,8 @@ public final class ConversationModel {
         case offline
         /// 讀取失敗，稍後重試。
         case readFailed
+        /// 符合這個 session 的對話紀錄不只一個:不猜(行為規格 §4.3、§4.5)。
+        case ambiguous
     }
 
     public enum Older: Equatable {
@@ -72,8 +74,10 @@ public final class ConversationModel {
     /// 列表傳來的 session:快取只在與它相同時秒開或離線顯示(F5.3、#97)。
     private let knownSessionID: String?
 
-    /// 目前綁定的 session 與讀取狀態。
+    /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
+    /// 對話紀錄的格式，依 Agent 種類(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
+    private var format: TranscriptFormat = .claude
     private var file: (path: String, cursor: Int, windowStart: Int)?
     /// 開啟視窗與之後追蹤到的訊息(會寫入快取)。
     private var recent: [TranscriptMessage] = []
@@ -157,23 +161,24 @@ public final class ConversationModel {
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
-        guard agent.kind == "claude" else {
+        guard TranscriptFormat(agentKind: agent.kind) != nil else {
             unbind()
             phase = .unsupported
             return
         }
-        guard let sessionID = agent.claudeSessionID else {
+        guard let target = agent.transcriptTarget else {
             waitForSession(agent)
             return
         }
         waitingSince = nil
-        if boundSessionID != sessionID {
+        if boundSessionID != target.sessionKey {
             // 新的 session(輪替，或回收 slot 中的新聊天):丟掉舊對話、游標與快取(F5.1 第 4 點)。
             if boundSessionID != nil { await cache.remove(chatKey: chatKey) }
             unbind()
-            boundSessionID = sessionID
+            boundSessionID = target.sessionKey
         }
-        await read(sessionID: sessionID, cwd: agent.cwd ?? "")
+        format = target.format
+        await read(target)
     }
 
     /// 有 agent 但沒有 session id:等待;80 秒後變缺少。agent 在等回答時 id 要等回答後才來，計時歸零(R-I08)。
@@ -185,7 +190,7 @@ public final class ConversationModel {
         }
     }
 
-    private func read(sessionID: String, cwd: String) async {
+    private func read(_ target: TranscriptTarget) async {
         let generation = generation
         do {
             if let file {
@@ -200,7 +205,7 @@ public final class ConversationModel {
                     try await openWindow(path: file.path, size: size, generation: generation)
                 }
             } else {
-                let located = try await transcripts.locate(sessionID: sessionID, cwd: cwd)
+                let located = try await transcripts.locate(target)
                 guard generation == self.generation else { return }
                 try await openWindow(path: located.path, size: located.size, generation: generation)
             }
@@ -215,12 +220,18 @@ public final class ConversationModel {
         } catch TranscriptReadError.unreadable {
             banner = .unreadable
             phase = .ready
+        } catch TranscriptReadError.ambiguous {
+            // 不開任何檔、不依新舊猜;下次輪詢重新定位(使用者可能已刪掉多餘的檔)。
+            guard generation == self.generation else { return }
+            file = nil
+            banner = .ambiguous
+            phase = .ready
         } catch {
             // 保留畫面上的內容，下次輪詢重試;永不退回從 byte 0 追蹤。
             banner = .readFailed
             if items.isEmpty { phase = .ready }
         }
-        if generation == self.generation, boundSessionID == sessionID { await saveCache() }
+        if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
     }
 
     /// 讀最後 `openLines` 行並**取代**目前的訊息。
@@ -229,9 +240,9 @@ public final class ConversationModel {
         let chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines)
         guard generation == self.generation else { return }
         file = (path, chunk.end, chunk.start)
-        recent = Self.parse(chunk.lines)
+        recent = parse(chunk.lines)
         olderMessages = []
-        metadata = TranscriptMetadata.latest(in: chunk.lines)
+        metadata = format.latestMetadata(in: chunk.lines)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
     }
@@ -239,8 +250,8 @@ public final class ConversationModel {
     private func append(_ chunk: TranscriptChunk) {
         file?.cursor = chunk.end
         let known = Set(recent.map(\.id))
-        recent += Self.parse(chunk.lines).filter { !known.contains($0.id) }
-        for line in chunk.lines { metadata.update(with: line) }
+        recent += parse(chunk.lines).filter { !known.contains($0.id) }
+        for line in chunk.lines { format.updateMetadata(&metadata, with: line) }
         rebuild()
     }
 
@@ -255,7 +266,7 @@ public final class ConversationModel {
             let chunk = try await transcripts.window(path: file.path, endingAt: file.windowStart, lines: pageLines)
             guard generation == self.generation else { return }
             let known = Set((olderMessages + recent).map(\.id))
-            olderMessages = Self.parse(chunk.lines).filter { !known.contains($0.id) } + olderMessages
+            olderMessages = parse(chunk.lines).filter { !known.contains($0.id) } + olderMessages
             self.file?.windowStart = chunk.start
             older = chunk.start > 0 ? .available : .reachedStart
             rebuild()
@@ -323,8 +334,8 @@ public final class ConversationModel {
         )
     }
 
-    private static func parse(_ lines: [String]) -> [TranscriptMessage] {
+    private func parse(_ lines: [String]) -> [TranscriptMessage] {
         var seen = Set<String>()
-        return lines.flatMap(ClaudeTranscriptParser.messages(in:)).filter { seen.insert($0.id).inserted }
+        return lines.flatMap(format.messages(in:)).filter { seen.insert($0.id).inserted }
     }
 }
