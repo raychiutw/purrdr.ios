@@ -82,6 +82,16 @@ public struct TranscriptReader: Sendable {
         return TranscriptChunk(start: header[0], end: header[1], lines: records.lines)
     }
 
+    /// 檔案目前的大小(開啟視窗的上限)。用追蹤指令、游標放在檔尾之後:主機只印大小。
+    public func size(path: String) async throws -> Int {
+        switch try await tail(path: path, from: Self.probeCursor) {
+        case .shrank(let size), .tooFarBehind(let size): size
+        case .unchanged, .appended: throw TranscriptReadError.changed
+        }
+    }
+
+    static let probeCursor = 1 << 50
+
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
         guard Self.isValidPath(path), cursor >= 0 else { throw TranscriptReadError.invalidReference }
@@ -217,5 +227,19 @@ extension TranscriptReader {
         guard !matches.isEmpty else { throw TranscriptReadError.absent }
         guard matches.count == 1 else { throw TranscriptReadError.changed }
         return matches[0]
+    }
+}
+
+extension TranscriptReader {
+    /// 父對話紀錄中指名這個委派(呼叫 id 或 agent id)的行(R-W04)。內容的 checksum 與 `knownChecksum` 相同時
+    /// `lines` 是 `nil`(主機只回一行)。
+    public func delegationLines(path: String, callID: String, agentID: String?, knownChecksum: String?) async throws -> (checksum: String, lines: [String]?) {
+        guard Self.isValidPath(path), ClaudeTranscript.isSafeDelegationID(callID),
+              agentID.map(ClaudeTranscript.isSafeDelegationID) ?? true else { throw TranscriptReadError.invalidReference }
+        let output = try await run(TranscriptCommand.delegationLines(path: path, ids: (callID, agentID ?? callID), knownChecksum: knownChecksum ?? ""))
+        guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
+        let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
+        if checksum == knownChecksum { return (checksum, nil) }
+        return (checksum, try Self.records(output.stdout[output.stdout.index(after: newline)...]).lines)
     }
 }

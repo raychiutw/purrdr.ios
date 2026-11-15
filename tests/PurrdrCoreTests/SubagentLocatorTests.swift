@@ -83,4 +83,26 @@ struct SubagentLocatorTests {
         #expect(ClaudeTranscript.workflowAgentTranscript(sessionFolder: "/s", runID: "wf_1", agentID: "a2") == "/s/subagents/workflows/wf_1/agent-a2.jsonl")
         #expect(ClaudeTranscript.workflowAgentTranscript(sessionFolder: "/s", runID: "../wf", agentID: "a2") == nil)
     }
+
+    /// R-W04:開著的 subagent 畫面自己在父對話紀錄裡找結束;內容沒變時主機只回一行 checksum。
+    @Test("委派的行：父對話紀錄中含呼叫 id 或 agent id 的行;checksum 沒變不傳內容")
+    func delegationLinesWithChecksum() async throws {
+        let shell = try LocalShellHost.temporary()
+        let lines = Fixtures.transcriptLines("delegation.jsonl")
+        let path = ".claude/projects/-Users-demo-Projects-ledger/00000000-0000-0000-0000-000000000002.jsonl"
+        try shell.write(Data((lines[0...1].joined(separator: "\n") + "\n" + lines[3] + "\n").utf8), to: path)
+        let full = shell.home.appending(path: path).path(percentEncoded: false)
+        let reader = TranscriptReader(channel: shell)
+
+        let first = try await reader.delegationLines(path: full, callID: "toolu_demo_d01", agentID: "ad3e0000000000001", knownChecksum: nil)
+        #expect(first.lines == Array(lines[0...1]))
+
+        let same = try await reader.delegationLines(path: full, callID: "toolu_demo_d01", agentID: "ad3e0000000000001", knownChecksum: first.checksum)
+        #expect(same.lines == nil)
+
+        // 只有 task id(agent id)、沒有呼叫 id 的通知也算(第 7 行)。
+        try shell.append(Data((lines[7] + "\n").utf8), to: path)
+        let next = try await reader.delegationLines(path: full, callID: "toolu_demo_d01", agentID: "ad3e0000000000001", knownChecksum: first.checksum)
+        #expect(next.lines == [lines[0], lines[1], lines[7]])
+    }
 }

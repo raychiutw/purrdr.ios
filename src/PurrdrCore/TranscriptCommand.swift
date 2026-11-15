@@ -139,6 +139,21 @@ public enum TranscriptCommand {
         return command(script, arguments: [sessionFolder, runID, knownChecksum])
     }
 
+    /// 委派是否結束(§4.6、R-W04):在父對話紀錄中找含呼叫 id 或 agent id 的行。先印這些行(剝圖後)的 checksum;
+    /// 與參數 4 相同就不印內容，否則每行印「原始 byte 長度 TAB 剝除圖片後的行」。參數：路徑、id、id、上次 checksum。
+    public static func delegationLines(path: String, ids: (String, String), knownChecksum: String) -> String {
+        let script = #"""
+        f=$1
+        if [ ! -r "$f" ]; then exit 5; fi
+        c=$(grep -F -e "$2" -e "$3" "$f" | STRIP | cksum)
+        printf '%s\n' "$c"
+        if [ "$c" != "$4" ]; then
+        grep -F -e "$2" -e "$3" "$f" | ANNOTATE
+        fi
+        """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip).replacingOccurrences(of: "STRIP", with: stripImages)
+        return command(script, arguments: [path, ids.0, ids.1, knownChecksum])
+    }
+
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 
     static func command(_ script: String, arguments: [String]) -> String {
