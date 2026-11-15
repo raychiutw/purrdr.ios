@@ -1,0 +1,12 @@
+────────────────────────────────────────────────────────────────────────────────
+ ←  ☒ Platforms  ✔ Submit  →
+
+Which platforms should the widget support?
+
+❯ 1. [✔] iPhone
+  2. [ ] iPad
+  3. [ ] Mac
+  4. [ ] Type something
+     Next
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel

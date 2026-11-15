@@ -1,0 +1,9 @@
+────────────────────────────────────────────────────────────────────────────────
+ Run shell command
+   swift test --filter ForecastTests
+
+ Allow this command?
+ ❯ 1 (●) Yes, proceed
+   2 (○) Yes, always allow in this session
+   3 (○) No, cancel
+   z (○) Type your answer here

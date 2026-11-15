@@ -1,0 +1,11 @@
+────────────────────────────────────────────────────────────────────────────────
+Accessing workspace:
+
+/Users/demo/Projects/weather-app/packages/forecast-servi
+ce/src/hourly-cache-experi
+ments
+
+Antigravity requires permission to read, edit, and execute files here.
+
+> Yes, I trust this folder
+  No, exit

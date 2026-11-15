@@ -1,0 +1,13 @@
+────────────────────────────────────────────────────────────────────────────────
+ ←  ☐ Color  ☐ Size  ✔ Submit  →
+
+Which color should the chart use?
+
+❯ 1. Blue
+     Calm, matches the brand palette
+  2. Orange
+     High contrast on dark backgrounds
+  3. Green
+  4. Type something.
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel

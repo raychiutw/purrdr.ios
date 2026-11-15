@@ -1,0 +1,14 @@
+────────────────────────────────────────────────────────────────────────────────
+ ←  ☒ Color  ☒ Size  ✔ Submit  →
+
+Review your answers
+
+ ● Which color should the chart use?
+   → Blue
+ ● How large should the chart be?
+   → Medium
+
+Ready to submit your answers?
+
+❯ 1. Submit answers
+  2. Cancel
