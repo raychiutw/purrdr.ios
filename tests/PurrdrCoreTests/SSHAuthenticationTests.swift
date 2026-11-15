@@ -2,6 +2,7 @@ import Crypto
 import Foundation
 import NIOSSH
 import PurrdrCore
+import PurrdrTestSupport
 import Testing
 
 /// OpenSSH 主機的登入：公鑰(匯入的金鑰、這支裝置的金鑰)與密碼。對本機的測試用 SSH 伺服器跑。

@@ -21,18 +21,20 @@ final class MemoryHostStore: HostStore {
     func delete(_ id: UUID) throws { hosts.removeAll { $0.id == id } }
 }
 
-/// 記錄 model 用哪個 pin 開了哪些連線。
+/// 記錄 model 用哪個 pin、哪個憑證來源開了哪些連線。
 @MainActor
 final class ChannelFactory {
     var hosts: [FakeHost]
     private(set) var pins: [HostKeyFingerprint?] = []
     private(set) var endpoints: [SSHEndpoint] = []
+    private(set) var credentials: [SSHCredentialProvider] = []
 
     init(_ hosts: FakeHost...) { self.hosts = hosts }
 
-    func make(_ endpoint: SSHEndpoint, _ pin: HostKeyFingerprint?) -> any HostChannel {
+    func make(_ endpoint: SSHEndpoint, _ pin: HostKeyFingerprint?, _ credential: @escaping SSHCredentialProvider) -> any HostChannel {
         endpoints.append(endpoint)
         pins.append(pin)
+        credentials.append(credential)
         return hosts.removeFirst()
     }
 }
