@@ -36,6 +36,8 @@ public final class HostsModel {
     public private(set) var workspaceActions: WorkspaceActionsModel
     /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
     public private(set) var claudeUsage: ClaudeUsageModel
+    /// 選取中主機的推播開關(#29)。
+    public private(set) var push: PushModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
 
@@ -48,6 +50,8 @@ public final class HostsModel {
     private let demoConsent: any HostWriteConsentStore
     /// 真主機的主機寫入同意(以主機 id 為鍵);移除主機時清除。
     private let hostConsent: any HostWriteConsentStore
+    /// 推播(後台、權限、配對紀錄);`nil` 時沒有推播。
+    private let pushService: PushService?
     /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。所有主機共用，以 pane id 為鍵(同 `preferences`)。
     private let drafts = DraftStore()
     /// 對話作答的觸覺(composition root 注入系統觸覺;測試不播放)。
@@ -65,6 +69,7 @@ public final class HostsModel {
         preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
+        push pushService: PushService? = nil,
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
     ) {
         self.store = store
@@ -74,6 +79,7 @@ public final class HostsModel {
         self.preferences = preferences
         self.demoConsent = demoConsent
         self.hostConsent = hostConsent
+        self.pushService = pushService
         channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)
@@ -84,6 +90,14 @@ public final class HostsModel {
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
+        push = PushModel(service: pushService, hostID: nil, channel: demoChannel, herdr: HerdrInstallation()) { preferences.load().muted }
+        connectMutes()
+    }
+
+    /// 靜音改變時，推播開著就改寫主機上的靜音清單。
+    private func connectMutes() {
+        let push = push
+        workspaceActions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
     }
 
     /// Demo 主機在同意紀錄裡的主機 id。
@@ -152,6 +166,11 @@ public final class HostsModel {
         claudeUsage = ClaudeUsageModel(
             host: ClaudeUsageHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
             consent: host == nil ? demoConsent : hostConsent)
+        let preferences = preferences
+        push = PushModel(
+            service: pushService, hostID: host?.id.uuidString, channel: channel, herdr: host?.herdr ?? HerdrInstallation()
+        ) { preferences.load().muted }
+        connectMutes()
         self.selection = selection
         Task { await previous.disconnect() }
     }
@@ -164,12 +183,32 @@ public final class HostsModel {
 
     /// 移除主機：從儲存刪除、清除這台主機的所有主機寫入同意(行為規格 F18),選取中就改選其他主機或 Demo。
     public func remove(_ id: UUID) throws {
+        let removed = hosts.first { $0.id == id }
         try store.delete(id)
+        if let removed {
+            // 推播配對：不等待地刪掉主機上的配對並撤銷(行為規格 F14)。
+            let hostChannel = selection == .host(id) ? channel : makeChannel(removed.endpoint, removed.hostKeyPin)
+            pushService?.forget(hostID: id.uuidString, channel: hostChannel, herdr: removed.herdr)
+        }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
         if selection == .host(id) {
             select(hosts.first.map { .host($0.id) } ?? .demo)
         }
+    }
+
+    /// 點了推播通知：切換到配對的主機，開該 Agent 的聊天。不認得的配對(主機已移除)不動。
+    public func open(_ route: PushRoute, pairings: any PushPairingStore) {
+        guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
+              hosts.contains(where: { $0.id == id }) else { return }
+        if selection != .host(id) { select(.host(id)) }
+        if let paneID = route.paneID { agentList.openedChat = paneID }
+    }
+
+    /// 點了推播通知(用 app 的推播紀錄)。
+    public func open(_ route: PushRoute) {
+        guard let pushService else { return }
+        open(route, pairings: pushService.store)
     }
 
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。

@@ -9,8 +9,6 @@ public struct AgentListView: View {
     @Bindable var model: AgentListModel
     let actions: WorkspaceActionsModel
     @State private var presentation = WorkspacePresentation()
-    /// 從版面圖選了 Agent 之後要開的聊天(pane id)。
-    @State private var openedChat: String?
     @Environment(\.scenePhase) private var scenePhase
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (String, String?) -> ConversationModel
@@ -38,7 +36,7 @@ public struct AgentListView: View {
             .navigationDestination(for: String.self) { paneID in
                 ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
             }
-            .navigationDestination(item: $openedChat) { paneID in
+            .navigationDestination(item: $model.openedChat) { paneID in
                 ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
             }
             .task(id: scenePhase == .active) {
@@ -112,7 +110,7 @@ public struct AgentListView: View {
         }
         // 版面圖選的 Pane:聊天推入對話;Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
         .workspaceActionsPresentation(actions: actions, presentation: presentation) { target in
-            if case .chat(let paneID) = target { openedChat = paneID }
+            if case .chat(let paneID) = target { model.openedChat = paneID }
         }
         .searchable(text: $model.query, prompt: Text("Search"))
         .autocorrectionDisabled()

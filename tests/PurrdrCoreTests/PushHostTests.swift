@@ -17,29 +17,8 @@ struct PushHostTests {
 
     init() throws {
         host = try LocalShellHost.temporary()
-        let url = try host.write(Data(Self.fakeHerdr.utf8), to: "bin/herdr")
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        try FakeHerdrPluginCLI.install(on: host)
     }
-
-    static let fakeHerdr = """
-        #!/bin/sh
-        mkdir -p "$HOME/fake"
-        printf '%s\\n' "$*" >> "$HOME/fake/herdr-calls"
-        case "$*" in
-          "plugin list --plugin purrdr.push --json")
-            if [ -f "$HOME/fake/installed" ]; then
-              printf '%s\\n' '{"id":"cli:plugin","result":{"plugins":[{"plugin_id":"purrdr.push","name":"Purrdr Push","version":"0.1.0","enabled":true}],"type":"plugin_list"}}'
-            else
-              printf '%s\\n' '{"id":"cli:plugin","result":{"plugins":[],"type":"plugin_list"}}'
-            fi ;;
-          "plugin install raychiutw/purrdr-host-plugin --yes")
-            if [ -f "$HOME/fake/install-fails" ]; then echo "git clone failed" >&2; exit 1; fi
-            : > "$HOME/fake/installed" ;;
-          "plugin uninstall purrdr.push") rm -f "$HOME/fake/installed" ;;
-          *) echo "unexpected: $*" >&2; exit 2 ;;
-        esac
-
-        """
 
     func push(device: String = "0123456789abcdef") -> PushHost {
         PushHost(channel: host, herdr: HerdrInstallation(), deviceID: device, pluginSource: Self.source)
@@ -49,19 +28,11 @@ struct PushHostTests {
         PushPairingFile(endpoint: Self.endpoint, key: key, muted: muted)
     }
 
-    /// 家目錄的樣子，不含假 herdr 自己的紀錄(`fake/`)。
-    func snapshot() throws -> DirectorySnapshot {
-        var snapshot = try DirectorySnapshot(of: host.home)
-        snapshot.entries = snapshot.entries.filter { !$0.key.hasPrefix("fake") }
-        return snapshot
-    }
+    func snapshot() throws -> DirectorySnapshot { try FakeHerdrPluginCLI.snapshot(of: host) }
 
-    var pluginInstalled: Bool { FileManager.default.fileExists(atPath: host.url("fake/installed").path) }
+    var pluginInstalled: Bool { FakeHerdrPluginCLI.isPluginInstalled(on: host) }
 
-    func herdrCalls() throws -> [String] {
-        guard FileManager.default.fileExists(atPath: host.url("fake/herdr-calls").path) else { return [] }
-        return try String(contentsOf: host.url("fake/herdr-calls"), encoding: .utf8).split(separator: "\n").map(String.init)
-    }
+    func herdrCalls() throws -> [String] { try FakeHerdrPluginCLI.calls(on: host) }
 
     @Test("在乾淨的主機上配對：以 herdr 安裝主機外掛，配對檔只有本人可讀")
     func pairingInstallsPluginAndWritesPairing() async throws {

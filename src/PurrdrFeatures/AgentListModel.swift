@@ -15,6 +15,8 @@ public final class AgentListModel {
     public private(set) var phase: Phase = .loading
     /// 搜尋字串。空白時列出全部。
     public var query = ""
+    /// 要直接開的聊天(pane id):從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
+    public var openedChat: String?
     /// 各 Agent(以 pane id)對話中最後一則訊息。來源是對話紀錄，由對話閱讀(#12)提供。
     public var previews: [String: MessagePreview] = [:]
 
