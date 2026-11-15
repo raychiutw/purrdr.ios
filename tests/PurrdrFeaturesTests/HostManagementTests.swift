@@ -174,6 +174,17 @@ struct HostManagementTests {
         #expect(editor.hostKeyFingerprint == Self.studio.hostKeyPin)
     }
 
+    @Test("匯入 OpenSSH 主機的分享連結：連線方式帶入 OpenSSH,不是預設的 Tailscale SSH")
+    func importKeepsConnectionMethod() throws {
+        let (model, _) = Self.model(hosts: [], channels: ChannelFactory())
+        let shared = SharedHost(
+            name: "Office", endpoint: SSHEndpoint(host: "office.example", port: 22, username: "ray"), connectionMethod: .openSSH)
+
+        let editor = try model.makeImportEditor(HostShareLink.url(for: shared))
+
+        #expect(editor.connectionMethod == .openSSH)
+    }
+
     @Test("分享連結：選取中主機的連結就是 HostShareLink 的內容")
     func shareLinkForHost() {
         let (model, _) = Self.model(hosts: [Self.studio], channels: ChannelFactory(FakeHost()))
