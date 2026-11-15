@@ -7,10 +7,16 @@ import SwiftUI
 /// app 在前景時，新的「需要你」只出現在列表裡，這個畫面不發任何系統通知。
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
+    let actions: WorkspaceActionsModel
+    /// 從版面圖選了要開的 Pane(sheet 關閉之後才呼叫)。
+    let onOpen: (PaneOpenTarget) -> Void
+    @State private var presentation = WorkspacePresentation()
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(model: AgentListModel) {
+    public init(model: AgentListModel, actions: WorkspaceActionsModel, onOpen: @escaping (PaneOpenTarget) -> Void = { _ in }) {
         self.model = model
+        self.actions = actions
+        self.onOpen = onOpen
     }
 
     public var body: some View {
@@ -53,7 +59,13 @@ public struct AgentListView: View {
         return List {
             ForEach(sections) { section in
                 Section(section.group.title) {
-                    ForEach(section.rows) { AgentRowView(row: $0) }
+                    ForEach(section.rows) { row in
+                        AgentRowView(row: row)
+                            .workspaceRowActions(
+                                WorkspaceRowContext(paneID: row.id, snapshot: model.snapshot),
+                                actions: actions, presentation: presentation, snapshot: model.snapshot
+                            )
+                    }
                 }
             }
             if case .failed(let message) = model.phase {
@@ -78,6 +90,7 @@ public struct AgentListView: View {
                 )
             }
         }
+        .workspaceActionsPresentation(actions: actions, presentation: presentation, onOpen: onOpen)
         .searchable(text: $model.query, prompt: Text("Search"))
         .autocorrectionDisabled()
         #if os(iOS)

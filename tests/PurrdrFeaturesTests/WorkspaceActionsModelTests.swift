@@ -20,7 +20,7 @@ struct WorkspaceActionsModelTests {
         host: FakeHost, store: InMemoryChatPreferencesStore = InMemoryChatPreferencesStore(),
         now: Date = Date(timeIntervalSince1970: 1_000), counter: RefreshCounter = RefreshCounter()
     ) -> WorkspaceActionsModel {
-        WorkspaceActionsModel(client: HerdrClient(channel: host), preferences: store, now: { now }) { counter.count += 1 }
+        WorkspaceActionsModel(client: HerdrClient(channel: host), preferences: store, now: { now }, refresh: { counter.count += 1 })
     }
 
     static func errorReply(code: String, message: String) -> FakeReply {

@@ -10,15 +10,23 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let workspaceActions: WorkspaceActionsModel
 
     init() {
         let channel: any HostChannel = DemoHost()
-        agentList = AgentListModel(client: HerdrClient(channel: channel))
+        let client = HerdrClient(channel: channel)
+        let agentList = AgentListModel(client: client)
+        // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
+        let preferences: any ChatPreferencesStore = ProcessInfo.processInfo.arguments.contains("-uiTesting")
+            ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
+        self.agentList = agentList
+        workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
     }
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList)
+            // 版面圖選了 Pane 之後要開的聊天／終端機畫面還沒有(#12、Pane 終端機那張票接上 onOpen)。
+            AgentListView(model: agentList, actions: workspaceActions)
         }
     }
 }
