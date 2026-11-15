@@ -6,15 +6,37 @@ import Testing
 /// Demo 主機走正式程式路徑：herdr client 對它送的是跟真主機一模一樣的指令。
 @Suite("Demo 主機")
 struct DemoHostTests {
-    @Test("讀 snapshot:Demo 主機有一個 Claude Code 的 Agent")
-    func snapshotHasOneClaudeAgent() async throws {
+    @Test("讀 snapshot:Demo 主機有「需要你」、工作中、已完成各一個 Agent")
+    func snapshotHasAgentsInEveryGroup() async throws {
         let snapshot = try await HerdrClient(channel: DemoHost()).snapshot()
 
         #expect(snapshot.version == "0.9.5")
+        #expect(snapshot.workspaces == [
+            Workspace(id: "w1", number: 1, label: "ledger"),
+            Workspace(id: "w2", number: 2, label: "weather-app"),
+            Workspace(id: "w3", number: 3, label: "notes"),
+        ])
         #expect(snapshot.agents == [
             Agent(paneID: "w1:p1", workspaceID: "w1", kind: "claude", status: .done,
                   terminalTitle: "Tidy up the CSV export", workspaceLabel: "ledger", cwd: "/Users/demo/ledger"),
+            Agent(paneID: "w2:p1", workspaceID: "w2", kind: "claude", status: .blocked,
+                  terminalTitle: "Cache the hourly forecast", workspaceLabel: "weather-app", cwd: "/Users/demo/weather-app"),
+            Agent(paneID: "w3:p1", workspaceID: "w3", kind: "codex", status: .working,
+                  terminalTitle: "Sync notes to Markdown | notes", workspaceLabel: "notes", cwd: "/Users/demo/notes"),
         ])
+    }
+
+    @Test("訂閱事件:Demo 主機接受訂閱，之後保持開著(沒有事件)")
+    func subscribeStartsAndStaysOpen() async throws {
+        let events = try await HerdrClient(channel: DemoHost()).subscribe(EventSubscription.hostWide)
+        var iterator = events.makeAsyncIterator()
+
+        #expect(try await iterator.next() == .subscriptionStarted)
+        let next = Task { try await iterator.next() }
+        try await Task.sleep(for: .milliseconds(50))
+        // 串流沒有結束：取消前拿不到下一項。
+        next.cancel()
+        #expect(try await next.value == nil)
     }
 
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")
