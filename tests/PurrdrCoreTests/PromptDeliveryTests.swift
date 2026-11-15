@@ -5,43 +5,21 @@ import Testing
 
 /// 送出 prompt(行為規格 F6.5、§3.6、§7.3、R-P01–R-P05、R-P13–R-P15)。全部走假主機，不碰任何真實 agent。
 ///
-/// 回應來源:`agent.wait.matched.ndjson`、`error.agent-wait-timeout.ndjson` 是對本機 herdr 0.9.5 以唯讀的
-/// `agent.wait` 錄下的;`agent.prompt` 的回應**不錄**(會把文字送進真的 agent),改以這兩份錄製檔為底，
-/// 依 `herdr api schema --json`(`agent_prompted` 結果)與 `herdr agent prompt --help`、執行檔字串
-/// (`agent_prompt_stalled`、`agent_blocked`)改動，改了什麼寫在各測試裡。
+/// 回應來源見 `PromptReplies`(`agent.prompt` 不錄，以唯讀錄製的 `agent.wait` 回應為底改動)。
 @Suite("送出 prompt")
 struct PromptDeliveryTests {
     static let bridge = HerdrCommand.bridge()
     static let paneID = "w1:p6"
     static let claude = Agent(paneID: paneID, workspaceID: "w1", kind: "claude", status: .idle)
 
-    /// 以 `agent.wait` 的錄製成功回應為底，把結果型別換成 `agent.prompt` 的 `agent_prompted`(schema),
-    /// 狀態換成 working(帶 `until` 時 herdr 只在觀察到狀態後才回)。`delivery` 只有 fork 會送(R-H23),用來模擬「無法驗證」。
-    static func prompted(delivery: String? = nil) -> FakeReply {
-        .recorded("agent.wait.matched.ndjson") { response in
-            guard var result = response["result"] as? [String: Any], var agent = result["agent"] as? [String: Any] else { return }
-            agent["agent_status"] = "working"
-            result["type"] = "agent_prompted"
-            result["agent"] = agent
-            if let delivery { result["delivery"] = delivery }
-            response["result"] = result
-        }
-    }
-
-    /// 以錄製的 herdr `timeout` 錯誤為底，換成其他錯誤碼與訊息。
-    static func error(_ code: String, _ message: String) -> FakeReply {
-        .recorded("error.agent-wait-timeout.ndjson") { $0["error"] = ["code": code, "message": message] }
-    }
+    static func prompted(delivery: String? = nil) -> FakeReply { PromptReplies.prompted(delivery: delivery) }
+    static func error(_ code: String, _ message: String) -> FakeReply { PromptReplies.error(code, message) }
+    static let keysAccepted = PromptReplies.keysAccepted
+    static let silent = PromptReplies.silent
 
     static func snapshot(status: String) -> FakeReply {
         .recorded("session.snapshot.ndjson") { SnapshotEdit.agent(paneID, in: &$0) { $0["agent_status"] = status } }
     }
-
-    /// 按鍵送出成功(`pane.send_keys`)回 `{"type":"ok"}`;沿用同形狀的錄製回應(在場回報)。
-    static let keysAccepted = FakeReply.recorded("pane.report-metadata.ndjson")
-
-    /// 主機收下請求但永遠不回(連線卡住)。
-    static let silent = FakeReply(trigger: .afterStdinLine, keepsOpen: true)
 
     static func delivery(_ host: FakeHost, sleeper: RecordingSleeper = RecordingSleeper()) -> PromptDelivery {
         PromptDelivery(client: HerdrClient(channel: host, sleep: sleeper.sleep), sleep: sleeper.sleep)
