@@ -41,6 +41,65 @@ public enum TranscriptCommand {
         return command(script, arguments: [sessionID, projectFolder])
     }
 
+    // MARK: - 其他 agent 的定位(行為規格 §4.3–4.5)【未實測】
+
+    /// 由 `$i`(session id 或回報的路徑)決定 `$f`。找不到是 exit 3(缺席)、資料夾不可搜尋 4、不只一個候選 6(有歧義)。
+    /// 在列表預覽中於 subshell 執行，一個請求失敗不影響其他請求。
+    static func resolver(for location: TranscriptTarget.Location) -> String {
+        switch location {
+        case .claude:
+            // Claude 的定位腳本另有 worktree 後備(`locate(sessionID:projectFolder:)`);預覽只看預期路徑。
+            #"f="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$p/$i.jsonl""#
+        case .grok:
+            // cwd 的編碼由 Grok 決定、可能改變，所以找「深度剛好 2、名稱等於 id 的資料夾」。
+            #"""
+            h=${GROK_HOME:-$HOME/.grok}/sessions
+            if [ ! -d "$h" ]; then exit 3; fi
+            if [ ! -x "$h" ]; then exit 4; fi
+            g=$(find "$h" -mindepth 2 -maxdepth 2 -type d -name "$i" -print 2>/dev/null)
+            if [ -z "$g" ]; then exit 3; fi
+            k=$(printf '%s\n' "$g" | wc -l)
+            if [ $((k + 0)) -gt 1 ]; then exit 6; fi
+            f="$g/updates.jsonl"
+            """#
+        case .antigravity:
+            #"f="$HOME/.gemini/antigravity-cli/brain/$i/.system_generated/logs/transcript.jsonl""#
+        case .piJournal:
+            // Pi 預設 `~/.pi/agent`(`PI_CODING_AGENT_DIR`、`PI_CODING_AGENT_SESSION_DIR` 可改);OMP 是
+            // `~/${PI_CONFIG_DIR:-.omp}/agent` 的 sessions 與 profiles,以及 `$XDG_DATA_HOME/omp`。精確檔名搜尋，不猜。
+            #"""
+            g=
+            for d in "${PI_CODING_AGENT_SESSION_DIR:-}" "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sessions" "$HOME/${PI_CONFIG_DIR:-.omp}/agent/sessions" "$HOME/${PI_CONFIG_DIR:-.omp}/agent/profiles" "${XDG_DATA_HOME:+$XDG_DATA_HOME/omp}"; do
+            if [ -n "$d" ] && [ -d "$d" ]; then
+            r=$(find "$d" -maxdepth 4 -type f \( -name "*_$i.jsonl" -o -name "$i.jsonl" \) -print 2>/dev/null)
+            if [ -n "$r" ]; then g="$g$r
+            "; fi
+            fi
+            done
+            g=$(printf '%s' "$g" | sort -u)
+            if [ -z "$g" ]; then exit 3; fi
+            k=$(printf '%s\n' "$g" | wc -l)
+            if [ $((k + 0)) -gt 1 ]; then exit 6; fi
+            f=$g
+            """#
+        case .reportedPath:
+            "f=$i"
+        }
+    }
+
+    /// 定位 Claude 以外的對話紀錄：印出路徑與大小兩行;`readsHeader` 時再印檔案前兩行(Pi／OMP 的 header 檢查)。
+    /// 參數:session id 或回報的路徑。
+    public static func locate(_ location: TranscriptTarget.Location, readsHeader: Bool) -> String {
+        let value: String
+        switch location {
+        case .claude(let id, _), .grok(let id), .antigravity(let id), .piJournal(let id): value = id
+        case .reportedPath(let path): value = path
+        }
+        var script = "i=$1\n" + resolver(for: location) + "\n" + probe + "\n" + #"printf '%s\n%s\n' "$f" "$z""#
+        if readsHeader { script += "\n" + #"head -n 2 "$f""# }
+        return command(script, arguments: [value])
+    }
+
     /// 視窗：以 `end` 為終點，往前取恰好 `lines` 行完整的行(行為規格 §4.7「開啟：讀最後 N 行」)。
     ///
     /// 從 `end` 往前取一塊(預設 4MB)數換行，不夠就把塊放大 4 倍再數，直到檔頭。視窗終點是塊內最後一個換行之後
@@ -84,24 +143,99 @@ public enum TranscriptCommand {
         return command(script, arguments: [path, String(cursor), String(limit)])
     }
 
-    /// 列表預覽：每個請求印一行「分隔標記 key」,再印剝除圖片後的檔尾 48,000 bytes(§4.7)。
-    /// 一個檔不存在不讓整批失敗。參數：標記，接著每個請求三個(key、session id、資料夾名)。
+    /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
+        previews(marker: marker, entries: requests.map { PreviewEntry(key: $0.key, type: "claude", value: $0.sessionID, extra: $0.projectFolder) })
+    }
+
+    /// 列表預覽的一個請求：key、定位方式、id 或路徑、Claude 的資料夾名。
+    struct PreviewEntry: Sendable, Equatable {
+        var key: String
+        var type: String
+        var value: String
+        var extra: String
+
+        init(key: String, type: String, value: String, extra: String = "") {
+            self.key = key
+            self.type = type
+            self.value = value
+            self.extra = extra
+        }
+
+        /// id 或路徑不安全時為 `nil`(不進 shell,R-I12)。
+        init?(_ request: PreviewRequest) {
+            let header = request.target.format == .piJournal
+            switch request.target.location {
+            case .claude(let id, let cwd):
+                guard ClaudeTranscript.isSafeSessionID(id) else { return nil }
+                self.init(key: request.key, type: "claude", value: id, extra: ClaudeTranscript.projectFolder(forCWD: cwd))
+            case .grok(let id), .antigravity(let id), .piJournal(let id):
+                guard ClaudeTranscript.isSafeSessionID(id) else { return nil }
+                let type = switch request.target.location {
+                case .grok: "grok"
+                case .antigravity: "agy"
+                default: "pi"
+                }
+                self.init(key: request.key, type: type, value: id)
+            case .reportedPath(let path):
+                guard TranscriptReader.isValidPath(path) else { return nil }
+                self.init(key: request.key, type: header ? "pipath" : "path", value: path)
+            }
+        }
+    }
+
+    /// 列表預覽：每個請求印一行「分隔標記 key」,再印剝除圖片後的檔尾 48,000 bytes(§4.7);Pi／OMP 先印
+    /// 「分隔標記! key」與檔案前兩行(header 檢查)。每個請求在 subshell 裡定位，一個檔不存在或有歧義不讓整批失敗。
+    /// 參數：標記，接著每個請求四個(key、定位方式、id 或路徑、Claude 的資料夾名)。
+    static func previews(marker: String, entries: [PreviewEntry]) -> String {
         let script = #"""
         m=$1
         shift
-        c=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
-        while [ $# -ge 3 ]; do
+        while [ $# -ge 4 ]; do
         printf '%s %s\n' "$m" "$1"
-        f="$c/projects/$3/$2.jsonl"
+        (
+        y=$1
+        t=$2
+        i=$3
+        p=$4
+        case $t in
+        claude)
+        @CLAUDE@
+        ;;
+        grok)
+        @GROK@
+        ;;
+        agy)
+        @AGY@
+        ;;
+        pi)
+        @PI@
+        ;;
+        *)
+        f=$i
+        ;;
+        esac
         if [ -r "$f" ]; then
-        tail -c 48000 "$f" | STRIP
+        case $t in
+        pi|pipath)
+        printf '%s! %s\n' "$m" "$y"
+        head -n 2 "$f" | @STRIP@
+        printf '\n%s %s\n' "$m" "$y"
+        ;;
+        esac
+        tail -c 48000 "$f" | @STRIP@
         printf '\n'
         fi
-        shift 3
+        )
+        shift 4
         done
-        """#.replacingOccurrences(of: "STRIP", with: stripImages)
-        return command(script, arguments: [marker] + requests.flatMap { [$0.key, $0.sessionID, $0.projectFolder] })
+        """#
+            .replacingOccurrences(of: "@CLAUDE@", with: resolver(for: .claude(sessionID: "", cwd: "")))
+            .replacingOccurrences(of: "@GROK@", with: resolver(for: .grok(sessionID: "")))
+            .replacingOccurrences(of: "@AGY@", with: resolver(for: .antigravity(sessionID: "")))
+            .replacingOccurrences(of: "@PI@", with: resolver(for: .piJournal(sessionID: "")))
+            .replacingOccurrences(of: "@STRIP@", with: stripImages)
+        return command(script, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra] })
     }
 
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##

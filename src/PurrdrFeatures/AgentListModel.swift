@@ -39,9 +39,9 @@ public final class AgentListModel {
         AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews)
     }
 
-    /// 列表看到的 pane 的 Claude Code session id(開對話時用來比對快取)。
+    /// 列表看到的 pane 的 session 參照(id 或路徑;開對話時用來比對快取)。
     public func sessionID(ofPane paneID: String) -> String? {
-        snapshot?.agents.first { $0.paneID == paneID }?.claudeSessionID
+        snapshot?.agents.first { $0.paneID == paneID }?.transcriptTarget?.sessionKey
     }
 
     /// 主機上有沒有任何 Agent(不看搜尋)。沒有時不顯示搜尋欄。
@@ -123,17 +123,17 @@ public final class AgentListModel {
     /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04)。
     private var previewSessions: [String: String] = [:]
 
-    /// 以一次往返讀所有 Claude Code agent 對話紀錄的檔尾，更新預覽與時間(行為規格 §4.7)。
+    /// 以一次往返讀所有可讀 agent(Claude、Grok、agy、Pi／OMP)對話紀錄的檔尾，更新預覽與時間(行為規格 §4.7)。
     /// 預覽帶讀取時的 session:pane 離開或 session 改變(herdr 回收 pane 給新聊天)就丟(R-I04)。讀取失敗保留現有預覽。
     private func refreshPreviews() async {
         guard let transcripts, let snapshot else { return }
         let sessions = Dictionary(
-            snapshot.agents.compactMap { agent in agent.claudeSessionID.map { (agent.paneID, $0) } },
+            snapshot.agents.compactMap { agent in agent.transcriptTarget.map { (agent.paneID, $0.sessionKey) } },
             uniquingKeysWith: { first, _ in first }
         )
         previews = previews.filter { sessions[$0.key] != nil && previewSessions[$0.key] == sessions[$0.key] }
         let requests = snapshot.agents.compactMap { agent in
-            agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
+            agent.transcriptTarget.map { PreviewRequest(key: agent.paneID, target: $0) }
         }
         guard !requests.isEmpty, let fresh = try? await transcripts.previews(of: requests) else { return }
         for (paneID, preview) in fresh {
