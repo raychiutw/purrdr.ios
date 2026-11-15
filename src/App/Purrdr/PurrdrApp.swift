@@ -1,24 +1,34 @@
+import Foundation
 import PurrdrCore
 import PurrdrDemo
 import PurrdrFeatures
 import SwiftUI
 
-/// 唯一的 composition root:組裝主機通道與畫面 model。
+/// 唯一的 composition root:組裝主機儲存、主機通道與畫面 model。
 ///
-/// 真 SSH 還沒做(之後的票),目前唯一的主機是 Demo 主機。UI 測試以 `-uiTesting` 啟動，
-/// 一律只用 Demo 主機、不連網路;之後加入真主機時，`-uiTesting` 仍要維持這個保證。
+/// 已存的主機經真 SSH(swift-nio-ssh)連線;沒有主機時用 Demo 主機。UI 測試以 `-uiTesting` 啟動，
+/// 一律只用 Demo 主機：主機存在記憶體、不碰 Keychain,任何主機的通道也都是 Demo 主機，不連網路。
 @main
 struct PurrdrApp: App {
-    private let agentList: AgentListModel
+    @State private var hosts: HostsModel
 
     init() {
-        let channel: any HostChannel = DemoHost()
-        agentList = AgentListModel(client: HerdrClient(channel: channel))
+        let demo = DemoHost()
+        let hosts: HostsModel
+        if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
+            hosts = HostsModel(store: EphemeralHostStore(), demoChannel: demo, makeChannel: { _, _ in demo })
+        } else {
+            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo) { endpoint, pin in
+                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+            }
+        }
+        hosts.load()
+        _hosts = State(initialValue: hosts)
     }
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList)
+            RootView(hosts: hosts)
         }
     }
 }

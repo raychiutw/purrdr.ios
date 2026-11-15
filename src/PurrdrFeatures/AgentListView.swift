@@ -9,14 +9,26 @@ public struct AgentListView: View {
     @Bindable var model: AgentListModel
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(model: AgentListModel) {
+    /// 開主機清單;`nil` 時不顯示主機鈕。
+    let showHosts: (() -> Void)?
+
+    public init(model: AgentListModel, showHosts: (() -> Void)? = nil) {
         self.model = model
+        self.showHosts = showHosts
     }
 
     public var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Agents")
+                .toolbar {
+                    if let showHosts {
+                        ToolbarItem(placement: .navigation) {
+                            Button("Hosts", systemImage: "desktopcomputer", action: showHosts)
+                                .accessibilityIdentifier("toolbar.hosts")
+                        }
+                    }
+                }
         }
         .task(id: scenePhase == .active) {
             guard scenePhase == .active else { return }
