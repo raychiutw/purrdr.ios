@@ -37,6 +37,9 @@ public actor DemoHost: HostChannel {
     /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
     private var files = DemoFiles()
 
+    /// Demo 家目錄的上傳資料夾。
+    static let uploadFolder = "/Users/demo/" + UploadedImages.folder
+
     public init(scenario: Scenario = .standard) {
         self.scenario = scenario
     }
@@ -47,6 +50,9 @@ public actor DemoHost: HostChannel {
                 guard let self else { return (Data(), false) }
                 return await self.respond(to: line)
             }
+        }
+        if let upload = ImageUploadCommand.parse(command) {
+            return DemoUploadSession(name: upload.name, size: upload.size)
         }
         if let control = DemoPaneControl(command: command) {
             return openPane(control)
@@ -488,6 +494,47 @@ private actor DemoBridgeSession: ExecSession {
 }
 
 /// 一開始就結束的指令。
+/// 圖片上傳：收 stdin 到 EOF,大小相符就回上傳資料夾的路徑(內容不保存)。大小不符(上傳中斷)時失敗。
+private final class DemoUploadSession: ExecSession, @unchecked Sendable {
+    let output: AsyncThrowingStream<ExecOutput, any Error>
+    private let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
+    private let lock = NSLock()
+    private var received = 0
+    private var finished = false
+    private let name: UploadFileName
+    private let size: Int
+
+    init(name: UploadFileName, size: Int) {
+        self.name = name
+        self.size = size
+        (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
+    }
+
+    func write(_ data: Data) async throws {
+        lock.withLock { received += data.count }
+    }
+
+    func closeStdin() async {
+        let (count, done) = lock.withLock {
+            defer { finished = true }
+            return (received, finished)
+        }
+        guard !done else { return }
+        if count == size {
+            continuation.yield(.stdout(Data("\(DemoHost.uploadFolder)/\(name.value)\n".utf8)))
+            continuation.yield(.exit(code: 0))
+        } else {
+            continuation.yield(.exit(code: 75))
+        }
+        continuation.finish()
+    }
+
+    func close() async {
+        lock.withLock { finished = true }
+        continuation.finish()
+    }
+}
+
 private struct DemoFinishedSession: ExecSession {
     let output: AsyncThrowingStream<ExecOutput, any Error>
 
