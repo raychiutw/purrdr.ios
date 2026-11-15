@@ -27,9 +27,22 @@
 		4D4D00000000000000000007 /* PurrdrUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PurrdrUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4D4D00000000000000000070 /* Exceptions for "Purrdr" folder in "Purrdr" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4D4D00000000000000000010 /* Purrdr */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		4D4D00000000000000000004 /* Purrdr */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4D4D00000000000000000070 /* Exceptions for "Purrdr" folder in "Purrdr" target */,
+			);
 			path = Purrdr;
 			sourceTree = "<group>";
 		};
@@ -290,6 +303,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Purrdr/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Purrdr;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -324,6 +338,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Purrdr/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Purrdr;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";

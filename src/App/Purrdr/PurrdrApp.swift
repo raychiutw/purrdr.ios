@@ -11,6 +11,7 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let navigation = TopNavigationModel()
     private let member: MemberModel
 
     init() {
@@ -32,7 +33,7 @@ struct PurrdrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList, member: member)
+            TopNavigationView(navigation: navigation, agentList: agentList, member: member)
         }
     }
 }

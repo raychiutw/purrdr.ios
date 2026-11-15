@@ -41,7 +41,7 @@ final class SignInUITests: XCTestCase {
 
     @MainActor
     private func openSignIn(in app: XCUIApplication) {
-        let more = app.buttons["agentList.more"]
+        let more = app.buttons["toolbar.more"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))
         more.tap()
         let member = app.buttons["menu.member"]

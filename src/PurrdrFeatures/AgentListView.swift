@@ -7,39 +7,20 @@ import SwiftUI
 /// app 在前景時，新的「需要你」只出現在列表裡，這個畫面不發任何系統通知。
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
-    let member: MemberModel
     @Environment(\.scenePhase) private var scenePhase
-    @State private var showingMember = false
 
-    public init(model: AgentListModel, member: MemberModel) {
+    public init(model: AgentListModel) {
         self.model = model
-        self.member = member
     }
 
+    /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Agents")
-                .toolbar {
-                    // 之後設定頁做好後，會員入口移進「⋯」選單的「設定」(#37)。
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button("Member", systemImage: "person.crop.circle") { showingMember = true }
-                                .accessibilityIdentifier("menu.member")
-                        } label: {
-                            Label("More", systemImage: "ellipsis")
-                        }
-                        .accessibilityIdentifier("agentList.more")
-                    }
-                }
-        }
-        .task(id: scenePhase == .active) {
-            guard scenePhase == .active else { return }
-            await model.run()
-        }
-        .sheet(isPresented: $showingMember) {
-            MemberView(model: member)
-        }
+        content
+            .navigationTitle("Agents")
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await model.run()
+            }
     }
 
     @ViewBuilder
