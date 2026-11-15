@@ -106,6 +106,15 @@ public enum Fixtures {
         return String(decoding: data, as: UTF8.self)
     }
 
+    /// Tailscale SSH 送出的 SSH 認證橫幅(`Fixtures/tailscale/<名稱>`)。**依文件模擬、未實測**,來源見 `Fixtures/README.md`。
+    public static func tailscaleBanner(_ name: String) -> String {
+        guard let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/tailscale"),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到 Fixtures/tailscale/\(name)")
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
     /// 錄製檔中的某一行(從 0 起算),含結尾換行。用來把串流錄製檔拆開逐行推送。
     public static func line(_ index: Int, of name: String, herdr version: String = defaultHerdrVersion) -> Data {
         let lines = data(name, herdr: version).split(separator: 0x0A)

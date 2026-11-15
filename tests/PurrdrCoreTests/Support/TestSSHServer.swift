@@ -2,7 +2,8 @@ import Crypto
 import Foundation
 import NIOCore
 import NIOPosix
-import NIOSSH
+// 送出「認證中」的橫幅要用到 NIOSSHHandler 的 internal API(公開 API 只能把橫幅跟認證成功綁在一起送)。
+@testable import NIOSSH
 import PurrdrCore
 import Synchronization
 
@@ -10,7 +11,30 @@ import Synchronization
 ///
 /// 模擬 Tailscale SSH:只接受 `none` 認證。每個 exec 依 `behavior` 決定怎麼回應，並記錄連線數、
 /// 收到的指令與 PTY 請求，讓測試從外部斷言主機通道的行為(連線重用、不重送、TOFU)。
+///
+/// `auth` 依連線序號(從 1 起算)決定認證方式，可模擬 Tailscale SSH check mode:先送認證橫幅、
+/// 不回覆認證結果，過一段時間才放行／拒絕／斷線(依文件模擬，見 `docs/research/tailscale-ssh-check-mode.md`)。
 final class TestSSHServer: Sendable {
+    /// `none` 認證的處理方式。
+    enum Auth: Sendable {
+        /// 立即放行。
+        case accept
+        /// check mode:送出 `banner` 後先不回覆，再依 `then` 收尾。
+        case check(banner: String, then: CheckResult)
+    }
+
+    /// check mode 等待後的結果。
+    enum CheckResult: Sendable {
+        /// 使用者在瀏覽器完成驗證：過 `after` 後放行。
+        case approve(after: TimeAmount)
+        /// 驗證被拒：過 `after` 後回認證失敗。
+        case deny(after: TimeAmount)
+        /// 過 `after` 後切斷 TCP(例如 app 進背景時連線被系統關掉)。
+        case drop(after: TimeAmount)
+        /// 一直不回覆。
+        case hold
+    }
+
     /// 一個 exec 指令的回應方式。
     enum Behavior: Sendable {
         /// 立即回應後結束。
@@ -36,6 +60,10 @@ final class TestSSHServer: Sendable {
 
     struct Log: Sendable {
         var connections = 0
+        /// 已關閉的連線數。
+        var disconnections = 0
+        /// 送出的 check mode 橫幅數。
+        var checkBanners = 0
         var usernames: [String] = []
         var commands: [String] = []
         var ptys: [PTYRecord] = []
@@ -61,16 +89,22 @@ final class TestSSHServer: Sendable {
         self.log = Mutex(Log())
     }
 
-    static func start(behavior: @escaping @Sendable (String) -> Behavior) async throws -> TestSSHServer {
+    static func start(
+        auth: @escaping @Sendable (_ connection: Int) -> Auth = { _ in .accept },
+        behavior: @escaping @Sendable (String) -> Behavior
+    ) async throws -> TestSSHServer {
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let recorder = Recorder()
         let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
+                let number = recorder.nextConnection()
                 recorder.update { $0.connections += 1 }
+                channel.closeFuture.whenComplete { _ in recorder.update { $0.disconnections += 1 } }
                 return channel.eventLoop.makeCompletedFuture {
+                    let delegate = AcceptNoneDelegate(recorder: recorder, auth: auth(number), connection: channel)
                     let handler = NIOSSHHandler(
-                        role: .server(.init(hostKeys: [hostKey], userAuthDelegate: AcceptNoneDelegate(recorder: recorder))),
+                        role: .server(.init(hostKeys: [hostKey], userAuthDelegate: delegate)),
                         allocator: channel.allocator,
                         inboundChildChannelInitializer: { child, _ in
                             child.eventLoop.makeCompletedFuture {
@@ -100,6 +134,15 @@ final class TestSSHServer: Sendable {
 /// 連到 server 之前 server 還沒建好，所以先收集、建好後再寫進 server 的 log。
 private final class Recorder: Sendable {
     private let state = Mutex<(server: TestSSHServer?, pending: [@Sendable (inout TestSSHServer.Log) -> Void])>((nil, []))
+    private let connectionCount = Mutex(0)
+
+    /// 新連線的序號(從 1 起算)。
+    func nextConnection() -> Int {
+        connectionCount.withLock { count in
+            count += 1
+            return count
+        }
+    }
 
     func attach(_ server: TestSSHServer) {
         let pending = state.withLock { state in
@@ -121,18 +164,60 @@ private final class Recorder: Sendable {
 
 private final class AcceptNoneDelegate: NIOSSHServerUserAuthenticationDelegate, Sendable {
     let recorder: Recorder
-    init(recorder: Recorder) { self.recorder = recorder }
+    let auth: TestSSHServer.Auth
+    let connection: any Channel
+
+    init(recorder: Recorder, auth: TestSSHServer.Auth, connection: any Channel) {
+        self.recorder = recorder
+        self.auth = auth
+        self.connection = connection
+    }
 
     var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods { .publicKey }
 
     func requestReceived(request: NIOSSHUserAuthenticationRequest, responsePromise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
         let username = request.username
         recorder.update { $0.usernames.append(username) }
-        if case .none = request.request {
-            responsePromise.succeed(.success)
-        } else {
+        guard case .none = request.request else {
             responsePromise.succeed(.failure)
+            return
         }
+        switch auth {
+        case .accept:
+            responsePromise.succeed(.success)
+        case .check(let banner, let result):
+            sendBanner(banner)
+            recorder.update { $0.checkBanners += 1 }
+            let loop = connection.eventLoop
+            switch result {
+            case .approve(let delay):
+                loop.scheduleTask(in: delay) { responsePromise.succeed(.success) }
+            case .deny(let delay):
+                loop.scheduleTask(in: delay) { responsePromise.succeed(.failure) }
+            case .drop(let delay):
+                loop.scheduleTask(in: delay) { [connection] in
+                    connection.close(promise: nil)
+                    responsePromise.fail(ChannelError.ioOnClosedChannel)
+                }
+            case .hold:
+                // 不回覆;連線關閉時才讓 promise 結束，避免 promise 洩漏。
+                connection.closeFuture.whenComplete { _ in responsePromise.fail(ChannelError.ioOnClosedChannel) }
+            }
+        }
+    }
+
+    /// 在認證進行中送出 SSH_MSG_USERAUTH_BANNER(Tailscale 的 `SendAuthBanner`)。
+    /// 這裡還在 handler 處理收到的認證請求途中，排到下一輪 event loop 才寫，避免重入 handler。
+    private func sendBanner(_ message: String) {
+        connection.eventLoop.execute { [connection] in
+            Self.write(banner: message, on: connection)
+        }
+    }
+
+    private static func write(banner message: String, on connection: any Channel) {
+        guard let handler = try? connection.pipeline.syncOperations.handler(type: NIOSSHHandler.self) else { return }
+        handler.writeFromChildChannel(.userAuthBanner(.init(message: message, languageTag: "")), nil)
+        handler.flushFromChildChannel()
     }
 }
 
