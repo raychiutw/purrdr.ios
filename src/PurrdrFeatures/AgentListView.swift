@@ -9,12 +9,11 @@ public struct AgentListView: View {
         self.model = model
     }
 
+    /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle("Agents")
-        }
-        .task { await model.load() }
+        content
+            .navigationTitle("Agents")
+            .task { await model.load() }
     }
 
     @ViewBuilder

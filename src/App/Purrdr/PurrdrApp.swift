@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let navigation = TopNavigationModel()
 
     init() {
         let channel: any HostChannel = DemoHost()
@@ -18,7 +19,7 @@ struct PurrdrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList)
+            TopNavigationView(navigation: navigation, agentList: agentList)
         }
     }
 }
