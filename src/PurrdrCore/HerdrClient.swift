@@ -19,6 +19,20 @@ public struct HerdrClient: Sendable {
         return result.snapshot.hostSnapshot
     }
 
+    /// 健康檢查：伺服器版本(行為規格 §3.4 `ping`)。
+    public func ping() async throws -> String {
+        try await request(method: "ping", as: PingResult.self).version
+    }
+
+    /// 主機上 herdr 的 agent 整合(`integration.list`)。
+    public func integrations() async throws -> [AgentIntegration] {
+        try await request(method: "integration.list", as: IntegrationListResult.self).integrations.map {
+            AgentIntegration(
+                target: $0.target, label: $0.label ?? $0.target,
+                state: AgentIntegration.State(rawValue: $0.state ?? "") ?? .unknown, available: $0.available ?? false)
+        }
+    }
+
     private func request<Result: Decodable>(method: String, as: Result.Type) async throws -> Result {
         let session = try await channel.execute(HerdrCommand.bridge(herdr))
         let line: Data
@@ -52,6 +66,11 @@ public struct HerdrClient: Sendable {
         // herdr 失敗時可能把錯誤 envelope 印在 stderr(行為規格 §3.2)。
         if stdout.isEmpty, let envelope = stderr.split(separator: 0x0A).first(where: { $0.first == UInt8(ascii: "{") }) {
             return Data(envelope)
+        }
+        // bridge 連不到 socket = 這個 session 沒有在跑 herdr(行為規格 §3.3)。
+        let stderrText = String(decoding: stderr, as: UTF8.self)
+        if stdout.isEmpty, stderrText.contains("failed to connect to remote Herdr API socket") {
+            throw HerdrError.herdr(code: "server_not_running", message: stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         guard !stdout.isEmpty else {
             throw HerdrError.noResponse(exitCode: exitCode, stderr: String(decoding: stderr, as: UTF8.self))
@@ -92,6 +111,21 @@ private struct Envelope<Result: Decodable>: Decodable {
 private struct WireError: Decodable {
     var code: String
     var message: String
+}
+
+private struct PingResult: Decodable {
+    var version: String
+}
+
+private struct IntegrationListResult: Decodable {
+    var integrations: [WireIntegration]
+}
+
+private struct WireIntegration: Decodable {
+    var target: String
+    var label: String?
+    var available: Bool?
+    var state: String?
 }
 
 private struct SnapshotResult: Decodable {

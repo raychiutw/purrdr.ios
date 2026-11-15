@@ -64,7 +64,7 @@ struct HerdrClientTests {
     @Test("bridge 沒有任何回應就結束時，帶上 exit code 與 stderr 失敗")
     func bridgeWithoutResponseReportsExitAndStderr() async {
         let host = FakeHost()
-        let stderr = "failed to connect to remote Herdr API socket"
+        let stderr = "sh: herdr: Permission denied"
         await host.expect(Self.bridgeCommand, reply: FakeReply(stderr: Data(stderr.utf8), exitCode: 1))
 
         await #expect(throws: HerdrError.noResponse(exitCode: 1, stderr: stderr)) {
