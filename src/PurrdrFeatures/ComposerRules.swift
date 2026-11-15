@@ -152,6 +152,8 @@ extension ConversationItem {
         switch self {
         case .user(let bubble): bubble.date
         case .agentText(let text): text.date
+        case .subagent(let card): card.startedAt
+        case .workflow(let card): card.startedAt
         case .toolRun, .skill, .note: nil
         }
     }

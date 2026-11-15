@@ -63,6 +63,59 @@ public final class ConversationModel {
     public private(set) var title = ""
     public private(set) var agentStatus: AgentStatus?
     public private(set) var metadata = TranscriptMetadata()
+    /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
+    public private(set) var agentsPane: AgentsPane?
+    /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
+    public private(set) var agentsPaneReadAt: Date?
+
+    /// 輪詢間隔：agent 工作中、等你回答，或背景 agents 窗格有執行中的列時 2 秒，否則 4 秒
+    /// (herdr 在背景 agent 執行時回報 idle,commit 0a3b0d7)。
+    public var pollInterval: Duration {
+        let paneRunning = agentsPane?.rows.contains { $0.state == .running } ?? false
+        return agentStatus == .working || agentStatus == .blocked || paneRunning ? .seconds(2) : .seconds(4)
+    }
+
+    /// Subagent 卡的畫面 model。還沒有 session 資料夾(對話紀錄未定位)或卡片沒有呼叫 id 時沒有(箭頭停用)。
+    /// subagent 的 subagent 平放在同一個主 session 下，所以巢狀的卡也從這裡開。
+    public func subagentModel(for card: SubagentCard) -> SubagentModel? {
+        guard let path = file?.path, card.callID != nil else { return nil }
+        return SubagentModel(transcripts: transcripts, parentTranscript: path, card: currentCard(card))
+    }
+
+    /// 卡片的箭頭能不能開(不建立 model)。
+    public func canOpen(_ card: SubagentCard) -> Bool {
+        file != nil && card.callID != nil
+    }
+
+    /// Workflow 的進度 model:每個 run 一個，卡片與畫面共用(每個 run 同時只有一個讀取在途)。
+    public func workflowModel(for card: WorkflowCard) -> WorkflowModel? {
+        guard let path = file?.path else { return nil }
+        if let existing = workflowModels[card.id] { return existing }
+        let model = WorkflowModel(transcripts: transcripts, sessionFolder: ClaudeTranscript.sessionFolder(ofTranscript: path), card: card, clock: clock)
+        workflowModels[card.id] = model
+        return model
+    }
+
+    /// Workflow 裡某個 agent 的對話紀錄畫面。
+    public func workflowAgentModel(card: WorkflowCard, agent: WorkflowAgent) -> SubagentModel? {
+        guard let path = file?.path, let runID = card.runID, let agentID = agent.agentID,
+              let transcript = ClaudeTranscript.workflowAgentTranscript(
+                  sessionFolder: ClaudeTranscript.sessionFolder(ofTranscript: path), runID: runID, agentID: agentID
+              ) else { return nil }
+        return SubagentModel(transcripts: transcripts, transcriptPath: transcript, title: agent.label, subtitle: agent.model, status: agent.state)
+    }
+
+    /// 卡片的最新狀態(畫面上的卡可能是舊的)。
+    private func currentCard(_ card: SubagentCard) -> SubagentCard {
+        for case .subagent(let current) in items where current.id == card.id { return current }
+        return card
+    }
+
+    /// 任務文字與某張 subagent 卡描述**完全相同**時，背景 agents 列可以打開那張卡的對話紀錄。
+    public func subagentCard(forTask task: String) -> SubagentCard? {
+        for case .subagent(let card) in items where card.title == task { return card }
+        return nil
+    }
 
     // MARK: 送出(F6)
 
@@ -108,6 +161,8 @@ public final class ConversationModel {
     /// 按鍵送達主機的時間;還在送時為 `nil`(不判定)。
     private var answerSentAt: Date?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
+    /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
+    @ObservationIgnored private var screenThisPoll: String?
     private let sleep: @Sendable (Duration) async throws -> Void
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
@@ -124,6 +179,9 @@ public final class ConversationModel {
     private var currentAgent: Agent?
     /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
     private var consumedUserIDs = Set<String>()
+    private var lastPolledStatus: AgentStatus?
+    /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
+    @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
     private var lastPresenceSeq: UInt64 = 0
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
     private var generation = 0
@@ -177,9 +235,9 @@ public final class ConversationModel {
             group.addTask {
                 while !Task.isCancelled {
                     await self.poll()
-                    let fast = await MainActor.run { self.agentStatus == .working || self.agentStatus == .blocked }
+                    let interval = await MainActor.run { self.pollInterval }
                     do {
-                        try await sleep(fast ? .seconds(2) : .seconds(4))
+                        try await sleep(interval)
                     } catch {
                         return
                     }
@@ -207,6 +265,7 @@ public final class ConversationModel {
             return
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
+        screenThisPoll = nil
         await refreshPrompt(agent)
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
@@ -214,6 +273,8 @@ public final class ConversationModel {
             phase = .unsupported
             return
         }
+        // 背景 agents 窗格只有 Claude 有。
+        if agent.kind == "claude" { await readAgentsPaneIfNeeded() }
         guard let target = agent.transcriptTarget else {
             waitForSession(agent)
             return
@@ -227,6 +288,26 @@ public final class ConversationModel {
         }
         format = target.format
         await read(target)
+    }
+
+    /// 背景 agents 窗格的讀取時機(F10、R-W05):工作中每次輪詢讀;問題開著時沿用上次;閒置時只在上次有窗格、
+    /// 或工作中之後的第一次閒置時讀(一輪可能在兩次輪詢之間開始背景 agent 並結束,commit e0d34ce)。
+    /// 讀取失敗沿用上次。
+    private func readAgentsPaneIfNeeded() async {
+        let status = agentStatus
+        defer { lastPolledStatus = status }
+        let shouldRead = switch status {
+        case .working: true
+        case .blocked: false
+        default: agentsPane != nil || lastPolledStatus == .working
+        }
+        guard shouldRead else { return }
+        // 這次輪詢找提示時已經讀過畫面就沿用，不再多一個主機指令。
+        let read: String?
+        if let screenThisPoll { read = screenThisPoll } else { read = try? await client.readPane(paneID: paneID) }
+        guard let screen = read else { return }
+        agentsPane = AgentsPane.parse(screen: screen)
+        agentsPaneReadAt = clock.now()
     }
 
     /// 有 agent 但沒有 session id:等待;80 秒後變缺少。agent 在等回答時 id 要等回答後才來，計時歸零(R-I08)。
@@ -513,7 +594,8 @@ public final class ConversationModel {
             update(prompt: nil)
             return
         }
-        guard let screen = try? await client.readPane(paneID: agent.paneID) else {
+        screenThisPoll = try? await client.readPane(paneID: agent.paneID)
+        guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
             if blocked, prompt == nil { prompt = .unrecognized }
             if prompt != nil { agentStatus = .blocked }
@@ -669,6 +751,7 @@ public final class ConversationModel {
 
     private func unbind() {
         generation += 1
+        workflowModels = [:]
         boundSessionID = nil
         file = nil
         recent = []
@@ -681,6 +764,7 @@ public final class ConversationModel {
     private func rebuild() {
         items = Conversation.items(from: olderMessages + recent)
         rebuildEntries()
+        for case .workflow(let card) in items { workflowModels[card.id]?.update(card: card) }
     }
 
     private func saveCache() async {

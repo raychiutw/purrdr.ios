@@ -40,4 +40,10 @@ public enum TranscriptPart: Sendable, Equatable, Codable {
     case note(String)
     /// 使用者附的圖片張數。
     case images(Int)
+    /// `Agent`／`Task`／`Workflow` 工具呼叫(F10):成為 subagent 或 workflow 卡。
+    case delegation(DelegationCall)
+    /// Harness 寫的背景任務通知(§4.6)。只更新卡片，不自成一列。
+    case taskNotification(TaskNotification)
+    /// Subagent 的 hand-back 報告(§4.6,2.1.294 起)。只更新卡片，不自成一列。
+    case handBack(from: String, report: String)
 }
