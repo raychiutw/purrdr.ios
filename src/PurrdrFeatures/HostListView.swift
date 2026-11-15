@@ -70,11 +70,12 @@ public struct HostListView: View {
             .navigationDestination(for: HostRoute.self) { route in
                 destination(route)
             }
-            .alert("Rename Host", isPresented: renamingBinding, presenting: renaming) { renaming in
+            .alert("Rename Host", isPresented: renamingBinding, presenting: renaming) { _ in
                 TextField("Name", text: renameText)
                     .accessibilityIdentifier("hosts.rename.name")
                 Button("Cancel", role: .cancel) {}
-                Button("Rename") { rename(renaming) }
+                // 讀目前的 `renaming`(含使用者輸入的名稱);`presenting` 傳進來的是 alert 打開當下的快照，會存回舊名稱。
+                Button("Rename") { if let renaming { rename(renaming) } }
                     .accessibilityIdentifier("hosts.rename.confirm")
             } message: { _ in
                 Text("The name is only used on this device.")
