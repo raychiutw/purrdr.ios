@@ -33,6 +33,20 @@ public enum StopOutcome: Sendable, Equatable {
     case stillWorking
     /// 連 Esc 都送不出去。
     case failed
+    /// agent 在等你回答：什麼都沒送(中斷可能把問題關掉)。
+    case needsAnswer
+}
+
+/// 強制結束的結果(F6.7)。
+public enum ForceQuitOutcome: Sendable, Equatable {
+    /// 已送出 ctrl+c(不確認結果)。
+    case sent
+    /// agent 在等你回答：什麼都沒送。
+    case needsAnswer
+    /// agent 已經不在工作：什麼都沒送。
+    case notWorking
+    /// 讀不到狀態或送不出去。
+    case failed
 }
 
 /// 送出 prompt、補 Enter 與中斷的規則(行為規格 F6.5、F6.7、§3.6、§7.3)。
@@ -134,8 +148,15 @@ public struct PromptDelivery: Sendable {
 
     /// 停止(F6.7):送**一個** Esc(第二個會打開 Claude 的回溯選單),之後每 500ms 讀狀態、最多 3 秒，
     /// 等它離開 working;讀不到狀態視為成功。主機會把不認得的鍵名當文字收下，所以「鍵被接受」不代表停了。
-    /// 呼叫端保證目標不是 blocked 的 pane(中斷可能把問題關掉)。
+    /// 送前重讀狀態：只在 working 時送;「需要你」的 agent 一個按鍵都不送(中斷可能把問題關掉)。
     public func stop(paneID: String) async -> StopOutcome {
+        switch await freshInterruptTarget(paneID: paneID) {
+        case .unknown: return .failed
+        case .needsYou: return .needsAnswer
+        // 已經停了：多一個 Esc 會打開 Claude 的回溯選單。
+        case .notWorking: return .stopped
+        case .working: break
+        }
         do {
             try await client.sendKeys(paneID: paneID, keys: ["esc"])
         } catch {
@@ -153,8 +174,35 @@ public struct PromptDelivery: Sendable {
         return .stillWorking
     }
 
-    /// 強制結束：送 `ctrl+c`,不確認結果(F6.7;呼叫端先請使用者確認)。
-    public func forceQuit(paneID: String) async throws {
-        try await client.sendKeys(paneID: paneID, keys: ["ctrl+c"])
+    /// 強制結束：送前重讀狀態，在 working 才送 `ctrl+c`,不確認結果(F6.7;呼叫端先請使用者確認)。
+    public func forceQuit(paneID: String) async -> ForceQuitOutcome {
+        switch await freshInterruptTarget(paneID: paneID) {
+        case .unknown: return .failed
+        case .needsYou: return .needsAnswer
+        case .notWorking: return .notWorking
+        case .working: break
+        }
+        do {
+            try await client.sendKeys(paneID: paneID, keys: ["ctrl+c"])
+            return .sent
+        } catch {
+            return .failed
+        }
+    }
+
+    private enum InterruptTarget {
+        case working
+        case needsYou
+        case notWorking
+        case unknown
+    }
+
+    /// 中斷前重讀**新鮮的** snapshot:畫面上的狀態可能是 2 秒前的。「需要你」(blocked,或閒置但 `input_pending`)
+    /// 永不中斷——Esc／ctrl+c 可能把問題關掉(F6.7);讀不到狀態也不送。
+    private func freshInterruptTarget(paneID: String) async -> InterruptTarget {
+        guard let snapshot = try? await client.snapshot() else { return .unknown }
+        guard let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else { return .notWorking }
+        if agent.status == .blocked || (agent.inputPending && agent.status != .working) { return .needsYou }
+        return agent.status == .working ? .working : .notWorking
     }
 }

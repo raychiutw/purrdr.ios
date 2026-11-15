@@ -262,6 +262,8 @@ struct ConversationSendTests {
         await setup.model.poll()
         #expect(setup.model.canStop)
 
+        // 送前重讀新鮮的狀態(仍在 working 才送)。
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot { $0["agent_status"] = "working" })
         await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
         for _ in 0..<6 { await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot { $0["agent_status"] = "working" }) }
         await setup.model.stop()
