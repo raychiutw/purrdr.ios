@@ -103,7 +103,7 @@ struct TopLevelSheetView: View {
         switch sheet {
         case .settings:
             SettingsForm()
-        case .hosts, .newChat, .member:
+        case .hosts, .newChat, .member, .plus:
             ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
         }
     }
