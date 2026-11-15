@@ -38,6 +38,21 @@ public struct HostKeyFingerprint: Sendable, Hashable, CustomStringConvertible {
     }
 }
 
+extension HostKeyFingerprint: Codable {
+    public init(from decoder: any Decoder) throws {
+        let text = try decoder.singleValueContainer().decode(String.self)
+        guard let fingerprint = HostKeyFingerprint(stored: text) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "空的指紋不是 pin"))
+        }
+        self = fingerprint
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(stored)
+    }
+}
+
 public enum HostKeyFingerprintError: Error, Equatable {
     /// 不是 `<演算法> <base64>` 形式的 OpenSSH 公鑰。
     case malformedPublicKey

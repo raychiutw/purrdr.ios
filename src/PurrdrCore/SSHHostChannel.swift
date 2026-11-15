@@ -102,7 +102,7 @@ public actor SSHHostChannel: HostChannel {
     }
 
     /// 關掉連線(編輯／刪除主機、信任新 key、app 結束時)。進行中的撥號完成後也會自行關閉。
-    public func close() async {
+    public func disconnect() async {
         dial = nil
         let connection = connection
         self.connection = nil
@@ -127,7 +127,7 @@ public actor SSHHostChannel: HostChannel {
         do {
             let connection = try await task.value
             guard dial?.id == id else {
-                // 撥號期間被 close():不要留下沒人管的連線。
+                // 撥號期間被 disconnect():不要留下沒人管的連線。
                 await connection.close()
                 throw SSHConnectionError.connectionLost
             }

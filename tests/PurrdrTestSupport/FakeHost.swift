@@ -55,6 +55,7 @@ public actor FakeHost: HostChannel {
     public private(set) var ptys: [PTYOpening] = []
 
     private var expectations: [(command: String, reply: FakeReply)] = []
+    private var connectionError: (any Error)?
     private var ptyExpectations: [(request: PTYRequest, output: Data)] = []
     private var pending: [Int: (reply: FakeReply, continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation)] = [:]
 
@@ -73,7 +74,20 @@ public actor FakeHost: HostChannel {
     /// 還沒被執行到的預期指令。測試結尾可斷言它是空的。
     public var unmetExpectations: [String] { expectations.map(\.command) }
 
+    /// 之後的每個指令都以 `error` 失敗(模擬連線層錯誤，例如 host key 待確認、連不上)。
+    public func failConnection(with error: any Error) {
+        connectionError = error
+    }
+
+    /// 測試結束或主機設定改變時 app 關掉了連線。
+    public private(set) var disconnectCount = 0
+
+    public func disconnect() async {
+        disconnectCount += 1
+    }
+
     public func execute(_ command: String) async throws -> any ExecSession {
+        if let connectionError { throw connectionError }
         guard let index = expectations.firstIndex(where: { $0.command == command }) else {
             throw FakeHostError.unexpectedCommand(command)
         }

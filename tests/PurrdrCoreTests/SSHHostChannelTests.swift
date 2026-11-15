@@ -17,7 +17,7 @@ struct SSHHostChannelTests {
         #expect(result == Collected(stdout: "out\n", stderr: "err\n", exit: .exit(code: 3)))
         #expect(server.snapshot.commands == ["anything"])
         #expect(server.snapshot.usernames == ["demo"])
-        await channel.close()
+        await channel.disconnect()
         await server.stop()
     }
 
@@ -31,7 +31,7 @@ struct SSHHostChannelTests {
         let result = try await collect(session)
 
         #expect(result.stdout == "echo:hello\n")
-        await channel.close()
+        await channel.disconnect()
         await server.stop()
     }
 
@@ -43,7 +43,7 @@ struct SSHHostChannelTests {
         let result = try await collect(channel.execute("x"))
 
         if case .exit(_, let signal) = result.exit { #expect(signal == "KILL") } else { Issue.record("沒有結束狀態:\(result)") }
-        await channel.close()
+        await channel.disconnect()
         await server.stop()
     }
 
@@ -87,7 +87,7 @@ struct SSHHostChannelTests {
 
         #expect(server.snapshot.connections == 1)
         #expect(server.snapshot.commands.count == 6)
-        await channel.close()
+        await channel.disconnect()
         await server.stop()
     }
 
@@ -104,7 +104,7 @@ struct SSHHostChannelTests {
         let next = try await collect(channel.execute("next"))
         #expect(next.stdout == "ok")
         #expect(server.snapshot.connections == 2)
-        await channel.close()
+        await channel.disconnect()
         await server.stop()
     }
 
@@ -145,7 +145,7 @@ struct SSHHostChannelTests {
         #expect(try await iterator.next() == Data("ls".utf8))
         try await pty.resize(columns: 100, rows: 30)
         await pty.close()
-        await channel.close()
+        await channel.disconnect()
 
         try await Task.sleep(for: .milliseconds(100))
         let record = try #require(server.snapshot.ptys.first)
