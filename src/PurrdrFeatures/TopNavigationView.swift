@@ -18,7 +18,7 @@ public struct TopNavigationView: View {
         @Bindable var navigation = navigation
         NavigationStack {
             // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
-            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions) { paneID, sessionID in
+            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions, usage: hosts.claudeUsage) { paneID, sessionID in
                 hosts.conversation(paneID: paneID, sessionID: sessionID)
             } terminal: { paneID, title in
                 hosts.terminal(paneID: paneID, title: title)
