@@ -162,8 +162,49 @@ public enum ClaudeTranscriptParser {
                 return note.isEmpty ? [] : [.note(note)]
             }
         }
+        if trimmed.hasPrefix("<bash-stdout>") || trimmed.hasPrefix("<bash-stderr>") {
+            return [.shellOutput(shellOutput(trimmed))]
+        }
+        if let command = firstElement("bash-input", in: raw) {
+            let command = command.trimmingCharacters(in: .whitespacesAndNewlines)
+            return command.isEmpty ? [] : [.shellInput(command)]
+        }
         let text = cleanUserText(raw)
         return text.isEmpty ? [] : [.text(text)]
+    }
+
+    // MARK: - Shell `!` 指令
+
+    /// 輸出各自的上限(F5.9)。
+    static let shellOutputLimit = 20_000
+
+    /// `<bash-stdout>…</bash-stdout><bash-stderr>…</bash-stderr>` → 輸出(F5.9)。
+    static func shellOutput(_ text: String) -> ShellOutput {
+        let stdout = shellStream(firstElement("bash-stdout", in: text) ?? "")
+        let stderr = shellStream(firstElement("bash-stderr", in: text) ?? "")
+        return ShellOutput(stdout: stdout.text, stderr: stderr.text, isTruncated: stdout.truncated || stderr.truncated)
+    }
+
+    /// 一個串流：「(Bash completed with no output)」視為空;HTML 跳脫只解一次(`&lt;`、`&gt;`,最後 `&amp;`),
+    /// `<persisted-output>` 內不解並去掉標籤;去掉 ANSI 色碼與前後換行(行首空白是輸出的一部分，保留);截在 20,000 字。
+    private static func shellStream(_ raw: String) -> (text: String, truncated: Bool) {
+        if raw.trimmingCharacters(in: .whitespacesAndNewlines) == "(Bash completed with no output)" { return ("", false) }
+        var decoded = ""
+        var rest = Substring(raw)
+        while let open = rest.range(of: "<persisted-output>"),
+              let close = rest.range(of: "</persisted-output>", range: open.upperBound..<rest.endIndex) {
+            decoded += unescapeHTML(rest[..<open.lowerBound]) + rest[open.upperBound..<close.lowerBound]
+            rest = rest[close.upperBound...]
+        }
+        decoded += unescapeHTML(rest)
+        let text = stripANSI(decoded).trimmingCharacters(in: CharacterSet(charactersIn: "\r\n"))
+        guard text.count > shellOutputLimit else { return (text, false) }
+        return (String(text.prefix(shellOutputLimit)), true)
+    }
+
+    private static func unescapeHTML(_ text: Substring) -> String {
+        text.replacingOccurrences(of: "&lt;", with: "<").replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&amp;", with: "&")
     }
 
     /// 行為規格 §4.1「使用者文字清理」。
@@ -176,6 +217,7 @@ public enum ClaudeTranscriptParser {
             return args.isEmpty ? command.trimmingCharacters(in: .whitespacesAndNewlines) : "\(command.trimmingCharacters(in: .whitespacesAndNewlines)) \(args)"
         }
         if let command = firstElement("bash-input", in: text) {
+            // 排隊中的 prompt 才會走到這裡(對話紀錄的使用者行由 `userTextParts` 轉成 `.shellInput`)。
             return "! " + command.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         // 剝掉開頭的 harness 元素(標籤名含 `_`、`-`,或 heartbeat、image)。人打的 task-notification、agent-message 保留。
@@ -342,7 +384,7 @@ extension TranscriptPart {
     /// 不是使用者打的內容(系統註記、skill、任務通知、hand-back):整則訊息都是這些時角色是 system。
     var isNoteOrSkill: Bool {
         switch self {
-        case .note, .skill, .taskNotification, .handBack: true
+        case .note, .skill, .taskNotification, .handBack, .shellOutput: true
         default: false
         }
     }
