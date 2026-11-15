@@ -29,9 +29,13 @@ struct PurrdrApp: App {
         if uiTesting {
             hosts = HostsModel(
                 store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                makeChannel: { _, _ in demo })
+                hostConsent: InMemoryHostWriteConsentStore(), makeChannel: { _, _ in demo })
         } else {
-            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences) {
+            // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
+            hosts = HostsModel(
+                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                hostConsent: UserDefaultsHostWriteConsentStore()
+            ) {
                 endpoint, pin in
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
             }

@@ -82,6 +82,7 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
   - `.recorded(檔名)` 回放 `Fixtures/herdr-<版本>/` 的錄製檔，等 stdin 收到一行才回(模擬 bridge);一般指令用 `FakeReply(stdout:stderr:exitCode:)`,立即回應。
   - PTY:`expectPTY(request, output:)`,之後看 `host.ptys` 的輸入與尺寸變更。
   - 錄製檔一律從真實主機錄(`scripts/record-herdr-fixture.sh`),個人資料換成假值，不照程式碼手寫。
+- **會寫入主機的功能**(ADR-0002:Claude 用量、主題、Codex 啟動器、推播外掛)一律經 `ReversibleHostWrite`(安裝紀錄在 `~/.purrdr/<功能>/`,可完整還原),同意存在 `HostWriteConsentStore`。測試用 `LocalShellHost`(只在 macOS):以真的 `/bin/sh` 執行主機腳本，`HOME` 是暫存資料夾;「還原後與安裝前完全相同」以 `DirectorySnapshot(of: host.home) == before` 斷言。絕不對真正的家目錄測試。
 - **Demo 主機**(`DemoHost`,行為規格 F21):對真正 client 送出的**精確指令字串**回應，所以走的是正式程式路徑。App Review 與 UI 測試都靠它;Release 也會帶。目前內容：三個 Agent——`w1:p1` Claude Code done(workspace `ledger`)、`w2:p1` Claude Code blocked(`weather-app`)、`w3:p1` Codex working(`notes`);接受 `events.subscribe`(回 ack 後保持開著、不送事件);回顯的 PTY shell、不認得的指令 exit 127。範例內容自己寫，不沿用 herdrchat 的文字。Demo 演不出來的功能，先加 Demo 情境。
 - **SSH 通道**的測試對 `tests/PurrdrCoreTests/Support/TestSSHServer.swift`(swift-nio-ssh server 角色，只接受 `none` 認證)跑，斷言連線數、收到的指令、PTY 請求。
 - **真實主機整合測試**(`RealHostIntegrationTests`)以環境變數開啟、只跑唯讀指令:`PURRDR_REAL_HOST=user@host[:port]`(可加 `PURRDR_REAL_HOST_FINGERPRINT`、`PURRDR_REAL_HOST_SESSION`)經 Tailscale SSH;`PURRDR_LOCAL_HERDR=1` 讓本機的真 herdr 經測試用 SSH 伺服器跑。Tailscale SSH 不接受同一台機器連自己的 tailnet IP,要從另一台裝置跑。

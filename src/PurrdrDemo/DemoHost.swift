@@ -9,7 +9,7 @@ import PurrdrCore
 ///
 /// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、兩個 Claude Code agent 的對話紀錄(`DemoTranscripts`;
 /// 送出 prompt 後接上使用者那一行與固定回覆，「需要你」的 agent 回 `agent_blocked`)、接受按鍵(中斷)、
-/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell。
+/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell、記憶體裡的家目錄(主機檔案讀寫;Claude 用量裝上後回範例用量)。
 /// 完整的情境在 Demo 模式那張票補齊。
 public actor DemoHost: HostChannel {
     /// Demo 主機的情境(UI 測試以啟動旗標切換)。
@@ -31,6 +31,9 @@ public actor DemoHost: HostChannel {
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
 
+    /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
+    private var files = DemoFiles()
+
     public init(scenario: Scenario = .standard) {
         self.scenario = scenario
     }
@@ -47,6 +50,10 @@ public actor DemoHost: HostChannel {
         }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        if let request = HostFileRequest(command: command) {
+            let result = files.handle(request, now: Date())
+            return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
