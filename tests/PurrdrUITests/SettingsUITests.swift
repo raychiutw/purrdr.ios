@@ -33,6 +33,24 @@ final class SettingsUITests: XCTestCase {
         }
     }
 
+    /// 主機同步(#30):沒有 Purrdr Plus(UI 測試沒有會員)時不開啟，改顯示訂閱入口，在同一個 sheet 內 push 付費牆。
+    @MainActor
+    func testHostSyncWithoutPlusOffersSubscription() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+
+        let toggle = element("settings.hostSync", in: app)
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有主機同步")
+        // 點開關本身(列的右側)。
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+
+        let plus = element("settings.hostSync.plus", in: app)
+        XCTAssertTrue(plus.waitForExistence(timeout: 10), "沒有顯示需要 Purrdr Plus")
+        XCTAssertEqual(toggle.value as? String, "0", "沒有訂閱不該開啟")
+        plus.tap()
+        XCTAssertTrue(element("plus.benefits", in: app).waitForExistence(timeout: 10), "沒有 push 到付費牆")
+    }
+
     @MainActor
     func testCopyDiagnosticsConfirmsCopy() {
         let app = XCUIApplication.launchUITesting()

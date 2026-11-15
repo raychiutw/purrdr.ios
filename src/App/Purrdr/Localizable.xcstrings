@@ -1231,6 +1231,17 @@
         }
       }
     },
+    "Couldn’t save synced hosts on this device. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在這台裝置上儲存同步來的主機。%@"
+          }
+        }
+      }
+    },
     "Couldn’t save this host on this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1282,6 +1293,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法送出:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t sync hosts. Check your connection and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法同步主機。請檢查網路連線後再試一次。"
           }
         }
       }
@@ -1825,6 +1847,39 @@
         }
       }
     },
+    "Host Sync" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機同步"
+          }
+        }
+      }
+    },
+    "Host names, addresses, user names, connection methods, and host key fingerprints sync to your other devices through your Purrdr member account. Passwords and private keys never leave this device. Requires Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機名稱、位址、使用者名稱、連線方式與 host key 指紋會透過你的 Purrdr 會員同步到你的其他裝置。密碼與私鑰永遠不會離開這台裝置。需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Host sync needs Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機同步需要 Purrdr Plus"
+          }
+        }
+      }
+    },
     "Hosts" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1975,6 +2030,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放大文字"
+          }
+        }
+      }
+    },
+    "Last Synced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次同步"
           }
         }
       }
@@ -3629,6 +3695,17 @@
         }
       }
     },
+    "Status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "狀態"
+          }
+        }
+      }
+    },
     "Stop" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3669,6 +3746,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支援"
+          }
+        }
+      }
+    },
+    "Sync Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步主機"
+          }
+        }
+      }
+    },
+    "Syncing…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在同步…"
           }
         }
       }
