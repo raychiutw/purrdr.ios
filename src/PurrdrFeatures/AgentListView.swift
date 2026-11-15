@@ -53,9 +53,11 @@ public struct AgentListView: View {
     }
 
     private func conversationScreen(_ route: ChatRoute) -> some View {
-        ConversationScreen(
-            model: makeConversation(route, model.sessionID(of: route)),
-            makeTerminal: makeTerminal.map { make in { paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) } })
+        var terminal: (@MainActor (String, String) -> PaneTerminalModel)?
+        if let makeTerminal {
+            terminal = { @MainActor paneID, title in makeTerminal(ChatRoute(host: route.host, paneID: paneID), title) }
+        }
+        return ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: terminal)
     }
 
     @ViewBuilder

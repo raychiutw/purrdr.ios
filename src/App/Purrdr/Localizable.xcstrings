@@ -1568,7 +1568,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "桌上型電腦"
+            "value" : "桌機"
           }
         }
       }
@@ -2195,7 +2195,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "筆記型電腦"
+            "value" : "筆電"
           }
         }
       }
@@ -3724,7 +3724,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "伺服器"
+            "value" : "機架"
           }
         }
       }
