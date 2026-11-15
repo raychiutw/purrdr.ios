@@ -1,0 +1,4 @@
+{"t_ms": 64.9, "dir": "stdout", "line": "{\"reason\":\"terminal session control failed: terminal target term_doesnotexist not found\",\"type\":\"terminal.closed\"}"}
+{"t_ms": 65.5, "dir": "stdout_eof", "line": null}
+{"t_ms": 1012.4, "dir": "stdin_eof", "line": null}
+{"t_ms": 1313.5, "dir": "exit", "line": 0}
