@@ -92,11 +92,39 @@ public struct HerdrClient: Sendable {
         return nil
     }
 
+    // MARK: - Workspace 操作(行為規格 F3.4、F3.5)
+
+    /// 重新命名 workspace(`workspace.rename`)。herdr 可能正規化 label,成功後應重讀 snapshot。
+    public func renameWorkspace(_ workspaceID: String, to label: String) async throws {
+        _ = try await request(method: "workspace.rename", params: RenameParams(workspaceID: workspaceID, label: label), as: AnyResult.self)
+    }
+
+    /// 關閉 workspace(`workspace.close`):裡面每個 tab、pane、程序都會停止。
+    ///
+    /// 不帶 `close_group`:同 repo 的 worktree workspace 還開著時，herdr 回 `workspace_group_close_required`,
+    /// 由使用者先關掉它們，而不是替他一起關(herdr CLI 文件「Worktrees」)。
+    public func closeWorkspace(_ workspaceID: String) async throws {
+        _ = try await request(method: "workspace.close", params: WorkspaceIDParams(workspaceID: workspaceID), as: AnyResult.self)
+    }
+
+    /// 以 workspace 所在的 git repo 為底建立 worktree 與新分支，並開成新的 workspace(`worktree.create`)。
+    /// `focus:false`:不搶桌機的焦點。分支已存在時 herdr 直接 checkout,否則從 `HEAD` 建立。
+    public func createWorktree(from workspaceID: String, branch: String) async throws -> CreatedWorkspace {
+        let result = try await request(
+            method: "worktree.create", params: WorktreeCreateParams(workspaceID: workspaceID, branch: branch), as: WorktreeCreatedResult.self
+        )
+        return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
+    }
+
     private func request<Result: Decodable>(method: String, as: Result.Type) async throws -> Result {
+        try await request(method: method, params: NoParams(), as: Result.self)
+    }
+
+    private func request<Result: Decodable>(method: String, params: some Encodable, as: Result.Type) async throws -> Result {
         let session = try await channel.execute(HerdrCommand.bridge(herdrPath: herdrPath))
         let line: Data
         do {
-            try await session.write(Self.requestLine(method: method, params: NoParams()))
+            try await session.write(Self.requestLine(method: method, params: params))
             line = try await Self.firstLine(of: session)
         } catch {
             await session.close()
@@ -172,6 +200,57 @@ private struct WireRequest<Params: Encodable>: Encodable {
 
 private struct NoParams: Encodable {}
 
+private struct WorkspaceIDParams: Encodable {
+    var workspaceID: String
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceID = "workspace_id"
+    }
+}
+
+private struct RenameParams: Encodable {
+    var workspaceID: String
+    var label: String
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceID = "workspace_id"
+        case label
+    }
+}
+
+private struct WorktreeCreateParams: Encodable {
+    var workspaceID: String
+    var branch: String
+    var focus = false
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceID = "workspace_id"
+        case branch
+        case focus
+    }
+}
+
+/// 只看成功與否的回應(`ok`、`workspace_info`…)。
+private struct AnyResult: Decodable {}
+
+private struct WorktreeCreatedResult: Decodable {
+    var workspace: WireWorkspace
+    var rootPane: RootPane
+
+    struct RootPane: Decodable {
+        var paneID: String
+
+        enum CodingKeys: String, CodingKey {
+            case paneID = "pane_id"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case workspace
+        case rootPane = "root_pane"
+    }
+}
+
 private struct SubscribeParams: Encodable {
     var subscriptions: [EventSubscription]
 }
@@ -236,13 +315,106 @@ private struct WireSnapshot: Decodable {
     var version: String
     var workspaces: [WireWorkspace]?
     var agents: [WireAgent]?
+    var tabs: [WireTab]?
+    var panes: [WirePane]?
+    var layouts: [WireLayout]?
 
     var hostSnapshot: HostSnapshot {
         let labels = Dictionary((workspaces ?? []).map { ($0.workspaceID, $0.label) }, uniquingKeysWith: { first, _ in first })
         return HostSnapshot(
             version: version,
-            workspaces: (workspaces ?? []).map { Workspace(id: $0.workspaceID, number: $0.number ?? 0, label: $0.label.nonEmpty) },
-            agents: (agents ?? []).map { $0.agent(workspaceLabel: labels[$0.workspaceID] ?? nil) }
+            workspaces: (workspaces ?? []).map {
+                Workspace(id: $0.workspaceID, number: $0.number ?? 0, label: $0.label.nonEmpty, activeTabID: $0.activeTabID.nonEmpty)
+            },
+            agents: (agents ?? []).map { $0.agent(workspaceLabel: labels[$0.workspaceID] ?? nil) },
+            tabs: (tabs ?? []).map { Tab(id: $0.tabID, workspaceID: $0.workspaceID, number: $0.number ?? 0, label: $0.label.nonEmpty) },
+            panes: (panes ?? []).map(\.pane),
+            layouts: layouts?.map(\.tabLayout)
+        )
+    }
+}
+
+private struct WireTab: Decodable {
+    var tabID: String
+    var workspaceID: String
+    var number: Int?
+    var label: String?
+
+    enum CodingKeys: String, CodingKey {
+        case tabID = "tab_id"
+        case workspaceID = "workspace_id"
+        case number
+        case label
+    }
+}
+
+private struct WirePane: Decodable {
+    var paneID: String
+    var workspaceID: String
+    var tabID: String
+    var agent: String?
+    var cwd: String?
+    var label: String?
+    var terminalTitleStripped: String?
+    var restoreError: String?
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case workspaceID = "workspace_id"
+        case tabID = "tab_id"
+        case agent
+        case cwd
+        case label
+        case terminalTitleStripped = "terminal_title_stripped"
+        case restoreError = "restore_error"
+    }
+
+    var pane: Pane {
+        Pane(
+            id: paneID, workspaceID: workspaceID, tabID: tabID, agentKind: agent.nonEmpty, cwd: cwd.nonEmpty,
+            label: label.nonEmpty, terminalTitle: terminalTitleStripped.nonEmpty, restoreError: restoreError.nonEmpty
+        )
+    }
+}
+
+private struct WireLayout: Decodable {
+    var workspaceID: String
+    var tabID: String
+    var zoomed: Bool?
+    var focusedPaneID: String?
+    var panes: [WirePaneRect]?
+
+    struct WirePaneRect: Decodable {
+        var paneID: String
+        var rect: WireRect
+
+        enum CodingKeys: String, CodingKey {
+            case paneID = "pane_id"
+            case rect
+        }
+    }
+
+    struct WireRect: Decodable {
+        var x: Int
+        var y: Int
+        var width: Int
+        var height: Int
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case workspaceID = "workspace_id"
+        case tabID = "tab_id"
+        case zoomed
+        case focusedPaneID = "focused_pane_id"
+        case panes
+    }
+
+    var tabLayout: TabLayout {
+        TabLayout(
+            workspaceID: workspaceID, tabID: tabID, zoomed: zoomed ?? false, focusedPaneID: focusedPaneID.nonEmpty,
+            panes: (panes ?? []).map {
+                TabLayout.PaneRect(paneID: $0.paneID, rect: GridRect(x: $0.rect.x, y: $0.rect.y, width: $0.rect.width, height: $0.rect.height))
+            }
         )
     }
 }
@@ -251,11 +423,13 @@ private struct WireWorkspace: Decodable {
     var workspaceID: String
     var number: Int?
     var label: String?
+    var activeTabID: String?
 
     enum CodingKeys: String, CodingKey {
         case workspaceID = "workspace_id"
         case number
         case label
+        case activeTabID = "active_tab_id"
     }
 }
 
@@ -269,6 +443,12 @@ private struct WireAgent: Decodable {
     var title: String?
     var inputPending: Bool?
     var cwd: String?
+    var tabID: String?
+    var agentSession: Session?
+
+    struct Session: Decodable {
+        var value: String?
+    }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
@@ -280,6 +460,8 @@ private struct WireAgent: Decodable {
         case title
         case inputPending = "input_pending"
         case cwd
+        case tabID = "tab_id"
+        case agentSession = "agent_session"
     }
 
     func agent(workspaceLabel: String?) -> Agent {
@@ -293,7 +475,9 @@ private struct WireAgent: Decodable {
             sessionTitle: title.nonEmpty,
             inputPending: inputPending ?? false,
             workspaceLabel: workspaceLabel.nonEmpty,
-            cwd: cwd.nonEmpty
+            cwd: cwd.nonEmpty,
+            sessionID: agentSession?.value.nonEmpty,
+            tabID: tabID.nonEmpty
         )
     }
 }

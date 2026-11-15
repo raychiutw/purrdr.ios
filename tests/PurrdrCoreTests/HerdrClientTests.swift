@@ -31,11 +31,14 @@ struct HerdrClientTests {
         #expect(snapshot.version == "0.9.5")
         #expect(snapshot.agents == [
             Agent(paneID: "w1:p6", workspaceID: "w1", kind: "claude", status: .idle,
-                  terminalTitle: "整理植物照片的標籤", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/garden-journal"),
+                  terminalTitle: "整理植物照片的標籤", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/garden-journal",
+                  sessionID: "00000000-0000-0000-0000-000000000001", tabID: "w1:t6"),
             Agent(paneID: "w1:pA", workspaceID: "w1", kind: "claude", status: .working,
-                  terminalTitle: "規劃天氣小工具", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects"),
+                  terminalTitle: "規劃天氣小工具", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects",
+                  sessionID: "00000000-0000-0000-0000-000000000002", tabID: "w1:tA"),
             Agent(paneID: "w1:pB", workspaceID: "w1", kind: "claude", status: .working,
-                  terminalTitle: "重構食譜匯入", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/recipe-box"),
+                  terminalTitle: "重構食譜匯入", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/recipe-box",
+                  sessionID: "00000000-0000-0000-0000-000000000003", tabID: "w1:tB"),
         ])
     }
 
@@ -47,8 +50,8 @@ struct HerdrClientTests {
         let snapshot = try await HerdrClient(channel: host).snapshot()
 
         #expect(snapshot.workspaces == [
-            Workspace(id: "w1", number: 1, label: "garden-journal"),
-            Workspace(id: "w2", number: 2, label: "scratch"),
+            Workspace(id: "w1", number: 1, label: "garden-journal", activeTabID: "w1:tA"),
+            Workspace(id: "w2", number: 2, label: "scratch", activeTabID: "w2:t1"),
         ])
     }
 

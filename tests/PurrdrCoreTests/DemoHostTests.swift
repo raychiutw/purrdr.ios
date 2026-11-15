@@ -12,17 +12,19 @@ struct DemoHostTests {
 
         #expect(snapshot.version == "0.9.5")
         #expect(snapshot.workspaces == [
-            Workspace(id: "w1", number: 1, label: "ledger"),
-            Workspace(id: "w2", number: 2, label: "weather-app"),
-            Workspace(id: "w3", number: 3, label: "notes"),
+            Workspace(id: "w1", number: 1, label: "ledger", activeTabID: "w1:t1"),
+            Workspace(id: "w2", number: 2, label: "weather-app", activeTabID: "w2:t1"),
+            Workspace(id: "w3", number: 3, label: "notes", activeTabID: "w3:t1"),
         ])
         #expect(snapshot.agents == [
             Agent(paneID: "w1:p1", workspaceID: "w1", kind: "claude", status: .done,
-                  terminalTitle: "Tidy up the CSV export", workspaceLabel: "ledger", cwd: "/Users/demo/ledger"),
+                  terminalTitle: "Tidy up the CSV export", workspaceLabel: "ledger", cwd: "/Users/demo/ledger",
+                  sessionID: "d3m0d3m0-0000-4000-8000-000000000001", tabID: "w1:t1"),
             Agent(paneID: "w2:p1", workspaceID: "w2", kind: "claude", status: .blocked,
-                  terminalTitle: "Cache the hourly forecast", workspaceLabel: "weather-app", cwd: "/Users/demo/weather-app"),
+                  terminalTitle: "Cache the hourly forecast", workspaceLabel: "weather-app", cwd: "/Users/demo/weather-app",
+                  sessionID: "d3m0d3m0-0000-4000-8000-000000000002", tabID: "w2:t1"),
             Agent(paneID: "w3:p1", workspaceID: "w3", kind: "codex", status: .working,
-                  terminalTitle: "Sync notes to Markdown | notes", workspaceLabel: "notes", cwd: "/Users/demo/notes"),
+                  terminalTitle: "Sync notes to Markdown | notes", workspaceLabel: "notes", cwd: "/Users/demo/notes", tabID: "w3:t1"),
         ])
     }
 
