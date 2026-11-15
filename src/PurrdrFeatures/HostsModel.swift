@@ -50,6 +50,8 @@ public final class HostsModel {
     private let hostConsent: any HostWriteConsentStore
     /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。所有主機共用，以 pane id 為鍵(同 `preferences`)。
     private let drafts = DraftStore()
+    /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
+    private let attachmentStore: any AttachmentStore
     /// 對話作答的觸覺(composition root 注入系統觸覺;測試不播放)。
     public var haptics: any Haptics = SilentHaptics()
     private var channel: any HostChannel
@@ -65,6 +67,7 @@ public final class HostsModel {
         preferences: any ChatPreferencesStore = InMemoryChatPreferencesStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
+        attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
     ) {
         self.store = store
@@ -74,6 +77,7 @@ public final class HostsModel {
         self.preferences = preferences
         self.demoConsent = demoConsent
         self.hostConsent = hostConsent
+        self.attachmentStore = attachmentStore
         channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)
@@ -97,7 +101,9 @@ public final class HostsModel {
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
         ConversationModel(client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache,
-            drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel), haptics: haptics)
+            drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel), haptics: haptics,
+            // 主機目前只有 macOS／Linux(Windows 的上傳還沒做,ADR-0002)。
+            images: ComposerImages(uploader: ImageUploader(channel: channel), store: attachmentStore))
     }
 
     public var rows: [HostRow] {

@@ -29,7 +29,10 @@ struct PurrdrApp: App {
         if uiTesting {
             hosts = HostsModel(
                 store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
-                hostConsent: InMemoryHostWriteConsentStore(), makeChannel: { _, _ in demo })
+                hostConsent: InMemoryHostWriteConsentStore(),
+                // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
+                attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
+                makeChannel: { _, _ in demo })
         } else {
             // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
