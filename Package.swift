@@ -25,10 +25,21 @@ let package = Package(
         .library(name: "PurrdrFeatures", targets: ["PurrdrFeatures"]),
         .library(name: "PurrdrTestSupport", targets: ["PurrdrTestSupport"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
+        .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.11.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
+    ],
     targets: [
-        // 可攜核心：主機通道、herdr client、領域型別。只用 Foundation(之後加 swift-nio、swift-nio-ssh、swift-crypto)。
+        // 可攜核心：主機通道(含 SSH)、herdr client、領域型別。只用 Foundation 與 swift-nio／swift-nio-ssh／swift-crypto。
         .target(
             name: "PurrdrCore",
+            dependencies: [
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOSSH", package: "swift-nio-ssh"),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ],
             path: "src/PurrdrCore",
             swiftSettings: strictSettings
         ),
@@ -56,7 +67,14 @@ let package = Package(
         ),
         .testTarget(
             name: "PurrdrCoreTests",
-            dependencies: ["PurrdrCore", "PurrdrDemo", "PurrdrTestSupport"],
+            dependencies: [
+                "PurrdrCore", "PurrdrDemo", "PurrdrTestSupport",
+                // 測試用 SSH 伺服器(swift-nio-ssh server 角色)。
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOSSH", package: "swift-nio-ssh"),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ],
             path: "tests/PurrdrCoreTests",
             swiftSettings: strictSettings
         ),

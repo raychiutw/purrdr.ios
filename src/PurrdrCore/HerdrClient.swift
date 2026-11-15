@@ -6,11 +6,11 @@ import Foundation
 /// 「需要等待」的請求),讀到第一行回應後由我方關閉通道(行為規格 §3.3)。
 public struct HerdrClient: Sendable {
     private let channel: any HostChannel
-    private let herdrPath: String
+    private let herdr: HerdrInstallation
 
-    public init(channel: any HostChannel, herdrPath: String = "herdr") {
+    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation()) {
         self.channel = channel
-        self.herdrPath = herdrPath
+        self.herdr = herdr
     }
 
     /// 讀主機目前的全量狀態(`session.snapshot`)。
@@ -20,7 +20,7 @@ public struct HerdrClient: Sendable {
     }
 
     private func request<Result: Decodable>(method: String, as: Result.Type) async throws -> Result {
-        let session = try await channel.execute(HerdrCommand.bridge(herdrPath: herdrPath))
+        let session = try await channel.execute(HerdrCommand.bridge(herdr))
         let line: Data
         do {
             try await session.write(Data(#"{"id":"purrdr:\#(method)","method":"\#(method)","params":{}}"#.utf8) + [0x0A])

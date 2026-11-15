@@ -12,10 +12,10 @@ struct HerdrClientTests {
     @Test("主機指令：bridge 指令前綴 PATH,herdr 路徑以單引號引起來")
     func bridgeCommandPrefixesPathAndQuotesHerdr() {
         #expect(HerdrCommand.bridge() == Self.bridgeCommand)
-        #expect(HerdrCommand.bridge(herdrPath: "/opt/my herdr/it's") ==
+        #expect(HerdrCommand.bridge(HerdrInstallation(path: "/opt/my herdr/it's")) ==
             #"PATH="$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH" '/opt/my herdr/it'"'"'s' remote-api-bridge"#)
         // 引號內的 `~` 不會展開(exit 127):只把開頭的 `~/` 換成家目錄。
-        #expect(HerdrCommand.bridge(herdrPath: "~/.local/bin/herdr").hasSuffix(#" "$HOME"/'.local/bin/herdr' remote-api-bridge"#))
+        #expect(HerdrCommand.bridge(HerdrInstallation(path: "~/.local/bin/herdr")).hasSuffix(#" "$HOME"/'.local/bin/herdr' remote-api-bridge"#))
     }
 
     @Test("讀 snapshot:對 bridge 送一行 session.snapshot 請求，解出錄製回應裡的每個 Agent")
