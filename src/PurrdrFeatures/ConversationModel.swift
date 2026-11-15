@@ -64,6 +64,21 @@ public final class ConversationModel {
     public private(set) var agentStatus: AgentStatus?
     public private(set) var metadata = TranscriptMetadata()
 
+    // MARK: 送出(F6)
+
+    /// 輸入框的文字。改動即存進 `DraftStore`(離開聊天保留)。
+    public var draft = "" {
+        didSet { drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID) }
+    }
+    public private(set) var isSending = false
+    /// 還沒被對話紀錄確認的回音。
+    public private(set) var echoes: [PromptEcho] = []
+    /// 畫面上的列：對話紀錄的項目，加上依時間併入的回音。
+    public private(set) var entries: [ConversationEntry] = []
+    /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
+    public private(set) var notice: SendNotice?
+    public private(set) var isStopping = false
+
     public let paneID: String
     private let client: HerdrClient
     private let transcripts: TranscriptReader
@@ -73,6 +88,8 @@ public final class ConversationModel {
     private let pageLines: Int
     /// 列表傳來的 session:快取只在與它相同時秒開或離線顯示(F5.3、#97)。
     private let knownSessionID: String?
+    private let drafts: DraftStore
+    private let delivery: PromptDelivery
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -84,13 +101,18 @@ public final class ConversationModel {
     /// 往上翻載入的舊訊息(不寫入快取)。
     private var olderMessages: [TranscriptMessage] = []
     private var waitingSince: Date?
+    /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
+    private var currentAgent: Agent?
+    /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
+    private var consumedUserIDs = Set<String>()
     private var lastPresenceSeq: UInt64 = 0
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
     private var generation = 0
 
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
-        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200
+        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
+        drafts: DraftStore = DraftStore(), sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.client = client
         self.transcripts = transcripts
@@ -100,6 +122,9 @@ public final class ConversationModel {
         self.clock = clock
         self.openLines = openLines
         self.pageLines = pageLines
+        self.drafts = drafts
+        delivery = PromptDelivery(client: client, sleep: sleep)
+        draft = drafts.text(chatKey: paneID, session: knownSessionID)
     }
 
     /// 快取 key。目前一個聊天對應一個 pane;多 agent 的 workspace 聊天(合併多個 pane)是之後的票。
@@ -153,7 +178,8 @@ public final class ConversationModel {
         }
         isOffline = false
         if banner == .offline { banner = nil }
-        guard let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else {
+        currentAgent = snapshot.agents.first { $0.paneID == paneID }
+        guard let agent = currentAgent else {
             unbind()
             phase = .agentGone
             agentStatus = nil
@@ -309,6 +335,179 @@ public final class ConversationModel {
         }
     }
 
+    // MARK: - 送出
+
+    /// 可送 = 修剪後非空、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
+    public var canSend: Bool {
+        !isSending && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasTarget
+    }
+
+    /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
+    public var canStop: Bool { agentStatus == .working && !isStopping }
+
+    private var hasTarget: Bool {
+        phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
+    }
+
+    /// 送出輸入框的文字(F6.5)。
+    ///
+    /// 輸入框樂觀清空、立刻顯示回音;送出當下重讀**新鮮的** snapshot 重新確認目標 pane(2 秒前的 pane 可能已被回收,R-P06)。
+    /// 什麼都沒送出(agent 不在、session 換了、在等回答、herdr 拒絕)→ 拿掉回音、草稿放回;
+    /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
+    public func send() async {
+        guard canSend else { return }
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        isSending = true
+        defer { isSending = false }
+        notice = nil
+        draft = ""
+        let echo = PromptEcho(id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs)
+        echoes.append(echo)
+        rebuildEntries()
+        switch await freshTarget() {
+        case .success(let agent):
+            apply(await delivery.send(text, to: agent), toEcho: echo.id, text: text, isRetry: false)
+        case .failure(let failure):
+            removeEcho(echo.id)
+            restoreDraft(text)
+            notice = failure.notice
+        }
+    }
+
+    /// 重試失敗的回音：送同樣的文字。同一則同時最多一個重試在途(連點曾送兩次,#100)。
+    public func retry(echoID: String) async {
+        guard let index = echoes.firstIndex(where: { $0.id == echoID }), case .failed(let failure) = echoes[index].state else { return }
+        let text = echoes[index].text
+        echoes[index].state = .sending
+        rebuildEntries()
+        notice = nil
+        switch await freshTarget() {
+        case .success(let agent):
+            apply(await delivery.send(text, to: agent), toEcho: echoID, text: text, isRetry: true)
+        case .failure(let targetFailure):
+            setEcho(echoID, state: .failed(failure))
+            notice = targetFailure.notice
+        }
+    }
+
+    /// 停止(F6.7):一個 Esc,3 秒內確認離開 working。
+    public func stop() async {
+        guard canStop else { return }
+        isStopping = true
+        defer { isStopping = false }
+        switch await delivery.stop(paneID: paneID) {
+        case .stopped: notice = nil
+        case .stillWorking: notice = .stillWorking
+        case .failed: notice = .interruptFailed
+        }
+    }
+
+    /// 強制結束(ctrl+c,F6.7)。呼叫端先請使用者確認;只對 working 的 agent。
+    public func forceQuit() async {
+        guard agentStatus == .working else { return }
+        do {
+            try await delivery.forceQuit(paneID: paneID)
+            notice = nil
+        } catch {
+            notice = .interruptFailed
+        }
+    }
+
+    public func dismissNotice() { notice = nil }
+
+    // MARK: - 送出(內部)
+
+    private enum TargetFailure: Error {
+        case agentGone
+        case superseded
+
+        var notice: SendNotice {
+            switch self {
+            case .agentGone: .agentGone
+            case .superseded: .superseded
+            }
+        }
+    }
+
+    /// 送出當下的目標：重讀新鮮的 snapshot(不共用輪詢那份);讀不到就用輪詢得到的 agent(F6.5)。
+    /// session 換了 = pane 被回收成另一個聊天，原本的對象已不在(F5.1)。
+    private func freshTarget() async -> Result<Agent, TargetFailure> {
+        let agent: Agent?
+        if let snapshot = try? await client.snapshot() {
+            agent = snapshot.agents.first { $0.paneID == paneID }
+        } else {
+            agent = currentAgent
+        }
+        guard let agent else { return .failure(.agentGone) }
+        if let expected = boundSessionID ?? knownSessionID, let session = agent.session?.value, session != expected {
+            return .failure(.superseded)
+        }
+        return .success(agent)
+    }
+
+    private func apply(_ outcome: PromptOutcome, toEcho id: String, text: String, isRetry: Bool) {
+        let nothingSent: SendNotice?
+        switch outcome {
+        case .delivered, .submittedCommand:
+            setEcho(id, state: .sent)
+            return
+        case .noResponse:
+            setEcho(id, state: .failed(.noResponse))
+            notice = .noResponse
+            return
+        case .unconfirmed(let reason):
+            setEcho(id, state: .failed(.unconfirmed(reason)))
+            notice = .unconfirmed(reason)
+            return
+        case .needsAnswer:
+            nothingSent = .needsAnswer
+        case .rejected(let message):
+            nothingSent = .rejected(message)
+        }
+        notice = nothingSent
+        if isRetry {
+            setEcho(id, state: .failed(.noResponse))
+        } else {
+            removeEcho(id)
+            restoreDraft(text)
+        }
+    }
+
+    /// 被拒的文字放回輸入框(使用者這段時間又打了字就不蓋掉)。
+    private func restoreDraft(_ text: String) {
+        if draft.isEmpty { draft = text }
+    }
+
+    private func setEcho(_ id: String, state: PromptEcho.State) {
+        guard let index = echoes.firstIndex(where: { $0.id == id }) else { return }
+        echoes[index].state = state
+        rebuildEntries()
+    }
+
+    private func removeEcho(_ id: String) {
+        echoes.removeAll { $0.id == id }
+        rebuildEntries()
+    }
+
+    private var userMessageIDs: Set<String> {
+        Set(items.compactMap { item in
+            if case .user(let bubble) = item { bubble.id } else { nil }
+        })
+    }
+
+    /// 以對話紀錄確認回音;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
+    private func rebuildEntries() {
+        let bubbles = items.compactMap { item -> UserBubble? in
+            if case .user(let bubble) = item { bubble } else { nil }
+        }
+        let remaining = EchoMatching.confirm(echoes, against: bubbles, consumed: &consumedUserIDs)
+        if remaining.count < echoes.count {
+            echoes = remaining
+            notice = nil
+        }
+        entries = EchoTimeline.merge(items: items, echoes: echoes)
+    }
+
     // MARK: - 內部
 
     private func unbind() {
@@ -324,6 +523,7 @@ public final class ConversationModel {
 
     private func rebuild() {
         items = Conversation.items(from: olderMessages + recent)
+        rebuildEntries()
     }
 
     private func saveCache() async {
@@ -338,4 +538,26 @@ public final class ConversationModel {
         var seen = Set<String>()
         return lines.flatMap(format.messages(in:)).filter { seen.insert($0.id).inserted }
     }
+}
+
+/// 送出與中斷的提示(對話畫面上的非干擾式標示)。
+public enum SendNotice: Sendable, Equatable {
+    /// agent 正在等一個問題：先回答它再送(什麼都沒送出)。
+    case needsAnswer
+    /// 這個 pane 已經沒有 agent。
+    case agentGone
+    /// pane 被回收成另一個聊天(session 換了)。
+    case superseded
+    /// 連不上主機。
+    case offline
+    /// herdr 拒絕(原文)。
+    case rejected(String)
+    /// agent 沒接住(停滯)。
+    case noResponse
+    /// 不知道有沒有送到。
+    case unconfirmed(UnconfirmedReason)
+    /// 停止後 3 秒仍在工作。
+    case stillWorking
+    /// 送不出中斷的按鍵。
+    case interruptFailed
 }

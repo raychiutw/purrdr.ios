@@ -29,12 +29,25 @@ public struct UserBubble: Sendable, Equatable {
     public var text: String
     public var date: Date?
     public var imageCount: Int
+
+    public init(id: String, text: String, date: Date?, imageCount: Int) {
+        self.id = id
+        self.text = text
+        self.date = date
+        self.imageCount = imageCount
+    }
 }
 
 public struct AgentText: Sendable, Equatable {
     public var id: String
     public var markdown: String
     public var date: Date?
+
+    public init(id: String, markdown: String, date: Date?) {
+        self.id = id
+        self.markdown = markdown
+        self.date = date
+    }
 }
 
 public struct SkillLoaded: Sendable, Equatable {
@@ -45,6 +58,11 @@ public struct SkillLoaded: Sendable, Equatable {
 public struct SystemNote: Sendable, Equatable {
     public var id: String
     public var text: String
+
+    public init(id: String, text: String) {
+        self.id = id
+        self.text = text
+    }
 }
 
 /// 工具串。

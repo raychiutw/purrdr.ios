@@ -7,10 +7,16 @@ import Foundation
 public struct HerdrClient: Sendable {
     private let channel: any HostChannel
     private let herdr: HerdrInstallation
+    /// 期限計時用(測試注入)。
+    private let sleep: @Sendable (Duration) async throws -> Void
 
-    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation()) {
+    public init(
+        channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.channel = channel
         self.herdr = herdr
+        self.sleep = sleep
     }
 
     /// 讀主機目前的全量狀態(`session.snapshot`)。
@@ -141,18 +147,81 @@ public struct HerdrClient: Sendable {
         return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
     }
 
-    private func request<Result: Decodable>(method: String, params: some Encodable = NoParams(), as: Result.Type) async throws -> Result {
+    // MARK: - 送出 prompt 與按鍵(行為規格 F6.5、§3.6)
+
+    /// `agent.prompt`。`wait` 有值時帶 `wait: {until: [working, blocked], timeout_ms}`,我方期限是 herdr 的等待 + 20 秒
+    /// (否則會放棄一個即將回答的等待，回報主機沒發生的失敗,§3.6);沒有 `wait`(slash 指令)期限 20 秒。
+    ///
+    /// herdr 的錯誤 envelope 丟 `HerdrError.herdr`;其他錯誤(通道失敗、沒有回應、期限到)都代表
+    /// **不知道有沒有送到**,呼叫端絕不可重送(§7.3)。
+    public func prompt(target: String, text: String, wait: Duration?) async throws -> PromptReply {
+        let params = PromptParams(
+            target: target, text: text,
+            wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) }
+        )
+        let result = try await request(method: "agent.prompt", params: params, as: PromptResult.self, deadline: (wait ?? .zero) + .seconds(20))
+        return PromptReply(writtenOnly: result.delivery == "written_to_pty")
+    }
+
+    /// `agent.wait`:等 agent 進入 `until` 其中一個狀態。herdr 自己逾時回 `false`(`timeout` 錯誤);期限是等待 + 20 秒。
+    public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
+        let params = WaitParams(target: target, until: until.map(\.rawValue), timeoutMs: Self.milliseconds(timeout))
+        do {
+            _ = try await request(method: "agent.wait", params: params, as: TypedResult.self, deadline: timeout + .seconds(20))
+            return true
+        } catch HerdrError.herdr(code: "timeout", _) {
+            return false
+        }
+    }
+
+    /// `pane.send_keys`(herdr 鍵名語法：`enter`、`esc`、`ctrl+c`,§3.4)。期限 20 秒。
+    public func sendKeys(paneID: String, keys: [String]) async throws {
+        _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self, deadline: .seconds(20))
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Int {
+        Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+    }
+
+    // MARK: - 請求
+
+    private func request<Result: Decodable>(
+        method: String, params: some Encodable = NoParams(), as: Result.Type, deadline: Duration? = nil
+    ) async throws -> Result {
         let session = try await channel.execute(HerdrCommand.bridge(herdr))
         let line: Data
         do {
             try await session.write(Self.requestLine(method: method, params: params))
-            line = try await Self.firstLine(of: session)
+            if let deadline {
+                line = try await Self.firstLine(of: session, within: deadline, sleep: sleep)
+            } else {
+                line = try await Self.firstLine(of: session)
+            }
         } catch {
             await session.close()
             throw error
         }
         await session.close()
         return try Self.decode(line, as: Result.self)
+    }
+
+    /// 在期限內讀第一行;期限先到就關閉通道並丟 `HerdrError.deadlineExceeded`(§7.2)。
+    private static func firstLine(
+        of session: any ExecSession, within deadline: Duration, sleep: @escaping @Sendable (Duration) async throws -> Void
+    ) async throws -> Data {
+        try await withThrowingTaskGroup(of: Data?.self) { group in
+            group.addTask { try await firstLine(of: session) }
+            group.addTask {
+                try await sleep(deadline)
+                return nil
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next(), let line = first else {
+                await session.close()
+                throw HerdrError.deadlineExceeded
+            }
+            return line
+        }
     }
 
     /// 一行請求(結尾換行)。請求 id 固定是 `purrdr:<method>`:一個 bridge 程序只處理一個請求。
@@ -214,6 +283,18 @@ public enum HerdrError: Error, Equatable {
     case noResponse(exitCode: Int32?, stderr: String)
     /// 回應不是 herdr 的 JSON envelope。
     case malformedResponse
+    /// 我方期限到了還沒有回應(連線層逾時;主機可能已經執行，§7.3)。
+    case deadlineExceeded
+}
+
+/// `agent.prompt` 的成功回應。
+public struct PromptReply: Sendable, Equatable {
+    /// 主機只知道 bytes 寫進了終端機(fork 版的 `delivery: "written_to_pty"`;上游 herdr 不會送，§3.6)。
+    public var writtenOnly: Bool
+
+    public init(writtenOnly: Bool) {
+        self.writtenOnly = writtenOnly
+    }
 }
 
 // MARK: - wire format(只在這裡處理 snake_case)
@@ -225,6 +306,49 @@ private struct WireRequest<Params: Encodable>: Encodable {
 }
 
 private struct NoParams: Encodable {}
+
+private struct PromptParams: Encodable {
+    var target: String
+    var text: String
+    var wait: Wait?
+
+    struct Wait: Encodable {
+        var until: [String]
+        var timeoutMs: Int
+
+        enum CodingKeys: String, CodingKey {
+            case until
+            case timeoutMs = "timeout_ms"
+        }
+    }
+}
+
+private struct PromptResult: Decodable {
+    var type: String?
+    var delivery: String?
+}
+
+private struct WaitParams: Encodable {
+    var target: String
+    var until: [String]
+    var timeoutMs: Int
+
+    enum CodingKeys: String, CodingKey {
+        case target
+        case until
+        case timeoutMs = "timeout_ms"
+    }
+}
+
+private struct SendKeysParams: Encodable {
+    var paneID: String
+    var keys: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case keys
+    }
+}
 
 private struct WorkspaceIDParams: Encodable {
     var workspaceID: String

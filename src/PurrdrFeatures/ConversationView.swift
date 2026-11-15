@@ -8,6 +8,7 @@ import SwiftUI
 /// - 只在使用者位於底部時自動捲到底(`ConversationScroll`)。
 /// - 往上捲到接近頂端時載入更早的訊息。
 /// - 畫面可見且 app 在前景時才輪詢與回報在場。
+/// - 底部是輸入列(`ComposerBar`,功能層 `safeAreaBar`);送出時切回跟隨尾端，讓回音落在視野內。
 public struct ConversationView: View {
     let model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
@@ -28,6 +29,7 @@ public struct ConversationView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .safeAreaInset(edge: .top, spacing: 0) { banner }
+            .safeAreaBar(edge: .bottom) { ComposerBar(model: model) }
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
                 await model.run()
@@ -36,7 +38,7 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.items.isEmpty {
+        if model.entries.isEmpty {
             placeholder
         } else {
             messages
@@ -49,9 +51,18 @@ public struct ConversationView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 olderRow
-                ForEach(model.items) { item in
-                    ConversationItemView(item: item)
-                        .id(item.id)
+                ForEach(model.entries) { entry in
+                    Group {
+                        switch entry {
+                        case .item(let item):
+                            ConversationItemView(item: item)
+                        case .echo(let echo):
+                            EchoBubbleView(echo: echo) {
+                                Task { await model.retry(echoID: echo.id) }
+                            }
+                        }
+                    }
+                    .id(entry.id)
                 }
             }
             .padding(.horizontal)
@@ -81,8 +92,14 @@ public struct ConversationView: View {
                 Task { await model.loadOlder() }
             }
         }
-        .onChange(of: model.items.last?.id) {
+        .onChange(of: model.entries.last?.id) {
             if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+        }
+        .onChange(of: model.echoes.count) { old, new in
+            // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
+            guard new > old else { return }
+            scroll.jumpToLatest()
+            withAnimation { position.scrollTo(edge: .bottom) }
         }
         .overlay(alignment: .bottomTrailing) {
             if scroll.showsJumpToLatest {

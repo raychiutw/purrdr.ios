@@ -14,22 +14,33 @@ enum DemoTranscripts {
 
         var path: String { "/Users/demo/.claude/projects/\(ClaudeTranscript.projectFolder(forCWD: cwd))/\(sessionID).jsonl" }
         var data: Data { Data(lines.map { $0 + "\n" }.joined().utf8) }
+
+        /// 加上送出 prompt 後接在後面的行。
+        func appending(_ extra: [String]) -> Session {
+            Session(sessionID: sessionID, cwd: cwd, paneID: paneID, lines: lines + extra)
+        }
     }
 
     static let sessions = [ledger, weather]
 
-    /// 對指令的 stdout;不是對話紀錄指令時回傳 `nil`。
-    static func respond(to command: String) -> Data? {
+    /// 對指令的 stdout;不是對話紀錄指令時回傳 `nil`。`appended` 是送出 prompt 後各 session 接上的行。
+    static func respond(to command: String, appended: [String: [String]] = [:]) -> Data? {
+        let sessions = sessions.map { $0.appending(appended[$0.sessionID] ?? []) }
         for session in sessions {
             let size = session.data.count
             if command == TranscriptCommand.locate(sessionID: session.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: session.cwd)) {
                 return Data("\(session.path)\n\(size)\n".utf8)
             }
             if command == TranscriptCommand.window(path: session.path, end: size, lines: 300) {
-                return Data("0 \(size)\n".utf8) + records(session.lines)
+                return Data("0 \(size)\n".utf8) + records(Array(session.lines.suffix(300)))
             }
-            if command == TranscriptCommand.tail(path: session.path, from: size, limit: 64 << 10) {
-                return Data("\(size)\n".utf8)
+            // 游標可能停在任何一個行邊界(送出 prompt 前讀到的大小)。
+            var cursor = 0
+            for (index, line) in session.lines.enumerated() {
+                cursor += line.utf8.count + 1
+                if command == TranscriptCommand.tail(path: session.path, from: cursor, limit: 64 << 10) {
+                    return Data("\(size)\n".utf8) + records(Array(session.lines[(index + 1)...]))
+                }
             }
         }
         // 預覽的分隔標記每次隨機：取出標記後，以同一個標記重建指令比對。
@@ -118,6 +129,21 @@ enum DemoTranscripts {
             assistantText("d3m0-w-06", "2026-11-16T08:40:16.000Z", "I need permission to create `ForecastCache.swift`."),
         ]
     )
+
+    // MARK: - 送出 prompt
+
+    /// Demo 的 agent 收到 prompt 時接在對話紀錄後面的兩行：使用者那一行與固定的回覆。
+    static func reply(to prompt: String, number: Int, at date: Date) -> [String] {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return [
+            user("d3m0-p-\(number)-u", formatter.string(from: date), prompt),
+            assistantText("d3m0-p-\(number)-a", formatter.string(from: date.addingTimeInterval(2)), """
+            This is the demo host, so nothing actually ran. On your own computer, the agent would pick up your message \
+            and its reply would appear here.
+            """),
+        ]
+    }
 
     // MARK: - 行
 
