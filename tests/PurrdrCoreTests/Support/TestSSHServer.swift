@@ -25,6 +25,14 @@ final class TestSSHServer: Sendable {
         case runLocally
     }
 
+    /// 怎麼回應 client 的 global request(keepalive)。
+    enum KeepaliveReply: Sendable {
+        /// 回 `SSH_MSG_REQUEST_FAILURE`(OpenSSH 對不認得或不成立的請求就是這樣回)。
+        case reject
+        /// 永遠不回：模擬半開連線(對方已消失，TCP 還沒發現)。
+        case ignore
+    }
+
     struct PTYRecord: Sendable, Equatable {
         var term: String
         var columns: Int
@@ -39,6 +47,8 @@ final class TestSSHServer: Sendable {
         var usernames: [String] = []
         var commands: [String] = []
         var ptys: [PTYRecord] = []
+        /// 收到的 global request 數(client 的 keepalive)。
+        var keepalives = 0
     }
 
     let port: Int
@@ -61,7 +71,9 @@ final class TestSSHServer: Sendable {
         self.log = Mutex(Log())
     }
 
-    static func start(behavior: @escaping @Sendable (String) -> Behavior) async throws -> TestSSHServer {
+    static func start(
+        keepalive: KeepaliveReply = .reject, behavior: @escaping @Sendable (String) -> Behavior
+    ) async throws -> TestSSHServer {
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let recorder = Recorder()
         let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
@@ -70,7 +82,9 @@ final class TestSSHServer: Sendable {
                 recorder.update { $0.connections += 1 }
                 return channel.eventLoop.makeCompletedFuture {
                     let handler = NIOSSHHandler(
-                        role: .server(.init(hostKeys: [hostKey], userAuthDelegate: AcceptNoneDelegate(recorder: recorder))),
+                        role: .server(.init(
+                            hostKeys: [hostKey], userAuthDelegate: AcceptNoneDelegate(recorder: recorder),
+                            globalRequestDelegate: KeepaliveDelegate(recorder: recorder, reply: keepalive))),
                         allocator: channel.allocator,
                         inboundChildChannelInitializer: { child, _ in
                             child.eventLoop.makeCompletedFuture {
@@ -134,6 +148,31 @@ private final class AcceptNoneDelegate: NIOSSHServerUserAuthenticationDelegate, 
             responsePromise.succeed(.failure)
         }
     }
+}
+
+private final class KeepaliveDelegate: GlobalRequestDelegate, Sendable {
+    let recorder: Recorder
+    let reply: TestSSHServer.KeepaliveReply
+
+    init(recorder: Recorder, reply: TestSSHServer.KeepaliveReply) {
+        self.recorder = recorder
+        self.reply = reply
+    }
+
+    func tcpForwardingRequest(
+        _ request: GlobalRequest.TCPForwardingRequest, handler: NIOSSHHandler,
+        promise: EventLoopPromise<GlobalRequest.TCPForwardingResponse>
+    ) {
+        recorder.update { $0.keepalives += 1 }
+        switch reply {
+        case .reject: promise.fail(Rejected())
+        // 未完成的 promise 被釋放時 NIO 會 assert,所以留在全域、永不釋放。
+        case .ignore: Self.unanswered.withLock { $0.append(promise) }
+        }
+    }
+
+    private struct Rejected: Error {}
+    private static let unanswered = Mutex<[EventLoopPromise<GlobalRequest.TCPForwardingResponse>]>([])
 }
 
 private final class CloseOnErrorHandler: ChannelInboundHandler, Sendable {
