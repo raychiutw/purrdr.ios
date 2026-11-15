@@ -101,17 +101,6 @@
         }
       }
     },
-    "%lld images" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 張圖片"
-          }
-        }
-      }
-    },
     "%lld months" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -318,6 +307,17 @@
         }
       }
     },
+    "Add Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入圖片"
+          }
+        }
+      }
+    },
     "Add a computer that runs herdr. Purrdr connects to it with SSH over your tailnet; nothing is exposed to the internet." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -513,6 +513,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "問了 1 個問題"
+          }
+        }
+      }
+    },
+    "Attached image %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加的第 %lld 張圖片"
           }
         }
       }
@@ -1254,6 +1265,17 @@
         }
       }
     },
+    "Couldn’t read that image." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這張圖片。"
+          }
+        }
+      }
+    },
     "Couldn’t read the choices. These send common answers; check the terminal if you’re not sure." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1382,6 +1404,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法更新對話，正在重試…"
+          }
+        }
+      }
+    },
+    "Couldn’t upload the image to the host. Your message wasn’t sent; try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法把圖片上傳到主機。訊息沒有送出，請再試一次。"
           }
         }
       }
@@ -1932,6 +1965,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如果 %@ 是管理員，Windows OpenSSH 會改讀這個檔案。請以管理員身分在 PowerShell 執行這段指令。"
+          }
+        }
+      }
+    },
+    "Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片"
+          }
+        }
+      }
+    },
+    "Image %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 張圖片"
+          }
+        }
+      }
+    },
+    "Image on the host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片在主機上"
           }
         }
       }
@@ -2739,6 +2805,17 @@
         }
       }
     },
+    "Opens the image full screen." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以全螢幕打開圖片。"
+          }
+        }
+      }
+    },
     "Opens the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2816,6 +2893,17 @@
         }
       }
     },
+    "Paste Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上圖片"
+          }
+        }
+      }
+    },
     "Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys aren’t supported. The key and passphrase are kept in this device’s keychain." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2845,6 +2933,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認後即收取 %@。"
+          }
+        }
+      }
+    },
+    "Photo Library" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片圖庫"
           }
         }
       }
@@ -3142,6 +3241,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新載入"
+          }
+        }
+      }
+    },
+    "Remove Image %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除第 %lld 張圖片"
           }
         }
       }
@@ -4015,6 +4125,17 @@
         }
       }
     },
+    "Take Photo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍照"
+          }
+        }
+      }
+    },
     "Taken Over" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4022,6 +4143,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已被接管"
+          }
+        }
+      }
+    },
+    "Tap to close." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下關閉。"
           }
         }
       }
@@ -5309,6 +5441,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "昨天"
+          }
+        }
+      }
+    },
+    "You can attach up to 4 images to a message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一則訊息最多附加 4 張圖片。"
           }
         }
       }

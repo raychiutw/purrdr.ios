@@ -35,12 +35,15 @@ public struct UserBubble: Sendable, Equatable {
     public var text: String
     public var date: Date?
     public var imageCount: Int
+    /// 主機上的圖片路徑(Purrdr 上傳的圖片;畫面依檔名找手機上的副本)。
+    public var imagePaths: [String]
 
-    public init(id: String, text: String, date: Date?, imageCount: Int) {
+    public init(id: String, text: String, date: Date?, imageCount: Int, imagePaths: [String] = []) {
         self.id = id
         self.text = text
         self.date = date
         self.imageCount = imageCount
+        self.imagePaths = imagePaths
     }
 }
 
@@ -160,7 +163,9 @@ public enum Conversation {
                 if case .text(let text) = part { return text }
                 return nil
             }
-            guard let text = texts.last else { continue }
+            // 使用者訊息的圖片路徑不進預覽(F6.6)。
+            let candidate = message.role == .user ? UploadedImages.extract(from: texts.joined(separator: "\n")).text : texts.last
+            guard let text = candidate else { continue }
             let plain = text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "__", with: "")
                 .replacingOccurrences(of: "`", with: "")
                 .split(separator: "\n", omittingEmptySubsequences: false)
@@ -250,9 +255,12 @@ public enum Conversation {
                     images += count
                 }
             }
-            if !userTexts.isEmpty || images > 0 {
+            let (text, paths) = UploadedImages.extract(from: userTexts.joined(separator: "\n"))
+            // Claude 同一張圖有圖片區塊也有來源註記：取兩者較大者，不重複計算。
+            let imageCount = max(images, paths.count)
+            if !text.isEmpty || imageCount > 0 {
                 close()
-                items.append(.user(UserBubble(id: message.id, text: userTexts.joined(separator: "\n"), date: message.date, imageCount: images)))
+                items.append(.user(UserBubble(id: message.id, text: text, date: message.date, imageCount: imageCount, imagePaths: paths)))
             }
         }
 

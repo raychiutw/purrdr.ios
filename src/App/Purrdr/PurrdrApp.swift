@@ -58,6 +58,8 @@ struct PurrdrApp: App {
                 store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo,
                 conversationCache: cache, preferences: preferences, selectionStore: InMemoryHostSelectionStore(),
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, tailscaleCheck: tailscaleCheck,
+                // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
+                attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
                 makeChannel: { _, _, _ in demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。

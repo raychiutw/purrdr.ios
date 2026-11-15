@@ -38,6 +38,33 @@ public enum ComposerKeys {
     }
 }
 
+// MARK: - 圖片
+
+/// 剪貼簿圖片的規則(行為規格 F6.3、F7;#37 故事 33–34)。只看剪貼簿的**類型**,不讀內容(讀內容會跳「允許貼上」)。
+public enum ComposerPaste {
+    public enum Action: Sendable, Equatable {
+        case attachImages
+        case system
+    }
+
+    public enum AddImageAction: Sendable, Equatable {
+        case openLibrary
+        case askSource
+        case showLimit
+    }
+
+    /// Command-V:剪貼簿只有圖片、沒有文字，且還能加圖片時才當附件;其他一律系統貼上。
+    public static func action(hasImages: Bool, hasStrings: Bool, remainingSlots: Int) -> Action {
+        hasImages && !hasStrings && remainingSlots > 0 ? .attachImages : .system
+    }
+
+    /// 點「加入圖片」:滿了提示;剪貼簿有圖時先問「相簿／貼上圖片」;否則直接開相簿。
+    public static func addImageAction(pasteboardHasImages: Bool, remainingSlots: Int) -> AddImageAction {
+        if remainingSlots <= 0 { return .showLimit }
+        return pasteboardHasImages ? .askSource : .openLibrary
+    }
+}
+
 // MARK: - 草稿
 
 /// 輸入列草稿(行為規格 F6.2):只在記憶體，key = chat key;離開聊天保留、重開 app 不保留。
@@ -59,6 +86,17 @@ public final class DraftStore {
     public func save(_ text: String, chatKey: String, session: String?) {
         drafts[chatKey] = text.isEmpty ? nil : (text, session)
     }
+
+    private var attachments: [String: [ComposerAttachment]] = [:]
+
+    /// 輸入列上的圖片附件(與草稿一樣離開聊天保留)。
+    public func attachments(chatKey: String) -> [ComposerAttachment] {
+        attachments[chatKey] ?? []
+    }
+
+    public func saveAttachments(_ list: [ComposerAttachment], chatKey: String) {
+        attachments[chatKey] = list.isEmpty ? nil : list
+    }
 }
 
 // MARK: - 回音
@@ -79,14 +117,23 @@ public struct PromptEcho: Sendable, Equatable, Identifiable {
     /// 送出當下已存在的使用者訊息 id:這些不能確認這則回音(R-P08)。
     public var knownUserIDs: Set<String>
     public var imageCount: Int
+    /// 圖片在手機上的副本檔名(泡泡顯示用)。
+    public var imageFiles: [String]
+    /// 已上傳到主機的路徑(重試時照樣送，不重傳)。
+    public var imagePaths: [String]
 
-    public init(id: String, text: String, date: Date, state: State = .sending, knownUserIDs: Set<String>, imageCount: Int = 0) {
+    public init(
+        id: String, text: String, date: Date, state: State = .sending, knownUserIDs: Set<String>, imageCount: Int = 0,
+        imageFiles: [String] = [], imagePaths: [String] = []
+    ) {
         self.id = id
         self.text = text
         self.date = date
         self.state = state
         self.knownUserIDs = knownUserIDs
         self.imageCount = imageCount
+        self.imageFiles = imageFiles
+        self.imagePaths = imagePaths
     }
 }
 

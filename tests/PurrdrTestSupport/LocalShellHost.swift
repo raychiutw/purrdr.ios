@@ -11,23 +11,34 @@ import PurrdrCore
 /// 或檢查「主機上的檔案真的被改成什麼、還原後是否與安裝前完全相同」(`DirectorySnapshot`)。
 ///
 /// 安全：指令只拿到這個家目錄當 `HOME`;主機寫入的測試一律用 `temporary()`,絕不碰執行測試的人真正的家目錄。
-/// stdin 是空的(`/dev/null`)。
+/// stdin 預設是空的(`/dev/null`);`feedsStdin: true` 時 `write` 的 bytes 會進到指令的 stdin
+/// (圖片上傳走 exec 的 stdin,ADR-0003),`closeStdin()` 送 EOF,`close()` 模擬連線中斷(stdin 結束、不再讀輸出)。
 public struct LocalShellHost: HostChannel {
     public let home: URL
+    public let feedsStdin: Bool
     private let log = CommandLog()
 
     /// - Parameter home: 腳本看到的 `$HOME`。
-    public init(home: URL) {
+    public init(home: URL, feedsStdin: Bool = false) {
         self.home = home
+        self.feedsStdin = feedsStdin
     }
 
     /// 建一個暫存的家目錄。
-    public static func temporary() throws -> LocalShellHost {
+    public static func temporary(feedsStdin: Bool = false) throws -> LocalShellHost {
         let home = FileManager.default.temporaryDirectory.appending(path: "purrdr-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         let realHome = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path
         precondition(home.resolvingSymlinksInPath().path != realHome, "暫存家目錄不能是真正的家目錄")
-        return LocalShellHost(home: home)
+        return LocalShellHost(home: home, feedsStdin: feedsStdin)
+    }
+
+    /// 等到所有執行過的指令都結束(例如連線中斷後，主機上的腳本自己收尾)。
+    public func waitUntilFinished(timeout: Duration = .seconds(5)) async {
+        let deadline = ContinuousClock.now + timeout
+        while log.hasRunningProcess, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     /// 家目錄裡的路徑。
@@ -63,8 +74,10 @@ public struct LocalShellHost: HostChannel {
         let stderr = Pipe()
         process.standardOutput = stdout
         process.standardError = stderr
-        process.standardInput = FileHandle.nullDevice
+        let input = feedsStdin ? Pipe() : nil
+        process.standardInput = input ?? FileHandle.nullDevice
         try process.run()
+        log.started(process)
         let (stream, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
         Thread.detachNewThread {
             // stdout、stderr 同時讀，任一邊塞滿 pipe 都不會卡住。
@@ -83,7 +96,7 @@ public struct LocalShellHost: HostChannel {
             continuation.yield(.exit(code: process.terminationStatus))
             continuation.finish()
         }
-        return LocalExecSession(output: stream)
+        return LocalExecSession(output: stream, stdin: input.map { StdinBox(handle: $0.fileHandleForWriting) })
     }
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
@@ -93,17 +106,48 @@ public struct LocalShellHost: HostChannel {
 
 private struct LocalExecSession: ExecSession {
     let output: AsyncThrowingStream<ExecOutput, any Error>
-    func write(_ data: Data) async throws {}
-    func closeStdin() async {}
-    func close() async {}
+    let stdin: StdinBox?
+
+    func write(_ data: Data) async throws { try stdin?.write(data) }
+    func closeStdin() async { stdin?.close() }
+    func close() async { stdin?.close() }
+}
+
+/// 指令的 stdin 寫入端;關過就不再寫(模擬 SSH 通道關閉後寫入失敗)。
+private final class StdinBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handle: FileHandle?
+
+    init(handle: FileHandle) {
+        // 腳本提早結束後再寫會收到 SIGPIPE:忽略它，讓寫入丟錯誤而不是結束整個測試程序。
+        signal(SIGPIPE, SIG_IGN)
+        self.handle = handle
+    }
+
+    func write(_ data: Data) throws {
+        try lock.withLock {
+            guard let handle else { throw FakeHostError.writeAfterClose }
+            try handle.write(contentsOf: data)
+        }
+    }
+
+    func close() {
+        lock.withLock {
+            try? handle?.close()
+            handle = nil
+        }
+    }
 }
 
 private final class CommandLog: @unchecked Sendable {
     private let lock = NSLock()
     private var entries: [String] = []
+    private var processes: [Process] = []
 
     var commands: [String] { lock.withLock { entries } }
+    var hasRunningProcess: Bool { lock.withLock { processes.contains { $0.isRunning } } }
     func append(_ command: String) { lock.withLock { entries.append(command) } }
+    func started(_ process: Process) { lock.withLock { processes.append(process) } }
 }
 
 private final class DataBox: @unchecked Sendable {

@@ -63,6 +63,8 @@ public final class HostsModel {
     private let pushService: PushService?
     /// 輸入列草稿：離開聊天保留、重開 app 不保留(行為規格 F6.2)。所有主機共用，以 pane id 為鍵(同 `preferences`)。
     private let drafts = DraftStore()
+    /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
+    private let attachmentStore: any AttachmentStore
     /// 對話作答的觸覺(composition root 注入系統觸覺;測試不播放)。
     public var haptics: any Haptics = SilentHaptics()
     /// 選取中主機的通道。
@@ -84,6 +86,7 @@ public final class HostsModel {
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
+        attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
@@ -97,6 +100,7 @@ public final class HostsModel {
         self.hostConsent = hostConsent
         self.pushService = pushService
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
+        self.attachmentStore = attachmentStore
         channel = demoChannel
         let client = HerdrClient(channel: demoChannel)
         let transcripts = TranscriptReader(channel: demoChannel)
@@ -131,7 +135,9 @@ public final class HostsModel {
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
         ConversationModel(
             client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache(for: selection),
-            drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel), haptics: haptics)
+            drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel), haptics: haptics,
+            // 主機目前只有 macOS／Linux(Windows 的上傳還沒做,ADR-0002)。
+            images: ComposerImages(uploader: ImageUploader(channel: channel), store: attachmentStore))
     }
 
     /// 某台主機的對話快取(key 加上主機身分)。
