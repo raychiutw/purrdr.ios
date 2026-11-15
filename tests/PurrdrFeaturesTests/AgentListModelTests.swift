@@ -20,7 +20,7 @@ struct AgentListModelTests {
     }
 
     static func row(_ paneID: String, in model: AgentListModel) -> AgentRow? {
-        model.sections.flatMap(\.rows).first { $0.id == paneID }
+        model.sections.flatMap(\.rows).first { $0.paneID == paneID }
     }
 
     @Test("載入後依 Agent 狀態分組：工作中在閒置之前，每列有標題、副標、預覽與時間")
@@ -30,14 +30,14 @@ struct AgentListModelTests {
         #expect(model.phase == .loaded)
         #expect(model.sections == [
             AgentSection(group: .working, rows: [
-                AgentRow(id: "w1:pA", title: "規劃天氣小工具", subtitle: "garden-journal · Claude Code · demo/Projects",
+                AgentRow(paneID: "w1:pA", title: "規劃天氣小工具", subtitle: "garden-journal · Claude Code · demo/Projects",
                          preview: .status(.working), time: .now, status: .working),
-                AgentRow(id: "w1:pB", title: "重構食譜匯入", subtitle: "garden-journal · Claude Code · Projects/recipe-box",
+                AgentRow(paneID: "w1:pB", title: "重構食譜匯入", subtitle: "garden-journal · Claude Code · Projects/recipe-box",
                          preview: .status(.working), time: .now, status: .working),
             ]),
             AgentSection(group: .idle, rows: [
                 // workspace 名稱就是資料夾最後一段，已經顯示在資料夾裡，不重複。
-                AgentRow(id: "w1:p6", title: "整理植物照片的標籤", subtitle: "Claude Code · Projects/garden-journal",
+                AgentRow(paneID: "w1:p6", title: "整理植物照片的標籤", subtitle: "Claude Code · Projects/garden-journal",
                          preview: .status(.idle), time: nil, status: .idle),
             ]),
         ])
@@ -48,7 +48,7 @@ struct AgentListModelTests {
         let model = await Self.loadedModel { SnapshotEdit.agent("w1:p6", in: &$0) { $0["agent_status"] = "blocked" } }
 
         #expect(model.sections.map(\.group) == [.needsYou, .working])
-        #expect(model.sections.first?.rows.map(\.id) == ["w1:p6"])
+        #expect(model.sections.first?.rows.map(\.paneID) == ["w1:p6"])
         #expect(Self.row("w1:p6", in: model)?.preview == .needsInput)
         #expect(Self.row("w1:p6", in: model)?.status == .blocked)
     }
@@ -61,7 +61,7 @@ struct AgentListModelTests {
         }
 
         #expect(model.sections.map(\.group) == [.needsYou, .working])
-        #expect(model.sections.first?.rows.map(\.id) == ["w1:p6"])
+        #expect(model.sections.first?.rows.map(\.paneID) == ["w1:p6"])
         #expect(Self.row("w1:p6", in: model)?.status == .blocked)
         #expect(Self.row("w1:pA", in: model)?.status == .working)
     }
@@ -73,7 +73,7 @@ struct AgentListModelTests {
             SnapshotEdit.agent("w1:pB", in: &$0) { $0["workspace_id"] = "w2" }
         }
 
-        #expect(model.sections.first { $0.group == .working }?.rows.map(\.id) == ["w1:pB", "w1:pA"])
+        #expect(model.sections.first { $0.group == .working }?.rows.map(\.paneID) == ["w1:pB", "w1:pA"])
     }
 
     @Test("標題：herdr agent 名稱優先")
@@ -149,13 +149,13 @@ struct AgentListModelTests {
         let model = await Self.loadedModel { SnapshotEdit.agent("w1:pB", in: &$0) { $0["agent"] = "agy" } }
 
         model.query = "RECIPE"
-        #expect(model.sections.flatMap(\.rows).map(\.id) == ["w1:pB"])
+        #expect(model.sections.flatMap(\.rows).map(\.paneID) == ["w1:pB"])
 
         model.query = "antigravity"  // herdr 叫 agy,顯示名是 Antigravity
-        #expect(model.sections.flatMap(\.rows).map(\.id) == ["w1:pB"])
+        #expect(model.sections.flatMap(\.rows).map(\.paneID) == ["w1:pB"])
 
         model.query = "天氣"
-        #expect(model.sections.flatMap(\.rows).map(\.id) == ["w1:pA"])
+        #expect(model.sections.flatMap(\.rows).map(\.paneID) == ["w1:pA"])
 
         model.query = "Garden-Journal"  // workspace 名稱
         #expect(model.sections.flatMap(\.rows).count == 3)
@@ -198,7 +198,7 @@ struct AgentListModelTests {
         ]
 
         #expect(model.sections.map(\.group) == [.idle])
-        #expect(model.sections.first?.rows.map(\.id) == ["w1:pB", "w1:pA", "w1:p6"])
+        #expect(model.sections.first?.rows.map(\.paneID) == ["w1:pB", "w1:pA", "w1:p6"])
     }
 
     @Test("主機回錯誤時，列表顯示 herdr 的原文而不是原始 JSON")

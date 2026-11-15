@@ -25,7 +25,7 @@ final class MemoryHostStore: HostStore {
     }
 }
 
-/// 記錄 model 用哪個 pin、哪個憑證來源開了哪些連線。
+/// 記錄 model 用哪個 pin、哪個憑證來源開了哪些連線。依建立順序給出假主機(主機清單依名稱排序建立)。
 @MainActor
 final class ChannelFactory {
     var hosts: [FakeHost]
@@ -39,7 +39,8 @@ final class ChannelFactory {
         endpoints.append(endpoint)
         pins.append(pin)
         credentials.append(credential)
-        return hosts.removeFirst()
+        // 多主機合併列表(#39)會替每台已存主機建立通道;沒指定的主機給一個空的假主機。
+        return hosts.isEmpty ? FakeHost() : hosts.removeFirst()
     }
 }
 

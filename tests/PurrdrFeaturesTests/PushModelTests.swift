@@ -297,7 +297,7 @@ struct PushRouteTests {
         #expect(PushRoute(userInfo: ["aps": [:]]) == nil)
     }
 
-    @Test("切換到配對的主機並開該 Agent 的聊天")
+    @Test("開配對主機上該 Agent 的聊天;所有主機都在同一個列表，不切換選取中主機(#39)")
     func opensAgentOnPairedHost() {
         let store = MemoryHostStore()
         store.hosts = [HostsModelTests.studio]
@@ -309,8 +309,8 @@ struct PushRouteTests {
 
         model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
 
-        #expect(model.selection == .host(HostsModelTests.studio.id))
-        #expect(model.agentList.openedChat == "w2:p1")
+        #expect(model.selection == .demo)
+        #expect(model.agentList.openedChat == ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1"))
     }
 
     @Test("同一則通知(request id)只處理一次(冷啟動會收到兩次)")

@@ -22,7 +22,7 @@ struct HostsModelTests {
         await model.agentList.load()
 
         #expect(model.selection == .demo)
-        #expect(model.agentList.phase == .loaded)
+        #expect(model.agentList.list(for: model.selection)?.phase == .loaded)
         #expect(await demo.unmetExpectations.isEmpty)
     }
 
@@ -90,7 +90,7 @@ struct HostsModelTests {
         model.load()
         await model.agentList.load()
 
-        #expect(model.agentList.phase == .failed(
+        #expect(model.agentList.list(for: model.selection)?.phase == .failed(
             "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."))
     }
 

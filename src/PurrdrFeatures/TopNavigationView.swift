@@ -29,14 +29,13 @@ public struct TopNavigationView: View {
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
-            // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
-            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions, usage: hosts.claudeUsage) { paneID, sessionID in
-                hosts.conversation(paneID: paneID, sessionID: sessionID)
-            } terminal: { paneID, title in
-                hosts.terminal(paneID: paneID, title: title)
+            // 所有主機合併的 Agent 列表(#39)。換選取中主機不重建列表，只改排序與主機名標示。
+            AgentListView(model: hosts.agentList, usage: hosts.claudeUsage) { route, sessionID in
+                hosts.conversation(route, sessionID: sessionID)
+            } terminal: { route, title in
+                hosts.terminal(route, title: title)
             }
-            .id(hosts.selection)
-                .toolbar { toolbar }
+            .toolbar { toolbar }
         }
         .tailscaleCheckPrompt(hosts.tailscaleCheck)
         .sheet(item: $navigation.sheet) { sheet in
@@ -86,6 +85,10 @@ public struct TopNavigationView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        // 選取中主機(#39):只決定新聊天開在哪裡與套用誰的主題;所有主機的 Agent 都在列表上。
+        ToolbarItem(placement: Self.hostPlacement) {
+            SelectedHostMenu(hosts: hosts)
+        }
         ToolbarItem(placement: .primaryAction) {
             Menu {
                 Button("Settings", systemImage: "gearshape") { navigation.sheet = .settings }
@@ -111,6 +114,14 @@ public struct TopNavigationView: View {
                 .accessibilityIdentifier("toolbar.newChat")
         }
     }
+}
+
+extension TopNavigationView {
+    #if os(iOS)
+    static let hostPlacement = ToolbarItemPlacement.topBarLeading
+    #else
+    static let hostPlacement = ToolbarItemPlacement.navigation
+    #endif
 }
 
 /// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(新增對話)。
@@ -156,5 +167,43 @@ extension TopLevelSheet {
         case .member: "person.crop.circle"
         case .plus: "bell.badge"
         }
+    }
+}
+
+/// 頂部的主機鈕：顯示選取中主機的圖示與名稱，選單裡切換選取中主機(#39、DESIGN.md)。
+struct SelectedHostMenu: View {
+    let hosts: HostsModel
+
+    var body: some View {
+        Menu {
+            Picker(selection: selection) {
+                Label("Demo", systemImage: HostIcon.default.symbol)
+                    .tag(HostSelection.demo)
+                ForEach(hosts.rows) { row in
+                    Label(row.title, systemImage: row.icon.symbol)
+                        .tag(HostSelection.host(row.id))
+                }
+            } label: {
+                Text("Selected Host")
+            }
+            .accessibilityIdentifier("hostMenu.picker")
+            Section {
+                Text("New chats start on the selected host. Agents on every host stay in the list.")
+            }
+        } label: {
+            Label {
+                Text(verbatim: hosts.name(of: hosts.selection))
+            } icon: {
+                Image(systemName: hosts.selectionIcon.symbol)
+            }
+            .labelStyle(.titleAndIcon)
+        }
+        .accessibilityLabel(Text("Selected Host"))
+        .accessibilityValue(Text(verbatim: hosts.name(of: hosts.selection)))
+        .accessibilityIdentifier("toolbar.host")
+    }
+
+    private var selection: Binding<HostSelection> {
+        Binding { hosts.selection } set: { hosts.select($0) }
     }
 }
