@@ -17,9 +17,12 @@ struct LoginShellModelTests {
         }
     }
 
-    /// 讓去抖與寫入的非同步工作跑完。
-    static func settle() async {
-        try? await Task.sleep(for: .milliseconds(200))
+    /// 等假主機上的 PTY 紀錄符合條件。
+    static func eventually(_ host: FakeHost, _ condition: ([FakeHost.PTYOpening]) -> Bool) async {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while await !condition(host.ptys), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     /// 開好一個登入 Shell。
@@ -66,7 +69,8 @@ struct LoginShellModelTests {
 
         model.viewDidResize(columns: 60, rows: 20)
         model.viewDidResize(columns: 100, rows: 30)
-        await Self.settle()
+        await Self.eventually(host) { !($0.first?.sizes.isEmpty ?? true) }
+        try await Task.sleep(for: .milliseconds(100))
 
         #expect(await host.ptys.first?.sizes == [.init(columns: 100, rows: 30)])
     }
@@ -80,9 +84,10 @@ struct LoginShellModelTests {
         model.press(.escape)
         model.toggle(.control)
         model.type(Data("c".utf8))
-        await Self.settle()
+        let expected = Data("ls\r".utf8) + [0x1B, 0x03]
+        await Self.eventually(host) { $0.first?.input == expected }
 
-        #expect(await host.ptys.first?.input == Data("ls\r".utf8) + [0x1B, 0x03])
+        #expect(await host.ptys.first?.input == expected)
         #expect(model.modifiers.isEmpty)
     }
 
@@ -93,9 +98,10 @@ struct LoginShellModelTests {
 
         model.paste("echo hi", bracketed: false)
         model.paste("x", bracketed: true)
-        await Self.settle()
+        let expected = Data("echo hi\u{1B}[200~x\u{1B}[201~".utf8)
+        await Self.eventually(host) { $0.first?.input == expected }
 
-        #expect(await host.ptys.first?.input == Data("echo hi\u{1B}[200~x\u{1B}[201~".utf8))
+        #expect(await host.ptys.first?.input == expected)
     }
 
     @Test("shell 結束：已結束，可以再開一個新的 shell")
@@ -148,7 +154,7 @@ struct LoginShellModelTests {
         let (model, _) = await Self.connected(host)
 
         model.hangUp()
-        await Self.settle()
+        await Self.eventually(host) { $0.first?.closed == true }
 
         #expect(await host.ptys.first?.closed == true)
         #expect(model.status == .disconnected)

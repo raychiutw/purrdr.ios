@@ -252,4 +252,36 @@ struct DemoHostTests {
         let agentSize = try await reader.size(path: agentPath)
         #expect(try await reader.window(path: agentPath, endingAt: agentSize, lines: 300).lines.isEmpty == false)
     }
+
+    @Test("檔案瀏覽:Demo 主機的家目錄與 workspace 資料夾;上傳後出現在清單，同名拒絕")
+    func browsesAndUploadsFiles() async throws {
+        let folders = HostFolders(channel: DemoHost())
+
+        let home = try await folders.list()
+        #expect(home.path == "/Users/demo")
+        #expect(home.entries.map(\.name) == ["ledger", "notes", "weather-app", ".zshrc", "README.md"])
+        let ledger = try await folders.list("/Users/demo/ledger")
+        #expect(ledger.entries.map(\.name) == ["export.csv", "ledger.py"])
+        await #expect {
+            _ = try await folders.list("/Users/demo/missing")
+        } throws: { error in
+            if case HostFolderError.cannotOpen = error { return true }
+            return false
+        }
+
+        let path = try await folders.upload(Data("hello".utf8), named: "todo.txt", to: "/Users/demo/notes")
+        #expect(path == "/Users/demo/notes/todo.txt")
+        let notes = try await folders.list("/Users/demo/notes")
+        #expect(notes.entries.first { $0.name == "todo.txt" }?.size == 5)
+        await #expect(throws: HostFolderError.alreadyExists) {
+            _ = try await folders.upload(Data("again".utf8), named: "todo.txt", to: "/Users/demo/notes")
+        }
+    }
+
+    @Test("登入 Shell:Demo 主機開回顯的 shell")
+    func opensLoginShell() async throws {
+        let pty = try await DemoHost().openPTY(PTYRequest(columns: 80, rows: 24))
+        var iterator = pty.output.makeAsyncIterator()
+        #expect(try await iterator.next() == Data("demo@purrdr ~ % ".utf8))
+    }
 }

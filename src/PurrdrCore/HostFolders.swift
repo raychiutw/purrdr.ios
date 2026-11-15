@@ -221,7 +221,12 @@ public struct HostFolders: Sendable {
                 var offset = input.startIndex
                 while offset < input.endIndex {
                     let end = input.index(offset, offsetBy: Self.chunkSize, limitedBy: input.endIndex) ?? input.endIndex
-                    try await session.write(input[offset..<end])
+                    do {
+                        try await session.write(input[offset..<end])
+                    } catch {
+                        // 腳本可能已提早結束(資料夾打不開、檔名不行):不再寫，改讀它的結束狀態。
+                        break
+                    }
                     offset = end
                 }
             }

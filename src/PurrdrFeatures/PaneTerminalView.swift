@@ -21,16 +21,20 @@ public struct PaneTerminalButton: View {
 import SwiftTerm
 import UIKit
 
-/// Pane 終端機(DESIGN.md「終端機」):全螢幕深色、標題下有狀態點與文字、底部是單一玻璃容器的按鍵列。
+/// Pane 終端機。
+public typealias PaneTerminalView = TerminalSessionView
+
+/// 終端機畫面(DESIGN.md「終端機」):全螢幕深色、標題下有狀態點與文字、底部是單一玻璃容器的按鍵列。
+/// Pane 終端機(`PaneTerminalModel`)與登入 Shell(`LoginShellModel`)共用。
 ///
-/// 終端機模擬器(SwiftTerm)只負責畫面;鍵盤輸入、按鍵列、貼上、滑動都經過 `PaneTerminalModel`
-/// 變成 herdr 的訊息。
-public struct PaneTerminalView: View {
-    @Bindable var model: PaneTerminalModel
+/// 終端機模擬器(SwiftTerm)只負責畫面;鍵盤輸入、按鍵列、貼上、滑動都經過 model
+/// (Pane 終端機變成 herdr 的訊息，登入 Shell 直接寫進 PTY)。
+public struct TerminalSessionView: View {
+    let model: any TerminalSessionModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var screen = TerminalScreenHandle()
 
-    public init(model: PaneTerminalModel) {
+    public init(model: any TerminalSessionModel) {
         self.model = model
     }
 
@@ -56,7 +60,7 @@ public struct PaneTerminalView: View {
         }
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })) {
+        .alert("Can’t Paste", isPresented: Binding(get: { model.notice != nil }, set: { [model] in if !$0 { model.notice = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(model.notice ?? "")
@@ -77,7 +81,7 @@ public struct PaneTerminalView: View {
 
 struct TerminalTitle: View {
     let title: String
-    let status: PaneTerminalModel.Status
+    let status: TerminalStatus
     let statusText: String
 
     var body: some View {
@@ -112,7 +116,7 @@ struct TerminalTitle: View {
 
 struct TerminalBanner: View {
     let text: String
-    let model: PaneTerminalModel
+    let model: any TerminalSessionModel
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
@@ -157,15 +161,15 @@ struct TerminalBanner: View {
 }
 
 struct FontSizeMenu: View {
-    let model: PaneTerminalModel
+    let model: any TerminalSessionModel
 
     var body: some View {
         Menu {
             Button("Larger Text", systemImage: "textformat.size.larger") { model.adjustFontSize(by: 1) }
-                .disabled(model.fontSize >= PaneTerminalModel.fontSizes.upperBound)
+                .disabled(model.fontSize >= TerminalFontSize.range.upperBound)
             Button("Smaller Text", systemImage: "textformat.size.smaller") { model.adjustFontSize(by: -1) }
-                .disabled(model.fontSize <= PaneTerminalModel.fontSizes.lowerBound)
-            Button("Default Size", systemImage: "arrow.counterclockwise") { model.setFontSize(PaneTerminalModel.defaultFontSize) }
+                .disabled(model.fontSize <= TerminalFontSize.range.lowerBound)
+            Button("Default Size", systemImage: "arrow.counterclockwise") { model.setFontSize(TerminalFontSize.default) }
         } label: {
             Label("Text Size", systemImage: "textformat.size")
         }
@@ -178,7 +182,7 @@ struct FontSizeMenu: View {
 /// 按鍵列：單一玻璃容器(按鍵不各自做成玻璃)。左邊可橫捲的按鍵，Esc、Tab、Ctrl、Alt 排最前面，
 /// 最窄的寬度也不用捲就看得到;列尾固定「貼上」與「收起鍵盤」兩顆鈕。
 struct TerminalKeyBar: View {
-    let model: PaneTerminalModel
+    let model: any TerminalSessionModel
     let screen: TerminalScreenHandle
 
     static let keys: [BarKey] = [
@@ -210,7 +214,7 @@ struct TerminalKeyBar: View {
                 }
                 .scrollIndicators(.hidden)
                 Divider().frame(height: 28)
-                PasteKey(model: model)
+                PasteKey(model: model, screen: screen)
                 KeyboardToggle(screen: screen)
             }
             .padding(.horizontal, 6)
@@ -242,7 +246,7 @@ struct BarKey: Identifiable {
 
 struct BarKeyButton: View {
     let key: BarKey
-    let model: PaneTerminalModel
+    let model: any TerminalSessionModel
 
     private var isLocked: Bool { key.modifier.map(model.modifiers.contains) ?? false }
 
@@ -280,11 +284,12 @@ struct BarKeyButton: View {
 
 /// 貼上剪貼簿文字(可能觸發系統的「允許貼上」)。不用 `PasteButton`:它的點擊範圍撐不到 44×44 pt。
 struct PasteKey: View {
-    let model: PaneTerminalModel
+    let model: any TerminalSessionModel
+    let screen: TerminalScreenHandle
 
     var body: some View {
         Button {
-            if let text = UIPasteboard.general.string { model.paste(text) }
+            if let text = UIPasteboard.general.string { model.paste(text, bracketed: screen.bracketedPasteMode) }
         } label: {
             Image(systemName: "doc.on.clipboard")
                 .font(.body)
@@ -341,13 +346,18 @@ final class TerminalScreenHandle {
         }
     }
 
+    /// 程式是否開了 bracketed paste 模式(登入 Shell 用;Pane 終端機看不到 Pane 的模式)。
+    var bracketedPasteMode: Bool {
+        view?.getTerminal().bracketedPasteMode ?? false
+    }
+
     fileprivate func focusChanged(_ focused: Bool) {
         isKeyboardVisible = focused
     }
 }
 
 struct TerminalScreen: UIViewRepresentable {
-    let model: PaneTerminalModel
+    let model: any TerminalSessionModel
     let handle: TerminalScreenHandle
 
     func makeCoordinator() -> Coordinator {
@@ -363,8 +373,9 @@ struct TerminalScreen: UIViewRepresentable {
         view.nativeForegroundColor = UIColor(white: 0.92, alpha: 1)
         view.caretColor = .systemGray
         view.keyboardAppearance = .dark
-        // 本機 scrollback 是空的(herdr 每次都重畫整個 viewport);滑動改送 terminal.scroll。
-        view.isScrollEnabled = false
+        // Pane 終端機的本機 scrollback 是空的(herdr 每次都重畫整個 viewport):滑動改送 terminal.scroll。
+        // 登入 Shell 的 scrollback 在本機，由模擬器自己捲。
+        view.isScrollEnabled = !model.usesRemoteScroll
         view.accessibilityIdentifier = "terminal.screen"
         view.onFocusChange = { [weak handle] in handle?.focusChanged($0) }
         context.coordinator.install(on: view)
@@ -386,22 +397,23 @@ struct TerminalScreen: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, TerminalViewDelegate, UIGestureRecognizerDelegate {
-        let model: PaneTerminalModel
-        private var pinchStartSize: Double = PaneTerminalModel.defaultFontSize
+        let model: any TerminalSessionModel
+        private var pinchStartSize: Double = TerminalFontSize.default
         private var scrolledRows = 0
 
-        init(model: PaneTerminalModel) {
+        init(model: any TerminalSessionModel) {
             self.model = model
         }
 
         func install(on view: PurrdrTerminalView) {
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinch(_:)))
+            pinch.delegate = self
+            view.addGestureRecognizer(pinch)
+            guard model.usesRemoteScroll else { return }
             let pan = UIPanGestureRecognizer(target: self, action: #selector(pan(_:)))
             pan.maximumNumberOfTouches = 1
             pan.delegate = self
             view.addGestureRecognizer(pan)
-            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(pinch(_:)))
-            pinch.delegate = self
-            view.addGestureRecognizer(pinch)
             // 捏合與滑動互斥。
             pan.require(toFail: pinch)
         }
@@ -457,7 +469,7 @@ struct TerminalScreen: UIViewRepresentable {
         /// 只開 http(s) 連結。
         nonisolated func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {
             MainActor.assumeIsolated {
-                guard let url = PaneTerminalModel.openableURL(link) else { return }
+                guard let url = TerminalLinks.openableURL(link) else { return }
                 UIApplication.shared.open(url)
             }
         }

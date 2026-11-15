@@ -10,6 +10,8 @@ public struct TopNavigationView: View {
     let settings: SettingsModel
     /// Purrdr Plus(#28);`nil` 時選單不顯示。
     let plus: SubscriptionModel?
+    /// 從「⋯」選單推進來的主機工具(登入 Shell、檔案瀏覽)。
+    @State private var hostTool: HostTool?
 
     public init(
         navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil
@@ -32,6 +34,18 @@ public struct TopNavigationView: View {
             }
             .id(hosts.selection)
                 .toolbar { toolbar }
+                .navigationDestination(item: $hostTool) { tool in
+                    switch tool {
+                    case .loginShell(let model):
+                        #if canImport(UIKit)
+                        TerminalSessionView(model: model)
+                        #else
+                        Text(verbatim: model.title)
+                        #endif
+                    case .files(let model):
+                        FolderBrowserView(model: model)
+                    }
+                }
         }
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
@@ -64,6 +78,12 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.settings")
                 Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
                     .accessibilityIdentifier("menu.hosts")
+                // 選取中主機的登入 Shell 與檔案(行為規格 F13;iPad 上也是推疊)。
+                // 不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
+                Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
+                    .accessibilityIdentifier("menu.loginShell")
+                Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
+                    .accessibilityIdentifier("menu.files")
                 Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
                     .accessibilityIdentifier("menu.member")
                 if plus != nil {
@@ -83,6 +103,22 @@ public struct TopNavigationView: View {
                 .accessibilityIdentifier("toolbar.newChat")
         }
     }
+}
+
+/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始)。
+enum HostTool: Hashable {
+    case loginShell(LoginShellModel)
+    case files(FolderBrowserModel)
+
+    private var object: AnyObject {
+        switch self {
+        case .loginShell(let model): model
+        case .files(let model): model
+        }
+    }
+
+    static func == (a: HostTool, b: HostTool) -> Bool { a.object === b.object }
+    func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(object)) }
 }
 
 /// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(新增對話)。

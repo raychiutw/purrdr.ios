@@ -37,6 +37,9 @@ public actor DemoHost: HostChannel {
     /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
     private var files = DemoFiles()
 
+    /// 檔案瀏覽的資料夾(上傳只在記憶體)。
+    private var folders = DemoFolders()
+
     public init(scenario: Scenario = .standard) {
         self.scenario = scenario
     }
@@ -57,6 +60,17 @@ public actor DemoHost: HostChannel {
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
+        if let path = HostFolderCommand.parseList(command) {
+            let result = folders.list(path)
+            return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)])
+                + (result.stderr.isEmpty ? [] : [.stderr(result.stderr)]) + [.exit(code: result.exitCode)])
+        }
+        if let upload = HostFolderCommand.parseUpload(command) {
+            return DemoUploadSession { [weak self] received in
+                guard let self else { return (Data(), 70) }
+                return await self.finishUpload(folder: upload.folder, name: upload.name, size: upload.size, received: received)
+            }
+        }
         if let request = HostFileRequest(command: command) {
             let result = files.handle(request, now: Date())
             return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
@@ -70,6 +84,10 @@ public actor DemoHost: HostChannel {
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
         DemoEchoShell()
+    }
+
+    private func finishUpload(folder: String, name: String, size: Int, received: Int) -> (stdout: Data, exitCode: Int32) {
+        folders.upload(folder: folder, name: name, declaredSize: size, received: received)
     }
 
     /// `agent.prompt` 的回應：閒置的 Claude Code agent 收下後，對話紀錄接上新的行;不是 `agent.prompt` 回 `nil`。
