@@ -131,6 +131,14 @@ struct HostFilesTests {
         #expect(try DirectorySnapshot(of: host.home).entries.keys.sorted() == ["keep.json"])
     }
 
+    @Test("指令超過 126 KiB(sshd 單一參數上限):不送出")
+    func refusesTooLargeCommand() async throws {
+        await #expect(throws: HostFilesError.tooLarge) {
+            try await files.apply([.write(".purrdr/feature/big", Data(count: 100 * 1024), expecting: .anything)])
+        }
+        #expect(host.commands.isEmpty)
+    }
+
     @Test("寫入可執行檔")
     func writesExecutable() async throws {
         try await files.apply([.write(".purrdr/feature/run.sh", Data("#!/bin/sh".utf8), executable: true, expecting: .missing)])

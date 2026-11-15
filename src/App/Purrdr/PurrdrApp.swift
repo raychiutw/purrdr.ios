@@ -10,15 +10,22 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let claudeUsage: ClaudeUsageModel
 
     init() {
         let channel: any HostChannel = DemoHost()
         agentList = AgentListModel(client: HerdrClient(channel: channel))
+        // Demo 主機不持久化任何東西(行為規格 F21):它的同意只存在記憶體，跟它記憶體裡的家目錄一起重來。
+        // 真主機改用 `UserDefaultsHostWriteConsentStore`,移除主機時呼叫 `revokeAll(host:)`。
+        claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: channel), hostID: "demo",
+                                       consent: InMemoryHostWriteConsentStore())
     }
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList)
+            AgentListView(model: agentList) {
+                ClaudeUsageFooter(model: claudeUsage)
+            }
         }
     }
 }

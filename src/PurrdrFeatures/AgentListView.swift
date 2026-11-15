@@ -8,9 +8,17 @@ import SwiftUI
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
     @Environment(\.scenePhase) private var scenePhase
+    /// 列表最下方的附加內容(例如 Claude 用量)。讀取失敗時不顯示(行為規格 F2.9)。
+    private let footer: AnyView?
 
     public init(model: AgentListModel) {
         self.model = model
+        footer = nil
+    }
+
+    public init<Footer: View>(model: AgentListModel, @ViewBuilder footer: () -> Footer) {
+        self.model = model
+        self.footer = AnyView(footer())
     }
 
     public var body: some View {
@@ -64,6 +72,8 @@ public struct AgentListView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("agentList.error")
                 }
+            } else if let footer {
+                Section { footer }
             }
         }
         #if os(iOS)
