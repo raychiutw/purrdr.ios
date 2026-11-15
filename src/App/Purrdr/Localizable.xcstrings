@@ -9,6 +9,10 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "%@ · %@" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
     "%d failed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16,6 +20,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%d 個失敗"
+          }
+        }
+      }
+    },
+    "%lld agents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個 Agent"
           }
         }
       }
@@ -68,6 +83,10 @@
         }
       }
     },
+    "22" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
     "A member account is only needed for Purrdr Plus: notifications when an agent needs you, and syncing your hosts between devices." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -97,6 +116,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用中"
+          }
+        }
+      }
+    },
+    "Add Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增主機"
+          }
+        }
+      }
+    },
+    "Add a computer that runs herdr. Purrdr connects to it with SSH over your tailnet; nothing is exposed to the internet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增一台執行 herdr 的主機。Purrdr 透過你的 tailnet 以 SSH 連線，不會對網際網路開放任何東西。"
+          }
+        }
+      }
+    },
+    "Address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位址"
           }
         }
       }
@@ -321,6 +373,17 @@
         }
       }
     },
+    "Can’t reach the host. Your message wasn’t sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法連上主機，訊息沒有送出。"
+          }
+        }
+      }
+    },
     "Can’t read this chat’s transcript on the host. Check the file’s permissions." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -442,6 +505,28 @@
         }
       }
     },
+    "Connected · herdr %@ · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已連線 · herdr %@ · %@"
+          }
+        }
+      }
+    },
+    "Connecting to %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在連線到 %@…"
+          }
+        }
+      }
+    },
     "Connecting…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -449,6 +534,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連線中…"
+          }
+        }
+      }
+    },
+    "Connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線方式"
           }
         }
       }
@@ -482,6 +578,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Control"
+          }
+        }
+      }
+    },
+    "Control-C may end the agent process and this session. The conversation stays on the host, but the agent stops. Stop only interrupts the current turn." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control-C 可能會結束 Agent 程序與這個 session。對話仍留在主機上，但 Agent 會停止。「停止」只會中斷目前這一輪。"
           }
         }
       }
@@ -530,6 +637,28 @@
         }
       }
     },
+    "Couldn’t confirm delivery. The message may be stuck in the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認是否送達，訊息可能卡在終端機裡。"
+          }
+        }
+      }
+    },
+    "Couldn’t find this host name. Check the address and that this device is on your tailnet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到這個主機名稱。請檢查位址，並確認這台裝置在你的 tailnet 上。"
+          }
+        }
+      }
+    },
     "Couldn’t reach Apple to finish deleting. Nothing was deleted. Try again later." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -563,6 +692,39 @@
         }
       }
     },
+    "Couldn’t reach this host. Make sure both devices are on your tailnet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法連上這台主機。請確認兩台裝置都在你的 tailnet 上。"
+          }
+        }
+      }
+    },
+    "Couldn’t reach this host. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法連上這台主機，請再試一次。"
+          }
+        }
+      }
+    },
+    "Couldn’t read saved hosts on this device. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這台裝置上已儲存的主機。%@"
+          }
+        }
+      }
+    },
     "Couldn’t read this host’s herdr status." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -570,6 +732,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法讀取這台主機的 herdr 狀態。"
+          }
+        }
+      }
+    },
+    "Couldn’t save this host on this device. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在這台裝置上儲存這台主機。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t send the interrupt to the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法把中斷送到主機。"
+          }
+        }
+      }
+    },
+    "Couldn’t send: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法送出:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t update herdr. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新 herdr。%@"
           }
         }
       }
@@ -614,6 +820,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建立中…"
+          }
+        }
+      }
+    },
+    "Default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設"
           }
         }
       }
@@ -684,6 +901,39 @@
         }
       }
     },
+    "Discard Changes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄變更"
+          }
+        }
+      }
+    },
+    "Discard your changes to this host?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要放棄這台主機的變更嗎?"
+          }
+        }
+      }
+    },
+    "Dismiss" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
+          }
+        }
+      }
+    },
     "Done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -702,6 +952,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向下鍵"
+          }
+        }
+      }
+    },
+    "Edit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯"
+          }
+        }
+      }
+    },
+    "Edit Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯主機"
           }
         }
       }
@@ -772,6 +1044,17 @@
         }
       }
     },
+    "Failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失敗"
+          }
+        }
+      }
+    },
     "Fetched %d pages" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -805,6 +1088,28 @@
         }
       }
     },
+    "Force Quit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強制結束"
+          }
+        }
+      }
+    },
+    "Force Quit the Agent?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要強制結束 Agent 嗎?"
+          }
+        }
+      }
+    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -812,6 +1117,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Google 登入沒有完成，請再試一次。"
+          }
+        }
+      }
+    },
+    "Hardware Keyboard" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "實體鍵盤"
           }
         }
       }
@@ -827,6 +1143,28 @@
         }
       }
     },
+    "Hides the background agents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏背景 Agent"
+          }
+        }
+      }
+    },
+    "Hides the result" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏結果"
+          }
+        }
+      }
+    },
     "Home" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -834,6 +1172,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Home"
+          }
+        }
+      }
+    },
+    "Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機"
+          }
+        }
+      }
+    },
+    "Host Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Host Key"
+          }
+        }
+      }
+    },
+    "Host Key Changed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Host Key 已變更"
           }
         }
       }
@@ -882,6 +1253,28 @@
         }
       }
     },
+    "Integrations: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整合:%@"
+          }
+        }
+      }
+    },
+    "Interrupts the agent’s current turn. Press and hold to force quit." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中斷 Agent 目前這一輪。按住可強制結束。"
+          }
+        }
+      }
+    },
     "Jump to Latest" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -889,6 +1282,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跳到最新"
+          }
+        }
+      }
+    },
+    "Keep Editing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續編輯"
           }
         }
       }
@@ -904,6 +1308,17 @@
         }
       }
     },
+    "Keychain error: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鑰匙圈錯誤:%@"
+          }
+        }
+      }
+    },
     "Larger Text" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -911,6 +1326,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放大文字"
+          }
+        }
+      }
+    },
+    "Leave Session blank unless this computer runs more than one herdr session." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "除非這台主機執行多個 herdr session,否則 Session 留空即可。"
           }
         }
       }
@@ -992,6 +1418,17 @@
         }
       }
     },
+    "Log" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紀錄"
+          }
+        }
+      }
+    },
     "Manage Subscriptions" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1036,6 +1473,17 @@
         }
       }
     },
+    "Message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訊息"
+          }
+        }
+      }
+    },
     "Messages in this chat appear here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1076,6 +1524,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "靜音"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名稱"
           }
         }
       }
@@ -1179,6 +1638,17 @@
         }
       }
     },
+    "No longer tracking · Reload to check again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停止追蹤 · 重新載入以再次檢查"
+          }
+        }
+      }
+    },
     "Not Available" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1186,6 +1656,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法取得"
+          }
+        }
+      }
+    },
+    "Not Confirmed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未確認"
+          }
+        }
+      }
+    },
+    "Not Delivered" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未送達"
+          }
+        }
+      }
+    },
+    "Not on This Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不在這台主機上"
           }
         }
       }
@@ -1230,6 +1733,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "離線中，顯示上次載入的對話。"
+          }
+        }
+      }
+    },
+    "Open Subagent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 Subagent"
+          }
+        }
+      }
+    },
+    "Open Workflow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 Workflow"
           }
         }
       }
@@ -1289,6 +1814,17 @@
         }
       }
     },
+    "Port" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Port"
+          }
+        }
+      }
+    },
     "Privacy Policy" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1307,6 +1843,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會員"
+          }
+        }
+      }
+    },
+    "Purrdr supports macOS and Linux hosts for now." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 目前支援 macOS 與 Linux 主機。"
+          }
+        }
+      }
+    },
+    "Purrdr tests the connection before saving the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會先測試連線，再儲存主機。"
           }
         }
       }
@@ -1410,7 +1968,18 @@
         }
       }
     },
-    "Return to Send" : {
+    "Retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重試"
+          }
+        }
+      }
+    },
+    "Return Key Sends" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1428,6 +1997,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向右鍵"
+          }
+        }
+      }
+    },
+    "Running" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行中"
+          }
+        }
+      }
+    },
+    "Sample conversations, no computer connected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範例對話，沒有連線到主機"
           }
         }
       }
@@ -1476,6 +2067,83 @@
         }
       }
     },
+    "Send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出"
+          }
+        }
+      }
+    },
+    "Sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出中"
+          }
+        }
+      }
+    },
+    "Sending…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出中…"
+          }
+        }
+      }
+    },
+    "Sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出"
+          }
+        }
+      }
+    },
+    "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送給 Codex,但它的對話紀錄還沒有確認收到。再試一次前請先檢查主機。"
+          }
+        }
+      }
+    },
+    "Session" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session"
+          }
+        }
+      }
+    },
+    "Session: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session:%@"
+          }
+        }
+      }
+    },
     "Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1505,6 +2173,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示版面"
+          }
+        }
+      }
+    },
+    "Shows the background agents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示背景 Agent"
+          }
+        }
+      }
+    },
+    "Shows the result" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示結果"
           }
         }
       }
@@ -1630,6 +2320,39 @@
         }
       }
     },
+    "Starting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟動中"
+          }
+        }
+      }
+    },
+    "Stop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止"
+          }
+        }
+      }
+    },
+    "Studio Mac" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作室的 Mac"
+          }
+        }
+      }
+    },
     "Support" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1659,6 +2382,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab %lld"
+          }
+        }
+      }
+    },
+    "Tailscale SSH didn’t let this user log in. Check the user name and your tailnet’s SSH rules." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tailscale SSH 不允許這個使用者登入。請檢查使用者名稱與 tailnet 的 SSH 規則。"
+          }
+        }
+      }
+    },
+    "Tailscale checks who you are on your tailnet, so no key or password is needed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tailscale 會依你在 tailnet 上的身分放行，不需要金鑰或密碼。"
           }
         }
       }
@@ -1696,6 +2441,17 @@
         }
       }
     },
+    "Test Connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "測試連線"
+          }
+        }
+      }
+    },
     "Text Size" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1729,6 +2485,17 @@
         }
       }
     },
+    "The agent didn’t pick up the message. It may be stuck on a prompt; check the terminal, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 沒有收到訊息，可能卡在某個提示上。請檢查終端機後再試一次。"
+          }
+        }
+      }
+    },
     "The agent didn’t report its session, so its messages can’t be told apart from other chats in the same folder. Make sure the herdr integration for this agent is installed; it reports the session when one starts." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1751,6 +2518,28 @@
         }
       }
     },
+    "The agent is still working. Tap Stop again, or press and hold to force quit." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 仍在工作。再點一次「停止」,或按住以強制結束。"
+          }
+        }
+      }
+    },
+    "The agent is waiting for an answer. Answer it first, then send." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在等待回答，請先回答再送出。"
+          }
+        }
+      }
+    },
     "The agent is working. Its reply will appear here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1758,6 +2547,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 正在工作，回覆會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "The connection dropped while sending. The message may have arrived; check the chat before sending again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出時連線中斷，訊息可能已送達。再次送出前請先檢查對話。"
+          }
+        }
+      }
+    },
+    "The connection dropped. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線中斷，請再試一次。"
+          }
+        }
+      }
+    },
+    "The herdr path runs a different program. Check the herdr path." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr 路徑執行的是別的程式，請檢查 herdr 路徑。"
+          }
+        }
+      }
+    },
+    "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機沒有及時回應。請確認它沒有睡眠，且兩台裝置都在你的 tailnet 上。"
+          }
+        }
+      }
+    },
+    "The host refused the connection. Check that Tailscale SSH is on and the port is right." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機拒絕了連線。請確認 Tailscale SSH 已開啟，port 也正確。"
           }
         }
       }
@@ -1784,6 +2628,28 @@
         }
       }
     },
+    "The subagent’s transcript appears here once it starts writing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subagent 開始寫入後，它的對話紀錄會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "The workflow’s phases appear here once it starts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workflow 開始後，各階段會顯示在這裡。"
+          }
+        }
+      }
+    },
     "Thinking" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1806,6 +2672,61 @@
         }
       }
     },
+    "This host has herdr %@. Purrdr needs %@ or later. Purrdr will run “herdr update --handoff” as %@@%@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的 herdr 是 %@,Purrdr 需要 %@ 以上。Purrdr 會以 %@@%@ 執行「herdr update --handoff」。"
+          }
+        }
+      }
+    },
+    "This host identifies itself with a different key. If you didn’t reinstall or reset it, stop and check it in Hosts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機用了不同的 key 表明身分。如果你沒有重新安裝或重置它，請停下來，到「主機」檢查。"
+          }
+        }
+      }
+    },
+    "This host now identifies itself with a different key. Reinstalling or resetting it does this, and so does someone intercepting the connection. If you didn’t reinstall or reset it, stop.\n\nPresented key:\n%@\n\nSaved key:\n%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機現在用了不同的 key 表明身分。重新安裝或重置主機會這樣，有人攔截連線也會。如果你沒有重新安裝或重置它，請停下來。\n\n目前出示的 key:\n%@\n\n已儲存的 key:\n%@"
+          }
+        }
+      }
+    },
+    "This host’s key hasn’t been confirmed yet. Test the connection in Hosts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有確認這台主機的 key,請到「主機」測試連線。"
+          }
+        }
+      }
+    },
+    "This is the first connection to %@. It identifies itself with this key:\n\n%@\n\nTrust it only if it matches ssh-keygen -lf on that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是第一次連線到 %@。它以這個 key 表明身分:\n\n%@\n\n請在那台主機上執行 ssh-keygen -lf,確認相符才信任。"
+          }
+        }
+      }
+    },
     "This member already has that kind of sign-in method. Unlink it first." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1813,6 +2734,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個會員已經有這種登入方式，請先解除連結。"
+          }
+        }
+      }
+    },
+    "This pane is running a different chat now. Your message wasn’t sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Pane 現在是另一段對話，訊息沒有送出。"
           }
         }
       }
@@ -1835,6 +2767,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 Pane 裡已經沒有執行中的 Agent。"
+          }
+        }
+      }
+    },
+    "This pane no longer has an agent. Your message wasn’t sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Pane 已經沒有 Agent,訊息沒有送出。"
           }
         }
       }
@@ -1868,6 +2811,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 repo 的 worktree Workspace 還開著，請先關閉它們。"
+          }
+        }
+      }
+    },
+    "This subagent’s transcript isn’t on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Subagent 的對話紀錄不在這台主機上。"
           }
         }
       }
@@ -1912,6 +2866,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "波浪號"
+          }
+        }
+      }
+    },
+    "To compare, run ssh-keygen -lf on a host key file on that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要比對的話，在那台主機上對 host key 檔執行 ssh-keygen -lf。"
+          }
+        }
+      }
+    },
+    "Trust" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信任"
+          }
+        }
+      }
+    },
+    "Trust New Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信任新的 Key"
+          }
+        }
+      }
+    },
+    "Trust This Host?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要信任這台主機嗎?"
           }
         }
       }
@@ -2015,6 +3013,28 @@
         }
       }
     },
+    "Update" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新"
+          }
+        }
+      }
+    },
+    "Update herdr?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要更新 herdr 嗎?"
+          }
+        }
+      }
+    },
     "Updated todos" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2026,6 +3046,17 @@
         }
       }
     },
+    "Updating herdr on %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在更新 %@ 上的 herdr…"
+          }
+        }
+      }
+    },
     "Used tools" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2033,6 +3064,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用了工具"
+          }
+        }
+      }
+    },
+    "User Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用者名稱"
           }
         }
       }
@@ -2092,13 +3134,13 @@
         }
       }
     },
-    "With a hardware keyboard, Return sends your message. Turn this off to make Return start a new line; Command-Return always sends." : {
+    "When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "接實體鍵盤時，按 Return 送出訊息。關閉後 Return 會換行;Command-Return 一律送出。"
+            "value" : "關閉時，Return 會換行。Command-Return 一律送出,Shift-Return 一律換行。"
           }
         }
       }
@@ -2213,6 +3255,17 @@
         }
       }
     },
+    "Your user on that computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在那台主機上的使用者"
+          }
+        }
+      }
+    },
     "Zoomed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2220,6 +3273,21 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已放大"
+          }
+        }
+      }
+    },
+    "herdr" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "herdr Path" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr 路徑"
           }
         }
       }
@@ -2246,6 +3314,28 @@
         }
       }
     },
+    "herdr isn’t installed on this host, or it isn’t at the herdr path." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機沒有安裝 herdr,或 herdr 不在設定的 herdr 路徑。"
+          }
+        }
+      }
+    },
+    "herdr isn’t running in this session on the host. Start herdr on the host, then test again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上的這個 session 沒有在執行 herdr。請在主機上啟動 herdr 後再測試一次。"
+          }
+        }
+      }
+    },
     "herdr on Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2267,6 +3357,10 @@
           }
         }
       }
+    },
+    "my-mac or 100.64.0.1" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
     },
     "•" : {
       "extractionState" : "manual",

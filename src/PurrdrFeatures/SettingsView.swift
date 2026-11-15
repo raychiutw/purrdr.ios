@@ -32,12 +32,12 @@ public struct SettingsView: View {
                 }
 
                 Section {
-                    Toggle("Return to Send", isOn: $model.returnSends)
+                    Toggle("Return Key Sends", isOn: $model.returnSends)
                         .accessibilityIdentifier("settings.returnSends")
                 } header: {
-                    Text("Chat")
+                    Text("Hardware Keyboard")
                 } footer: {
-                    Text("With a hardware keyboard, Return sends your message. Turn this off to make Return start a new line; Command-Return always sends.")
+                    Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
                 }
 
                 Section {

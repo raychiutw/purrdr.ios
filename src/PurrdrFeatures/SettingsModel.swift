@@ -70,21 +70,21 @@ public final class SettingsModel {
     public private(set) var copiedDiagnostics = false
 
     /// 接實體鍵盤時 Return 是否送出(預設開;關掉時 Return 換行、Command-Return 送出)。#2 故事 50。
+    /// 存在輸入列(`ComposerBar` 的 `@AppStorage`)讀的同一個 key。
     public var returnSends: Bool {
-        didSet { defaults.set(returnSends, forKey: Self.returnSendsKey) }
+        didSet { defaults.set(returnSends, forKey: ComposerSettings.returnSendsKey) }
     }
 
-    public static let returnSendsKey = "returnSends"
-
     private let app: AppInfo
-    private let client: HerdrClient?
+    /// 目前選取主機的 client(沒有主機時 `nil`)。每次讀版本都重新取，換主機後重開設定就是新主機。
+    private let client: @MainActor () -> HerdrClient?
     private let hostCount: @MainActor () -> Int
     private let defaults: UserDefaults
     private let platform: any PlatformServices
     private let links: SettingsLinks
 
     public init(
-        app: AppInfo, client: HerdrClient?, hostCount: @escaping @MainActor () -> Int, defaults: UserDefaults,
+        app: AppInfo, client: @escaping @MainActor () -> HerdrClient?, hostCount: @escaping @MainActor () -> Int, defaults: UserDefaults,
         platform: any PlatformServices, links: SettingsLinks
     ) {
         self.app = app
@@ -93,15 +93,15 @@ public final class SettingsModel {
         self.defaults = defaults
         self.platform = platform
         self.links = links
-        herdrVersion = client == nil ? .noHost : .loading
-        returnSends = defaults.object(forKey: Self.returnSendsKey) as? Bool ?? true
+        herdrVersion = .loading
+        returnSends = defaults.object(forKey: ComposerSettings.returnSendsKey) as? Bool ?? true
     }
 
     public var appVersionText: String { "\(app.version) (\(app.build))" }
 
     /// 讀主機回報的 herdr 版本(snapshot 的 `version`,即執行中伺服器的版本)。
     public func load() async {
-        guard let client else {
+        guard let client = client() else {
             herdrVersion = .noHost
             return
         }

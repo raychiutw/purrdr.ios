@@ -18,9 +18,9 @@ final class SettingsUITests: XCTestCase {
         let herdrVersion = element("settings.herdrVersion", in: app)
         scrollTo(herdrVersion, in: app)
         // Demo 主機回報 herdr 0.9.5。
-        XCTAssertTrue(
-            app.staticTexts["0.9.5"].waitForExistence(timeout: 10), "沒有顯示主機的 herdr 版本"
-        )
+        let version = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", "0.9.5", "0.9.5")).firstMatch
+        XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有顯示主機的 herdr 版本")
         XCTAssertTrue(element("settings.version", in: app).exists)
         XCTAssertTrue(element("settings.privacy", in: app).exists)
         // 外觀跟隨系統：沒有深淺色設定。

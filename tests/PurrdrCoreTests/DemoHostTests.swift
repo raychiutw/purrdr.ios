@@ -84,6 +84,48 @@ struct DemoHostTests {
         try await HerdrClient(channel: DemoHost()).reportPresence(paneID: "w1:p1", model: "Opus 5.5", seq: 1)
     }
 
+    @Test("送出 prompt:Demo 的閒置 agent 收下，對話紀錄接著出現使用者那一行與 agent 的回覆")
+    func promptAppendsToDemoTranscript() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+
+        let outcome = await PromptDelivery(client: client).send("Also add a header row?", to: try #require(try await client.snapshot().agents.first))
+
+        #expect(outcome == .delivered)
+        guard case .appended(let chunk) = try await reader.tail(path: before.path, from: before.size) else {
+            Issue.record("對話紀錄應接上新的行")
+            return
+        }
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        guard case .user(let bubble) = items.first else {
+            Issue.record("第一則應是使用者訊息")
+            return
+        }
+        #expect(bubble.text == "Also add a header row?")
+        #expect(items.count == 2)
+        // 新的大小之後，游標再讀就沒有新內容;重新開啟也讀得到。
+        let after = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        #expect(after.size == chunk.end)
+        #expect(try await reader.tail(path: after.path, from: after.size) == .unchanged)
+        let window = try await reader.window(path: after.path, endingAt: after.size, lines: 300)
+        #expect(window.end == after.size)
+    }
+
+    @Test("送出 prompt:Demo 的「需要你」agent 拒絕(agent_blocked),要先回答")
+    func blockedDemoAgentNeedsAnswer() async throws {
+        let client = HerdrClient(channel: DemoHost())
+        let blocked = try #require(try await client.snapshot().agents.first { $0.status == .blocked })
+
+        #expect(await PromptDelivery(client: client).send("Go ahead", to: blocked) == .needsAnswer)
+    }
+
+    @Test("中斷:Demo 主機接受按鍵")
+    func acceptsKeys() async throws {
+        try await HerdrClient(channel: DemoHost()).sendKeys(paneID: "w3:p1", keys: ["esc"])
+    }
+
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")
     func unknownCommandExitsWith127() async throws {
         let session = try await DemoHost().execute("nonexistent-tool --flag")
@@ -161,5 +203,41 @@ struct DemoHostTests {
         var events: [PaneTerminalEvent] = []
         for await event in connection.events { events.append(event) }
         #expect(events == [.closed(.notFound)])
+    }
+
+    /// 行為規格 F21:Demo 的 Claude 聊天有已完成的 subagent 與執行中的 workflow,走正式的定位與讀取指令。
+    @Test("Demo 的 subagent 與 workflow:卡片、依呼叫 id 找到的 subagent 對話紀錄、執行中的 journal 與其中 agent 的對話紀錄")
+    func demoDelegations() async throws {
+        let host = DemoHost()
+        let reader = TranscriptReader(channel: host)
+        let file = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000002", cwd: "/Users/demo/weather-app")
+        let chunk = try await reader.window(path: file.path, endingAt: file.size, lines: 300)
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        let subagent = try #require(items.lazy.compactMap { item -> SubagentCard? in if case .subagent(let card) = item { card } else { nil } }.first)
+        let workflow = try #require(items.lazy.compactMap { item -> WorkflowCard? in if case .workflow(let card) = item { card } else { nil } }.first)
+        #expect(subagent.status == .completed)
+        #expect(workflow.status == .running)
+        #expect(workflow.name == "forecast-audit")
+
+        let folder = ClaudeTranscript.sessionFolder(ofTranscript: file.path)
+        let callID = try #require(subagent.callID)
+        let path = try await reader.locateSubagent(sessionFolder: folder, callID: callID)
+        let size = try await reader.size(path: path)
+        let subagentChunk = try await reader.window(path: path, endingAt: size, lines: 300)
+        #expect(!Conversation.items(from: subagentChunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)), showSidechain: true).isEmpty)
+
+        let runID = try #require(workflow.runID)
+        guard case .journal(let checksum, let lines) = try await reader.readWorkflow(sessionFolder: folder, runID: runID, knownChecksum: nil) else {
+            Issue.record("執行中應讀到 journal")
+            return
+        }
+        let run = WorkflowRun.parse(journal: lines)
+        #expect(run.phases.count == 2)
+        #expect(try await reader.readWorkflow(sessionFolder: folder, runID: "wf_demo01", knownChecksum: checksum) == .unchanged)
+
+        let agentID = try #require(run.agents.first?.agentID)
+        let agentPath = try #require(ClaudeTranscript.workflowAgentTranscript(sessionFolder: folder, runID: "wf_demo01", agentID: agentID))
+        let agentSize = try await reader.size(path: agentPath)
+        #expect(try await reader.window(path: agentPath, endingAt: agentSize, lines: 300).lines.isEmpty == false)
     }
 }

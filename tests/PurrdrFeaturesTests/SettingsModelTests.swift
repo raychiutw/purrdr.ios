@@ -26,7 +26,7 @@ struct SettingsModelTests {
         appStoreID: String = "6740000000"
     ) -> SettingsModel {
         SettingsModel(
-            app: app, client: host.map { HerdrClient(channel: $0) }, hostCount: { hostCount }, defaults: defaults,
+            app: app, client: { host.map { HerdrClient(channel: $0) } }, hostCount: { hostCount }, defaults: defaults,
             platform: platform, links: SettingsLinks(
                 appStoreID: appStoreID,
                 support: URL(string: "https://example.com/support")!,
@@ -167,7 +167,7 @@ struct SettingsModelTests {
 
     // MARK: - 偏好
 
-    @Test("Return 送出預設開，改了會存在本機")
+    @Test("Return 送出預設開，改了存在輸入列讀的同一個 key")
     func returnSendsDefaultsOnAndPersists() {
         let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
         let model = Self.model(defaults: defaults)
@@ -175,7 +175,36 @@ struct SettingsModelTests {
 
         model.returnSends = false
 
+        #expect(defaults.object(forKey: ComposerSettings.returnSendsKey) as? Bool == false)
         #expect(Self.model(defaults: defaults).returnSends == false)
+    }
+
+    @Test("每次讀版本都用當下選取的主機(換主機後重讀)")
+    func herdrVersionFollowsSelectedHost() async {
+        let first = FakeHost()
+        await first.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        let second = FakeHost()
+        await second.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson") { response in
+            // 改動：第二台主機回報較新的版本。
+            var result = response["result"] as! [String: Any]
+            var snapshot = result["snapshot"] as! [String: Any]
+            snapshot["version"] = "0.9.6"
+            result["snapshot"] = snapshot
+            response["result"] = result
+        })
+        var current = HerdrClient(channel: first)
+        let model = SettingsModel(
+            app: Self.app, client: { current }, hostCount: { 2 },
+            defaults: UserDefaults(suiteName: "settings-\(UUID().uuidString)")!, platform: RecordingPlatform(),
+            links: SettingsLinks(appStoreID: "1", support: URL(string: "https://example.com")!, privacyPolicy: URL(string: "https://example.com")!)
+        )
+        await model.load()
+        #expect(model.herdrVersion == .reported("0.9.5"))
+
+        current = HerdrClient(channel: second)
+        await model.load()
+
+        #expect(model.herdrVersion == .reported("0.9.6"))
     }
 
     @Test("版本字顯示 app 版本與 build")

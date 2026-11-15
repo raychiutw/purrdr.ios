@@ -5,44 +5,39 @@ import SwiftUI
 /// 不採 tab bar。導覽層只在這裡;Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
     let navigation: TopNavigationModel
-    let agentList: AgentListModel
+    let hosts: HostsModel
     let member: MemberModel
     let settings: SettingsModel
-    let workspaceActions: WorkspaceActionsModel
-    /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
-    let conversation: @MainActor (String, String?) -> ConversationModel
-    /// 建立某個 Pane 的終端機 model(pane id、標題)。
-    let terminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
-    public init(
-        navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel, settings: SettingsModel,
-        workspaceActions: WorkspaceActionsModel,
-        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
-        terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
-    ) {
+    public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, settings: SettingsModel) {
         self.navigation = navigation
-        self.agentList = agentList
+        self.hosts = hosts
         self.member = member
         self.settings = settings
-        self.workspaceActions = workspaceActions
-        self.conversation = conversation
-        self.terminal = terminal
     }
 
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
-            AgentListView(model: agentList, actions: workspaceActions, conversation: conversation, terminal: terminal)
+            // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
+            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions) { paneID, sessionID in
+                hosts.conversation(paneID: paneID, sessionID: sessionID)
+            } terminal: { paneID, title in
+                hosts.terminal(paneID: paneID, title: title)
+            }
+            .id(hosts.selection)
                 .toolbar { toolbar }
         }
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
+            case .hosts:
+                HostListView(model: hosts)
             case .settings:
                 SettingsView(model: settings, member: member) { navigation.sheet = nil }
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member)
-            default:
+            case .newChat:
                 TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
             }
         }
@@ -75,7 +70,7 @@ public struct TopNavigationView: View {
     }
 }
 
-/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(主機 #10)。
+/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(新增對話)。
 struct TopLevelSheetView: View {
     let sheet: TopLevelSheet
     let done: () -> Void

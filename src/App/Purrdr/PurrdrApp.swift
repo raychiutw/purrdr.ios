@@ -4,53 +4,47 @@ import PurrdrDemo
 import PurrdrFeatures
 import SwiftUI
 
-/// 唯一的 composition root:組裝主機通道、Purrdr 後台與畫面 model。
+/// 唯一的 composition root:組裝主機儲存、主機通道、Purrdr 後台與畫面 model。
 ///
-/// 真 SSH 還沒做(之後的票),目前唯一的主機是 Demo 主機。UI 測試以 `-uiTesting` 啟動，
-/// 一律只用 Demo 主機、不連網路;之後加入真主機時，`-uiTesting` 仍要維持這個保證。
+/// 已存的主機經真 SSH(swift-nio-ssh)連線;沒有主機時用 Demo 主機。UI 測試以 `-uiTesting` 啟動，
+/// 一律只用 Demo 主機：主機存在記憶體、不碰 Keychain,任何主機的通道也都是 Demo 主機，不連網路。
 @main
 struct PurrdrApp: App {
-    private let agentList: AgentListModel
-    private let terminals: PaneTerminalClient
-    private let workspaceActions: WorkspaceActionsModel
+    @State private var hosts: HostsModel
     private let navigation = TopNavigationModel()
     private let member: MemberModel
     private let settings: SettingsModel
-    private let client: HerdrClient
-    private let transcripts: TranscriptReader
-    /// 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
-    private let conversationCache = InMemoryConversationCache()
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         let uiTesting = arguments.contains("-uiTesting")
         // UI 測試情境：桌機正在操作 Demo 的 Pane。
         let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
-        let channel: any HostChannel = DemoHost(scenario: scenario)
-        let client = HerdrClient(channel: channel)
-        let transcripts = TranscriptReader(channel: channel)
-        let agentList = AgentListModel(client: client, transcripts: transcripts)
+        let demo = DemoHost(scenario: scenario)
+        // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
+        let cache = InMemoryConversationCache()
         // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
         let preferences: any ChatPreferencesStore = uiTesting
             ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
-        self.client = client
-        self.transcripts = transcripts
-        self.agentList = agentList
-        terminals = PaneTerminalClient(channel: channel)
-        workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
+        let hosts: HostsModel
+        if uiTesting {
+            hosts = HostsModel(
+                store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                makeChannel: { _, _ in demo })
+        } else {
+            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences) {
+                endpoint, pin in
+                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+            }
+        }
+        hosts.load()
+        _hosts = State(initialValue: hosts)
         member = Self.makeMember(uiTesting: uiTesting)
-        settings = Self.makeSettings(client: client, uiTesting: uiTesting)
+        settings = Self.makeSettings(hosts: hosts)
     }
 
-    /// 設定頁。UI 測試用獨立的 UserDefaults suite,每次啟動清空，不讀寫這台模擬器的偏好。
-    private static func makeSettings(client: HerdrClient, uiTesting: Bool) -> SettingsModel {
-        let defaults: UserDefaults
-        if uiTesting, let suite = UserDefaults(suiteName: "purrdr.uiTesting") {
-            suite.removePersistentDomain(forName: "purrdr.uiTesting")
-            defaults = suite
-        } else {
-            defaults = .standard
-        }
+    /// 設定頁。偏好存在 `UserDefaults.standard`(輸入列的 `@AppStorage` 讀同一個 key)。
+    private static func makeSettings(hosts: HostsModel) -> SettingsModel {
         let info = Bundle.main.infoDictionary ?? [:]
         let system = ProcessInfo.processInfo.operatingSystemVersion
         let app = AppInfo(
@@ -61,8 +55,8 @@ struct PurrdrApp: App {
             device: UIDevice.current.model
         )
         return SettingsModel(
-            // 目前唯一的主機是 Demo 主機，不算在主機數裡(真主機清單在之後的票)。
-            app: app, client: client, hostCount: { 0 }, defaults: defaults,
+            // 選取中的主機(沒有已存主機時是 Demo 主機);主機數只算已存的主機，不含 Demo。
+            app: app, client: { hosts.herdrClient }, hostCount: { hosts.hosts.count }, defaults: .standard,
             platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks
         )
     }
@@ -79,16 +73,7 @@ struct PurrdrApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TopNavigationView(
-                navigation: navigation, agentList: agentList, member: member, settings: settings,
-                workspaceActions: workspaceActions
-            ) { paneID, sessionID in
-                ConversationModel(
-                    client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
-                )
-            } terminal: { [terminals] paneID, title in
-                PaneTerminalModel(client: terminals, paneID: paneID, title: title)
-            }
+            TopNavigationView(navigation: navigation, hosts: hosts, member: member, settings: settings)
         }
     }
 }
