@@ -269,6 +269,12 @@ private struct WireAgent: Decodable {
     var title: String?
     var inputPending: Bool?
     var cwd: String?
+    var agentSession: WireSession?
+
+    struct WireSession: Decodable {
+        var kind: String?
+        var value: String?
+    }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
@@ -280,6 +286,7 @@ private struct WireAgent: Decodable {
         case title
         case inputPending = "input_pending"
         case cwd
+        case agentSession = "agent_session"
     }
 
     func agent(workspaceLabel: String?) -> Agent {
@@ -293,7 +300,11 @@ private struct WireAgent: Decodable {
             sessionTitle: title.nonEmpty,
             inputPending: inputPending ?? false,
             workspaceLabel: workspaceLabel.nonEmpty,
-            cwd: cwd.nonEmpty
+            cwd: cwd.nonEmpty,
+            session: agentSession.flatMap { wire in
+                guard let kind = wire.kind, let value = wire.value else { return nil }
+                return AgentSessionReference(kind: kind, value: value)
+            }
         )
     }
 }

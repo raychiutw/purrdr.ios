@@ -31,11 +31,14 @@ struct HerdrClientTests {
         #expect(snapshot.version == "0.9.5")
         #expect(snapshot.agents == [
             Agent(paneID: "w1:p6", workspaceID: "w1", kind: "claude", status: .idle,
-                  terminalTitle: "整理植物照片的標籤", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/garden-journal"),
+                  terminalTitle: "整理植物照片的標籤", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/garden-journal",
+                  session: AgentSessionReference(kind: "id", value: "00000000-0000-0000-0000-000000000001")),
             Agent(paneID: "w1:pA", workspaceID: "w1", kind: "claude", status: .working,
-                  terminalTitle: "規劃天氣小工具", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects"),
+                  terminalTitle: "規劃天氣小工具", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects",
+                  session: AgentSessionReference(kind: "id", value: "00000000-0000-0000-0000-000000000002")),
             Agent(paneID: "w1:pB", workspaceID: "w1", kind: "claude", status: .working,
-                  terminalTitle: "重構食譜匯入", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/recipe-box"),
+                  terminalTitle: "重構食譜匯入", workspaceLabel: "garden-journal", cwd: "/Users/demo/Projects/recipe-box",
+                  session: AgentSessionReference(kind: "id", value: "00000000-0000-0000-0000-000000000003")),
         ])
     }
 

@@ -18,9 +18,11 @@ struct DemoHostTests {
         ])
         #expect(snapshot.agents == [
             Agent(paneID: "w1:p1", workspaceID: "w1", kind: "claude", status: .done,
-                  terminalTitle: "Tidy up the CSV export", workspaceLabel: "ledger", cwd: "/Users/demo/ledger"),
+                  terminalTitle: "Tidy up the CSV export", workspaceLabel: "ledger", cwd: "/Users/demo/ledger",
+                  session: AgentSessionReference(kind: "id", value: "d3m0d3m0-0000-4000-8000-000000000001")),
             Agent(paneID: "w2:p1", workspaceID: "w2", kind: "claude", status: .blocked,
-                  terminalTitle: "Cache the hourly forecast", workspaceLabel: "weather-app", cwd: "/Users/demo/weather-app"),
+                  terminalTitle: "Cache the hourly forecast", workspaceLabel: "weather-app", cwd: "/Users/demo/weather-app",
+                  session: AgentSessionReference(kind: "id", value: "d3m0d3m0-0000-4000-8000-000000000002")),
             Agent(paneID: "w3:p1", workspaceID: "w3", kind: "codex", status: .working,
                   terminalTitle: "Sync notes to Markdown | notes", workspaceLabel: "notes", cwd: "/Users/demo/notes"),
         ])
