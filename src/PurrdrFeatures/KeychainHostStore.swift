@@ -37,7 +37,7 @@ public struct SystemKeychain: KeychainAPI {
 extension KeychainError: LocalizedError {
     public var errorDescription: String? {
         let detail = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
-        return "Keychain error: \(detail)"
+        return String(localized: "Keychain error: \(detail)")
     }
 }
 

@@ -7,13 +7,17 @@ public struct TopNavigationView: View {
     let navigation: TopNavigationModel
     let hosts: HostsModel
     let member: MemberModel
+    let settings: SettingsModel
     /// Purrdr Plus(#28);`nil` 時選單不顯示。
     let plus: SubscriptionModel?
 
-    public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, plus: SubscriptionModel? = nil) {
+    public init(
+        navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil
+    ) {
         self.navigation = navigation
         self.hosts = hosts
         self.member = member
+        self.settings = settings
         self.plus = plus
     }
 
@@ -33,6 +37,8 @@ public struct TopNavigationView: View {
             switch sheet {
             case .hosts:
                 HostListView(model: hosts)
+            case .settings:
+                SettingsView(model: settings, member: member, plus: plus) { navigation.sheet = nil }
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member, plus: plus)
@@ -40,7 +46,7 @@ public struct TopNavigationView: View {
                 if let plus {
                     PlusSheet(model: plus, member: member)
                 }
-            case .settings, .newChat:
+            case .newChat:
                 TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
             }
         }
@@ -79,7 +85,7 @@ public struct TopNavigationView: View {
     }
 }
 
-/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(設定 #32)。
+/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(新增對話)。
 struct TopLevelSheetView: View {
     let sheet: TopLevelSheet
     let done: () -> Void
@@ -98,14 +104,8 @@ struct TopLevelSheetView: View {
         }
     }
 
-    @ViewBuilder
     private var placeholder: some View {
-        switch sheet {
-        case .settings:
-            SettingsForm()
-        case .hosts, .newChat, .member, .plus:
-            ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
-        }
+        ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
     }
 }
 
@@ -127,31 +127,6 @@ extension TopLevelSheet {
         case .newChat: "plus.bubble"
         case .member: "person.crop.circle"
         case .plus: "bell.badge"
-        }
-    }
-}
-
-/// 設定(目前只有硬體鍵盤;完整設定頁在 #32)。
-struct SettingsForm: View {
-    @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
-    @AppStorage(HapticSettings.enabledKey) private var haptics = true
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Return Key Sends", isOn: $returnSends)
-                    .accessibilityIdentifier("settings.returnSends")
-            } header: {
-                Text("Hardware Keyboard")
-            } footer: {
-                Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
-            }
-            Section {
-                Toggle("Haptics", isOn: $haptics)
-                    .accessibilityIdentifier("settings.haptics")
-            } footer: {
-                Text("Feel a tap when you answer an agent, and whether the answer arrived.")
-            }
         }
     }
 }

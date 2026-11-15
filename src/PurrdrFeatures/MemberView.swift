@@ -18,11 +18,7 @@ public struct MemberView: View {
 
     public var body: some View {
         NavigationStack {
-            content
-                .navigationTitle("Purrdr Member")
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
+            MemberContent(model: model, plus: plus)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -30,6 +26,26 @@ public struct MemberView: View {
                     }
                 }
         }
+    }
+}
+
+/// 會員畫面的內容(不含 NavigationStack 與「完成」):設定頁在自己的 sheet 裡 push 這個畫面(#32)。
+public struct MemberContent: View {
+    @Bindable var model: MemberModel
+    /// 已登入時顯示 Purrdr Plus 的狀態與入口;`nil` 時不顯示。
+    let plus: SubscriptionModel?
+
+    public init(model: MemberModel, plus: SubscriptionModel? = nil) {
+        self.model = model
+        self.plus = plus
+    }
+
+    public var body: some View {
+        content
+            .navigationTitle("Purrdr Member")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
         .task {
             if model.phase == .unknown { await model.restore() }
         }
@@ -268,7 +284,7 @@ struct AccountView: View {
 extension SignInMethod {
     var displayName: String {
         switch self {
-        case .apple: "Sign in with Apple"
+        case .apple: String(localized: "Sign in with Apple")
         case .google: "Google"
         }
     }

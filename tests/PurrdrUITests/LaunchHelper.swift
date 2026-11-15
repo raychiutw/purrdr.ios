@@ -16,7 +16,9 @@ extension XCUIApplication {
     @MainActor
     static func uiTesting(flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTesting"] + flags
+        // 介面語言固定英文(斷言用英文字);模擬器系統語言可能是繁中。要測繁中時在 flags 帶 `-AppleLanguages`。
+        let language = flags.contains("-AppleLanguages") ? [] : ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launchArguments = ["-uiTesting"] + flags + language
             + (contentSize.map { ["-UIPreferredContentSizeCategoryName", $0] } ?? [])
         return app
     }

@@ -57,6 +57,7 @@ jobs:
           -derivedDataPath .derivedData/package
           -resultBundlePath .derivedData/package/Package.xcresult
           -skipPackagePluginValidation
+          SWIFT_EMIT_LOC_STRINGS=YES
 
       - name: 檢查 package 零 warning
         run: |
@@ -65,6 +66,10 @@ jobs:
           echo "warningCount=$warnings"
           jq -r '.warnings[]? | "::warning::\(.message)"' package-results.json
           test "$warnings" -eq 0
+
+      # 畫面字串(編譯器抽出)都在 String Catalog 且有繁體中文(#32)。用上一步的 derivedData,不另外建置。
+      - name: 檢查 String Catalog
+        run: scripts/strings.sh check .derivedData/package
 
   # Purrdr 後台(backend/):Workers 本機測試環境(@cloudflare/vitest-plugin + 本機 D1),不連 Cloudflare、不部署。
   backend:
