@@ -4,17 +4,35 @@ import SwiftUI
 /// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「需要你／工作中／閒置」分 section。
 public struct AgentListView: View {
     let model: AgentListModel
+    let member: MemberModel
+    @State private var showingMember = false
 
-    public init(model: AgentListModel) {
+    public init(model: AgentListModel, member: MemberModel) {
         self.model = model
+        self.member = member
     }
 
     public var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Agents")
+                .toolbar {
+                    // 之後設定頁做好後，會員入口移進「⋯」選單的「設定」(#37)。
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            Button("Member", systemImage: "person.crop.circle") { showingMember = true }
+                                .accessibilityIdentifier("menu.member")
+                        } label: {
+                            Label("More", systemImage: "ellipsis")
+                        }
+                        .accessibilityIdentifier("agentList.more")
+                    }
+                }
         }
         .task { await model.load() }
+        .sheet(isPresented: $showingMember) {
+            MemberView(model: member)
+        }
     }
 
     @ViewBuilder
