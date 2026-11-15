@@ -73,6 +73,12 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 內容(指令、路徑、問題)是自己寫的範例。測試用 `PaneScreens.read(_:)` 把它放進錄製的 `pane.read` envelope。
 真機第一次看到 blocked 畫面時，以唯讀的 `pane.read` 讀下來去識別化，換掉對應的檔案。
 
+`screens/*-panel-*.txt` 是 slash 指令開出的面板(#45,`/model`、effort 滑桿、「Switch model?」確認、Codex 的模型面板),
+同樣**依行為規格 §5.6 手寫**:2026-11-16 以唯讀 `pane.read` 看過作者主機上所有 Claude pane,都沒有開著的面板;
+為了錄製而送 `/model` 會改到真的 agent,所以不錄。形狀:Claude 以 `▔` 分隔、`Esc to …` 提示行(` · ` 分隔動作)、
+`✔` 目前值、`▲` 滑桿下一行是層級名、`←/→ to adjust`;Codex 以 `Press enter to confirm or esc to go back` 頁尾、`(current)`。
+真機看到面板時，以唯讀 `pane.read` 讀下來去識別化後替換。
+
 ## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
 
 `tailscale/check-mode.banner.txt`:Tailscale SSH 在 check mode 時送出的 SSH 認證橫幅。**不是錄製的**:作者的 Mac 無法經 Tailscale SSH 連自己，也不變更作者的 ACL。

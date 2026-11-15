@@ -388,9 +388,10 @@ public enum BlockedPromptParser {
     }
 }
 
-private extension String {
+extension String {
     var leadingSpaces: Int { prefix { $0 == " " }.count }
 
+    /// 去掉行尾空白(畫面解析共用)。
     func trimmingTrailingWhitespace() -> String {
         var result = self
         while let last = result.last, last == " " { result.removeLast() }

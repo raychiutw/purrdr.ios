@@ -484,6 +484,17 @@
         }
       }
     },
+    "Argument: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "參數:%@"
+          }
+        }
+      }
+    },
     "As of %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1364,6 +1375,17 @@
         }
       }
     },
+    "Couldn’t send the keys to the host. Check the panel in the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法把按鍵送到主機。請到終端機查看面板。"
+          }
+        }
+      }
+    },
     "Couldn’t send: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1448,6 +1470,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建立中…"
+          }
+        }
+      }
+    },
+    "Current" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前使用中"
+          }
+        }
+      }
+    },
+    "Decrease" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "減少"
           }
         }
       }
@@ -2035,6 +2079,17 @@
         }
       }
     },
+    "Increase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增加"
+          }
+        }
+      }
+    },
     "Install" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2163,6 +2218,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向左鍵"
+          }
+        }
+      }
+    },
+    "Level" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "層級"
           }
         }
       }
@@ -2350,6 +2416,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有不只一份對話紀錄符合這段對話的 session,因此都不顯示。"
+          }
+        }
+      }
+    },
+    "Moves the panel’s selection to this option." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把面板的選取移到這個選項。"
           }
         }
       }

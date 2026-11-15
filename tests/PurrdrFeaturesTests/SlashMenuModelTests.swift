@@ -39,26 +39,42 @@ struct SlashMenuModelTests {
         #expect(menu.isVisible)
     }
 
-    @Test("搜尋：名稱或說明包含輸入的字(不分大小寫),保留分組、空的分組拿掉")
-    func searchFiltersWithinSections() async {
-        let menu = Self.menu()
+    @Test("輸入名稱後改成單一排名清單：名稱開頭 > 名稱包含 > 說明包含;同級依分組與原順序")
+    func searchRanksSingleList() async {
+        let menu = SlashMenuModel(loader: {
+            SlashCatalog(sections: [
+                SlashSection(source: .builtIn, commands: [
+                    SlashCommand(name: "clear", summary: "Clear the conversation history"),
+                    SlashCommand(name: "model", argumentHint: "[model]", summary: "Choose the model"),
+                    SlashCommand(name: "review", summary: "Review a pull request"),
+                ]),
+                SlashSection(source: .plugin("kit"), commands: [
+                    SlashCommand(name: "kit:pre-review", summary: "Prepare a diff"),
+                    SlashCommand(name: "kit:audit", summary: "Ask for a review of the plan"),
+                    SlashCommand(name: "kit:revise", summary: "Revise the draft"),
+                ]),
+            ], isComplete: true)
+        })
         menu.update(draft: "/")
         await menu.load()
-        menu.update(draft: "/TDD")
-        #expect(menu.sections == [SlashSection(source: .plugin("mattpocock-skills"), commands: [
-            SlashCommand(name: "mattpocock-skills:tdd", summary: "Test-driven development"),
-        ])])
+        #expect(menu.ranked == nil)
+        #expect(menu.sections.map(\.source) == [.builtIn, .plugin("kit")])
+
+        menu.update(draft: "/REV")
+        // 名稱開頭:review、kit:revise 不算(開頭是 kit:)→ 名稱包含：kit:pre-review、kit:revise → 說明包含:kit:audit。
+        #expect(menu.ranked?.map(\.name) == ["review", "kit:pre-review", "kit:revise", "kit:audit"])
+        #expect(menu.highlighted == "review")
         menu.update(draft: "/history")
-        #expect(menu.sections.flatMap(\.commands).map(\.name) == ["clear"])
+        #expect(menu.ranked?.map(\.name) == ["clear"])
         menu.update(draft: "/zzz")
-        #expect(menu.sections.isEmpty)
+        #expect(menu.ranked == [])
     }
 
-    @Test("鍵盤上下移動高亮(停在頭尾),Return 選取：草稿變成 `/名稱 `、選單收起")
+    @Test("鍵盤上下移動高亮(停在頭尾),Return 選取高亮的指令")
     func keyboardSelection() async {
         let menu = Self.menu()
         var picked: String?
-        menu.onPick = { picked = $0 }
+        menu.onPick = { picked = $0.name }
         menu.update(draft: "/")
         await menu.load()
         #expect(menu.highlighted == "clear")
@@ -71,7 +87,7 @@ struct SlashMenuModelTests {
         menu.handle(.down)
         #expect(menu.highlighted == "mattpocock-skills:tdd")
         #expect(menu.handle(.select) == true)
-        #expect(picked == "/mattpocock-skills:tdd ")
+        #expect(picked == "mattpocock-skills:tdd")
     }
 
     @Test("搜尋改變時高亮回到第一個符合的;選單沒出現時不攔按鍵")

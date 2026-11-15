@@ -137,11 +137,12 @@ public actor DemoHost: HostChannel {
         }
         switch target {
         case "w1:p1", "w2:p1", "w3:p1":
-            if let session = DemoTranscripts.sessions.first(where: { $0.paneID == target }) {
+            // 開面板的 slash 指令(`/model`)不寫進對話紀錄(Claude 的本地指令)。
+            if !answers.receivedPrompt(text, paneID: target),
+               let session = DemoTranscripts.sessions.first(where: { $0.paneID == target }) {
                 prompts += 1
                 appended[session.sessionID, default: []] += DemoTranscripts.reply(to: text, number: prompts, at: Date())
             }
-            answers.receivedPrompt(text, paneID: target)
             return DemoSnapshot.prompted(id: id, paneID: target)
         default:
             return DemoSnapshot.error(id: id, code: "agent_not_found", message: "agent not found: \(target)")

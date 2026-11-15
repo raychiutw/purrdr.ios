@@ -75,7 +75,7 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil && !model.showsWorkingIndicator {
+        if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             placeholder
         } else {
             messages
@@ -104,6 +104,11 @@ public struct ConversationView: View {
                 // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
                 BlockedPromptView(model: model)
                     .id("prompt")
+                // slash 指令開出的面板(#45):對 herdr 不可見，從畫面讀出後以原生卡片顯示。
+                if let panel = model.panel {
+                    SlashPanelCard(model: model, panel: panel)
+                        .id("panel")
+                }
                 // 工作中指示在列表最底下;agent 停止工作就消失(F5.11)。
                 if model.showsWorkingIndicator, let since = model.workingSince {
                     WorkingIndicatorView(since: since, preview: model.livePreview)
@@ -145,6 +150,9 @@ public struct ConversationView: View {
         }
         .onChange(of: model.prompt?.signature) {
             if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation { position.scrollTo(edge: .bottom) } }
+        }
+        .onChange(of: model.panel == nil) {
+            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation { position.scrollTo(edge: .bottom) } }
         }
         .onChange(of: model.echoes.count) { old, new in
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
