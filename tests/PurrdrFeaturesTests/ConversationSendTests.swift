@@ -187,7 +187,8 @@ struct ConversationSendTests {
         #expect(setup.model.notice == .unconfirmed(.connectionLost))
         #expect(await Self.promptRequests(setup).count == 1)
 
-        // 連點兩次重試：同一則訊息同時只能有一個重試在途(#100)。
+        // 連點兩次重試：同一則訊息同時只能有一個重試在途(#100)。這次主機有回應，期限不再先到。
+        await sleeper.stopFiring()
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
         await setup.host.bridge.expect(Self.bridge, reply: Self.delivered)
         async let first: Void = setup.model.retry(echoID: echo.id)

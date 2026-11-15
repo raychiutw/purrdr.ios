@@ -6,7 +6,7 @@ import Foundation
 /// (期限還沒到，讓主機的回應先到)。
 public actor RecordingSleeper {
     public private(set) var requested: [Duration] = []
-    private let fires: @Sendable (Duration) -> Bool
+    private var fires: @Sendable (Duration) -> Bool
 
     public init(fires: @escaping @Sendable (Duration) -> Bool = { _ in false }) {
         self.fires = fires
@@ -15,6 +15,11 @@ public actor RecordingSleeper {
     /// 給被測物注入的 closure。
     public nonisolated var sleep: @Sendable (Duration) async throws -> Void {
         { duration in try await self.wait(duration) }
+    }
+
+    /// 之後的等待一律不再立刻結束(例如第一次送出期限到之後，重試要等主機回應)。
+    public func stopFiring() {
+        fires = { _ in false }
     }
 
     private func wait(_ duration: Duration) async throws {

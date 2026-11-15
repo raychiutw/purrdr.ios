@@ -7,13 +7,25 @@ import SwiftUI
 /// app 在前景時，新的「需要你」只出現在列表裡，這個畫面不發任何系統通知。
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
+    let actions: WorkspaceActionsModel
+    @State private var presentation = WorkspacePresentation()
+    /// 從版面圖選了 Agent 之後要開的聊天(pane id)。
+    @State private var openedChat: String?
     @Environment(\.scenePhase) private var scenePhase
     /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (String, String?) -> ConversationModel
+    /// 建立某個 Pane 的終端機 model(pane id、標題)。由 composition root 提供。
+    private let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
-    public init(model: AgentListModel, conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel) {
+    public init(
+        model: AgentListModel, actions: WorkspaceActionsModel,
+        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
+        terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
+    ) {
         self.model = model
+        self.actions = actions
         self.makeConversation = conversation
+        self.makeTerminal = terminal
     }
 
     /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
@@ -21,7 +33,10 @@ public struct AgentListView: View {
         content
             .navigationTitle("Agents")
             .navigationDestination(for: String.self) { paneID in
-                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)))
+                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
+            }
+            .navigationDestination(item: $openedChat) { paneID in
+                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
             }
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
@@ -61,6 +76,10 @@ public struct AgentListView: View {
                     ForEach(section.rows) { row in
                         NavigationLink(value: row.id) { AgentRowView(row: row) }
                             .accessibilityIdentifier("agent.row.\(row.id)")
+                            .workspaceRowActions(
+                                WorkspaceRowContext(paneID: row.id, snapshot: model.snapshot),
+                                actions: actions, presentation: presentation, snapshot: model.snapshot
+                            )
                     }
                 }
             }
@@ -86,6 +105,10 @@ public struct AgentListView: View {
                 )
             }
         }
+        // 版面圖選的 Pane:聊天推入對話;Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
+        .workspaceActionsPresentation(actions: actions, presentation: presentation) { target in
+            if case .chat(let paneID) = target { openedChat = paneID }
+        }
         .searchable(text: $model.query, prompt: Text("Search"))
         .autocorrectionDisabled()
         #if os(iOS)
@@ -97,13 +120,31 @@ public struct AgentListView: View {
 /// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
 private struct ConversationScreen: View {
     @State private var model: ConversationModel
+    let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
+    @State private var terminal: PaneTerminalModel?
 
-    init(model: @autoclosure () -> ConversationModel) {
+    init(model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?) {
         _model = State(wrappedValue: model())
+        self.makeTerminal = makeTerminal
     }
 
     var body: some View {
         ConversationView(model: model)
+            .toolbar {
+                if let makeTerminal {
+                    // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
+                    ToolbarItem(placement: .primaryAction) {
+                        PaneTerminalButton { terminal = makeTerminal(model.paneID, model.title.isEmpty ? model.paneID : model.title) }
+                    }
+                }
+            }
+            #if canImport(UIKit)
+            .navigationDestination(isPresented: Binding(
+                get: { terminal != nil }, set: { if !$0 { terminal = nil } }
+            )) {
+                if let terminal { PaneTerminalView(model: terminal) }
+            }
+            #endif
     }
 }
 

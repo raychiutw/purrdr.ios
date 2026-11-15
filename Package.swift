@@ -25,6 +25,13 @@ let package = Package(
         .library(name: "PurrdrFeatures", targets: ["PurrdrFeatures"]),
         .library(name: "PurrdrTestSupport", targets: ["PurrdrTestSupport"]),
     ],
+    dependencies: [
+        // 終端機模擬器(MIT)。固定 1.11.2:
+        // - 1.12 起帶 Metal shader,Xcode 27 沒裝 Metal Toolchain(另外下載的元件)就編不過，本機與 CI 都要多一步;
+        // - 1.19 起再加 build-tool plugin,Xcode 建置 app 時要逐一信任 plugin。
+        // 我們只用 CoreGraphics 繪製，不需要 Metal。
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", exact: "1.11.2"),
+    ],
     targets: [
         // 可攜核心：主機通道、herdr client、領域型別。只用 Foundation(之後加 swift-nio、swift-nio-ssh、swift-crypto)。
         .target(
@@ -42,7 +49,7 @@ let package = Package(
         // SwiftUI 畫面 + 每畫面一個 @MainActor @Observable model。
         .target(
             name: "PurrdrFeatures",
-            dependencies: ["PurrdrCore"],
+            dependencies: ["PurrdrCore", .product(name: "SwiftTerm", package: "SwiftTerm")],
             path: "src/PurrdrFeatures",
             swiftSettings: strictSettings
         ),
@@ -62,7 +69,10 @@ let package = Package(
         ),
         .testTarget(
             name: "PurrdrFeaturesTests",
-            dependencies: ["PurrdrFeatures", "PurrdrCore", "PurrdrTestSupport"],
+            dependencies: [
+                "PurrdrFeatures", "PurrdrCore", "PurrdrTestSupport",
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+            ],
             path: "tests/PurrdrFeaturesTests",
             swiftSettings: strictSettings
         ),

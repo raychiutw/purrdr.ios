@@ -13,6 +13,21 @@ public enum Fixtures {
         return data
     }
 
+    /// `herdr terminal session control`／`observe` 的錄製檔(`Fixtures/herdr-<版本>/session-control/<名稱>`,#4 spike)。
+    public static func sessionControl(_ name: String, herdr version: String = defaultHerdrVersion) -> Data {
+        guard let url = Bundle.module.url(
+            forResource: name, withExtension: nil, subdirectory: "Fixtures/herdr-\(version)/session-control"
+        ), let data = try? Data(contentsOf: url) else {
+            fatalError("找不到錄製檔 Fixtures/herdr-\(version)/session-control/\(name)")
+        }
+        return data
+    }
+
+    /// 錄製檔逐行切開(不含換行)。
+    public static func sessionControlLines(_ name: String, herdr version: String = defaultHerdrVersion) -> [Data] {
+        sessionControl(name, herdr: version).split(separator: 0x0A).map { Data($0) }
+    }
+
     /// 錄製檔第一行的 JSON,經 `modify` 改動後再序列化成一行(結尾換行)。
     public static func modifiedLine(_ name: String, herdr version: String = defaultHerdrVersion, modify: (inout [String: Any]) -> Void) -> Data {
         let data = data(name, herdr: version)
