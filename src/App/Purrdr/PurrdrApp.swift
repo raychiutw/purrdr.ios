@@ -13,6 +13,8 @@ struct PurrdrApp: App {
     @State private var hosts: HostsModel
     private let navigation = TopNavigationModel()
     private let member: MemberModel
+    /// Purrdr Plus(#28)。跟會員共用同一個 `MemberSession`(同一組權杖)。
+    private let plus: SubscriptionModel
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -43,22 +45,27 @@ struct PurrdrApp: App {
         hosts.haptics = SystemHaptics()
         hosts.load()
         _hosts = State(initialValue: hosts)
-        member = Self.makeMember(uiTesting: uiTesting)
+        let session = Self.makeMemberSession(uiTesting: uiTesting)
+        member = MemberModel(
+            session: session,
+            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID))
+        )
+        // StoreKit:在 Xcode 執行時，scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品，不連 App Store。
+        // UI 測試用內容相同的替身(不連網路;命令列 xcodebuild test 不套用 StoreKit 設定檔)。
+        let store: any PlusStore = uiTesting ? UITestingPlusStore() : StoreKitPlusStore()
+        plus = SubscriptionModel(session: session, store: store)
     }
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
-    private static func makeMember(uiTesting: Bool) -> MemberModel {
+    private static func makeMemberSession(uiTesting: Bool) -> MemberSession {
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
-        return MemberModel(
-            session: MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore),
-            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID))
-        )
+        return MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore)
     }
 
     var body: some Scene {
         WindowGroup {
-            TopNavigationView(navigation: navigation, hosts: hosts, member: member)
+            TopNavigationView(navigation: navigation, hosts: hosts, member: member, plus: plus)
         }
     }
 }

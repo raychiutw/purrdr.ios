@@ -59,6 +59,7 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
 - **herdr client**:每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
 - **主機指令建構**(`HerdrCommand`):POSIX 指令前綴明確 PATH、引號用 `'"'"'`(行為規格 §3.2)。herdr 路徑與具名 session 由 `HerdrInstallation` 帶入(`--session <name>` 放在子指令前;`--version`、`update` 不帶)。Windows 的 `-EncodedCommand` 尚未實作。
 - **Purrdr 後台(會員)**:核心的 `MemberSession`(actor)管登入與權杖(更新權杖存 `TokenStore`,iOS 是 Keychain;401 自動換權杖重送一次),經 `BackendTransport` 送出;iOS 傳輸是 Features 的 `URLSessionBackendTransport`。wire format(camelCase)只在 `MemberSession.swift`,契約在 `backend/README.md`。`-uiTesting` 時權杖只放記憶體、後台指向 `backend.invalid`。app 端測試用 `HTTPStub`(URLProtocol)擋後台。
+- **訂閱(Purrdr Plus)**:StoreKit 2 在 Features 的 `StoreKitPlusStore`(`PlusStore` 協定，測試用假 store);購買帶 `appAccountToken` = 會員 ID,簽章交易(JWS)原封交給後台驗證，送到後台才 finish。`SubscriptionModel.isPlusActive` 是推播與主機同步的開關。StoreKit 設定檔 `src/App/Purrdr.storekit` 由 scheme 的 Run 指定(在 Xcode 執行時用);命令列 `xcodebuild test` 不套用它，所以 `-uiTesting` 改用 app 內容相同的替身 `UITestingPlusStore`(也保證不連網路),設定檔內容由 `StoreKitConfigurationTests` 檢查。`SKTestSession` 需要 app 宿主，`swift test` 不能用。後台的權限判定見 `backend/README.md`。
 - **DI**:只用 initializer 注入;畫面 model 由 composition root 建立後傳入。
 - **Concurrency**:核心型別是 `Sendable` value type 或 actor;畫面 model 放在 main actor。
 

@@ -33,6 +33,8 @@ public enum TopLevelSheet: String, Identifiable, Sendable {
     case newChat
     /// 會員(登入、登入方式、刪除會員,#27)。設定頁(#32)做好後可改從設定進入。
     case member
+    /// Purrdr Plus 的付費牆與訂閱摘要(#28)。
+    case plus
 
     public var id: String { rawValue }
 }
