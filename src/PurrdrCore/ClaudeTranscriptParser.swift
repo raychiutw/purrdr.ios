@@ -54,6 +54,9 @@ public enum ClaudeTranscriptParser {
                 if name == "Skill", let skill = input["skill"] as? String, !skill.isEmpty {
                     return .skill(name: skill)
                 }
+                if let delegation = delegationCall(name: name, id: block["id"] as? String, input: input) {
+                    return .delegation(delegation)
+                }
                 return .toolCall(id: block["id"] as? String, name: name, input: inputPreview(input), path: filePath(in: input))
             default:
                 return nil
@@ -81,7 +84,7 @@ public enum ClaudeTranscriptParser {
         }
     }
 
-    private static func filePath(in input: [String: Any]) -> String? {
+    static func filePath(in input: [String: Any]) -> String? {
         for key in ["file_path", "notebook_path", "path"] {
             if let value = input[key] as? String, !value.isEmpty { return value }
         }
@@ -98,9 +101,12 @@ public enum ClaudeTranscriptParser {
         return false
     }
 
-    /// Harness 行永不成為使用者泡泡。slash 指令載入 skill 時，skill 全文以 harness 行記錄(沒有 `sourceToolUseID`):
-    /// 只顯示「已載入 skill」,不貼全文。由 `Skill` 工具載入的(有 `sourceToolUseID`)已由呼叫本身顯示。
+    /// Harness 行永不成為使用者泡泡，只可能產生背景任務通知、hand-back(§4.1),或 slash 指令載入的 skill:
+    /// skill 全文以 harness 行記錄(沒有 `sourceToolUseID`),只顯示「已載入 skill」,不貼全文。
+    /// 由 `Skill` 工具載入的(有 `sourceToolUseID`)已由呼叫本身顯示。
     private static func harnessParts(_ object: [String: Any]) -> [TranscriptPart] {
+        let delegationParts = delegationReports(object)
+        if !delegationParts.isEmpty { return delegationParts }
         guard object["isMeta"] as? Bool == true, object["sourceToolUseID"] == nil else { return [] }
         let prefix = "Base directory for this skill: "
         guard let text = texts(in: object).first, text.hasPrefix(prefix) else { return [] }
@@ -140,7 +146,7 @@ public enum ClaudeTranscriptParser {
         return blocks.compactMap { $0["text"] as? String }.joined(separator: "\n")
     }
 
-    private static func texts(in object: [String: Any]) -> [String] {
+    static func texts(in object: [String: Any]) -> [String] {
         let content = (object["message"] as? [String: Any])?["content"]
         if let text = content as? String { return [text] }
         return (content as? [[String: Any]] ?? []).compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
@@ -190,8 +196,16 @@ public enum ClaudeTranscriptParser {
     /// Claude 忙碌時送進來的 prompt 只以 `queued_command` attachment 記錄,不會有 `user` 行(#77)。
     private static func queuedPrompt(_ object: [String: Any], id: String, date: Date?, isSidechain: Bool) -> TranscriptMessage? {
         guard let attachment = object["attachment"] as? [String: Any],
-              attachment["type"] as? String == "queued_command",
-              attachment["commandMode"] as? String == "prompt",
+              attachment["type"] as? String == "queued_command" else { return nil }
+        // 排隊中的任務通知(只有 harness 寫的才算;人打的是 prompt 模式)。
+        if attachment["commandMode"] as? String == "task-notification", let prompt = attachment["prompt"] as? String,
+           (attachment["origin"] as? [String: Any])?["kind"] as? String != "human" {
+            let parts = taskNotifications(in: prompt).map(TranscriptPart.taskNotification)
+            guard !parts.isEmpty else { return nil }
+            let when = (attachment["timestamp"] as? String).flatMap(parseDate) ?? date
+            return TranscriptMessage(id: id, role: .system, date: when, isSidechain: isSidechain, parts: parts)
+        }
+        guard attachment["commandMode"] as? String == "prompt",
               let prompt = attachment["prompt"] as? String else { return nil }
         if let origin = attachment["origin"] as? [String: Any], origin["kind"] as? String != "human" { return nil }
         let text = cleanUserText(prompt)
@@ -289,13 +303,14 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
     }
 
     /// 模型顯示名：去掉 `[…]` 尾碼與 `provider/` 前綴;`claude-opus-4-1-…` → 「Opus 4.1」;
-    /// 舊式 `claude-3-5-sonnet` → 「Sonnet 3.5」;非 Claude id 原樣(行為規格 F5.7)。
+    /// 舊式 `claude-3-5-sonnet` → 「Sonnet 3.5」;非 Claude id 只去掉 `provider/` 前綴(行為規格 F5.7、R-I18:
+    /// Pi／OMP 的模型帶 provider 前綴)。
     public static func displayName(ofModel model: String) -> String {
-        var id = model
+        let unprefixed = model.lastIndex(of: "/").map { String(model[model.index(after: $0)...]) } ?? model
+        var id = unprefixed
         if let bracket = id.firstIndex(of: "[") { id = String(id[..<bracket]) }
-        if let slash = id.lastIndex(of: "/") { id = String(id[id.index(after: slash)...]) }
         let tokens = id.split(separator: "-").map(String.init)
-        guard tokens.first == "claude", tokens.count >= 2 else { return model }
+        guard tokens.first == "claude", tokens.count >= 2 else { return unprefixed }
         let isVersion = { (token: String) in token.count <= 2 && token.allSatisfy(\.isNumber) }
         let family: String
         let version: [String]
@@ -314,9 +329,10 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
 }
 
 extension TranscriptPart {
+    /// 不是使用者打的內容(系統註記、skill、任務通知、hand-back):整則訊息都是這些時角色是 system。
     var isNoteOrSkill: Bool {
         switch self {
-        case .note, .skill: true
+        case .note, .skill, .taskNotification, .handBack: true
         default: false
         }
     }

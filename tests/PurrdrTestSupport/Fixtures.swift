@@ -51,9 +51,45 @@ public enum Fixtures {
         return data
     }
 
+    /// 去識別化的 subagent 檔(`Fixtures/claude-code/subagents/<名稱>`:meta 與對話紀錄)。
+    public static func subagentFile(_ name: String) -> Data {
+        guard let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/claude-code/subagents"),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到 Fixtures/claude-code/subagents/\(name)")
+        }
+        return data
+    }
+
+    /// Workflow 的 run 檔與 journal(`Fixtures/claude-code/workflow/<名稱>`)。依行為規格 §4.6 寫成，不是錄製的
+    /// (作者 Mac 上沒有 workflow 紀錄)。
+    public static func workflowFile(_ name: String) -> Data {
+        guard let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/claude-code/workflow"),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到 Fixtures/claude-code/workflow/\(name)")
+        }
+        return data
+    }
+
     /// 對話紀錄的每一行(不含換行)。
     public static func transcriptLines(_ name: String = "session.jsonl") -> [String] {
         transcript(name).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }
+    }
+
+    /// 依各 agent 文件撰寫、**未實測**的對話紀錄(`Fixtures/other-agents/<路徑>`,來源見 `Fixtures/README.md`)。
+    public static func otherAgentTranscript(_ path: String) -> Data {
+        let components = path.split(separator: "/").map(String.init)
+        let folder = (["Fixtures/other-agents"] + components.dropLast()).joined(separator: "/")
+        guard let name = components.last,
+              let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: folder),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到對話紀錄 Fixtures/other-agents/\(path)")
+        }
+        return data
+    }
+
+    /// `otherAgentTranscript` 的每一行(不含換行)。
+    public static func otherAgentTranscriptLines(_ path: String) -> [String] {
+        otherAgentTranscript(path).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }
     }
 
     /// 對話紀錄的第 `index` 行(從 0 起算),先以 `modify` 改動其中的 JSON。用在錄不到的情境(改了什麼寫在測試裡)。

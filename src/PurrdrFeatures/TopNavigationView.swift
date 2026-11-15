@@ -5,40 +5,34 @@ import SwiftUI
 /// 不採 tab bar。導覽層只在這裡;Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
     let navigation: TopNavigationModel
-    let agentList: AgentListModel
+    let hosts: HostsModel
     let member: MemberModel
-    let workspaceActions: WorkspaceActionsModel
     /// Purrdr Plus(#28);`nil` 時選單不顯示。
     let plus: SubscriptionModel?
-    /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。
-    let conversation: @MainActor (String, String?) -> ConversationModel
-    /// 建立某個 Pane 的終端機 model(pane id、標題)。
-    let terminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
-    public init(
-        navigation: TopNavigationModel, agentList: AgentListModel, member: MemberModel,
-        workspaceActions: WorkspaceActionsModel,
-        plus: SubscriptionModel? = nil,
-        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
-        terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
-    ) {
+    public init(navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, plus: SubscriptionModel? = nil) {
         self.navigation = navigation
-        self.agentList = agentList
+        self.hosts = hosts
         self.member = member
-        self.workspaceActions = workspaceActions
         self.plus = plus
-        self.conversation = conversation
-        self.terminal = terminal
     }
 
     public var body: some View {
         @Bindable var navigation = navigation
         NavigationStack {
-            AgentListView(model: agentList, actions: workspaceActions, conversation: conversation, terminal: terminal)
+            // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
+            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions, usage: hosts.claudeUsage) { paneID, sessionID in
+                hosts.conversation(paneID: paneID, sessionID: sessionID)
+            } terminal: { paneID, title in
+                hosts.terminal(paneID: paneID, title: title)
+            }
+            .id(hosts.selection)
                 .toolbar { toolbar }
         }
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
+            case .hosts:
+                HostListView(model: hosts)
             case .member:
                 // 會員畫面自帶 NavigationStack 與「完成」。
                 MemberView(model: member, plus: plus)
@@ -46,7 +40,7 @@ public struct TopNavigationView: View {
                 if let plus {
                     PlusSheet(model: plus, member: member)
                 }
-            default:
+            case .settings, .newChat:
                 TopLevelSheetView(sheet: sheet) { navigation.sheet = nil }
             }
         }
@@ -85,7 +79,7 @@ public struct TopNavigationView: View {
     }
 }
 
-/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(設定 #32、主機 #10)。
+/// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(設定 #32)。
 struct TopLevelSheetView: View {
     let sheet: TopLevelSheet
     let done: () -> Void
@@ -104,8 +98,14 @@ struct TopLevelSheetView: View {
         }
     }
 
+    @ViewBuilder
     private var placeholder: some View {
-        ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
+        switch sheet {
+        case .settings:
+            SettingsForm()
+        case .hosts, .newChat, .member:
+            ContentUnavailableView(sheet.title, systemImage: sheet.symbol)
+        }
     }
 }
 
@@ -127,6 +127,24 @@ extension TopLevelSheet {
         case .newChat: "plus.bubble"
         case .member: "person.crop.circle"
         case .plus: "bell.badge"
+        }
+    }
+}
+
+/// 設定(目前只有硬體鍵盤;完整設定頁在 #32)。
+struct SettingsForm: View {
+    @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Return Key Sends", isOn: $returnSends)
+                    .accessibilityIdentifier("settings.returnSends")
+            } header: {
+                Text("Hardware Keyboard")
+            } footer: {
+                Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+            }
         }
     }
 }

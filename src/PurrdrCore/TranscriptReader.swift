@@ -33,6 +33,10 @@ public enum TranscriptReadError: Error, Equatable {
     case absent
     case unreadable
     case invalidReference
+    /// 符合 session 的檔案不只一個:不開任何檔、不依新舊猜(行為規格 §4.3、§4.5)。
+    case ambiguous
+    /// 檔案的 header 與回報的 session 不符(Pi／OMP,§4.5)。下次重新定位。
+    case mismatch
     /// 讀取中檔案變了或回應格式不對：重試。
     case changed
     /// 指令以其他 exit code 結束。
@@ -69,6 +73,36 @@ public struct TranscriptReader: Sendable {
         return TranscriptFile(path: lines[0], size: size)
     }
 
+    /// 找出任一種 agent 的對話紀錄並取得大小。
+    ///
+    /// - Throws: `.absent`(還沒有檔案)、`.unreadable`(權限)、`.ambiguous`(不只一個候選)、`.mismatch`(header 不符)、
+    ///   `.invalidReference`(id 或路徑不安全，不執行任何指令)。
+    public func locate(_ target: TranscriptTarget) async throws -> TranscriptFile {
+        let expectedSuffix: String?
+        switch target.location {
+        case .claude(let sessionID, let cwd):
+            return try await locate(sessionID: sessionID, cwd: cwd)
+        case .grok(let id):
+            guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
+            expectedSuffix = "/\(id)/updates.jsonl"
+        case .antigravity(let id), .piJournal(let id):
+            guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
+            expectedSuffix = nil
+        case .reportedPath(let path):
+            guard Self.isValidPath(path) else { throw TranscriptReadError.invalidReference }
+            expectedSuffix = nil
+        }
+        let readsHeader = target.format == .piJournal
+        let lines = try await run(TranscriptCommand.locate(target.location, readsHeader: readsHeader)).lines
+        guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]),
+              expectedSuffix.map(lines[0].hasSuffix) ?? true else { throw TranscriptReadError.changed }
+        if readsHeader {
+            let expectedID: String? = if case .piJournal(let id) = target.location { id } else { nil }
+            guard PiJournalParser.headerMatches(Array(lines.dropFirst(2)), expectedID: expectedID) else { throw TranscriptReadError.mismatch }
+        }
+        return TranscriptFile(path: lines[0], size: size)
+    }
+
     /// 讀以 `end` 為終點的最後 `lines` 行(開啟時與往上翻頁)。
     public func window(path: String, endingAt end: Int, lines: Int) async throws -> TranscriptChunk {
         guard Self.isValidPath(path), end >= 0, lines > 0 else { throw TranscriptReadError.invalidReference }
@@ -81,6 +115,16 @@ public struct TranscriptReader: Sendable {
         guard records.bytes == header[1] - header[0] else { throw TranscriptReadError.changed }
         return TranscriptChunk(start: header[0], end: header[1], lines: records.lines)
     }
+
+    /// 檔案目前的大小(開啟視窗的上限)。用追蹤指令、游標放在檔尾之後:主機只印大小。
+    public func size(path: String) async throws -> Int {
+        switch try await tail(path: path, from: Self.probeCursor) {
+        case .shrank(let size), .tooFarBehind(let size): size
+        case .unchanged, .appended: throw TranscriptReadError.changed
+        }
+    }
+
+    public static let probeCursor = 1 << 50
 
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
@@ -97,13 +141,13 @@ public struct TranscriptReader: Sendable {
 
     // MARK: - 輸出
 
-    private struct Output {
+    struct Output {
         var stdout: Data
         var lines: [String] { String(decoding: stdout, as: UTF8.self).split(separator: "\n").map(String.init) }
     }
 
     /// 執行並收集輸出;依 exit code 判斷，不比對 stderr 文字(R-S15)。
-    private func run(_ command: String) async throws -> Output {
+    func run(_ command: String) async throws -> Output {
         let session = try await channel.execute(command)
         var stdout = Data()
         var exitCode: Int32?
@@ -124,6 +168,7 @@ public struct TranscriptReader: Sendable {
         case 0?: return Output(stdout: stdout)
         case 3?: throw TranscriptReadError.absent
         case 4?, 5?: throw TranscriptReadError.unreadable
+        case 6?: throw TranscriptReadError.ambiguous
         default: throw TranscriptReadError.failed(exitCode: exitCode)
         }
     }
@@ -152,42 +197,97 @@ public struct TranscriptReader: Sendable {
 /// 一個要讀預覽的聊天。
 public struct PreviewRequest: Sendable, Equatable {
     public var key: String
-    public var sessionID: String
-    public var cwd: String
+    public var target: TranscriptTarget
 
-    public init(key: String, sessionID: String, cwd: String) {
+    public init(key: String, target: TranscriptTarget) {
         self.key = key
-        self.sessionID = sessionID
-        self.cwd = cwd
+        self.target = target
+    }
+
+    /// Claude Code session 的預覽。
+    public init(key: String, sessionID: String, cwd: String) {
+        self.init(key: key, target: TranscriptTarget(format: .claude, location: .claude(sessionID: sessionID, cwd: cwd), sessionKey: sessionID))
     }
 }
 
 extension TranscriptReader {
-    /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 不安全的請求略過。
-    /// 回傳 key → 最後一則可讀訊息;沒有檔案或沒有可讀訊息的聊天不在結果裡。
+    /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 或路徑不安全的請求略過。
+    /// 回傳 key → 最後一則可讀訊息;沒有檔案、有歧義、header 不符(Pi／OMP)或沒有可讀訊息的聊天不在結果裡。
     public func previews(of requests: [PreviewRequest]) async throws -> [String: MessagePreview] {
-        let safe = requests.filter { ClaudeTranscript.isSafeSessionID($0.sessionID) }
-        guard !safe.isEmpty else { return [:] }
+        let entries = requests.compactMap(TranscriptCommand.PreviewEntry.init)
+        guard !entries.isEmpty else { return [:] }
         let marker = marker()
-        let command = TranscriptCommand.previews(
-            marker: marker,
-            requests: safe.map { ($0.key, $0.sessionID, ClaudeTranscript.projectFolder(forCWD: $0.cwd)) }
-        )
-        let output = try await run(command)
-        var linesByKey: [String: [String]] = [:]
-        var current: String?
-        let prefix = marker + " "
+        let output = try await run(TranscriptCommand.previews(marker: marker, entries: entries))
+        var bodies: [String: [String]] = [:]
+        var headers: [String: [String]] = [:]
+        var current: (key: String, isHeader: Bool)?
+        let bodyPrefix = marker + " "
+        let headerPrefix = marker + "! "
         for line in String(decoding: output.stdout, as: UTF8.self).split(separator: "\n") {
-            if line.hasPrefix(prefix) {
-                current = String(line.dropFirst(prefix.count))
-                if let current { linesByKey[current, default: []] = [] }
+            if line.hasPrefix(headerPrefix) {
+                let key = String(line.dropFirst(headerPrefix.count))
+                current = (key, true)
+                headers[key] = []
+            } else if line.hasPrefix(bodyPrefix) {
+                let key = String(line.dropFirst(bodyPrefix.count))
+                current = (key, false)
+                bodies[key] = []
             } else if let current {
-                linesByKey[current, default: []].append(String(line))
+                if current.isHeader { headers[current.key, default: []].append(String(line)) } else { bodies[current.key, default: []].append(String(line)) }
             }
         }
-        // 檔尾的第一行多半被切在中間，解析時自然略過。
-        return linesByKey.compactMapValues { lines in
-            Conversation.preview(of: lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        var previews: [String: MessagePreview] = [:]
+        for request in requests {
+            guard let lines = bodies[request.key] else { continue }
+            if request.target.format == .piJournal {
+                let expectedID: String? = if case .piJournal(let id) = request.target.location { id } else { nil }
+                guard PiJournalParser.headerMatches(headers[request.key] ?? [], expectedID: expectedID) else { continue }
+            }
+            // 檔尾的第一行多半被切在中間，解析時自然略過。
+            previews[request.key] = Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
         }
+        return previews
+    }
+}
+
+extension TranscriptReader {
+    /// 找出呼叫 `callID` 啟動的 subagent 對話紀錄路徑(行為規格 §4.6、R-W02)。
+    ///
+    /// 讀 `<session>/subagents/` 下內容含這個 id 的 meta,解析後 `toolUseId` 必須**完全相等**;**絕不用最新檔**
+    /// (兩個 agent 可在同一毫秒啟動)。完全相等的不只一個時無法判斷，當作改變了(`.changed`)而不是挑一個。
+    ///
+    /// - Throws: `.absent`(還沒有 meta:啟動中，稍後再找)、`.invalidReference`(id 或資料夾不安全，不執行指令)。
+    public func locateSubagent(sessionFolder: String, callID: String) async throws -> String {
+        guard ClaudeTranscript.isSafeDelegationID(callID), ClaudeTranscript.isValidFolder(sessionFolder) else {
+            throw TranscriptReadError.invalidReference
+        }
+        let output = try await run(TranscriptCommand.findSubagent(sessionFolder: sessionFolder, callID: callID))
+        let lines = output.lines
+        var matches: [String] = []
+        for pair in stride(from: 0, to: lines.count - 1, by: 2) {
+            let metaPath = lines[pair]
+            guard metaPath.hasSuffix(".meta.json"),
+                  let meta = ClaudeTranscriptParser.jsonObject(lines[pair + 1]),
+                  meta["toolUseId"] as? String == callID else { continue }
+            let transcript = String(metaPath.dropLast(".meta.json".count)) + ".jsonl"
+            if Self.isValidPath(transcript) { matches.append(transcript) }
+        }
+        guard !matches.isEmpty else { throw TranscriptReadError.absent }
+        guard matches.count == 1 else { throw TranscriptReadError.changed }
+        return matches[0]
+    }
+}
+
+extension TranscriptReader {
+    /// 父對話紀錄中指名這個委派(呼叫 id 或 agent id)的行(R-W04)。內容的 checksum 與 `knownChecksum` 相同時
+    /// `lines` 是 `nil`(主機只回一行)。
+    public func delegationLines(path: String, callID: String, agentID: String?, knownChecksum: String?) async throws -> (checksum: String, lines: [String]?) {
+        guard Self.isValidPath(path), ClaudeTranscript.isSafeDelegationID(callID),
+              agentID.map(ClaudeTranscript.isSafeDelegationID) ?? true else { throw TranscriptReadError.invalidReference }
+        let output = try await run(TranscriptCommand.delegationLines(path: path, ids: (callID, agentID ?? callID), knownChecksum: knownChecksum ?? ""))
+        guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
+        let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
+        if checksum == knownChecksum { return (checksum, nil) }
+        return (checksum, try Self.records(output.stdout[output.stdout.index(after: newline)...]).lines)
     }
 }

@@ -6,17 +6,37 @@ import Foundation
 /// 「需要等待」的請求),讀到第一行回應後由我方關閉通道(行為規格 §3.3)。
 public struct HerdrClient: Sendable {
     private let channel: any HostChannel
-    private let herdrPath: String
+    private let herdr: HerdrInstallation
+    /// 期限計時用(測試注入)。
+    private let sleep: @Sendable (Duration) async throws -> Void
 
-    public init(channel: any HostChannel, herdrPath: String = "herdr") {
+    public init(
+        channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.channel = channel
-        self.herdrPath = herdrPath
+        self.herdr = herdr
+        self.sleep = sleep
     }
 
     /// 讀主機目前的全量狀態(`session.snapshot`)。
     public func snapshot() async throws -> HostSnapshot {
         let result = try await request(method: "session.snapshot", as: SnapshotResult.self)
         return result.snapshot.hostSnapshot
+    }
+
+    /// 健康檢查：伺服器版本(行為規格 §3.4 `ping`)。
+    public func ping() async throws -> String {
+        try await request(method: "ping", as: PingResult.self).version
+    }
+
+    /// 主機上 herdr 的 agent 整合(`integration.list`)。
+    public func integrations() async throws -> [AgentIntegration] {
+        try await request(method: "integration.list", as: IntegrationListResult.self).integrations.map {
+            AgentIntegration(
+                target: $0.target, label: $0.label ?? $0.target,
+                state: AgentIntegration.State(rawValue: $0.state ?? "") ?? .unknown, available: $0.available ?? false)
+        }
     }
 
     /// 在場回報(`pane.report_metadata`,行為規格 F5.13):讓桌機 herdr 側欄顯示「手機正在看這個 Agent、用什麼模型」。
@@ -30,13 +50,20 @@ public struct HerdrClient: Sendable {
         _ = try await request(method: "pane.report_metadata", params: params, as: TypedResult.self)
     }
 
+    /// 讀 pane 目前看得到的畫面(`pane.read`,source `visible`,行為規格 §4.8)。Claude 在 alternate screen,
+    /// `recent` 會是空的，所以一定用 `visible`。
+    public func readPane(paneID: String, lines: Int = 40) async throws -> String {
+        let result = try await request(method: "pane.read", params: PaneReadParams(paneID: paneID, source: "visible", lines: lines), as: PaneReadResult.self)
+        return result.read.text
+    }
+
     /// 訂閱事件(`events.subscribe`)。
     ///
     /// 跟其他請求一樣開一個 bridge、寫一行請求、**不送 EOF**(bridge 在 EOF 時只回 ack 就結束);
     /// 之後持續讀事件，直到主機那端結束、herdr 回錯誤(例如 `events_lost`),或呼叫端不再讀(此時關閉通道)。
     /// 串流第一項是 `.subscriptionStarted`;在它之前就結束算失敗(行為規格 §3.7)。
     public func subscribe(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
-        let session = try await channel.execute(HerdrCommand.bridge(herdrPath: herdrPath))
+        let session = try await channel.execute(HerdrCommand.bridge(herdr))
         do {
             try await session.write(Self.requestLine(method: "events.subscribe", params: SubscribeParams(subscriptions: subscriptions)))
         } catch {
@@ -127,18 +154,81 @@ public struct HerdrClient: Sendable {
         return CreatedWorkspace(workspaceID: result.workspace.workspaceID, rootPaneID: result.rootPane.paneID)
     }
 
-    private func request<Result: Decodable>(method: String, params: some Encodable = NoParams(), as: Result.Type) async throws -> Result {
-        let session = try await channel.execute(HerdrCommand.bridge(herdrPath: herdrPath))
+    // MARK: - 送出 prompt 與按鍵(行為規格 F6.5、§3.6)
+
+    /// `agent.prompt`。`wait` 有值時帶 `wait: {until: [working, blocked], timeout_ms}`,我方期限是 herdr 的等待 + 20 秒
+    /// (否則會放棄一個即將回答的等待，回報主機沒發生的失敗,§3.6);沒有 `wait`(slash 指令)期限 20 秒。
+    ///
+    /// herdr 的錯誤 envelope 丟 `HerdrError.herdr`;其他錯誤(通道失敗、沒有回應、期限到)都代表
+    /// **不知道有沒有送到**,呼叫端絕不可重送(§7.3)。
+    public func prompt(target: String, text: String, wait: Duration?) async throws -> PromptReply {
+        let params = PromptParams(
+            target: target, text: text,
+            wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) }
+        )
+        let result = try await request(method: "agent.prompt", params: params, as: PromptResult.self, deadline: (wait ?? .zero) + .seconds(20))
+        return PromptReply(writtenOnly: result.delivery == "written_to_pty")
+    }
+
+    /// `agent.wait`:等 agent 進入 `until` 其中一個狀態。herdr 自己逾時回 `false`(`timeout` 錯誤);期限是等待 + 20 秒。
+    public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
+        let params = WaitParams(target: target, until: until.map(\.rawValue), timeoutMs: Self.milliseconds(timeout))
+        do {
+            _ = try await request(method: "agent.wait", params: params, as: TypedResult.self, deadline: timeout + .seconds(20))
+            return true
+        } catch HerdrError.herdr(code: "timeout", _) {
+            return false
+        }
+    }
+
+    /// `pane.send_keys`(herdr 鍵名語法：`enter`、`esc`、`ctrl+c`,§3.4)。期限 20 秒。
+    public func sendKeys(paneID: String, keys: [String]) async throws {
+        _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self, deadline: .seconds(20))
+    }
+
+    private static func milliseconds(_ duration: Duration) -> Int {
+        Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
+    }
+
+    // MARK: - 請求
+
+    private func request<Result: Decodable>(
+        method: String, params: some Encodable = NoParams(), as: Result.Type, deadline: Duration? = nil
+    ) async throws -> Result {
+        let session = try await channel.execute(HerdrCommand.bridge(herdr))
         let line: Data
         do {
             try await session.write(Self.requestLine(method: method, params: params))
-            line = try await Self.firstLine(of: session)
+            if let deadline {
+                line = try await Self.firstLine(of: session, within: deadline, sleep: sleep)
+            } else {
+                line = try await Self.firstLine(of: session)
+            }
         } catch {
             await session.close()
             throw error
         }
         await session.close()
         return try Self.decode(line, as: Result.self)
+    }
+
+    /// 在期限內讀第一行;期限先到就關閉通道並丟 `HerdrError.deadlineExceeded`(§7.2)。
+    private static func firstLine(
+        of session: any ExecSession, within deadline: Duration, sleep: @escaping @Sendable (Duration) async throws -> Void
+    ) async throws -> Data {
+        try await withThrowingTaskGroup(of: Data?.self) { group in
+            group.addTask { try await firstLine(of: session) }
+            group.addTask {
+                try await sleep(deadline)
+                return nil
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next(), let line = first else {
+                await session.close()
+                throw HerdrError.deadlineExceeded
+            }
+            return line
+        }
     }
 
     /// 一行請求(結尾換行)。請求 id 固定是 `purrdr:<method>`:一個 bridge 程序只處理一個請求。
@@ -168,6 +258,11 @@ public struct HerdrClient: Sendable {
         if stdout.isEmpty, let envelope = stderr.split(separator: 0x0A).first(where: { $0.first == UInt8(ascii: "{") }) {
             return Data(envelope)
         }
+        // bridge 連不到 socket = 這個 session 沒有在跑 herdr(行為規格 §3.3)。
+        let stderrText = String(decoding: stderr, as: UTF8.self)
+        if stdout.isEmpty, stderrText.contains("failed to connect to remote Herdr API socket") {
+            throw HerdrError.herdr(code: "server_not_running", message: stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
         guard !stdout.isEmpty else {
             throw HerdrError.noResponse(exitCode: exitCode, stderr: String(decoding: stderr, as: UTF8.self))
         }
@@ -195,6 +290,18 @@ public enum HerdrError: Error, Equatable {
     case noResponse(exitCode: Int32?, stderr: String)
     /// 回應不是 herdr 的 JSON envelope。
     case malformedResponse
+    /// 我方期限到了還沒有回應(連線層逾時;主機可能已經執行，§7.3)。
+    case deadlineExceeded
+}
+
+/// `agent.prompt` 的成功回應。
+public struct PromptReply: Sendable, Equatable {
+    /// 主機只知道 bytes 寫進了終端機(fork 版的 `delivery: "written_to_pty"`;上游 herdr 不會送，§3.6)。
+    public var writtenOnly: Bool
+
+    public init(writtenOnly: Bool) {
+        self.writtenOnly = writtenOnly
+    }
 }
 
 // MARK: - wire format(只在這裡處理 snake_case)
@@ -206,6 +313,49 @@ private struct WireRequest<Params: Encodable>: Encodable {
 }
 
 private struct NoParams: Encodable {}
+
+private struct PromptParams: Encodable {
+    var target: String
+    var text: String
+    var wait: Wait?
+
+    struct Wait: Encodable {
+        var until: [String]
+        var timeoutMs: Int
+
+        enum CodingKeys: String, CodingKey {
+            case until
+            case timeoutMs = "timeout_ms"
+        }
+    }
+}
+
+private struct PromptResult: Decodable {
+    var type: String?
+    var delivery: String?
+}
+
+private struct WaitParams: Encodable {
+    var target: String
+    var until: [String]
+    var timeoutMs: Int
+
+    enum CodingKeys: String, CodingKey {
+        case target
+        case until
+        case timeoutMs = "timeout_ms"
+    }
+}
+
+private struct SendKeysParams: Encodable {
+    var paneID: String
+    var keys: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case keys
+    }
+}
 
 private struct WorkspaceIDParams: Encodable {
     var workspaceID: String
@@ -271,6 +421,26 @@ private struct ReportMetadataParams: Encodable {
     }
 }
 
+private struct PaneReadParams: Encodable {
+    var paneID: String
+    var source: String
+    var lines: Int
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case source
+        case lines
+    }
+}
+
+private struct PaneReadResult: Decodable {
+    struct Read: Decodable {
+        var text: String
+    }
+
+    var read: Read
+}
+
 /// 只有 `{"type":…}` 的結果(例如 `{"type":"ok"}`)。
 private struct TypedResult: Decodable {
     var type: String?
@@ -330,6 +500,21 @@ private struct Envelope<Result: Decodable>: Decodable {
 private struct WireError: Decodable {
     var code: String
     var message: String
+}
+
+private struct PingResult: Decodable {
+    var version: String
+}
+
+private struct IntegrationListResult: Decodable {
+    var integrations: [WireIntegration]
+}
+
+private struct WireIntegration: Decodable {
+    var target: String
+    var label: String?
+    var available: Bool?
+    var state: String?
 }
 
 private struct SnapshotResult: Decodable {
