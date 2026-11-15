@@ -10,15 +10,22 @@ import SwiftUI
 @main
 struct PurrdrApp: App {
     private let agentList: AgentListModel
+    private let terminals: PaneTerminalClient
 
     init() {
-        let channel: any HostChannel = DemoHost()
+        let arguments = ProcessInfo.processInfo.arguments
+        // UI 測試情境：桌機正在操作 Demo 的 Pane。
+        let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
+        let channel: any HostChannel = DemoHost(scenario: scenario)
         agentList = AgentListModel(client: HerdrClient(channel: channel))
+        terminals = PaneTerminalClient(channel: channel)
     }
 
     var body: some Scene {
         WindowGroup {
-            AgentListView(model: agentList)
+            AgentListView(model: agentList) { [terminals] row in
+                PaneTerminalModel(client: terminals, paneID: row.id, title: row.title)
+            }
         }
     }
 }

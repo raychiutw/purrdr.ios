@@ -4,17 +4,32 @@ import SwiftUI
 /// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「需要你／工作中／閒置」分 section。
 public struct AgentListView: View {
     let model: AgentListModel
+    /// 為某個 Agent 的 Pane 建立終端機畫面的 model(由 composition root 注入)。
+    let makeTerminal: ((AgentRow) -> PaneTerminalModel)?
+    @State private var terminal: PaneTerminalModel?
 
-    public init(model: AgentListModel) {
+    public init(model: AgentListModel, makeTerminal: ((AgentRow) -> PaneTerminalModel)? = nil) {
         self.model = model
+        self.makeTerminal = makeTerminal
     }
 
     public var body: some View {
         NavigationStack {
             content
                 .navigationTitle("Agents")
+                #if canImport(UIKit)
+                .navigationDestination(isPresented: Binding(
+                    get: { terminal != nil }, set: { if !$0 { terminal = nil } }
+                )) {
+                    if let terminal { PaneTerminalView(model: terminal) }
+                }
+                #endif
         }
         .task { await model.load() }
+    }
+
+    private func openTerminal(_ row: AgentRow) {
+        terminal = makeTerminal?(row)
     }
 
     @ViewBuilder
@@ -34,7 +49,16 @@ public struct AgentListView: View {
             List {
                 ForEach(model.sections) { section in
                     Section(section.group.title) {
-                        ForEach(section.rows) { AgentRowView(row: $0) }
+                        ForEach(section.rows) { row in
+                            AgentRowView(row: row)
+                                .swipeActions(edge: .trailing) {
+                                    if makeTerminal != nil {
+                                        // Agent 對話畫面還沒做(#12);先從列表的滑動動作進終端機。
+                                        PaneTerminalButton { openTerminal(row) }
+                                            .tint(.gray)
+                                    }
+                                }
+                        }
                     }
                 }
             }

@@ -33,13 +33,24 @@ jobs:
         run: swift test --explicit-target-dependency-import-check error
 
       # Xcode 建置 app 時會把 package 的 warning 壓掉，所以另外在 package 根目錄以 iOS 編譯一次。
+      # 不能用 SWIFT_TREAT_WARNINGS_AS_ERRORS=YES:它也會套到 SwiftTerm 這類遠端 package,
+      # 跟 Xcode 給遠端 package 的 -suppress-warnings 衝突。改用 result bundle 數 warning
+      # (遠端 package 的 warning 已被壓掉，數到的都是我們自己的)。
       - name: 以 iOS 編譯 package
         run: >
           xcodebuild build
           -scheme Purrdr-Package
           -destination 'generic/platform=iOS Simulator'
           -derivedDataPath .derivedData/package
-          SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+          -resultBundlePath .derivedData/package/Package.xcresult
+
+      - name: 檢查 package 零 warning
+        run: |
+          xcrun xcresulttool get build-results --path .derivedData/package/Package.xcresult > package-results.json
+          warnings="$(jq '.warningCount' package-results.json)"
+          echo "warningCount=$warnings"
+          jq -r '.warnings[]? | "::warning::\(.message)"' package-results.json
+          test "$warnings" -eq 0
 
   # CI 不做 UI 測試(太久);UI 測試在本機跑，只跑有修改到的類別(見 AGENTS.md「常用指令」)。
   app:
