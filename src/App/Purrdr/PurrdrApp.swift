@@ -12,20 +12,30 @@ struct PurrdrApp: App {
     private let agentList: AgentListModel
     private let terminals: PaneTerminalClient
     private let navigation = TopNavigationModel()
+    private let client: HerdrClient
+    private let transcripts: TranscriptReader
+    /// 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
+    private let conversationCache = InMemoryConversationCache()
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         // UI 測試情境：桌機正在操作 Demo 的 Pane。
         let scenario: DemoHost.Scenario = arguments.contains("-demoPaneInUse") ? .paneInUse : .standard
         let channel: any HostChannel = DemoHost(scenario: scenario)
-        agentList = AgentListModel(client: HerdrClient(channel: channel))
+        client = HerdrClient(channel: channel)
+        transcripts = TranscriptReader(channel: channel)
+        agentList = AgentListModel(client: client, transcripts: transcripts)
         terminals = PaneTerminalClient(channel: channel)
     }
 
     var body: some Scene {
         WindowGroup {
-            TopNavigationView(navigation: navigation, agentList: agentList) { [terminals] row in
-                PaneTerminalModel(client: terminals, paneID: row.id, title: row.title)
+            TopNavigationView(navigation: navigation, agentList: agentList) { paneID, sessionID in
+                ConversationModel(
+                    client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache
+                )
+            } terminal: { [terminals] paneID, title in
+                PaneTerminalModel(client: terminals, paneID: paneID, title: title)
             }
         }
     }

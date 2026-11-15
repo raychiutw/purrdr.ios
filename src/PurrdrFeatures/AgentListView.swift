@@ -8,34 +8,32 @@ import SwiftUI
 public struct AgentListView: View {
     @Bindable var model: AgentListModel
     @Environment(\.scenePhase) private var scenePhase
-    /// 為某個 Agent 的 Pane 建立終端機畫面的 model(由 composition root 注入)。
-    let makeTerminal: ((AgentRow) -> PaneTerminalModel)?
-    @State private var terminal: PaneTerminalModel?
+    /// 建立某個 Agent 的對話 model(pane id、列表看到的 session)。由 composition root 提供。
+    private let makeConversation: @MainActor (String, String?) -> ConversationModel
+    /// 建立某個 Pane 的終端機 model(pane id、標題)。由 composition root 提供。
+    private let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
 
-    public init(model: AgentListModel, makeTerminal: ((AgentRow) -> PaneTerminalModel)? = nil) {
+    public init(
+        model: AgentListModel,
+        conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
+        terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
+    ) {
         self.model = model
-        self.makeTerminal = makeTerminal
+        self.makeConversation = conversation
+        self.makeTerminal = terminal
     }
 
     /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
         content
             .navigationTitle("Agents")
+            .navigationDestination(for: String.self) { paneID in
+                ConversationScreen(model: makeConversation(paneID, model.sessionID(ofPane: paneID)), makeTerminal: makeTerminal)
+            }
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
                 await model.run()
             }
-            #if canImport(UIKit)
-            .navigationDestination(isPresented: Binding(
-                get: { terminal != nil }, set: { if !$0 { terminal = nil } }
-            )) {
-                if let terminal { PaneTerminalView(model: terminal) }
-            }
-            #endif
-    }
-
-    private func openTerminal(_ row: AgentRow) {
-        terminal = makeTerminal?(row)
     }
 
     @ViewBuilder
@@ -68,14 +66,8 @@ public struct AgentListView: View {
             ForEach(sections) { section in
                 Section(section.group.title) {
                     ForEach(section.rows) { row in
-                        AgentRowView(row: row)
-                            .swipeActions(edge: .trailing) {
-                                if makeTerminal != nil {
-                                    // Agent 對話畫面還沒做(#12);先從列表的滑動動作進終端機。
-                                    PaneTerminalButton { openTerminal(row) }
-                                        .tint(.gray)
-                                }
-                            }
+                        NavigationLink(value: row.id) { AgentRowView(row: row) }
+                            .accessibilityIdentifier("agent.row.\(row.id)")
                     }
                 }
             }
@@ -109,6 +101,37 @@ public struct AgentListView: View {
     }
 }
 
+/// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
+private struct ConversationScreen: View {
+    @State private var model: ConversationModel
+    let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
+    @State private var terminal: PaneTerminalModel?
+
+    init(model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?) {
+        _model = State(wrappedValue: model())
+        self.makeTerminal = makeTerminal
+    }
+
+    var body: some View {
+        ConversationView(model: model)
+            .toolbar {
+                if let makeTerminal {
+                    // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
+                    ToolbarItem(placement: .primaryAction) {
+                        PaneTerminalButton { terminal = makeTerminal(model.paneID, model.title.isEmpty ? model.paneID : model.title) }
+                    }
+                }
+            }
+            #if canImport(UIKit)
+            .navigationDestination(isPresented: Binding(
+                get: { terminal != nil }, set: { if !$0 { terminal = nil } }
+            )) {
+                if let terminal { PaneTerminalView(model: terminal) }
+            }
+            #endif
+    }
+}
+
 struct AgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -132,7 +155,6 @@ struct AgentRowView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("agent.row.\(row.id)")
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。

@@ -42,6 +42,34 @@ public enum Fixtures {
         return line + [0x0A]
     }
 
+    /// 從真實 Claude Code 對話紀錄擷取、去識別化的檔案(`Fixtures/claude-code/<名稱>`)。
+    public static func transcript(_ name: String = "session.jsonl") -> Data {
+        guard let url = Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Fixtures/claude-code"),
+              let data = try? Data(contentsOf: url) else {
+            fatalError("找不到對話紀錄 Fixtures/claude-code/\(name)")
+        }
+        return data
+    }
+
+    /// 對話紀錄的每一行(不含換行)。
+    public static func transcriptLines(_ name: String = "session.jsonl") -> [String] {
+        transcript(name).split(separator: 0x0A).map { String(decoding: $0, as: UTF8.self) }
+    }
+
+    /// 對話紀錄的第 `index` 行(從 0 起算),先以 `modify` 改動其中的 JSON。用在錄不到的情境(改了什麼寫在測試裡)。
+    public static func transcriptLine(_ index: Int, of name: String = "session.jsonl", modify: (inout [String: Any]) -> Void) -> String {
+        let lines = transcriptLines(name)
+        guard lines.indices.contains(index),
+              var object = (try? JSONSerialization.jsonObject(with: Data(lines[index].utf8))) as? [String: Any] else {
+            fatalError("對話紀錄 \(name) 沒有第 \(index) 行或不是 JSON 物件")
+        }
+        modify(&object)
+        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes]) else {
+            fatalError("改動後的第 \(index) 行無法序列化")
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
     /// 錄製檔中的某一行(從 0 起算),含結尾換行。用來把串流錄製檔拆開逐行推送。
     public static func line(_ index: Int, of name: String, herdr version: String = defaultHerdrVersion) -> Data {
         let lines = data(name, herdr: version).split(separator: 0x0A)

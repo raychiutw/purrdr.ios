@@ -6,13 +6,15 @@ final class PaneTerminalUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 從 Agent 列表的滑動動作打開 Demo Agent 的 Pane 終端機。
+    /// 從 Agent 對話標題列的終端機鈕，打開該 Agent 自己的 Pane(#37 故事 43)。
     @MainActor
     private func openTerminal(_ app: XCUIApplication) -> XCUIElement {
         let row = app.descendants(matching: .any)["agent.row.w1:p1"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 Agent")
-        row.swipeLeft()
-        app.buttons["terminal.open"].firstMatch.tap()
+        row.tap()
+        let button = app.buttons["terminal.open"].firstMatch
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "對話標題列沒有終端機鈕")
+        button.tap()
         let screen = app.descendants(matching: .any)["terminal.screen"].firstMatch
         XCTAssertTrue(screen.waitForExistence(timeout: 10), "沒有打開終端機")
         return screen
