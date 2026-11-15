@@ -101,6 +101,39 @@ public actor FakeHost: HostChannel {
         return FakePTYSession(host: self, id: id, output: stream, continuation: continuation)
     }
 
+    /// 對第 `index` 個執行(`executions` 的索引,`.manual` 回應)送出一個輸出事件。
+    public func send(_ output: ExecOutput, toExecution index: Int) {
+        pending[index]?.continuation.yield(output)
+    }
+
+    /// 對第 `index` 個執行(`.manual` 回應)送出結束狀態並結束串流。
+    public func finish(execution index: Int, exitCode: Int32 = 0) {
+        guard let waiting = pending.removeValue(forKey: index) else { return }
+        waiting.continuation.yield(.exit(code: exitCode))
+        waiting.continuation.finish()
+    }
+
+    /// 等到 app 執行了 `count` 個指令(測試與 app 的非同步工作對齊用)。逾時則回傳目前數量。
+    public func waitForExecutions(_ count: Int, timeout: Duration = .seconds(2)) async -> Int {
+        let deadline = ContinuousClock.now + timeout
+        while executions.count < count, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return executions.count
+    }
+
+    /// 等到第 `index` 個執行的 stdin 滿足 `condition`。逾時則回傳 `false`。
+    public func waitForStdin(
+        ofExecution index: Int, timeout: Duration = .seconds(2), until condition: @Sendable (Execution) -> Bool
+    ) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if index < executions.count, condition(executions[index]) { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return false
+    }
+
     // MARK: - 給 session 回報
 
     fileprivate func received(_ data: Data, for id: Int) throws {
@@ -114,6 +147,7 @@ public actor FakeHost: HostChannel {
 
     fileprivate func closedStdin(for id: Int) {
         executions[id].closedStdin = true
+        if pending[id]?.reply.trigger == .manual { return }
         // 真的 bridge 在 stdin 一行都沒收到就 EOF 時，什麼都不回、exit 0(行為規格 §3.3)。
         if let waiting = pending.removeValue(forKey: id) {
             waiting.continuation.yield(.exit(code: 0))
@@ -145,6 +179,9 @@ public struct FakeReply: Sendable {
         case immediately
         /// 等 stdin 收到第一個換行才回應(`herdr remote-api-bridge`:讀到一行請求才轉給 socket)。
         case afterStdinLine
+        /// 什麼都不自動送;由測試以 `FakeHost.send(_:toExecution:)`／`finish(execution:exitCode:)` 逐步送出
+        /// (`herdr terminal session control` 這種長時間串流)。
+        case manual
     }
 
     public var stdout: Data

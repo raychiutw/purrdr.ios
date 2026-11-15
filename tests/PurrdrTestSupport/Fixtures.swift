@@ -12,4 +12,19 @@ public enum Fixtures {
         }
         return data
     }
+
+    /// `herdr terminal session control`／`observe` 的錄製檔(`Fixtures/herdr-<版本>/session-control/<名稱>`,#4 spike)。
+    public static func sessionControl(_ name: String, herdr version: String = defaultHerdrVersion) -> Data {
+        guard let url = Bundle.module.url(
+            forResource: name, withExtension: nil, subdirectory: "Fixtures/herdr-\(version)/session-control"
+        ), let data = try? Data(contentsOf: url) else {
+            fatalError("找不到錄製檔 Fixtures/herdr-\(version)/session-control/\(name)")
+        }
+        return data
+    }
+
+    /// 錄製檔逐行切開(不含換行)。
+    public static func sessionControlLines(_ name: String, herdr version: String = defaultHerdrVersion) -> [Data] {
+        sessionControl(name, herdr: version).split(separator: 0x0A).map { Data($0) }
+    }
 }

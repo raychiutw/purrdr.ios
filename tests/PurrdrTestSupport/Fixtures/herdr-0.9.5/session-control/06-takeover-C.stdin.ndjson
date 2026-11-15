@@ -1,0 +1,3 @@
+{"type": "terminal.input", "text": "echo C\"\"OWNS; stty size\r"}
+{"type": "terminal.input", "text": "clear\r"}
+{"type": "terminal.release"}
