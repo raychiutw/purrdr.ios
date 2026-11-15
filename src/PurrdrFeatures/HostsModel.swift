@@ -38,17 +38,31 @@ public final class HostsModel {
     private let store: any HostStore
     private let demoChannel: any HostChannel
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
+    private let conversationCache: any ConversationCache
     private var channel: any HostChannel
+    private var client: HerdrClient
+    private var transcripts: TranscriptReader
 
+    /// - Parameter conversationCache: 對話快取(所有主機共用;快取以 session 為鍵)。
     public init(
-        store: any HostStore, demoChannel: any HostChannel,
+        store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?) -> any HostChannel
     ) {
         self.store = store
         self.demoChannel = demoChannel
         self.makeChannel = makeChannel
+        self.conversationCache = conversationCache
         channel = demoChannel
-        agentList = AgentListModel(client: HerdrClient(channel: demoChannel))
+        let client = HerdrClient(channel: demoChannel)
+        let transcripts = TranscriptReader(channel: demoChannel)
+        self.client = client
+        self.transcripts = transcripts
+        agentList = AgentListModel(client: client, transcripts: transcripts)
+    }
+
+    /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
+    public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
+        ConversationModel(client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache)
     }
 
     public var rows: [HostRow] {
@@ -89,11 +103,13 @@ public final class HostsModel {
         let previous = channel
         if let host {
             channel = makeChannel(host.endpoint, host.hostKeyPin)
-            agentList = AgentListModel(client: HerdrClient(channel: channel, herdr: host.herdr))
+            client = HerdrClient(channel: channel, herdr: host.herdr)
         } else {
             channel = demoChannel
-            agentList = AgentListModel(client: HerdrClient(channel: demoChannel))
+            client = HerdrClient(channel: demoChannel)
         }
+        transcripts = TranscriptReader(channel: channel)
+        agentList = AgentListModel(client: client, transcripts: transcripts)
         self.selection = selection
         Task { await previous.disconnect() }
     }

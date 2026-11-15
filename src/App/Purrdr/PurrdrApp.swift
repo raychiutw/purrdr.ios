@@ -15,11 +15,13 @@ struct PurrdrApp: App {
 
     init() {
         let demo = DemoHost()
+        // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
+        let cache = InMemoryConversationCache()
         let hosts: HostsModel
         if ProcessInfo.processInfo.arguments.contains("-uiTesting") {
-            hosts = HostsModel(store: EphemeralHostStore(), demoChannel: demo, makeChannel: { _, _ in demo })
+            hosts = HostsModel(store: EphemeralHostStore(), demoChannel: demo, conversationCache: cache, makeChannel: { _, _ in demo })
         } else {
-            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo) { endpoint, pin in
+            hosts = HostsModel(store: KeychainHostStore(), demoChannel: demo, conversationCache: cache) { endpoint, pin in
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
             }
         }

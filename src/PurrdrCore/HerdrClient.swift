@@ -33,6 +33,17 @@ public struct HerdrClient: Sendable {
         }
     }
 
+    /// 在場回報(`pane.report_metadata`,行為規格 F5.13):讓桌機 herdr 側欄顯示「手機正在看這個 Agent、用什麼模型」。
+    ///
+    /// `seq` 必須單調遞增且以時鐘起算:herdr 忽略不大於上次的 seq(即使過了 TTL),從 0 起算會在每次重開後隱形(R-H22)。
+    /// 模型未知時省略該 token(空 token 在側欄是空欄)。純裝飾，呼叫端可忽略失敗。
+    public func reportPresence(paneID: String, model: String?, seq: UInt64) async throws {
+        var tokens = ["phone": "on"]
+        if let model, !model.isEmpty { tokens["model"] = String(model.prefix(80)) }
+        let params = ReportMetadataParams(paneID: paneID, source: "purrdr:presence", tokens: tokens, ttlMs: 45_000, seq: seq)
+        _ = try await request(method: "pane.report_metadata", params: params, as: TypedResult.self)
+    }
+
     /// 訂閱事件(`events.subscribe`)。
     ///
     /// 跟其他請求一樣開一個 bridge、寫一行請求、**不送 EOF**(bridge 在 EOF 時只回 ack 就結束);
@@ -106,11 +117,11 @@ public struct HerdrClient: Sendable {
         return nil
     }
 
-    private func request<Result: Decodable>(method: String, as: Result.Type) async throws -> Result {
+    private func request<Result: Decodable>(method: String, params: some Encodable = NoParams(), as: Result.Type) async throws -> Result {
         let session = try await channel.execute(HerdrCommand.bridge(herdr))
         let line: Data
         do {
-            try await session.write(Self.requestLine(method: method, params: NoParams()))
+            try await session.write(Self.requestLine(method: method, params: params))
             line = try await Self.firstLine(of: session)
         } catch {
             await session.close()
@@ -190,6 +201,27 @@ private struct WireRequest<Params: Encodable>: Encodable {
 }
 
 private struct NoParams: Encodable {}
+
+private struct ReportMetadataParams: Encodable {
+    var paneID: String
+    var source: String
+    var tokens: [String: String]
+    var ttlMs: Int
+    var seq: UInt64
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case source
+        case tokens
+        case ttlMs = "ttl_ms"
+        case seq
+    }
+}
+
+/// 只有 `{"type":…}` 的結果(例如 `{"type":"ok"}`)。
+private struct TypedResult: Decodable {
+    var type: String?
+}
 
 private struct SubscribeParams: Encodable {
     var subscriptions: [EventSubscription]
@@ -303,6 +335,12 @@ private struct WireAgent: Decodable {
     var title: String?
     var inputPending: Bool?
     var cwd: String?
+    var agentSession: WireSession?
+
+    struct WireSession: Decodable {
+        var kind: String?
+        var value: String?
+    }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
@@ -314,6 +352,7 @@ private struct WireAgent: Decodable {
         case title
         case inputPending = "input_pending"
         case cwd
+        case agentSession = "agent_session"
     }
 
     func agent(workspaceLabel: String?) -> Agent {
@@ -327,7 +366,11 @@ private struct WireAgent: Decodable {
             sessionTitle: title.nonEmpty,
             inputPending: inputPending ?? false,
             workspaceLabel: workspaceLabel.nonEmpty,
-            cwd: cwd.nonEmpty
+            cwd: cwd.nonEmpty,
+            session: agentSession.flatMap { wire in
+                guard let kind = wire.kind, let value = wire.value else { return nil }
+                return AgentSessionReference(kind: kind, value: value)
+            }
         )
     }
 }

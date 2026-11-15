@@ -7,7 +7,8 @@ import PurrdrCore
 /// 沒有主機時它就是選取中主機——App Review 唯一連得到的東西——也是 UI 測試的資料來源。
 /// 範例內容一律自己寫，不沿用 herdrchat 的文字(行為規格 D9)。
 ///
-/// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、接受事件訂閱(不送事件)、回顯的 shell。
+/// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、兩個 Claude Code agent 的對話紀錄(`DemoTranscripts`)、
+/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell。
 /// 完整的情境在 Demo 模式那張票補齊。
 public actor DemoHost: HostChannel {
     public init() {}
@@ -15,6 +16,9 @@ public actor DemoHost: HostChannel {
     public func execute(_ command: String) async throws -> any ExecSession {
         if command == HerdrCommand.bridge() {
             return DemoBridgeSession()
+        }
+        if let stdout = DemoTranscripts.respond(to: command) {
+            return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
@@ -84,6 +88,8 @@ enum DemoSnapshot {
         switch method {
         case "session.snapshot":
             return (line(#"{"id":\#(quoted(id)),"result":{"type":"session_snapshot","snapshot":\#(json)}}"#), false)
+        case "pane.report_metadata":
+            return (line(#"{"id":\#(quoted(id)),"result":{"type":"ok"}}"#), false)
         case "events.subscribe":
             // Demo 的內容不會變，所以只接受訂閱、不送事件。
             return (line(#"{"id":\#(quoted(id)),"result":{"type":"subscription_started"}}"#), true)
