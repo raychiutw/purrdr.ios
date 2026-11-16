@@ -99,7 +99,11 @@ enum HostErrorText {
         case HostProbeError.serverNotRunning:
             String(localized: "herdr isn’t running in this session on the host. Start herdr on the host, then test again.")
         case HostProbeError.unsupportedOperatingSystem:
-            String(localized: "Purrdr supports macOS and Linux hosts for now.")
+            String(localized: "Purrdr supports macOS, Linux, and Windows hosts.")
+        case WindowsCommandError.unsupported:
+            String(localized: "This isn’t available on Windows hosts yet.")
+        case WindowsCommandError.commandTooLong:
+            String(localized: "This request is too long for a Windows host.")
         case HostProbeError.herdr(let message):
             message
         case HostProbeError.updateFailed(let message):
@@ -108,4 +112,9 @@ enum HostErrorText {
             String(localized: "Couldn’t reach this host. Try again.")
         }
     }
+}
+
+/// Windows 主機還沒有 PowerShell 版本的功能(主題、用量等以 `localizedDescription` 顯示錯誤的地方)。
+extension WindowsCommandError: LocalizedError {
+    public var errorDescription: String? { HostErrorText.message(for: self) }
 }

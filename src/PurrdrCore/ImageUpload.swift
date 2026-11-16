@@ -36,7 +36,7 @@ public enum ImageUploadError: Error, Equatable {
     case tooLarge
 }
 
-/// 圖片上傳的主機指令(POSIX;Windows 主機還沒做)。
+/// 圖片上傳的主機指令(POSIX;Windows 主機由 `WindowsHostChannel` 換成 `WindowsScripts.imageUpload`)。
 ///
 /// - 指令只帶檔名與大小,bytes 走 exec 的 stdin(ADR-0003:沒有 SFTP;也避開 sshd 單一參數 128 KiB 的上限)。
 ///   app 送完 bytes 後送 EOF。
@@ -137,7 +137,7 @@ public struct ImageUploader: Sendable {
         await session.close()
         guard result.exitCode == 0 else { throw ImageUploadError.failed(exitCode: result.exitCode, message: result.stderrText) }
         let path = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .newlines)
-        guard path.hasPrefix("/"), path.hasSuffix("/" + name.value), !path.contains("\n") else {
+        guard HostPathSyntax.isAbsolute(path, endingWith: name.value) else {
             throw ImageUploadError.unexpectedPath(path)
         }
         return path

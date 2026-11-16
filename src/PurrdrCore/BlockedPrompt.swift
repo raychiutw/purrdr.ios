@@ -339,7 +339,7 @@ public enum BlockedPromptParser {
             let name = line[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
             return name.isEmpty ? nil : name
         }.first ?? "Claude Code"
-        let question = folder.hasPrefix("/") || folder.hasPrefix("~")
+        let question = HostPathSyntax.isAbsolute(folder) || folder.hasPrefix("~")
             ? "Trust \(folder)? \(agent) will be able to read, edit, and run files there."
             : "Trust this folder?"
         return BlockedPrompt(kind: .trust, question: question, options: options)

@@ -450,7 +450,9 @@ public final class HostsModel {
 
     private func channel(for host: HostConfiguration) -> any HostChannel {
         if let channel = channels[host.id] { return channel }
-        let channel = makeChannel(host.endpoint, host.hostKeyPin, credentials.provider(for: host))
+        // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。
+        let base = makeChannel(host.endpoint, host.hostKeyPin, credentials.provider(for: host))
+        let channel = host.operatingSystem?.channel(base) ?? base
         channels[host.id] = channel
         return channel
     }

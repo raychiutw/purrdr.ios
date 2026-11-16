@@ -49,7 +49,7 @@ extension ClaudeTranscriptParser {
 
     /// `…/<name>-wf_<run>.js` → `<name>`。
     static func workflowName(fromScriptPath path: String) -> String? {
-        guard let file = path.split(separator: "/").last,
+        guard let file = HostPathSyntax.lastComponent(path),
               let match = file.wholeMatch(of: /(.+)-wf_[A-Za-z0-9_-]+\.js/) else { return nil }
         return String(match.output.1)
     }

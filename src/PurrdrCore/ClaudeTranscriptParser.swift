@@ -111,7 +111,7 @@ public enum ClaudeTranscriptParser {
         let prefix = "Base directory for this skill: "
         guard let text = texts(in: object).first, text.hasPrefix(prefix) else { return [] }
         let path = text.dropFirst(prefix.count).prefix { $0 != "\n" }
-        guard let name = path.split(separator: "/").last, !name.isEmpty else { return [] }
+        guard let name = HostPathSyntax.lastComponent(String(path)), !name.isEmpty else { return [] }
         return [.skill(name: String(name))]
     }
 

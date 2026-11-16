@@ -2,7 +2,7 @@ import Foundation
 
 /// 主機指令建構：產生在主機上執行 herdr 的指令字串。
 ///
-/// 目前只有 POSIX `sh`(macOS、Linux);Windows 的 `-EncodedCommand` 包裝(ADR-0002)在 Windows 主機那張票加入。
+/// 產生的是 POSIX `sh` 指令(macOS、Linux);Windows 主機由 `WindowsHostChannel` 在通道層換成 PowerShell `-EncodedCommand`。
 public enum HerdrCommand {
     /// 非互動 SSH shell 不讀 profile,herdr 的安裝位置常不在 PATH(行為規格 §3.2)。
     static let pathPrefix =

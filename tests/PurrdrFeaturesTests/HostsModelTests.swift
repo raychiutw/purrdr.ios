@@ -44,6 +44,25 @@ struct HostsModelTests {
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
     }
 
+    @Test("Windows 主機(連線測試偵測到的 OS):Agent 列表的 herdr 指令換成 PowerShell -EncodedCommand(#26)")
+    func windowsHostUsesPowerShell() async throws {
+        var pc = Self.studio
+        pc.operatingSystem = .windows
+        let store = MemoryHostStore()
+        store.hosts = [pc]
+        let real = FakeHost()
+        await real.expect(
+            PowerShell.encodedCommand(HostEditorModelTests.windowsHerdrScript("'--session' 'work' 'remote-api-bridge'")),
+            reply: .recorded("session.snapshot.ndjson"))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.agentList.sections.flatMap(\.rows).count == 3)
+        #expect(await real.unmetExpectations.isEmpty)
+    }
+
     @Test("登入 Shell 與檔案瀏覽開在選取中主機上，標題／副標是主機名稱")
     func loginShellAndFilesUseSelectedHost() async throws {
         let store = MemoryHostStore()

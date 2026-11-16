@@ -86,7 +86,7 @@ public struct TranscriptReader: Sendable {
             return try await locate(sessionID: sessionID, cwd: cwd)
         case .grok(let id):
             guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
-            expectedSuffix = "/\(id)/updates.jsonl"
+            expectedSuffix = "\(id)/updates.jsonl"
         case .antigravity(let id), .piJournal(let id), .codex(let id):
             guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
             expectedSuffix = nil
@@ -97,7 +97,7 @@ public struct TranscriptReader: Sendable {
         let readsHeader = target.format == .piJournal || target.format == .codex
         let lines = try await run(TranscriptCommand.locate(target.location, readsHeader: readsHeader)).lines
         guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]),
-              expectedSuffix.map(lines[0].hasSuffix) ?? true else { throw TranscriptReadError.changed }
+              expectedSuffix.map({ Self.hasComponents(lines[0], $0) }) ?? true else { throw TranscriptReadError.changed }
         if case .codex(let id) = target.location {
             // 路徑必須是 `-<id>(_<rolloutId>)?.jsonl`;第一行是這個 session 的 session_meta(§4.2)。
             guard Self.isCodexRollout(lines[0], id: id) else { throw TranscriptReadError.changed }
@@ -193,9 +193,15 @@ public struct TranscriptReader: Sendable {
         return (lines, bytes)
     }
 
+    /// 路徑的最後幾段剛好是 `suffix`(以 `/` 分段;Windows 路徑的 `\` 也算分隔)。
+    static func hasComponents(_ path: String, _ suffix: String) -> Bool {
+        let expected = suffix.split(separator: "/")
+        return Array(HostPathSyntax.components(path).suffix(expected.count)) == expected
+    }
+
     /// Codex rollout 的檔名：`…-<id>.jsonl` 或倒帶後的 `…-<id>_<rolloutId>.jsonl`。
     static func isCodexRollout(_ path: String, id: String) -> Bool {
-        guard let name = path.split(separator: "/").last, name.hasPrefix("rollout-") else { return false }
+        guard let name = HostPathSyntax.lastComponent(path), name.hasPrefix("rollout-") else { return false }
         let suffix = "-\(id).jsonl"
         if name.hasSuffix(suffix) { return true }
         guard let range = name.range(of: "-\(id)_", options: .backwards), name.hasSuffix(".jsonl") else { return false }
@@ -203,11 +209,10 @@ public struct TranscriptReader: Sendable {
         return !rollout.isEmpty && rollout.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
     }
 
-    /// 主機回報的路徑：必須是絕對路徑、以 `.jsonl` 結尾、沒有 `..` 段、沒有 NUL／CR／LF(行為規格 §4.0)。
+    /// 主機回報的路徑：必須是絕對路徑(POSIX `/…` 或 Windows `C:\…`)、以 `.jsonl` 結尾、沒有 `..` 段、
+    /// 沒有 NUL／CR／LF(行為規格 §4.0)。
     static func isValidPath(_ path: String) -> Bool {
-        path.hasPrefix("/") && path.hasSuffix(".jsonl")
-            && !path.split(separator: "/").contains("..")
-            && !path.contains { $0 == "\0" || $0 == "\r" || $0 == "\n" }
+        HostPathSyntax.isSafeAbsolute(path) && path.hasSuffix(".jsonl")
     }
 }
 
