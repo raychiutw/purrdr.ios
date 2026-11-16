@@ -278,7 +278,7 @@ struct EchoBubbleView: View {
             HStack(spacing: 4) {
                 Label(failure.text, systemImage: "exclamationmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.errorText)
                 Button("Retry", action: retry)
                     .font(.caption.weight(.semibold))
                     .frame(minWidth: 44, minHeight: 44)

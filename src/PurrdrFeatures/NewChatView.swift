@@ -67,7 +67,7 @@ public struct NewChatView: View {
                 if let error = model.error {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.errorText)
                             .accessibilityIdentifier("newChat.error")
                     }
                 }

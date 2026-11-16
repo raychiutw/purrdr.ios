@@ -466,7 +466,7 @@ struct ToolStepView: View {
                 DisclosureGroup(isExpanded: $expanded) {
                     Text(result.split(separator: "\n", omittingEmptySubsequences: false).prefix(12).joined(separator: "\n"))
                         .font(.caption.monospaced())
-                        .foregroundStyle(call.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(call.isError ? AnyShapeStyle(.errorText) : AnyShapeStyle(.secondary))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {

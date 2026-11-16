@@ -90,7 +90,7 @@ struct ShellRunView: View {
                         }
                         if !visible.stderr.isEmpty {
                             Text(verbatim: visible.stderr.joined(separator: "\n"))
-                                .foregroundStyle(.red)
+                                .foregroundStyle(.errorText)
                                 .accessibilityIdentifier("conversation.shell.stderr")
                         }
                     }
