@@ -99,6 +99,17 @@
         }
       }
     },
+    "%@ tokens" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tokens"
+          }
+        }
+      }
+    },
     "%@ · %@" : {
       "extractionState" : "manual",
       "shouldTranslate" : false,
@@ -148,6 +159,28 @@
         }
       }
     },
+    "%lld agents done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個 agent 完成"
+          }
+        }
+      }
+    },
+    "%lld agents working" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個 agent 工作中"
+          }
+        }
+      }
+    },
     "%lld days" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -155,6 +188,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 天"
+          }
+        }
+      }
+    },
+    "%lld done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個完成"
+          }
+        }
+      }
+    },
+    "%lld failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個失敗"
           }
         }
       }
@@ -181,6 +236,17 @@
         }
       }
     },
+    "%lld more in the terminal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端機裡還有 %lld 個"
+          }
+        }
+      }
+    },
     "%lld notes for you" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -203,6 +269,17 @@
         }
       }
     },
+    "%lld of %lld agents done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld／%2$lld 個 agent 完成"
+          }
+        }
+      }
+    },
     "%lld panes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -221,6 +298,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個 Tab"
+          }
+        }
+      }
+    },
+    "%lld tool calls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 次工具呼叫"
           }
         }
       }
@@ -292,6 +380,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個 Agent"
+          }
+        }
+      }
+    },
+    "1 agent done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個 agent 完成"
+          }
+        }
+      }
+    },
+    "1 agent working" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個 agent 工作中"
           }
         }
       }
@@ -369,6 +479,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個 Tab"
+          }
+        }
+      }
+    },
+    "1 tool call" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 次工具呼叫"
           }
         }
       }
@@ -2572,6 +2693,17 @@
         }
       }
     },
+    "Fork" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fork"
+          }
+        }
+      }
+    },
     "Free for %@. When the trial ends, %@ is charged automatically unless you cancel at least 24 hours before it ends. " : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2590,6 +2722,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完全存取"
+          }
+        }
+      }
+    },
+    "General" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般"
           }
         }
       }
@@ -3008,6 +3151,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鑰匙圈錯誤:%@"
+          }
+        }
+      }
+    },
+    "Keys protected by a passphrase aren’t supported. On your computer, remove the passphrase with ssh-keygen -p -N \"\" -f <key file>, then paste the key again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援有 passphrase 保護的金鑰。請先對私鑰檔執行 ssh-keygen -p -N \"\" -f <私鑰檔> 移除 passphrase,再重新貼上金鑰。"
           }
         }
       }
@@ -3573,13 +3727,13 @@
         }
       }
     },
-    "None" : {
+    "No workspace on your hosts is running an agent. Spaces also shows their terminals." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無"
+            "value" : "主機上沒有 workspace 在跑 agent。Spaces 也會列出它們的終端機。"
           }
         }
       }
@@ -4013,17 +4167,6 @@
         }
       }
     },
-    "Passphrase" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Passphrase"
-          }
-        }
-      }
-    },
     "Password" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4057,13 +4200,13 @@
         }
       }
     },
-    "Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys aren’t supported. The key and passphrase are kept in this device’s keychain." : {
+    "Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys and keys protected by a passphrase aren’t supported. The key is kept in this device’s keychain." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "貼上 OpenSSH 格式的 ed25519 或 ECDSA 私鑰。不支援 RSA 金鑰。金鑰與 passphrase 存放在這支裝置的鑰匙圈。"
+            "value" : "貼上 OpenSSH 格式的 ed25519 或 ECDSA 私鑰。不支援 RSA 金鑰與有 passphrase 保護的金鑰。金鑰存放在這支裝置的鑰匙圈。"
           }
         }
       }
@@ -4277,6 +4420,17 @@
         }
       }
     },
+    "Purrdr can’t safely change ~/.claude/settings.json on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 無法安全地修改這台主機的 ~/.claude/settings.json。"
+          }
+        }
+      }
+    },
     "Purrdr can’t safely update the notes file on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4383,6 +4537,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不支援 RSA 金鑰。請改用這支裝置的金鑰，或 ed25519、ECDSA 金鑰。"
+          }
+        }
+      }
+    },
+    "Rack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "機架"
           }
         }
       }
@@ -4904,17 +5069,6 @@
         }
       }
     },
-    "Server" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "機架"
-          }
-        }
-      }
-    },
     "Session" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5131,6 +5285,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示剩餘"
+          }
+        }
+      }
+    },
+    "Show Spaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示 Spaces"
           }
         }
       }
@@ -6037,17 +6202,6 @@
         }
       }
     },
-    "The passphrase is incorrect." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "passphrase 不正確。"
-          }
-        }
-      }
-    },
     "The password is kept in this device’s keychain." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6367,6 +6521,17 @@
         }
       }
     },
+    "This host user has no ~/.claude folder. Set up Claude Code on the host first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的使用者沒有 ~/.claude 資料夾。請先在主機上設定 Claude Code。"
+          }
+        }
+      }
+    },
     "This host’s key hasn’t been confirmed yet. Test the connection in Hosts." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6433,17 +6598,6 @@
         }
       }
     },
-    "This key is encrypted with %@, which isn’t supported. Run ssh-keygen -p -f on the key to re-encrypt it." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這把金鑰以 %@ 加密，目前不支援。請對金鑰執行 ssh-keygen -p -f 重新加密。"
-          }
-        }
-      }
-    },
     "This key is incomplete or damaged. Paste the whole file again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6451,17 +6605,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這把金鑰不完整或已損壞。請重新貼上整個檔案。"
-          }
-        }
-      }
-    },
-    "This key is protected by a passphrase. Enter it below." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這把金鑰有 passphrase 保護，請在下方輸入。"
           }
         }
       }
@@ -7723,6 +7866,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年"
+          }
+        }
+      }
+    },
+    "~/.claude/settings.json changed while Purrdr was updating it. Nothing was changed; try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 更新時 ~/.claude/settings.json 被改動了。沒有做任何修改，請再試一次。"
+          }
+        }
+      }
+    },
+    "~/.claude/settings.json isn’t valid JSON, so Purrdr left it unchanged. Fix the file on the host and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "~/.claude/settings.json 不是有效的 JSON,Purrdr 沒有修改它。請在主機上修正檔案後再試一次。"
           }
         }
       }
