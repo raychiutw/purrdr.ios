@@ -191,6 +191,26 @@ struct SSHHostChannelTests {
         #expect(record.windowChanges == [[100, 30]])
         await server.stop()
     }
+
+    @Test("PTY:shell 自己結束(exit-status)時輸出正常結束;連線斷了則丟 connectionLost")
+    func ptyEndsOrLosesConnection() async throws {
+        let server = try await TestSSHServer.start { _ in .reply() }
+        let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
+
+        let ended = try await channel.openPTY(PTYRequest(columns: 80, rows: 24))
+        try await ended.write(Data("exit\r".utf8))
+        var received = Data()
+        for try await chunk in ended.output { received += chunk }
+        #expect(received == Data("pty$ exit\r".utf8))
+
+        let lost = try await channel.openPTY(PTYRequest(columns: 80, rows: 24))
+        try await lost.write(Data("drop\r".utf8))
+        await #expect(throws: SSHConnectionError.connectionLost) {
+            for try await _ in lost.output {}
+        }
+        await channel.disconnect()
+        await server.stop()
+    }
 }
 
 struct Collected: Equatable {

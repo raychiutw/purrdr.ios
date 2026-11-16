@@ -143,6 +143,29 @@ struct DemoHostTests {
         #expect(bubble.imagePaths == [path])
     }
 
+    @Test("送出 `!` 指令:Demo 的 Claude 不等待就收下，對話紀錄接著出現 shell 交換(輸入行與輸出行)")
+    func shellCommandAppendsShellExchange() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+
+        let outcome = await PromptDelivery(client: client).send("!ls Sources", to: try #require(try await client.snapshot().agents.first))
+
+        #expect(outcome == .submittedCommand)
+        guard case .appended(let chunk) = try await reader.tail(path: before.path, from: before.size) else {
+            Issue.record("對話紀錄應接上新的行")
+            return
+        }
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        guard items.count == 1, case .shell(let run) = items[0], case .recorded(let output) = run.output else {
+            Issue.record("應該只有一個有輸出的 shell 區塊：\(items)")
+            return
+        }
+        #expect(run.command == "ls Sources")
+        #expect(!output.stdout.isEmpty)
+    }
+
     @Test("送出 prompt:Demo 的「需要你」agent 拒絕(agent_blocked),要先回答")
     func blockedDemoAgentNeedsAnswer() async throws {
         let client = HerdrClient(channel: DemoHost())
@@ -297,6 +320,38 @@ struct DemoHostTests {
         let agentPath = try #require(ClaudeTranscript.workflowAgentTranscript(sessionFolder: folder, runID: "wf_demo01", agentID: agentID))
         let agentSize = try await reader.size(path: agentPath)
         #expect(try await reader.window(path: agentPath, endingAt: agentSize, lines: 300).lines.isEmpty == false)
+    }
+
+    @Test("檔案瀏覽:Demo 主機的家目錄與 workspace 資料夾;上傳後出現在清單，同名拒絕")
+    func browsesAndUploadsFiles() async throws {
+        let folders = HostFolders(channel: DemoHost())
+
+        let home = try await folders.list()
+        #expect(home.path == "/Users/demo")
+        #expect(home.entries.map(\.name) == ["ledger", "notes", "weather-app", ".zshrc", "README.md"])
+        let ledger = try await folders.list("/Users/demo/ledger")
+        #expect(ledger.entries.map(\.name) == ["export.csv", "ledger.py"])
+        await #expect {
+            _ = try await folders.list("/Users/demo/missing")
+        } throws: { error in
+            if case HostFolderError.cannotOpen = error { return true }
+            return false
+        }
+
+        let path = try await folders.upload(Data("hello".utf8), named: "todo.txt", to: "/Users/demo/notes")
+        #expect(path == "/Users/demo/notes/todo.txt")
+        let notes = try await folders.list("/Users/demo/notes")
+        #expect(notes.entries.first { $0.name == "todo.txt" }?.size == 5)
+        await #expect(throws: HostFolderError.alreadyExists) {
+            _ = try await folders.upload(Data("again".utf8), named: "todo.txt", to: "/Users/demo/notes")
+        }
+    }
+
+    @Test("登入 Shell:Demo 主機開回顯的 shell")
+    func opensLoginShell() async throws {
+        let pty = try await DemoHost().openPTY(PTYRequest(columns: 80, rows: 24))
+        var iterator = pty.output.makeAsyncIterator()
+        #expect(try await iterator.next() == Data("demo@purrdr ~ % ".utf8))
     }
 }
 

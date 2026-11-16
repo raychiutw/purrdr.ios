@@ -57,6 +57,7 @@ public actor FakeHost: HostChannel {
     private var expectations: [(command: String, reply: FakeReply)] = []
     private var connectionError: (any Error)?
     private var ptyExpectations: [(request: PTYRequest, output: Data)] = []
+    private var ptyOutputs: [Int: AsyncThrowingStream<Data, any Error>.Continuation] = [:]
     private var pending: [Int: (reply: FakeReply, continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation)] = [:]
     /// 回應完仍保持開著的串流(`FakeReply.keepsOpen`),測試可以再 `send`／`finish`。
     private var open: [Int: AsyncThrowingStream<ExecOutput, any Error>.Continuation] = [:]
@@ -119,7 +120,31 @@ public actor FakeHost: HostChannel {
         ptys.append(PTYOpening(request: request, input: Data(), sizes: [], closed: false))
         let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
         if !output.isEmpty { continuation.yield(output) }
+        ptyOutputs[id] = continuation
         return FakePTYSession(host: self, id: id, output: stream, continuation: continuation)
+    }
+
+    /// 對第 `index` 個 PTY 送出畫面輸出。
+    public func send(_ output: Data, toPTY index: Int) {
+        ptyOutputs[index]?.yield(output)
+    }
+
+    /// 結束第 `index` 個 PTY:`error` 為 `nil` 時是程式自己結束，否則是連線中斷。
+    public func endPTY(_ index: Int, throwing error: (any Error)? = nil) {
+        if let error {
+            ptyOutputs[index]?.finish(throwing: error)
+        } else {
+            ptyOutputs[index]?.finish()
+        }
+    }
+
+    /// 等到 app 開了 `count` 個 PTY。逾時則回傳目前數量。
+    public func waitForPTYs(_ count: Int, timeout: Duration = .seconds(2)) async -> Int {
+        let deadline = ContinuousClock.now + timeout
+        while ptys.count < count, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return ptys.count
     }
 
     /// 對第 `index` 次執行(`keepsOpen` 的串流)送出任一種輸出事件(stdout 或 stderr)。

@@ -112,6 +112,17 @@
         }
       }
     },
+    "%lld lines of output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 行輸出"
+          }
+        }
+      }
+    },
     "%lld months" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -211,6 +222,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個失敗"
+          }
+        }
+      }
+    },
+    "1 line of output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 行輸出"
           }
         }
       }
@@ -451,8 +473,8 @@
       }
     },
     "An agent needs you." : {
-      "extractionState" : "manual",
       "comment" : "推播內文(後台 APNs payload 的 loc-key)",
+      "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
@@ -667,6 +689,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法連上 Purrdr"
+          }
+        }
+      }
+    },
+    "Can’t Show This Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法顯示這個資料夾"
+          }
+        }
+      }
+    },
+    "Can’t Upload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法上傳"
           }
         }
       }
@@ -1144,6 +1188,17 @@
         }
       }
     },
+    "Copy Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝輸出"
+          }
+        }
+      }
+    },
     "Copy Public Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1206,6 +1261,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法載入訂閱方案。請檢查網路連線後再試一次。"
+          }
+        }
+      }
+    },
+    "Couldn’t open a shell on this host. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在這台主機上開啟 shell。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t open this folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法打開這個資料夾。"
+          }
+        }
+      }
+    },
+    "Couldn’t open this folder. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法打開這個資料夾。%@"
           }
         }
       }
@@ -1305,6 +1393,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法讀取選項。這些按鈕會送出常見的回答；不確定的話請查看終端機。"
+          }
+        }
+      }
+    },
+    "Couldn’t read this file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這個檔案。"
           }
         }
       }
@@ -1705,6 +1804,17 @@
         }
       }
     },
+    "Enclosing Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一層"
+          }
+        }
+      }
+    },
     "End" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1826,6 +1936,50 @@
         }
       }
     },
+    "File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Files over 25 MB can’t be uploaded." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超過 25 MB 的檔案無法上傳。"
+          }
+        }
+      }
+    },
+    "Files travel over the same SSH connection. Uploads are limited to 25 MB per file and never replace an existing file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案走同一條 SSH 連線傳送。上傳每個檔案上限 25 MB,且絕不會取代既有的檔案。"
+          }
+        }
+      }
+    },
     "Fingerprint" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1844,6 +1998,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聚焦中"
+          }
+        }
+      }
+    },
+    "Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料夾"
           }
         }
       }
@@ -2244,6 +2409,17 @@
         }
       }
     },
+    "Link" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連結"
+          }
+        }
+      }
+    },
     "Link Another Method" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2328,6 +2504,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "紀錄"
+          }
+        }
+      }
+    },
+    "Login Shell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入 Shell"
           }
         }
       }
@@ -2603,6 +2790,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已停止追蹤 · 重新載入以再次檢查"
+          }
+        }
+      }
+    },
+    "No output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無輸出"
+          }
+        }
+      }
+    },
+    "No output recorded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有記錄輸出"
           }
         }
       }
@@ -2937,6 +3146,17 @@
         }
       }
     },
+    "Other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他"
+          }
+        }
+      }
+    },
     "Other Skills" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2944,6 +3164,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他 Skill"
+          }
+        }
+      }
+    },
+    "Output truncated at 20,000 characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出超過 20,000 字，已截斷"
           }
         }
       }
@@ -3564,6 +3795,17 @@
         }
       }
     },
+    "Running…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行中…"
+          }
+        }
+      }
+    },
     "Sample conversations, no computer connected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3659,6 +3901,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選取中主機"
+          }
+        }
+      }
+    },
+    "Selected Host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取中主機：%@"
           }
         }
       }
@@ -3835,6 +4088,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示"
+          }
+        }
+      }
+    },
+    "Show All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示全部"
           }
         }
       }
@@ -4488,6 +4752,17 @@
         }
       }
     },
+    "The connection to this host was lost. Reconnect to start a new shell." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與這台主機的連線中斷了。重新連線會開啟新的 shell。"
+          }
+        }
+      }
+    },
     "The herdr path runs a different program. Check the herdr path." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4495,6 +4770,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "herdr 路徑執行的是別的程式，請檢查 herdr 路徑。"
+          }
+        }
+      }
+    },
+    "The host couldn’t save the file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機無法儲存這個檔案。"
+          }
+        }
+      }
+    },
+    "The host couldn’t save the file. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機無法儲存這個檔案。%@"
           }
         }
       }
@@ -4554,6 +4851,17 @@
         }
       }
     },
+    "The host didn’t respond with a folder listing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機回應的不是資料夾清單。"
+          }
+        }
+      }
+    },
     "The host refused the connection. Check that Remote Login (SSH) is on and the port is right." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4572,6 +4880,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機拒絕了連線。請確認 Tailscale SSH 已開啟，port 也正確。"
+          }
+        }
+      }
+    },
+    "The host saved the file somewhere unexpected." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機把檔案存到了意外的位置。"
           }
         }
       }
@@ -4653,6 +4972,17 @@
         }
       }
     },
+    "The shell has exited." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "shell 已結束。"
+          }
+        }
+      }
+    },
     "The sign-in didn’t go through. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4686,6 +5016,17 @@
         }
       }
     },
+    "The upload was interrupted. Nothing was saved on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上傳中斷了，主機上沒有留下任何檔案。"
+          }
+        }
+      }
+    },
     "The workflow’s phases appear here once it starts." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4693,6 +5034,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workflow 開始後，各階段會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "There’s already an item named “%@” in this folder. Rename the file and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾已經有名為「%@」的項目。請將檔案重新命名後再試一次。"
+          }
+        }
+      }
+    },
+    "There’s already an item with this name in this folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾已經有同名的項目。"
           }
         }
       }
@@ -4770,6 +5133,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置無法接收通知。%@"
+          }
+        }
+      }
+    },
+    "This file name can’t be used on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上不能使用這個檔名。"
+          }
+        }
+      }
+    },
+    "This folder is empty." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾是空的。"
           }
         }
       }
@@ -5034,6 +5419,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 repo 的 worktree Workspace 還開著，請先關閉它們。"
+          }
+        }
+      }
+    },
+    "This runs in the agent’s shell and won’t be sent to Claude." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會在 agent 的 shell 執行，不會送給 Claude。"
           }
         }
       }
@@ -5309,6 +5705,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在更新 %@ 上的 herdr…"
+          }
+        }
+      }
+    },
+    "Upload File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上傳檔案"
+          }
+        }
+      }
+    },
+    "Uploading %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在上傳「%@」"
           }
         }
       }

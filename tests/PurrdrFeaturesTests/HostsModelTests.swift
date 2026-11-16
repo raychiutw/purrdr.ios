@@ -44,6 +44,28 @@ struct HostsModelTests {
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
     }
 
+    @Test("登入 Shell 與檔案瀏覽開在選取中主機上，標題／副標是主機名稱")
+    func loginShellAndFilesUseSelectedHost() async throws {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let real = FakeHost()
+        await real.expectPTY(PTYRequest(columns: 80, rows: 24))
+        await real.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data("/Users/demo\n".utf8)))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+        model.load()
+
+        let shell = model.loginShell()
+        shell.viewDidResize(columns: 80, rows: 24)
+        let files = model.folderBrowser()
+        await files.load()
+        #expect(await real.waitForPTYs(1) == 1)
+
+        #expect(shell.title == "Studio")
+        #expect(files.hostName == "Studio")
+        #expect(files.path == "/Users/demo")
+        #expect(await real.unmetExpectations.isEmpty)
+    }
+
     @Test("主機清單依名稱排序，每列顯示名稱、user@host:port,設了具名 session 就附註(#37 故事 24)")
     func rowsShowEndpointAndSession() {
         let store = MemoryHostStore()
