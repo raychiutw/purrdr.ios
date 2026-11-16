@@ -96,15 +96,6 @@ struct WindowsHostScriptsTests {
         #expect(await host.executions.first?.stdinText.contains("\n$a=@('')\n") == true)
         #expect(await host.executions.last?.stdinText.contains("\n$a=@('~')\n") == true)
     }
-
-    @Test("還沒有 Windows 版本的主機指令(主機檔案讀寫：主題、註記、用量):丟 unsupported")
-    func hostFilesUnsupported() async {
-        let host = FakeHost()
-        await #expect(throws: WindowsCommandError.self) {
-            _ = try await HostFiles(channel: WindowsHostChannel(host)).read([HostPath(".config/herdr/config.toml")])
-        }
-        #expect(await host.executions.isEmpty)
-    }
 }
 
 /// 不管指令是什麼都回同一個回應的主機(指令內容由測試事後檢查)。

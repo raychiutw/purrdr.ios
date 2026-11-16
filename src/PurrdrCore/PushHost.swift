@@ -122,10 +122,12 @@ public struct PushHost: Sendable {
         return result.stdout.contains(#""plugin_id":"\#(Self.pluginID)""#)
     }
 
+    /// 列出 `~/.purrdr/push-*/pairing`(Windows 版是 `WindowsScripts.pushPairings`)。
+    static let otherPairingsScript = #"cd "$HOME/.purrdr" 2>/dev/null && ls -1d push-*/pairing 2>/dev/null"#
+
     /// 其他裝置在這台主機上的配對(`push-<id>/pairing`,不含自己)。
     func otherPairings() async throws -> [String] {
-        let script = #"cd "$HOME/.purrdr" 2>/dev/null && ls -1d push-*/pairing 2>/dev/null"#
-        let result = try await run(HostFileScript.command(script, arguments: []))
+        let result = try await run(HostFileScript.command(Self.otherPairingsScript, arguments: []))
         let own = "\(pairingFeature.id)/pairing"
         return result.stdout.split(separator: "\n").map(String.init).filter { $0.hasPrefix("push-") && $0 != own }
     }

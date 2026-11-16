@@ -38,11 +38,17 @@ public struct HostFileRead: Equatable, Sendable {
     /// 執行指令的主機使用者(同意畫面要說明「以哪個使用者」修改)。
     public var user: String
     public var files: [HostPath: HostFileState]
+    /// 家目錄的絕對路徑(分隔符號一律 `/`)。只有 Windows 主機的腳本回報(`C:/Users/<帳號>`),POSIX 主機是 `nil`。
+    public var home: String?
 
-    public init(user: String, files: [HostPath: HostFileState]) {
+    public init(user: String, files: [HostPath: HostFileState], home: String? = nil) {
         self.user = user
         self.files = files
+        self.home = home
     }
+
+    /// 主機是 Windows(家目錄是磁碟機路徑)。
+    public var isWindows: Bool { home.map(HostPathSyntax.isWindowsDrivePath) ?? false }
 
     public subscript(path: HostPath) -> HostFileState? { files[path] }
 }

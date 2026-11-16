@@ -7,7 +7,7 @@ import Foundation
 /// 腳本送到 Windows 上執行。
 ///
 /// - 一般指令：整段包成 `-EncodedCommand`(`PowerShell.encodedCommand`)。
-/// - 唯讀腳本(對話紀錄、資料夾清單):命令列只放一個固定的小 stub,腳本經 stdin 送過去再送 EOF。
+/// - 經 stdin 的腳本(對話紀錄、資料夾清單、主機檔案讀寫、slash 清單探索):命令列只放一個固定的小 stub,腳本經 stdin 送過去再送 EOF。
 ///   cmd 是預設 shell 時命令列上限是 8,191 字元,UTF-16 base64 會把腳本放大約 2.7 倍,放不下這些腳本。
 /// - PTY 不帶指令(登入 Shell)時原樣交給主機：sshd 開使用者的預設 shell(行為規格 §11.1)。
 public struct WindowsHostChannel: HostChannel {
@@ -78,7 +78,7 @@ extension HostOperatingSystem {
 
 /// Windows 主機做不到的指令。
 public enum WindowsCommandError: Error, Equatable {
-    /// 這個功能在 Windows 主機還沒有 PowerShell 版本(附原本的 POSIX 指令)。
+    /// 這個指令或功能在 Windows 主機沒有 PowerShell 版本(附原本的 POSIX 指令;功能層面目前只有 Codex 啟動器，附路徑)。
     case unsupported(String)
     /// 包好的指令超過 cmd 的命令列上限(8,191 字元)。
     case commandTooLong
@@ -101,6 +101,7 @@ enum WindowsCommand {
         if command == WakeProbe.command { return WindowsInvocation(command: command) }
         if let script = herdr(command) { return try inline(script) }
         if let script = transcript(command) { return viaStdin(script) }
+        if let script = hostFiles(command) { return viaStdin(script) }
         if let upload = ImageUploadCommand.parse(command) {
             return try inline(WindowsScripts.upload(WindowsScripts.imageUpload, arguments: [upload.name.value, String(upload.size)]))
         }
@@ -151,6 +152,9 @@ enum WindowsCommand {
             (TranscriptCommand.findSubagentScript, WindowsScripts.findSubagent),
             (TranscriptCommand.readWorkflowScript, WindowsScripts.readWorkflow),
             (TranscriptCommand.delegationLinesScript, WindowsScripts.delegationLines),
+            (ClaudeSlashCommand.discoverScript, WindowsScripts.slashDiscover),
+            (ClaudeSlashCommand.manifestsScript, WindowsScripts.slashManifests),
+            (ClaudeSlashCommand.scanScript, WindowsScripts.slashScan),
         ]
         let locations: [(TranscriptTarget.Location, String)] = [
             (.claude(sessionID: "", cwd: ""), "claude"), (.grok(sessionID: ""), "grok"), (.antigravity(sessionID: ""), "agy"),
@@ -163,6 +167,27 @@ enum WindowsCommand {
         }
         return scripts
     }()
+
+    // MARK: - 主機檔案
+
+    /// `HostFileScript.command` 的 `/bin/sh -c '<腳本>' purrdr <參數…>` → 同樣輸出格式的 PowerShell 腳本。
+    /// 寫入的內容(base64)可能上百 KiB,一律經 stdin(cmd 的命令列上限 8,191)。
+    static func hostFiles(_ command: String) -> String? {
+        for (posix, windows) in hostFileScripts {
+            let prefix = HostFileScript.command(posix, arguments: [])
+            guard command == prefix || command.hasPrefix(prefix + " "),
+                  let arguments = PosixShell.unquote(String(command.dropFirst(prefix.count))) else { continue }
+            return WindowsScripts.hostFiles(windows, arguments: arguments)
+        }
+        return nil
+    }
+
+    static let hostFileScripts: [(posix: String, windows: String)] = [
+        (HostFileScript.read, WindowsScripts.hostFileRead),
+        (HostFileScript.apply, WindowsScripts.hostFileApply),
+        (HostFileScript.newest, WindowsScripts.hostFileNewest),
+        (PushHost.otherPairingsScript, WindowsScripts.pushPairings),
+    ]
 
     static func inline(_ script: String) throws -> WindowsInvocation {
         let command = PowerShell.encodedCommand(script)

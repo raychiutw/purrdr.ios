@@ -1,6 +1,6 @@
 import Crypto
 import Foundation
-import PurrdrCore
+@testable import PurrdrCore
 import Testing
 
 /// 對真實 Windows 主機(OpenSSH + herdr Windows 版)的整合測試(#26),以環境變數開啟(預設不跑;CI 不跑)。
@@ -248,6 +248,202 @@ struct WindowsRealHostIntegrationTests {
         await ssh.disconnect()
     }
 
+    // MARK: - 主機檔案讀寫(#68;家目錄 %USERPROFILE% 指向暫存資料夾)
+
+    @Test("主機檔案：讀(CRLF 與 BOM 原樣)、compare-and-swap 寫入、讀取後被改過就整批不寫、還原後家目錄與安裝前完全相同")
+    func hostFilesCompareAndSwap() async throws {
+        let ssh = try await WindowsRealHost.channel()
+        let temp = try await WindowsTemp.create(on: ssh)
+        defer { Task { await temp.remove() } }
+        let home = temp.path + #"\home"#
+        let original = Data([0xEF, 0xBB, 0xBF]) + Data("{\r\n  \"a\": \"中文\"\r\n}\r\n".utf8)
+        try await temp.write(original, to: home + #"\.claude\settings.json"#)
+        try await temp.write(Data("x".utf8), to: home + #"\.claude\plugins\store\cc-plugin-you-should-know_a-1.json"#)
+        try await temp.write(Data("y".utf8), to: home + #"\.claude\plugins\store\cc-plugin-you-should-know_b-2.json"#)
+        let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["USERPROFILE": home]))
+        let files = HostFiles(channel: channel)
+        let settings: HostPath = ".claude/settings.json"
+
+        log("讀檔…")
+        let read = try await files.read([settings, ".claude/nope.json", ".nodir/x.json", ".claude"])
+        log("讀到 user \(read.user) · home \(read.home ?? "nil")")
+        #expect(read.isWindows)
+        #expect(read.home == home.replacingOccurrences(of: #"\"#, with: "/"))
+        #expect(read[settings]?.contents == original)
+        #expect(read[".claude/nope.json"] == .missing)
+        #expect(read[".nodir/x.json"] == .missingDirectory)
+        #expect(read[".claude"] == .notRegularFile)
+        #expect(try await files.newest(in: ".claude/plugins/store", prefix: "cc-plugin-you-should-know_", suffix: ".json") != nil)
+        #expect(try await files.newest(in: ".claude/nope", prefix: "a", suffix: ".json") == nil)
+
+        let before = try await temp.snapshot(of: home)
+        log("可還原寫入…")
+        let write = ReversibleHostWrite(channel: channel, feature: HostWriteFeature(id: "purrdr-test", userFiles: [settings]))
+        try await write.install { _ in
+            HostWritePlan(userFiles: [settings: Data("{\"b\":1}\n".utf8)], ownFiles: ["note.txt": .init(Data("own".utf8))])
+        }
+        #expect(try await files.read([settings])[settings]?.contents == Data("{\"b\":1}\n".utf8))
+        #expect(try await files.read([".purrdr/purrdr-test/note.txt"])[".purrdr/purrdr-test/note.txt"]?.contents == Data("own".utf8))
+
+        log("讀取後被改過：整批不寫…")
+        guard case .file(_, let version)? = try await files.read([settings])[settings] else {
+            Issue.record("讀不到 settings")
+            return
+        }
+        try await temp.write(Data("{\"user\":2}\n".utf8), to: home + #"\.claude\settings.json"#)
+        await #expect(throws: HostFilesError.changedSinceRead(settings)) {
+            try await files.apply([
+                .write(".purrdr/purrdr-test/other.txt", Data("z".utf8), expecting: .anything),
+                .write(settings, Data("{}".utf8), expecting: .version(version)),
+            ])
+        }
+        #expect(try await files.read([".purrdr/purrdr-test/other.txt"])[".purrdr/purrdr-test/other.txt"] == .missing)
+        await #expect(throws: HostFilesError.missingDirectory(".nodir/x.json")) {
+            try await files.apply([.write(".nodir/x.json", Data("{}".utf8), expecting: .missing)])
+        }
+        try await temp.write(Data("{\"b\":1}\n".utf8), to: home + #"\.claude\settings.json"#)
+
+        log("還原…")
+        try await write.restore { _, current, _ in current }
+        let after = try await temp.snapshot(of: home)
+        #expect(after == before, "還原後不同:\n\(after)\n---\n\(before)")
+        await temp.remove()
+        await ssh.disconnect()
+    }
+
+    @Test("Claude 用量：安裝 PowerShell 包裝，經 Git Bash 與 PowerShell 執行 status line 都存下用量、原本的 status line 照常輸出;還原後完全相同")
+    func claudeUsage() async throws {
+        let ssh = try await WindowsRealHost.channel()
+        let temp = try await WindowsTemp.create(on: ssh)
+        defer { Task { await temp.remove() } }
+        let home = temp.path + #"\home"#
+        let settings = Data("{\r\n  \"model\": \"opus\",\r\n  \"statusLine\": {\"type\": \"command\", \"command\": \"echo orig-$(head -c 9)\"}\r\n}\r\n".utf8)
+        try await temp.write(settings, to: home + #"\.claude\settings.json"#)
+        let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["USERPROFILE": home]))
+        let usage = ClaudeUsageHost(channel: channel)
+        let before = try await temp.snapshot(of: home)
+
+        log("安裝 Claude 用量…")
+        #expect(try await usage.inspect().isInstalled == false)
+        try await usage.install()
+        let read = try await HostFiles(channel: channel).read([ClaudeUsageHost.settingsPath])
+        let written = try #require(read[ClaudeUsageHost.settingsPath]?.contents)
+        let object = try #require(try JSONSerialization.jsonObject(with: written) as? [String: Any])
+        let command = try #require((object["statusLine"] as? [String: Any])?["command"] as? String)
+        log("status line:\(command)")
+        #expect(command == ClaudeUsageHost.wrapperCommand(windowsHome: home.replacingOccurrences(of: #"\"#, with: "/")))
+
+        let input = #"{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1738425600},"seven_day":{"used_percentage":41.2}}}"#
+        log("以 Git Bash 執行 status line…")
+        let viaBash = try await WindowsRealHost.collect(try await ssh.execute("printf '%s\\n' \(PosixShell.quote(input)) | " + command))
+        log("Git Bash:exit \(viaBash.exitCode) · \(viaBash.stdout) \(viaBash.stderr)")
+        #expect(viaBash.stdout == "orig-{\"session\n")
+        #expect(try await usage.readUsage()?.fiveHour?.usedPercentage == 23.5)
+
+        log("以 PowerShell 執行 status line(沒有 Git Bash 時 Claude Code 的作法)…")
+        let second = input.replacingOccurrences(of: "23.5", with: "30")
+        let viaPowerShell = try await WindowsRealHost.collect(
+            try await DefaultShellChannel(base: ssh, shell: .powershell).execute("\(PowerShell.quote(second)) | " + command))
+        log("PowerShell:exit \(viaPowerShell.exitCode) · \(viaPowerShell.stdout) \(viaPowerShell.stderr)")
+        #expect(viaPowerShell.stdout.hasPrefix("orig-"))
+        #expect(try await usage.readUsage()?.fiveHour?.usedPercentage == 30)
+
+        log("沒有 rate_limits 的輸入不覆寫…")
+        _ = try await WindowsRealHost.collect(try await ssh.execute("printf '%s\\n' '{\"session_id\":\"s2\"}' | " + command))
+        #expect(try await usage.readUsage()?.fiveHour?.usedPercentage == 30)
+
+        log("還原…")
+        try await usage.restore()
+        let after = try await temp.snapshot(of: home)
+        #expect(after == before, "還原後不同:\n\(after)\n---\n\(before)")
+        await temp.remove()
+        await ssh.disconnect()
+    }
+
+    @Test("主機主題與 You should know:讀 %APPDATA%\\herdr\\config.toml(指到暫存資料夾);寫參考檔、註記寫回後還原，家目錄與之前完全相同")
+    func themeAndNotes() async throws {
+        let ssh = try await WindowsRealHost.channel()
+        let temp = try await WindowsTemp.create(on: ssh)
+        defer { Task { await temp.remove() } }
+        let home = temp.path + #"\home"#
+        try await temp.write(Data("[theme]\r\nname = \"dracula\"\r\n".utf8), to: home + #"\AppData\Roaming\herdr\config.toml"#)
+        let store = ".claude/plugins/store/cc-plugin-you-should-know_builtin-0123456789ab.json"
+        try await temp.write(Data(YouShouldKnowStoreTests.sample.utf8), to: home + #"\"# + store.replacingOccurrences(of: "/", with: #"\"#))
+        try await temp.write(Data("x".utf8), to: home + #"\.purrdr\push-other-device\pairing"#)
+        let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["USERPROFILE": home]))
+        let before = try await temp.snapshot(of: home)
+
+        log("主題…")
+        let themeHost = HostThemeHost(channel: channel)
+        #expect(try await themeHost.readTheme().name == "dracula")
+        try await themeHost.install()
+        #expect(try await themeHost.inspect().isInstalled)
+
+        log("You should know…")
+        let ysk = YouShouldKnowHost(channel: channel)
+        let path = try #require(try await ysk.locate())
+        #expect(path == HostPath(store))
+        let note = try #require(try await ysk.read(path)?.note(forSession: YouShouldKnowStoreTests.sessionA))
+        try await ysk.perform(.knewIt, on: note, at: path)
+        let written = try #require(try await HostFiles(channel: channel).read([path])[path]?.contents)
+        let known = YouShouldKnowHost.known(in: written)
+        log("known:\(known)")
+        #expect(known.contains(note.line))
+
+        log("推播配對清單…")
+        #expect(try await PushHost(channel: channel, herdr: HerdrInstallation(), deviceID: "this-device", pluginSource: "unused").otherPairings() == ["push-other-device/pairing"])
+
+        log("還原…")
+        try await ysk.restore()
+        try await themeHost.restore()
+        let after = try await temp.snapshot(of: home)
+        #expect(after == before, "還原後不同:\n\(after)\n---\n\(before)")
+        await temp.remove()
+        await ssh.disconnect()
+    }
+
+    @Test("Claude slash 清單：Windows 的 installPath、plugin.json 宣告的巢狀 skill、CRLF frontmatter、使用者與專案層、對話紀錄的 skill_listing")
+    func slashDiscovery() async throws {
+        let ssh = try await WindowsRealHost.channel()
+        let temp = try await WindowsTemp.create(on: ssh)
+        defer { Task { await temp.remove() } }
+        let claude = temp.path + #"\claude"#
+        let plugin = temp.path + #"\cache\demo-market\demo-kit\1.0.0"#
+        let project = temp.path + #"\專案"#
+        let escaped = plugin.replacingOccurrences(of: #"\"#, with: #"\\"#)
+        try await temp.write(Data(#"{"version":2,"plugins":{"demo-kit@demo-market":[{"scope":"user","installPath":"\#(escaped)"}],"off-kit@demo-market":[{"scope":"user","installPath":"\#(escaped)"}]}}"#.utf8),
+                             to: claude + #"\plugins\installed_plugins.json"#)
+        try await temp.write(Data(#"{"enabledPlugins":{"off-kit@demo-market":false}}"#.utf8), to: claude + #"\settings.json"#)
+        try await temp.write(Data(#"{"name":"demo-kit","skills":["./skills/core"]}"#.utf8), to: plugin + #"\.claude-plugin\plugin.json"#)
+        try await temp.write(Data("---\r\nname: review\r\ndescription: Review the diff\r\nargument-hint: <branch>\r\n---\r\nbody\r\n".utf8),
+                             to: plugin + #"\skills\core\review\SKILL.md"#)
+        try await temp.write(Data("---\ndescription: Not declared\n---\n".utf8), to: plugin + #"\skills\misc\SKILL.md"#)
+        try await temp.write(Data("---\ndescription: Ship it\n---\n".utf8), to: plugin + #"\commands\ops\ship.md"#)
+        try await temp.write(Data("---\ndescription: Keep notes\n---\n".utf8), to: claude + #"\skills\notes\SKILL.md"#)
+        try await temp.write(Data("---\ndescription: Fix it\n---\n".utf8), to: project + #"\.claude\commands\fix.md"#)
+        let transcript = temp.path + #"\t.jsonl"#
+        try await temp.write(Data((#"{"type":"attachment","attachment":{"type":"skill_listing","isInitial":true,"names":["listed"],"content":"- listed: From the listing"}}"# + "\n" + #"{"type":"user"}"# + "\n").utf8),
+                             to: transcript)
+        let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["CLAUDE_CONFIG_DIR": claude]))
+
+        log("探索…")
+        let catalog = await ClaudeSlashDiscovery(channel: channel, timeLimit: .seconds(60)).catalog(cwd: project, transcriptPath: transcript)
+        let commands = catalog.sections.flatMap(\.commands)
+        log("slash:\(commands.map(\.name).filter { !ClaudeBuiltinCommands.all.map(\.name).contains($0) })")
+        #expect(catalog.isComplete)
+        let review = commands.first { $0.name == "demo-kit:review" }
+        #expect(review?.summary == "Review the diff")
+        #expect(review?.argumentHint == "<branch>")
+        #expect(commands.contains { $0.name == "demo-kit:ops:ship" })
+        #expect(!commands.contains { $0.name.contains("misc") }, "plugin.json 沒宣告的不列")
+        #expect(!commands.contains { $0.name.hasPrefix("off-kit:") }, "停用的 plugin 不列")
+        #expect(commands.contains { $0.name == "notes" && $0.summary == "Keep notes" })
+        #expect(commands.contains { $0.name == "fix" })
+        #expect(commands.contains { $0.name == "listed" })
+        await temp.remove()
+        await ssh.disconnect()
+    }
+
     // MARK: - 登入 Shell
 
     @Test("登入 Shell:PTY 開使用者預設的 shell(實測機是 Git Bash),打字有回應")
@@ -364,6 +560,13 @@ struct WindowsTemp: Sendable {
 
     func sha256(of file: String) async throws -> String {
         try await WindowsRealHost.powershell("[Console]::Out.Write((Get-FileHash -Algorithm SHA256 -LiteralPath \(PowerShell.quote(file))).Hash.ToLower())", on: channel).stdout
+    }
+
+    /// 資料夾底下所有項目(相對路徑、種類、內容的 SHA-256、屬性),依路徑排序，一行一個。
+    func snapshot(of directory: String) async throws -> String {
+        try await WindowsRealHost.powershell(
+            "$d=(Get-Item -LiteralPath \(PowerShell.quote(directory)) -Force).FullName;$r=@(Get-ChildItem -LiteralPath $d -Force -Recurse|Sort-Object FullName|%{$n=$_.FullName.Substring($d.Length);if($_.PSIsContainer){\"$n dir $($_.Attributes)\"}else{\"$n $((Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash) $($_.Attributes)\"}});[Console]::Out.Write(($r -join \"`n\"))",
+            on: channel).stdout
     }
 
     /// 只刪 `%TEMP%\purrdr-test-` 開頭的資料夾;刪完確認不在了。
