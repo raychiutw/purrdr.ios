@@ -242,8 +242,9 @@ public final class ConversationModel {
     public private(set) var answerNotice: AnswerNotice?
 
     public let paneID: String
-    /// 不是選取中主機時的主機名(標題列第一段);選取中主機為 `nil`。
-    private let hostName: String?
+    /// 不是選取中主機時的主機名(標題列第一段);選取中主機為 `nil`。每次算標題列時才問，
+    /// 換選取中主機或主機改名後，已開啟的聊天也跟著更新(#31)。
+    private let hostName: @MainActor () -> String?
     private let client: HerdrClient
     private let transcripts: TranscriptReader
     private let cache: any ConversationCache
@@ -296,7 +297,7 @@ public final class ConversationModel {
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: ClaudeSlashDiscovery? = nil, haptics: any Haptics = SilentHaptics(),
-        hostName: String? = nil,
+        hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
@@ -1044,7 +1045,7 @@ public final class ConversationModel {
 
     /// 標題下一行的資訊(F5.7)。
     public var header: ConversationHeader {
-        ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName)
+        ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName())
     }
 
     /// 標題列的動作鈕:working(或停止進行中)時「停止」,其他時候「重新載入」;還沒輪詢過時沒有。

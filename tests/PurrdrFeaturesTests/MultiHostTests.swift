@@ -238,6 +238,22 @@ struct MultiHostTests {
         #expect(!selected.header.segments.contains("Studio"))
     }
 
+    @Test("已開啟的聊天：換選取中主機後，標題列的主機名跟著更新;主機改名也跟著改")
+    func openedConversationHeaderFollowsSelection() throws {
+        let model = Self.model(ChannelsByAddress([:]))
+        model.load()
+        model.select(.host(Self.studio.id))
+        let lab = model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
+        let studio = model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
+
+        model.select(.host(Self.lab.id))
+
+        #expect(!lab.header.segments.contains("Lab"), "換成選取中主機後不該再標示主機名")
+        #expect(studio.header.segments.first == "Studio")
+        try model.rename(Self.studio.id, to: "Studio 2")
+        #expect(studio.header.segments.first == "Studio 2")
+    }
+
     @Test("主機圖示只存本機，以主機 id 為鍵;非選取中主機的列帶它的圖示")
     func hostIconsAreLocalPerHost() async {
         let defaults = UserDefaults(suiteName: "MultiHostTests.icons.\(UUID())")!

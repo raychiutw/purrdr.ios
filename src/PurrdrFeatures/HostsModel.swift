@@ -182,7 +182,11 @@ public final class HostsModel {
         let model = ConversationModel(
             client: member.client, transcripts: member.transcripts, paneID: route.paneID, knownSessionID: sessionID,
             cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: ClaudeSlashDiscovery(channel: member.channel),
-            haptics: haptics, hostName: route.host == selection ? nil : name(of: route.host),
+            haptics: haptics,
+            hostName: { [weak self] in
+                guard let self, route.host != self.selection else { return nil }
+                return self.name(of: route.host)
+            },
             // 主機目前只有 macOS／Linux(Windows 的上傳還沒做,ADR-0002)。
             images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore))
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
