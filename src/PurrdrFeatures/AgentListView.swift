@@ -235,7 +235,7 @@ public struct AgentListView: View {
                 ForEach(failures, id: \.host) { failure in
                     Label(failure.text, systemImage: "wifi.exclamationmark")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .accessibilityIdentifier("agentList.error.\(failure.host.storedValue)")
                 }
                 Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
@@ -253,7 +253,7 @@ public struct AgentListView: View {
             Section {
                 Label("Swipe a row left or right to pin, mute, rename, or close.", systemImage: "hand.draw")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .accessibilityIdentifier("agentList.swipeHint")
             }
         }
@@ -360,7 +360,7 @@ struct AgentRowView: View {
     private var isProminent: Bool { backgroundProminence == .increased }
 
     /// 次要色;選取中改白色。
-    private var secondary: AnyShapeStyle { isProminent ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary) }
+    private var secondary: AnyShapeStyle { isProminent ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondaryText) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -475,7 +475,7 @@ struct StatusLabel: View {
             Image(systemName: status.symbol)
                 .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : status.color)
             Text(status.title)
-                .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
         }
         .font(.subheadline)
         .accessibilityElement(children: .combine)
@@ -495,6 +495,7 @@ struct AgentSectionHeader: View {
                 .monospacedDigit()
         }
         .textCase(nil)
+        .foregroundStyle(.secondaryText)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("agentList.section.\(group)")
     }

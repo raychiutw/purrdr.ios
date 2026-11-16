@@ -75,7 +75,7 @@ private struct WorkspaceCardHeader: View {
                             .foregroundStyle(.primary)
                         Text(verbatim: card.summary)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         if card.status == .working || card.status == .blocked {
                             StatusLabel(status: card.status)
                         }
@@ -115,7 +115,7 @@ private struct TabGroupTitle: View {
     var body: some View {
         Text(verbatim: title)
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .accessibilityAddTraits(.isHeader)
             .cardRail()
     }
@@ -129,7 +129,7 @@ struct TerminalRowView: View {
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary)
+        backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondaryText)
     }
 
     var body: some View {

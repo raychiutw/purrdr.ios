@@ -74,7 +74,7 @@ public struct FolderBrowserView: View {
             List {
                 if listing.entries.isEmpty {
                     Text("This folder is empty.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .accessibilityIdentifier("files.empty")
                 }
                 Section {
@@ -85,6 +85,7 @@ public struct FolderBrowserView: View {
                     }
                 } footer: {
                     Text("Files travel over the same SSH connection. Uploads are limited to 25 MB per file and never replace an existing file.")
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .refreshable { await model.load() }
@@ -129,7 +130,7 @@ struct FolderEntryRow: View {
                 if let detail {
                     Text(verbatim: detail)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
         } icon: {

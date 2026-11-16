@@ -41,13 +41,13 @@ struct TailscaleCheckCard: View {
             .accessibilityAddTraits(.isHeader)
             Text("This host asks you to sign in to Tailscale again. Purrdr continues on its own after you sign in.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 ProgressView()
                 Text("Waiting for sign-in…")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             .accessibilityElement(children: .combine)
             ViewThatFits(in: .horizontal) {

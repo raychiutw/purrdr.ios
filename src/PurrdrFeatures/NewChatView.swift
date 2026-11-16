@@ -36,13 +36,18 @@ public struct NewChatView: View {
                     .accessibilityIdentifier("newChat.chooseFolder")
                 } header: {
                     Text("Folder")
+                        .foregroundStyle(.secondaryText)
                 } footer: {
                     Text("The agent starts in this folder on the host, in a new workspace.")
+                        .foregroundStyle(.secondaryText)
                 }
 
-                Section("Name") {
+                Section {
                     TextField("Name", text: $model.name, prompt: Text("Optional. Uses the folder name."))
                         .accessibilityIdentifier("newChat.name")
+                } header: {
+                    Text("Name")
+                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
@@ -61,7 +66,10 @@ public struct NewChatView: View {
                         .accessibilityIdentifier("newChat.permissionMode")
                     }
                 } footer: {
-                    agentFooter
+                    Group {
+                        agentFooter
+                    }
+                    .foregroundStyle(.secondaryText)
                 }
 
                 if let error = model.error {
@@ -178,7 +186,7 @@ struct FolderPickerView: View {
                 Section {
                     if listing.folders.isEmpty {
                         Text("No folders inside this one. You can still use it.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .accessibilityIdentifier("folderPicker.empty")
                     }
                     ForEach(listing.folders, id: \.self) { name in
@@ -198,6 +206,7 @@ struct FolderPickerView: View {
                         .font(.footnote.monospaced())
                         .textCase(nil)
                         .accessibilityIdentifier("folderPicker.path")
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .accessibilityIdentifier("folderPicker.list")

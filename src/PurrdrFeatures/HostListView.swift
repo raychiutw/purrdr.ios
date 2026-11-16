@@ -25,7 +25,7 @@ public struct HostListView: View {
                 if model.rows.isEmpty {
                     Section {
                         Text("Add a computer that runs herdr. Purrdr connects to it with SSH over your tailnet; nothing is exposed to the internet.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 if !model.rows.isEmpty {
@@ -50,7 +50,7 @@ public struct HostListView: View {
                     Section {
                         Label(message, systemImage: "exclamationmark.triangle")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .accessibilityIdentifier("hosts.error")
                     }
                 }
@@ -235,7 +235,7 @@ struct HostRowView: View {
                 .frame(minWidth: 28)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                // `Color.primary`/`Color.secondary`:列是 Button,階層式的 `.primary`/`.secondary` 會跟著按鈕變成 tint,
+                // `Color.primary`/`Color.secondaryText`:列是 Button,階層式的 `.primary`/`.secondary` 會跟著按鈕變成 tint,
                 // 副標成了淡粉紅、對比不足(#35)。
                 Text(title)
                     .font(.body)
@@ -243,12 +243,12 @@ struct HostRowView: View {
                     .truncationMode(.middle)
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color.secondaryText)
                     .truncationMode(.middle)
                 if let session {
                     Text("Session: \(session)")
                         .font(.subheadline)
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(Color.secondaryText)
                 }
             }
             Spacer(minLength: 8)

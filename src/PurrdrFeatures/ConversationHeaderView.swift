@@ -37,7 +37,7 @@ struct ConversationHeaderLine: View {
             }
         }
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.secondaryText)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(header.accessibilityText))
         // 只是文字、不能點(#35:沒有這個 trait 時 audit 把它當成觸控目標，報 hit region 太小)。
@@ -72,7 +72,7 @@ struct WorkingIndicatorView: View {
             if let preview {
                 Text(preview)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     // AX 字級不限行數(DESIGN.md:支援到 AX5 不截斷,#35)。
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -87,7 +87,7 @@ struct WorkingIndicatorView: View {
                 }
             }
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("conversation.working")

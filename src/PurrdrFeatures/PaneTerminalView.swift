@@ -98,7 +98,7 @@ struct TerminalTitle: View {
                     .accessibilityHidden(true)
                 Text(statusText)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
         .accessibilityElement(children: .combine)

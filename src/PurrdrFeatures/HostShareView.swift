@@ -35,6 +35,7 @@ struct HostShareView: View {
                 .padding(.vertical, 8)
             } footer: {
                 Text("Includes the address, user name, herdr settings, and host key fingerprint. Passwords and private keys are never shared.")
+                    .foregroundStyle(.secondaryText)
             }
             Section {
                 ShareLink(item: link, subject: Text(name)) {
