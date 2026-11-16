@@ -151,7 +151,7 @@ public final class PushService {
         if allSucceeded { store.lastDeviceToken = hex }
     }
 
-    /// 移除主機時：不等待地刪掉那台主機上的配對並撤銷(行為規格 F14)。
+    /// 移除主機時：不等待地刪掉那台主機上的配對並撤銷(行為規格 F14)。`channel` 是為此另開的連線，刪完就關閉。
     public func forget(hostID: String, channel: any HostChannel, herdr: HerdrInstallation) {
         guard let keyHash = store.keyHash(forHost: hostID) else { return }
         store.setKeyHash(nil, forHost: hostID)
@@ -159,6 +159,8 @@ public final class PushService {
         let session = session
         Task {
             try? await host.unpair()
+            // 這條連線是刪除主機時另開的，不在任何地方重用：刪完配對就關閉。
+            await channel.disconnect()
             try? await session.revokePushPairing(keyHash: keyHash)
         }
     }
