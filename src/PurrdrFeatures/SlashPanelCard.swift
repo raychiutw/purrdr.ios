@@ -24,7 +24,7 @@ struct SlashPanelCard: View {
                 ScrollView {
                     Text(verbatim: panel.notes.joined(separator: "\n"))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 180)
@@ -74,7 +74,7 @@ struct SlashPanelCard: View {
                     if let detail = option.detail {
                         Text(verbatim: detail)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -166,7 +166,9 @@ struct SlashPanelCard: View {
             if action.key == "enter" {
                 button.buttonStyle(.borderedProminent)
             } else {
+                // 文字用主要色(取消要中性):bordered 預設是 tint 字配淡 tint 底，在卡片填色上對比不到 4.5:1(#67 audit)。
                 button.buttonStyle(.bordered)
+                    .foregroundStyle(Color.primary)
             }
         }
     }

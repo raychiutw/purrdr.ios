@@ -22,15 +22,20 @@ struct DevicePublicKeyView: View {
                 .accessibilityIdentifier("deviceKey.share")
             } header: {
                 Text("Public Key")
+                    .foregroundStyle(.secondaryText)
             } footer: {
                 Text("The private key stays in this device’s Secure Enclave and never leaves it. Add this public key to each host you sign in to.")
+                    .foregroundStyle(.secondaryText)
             }
 
-            Section("Fingerprint") {
+            Section {
                 Text(verbatim: publicKey.fingerprint.description)
                     .font(.callout.monospaced())
                     .textSelection(.enabled)
                     .accessibilityIdentifier("deviceKey.fingerprint")
+            } header: {
+                Text("Fingerprint")
+                    .foregroundStyle(.secondaryText)
             }
 
             ForEach(AuthorizedKeyCommand.Platform.allCases, id: \.self) { platform in
@@ -44,8 +49,10 @@ struct DevicePublicKeyView: View {
                         .accessibilityIdentifier("deviceKey.copyCommand.\(platform.identifier)")
                 } header: {
                     Text(platform.title)
+                        .foregroundStyle(.secondaryText)
                 } footer: {
                     Text(platform.footer(username: username))
+                        .foregroundStyle(.secondaryText)
                 }
             }
         }

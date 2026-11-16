@@ -14,10 +14,13 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 | 品牌紅 | `#FA2D48` | 接近 Apple Music 紅。只用在圖示與不承載文字的裝飾;配白字只有 3.8:1 |
 | 填色底(放白字)、淺色模式紅字 | `#D91E36` | 白字 5.0:1。送出鍵、使用者泡泡、主要按鈕、「+」 |
 | 深色模式紅字與強調 | `#FF4D63` | 對 `#1C1C1E` 5.3:1 |
+| 次要文字 `secondaryText`(#67) | light `#636366`／dark `#AEAEB2`／light 高對比 `#48484A`／dark 高對比 `#D1D1D6` | 取代承載資訊的系統 `.secondary`／`.tertiary` 文字(系統 secondaryLabel 白底只有 3.4:1)。淺色對白底 6.0:1、grouped `#F2F2F7` 5.4:1、淡填色卡片 `#EFEFF0` 5.2:1;深色對黑底 9.5:1、`#1C1C1E` 7.7:1、grouped 列 `#2C2C2E` 6.3:1;高對比兩值對同一組背景都 ≥ 7.9:1 |
+| 錯誤文字 `errorText`(#35) | light `#C4001A`／dark `#FF7A70`／light 高對比 `#A50011`／dark 高對比 `#FF9F97` | 取代承載文字的系統 `.red`(白底 3.6:1);圖示與小紅點仍用系統紅 |
 
 - 每個自訂顏色在 Asset Catalog 都要有 light／dark／各自 high contrast 四個值。
 - 紅色只用在主要動作與「需要你」狀態;每個畫面 prominent 按鈕最多 2 個。
 - 紅色在 iOS 常代表危險，所以「需要你」一律同時有 `!` 符號與文字，不只靠顏色;真正的錯誤與刪除用系統 `.red`／destructive role,不用品牌紅。
+- 次要文字的判斷原則(#67):**承載資訊的文字一律用 `secondaryText`**——副標、時間、說明、狀態字、預覽、參數提示、placeholder、空狀態與錯誤說明，List／Form 的 section 標題與註腳(系統預設是 secondaryLabel,要明確指定;iPad 側欄的系統樣式標題除外),以及「圖示 + 文字」的 Label 整體、只有圖示的按鈕(關閉、複製)與單獨表達狀態的圖示(縮放、未知)。**純裝飾可留系統階層色**:旁邊已有文字說明或對 VoiceOver 隱藏的圖示(卡片種類圖示、主機圖示、工具種類圖示、檔案圖示、圖片佔位圖示、展開箭頭 chevron)、軌道線、分隔線、邊框與底色(`.fill.*`、`.background.secondary`、`Color.secondary.opacity(…)`)。在按鈕(List 列、`DisclosureGroup` label)裡也不會被 tint 染色，因為 `secondaryText` 是固定色。
 - 其他使用系統外觀，不提供 app 內的深淺色設定。
 - **主機主題**(#23,設定「Use Host Theme」,經同意):選取中主機 herdr `config.toml` 的 `[theme]` 套到側欄、列表、對話與終端機(所有主機的聊天都用選取中主機的主題;換選取中主機立刻換，新視窗也一樣)——accent 當 tint(對 `#F2F2F7`／`#1C1C1E` ≥ 4.5:1 才用)、白字填色(使用者泡泡,白字 ≥ 4.5:1 才用，否則品牌紅)、終端機背景／文字／ANSI(對背景 ≥ 4.5:1,不足的退回系統)。設定等 sheet 永遠用 App 配色(關掉主題的地方不能被主題弄得不可讀)。
 
@@ -39,7 +42,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - **Spaces／Agents 檢視**(#40):Agent 列表的標題選單切換兩種檢視，存在本機。Spaces 檢視以 workspace 為單位：只有一個 Agent 且沒有其他 Pane 的是一般聊天列，其餘是 workspace 卡片(標題、統計行「N agents, M working · N tabs · N panes · 資料夾」、工作中或需要你時的狀態;底下依 Tab 分組列出 Agent 列與終端機列，內縮並有左側軌道)。點卡片標題或列尾的版面圖鈕開該 workspace 的版面圖;終端機列開 Pane 終端機(標題是程式名)。Agents 檢視每個 Agent 一列。
 - **已釘選與未讀**(#41):列的滑動或 context menu「釘選」把聊天放進最前面的「已釘選」組(不論狀態，依釘選先後);標題後的圖釘、靜音小圖示用次要色。未讀的完成以實心圓標示，VoiceOver 念「Unread」;已讀的完成顯示成閒置。section 標題帶數量。需處理數量(有「需要你」或未讀的 workspace 數)顯示在主機與設定 sheet 的「完成」旁，0 不顯示、超過 99 顯示「99+」,不設 app 圖示徽章。列表最底部的滑動提示在第一次用了滑動動作後不再出現。
 - **視窗**(#31):iPad 可開多個視窗，每個視窗各自的側欄、列表選取與聊天;UI 一律稱「視窗」,不稱 Scene 或分頁。
-- **You should know**(#23):列表最上方一列「✦ N notes for you」(所有主機合計，只算列表裡有的 Claude 聊天),點了開註記清單(sheet,選取中主機的在前),每則可「Go to Chat」。輸入列上方以內容層卡片顯示這個聊天 session 的那則，動作 Learn More(有說明時)、I Knew That／Got It、Discuss in Chat(放進輸入框，不蓋掉已打的字)、Dismiss;第一次動作前以 alert 徵求同意(會改主機上的 store;同意與寫回都是聊天所在的那台),設定可撤掉(選取中主機的)。
+- **You should know**(#23):列表最上方一列「✦ N notes for you」(所有主機合計，只算列表裡有的 Claude 聊天),點了開註記清單(sheet,選取中主機的在前),每則可「Go to Chat」。輸入列上方以內容層卡片顯示這個聊天 session 的那則(不透明 `.background` 底 + `.separator` 邊，同 slash 選單;tint 文字按鈕在 `#F2F2F7` 底不到 4.5:1),動作 Learn More(有說明時)、I Knew That／Got It、Discuss in Chat(放進輸入框，不蓋掉已打的字)、Dismiss;第一次動作前以 alert 徵求同意(會改主機上的 store;同意與寫回都是聊天所在的那台),設定可撤掉(選取中主機的)。
 - **輸入列**:附加、多行輸入、送出(唯一 tinted 主要動作);輸入 `/` 時彈出依來源分組的 slash 選單，可鍵盤上下選擇;打了名稱後改成沒有標題的單一排名清單。每列參數提示淡色等寬;點選需要參數的指令只填入，參數提示淡淡顯示在游標後。`/model`、`/effort` 開出的面板在聊天內以原生卡片呈現(內容層，同「需要你」卡片背景):目前使用中打勾、游標列填色高亮、effort 以分段控制與 ‹ › 調整、面板自己的動作鈕(確認 prominent、取消最後且中性)。
 - **終端機**:全螢幕深色;標題下是狀態點加文字(連線中…／已連線／連線中斷／已結束等),連線中斷時橫幅提供「重新連線」,Pane 被別人操作或接管時提供「接管」。按鍵列是單一玻璃容器：可橫捲的 Esc、Tab、Ctrl、Alt(鎖定時同時有底色與「•」標示)、← ↓ ↑ →、`/`、`-`、`|`、`~`、Home、End,Esc～Alt 排最前面、最窄寬度也不用捲;列尾固定兩顆獨立鈕「貼上」與「收起鍵盤」。每鍵 ≥ 44×44 pt 並有 VoiceOver label。字級可用捏合與 `Aa` 選單調整(8–28 pt)。單指垂直滑動捲動(交給 herdr 決定捲歷史或送滾輪)。
 

@@ -84,16 +84,16 @@ private struct LayoutTabView: View {
             HStack(spacing: 4) {
                 Text(title)
                     .font(.subheadline.weight(tab.isActive ? .semibold : .regular))
-                    .foregroundStyle(tab.isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(tab.isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
                 if tab.isActive {
                     Text("Active")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 if tab.isZoomed {
                     Image(systemName: "plus.magnifyingglass")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .accessibilityLabel("Zoomed")
                 }
             }
@@ -172,7 +172,7 @@ private struct LayoutBlockView: View {
                 if let detail {
                     Text(detail)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .lineLimit(2)
@@ -183,11 +183,11 @@ private struct LayoutBlockView: View {
             } icon: {
                 Image(systemName: "terminal")
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .lineLimit(2)
         case .unavailable:
             Image(systemName: "questionmark")
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondaryText)
         }
     }
 

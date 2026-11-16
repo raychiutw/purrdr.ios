@@ -178,13 +178,6 @@ enum AccessibilityAuditExclusions {
             return element.elementType == .staticText
         },
         Rule(
-            types: .contrast,
-            reason: "「Contrast nearly passed」是系統語意色 secondaryLabel(.secondary)與 tint 文字按鈕：DESIGN.md 規定用系統外觀，"
-                + "這些顏色在「增加對比」開啟時由系統加深;Apple 自己的 List 副標也是同一色"
-        ) { issue, _ in
-            issue.compactDescription.localizedCaseInsensitiveContains("nearly passed")
-        },
-        Rule(
             types: .textClipped,
             reason: "TextField 的 placeholder 由系統單行繪製;輸入的文字在欄位內可橫捲，不會遺失(AX5 截圖確認欄位標籤完整換行)"
         ) { issue, _ in

@@ -20,7 +20,7 @@ public struct ClaudeUsageFooter: View {
             if let message = model.message {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .accessibilityIdentifier("claudeUsage.message")
             }
         }
@@ -59,7 +59,7 @@ public struct ClaudeUsageFooter: View {
 
     private func progress(_ title: LocalizedStringKey) -> some View {
         Label {
-            Text(title).foregroundStyle(.secondary)
+            Text(title).foregroundStyle(.secondaryText)
         } icon: {
             ProgressView()
         }
@@ -71,7 +71,7 @@ public struct ClaudeUsageFooter: View {
             HStack {
                 Text("Claude Usage")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 Spacer()
                 Menu {
                     Picker("Show", selection: $model.display) {
@@ -100,7 +100,7 @@ public struct ClaudeUsageFooter: View {
         VStack(alignment: .leading, spacing: 10) {
             if rows.isEmpty {
                 Label("Waiting for Claude Code to report usage", systemImage: "gauge.with.dots.needle.0percent")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             ForEach(rows) { row in
                 ClaudeUsageRowView(row: row, display: model.display)
@@ -109,7 +109,7 @@ public struct ClaudeUsageFooter: View {
             if let asOf = model.asOf {
                 Text("As of \(asOf, format: .dateTime.hour().minute())")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
     }
@@ -153,7 +153,7 @@ struct ClaudeUsageRowView: View {
             if let resetsAt = row.resetsAt {
                 Text("Resets \(resetsAt, format: Self.resetFormat(resetsAt))")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
         .accessibilityElement(children: .combine)

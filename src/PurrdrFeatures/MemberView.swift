@@ -103,7 +103,7 @@ struct SignInView: View {
                     .font(.title2.bold())
                 Text("A member account is only needed for Purrdr Plus: notifications when an agent needs you, and syncing your hosts between devices.")
                 Text("Chat and terminal never need an account, and your conversations never pass through our servers.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
@@ -225,9 +225,12 @@ struct AccountView: View {
                     }
                     .accessibilityIdentifier("member.plus")
                 } footer: {
-                    if plus.needsRenewal {
-                        Text("Your subscription has ended. Notifications and host sync are paused until you subscribe again.")
+                    Group {
+                        if plus.needsRenewal {
+                            Text("Your subscription has ended. Notifications and host sync are paused until you subscribe again.")
+                        }
                     }
+                    .foregroundStyle(.secondaryText)
                 }
                 .task { await plus.refresh() }
             }
@@ -249,15 +252,20 @@ struct AccountView: View {
                 }
             } header: {
                 Text("Sign-In Methods")
+                    .foregroundStyle(.secondaryText)
             } footer: {
                 Text("Link another sign-in method to reach the same member from either. Keep at least one.")
+                    .foregroundStyle(.secondaryText)
             }
 
             let unlinked = SignInMethod.allCases.filter { member.identity($0) == nil }
             if !unlinked.isEmpty {
-                Section("Link Another Method") {
+                Section {
                     SignInButtons(model: model, linking: true, methods: unlinked)
                         .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                } header: {
+                    Text("Link Another Method")
+                        .foregroundStyle(.secondaryText)
                 }
             }
 
@@ -270,6 +278,7 @@ struct AccountView: View {
                     .accessibilityIdentifier("member.delete")
             } footer: {
                 Text("Deleting your member account removes it and its data from Purrdr right away. Subscriptions billed by Apple continue until you cancel them in Settings.")
+                    .foregroundStyle(.secondaryText)
             }
         }
         .disabled(model.isWorking)

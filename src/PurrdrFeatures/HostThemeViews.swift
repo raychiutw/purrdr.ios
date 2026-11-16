@@ -81,12 +81,14 @@ struct HostThemeSettingsSection: View {
             if let message = model.message {
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         } header: {
             Text("Appearance")
+                .foregroundStyle(.secondaryText)
         } footer: {
             Text("Color chats and the terminal with this host’s herdr theme. Colors without enough contrast fall back to the system colors.")
+                .foregroundStyle(.secondaryText)
         }
         .alert("Use Host Theme?", isPresented: Binding(get: { model.isConfirming }, set: { _ in })) {
             Button("Cancel", role: .cancel) { model.cancelConsent() }
@@ -126,8 +128,10 @@ struct YouShouldKnowSettingsSection: View {
                 .accessibilityIdentifier("settings.youShouldKnow.undo")
             } header: {
                 Text("You Should Know")
+                    .foregroundStyle(.secondaryText)
             } footer: {
                 Text("Purrdr updates Claude Code’s notes file on this host when you act on a note. Undo puts back what Purrdr changed and asks again next time.")
+                    .foregroundStyle(.secondaryText)
             }
         }
     }

@@ -18,13 +18,13 @@ struct SlashMenuView: View {
                     if menu.isLoading {
                         Label("Loading Commands…", systemImage: "ellipsis")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .padding(.horizontal, 12)
                     } else if menu.commands.isEmpty {
                         Text("No Matching Commands")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .padding(.horizontal, 12)
                     }
@@ -56,7 +56,7 @@ struct SlashMenuView: View {
                     if menu.isIncomplete {
                         Label("This list may be incomplete. The host took too long to list every command.", systemImage: "exclamationmark.circle")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .padding(12)
                             .accessibilityIdentifier("slash.incomplete")
                     }
@@ -89,16 +89,16 @@ struct SlashMenuView: View {
                         .font(.body.monospaced())
                         .foregroundStyle(.primary)
                     if let hint = command.argumentHint {
-                        // 淡色但仍承載文字：用次要色，不用 tertiary(對比只有約 2:1,#35)。
+                        // 淡色但仍承載文字：用 `secondaryText`,不用 tertiary(對比只有約 2:1,#35、#67)。
                         Text(verbatim: hint)
                             .font(.footnote.monospaced())
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 if !command.summary.isEmpty {
                     Text(verbatim: command.summary)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .lineLimit(2)
                 }
             }

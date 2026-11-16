@@ -278,6 +278,7 @@ struct RenameWorkspaceSheet: View {
                         .accessibilityIdentifier("workspace.rename.field")
                 } footer: {
                     Text("This renames the workspace on the host. herdr shows the new name too.")
+                        .foregroundStyle(.secondaryText)
                 }
                 if let error = actions.renameError {
                     Section {
@@ -354,6 +355,7 @@ struct NewWorktreeSheet: View {
                         .accessibilityIdentifier("workspace.worktree.branch")
                 } footer: {
                     Text("Creates a git worktree on a new branch from “\(workspaceLabel)” and opens it as its own workspace, so its files aren’t shared with other chats in the same repo.")
+                        .foregroundStyle(.secondaryText)
                 }
                 if let error = actions.worktreeError {
                     Section {

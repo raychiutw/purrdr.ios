@@ -208,7 +208,7 @@ public struct ConversationView: View {
         case .reachedStart:
             Text("Beginning of conversation")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .frame(maxWidth: .infinity)
                 .accessibilityIdentifier("conversation.beginning")
         case .available:
@@ -267,7 +267,7 @@ public struct ConversationView: View {
             HStack {
                 Label(banner.text, systemImage: banner.symbol)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 Spacer(minLength: 8)
                 if banner == .offline {
                     // 中斷標示留在畫面上直到重新連上;也可以手動立刻重試(輪詢本身仍會每幾秒重試)。
@@ -306,11 +306,14 @@ private struct HeaderActionButton: View {
             .accessibilityIdentifier("conversation.reload")
         case .stop:
             Menu {
-                Section("Control-C may end the agent process and this session. The conversation stays on the host, but the agent stops. Stop only interrupts the current turn.") {
+                Section {
                     Button("Force Quit Agent", systemImage: "xmark.octagon", role: .destructive) {
                         Task { await model.forceQuit() }
                     }
                     .accessibilityIdentifier("conversation.forceQuit")
+                } header: {
+                    Text("Control-C may end the agent process and this session. The conversation stays on the host, but the agent stops. Stop only interrupts the current turn.")
+                        .foregroundStyle(.secondaryText)
                 }
             } label: {
                 Label("Stop", systemImage: "stop.fill")
@@ -423,7 +426,7 @@ struct UserBubbleView: View {
                 if let date = bubble.date {
                     Text(date, format: .dateTime.hour().minute())
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
         }
@@ -446,7 +449,7 @@ struct CapsuleNote: View {
     var body: some View {
         Label(text, systemImage: symbol)
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(.fill.tertiary, in: Capsule())
@@ -469,10 +472,10 @@ struct ToolRunView: View {
             .padding(.top, 6)
         } label: {
             HStack(spacing: 6) {
-                // `Color.secondary`:DisclosureGroup 的 label 是按鈕，階層式 `.secondary` 會變成淡化的 tint、對比不足(#35 audit)。
+                // `Color.secondaryText`(固定色):DisclosureGroup 的 label 是按鈕，階層式 `.secondary` 會變成淡化的 tint、對比不足(#35 audit)。
                 Text(run.summary.text)
                     .font(.subheadline)
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Color.secondaryText)
                 if run.summary.failures > 0 {
                     Circle()
                         .fill(.red)
@@ -495,7 +498,7 @@ struct ToolStepView: View {
             DisclosureGroup(isExpanded: $expanded) {
                 Text(text)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } label: {
@@ -507,7 +510,7 @@ struct ToolStepView: View {
                 DisclosureGroup(isExpanded: $expanded) {
                     Text(result.split(separator: "\n", omittingEmptySubsequences: false).prefix(12).joined(separator: "\n"))
                         .font(.caption.monospaced())
-                        .foregroundStyle(call.isError ? AnyShapeStyle(.errorText) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(call.isError ? AnyShapeStyle(.errorText) : AnyShapeStyle(.secondaryText))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
@@ -527,7 +530,7 @@ struct ToolStepView: View {
                 if !call.input.isEmpty {
                     Text(call.input)
                         .font(.caption.monospaced())
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(Color.secondaryText)
                         .lineLimit(1)
                 }
             }

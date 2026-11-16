@@ -114,7 +114,6 @@
 | Dynamic Type、text clipped | 只在預設字級段落，靜態文字與 List／Form 按鈕 | audit 以模擬放大「預測」,對 List／Form 裡用 text style 的 SwiftUI Text 誤報;同一測試緊接著以 AX5 實際啟動同一畫面，以 AX5 段落為準 |
 | Dynamic Type | AX5 段落裡一行高度 ≥ 50pt 的靜態文字 | 已實際放大(預設字級一行約 20pt);audit 對 Button 內合併的 SwiftUI Text 誤報「部分不支援」 |
 | contrast | 對應不到元素、detailedDescription 是「SwiftUI.AccessibilityNode」 | 已對 VoiceOver 隱藏的裝飾(卡片軌道線、狀態點、種類圖示)。【推論】audit 不給元素也不給位置，無法逐一指認;只在有這類裝飾的畫面出現 |
-| contrast | 「Contrast nearly passed」 | 系統語意色 secondaryLabel 與 tint 文字按鈕;DESIGN.md 規定用系統外觀，「增加對比」開啟時系統加深(見「留下」) |
 | contrast | 停用中的控制項 | 系統停用樣式刻意淡化;WCAG 1.4.3 列為例外 |
 | text clipped | 文字欄位 | placeholder 由系統單行繪製;輸入的文字可橫捲 |
 | text clipped | 「Choose Folder on Host」「1 note for you」「Go to Chat」 | 預設字級與 AX5 截圖確認完整顯示(Label 圖示 + 文字);audit 以單行寬度判定的誤報 |
@@ -126,9 +125,9 @@
 
 ## 留下的項目
 
-- **次要色對比**:系統 secondaryLabel(rgba(60,60,67,0.6))在白底約 3.5:1,低於票面的 4.5:1。audit 報成「nearly passed」,依 DESIGN.md(用系統外觀)排除;app 裡 `.secondary` 文字有上百處，要改得先決定設計方向。「增加對比」開啟時系統會加深。
+- **次要色對比**(#67 已處理):系統 secondaryLabel(rgba(60,60,67,0.6))在白底約 3.4:1,低於 4.5:1。#35 時 audit 報成「nearly passed」並排除;#67 新增 `secondaryText`(四值見 DESIGN.md 顏色表),承載資訊的 `.secondary`／`.tertiary` 文字全部改用，並刪掉這條排除。
 - **rotor**:沒有自訂 rotor(訊息、程式碼、需要回答的提問之間跳轉)。HIG 寫「when possible」,票面未列。
 - **沒有自動測試的修正**:Reduce Motion(自動捲動不做動畫)、Bold Text(終端機 semibold)。XCUITest 沒有切換這兩個設定的方法(`simctl ui` 只支援外觀、增加對比、字級)。
-- **深色模式與增加對比**:這次的 audit 都在淺色、一般對比下跑;深色與高對比只檢查了 `errorText` 的四個值(`AccessibleColorsTests`),其他是系統語意色。
+- **深色模式與增加對比**:這次的 audit 都在淺色、一般對比下跑;深色與高對比只檢查了 `errorText`、`secondaryText` 的四個值(`AccessibleColorsTests`),其他是系統語意色。
 - **版面圖**:方塊在 AX 字級會裁字(比例示意圖)。
 - **隱藏裝飾的對比**:audit 對應不到元素的那幾筆無法逐一指認(見排除規則)。

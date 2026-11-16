@@ -24,8 +24,10 @@ struct PushSettingsSection: View {
             }
         } header: {
             Text("Notifications")
+                .foregroundStyle(.secondaryText)
         } footer: {
             Text("Purrdr adds a small herdr plugin to this host. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort.")
+                .foregroundStyle(.secondaryText)
         }
         .alert(
             "Install the Purrdr Plugin?",

@@ -87,7 +87,7 @@ struct ComposerBar: View {
             }
             if model.draft.isEmpty {
                 Text("Message")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 11)
                     .allowsHitTesting(false)
@@ -108,7 +108,7 @@ struct ComposerBar: View {
         var typed = AttributedString(draft)
         typed.foregroundColor = .clear
         var placeholder = AttributedString(hint)
-        placeholder.foregroundColor = .secondary
+        placeholder.foregroundColor = .secondaryText
         placeholder.font = .body.monospaced()
         return typed + placeholder
     }
@@ -162,7 +162,7 @@ struct ShellModeHint: View {
     var body: some View {
         Label("This runs in the agent’s shell and won’t be sent to Claude.", systemImage: "terminal")
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -187,7 +187,7 @@ struct SendNoticeView: View {
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .accessibilityLabel(Text("Dismiss"))
             .accessibilityIdentifier("composer.notice.dismiss")
         }
@@ -270,11 +270,11 @@ struct EchoBubbleView: View {
         case .sending:
             Text("Sending…")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         case .sent:
             Text("Sent")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         case .failed(let failure):
             HStack(spacing: 4) {
                 Label(failure.text, systemImage: "exclamationmark.circle.fill")

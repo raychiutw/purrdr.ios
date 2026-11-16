@@ -36,13 +36,13 @@ struct YouShouldKnowListView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(verbatim: entry.title)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         Text(verbatim: entry.note.line)
                             .font(.body)
                         if let explanation = entry.note.explanation, entry.note.kind == .explained {
                             Text(verbatim: explanation)
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         }
                         Button {
                             dismiss()
@@ -86,19 +86,19 @@ struct YouShouldKnowNoteView: View {
             } icon: {
                 Image(systemName: "sparkle")
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             Text(verbatim: note.line)
                 .font(.subheadline)
                 .accessibilityIdentifier("youShouldKnow.note")
             if note.kind == .explained, let explanation = note.explanation {
                 Text(verbatim: explanation)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             if let message = model.message {
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) { actions }
@@ -110,7 +110,10 @@ struct YouShouldKnowNoteView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16))
+        // 同 slash 選單：不透明的 `.background` + `.separator` 邊(#67 audit)。原本的 `.background.secondary`(#F2F2F7)上
+        // tint 文字按鈕(#D91E36)只有 4.49:1;半透明填色則會透出後面捲動中的訊息。
+        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
         .accessibilityElement(children: .contain)
         .youShouldKnowConsent(model)
     }

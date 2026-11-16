@@ -100,7 +100,7 @@ public struct PlusView: View {
             Text("Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.")
                 .accessibilityIdentifier("plus.benefits")
             Text("Chat and terminal are free and never need a subscription.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -138,7 +138,7 @@ public struct PlusView: View {
             if let plan = selectedPlan {
                 Text(plan.disclosure)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("plus.disclosure")
             }
@@ -267,7 +267,7 @@ struct PlanRow: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(plan.displayName)
@@ -277,7 +277,7 @@ struct PlanRow: View {
                     if let trial = plan.freeTrial {
                         Text("\(trial.phrase) free, then \(plan.pricePerPeriod)")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 Spacer(minLength: 0)
@@ -315,7 +315,7 @@ struct SubscriptionSummary: View {
                 Text(plan.displayName)
             }
             Text(subscription.summary)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .accessibilityIdentifier("plus.summary")
             if subscription.store == .appStore {
                 Button("Manage Subscription", action: manage)
@@ -324,7 +324,7 @@ struct SubscriptionSummary: View {
             } else {
                 Text("This subscription is billed through Google Play. Manage it there.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
         .padding()

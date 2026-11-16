@@ -51,7 +51,7 @@ struct BubbleImagesView: View {
                 } else {
                     Label("Image", systemImage: "photo")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .accessibilityLabel(Text("Image on the host"))
                 }
             }

@@ -28,7 +28,7 @@ public struct WelcomeView: View {
                         .accessibilityIdentifier("welcome.summary")
                 }
 
-                Section("What You Need") {
+                Section {
                     requirement(
                         "A Host Running herdr", systemImage: "desktopcomputer", id: "host",
                         detail: "A Mac, Linux, or Windows host with your agents running in herdr 0.9.5 or later.")
@@ -38,6 +38,9 @@ public struct WelcomeView: View {
                     requirement(
                         "Notifications Are Optional", systemImage: "bell.badge", id: "notifications",
                         detail: "With Purrdr Plus, a small host plugin tells you when an agent needs you. Chat and the terminal work without it.")
+                } header: {
+                    Text("What You Need")
+                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
@@ -49,6 +52,7 @@ public struct WelcomeView: View {
                         .accessibilityIdentifier("welcome.addHost")
                 } footer: {
                     Text("The Demo host has sample conversations, so you can try every screen before you add a host.")
+                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
@@ -75,7 +79,7 @@ public struct WelcomeView: View {
                 Text(title)
                 Text(detail)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         } icon: {
             Image(systemName: systemImage)

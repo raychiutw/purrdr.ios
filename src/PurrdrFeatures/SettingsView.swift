@@ -82,8 +82,10 @@ public struct SettingsView: View {
                         .accessibilityIdentifier("settings.returnSends")
                 } header: {
                     Text("Hardware Keyboard")
+                        .foregroundStyle(.secondaryText)
                 } footer: {
                     Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+                        .foregroundStyle(.secondaryText)
                 }
 
                 if let codexLauncher {
@@ -95,6 +97,7 @@ public struct SettingsView: View {
                         .accessibilityIdentifier("settings.haptics")
                 } footer: {
                     Text("Feel a tap when you answer an agent, and whether the answer arrived.")
+                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
@@ -111,17 +114,22 @@ public struct SettingsView: View {
                         .accessibilityIdentifier("settings.copyDiagnostics")
                 } header: {
                     Text("Support")
+                        .foregroundStyle(.secondaryText)
                 } footer: {
                     Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
+                        .foregroundStyle(.secondaryText)
                 }
 
-                Section("About") {
+                Section {
                     LabeledContent("Version", value: model.appVersionText)
                         .accessibilityIdentifier("settings.version")
                     LabeledContent("herdr on Host") { herdrVersionText }
                         .accessibilityIdentifier("settings.herdrVersion")
                     Button("Privacy Policy", systemImage: "hand.raised") { model.openPrivacyPolicy() }
                         .accessibilityIdentifier("settings.privacy")
+                } header: {
+                    Text("About")
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .accessibilityIdentifier("sheet.settings")
