@@ -453,11 +453,22 @@ public final class HostsModel {
 
     private func channel(for host: HostConfiguration) -> any HostChannel {
         if let channel = channels[host.id] { return channel }
-        // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。
+        // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。作業系統未知(主機同步帶來的新主機)時先偵測，
+        // 不對可能是 Windows 的主機送 POSIX 指令。
         let base = makeChannel(host.endpoint, host.hostKeyPin, credentials.provider(for: host))
-        let channel = host.operatingSystem?.channel(base) ?? base
+        let id = host.id
+        let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { [weak self] operatingSystem in
+            await self?.recordOperatingSystem(operatingSystem, for: id)
+        }
         channels[host.id] = channel
         return channel
+    }
+
+    /// 存下偵測到的作業系統。不是使用者的修改，不通知主機同步(作業系統也不同步);連線不重建。
+    private func recordOperatingSystem(_ operatingSystem: HostOperatingSystem, for id: UUID) {
+        guard let index = hosts.firstIndex(where: { $0.id == id }), hosts[index].operatingSystem == nil else { return }
+        hosts[index].operatingSystem = operatingSystem
+        try? store.save(hosts[index])
     }
 
     /// 推播配對：另開一條不放進 `channels` 的連線刪掉主機上的配對(刪除主機會關閉它原本的連線)。

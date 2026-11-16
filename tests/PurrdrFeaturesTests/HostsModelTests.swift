@@ -63,6 +63,47 @@ struct HostsModelTests {
         #expect(await real.unmetExpectations.isEmpty)
     }
 
+    @Test("作業系統未知的主機(主機同步帶來的新主機):先偵測，偵測到 Windows 就不送 POSIX 指令，並記住 OS(#26)")
+    func unknownOperatingSystemIsDetectedBeforeCommands() async throws {
+        var synced = Self.studio
+        synced.operatingSystem = nil
+        let store = MemoryHostStore()
+        store.hosts = [synced]
+        let real = FakeHost()
+        await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("MINGW64_NT-10.0-19045\n".utf8)))
+        await real.expect(
+            PowerShell.encodedCommand(HostEditorModelTests.windowsHerdrScript("'--session' 'work' 'remote-api-bridge'")),
+            reply: .recorded("session.snapshot.ndjson"))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.agentList.sections.flatMap(\.rows).count == 3)
+        #expect(await real.unmetExpectations.isEmpty)
+        #expect(store.hosts.first?.operatingSystem == .windows, "偵測結果存起來，下次不必再偵測")
+        #expect(model.hosts.first?.operatingSystem == .windows)
+    }
+
+    @Test("作業系統未知、偵測到 macOS／Linux:之後照常送 POSIX 指令(#26)")
+    func unknownOperatingSystemDetectsPosix() async throws {
+        var synced = Self.studio
+        synced.operatingSystem = nil
+        let store = MemoryHostStore()
+        store.hosts = [synced]
+        let real = FakeHost()
+        await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Linux\n".utf8)))
+        await real.expect(HerdrCommand.bridge(Self.studio.herdr), reply: .recorded("session.snapshot.ndjson"))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.agentList.sections.flatMap(\.rows).count == 3)
+        #expect(await real.unmetExpectations.isEmpty)
+        #expect(store.hosts.first?.operatingSystem == .linux)
+    }
+
     @Test("登入 Shell 與檔案瀏覽開在選取中主機上，標題／副標是主機名稱")
     func loginShellAndFilesUseSelectedHost() async throws {
         let store = MemoryHostStore()
