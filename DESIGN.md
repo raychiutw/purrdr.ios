@@ -29,6 +29,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 ## 畫面重點
 
 - **iPhone 頂層導覽**:不採 tab bar。Agent 列表工具列右側兩個群組:「⋯」選單(設定、主機)與主要動作「+」(新增對話);三者都以 sheet 開啟，「完成」回到同一個列表。設定的深層連結是 `purrdr://settings`(冷啟動與背景都適用)。
+- **iPad 與寬視窗**:三欄 `NavigationSplitView`——側欄(主機、選取中主機的 workspace;workspace 列尾有版面圖按鈕)→ Agent 列表 → 對話。依 size class 排版：窄視窗收合成一疊、從 Agent 列表開始(同 iPhone)。列表的列是選取並持續高亮，沒選時對話欄顯示「選一個對話」。版面圖在側欄按鈕上：指標停留 300ms 出現浮動玻璃卡(寬 340、最高 520pt,在列表欄內靠前緣)、離開 200ms 消失;點按鈕釘住，「關閉」、點背景或 Esc 才關。列的 context menu 最前面有「在新視窗開啟」「在新視窗開啟終端機」;每個視窗各自的導覽狀態，UI 一律稱「視窗」。快捷鍵:Command-N 新增對話、Option-Command-N 新視窗、Command-, App 設定(選單列的 Settings… 保留給系統)、Command-F 搜尋、Option-Command-↓／↑ 下／上一個 Agent、Shift-Command-T 開終端機。
 - **Purrdr Plus 付費牆**(「⋯」選單與會員頁進入，sheet 一律可以關閉):每個方案一張可選的卡片——名稱、每期總扣款金額(最醒目)、試用(「2 weeks free, then …」);主要按鈕一顆(沒登入時是「Sign In to Subscribe」,權限記在會員身上);下方是選中方案的自動續訂說明(試用結束自動扣款、24 小時前取消、到設定管理)、「Restore Purchases」「Redeem Code」(系統 Offer Code 流程)、使用條款與隱私權政策連結。購買確認用系統 sheet;已訂閱時不推銷，改顯示續訂日期與「Manage Subscription」(系統 UI);不能付款時隱藏購買並說明;到期或退款後顯示續訂提示(推播與主機同步暫停，聊天與終端機照常)。
 - **Agent 列表**:頂部主機切換、搜尋、新增對話;狀態同時用文字 + 符號 + 顏色;底部 Claude 用量(5h／Week 剩餘比例與重置時間)。
 - **主機清單**(sheet):點一台即選取並回到列表。滑動：左側「編輯」;右側「刪除」(destructive,不允許整列滑到底，點了直接刪、不另外確認——只刪這支裝置上的設定，主機本身不受影響)與「分享」。context menu:編輯、重新命名…、分享…、分隔線、刪除(最後)。分享在同一個 sheet 內 push:白底 QR code(深色模式也是白底)、說明「密碼與私鑰永不分享」、系統分享鈕。掃 QR code 或點分享連結 → 主機 sheet 開出帶好欄位的新增主機表單。

@@ -384,6 +384,17 @@
         }
       }
     },
+    "All Workspaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有 Workspace"
+          }
+        }
+      }
+    },
     "Almost Done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -469,6 +480,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個選項請在終端機回答。"
+          }
+        }
+      }
+    },
+    "App Settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 設定…"
           }
         }
       }
@@ -865,6 +887,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉檔案選擇器"
+          }
+        }
+      }
+    },
+    "Close Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉版面"
           }
         }
       }
@@ -1529,6 +1562,17 @@
         }
       }
     },
+    "Demo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo"
+          }
+        }
+      }
+    },
     "Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1921,6 +1965,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Host Key 已變更"
+          }
+        }
+      }
+    },
+    "Host Not Selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有選取這台主機"
           }
         }
       }
@@ -2409,6 +2464,17 @@
         }
       }
     },
+    "New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新視窗"
+          }
+        }
+      }
+    },
     "New Worktree" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2427,6 +2493,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增 Worktree…"
+          }
+        }
+      }
+    },
+    "Next Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一個 Agent"
           }
         }
       }
@@ -2761,6 +2838,28 @@
         }
       }
     },
+    "Open Terminal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開終端機"
+          }
+        }
+      }
+    },
+    "Open Terminal in New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新視窗打開終端機"
+          }
+        }
+      }
+    },
     "Open Workflow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2768,6 +2867,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟 Workflow"
+          }
+        }
+      }
+    },
+    "Open in New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新視窗打開"
           }
         }
       }
@@ -2966,6 +3076,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Port"
+          }
+        }
+      }
+    },
+    "Previous Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一個 Agent"
           }
         }
       }
@@ -3531,6 +3652,28 @@
         }
       }
     },
+    "Select a Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一個對話"
+          }
+        }
+      }
+    },
+    "Select this window’s host in the main window to see it again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主視窗選取這個視窗的主機，就能再看到內容。"
+          }
+        }
+      }
+    },
     "Selected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3637,6 +3780,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "Settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定…"
           }
         }
       }
@@ -5419,6 +5573,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace 名稱"
+          }
+        }
+      }
+    },
+    "Workspaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspace"
           }
         }
       }

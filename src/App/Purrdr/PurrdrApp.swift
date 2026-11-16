@@ -12,7 +12,6 @@ import SwiftUI
 struct PurrdrApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @State private var hosts: HostsModel
-    private let navigation = TopNavigationModel()
     private let member: MemberModel
     /// Purrdr Plus(#28)。跟會員共用同一個 `MemberSession`(同一組權杖)。
     private let plus: SubscriptionModel
@@ -119,9 +118,16 @@ struct PurrdrApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            TopNavigationView(
-                navigation: navigation, hosts: hosts, member: member, settings: settings, plus: plus, notifications: PushAppDelegate.router)
+        // 主視窗(三欄)。iPad 可以開好幾個，每個視窗有自己的導覽狀態;主機與 Agent 列表共用。
+        WindowGroup(id: PurrdrCommands.mainWindowID) {
+            TopNavigationView(hosts: hosts, member: member, settings: settings, plus: plus, notifications: PushAppDelegate.router)
+        }
+        .commands { PurrdrCommands() }
+        // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
+        WindowGroup(for: PaneWindow.self) { $window in
+            if let window {
+                PaneWindowView(window: window, hosts: hosts)
+            }
         }
     }
 }
