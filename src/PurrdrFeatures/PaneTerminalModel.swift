@@ -34,6 +34,8 @@ public final class PaneTerminalModel: TerminalSessionModel {
 
     private let client: PaneTerminalClient
     private let resizeDebounce: Duration
+    /// 去抖用的等待;測試注入假的。
+    private let sleep: @Sendable (Duration) async throws -> Void
     private var size: (columns: Int, rows: Int)?
     private var sentSize: (columns: Int, rows: Int)?
     private var outbox: AsyncStream<Outgoing>.Continuation?
@@ -43,11 +45,15 @@ public final class PaneTerminalModel: TerminalSessionModel {
     private var renderer: ((Data) -> Void)?
     private var pending: [Data] = []
 
-    public init(client: PaneTerminalClient, paneID: String, title: String, resizeDebounce: Duration = .milliseconds(250)) {
+    public init(
+        client: PaneTerminalClient, paneID: String, title: String, resizeDebounce: Duration = .milliseconds(250),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.client = client
         self.paneID = paneID
         self.title = title
         self.resizeDebounce = resizeDebounce
+        self.sleep = sleep
     }
 
     // MARK: - 狀態
@@ -105,8 +111,9 @@ public final class PaneTerminalModel: TerminalSessionModel {
         }
         resizeTask?.cancel()
         let debounce = resizeDebounce
+        let sleep = sleep
         resizeTask = Task { [weak self] in
-            try? await Task.sleep(for: debounce)
+            try? await sleep(debounce)
             guard !Task.isCancelled else { return }
             self?.sendResizeIfNeeded()
         }
