@@ -43,6 +43,27 @@ jobs:
       - name: swift test
         run: swift test --explicit-target-dependency-import-check error
 
+  # 與 package job 平行:package 以 iOS 編譯、數 warning、檢查 String Catalog(原本跟 swift test 串在同一個 job)。
+  package-ios:
+    name: Package iOS 編譯與字串表
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 工具鏈版本
+        run: xcodebuild -version
+
+      # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
+      - name: 安裝 Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed'; then
+            echo "Metal Toolchain 已安裝，略過下載"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcodebuild -showComponent MetalToolchain
+
       # Xcode 建置 app 時會把 package 的 warning 壓掉，所以另外在 package 根目錄以 iOS 編譯一次。
       # 不能用 SWIFT_TREAT_WARNINGS_AS_ERRORS=YES:它也會套到 SwiftTerm、swift-nio 這類遠端 package,
       # 跟 Xcode 給遠端 package 的 -suppress-warnings 衝突。改用 result bundle 數 warning

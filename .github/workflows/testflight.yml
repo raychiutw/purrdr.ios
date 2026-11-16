@@ -31,6 +31,7 @@ jobs:
   check:
     name: 確認 PR 的 CI 已通過
     runs-on: ubuntu-24.04
+    timeout-minutes: 35
     permissions:
       contents: read
       actions: read
@@ -49,6 +50,14 @@ jobs:
           head="$(gh api "repos/$REPO/commits/$SHA" --jq '.parents[1].sha // ""')"
           tested=false
           if [ -n "$head" ]; then
+            # PR 的 CI 還在跑(合併得比 CI 快)就等它跑完，最多 30 分鐘，不另外重跑一輪。
+            for _ in $(seq 1 60); do
+              pending="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$head&event=pull_request" \
+                --jq '[.workflow_runs[] | select(.status != "completed")] | length')"
+              [ "$pending" -eq 0 ] && break
+              echo "PR 的 CI 還在跑($pending 個),30 秒後再看"
+              sleep 30
+            done
             runs="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$head&event=pull_request&status=success" --jq '.total_count')"
             if [ "$runs" -gt 0 ]; then tested=true; fi
           fi
