@@ -1,6 +1,6 @@
 # Allymote 伺服器如何與 herdr 溝通(截至 2026-11-16)
 
-> 目的:補上 `docs/research/allymote-https-connection.md` 標為【未查得】的部分,也就是 Allymote 電腦端伺服器怎麼跟 herdr 溝通,並整理它對手機端的傳輸方式,供 Purrdr 設計 host agent 時比較。
+> 目的:補上 `docs/research/allymote-https-connection.md` 標為【未查得】的部分,也就是 Allymote 電腦端伺服器怎麼跟 herdr 溝通,並整理它對手機端的傳輸方式,供 Purrdr 設計主機服務時比較。
 >
 > 標記:**【文件】** herdr 官方文件；**【原始碼】** herdr 官方原始碼(路線 1),或 Allymote 散布檔(只出現在路線 3);**【實測】** 本機唯讀觀察；**【推論】** 由前述推得、未直接驗證；**【未查得】** 找不到來源。
 >
@@ -14,7 +14,7 @@
 4. **輸入**:文字用 `pane.send_text`(切成每段 8192 字元),按鍵用 `pane.send_keys`。回答 agent 的選擇題時,先 `pane.read` 讀畫面、解析出選項,再算出要按的方向鍵與 Enter 送出;送出前會比對畫面指紋,避免答錯題。【原始碼】
 5. **終端機畫面**:**不是 PTY,也不是 `terminal session control`**。做法是每 150 ms 輪詢 `pane.read`(`source: "visible"`、`format: "ansi"`),畫面雜湊改變就把整個畫面當成一個 frame 推出去。【原始碼】
 6. **對手機的傳輸**:一個 HTTP 伺服器(127.0.0.1:8765)。即時資料全部走**單一 WebSocket `/ws`**,收發以 `type` 區分的 JSON 訊息,請求用 `requestId` 對應回應,伺服器每 30 秒送一次 ping。配對、上傳、下載、`/api/me` 則是一般 HTTPS 端點。沒有 SSE。【原始碼】
-7. **對 Purrdr 的含意**:host agent 應該依 herdr 官方文件,直接連本機 socket。狀態改用 `session.snapshot` 加 `events.subscribe` 的對帳模式，不要輪詢。終端機用 `terminal session control/observe`,送 prompt 優先用 `agent.prompt`,對話內容仍得自己讀對話紀錄檔(用 `agent_session` 定位)。
+7. **對 Purrdr 的含意**:主機服務應該依 herdr 官方文件,直接連本機 socket。狀態改用 `session.snapshot` 加 `events.subscribe` 的對帳模式，不要輪詢。終端機用 `terminal session control/observe`,送 prompt 優先用 `agent.prompt`,對話內容仍得自己讀對話紀錄檔(用 `agent_session` 定位)。
 
 ---
 
@@ -29,7 +29,7 @@
 
 - herdr 官方列出三層:Agent skill(讓 pane 內的 agent 使用 herdr)、CLI wrappers(shell 腳本與人工除錯)、**Raw socket API(自製工具、協定 client、事件訂閱者)**,並說明「三層共用同一個控制面」。【文件】`docs/socket-api.mdx:10-18`
 - 安裝的 CLI 可以印出自帶的 JSON Schema:`herdr api schema --json`,涵蓋請求、回應、錯誤與事件。【文件】`docs/socket-api.mdx:20-34`
-- 【推論】Purrdr host agent 屬於「協定 client」,官方建議用 raw socket API。
+- 【推論】Purrdr 主機服務屬於「協定 client」,官方建議用 raw socket API。
 
 ### 1.3 Socket 傳輸與路徑
 
@@ -183,7 +183,7 @@
 
 ---
 
-## 4. 對 Purrdr host agent 設計的含意
+## 4. 對 Purrdr 主機服務設計的含意
 
 以路線 1 為依據，路線 2／3 只用來交叉驗證「這樣做可行」或「Allymote 的做法有什麼代價」。
 
@@ -208,7 +208,7 @@
 ## 5. 未決問題
 
 1. `terminal session control` 在 Windows 與 herdr 0.9.4／0.9.5 server 上的實際行為(ADR-0005 的 spike 仍待做)。Allymote 沒有使用它，所以無法拿來交叉驗證。【未查得】
-2. 由 host agent 直接連 socket 時，要用 CLI 子行程(`herdr terminal session control`)還是有 socket 層等價介面？官方只文件化了 CLI 形式。【未查得】
+2. 由主機服務直接連 socket 時，要用 CLI 子行程(`herdr terminal session control`)還是有 socket 層等價介面？官方只文件化了 CLI 形式。【未查得】**已定案**:主機服務以子行程執行 CLI(ADR-0010)。
 3. `agent_session.kind` 的可能值:文件範例只有 `id`,Allymote 同時處理 `id` 與 `path`;Claude hook 會帶 `--agent-session-path`。`path` 什麼時候會出現，要用 `herdr agent list --json` 實測。【未查得】
 4. 本機 Codex 整合是 v9(有 state hook),上游是 v10(只有 SessionStart)。升級整合會不會影響狀態判斷，要看 `herdr integration status`。【未查得】
 5. 有手機連線時 Allymote 的實際請求頻率(本次只觀察閒置狀態)。【未查得】

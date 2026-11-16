@@ -121,7 +121,7 @@
       <div class="box"><h3>輸入</h3><code>pane.send_text</code>、<code>pane.send_keys</code>。</div>
       <div class="box"><h3>終端機</h3>不是 PTY，也不是 <code>terminal session control</code>；每 150 ms 用 <code>pane.read</code> 讀整個畫面（ANSI）推給手機。</div>
       <div class="box"><h3>integration install</h3>只裝官方 SessionStart hook，呼叫 <code>herdr pane report-agent-session</code> 告訴 herdr session id 與紀錄路徑；不回報狀態、不提供對話。</div>
-      <div class="box"><h3>Purrdr host agent 建議</h3>同樣直連 socket，但狀態改用 <code>events.subscribe</code> + snapshot 對帳、送 prompt 用 <code>agent.prompt</code>、終端機維持 ADR-0005 的 <code>terminal session control</code>。</div>
+      <div class="box"><h3>Purrdr 主機服務建議</h3>同樣直連 socket，但狀態改用 <code>events.subscribe</code> + snapshot 對帳、送 prompt 用 <code>agent.prompt</code>、終端機維持 ADR-0005 的 <code>terminal session control</code>。</div>
     </div>
     <p class="note">來源：<code>docs/research/allymote-herdr-communication.md</code>（herdr 官方文件為主；Allymote 部分來自使用者授權閱讀的散布檔，Purrdr 實作不依賴）。</p>
   </section>
@@ -150,7 +150,7 @@
       <tr><th>穿透 herdr 的方式</th><td colspan="2">每個請求開 exec channel 跑 <code>herdr remote-api-bridge</code></td><td>伺服器直連 herdr 本機 socket（NDJSON API），輪詢 snapshot 與畫面</td></tr>
     </table>
     </div>
-    <p class="note">對 Purrdr 的含意：新增 HTTPS 只是替換「傳輸層」，上層功能不變；但必須在主機裝 Purrdr 自己的 agent，這會推翻 ADR-0002「主機端零安裝」，需先寫新的 ADR。</p>
+    <p class="note">對 Purrdr 的含意：新增 HTTPS 只是替換「傳輸層」，上層功能不變；但必須在主機裝 Purrdr 的主機服務，這是 ADR-0002「主機端零安裝」的例外，已記於 ADR-0010。</p>
   </section>
 </main>
 </body>

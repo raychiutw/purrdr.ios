@@ -4,14 +4,14 @@
 >
 > 標記:**【文件】** = Allymote 或第三方官方文件、公開 release、隨安裝檔附的安裝腳本與 CLI 說明所述;**【實測】** = 本機唯讀觀察(只看檔名、目錄結構、`--help` 輸出);**【推論】** = 由上述推出、未直接驗證;**【未查得】** = 找不到來源,不當成事實。
 >
-> 方法與界線:Allymote 的伺服器**原始碼不公開**(release repo 只放安裝檔;同組織另一個 repo 的說明明寫 "source stays private",見來源 S2)。本機安裝的 `dist\cli.js` 是隨安裝檔散布的 Node 打包檔,**本次刻意沒有閱讀**(不做逆向;也符合 ADR-0001 的 clean-room 精神)。因此「HTTP/WebSocket 的路徑與訊息格式」**無從得知**,全文只到文件與安裝腳本能說的程度。未讀取 `auth.json`、`server.log`、`vapid.json` 等檔案內容,也沒有啟動、停止或改動 Allymote。
+> 方法與界線:Allymote 的伺服器**原始碼不公開**(release repo 只放安裝檔;同組織另一個 repo 的說明明寫 "source stays private",見來源 S2)。本機安裝的 `dist\cli.js` 是隨安裝檔散布的 Node 打包檔,**本次刻意沒有閱讀**(不做逆向;也符合 ADR-0001 的 clean-room 精神)。**後續更新**:之後在使用者授權下閱讀了美化後的散布檔,結果另記於 `allymote-herdr-communication.md` §3,本文不再更動。因此「HTTP/WebSocket 的路徑與訊息格式」**無從得知**,全文只到文件與安裝腳本能說的程度。未讀取 `auth.json`、`server.log`、`vapid.json` 等檔案內容,也沒有啟動、停止或改動 Allymote。
 
 ## 摘要
 
 - Purrdr 目前**尚未有實作程式碼**(`src/` 只有 App 圖示),SSH 設計只存在於 ADR 與行為規格;所以「連線抽象層」要在實作時才切,現在是加入 HTTPS 的最佳時機。
 - Allymote 的架構:**電腦端跑自己的常駐伺服器(內附 Node.js,只聽本機 127.0.0.1:8765),由 `tailscale serve` 負責 TLS 並只在 tailnet 內公開;手機 app 只接受 https 位址,用 QR code 配對、每台電腦一組裝置權杖;沒有雲端 relay**。
-- 關鍵取捨:HTTPS 路線**必然需要在主機上裝 Purrdr 自己的 agent**,這直接違反 ADR-0002「主機端零安裝」。這是最大的決策點,需要新 ADR。
-- 建議:做「Purrdr host agent(窄 API)+ 單一 WSS 連線 + `tailscale serve` 提供 TLS(預設)」;Funnel、Cloudflare Tunnel、自簽憑證列為進階選項,不列入第一版。
+- 關鍵取捨:HTTPS 路線**必然需要在主機上裝 Purrdr 自己的主機服務**,這直接違反 ADR-0002「主機端零安裝」。這是最大的決策點,需要新 ADR。
+- 建議:做「Purrdr 主機服務(窄 API)+ 單一 WSS 連線 + `tailscale serve` 提供 TLS(預設)」;Funnel、Cloudflare Tunnel、自簽憑證列為進階選項,不列入第一版。
 - Allymote 的傳輸細節(WebSocket 或 SSE、路徑、訊息格式)**未查得**,Purrdr 應自訂協定,不需要也不應該相容 Allymote。
 
 ## 1. Purrdr 現況
@@ -39,7 +39,7 @@
 ### 1.3 對 HTTPS 路線的含意
 
 - 上層功能(聊天、Agent 列表、終端機)目前被設計成「在一條 SSH 連線上開許多 exec／PTY channel」。HTTPS 路線要替換的是**這條傳輸層**,不是功能層。可接縫(seam)的最小單位,是規格第 1.2 節列的四種通道:herdr socket 單次請求、事件訂閱串流、對話紀錄尾端追蹤、終端機(Pane／登入 Shell)。
-- **登入 Shell 與「在主機執行任意 shell 小指令」(探測檔案、上傳圖片等,規格 §1.2)在 HTTPS 路線下沒有天然對應**:agent 若不提供通用 exec,這些功能要各自變成 API。這是範圍膨脹的主要來源(見 §4、§6)。
+- **登入 Shell 與「在主機執行任意 shell 小指令」(探測檔案、上傳圖片等,規格 §1.2)在 HTTPS 路線下沒有天然對應**:主機服務若不提供通用 exec,這些功能要各自變成 API。這是範圍膨脹的主要來源(見 §4、§6)。
 
 ## 2. Allymote 是什麼
 
@@ -112,30 +112,30 @@ iPhone Allymote app  ──HTTPS──►  tailnet  ──►  [tailscale serve 
 
 ## 3. 可行的 HTTPS 連線設計
 
-共同前提:**需要主機端 Purrdr agent**(下稱 agent;詞彙上避免與 herdr 的 Agent 混淆,可沿用 GLOSSARY 的「主機外掛」旁另立「主機服務」)。沒有 agent,瀏覽器式 HTTPS 無法碰到 herdr 的本機 socket(herdr API 是本機 Unix socket／Windows named pipe,規格第 650 行)。
+共同前提:**需要主機端的 Purrdr 主機服務**(GLOSSARY 的「主機服務」;不叫 agent,避免與 herdr 的 Agent 混淆)。沒有主機服務,瀏覽器式 HTTPS 無法碰到 herdr 的本機 socket(herdr API 是本機 Unix socket／Windows named pipe,規格第 650 行)。
 
-### 選項 A:agent + WSS,TLS 由 `tailscale serve` 提供(Allymote 路線)
+### 選項 A:主機服務 + WSS,TLS 由 `tailscale serve` 提供(Allymote 路線)
 
-- agent 只聽 127.0.0.1;`tailscale serve --https=443 http://127.0.0.1:<port>` 提供 `wss://<host>.<tailnet>.ts.net`。
+- 主機服務只聽 127.0.0.1;`tailscale serve --https=443 http://127.0.0.1:<port>` 提供 `wss://<host>.<tailnet>.ts.net`。
 - 優點:憑證公共信任、ATS 預設可過;只在 tailnet 內可達;無需自營 relay;與現有「Tailscale SSH」使用者重疊度高。
 - 缺點:需啟用 Tailscale HTTPS Certificates 與 MagicDNS;機器名稱進 CT 紀錄(S8);仍要求手機在 tailnet;沒有 Tailscale 的使用者用不了。
-- 對現況的差異:這其實只是把「SSH over Tailscale」換成「自訂協定 over Tailscale TLS」,**不能解決 Windows OpenSSH 或不想裝 Tailscale 的使用者**。
+- 對現況的差異:這其實只是把「SSH over Tailscale」換成「自訂協定 over Tailscale TLS」,**不能解決不想裝 Tailscale 的使用者**;但對已用 Tailscale 的 Windows 主機,可以免去安裝與設定 OpenSSH Server(ADR-0010 的主要動機)。
 
-### 選項 B:agent + Tailscale Funnel(公開網路)
+### 選項 B:主機服務 + Tailscale Funnel(公開網路)
 
 - Funnel 讓服務經 Funnel relay 暴露到公網,只能用 443、8443、10000,頻寬有不可設定的限制,Funnel 本身為 beta;relay 無法解密流量(S9)。
 - 優點:手機不必在 tailnet。缺點:**服務暴露在公網**,認證必須自己做到位(配對權杖、速率限制、稽核);頻寬限制不利終端機串流;beta 狀態。
 - 建議不列入第一版。
 
-### 選項 C:agent + Cloudflare Tunnel(`cloudflared`)
+### 選項 C:主機服務 + Cloudflare Tunnel(`cloudflared`)
 
-- 以 outbound 連線把 agent 掛到自有網域,可搭 Cloudflare Access。**本次未查官方文件,以下為一般知識,【待驗證】**:使用者需有 Cloudflare 帳號與網域;流量經 Cloudflare;WebSocket 受支援。
+- 以 outbound 連線把主機服務掛到自有網域,可搭 Cloudflare Access。**本次未查官方文件,以下為一般知識,【待驗證】**:使用者需有 Cloudflare 帳號與網域;流量經 Cloudflare;WebSocket 受支援。
 - 優點:不需要 Tailscale,手機不用 VPN。缺點:使用者要設帳號與網域、流量經第三方、與「不經過任何雲端」的賣點衝突。
 - 適合進階使用者的第二階段。
 
-### 選項 D:agent 自己終止 TLS(自簽或自有憑證)+ 憑證釘選
+### 選項 D:主機服務自己終止 TLS(自簽或自有憑證)+ 憑證釘選
 
-- agent 產生自簽憑證,配對時把憑證指紋放進 QR code,app 以 `URLSessionDelegate` 做 pinning。ATS 預設不接受自簽憑證,需自行處理 authentication challenge(Apple 文件頁無法取得,內容為一般知識【待驗證】,見 §7)。
+- 主機服務產生自簽憑證,配對時把憑證指紋放進 QR code,app 以 `URLSessionDelegate` 做 pinning。ATS 預設不接受自簽憑證,需自行處理 authentication challenge(Apple 文件頁無法取得,內容為一般知識【待驗證】,見 §7)。
 - 優點:不依賴 Tailscale 或任何第三方;區網、WireGuard、ZeroTier 等都可用。缺點:自己負責憑證生命週期、釘選實作與 App Review 說明;iOS 無法對自簽憑證使用原生系統信任 UI;使用者誤設時風險由我們承擔。
 - 可作為「非 Tailscale 使用者」的第二階段。
 
@@ -145,19 +145,19 @@ iPhone Allymote app  ──HTTPS──►  tailnet  ──►  [tailscale serve 
 
 ### 選項 F:把 SSH 包進 WebSocket(SSH over WSS)
 
-- 保留 swift-nio-ssh 與全部上層邏輯,agent 只做一個 WebSocket → 本機 sshd(或 agent 內建簡易 SSH server)的 TCP 轉送。
+- 保留 swift-nio-ssh 與全部上層邏輯,主機服務只做一個 WebSocket → 本機 sshd(或主機服務內建簡易 SSH server)的 TCP 轉送。
 - 優點:改動最小、上層完全不變。缺點:**沒有解決「主機要有 sshd」的問題**(Windows 尤其麻煩,這正是想加 HTTPS 的原因之一);等於 SSH 外面再套一層,認證要做兩次。使用者目標若是「避開 SSH」,此選項不符。【推論】
 
 ### 比較
 
 | 選項 | 主機要裝 | 手機需 VPN | 第三方依賴 | 公網暴露 | 實作量 | 備註 |
 |---|---|---|---|---|---|---|
-| A tailscale serve | Purrdr agent | 需 Tailscale | Tailscale | 無 | 中 | 與 Allymote 同路線,推薦第一版 |
-| B Funnel | Purrdr agent | 不需 | Tailscale(beta) | 有 | 中 | 認證負擔大 |
-| C Cloudflare Tunnel | agent + cloudflared | 不需 | Cloudflare | 經 CF | 中 | 待驗證 |
-| D 自簽 + pinning | Purrdr agent | 不一定 | 無 | 看網路 | 高 | 憑證與釘選自負 |
-| E 自營 relay | agent | 不需 | Purrdr 後台 | 有 | 高 | 違反既有原則 |
-| F SSH over WSS | agent + sshd | 看網路 | 無 | 看網路 | 低 | 沒解決 sshd 問題 |
+| A tailscale serve | Purrdr 主機服務 | 需 Tailscale | Tailscale | 無 | 中 | 與 Allymote 同路線,推薦第一版 |
+| B Funnel | Purrdr 主機服務 | 不需 | Tailscale(beta) | 有 | 中 | 認證負擔大 |
+| C Cloudflare Tunnel | 主機服務 + cloudflared | 不需 | Cloudflare | 經 CF | 中 | 待驗證 |
+| D 自簽 + pinning | Purrdr 主機服務 | 不一定 | 無 | 看網路 | 高 | 憑證與釘選自負 |
+| E 自營 relay | 主機服務 | 不需 | Purrdr 後台 | 有 | 高 | 違反既有原則 |
+| F SSH over WSS | 主機服務 + sshd | 看網路 | 無 | 看網路 | 低 | 沒解決 sshd 問題 |
 
 ## 4. 與現有 SSH 抽象層的對接
 
@@ -170,31 +170,31 @@ SSH 層尚未實作,所以可以直接定義傳輸層介面,讓 SSH 與 HTTPS �
    - `openTerminal(target) -> TerminalSession`(Pane 終端機走 session control;登入 Shell 用 PTY)
    - `execSmallCommand(...)`(探測檔案、上傳附件等)
 2. **SSH 實作**:每個方法對應一個 exec/PTY channel(沿用規格 §3.3)。
-3. **HTTPS 實作**:每個方法對應一條 WSS 上的邏輯 stream(以 stream id 多工),或一般 HTTPS 請求(單次請求類)。agent 在主機端把它們轉成對本機 herdr socket、檔案 tail、`terminal session control` 的呼叫。
-4. **窄 API 而非通用 exec**:若 agent 提供「在主機任意執行指令」,等於把整個 shell 暴露在權杖之後,權杖外洩即遠端程式碼執行。建議 agent 只暴露 herdr socket 轉送、對話紀錄讀取(限已知 agent 的紀錄目錄)、`terminal session control`、受限的附件上傳;登入 Shell 要不要做**單獨決策**(見未決問題)。
-5. **主機模型**:`主機`新增「連線方式 = HTTPS」,欄位為 URL、裝置權杖(Keychain)、agent 版本;不再有使用者名稱、埠、SSH 金鑰。主機同步(ADR-0007)只同步 URL 與名稱,**權杖永不同步**(與「私鑰與密碼永不同步」一致)。
+3. **HTTPS 實作**:每個方法對應一條 WSS 上的邏輯 stream(以 stream id 多工),或一般 HTTPS 請求(單次請求類)。主機服務在主機端把它們轉成對本機 herdr socket、檔案 tail、`terminal session control` 的呼叫。
+4. **窄 API 而非通用 exec**:若主機服務提供「在主機任意執行指令」,等於把整個 shell 暴露在權杖之後,權杖外洩即遠端程式碼執行。建議主機服務只暴露 herdr socket 轉送、對話紀錄讀取(限已知 Agent 的紀錄目錄)、`terminal session control`、受限的附件上傳;登入 Shell 要不要做**單獨決策**(見未決問題)。
+5. **主機模型**:`主機`新增「連線方式 = HTTPS」,欄位為 URL、裝置權杖(Keychain)、主機服務版本;不再有使用者名稱、埠、SSH 金鑰。主機同步(ADR-0007)只同步 URL 與名稱,**權杖永不同步**(與「私鑰與密碼永不同步」一致)。
 6. **斷線與網路切換**:沿用規格第 1222 行的作法(網路路徑改變丟棄連線重建),WebSocket 要自己做 ping/pong 與逾時(RFC 6455 的 Ping/Pong 控制幀,S10)。
 7. **Android**:ADR-0006 要求核心邏輯可在 Android 編譯,只用 Foundation、swift-nio、swift-nio-ssh、swift-crypto。`URLSessionWebSocketTask` 屬 Foundation 網路層,在 Android 上的 `FoundationNetworking` 行為與可靠性【待驗證】(`docs/research/swift-sdk-for-android.md` 第 73–76 行記錄過 Android 上 URLSession 的已知崩潰 issue);備案是用 swift-nio 的 WebSocket 實作(`NIOWebSocket` 與 TLS)。傳輸層介面放在核心 package,實作放 app 層或核心 package 視此驗證結果而定。
 
 ## 5. 建議
 
-1. **第一版做選項 A**:Purrdr host agent + 單一 WSS + 由 `tailscale serve` 提供 TLS。理由:與目標使用者(已使用 Tailscale SSH 的人)重疊、憑證公共信任、沒有 relay 與公網暴露、與 Allymote 驗證過的使用者流程一致。
+1. **第一版做選項 A**:Purrdr 主機服務 + 單一 WSS + 由 `tailscale serve` 提供 TLS。理由:與目標使用者(已使用 Tailscale SSH 的人)重疊、憑證公共信任、沒有 relay 與公網暴露、與 Allymote 驗證過的使用者流程一致。
 2. **配對流程**(可借鏡 Allymote 的公開行為,自己設計):`purrdr pair` 在主機印 QR(含 URL 與一次性碼,有效期短、只能用一次)→ app 掃描 → 交換為每台主機一組裝置權杖(Keychain,`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)→ 主機可列出與撤銷裝置 → 保留稽核紀錄 → 提供唯讀配對。
-3. **agent 只聽 loopback**,對外一律經 `tailscale serve`;agent 本身不處理 TLS(第一版)。啟動時檢查 Origin 與 Host,預設拒絕瀏覽器跨來源請求。
+3. **主機服務只聽 loopback**,對外一律經 `tailscale serve`;主機服務本身不處理 TLS(第一版)。啟動時檢查 Origin 與 Host,預設拒絕瀏覽器跨來源請求。
 4. **不要相容 Allymote 的協定**:未查得、也不該逆向;自訂版本化協定(握手時交換版本與能力,像 herdr 的 `ping` capabilities)。
 5. **先寫新的 ADR**(例如 ADR-0010「HTTPS 連線需要主機服務」)明確修改 ADR-0002:零安裝仍是 SSH 連線方式的原則,HTTPS 連線方式是**選用**且需安裝;同時更新 `GLOSSARY.md` 的「主機」「連線方式」。
 6. **範圍切小**:第一版 HTTPS 只支援聊天、Agent 列表、Pane 終端機;登入 Shell、附件上傳、herdr 更新等放後續。
-7. TDD:傳輸層介面的契約測試(同一組測試跑 SSH 假實作與 HTTPS 假實作)先寫,agent 協定用 loopback 整合測試。
+7. TDD:傳輸層介面的契約測試(同一組測試跑 SSH 假實作與 HTTPS 假實作)先寫,主機服務協定用 loopback 整合測試。
 
 ## 6. 未決問題
 
-1. **最大的問題:是否接受 HTTPS 連線方式需要在主機安裝 Purrdr agent?** 這推翻 ADR-0002 的核心賣點(零安裝),也增加三平台(macOS、Linux、Windows)的安裝、更新、簽章與支援成本。若不接受,則選項 F 或放棄 HTTPS。
-2. agent 用什麼語言與發行方式?(Allymote 用內附 Node.js 的打包檔,約 35–41 MB;Rust 單一執行檔、Swift on Linux/Windows 也是候選。)與 herdr 本身的發行(herdr 官方安裝腳本)如何搭配?
-3. agent 如何存取 herdr:直接連本機 socket(Unix socket／Windows named pipe),還是執行 `herdr remote-api-bridge`?herdr socket 為 single-shot(規格第 653 行),多工要在 agent 內做。
+1. **最大的問題:是否接受 HTTPS 連線方式需要在主機安裝 Purrdr 主機服務?** 這推翻 ADR-0002 的核心賣點(零安裝),也增加三平台(macOS、Linux、Windows)的安裝、更新、簽章與支援成本。若不接受,則選項 F 或放棄 HTTPS。
+2. 主機服務用什麼語言與發行方式?(Allymote 用內附 Node.js 的打包檔,約 35–41 MB;Rust 單一執行檔、Swift on Linux/Windows 也是候選。)與 herdr 本身的發行(herdr 官方安裝腳本)如何搭配? **已定案**:Rust(ADR-0010)。
+3. 主機服務如何存取 herdr:直接連本機 socket(Unix socket／Windows named pipe),還是執行 `herdr remote-api-bridge`?herdr socket 為 single-shot(規格第 653 行),多工要在主機服務內做。
 4. 登入 Shell 與任意檔案操作要不要做?做了就要處理遠端程式碼執行的風險與權限模型。
 5. 非 Tailscale 使用者:第二階段選 Cloudflare Tunnel(C)、自簽+pinning(D),還是不支援?
 6. 唯讀配對的語意(Allymote 有 `--readonly`,範圍未查得):Purrdr 要唯讀到什麼程度(能否回覆 prompt?能否開終端機?)
-7. 與推播(ADR-0004)的關係:agent 取代「主機外掛」嗎?兩者可否合併,減少主機端安裝物?
+7. 與推播(ADR-0004)的關係:主機服務取代「主機外掛」嗎?兩者可否合併,減少主機端安裝物?
 8. 會員與訂閱(ADR-0007):HTTPS 連線方式是否屬於免費功能?(目前聊天與終端機不需登入,規則 5.1.1)
 9. Allymote 的實際傳輸與 API 細節:本文刻意不查。若需要對照,只能由使用者自行以合法方式觀察自己的流量,並先決定是否影響 clean-room 原則。
 10. App Store 審查:非 SSH 的「連到使用者自己電腦的 HTTPS」是否有額外揭露要求(隱私權政策、Local Network 權限說明)?【未查得】
