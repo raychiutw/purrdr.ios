@@ -214,11 +214,11 @@ struct HostsModelTests {
         await demo.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
         let studio = FakeHost()
         await studio.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
-        let lab = FakeHost()
-        await lab.failConnection(with: SSHConnectionError.timedOut)
+        let buildBox = FakeHost()
+        await buildBox.failConnection(with: SSHConnectionError.timedOut)
         let companions = [
             DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: studio),
-            DemoCompanionHost(id: UUID(), name: "Lab Server", icon: .rack, channel: lab),
+            DemoCompanionHost(id: UUID(), name: "Build Box", icon: .rack, channel: buildBox),
         ]
         let model = HostsModel(
             store: store, demoChannel: demo, demoCompanions: companions, makeChannel: ChannelFactory(FakeHost()).make)
@@ -227,9 +227,9 @@ struct HostsModelTests {
         await model.agentList.load()
 
         #expect(model.selection == .demo)
-        #expect(model.agentList.sources.map(\.name) == ["Demo", "Studio Mac", "Lab Server"])
+        #expect(model.agentList.sources.map(\.name) == ["Demo", "Studio Mac", "Build Box"])
         #expect(model.agentList.sections.flatMap(\.rows).count == 6)
-        #expect(model.agentList.failures.map(\.name) == ["Lab Server"])
+        #expect(model.agentList.failures.map(\.name) == ["Build Box"])
         #expect(model.rows.isEmpty, "示範主機不是已存主機，不出現在主機清單")
         let window = PaneWindow(kind: .chat, host: .host(companions[0].id), paneID: "w1:p1", sessionID: nil, title: "ledger")
         #expect(window.route(hostIDs: model.listedHostIDs) != nil, "示範主機的聊天在新視窗開不起來")

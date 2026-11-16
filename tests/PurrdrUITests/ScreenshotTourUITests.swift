@@ -126,7 +126,7 @@ final class ScreenshotTourUITests: XCTestCase {
 
     @MainActor
     func test09MultipleHostsOneUnreachable() {
-        // 正式 Demo 的示範主機(#34,與 review-notes.md 相同):Studio Mac 與連不上的 Lab Server。
+        // 正式 Demo 的示範主機(#34,與 review-notes.md 相同):Studio Mac 與連不上的 Build Box。
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
         XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
         let unreachable = element("agentList.error.DE300000-0000-4000-8000-000000000002", in: app)
