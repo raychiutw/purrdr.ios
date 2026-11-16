@@ -13,9 +13,13 @@ struct PaneTerminalModelTests {
         HerdrCommand.terminalSessionControl(target: "w1:p1", columns: columns, rows: rows, takeover: takeover)
     }
 
-    static func makeModel(_ host: FakeHost, debounce: Duration = .milliseconds(30)) -> PaneTerminalModel {
+    /// 去抖的等待注入假的(預設一直等到被取消)，測試不依賴真實時間。
+    static func makeModel(
+        _ host: FakeHost, debounce: Duration = .milliseconds(30),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+    ) -> PaneTerminalModel {
         PaneTerminalModel(client: PaneTerminalClient(channel: host), paneID: "w1:p1", title: "Tidy up the CSV export",
-                          resizeDebounce: debounce)
+                          resizeDebounce: debounce, sleep: sleep)
     }
 
     /// 把錄製檔的 stdout 送進假主機。`finish: false` 時只送 frame(連線保持開著)。
@@ -27,10 +31,13 @@ struct PaneTerminalModelTests {
         if finish { await host.finish(execution: execution) }
     }
 
+    /// 非同步對齊的等待上限(見 `asyncWaitLimit`)。
+    static let timeout = asyncWaitLimit
+
     /// 等非同步工作把狀態推到位。逾時就讓後面的 `#expect` 失敗。
-    static func eventually(_ condition: () -> Bool) async {
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !condition(), ContinuousClock.now < deadline {
+    static func eventually(_ condition: () async -> Bool) async {
+        let deadline = ContinuousClock.now + timeout
+        while await !condition(), ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(5))
         }
     }
@@ -65,6 +72,10 @@ struct PaneTerminalModelTests {
         }
     }
 
+    static func sentResizes(_ host: FakeHost) async -> [[Int?]] {
+        await sentLines(host).filter { $0["type"] as? String == "terminal.resize" }.map { [$0["cols"] as? Int, $0["rows"] as? Int] }
+    }
+
     static func sentInput(_ host: FakeHost, execution: Int = 0) async -> [UInt8] {
         await sentLines(host, execution: execution).compactMap { line -> [UInt8]? in
             guard line["type"] as? String == "terminal.input" else { return nil }
@@ -73,11 +84,14 @@ struct PaneTerminalModelTests {
     }
 
     /// 開好一條連線並收到第一個 frame。
-    static func connected(_ host: FakeHost, debounce: Duration = .milliseconds(30)) async -> PaneTerminalModel {
+    static func connected(
+        _ host: FakeHost, debounce: Duration = .milliseconds(30),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+    ) async -> PaneTerminalModel {
         await host.expect(control(), reply: FakeReply(keepsOpen: true))
-        let model = makeModel(host, debounce: debounce)
+        let model = makeModel(host, debounce: debounce, sleep: sleep)
         model.viewDidResize(columns: 40, rows: 12)
-        _ = await host.waitForExecutions(1)
+        _ = await host.waitForExecutions(1, timeout: Self.timeout)
         await host.send(.stdout(Fixtures.sessionControlLines("01-handshake-echo-release.stdout.ndjson")[0] + [0x0A]), toExecution: 0)
         await eventually { model.status == .connected }
         return model
@@ -98,7 +112,7 @@ struct PaneTerminalModelTests {
         model.viewDidResize(columns: 40, rows: 12)
         #expect(model.status == .connecting)
         #expect(model.statusText == "Connecting…")
-        #expect(await host.waitForExecutions(1) == 1)
+        #expect(await host.waitForExecutions(1, timeout: Self.timeout) == 1)
         await Self.replay("01-handshake-echo-release.stdout.ndjson", on: host, finish: false)
         await Self.eventually { screen.lines.contains("hello-world") }
 
@@ -117,7 +131,7 @@ struct PaneTerminalModelTests {
         model.attach { screen.feed($0) }
 
         model.viewDidResize(columns: 40, rows: 12)
-        _ = await host.waitForExecutions(1)
+        _ = await host.waitForExecutions(1, timeout: Self.timeout)
         await Self.replay("07-unicode-colors.stdout.ndjson", on: host, finish: false)
         await Self.eventually { screen.lines[8] == "中文輸入" }
 
@@ -133,10 +147,11 @@ struct PaneTerminalModelTests {
         await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
-        _ = await host.waitForExecutions(1)
-        await Self.replay("01-handshake-echo-release.stdout.ndjson", on: host, finish: false)
-        await Self.eventually { model.status == .connected }
-        try? await Task.sleep(for: .milliseconds(50))
+        _ = await host.waitForExecutions(1, timeout: Self.timeout)
+        // 整段回放(含結尾的 terminal.closed):事件依序處理，狀態變成中斷時，之前的 frame 一定都已暫存。
+        await Self.replay("01-handshake-echo-release.stdout.ndjson", on: host)
+        await Self.eventually { model.status == .disconnected }
+        #expect(model.status == .disconnected)
 
         let screen = Screen()
         model.attach { screen.feed($0) }
@@ -153,7 +168,7 @@ struct PaneTerminalModelTests {
         await host.expect(Self.control(takeover: true), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
-        _ = await host.waitForExecutions(1)
+        _ = await host.waitForExecutions(1, timeout: Self.timeout)
 
         await Self.replay("06-takeover-B.stdout.ndjson", on: host)
         await Self.eventually { model.status == .inUse }
@@ -163,7 +178,7 @@ struct PaneTerminalModelTests {
         #expect(!model.canReconnect)
 
         model.takeOver()
-        #expect(await host.waitForExecutions(2) == 2)
+        #expect(await host.waitForExecutions(2, timeout: Self.timeout) == 2)
         #expect(await host.executions.map(\.command) == [Self.control(), Self.control(takeover: true)])
         #expect(model.status == .connecting)
     }
@@ -187,7 +202,7 @@ struct PaneTerminalModelTests {
         await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
-        _ = await host.waitForExecutions(1)
+        _ = await host.waitForExecutions(1, timeout: Self.timeout)
 
         await Self.replay("12-sigkill-then-reattach.stdout.ndjson", on: host)
         await Self.eventually { model.status == .disconnected }
@@ -198,7 +213,7 @@ struct PaneTerminalModelTests {
         #expect(!model.canTakeOver)
 
         model.reconnect()
-        #expect(await host.waitForExecutions(2) == 2)
+        #expect(await host.waitForExecutions(2, timeout: Self.timeout) == 2)
         #expect(await host.executions.last?.command == Self.control())
     }
 
@@ -208,7 +223,7 @@ struct PaneTerminalModelTests {
         await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
-        _ = await host.waitForExecutions(1)
+        _ = await host.waitForExecutions(1, timeout: Self.timeout)
 
         await Self.replay("14-exited-control.stdout.ndjson", on: host)
         await Self.eventually { model.status == .ended }
@@ -224,7 +239,7 @@ struct PaneTerminalModelTests {
         await host.expect(Self.control(), reply: FakeReply(keepsOpen: true))
         let model = Self.makeModel(host)
         model.viewDidResize(columns: 40, rows: 12)
-        _ = await host.waitForExecutions(1)
+        _ = await host.waitForExecutions(1, timeout: Self.timeout)
 
         await Self.replay("13-not-found-control.stdout.ndjson", on: host)
         await Self.eventually { if case .unavailable = model.status { true } else { false } }
@@ -239,11 +254,12 @@ struct PaneTerminalModelTests {
         let model = await Self.connected(host)
 
         model.hangUp()
-        #expect(await host.waitForStdin(ofExecution: 0) { $0.closedStdin })
+        #expect(await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.closedStdin })
 
         #expect(await Self.sentLines(host).last == ["type": "terminal.release"])
         #expect(model.status == .disconnected)
-        try? await Task.sleep(for: .milliseconds(50))
+        // 連線整個收掉後(通道關閉)仍然只有一次執行。
+        #expect(await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.closed })
         #expect(await host.executions.count == 1)
     }
 
@@ -252,31 +268,34 @@ struct PaneTerminalModelTests {
     @Test("尺寸改變去抖後只送最後一次;0 格不送")
     func resizeIsDebounced() async {
         let host = FakeHost()
-        let model = await Self.connected(host, debounce: .milliseconds(120))
+        let gate = DebounceGate()
+        let model = await Self.connected(host, debounce: .milliseconds(120), sleep: gate.sleep)
 
-        // 像鍵盤滑出的動畫：每 80ms 一個新尺寸，間隔比去抖短。
+        // 像鍵盤滑出的動畫：去抖時間到之前就來了新尺寸。
         model.viewDidResize(columns: 50, rows: 14)
-        try? await Task.sleep(for: .milliseconds(80))
         model.viewDidResize(columns: 0, rows: 14)
         model.viewDidResize(columns: 60, rows: 15)
-        try? await Task.sleep(for: .milliseconds(80))
         model.viewDidResize(columns: 70, rows: 16)
-        try? await Task.sleep(for: .milliseconds(300))
+        await Self.eventually { await gate.requested.count == 3 }
+        // 去抖時間到：還在等的(沒被取消的)全部醒來。
+        await gate.open()
+        #expect(await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.contains("terminal.resize") })
 
-        let resizes = await Self.sentLines(host).filter { $0["type"] as? String == "terminal.resize" }
-        #expect(resizes.map { [$0["cols"] as? Int, $0["rows"] as? Int] } == [[70, 16]])
+        #expect(await Self.sentResizes(host) == [[70, 16]])
+        #expect(await gate.requested == [.milliseconds(120), .milliseconds(120), .milliseconds(120)])
+        // 前兩次的去抖被新尺寸取消，只有最後一次等滿。
+        #expect(await gate.completed == 1)
     }
 
     @Test("格數限制在合理範圍(herdr 會接受 5000 欄並回很大的 frame)")
     func resizeIsClamped() async {
         let host = FakeHost()
-        let model = await Self.connected(host)
+        let model = await Self.connected(host, sleep: RecordingSleeper { _ in true }.sleep)
 
         model.viewDidResize(columns: 5000, rows: 900)
-        try? await Task.sleep(for: .milliseconds(150))
+        #expect(await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.contains("terminal.resize") })
 
-        let resizes = await Self.sentLines(host).filter { $0["type"] as? String == "terminal.resize" }
-        #expect(resizes.map { [$0["cols"] as? Int, $0["rows"] as? Int] } == [[500, 200]])
+        #expect(await Self.sentResizes(host) == [[500, 200]])
     }
 
     // MARK: - 按鍵列與輸入
@@ -289,7 +308,7 @@ struct PaneTerminalModelTests {
         model.type(Data("ls\r".utf8))
         model.type(Data([0x03]))
         model.press(.escape)
-        _ = await host.waitForStdin(ofExecution: 0) { $0.stdinText.split(separator: "\n").count >= 3 }
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.split(separator: "\n").count >= 3 }
 
         #expect(await Self.sentInput(host) == Array("ls\r".utf8) + [0x03, 0x1B])
     }
@@ -307,7 +326,7 @@ struct PaneTerminalModelTests {
         model.press(.up)
         #expect(model.modifiers.isEmpty)
         model.press(.character("/"))
-        _ = await host.waitForStdin(ofExecution: 0) { $0.stdinText.split(separator: "\n").count >= 3 }
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.split(separator: "\n").count >= 3 }
 
         #expect(await Self.sentInput(host) == [0x03] + Array("\u{1B}[1;5A".utf8) + [0x2F])
     }
@@ -318,7 +337,7 @@ struct PaneTerminalModelTests {
         let model = await Self.connected(host)
 
         model.paste("echo pasted")
-        _ = await host.waitForStdin(ofExecution: 0) { !$0.stdin.isEmpty }
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { !$0.stdin.isEmpty }
 
         #expect(await Self.sentInput(host) == Array("\u{1B}[200~echo pasted\u{1B}[201~".utf8))
         #expect(await Self.sentLines(host).count == 1)
@@ -330,9 +349,12 @@ struct PaneTerminalModelTests {
         let model = await Self.connected(host)
 
         model.paste(String(repeating: "x", count: 300 * 1024))
-        try? await Task.sleep(for: .milliseconds(50))
+        // 輸入依序送出：之後的一顆鍵送到了，前面的貼上若有送一定排在它前面。
+        model.press(.escape)
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { !$0.stdin.isEmpty }
 
-        #expect(await host.executions[0].stdin.isEmpty)
+        #expect(await Self.sentLines(host).count == 1)
+        #expect(await Self.sentInput(host) == [0x1B])
         #expect(model.notice == "This paste is too large to send to the terminal.")
     }
 
@@ -342,7 +364,7 @@ struct PaneTerminalModelTests {
         let model = await Self.connected(host)
 
         model.scroll(.up, rows: 3, column: 5, row: 4)
-        _ = await host.waitForStdin(ofExecution: 0) { $0.stdinText.split(separator: "\n").count >= 3 }
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.split(separator: "\n").count >= 3 }
 
         let scrolls = await Self.sentLines(host)
         #expect(scrolls.count == 3)

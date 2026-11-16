@@ -34,7 +34,7 @@ public struct LocalShellHost: HostChannel {
     }
 
     /// 等到所有執行過的指令都結束(例如連線中斷後，主機上的腳本自己收尾)。
-    public func waitUntilFinished(timeout: Duration = .seconds(5)) async {
+    public func waitUntilFinished(timeout: Duration = asyncWaitLimit) async {
         let deadline = ContinuousClock.now + timeout
         while log.hasRunningProcess, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(10))

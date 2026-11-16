@@ -45,6 +45,8 @@ public final class ConversationModel {
         case readFailed
         /// 符合這個 session 的對話紀錄不只一個:不猜(行為規格 §4.3、§4.5)。
         case ambiguous
+        /// 對話紀錄被壓縮了(Codex 會壓縮 7 天未動的 rollout,行為規格 §4.2):目前讀不了，但不是不存在。
+        case compressed
     }
 
     public enum Older: Equatable {
@@ -263,6 +265,8 @@ public final class ConversationModel {
     private var waitingSince: Date?
     /// 最近一次輪詢看到的 agent(送出時重讀失敗的後備)。
     private var currentAgent: Agent?
+    /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
+    public var agentKind: String? { currentAgent?.kind }
     /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
     private var consumedUserIDs = Set<String>()
     private var lastPolledStatus: AgentStatus?
@@ -473,6 +477,12 @@ public final class ConversationModel {
             file = nil
             banner = .ambiguous
             phase = .ready
+        } catch TranscriptReadError.compressed {
+            // 只有 `.zst`:不是「還沒有檔案」,也不在手機上解壓;下次輪詢重新定位(Codex 可能又寫了新的 rollout)。
+            guard generation == self.generation else { return }
+            file = nil
+            banner = .compressed
+            phase = .ready
         } catch {
             // 保留畫面上的內容，下次輪詢重試;永不退回從 byte 0 追蹤。
             banner = .readFailed
@@ -562,6 +572,12 @@ public final class ConversationModel {
     /// 可送 = 修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     public var canSend: Bool {
         !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
+    }
+
+    /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
+    public var isShellMode: Bool {
+        guard let kind = currentAgent?.kind else { return false }
+        return PromptDelivery.isShellCommand(draft, kind: kind)
     }
 
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
@@ -880,16 +896,23 @@ public final class ConversationModel {
     }
 
     private var userMessageIDs: Set<String> {
-        Set(items.compactMap { item in
-            if case .user(let bubble) = item { bubble.id } else { nil }
-        })
+        Set(userTurns.map(\.id))
+    }
+
+    /// 使用者送出的內容：泡泡，以及 shell 區塊(以 `!指令` 比對回音,F6.4)。
+    private var userTurns: [UserBubble] {
+        items.compactMap { item -> UserBubble? in
+            switch item {
+            case .user(let bubble): bubble
+            case .shell(let run): UserBubble(id: run.id, text: "!" + run.command, date: run.date, imageCount: 0)
+            default: nil
+            }
+        }
     }
 
     /// 以對話紀錄確認回音;確認了任何一則就清掉送出警告(R-P11:輪詢成功本身不清)。
     private func rebuildEntries() {
-        let bubbles = items.compactMap { item -> UserBubble? in
-            if case .user(let bubble) = item { bubble } else { nil }
-        }
+        let bubbles = userTurns
         let remaining = EchoMatching.confirm(echoes, against: bubbles, consumed: &consumedUserIDs)
         if remaining.count < echoes.count {
             echoes = remaining

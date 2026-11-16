@@ -17,17 +17,22 @@ public struct TopNavigationView: View {
     let settings: SettingsModel
     /// Purrdr Plus(#28);`nil` 時選單不顯示。
     let plus: SubscriptionModel?
+    /// 主機同步(#30);`nil` 時設定頁不顯示。
+    let hostSync: HostSyncModel?
     /// 點了推播通知(#29);`nil` 時沒有推播。
     let notifications: PushNotificationRouter?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    /// 從「⋯」選單推進來的主機工具(登入 Shell、檔案瀏覽)。
+    @State private var hostTool: HostTool?
 
     public init(
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
-        notifications: PushNotificationRouter? = nil
+        hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil
     ) {
+        self.hostSync = hostSync
         self.hosts = hosts
         self.member = member
         self.settings = settings
@@ -50,7 +55,10 @@ public struct TopNavigationView: View {
                 case .hosts:
                     HostListView(model: hosts, importURL: $navigation.pendingHostImport)
                 case .settings:
-                    SettingsView(model: settings, member: member, plus: plus, push: hosts.push, openPlus: { navigation.sheet = .plus }) {
+                    SettingsView(
+                        model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync,
+                        openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher
+                    ) {
                         navigation.sheet = nil
                     }
                 case .member:
@@ -68,6 +76,8 @@ public struct TopNavigationView: View {
             .onOpenURL { navigation.open($0) }
             // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
             .task { await plus?.observeTransactionUpdates() }
+            // 主機同步(開啟時):啟動時拿別台裝置的修改。
+            .task { await hostSync?.sync() }
             // 連線韌性(行為規格 §7.4、§7.5):網路切換丟棄連線;背景太久回前景先探測連線。
             .task {
                 for await signature in NetworkPaths.signatures() { hosts.networkPathChanged(signature) }
@@ -75,7 +85,10 @@ public struct TopNavigationView: View {
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
                 case .background: hosts.sceneDidEnterBackground(at: .now)
-                case .active: Task { await hosts.sceneDidBecomeActive(at: .now) }
+                case .active:
+                    Task { await hosts.sceneDidBecomeActive(at: .now) }
+                    // 主機同步(開啟時):回到前景拿別台裝置的修改。
+                    Task { await hostSync?.sync() }
                 default: break
                 }
             }
@@ -112,6 +125,19 @@ public struct TopNavigationView: View {
             agentList
                 .id(hosts.selection)
                 .toolbar { toolbar }
+                // 登入 Shell、檔案瀏覽:窄視窗推疊在列表上;三欄時顯示在對話欄。
+                .navigationDestination(item: $hostTool) { tool in
+                    switch tool {
+                    case .loginShell(let model):
+                        #if canImport(UIKit)
+                        TerminalSessionView(model: model)
+                        #else
+                        Text(verbatim: model.title)
+                        #endif
+                    case .files(let model):
+                        FolderBrowserView(model: model)
+                    }
+                }
                 #if os(iOS)
                 // 窄視窗不顯示回到側欄的返回鈕：主機從「⋯」選單進入(iPhone 頂層導覽);workspace 篩選只在側欄看得到時套用。
                 .navigationBarBackButtonHidden(sizeClass == .compact)
@@ -166,6 +192,12 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.settings")
                 Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
                     .accessibilityIdentifier("menu.hosts")
+                // 選取中主機的登入 Shell 與檔案(行為規格 F13;iPad 上也是推疊)。
+                // 不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
+                Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
+                    .accessibilityIdentifier("menu.loginShell")
+                Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
+                    .accessibilityIdentifier("menu.files")
                 Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
                     .accessibilityIdentifier("menu.member")
                 if plus != nil {
@@ -185,6 +217,22 @@ public struct TopNavigationView: View {
                 .accessibilityIdentifier("toolbar.newChat")
         }
     }
+}
+
+/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始)。
+enum HostTool: Hashable {
+    case loginShell(LoginShellModel)
+    case files(FolderBrowserModel)
+
+    private var object: AnyObject {
+        switch self {
+        case .loginShell(let model): model
+        case .files(let model): model
+        }
+    }
+
+    static func == (a: HostTool, b: HostTool) -> Bool { a.object === b.object }
+    func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(object)) }
 }
 
 /// 頂層 sheet 的外殼：標題 + 「完成」。內容由各自的票補上(新增對話)。

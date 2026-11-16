@@ -42,6 +42,9 @@ public actor DemoHost: HostChannel {
     /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
     private var files = DemoFiles()
 
+    /// 檔案瀏覽的資料夾(上傳只在記憶體)。
+    private var folders = DemoFolders()
+
     private let tailscaleCheck: TailscaleCheckObserver?
 
     /// Demo 家目錄的上傳資料夾。
@@ -61,7 +64,7 @@ public actor DemoHost: HostChannel {
             }
         }
         if let upload = ImageUploadCommand.parse(command) {
-            return DemoUploadSession(name: upload.name, size: upload.size)
+            return DemoImageUploadSession(name: upload.name, size: upload.size)
         }
         if let control = DemoPaneControl(command: command) {
             return openPane(control)
@@ -71,6 +74,17 @@ public actor DemoHost: HostChannel {
         }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        if let path = HostFolderCommand.parseList(command) {
+            let result = folders.list(path)
+            return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)])
+                + (result.stderr.isEmpty ? [] : [.stderr(result.stderr)]) + [.exit(code: result.exitCode)])
+        }
+        if let upload = HostFolderCommand.parseUpload(command) {
+            return DemoUploadSession { [weak self] received in
+                guard let self else { return (Data(), 70) }
+                return await self.finishUpload(folder: upload.folder, name: upload.name, size: upload.size, received: received)
+            }
         }
         if let request = HostFileRequest(command: command) {
             let result = files.handle(request, now: Date())
@@ -120,6 +134,10 @@ public actor DemoHost: HostChannel {
 
     private func cancelTailscaleCheck() {
         checkWait?.cancel()
+    }
+
+    private func finishUpload(folder: String, name: String, size: Int, received: Int) -> (stdout: Data, exitCode: Int32) {
+        folders.upload(folder: folder, name: name, declaredSize: size, received: received)
     }
 
     /// `agent.prompt` 的回應：閒置的 Claude Code agent 收下後，對話紀錄接上新的行;不是 `agent.prompt` 回 `nil`。
@@ -537,9 +555,8 @@ private actor DemoBridgeSession: ExecSession {
     func close() async { continuation.finish() }
 }
 
-/// 一開始就結束的指令。
 /// 圖片上傳：收 stdin 到 EOF,大小相符就回上傳資料夾的路徑(內容不保存)。大小不符(上傳中斷)時失敗。
-private final class DemoUploadSession: ExecSession, @unchecked Sendable {
+private final class DemoImageUploadSession: ExecSession, @unchecked Sendable {
     let output: AsyncThrowingStream<ExecOutput, any Error>
     private let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
     private let lock = NSLock()
@@ -579,6 +596,7 @@ private final class DemoUploadSession: ExecSession, @unchecked Sendable {
     }
 }
 
+/// 一開始就結束的指令。
 private struct DemoFinishedSession: ExecSession {
     let output: AsyncThrowingStream<ExecOutput, any Error>
 

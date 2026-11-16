@@ -258,8 +258,10 @@ struct SubscriptionModelTests {
         #expect(backend.requests.isEmpty)
     }
 
+    /// 等到條件成立(上限 `asyncWaitLimit`;條件一成立就返回)。
     private func waitUntil(_ condition: @MainActor () -> Bool) async throws {
-        for _ in 0..<200 where !condition() {
+        let deadline = ContinuousClock.now + asyncWaitLimit
+        while !condition(), ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(condition())

@@ -6,10 +6,26 @@ public struct HostWriteFeature: Sendable, Equatable {
     public let id: String
     /// 會修改的使用者檔案(不在 `.purrdr/` 底下的)。
     public let userFiles: [HostPath]
+    /// 使用者檔案所在的資料夾不存在時由安裝建立(例如 `~/.local/bin`);建了哪些記在安裝紀錄，還原時資料夾空了就移除。
+    public let createsParentDirectories: Bool
 
-    public init(id: String, userFiles: [HostPath]) {
+    public init(id: String, userFiles: [HostPath], createsParentDirectories: Bool = false) {
         self.id = id
         self.userFiles = userFiles
+        self.createsParentDirectories = createsParentDirectories
+    }
+
+    /// 使用者檔案的上層資料夾(由淺到深，不含家目錄本身)。
+    var parentDirectories: [HostPath] {
+        var result: [HostPath] = []
+        for path in userFiles {
+            let segments = path.relative.split(separator: "/").dropLast()
+            for depth in segments.indices {
+                let directory = HostPath(segments[...depth].joined(separator: "/"))
+                if !result.contains(directory) { result.append(directory) }
+            }
+        }
+        return result
     }
 
     /// `~/.purrdr/<id>`
@@ -37,8 +53,13 @@ public struct HostWriteJournal: Codable, Equatable, Sendable {
 
     public var version = 1
     public var entries: [Entry]
+    /// 安裝時建立的資料夾(由淺到深;舊的紀錄沒有這個欄位)。
+    public var createdDirectories: [String]?
 
-    public init(entries: [Entry]) { self.entries = entries }
+    public init(entries: [Entry], createdDirectories: [String]? = nil) {
+        self.entries = entries
+        self.createdDirectories = createdDirectories
+    }
 
     public func entry(for path: HostPath) -> Entry? { entries.first { $0.path == path.relative } }
 }
@@ -75,10 +96,13 @@ public struct HostWritePlan: Sendable {
     public var userFiles: [HostPath: Data]
     /// 功能自己的檔案(`~/.purrdr/<id>/<名稱>`)。
     public var ownFiles: [String: OwnFile]
+    /// 要設成可執行的使用者檔案(例如 Codex 啟動器)。
+    public var executableUserFiles: Set<HostPath>
 
-    public init(userFiles: [HostPath: Data], ownFiles: [String: OwnFile]) {
+    public init(userFiles: [HostPath: Data], ownFiles: [String: OwnFile], executableUserFiles: Set<HostPath> = []) {
         self.userFiles = userFiles
         self.ownFiles = ownFiles
+        self.executableUserFiles = executableUserFiles
     }
 }
 
@@ -101,7 +125,8 @@ public struct ReversibleHostWrite: Sendable {
 
     /// 讀使用者檔案、安裝紀錄與 `extra`(例如功能自己的資料檔)。
     public func inspect(also extra: [HostPath] = []) async throws -> HostWriteInspection {
-        let read = try await files.read(feature.userFiles + [feature.journalPath] + extra)
+        let directories = feature.createsParentDirectories ? feature.parentDirectories : []
+        let read = try await files.read(feature.userFiles + [feature.journalPath] + directories + extra)
         let journal: HostWriteJournal?
         switch read[feature.journalPath] {
         case .file(let data, _)?:
@@ -124,13 +149,29 @@ public struct ReversibleHostWrite: Sendable {
         for path in feature.userFiles {
             guard let contents = plan.userFiles[path] else { continue }
             journal.entries.append(.init(path: path.relative, original: inspection.original(of: path), installed: contents))
-            userChanges.append(.write(path, contents, expecting: try Self.expectation(for: inspection.read[path], at: path)))
+            userChanges.append(.write(path, contents, executable: plan.executableUserFiles.contains(path),
+                                      expecting: try Self.expectation(for: inspection.read[path], at: path)))
         }
         let ownChanges = plan.ownFiles.keys.sorted().map { name in
             HostFileChange.write(feature.ownFile(name), plan.ownFiles[name]!.contents, executable: plan.ownFiles[name]!.executable, expecting: .anything)
         }
+        // 不存在的上層資料夾(由淺到深)由安裝建立，記在紀錄裡;重複安裝時保留第一次建的。
+        var created = inspection.journal?.createdDirectories ?? []
+        var directoryChanges: [HostFileChange] = []
+        if feature.createsParentDirectories {
+            for directory in feature.parentDirectories {
+                switch inspection.read[directory] {
+                case .missing?, .missingDirectory?:
+                    directoryChanges.append(.makeDirectory(directory))
+                    if !created.contains(directory.relative) { created.append(directory.relative) }
+                default:
+                    continue
+                }
+            }
+        }
+        journal.createdDirectories = created.isEmpty ? nil : created
         // 先寫自己的檔案，使用者檔案最後寫：中途失敗時使用者檔案還沒動。
-        try await files.apply([.write(feature.journalPath, try Self.encode(journal), expecting: .anything)] + ownChanges + userChanges)
+        try await files.apply([.write(feature.journalPath, try Self.encode(journal), expecting: .anything)] + ownChanges + directoryChanges + userChanges)
     }
 
     /// 還原。沒有安裝紀錄時什麼都不做。
@@ -157,7 +198,9 @@ public struct ReversibleHostWrite: Sendable {
                 throw HostWriteError.unusableFile(path)
             }
         }
-        try await files.apply(changes + [.removeDirectory(feature.directory)])
+        // 自己建的資料夾由深到淺，空了才移除(使用者後來放了東西就保留)。
+        let directories = (journal.createdDirectories ?? []).reversed().map { HostFileChange.removeEmptyDirectory(HostPath($0)) }
+        try await files.apply(changes + directories + [.removeDirectory(feature.directory)])
     }
 
     static func expectation(for state: HostFileState?, at path: HostPath) throws -> HostFileExpectation {

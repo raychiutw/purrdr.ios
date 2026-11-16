@@ -41,10 +41,14 @@ public final class HostsModel {
     public private(set) var claudeUsage: ClaudeUsageModel
     /// 選取中主機的推播開關(#29)。
     public private(set) var push: PushModel
+    /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
+    public private(set) var codexLauncher: CodexLauncherModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
     /// Tailscale SSH check mode 的提示。所有主機通道共用;composition root 把它的 `observer` 交給主機通道。
     public let tailscaleCheck: TailscaleCheckModel
+    /// 使用者新增、修改、刪除主機時通知(主機同步)。
+    public weak var changeRecorder: (any HostChangeRecorder)?
 
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
@@ -111,6 +115,7 @@ public final class HostsModel {
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
+        codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         push = PushModel(service: pushService, hostID: nil, channel: demoChannel, herdr: HerdrInstallation()) { preferences.load().muted }
         connectMutes()
     }
@@ -130,6 +135,18 @@ public final class HostsModel {
     public func terminal(paneID: String, title: String) -> PaneTerminalModel {
         PaneTerminalModel(client: terminals, paneID: paneID, title: title)
     }
+
+    /// 選取中主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
+    public func loginShell() -> LoginShellModel {
+        LoginShellModel(channel: channel, title: selectedHostName)
+    }
+
+    /// 選取中主機的檔案瀏覽(從家目錄開始)。
+    public func folderBrowser() -> FolderBrowserModel {
+        FolderBrowserModel(folders: HostFolders(channel: channel), hostName: selectedHostName)
+    }
+
+    private var selectedHostName: String { selectedHost?.name ?? "Demo" }
 
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
@@ -197,12 +214,16 @@ public final class HostsModel {
             service: pushService, hostID: host?.id.uuidString, channel: channel, herdr: host?.herdr ?? HerdrInstallation()
         ) { preferences.load().muted }
         connectMutes()
+        codexLauncher = CodexLauncherModel(
+            host: CodexLauncherHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
+            consent: host == nil ? demoConsent : hostConsent)
         self.selection = selection
         selectionStore.save(selection)
     }
 
     /// 新增或編輯主機並儲存後：重讀清單並選取它。設定改了，那台主機的連線一律關閉重建。
     public func didSave(_ host: HostConfiguration) {
+        changeRecorder?.hostSaved(host.id)
         hosts = (try? sortedHosts()) ?? hosts
         dropChannel(of: host.id)
         select(.host(host.id))
@@ -215,6 +236,7 @@ public final class HostsModel {
         guard var host = hosts.first(where: { $0.id == id }) else { throw HostManagementError.notFound }
         host.name = name
         try store.save(host)
+        changeRecorder?.hostSaved(id)
         hosts = (try? sortedHosts()) ?? hosts
     }
 
@@ -223,6 +245,31 @@ public final class HostsModel {
     /// 推播配對則不等待地從主機上刪掉並撤銷(行為規格 F14)。
     /// 刪的是選取中主機時，改選第一台剩下的主機(沒有就選 Demo 主機)並存起來。
     public func delete(_ id: UUID) async throws {
+        try await remove(id)
+        changeRecorder?.hostDeleted(id)
+    }
+
+    /// 套用主機同步的結果(別台裝置的新增、修改、刪除)。不通知 `changeRecorder`(不是這支裝置的修改)。
+    /// 連線相關的欄位(位址、連線方式、host key 指紋)改了就關掉那台的連線;選取中主機被刪掉時改選第一台。
+    public func applySynced(_ outcome: HostSyncOutcome) async throws {
+        var reselect = false
+        for host in outcome.saves {
+            let previous = hosts.first { $0.id == host.id }
+            try store.save(host)
+            if let previous, previous.endpoint != host.endpoint || previous.connectionMethod != host.connectionMethod
+                || previous.authentication != host.authentication || previous.hostKeyPin != host.hostKeyPin {
+                dropChannel(of: host.id)
+                reselect = reselect || selection == .host(host.id)
+            }
+        }
+        hosts = (try? sortedHosts()) ?? hosts
+        for id in outcome.deletions {
+            try await remove(id)
+        }
+        if reselect { select(validSelection(selection)) }
+    }
+
+    private func remove(_ id: UUID) async throws {
         let removed = hosts.first { $0.id == id }
         // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
         let secret = try? credentials.secrets.secret(for: id)
@@ -275,11 +322,13 @@ public final class HostsModel {
 
     /// 網路路徑改變(狀態 + 可用介面類型組成的字串):丟棄所有主機的連線，下一個指令在新路由上撥號;
     /// 列表立刻重連。第一次回報只記錄。被丟棄連線上的 Pane 終端機以「連線中斷」結束(不自動重連)。
-    public func networkPathChanged(_ signature: String) {
+    /// - Returns: 丟棄連線並重連的 task(沒有要重設時是 `nil`);呼叫端不必等它，測試用來對齊。
+    @discardableResult
+    public func networkPathChanged(_ signature: String) -> Task<Void, Never>? {
         defer { networkPath = signature }
-        guard let previous = networkPath, previous != signature else { return }
+        guard let previous = networkPath, previous != signature else { return nil }
         let dropped = Array(channels.values) + [demoChannel]
-        Task {
+        return Task {
             for channel in dropped { await channel.disconnect() }
             agentList.retryNow()
         }

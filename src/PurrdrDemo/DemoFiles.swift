@@ -20,14 +20,17 @@ struct DemoFiles {
     private var files: [String: Data] = [".claude/settings.json": Data(sampleSettings.utf8)]
     /// 一定存在的資料夾(家目錄與 `~/.claude`)。
     private let baseDirectories: Set<String> = ["", ".claude"]
+    /// 主機寫入建立的資料夾(例如 Codex 啟動器的 `~/.local/bin`)。
+    private var madeDirectories: Set<String> = []
 
     mutating func handle(_ request: HostFileRequest, now: Date) -> (stdout: Data, exitCode: Int32) {
         switch request {
         case .read(let paths):
             return (HostFileRequest.readOutput(user: Self.user, files: paths.map { state(of: $0, now: now) }), 0)
         case .apply(let changes):
+            var made: Set<String> = []
             for change in changes {
-                if let failure = check(change) { return failure }
+                if let failure = check(change, made: &made) { return failure }
             }
             changes.forEach { apply($0) }
             return (Data(), 0)
@@ -40,14 +43,21 @@ struct DemoFiles {
             return .file(data, version: Self.version(of: data))
         }
         if let data = files[path.relative] { return .file(data, version: Self.version(of: data)) }
+        if directoryExists(path.relative) { return .notRegularFile }
         return directoryExists(Self.parent(of: path.relative)) ? .missing : .missingDirectory
     }
 
-    private func check(_ change: HostFileChange) -> (stdout: Data, exitCode: Int32)? {
+    private func check(_ change: HostFileChange, made: inout Set<String>) -> (stdout: Data, exitCode: Int32)? {
         let expectation: HostFileExpectation
         switch change {
         case .write(_, _, _, let expected), .delete(_, let expected): expectation = expected
-        case .removeDirectory: return nil
+        case .removeDirectory, .removeEmptyDirectory: return nil
+        case .makeDirectory(let path):
+            if files[path.relative] != nil || directoryExists(path.relative) {
+                return (HostFileRequest.changedSinceReadOutput(path), HostFileRequest.ExitCode.changedSinceRead)
+            }
+            made.insert(path.relative)
+            return nil
         }
         let current = files[change.path.relative]
         let matches = switch expectation {
@@ -56,7 +66,8 @@ struct DemoFiles {
         case .version(let version): current.map(Self.version(of:)) == version
         }
         guard matches else { return (HostFileRequest.changedSinceReadOutput(change.path), HostFileRequest.ExitCode.changedSinceRead) }
-        if case .write = change, !change.path.relative.hasPrefix(".purrdr/"), !directoryExists(Self.parent(of: change.path.relative)) {
+        let parent = Self.parent(of: change.path.relative)
+        if case .write = change, !change.path.relative.hasPrefix(".purrdr/"), !directoryExists(parent), !made.contains(parent) {
             return (HostFileRequest.missingDirectoryOutput(change.path), HostFileRequest.ExitCode.missingDirectory)
         }
         return nil
@@ -67,11 +78,17 @@ struct DemoFiles {
         case .write(let path, let data, _, _): files[path.relative] = data
         case .delete(let path, _): files[path.relative] = nil
         case .removeDirectory(let path): files = files.filter { !$0.key.hasPrefix(path.relative + "/") }
+        case .makeDirectory(let path): madeDirectories.insert(path.relative)
+        case .removeEmptyDirectory(let path):
+            let prefix = path.relative + "/"
+            if !files.keys.contains(where: { $0.hasPrefix(prefix) }), !madeDirectories.contains(where: { $0.hasPrefix(prefix) }) {
+                madeDirectories.remove(path.relative)
+            }
         }
     }
 
     private func directoryExists(_ directory: String) -> Bool {
-        baseDirectories.contains(directory) || files.keys.contains { $0.hasPrefix(directory + "/") }
+        baseDirectories.contains(directory) || madeDirectories.contains(directory) || files.keys.contains { $0.hasPrefix(directory + "/") }
     }
 
     private static func parent(of path: String) -> String {

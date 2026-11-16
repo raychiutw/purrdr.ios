@@ -50,6 +50,15 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 - **兩份來源合在一起**:第 5–7 行(`SendMessage`、續跑結果、排隊中的通知)取自另一份對話紀錄，收件的 agent id 換成第 0–2 行背景 agent 的 id,好組成「完成 → 續跑 → 再回報」的序列;因此第 7 行的時間戳早於第 5、6 行(判斷依檔案順序，不看時間戳)。
 - 擷取腳本的做法：以 Python 讀 JSON、依欄位名換值，再 `grep` 確認沒有真實的使用者名稱、專案名稱、主機名或原始 id。
 
+`claude-code/shell.jsonl`(#43):從作者 Mac 上真實的 Claude Code 2.1.317–2.1.322 對話紀錄擷取六組 `!` 指令(`<bash-input>` 行 + 下一行 `<bash-stdout>`/`<bash-stderr>`),2026-11-16。只讀取來源，不改動。
+
+- 六組涵蓋：一行輸出(行首空白)、67 行 stdout + stderr、HTML 跳脫的 `-&gt;`、`(Bash completed with no output)`、只有 stderr、含 ANSI 色碼的輸出。每組之後接一行 `file-history-snapshot`(真實紀錄也是這樣交錯)。
+- **保留原樣**:行的欄位與旗標(`promptId`、`turnOrigin`、`turnPosition`、`userType`、`entrypoint`、`version`)、指令與輸出的前導空白與換行位置、`<bash-stderr>` 開頭的換行、ANSI 序列、跳脫字、空的 stderr 標籤;同一組內兩行的時間差。
+- **換成假值**:指令與輸出中的路徑、專案與資料名稱、網址、雜湊、資料庫 id、金鑰名稱;uuid(`00000000-0000-4000-8000-0000000001…`)、session id、cwd、gitBranch;時間戳平移到 2026-11-14,各組間隔 5 分鐘。拿掉 `slug` 等其他欄位。
+- **最後一行(執行中)是手寫的**:以第一組的輸入行為底，只換指令與時間;真實紀錄中執行中的指令就是檔尾的 `<bash-input>` 行。
+- 中斷、`&amp;`、`<persisted-output>`、超長輸出錄不到，測試以其中一行為底改動(見 `ShellExchangeTests`)。
+- 擷取腳本的做法：以 Python 讀 JSON、只留上列欄位、依字串表換值，再 `grep` 確認沒有真實的使用者名稱、專案名稱、主機名或原始 id。
+
 `claude-code/workflow/`(#17):**不是錄製的**。作者 Mac 上所有 `~/.claude/projects` 都沒有 `Workflow` 工具的紀錄、run 檔或 journal,所以 `run.json` 與 `journal.jsonl` 依行為規格 §4.6 描述的欄位寫成(journal 最後一行刻意撕裂)。測試裡 `Workflow` 呼叫與「Workflow launched」結果也是以 `delegation.jsonl` 的行為底改成。之後錄得到真實 workflow 時應換掉。
 
 ## 錄不到、以真實回應為底改動的情境
@@ -80,7 +89,7 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 
 ## 其他 agent 的對話紀錄(`other-agents/`)——依文件撰寫、未實測
 
-作者的 Mac 上沒有 Grok、Antigravity、Pi、OMP,這些檔案**不是**從真實主機擷取，而是依下列來源**手寫**的(#25)。
+作者的 Mac 上沒有 Grok、Antigravity、Pi、OMP、Codex,這些檔案**不是**從真實主機擷取，而是依下列來源**手寫**的(#25)。
 格式是各 agent 的內部檔案，可能與實際版本不同;拿到真實 session 後應換成擷取檔。內容(專案、路徑、文字)都是自己寫的範例。
 
 | 檔案 | 格式依據 | 涵蓋 |
@@ -88,6 +97,7 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 | `other-agents/grok/updates.jsonl` | 行為規格 §4.3(依 Grok 1.0.52 描述)、ACP `session/update` 通知的形狀 | 使用者訊息、Grok 自己寫的 prompt(`syntheticPrompt`)、thought、`tool_call`(`x.ai/tool` 名稱)、進度更新、completed／failed 結果、diff 結果、`_x.ai/session/update` 的 plan(忽略)、沒有 `eventId` 的行 |
 | `other-agents/antigravity/transcript.jsonl` | 行為規格 §4.4(依 agy 1.3.6 描述)。`tool_calls[i]` 的參數欄位名沒有公開文件，這裡用 `args` | `USER_EXPLICIT` 與 `USER_REQUEST`、模型切換的 `USER_INPUT`、`PLANNER_RESPONSE`(thinking、文字、呼叫、token)、`GENERIC` 輸出(Created At／Completed At、CRLF)、`EPHEMERAL_MESSAGE`(忽略) |
 | `other-agents/pi/session.jsonl` | 行為規格 §4.5;Pi 官方文件 `packages/coding-agent/docs/session-format.md`、`message-types.md`(github.com/badlogic/pi-mono,2026-11-16 取用) | session header、`model_change`、`thinking_level_change`、system 訊息(忽略)、user(字串與 block、圖片)、assistant(thinking、redacted、`redactedThinking`、toolCall、usage、stopReason)、toolResult(含錯誤)、`compaction`、`branch_summary`、`reset_boundary`、中斷的輪次(usage 為 0) |
+| `other-agents/codex/rollout.jsonl`(#24) | 行為規格 §4.2(依 Codex 0.157–0.163 的描述);openai/codex 公開原始碼的 rollout 形狀(`{timestamp, type, payload}`)與 `-c` 解析(2026-11-16 取用)。產生腳本的思路：以 Python `json.dumps` 逐行寫出，內容是自己寫的範例 | `session_meta`、兩個 `turn_context`(模型與 effort 以後者為準)、developer 訊息與 `# AGENTS.md`／`<environment_context>` 使用者訊息(harness,不顯示)、含 `<image>` 參照與 `input_image` 的使用者訊息、`event_msg` 的重複(`user_message`、`agent_message`、`task_complete`,不顯示)、`reasoning`(summary + 加密內容)、`function_call`(argv 的 `shell`)與 JSON 結果、`custom_tool_call`(`apply_patch`)、`local_shell_call` 與失敗結果(`Process exited with code 1`)、`web_search_call`、`token_count`(cached 已含在 input 內)、帶 `<oai-mem-citation>` 的 final answer、`channel: analysis`(不顯示) |
 
 `message.timestamp`(毫秒)刻意和 entry 的 ISO 時間不同，測試才分得出取的是哪一個。OMP 的標題槽(`{"type":"title",…}`)寫在測試裡。
 

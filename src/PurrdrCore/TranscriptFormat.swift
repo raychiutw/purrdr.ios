@@ -11,6 +11,8 @@ public enum TranscriptFormat: Sendable, Equatable, Hashable, Codable {
     case antigravity
     /// Pi 與 OMP 共用的 journal(§4.5)。【未實測】
     case piJournal
+    /// Codex 的 rollout JSONL(§4.2)。【未實測】
+    case codex
 
     /// herdr 回報的 Agent 種類 → 格式;沒有可讀對話紀錄的種類回傳 `nil`。
     public init?(agentKind: String) {
@@ -19,6 +21,7 @@ public enum TranscriptFormat: Sendable, Equatable, Hashable, Codable {
         case "grok": self = .grok
         case "agy": self = .antigravity
         case "pi", "omp": self = .piJournal
+        case "codex": self = .codex
         default: return nil
         }
     }
@@ -35,6 +38,7 @@ public enum TranscriptFormat: Sendable, Equatable, Hashable, Codable {
         case .grok: GrokTranscriptParser.messages(in: line)
         case .antigravity: AntigravityTranscriptParser.messages(in: line)
         case .piJournal: PiJournalParser.messages(in: line)
+        case .codex: CodexTranscriptParser.messages(in: line)
         }
     }
 
@@ -45,6 +49,7 @@ public enum TranscriptFormat: Sendable, Equatable, Hashable, Codable {
         case .grok: GrokTranscriptParser.updateMetadata(&metadata, with: line)
         case .antigravity: AntigravityTranscriptParser.updateMetadata(&metadata, with: line)
         case .piJournal: PiJournalParser.updateMetadata(&metadata, with: line)
+        case .codex: CodexTranscriptParser.updateMetadata(&metadata, with: line)
         }
     }
 

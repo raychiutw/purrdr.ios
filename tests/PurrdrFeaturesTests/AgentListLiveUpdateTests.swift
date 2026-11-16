@@ -128,14 +128,19 @@ struct AgentListLiveUpdateTests {
             result["snapshot"] = snapshot
             response["result"] = result
         })
+        await host.expect(Self.bridge, reply: Self.snapshot)
         let (_, task) = Self.start(host, sleeper: Sleeper())
         defer { task.cancel() }
 
-        try await waitUntil { await host.consumedAll(executions: 3) }
+        try await waitUntil { await host.executions.count >= 3 }
         try await waitUntil { await host.executions[2].closed }
-        try await Task.sleep(for: .milliseconds(50))
+        // 不用固定等待：在原訂閱上再送一個事件當哨兵。事件依序處理，它觸發的重讀(第 4 次執行)出現時，
+        // 順序不同的那次重讀一定已經比對完 pane 集合;若誤判成改變，第 4 次執行會是重新訂閱。
+        await host.send(stdout: Self.statusChanged, toExecution: 1)
+        try await waitUntil { await host.executions.count >= 4 }
 
-        #expect(await host.executions.count == 3)
+        #expect(await host.executions.count == 4)
+        #expect(await host.executions[3].stdinText.contains(#""method":"session.snapshot""#), "pane 只是順序不同卻重新訂閱")
         #expect(await host.executions[1].closed == false)
     }
 
@@ -201,7 +206,8 @@ struct AgentListLiveUpdateTests {
         defer { task.cancel() }
 
         try await waitUntil { await MainActor.run { model.phase != .loading } }
-        try await Task.sleep(for: .milliseconds(200))
+        // 停下來等「再試一次」(不用固定等待;自動重試的話永遠不會進入這個狀態)。
+        try await waitUntil { await MainActor.run { model.isWaitingForRetry } }
         #expect(await sleeper.durations.isEmpty, "取消驗證後還在退避重試")
 
         await host.restoreConnection()
@@ -262,9 +268,10 @@ extension FakeHost {
     }
 }
 
-/// 等到條件成立(最多約 2 秒)。
+/// 等到條件成立(上限 `asyncWaitLimit`;條件一成立就返回)。
 func waitUntil(_ condition: @Sendable () async -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
-    for _ in 0..<200 {
+    let deadline = ContinuousClock.now + asyncWaitLimit
+    while ContinuousClock.now < deadline {
         if await condition() { return }
         try await Task.sleep(for: .milliseconds(10))
     }

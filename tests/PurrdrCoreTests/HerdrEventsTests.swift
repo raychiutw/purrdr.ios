@@ -93,9 +93,10 @@ struct HerdrEventsTests {
     }
 }
 
-/// 等到條件成立(最多約 2 秒)。給背景進行中的串流與 task 用。
+/// 等到條件成立(上限 `asyncWaitLimit`;條件一成立就返回)。給背景進行中的串流與 task 用。
 func waitUntil(_ condition: @Sendable () async -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
-    for _ in 0..<200 {
+    let deadline = ContinuousClock.now + asyncWaitLimit
+    while ContinuousClock.now < deadline {
         if await condition() { return }
         try await Task.sleep(for: .milliseconds(10))
     }

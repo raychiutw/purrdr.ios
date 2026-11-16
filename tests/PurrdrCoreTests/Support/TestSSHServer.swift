@@ -393,6 +393,13 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
         case .pty:
             recorder.update { log in log.ptys[log.ptys.count - 1].input.append(bytes) }
             write(bytes, type: .channel, context: context)
+            // 打 `exit` 像 shell 自己結束(送 exit-status);打 `drop` 切斷整條連線。
+            if bytes == Data("exit\r".utf8) {
+                mode = .done
+                exit(0, context: context)
+            } else if bytes == Data("drop\r".utf8) {
+                parent.close(promise: nil)
+            }
         case .process:
             processInput?.write(bytes)
         case .idle, .done:

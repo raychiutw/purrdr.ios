@@ -12,8 +12,11 @@ final class SettingsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
 
+        // 通知、主機同步區在上面，後面的列可能要捲動才出現(List 不建立畫面外的列)。
         for identifier in ["settings.member", "settings.returnSends", "settings.haptics", "settings.rate", "settings.support"] {
-            XCTAssertTrue(element(identifier, in: app).waitForExistence(timeout: 5), "設定頁沒有 \(identifier)")
+            let entry = element(identifier, in: app)
+            scrollTo(entry, in: app)
+            XCTAssertTrue(entry.waitForExistence(timeout: 5), "設定頁沒有 \(identifier)")
         }
         let herdrVersion = element("settings.herdrVersion", in: app)
         // 捲到最後一列(隱私權政策):herdr 版本列可能只露出一部分，露出部分就算 hittable,值卻還沒進 accessibility 樹。
@@ -31,6 +34,24 @@ final class SettingsUITests: XCTestCase {
                 "設定頁不該有「\(word)」"
             )
         }
+    }
+
+    /// 主機同步(#30):沒有 Purrdr Plus(UI 測試沒有會員)時不開啟，改顯示訂閱入口，在同一個 sheet 內 push 付費牆。
+    @MainActor
+    func testHostSyncWithoutPlusOffersSubscription() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+
+        let toggle = element("settings.hostSync", in: app)
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有主機同步")
+        // 點開關本身(列的右側)。
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+
+        let plus = element("settings.hostSync.plus", in: app)
+        XCTAssertTrue(plus.waitForExistence(timeout: 10), "沒有顯示需要 Purrdr Plus")
+        XCTAssertEqual(toggle.value as? String, "0", "沒有訂閱不該開啟")
+        plus.tap()
+        XCTAssertTrue(element("plus.benefits", in: app).waitForExistence(timeout: 10), "沒有 push 到付費牆")
     }
 
     @MainActor
@@ -68,8 +89,39 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Agent"].waitForExistence(timeout: 10), "列表標題不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 5), "設定頁標題不是繁體中文")
-        XCTAssertTrue(app.buttons["為 Purrdr 評分"].exists, "沒有「為 Purrdr 評分」")
+        // 通知、主機同步、Codex 區在上面，評分列要捲動才出現。
+        let rate = app.buttons["為 Purrdr 評分"]
+        scrollTo(rate, in: app)
+        XCTAssertTrue(rate.waitForExistence(timeout: 5), "沒有「為 Purrdr 評分」")
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
+    }
+
+    /// Codex 啟動器(#24,ADR-0002):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。Demo 主機的家目錄在記憶體。
+    @MainActor
+    func testCodexLauncherAsksConsentThenInstallsAndRemoves() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+
+        let toggle = app.switches["settings.codexLauncher"]
+        scrollTo(toggle, in: app)
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有 Codex 啟動器")
+        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.switches.firstMatch.tap()
+
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
+        let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        XCTAssertTrue(message.contains("~/.local/bin/codex"), "沒說明會加什麼:\(message)")
+        XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
+        alert.buttons["Install"].tap()
+
+        expectation(for: NSPredicate(format: "value == %@", "1"), evaluatedWith: toggle)
+        waitForExpectations(timeout: 10)
+
+        toggle.switches.firstMatch.tap()
+        expectation(for: NSPredicate(format: "value == %@", "0"), evaluatedWith: toggle)
+        waitForExpectations(timeout: 10)
+        XCTAssertFalse(app.alerts.firstMatch.exists, "移除不該再問同意")
     }
 
     // MARK: - 輔助

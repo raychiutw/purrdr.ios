@@ -113,10 +113,11 @@ struct SSHHostChannelTests {
         let server = try await TestSSHServer.start(keepalive: .reject) { _ in .reply(stdout: "ok") }
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
-            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(500)))
+            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .seconds(30)))
 
         _ = try await collect(channel.execute("first"))
-        try await Task.sleep(for: .milliseconds(700))
+        // 不用固定等待：等主機收到幾次 keepalive(回應期限給得寬，機器忙時回應慢也不會被當成半開連線)。
+        try await eventually { server.snapshot.keepalives >= 3 }
         _ = try await collect(channel.execute("second"))
 
         #expect(server.snapshot.keepalives >= 3)
@@ -133,7 +134,8 @@ struct SSHHostChannelTests {
             timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)))
 
         _ = try await collect(channel.execute("first"))
-        try await Task.sleep(for: .milliseconds(800))
+        // 不用固定等待：等到 keepalive 期限到、連線被丟棄(主機看到斷線)。
+        try await eventually { server.snapshot.disconnections == 1 }
         let next = try await collect(channel.execute("second"))
 
         #expect(next.stdout == "ok")
@@ -182,13 +184,34 @@ struct SSHHostChannelTests {
         await pty.close()
         await channel.disconnect()
 
-        try await Task.sleep(for: .milliseconds(100))
+        // 不用固定等待：等主機那端記下改尺寸。
+        try await eventually { server.snapshot.ptys.first?.windowChanges.isEmpty == false }
         let record = try #require(server.snapshot.ptys.first)
         #expect(record.term == "xterm-256color")
         #expect(record.columns == 80 && record.rows == 24)
         #expect(record.command == nil)
         #expect(record.input == Data("ls".utf8))
         #expect(record.windowChanges == [[100, 30]])
+        await server.stop()
+    }
+
+    @Test("PTY:shell 自己結束(exit-status)時輸出正常結束;連線斷了則丟 connectionLost")
+    func ptyEndsOrLosesConnection() async throws {
+        let server = try await TestSSHServer.start { _ in .reply() }
+        let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint)
+
+        let ended = try await channel.openPTY(PTYRequest(columns: 80, rows: 24))
+        try await ended.write(Data("exit\r".utf8))
+        var received = Data()
+        for try await chunk in ended.output { received += chunk }
+        #expect(received == Data("pty$ exit\r".utf8))
+
+        let lost = try await channel.openPTY(PTYRequest(columns: 80, rows: 24))
+        try await lost.write(Data("drop\r".utf8))
+        await #expect(throws: SSHConnectionError.connectionLost) {
+            for try await _ in lost.output {}
+        }
+        await channel.disconnect()
         await server.stop()
     }
 }

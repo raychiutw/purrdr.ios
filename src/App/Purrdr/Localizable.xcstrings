@@ -101,6 +101,17 @@
         }
       }
     },
+    "%lld lines of output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 行輸出"
+          }
+        }
+      }
+    },
     "%lld months" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -200,6 +211,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個失敗"
+          }
+        }
+      }
+    },
+    "1 line of output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 行輸出"
           }
         }
       }
@@ -451,8 +473,8 @@
       }
     },
     "An agent needs you." : {
-      "extractionState" : "manual",
       "comment" : "推播內文(後台 APNs payload 的 loc-key)",
+      "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
@@ -678,6 +700,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法連上 Purrdr"
+          }
+        }
+      }
+    },
+    "Can’t Show This Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法顯示這個資料夾"
+          }
+        }
+      }
+    },
+    "Can’t Upload" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法上傳"
           }
         }
       }
@@ -946,6 +990,32 @@
         }
       }
     },
+    "Codex" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "Codex Launcher" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 啟動器"
+          }
+        }
+      }
+    },
+    "Codex compressed this chat’s transcript, so it can’t be shown here. Open the chat on the host to see it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 已壓縮這個聊天的對話紀錄，這裡無法顯示。請在主機上開啟這個聊天查看。"
+          }
+        }
+      }
+    },
     "Codex has its file picker open. Close it here, or choose a file in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -953,6 +1023,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 開著檔案選擇器。可以在這裡關閉，或在終端機選擇檔案。"
+          }
+        }
+      }
+    },
+    "Codex reports its session after you send the first message. Its messages appear here once it does." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 要在你送出第一則訊息後才會回報 session,回報後訊息就會出現在這裡。"
           }
         }
       }
@@ -1155,6 +1236,17 @@
         }
       }
     },
+    "Copy Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝輸出"
+          }
+        }
+      }
+    },
     "Copy Public Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1217,6 +1309,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法載入訂閱方案。請檢查網路連線後再試一次。"
+          }
+        }
+      }
+    },
+    "Couldn’t open a shell on this host. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在這台主機上開啟 shell。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t open this folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法打開這個資料夾。"
+          }
+        }
+      }
+    },
+    "Couldn’t open this folder. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法打開這個資料夾。%@"
           }
         }
       }
@@ -1320,6 +1445,17 @@
         }
       }
     },
+    "Couldn’t read this file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這個檔案。"
+          }
+        }
+      }
+    },
     "Couldn’t read this host’s herdr status." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1349,6 +1485,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法重新命名這台主機。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t save synced hosts on this device. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在這台裝置上儲存同步來的主機。%@"
           }
         }
       }
@@ -1408,6 +1555,17 @@
         }
       }
     },
+    "Couldn’t sync hosts. Check your connection and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法同步主機。請檢查網路連線後再試一次。"
+          }
+        }
+      }
+    },
     "Couldn’t turn on notifications: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1437,6 +1595,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法更新對話，正在重試…"
+          }
+        }
+      }
+    },
+    "Couldn’t update the host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新主機:%@"
           }
         }
       }
@@ -1694,6 +1863,17 @@
         }
       }
     },
+    "Enclosing Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一層"
+          }
+        }
+      }
+    },
     "End" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1815,6 +1995,61 @@
         }
       }
     },
+    "File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Files on the host changed while Purrdr was updating them. Nothing was changed; try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 更新期間，主機上的檔案被改動了。沒有做任何變更，請再試一次。"
+          }
+        }
+      }
+    },
+    "Files over 25 MB can’t be uploaded." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超過 25 MB 的檔案無法上傳。"
+          }
+        }
+      }
+    },
+    "Files travel over the same SSH connection. Uploads are limited to 25 MB per file and never replace an existing file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案走同一條 SSH 連線傳送。上傳每個檔案上限 25 MB,且絕不會取代既有的檔案。"
+          }
+        }
+      }
+    },
     "Fingerprint" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1833,6 +2068,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聚焦中"
+          }
+        }
+      }
+    },
+    "Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料夾"
           }
         }
       }
@@ -1980,6 +2226,39 @@
         }
       }
     },
+    "Host Sync" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機同步"
+          }
+        }
+      }
+    },
+    "Host names, addresses, user names, connection methods, and host key fingerprints sync to your other devices through your Purrdr member account. Passwords and private keys never leave this device. Requires Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機名稱、位址、使用者名稱、連線方式與 host key 指紋會透過你的 Purrdr 會員同步到你的其他裝置。密碼與私鑰永遠不會離開這台裝置。需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Host sync needs Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機同步需要 Purrdr Plus"
+          }
+        }
+      }
+    },
     "Hosts" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2101,6 +2380,17 @@
         }
       }
     },
+    "Install Codex Launcher?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要安裝 Codex 啟動器嗎?"
+          }
+        }
+      }
+    },
     "Install the Purrdr Plugin?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2189,6 +2479,17 @@
         }
       }
     },
+    "Last Synced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次同步"
+          }
+        }
+      }
+    },
     "Leave Session blank unless this computer runs more than one herdr session." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2218,6 +2519,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向左鍵"
+          }
+        }
+      }
+    },
+    "Link" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連結"
           }
         }
       }
@@ -2306,6 +2618,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "紀錄"
+          }
+        }
+      }
+    },
+    "Login Shell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入 Shell"
           }
         }
       }
@@ -2581,6 +2904,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已停止追蹤 · 重新載入以再次檢查"
+          }
+        }
+      }
+    },
+    "No output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無輸出"
+          }
+        }
+      }
+    },
+    "No output recorded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有記錄輸出"
           }
         }
       }
@@ -2948,6 +3293,17 @@
         }
       }
     },
+    "Other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他"
+          }
+        }
+      }
+    },
     "Other Skills" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2955,6 +3311,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他 Skill"
+          }
+        }
+      }
+    },
+    "Output truncated at 20,000 characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出超過 20,000 字，已截斷"
           }
         }
       }
@@ -3230,6 +3597,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會先測試連線，再儲存主機。"
+          }
+        }
+      }
+    },
+    "Purrdr will add ~/.local/bin/codex on this host as “%@”. It starts Codex with this pane’s herdr identity and changes nothing else. You can turn it off here at any time." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會以「%@」在這台主機加入 ~/.local/bin/codex。它會帶著這個 Pane 的 herdr 身分啟動 Codex,不會更動其他東西。你隨時可以在這裡關閉。"
           }
         }
       }
@@ -3575,6 +3953,17 @@
         }
       }
     },
+    "Running…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行中…"
+          }
+        }
+      }
+    },
     "Sample conversations, no computer connected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3857,6 +4246,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示"
+          }
+        }
+      }
+    },
+    "Show All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示全部"
           }
         }
       }
@@ -4169,6 +4569,17 @@
         }
       }
     },
+    "Status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "狀態"
+          }
+        }
+      }
+    },
     "Stop" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4209,6 +4620,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支援"
+          }
+        }
+      }
+    },
+    "Sync Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步主機"
+          }
+        }
+      }
+    },
+    "Syncing…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在同步…"
           }
         }
       }
@@ -4510,6 +4943,17 @@
         }
       }
     },
+    "The connection to this host was lost. Reconnect to start a new shell." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與這台主機的連線中斷了。重新連線會開啟新的 shell。"
+          }
+        }
+      }
+    },
     "The herdr path runs a different program. Check the herdr path." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4517,6 +4961,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "herdr 路徑執行的是別的程式，請檢查 herdr 路徑。"
+          }
+        }
+      }
+    },
+    "The host couldn’t save the file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機無法儲存這個檔案。"
+          }
+        }
+      }
+    },
+    "The host couldn’t save the file. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機無法儲存這個檔案。%@"
           }
         }
       }
@@ -4576,6 +5042,17 @@
         }
       }
     },
+    "The host didn’t respond with a folder listing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機回應的不是資料夾清單。"
+          }
+        }
+      }
+    },
     "The host refused the connection. Check that Remote Login (SSH) is on and the port is right." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4594,6 +5071,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機拒絕了連線。請確認 Tailscale SSH 已開啟，port 也正確。"
+          }
+        }
+      }
+    },
+    "The host saved the file somewhere unexpected." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機把檔案存到了意外的位置。"
           }
         }
       }
@@ -4675,6 +5163,17 @@
         }
       }
     },
+    "The shell has exited." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "shell 已結束。"
+          }
+        }
+      }
+    },
     "The sign-in didn’t go through. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4708,6 +5207,17 @@
         }
       }
     },
+    "The upload was interrupted. Nothing was saved on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上傳中斷了，主機上沒有留下任何檔案。"
+          }
+        }
+      }
+    },
     "The workflow’s phases appear here once it starts." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4715,6 +5225,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workflow 開始後，各階段會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "There’s already an item named “%@” in this folder. Rename the file and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾已經有名為「%@」的項目。請將檔案重新命名後再試一次。"
+          }
+        }
+      }
+    },
+    "There’s already an item with this name in this folder." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾已經有同名的項目。"
           }
         }
       }
@@ -4792,6 +5324,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置無法接收通知。%@"
+          }
+        }
+      }
+    },
+    "This file name can’t be used on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上不能使用這個檔名。"
+          }
+        }
+      }
+    },
+    "This folder is empty." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾是空的。"
           }
         }
       }
@@ -5060,6 +5614,17 @@
         }
       }
     },
+    "This runs in the agent’s shell and won’t be sent to Claude." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會在 agent 的 shell 執行，不會送給 Claude。"
+          }
+        }
+      }
+    },
     "This subagent’s transcript isn’t on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5280,6 +5845,17 @@
         }
       }
     },
+    "Untested. Adds ~/.local/bin/codex on the selected host so herdr can report which session each Codex chat is in. ~/.local/bin must come before Codex on your PATH. Turning it off removes everything Purrdr added." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未實測。在選取中的主機加入 ~/.local/bin/codex,讓 herdr 能回報每個 Codex 聊天所在的 session。~/.local/bin 必須在 PATH 中排在 Codex 之前。關閉時會移除 Purrdr 加入的所有東西。"
+          }
+        }
+      }
+    },
     "Up Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5331,6 +5907,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在更新 %@ 上的 herdr…"
+          }
+        }
+      }
+    },
+    "Upload File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上傳檔案"
+          }
+        }
+      }
+    },
+    "Uploading %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在上傳「%@」"
           }
         }
       }
@@ -5933,6 +6531,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年"
+          }
+        }
+      }
+    },
+    "~/.local/bin/codex already exists on this host, so Purrdr left it unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已經有 ~/.local/bin/codex,Purrdr 沒有更動它。"
           }
         }
       }

@@ -16,6 +16,8 @@ struct PurrdrApp: App {
     /// Purrdr Plus(#28)。跟會員共用同一個 `MemberSession`(同一組權杖)。
     private let plus: SubscriptionModel
     private let settings: SettingsModel
+    /// 主機同步(#30):跟會員、Purrdr Plus 共用同一個 `MemberSession`。
+    private let hostSync: HostSyncModel
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -76,6 +78,9 @@ struct PurrdrApp: App {
         hosts.haptics = SystemHaptics()
         hosts.load()
         _hosts = State(initialValue: hosts)
+        // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
+        hostSync = HostSyncModel(
+            session: session, plus: plus, hosts: hosts, store: uiTesting ? InMemoryHostSyncStore() : UserDefaultsHostSyncStore())
         settings = Self.makeSettings(hosts: hosts)
     }
 
@@ -120,7 +125,8 @@ struct PurrdrApp: App {
     var body: some Scene {
         // 主視窗(三欄)。iPad 可以開好幾個，每個視窗有自己的導覽狀態;主機與 Agent 列表共用。
         WindowGroup(id: PurrdrCommands.mainWindowID) {
-            TopNavigationView(hosts: hosts, member: member, settings: settings, plus: plus, notifications: PushAppDelegate.router)
+            TopNavigationView(
+                hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router)
         }
         .commands { PurrdrCommands() }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。

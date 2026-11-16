@@ -110,10 +110,15 @@ public enum HostFileChange: Equatable, Sendable {
     case delete(HostPath, expecting: HostFileExpectation)
     /// 移除 Purrdr 自己的資料夾(必須在 `.purrdr/` 底下);`.purrdr` 因此變空時一起移除。
     case removeDirectory(HostPath)
+    /// 建立一個原本不存在的資料夾(例如 Codex 啟動器的 `~/.local/bin`)。已經存在 → 整批不寫(`changedSinceRead`)。
+    /// 同一批之後寫在它底下的檔案視為資料夾存在。
+    case makeDirectory(HostPath)
+    /// 資料夾是空的才移除(還原時拿掉自己建的資料夾);使用者後來放了東西就保留，不算失敗。
+    case removeEmptyDirectory(HostPath)
 
     public var path: HostPath {
         switch self {
-        case .write(let path, _, _, _), .delete(let path, _), .removeDirectory(let path): path
+        case .write(let path, _, _, _), .delete(let path, _), .removeDirectory(let path), .makeDirectory(let path), .removeEmptyDirectory(let path): path
         }
     }
 }
@@ -125,7 +130,7 @@ public enum HostFilesError: Error, Equatable {
     case tooLarge
     /// 讀取之後檔案被改過(或預期不存在卻存在):整批都沒寫。
     case changedSinceRead(HostPath)
-    /// 要寫的檔案所在的資料夾不存在(只有 `.purrdr/` 底下會自動建立)。
+    /// 要寫的檔案所在的資料夾不存在(只有 `.purrdr/` 底下會自動建立;其他地方要同一批先 `makeDirectory`)。
     case missingDirectory(HostPath)
     /// 主機上的輸出不是預期的格式。
     case malformedOutput
@@ -155,6 +160,10 @@ extension HostFileChange {
             ["del", path.relative, expectation.scriptArgument, "", "0"]
         case .removeDirectory(let path):
             ["rmtree", path.relative, "any", "", "0"]
+        case .makeDirectory(let path):
+            ["mkdir", path.relative, "missing", "", "0"]
+        case .removeEmptyDirectory(let path):
+            ["rmdir", path.relative, "any", "", "0"]
         }
     }
 }
