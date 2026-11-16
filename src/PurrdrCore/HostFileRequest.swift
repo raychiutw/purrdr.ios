@@ -37,6 +37,10 @@ public enum HostFileRequest: Equatable, Sendable {
                 changes.append(.delete(path, expecting: expectation))
             case "rmtree":
                 changes.append(.removeDirectory(path))
+            case "mkdir":
+                changes.append(.makeDirectory(path))
+            case "rmdir":
+                changes.append(.removeEmptyDirectory(path))
             default:
                 return nil
             }

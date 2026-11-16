@@ -198,7 +198,11 @@ public struct ConversationView: View {
             ContentUnavailableView {
                 Label("Waiting for the Session", systemImage: "hourglass")
             } description: {
-                Text("The agent hasn’t reported which session it’s in yet. Its messages appear here once it does.")
+                if model.agentKind == "codex" {
+                    Text("Codex reports its session after you send the first message. Its messages appear here once it does.")
+                } else {
+                    Text("The agent hasn’t reported which session it’s in yet. Its messages appear here once it does.")
+                }
             }
         case .missingSession:
             ContentUnavailableView {
@@ -304,6 +308,7 @@ extension ConversationModel.Banner {
         case .unreadable: "Can’t read this chat’s transcript on the host. Check the file’s permissions."
         case .readFailed: "Couldn’t update the conversation. Retrying…"
         case .ambiguous: "More than one transcript matches this chat’s session, so none is shown."
+        case .compressed: "Codex compressed this chat’s transcript, so it can’t be shown here. Open the chat on the host to see it."
         }
     }
 
@@ -313,6 +318,7 @@ extension ConversationModel.Banner {
         case .unreadable: "lock"
         case .readFailed: "arrow.clockwise"
         case .ambiguous: "questionmark.folder"
+        case .compressed: "archivebox"
         }
     }
 }

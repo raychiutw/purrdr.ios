@@ -45,3 +45,26 @@ struct DemoHostFilesTests {
         }
     }
 }
+
+/// Codex 啟動器在 Demo 也走正式程式路徑(記憶體裡的家目錄沒有 `~/.local`)。
+@Suite("Demo 主機:Codex 啟動器")
+struct DemoCodexLauncherTests {
+    @Test("安裝建立 ~/.local/bin/codex;還原後 ~/.local 與安裝紀錄都不在")
+    func installAndRestore() async throws {
+        let demo = DemoHost()
+        let launcher = CodexLauncherHost(channel: demo)
+        let files = HostFiles(channel: demo)
+        let paths: [HostPath] = [".local", ".local/bin", CodexLauncherHost.launcherPath, ".purrdr/codex-launcher/journal.json"]
+        let before = try await files.read(paths)
+        #expect(before[".local"] == .missing)
+        #expect(try await launcher.inspect() == CodexLauncherInspection(user: "demo", isInstalled: false))
+
+        try await launcher.install()
+        #expect(try await files.read(paths)[CodexLauncherHost.launcherPath]?.contents != nil)
+        #expect(try await launcher.inspect().isInstalled)
+
+        try await launcher.restore()
+
+        #expect(try await files.read(paths) == before)
+    }
+}

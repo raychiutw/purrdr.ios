@@ -19,11 +19,14 @@ public struct SettingsView: View {
     let hostSync: HostSyncModel?
     /// 推播需要 Purrdr Plus 時開付費牆。
     let openPlus: () -> Void
+    /// 選取中主機的 Codex 啟動器;`nil` 時不顯示。
+    let codexLauncher: CodexLauncherModel?
     let done: () -> Void
 
     public init(
         model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil,
-        hostSync: HostSyncModel? = nil, openPlus: @escaping () -> Void = {}, done: @escaping () -> Void
+        hostSync: HostSyncModel? = nil, openPlus: @escaping () -> Void = {}, codexLauncher: CodexLauncherModel? = nil,
+        done: @escaping () -> Void
     ) {
         self.model = model
         self.member = member
@@ -31,6 +34,7 @@ public struct SettingsView: View {
         self.push = push
         self.hostSync = hostSync
         self.openPlus = openPlus
+        self.codexLauncher = codexLauncher
         self.done = done
     }
 
@@ -61,6 +65,10 @@ public struct SettingsView: View {
                     Text("Hardware Keyboard")
                 } footer: {
                     Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+                }
+
+                if let codexLauncher {
+                    CodexLauncherSection(model: codexLauncher)
                 }
 
                 Section {

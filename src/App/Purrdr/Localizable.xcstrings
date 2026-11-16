@@ -957,6 +957,32 @@
         }
       }
     },
+    "Codex" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "Codex Launcher" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 啟動器"
+          }
+        }
+      }
+    },
+    "Codex compressed this chat’s transcript, so it can’t be shown here. Open the chat on the host to see it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 已壓縮這個聊天的對話紀錄，這裡無法顯示。請在主機上開啟這個聊天查看。"
+          }
+        }
+      }
+    },
     "Codex has its file picker open. Close it here, or choose a file in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -964,6 +990,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 開著檔案選擇器。可以在這裡關閉，或在終端機選擇檔案。"
+          }
+        }
+      }
+    },
+    "Codex reports its session after you send the first message. Its messages appear here once it does." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 要在你送出第一則訊息後才會回報 session,回報後訊息就會出現在這裡。"
           }
         }
       }
@@ -1529,6 +1566,17 @@
         }
       }
     },
+    "Couldn’t update the host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新主機:%@"
+          }
+        }
+      }
+    },
     "Couldn’t upload the image to the host. Your message wasn’t sent; try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1925,6 +1973,17 @@
         }
       }
     },
+    "Files on the host changed while Purrdr was updating them. Nothing was changed; try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 更新期間，主機上的檔案被改動了。沒有做任何變更，請再試一次。"
+          }
+        }
+      }
+    },
     "Files over 25 MB can’t be uploaded." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2262,6 +2321,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安裝"
+          }
+        }
+      }
+    },
+    "Install Codex Launcher?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要安裝 Codex 啟動器嗎?"
           }
         }
       }
@@ -3406,6 +3476,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會先測試連線，再儲存主機。"
+          }
+        }
+      }
+    },
+    "Purrdr will add ~/.local/bin/codex on this host as “%@”. It starts Codex with this pane’s herdr identity and changes nothing else. You can turn it off here at any time." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會以「%@」在這台主機加入 ~/.local/bin/codex。它會帶著這個 Pane 的 herdr 身分啟動 Codex,不會更動其他東西。你隨時可以在這裡關閉。"
           }
         }
       }
@@ -5610,6 +5691,17 @@
         }
       }
     },
+    "Untested. Adds ~/.local/bin/codex on the selected host so herdr can report which session each Codex chat is in. ~/.local/bin must come before Codex on your PATH. Turning it off removes everything Purrdr added." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未實測。在選取中的主機加入 ~/.local/bin/codex,讓 herdr 能回報每個 Codex 聊天所在的 session。~/.local/bin 必須在 PATH 中排在 Codex 之前。關閉時會移除 Purrdr 加入的所有東西。"
+          }
+        }
+      }
+    },
     "Up Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6274,6 +6366,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "年"
+          }
+        }
+      }
+    },
+    "~/.local/bin/codex already exists on this host, so Purrdr left it unchanged." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已經有 ~/.local/bin/codex,Purrdr 沒有更動它。"
           }
         }
       }

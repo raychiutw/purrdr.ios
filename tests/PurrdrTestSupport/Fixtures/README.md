@@ -89,7 +89,7 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 
 ## 其他 agent 的對話紀錄(`other-agents/`)——依文件撰寫、未實測
 
-作者的 Mac 上沒有 Grok、Antigravity、Pi、OMP,這些檔案**不是**從真實主機擷取，而是依下列來源**手寫**的(#25)。
+作者的 Mac 上沒有 Grok、Antigravity、Pi、OMP、Codex,這些檔案**不是**從真實主機擷取，而是依下列來源**手寫**的(#25)。
 格式是各 agent 的內部檔案，可能與實際版本不同;拿到真實 session 後應換成擷取檔。內容(專案、路徑、文字)都是自己寫的範例。
 
 | 檔案 | 格式依據 | 涵蓋 |
@@ -97,6 +97,7 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 | `other-agents/grok/updates.jsonl` | 行為規格 §4.3(依 Grok 1.0.52 描述)、ACP `session/update` 通知的形狀 | 使用者訊息、Grok 自己寫的 prompt(`syntheticPrompt`)、thought、`tool_call`(`x.ai/tool` 名稱)、進度更新、completed／failed 結果、diff 結果、`_x.ai/session/update` 的 plan(忽略)、沒有 `eventId` 的行 |
 | `other-agents/antigravity/transcript.jsonl` | 行為規格 §4.4(依 agy 1.3.6 描述)。`tool_calls[i]` 的參數欄位名沒有公開文件，這裡用 `args` | `USER_EXPLICIT` 與 `USER_REQUEST`、模型切換的 `USER_INPUT`、`PLANNER_RESPONSE`(thinking、文字、呼叫、token)、`GENERIC` 輸出(Created At／Completed At、CRLF)、`EPHEMERAL_MESSAGE`(忽略) |
 | `other-agents/pi/session.jsonl` | 行為規格 §4.5;Pi 官方文件 `packages/coding-agent/docs/session-format.md`、`message-types.md`(github.com/badlogic/pi-mono,2026-11-16 取用) | session header、`model_change`、`thinking_level_change`、system 訊息(忽略)、user(字串與 block、圖片)、assistant(thinking、redacted、`redactedThinking`、toolCall、usage、stopReason)、toolResult(含錯誤)、`compaction`、`branch_summary`、`reset_boundary`、中斷的輪次(usage 為 0) |
+| `other-agents/codex/rollout.jsonl`(#24) | 行為規格 §4.2(依 Codex 0.157–0.163 的描述);openai/codex 公開原始碼的 rollout 形狀(`{timestamp, type, payload}`)與 `-c` 解析(2026-11-16 取用)。產生腳本的思路：以 Python `json.dumps` 逐行寫出，內容是自己寫的範例 | `session_meta`、兩個 `turn_context`(模型與 effort 以後者為準)、developer 訊息與 `# AGENTS.md`／`<environment_context>` 使用者訊息(harness,不顯示)、含 `<image>` 參照與 `input_image` 的使用者訊息、`event_msg` 的重複(`user_message`、`agent_message`、`task_complete`,不顯示)、`reasoning`(summary + 加密內容)、`function_call`(argv 的 `shell`)與 JSON 結果、`custom_tool_call`(`apply_patch`)、`local_shell_call` 與失敗結果(`Process exited with code 1`)、`web_search_call`、`token_count`(cached 已含在 input 內)、帶 `<oai-mem-citation>` 的 final answer、`channel: analysis`(不顯示) |
 
 `message.timestamp`(毫秒)刻意和 entry 的 ISO 時間不同，測試才分得出取的是哪一個。OMP 的標題槽(`{"type":"title",…}`)寫在測試裡。
 

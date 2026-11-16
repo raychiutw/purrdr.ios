@@ -41,6 +41,8 @@ public final class HostsModel {
     public private(set) var claudeUsage: ClaudeUsageModel
     /// 選取中主機的推播開關(#29)。
     public private(set) var push: PushModel
+    /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
+    public private(set) var codexLauncher: CodexLauncherModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
     /// Tailscale SSH check mode 的提示。所有主機通道共用;composition root 把它的 `observer` 交給主機通道。
@@ -113,6 +115,7 @@ public final class HostsModel {
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
+        codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         push = PushModel(service: pushService, hostID: nil, channel: demoChannel, herdr: HerdrInstallation()) { preferences.load().muted }
         connectMutes()
     }
@@ -211,6 +214,9 @@ public final class HostsModel {
             service: pushService, hostID: host?.id.uuidString, channel: channel, herdr: host?.herdr ?? HerdrInstallation()
         ) { preferences.load().muted }
         connectMutes()
+        codexLauncher = CodexLauncherModel(
+            host: CodexLauncherHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
+            consent: host == nil ? demoConsent : hostConsent)
         self.selection = selection
         selectionStore.save(selection)
     }

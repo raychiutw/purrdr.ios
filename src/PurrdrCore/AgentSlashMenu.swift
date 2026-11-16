@@ -21,7 +21,7 @@ public struct SlashCommand: Sendable, Equatable, Hashable {
 public enum AgentSlashMenu: Sendable, Equatable {
     /// 沒有選單(Pi、OMP,以及其他 agent)。
     case none
-    /// 固定清單(Grok、Antigravity)。【未實測】取自各自的官方文件，沒有在真實 agent 上比對過。
+    /// 固定清單(Grok、Antigravity、Codex)。【未實測】取自各自的官方文件，沒有在真實 agent 上比對過。
     case fixed([SlashCommand])
     /// 由主機上發現(Claude:內建、專案、使用者、plugin 指令;#15)。
     case discovered
@@ -31,6 +31,7 @@ public enum AgentSlashMenu: Sendable, Equatable {
         case "claude": self = .discovered
         case "grok": self = .fixed(Self.grok)
         case "agy": self = .fixed(Self.antigravity)
+        case "codex": self = .fixed(Self.codex)
         default: self = .none
         }
     }
@@ -150,5 +151,73 @@ public enum AgentSlashMenu: Sendable, Equatable {
         SlashCommand(name: "credits", summary: "Show credits"),
         SlashCommand(name: "changelog", summary: "Show what's new"),
         SlashCommand(name: "antigravity-guide", summary: "Open the Antigravity guide"),
+    ]
+
+    /// Codex TUI 的內建指令(openai/codex `codex-rs/tui/src/slash_command.rs`,2026-11-16 取用;官方文件的
+    /// slash 指令頁已改版、目前沒有 CLI 清單)。依原始碼的宣告順序(也是 Codex 選單的順序);說明取自 `description()`,
+    /// 句首改大寫。只在 debug build 出現的(`rollout`、`test-approval`、`debug-m-*`)不列;依平台或功能開關才出現的照列，
+    /// 由 Codex 自己拒絕。別名(`cwd`、`pet`、`clean`)不另列。
+    static let codex: [SlashCommand] = [
+        SlashCommand(name: "model", summary: "Choose what model and reasoning effort to use"),
+        SlashCommand(name: "presets", summary: "Run or save reusable prompts and slash commands"),
+        SlashCommand(name: "daybreak", summary: "Turn Daybreak on or off"),
+        SlashCommand(name: "ide", summary: "Include current selection, open files, and other context from your IDE"),
+        SlashCommand(name: "permissions", summary: "Choose what Codex is allowed to do"),
+        SlashCommand(name: "keymap", summary: "Remap TUI shortcuts"),
+        SlashCommand(name: "vim", summary: "Toggle Vim mode for the composer"),
+        SlashCommand(name: "setup-default-sandbox", summary: "Set up elevated agent sandbox"),
+        SlashCommand(name: "experimental", summary: "Toggle experimental features"),
+        SlashCommand(name: "approve", summary: "Approve one retry of a recent auto-review denial"),
+        SlashCommand(name: "memories", summary: "Configure memory use and generation"),
+        SlashCommand(name: "skills", summary: "Use skills to improve how Codex performs specific tasks"),
+        SlashCommand(name: "import", summary: "Import setup, this project, and recent chats from Claude Code"),
+        SlashCommand(name: "hooks", summary: "View and manage lifecycle hooks"),
+        SlashCommand(name: "review", summary: "Review my current changes and find issues"),
+        SlashCommand(name: "rename", summary: "Rename the current thread"),
+        SlashCommand(name: "new", summary: "Start a new chat during a conversation"),
+        SlashCommand(name: "archive", summary: "Archive this session"),
+        SlashCommand(name: "delete", summary: "Permanently delete this session"),
+        SlashCommand(name: "resume", summary: "Resume a saved chat"),
+        SlashCommand(name: "fork", summary: "Fork the current chat"),
+        SlashCommand(name: "worktree", summary: "Start or continue a conversation in a new worktree"),
+        SlashCommand(name: "app", summary: "Continue this session in the Desktop app"),
+        SlashCommand(name: "init", summary: "Create an AGENTS.md file with instructions for Codex"),
+        SlashCommand(name: "compact", summary: "Summarize conversation to prevent hitting the context limit"),
+        SlashCommand(name: "config", summary: "Configure Codex preferences"),
+        SlashCommand(name: "recap", summary: "Summarize the current conversation now"),
+        SlashCommand(name: "plan", summary: "Switch to Plan mode"),
+        SlashCommand(name: "voice", summary: "Start or stop voice"),
+        SlashCommand(name: "goal", summary: "Set or view the goal for a long-running task"),
+        SlashCommand(name: "agents", summary: "Open the agent command center"),
+        SlashCommand(name: "side", summary: "Start a side conversation"),
+        SlashCommand(name: "btw", summary: "Start a side conversation"),
+        SlashCommand(name: "copy", summary: "Copy the last response or part of it"),
+        SlashCommand(name: "export", summary: "Export the conversation as Markdown"),
+        SlashCommand(name: "raw", summary: "Toggle raw scrollback mode for copy-friendly terminal selection"),
+        SlashCommand(name: "tui", summary: "Choose the TUI mode for the next launch"),
+        SlashCommand(name: "diff", summary: "Show git diff (including untracked files)"),
+        SlashCommand(name: "mention", summary: "Mention a file"),
+        SlashCommand(name: "status", summary: "Show current session configuration and token usage"),
+        SlashCommand(name: "daemon", summary: "Manage the local background server"),
+        SlashCommand(name: "warnings", summary: "View retained warnings and diagnostic details"),
+        SlashCommand(name: "cd", summary: "Change the current working directory"),
+        SlashCommand(name: "pwd", summary: "Show the current working directory"),
+        SlashCommand(name: "usage", summary: "View account usage or use a usage limit reset"),
+        SlashCommand(name: "debug-config", summary: "Show config layers and requirement sources for debugging"),
+        SlashCommand(name: "title", summary: "Configure which items appear in the terminal title"),
+        SlashCommand(name: "statusline", summary: "Configure which items appear in the status line"),
+        SlashCommand(name: "theme", summary: "Choose a syntax highlighting theme"),
+        SlashCommand(name: "pets", summary: "Choose or hide the terminal pet"),
+        SlashCommand(name: "mcp", summary: "List MCP tools"),
+        SlashCommand(name: "apps", summary: "Manage apps"),
+        SlashCommand(name: "plugins", summary: "Browse plugins"),
+        SlashCommand(name: "subagents", summary: "Switch between this session’s subagents"),
+        SlashCommand(name: "ps", summary: "List background terminals"),
+        SlashCommand(name: "stop", summary: "Stop all background terminals"),
+        SlashCommand(name: "clear", summary: "Clear the terminal and start a new chat"),
+        SlashCommand(name: "feedback", summary: "Send logs to maintainers or save a ZIP"),
+        SlashCommand(name: "logout", summary: "Log out of Codex"),
+        SlashCommand(name: "quit", summary: "Exit Codex"),
+        SlashCommand(name: "exit", summary: "Exit Codex"),
     ]
 }

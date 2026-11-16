@@ -35,6 +35,8 @@ public enum TranscriptReadError: Error, Equatable {
     case invalidReference
     /// 符合 session 的檔案不只一個:不開任何檔、不依新舊猜(行為規格 §4.3、§4.5)。
     case ambiguous
+    /// 只找到壓縮過的檔案(Codex 會壓縮 7 天未動的 rollout,§4.2):目前讀不了，但不是不存在。
+    case compressed
     /// 檔案的 header 與回報的 session 不符(Pi／OMP,§4.5)。下次重新定位。
     case mismatch
     /// 讀取中檔案變了或回應格式不對：重試。
@@ -85,18 +87,22 @@ public struct TranscriptReader: Sendable {
         case .grok(let id):
             guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
             expectedSuffix = "/\(id)/updates.jsonl"
-        case .antigravity(let id), .piJournal(let id):
+        case .antigravity(let id), .piJournal(let id), .codex(let id):
             guard ClaudeTranscript.isSafeSessionID(id) else { throw TranscriptReadError.invalidReference }
             expectedSuffix = nil
         case .reportedPath(let path):
             guard Self.isValidPath(path) else { throw TranscriptReadError.invalidReference }
             expectedSuffix = nil
         }
-        let readsHeader = target.format == .piJournal
+        let readsHeader = target.format == .piJournal || target.format == .codex
         let lines = try await run(TranscriptCommand.locate(target.location, readsHeader: readsHeader)).lines
         guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]),
               expectedSuffix.map(lines[0].hasSuffix) ?? true else { throw TranscriptReadError.changed }
-        if readsHeader {
+        if case .codex(let id) = target.location {
+            // 路徑必須是 `-<id>(_<rolloutId>)?.jsonl`;第一行是這個 session 的 session_meta(§4.2)。
+            guard Self.isCodexRollout(lines[0], id: id) else { throw TranscriptReadError.changed }
+            guard lines.count >= 3, CodexTranscriptParser.headerMatches(lines[2], expectedID: id) else { throw TranscriptReadError.mismatch }
+        } else if readsHeader {
             let expectedID: String? = if case .piJournal(let id) = target.location { id } else { nil }
             guard PiJournalParser.headerMatches(Array(lines.dropFirst(2)), expectedID: expectedID) else { throw TranscriptReadError.mismatch }
         }
@@ -169,6 +175,7 @@ public struct TranscriptReader: Sendable {
         case 3?: throw TranscriptReadError.absent
         case 4?, 5?: throw TranscriptReadError.unreadable
         case 6?: throw TranscriptReadError.ambiguous
+        case 7?: throw TranscriptReadError.compressed
         default: throw TranscriptReadError.failed(exitCode: exitCode)
         }
     }
@@ -184,6 +191,16 @@ public struct TranscriptReader: Sendable {
             bytes += length + 1
         }
         return (lines, bytes)
+    }
+
+    /// Codex rollout 的檔名：`…-<id>.jsonl` 或倒帶後的 `…-<id>_<rolloutId>.jsonl`。
+    static func isCodexRollout(_ path: String, id: String) -> Bool {
+        guard let name = path.split(separator: "/").last, name.hasPrefix("rollout-") else { return false }
+        let suffix = "-\(id).jsonl"
+        if name.hasSuffix(suffix) { return true }
+        guard let range = name.range(of: "-\(id)_", options: .backwards), name.hasSuffix(".jsonl") else { return false }
+        let rollout = name[range.upperBound..<name.index(name.endIndex, offsetBy: -".jsonl".count)]
+        return !rollout.isEmpty && rollout.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }
     }
 
     /// 主機回報的路徑：必須是絕對路徑、以 `.jsonl` 結尾、沒有 `..` 段、沒有 NUL／CR／LF(行為規格 §4.0)。
@@ -242,6 +259,9 @@ extension TranscriptReader {
             if request.target.format == .piJournal {
                 let expectedID: String? = if case .piJournal(let id) = request.target.location { id } else { nil }
                 guard PiJournalParser.headerMatches(headers[request.key] ?? [], expectedID: expectedID) else { continue }
+            }
+            if case .codex(let id) = request.target.location {
+                guard let header = headers[request.key]?.first, CodexTranscriptParser.headerMatches(header, expectedID: id) else { continue }
             }
             // 檔尾的第一行多半被切在中間，解析時自然略過。
             previews[request.key] = Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
