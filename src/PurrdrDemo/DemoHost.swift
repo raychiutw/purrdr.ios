@@ -555,7 +555,6 @@ private actor DemoBridgeSession: ExecSession {
     func close() async { continuation.finish() }
 }
 
-/// 一開始就結束的指令。
 /// 圖片上傳：收 stdin 到 EOF,大小相符就回上傳資料夾的路徑(內容不保存)。大小不符(上傳中斷)時失敗。
 private final class DemoImageUploadSession: ExecSession, @unchecked Sendable {
     let output: AsyncThrowingStream<ExecOutput, any Error>
@@ -597,6 +596,7 @@ private final class DemoImageUploadSession: ExecSession, @unchecked Sendable {
     }
 }
 
+/// 一開始就結束的指令。
 private struct DemoFinishedSession: ExecSession {
     let output: AsyncThrowingStream<ExecOutput, any Error>
 
