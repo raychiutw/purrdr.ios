@@ -469,9 +469,10 @@ struct ToolRunView: View {
             .padding(.top, 6)
         } label: {
             HStack(spacing: 6) {
+                // `Color.secondary`:DisclosureGroup 的 label 是按鈕，階層式 `.secondary` 會變成淡化的 tint、對比不足(#35 audit)。
                 Text(run.summary.text)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondary)
                 if run.summary.failures > 0 {
                     Circle()
                         .fill(.red)
@@ -526,7 +527,7 @@ struct ToolStepView: View {
                 if !call.input.isEmpty {
                     Text(call.input)
                         .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondary)
                         .lineLimit(1)
                 }
             }

@@ -44,12 +44,12 @@ struct SlashMenuView: View {
                         } header: {
                             Text(section.source.title)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.primary)
                                 // 一般大小寫，不全大寫(HIG 20.2,#35)。
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(.bar)
+                                .background(.background)
                                 .accessibilityAddTraits(.isHeader)
                         }
                     }
@@ -70,7 +70,9 @@ struct SlashMenuView: View {
         }
         .frame(maxHeight: 260)
         .fixedSize(horizontal: false, vertical: true)
-        .background(.bar, in: RoundedRectangle(cornerRadius: 16))
+        // 不透明底：選單蓋在訊息上，半透明的 `.bar` 讓次要色文字對比不足(#35 audit)。
+        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Commands"))

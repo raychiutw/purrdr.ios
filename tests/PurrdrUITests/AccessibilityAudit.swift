@@ -13,7 +13,7 @@ extension XCTestCase {
         try app.performAccessibilityAudit(for: types) { issue in
             let summary = AccessibilityAuditExclusions.describe(issue)
             if let reason = AccessibilityAuditExclusions.reason(for: issue, in: context) {
-                print("[a11y-audit] 排除 \(screen)(\(size)):\(summary) — 理由：\(reason)")
+                print("[a11y-audit] 排除 \(screen)(\(size)):\(summary) — 理由：\(reason) — \(context.describeBars())")
                 return true
             }
             print("[a11y-audit] 問題 \(screen)(\(size)):\(summary)")
@@ -36,15 +36,15 @@ final class AccessibilityAuditContext {
     }
 
     /// 導覽列(含 iPad 各欄的導覽列)。
-    lazy var navigationBars: [CGRect] = app.navigationBars.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }
+    lazy var navigationBars: [CGRect] = app.navigationBars.allElementsBoundByIndex.map(\.frame)
+        .filter { !$0.isEmpty && $0.height < window.height / 2 }
 
-    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、工具列、終端機按鍵列。
+    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、終端機按鍵列。
     lazy var bottomBars: [CGRect] = {
-        var frames = app.searchFields.allElementsBoundByIndex.map(\.frame)
-        frames += app.toolbars.allElementsBoundByIndex.map(\.frame)
-        // slash 選單浮在輸入列上方(.bar 材質),也蓋住後面的訊息。
-        let menu = app.descendants(matching: .any)["slash.menu"].firstMatch
-        if menu.exists { frames.append(menu.frame) }
+        // 搜尋欄：元素只有文字欄位本身，外面的玻璃膠囊與 scroll edge effect 再往上約 24pt,一路到視窗底。
+        var frames = app.searchFields.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }.map { field in
+            CGRect(x: window.minX, y: field.minY - 24, width: window.width, height: window.maxY - field.minY + 24)
+        }
         for identifier in ["composer.text", "terminal.key.esc"] {
             let element = app.descendants(matching: .any)[identifier].firstMatch
             if element.exists {
@@ -53,7 +53,13 @@ final class AccessibilityAuditContext {
                 frames.append(CGRect(x: window.minX, y: top, width: window.width, height: window.maxY - top))
             }
         }
-        return frames.filter { !$0.isEmpty }
+        return frames.filter { !$0.isEmpty && $0.height < window.height / 2 }
+    }()
+
+    /// slash 選單(浮在輸入列上方的 `.bar` 材質):蓋住後面的訊息，但選單自己的列不算被蓋住。
+    lazy var slashMenu: CGRect? = {
+        let menu = app.descendants(matching: .any)["slash.menu"].firstMatch
+        return menu.exists ? menu.frame : nil
     }()
 
     lazy var window: CGRect = app.windows.firstMatch.frame
@@ -63,11 +69,24 @@ final class AccessibilityAuditContext {
         navigationBars.contains { $0.insetBy(dx: 0, dy: -4).contains(CGPoint(x: frame.midX, y: frame.midY)) }
     }
 
-    /// 元素有一部分被導覽列或底部玻璃層蓋住，或捲到視窗外。
-    func isPartlyCovered(_ frame: CGRect) -> Bool {
+    /// 元素被系統的玻璃層或容器蓋住、裁掉：
+    /// - 中線落在狀態列、導覽列與其下方 24pt 的 scroll edge effect、或底部玻璃層(搜尋欄、輸入列、按鍵列)底下;
+    /// - 有一部分在 slash 選單的範圍外(在選單後面的訊息，或選單裡捲到圓角外被裁掉的列);
+    /// - 超出視窗(例如可橫捲的 shell 輸出、捲到畫面外的列)。
+    /// 只看中線：邊緣擦到玻璃的元素仍要受檢。
+    func isCovered(_ frame: CGRect) -> Bool {
         guard !frame.isEmpty else { return false }
-        if !window.contains(frame) { return true }
-        return (navigationBars + bottomBars).contains { $0.intersects(frame) }
+        if !window.insetBy(dx: -1, dy: -1).contains(frame) { return true }
+        let middle = CGPoint(x: frame.midX, y: frame.midY)
+        let tops = navigationBars.map { CGRect(x: $0.minX, y: window.minY, width: $0.width, height: $0.maxY + 24 - window.minY) }
+        if (tops + bottomBars).contains(where: { $0.contains(middle) }) { return true }
+        if let slashMenu, slashMenu.intersects(frame), !slashMenu.contains(frame) { return true }
+        return false
+    }
+
+    /// 印出這次判斷用的玻璃區域(稽核紀錄)。
+    func describeBars() -> String {
+        "導覽列 \(navigationBars) 底部 \(bottomBars) slash \(String(describing: slashMenu)) 視窗 \(window)"
     }
 }
 
@@ -99,15 +118,15 @@ enum AccessibilityAuditExclusions {
         },
         Rule(
             types: [.contrast, .textClipped, .hitRegion],
-            reason: "內容元素捲到導覽列底下，或有一部分在搜尋欄、輸入列或按鍵列的 Liquid Glass 底下(scroll edge effect),或捲出視窗外;"
-                + "audit 量到的是被玻璃模糊或裁掉的那一塊，捲到可見處時不是問題"
+            reason: "內容元素(以中線判斷)捲到導覽列、搜尋欄、輸入列或終端機按鍵列的 Liquid Glass 底下(scroll edge effect)、"
+                + "在 slash 選單後面，或捲出視窗外;audit 量到的是被玻璃模糊或裁掉的那一塊，捲到可見處時會另外受檢"
         ) { issue, context in
             guard let element = issue.element else { return false }
-            return context.isPartlyCovered(element.frame)
+            return context.isCovered(element.frame)
         },
         Rule(
             types: [.dynamicType, .textClipped],
-            reason: "預設字級的 audit 以模擬放大判斷，對 List／Form 裡用 text style 的 SwiftUI Text 會誤報「部分不支援」;"
+            reason: "預設字級的 audit 以模擬放大「預測」Dynamic Type 支援與截斷，對 List／Form 裡用 text style 的 SwiftUI Text 會誤報;"
                 + "同一個測試緊接著以 AX5 實際啟動同一畫面，AX5 段落沒有回報的文字確實放大且未截斷"
         ) { issue, context in
             guard !context.isAccessibilitySize else { return false }
@@ -115,7 +134,7 @@ enum AccessibilityAuditExclusions {
                 // 對應不到元素的「放大後可能被截斷」:同上，以 AX5 段落為準。
                 return issue.auditType == .textClipped
             }
-            return issue.auditType == .dynamicType && [.staticText, .button].contains(element.elementType)
+            return [.staticText, .button].contains(element.elementType)
         },
         Rule(
             types: .dynamicType,
@@ -157,10 +176,17 @@ enum AccessibilityAuditExclusions {
         },
         Rule(
             types: .textClipped,
-            reason: "截圖確認完整顯示(Label 的圖示 + 換行文字);audit 以單行寬度判定的誤報"
+            reason: "截圖確認完整顯示(Label 的圖示 + 文字，預設字級與 AX5 都看過);audit 以單行寬度判定的誤報"
         ) { issue, _ in
             guard let label = issue.element?.label else { return false }
-            return ["Choose Folder on Host", "1 note for you"].contains(label)
+            return ["Choose Folder on Host", "1 note for you", "Go to Chat"].contains(label)
+        },
+        Rule(
+            types: .contrast,
+            reason: "停用中的控制項(例如必填欄位沒填時的「Test Connection」):系統的停用樣式刻意淡化，WCAG 1.4.3 也把停用元件列為例外"
+        ) { issue, _ in
+            guard let element = issue.element else { return false }
+            return !element.isEnabled
         },
         Rule(
             types: .sufficientElementDescription,

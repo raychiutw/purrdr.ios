@@ -29,7 +29,8 @@ struct ComposerBar: View {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
             // 「You should know」:只顯示這個輸入框要送往的 session 的那則(#23)。
-            if let note = model.note, let notes = model.youShouldKnow {
+            // slash 選單開著時先收起：鍵盤、選單、註記同時在時，AX 字級下註記卡片被擠到截字(#35)。
+            if let note = model.note, let notes = model.youShouldKnow, !model.slash.isVisible {
                 YouShouldKnowNoteView(note: note, model: notes, conversation: model)
             }
             if !model.attachments.isEmpty {
