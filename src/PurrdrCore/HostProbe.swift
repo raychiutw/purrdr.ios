@@ -1,9 +1,11 @@
 import Foundation
 
-/// 主機作業系統(GLOSSARY「主機」)。Windows 主機在之後的票支援。
+/// 主機作業系統(GLOSSARY「主機」)。
 public enum HostOperatingSystem: String, Sendable, Hashable, Codable {
     case macOS
     case linux
+    /// 原生 Windows(OpenSSH + herdr Windows 版)。指令一律換成 PowerShell 方言(`WindowsHostChannel`)。
+    case windows
 }
 
 /// herdr 版本。以數值比較(字串比較會讓 `0.10.0` < `0.8.0`,行為規格 §3.1)。
@@ -80,9 +82,17 @@ public struct HostProbeReport: Sendable, Equatable {
     }
 }
 
+/// 更新 herdr 之後伺服器的狀態。
+public enum HerdrUpdateOutcome: Sendable, Equatable {
+    /// 執行中的伺服器已交接到新版(`update --handoff`)。
+    case handedOff
+    /// 只換了執行檔：要在主機上重啟 herdr 伺服器才會用新版(Windows 沒有 live handoff)。
+    case restartServerRequired
+}
+
 /// 連線測試在 herdr 這一層失敗的原因。連線層的失敗見 `SSHConnectionError`。
 public enum HostProbeError: Error, Equatable {
-    /// 主機不是 macOS 或 Linux(Windows 之後支援)。
+    /// 主機不是 macOS、Linux 或 Windows。
     case unsupportedOperatingSystem(String)
     /// 找不到 herdr(exit 127)。
     case herdrNotInstalled
@@ -110,8 +120,10 @@ public struct HostProbe: Sendable {
 
     public func run() async throws -> HostProbeReport {
         let operatingSystem = try await detectOperatingSystem()
+        // 偵測到 Windows 之後，指令一律換成 PowerShell 方言。
+        let channel = operatingSystem.channel(channel)
 
-        let version = try await run(HerdrCommand.version(herdr))
+        let version = try await run(HerdrCommand.version(herdr), on: channel)
         if version.exitCode == 127 { throw HostProbeError.herdrNotInstalled }
         guard version.exitCode == 0, let installed = HerdrVersion(version.stdout) else { throw HostProbeError.notHerdr }
         guard installed >= .minimumSupported else { throw HostProbeError.herdrOutdated(installed) }
@@ -129,31 +141,44 @@ public struct HostProbe: Sendable {
         } catch HerdrError.herdr(code: "server_not_running", _) {
             throw HostProbeError.serverNotRunning
         } catch HerdrError.herdr(_, let message) {
-            throw HostProbeError.herdr(message)
+            throw HostProbeError.herdr(WindowsErrorText.readable(message))
         }
     }
 
     /// 更新 herdr(使用者確認後才呼叫)。
-    public func updateHerdr() async throws {
-        let result = try await run(HerdrCommand.update(herdr))
+    ///
+    /// macOS／Linux 以 `update --handoff` 讓執行中的伺服器交接到新版;Windows 不支援 live handoff
+    /// (`ping` 的 `capabilities.live_handoff` 是 `false`),只換執行檔，要使用者在主機上重啟伺服器(行為規格 §11.1)。
+    @discardableResult
+    public func updateHerdr() async throws -> HerdrUpdateOutcome {
+        let operatingSystem = try await detectOperatingSystem()
+        let result = try await run(HerdrCommand.update(herdr), on: operatingSystem.channel(channel))
         guard result.exitCode == 0 else {
             let message = (result.stderr.isEmpty ? result.stdout : result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
-            throw HostProbeError.updateFailed(message)
+            throw HostProbeError.updateFailed(WindowsErrorText.readable(message))
         }
+        return operatingSystem == .windows ? .restartServerRequired : .handedOff
     }
 
+    /// `uname -s` → Darwin／Linux;Git Bash(MSYS2)的 `MINGW64_NT-…`、`MINGW32_NT-…`、`MSYS_NT-…` 是 Windows。
+    /// 認不得時(預設 shell 是 cmd 或 PowerShell,沒有 `uname`)再以 PowerShell 探測(行為規格 §3.9)。
     private func detectOperatingSystem() async throws -> HostOperatingSystem {
-        let result = try await run(HerdrCommand.operatingSystem)
+        let result = try await run(HerdrCommand.operatingSystem, on: channel)
         let name = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch (result.exitCode, name) {
-        case (0, "Darwin"): return .macOS
-        case (0, "Linux"): return .linux
-        default: throw HostProbeError.unsupportedOperatingSystem(name.isEmpty ? result.stderr : name)
+        if result.exitCode == 0 {
+            if name == "Darwin" { return .macOS }
+            if name == "Linux" { return .linux }
+            if ["MINGW64_NT-", "MINGW32_NT-", "MSYS_NT-"].contains(where: name.hasPrefix) { return .windows }
         }
+        let probe = try await run(PowerShell.windowsProbe, on: channel)
+        if probe.exitCode == 0, probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == PowerShell.windowsMarker {
+            return .windows
+        }
+        throw HostProbeError.unsupportedOperatingSystem(name.isEmpty ? result.stderr : name)
     }
 
     /// 執行一般指令，收齊輸出。非零 exit 是結果不是例外(行為規格 §3.2)。
-    private func run(_ command: String) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
+    private func run(_ command: String, on channel: any HostChannel) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
         let session = try await channel.execute(command)
         await session.closeStdin()
         var stdout = Data()

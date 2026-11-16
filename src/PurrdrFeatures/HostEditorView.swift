@@ -122,7 +122,7 @@ struct HostEditorView: View {
             Button("Cancel", role: .cancel) { model.dismissPrompt() }
         } message: {
             if case .needsUpdate(let version) = model.phase {
-                Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will run “herdr update --handoff” as \(model.username)@\(model.address).")
+                Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will update herdr as \(model.username)@\(model.address).")
             }
         }
     }
@@ -295,6 +295,14 @@ struct HostEditorView: View {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
                 }
                 .accessibilityIdentifier("hostEditor.result")
+            case .restartServerRequired:
+                // Windows 沒有 live handoff:更新只換了執行檔。
+                Label {
+                    Text("herdr is updated. Restart the herdr server on this host to use the new version, then test the connection again.")
+                } icon: {
+                    Image(systemName: "arrow.clockwise.circle.fill").foregroundStyle(.orange)
+                }
+                .accessibilityIdentifier("hostEditor.result")
             default:
                 EmptyView()
             }
@@ -339,6 +347,7 @@ extension HostOperatingSystem {
         switch self {
         case .macOS: "macOS"
         case .linux: "Linux"
+        case .windows: "Windows"
         }
     }
 }

@@ -137,6 +137,6 @@ public actor NewChatLauncher {
     }
 
     private static func lastComponent(of path: String) -> String {
-        path.split(separator: "/").last.map(String.init) ?? ""
+        HostPathSyntax.lastComponent(path).map(String.init) ?? ""
     }
 }

@@ -41,10 +41,11 @@ public enum UploadedImages {
         return path.isEmpty ? nil : path
     }
 
-    /// 一整行是上傳資料夾底下的圖片絕對路徑。
+    /// 一整行是上傳資料夾底下的圖片絕對路徑。Windows 主機是 `C:\Users\<使用者>\.purrdr\uploads\…`
+    /// (使用者資料夾名稱可以有空白;POSIX 路徑不接受空白)。
     static func isUploadPath(_ line: String) -> Bool {
-        guard line.hasPrefix("/"), !line.contains(" ") else { return false }
-        let components = line.split(separator: "/")
+        guard HostPathSyntax.isAbsolute(line), HostPathSyntax.isWindowsDrivePath(line) || !line.contains(" ") else { return false }
+        let components = HostPathSyntax.components(line)
         guard components.count >= 4, let name = components.last,
               components[components.count - 2] == "uploads", components[components.count - 3] == ".purrdr",
               let ext = name.split(separator: ".").last, name.contains(".") else { return false }

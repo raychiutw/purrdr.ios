@@ -152,7 +152,8 @@ struct CommandResult {
     var stdout = Data()
     var stderr = Data()
     var exitCode: Int32 = -1
-    var stderrText: String { String(decoding: stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) }
+    /// Windows 主機的 CLIXML／Rust Debug 格式整理過(`WindowsErrorText`);其他主機只去掉前後空白。
+    var stderrText: String { WindowsErrorText.readable(String(decoding: stderr, as: UTF8.self)) }
 }
 
 extension HostFileChange {
