@@ -208,7 +208,6 @@ extension AgentListProjection {
         var matched: Set<String>
         /// Agent 在 snapshot 裡的位置(排序用)。
         var positions: [String: Int]
-        var agentPanes: Set<String>
 
         init(source: Source, snapshot: HostSnapshot, hostOrder: Int, needle: String, visible: Set<ChatRoute>) {
             self.source = source
@@ -221,7 +220,6 @@ extension AgentListProjection {
                 uniquingKeysWith: { first, _ in first })
             matched = Set(AgentListProjection.sections(sources: [source], query: needle, visible: visible).flatMap(\.rows).map(\.paneID))
             positions = Dictionary(snapshot.agents.enumerated().map { ($1.paneID, $0) }, uniquingKeysWith: { first, _ in first })
-            agentPanes = Set(snapshot.agents.map(\.paneID))
         }
 
         /// workspace 依 snapshot 的順序;只出現在 agents／panes 的 workspace 也算。
@@ -245,7 +243,7 @@ extension AgentListProjection {
         let snapshot = context.snapshot
         let workspace = snapshot.workspaces.first { $0.id == workspaceID }
         let agents = snapshot.agents.filter { $0.workspaceID == workspaceID }
-        let shells = snapshot.panes.filter { $0.workspaceID == workspaceID && !context.agentPanes.contains($0.id) }
+        let shells = snapshot.terminalPanes.filter { $0.workspaceID == workspaceID }
         let statuses = agents.map(\.effectiveStatus)
         // 卡片的狀態：最急迫的那個(決定分組與卡片上的狀態標籤)。
         let status: AgentStatus = statuses.contains(.blocked) ? .blocked : statuses.contains(.working) ? .working

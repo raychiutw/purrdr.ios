@@ -91,7 +91,7 @@ public struct ClaudeSlashDiscovery: Sendable {
     static func resolve(_ path: String, in root: String) -> String? {
         let parts = path.split(separator: "/").filter { $0 != "." && !$0.isEmpty }
         guard !parts.contains("..") else { return nil }
-        let base = root.count > 1 && (root.hasSuffix("/") || root.hasSuffix("\\")) ? String(root.dropLast()) : root
+        let base = HostPathSyntax.trimmingTrailingSeparator(root)
         return parts.isEmpty ? base : base + "/" + parts.joined(separator: "/")
     }
 
@@ -226,10 +226,7 @@ struct DiscoveryState {
     }
 
     static func samePath(_ lhs: String, _ rhs: String) -> Bool {
-        func trimmed(_ path: String) -> String {
-            path.count > 1 && (path.hasSuffix("/") || path.hasSuffix("\\")) ? String(path.dropLast()) : path
-        }
-        return trimmed(lhs) == trimmed(rhs)
+        HostPathSyntax.trimmingTrailingSeparator(lhs) == HostPathSyntax.trimmingTrailingSeparator(rhs)
     }
 
     /// 對話紀錄中最後一次完整的 `skill_listing`(`isInitial`)加上之後的增量。名稱有 `<plugin>:` 的歸到該 plugin,

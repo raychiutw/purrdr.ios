@@ -111,4 +111,12 @@ struct WindowsHostPathTests {
         #expect(HostPathSyntax.lastComponent("/Users/demo/weather-app") == "weather-app")
         #expect(HostPathSyntax.lastComponent(#"/Users/demo/a\b"#) == #"a\b"#)
     }
+
+    @Test("去掉結尾的分隔符號：/ 與 \\ 都算，根目錄 / 保留")
+    func trimmingTrailingSeparator() {
+        #expect(HostPathSyntax.trimmingTrailingSeparator("/Users/demo/") == "/Users/demo")
+        #expect(HostPathSyntax.trimmingTrailingSeparator(#"C:\Users\demo\"#) == #"C:\Users\demo"#)
+        #expect(HostPathSyntax.trimmingTrailingSeparator("/Users/demo") == "/Users/demo")
+        #expect(HostPathSyntax.trimmingTrailingSeparator("/") == "/")
+    }
 }

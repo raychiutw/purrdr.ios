@@ -159,11 +159,7 @@ public final class MergedAgentListModel {
 
     /// 任何一台主機有 Agent 以外的 pane(終端機;Spaces 檢視的卡片看得到)。
     private var hasTerminals: Bool {
-        sources.contains { source in
-            guard let snapshot = source.list.snapshot else { return false }
-            let agentPanes = Set(snapshot.agents.map(\.paneID))
-            return snapshot.panes.contains { !agentPanes.contains($0.id) }
-        }
+        sources.contains { $0.list.snapshot?.terminalPanes.isEmpty == false }
     }
 
     public var content: Content {
@@ -215,8 +211,7 @@ public final class MergedAgentListModel {
     /// pane 不是 Agent(終端機列、版面圖的終端機方塊)時，它的 Pane 終端機標題(程式名);Agent 的 pane 或找不到時為 `nil`。
     /// 列表與對話欄以同一個 `ChatRoute` 導覽，靠這個決定開對話還是開 Pane 終端機。
     public func terminalTitle(of route: ChatRoute) -> String? {
-        guard let snapshot = snapshot(for: route.host), !snapshot.agents.contains(where: { $0.paneID == route.paneID }),
-              let pane = snapshot.panes.first(where: { $0.id == route.paneID }) else { return nil }
+        guard let pane = snapshot(for: route.host)?.terminalPanes.first(where: { $0.id == route.paneID }) else { return nil }
         return TerminalRow(pane: pane, host: route.host, hostLabel: nil).program
     }
 

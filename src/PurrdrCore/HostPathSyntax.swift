@@ -41,6 +41,11 @@ public enum HostPathSyntax {
         return parts.suffix(count).joined(separator: separator(of: path))
     }
 
+    /// 去掉結尾的一個分隔符號(`/` 或 `\`);只有 `/` 時保留(比對路徑、接相對路徑用)。
+    public static func trimmingTrailingSeparator(_ path: String) -> String {
+        path.count > 1 && (path.hasSuffix("/") || path.hasSuffix("\\")) ? String(path.dropLast()) : path
+    }
+
     /// 子項目的路徑(資料夾瀏覽打開子資料夾)。
     public static func appending(_ name: String, to path: String) -> String {
         let separator = separator(of: path)
