@@ -155,7 +155,7 @@ struct HostEditorView: View {
             case .deviceKey:
                 Text("The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first.")
             case .importedKey:
-                Text("Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys aren’t supported. The key and passphrase are kept in this device’s keychain.")
+                Text("Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys and keys protected by a passphrase aren’t supported. The key is kept in this device’s keychain.")
             case .password:
                 Text("The password is kept in this device’s keychain.")
             }
@@ -191,7 +191,7 @@ struct HostEditorView: View {
     private var importedKeyRows: some View {
         if case .valid(let publicKey) = model.keyCheck {
             LabeledContent {
-                Button("Replace") { model.privateKeyText = ""; model.passphrase = "" }
+                Button("Replace") { model.privateKeyText = "" }
                     .accessibilityIdentifier("hostEditor.replaceKey")
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
@@ -221,17 +221,12 @@ struct HostEditorView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-        }
-        LabeledContent("Passphrase") {
-            SecureField("Passphrase", text: $model.passphrase, prompt: Text("None"))
-                .multilineTextAlignment(.trailing)
-                .accessibilityIdentifier("hostEditor.passphrase")
-        }
-        .task(id: KeyInput(text: model.privateKeyText, passphrase: model.passphrase)) {
-            // 打字時不要每個字都跑一次 bcrypt。
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            await model.checkKey()
+            .task(id: model.privateKeyText) {
+                // 打字時不要每個字都檢查一次。
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                await model.checkKey()
+            }
         }
         switch model.keyCheck {
         case .unchecked:
@@ -359,11 +354,6 @@ extension HostProbeReport {
         guard !integrations.isEmpty else { return agents }
         return agents + " · " + String(localized: "Integrations: \(integrations.map(\.label).joined(separator: ", "))")
     }
-}
-
-private struct KeyInput: Equatable {
-    var text: String
-    var passphrase: String
 }
 
 private extension SSHKeyImportError {

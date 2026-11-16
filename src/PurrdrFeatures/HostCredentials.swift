@@ -37,8 +37,8 @@ public struct HostCredentials: Sendable {
             switch (authentication, secret) {
             case (.password, .password(let password)):
                 return .password(password)
-            case (.importedKey, .privateKey(let text, let passphrase)):
-                return .privateKey(try SSHPrivateKey(openSSH: text, passphrase: passphrase))
+            case (.importedKey, .privateKey(let text, _)):
+                return .privateKey(try SSHPrivateKey(openSSH: text))
             default:
                 // 存的祕密與登入方式對不上(例如改了方式但沒存新的祕密)。
                 throw HostCredentialError.missingSecret
