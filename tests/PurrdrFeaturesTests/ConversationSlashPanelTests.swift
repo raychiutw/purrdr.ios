@@ -5,7 +5,7 @@ import PurrdrTestSupport
 import Testing
 
 /// Slash 進階(#45):點選行為(直接送出／只填入／參數提示)與 slash 面板卡片(行為規格 F9.3、F9.4、R-C04、R-C05)。
-/// herdr 走假主機;面板畫面是依規格手寫的(`PaneScreens`),`agent.prompt`、`pane.send_keys` 的回應不錄。
+/// herdr 走假主機;Claude `/model` 面板畫面是真實錄製(#65,`PaneScreens`),`agent.prompt`、`pane.send_keys` 的回應不錄。
 /// **不對任何真實 agent 送 slash 指令或按鍵。**
 @MainActor
 @Suite("Slash 點選與面板")
@@ -92,7 +92,7 @@ struct ConversationSlashPanelTests {
 
         let panel = try #require(setup.model.panel)
         #expect(panel.title == "Select model")
-        #expect(panel.options.first { $0.isCurrent }?.label == "Sonnet")
+        #expect(panel.options.first { $0.isCurrent }?.label == "Opus 5.5")
         #expect(await ConversationAnswerTests.paneReads(setup) == 1)
     }
 

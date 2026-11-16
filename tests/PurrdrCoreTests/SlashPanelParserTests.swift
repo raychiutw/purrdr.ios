@@ -2,7 +2,9 @@ import PurrdrCore
 import PurrdrTestSupport
 import Testing
 
-/// slash 指令開出的面板(`/model`、`/effort`…;#45、行為規格 F9.4、§5.6)。畫面是依規格手寫的(`Fixtures/screens/*-panel-*.txt`)。
+/// slash 指令開出的面板(`/model`、`/effort`…;#45、行為規格 F9.4、§5.6)。
+/// Claude 的 `/model`、`/effort` 畫面是 Claude Code 2.1.325 的真實錄製(#65);「Switch model?」確認與 Codex 面板仍依規格手寫
+/// (`Fixtures/screens/*-panel-*.txt`,錄製方式見 `Fixtures/README.md`)。
 @Suite("Slash 面板解析")
 struct SlashPanelParserTests {
     static func parse(_ name: String, kind: String = "claude") -> SlashPanel? {
@@ -13,12 +15,17 @@ struct SlashPanelParserTests {
     func claudeModelPanel() throws {
         let panel = try #require(Self.parse("claude-panel-model"))
         #expect(panel.title == "Select model")
-        #expect(panel.notes == ["Switch between models. Applies to this session and future sessions."])
-        #expect(panel.options.map(\.label) == ["Default (recommended)", "Sonnet", "Haiku"])
-        #expect(panel.options.map(\.detail) == ["Opus · Most capable for complex work", "Sonnet · Best for everyday tasks", "Haiku · Fastest for quick answers"])
-        #expect(panel.options.map(\.isCurrent) == [false, true, false])
-        #expect(panel.options.map(\.isCursor) == [false, true, false])
-        #expect(panel.adjustment == "◐ Medium effort")
+        #expect(panel.notes == [
+            "Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, specify with --model.",
+        ])
+        #expect(panel.options.map(\.label) == ["Default (recommended)", "Opus 5.5", "Fable 5.2", "Sonnet 5.5", "Haiku 5.5"])
+        #expect(panel.options.map(\.detail) == [
+            "Opus 5.5 · Best for everyday, complex tasks", "For complex work and everyday tasks", "For your toughest challenges",
+            "Most efficient for simpler tasks", "Fastest for quick answers",
+        ])
+        #expect(panel.options.map(\.isCurrent) == [false, true, false, false, false])
+        #expect(panel.options.map(\.isCursor) == [false, true, false, false, false])
+        #expect(panel.adjustment == "◐ Medium effort (default)")
         #expect(panel.slider == nil)
         #expect(panel.actions == [
             SlashPanelAction(key: "enter", label: "set as default"),
@@ -27,14 +34,36 @@ struct SlashPanelParserTests {
         ])
     }
 
+    @Test("頂端 ▔ 分隔中間夾著用量提醒等文字仍是面板的開頭，那段文字不算標題或說明")
+    func topRuleWithEmbeddedText() throws {
+        let screen = PaneScreens.text("claude-panel-model")
+        #expect(screen.contains("▔ You've used"))
+        let panel = try #require(Self.parse("claude-panel-model"))
+        #expect(!([panel.title] + panel.notes).contains { $0?.contains("weekly limit") == true })
+    }
+
     @Test("Claude effort 面板：▲ 滑桿下一行是層級名，目前層級是 ▲ 所對的那個")
     func claudeEffortSlider() throws {
         let panel = try #require(Self.parse("claude-panel-effort"))
         #expect(panel.title == "Effort")
+        #expect(panel.notes.isEmpty)
         #expect(panel.options.isEmpty)
         #expect(panel.slider == SlashPanelSlider(levels: ["low", "medium", "high", "xhigh", "max"], current: 1))
         #expect(panel.adjustment != nil)
-        #expect(panel.actions.map(\.key) == ["enter", "esc"])
+        #expect(panel.actions == [
+            SlashPanelAction(key: "enter", label: "confirm"),
+            SlashPanelAction(key: "s", label: "this session only"),
+            SlashPanelAction(key: "esc", label: "cancel"),
+        ])
+    }
+
+    @Test("滑桿層級只取 ─ 軌道範圍內的字(右邊的 Ultracode 開關與 Tab to toggle 不是層級);軌道上方的 Faster／Smarter 不是說明")
+    func sliderLevelsStayWithinTrack() throws {
+        let screen = PaneScreens.text("claude-panel-effort")
+        #expect(screen.contains("Tab to toggle") && screen.contains("Smarter"))
+        let panel = try #require(Self.parse("claude-panel-effort"))
+        #expect(panel.slider?.levels.contains("Tab") == false)
+        #expect(!panel.notes.contains { $0.contains("Smarter") })
     }
 
     @Test("沒有提示行、有選單且沒有輸入框的確認畫面(Switch model?)也是面板;沒有動作時給確認與取消")
