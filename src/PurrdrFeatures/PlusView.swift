@@ -200,14 +200,14 @@ public struct PlusView: View {
     }
 
     private var termsLink: some View {
-        Link(destination: PlusLinks.termsOfUse) {
+        Link(destination: PurrdrLinks.termsOfUse) {
             Text("Terms of Use").frame(minHeight: 44)
         }
         .accessibilityIdentifier("plus.terms")
     }
 
     private var privacyLink: some View {
-        Link(destination: PlusLinks.privacyPolicy) {
+        Link(destination: PurrdrLinks.privacyPolicy) {
             Text("Privacy Policy").frame(minHeight: 44)
         }
         .accessibilityIdentifier("plus.privacy")
@@ -238,12 +238,20 @@ public struct PlusSheet: View {
     }
 }
 
-/// 付費牆的法律連結。
-public enum PlusLinks {
+/// Purrdr 的對外連結(付費牆、設定頁共用)。
+///
+/// 網頁原始碼在 `docs/site/purrdr/`,發佈到 `raychiutw.github.io/purrdr/`(#36)。
+/// App Store Connect 的 Privacy Policy URL、Support URL 要填同樣的網址。
+public enum PurrdrLinks {
     /// 使用 Apple 的標準 EULA(App Store Connect 沒有自訂 EULA 時適用)。
     public static let termsOfUse = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
-    /// 隱私權政策。REPLACE_ME:上線前換成正式網址(App Store Connect 的 Privacy Policy URL 也要同一個)。
-    public static let privacyPolicy = URL(string: "https://purrdr.REPLACE-ME.invalid/privacy")!
+    /// 隱私權政策。
+    public static let privacyPolicy = URL(string: "https://raychiutw.github.io/purrdr/privacy/")!
+    /// App Store id:App Store Connect → App 資訊 → 一般資訊 → Apple ID(數字)。全 app 只在這裡填
+    /// (設定頁與歡迎頁的「為 Purrdr 評分」都從這裡來);後台 `backend/wrangler.jsonc` 的 `APP_STORE_APP_APPLE_ID` 是同一個數字。
+    public static let appStoreID = "6835416115"
+    /// 支援頁(常見問題與聯絡方式)。
+    public static let support = URL(string: "https://raychiutw.github.io/purrdr/support/")!
 }
 
 // MARK: - 方案列

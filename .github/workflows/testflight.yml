@@ -1,0 +1,177 @@
+name: TestFlight
+
+# 合併進 master 就自動上傳;也可以手動觸發(gh workflow run testflight.yml --ref master)。
+# 只改文件的合併不上傳。做法參照 raychiutw/my-money.ios 與 raychiutw/vocaby 的 TestFlight workflow。
+#
+# 需要的設定(GitHub → Settings → Environments → testflight,部署分支限定 master):
+#   變數 APPLE_TEAM_ID      Apple Developer Team ID(8Z6WVFJ574)
+#   secret ASC_KEY_ID       App Store Connect team API key 的 Key ID
+#   secret ASC_ISSUER_ID    同一把 key 的 Issuer ID
+#   secret ASC_PRIVATE_KEY  同一把 key 的 .p8 全文(只存在本機與 GitHub secret,不進 repo)
+# API key 要用 Admin 角色:匯出時要建立／使用 Apple 雲端管理的 Distribution 憑證，只有 Account Holder 或 Admin 能做。
+# 一次性設定與發版步驟見 docs/launch/checklist.md。
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  # 同一份程式碼不測兩次：這個 commit 是 PR 的 merge commit,而且那個 PR 的 CI 成功過，就直接上傳。
+  # 其他情況(直接 push、手動觸發在沒跑過 CI 的 commit 上)才在這裡跑完整的 CI。
+  check:
+    name: 確認 PR 的 CI 已通過
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tested: ${{ steps.check.outputs.tested }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # merge commit 的第二個 parent 是 PR 的 head;pull_request 觸發的 CI 記的 head_sha 就是它。
+          # 已知限制：沒比對 PR 測試當時的 master。兩個 PR 接連合併時，後合併的那個沒測過合併後的組合。
+          head="$(gh api "repos/$REPO/commits/$SHA" --jq '.parents[1].sha // ""')"
+          tested=false
+          if [ -n "$head" ]; then
+            runs="$(gh api "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$head&event=pull_request&status=success" --jq '.total_count')"
+            if [ "$runs" -gt 0 ]; then tested=true; fi
+          fi
+          echo "PR head:${head:-(不是 merge commit)},CI 已通過:$tested"
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: check
+    if: needs.check.outputs.tested != 'true'
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Archive 並上傳到 TestFlight
+    # test 被略過(PR 的 CI 已通過)時也要上傳，所以不用預設的 success()。只有 master 會上傳。
+    if: ${{ !cancelled() && github.ref == 'refs/heads/master' && needs.check.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
+    needs: [check, test]
+    runs-on: xcode-27
+    timeout-minutes: 60
+    environment: testflight
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 工具鏈版本
+        run: xcodebuild -version
+
+      # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建(同 ci.yml)。
+      - name: 安裝 Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed'; then
+            echo "Metal Toolchain 已安裝，略過下載"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcodebuild -showComponent MetalToolchain
+
+      # 簽章只在匯出時做:archive 不簽章(不需要 Apple Development 憑證),匯出時用 App Store Connect team API key
+      # 註冊 App ID、建立描述檔，用 Apple 雲端管理的 Distribution 憑證簽章(固定的一張，不隨 runner 重建)。
+      # archive 也自動簽章的話，每次都會在全新的 runner 上建一張 Apple Development 憑證，累積到帳號上限就失敗
+      # (my-money.ios 2026-10-02 踩過;這把 key 若跟其他專案共用更快)。
+      # 版本號沿用專案的 MARKETING_VERSION(每次發佈前要遞增),build 號用 GITHUB_RUN_ID。
+      # -skipPackagePluginValidation:SwiftTerm 1.19 的 build-tool plugin 在命令列無法手動信任(同 ci.yml)。
+      - name: Archive 並上傳到 TestFlight
+        run: |
+          set -euo pipefail
+          : "${APPLE_TEAM_ID:?testflight environment 缺少變數 APPLE_TEAM_ID}"
+          : "${ASC_KEY_ID:?testflight environment 缺少 secret ASC_KEY_ID}"
+          : "${ASC_ISSUER_ID:?testflight environment 缺少 secret ASC_ISSUER_ID}"
+          : "${ASC_PRIVATE_KEY:?testflight environment 缺少 secret ASC_PRIVATE_KEY}"
+
+          key_path="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          archive_path="$RUNNER_TEMP/Purrdr.xcarchive"
+          trap 'rm -f "$key_path"' EXIT
+          umask 077
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$key_path"
+
+          xcodebuild archive \
+            -project src/App/Purrdr.xcodeproj \
+            -scheme Purrdr \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$archive_path" \
+            -derivedDataPath "$RUNNER_TEMP/ArchiveDerivedData" \
+            -hideShellScriptEnvironment \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_ID"
+
+          # entitlements 是簽章時才寫進執行檔的：不簽章的 archive 沒有推播與 Sign in with Apple 的 entitlement,
+          # 匯出重簽也不會補(my-money.ios #346)。先用 ad-hoc 簽章寫進去，匯出時再換成正式簽章。
+          app_path="$(echo "$archive_path"/Products/Applications/*.app)"
+          codesign --force --sign - --entitlements src/App/Purrdr.entitlements --timestamp=none --generate-entitlement-der "$app_path"
+
+          # 不簽章的 archive 裡沒有團隊資訊：匯出設定要帶 teamID(Team ID 在 environment 變數裡)。
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          cp .github/ExportOptions.plist "$export_options"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" "$export_options"
+
+          # 上傳前先匯出一份 IPA,確認正式簽章後的 entitlements:推播是 production 環境、有 time-sensitive 與
+          # Sign in with Apple。App ID 沒開對應的 capability 也會在這裡被擋下，不上傳。
+          check_options="$RUNNER_TEMP/ExportOptions-check.plist"
+          cp "$export_options" "$check_options"
+          /usr/libexec/PlistBuddy -c "Set :destination export" "$check_options"
+          xcodebuild -exportArchive \
+            -archivePath "$archive_path" \
+            -exportPath "$RUNNER_TEMP/EntitlementsCheck" \
+            -exportOptionsPlist "$check_options" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$key_path" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          unzip -q "$RUNNER_TEMP"/EntitlementsCheck/*.ipa -d "$RUNNER_TEMP/EntitlementsCheck/ipa"
+          entitlements="$RUNNER_TEMP/EntitlementsCheck/entitlements.plist"
+          codesign -d --entitlements - --xml "$RUNNER_TEMP"/EntitlementsCheck/ipa/Payload/*.app > "$entitlements" 2>/dev/null
+          aps="$(/usr/libexec/PlistBuddy -c 'Print :aps-environment' "$entitlements" 2>/dev/null || true)"
+          time_sensitive="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.usernotifications.time-sensitive' "$entitlements" 2>/dev/null || true)"
+          apple_sign_in="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.applesignin:0' "$entitlements" 2>/dev/null || true)"
+          echo "aps-environment=$aps time-sensitive=$time_sensitive applesignin=$apple_sign_in"
+          if [ "$aps" != "production" ] || [ "$time_sensitive" != "true" ] || [ "$apple_sign_in" != "Default" ]; then
+            echo "::error::匯出的 App entitlements 不對(要 aps-environment=production、time-sensitive、Sign in with Apple);檢查 App ID 的 Push Notifications、Time Sensitive Notifications、Sign in with Apple capability"
+            exit 1
+          fi
+
+          xcodebuild -exportArchive \
+            -archivePath "$archive_path" \
+            -exportPath "$RUNNER_TEMP/TestFlightExport" \
+            -exportOptionsPlist "$export_options" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$key_path" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+          version="$(plutil -extract ApplicationProperties.CFBundleShortVersionString raw -o - "$archive_path/Info.plist")"
+          ASC_KEY_PATH="$key_path" ruby scripts/wait-for-testflight.rb \
+            --bundle-id com.raychiu.purrdr \
+            --version "$version" \
+            --build-number "$GITHUB_RUN_ID" \
+            --timeout 1800 \
+            --interval 30
