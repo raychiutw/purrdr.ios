@@ -127,6 +127,14 @@ public final class MergedAgentListModel {
         list(for: host)?.snapshot
     }
 
+    /// pane 不是 Agent(終端機列、版面圖的終端機方塊)時，它的 Pane 終端機標題(程式名);Agent 的 pane 或找不到時為 `nil`。
+    /// 列表與對話欄以同一個 `ChatRoute` 導覽，靠這個決定開對話還是開 Pane 終端機。
+    public func terminalTitle(of route: ChatRoute) -> String? {
+        guard let snapshot = snapshot(for: route.host), !snapshot.agents.contains(where: { $0.paneID == route.paneID }),
+              let pane = snapshot.panes.first(where: { $0.id == route.paneID }) else { return nil }
+        return TerminalRow(pane: pane, host: route.host, hostLabel: nil).program
+    }
+
     /// 列表看到的 session(開對話時用來比對快取)。
     public func sessionID(of route: ChatRoute) -> String? {
         list(for: route.host)?.sessionID(ofPane: route.paneID)
@@ -141,10 +149,12 @@ public final class MergedAgentListModel {
     }
 
     /// 每台主機各自的即時更新，同時進行，直到所在的 task 被取消。一台卡在退避不會擋住其他台。
+    ///
+    /// iPad 多視窗時每個視窗都會呼叫;每台主機的迴圈經 `AgentListModel.liveUpdates` 共用，各只跑一份(#31)。
     public func run() async {
         let lists = sources.map(\.list)
         await withTaskGroup(of: Void.self) { group in
-            for list in lists { group.addTask { await list.run() } }
+            for list in lists { group.addTask { await list.liveUpdates.attach() } }
         }
     }
 

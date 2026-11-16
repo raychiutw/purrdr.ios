@@ -159,4 +159,15 @@ struct SpacesViewTests {
         model.agentList.query = "nothing-matches"
         #expect(model.agentList.spacesSections.isEmpty)
     }
+
+    @Test("同一個 ChatRoute 導覽：agent 以外的 pane 開 Pane 終端機(標題是程式名),Agent 的 pane 開對話")
+    func terminalRouteOpensPaneTerminal() async throws {
+        let model = await Self.model { response in
+            SnapshotEdit.agent("w2:p1", in: &response) { $0["terminal_title_stripped"] = "npm run dev" }
+        }
+
+        #expect(model.agentList.terminalTitle(of: ChatRoute(host: .demo, paneID: "w2:p1")) == "npm run dev")
+        #expect(model.agentList.terminalTitle(of: ChatRoute(host: .demo, paneID: "w1:p6")) == nil)
+        #expect(model.agentList.terminalTitle(of: ChatRoute(host: .demo, paneID: "w9:p9")) == nil)
+    }
 }

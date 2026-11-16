@@ -1,0 +1,10 @@
+• Updated the cache and reran the forecast tests.
+
+  Select Model and Effort
+  Switch the model for this and future Codex sessions
+
+› 1. gpt-5.1-codex (current)  Optimized for coding.
+  2. gpt-5.1                  Broad world knowledge.
+  3. gpt-5.1-codex-mini       Cheaper and faster.
+
+  Press enter to confirm or esc to go back

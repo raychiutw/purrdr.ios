@@ -1,22 +1,19 @@
 import PurrdrCore
 import SwiftUI
 
-/// 列表上要開的 Pane 終端機(終端機列、版面圖的終端機方塊)。
-struct PaneTerminalRoute: Hashable {
-    var host: HostSelection
-    var paneID: String
-    var title: String
-
-    var chat: ChatRoute { ChatRoute(host: host, paneID: paneID) }
-}
-
 /// Spaces 檢視的 section(#40):單一 agent 的 workspace 是聊天列，其他是 workspace 卡片，下方內縮列出 Agent 與終端機列。
-struct SpacesSectionsContent: View {
+///
+/// 終端機列跟 Agent 列一樣以 `ChatRoute`(主機 + pane id)導覽:pane 不是 agent 時開的是 Pane 終端機，
+/// 所以 iPad 的 split view 選取與 iPhone 的推入都不用另外處理。
+struct SpacesSectionsContent<AgentRowContent: View>: View {
+    let sections: [SpacesSection]
     let model: MergedAgentListModel
     let presentation: WorkspacePresentation
+    /// 跟 Agents 檢視同一種列(同樣的滑動、選單、已讀與釘選)。
+    @ViewBuilder let agentRow: (AgentRow) -> AgentRowContent
 
     var body: some View {
-        ForEach(model.spacesSections) { section in
+        ForEach(sections) { section in
             Section(section.group.title) {
                 ForEach(section.items) { item in
                     switch item {
@@ -33,7 +30,7 @@ struct SpacesSectionsContent: View {
                                 case .agent(let row):
                                     agentRow(row).cardRail()
                                 case .terminal(let row):
-                                    NavigationLink(value: PaneTerminalRoute(host: row.host, paneID: row.paneID, title: row.program)) {
+                                    NavigationLink(value: row.route) {
                                         TerminalRowView(row: row)
                                     }
                                     .accessibilityIdentifier("terminal.row.\(row.id)")
@@ -45,16 +42,6 @@ struct SpacesSectionsContent: View {
                 }
             }
         }
-    }
-
-    /// 跟 Agents 檢視同一種列(同樣的滑動、選單、已讀與釘選)。
-    private func agentRow(_ row: AgentRow) -> some View {
-        NavigationLink(value: row.route) { AgentRowView(row: row) }
-            .accessibilityIdentifier("agent.row.\(row.id)")
-            .workspaceRowActions(
-                WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
-                actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host)
-            )
     }
 
     /// 點卡片本身或版面圖按鈕：開版面圖。顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。

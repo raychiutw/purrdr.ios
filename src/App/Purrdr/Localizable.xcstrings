@@ -494,6 +494,17 @@
         }
       }
     },
+    "All Workspaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有 Workspace"
+          }
+        }
+      }
+    },
     "Almost Done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -583,6 +594,17 @@
         }
       }
     },
+    "App Settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 設定…"
+          }
+        }
+      }
+    },
     "Apple couldn’t charge your payment method. Update it by %@ to keep Purrdr Plus." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -590,6 +612,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple 無法向你的付款方式收費。請在 %@ 前更新，才能繼續使用 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Argument: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "參數:%@"
           }
         }
       }
@@ -1129,6 +1162,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉檔案選擇器"
+          }
+        }
+      }
+    },
+    "Close Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉版面"
           }
         }
       }
@@ -1764,6 +1808,17 @@
         }
       }
     },
+    "Couldn’t send the keys to the host. Check the panel in the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法把按鍵送到主機。請到終端機查看面板。"
+          }
+        }
+      }
+    },
     "Couldn’t send: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1870,6 +1925,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建立中…"
+          }
+        }
+      }
+    },
+    "Current" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前使用中"
+          }
+        }
+      }
+    },
+    "Decrease" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "減少"
           }
         }
       }
@@ -2468,6 +2545,17 @@
         }
       }
     },
+    "Host Not Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到主機"
+          }
+        }
+      }
+    },
     "Host Sync" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2618,6 +2706,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "包含位址、使用者名稱、herdr 設定與 host key 指紋。絕不分享密碼與私鑰。"
+          }
+        }
+      }
+    },
+    "Increase" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增加"
           }
         }
       }
@@ -2783,6 +2882,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向左鍵"
+          }
+        }
+      }
+    },
+    "Level" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "層級"
           }
         }
       }
@@ -3018,6 +3128,17 @@
         }
       }
     },
+    "Moves the panel’s selection to this option." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把面板的選取移到這個選項。"
+          }
+        }
+      }
+    },
     "Mute" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3073,6 +3194,17 @@
         }
       }
     },
+    "New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新視窗"
+          }
+        }
+      }
+    },
     "New Worktree" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3102,6 +3234,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新聊天會開在選取中主機。所有主機的 Agent 都會留在列表上。"
+          }
+        }
+      }
+    },
+    "Next Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一個 Agent"
           }
         }
       }
@@ -3469,6 +3612,28 @@
         }
       }
     },
+    "Open Terminal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開終端機"
+          }
+        }
+      }
+    },
+    "Open Terminal in New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新視窗打開終端機"
+          }
+        }
+      }
+    },
     "Open Workflow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3476,6 +3641,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟 Workflow"
+          }
+        }
+      }
+    },
+    "Open in New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新視窗打開"
           }
         }
       }
@@ -3740,6 +3916,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Port"
+          }
+        }
+      }
+    },
+    "Previous Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一個 Agent"
           }
         }
       }
@@ -4327,6 +4514,17 @@
         }
       }
     },
+    "Select a Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一個對話"
+          }
+        }
+      }
+    },
     "Selected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4466,6 +4664,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "Settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定…"
           }
         }
       }
@@ -6054,6 +6263,17 @@
         }
       }
     },
+    "This window’s host was removed from this device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個視窗的主機已從這支裝置移除。"
+          }
+        }
+      }
+    },
     "This workspace’s folder isn’t in a git repo, so a worktree can’t be created." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6611,6 +6831,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace 名稱"
+          }
+        }
+      }
+    },
+    "Workspaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspace"
           }
         }
       }
