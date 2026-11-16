@@ -198,8 +198,8 @@ struct SelectedHostMenu: View {
             }
             .labelStyle(.titleAndIcon)
         }
-        .accessibilityLabel(Text("Selected Host"))
-        .accessibilityValue(Text(verbatim: hosts.name(of: hosts.selection)))
+        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label。
+        .accessibilityLabel(Text("Selected Host: \(hosts.name(of: hosts.selection))"))
         .accessibilityIdentifier("toolbar.host")
     }
 
