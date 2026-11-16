@@ -164,6 +164,28 @@ struct UnreadPinnedTests {
         #expect(Self.row("w1:p6", in: model)?.isUnread == false)
     }
 
+    @Test("iPad 多視窗：每個視窗開著的聊天都不算未讀;關掉一個視窗不影響另一個視窗開著的(#41)")
+    func chatsVisibleInSeveralWindows() async {
+        let clock = MarkerClock(Self.t0)
+        let studio = await Self.host(Self.studio, clock: clock)
+        let lab = await Self.host(Self.lab, name: "Lab", clock: clock)
+        let model = Self.merged([studio, lab])
+        await model.load()
+        let first = ChatRoute(host: Self.studio, paneID: "w1:p6")
+        let second = ChatRoute(host: Self.lab, paneID: "w1:p6")
+        model.chatAppeared(first)
+        model.chatAppeared(second)
+        let later = ["w1:p6": Self.preview(Self.t0.addingTimeInterval(300))]
+        studio.source.list.previews = later
+        lab.source.list.previews = later
+
+        #expect(Self.row("w1:p6", host: Self.studio, in: model)?.isUnread == false, "先開的視窗被後開的蓋掉")
+        #expect(Self.row("w1:p6", host: Self.lab, in: model)?.isUnread == false)
+
+        model.chatDisappeared(second)
+        #expect(Self.row("w1:p6", host: Self.studio, in: model)?.isUnread == false, "關掉另一個視窗後，這個視窗開著的變成未讀")
+    }
+
     @Test("未讀以主機 + session 為鍵：兩台主機有相同 session,讀了一台不影響另一台;重新啟動後仍記得")
     func readMarkersAreScopedByHostAndPersisted() async {
         let defaults = UserDefaults(suiteName: "UnreadPinnedTests.markers.\(UUID())")!

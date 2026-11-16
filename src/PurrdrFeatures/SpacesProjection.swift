@@ -181,7 +181,7 @@ extension AgentListProjection {
     /// - 已釘選(#41):被釘選的聊天列、或有任一 Agent 被釘選的卡片，放在「已釘選」,依釘選時間舊→新
     ///   (卡片以最早釘選的 Agent 為準),不看狀態。卡片裡的列各自帶未讀與釘選記號。
     /// - Parameter visible: 目前開著的聊天(不算未讀)。
-    static func spacesSections(sources: [Source], query: String, visible: ChatRoute? = nil) -> [SpacesSection] {
+    static func spacesSections(sources: [Source], query: String, visible: Set<ChatRoute> = []) -> [SpacesSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let entries = sources.enumerated().flatMap { hostOrder, source in
             spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
@@ -201,7 +201,7 @@ extension AgentListProjection {
         var snapshot: HostSnapshot
         var hostOrder: Int
         var needle: String
-        var visible: ChatRoute?
+        var visible: Set<ChatRoute>
         /// Agents 檢視的列(以 pane id),搜尋與分組都沿用。
         var rows: [String: AgentRow]
         /// 命中搜尋的 Agent pane。
@@ -210,7 +210,7 @@ extension AgentListProjection {
         var positions: [String: Int]
         var agentPanes: Set<String>
 
-        init(source: Source, snapshot: HostSnapshot, hostOrder: Int, needle: String, visible: ChatRoute?) {
+        init(source: Source, snapshot: HostSnapshot, hostOrder: Int, needle: String, visible: Set<ChatRoute>) {
             self.source = source
             self.snapshot = snapshot
             self.hostOrder = hostOrder
@@ -234,7 +234,7 @@ extension AgentListProjection {
         }
     }
 
-    private static func spacesEntries(of source: Source, hostOrder: Int, needle: String, visible: ChatRoute?) -> [SpacesEntry] {
+    private static func spacesEntries(of source: Source, hostOrder: Int, needle: String, visible: Set<ChatRoute>) -> [SpacesEntry] {
         guard let snapshot = source.snapshot else { return [] }
         let context = SpacesContext(source: source, snapshot: snapshot, hostOrder: hostOrder, needle: needle, visible: visible)
         return context.workspaceIDs.compactMap { spacesEntry(workspaceID: $0, in: context) }

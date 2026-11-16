@@ -209,6 +209,8 @@ struct HostsModelTests {
         #expect(model.agentList.sections.flatMap(\.rows).count == 6)
         #expect(model.agentList.failures.map(\.name) == ["Lab Server"])
         #expect(model.rows.isEmpty, "示範主機不是已存主機，不出現在主機清單")
+        let window = PaneWindow(kind: .chat, host: .host(companions[0].id), paneID: "w1:p1", sessionID: nil, title: "ledger")
+        #expect(window.route(hostIDs: model.listedHostIDs) != nil, "示範主機的聊天在新視窗開不起來")
 
         store.hosts = [Self.studio]
         model.didSave(Self.studio)

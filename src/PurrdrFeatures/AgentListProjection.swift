@@ -24,8 +24,8 @@ enum AgentListProjection {
         sections(sources: [Source(host: host, label: nil, snapshot: snapshot, previews: previews)], query: query)
     }
 
-    /// - Parameter visible: 目前開著的聊天(不算未讀)。
-    static func sections(sources: [Source], query: String, visible: ChatRoute? = nil) -> [AgentSection] {
+    /// - Parameter visible: 目前開著的聊天(所有視窗;不算未讀)。
+    static func sections(sources: [Source], query: String, visible: Set<ChatRoute> = []) -> [AgentSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let entries = sources.enumerated().flatMap { hostOrder, source in
             entries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
@@ -47,7 +47,7 @@ enum AgentListProjection {
         var order: Entry
     }
 
-    private static func entries(of source: Source, hostOrder: Int, needle: String, visible: ChatRoute?) -> [RowEntry] {
+    private static func entries(of source: Source, hostOrder: Int, needle: String, visible: Set<ChatRoute>) -> [RowEntry] {
         guard let snapshot = source.snapshot else { return [] }
         let order = Dictionary(snapshot.workspaces.map { ($0.id, $0.number) }, uniquingKeysWith: { first, _ in first })
         let byWorkspace = Dictionary(grouping: snapshot.agents, by: \.workspaceID)

@@ -14,8 +14,8 @@ enum ChatUnread {
 
         init() {}
 
-        init(agent: Agent, source: AgentListProjection.Source, visible: ChatRoute?) {
-            let isVisible = visible == ChatRoute(host: source.host, paneID: agent.paneID)
+        init(agent: Agent, source: AgentListProjection.Source, visible: Set<ChatRoute>) {
+            let isVisible = visible.contains(ChatRoute(host: source.host, paneID: agent.paneID))
             isUnread = ChatUnread.isUnread(
                 session: agent.sessionID, preview: source.previews[agent.paneID], opened: source.preferences.opened, isVisible: isVisible)
             if let session = agent.sessionID {
@@ -44,14 +44,14 @@ enum ChatUnread {
 
     /// 需要處理的 workspace 數：有 blocked 或未讀 Agent 的 workspace 各算一次。
     /// 目前開著的聊天不算：開著的 Agent 所在的 workspace 只算兄弟的 blocked(行為規格 F2.8)。
-    static func attentionCount(sources: [AgentListProjection.Source], visible: ChatRoute?) -> Int {
+    static func attentionCount(sources: [AgentListProjection.Source], visible: Set<ChatRoute>) -> Int {
         sources.reduce(0) { count, source in
             guard let snapshot = source.snapshot else { return count }
             let byWorkspace = Dictionary(grouping: snapshot.agents, by: \.workspaceID)
             return count + byWorkspace.values.filter { agents in
-                let visibleHere = agents.contains { visible == ChatRoute(host: source.host, paneID: $0.paneID) }
+                let visibleHere = agents.contains { visible.contains(ChatRoute(host: source.host, paneID: $0.paneID)) }
                 return agents.contains { agent in
-                    if visible == ChatRoute(host: source.host, paneID: agent.paneID) { return false }
+                    if visible.contains(ChatRoute(host: source.host, paneID: agent.paneID)) { return false }
                     if agent.effectiveStatus == .blocked { return true }
                     return !visibleHere && State(agent: agent, source: source, visible: visible).isUnread
                 }

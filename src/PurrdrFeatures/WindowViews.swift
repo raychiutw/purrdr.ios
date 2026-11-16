@@ -227,7 +227,7 @@ public struct PaneWindowView: View {
 
     public var body: some View {
         NavigationStack {
-            if let route = window.route(hostIDs: hosts.rows.map(\.id)) {
+            if let route = window.route(hostIDs: hosts.listedHostIDs) {
                 PaneWindowContent(window: window, route: route, hosts: hosts)
             } else {
                 ContentUnavailableView(
@@ -254,6 +254,9 @@ private struct PaneWindowContent: View {
             ConversationScreen(
                 model: hosts.conversation(route, sessionID: window.sessionID),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
+            // 新視窗開著的聊天也記開啟時間、不算未讀(#41;每個視窗各算一次)。
+            .onAppear { hosts.agentList.chatAppeared(route) }
+            .onDisappear { hosts.agentList.chatDisappeared(route) }
         case .terminal:
             PaneTerminalScreen(model: hosts.terminal(route, title: window.title))
         }

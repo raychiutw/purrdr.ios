@@ -224,6 +224,11 @@ public final class HostsModel {
         }
     }
 
+    /// 列表上的主機 id:已存主機，加上 Demo 出現時的示範主機(#34)。新視窗以它判斷主機還在不在。
+    public var listedHostIDs: [UUID] {
+        hosts.map(\.id) + (members[.demo] == nil ? [] : demoCompanions.map(\.id))
+    }
+
     /// 選取中的主機(Demo 時為 `nil`)。
     public var selectedHost: HostConfiguration? {
         guard case .host(let id) = selection else { return nil }
