@@ -422,7 +422,7 @@ iOS 背景色兩組:system(`systemBackground` 系列)與 grouped(`systemGroupedB
 
 > "Use the system overflow menu. … Reserve the ellipsis symbol for overflow, and give other menus a distinct symbol."
 
-【推論】影響 Drover Chat 的點:終端機全螢幕與 accessory bar 要避開折疊區(ReservedRegion);對話畫面的工具列項目要同時給 title 與 symbol;自訂 overflow 選單不要用 `ellipsis`。
+【推論】影響 Drover Chat 的點:終端機全螢幕與 accessory bar 要避開折疊區(ReservedRegion);對話畫面的工具列項目要同時給 title 與 symbol;`ellipsis` 只用於 overflow 選單(列表工具列的「⋯」選單即屬此類，Q73),其他選單用不同符號，並優先讓系統 overflow menu 自動收納工具列項目。
 
 ### 5.5 指標裝置(iPad 觸控板／滑鼠)
 
@@ -1216,7 +1216,7 @@ ASRG 2.1(a):"include demo account info … if your app includes a login. If you 
 - [ ] 在 Device Hub 的 iPhone Duo 各種姿態下測試 — Designing for iPhone Duo
 - [ ] 沒有固定寬度或綁定特定螢幕的版面 — Designing for iPhone Duo
 - [ ] 不覆寫系統的直式工具列位置 — Designing for iPhone Duo
-- [ ] 自訂 overflow 選單不用 `ellipsis`,改用系統 overflow menu — Designing for iPhone Duo
+- [ ] ellipsis 只用於 overflow 選單，其他選單用不同符號;優先用系統 overflow menu — Designing for iPhone Duo
 - [ ] 折疊時版面只做小幅調整，不大幅重排 — Designing for iPhone Duo
 
 ---

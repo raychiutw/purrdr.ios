@@ -439,6 +439,17 @@
         }
       }
     },
+    "All Workspaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有 Workspace"
+          }
+        }
+      }
+    },
     "Almost Done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -524,6 +535,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個選項請在終端機回答。"
+          }
+        }
+      }
+    },
+    "App Settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 設定…"
           }
         }
       }
@@ -1085,6 +1107,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉檔案選擇器"
+          }
+        }
+      }
+    },
+    "Close Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉版面"
           }
         }
       }
@@ -2457,6 +2490,17 @@
         }
       }
     },
+    "Host Not Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到主機"
+          }
+        }
+      }
+    },
     "Host Sync" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3095,6 +3139,17 @@
         }
       }
     },
+    "New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新視窗"
+          }
+        }
+      }
+    },
     "New Worktree" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3124,6 +3179,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新聊天會開在選取中主機。所有主機的 Agent 都會留在列表上。"
+          }
+        }
+      }
+    },
+    "Next Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一個 Agent"
           }
         }
       }
@@ -3491,6 +3557,28 @@
         }
       }
     },
+    "Open Terminal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開終端機"
+          }
+        }
+      }
+    },
+    "Open Terminal in New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新視窗打開終端機"
+          }
+        }
+      }
+    },
     "Open Workflow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3498,6 +3586,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟 Workflow"
+          }
+        }
+      }
+    },
+    "Open in New Window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在新視窗打開"
           }
         }
       }
@@ -3762,6 +3861,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Port"
+          }
+        }
+      }
+    },
+    "Previous Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一個 Agent"
           }
         }
       }
@@ -4349,6 +4459,17 @@
         }
       }
     },
+    "Select a Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一個對話"
+          }
+        }
+      }
+    },
     "Selected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4488,6 +4609,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "Settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定…"
           }
         }
       }
@@ -6043,6 +6175,17 @@
         }
       }
     },
+    "This window’s host was removed from this device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個視窗的主機已從這支裝置移除。"
+          }
+        }
+      }
+    },
     "This workspace’s folder isn’t in a git repo, so a worktree can’t be created." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6578,6 +6721,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace 名稱"
+          }
+        }
+      }
+    },
+    "Workspaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspace"
           }
         }
       }

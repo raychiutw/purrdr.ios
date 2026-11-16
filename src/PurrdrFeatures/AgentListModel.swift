@@ -18,6 +18,9 @@ public final class AgentListModel {
     /// 各 Agent(以 pane id)對話中最後一則訊息。來源是對話紀錄，由對話閱讀(#12)提供。
     public var previews: [String: MessagePreview] = [:]
 
+    /// 即時更新(`run()`),由所有顯示這份列表的視窗共用：iPad 多視窗時只跑一份(#31)。
+    @ObservationIgnored public private(set) lazy var liveUpdates = SharedRun { [weak self] in await self?.run() }
+
     /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
     public private(set) var snapshot: HostSnapshot?
     private let client: HerdrClient
