@@ -85,6 +85,28 @@ struct HostsModelTests {
         #expect(model.hosts.first?.operatingSystem == .windows)
     }
 
+    @Test("偵測到的作業系統存不進這支裝置：留下診斷紀錄，這次執行仍用偵測結果")
+    func detectedOperatingSystemSaveFailureIsLogged() async throws {
+        var synced = Self.studio
+        synced.operatingSystem = nil
+        let store = MemoryHostStore()
+        store.hosts = [synced]
+        let real = FakeHost()
+        await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Linux\n".utf8)))
+        await real.expect(HerdrCommand.bridge(Self.studio.herdr), reply: .recorded("session.snapshot.ndjson"))
+        let log = RecordingDiagnosticLog()
+        let model = HostsModel(store: store, demoChannel: FakeHost(), diagnostics: log.log, makeChannel: ChannelFactory(real).make)
+        model.load()
+        store.saveError = SaveFailed()
+
+        await model.agentList.load()
+
+        #expect(model.hosts.first?.operatingSystem == .linux)
+        #expect(store.hosts.first?.operatingSystem == nil)
+        #expect(log.messages.count == 1)
+        #expect(log.messages.first?.contains("operating system") == true, "\(log.messages)")
+    }
+
     @Test("作業系統未知、偵測到 macOS／Linux:之後照常送 POSIX 指令(#26)")
     func unknownOperatingSystemDetectsPosix() async throws {
         var synced = Self.studio
@@ -192,11 +214,11 @@ struct HostsModelTests {
         await demo.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
         let studio = FakeHost()
         await studio.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
-        let lab = FakeHost()
-        await lab.failConnection(with: SSHConnectionError.timedOut)
+        let buildBox = FakeHost()
+        await buildBox.failConnection(with: SSHConnectionError.timedOut)
         let companions = [
             DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: studio),
-            DemoCompanionHost(id: UUID(), name: "Lab Server", icon: .rack, channel: lab),
+            DemoCompanionHost(id: UUID(), name: "Build Box", icon: .rack, channel: buildBox),
         ]
         let model = HostsModel(
             store: store, demoChannel: demo, demoCompanions: companions, makeChannel: ChannelFactory(FakeHost()).make)
@@ -205,9 +227,9 @@ struct HostsModelTests {
         await model.agentList.load()
 
         #expect(model.selection == .demo)
-        #expect(model.agentList.sources.map(\.name) == ["Demo", "Studio Mac", "Lab Server"])
+        #expect(model.agentList.sources.map(\.name) == ["Demo", "Studio Mac", "Build Box"])
         #expect(model.agentList.sections.flatMap(\.rows).count == 6)
-        #expect(model.agentList.failures.map(\.name) == ["Lab Server"])
+        #expect(model.agentList.failures.map(\.name) == ["Build Box"])
         #expect(model.rows.isEmpty, "示範主機不是已存主機，不出現在主機清單")
         let window = PaneWindow(kind: .chat, host: .host(companions[0].id), paneID: "w1:p1", sessionID: nil, title: "ledger")
         #expect(window.route(hostIDs: model.listedHostIDs) != nil, "示範主機的聊天在新視窗開不起來")
@@ -278,4 +300,11 @@ struct HostsModelTests {
         try await model.delete(other.id)
         #expect(model.selection == .demo)
     }
+}
+
+/// 記下診斷紀錄(不給使用者看的那種)。
+@MainActor
+final class RecordingDiagnosticLog {
+    private(set) var messages: [String] = []
+    var log: DiagnosticLog { DiagnosticLog { [weak self] message in self?.messages.append(message) } }
 }

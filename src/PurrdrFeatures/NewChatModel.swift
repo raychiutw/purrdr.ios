@@ -35,9 +35,9 @@ public final class FolderPickerModel {
     }
 
     /// 在根目錄(`/`、`C:\`)或還沒讀到時不能往上。
-    public var canGoUp: Bool {
-        chosenPath.flatMap(HostPathSyntax.parent(of:)) != nil
-    }
+    public var canGoUp: Bool { navigation.canGoUp }
+
+    private var navigation: FolderNavigation { FolderNavigation(current: chosenPath) }
 
     /// 讀 `requested`(第一次或重試)。
     public func load() async {
@@ -45,12 +45,12 @@ public final class FolderPickerModel {
     }
 
     public func open(_ name: String) async {
-        guard let path = chosenPath else { return }
-        await list(HostPathSyntax.appending(name, to: path))
+        guard let child = navigation.child(name) else { return }
+        await list(child)
     }
 
     public func goUp() async {
-        guard let parent = chosenPath.flatMap(HostPathSyntax.parent(of:)) else { return }
+        guard let parent = navigation.parent else { return }
         await list(parent)
     }
 

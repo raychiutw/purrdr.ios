@@ -331,7 +331,7 @@ struct WindowsRealHostIntegrationTests {
         let object = try #require(try JSONSerialization.jsonObject(with: written) as? [String: Any])
         let command = try #require((object["statusLine"] as? [String: Any])?["command"] as? String)
         log("status line:\(command)")
-        #expect(command == ClaudeUsageHost.wrapperCommand(windowsHome: home.replacingOccurrences(of: #"\"#, with: "/")))
+        #expect(command == ClaudeUsageHost.wrapperCommand(for: .windows, home: home.replacingOccurrences(of: #"\"#, with: "/")))
 
         let input = #"{"session_id":"s1","rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1738425600},"seven_day":{"used_percentage":41.2}}}"#
         log("以 Git Bash 執行 status line…")

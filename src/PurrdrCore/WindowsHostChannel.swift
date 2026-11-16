@@ -69,13 +69,6 @@ actor WindowsExecSession: ExecSession {
     func close() async { await base.close() }
 }
 
-extension HostOperatingSystem {
-    /// 這種主機要用的通道:Windows 換成 PowerShell 方言，其他原樣。
-    public func channel(_ base: any HostChannel) -> any HostChannel {
-        self == .windows ? WindowsHostChannel(base) : base
-    }
-}
-
 /// Windows 主機做不到的指令。
 public enum WindowsCommandError: Error, Equatable {
     /// 這個指令或功能在 Windows 主機沒有 PowerShell 版本(附原本的 POSIX 指令;功能層面目前只有 Codex 啟動器，附路徑)。

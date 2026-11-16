@@ -148,16 +148,16 @@ struct PurrdrApp: App {
 
     /// UI 測試情境 `-seedUnreachableHost`:再存一台連不上的主機(多主機合併列表，#39)。
     private static let unreachableHost = HostConfiguration(
-        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000002")!, name: "Lab Server",
-        endpoint: SSHEndpoint(host: "lab-server.invalid", username: "demo"), operatingSystem: .linux)
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000002")!, name: "Build Box",
+        endpoint: SSHEndpoint(host: "build-box.invalid", username: "demo"), operatingSystem: .linux)
 
-    /// Demo 的示範主機(#34,App Review 也看得到):「Studio Mac」(內容同 Demo 主機)與一律連不上的「Lab Server」,
+    /// Demo 的示範主機(#34,App Review 也看得到):「Studio Mac」(內容同 Demo 主機)與一律連不上的「Build Box」,
     /// 演出多主機合併列表與連線中斷。只在 Demo 主機出現在列表時出現，不是已存主機。
     private static func demoCompanions(_ demo: DemoHost) -> [DemoCompanionHost] {
         [
             DemoCompanionHost(id: UUID(uuidString: "DE300000-0000-4000-8000-000000000001")!, name: "Studio Mac", icon: .macMini, channel: demo),
             DemoCompanionHost(
-                id: UUID(uuidString: "DE300000-0000-4000-8000-000000000002")!, name: "Lab Server", icon: .rack,
+                id: UUID(uuidString: "DE300000-0000-4000-8000-000000000002")!, name: "Build Box", icon: .rack,
                 channel: DemoUnreachableChannel()),
         ]
     }

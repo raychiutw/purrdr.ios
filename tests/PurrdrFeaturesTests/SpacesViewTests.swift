@@ -45,6 +45,18 @@ struct SpacesViewTests {
         }
     }
 
+    @Test("版面事件只在 Spaces 檢視訂閱：列表檢視決定每台主機的即時更新要不要訂閱(#40)")
+    func layoutEventsFollowListMode() async {
+        let model = await Self.model(modeStore: InMemoryAgentListModeStore(.agents))
+        #expect(model.agentList.list(for: .demo)?.subscribesToLayout == false)
+
+        model.agentList.mode = .spaces
+        #expect(model.agentList.list(for: .demo)?.subscribesToLayout == true)
+
+        model.agentList.mode = .agents
+        #expect(model.agentList.list(for: .demo)?.subscribesToLayout == false)
+    }
+
     @Test("只有終端機、沒有 Agent:Spaces 檢視照常列出;Agents 檢視說明沒有 Agent 並可切到 Spaces(#40)")
     func onlyTerminalsShowInSpaces() async throws {
         let model = await Self.model { response in

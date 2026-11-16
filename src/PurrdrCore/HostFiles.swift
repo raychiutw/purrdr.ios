@@ -40,15 +40,18 @@ public struct HostFileRead: Equatable, Sendable {
     public var files: [HostPath: HostFileState]
     /// 家目錄的絕對路徑(分隔符號一律 `/`)。只有 Windows 主機的腳本回報(`C:/Users/<帳號>`),POSIX 主機是 `nil`。
     public var home: String?
+    /// 回報這份結果的腳本是哪種作業系統的:Windows 版(`WindowsScripts`)是 `.windows`;POSIX 版分不出 macOS／Linux,是 `nil`。
+    public var operatingSystem: HostOperatingSystem?
 
-    public init(user: String, files: [HostPath: HostFileState], home: String? = nil) {
+    public init(user: String, files: [HostPath: HostFileState], home: String? = nil, operatingSystem: HostOperatingSystem? = nil) {
         self.user = user
         self.files = files
         self.home = home
+        self.operatingSystem = operatingSystem
     }
 
-    /// 主機是 Windows(家目錄是磁碟機路徑)。
-    public var isWindows: Bool { home.map(HostPathSyntax.isWindowsDrivePath) ?? false }
+    /// 主機是 Windows。
+    public var isWindows: Bool { operatingSystem == .windows }
 
     public subscript(path: HostPath) -> HostFileState? { files[path] }
 }
@@ -98,17 +101,7 @@ public struct HostFiles: Sendable {
     private func run(_ script: String, arguments: [String]) async throws -> CommandResult {
         let command = HostFileScript.command(script, arguments: arguments)
         guard command.utf8.count <= HostFileScript.maximumCommandLength else { throw HostFilesError.tooLarge }
-        let session = try await channel.execute(command)
-        await session.closeStdin()
-        var result = CommandResult()
-        for try await event in session.output {
-            switch event {
-            case .stdout(let data): result.stdout.append(data)
-            case .stderr(let data): result.stderr.append(data)
-            case .exit(let code, _): result.exitCode = code
-            }
-        }
-        return result
+        return try await channel.collect(command)
     }
 }
 
@@ -152,14 +145,6 @@ public enum HostFilesError: Error, Equatable {
     case malformedOutput
     /// 主機腳本失敗(非零 exit)。
     case failed(exitCode: Int32, message: String)
-}
-
-struct CommandResult {
-    var stdout = Data()
-    var stderr = Data()
-    var exitCode: Int32 = -1
-    /// Windows 主機的 CLIXML／Rust Debug 格式整理過(`WindowsErrorText`);其他主機只去掉前後空白。
-    var stderrText: String { WindowsErrorText.readable(String(decoding: stderr, as: UTF8.self)) }
 }
 
 extension HostFileChange {

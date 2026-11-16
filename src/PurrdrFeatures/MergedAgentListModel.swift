@@ -71,8 +71,13 @@ public final class MergedAgentListModel {
     public private(set) var showsSwipeHint: Bool
     private let swipeHint: any SwipeHintStore
     /// 列表檢視(Spaces／Agents);改了就存起來，重新啟動後沿用。兩種檢視共用搜尋、分組、已讀與釘選。
+    /// 版面事件只在 Spaces 檢視訂閱(#40),所以換檢視時每台主機的即時更新跟著換訂閱。
     public var mode: AgentListMode {
-        didSet { if mode != oldValue { modeStore.save(mode) } }
+        didSet {
+            guard mode != oldValue else { return }
+            modeStore.save(mode)
+            applyLayoutSubscription()
+        }
     }
 
     private let modeStore: any AgentListModeStore
@@ -116,6 +121,11 @@ public final class MergedAgentListModel {
     func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
         self.sources = sources.filter { $0.host == selected } + sources.filter { $0.host != selected }
+        applyLayoutSubscription()
+    }
+
+    private func applyLayoutSubscription() {
+        for source in sources { source.list.subscribesToLayout = mode == .spaces }
     }
 
     /// 合併後依「需要你／工作中／閒置」分組、套用搜尋的列表。
@@ -149,11 +159,7 @@ public final class MergedAgentListModel {
 
     /// 任何一台主機有 Agent 以外的 pane(終端機;Spaces 檢視的卡片看得到)。
     private var hasTerminals: Bool {
-        sources.contains { source in
-            guard let snapshot = source.list.snapshot else { return false }
-            let agentPanes = Set(snapshot.agents.map(\.paneID))
-            return snapshot.panes.contains { !agentPanes.contains($0.id) }
-        }
+        sources.contains { $0.list.snapshot?.terminalPanes.isEmpty == false }
     }
 
     public var content: Content {
@@ -205,8 +211,7 @@ public final class MergedAgentListModel {
     /// pane 不是 Agent(終端機列、版面圖的終端機方塊)時，它的 Pane 終端機標題(程式名);Agent 的 pane 或找不到時為 `nil`。
     /// 列表與對話欄以同一個 `ChatRoute` 導覽，靠這個決定開對話還是開 Pane 終端機。
     public func terminalTitle(of route: ChatRoute) -> String? {
-        guard let snapshot = snapshot(for: route.host), !snapshot.agents.contains(where: { $0.paneID == route.paneID }),
-              let pane = snapshot.panes.first(where: { $0.id == route.paneID }) else { return nil }
+        guard let pane = snapshot(for: route.host)?.terminalPanes.first(where: { $0.id == route.paneID }) else { return nil }
         return TerminalRow(pane: pane, host: route.host, hostLabel: nil).program
     }
 

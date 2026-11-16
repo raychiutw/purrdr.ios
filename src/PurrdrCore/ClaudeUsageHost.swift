@@ -18,17 +18,20 @@ public struct ClaudeUsageHost: Sendable {
     /// 寫進 `statusLine.command` 的指令(Claude Code 以 shell 執行，`~` 會展開)。
     public static let wrapperCommand = "~/.purrdr/claude-usage/statusline.sh"
 
-    /// 這台主機要寫的包裝指令:`windowsHome` 是 Windows 的家目錄(`HostFileRead.home`)時用 PowerShell 版。
-    public static func wrapperCommand(windowsHome home: String?) -> String {
-        guard let home else { return wrapperCommand }
-        return "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '\(home)/.purrdr/claude-usage/statusline.ps1'"
+    /// Windows 主機的包裝腳本(相對於家目錄)。
+    static let windowsWrapperPath = feature.ownFile("statusline.ps1")
+
+    /// 這台主機要寫的包裝指令:Windows 主機用 PowerShell 版(`home` 是 `HostFileRead.home`,分隔符號是 `/`)。
+    public static func wrapperCommand(for operatingSystem: HostOperatingSystem?, home: String?) -> String {
+        guard operatingSystem == .windows, let home else { return wrapperCommand }
+        return "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '\(home)/\(windowsWrapperPath.relative)'"
     }
 
     /// 是 Purrdr 的包裝(任一種主機的)。
     static func isWrapper(_ command: String?) -> Bool {
         guard let command else { return false }
         return command == wrapperCommand
-            || (command.hasPrefix("powershell.exe ") && command.hasSuffix("/.purrdr/claude-usage/statusline.ps1'"))
+            || (command.hasPrefix("powershell.exe ") && command.hasSuffix("/\(windowsWrapperPath.relative)'"))
     }
 
     let write: ReversibleHostWrite
@@ -50,11 +53,11 @@ public struct ClaudeUsageHost: Sendable {
     public func install() async throws {
         try await write.install { inspection in
             let current = try Self.currentSettings(in: inspection)
-            let windowsHome = inspection.read.isWindows ? inspection.read.home : nil
-            let command = Self.wrapperCommand(windowsHome: windowsHome)
-            var ownFiles: [String: HostWritePlan.OwnFile] = windowsHome == nil
-                ? ["statusline.sh": .init(Data(Self.wrapperScript.utf8), executable: true)]
-                : ["statusline.ps1": .init(Data(Self.windowsWrapperScript.utf8))]
+            let read = inspection.read
+            let command = Self.wrapperCommand(for: read.operatingSystem, home: read.home)
+            var ownFiles: [String: HostWritePlan.OwnFile] = read.operatingSystem == .windows
+                ? ["statusline.ps1": .init(Data(Self.windowsWrapperScript.utf8))]
+                : ["statusline.sh": .init(Data(Self.wrapperScript.utf8), executable: true)]
             // 包裝腳本永遠不會被存成「原本的」:否則執行時會一直呼叫自己。
             if let original = Self.statusLineCommand(in: inspection.original(of: Self.settingsPath)), !Self.isWrapper(original) {
                 ownFiles["original-command"] = .init(Data(original.utf8))

@@ -38,11 +38,9 @@ public final class FolderBrowserModel {
         return HostPathSyntax.isRoot(path) ? path : (HostPathSyntax.lastComponent(path).map(String.init) ?? path)
     }
 
-    public var canGoUp: Bool { parent != nil }
+    public var canGoUp: Bool { navigation.canGoUp }
 
-    private var parent: String? {
-        path.flatMap(HostPathSyntax.parent(of:))
-    }
+    private var navigation: FolderNavigation { FolderNavigation(current: path) }
 
     /// 重新載入目前的資料夾(一開始是家目錄)。
     public func load() async {
@@ -51,12 +49,12 @@ public final class FolderBrowserModel {
 
     /// 打開資料夾或 symlink(指向資料夾才打得開);檔案不能打開。
     public func open(_ entry: FolderEntry) async {
-        guard entry.kind == .folder || entry.kind == .symlink, let path else { return }
-        await list(HostPathSyntax.appending(entry.name, to: path))
+        guard entry.kind == .folder || entry.kind == .symlink, let child = navigation.child(entry.name) else { return }
+        await list(child)
     }
 
     public func goUp() async {
-        guard let parent else { return }
+        guard let parent = navigation.parent else { return }
         await list(parent)
     }
 

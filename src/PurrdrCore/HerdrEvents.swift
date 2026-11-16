@@ -17,14 +17,18 @@ public struct EventSubscription: Sendable, Equatable, Hashable {
         EventSubscription(.paneAgentStatusChanged, paneID: paneID)
     }
 
-    /// 不分 pane、整台主機的事件:workspace 的建立／關閉／改名／更新，偵測到新 agent、pane 結束;
-    /// 加上版面事件(#40,行為規格 §3.7 的 Spaces 檢視):workspace 移動與排序、tab 與 pane 的建立／關閉、tab 改名與移動、版面更新。
-    /// 不分檢視都訂閱：Agents 檢視只是多幾次(有 debounce 的)重讀，換檢視就不必重新訂閱。
+    /// 不分 pane、整台主機的事件:workspace 的建立／關閉／改名／更新，偵測到新 agent、pane 結束。兩種檢視都訂閱。
     public static let hostWide: [EventSubscription] = [
         .init(.workspaceCreated), .init(.workspaceClosed), .init(.workspaceRenamed), .init(.workspaceUpdated),
         .init(.paneAgentDetected), .init(.paneExited),
-        .init(.workspaceMoved), .init(.workspaceReordered), .init(.tabCreated), .init(.tabClosed), .init(.tabRenamed), .init(.tabMoved),
-        .init(.paneCreated), .init(.paneClosed), .init(.layoutUpdated),
+    ]
+
+    /// 版面事件(#40):tab 與 pane 的建立／關閉、tab 改名與移動、版面更新、workspace 移動與排序。
+    /// 只有 Spaces 檢視訂閱(行為規格 §3.7「Spaces 檢視另加版面事件」):桌機拖動調整大小每一步都送一個，
+    /// Agents 檢視用不到卡片統計、終端機列與版面圖，不必為它們重讀。
+    public static let layout: [EventSubscription] = [
+        .init(.tabCreated), .init(.tabClosed), .init(.tabRenamed), .init(.tabMoved), .init(.paneCreated), .init(.paneClosed),
+        .init(.layoutUpdated), .init(.workspaceMoved), .init(.workspaceReordered),
     ]
 
     /// herdr protocol 22 可訂閱的事件型別(實測 `herdr api schema --json`)。目前只列用得到的。

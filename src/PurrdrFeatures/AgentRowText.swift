@@ -31,10 +31,10 @@ enum AgentRowText {
         return parts.joined(separator: " · ")
     }
 
-    /// 人取的 workspace 名稱：不等於(不分大小寫)任何 pane 資料夾最後一段的名稱。
+    /// 人取的 workspace 名稱：不等於(不分大小寫)任何 pane 資料夾最後一段的名稱(依主機的路徑語法，#26)。
     static func humanLabel(_ label: String?, siblings: [Agent]) -> String? {
         guard let label else { return nil }
-        let folders = siblings.compactMap { $0.cwd?.split(separator: "/").last?.lowercased() }
+        let folders = siblings.compactMap { $0.cwd.flatMap(HostPathSyntax.lastComponent)?.lowercased() }
         return folders.contains(label.lowercased()) ? nil : label
     }
 

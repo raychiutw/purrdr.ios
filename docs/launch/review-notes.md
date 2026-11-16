@@ -24,7 +24,7 @@ WHAT YOU CAN TRY ON THE DEMO HOST
 6. Shell commands: in "ledger", send "!git status"; the chat shows the command and a sample output block.
 7. Live work: open "notes" to see the Codex agent writing in real time; stopping it (Esc) makes it done.
 8. Terminal: in a chat, tap the terminal button to open a terminal (an echo shell, prompt "demo@purrdr"). ⋯ > Login Shell and ⋯ > Files also work on the Demo host.
-9. Several computers: the same list also shows two simulated sample hosts. "Studio Mac" has the same sample agents, labeled with its name; "Lab Server" is always offline, so the bottom of the list shows "Lab Server: …" with Try Again. They are part of the Demo, not saved hosts: they are not listed in ⋯ > Hosts and disappear once you add your own host.
+9. Several computers: the same list also shows two simulated sample hosts. "Studio Mac" has the same sample agents, labeled with its name; "Build Box" is always offline, so the bottom of the list shows "Build Box: …" with Try Again. They are part of the Demo, not saved hosts: they are not listed in ⋯ > Hosts and disappear once you add your own host.
 Things the Demo host cannot do, by design: start new chats or create workspaces (it shows "The Demo host can't start new chats. Add your own host to try this."), and send notifications.
 
 WHY A REAL HOST IS NEEDED
@@ -47,7 +47,7 @@ Contact: lean.lean@gmail.com
 | 設定頁「Show Welcome」可再看 | `SettingsView`(`settings.welcome`) |
 | 沒有主機時自動選 Demo | `HostsModel.validSelection`(沒有已存主機回 `.demo`)、`rebuildMembers` |
 | 三個 workspace:weather-app 需要你、notes 工作中(Codex)、ledger 完成 | `AGENTS.md`「Demo 主機」;`src/PurrdrDemo/DemoAnswers.swift` 開頭說明;截圖 01 |
-| 示範主機:Studio Mac(同樣的範例 Agent、列標示主機名)與一律連不上的 Lab Server(列表下方「Lab Server: …」與 Try Again);不在主機清單，新增自己的主機後消失 | `PurrdrApp.demoCompanions`、`HostsModel`(`DemoCompanionHost`、`rebuildMembers`)、`DemoUnreachableChannel`;`HostsModelTests.demoShowsCompanionHosts`、`MultiHostUITests.testDemoShowsCompanionHosts`;截圖 09 |
+| 示範主機:Studio Mac(同樣的範例 Agent、列標示主機名)與一律連不上的 Build Box(列表下方「Build Box: …」與 Try Again);不在主機清單，新增自己的主機後消失 | `PurrdrApp.demoCompanions`、`HostsModel`(`DemoCompanionHost`、`rebuildMembers`)、`DemoUnreachableChannel`;`HostsModelTests.demoShowsCompanionHosts`、`MultiHostUITests.testDemoShowsCompanionHosts`;截圖 09 |
 | weather-app 的 Bash 權限提示「Do you want to proceed?」,回答後完成 | `DemoAnswers`(`w2:p1` `.bashPermission`);截圖 02 |
 | 送任何訊息會收到「這是 Demo 主機」的固定回覆 | `DemoTranscripts.reply(to:number:at:)` |
 | subagent 卡「Check how the widget refreshes」 | `DemoTranscripts`(`subagentMeta`);截圖 03 |
