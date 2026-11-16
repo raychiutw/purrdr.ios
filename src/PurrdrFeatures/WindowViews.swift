@@ -248,29 +248,10 @@ private struct PaneWindowContent: View {
                 model: hosts.conversation(route, sessionID: window.sessionID),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
         case .terminal:
-            #if canImport(UIKit)
             PaneTerminalScreen(model: hosts.terminal(route, title: window.title))
-            #else
-            EmptyView()
-            #endif
         }
     }
 }
-
-#if canImport(UIKit)
-/// 持有終端機 model:視窗內容重建時 model 只建立一次。
-private struct PaneTerminalScreen: View {
-    @State private var model: PaneTerminalModel
-
-    init(model: @autoclosure () -> PaneTerminalModel) {
-        _model = State(wrappedValue: model())
-    }
-
-    var body: some View {
-        PaneTerminalView(model: model)
-    }
-}
-#endif
 
 // MARK: - 鍵盤快捷鍵(選單列)
 

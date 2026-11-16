@@ -108,6 +108,7 @@ final class WorkspaceActionsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        revealLedger(in: app)
 
         ledger.press(forDuration: 1.2)
         app.buttons["New Worktree…"].tap()

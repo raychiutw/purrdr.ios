@@ -153,7 +153,7 @@ private extension View {
     }
 }
 
-/// 持有 Pane 終端機 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
+/// 持有 Pane 終端機 model 的容器:navigationDestination 或視窗的內容可能被重建，model 只在第一次建立。
 struct PaneTerminalScreen: View {
     @State private var model: PaneTerminalModel
 
