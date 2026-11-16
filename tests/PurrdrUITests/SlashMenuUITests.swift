@@ -42,6 +42,19 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(element("composer.hideKeyboard", in: app).exists, "點選不該收起鍵盤")
     }
 
+    /// 點面板卡片上的控制項，直到 `done` 成立。
+    ///
+    /// 卡片在送鍵期間整張停用(`isOperatingPanel`),但畫面可能已經先反映上一次操作(面板監看的輪詢比送鍵的回應早到，
+    /// 分段控制也會先自己改選取),這時的點擊會被吃掉。重點一次以上是安全的：←/→ 到底會停住，卡片消失後就不再點。
+    @MainActor
+    private func tap(_ control: XCUIElement, until done: NSPredicate, on target: XCUIElement, _ message: String) {
+        for _ in 0..<3 {
+            control.tap()
+            if XCTWaiter.wait(for: [expectation(for: done, evaluatedWith: target)], timeout: 5) == .completed { return }
+        }
+        XCTFail(message)
+    }
+
     @MainActor
     private func openLedger(_ app: XCUIApplication) -> XCUIElement {
         let row = element("agent.row.demo/w1:p1", in: app)
@@ -81,6 +94,8 @@ final class SlashMenuUITests: XCTestCase {
 
         let card = element("panel.card", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: 10), "送出 /model 後沒有出現面板卡片")
+        // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
+        element("composer.hideKeyboard", in: app).tap()
         XCTAssertTrue(app.staticTexts["Select model"].exists)
         let first = element("panel.option.0", in: app)
         XCTAssertTrue(first.exists)
@@ -92,13 +107,10 @@ final class SlashMenuUITests: XCTestCase {
         expectation(for: moved, evaluatedWith: first)
         waitForExpectations(timeout: 10)
 
-        element("panel.adjust.right", in: app).tap()
-        XCTAssertTrue(app.staticTexts["◐ High effort"].waitForExistence(timeout: 10), "←/→ 調整沒有反映")
+        tap(element("panel.adjust.right", in: app), until: NSPredicate(format: "exists == true"),
+            on: app.staticTexts["◐ High effort"], "←/→ 調整沒有反映")
 
-        element("panel.action.enter", in: app).tap()
-        let gone = NSPredicate(format: "exists == false")
-        expectation(for: gone, evaluatedWith: card)
-        waitForExpectations(timeout: 10)
+        tap(element("panel.action.enter", in: app), until: NSPredicate(format: "exists == false"), on: card, "選定後卡片沒有消失")
     }
 
     /// `/effort` 直接送出 → 面板卡片有分段控制;點層級送方向鍵，按「confirm」後卡片消失(#34)。
@@ -113,6 +125,8 @@ final class SlashMenuUITests: XCTestCase {
 
         let card = element("panel.card", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: 10), "送出 /effort 後沒有出現面板卡片")
+        // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
+        element("composer.hideKeyboard", in: app).tap()
         XCTAssertTrue(app.staticTexts["Effort"].exists)
         let levels = element("panel.levels", in: app)
         XCTAssertTrue(levels.exists)
@@ -120,12 +134,8 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(xhigh.exists)
         XCTAssertFalse(xhigh.isSelected, "一開始是 medium")
 
-        xhigh.tap()
-        expectation(for: NSPredicate(format: "isSelected == true"), evaluatedWith: xhigh)
-        waitForExpectations(timeout: 10)
+        tap(xhigh, until: NSPredicate(format: "isSelected == true"), on: xhigh, "點層級沒有反映")
 
-        element("panel.action.enter", in: app).tap()
-        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: card)
-        waitForExpectations(timeout: 10)
+        tap(element("panel.action.enter", in: app), until: NSPredicate(format: "exists == false"), on: card, "確認後卡片沒有消失")
     }
 }

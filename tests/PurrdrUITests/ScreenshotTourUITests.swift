@@ -5,7 +5,6 @@ import XCTest
 /// `scripts/screenshots.sh` 只跑這個類別，再從 result bundle 匯出截圖;完整 UI 套件也會跑它，
 /// 所以它同時是「Demo 演得出每個主要功能」的煙霧測試。每張圖一個測試，彼此獨立，其中一張壞了不影響其他張。
 /// 截圖名稱的數字是 App Store 截圖的建議順序。
-/// 送出後不收起鍵盤：聊天送出後在輪詢(面板監看),點「收起鍵盤」會等 app idle 等上一分多鐘。
 final class ScreenshotTourUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -82,6 +81,7 @@ final class ScreenshotTourUITests: XCTestCase {
         text.typeText("/model")
         element("slash.row.model", in: app).tap()
         XCTAssertTrue(element("panel.card", in: app).waitForExistence(timeout: 10), "沒有 /model 面板卡片")
+        element("composer.hideKeyboard", in: app).tap()
         capture("05-model-panel", app)
     }
 
@@ -93,6 +93,7 @@ final class ScreenshotTourUITests: XCTestCase {
         text.typeText("/effort")
         element("slash.row.effort", in: app).tap()
         XCTAssertTrue(element("panel.levels", in: app).waitForExistence(timeout: 10), "沒有 /effort 面板卡片")
+        element("composer.hideKeyboard", in: app).tap()
         capture("06-effort-panel", app)
     }
 
@@ -104,6 +105,7 @@ final class ScreenshotTourUITests: XCTestCase {
         text.typeText("!git status")
         element("composer.send", in: app).tap()
         XCTAssertTrue(element("conversation.shell", in: app).waitForExistence(timeout: 15), "沒有 shell 區塊")
+        element("composer.hideKeyboard", in: app).tap()
         capture("07-shell-command", app)
     }
 

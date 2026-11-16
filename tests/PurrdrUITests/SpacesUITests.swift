@@ -63,7 +63,7 @@ final class SpacesUITests: XCTestCase {
 
         let bar = app.navigationBars["Spaces"]
         let title = bar.buttons["Spaces"].firstMatch
-        XCTAssertTrue(title.exists, "標題不是檢視選單")
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "標題不是檢視選單")
         title.tap()
         let agents = app.buttons["Agents"].firstMatch
         XCTAssertTrue(agents.waitForExistence(timeout: 5), "點大標題沒有切換選單")

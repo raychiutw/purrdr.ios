@@ -20,7 +20,7 @@ lockf /tmp/purrdr-uitest.lock sh -c '
     status=0
     xcodebuild test -project "$1/src/App/Purrdr.xcodeproj" -scheme Purrdr \
         -destination "platform=iOS Simulator,name=$2" -derivedDataPath "$1/.derivedData" \
-        -parallel-testing-enabled NO -disable-concurrent-destination-testing -skipPackagePluginValidation \
+        -parallel-testing-enabled NO -disable-concurrent-destination-testing -skipPackagePluginValidation -collect-test-diagnostics never \
         -resultBundlePath "$3" -only-testing:PurrdrUITests/ScreenshotTourUITests -quiet || status=$?
     xcrun simctl shutdown "$2" 2>/dev/null || true
     exit $status
