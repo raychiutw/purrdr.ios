@@ -66,10 +66,19 @@ public final class MergedAgentListModel {
     /// 列表底部的滑動操作提示：第一次用滑動面板的動作之前顯示(行為規格 F2.7)。
     public private(set) var showsSwipeHint: Bool
     private let swipeHint: any SwipeHintStore
+    /// 列表檢視(Spaces／Agents);改了就存起來，重新啟動後沿用。兩種檢視共用搜尋、分組、已讀與釘選。
+    public var mode: AgentListMode {
+        didSet { if mode != oldValue { modeStore.save(mode) } }
+    }
 
-    public init(swipeHint: any SwipeHintStore = InMemorySwipeHintStore()) {
+    private let modeStore: any AgentListModeStore
+
+    public init(swipeHint: any SwipeHintStore = InMemorySwipeHintStore(), modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
         self.swipeHint = swipeHint
         showsSwipeHint = !swipeHint.isDismissed
+        self.modeStore = modeStore
+        // 未知或缺值一律回到 Spaces(行為規格 F2.1)。
+        mode = modeStore.load() ?? .spaces
     }
 
     /// 對話出現在畫面上：記下開啟時間(這之前的回覆都算讀過)。
@@ -116,6 +125,11 @@ public final class MergedAgentListModel {
                 host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
                 snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
         }
+    }
+
+    /// Spaces 檢視：每個 workspace 一項，依同樣的分組與搜尋。
+    public var spacesSections: [SpacesSection] {
+        AgentListProjection.spacesSections(sources: projectionSources, query: query, visible: visibleChat)
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
@@ -172,6 +186,14 @@ public final class MergedAgentListModel {
 
     public func snapshot(for host: HostSelection) -> HostSnapshot? {
         list(for: host)?.snapshot
+    }
+
+    /// pane 不是 Agent(終端機列、版面圖的終端機方塊)時，它的 Pane 終端機標題(程式名);Agent 的 pane 或找不到時為 `nil`。
+    /// 列表與對話欄以同一個 `ChatRoute` 導覽，靠這個決定開對話還是開 Pane 終端機。
+    public func terminalTitle(of route: ChatRoute) -> String? {
+        guard let snapshot = snapshot(for: route.host), !snapshot.agents.contains(where: { $0.paneID == route.paneID }),
+              let pane = snapshot.panes.first(where: { $0.id == route.paneID }) else { return nil }
+        return TerminalRow(pane: pane, host: route.host, hostLabel: nil).program
     }
 
     /// 列表看到的 session(開對話時用來比對快取)。

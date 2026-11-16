@@ -51,7 +51,7 @@ final class YouShouldKnowUITests: XCTestCase {
     @MainActor
     func testHostThemeToggle() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(element("agent.row.demo/w1:p1", in: app).waitForExistence(timeout: 15))
+        XCTAssertTrue(app.reveal(element("agent.row.demo/w1:p1", in: app), timeout: 15))
         app.buttons["toolbar.more"].tap()
         app.buttons["menu.settings"].tap()
 

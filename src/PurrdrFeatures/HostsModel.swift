@@ -85,6 +85,7 @@ public final class HostsModel {
     ///   - hostIcons: 使用者替主機選的圖示(只存本機)。
     ///   - selectionStore: 選取中主機的存放處。
     ///   - swipeHint: 列表滑動提示是否已經不用再顯示(使用者用過滑動面板的動作)。
+    ///   - listMode: 列表檢視(Spaces／Agents)的存放處。
     ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
@@ -97,10 +98,11 @@ public final class HostsModel {
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
+        listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
-        agentList = MergedAgentListModel(swipeHint: swipeHint)
+        agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
         self.selectionStore = selectionStore
         self.demoChannel = demoChannel
         self.makeChannel = makeChannel

@@ -16,7 +16,7 @@ final class AgentListUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
 
         let row = row("w1:p1", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 Agent")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         XCTAssertTrue(row.label.contains("Tidy up the CSV export"), "列標題不對:\(row.label)")
         XCTAssertTrue(row.label.contains("Claude Code · demo/ledger"), "列副標不對:\(row.label)")
         XCTAssertTrue(row.label.contains("Done"), "列沒有狀態文字:\(row.label)")
@@ -36,13 +36,15 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(working.label.contains("Sync notes to Markdown"), "Codex 標題沒去掉資料夾:\(working.label)")
         XCTAssertTrue(working.label.contains("Now"), "工作中的列沒有「Now」:\(working.label)")
         XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
+        // 閒置組在 Spaces 的 notes 卡片下方，可能在畫面外(列表是 lazy)。
+        XCTAssertTrue(app.reveal(done))
         XCTAssertLessThan(working.frame.minY, done.frame.minY)
     }
 
     @MainActor
     func testSearchFiltersAgents() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(row("w1:p1", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
 
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 5), "沒有搜尋欄")

@@ -16,8 +16,7 @@ final class UnreadPinnedUITests: XCTestCase {
     func testSwipeHintDisappearsAfterFirstSwipe() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(ledger.waitForExistence(timeout: 10))
-        app.reveal(ledger)
+        XCTAssertTrue(app.reveal(ledger))
         // 提示在列表最底下(Claude 用量之後);列表是 lazy,捲到底才在 accessibility tree 裡。
         let hint = app.descendants(matching: .any)["agentList.swipeHint"].firstMatch
         app.collectionViews.firstMatch.swipeUp()
@@ -39,14 +38,15 @@ final class UnreadPinnedUITests: XCTestCase {
     func testPinnedRowMovesToPinnedSection() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(ledger.waitForExistence(timeout: 10))
-        app.reveal(ledger)
         let needsYou = app.descendants(matching: .any)["agentList.section.needsYou"].firstMatch
-        XCTAssertTrue(needsYou.waitForExistence(timeout: 5))
+        XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
         XCTAssertTrue(needsYou.label.contains("1"), "組標題沒有數量:\(needsYou.label)")
+        XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeRight()
         app.buttons["Pin"].firstMatch.tap()
+        // 「已釘選」在最上方;捲回頂端。
+        app.collectionViews.firstMatch.swipeDown()
 
         let pinned = app.descendants(matching: .any)["agentList.section.pinned"].firstMatch
         XCTAssertTrue(pinned.waitForExistence(timeout: 5), "沒有「已釘選」組")
@@ -60,8 +60,7 @@ final class UnreadPinnedUITests: XCTestCase {
     func testOpeningChatMarksItRead() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(ledger.waitForExistence(timeout: 10))
-        app.reveal(ledger)
+        XCTAssertTrue(app.reveal(ledger))
         expectation(for: NSPredicate(format: "value == %@", "Unread"), evaluatedWith: ledger)
         waitForExpectations(timeout: 10)
 
@@ -76,7 +75,7 @@ final class UnreadPinnedUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         let read = row("w1:p1", in: app)
-        XCTAssertTrue(read.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(read))
         expectation(for: NSPredicate(format: "value != %@", "Unread"), evaluatedWith: read)
         waitForExpectations(timeout: 5)
     }

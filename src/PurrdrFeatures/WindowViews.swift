@@ -190,7 +190,10 @@ struct WindowDetail: View {
 
     var body: some View {
         NavigationStack {
-            if let route = navigation.selectedChat {
+            if let route = navigation.selectedChat, let title = hosts.agentList.terminalTitle(of: route) {
+                // agent 以外的 pane(Spaces 的終端機列、版面圖的終端機方塊):開它的 Pane 終端機(#40)。
+                PaneTerminalScreen(model: hosts.terminal(route, title: title))
+            } else if let route = navigation.selectedChat {
                 ConversationScreen(
                     model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
                     makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route)
@@ -247,29 +250,10 @@ private struct PaneWindowContent: View {
                 model: hosts.conversation(route, sessionID: window.sessionID),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) })
         case .terminal:
-            #if canImport(UIKit)
             PaneTerminalScreen(model: hosts.terminal(route, title: window.title))
-            #else
-            EmptyView()
-            #endif
         }
     }
 }
-
-#if canImport(UIKit)
-/// 持有終端機 model:視窗內容重建時 model 只建立一次。
-private struct PaneTerminalScreen: View {
-    @State private var model: PaneTerminalModel
-
-    init(model: @autoclosure () -> PaneTerminalModel) {
-        _model = State(wrappedValue: model())
-    }
-
-    var body: some View {
-        PaneTerminalView(model: model)
-    }
-}
-#endif
 
 // MARK: - 鍵盤快捷鍵(選單列)
 

@@ -10,7 +10,7 @@ final class PaneTerminalUITests: XCTestCase {
     @MainActor
     private func openTerminal(_ app: XCUIApplication) -> XCUIElement {
         let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 Agent")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         let button = app.buttons["terminal.open"].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 10), "對話標題列沒有終端機鈕")

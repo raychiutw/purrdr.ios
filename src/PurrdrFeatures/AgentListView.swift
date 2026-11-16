@@ -72,7 +72,13 @@ public struct AgentListView: View {
                     }
             }
         }
-        .navigationTitle("Agents")
+        // 標題是目前檢視名，點標題切換 Spaces／Agents(行為規格 F2.1、#37 故事 7)。系統的標題選單(標題旁有 ⌄)
+        // 在大標題模式不出現，iOS 26 的 `.largeTitle` 自訂項目又不在 accessibility tree 裡，所以列表標題用 inline。
+        .navigationTitle(model.mode.title)
+        .toolbarTitleMenu { AgentListModePicker(mode: $model.mode) }
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         // 「You should know」:每台主機各自輪詢(列表可見且在前景時，#23)。
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
             guard scenePhase == .active else { return }
@@ -97,15 +103,19 @@ public struct AgentListView: View {
         Binding { window?.selectedChat } set: { window?.selectedChat = $0 }
     }
 
+    /// Agent 的 pane 開對話;agent 以外的 pane(終端機列、版面圖的終端機方塊)開它的 Pane 終端機(#37 故事 14)。
+    @ViewBuilder
     private func conversationScreen(_ route: ChatRoute) -> some View {
-        var terminal: (@MainActor (String, String) -> PaneTerminalModel)?
-        if let makeTerminal {
-            terminal = { @MainActor paneID, title in makeTerminal(ChatRoute(host: route.host, paneID: paneID), title) }
-        }
-        return ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: terminal)
+        if let title = model.terminalTitle(of: route), let makeTerminal {
+            PaneTerminalScreen(model: makeTerminal(route, title))
+        } else {
+            ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: makeTerminal.map { make in
+                { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
+            })
             // 進入與離開對話各記一次開啟時間;開著時不算未讀(行為規格 F2.6)。
             .onAppear { model.chatAppeared(route) }
             .onDisappear { model.chatDisappeared(route) }
+        }
     }
 
     @ViewBuilder
@@ -154,7 +164,7 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         #endif
         .overlay {
-            if sections.isEmpty, !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
+            if (model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
                 ContentUnavailableView(
                     "No Matching Agents",
                     systemImage: "magnifyingglass",
@@ -164,7 +174,10 @@ public struct AgentListView: View {
         }
         // 版面圖選的 Pane:聊天推入對話(或在對話欄打開);Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
         .workspaceActionsPresentation(actions: { model.actions(for: $0) }, presentation: presentation) { host, target in
-            if case .chat(let paneID) = target { model.openedChat = ChatRoute(host: host, paneID: paneID) }
+            // 版面圖選的 Pane:Agent 開對話，終端機方塊開它的 Pane 終端機(兩者都以 pane 指定，見 `conversationScreen`)。
+            switch target {
+            case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
+            }
         }
         .searchable(text: $model.query, prompt: Text("Search"))
         // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點。
@@ -193,19 +206,15 @@ public struct AgentListView: View {
     @ViewBuilder
     private func listRows(_ sections: [AgentSection]) -> some View {
         let failures = model.failures
-        ForEach(sections) { section in
-            Section {
-                ForEach(section.rows) { row in
-                    NavigationLink(value: row.route) { AgentRowView(row: row) }
-                        .accessibilityIdentifier("agent.row.\(row.id)")
-                        .workspaceRowActions(
-                            WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
-                            actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host),
-                            openInNewWindow: openInNewWindow.map { open in { kind in open(kind, row) } }
-                        )
+        if model.mode == .spaces {
+            SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation) { row in agentRow(row) }
+        } else {
+            ForEach(sections) { section in
+                Section {
+                    ForEach(section.rows) { row in agentRow(row) }
+                } header: {
+                    AgentSectionHeader(group: section.group, count: section.rows.count)
                 }
-            } header: {
-                AgentSectionHeader(group: section.group, count: section.rows.count)
             }
         }
         if !failures.isEmpty {
@@ -228,7 +237,7 @@ public struct AgentListView: View {
         if let usage, list(failedFor: model.selected) == false {
             Section { ClaudeUsageFooter(model: usage) }
         }
-        if model.showsSwipeHint, !sections.isEmpty {
+        if model.showsSwipeHint, !(model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty) {
             // 第一次用滑動面板的動作之前，列表底部提示有哪些滑動動作(行為規格 F2.7)。
             Section {
                 Label("Swipe a row left or right to pin, mute, rename, or close.", systemImage: "hand.draw")
@@ -236,6 +245,34 @@ public struct AgentListView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("agentList.swipeHint")
             }
+        }
+    }
+
+    /// 一個 Agent 列(兩種檢視共用：同樣的滑動、選單、已讀與釘選)。
+    private func agentRow(_ row: AgentRow) -> some View {
+        NavigationLink(value: row.route) { AgentRowView(row: row) }
+            .accessibilityIdentifier("agent.row.\(row.id)")
+            .workspaceRowActions(
+                WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
+                actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host),
+                openInNewWindow: openInNewWindow.map { open in { kind in open(kind, row) } }
+            )
+    }
+
+    /// Spaces 檢視：套用側欄的 workspace 篩選(選取中主機的那個 workspace)。
+    private var spacesSections: [SpacesSection] {
+        let all = model.spacesSections
+        guard let filter = window?.workspaceFilter,
+              let snapshot = model.snapshot(for: model.selected), snapshot.workspaces.contains(where: { $0.id == filter }) else { return all }
+        let panes = Set(snapshot.agents.filter { $0.workspaceID == filter }.map(\.paneID))
+        return all.compactMap { section in
+            let items = section.items.filter { item in
+                switch item {
+                case .chat(let row): row.host == model.selected && panes.contains(row.paneID)
+                case .card(let card): card.host == model.selected && card.workspaceID == filter
+                }
+            }
+            return items.isEmpty ? nil : SpacesSection(group: section.group, items: items)
         }
     }
 

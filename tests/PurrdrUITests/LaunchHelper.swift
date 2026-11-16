@@ -28,13 +28,33 @@ extension XCUIApplication {
     /// 列被底部工具列(搜尋欄)蓋住時，把列表往上拖到列整個露出來，再滑動或點它。
     /// 列表上方有「You should know」列(#23)、各組標題帶數量(#41)時，最後一組的列會落在工具列底下，
     /// 這時滑動與點擊會打在工具列上。
+    ///
+    /// Spaces 檢視(#40)的卡片較高，最後一組的列可能整個在畫面外;列表是 lazy,這時列還不在 accessibility tree 裡，
+    /// 所以先等列表載入，列不存在就一次往下捲一點，直到列出現。回傳列最後是否存在(取代 `waitForExistence`)。
     @MainActor
-    func reveal(_ row: XCUIElement) {
-        let list = collectionViews.firstMatch
+    @discardableResult
+    func reveal(_ row: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        // iPad 三欄時第一個 collection view 是側欄;捲的是 Agent 列表。
+        let list = collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch
+        guard list.waitForExistence(timeout: timeout) else { return false }
+        // 列表載入中：先等一下;畫面上的列都建好之後還是沒有，才往下捲。
+        if !row.waitForExistence(timeout: min(timeout, 4)) {
+            for _ in 0..<8 where !row.exists {
+                drag(list)
+            }
+            guard row.waitForExistence(timeout: max(timeout - 4, 1)) else { return false }
+        }
         let limit = windows.firstMatch.frame.maxY - 150
         for _ in 0..<3 where row.frame.maxY > limit {
-            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
-                .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+            drag(list)
         }
+        return row.exists
+    }
+
+    /// 把列表往上拖四分之一高(內容往下捲)。
+    @MainActor
+    private func drag(_ list: XCUIElement) {
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
     }
 }

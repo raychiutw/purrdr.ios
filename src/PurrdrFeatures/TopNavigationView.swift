@@ -184,14 +184,14 @@ public struct TopNavigationView: View {
             kind: kind, host: row.host, paneID: row.paneID, sessionID: hosts.agentList.sessionID(of: row.route), title: row.title))
     }
 
-    /// 版面圖卡片(選取中主機的 workspace)選了 Pane:Agent 在對話欄打開;終端機(shell pane)開在新視窗(不支援多視窗時不做事)。
+    /// 版面圖卡片(選取中主機的 workspace)選了 Pane:Agent 在對話欄打開;終端機方塊在對話欄開它的 Pane 終端機。
     private func openLayoutTarget(_ target: PaneOpenTarget) {
         switch target {
         case .chat(let paneID):
             navigation.selectedChat = ChatRoute(host: hosts.selection, paneID: paneID)
         case .terminal(let paneID):
-            guard supportsMultipleWindows else { return }
-            openWindow(value: PaneWindow(kind: .terminal, host: hosts.selection, paneID: paneID, sessionID: nil, title: paneID))
+            // 終端機方塊：在對話欄開它的 Pane 終端機(#40;對話欄依 pane 是否為 Agent 決定)。
+            navigation.selectedChat = ChatRoute(host: hosts.selection, paneID: paneID)
         }
     }
 

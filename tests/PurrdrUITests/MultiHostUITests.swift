@@ -36,6 +36,8 @@ final class MultiHostUITests: XCTestCase {
         studioItem.tap()
 
         XCTAssertTrue(hostButton.waitForLabel("Selected Host: Studio Mac", timeout: 5), hostButton.label)
+        // 剛才捲到列表下方找錯誤行;Spaces 的卡片較高，最上方的列這時可能在畫面外，捲回頂端。
+        app.collectionViews.firstMatch.swipeDown()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertFalse(row.label.contains("Studio Mac"), "選取中主機的列不該標示主機名:\(row.label)")
         XCTAssertTrue(error.exists || scrollTo(error, in: app), "換選取中主機後錯誤行不見了")

@@ -26,7 +26,7 @@ final class IPadLayoutUITests: XCTestCase {
         let app = launchInLandscape()
 
         let row = element("agent.row.demo/w1:p1", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Agent 列表")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
         XCTAssertTrue(element("sidebar.host.demo", in: app).exists, "側欄沒有主機")
         XCTAssertTrue(element("sidebar.workspace.w1", in: app).waitForExistence(timeout: 5), "側欄沒有 workspace")
         XCTAssertTrue(element("detail.empty", in: app).exists, "對話欄沒有「Select a Chat」")
@@ -41,7 +41,7 @@ final class IPadLayoutUITests: XCTestCase {
     @MainActor
     func testSidebarWorkspaceFiltersList() {
         let app = launchInLandscape()
-        XCTAssertTrue(element("agent.row.demo/w1:p1", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(element("agent.row.demo/w1:p1", in: app)))
 
         let weather = element("sidebar.workspace.w2", in: app)
         XCTAssertTrue(weather.waitForExistence(timeout: 5))
@@ -51,7 +51,7 @@ final class IPadLayoutUITests: XCTestCase {
         XCTAssertTrue(element("agent.row.demo/w1:p1", in: app).waitForNonExistence(timeout: 5), "篩選後還看得到別的 workspace 的 Agent")
 
         element("sidebar.allWorkspaces", in: app).tap()
-        XCTAssertTrue(element("agent.row.demo/w1:p1", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(app.reveal(element("agent.row.demo/w1:p1", in: app), timeout: 5))
     }
 
     /// 點版面圖按鈕：浮動卡片出現並釘住;「關閉」才關。點卡片裡的 Agent 方塊：對話開在對話欄。
@@ -81,7 +81,7 @@ final class IPadLayoutUITests: XCTestCase {
     @MainActor
     func testCommandCommaOpensAppSettings() {
         let app = launchInLandscape()
-        XCTAssertTrue(element("agent.row.demo/w1:p1", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(element("agent.row.demo/w1:p1", in: app)))
 
         app.typeKey(",", modifierFlags: .command)
 
