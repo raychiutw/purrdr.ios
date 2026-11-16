@@ -52,8 +52,18 @@ public final class MergedAgentListModel {
     public var query = ""
     /// 要直接開的聊天：從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
     public var openedChat: ChatRoute?
+    /// 列表檢視(Spaces／Agents);改了就存起來，重新啟動後沿用。兩種檢視共用搜尋、分組、已讀與釘選。
+    public var mode: AgentListMode {
+        didSet { if mode != oldValue { modeStore.save(mode) } }
+    }
 
-    public init() {}
+    private let modeStore: any AgentListModeStore
+
+    public init(modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
+        self.modeStore = modeStore
+        // 未知或缺值一律回到 Spaces(行為規格 F2.1)。
+        mode = modeStore.load() ?? .spaces
+    }
 
     func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
@@ -69,6 +79,19 @@ public final class MergedAgentListModel {
                     snapshot: source.list.snapshot, previews: source.list.previews)
             },
             query: query)
+    }
+
+    /// Spaces 檢視：每個 workspace 一項，依同樣的分組與搜尋。
+    public var spacesSections: [SpacesSection] {
+        AgentListProjection.spacesSections(sources: projectionSources, query: query)
+    }
+
+    private var projectionSources: [AgentListProjection.Source] {
+        sources.map { source in
+            AgentListProjection.Source(
+                host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
+                snapshot: source.list.snapshot, previews: source.list.previews)
+        }
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。

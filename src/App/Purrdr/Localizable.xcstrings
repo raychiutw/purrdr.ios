@@ -68,6 +68,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "%@, %lld working" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@,%lld 個工作中"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -156,6 +167,17 @@
         }
       }
     },
+    "%lld tabs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個 Tab"
+          }
+        }
+      }
+    },
     "%lld weeks" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -204,6 +226,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "1 agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個 Agent"
+          }
+        }
+      }
+    },
     "1 day" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -244,6 +277,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個月"
+          }
+        }
+      }
+    },
+    "1 pane" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個 Pane"
+          }
+        }
+      }
+    },
+    "1 tab" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個 Tab"
           }
         }
       }
@@ -4470,6 +4525,17 @@
         }
       }
     },
+    "Shell" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell"
+          }
+        }
+      }
+    },
     "Show" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4587,6 +4653,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示背景 Agent"
+          }
+        }
+      }
+    },
+    "Shows the layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示版面"
           }
         }
       }
@@ -4774,6 +4851,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "發生錯誤，請再試一次。"
+          }
+        }
+      }
+    },
+    "Spaces" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spaces"
           }
         }
       }
@@ -6351,6 +6439,17 @@
         }
       }
     },
+    "View" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢視"
+          }
+        }
+      }
+    },
     "Waiting for Approval" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6490,6 +6589,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace"
+          }
+        }
+      }
+    },
+    "Workspace Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspace 版面"
           }
         }
       }

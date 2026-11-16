@@ -11,6 +11,8 @@ import SwiftUI
 public struct AgentListView: View {
     @Bindable var model: MergedAgentListModel
     @State private var presentation = WorkspacePresentation()
+    /// 版面圖選的終端機方塊(sheet 關閉後推入)。
+    @State private var openedTerminal: PaneTerminalRoute?
     @Environment(\.scenePhase) private var scenePhase
     /// 建立某台主機上某個 Agent 的對話 model(列表看到的 session)。由 composition root 提供。
     private let makeConversation: @MainActor (ChatRoute, String?) -> ConversationModel
@@ -39,12 +41,25 @@ public struct AgentListView: View {
     /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
         content
-            .navigationTitle("Agents")
+            // 大標題是目前檢視名，點標題切換 Spaces／Agents(行為規格 F2.1、#37 故事 7)。
+            .navigationTitle(model.mode.title)
+            // 系統的標題選單(標題旁有 ⌄)。大標題模式下系統不顯示標題選單，iOS 26 的 `.largeTitle` 自訂項目
+            // 又不在 accessibility tree 裡(VoiceOver 與 UI 測試都找不到),所以列表標題改為 inline。
+            .toolbarTitleMenu { AgentListModePicker(mode: $model.mode) }
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .navigationDestination(for: ChatRoute.self) { route in
                 conversationScreen(route)
             }
             .navigationDestination(item: $model.openedChat) { route in
                 conversationScreen(route)
+            }
+            .navigationDestination(for: PaneTerminalRoute.self) { route in
+                terminalScreen(route)
+            }
+            .navigationDestination(item: $openedTerminal) { route in
+                terminalScreen(route)
             }
             .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
                 guard scenePhase == .active else { return }
@@ -58,6 +73,14 @@ public struct AgentListView: View {
             terminal = { @MainActor paneID, title in makeTerminal(ChatRoute(host: route.host, paneID: paneID), title) }
         }
         return ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: terminal)
+    }
+
+    /// 終端機列與版面圖的終端機方塊開的 Pane 終端機(#37 故事 14)。
+    @ViewBuilder
+    private func terminalScreen(_ route: PaneTerminalRoute) -> some View {
+        if let makeTerminal {
+            PaneTerminalScreen(model: makeTerminal(route.chat, route.title))
+        }
     }
 
     @ViewBuilder
@@ -89,15 +112,19 @@ public struct AgentListView: View {
         let sections = model.sections
         let failures = model.failures
         return List {
-            ForEach(sections) { section in
-                Section(section.group.title) {
-                    ForEach(section.rows) { row in
-                        NavigationLink(value: row.route) { AgentRowView(row: row) }
-                            .accessibilityIdentifier("agent.row.\(row.id)")
-                            .workspaceRowActions(
-                                WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
-                                actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host)
-                            )
+            if model.mode == .spaces {
+                SpacesSectionsContent(model: model, presentation: presentation)
+            } else {
+                ForEach(sections) { section in
+                    Section(section.group.title) {
+                        ForEach(section.rows) { row in
+                            NavigationLink(value: row.route) { AgentRowView(row: row) }
+                                .accessibilityIdentifier("agent.row.\(row.id)")
+                                .workspaceRowActions(
+                                    WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
+                                    actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host)
+                                )
+                        }
                     }
                 }
             }
@@ -126,7 +153,7 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         #endif
         .overlay {
-            if sections.isEmpty, !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
+            if (model.mode == .spaces ? model.spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
                 ContentUnavailableView(
                     "No Matching Agents",
                     systemImage: "magnifyingglass",
@@ -134,15 +161,26 @@ public struct AgentListView: View {
                 )
             }
         }
-        // 版面圖選的 Pane:聊天推入對話;Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
+        // 版面圖選的 Pane:聊天推入對話;終端機方塊(agent 以外的 pane)開它的 Pane 終端機。
         .workspaceActionsPresentation(actions: { model.actions(for: $0) }, presentation: presentation) { host, target in
-            if case .chat(let paneID) = target { model.openedChat = ChatRoute(host: host, paneID: paneID) }
+            switch target {
+            case .chat(let paneID):
+                model.openedChat = ChatRoute(host: host, paneID: paneID)
+            case .terminal(let paneID):
+                openedTerminal = PaneTerminalRoute(host: host, paneID: paneID, title: terminalTitle(host: host, paneID: paneID))
+            }
         }
         .searchable(text: $model.query, prompt: Text("Search"))
         .autocorrectionDisabled()
         #if os(iOS)
         .textInputAutocapitalization(.never)
         #endif
+    }
+
+    /// 終端機畫面的標題：pane 的程式名(同終端機列)。
+    private func terminalTitle(host: HostSelection, paneID: String) -> String {
+        guard let pane = model.snapshot(for: host)?.panes.first(where: { $0.id == paneID }) else { return paneID }
+        return TerminalRow(pane: pane, host: host, hostLabel: nil).program
     }
 
     /// 某台主機讀不到(Claude 用量只在選取中主機讀得到時顯示)。

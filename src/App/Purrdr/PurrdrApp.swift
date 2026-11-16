@@ -75,7 +75,7 @@ struct PurrdrApp: App {
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
-                push: push, tailscaleCheck: tailscaleCheck
+                push: push, tailscaleCheck: tailscaleCheck, listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer)
             }

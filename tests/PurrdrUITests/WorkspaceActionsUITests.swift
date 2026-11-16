@@ -11,12 +11,19 @@ final class WorkspaceActionsUITests: XCTestCase {
         app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
     }
 
+    /// Spaces 檢視(#40)的 `notes` 卡片較高，`ledger`(閒置)會落在底部搜尋列後面;先捲到底再滑。
+    @MainActor
+    private func revealLedger(in app: XCUIApplication) {
+        app.swipeUp()
+    }
+
     /// 往左滑「Workspace」→ 預填 workspace 名稱的表單 → 儲存後列表以新名稱重讀。
     @MainActor
     func testRenameWorkspaceFromSwipe() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        revealLedger(in: app)
 
         ledger.swipeLeft()
         app.buttons["Workspace"].firstMatch.tap()
@@ -58,6 +65,7 @@ final class WorkspaceActionsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        revealLedger(in: app)
 
         ledger.swipeRight()
         XCTAssertTrue(app.buttons["Mute"].firstMatch.waitForExistence(timeout: 5), "往右滑沒有靜音")
