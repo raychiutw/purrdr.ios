@@ -69,6 +69,12 @@ final class AccessibilityAuditContext {
 
     lazy var window: CGRect = app.windows.firstMatch.frame
 
+    /// iPad 的側欄(系統 Liquid Glass 側欄，浮在內容上)。
+    lazy var sidebar: CGRect? = {
+        let list = app.collectionViews["sidebar"]
+        return list.exists ? list.frame : nil
+    }()
+
     /// 半透明填色的內容卡片(需要你、subagent、workflow)。
     lazy var cards: [CGRect] = ["prompt.card", "conversation.subagent", "conversation.workflow"].flatMap { identifier in
         app.descendants(matching: .any).matching(identifier: identifier).allElementsBoundByIndex.map(\.frame)
@@ -212,6 +218,15 @@ enum AccessibilityAuditExclusions {
                 + "視窗控制等)。app 的文字都是 SwiftUI,會以「SwiftUI.AccessibilityNode」回報"
         ) { issue, _ in
             issue.element == nil && !issue.detailedDescription.contains("SwiftUI")
+        },
+        Rule(
+            types: .contrast,
+            reason: "iPad 側欄的文字(主機、workspace、標題):系統 Liquid Glass 側欄浮在內容上，audit 透過玻璃取樣，同一份程式碼"
+                + "五輪裡三輪通過、兩輪失敗(.tdd-logs/35-ipad-4.log、35-ipad-final.log);截圖確認是系統主要色／次要色文字配淺色玻璃，"
+                + "文字顏色全是系統語意色"
+        ) { issue, context in
+            guard let element = issue.element, element.elementType == .staticText, let sidebar = context.sidebar else { return false }
+            return sidebar.contains(CGPoint(x: element.frame.midX, y: element.frame.midY))
         },
         Rule(
             types: .sufficientElementDescription,
