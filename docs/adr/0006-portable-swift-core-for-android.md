@@ -10,3 +10,5 @@
 - Kotlin 互通要用 swift-java(0.x,API 不穩)的 JNI 模式。
 - 帶入完整 Foundation 與 ICU,Android 的 .so 約 58 MB(strip 後)。
 - 最低 Android API 以 28 規劃。
+
+後來加入 HTTPS 連線方式(ADR-0010):核心另需 WSS 的 TLS 相依(例如 swift-nio-ssl),以及由 JSON Schema 產生的協定型別;同樣要在 Android 交叉編譯驗證。

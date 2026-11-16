@@ -36,7 +36,7 @@ _避免_:推播配對(那是推播用的)、Login、Register
 
 **裝置權杖**(Device token):
 連線配對後，主機服務發給某支裝置的憑證;每台主機一組，存在該裝置的 Keychain,可撤銷、可設成唯讀，永不同步。
-_避免_:API key、Session token、Pairing token
+_避免_:API key、Session token、Pairing token、APNs token(那是推播用的)
 
 ## herdr
 
