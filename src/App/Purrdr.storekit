@@ -42,9 +42,9 @@
                 "new"
               ],
               "internalID" : "5A1C6E14",
-              "isStackable" : true,
+              "isStackable" : false,
               "paymentMode" : "free",
-              "referenceName" : "Friends and Events",
+              "referenceName" : "早期測試 1 個月免費",
               "subscriptionPeriod" : "P1M"
             }
           ],
