@@ -12,6 +12,8 @@ import SwiftUI
 public struct ConversationView: View {
     let model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
+    /// Reduce Motion:自動捲到底不做動畫，直接跳過去(HIG:減少自動、重複的動畫)。
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scroll = ConversationScroll()
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var userIsScrolling = false
@@ -19,6 +21,8 @@ public struct ConversationView: View {
     @State private var userHasDragged = false
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
     @State private var viewerImage: ViewerImage?
+    /// 新訊息與狀態變化的 VoiceOver 公告(有節流，#35)。
+    @State private var announcer = ConversationAnnouncer()
 
     public init(model: ConversationModel) {
         self.model = model
@@ -67,6 +71,23 @@ public struct ConversationView: View {
                 guard scenePhase == .active else { return }
                 await model.run()
             }
+            .onChange(of: ConversationAnnouncer.Input(items: model.items, status: model.agentStatus, title: displayTitle), initial: true) { _, input in
+                announce(announcer.observe(input, now: .now))
+            }
+            // 節流期間留著的公告：時間到再念。
+            .task(id: announcer.pendingDeadline) {
+                guard let deadline = announcer.pendingDeadline else { return }
+                try? await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
+                guard !Task.isCancelled else { return }
+                announce(announcer.flush(now: .now))
+            }
+    }
+
+    private var scrollAnimation: Animation? { reduceMotion ? nil : .default }
+
+    private func announce(_ text: String?) {
+        guard let text else { return }
+        AccessibilityNotification.Announcement(text).post()
     }
 
     private var displayTitle: String {
@@ -149,22 +170,22 @@ public struct ConversationView: View {
             if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
         }
         .onChange(of: model.prompt?.signature) {
-            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation { position.scrollTo(edge: .bottom) } }
+            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) } }
         }
         .onChange(of: model.panel == nil) {
-            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation { position.scrollTo(edge: .bottom) } }
+            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) } }
         }
         .onChange(of: model.echoes.count) { old, new in
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
             guard new > old else { return }
             scroll.jumpToLatest()
-            withAnimation { position.scrollTo(edge: .bottom) }
+            withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) }
         }
         .overlay(alignment: .bottomTrailing) {
             if scroll.showsJumpToLatest {
                 Button {
                     scroll.jumpToLatest()
-                    withAnimation { position.scrollTo(edge: .bottom) }
+                    withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) }
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
@@ -341,10 +362,7 @@ struct ConversationItemView: View {
         case .user(let bubble):
             UserBubbleView(bubble: bubble)
         case .agentText(let text):
-            MarkdownView(text.markdown)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(Text("Agent message"))
-                .accessibilityIdentifier("conversation.agent")
+            AgentMessageView(text: text)
         case .toolRun(let run):
             ToolRunView(run: run)
         case .skill(let skill):
@@ -360,6 +378,23 @@ struct ConversationItemView: View {
         case .shell(let run):
             ShellRunView(run: run)
         }
+    }
+}
+
+/// agent 的訊息。VoiceOver:一則訊息一個元素，開頭念「Agent」(HIG 20.5,#35)。
+/// 有程式碼區塊或表格時改成容器：程式碼要能單獨橫捲、複製，表格要能逐格讀，不併成一長串。
+struct AgentMessageView: View {
+    let text: AgentText
+
+    var body: some View {
+        let markdown = MarkdownView(text.markdown)
+        markdown
+            .accessibilityElement(children: markdown.hasStructuredBlocks ? .contain : .combine)
+            .accessibilityLabel { label in
+                Text("Agent:")
+                label
+            }
+            .accessibilityIdentifier("conversation.agent")
     }
 }
 
@@ -392,8 +427,13 @@ struct UserBubbleView: View {
                 }
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Text("Your message. \(bubble.text)"))
+        // VoiceOver:一則訊息一個元素(HIG 20.5,#35)。有圖片時圖片可點開，泡泡改成容器。
+        // 合併後念「Your message.」+ 內容 + 時間(作者、內容、時間一次念完)。
+        .accessibilityElement(children: bubble.imageCount > 0 ? .contain : .combine)
+        .accessibilityLabel { label in
+            Text("Your message.")
+            label
+        }
         .accessibilityIdentifier("conversation.user")
     }
 }
