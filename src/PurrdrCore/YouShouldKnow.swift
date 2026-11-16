@@ -27,6 +27,10 @@ public struct YouShouldKnowNote: Equatable, Sendable, Identifiable {
     public var shownDate: Date? { shownAt.map { Date(timeIntervalSince1970: $0 / 1000) } }
 
     /// 「在聊天中討論」放進輸入框的文字：plugin 自己的草稿格式(引言 + 以 `>` 引用的標籤、句子與說明)。
+    ///
+    /// 這是**送給 agent 的提示詞**,不是 UI 字串：刻意照 plugin 在 Claude Code 裡產生的英文草稿
+    /// (「Here is a note offered by a side agent:」、沒有標籤時的「You should know」),讓 agent 認得出是旁路 agent 的註記，
+    /// 不隨裝置語言翻譯(可攜核心也不放顯示字串)。畫面上的標題與按鈕在 Features 在地化。
     public var discussionDraft: String {
         let body = (["\(tag ?? "You should know") · \(line)"] + (explanation.map { [$0] } ?? []))
             .joined(separator: "\n")

@@ -196,7 +196,7 @@ struct HostsModelTests {
         await lab.failConnection(with: SSHConnectionError.timedOut)
         let companions = [
             DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: studio),
-            DemoCompanionHost(id: UUID(), name: "Lab Server", icon: .server, channel: lab),
+            DemoCompanionHost(id: UUID(), name: "Lab Server", icon: .rack, channel: lab),
         ]
         let model = HostsModel(
             store: store, demoChannel: demo, demoCompanions: companions, makeChannel: ChannelFactory(FakeHost()).make)

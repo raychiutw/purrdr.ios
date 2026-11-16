@@ -246,13 +246,24 @@ struct MultiHostTests {
         model.load()
         model.select(.host(Self.studio.id))
 
-        model.setIcon(.server, for: Self.lab.id)
+        model.setIcon(.rack, for: Self.lab.id)
         await model.agentList.load()
 
-        #expect(model.rows.first { $0.id == Self.lab.id }?.icon == .server)
+        #expect(model.rows.first { $0.id == Self.lab.id }?.icon == .rack)
         #expect(model.rows.first { $0.id == Self.studio.id }?.icon == .desktop, "沒選圖示的主機用預設圖示")
-        #expect(Self.rows(model).filter { $0.host == .host(Self.lab.id) }.allSatisfy { $0.hostLabel?.icon == .server })
-        #expect(UserDefaultsHostIconStore(defaults: defaults).icon(for: Self.lab.id) == .server)
+        #expect(Self.rows(model).filter { $0.host == .host(Self.lab.id) }.allSatisfy { $0.hostLabel?.icon == .rack })
+        #expect(UserDefaultsHostIconStore(defaults: defaults).icon(for: Self.lab.id) == .rack)
+    }
+
+    @Test("機架圖示(GLOSSARY 避免 Server):選單名稱是 Rack;裝置上舊版存的 server 讀成機架")
+    func rackIconReadsLegacyServer() {
+        let defaults = UserDefaults(suiteName: "MultiHostTests.rack.\(UUID())")!
+        defaults.set([Self.lab.id.uuidString: "server"], forKey: "hostIcons")
+        let store = UserDefaultsHostIconStore(defaults: defaults)
+
+        #expect(store.icon(for: Self.lab.id)?.rawValue == "rack")
+        #expect(store.icon(for: Self.lab.id)?.title == "Rack")
+        #expect(HostIcon.allCases.map(\.rawValue).contains("server") == false)
     }
 
     @Test("點通知：開配對主機上的聊天，不改選取中主機")

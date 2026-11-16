@@ -54,6 +54,42 @@ herdr 回報的 `blocked`／`working`／`done`／`idle`／`unknown`。UI 上 `bl
 Agent 自己寫在主機上的對話檔，app 從這裡讀出對話內容。格式由各 agent 自訂，不是公開 API。
 _避免_:Log、History
 
+## Agent 列表
+
+**Agent 列表**:
+所有主機的 Agent 合併成的一個列表，是 app 的首頁。有兩種檢視。
+_避免_:Chat list、Inbox、Home
+
+**Spaces 檢視**:
+Agent 列表以 workspace 為單位呈現：只有一個 Agent、沒有其他 Pane 的 workspace 是一列聊天，其餘是一張 workspace 卡片。UI 稱「Spaces」,繁中也保留英文。
+_避免_:Workspace 檢視、Grouped view
+
+**Agents 檢視**:
+Agent 列表每個 Agent 一列，不分 workspace。
+_避免_:Flat view、Chats 檢視
+
+**Workspace 卡片**:
+Spaces 檢視裡代表一個 workspace 的項目：有兩個以上的 Agent,或有 Agent 以外的 Pane(終端機)時才出現;依 Tab 分組列出底下的 Agent 與終端機。
+_避免_:Workspace row、Group、Folder
+
+**已釘選**(Pinned):
+使用者在這支裝置上釘到 Agent 列表最前面的聊天，自成一組、不論 Agent 狀態。只存在這支裝置。
+_避免_:Favorite、置頂、Starred
+
+**未讀**(Unread):
+聊天在這支裝置上次開啟之後，Agent 又有了新的回覆(自己送出的訊息不算)。未讀的「完成」才標示，已讀的完成視為閒置。
+_避免_:New、Unseen、Badge
+
+**需處理數量**:
+有「需要你」或未讀 Agent 的 workspace 數。
+_避免_:Badge count、Notifications
+
+## 視窗
+
+**視窗**(Window):
+iPad 上 app 的一個視窗，有各自的導覽狀態(側欄、列表、開著的聊天);主機與 Agent 列表所有視窗共用。UI 一律稱「視窗」。
+_避免_:Scene、分頁(Tab 是 herdr 的層級)
+
 ## 終端機
 
 **Pane 終端機**:

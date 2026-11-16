@@ -146,7 +146,7 @@ struct PurrdrApp: App {
         [
             DemoCompanionHost(id: UUID(uuidString: "DE300000-0000-4000-8000-000000000001")!, name: "Studio Mac", icon: .macMini, channel: demo),
             DemoCompanionHost(
-                id: UUID(uuidString: "DE300000-0000-4000-8000-000000000002")!, name: "Lab Server", icon: .server,
+                id: UUID(uuidString: "DE300000-0000-4000-8000-000000000002")!, name: "Lab Server", icon: .rack,
                 channel: DemoUnreachableChannel()),
         ]
     }
