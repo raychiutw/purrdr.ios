@@ -1,13 +1,6 @@
 import Foundation
 
 /// 主機作業系統(GLOSSARY「主機」)。
-public enum HostOperatingSystem: String, Sendable, Hashable, Codable {
-    case macOS
-    case linux
-    /// 原生 Windows(OpenSSH + herdr Windows 版)。指令一律換成 PowerShell 方言(`WindowsHostChannel`)。
-    case windows
-}
-
 /// herdr 版本。以數值比較(字串比較會讓 `0.10.0` < `0.8.0`,行為規格 §3.1)。
 public struct HerdrVersion: Sendable, Hashable, Comparable, CustomStringConvertible {
     /// 最低支援 herdr 0.9.5(ADR-0002)。
@@ -123,9 +116,9 @@ public struct HostProbe: Sendable {
         // 偵測到 Windows 之後，指令一律換成 PowerShell 方言。
         let channel = operatingSystem.channel(channel)
 
-        let version = try await Self.run(HerdrCommand.version(herdr), on: channel)
+        let version = try await channel.collect(HerdrCommand.version(herdr))
         if version.exitCode == 127 { throw HostProbeError.herdrNotInstalled }
-        guard version.exitCode == 0, let installed = HerdrVersion(version.stdout) else { throw HostProbeError.notHerdr }
+        guard version.exitCode == 0, let installed = HerdrVersion(version.stdoutText) else { throw HostProbeError.notHerdr }
         guard installed >= .minimumSupported else { throw HostProbeError.herdrOutdated(installed) }
 
         let client = HerdrClient(channel: channel, herdr: herdr)
@@ -152,9 +145,10 @@ public struct HostProbe: Sendable {
     @discardableResult
     public func updateHerdr() async throws -> HerdrUpdateOutcome {
         let operatingSystem = try await detectOperatingSystem()
-        let result = try await Self.run(HerdrCommand.update(herdr), on: operatingSystem.channel(channel))
+        let result = try await operatingSystem.channel(channel).collect(HerdrCommand.update(herdr))
         guard result.exitCode == 0 else {
-            let message = (result.stderr.isEmpty ? result.stdout : result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = (result.stderr.isEmpty ? result.stdoutText : String(decoding: result.stderr, as: UTF8.self))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             throw HostProbeError.updateFailed(WindowsErrorText.readable(message))
         }
         return operatingSystem == .windows ? .restartServerRequired : .handedOff
@@ -162,43 +156,5 @@ public struct HostProbe: Sendable {
 
     private func detectOperatingSystem() async throws -> HostOperatingSystem {
         try await HostOperatingSystem.detect(on: channel)
-    }
-
-    /// 執行一般指令，收齊輸出。非零 exit 是結果不是例外(行為規格 §3.2)。
-    fileprivate static func run(_ command: String, on channel: any HostChannel) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
-        let session = try await channel.execute(command)
-        await session.closeStdin()
-        var stdout = Data()
-        var stderr = Data()
-        var exitCode: Int32 = -1
-        for try await event in session.output {
-            switch event {
-            case .stdout(let data): stdout.append(data)
-            case .stderr(let data): stderr.append(data)
-            case .exit(let code, _): exitCode = code
-            }
-        }
-        return (String(decoding: stdout, as: UTF8.self), String(decoding: stderr, as: UTF8.self), exitCode)
-    }
-}
-
-extension HostOperatingSystem {
-    /// 偵測主機作業系統。
-    ///
-    /// `uname -s` → Darwin／Linux;Git Bash(MSYS2)的 `MINGW64_NT-…`、`MINGW32_NT-…`、`MSYS_NT-…` 是 Windows。
-    /// 認不得時(預設 shell 是 cmd 或 PowerShell,沒有 `uname`)再以 PowerShell 探測(行為規格 §3.9)。
-    public static func detect(on channel: any HostChannel) async throws -> HostOperatingSystem {
-        let result = try await HostProbe.run(HerdrCommand.operatingSystem, on: channel)
-        let name = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        if result.exitCode == 0 {
-            if name == "Darwin" { return .macOS }
-            if name == "Linux" { return .linux }
-            if ["MINGW64_NT-", "MINGW32_NT-", "MSYS_NT-"].contains(where: name.hasPrefix) { return .windows }
-        }
-        let probe = try await HostProbe.run(PowerShell.windowsProbe, on: channel)
-        if probe.exitCode == 0, probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == PowerShell.windowsMarker {
-            return .windows
-        }
-        throw HostProbeError.unsupportedOperatingSystem(name.isEmpty ? result.stderr : name)
     }
 }

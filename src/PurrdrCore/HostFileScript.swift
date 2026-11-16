@@ -219,7 +219,9 @@ enum HostFileScript {
             }
         }
         guard files.count == paths.count else { throw HostFilesError.malformedOutput }
-        return HostFileRead(user: String(userLine.dropFirst("user ".count)), files: files, home: home)
+        // `home` 行只有 Windows 版的讀腳本輸出(`WindowsScripts`)。
+        return HostFileRead(
+            user: String(userLine.dropFirst("user ".count)), files: files, home: home, operatingSystem: home == nil ? nil : .windows)
     }
 }
 
