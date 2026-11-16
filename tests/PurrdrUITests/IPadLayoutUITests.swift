@@ -37,6 +37,28 @@ final class IPadLayoutUITests: XCTestCase {
         XCTAssertTrue(row.exists, "對話推走了列表(應該在列表旁)")
     }
 
+    /// 列表欄也是大標題(#66):在列表欄裡、導覽列下方;點了切到 Agents,卡片消失。
+    @MainActor
+    func testListColumnLargeTitleSwitchesView() {
+        let app = launchInLandscape()
+        let card = element("workspace.card.demo/w3", in: app)
+        XCTAssertTrue(app.reveal(card), "沒有看到 Spaces 檢視")
+
+        let title = app.buttons["agentList.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "列表欄沒有大標題按鈕")
+        XCTAssertEqual(title.label, "Spaces")
+        let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch.frame
+        XCTAssertTrue(list.insetBy(dx: -1, dy: -1).contains(title.frame), "大標題不在列表欄:\(title.frame) 列表 \(list)")
+        XCTAssertGreaterThanOrEqual(title.frame.height, 34, "標題字不夠大:\(title.frame)")
+
+        title.tap()
+        let agents = app.buttons["Agents"].firstMatch
+        XCTAssertTrue(agents.waitForExistence(timeout: 5), "點大標題沒有出現檢視選單")
+        agents.tap()
+        XCTAssertTrue(card.waitForNonExistence(timeout: 5), "沒有切到 Agents 檢視")
+        XCTAssertEqual(app.buttons["agentList.title"].label, "Agents")
+    }
+
     /// 側欄選 workspace:列表只留那個 workspace 的 Agent;選「All Workspaces」回到全部。
     @MainActor
     func testSidebarWorkspaceFiltersList() {
@@ -108,7 +130,10 @@ final class IPadLayoutUITests: XCTestCase {
             XCUIDevice.shared.orientation = .landscapeLeft
             let app = XCUIApplication.launchUITesting(contentSize: size)
             let row = element("agent.row.demo/w2:p1", in: app)
-            XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
+            // AX5 時列表最上面的大標題(#66)換行變高，`reveal` 會把列表往上拖，列的上半段停在導覽列的玻璃底下
+            // (中線剛好在 scroll edge effect 外，排除規則判斷不到)，audit 量到被模糊的那一塊。AX5 只等列出現、
+            // 不捲動，稽核的是列表最上面(含大標題)的樣子。
+            XCTAssertTrue(size == nil ? app.reveal(row) : row.waitForExistence(timeout: 15), "沒有看到 Agent 列表")
             if size == nil {
                 row.tap()
                 XCTAssertTrue(element("composer.text", in: app).waitForExistence(timeout: 15), "對話沒有開在對話欄")

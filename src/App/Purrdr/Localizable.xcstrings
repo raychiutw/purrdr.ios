@@ -5652,6 +5652,17 @@
         }
       }
     },
+    "Switches between Spaces and Agents." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Spaces 與 Agents 之間切換。"
+          }
+        }
+      }
+    },
     "Sync Hosts" : {
       "extractionState" : "manual",
       "localizations" : {

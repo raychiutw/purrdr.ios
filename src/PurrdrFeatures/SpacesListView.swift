@@ -193,6 +193,37 @@ extension AgentListMode {
     }
 }
 
+/// 列表的大標題(#66):目前檢視名 + ⌄,點了出檢視選單。樣子同系統大標題(Large Title 粗體、靠前緣);
+/// 它是一般的 `Menu`,所以 VoiceOver 唸「Spaces,按鈕」(另帶標題特徵，轉子的「標題」找得到)、UI 測試也找得到。
+/// AX 字級時換行，不截斷。
+struct AgentListLargeTitle: View {
+    @Binding var mode: AgentListMode
+
+    var body: some View {
+        Menu {
+            AgentListModePicker(mode: $mode)
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(mode.title)
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.down")
+                    .font(.title3.bold())
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityHidden(true)
+            }
+            // 觸控目標至少 44pt 高(HIG 20.2)。
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Switches between Spaces and Agents.")
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("agentList.title")
+    }
+}
+
 /// 檢視選單的內容(目前那個打勾)。
 struct AgentListModePicker: View {
     @Binding var mode: AgentListMode
