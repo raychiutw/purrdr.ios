@@ -1700,8 +1700,8 @@ herdr terminal session observe <TARGET> [--cols N] [--rows N]
 
 ## 13. 未知與不確定之處
 
-1. **Windows 上的 `remote-api-bridge`**:herdrchat 記錄 0.9.3 在 Git Bash 下通過 check 但不回應(herdr#5128);herdr 自己以 PowerShell `Start-Process` 啟動。0.9.5 以 `-EncodedCommand` + 保持 stdin 的方式是否可用,需在 Windows 實測。
-2. **Windows 上的 `terminal session control`**:程式碼沒有封鎖、文件沒提;是 Windows Pane 終端機唯一可能路徑,需實測。ConPTY 對 xterm 序列與滑鼠的影響未知。
+1. **Windows 上的 `remote-api-bridge`**:herdrchat 記錄 0.9.3 在 Git Bash 下通過 check 但不回應(herdr#5128);herdr 自己以 PowerShell `Start-Process` 啟動。0.9.5 以 `-EncodedCommand` + 保持 stdin 的方式是否可用,需在 Windows 實測。→ #6 已實測:Git Bash 直接呼叫與 `-EncodedCommand` 都可用;Windows 的 bridge 遇到 stdin EOF 連 `ping` 都不回,見 `terminal-session-control-windows.md`。
+2. **Windows 上的 `terminal session control`**:程式碼沒有封鎖、文件沒提;是 Windows Pane 終端機唯一可能路徑,需實測。ConPTY 對 xterm 序列與滑鼠的影響未知。→ #6 已實測可用,wire format 與 macOS 相同(滑鼠回報程式未測),見 `terminal-session-control-windows.md`。
 3. **Windows 上各 agent 對話紀錄位置**:herdrchat 從未處理;推測為 `%USERPROFILE%\.claude` 等,Claude 資料夾名規則對 `C:\Users\x\repo` 應產生 `C--Users-x-repo`(推論);herdr 回報的 cwd 形式需實測。
 4. **Tailscale SSH check mode**:herdrchat 沒有任何處理。Tailscale 在 check mode 下如何把驗證網址交給 SSH client(banner 或 keyboard-interactive 訊息)、連線會等多久,需在真機測。
 5. **Codex session 回報**:herdr 0.9.5 不再安裝 Codex turn hook,狀態改由畫面偵測;integration v5 的 session 回報在 Codex 共用 app server 下是否仍需要 herdrchat 那種啟動器(帶 `HERDR_PANE_ID` 等環境變數),需實測。不能安裝啟動器時的退路未定。

@@ -1,0 +1,1 @@
+Error: Custom { kind: NotFound, error: "failed to connect to remote Herdr API socket C:\\Users\\demo\\AppData\\Roaming\\herdr\\sessions\\purrdr-nosuch\\herdr.sock: 系統找不到指定的檔案。 (os error 2)" }

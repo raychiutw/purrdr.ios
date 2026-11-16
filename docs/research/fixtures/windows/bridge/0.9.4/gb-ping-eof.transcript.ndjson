@@ -1,0 +1,4 @@
+{"t_ms": 1.9, "dir": "stdin", "line": "{\"id\":\"purrdr:ping\",\"method\":\"ping\",\"params\":{}}"}
+{"t_ms": 1.9, "dir": "stdin_eof", "line": null}
+{"t_ms": 1928.6, "dir": "stdout_eof", "line": null}
+{"t_ms": 1931.4, "dir": "exit", "line": 0}

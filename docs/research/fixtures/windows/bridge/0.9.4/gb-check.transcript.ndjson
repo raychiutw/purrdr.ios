@@ -1,0 +1,4 @@
+{"t_ms": 4.9, "dir": "stdin_eof", "line": null}
+{"t_ms": 1993.7, "dir": "stdout", "line": "herdr-api-bridge-v1"}
+{"t_ms": 2001.2, "dir": "stdout_eof", "line": null}
+{"t_ms": 2004.2, "dir": "exit", "line": 0}
