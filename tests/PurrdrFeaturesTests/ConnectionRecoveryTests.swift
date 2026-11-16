@@ -68,17 +68,16 @@ struct ConnectionRecoveryTests {
         model.load()
         model.select(.host(HostManagementTests.studio.id))
 
-        model.networkPathChanged("satisfied:wifi")
-        try await Task.sleep(for: .milliseconds(50))
+        // 不用固定等待：等重設的 task 跑完(沒有重設就沒有 task)再看連線。
+        await model.networkPathChanged("satisfied:wifi")?.value
         #expect(await linux.disconnectCount == 0, "第一次回報不該重設")
 
-        model.networkPathChanged("satisfied:wifi")
-        try await Task.sleep(for: .milliseconds(50))
+        await model.networkPathChanged("satisfied:wifi")?.value
         #expect(await linux.disconnectCount == 0, "路徑沒變不該重設")
 
-        model.networkPathChanged("satisfied:cellular")
-        try await waitUntil { await linux.disconnectCount == 1 }
-        try await waitUntil { await studio.disconnectCount == 1 }
+        await model.networkPathChanged("satisfied:cellular")?.value
+        #expect(await linux.disconnectCount == 1)
+        #expect(await studio.disconnectCount == 1)
     }
 
     @Test("背景超過 60 秒回前景：對已連過的主機跑喚醒探測(true)")

@@ -31,9 +31,8 @@ struct PaneTerminalModelTests {
         if finish { await host.finish(execution: execution) }
     }
 
-    /// 非同步對齊的等待上限。條件一成立就往下走，所以只影響失敗時多久才報;
-    /// 給得寬，機器很忙(平行跑測試)時才不會在條件成立前就逾時。
-    static let timeout: Duration = .seconds(30)
+    /// 非同步對齊的等待上限(見 `asyncWaitLimit`)。
+    static let timeout = asyncWaitLimit
 
     /// 等非同步工作把狀態推到位。逾時就讓後面的 `#expect` 失敗。
     static func eventually(_ condition: () async -> Bool) async {
@@ -269,7 +268,7 @@ struct PaneTerminalModelTests {
     @Test("尺寸改變去抖後只送最後一次;0 格不送")
     func resizeIsDebounced() async {
         let host = FakeHost()
-        let gate = SleepGate()
+        let gate = DebounceGate()
         let model = await Self.connected(host, debounce: .milliseconds(120), sleep: gate.sleep)
 
         // 像鍵盤滑出的動畫：去抖時間到之前就來了新尺寸。
@@ -410,55 +409,5 @@ struct PaneTerminalModelTests {
         #expect(PaneTerminalModel.openableURL("file:///etc/passwd") == nil)
         #expect(PaneTerminalModel.openableURL("tel:123") == nil)
         #expect(PaneTerminalModel.openableURL("javascript:alert(1)") == nil)
-    }
-}
-
-/// 去抖用的假 sleep:等待一直卡住，直到 `open()`(時間到)或 task 被取消;`open()` 之後的等待立刻結束。
-/// 跟 `RecordingSleeper` 不同的是，`open()` 也會叫醒已經在等的，`completed` 記下沒被取消、真的等滿的次數。
-actor SleepGate {
-    private(set) var requested: [Duration] = []
-    /// 等滿(沒被取消)的次數。
-    private(set) var completed = 0
-    private var isOpen = false
-    private var waiting: [Int: CheckedContinuation<Void, any Error>] = [:]
-    private var nextID = 0
-
-    nonisolated var sleep: @Sendable (Duration) async throws -> Void {
-        { duration in try await self.wait(duration) }
-    }
-
-    func open() {
-        isOpen = true
-        let resumed = waiting
-        waiting = [:]
-        resumed.values.forEach { $0.resume() }
-    }
-
-    private func wait(_ duration: Duration) async throws {
-        requested.append(duration)
-        defer { if !Task.isCancelled { completed += 1 } }
-        guard !isOpen else { return try Task.checkCancellation() }
-        let id = nextID
-        nextID += 1
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-                register(continuation, id: id)
-            }
-        } onCancel: {
-            Task { await self.cancel(id) }
-        }
-    }
-
-    /// 已經被取消就不等(取消處理可能比登記先跑)。
-    private func register(_ continuation: CheckedContinuation<Void, any Error>, id: Int) {
-        if Task.isCancelled {
-            continuation.resume(throwing: CancellationError())
-        } else {
-            waiting[id] = continuation
-        }
-    }
-
-    private func cancel(_ id: Int) {
-        waiting.removeValue(forKey: id)?.resume(throwing: CancellationError())
     }
 }

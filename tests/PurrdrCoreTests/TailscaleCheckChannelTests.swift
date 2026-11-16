@@ -14,13 +14,15 @@ struct TailscaleCheckChannelTests {
 
     @Test("要求重新驗證：回報驗證網址、等待期間不受握手期限限制，驗證完指令自動繼續", .timeLimit(.minutes(1)))
     func waitsForCheckThenRuns() async throws {
-        let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .approve(after: .milliseconds(800))) }) {
+        // 驗證等待(2 秒)比握手期限(1 秒)長：等待期間仍套用握手期限的話會逾時。
+        // 握手期限只要涵蓋「連上到收到驗證網址」,給 1 秒，機器忙時才不會在網址送到前就逾時。
+        let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .approve(after: .seconds(2))) }) {
             _ in .reply(stdout: "ok")
         }
         let prompts = PromptLog()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
-            timeouts: SSHTimeouts(handshake: .milliseconds(300)), tailscaleCheck: prompts.observe)
+            timeouts: SSHTimeouts(handshake: .seconds(1)), tailscaleCheck: prompts.observe)
 
         let result = try await collect(channel.execute("x"))
 
@@ -88,7 +90,8 @@ struct TailscaleCheckChannelTests {
         let prompts = PromptLog()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
-            timeouts: SSHTimeouts(handshake: .milliseconds(200), tailscaleCheck: .milliseconds(600)), tailscaleCheck: prompts.observe)
+            // 握手期限給寬(機器忙時才不會在驗證網址送到前就逾時);等驗證的期限才是這裡要測的。
+            timeouts: SSHTimeouts(handshake: .seconds(10), tailscaleCheck: .milliseconds(600)), tailscaleCheck: prompts.observe)
 
         await #expect(throws: SSHConnectionError.tailscaleCheckTimedOut) { _ = try await channel.execute("x") }
         #expect(server.snapshot.connections == 1)
@@ -111,13 +114,14 @@ struct TailscaleCheckChannelTests {
     }
 }
 
-/// 輪詢到條件成立(最多約 4 秒)。
-func eventually(_ condition: () -> Bool) async throws {
-    for _ in 0..<200 {
+/// 輪詢到條件成立(上限 `asyncWaitLimit`;條件一成立就返回)。
+func eventually(_ condition: () -> Bool, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+    let deadline = ContinuousClock.now + asyncWaitLimit
+    while ContinuousClock.now < deadline {
         if condition() { return }
         try await Task.sleep(for: .milliseconds(20))
     }
-    Issue.record("等不到條件成立")
+    Issue.record("等不到條件成立", sourceLocation: sourceLocation)
 }
 
 /// 記錄主機通道回報的 check mode 提示(`nil` = 收起)。
@@ -133,7 +137,8 @@ final class PromptLog: Sendable {
 
     /// 等到出現第一個提示。
     func firstPrompt() async throws -> TailscaleCheckPrompt {
-        for _ in 0..<200 {
+        let deadline = ContinuousClock.now + asyncWaitLimit
+        while ContinuousClock.now < deadline {
             if let prompt = prompts.compactMap({ $0 }).first { return prompt }
             try await Task.sleep(for: .milliseconds(20))
         }
