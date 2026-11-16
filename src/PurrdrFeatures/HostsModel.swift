@@ -103,6 +103,7 @@ public final class HostsModel {
     private let pushService: PushService?
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
+    private let diagnostics: DiagnosticLog
 
     /// - Parameters:
     ///   - conversationCache: 對話快取(所有主機共用一個存放處，key 依主機分開)。
@@ -113,6 +114,7 @@ public final class HostsModel {
     ///   - listMode: 列表檢視(Spaces／Agents)的存放處。
     ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
     ///   - demoCompanions: Demo 的示範主機(#34);Demo 主機出現在列表時一起出現。
+    ///   - diagnostics: 不給使用者看的紀錄(例如偵測到的作業系統存不進這支裝置)。
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
         store: any HostStore, demoChannel: any HostChannel, demoCompanions: [DemoCompanionHost] = [],
@@ -126,6 +128,7 @@ public final class HostsModel {
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
+        diagnostics: DiagnosticLog = .system(category: "hosts"),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
@@ -143,6 +146,7 @@ public final class HostsModel {
         self.pushService = pushService
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
+        self.diagnostics = diagnostics
         claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         rebuildMembers()
@@ -187,7 +191,7 @@ public final class HostsModel {
                 guard let self, route.host != self.selection else { return nil }
                 return self.name(of: route.host)
             },
-            // 主機目前只有 macOS／Linux(Windows 的上傳還沒做,ADR-0002)。
+            // Windows 主機也能上傳(#68:`ImageUploader` 經 `WindowsHostChannel` 送 PowerShell 版)。
             images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore))
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
@@ -507,10 +511,15 @@ public final class HostsModel {
     }
 
     /// 存下偵測到的作業系統。不是使用者的修改，不通知主機同步(作業系統也不同步);連線不重建。
+    /// 存不進去時只留診斷紀錄：這次執行仍用偵測結果，下次啟動再偵測一次，不必打斷使用者。
     private func recordOperatingSystem(_ operatingSystem: HostOperatingSystem, for id: UUID) {
         guard let index = hosts.firstIndex(where: { $0.id == id }), hosts[index].operatingSystem == nil else { return }
         hosts[index].operatingSystem = operatingSystem
-        try? store.save(hosts[index])
+        do {
+            try store.save(hosts[index])
+        } catch {
+            diagnostics.error("Couldn’t save the detected operating system (\(operatingSystem.rawValue)) for host \(id): \(error)")
+        }
     }
 
     /// 推播配對：另開一條不放進 `channels` 的連線刪掉主機上的配對(刪除主機會關閉它原本的連線)。

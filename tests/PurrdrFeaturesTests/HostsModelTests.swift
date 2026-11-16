@@ -85,6 +85,28 @@ struct HostsModelTests {
         #expect(model.hosts.first?.operatingSystem == .windows)
     }
 
+    @Test("偵測到的作業系統存不進這支裝置：留下診斷紀錄，這次執行仍用偵測結果")
+    func detectedOperatingSystemSaveFailureIsLogged() async throws {
+        var synced = Self.studio
+        synced.operatingSystem = nil
+        let store = MemoryHostStore()
+        store.hosts = [synced]
+        let real = FakeHost()
+        await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Linux\n".utf8)))
+        await real.expect(HerdrCommand.bridge(Self.studio.herdr), reply: .recorded("session.snapshot.ndjson"))
+        let log = RecordingDiagnosticLog()
+        let model = HostsModel(store: store, demoChannel: FakeHost(), diagnostics: log.log, makeChannel: ChannelFactory(real).make)
+        model.load()
+        store.saveError = SaveFailed()
+
+        await model.agentList.load()
+
+        #expect(model.hosts.first?.operatingSystem == .linux)
+        #expect(store.hosts.first?.operatingSystem == nil)
+        #expect(log.messages.count == 1)
+        #expect(log.messages.first?.contains("operating system") == true, "\(log.messages)")
+    }
+
     @Test("作業系統未知、偵測到 macOS／Linux:之後照常送 POSIX 指令(#26)")
     func unknownOperatingSystemDetectsPosix() async throws {
         var synced = Self.studio
@@ -278,4 +300,11 @@ struct HostsModelTests {
         try await model.delete(other.id)
         #expect(model.selection == .demo)
     }
+}
+
+/// 記下診斷紀錄(不給使用者看的那種)。
+@MainActor
+final class RecordingDiagnosticLog {
+    private(set) var messages: [String] = []
+    var log: DiagnosticLog { DiagnosticLog { [weak self] message in self?.messages.append(message) } }
 }
