@@ -25,6 +25,10 @@ public struct AgentListView: View {
     private let openInNewWindow: ((PaneWindow.Kind, AgentRow) -> Void)?
     @FocusState private var searchFocused: Bool
     @State private var showingNotes = false
+    /// 列表第一列的大標題已經捲到導覽列底下(這時改顯示導覽列的小標題)。
+    @State private var largeTitleScrolledAway = false
+    /// 大標題那一列的高度(AX 字級會換行變高);捲過一半就算收合。
+    @State private var largeTitleHeight: CGFloat = 52
 
     public init(
         model: MergedAgentListModel, usage: ClaudeUsageModel? = nil, window: TopNavigationModel? = nil,
@@ -72,10 +76,15 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 標題是目前檢視名，點標題切換 Spaces／Agents(行為規格 F2.1、#37 故事 7)。系統的標題選單(標題旁有 ⌄)
-        // 在大標題模式不出現，iOS 26 的 `.largeTitle` 自訂項目又不在 accessibility tree 裡，所以列表標題用 inline。
+        // 標題是目前檢視名，點標題切換 Spaces／Agents(行為規格 F2.1、#37 故事 7、#66)。
+        // 系統的標題選單(`toolbarTitleMenu`)只掛在 inline 標題上：大標題模式(`.large`、`.inlineLarge`)最上面的大標題
+        // 是靜態文字，點了沒有選單;iOS 26 的 `ToolbarItem(placement: .largeTitle)` 自訂內容畫得出來，但不在
+        // accessibility tree、也不接觸控(#66 實測)。所以大標題畫在列表第一列(`AgentListLargeTitle`,一般的 Menu),
+        // 它在畫面上時以 `toolbar(removing: .title)` 收起導覽列的小標題;捲上去後小標題(含系統標題選單)回來，
+        // 跟系統大標題收合一樣。`navigationTitle` 一直設著(iPad 的 App 切換器、視窗標題用它)。
         .navigationTitle(model.mode.title)
         .toolbarTitleMenu { AgentListModePicker(mode: $model.mode) }
+        .toolbar(removing: showsLargeTitle ? .title : nil)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -92,6 +101,12 @@ public struct AgentListView: View {
             // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
             await model.run()
         }
+    }
+
+    /// 列表第一列的大標題在畫面上(只有列表本身有;載入中、錯誤、空狀態沿用導覽列的小標題與標題選單)。
+    private var showsLargeTitle: Bool {
+        if case .list = model.content { return !largeTitleScrolledAway }
+        return false
     }
 
     /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
@@ -158,11 +173,13 @@ public struct AgentListView: View {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
                 List(selection: selection) {
+                    largeTitleRow
                     notesRow
                     listRows(sections)
                 }
             } else {
                 List {
+                    largeTitleRow
                     notesRow
                     listRows(sections)
                 }
@@ -172,8 +189,15 @@ public struct AgentListView: View {
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
+        // 大標題捲過一半到導覽列底下，就換成導覽列的小標題(同系統大標題的收合)。
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > largeTitleHeight / 2
+        } action: { _, scrolledAway in
+            largeTitleScrolledAway = scrolledAway
+        }
         // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
         .id(model.mode)
+        .onChange(of: model.mode) { largeTitleScrolledAway = false }
         .overlay {
             if (model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
                 ContentUnavailableView(
@@ -203,6 +227,16 @@ public struct AgentListView: View {
         #if os(iOS)
         .textInputAutocapitalization(.never)
         #endif
+    }
+
+    /// 列表第一列：大標題(目前檢視名 + ⌄),點了出檢視選單(#66)。
+    private var largeTitleRow: some View {
+        Section {
+            AgentListLargeTitle(mode: $model.mode)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { largeTitleHeight = $0 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+        }
     }
 
     /// 列表最上方一行「✦ N 則註記」(#37 故事 49):所有主機、只算列表裡有的 Claude 聊天。

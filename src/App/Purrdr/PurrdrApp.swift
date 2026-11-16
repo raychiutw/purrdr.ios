@@ -71,6 +71,7 @@ struct PurrdrApp: App {
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
                 // 滑動提示每次啟動都顯示(只在記憶體)。
                 swipeHint: InMemorySwipeHintStore(),
+                listMode: Self.uiTestingListMode(arguments),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
                 makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
         } else {
@@ -99,6 +100,16 @@ struct PurrdrApp: App {
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
+    }
+
+    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體(每次啟動都是 Spaces)。
+    /// `-rememberListMode` 改存 UserDefaults(另一個 key,不碰正式的 `agentListMode`),測「重新啟動後記住」(#66);
+    /// `-resetListMode` 先清掉上次留下的值。
+    private static func uiTestingListMode(_ arguments: [String]) -> any AgentListModeStore {
+        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore() }
+        let key = "uiTesting.agentListMode"
+        if arguments.contains("-resetListMode") { UserDefaults.standard.removeObject(forKey: key) }
+        return UserDefaultsAgentListModeStore(key: key)
     }
 
     /// 成功送出幾次 prompt 後請求評分(#34)。UI 測試只在記憶體計數、不叫出系統的評分對話框(會擋住後面的操作)。
