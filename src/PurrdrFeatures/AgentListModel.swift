@@ -33,6 +33,14 @@ public final class AgentListModel {
     /// 所在的主機(列的身分)。
     public let host: HostSelection
 
+    /// 即時更新要不要訂閱版面事件(#40:只有 Spaces 檢視要)。執行中改變時，關掉目前的訂閱、立刻用新的清單重新訂閱。
+    public var subscribesToLayout = false {
+        didSet { if subscribesToLayout != oldValue { endSubscription?() } }
+    }
+
+    /// 結束目前的訂閱串流(`run()` 訂閱中才有)。
+    @ObservationIgnored private var endSubscription: (() -> Void)?
+
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
     public init(
         client: HerdrClient, transcripts: TranscriptReader? = nil, host: HostSelection = .demo,
@@ -86,7 +94,7 @@ public final class AgentListModel {
     /// - 事件不重播，所以訂閱開始(ack)時重讀一次對帳;之後事件只當「重讀」的觸發，不把內容套到列表上。
     ///   事件是依序處理的，重讀進行中到達的事件會在讀完後再觸發一次。
     /// - `events_lost`:快取已過期，立刻重新訂閱並重讀。
-    /// - 重讀後 Agent pane 的集合變了：訂閱不能修改，關掉舊的、用新集合重新訂閱。
+    /// - 重讀後 Agent pane 的集合變了，或換了檢視(`subscribesToLayout`):訂閱不能修改，關掉舊的、用新清單重新訂閱。
     /// - 其他失敗(含訂閱在 ack 前就結束):退避 1 秒起倍增、上限 30 秒;收到 ack 即歸零。
     /// - 使用者取消了 Tailscale 重新驗證：不自動重試(否則每次重試又跳出驗證),等使用者按「再試一次」。
     public func run() async {
@@ -98,16 +106,18 @@ public final class AgentListModel {
                 if needsSnapshot { try await refresh() }
                 needsSnapshot = false
                 let panes = agentPaneIDs
-                let events = try await client.subscribe(panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide)
+                let layout = subscribesToLayout
+                let events = interruptible(try await client.subscribe(
+                    panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide + (layout ? EventSubscription.layout : [])))
+                defer { endSubscription?(); endSubscription = nil }
                 for try await event in events {
                     if case .event = event { try await sleep(Self.debounce) }
                     if event == .subscriptionStarted { failures = 0 }
                     try await refresh()
-                    if Set(agentPaneIDs) != Set(panes) {
-                        resubscribeNow = true
-                        break
-                    }
+                    if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
+                // 換了 pane 集合或檢視(訂閱中途被 `subscribesToLayout` 結束的也是):重新訂閱，不算失敗。
+                resubscribeNow = Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout
             } catch HerdrError.herdr(code: "events_lost", _) {
                 needsSnapshot = true
                 resubscribeNow = true
@@ -134,6 +144,22 @@ public final class AgentListModel {
                 return
             }
         }
+    }
+
+    /// 轉送訂閱串流，並讓 `endSubscription` 能從外面結束它(結束時取消轉送，關掉底層的訂閱通道)。
+    private func interruptible(_ events: AsyncThrowingStream<HerdrEvent, any Error>) -> AsyncThrowingStream<HerdrEvent, any Error> {
+        let (stream, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
+        let forward = Task {
+            do {
+                for try await event in events { continuation.yield(event) }
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in forward.cancel() }
+        endSubscription = { continuation.finish() }
+        return stream
     }
 
     /// 使用者按「重試」或網路恢復：正在退避就立刻重連;正在連就讓下一次退避直接跳過。

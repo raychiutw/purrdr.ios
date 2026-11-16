@@ -71,8 +71,13 @@ public final class MergedAgentListModel {
     public private(set) var showsSwipeHint: Bool
     private let swipeHint: any SwipeHintStore
     /// 列表檢視(Spaces／Agents);改了就存起來，重新啟動後沿用。兩種檢視共用搜尋、分組、已讀與釘選。
+    /// 版面事件只在 Spaces 檢視訂閱(#40),所以換檢視時每台主機的即時更新跟著換訂閱。
     public var mode: AgentListMode {
-        didSet { if mode != oldValue { modeStore.save(mode) } }
+        didSet {
+            guard mode != oldValue else { return }
+            modeStore.save(mode)
+            applyLayoutSubscription()
+        }
     }
 
     private let modeStore: any AgentListModeStore
@@ -116,6 +121,11 @@ public final class MergedAgentListModel {
     func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
         self.sources = sources.filter { $0.host == selected } + sources.filter { $0.host != selected }
+        applyLayoutSubscription()
+    }
+
+    private func applyLayoutSubscription() {
+        for source in sources { source.list.subscribesToLayout = mode == .spaces }
     }
 
     /// 合併後依「需要你／工作中／閒置」分組、套用搜尋的列表。
