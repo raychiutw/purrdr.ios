@@ -46,7 +46,7 @@ struct TailscaleCheckModelTests {
         model.load()
         await model.agentList.load()
 
-        #expect(model.agentList.phase == .failed("Tailscale sign-in was canceled. Try again when you’re ready to sign in."))
+        #expect(model.agentList.list(for: model.selection)?.phase == .failed("Tailscale sign-in was canceled. Try again when you’re ready to sign in."))
     }
 
     @Test("一直沒完成驗證：Agent 列表說明 Tailscale 驗證逾時")
@@ -60,7 +60,7 @@ struct TailscaleCheckModelTests {
         model.load()
         await model.agentList.load()
 
-        #expect(model.agentList.phase == .failed("The Tailscale sign-in wasn’t finished in time. Try again."))
+        #expect(model.agentList.list(for: model.selection)?.phase == .failed("The Tailscale sign-in wasn’t finished in time. Try again."))
     }
 
     /// 輪詢到條件成立(提示經 main actor 非同步送達;上限 `asyncWaitLimit`)。

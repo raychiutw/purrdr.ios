@@ -9,7 +9,7 @@ final class PaneTerminalUITests: XCTestCase {
     /// 從 Agent 對話標題列的終端機鈕，打開該 Agent 自己的 Pane(#37 故事 43)。
     @MainActor
     private func openTerminal(_ app: XCUIApplication) -> XCUIElement {
-        let row = app.descendants(matching: .any)["agent.row.w1:p1"].firstMatch
+        let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 Agent")
         row.tap()
         let button = app.buttons["terminal.open"].firstMatch

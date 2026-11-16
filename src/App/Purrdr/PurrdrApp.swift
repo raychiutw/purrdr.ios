@@ -28,9 +28,11 @@ struct PurrdrApp: App {
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
         // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
         let cache = InMemoryConversationCache()
-        // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
-        let preferences: any ChatPreferencesStore = uiTesting
-            ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
+        // UI 測試每次啟動都從空白的釘選、靜音與主機圖示開始，不讀寫這台模擬器的 UserDefaults。
+        // 釘選、靜音依主機分開(#39);舊版沒有主機身分的資料在第一次啟動時丟棄。
+        let preferences: any HostChatPreferencesStore = uiTesting
+            ? InMemoryHostChatPreferencesStore() : UserDefaultsHostChatPreferencesStore()
+        let hostIcons: any HostIconStore = uiTesting ? InMemoryHostIconStore() : UserDefaultsHostIconStore()
         let session = Self.makeMemberSession(uiTesting: uiTesting)
         member = MemberModel(
             session: session,
@@ -57,19 +59,21 @@ struct PurrdrApp: App {
             // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
             let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
             hosts = HostsModel(
-                store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo,
-                conversationCache: cache, preferences: preferences, selectionStore: InMemoryHostSelectionStore(),
+                store: EphemeralHostStore(hosts: Self.seededHosts(arguments)), demoChannel: demo,
+                conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
+                selectionStore: InMemoryHostSelectionStore(arguments.contains("-selectDemo") ? .demo : nil),
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                makeChannel: { _, _, _ in demo })
+                // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
+                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? UnreachableHostChannel() as any HostChannel : demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
                 secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
             // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
-                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
                 push: push, tailscaleCheck: tailscaleCheck
             ) { endpoint, pin, credential in
@@ -108,6 +112,15 @@ struct PurrdrApp: App {
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!, name: "Studio Mac",
         endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), operatingSystem: .macOS)
 
+    /// UI 測試情境 `-seedUnreachableHost`:再存一台連不上的主機(多主機合併列表，#39)。
+    private static let unreachableHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000002")!, name: "Lab Server",
+        endpoint: SSHEndpoint(host: "lab-server.invalid", username: "demo"), operatingSystem: .linux)
+
+    private static func seededHosts(_ arguments: [String]) -> [HostConfiguration] {
+        (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
+    }
+
     /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成)。
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
@@ -129,5 +142,16 @@ struct PurrdrApp: App {
                 navigation: navigation, hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync,
                 notifications: PushAppDelegate.router)
         }
+    }
+}
+
+/// UI 測試用：一律連不上的主機通道(不連網路)。
+private struct UnreachableHostChannel: HostChannel {
+    func execute(_ command: String) async throws -> any ExecSession {
+        throw SSHConnectionError.timedOut
+    }
+
+    func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
+        throw SSHConnectionError.timedOut
     }
 }

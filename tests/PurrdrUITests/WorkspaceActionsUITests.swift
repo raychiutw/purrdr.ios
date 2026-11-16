@@ -8,7 +8,7 @@ final class WorkspaceActionsUITests: XCTestCase {
 
     @MainActor
     private func row(_ paneID: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)["agent.row.\(paneID)"].firstMatch
+        app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
     }
 
     /// 往左滑「Workspace」→ 預填 workspace 名稱的表單 → 儲存後列表以新名稱重讀。

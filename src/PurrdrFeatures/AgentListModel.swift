@@ -15,8 +15,6 @@ public final class AgentListModel {
     public private(set) var phase: Phase = .loading
     /// 搜尋字串。空白時列出全部。
     public var query = ""
-    /// 要直接開的聊天(pane id):從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
-    public var openedChat: String?
     /// 各 Agent(以 pane id)對話中最後一則訊息。來源是對話紀錄，由對話閱讀(#12)提供。
     public var previews: [String: MessagePreview] = [:]
 
@@ -29,11 +27,15 @@ public final class AgentListModel {
     /// 與退避的 `retryWaiter` 分開：網路恢復、回到前景(`retryNow()`)不會讓它重連而又跳出驗證。
     private var checkCancelWaiter: CheckedContinuation<Void, Never>?
 
+    /// 所在的主機(列的身分)。
+    public let host: HostSelection
+
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
     public init(
-        client: HerdrClient, transcripts: TranscriptReader? = nil,
+        client: HerdrClient, transcripts: TranscriptReader? = nil, host: HostSelection = .demo,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
+        self.host = host
         self.client = client
         self.transcripts = transcripts
         self.sleep = sleep
@@ -41,7 +43,7 @@ public final class AgentListModel {
 
     /// 依「需要你／工作中／閒置」分組、套用搜尋後的列表。
     public var sections: [AgentSection] {
-        AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews)
+        AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews, host: host)
     }
 
     /// 列表看到的 pane 的 session 參照(id 或路徑;開對話時用來比對快取)。
@@ -264,19 +266,35 @@ public struct AgentSection: Identifiable, Equatable, Sendable {
 
 /// 列表的一列。
 public struct AgentRow: Identifiable, Equatable, Sendable {
-    /// Pane id。
-    public var id: String
+    /// 所在的主機。
+    public var host: HostSelection
+    public var paneID: String
+    /// agent 種類(herdr 原文);列左側的圖示依它。
+    public var kind: String
     public var title: String
+    /// 非選取中主機的列以主機名開頭(#37 故事 2)。
     public var subtitle: String
+    /// 非選取中主機的列：主機名與圖示;選取中主機為 `nil`。
+    public var hostLabel: HostLabel?
     public var preview: Preview
     public var time: Time?
     /// 列表上的狀態(`input_pending` 已折算成 `blocked`)。
     public var status: AgentStatus
 
-    public init(id: String, title: String, subtitle: String, preview: Preview, time: Time?, status: AgentStatus) {
-        self.id = id
+    /// 主機身分 + pane id:不同主機的同一個 pane id 是不同的列(也是 UI 測試的 `agent.row.<id>`)。
+    public var id: String { "\(host.storedValue)/\(paneID)" }
+    public var route: ChatRoute { ChatRoute(host: host, paneID: paneID) }
+
+    public init(
+        host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, subtitle: String,
+        hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus
+    ) {
+        self.host = host
+        self.paneID = paneID
+        self.kind = kind
         self.title = title
         self.subtitle = subtitle
+        self.hostLabel = hostLabel
         self.preview = preview
         self.time = time
         self.status = status

@@ -46,7 +46,7 @@ final class TopNavigationUITests: XCTestCase {
 
         cancel.tap()
         XCTAssertTrue(cancel.waitForNonExistence(timeout: 5), "sheet 沒有關閉")
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.w1:p1"].firstMatch.exists, "沒有回到 Agent 列表")
+        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch.exists, "沒有回到 Agent 列表")
     }
 
     /// icon-only 按鈕都要有 accessibility label(HIG 檢核清單 20.2)。
@@ -104,6 +104,6 @@ final class TopNavigationUITests: XCTestCase {
     @MainActor
     private func assertBackOnAgentList(_ app: XCUIApplication) {
         XCTAssertTrue(app.buttons["sheet.done"].waitForNonExistence(timeout: 5), "sheet 沒有關閉")
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.w1:p1"].firstMatch.exists, "沒有回到 Agent 列表")
+        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch.exists, "沒有回到 Agent 列表")
     }
 }

@@ -70,7 +70,7 @@ struct AgentListLiveUpdateTests {
         await host.send(stdout: Self.statusChanged, toExecution: 1)
 
         try await waitUntil { await MainActor.run { model.sections.first?.group == .needsYou } }
-        #expect(model.sections.first?.rows.map(\.id) == ["w1:pB"])
+        #expect(model.sections.first?.rows.map(\.paneID) == ["w1:pB"])
         #expect(await host.unmetExpectations.isEmpty)
     }
 
