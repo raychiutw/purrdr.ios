@@ -131,15 +131,15 @@ public final class ClaudeUsageModel {
     static func describe(_ error: any Error) -> String {
         switch error {
         case ClaudeUsageError.settingsNotJSON:
-            "~/.claude/settings.json isn’t valid JSON, so Purrdr left it unchanged. Fix the file on the host and try again."
+            String(localized: "~/.claude/settings.json isn’t valid JSON, so Purrdr left it unchanged. Fix the file on the host and try again.")
         case ClaudeUsageError.claudeNotFound:
-            "This host user has no ~/.claude folder. Set up Claude Code on the host first."
+            String(localized: "This host user has no ~/.claude folder. Set up Claude Code on the host first.")
         case HostFilesError.changedSinceRead:
-            "~/.claude/settings.json changed while Purrdr was updating it. Nothing was changed; try again."
+            String(localized: "~/.claude/settings.json changed while Purrdr was updating it. Nothing was changed; try again.")
         case HostWriteError.unusableFile, HostFilesError.tooLarge:
-            "Purrdr can’t safely change ~/.claude/settings.json on this host."
+            String(localized: "Purrdr can’t safely change ~/.claude/settings.json on this host.")
         default:
-            "Couldn’t update the host: \(error.localizedDescription)"
+            String(localized: "Couldn’t update the host: \(error.localizedDescription)")
         }
     }
 }
