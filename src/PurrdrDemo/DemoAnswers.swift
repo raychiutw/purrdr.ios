@@ -7,6 +7,7 @@ import Foundation
 ///   「trust」→ 資料夾信任(狀態仍是完成，prompt 被 `agent_input_pending` 拒絕;游標起在「No, exit」)。
 /// - ledger 送出 `/model`:畫面開出模型面板(herdr 狀態仍是完成);方向鍵移動游標、←/→ 調整 effort、
 ///   Enter／`s` 選定游標列、Esc 關閉(#45)。數字不算(真的 Claude 會直接存成預設)。
+/// - 送出 `/effort`:effort 滑桿面板(low…max);←/→ 移動層級、Enter 確認(下次開面板從確認的層級開始)、Esc 取消(#34)。
 /// - 工作中的 Codex(`w3:p1`)畫面上有正在寫的散文(即時預覽);收到 Esc 或 ctrl+c(停止、強制結束)就變完成(#44)。
 /// 錯的按鍵(例如 Claude 的數字加 Enter)不算回答，方便看出規則錯了。範例文字是自己寫的。
 struct DemoAnswers {
@@ -20,9 +21,11 @@ struct DemoAnswers {
 
     private(set) var stages: [String: Stage] = ["w2:p1": .bashPermission]
     /// 開著的 slash 面板(pane → 面板)。
-    private(set) var panels: [String: DemoModelPanel] = [:]
+    private(set) var panels: [String: DemoPanel] = [:]
     /// 每個 pane 目前的模型(面板關掉後保留)。
     private var models: [String: Int] = [:]
+    /// 每個 pane 目前的 effort 層級(`/effort` 面板確認後保留)。
+    private var efforts: [String: Int] = [:]
 
     /// 工作中、可以被停止的 pane。
     static let workingPanes: Set<String> = ["w3:p1"]
@@ -56,7 +59,10 @@ struct DemoAnswers {
         case "trust": stages[paneID] = .trust
         case "/model":
             let current = models[paneID] ?? 1
-            panels[paneID] = DemoModelPanel(current: current, cursor: current)
+            panels[paneID] = .model(DemoModelPanel(current: current, cursor: current))
+            return true
+        case "/effort":
+            panels[paneID] = .effort(DemoEffortPanel(level: efforts[paneID] ?? DemoEffortPanel.defaultLevel))
             return true
         default: break
         }
@@ -69,7 +75,8 @@ struct DemoAnswers {
             stopped.insert(paneID)
             return
         }
-        if var panel = panels[paneID] {
+        switch panels[paneID] {
+        case .model(var panel)?:
             for key in keys {
                 switch key {
                 case "up": panel.cursor = max(0, panel.cursor - 1)
@@ -87,8 +94,28 @@ struct DemoAnswers {
                     break
                 }
             }
-            panels[paneID] = panel
+            panels[paneID] = .model(panel)
             return
+        case .effort(var panel)?:
+            for key in keys {
+                switch key {
+                case "left": panel.level = max(0, panel.level - 1)
+                case "right": panel.level = min(DemoEffortPanel.levels.count - 1, panel.level + 1)
+                case "enter":
+                    efforts[paneID] = panel.level
+                    panels[paneID] = nil
+                    return
+                case "esc":
+                    panels[paneID] = nil
+                    return
+                default:
+                    break
+                }
+            }
+            panels[paneID] = .effort(panel)
+            return
+        case nil:
+            break
         }
         guard let stage = stages[paneID] else { return }
         switch (stage, keys) {
@@ -220,6 +247,50 @@ struct DemoAnswers {
           ? for shortcuts
 
         """
+}
+
+/// 開著的 slash 面板。
+enum DemoPanel: Equatable {
+    case model(DemoModelPanel)
+    case effort(DemoEffortPanel)
+
+    var screen: String {
+        switch self {
+        case .model(let panel): panel.screen
+        case .effort(let panel): panel.screen
+        }
+    }
+}
+
+/// Demo 的 `/effort` 面板(形狀依錄製的 Claude effort 面板 `screens/claude-panel-effort.txt`):
+/// `▲` 所對的層級是目前值。
+struct DemoEffortPanel: Equatable {
+    static let levels = ["low", "medium", "high", "xhigh", "max"]
+    static let defaultLevel = 1
+
+    var level: Int
+
+    var screen: String {
+        let indent = "   "
+        let names = Self.levels.joined(separator: "     ")
+        // `▲` 對在層級名的中間。
+        let start = Self.levels[..<level].reduce(0) { $0 + $1.count + 5 }
+        let marker = start + Self.levels[level].count / 2
+        let rule = String(repeating: "─", count: marker) + "▲" + String(repeating: "─", count: max(0, names.count - marker - 1))
+        return """
+            ⏺ All set.
+
+            \(String(repeating: "▔", count: 80))
+             Effort
+             Higher effort spends more time thinking before answering.
+
+            \(indent)\(rule)
+            \(indent)\(names)
+
+             ←/→ to adjust · Enter to confirm · Esc to cancel
+
+            """
+    }
 }
 
 /// Demo 的 `/model` 面板(形狀依行為規格 §5.6 的 Claude 面板)。

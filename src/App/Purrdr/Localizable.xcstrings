@@ -389,6 +389,28 @@
         }
       }
     },
+    "A Host Running herdr" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一台執行 herdr 的主機"
+          }
+        }
+      }
+    },
+    "A Mac or Linux host with your agents running in herdr 0.9.5 or later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 或 Linux 主機，agent 在 herdr 0.9.5 以上版本裡執行。"
+          }
+        }
+      }
+    },
     "A host needs a name." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3617,6 +3639,17 @@
         }
       }
     },
+    "Notifications Are Optional" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知是選用的"
+          }
+        }
+      }
+    },
     "Notifications are off for Purrdr in iOS Settings." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4376,6 +4409,17 @@
         }
       }
     },
+    "Read, answer, and steer the coding agents that herdr runs on your host, and open a terminal into it, from your iPhone or iPad." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 iPhone 或 iPad 上看、回覆、操作 herdr 在你主機上執行的 coding agent,也能開終端機進那台主機。"
+          }
+        }
+      }
+    },
     "Reconnect" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4636,6 +4680,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行中…"
+          }
+        }
+      }
+    },
+    "SSH Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以 SSH 登入"
           }
         }
       }
@@ -5058,6 +5113,17 @@
         }
       }
     },
+    "Show Welcome" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示歡迎頁"
+          }
+        }
+      }
+    },
     "Shows the background agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5443,6 +5509,17 @@
         }
       }
     },
+    "Tailscale SSH needs no keys or passwords. With OpenSSH, Purrdr makes a key on this iPhone or iPad for you to add to the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tailscale SSH 不需要金鑰或密碼。用 OpenSSH 時，Purrdr 會在這支 iPhone 或 iPad 上產生金鑰，讓你加到主機上。"
+          }
+        }
+      }
+    },
     "Tailscale checks who you are on your tailnet, so no key or password is needed." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5582,6 +5659,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Demo 主機無法開始新對話。請新增你自己的主機再試。"
+          }
+        }
+      }
+    },
+    "The Demo host has sample conversations, so you can try every screen before you add a host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo 主機有範例對話，新增主機前就能試用每個畫面。"
           }
         }
       }
@@ -6620,6 +6708,17 @@
         }
       }
     },
+    "Try the Demo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先試用 Demo"
+          }
+        }
+      }
+    },
     "Turn Off Claude Usage" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7038,6 +7137,17 @@
         }
       }
     },
+    "Welcome" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歡迎"
+          }
+        }
+      }
+    },
     "Welcome to Purrdr Plus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7045,6 +7155,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "歡迎使用 Purrdr Plus"
+          }
+        }
+      }
+    },
+    "What You Need" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要準備的東西"
           }
         }
       }
@@ -7078,6 +7199,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Windows 管理員使用者"
+          }
+        }
+      }
+    },
+    "With Purrdr Plus, a small host plugin tells you when an agent needs you. Chat and the terminal work without it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱 Purrdr Plus 後，主機外掛會在 Agent 需要你時通知你。不裝也能聊天、開終端機。"
           }
         }
       }

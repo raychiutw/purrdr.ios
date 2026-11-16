@@ -16,7 +16,7 @@ final class ShellCommandUITests: XCTestCase {
     func testShellCommandShowsHintAndBlock() {
         let app = XCUIApplication.launchUITesting()
         let row = element("agent.row.demo/w1:p1", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 Agent")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
 
         let text = element("composer.text", in: app)

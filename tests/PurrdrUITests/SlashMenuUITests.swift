@@ -17,7 +17,7 @@ final class SlashMenuUITests: XCTestCase {
     func testTypingSlashShowsGroupedMenuAndPicking() {
         let app = XCUIApplication.launchUITesting()
         let row = element("agent.row.demo/w1:p1", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(row))
         row.tap()
 
         let text = element("composer.text", in: app)
@@ -45,7 +45,7 @@ final class SlashMenuUITests: XCTestCase {
     @MainActor
     private func openLedger(_ app: XCUIApplication) -> XCUIElement {
         let row = element("agent.row.demo/w1:p1", in: app)
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(row))
         row.tap()
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
@@ -98,6 +98,34 @@ final class SlashMenuUITests: XCTestCase {
         element("panel.action.enter", in: app).tap()
         let gone = NSPredicate(format: "exists == false")
         expectation(for: gone, evaluatedWith: card)
+        waitForExpectations(timeout: 10)
+    }
+
+    /// `/effort` 直接送出 → 面板卡片有分段控制;點層級送方向鍵，按「confirm」後卡片消失(#34)。
+    @MainActor
+    func testEffortPanelCard() {
+        let app = XCUIApplication.launchUITesting()
+        let text = openLedger(app)
+        text.typeText("/effort")
+        let row = element("slash.row.effort", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+
+        let card = element("panel.card", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "送出 /effort 後沒有出現面板卡片")
+        XCTAssertTrue(app.staticTexts["Effort"].exists)
+        let levels = element("panel.levels", in: app)
+        XCTAssertTrue(levels.exists)
+        let xhigh = levels.buttons["xhigh"]
+        XCTAssertTrue(xhigh.exists)
+        XCTAssertFalse(xhigh.isSelected, "一開始是 medium")
+
+        xhigh.tap()
+        expectation(for: NSPredicate(format: "isSelected == true"), evaluatedWith: xhigh)
+        waitForExpectations(timeout: 10)
+
+        element("panel.action.enter", in: app).tap()
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: card)
         waitForExpectations(timeout: 10)
     }
 }

@@ -21,7 +21,7 @@ final class ClaudeUsageUITests: XCTestCase {
     @MainActor
     func testConsentShowsUsageAndTurnOffRestores() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(element("agent.row.demo/w1:p1", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
 
         let show = app.buttons["claudeUsage.show"]
         scrollToBottom(app, until: show)
@@ -63,7 +63,7 @@ final class ClaudeUsageUITests: XCTestCase {
     @MainActor
     func testCancelConsentChangesNothing() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(element("agent.row.demo/w1:p1", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
         let show = app.buttons["claudeUsage.show"]
         scrollToBottom(app, until: show)
         show.tap()

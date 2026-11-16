@@ -11,7 +11,7 @@ final class DelegationUITests: XCTestCase {
     private func openWeather() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
         let row = app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 weather-app Agent")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 weather-app Agent")
         row.tap()
         return app
     }
