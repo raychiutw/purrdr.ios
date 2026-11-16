@@ -41,6 +41,10 @@ public final class HostsModel {
     public private(set) var claudeUsage: ClaudeUsageModel
     /// 選取中主機的推播開關(#29)。
     public private(set) var push: PushModel
+    /// 選取中主機的主機主題(#23)。同意以主機為單位記住。
+    public private(set) var hostTheme: HostThemeModel
+    /// 選取中主機的「You should know」註記(#23)。寫回的同意以主機為單位記住。
+    public private(set) var youShouldKnow: YouShouldKnowModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
     /// Tailscale SSH check mode 的提示。所有主機通道共用;composition root 把它的 `observer` 交給主機通道。
@@ -111,6 +115,8 @@ public final class HostsModel {
         self.agentList = agentList
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
+        hostTheme = HostThemeModel(host: HostThemeHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
+        youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         push = PushModel(service: pushService, hostID: nil, channel: demoChannel, herdr: HerdrInstallation()) { preferences.load().muted }
         connectMutes()
     }
@@ -133,11 +139,13 @@ public final class HostsModel {
 
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
-        ConversationModel(
+        let model = ConversationModel(
             client: client, transcripts: transcripts, paneID: paneID, knownSessionID: sessionID, cache: conversationCache(for: selection),
             drafts: drafts, slashDiscovery: ClaudeSlashDiscovery(channel: channel), haptics: haptics,
             // 主機目前只有 macOS／Linux(Windows 的上傳還沒做,ADR-0002)。
             images: ComposerImages(uploader: ImageUploader(channel: channel), store: attachmentStore))
+        model.youShouldKnow = youShouldKnow
+        return model
     }
 
     /// 某台主機的對話快取(key 加上主機身分)。
@@ -191,6 +199,12 @@ public final class HostsModel {
         workspaceActions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await agentList.load() })
         claudeUsage = ClaudeUsageModel(
             host: ClaudeUsageHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
+            consent: host == nil ? demoConsent : hostConsent)
+        hostTheme = HostThemeModel(
+            host: HostThemeHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
+            consent: host == nil ? demoConsent : hostConsent)
+        youShouldKnow = YouShouldKnowModel(
+            host: YouShouldKnowHost(channel: channel), hostID: host?.id.uuidString ?? Self.demoID,
             consent: host == nil ? demoConsent : hostConsent)
         let preferences = preferences
         push = PushModel(

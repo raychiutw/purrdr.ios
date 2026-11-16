@@ -112,6 +112,17 @@
         }
       }
     },
+    "%lld notes for you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 則註記"
+          }
+        }
+      }
+    },
     "%lld of %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -211,6 +222,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個月"
+          }
+        }
+      }
+    },
+    "1 note for you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 則註記"
           }
         }
       }
@@ -384,6 +406,17 @@
         }
       }
     },
+    "Allow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允許"
+          }
+        }
+      }
+    },
     "Almost Done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -469,6 +502,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個選項請在終端機回答。"
+          }
+        }
+      }
+    },
+    "Appearance" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外觀"
           }
         }
       }
@@ -825,6 +869,17 @@
         }
       }
     },
+    "Claude Code was updating the notes at the same time. Nothing was changed; try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 剛好同時在更新註記，所以沒有做任何變更;請再試一次。"
+          }
+        }
+      }
+    },
     "Claude Usage" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -920,6 +975,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 開著檔案選擇器。可以在這裡關閉，或在終端機選擇檔案。"
+          }
+        }
+      }
+    },
+    "Color chats and the terminal with this host’s herdr theme. Colors without enough contrast fall back to the system colors." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以這台主機的 herdr 主題為聊天與終端機上色。對比不足的顏色會改用系統配色。"
           }
         }
       }
@@ -1408,6 +1474,17 @@
         }
       }
     },
+    "Couldn’t update the host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新主機:%@"
+          }
+        }
+      }
+    },
     "Couldn’t upload the image to the host. Your message wasn’t sent; try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1558,6 +1635,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要放棄這台主機的變更嗎?"
+          }
+        }
+      }
+    },
+    "Discuss in Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在聊天中討論"
           }
         }
       }
@@ -1815,6 +1903,17 @@
         }
       }
     },
+    "Go to Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往聊天"
+          }
+        }
+      }
+    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1822,6 +1921,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Google 登入沒有完成，請再試一次。"
+          }
+        }
+      }
+    },
+    "Got It" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "了解"
           }
         }
       }
@@ -1943,6 +2053,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連字號"
+          }
+        }
+      }
+    },
+    "I Knew That" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "早就知道"
           }
         }
       }
@@ -2130,6 +2251,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放大文字"
+          }
+        }
+      }
+    },
+    "Learn More" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "深入了解"
           }
         }
       }
@@ -3080,6 +3212,28 @@
         }
       }
     },
+    "Purrdr can’t safely update the notes file on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 無法安全地更新這台主機上的註記檔。"
+          }
+        }
+      }
+    },
+    "Purrdr reads the theme in ~/.config/herdr/config.toml and adds a reference file at ~/.purrdr/theme/README.md as %@. It never changes your herdr settings. Turning this off removes the file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會以 %@ 讀取 ~/.config/herdr/config.toml 的主題，並新增參考檔 ~/.purrdr/theme/README.md。不會更動你的 herdr 設定;關閉後會移除這個檔案。"
+          }
+        }
+      }
+    },
     "Purrdr signs in to the host’s own SSH server with a key or password." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3109,6 +3263,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會先測試連線，再儲存主機。"
+          }
+        }
+      }
+    },
+    "Purrdr updates Claude Code’s notes file on this host when you act on a note. Undo puts back what Purrdr changed and asks again next time." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對註記採取動作時，Purrdr 會更新這台主機上 Claude Code 的註記檔。復原會還原 Purrdr 改過的內容，下次會再詢問。"
           }
         }
       }
@@ -4829,6 +4994,17 @@
         }
       }
     },
+    "This note changed on the host. Showing the latest one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上的這則註記已經變了，改為顯示最新的。"
+          }
+        }
+      }
+    },
     "This pane is running a different chat now. Your message wasn’t sent." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4983,6 +5159,17 @@
         }
       }
     },
+    "To mark notes, Purrdr updates Claude Code’s notes file in ~/.claude/plugins/store as %@. You can undo Purrdr’s changes in Settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為了標記註記，Purrdr 會以 %@ 更新 ~/.claude/plugins/store 裡 Claude Code 的註記檔。可以在設定中復原 Purrdr 的變更。"
+          }
+        }
+      }
+    },
     "Trust" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5071,6 +5258,17 @@
         }
       }
     },
+    "Undo Purrdr’s Changes to Notes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "復原 Purrdr 對註記的變更"
+          }
+        }
+      }
+    },
     "Unknown" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5148,6 +5346,17 @@
         }
       }
     },
+    "Update Notes on This Host?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要更新這台主機上的註記嗎？"
+          }
+        }
+      }
+    },
     "Update herdr?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5177,6 +5386,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在更新 %@ 上的 herdr…"
+          }
+        }
+      }
+    },
+    "Use Host Theme" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用主機主題"
+          }
+        }
+      }
+    },
+    "Use Host Theme?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要使用主機主題嗎？"
+          }
+        }
+      }
+    },
+    "Use Theme" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用主題"
           }
         }
       }
@@ -5445,6 +5687,10 @@
         }
       }
     },
+    "You Should Know" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
     "You can attach up to 4 images to a message." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5466,6 +5712,10 @@
           }
         }
       }
+    },
+    "You should know" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
     },
     "You: %@" : {
       "extractionState" : "manual",
@@ -5632,6 +5882,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "herdr 路徑"
+          }
+        }
+      }
+    },
+    "herdr Theme" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr 主題"
           }
         }
       }

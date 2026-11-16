@@ -25,6 +25,10 @@ struct ComposerBar: View {
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
+            // 「You should know」:只顯示這個輸入框要送往的 session 的那則(#23)。
+            if let note = model.note, let notes = model.youShouldKnow {
+                YouShouldKnowNoteView(note: note, model: notes, conversation: model)
+            }
             if !model.attachments.isEmpty {
                 AttachmentStrip(model: model)
             }
@@ -43,6 +47,8 @@ struct ComposerBar: View {
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
+        // 對話可見時自己讀註記(列表被蓋住時它的輪詢會停)。
+        .task { await model.youShouldKnow?.run() }
     }
 
     // MARK: - 輸入框
@@ -210,7 +216,7 @@ struct EchoBubbleView: View {
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(.tint, in: RoundedRectangle(cornerRadius: 18))
+                        .hostFill(in: RoundedRectangle(cornerRadius: 18))
                         .accessibilityLabel(Text("Your message. \(echo.text)"))
                 }
                 status

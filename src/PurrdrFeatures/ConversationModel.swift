@@ -126,6 +126,20 @@ public final class ConversationModel {
             slash.update(draft: draft)
         }
     }
+    /// 選取中主機的「You should know」註記(#23);由 `HostsModel` 接上，沒有時不顯示。
+    public var youShouldKnow: YouShouldKnowModel?
+
+    /// 輸入列上方的註記：只顯示這個輸入框要送往的 session 的那則(行為規格 F17)。
+    public var note: YouShouldKnowNote? {
+        guard let session = boundSessionID ?? knownSessionID else { return nil }
+        return youShouldKnow?.note(forSession: session)
+    }
+
+    /// 把文字放進輸入框(「在聊天中討論」):空的就放入，已有文字就空一行接在後面，不蓋掉使用者打的字。
+    public func insertIntoDraft(_ text: String) {
+        draft = draft.isEmpty ? text : draft + "\n\n" + text
+    }
+
     /// 輸入 `/` 時的 slash 選單(#15)。
     public let slash: SlashMenuModel
     public private(set) var isSending = false

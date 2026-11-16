@@ -29,6 +29,8 @@ public struct PaneTerminalView: View {
     @Bindable var model: PaneTerminalModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var screen = TerminalScreenHandle()
+    /// 主機主題的終端機配色(#23);`nil` 時用預設深色。
+    @Environment(\.hostTheme) private var hostTheme
 
     public init(model: PaneTerminalModel) {
         self.model = model
@@ -39,11 +41,11 @@ public struct PaneTerminalView: View {
             if let banner = model.bannerText {
                 TerminalBanner(text: banner, model: model)
             }
-            TerminalScreen(model: model, handle: screen)
+            TerminalScreen(model: model, handle: screen, theme: hostTheme?.terminal)
                 .padding(.horizontal, 4)
             TerminalKeyBar(model: model, screen: screen)
         }
-        .background(SwiftUI.Color.black)
+        .background(hostTheme?.terminal.map { SwiftUI.Color($0.background) } ?? SwiftUI.Color.black)
         .environment(\.colorScheme, .dark)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -349,6 +351,8 @@ final class TerminalScreenHandle {
 struct TerminalScreen: UIViewRepresentable {
     let model: PaneTerminalModel
     let handle: TerminalScreenHandle
+    /// 主機主題的配色;`nil` = 預設(黑底、淺灰字、SwiftTerm 的 ANSI 色)。
+    var theme: TerminalTheme?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(model: model)
@@ -359,9 +363,8 @@ struct TerminalScreen: UIViewRepresentable {
         view.terminalDelegate = context.coordinator
         // 按鍵列由 SwiftUI 畫(玻璃容器);SwiftTerm 自帶的 accessory 關掉。
         view.inputAccessoryView = nil
-        view.nativeBackgroundColor = .black
-        view.nativeForegroundColor = UIColor(white: 0.92, alpha: 1)
-        view.caretColor = .systemGray
+        Self.apply(theme, to: view)
+        context.coordinator.appliedTheme = theme
         view.keyboardAppearance = .dark
         // 本機 scrollback 是空的(herdr 每次都重畫整個 viewport);滑動改送 terminal.scroll。
         view.isScrollEnabled = false
@@ -374,9 +377,28 @@ struct TerminalScreen: UIViewRepresentable {
     }
 
     func updateUIView(_ view: PurrdrTerminalView, context: Context) {
+        if context.coordinator.appliedTheme != theme {
+            Self.apply(theme, to: view)
+            context.coordinator.appliedTheme = theme
+        }
         let font = Self.font(model.fontSize)
         if view.font.pointSize != font.pointSize {
             view.font = font
+        }
+    }
+
+    /// 套用終端機配色;主題的文字與背景對比已在 `HostTheme` 檢查過(不足 4.5:1 時 `theme` 是 `nil`)。
+    static func apply(_ theme: TerminalTheme?, to view: PurrdrTerminalView) {
+        if let theme {
+            view.installColors(theme.swiftTermColors)
+            view.nativeBackgroundColor = UIColor(theme.background)
+            view.nativeForegroundColor = UIColor(theme.foreground)
+            view.caretColor = theme.cursor.map(UIColor.init) ?? .systemGray
+        } else {
+            view.installColors(SwiftTerm.Color.defaultInstalledColors)
+            view.nativeBackgroundColor = .black
+            view.nativeForegroundColor = UIColor(white: 0.92, alpha: 1)
+            view.caretColor = .systemGray
         }
     }
 
@@ -387,6 +409,7 @@ struct TerminalScreen: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, TerminalViewDelegate, UIGestureRecognizerDelegate {
         let model: PaneTerminalModel
+        var appliedTheme: TerminalTheme?
         private var pinchStartSize: Double = PaneTerminalModel.defaultFontSize
         private var scrolledRows = 0
 
@@ -506,6 +529,30 @@ final class PurrdrTerminalView: TerminalView {
             .trimmingCharacters(in: .newlines)
         }
         set {}
+    }
+}
+
+// MARK: - 主機主題的終端機配色(#23)
+
+extension TerminalTheme {
+    /// SwiftTerm 的 16 色;主題丟掉的格子用 SwiftTerm 預設。
+    var swiftTermColors: [SwiftTerm.Color] {
+        let defaults = SwiftTerm.Color.defaultInstalledColors
+        return ansi.enumerated().map { index, color in
+            color.map(SwiftTerm.Color.init) ?? defaults[index]
+        }
+    }
+}
+
+extension SwiftTerm.Color {
+    convenience init(_ color: ThemeColor) {
+        self.init(red: UInt16(color.red) * 257, green: UInt16(color.green) * 257, blue: UInt16(color.blue) * 257)
+    }
+}
+
+extension UIColor {
+    convenience init(_ color: ThemeColor) {
+        self.init(red: CGFloat(color.red) / 255, green: CGFloat(color.green) / 255, blue: CGFloat(color.blue) / 255, alpha: 1)
     }
 }
 #endif

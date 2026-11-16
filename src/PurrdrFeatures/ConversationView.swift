@@ -367,7 +367,7 @@ struct UserBubbleView: View {
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(.tint, in: RoundedRectangle(cornerRadius: 18))
+                        .hostFill(in: RoundedRectangle(cornerRadius: 18))
                 }
                 if let date = bubble.date {
                     Text(date, format: .dateTime.hour().minute())

@@ -30,7 +30,9 @@ public struct TopNavigationView: View {
         @Bindable var navigation = navigation
         NavigationStack {
             // 選取中主機的 Agent 列表;換主機時整個列表重建(載入狀態、事件串流、搜尋字都重置，行為規格 F1.3)。
-            AgentListView(model: hosts.agentList, actions: hosts.workspaceActions, usage: hosts.claudeUsage) { paneID, sessionID in
+            AgentListView(
+                model: hosts.agentList, actions: hosts.workspaceActions, usage: hosts.claudeUsage, notes: hosts.youShouldKnow
+            ) { paneID, sessionID in
                 hosts.conversation(paneID: paneID, sessionID: sessionID)
             } terminal: { paneID, title in
                 hosts.terminal(paneID: paneID, title: title)
@@ -38,13 +40,19 @@ public struct TopNavigationView: View {
             .id(hosts.selection)
                 .toolbar { toolbar }
         }
+        // 主機主題(#23)只套在列表、對話與終端機;sheet(設定)維持 App 配色。
+        .hostTheme(hosts.hostTheme.theme)
+        .task(id: hosts.selection) { await hosts.hostTheme.run() }
         .tailscaleCheckPrompt(hosts.tailscaleCheck)
         .sheet(item: $navigation.sheet) { sheet in
             switch sheet {
             case .hosts:
                 HostListView(model: hosts, importURL: $navigation.pendingHostImport)
             case .settings:
-                SettingsView(model: settings, member: member, plus: plus, push: hosts.push, openPlus: { navigation.sheet = .plus }) {
+                SettingsView(
+                    model: settings, member: member, plus: plus, push: hosts.push, hostTheme: hosts.hostTheme,
+                    youShouldKnow: hosts.youShouldKnow, openPlus: { navigation.sheet = .plus }
+                ) {
                     navigation.sheet = nil
                 }
             case .member:

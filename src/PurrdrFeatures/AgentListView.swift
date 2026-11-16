@@ -16,9 +16,12 @@ public struct AgentListView: View {
     private let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
     /// 選取中主機的 Claude 用量，畫在列表最下方;讀取失敗時不顯示(行為規格 F2.9、F18)。
     private let usage: ClaudeUsageModel?
+    /// 選取中主機的「You should know」註記(#23);`nil` 時不顯示。
+    private let notes: YouShouldKnowModel?
+    @State private var showingNotes = false
 
     public init(
-        model: AgentListModel, actions: WorkspaceActionsModel, usage: ClaudeUsageModel? = nil,
+        model: AgentListModel, actions: WorkspaceActionsModel, usage: ClaudeUsageModel? = nil, notes: YouShouldKnowModel? = nil,
         conversation: @escaping @MainActor (_ paneID: String, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ paneID: String, _ title: String) -> PaneTerminalModel)? = nil
     ) {
@@ -27,6 +30,7 @@ public struct AgentListView: View {
         self.makeConversation = conversation
         self.makeTerminal = terminal
         self.usage = usage
+        self.notes = notes
     }
 
     /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
@@ -43,6 +47,21 @@ public struct AgentListView: View {
                 guard scenePhase == .active else { return }
                 await model.run()
             }
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await notes?.run()
+            }
+            .sheet(isPresented: $showingNotes) {
+                if let notes {
+                    YouShouldKnowListView(model: notes, chats: noteChats) { model.openedChat = $0 }
+                }
+            }
+    }
+
+    /// 列表裡 Claude 聊天的 session id → (pane id、標題),給註記配對。
+    private var noteChats: [String: (paneID: String, title: String)] {
+        let titles = Dictionary(model.sections.flatMap(\.rows).map { ($0.id, $0.title) }) { first, _ in first }
+        return model.claudeSessionPanes.mapValues { paneID in (paneID, titles[paneID] ?? paneID) }
     }
 
     @ViewBuilder
@@ -72,7 +91,12 @@ public struct AgentListView: View {
 
     private var list: some View {
         let sections = model.sections
+        let noteCount = notes?.count(inSessions: Set(model.claudeSessionPanes.keys)) ?? 0
         return List {
+            if noteCount > 0 {
+                // 列表標題下一行「✦ N 則註記」(#37 故事 49)。
+                Section { YouShouldKnowListRow(count: noteCount) { showingNotes = true } }
+            }
             ForEach(sections) { section in
                 Section(section.group.title) {
                     ForEach(section.rows) { row in

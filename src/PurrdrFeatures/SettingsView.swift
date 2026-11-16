@@ -15,18 +15,23 @@ public struct SettingsView: View {
     let plus: SubscriptionModel?
     /// 選取中主機的推播開關(#29);`nil` 或沒有推播服務時不顯示「通知」區。
     let push: PushModel?
+    /// 選取中主機的主機主題與「You should know」寫回(#23);`nil` 時不顯示。
+    let hostTheme: HostThemeModel?
+    let youShouldKnow: YouShouldKnowModel?
     /// 推播需要 Purrdr Plus 時開付費牆。
     let openPlus: () -> Void
     let done: () -> Void
 
     public init(
         model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil,
-        openPlus: @escaping () -> Void = {}, done: @escaping () -> Void
+        hostTheme: HostThemeModel? = nil, youShouldKnow: YouShouldKnowModel? = nil, openPlus: @escaping () -> Void = {}, done: @escaping () -> Void
     ) {
         self.model = model
         self.member = member
         self.plus = plus
         self.push = push
+        self.hostTheme = hostTheme
+        self.youShouldKnow = youShouldKnow
         self.openPlus = openPlus
         self.done = done
     }
@@ -45,6 +50,13 @@ public struct SettingsView: View {
 
                 if let push, push.isAvailable {
                     PushSettingsSection(model: push, openPlus: openPlus)
+                }
+
+                if let hostTheme {
+                    HostThemeSettingsSection(model: hostTheme)
+                }
+                if let youShouldKnow {
+                    YouShouldKnowSettingsSection(model: youShouldKnow)
                 }
 
                 Section {
