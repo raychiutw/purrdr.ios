@@ -21,13 +21,16 @@ public struct SettingsView: View {
     let openPlus: () -> Void
     /// 選取中主機的 Codex 啟動器;`nil` 時不顯示。
     let codexLauncher: CodexLauncherModel?
+    /// 需要處理的 workspace 數(「完成」旁的數字，行為規格 F2.8)。
+    let attention: () -> Int
     let done: () -> Void
 
     public init(
         model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil,
         hostSync: HostSyncModel? = nil, openPlus: @escaping () -> Void = {}, codexLauncher: CodexLauncherModel? = nil,
-        done: @escaping () -> Void
+        attention: @escaping () -> Int = { 0 }, done: @escaping () -> Void
     ) {
+        self.attention = attention
         self.model = model
         self.member = member
         self.plus = plus
@@ -107,8 +110,11 @@ public struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: done)
-                        .accessibilityIdentifier("sheet.done")
+                    HStack(spacing: 6) {
+                        AttentionBadge(count: attention())
+                        Button("Done", action: done)
+                            .accessibilityIdentifier("sheet.done")
+                    }
                 }
             }
         }

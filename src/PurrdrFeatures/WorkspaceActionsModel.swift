@@ -48,6 +48,14 @@ public final class WorkspaceActionsModel {
         store.save(preferences)
     }
 
+    /// 記下開啟這個 session 聊天的時間(進入與離開對話時各一次;行為規格 F2.6)。之前的回覆都算讀過。
+    /// - Parameter seen: 開著時看到的最後一則回覆的時間(主機時間)。主機時鐘比手機快時，回覆時間會在手機的「現在」之後;
+    ///   取兩者較晚的，開過的聊天才不會一直是未讀。
+    public func markOpened(sessionID: String, seen: Date? = nil) {
+        preferences.opened[sessionID] = max(now(), seen ?? .distantPast)
+        store.save(preferences)
+    }
+
     public func toggleMute(sessionID: String) {
         if preferences.muted.remove(sessionID) == nil { preferences.muted.insert(sessionID) }
         store.save(preferences)
@@ -92,6 +100,7 @@ public final class WorkspaceActionsModel {
         for sessionID in sessionIDs {
             preferences.pinned[sessionID] = nil
             preferences.muted.remove(sessionID)
+            preferences.opened[sessionID] = nil
         }
         store.save(preferences)
     }

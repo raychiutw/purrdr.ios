@@ -4,7 +4,7 @@ import PurrdrCore
 /// 把 snapshot 投影成列表的 section(行為規格 F2.2–F2.4)。純函式：同樣的輸入永遠得到同樣的列表。
 ///
 /// 多主機(#39):每台主機一個來源，合併成同一份 section;來源的順序就是主機順序(選取中主機在前)。
-/// 之後的擴充點:Spaces 檢視(#40)是另一種投影;已釘選群組(#41)在 `AgentGroup` 最前面加一組。
+/// 之後的擴充點:Spaces 檢視(#40)是另一種投影。已釘選群組、未讀(#41)的規則在 `ChatUnread.swift`。
 enum AgentListProjection {
     /// 一台主機的資料。
     struct Source {
@@ -14,6 +14,8 @@ enum AgentListProjection {
         var snapshot: HostSnapshot?
         /// 以 pane id 為鍵(同一台主機內唯一)。
         var previews: [String: MessagePreview]
+        /// 這台主機的釘選、靜音與開啟紀錄(以 session 為鍵)。
+        var preferences = ChatPreferences()
     }
 
     static func sections(
@@ -22,30 +24,32 @@ enum AgentListProjection {
         sections(sources: [Source(host: host, label: nil, snapshot: snapshot, previews: previews)], query: query)
     }
 
-    static func sections(sources: [Source], query: String) -> [AgentSection] {
+    /// - Parameter visible: 目前開著的聊天(不算未讀)。
+    static func sections(sources: [Source], query: String, visible: ChatRoute? = nil) -> [AgentSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let entries = sources.enumerated().flatMap { hostOrder, source in
-            entries(of: source, hostOrder: hostOrder, needle: needle)
+            entries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
         }
-        let groups = Dictionary(grouping: entries) { $0.row.status.group }
+        let groups = Dictionary(grouping: entries, by: \.group)
         return AgentGroup.allCases.compactMap { group in
             guard let entries = groups[group], !entries.isEmpty else { return nil }
             return AgentSection(group: group, rows: entries.sorted(by: group.areInIncreasingOrder).map(\.row))
         }
     }
 
-    private static func entries(of source: Source, hostOrder: Int, needle: String) -> [Entry] {
+    private static func entries(of source: Source, hostOrder: Int, needle: String, visible: ChatRoute?) -> [Entry] {
         guard let snapshot = source.snapshot else { return [] }
         let order = Dictionary(snapshot.workspaces.map { ($0.id, $0.number) }, uniquingKeysWith: { first, _ in first })
         let byWorkspace = Dictionary(grouping: snapshot.agents, by: \.workspaceID)
         return snapshot.agents.enumerated().compactMap { position, agent -> Entry? in
             let siblings = byWorkspace[agent.workspaceID] ?? [agent]
+            let chat = ChatUnread.State(agent: agent, source: source, visible: visible)
             let row = AgentRow(
-                agent: agent, siblings: siblings, preview: source.previews[agent.paneID], host: source.host, label: source.label)
+                agent: agent, siblings: siblings, preview: source.previews[agent.paneID], host: source.host, label: source.label, chat: chat)
             guard needle.isEmpty || matches(needle, agent: agent, row: row) else { return nil }
             return Entry(
                 row: row, hostOrder: hostOrder, workspaceOrder: order[agent.workspaceID] ?? .max, position: position,
-                lastMessage: source.previews[agent.paneID]?.date)
+                lastMessage: source.previews[agent.paneID]?.date, pinnedAt: chat.pinnedAt)
         }
     }
 
@@ -55,6 +59,10 @@ enum AgentListProjection {
         var workspaceOrder: Int
         var position: Int
         var lastMessage: Date?
+        /// 釘選時間;有值就在「已釘選」,不看狀態(行為規格 F2.2)。
+        var pinnedAt: Date?
+
+        var group: AgentGroup { pinnedAt == nil ? row.status.group : .pinned }
 
         /// 主機順序(選取中主機在前)→ workspace 順序 → snapshot 內的位置。
         var order: (Int, Int, Int) { (hostOrder, workspaceOrder, position) }
@@ -73,8 +81,11 @@ enum AgentListProjection {
 
 extension AgentGroup {
     /// 「需要你」與「工作中」依主機順序(選取中主機在前，再依 workspace `number`);
-    /// 閒置依最後訊息時間新→舊(跨主機比時間),無時間者最後、再依主機順序。
+    /// 閒置依最後訊息時間新→舊(跨主機比時間),無時間者最後、再依主機順序。已釘選依釘選時間舊→新(跨主機)。
     func areInIncreasingOrder(_ lhs: AgentListProjection.Entry, _ rhs: AgentListProjection.Entry) -> Bool {
+        if self == .pinned, let left = lhs.pinnedAt, let right = rhs.pinnedAt, left != right {
+            return left < right
+        }
         if self == .idle, lhs.lastMessage != rhs.lastMessage {
             guard let left = lhs.lastMessage else { return false }
             guard let right = rhs.lastMessage else { return true }
@@ -103,8 +114,11 @@ extension AgentStatus {
 }
 
 extension AgentRow {
-    init(agent: Agent, siblings: [Agent], preview: MessagePreview?, host: HostSelection, label: HostLabel?) {
-        let status = agent.effectiveStatus
+    init(
+        agent: Agent, siblings: [Agent], preview: MessagePreview?, host: HostSelection, label: HostLabel?,
+        chat: ChatUnread.State = ChatUnread.State()
+    ) {
+        let status = chat.displayStatus(agent.effectiveStatus)
         let title = AgentRowText.title(for: agent, siblings: siblings)
         let rowPreview: Preview = if status == .blocked {
             .needsInput
@@ -119,7 +133,7 @@ extension AgentRow {
         if let label { subtitle = label.name + " · " + subtitle }
         self.init(
             host: host, paneID: agent.paneID, kind: agent.kind, title: title, subtitle: subtitle, hostLabel: label,
-            preview: rowPreview, time: time, status: status
+            preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted
         )
     }
 }

@@ -49,6 +49,11 @@ struct WorkspaceRowContext {
     }
 }
 
+extension EnvironmentValues {
+    /// 用了滑動面板的動作時要通知的列表(滑動提示到此為止，行為規格 F2.7)。由列表注入。
+    @Entry var swipeHintList: MergedAgentListModel?
+}
+
 extension View {
     /// 列的滑動與 context menu(行為規格 F2.7)。context menu 頂端的動作與滑動相同;破壞性的「關閉」放最後。
     func workspaceRowActions(
@@ -74,17 +79,22 @@ private struct WorkspaceRowActions: ViewModifier {
     let actions: WorkspaceActionsModel?
     let presentation: WorkspacePresentation
     let snapshot: HostSnapshot?
+    @Environment(\.swipeHintList) private var swipeHintList
 
     func body(content: Content) -> some View {
         if let context, let actions {
             content
                 // 列表是根畫面，沒有返回手勢的邊緣，leading 滑動是安全的。
-                .swipeActions(edge: .leading) { chatButtons(context, actions: actions) }
+                // 滑動面板裡的動作被使用 = 使用者學會了滑動，列表的滑動提示到此為止(`fromSwipe`;context menu 不算)。
+                // 面板「滑開」本身 SwiftUI 沒有訊號:面板按鈕的 onAppear 在列出現時就會觸發(UI 測試實測)。
+                .swipeActions(edge: .leading) {
+                    chatButtons(context, actions: actions, fromSwipe: true)
+                }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
-                    closeButton(context, title: "Close", role: nil)
+                    closeButton(context, title: "Close", role: nil, fromSwipe: true)
                         .tint(.red)
-                    renameButton(context, title: "Workspace")
+                    renameButton(context, title: "Workspace", fromSwipe: true)
                 }
                 .contextMenu {
                     chatButtons(context, actions: actions)
@@ -104,15 +114,17 @@ private struct WorkspaceRowActions: ViewModifier {
 
     /// 釘選、靜音:只在 Agent 有 session 時提供(聊天以 session 識別)。
     @ViewBuilder
-    private func chatButtons(_ context: WorkspaceRowContext, actions: WorkspaceActionsModel) -> some View {
+    private func chatButtons(_ context: WorkspaceRowContext, actions: WorkspaceActionsModel, fromSwipe: Bool = false) -> some View {
         if let sessionID = context.agent.sessionID {
             let pinned = actions.isPinned(sessionID: sessionID)
             Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
+                swiped(fromSwipe)
                 actions.togglePin(sessionID: sessionID)
             }
             .tint(.orange)
             let muted = actions.isMuted(sessionID: sessionID)
             Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
+                swiped(fromSwipe)
                 actions.toggleMute(sessionID: sessionID)
             }
             .tint(.indigo)
@@ -120,21 +132,29 @@ private struct WorkspaceRowActions: ViewModifier {
     }
 
     /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
-    private func renameButton(_ context: WorkspaceRowContext, title: LocalizedStringKey) -> some View {
+    private func renameButton(_ context: WorkspaceRowContext, title: LocalizedStringKey, fromSwipe: Bool = false) -> some View {
         Button(title, systemImage: "pencil") {
+            swiped(fromSwipe)
             presentation.host = host
             presentation.sheet = .rename(workspaceID: context.agent.workspaceID, label: context.workspaceLabel)
         }
         .tint(.gray)
     }
 
-    private func closeButton(_ context: WorkspaceRowContext, title: LocalizedStringKey, role: ButtonRole?) -> some View {
+    private func closeButton(
+        _ context: WorkspaceRowContext, title: LocalizedStringKey, role: ButtonRole?, fromSwipe: Bool = false
+    ) -> some View {
         Button(title, systemImage: "xmark.circle", role: role) {
+            swiped(fromSwipe)
             presentation.host = host
             presentation.closeRequest = .init(
                 workspaceID: context.agent.workspaceID, label: context.workspaceLabel, sessionIDs: context.sessionIDs
             )
         }
+    }
+
+    private func swiped(_ fromSwipe: Bool) {
+        if fromSwipe { swipeHintList?.swipeActionUsed() }
     }
 
     private func showLayout(_ context: WorkspaceRowContext) {

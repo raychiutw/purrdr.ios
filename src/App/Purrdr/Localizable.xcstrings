@@ -167,6 +167,17 @@
         }
       }
     },
+    "%lld workspaces need you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個 workspace 需要你處理"
+          }
+        }
+      }
+    },
     "%lld years" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -255,6 +266,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 週"
+          }
+        }
+      }
+    },
+    "1 workspace needs you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個 workspace 需要你處理"
           }
         }
       }
@@ -2974,6 +2996,17 @@
         }
       }
     },
+    "Muted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已靜音"
+          }
+        }
+      }
+    },
     "Name" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3663,6 +3696,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "釘選"
+          }
+        }
+      }
+    },
+    "Pinned" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已釘選"
           }
         }
       }
@@ -4873,6 +4917,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支援"
+          }
+        }
+      }
+    },
+    "Swipe a row left or right to pin, mute, rename, or close." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左右滑動列可釘選、靜音、重新命名或關閉。"
           }
         }
       }
@@ -6160,6 +6215,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消釘選"
+          }
+        }
+      }
+    },
+    "Unread" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未讀"
           }
         }
       }

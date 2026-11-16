@@ -1,7 +1,7 @@
 import PurrdrCore
 import SwiftUI
 
-/// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「需要你／工作中／閒置」分 section。
+/// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「已釘選／需要你／工作中／閒置」分 section,標題帶數量。
 ///
 /// 所有主機的 Agent 合併在同一個列表(#39):非選取中主機的列在副標開頭標示主機名;某台主機連不上時保留它最後的列，
 /// 列表下方顯示「主機名：原因」。沒有任何列時，選取中主機的錯誤才佔滿畫面。
@@ -58,6 +58,9 @@ public struct AgentListView: View {
             terminal = { @MainActor paneID, title in makeTerminal(ChatRoute(host: route.host, paneID: paneID), title) }
         }
         return ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: terminal)
+            // 進入與離開對話各記一次開啟時間;開著時不算未讀(行為規格 F2.6)。
+            .onAppear { model.chatAppeared(route) }
+            .onDisappear { model.chatDisappeared(route) }
     }
 
     @ViewBuilder
@@ -90,7 +93,7 @@ public struct AgentListView: View {
         let failures = model.failures
         return List {
             ForEach(sections) { section in
-                Section(section.group.title) {
+                Section {
                     ForEach(section.rows) { row in
                         NavigationLink(value: row.route) { AgentRowView(row: row) }
                             .accessibilityIdentifier("agent.row.\(row.id)")
@@ -99,6 +102,8 @@ public struct AgentListView: View {
                                 actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host)
                             )
                     }
+                } header: {
+                    AgentSectionHeader(group: section.group, count: section.rows.count)
                 }
             }
             if !failures.isEmpty {
@@ -121,7 +126,17 @@ public struct AgentListView: View {
             if let usage, list(failedFor: model.selected) == false {
                 Section { ClaudeUsageFooter(model: usage) }
             }
+            if model.showsSwipeHint, !sections.isEmpty {
+                // 第一次用滑動面板的動作之前，列表底部提示有哪些滑動動作(行為規格 F2.7)。
+                Section {
+                    Label("Swipe a row left or right to pin, mute, rename, or close.", systemImage: "hand.draw")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("agentList.swipeHint")
+                }
+            }
         }
+        .environment(\.swipeHintList, model)
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
@@ -215,6 +230,7 @@ struct AgentRowView: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityValue(row.isUnread ? Text("Unread") : Text(verbatim: ""))
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
@@ -224,9 +240,24 @@ struct AgentRowView: View {
 
     private var texts: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(row.title)
-                .font(.body)
-                .lineLimit(lines(2))
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(row.title)
+                    .lineLimit(lines(2))
+                // 釘選、靜音：標題後的小圖示，不只靠顏色(#37 故事 18)。VoiceOver 念「已釘選」「已靜音」(行為規格 F2.4 的順序)。
+                if row.isPinned {
+                    Image(systemName: "pin.fill")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(Text("Pinned"))
+                }
+                if row.isMuted {
+                    Image(systemName: "bell.slash.fill")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(Text("Muted"))
+                }
+            }
+            .font(.body)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 // 非選取中主機：副標開頭的主機名前加主機圖示(#37 故事 2、5)。主機名在文字裡，圖示不念。
                 if let label = row.hostLabel {
@@ -286,9 +317,47 @@ struct StatusLabel: View {
     }
 }
 
+/// section 標題：組名 + 數量(#37 故事 18)。一般大小寫，不全大寫(HIG 20.2)。
+struct AgentSectionHeader: View {
+    let group: AgentGroup
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(group.title)
+            Text(count, format: .number)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .textCase(nil)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("agentList.section.\(group)")
+    }
+}
+
+/// 導覽入口旁的數字：需要處理的 workspace 數(行為規格 F2.8)。0 不畫;超過 99 顯示「99+」。不設 app 圖示徽章。
+struct AttentionBadge: View {
+    let count: Int
+
+    var body: some View {
+        if count > 0 {
+            Text(verbatim: count > 99 ? "99+" : "\(count)")
+                .font(.footnote.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(.tint))
+                .accessibilityLabel(count == 1 ? Text("1 workspace needs you") : Text("\(count) workspaces need you"))
+                .accessibilityIdentifier("attention.badge")
+        }
+    }
+}
+
 extension AgentGroup {
     var title: LocalizedStringKey {
         switch self {
+        case .pinned: "Pinned"
         case .needsYou: "Needs You"
         case .working: "Working"
         case .idle: "Idle"
@@ -312,7 +381,8 @@ extension AgentStatus {
         switch self {
         case .blocked: "exclamationmark.circle.fill"
         case .working: "ellipsis.circle"
-        case .done: "checkmark.circle.fill"
+        // 實心圓 = 有未讀的回覆、空心圓 = 已讀(行為規格 F2.5;列表會把未讀折算成 done、已讀折算成 idle)。
+        case .done: "circle.fill"
         case .idle: "circle"
         case .unknown: "questionmark.circle"
         }

@@ -63,7 +63,8 @@ public struct TopNavigationView: View {
             case .settings:
                 SettingsView(
                     model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync,
-                    openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher
+                    openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher,
+                    attention: { hosts.agentList.attentionCount }
                 ) {
                     navigation.sheet = nil
                 }

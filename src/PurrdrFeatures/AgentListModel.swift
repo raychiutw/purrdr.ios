@@ -246,8 +246,10 @@ public final class AgentListModel {
     }
 }
 
-/// 列表的分組：依「需要你／工作中／閒置」排列，最需要使用者處理的在最上面。
+/// 列表的分組：依「已釘選／需要你／工作中／閒置」排列(行為規格 F2.2)。
+/// 釘選優先於狀態：已釘選的列不因狀態改變而跳組;其餘最需要使用者處理的在最上面。
 public enum AgentGroup: CaseIterable, Sendable {
+    case pinned
     case needsYou
     case working
     case idle
@@ -278,8 +280,13 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public var hostLabel: HostLabel?
     public var preview: Preview
     public var time: Time?
-    /// 列表上的狀態(`input_pending` 已折算成 `blocked`)。
+    /// 列表上的狀態(`input_pending` 已折算成 `blocked`;未讀的回覆是 `done`、已讀是 `idle`,行為規格 F2.5)。
     public var status: AgentStatus
+    /// 有還沒讀過的回覆(行為規格 F2.6)。
+    public var isUnread: Bool
+    /// 已釘選、已靜音(標題後的小圖示)。
+    public var isPinned: Bool
+    public var isMuted: Bool
 
     /// 主機身分 + pane id:不同主機的同一個 pane id 是不同的列(也是 UI 測試的 `agent.row.<id>`)。
     public var id: String { "\(host.storedValue)/\(paneID)" }
@@ -287,7 +294,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
 
     public init(
         host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, subtitle: String,
-        hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus
+        hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
+        isUnread: Bool = false, isPinned: Bool = false, isMuted: Bool = false
     ) {
         self.host = host
         self.paneID = paneID
@@ -298,6 +306,9 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
         self.preview = preview
         self.time = time
         self.status = status
+        self.isUnread = isUnread
+        self.isPinned = isPinned
+        self.isMuted = isMuted
     }
 
     /// 預覽行(行為規格 F2.4)。

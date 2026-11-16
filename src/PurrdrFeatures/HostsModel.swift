@@ -41,7 +41,7 @@ public final class HostsModel {
     public private(set) var selection: HostSelection = .demo
     public private(set) var hosts: [HostConfiguration] = []
     /// 所有主機合併的 Agent 列表。
-    public let agentList = MergedAgentListModel()
+    public let agentList: MergedAgentListModel
     /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
     public private(set) var claudeUsage: ClaudeUsageModel
     /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
@@ -83,6 +83,7 @@ public final class HostsModel {
     ///   - preferences: 釘選、靜音等本機偏好(依主機分開：同一個 session 值在不同主機是不同的聊天)。
     ///   - hostIcons: 使用者替主機選的圖示(只存本機)。
     ///   - selectionStore: 選取中主機的存放處。
+    ///   - swipeHint: 列表滑動提示是否已經不用再顯示(使用者用過滑動面板的動作)。
     ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
@@ -94,9 +95,11 @@ public final class HostsModel {
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
+        swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
+        agentList = MergedAgentListModel(swipeHint: swipeHint)
         self.selectionStore = selectionStore
         self.demoChannel = demoChannel
         self.makeChannel = makeChannel
