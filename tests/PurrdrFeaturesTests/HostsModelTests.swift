@@ -66,6 +66,30 @@ struct HostsModelTests {
         #expect(await real.unmetExpectations.isEmpty)
     }
 
+    @Test("新增對話開在選取中主機(帶 herdr session);開始後重讀列表並開那個 pane 的聊天")
+    func newChatUsesSelectedHostAndOpensChat() async throws {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let real = FakeHost()
+        let bridge = HerdrCommand.bridge(Self.studio.herdr)
+        await real.expect(NewChatFolders.command(for: "~/ledger"), reply: FakeReply(stdout: NewChatFolders.output(path: "/Users/demo/ledger", folders: [])))
+        let created = #"{"id":"purrdr:workspace.create","result":{"type":"workspace_created","workspace":{"workspace_id":"w4","number":4,"label":"ledger","focused":false,"pane_count":1,"tab_count":1,"active_tab_id":"w4:t1","agent_status":"unknown"},"root_pane":{"pane_id":"w4:p1","terminal_id":"t","workspace_id":"w4","tab_id":"w4:t1","focused":false,"agent_status":"unknown","revision":0}}}"#
+        await real.expect(bridge, reply: FakeReply(stdout: Data(created.utf8) + [0x0A], trigger: .afterStdinLine))
+        await real.expect(bridge, reply: FakeReply(stdout: Data(#"{"id":"purrdr:agent.start","result":{"type":"agent_started"}}"#.utf8) + [0x0A], trigger: .afterStdinLine))
+        await real.expect(bridge, reply: .recorded("session.snapshot.ndjson"))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+        model.load()
+
+        let newChat = model.newChat()
+        newChat.folder = "~/ledger"
+        let workspace = try #require(await newChat.start())
+        await model.openStartedChat(workspace)
+
+        #expect(model.agentList.openedChat == "w4:p1")
+        #expect(model.agentList.phase == .loaded)
+        #expect(await real.unmetExpectations.isEmpty)
+    }
+
     @Test("主機清單依名稱排序，每列顯示名稱、user@host:port,設了具名 session 就附註(#37 故事 24)")
     func rowsShowEndpointAndSession() {
         let store = MemoryHostStore()

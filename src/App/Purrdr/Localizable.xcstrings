@@ -307,6 +307,17 @@
         }
       }
     },
+    "Accept Edits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動接受編輯"
+          }
+        }
+      }
+    },
     "Active" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -358,6 +369,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "位址"
+          }
+        }
+      }
+    },
+    "Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent"
           }
         }
       }
@@ -517,6 +539,17 @@
         }
       }
     },
+    "Ask Every Time" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次都詢問"
+          }
+        }
+      }
+    },
     "Asked %d questions" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -546,6 +579,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "附加的第 %lld 張圖片"
+          }
+        }
+      }
+    },
+    "Auto" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動"
           }
         }
       }
@@ -656,6 +700,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法載入 Agent"
+          }
+        }
+      }
+    },
+    "Can’t Open Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟資料夾"
           }
         }
       }
@@ -858,6 +913,28 @@
         }
       }
     },
+    "Choose Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇資料夾"
+          }
+        }
+      }
+    },
+    "Choose Folder on Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主機上選擇資料夾"
+          }
+        }
+      }
+    },
     "Choose your own host first. The demo host can’t send notifications." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -865,6 +942,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請先選擇你自己的主機。Demo 主機無法傳送通知。"
+          }
+        }
+      }
+    },
+    "Claude Code asks before every tool it uses." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 每次使用工具前都會詢問。"
+          }
+        }
+      }
+    },
+    "Claude Code decides which actions are safe to run without asking." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由 Claude Code 判斷哪些動作安全、可以不詢問直接執行。"
+          }
+        }
+      }
+    },
+    "Claude Code edits files without asking, and asks before running commands." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 編輯檔案時不詢問，執行指令前會詢問。"
+          }
+        }
+      }
+    },
+    "Claude Code only plans. It doesn’t edit files or run commands." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 只做規劃，不編輯檔案也不執行指令。"
+          }
+        }
+      }
+    },
+    "Claude Code runs commands and edits files without ever asking. Use this only in folders you trust." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 執行指令與編輯檔案都完全不詢問。只在你信任的資料夾使用。"
+          }
+        }
+      }
+    },
+    "Claude Code uses the permission settings it already has on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 沿用它在這台主機上既有的權限設定。"
+          }
+        }
+      }
+    },
+    "Claude Code’s Settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沿用 Claude Code 的設定"
           }
         }
       }
@@ -990,6 +1144,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 開著檔案選擇器。可以在這裡關閉，或在終端機選擇檔案。"
+          }
+        }
+      }
+    },
+    "Codex reports its session after you send the first message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 在你送出第一則訊息後才會回報 session。"
           }
         }
       }
@@ -1419,6 +1584,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法讀取這個檔案。"
+          }
+        }
+      }
+    },
+    "Couldn’t read this folder on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取主機上的這個資料夾。"
           }
         }
       }
@@ -2061,6 +2237,17 @@
         }
       }
     },
+    "Full Access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完全存取"
+          }
+        }
+      }
+    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2545,6 +2732,17 @@
         }
       }
     },
+    "Loading folders…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在載入資料夾…"
+          }
+        }
+      }
+    },
     "Locked" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2816,6 +3014,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有訊息"
+          }
+        }
+      }
+    },
+    "No folders inside this one. You can still use it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這裡沒有子資料夾。仍然可以使用這個資料夾。"
           }
         }
       }
@@ -3172,6 +3381,17 @@
         }
       }
     },
+    "Optional. Uses the folder name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選填，預設使用資料夾名稱"
+          }
+        }
+      }
+    },
     "Options above 9 can’t be entered from here. Answer them in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3304,6 +3524,17 @@
         }
       }
     },
+    "Permissions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權限"
+          }
+        }
+      }
+    },
     "Photo Library" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3322,6 +3553,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "釘選"
+          }
+        }
+      }
+    },
+    "Plan Only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只規劃"
           }
         }
       }
@@ -4393,6 +4635,17 @@
         }
       }
     },
+    "Start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始"
+          }
+        }
+      }
+    },
     "Start Free Trial" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4411,6 +4664,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "啟動中"
+          }
+        }
+      }
+    },
+    "Starting…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在開始…"
           }
         }
       }
@@ -4657,6 +4921,17 @@
         }
       }
     },
+    "The Demo host can’t start new chats. Add your own host to try this." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo 主機無法開始新對話。請新增你自己的主機再試。"
+          }
+        }
+      }
+    },
     "The Tailscale sign-in wasn’t finished in time. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4752,6 +5027,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 正在工作，回覆會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "The agent starts in this folder on the host, in a new workspace." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 會在主機上的這個資料夾、以新的 Workspace 啟動。"
+          }
+        }
+      }
+    },
+    "The agent uses its own settings on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 會沿用它在主機上的設定。"
           }
         }
       }
@@ -4873,6 +5170,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機沒有及時回應。請確認它沒有睡眠，且兩台裝置都在你的 tailnet 上。"
+          }
+        }
+      }
+    },
+    "The host didn’t answer with a list of folders." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機回應的不是資料夾清單。"
           }
         }
       }
@@ -5097,6 +5405,17 @@
         }
       }
     },
+    "There’s no such folder on the host. Check the path, or choose a folder on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上沒有這個資料夾。請確認路徑，或在主機上選擇資料夾。"
+          }
+        }
+      }
+    },
     "Thinking" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5192,6 +5511,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個資料夾是空的。"
+          }
+        }
+      }
+    },
+    "This folder isn’t on the host, or you can’t open it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上沒有這個資料夾，或你沒有權限開啟。"
           }
         }
       }
@@ -5786,6 +6116,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "改用這支裝置的金鑰"
+          }
+        }
+      }
+    },
+    "Use This Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用這個資料夾"
           }
         }
       }

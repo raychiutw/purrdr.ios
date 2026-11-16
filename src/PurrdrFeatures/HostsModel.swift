@@ -157,6 +157,18 @@ public final class HostsModel {
             images: ComposerImages(uploader: ImageUploader(channel: channel), store: attachmentStore))
     }
 
+    /// 選取中主機上的新增對話(#18)。
+    public func newChat() -> NewChatModel {
+        NewChatModel(launcher: NewChatLauncher(client: client, folders: NewChatFolders(channel: channel)), folders: NewChatFolders(channel: channel))
+    }
+
+    /// 新對話開始後：重讀列表，開新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
+    public func openStartedChat(_ workspace: CreatedWorkspace) async {
+        let list = agentList
+        await list.load()
+        list.openedChat = workspace.rootPaneID
+    }
+
     /// 某台主機的對話快取(key 加上主機身分)。
     public func conversationCache(for selection: HostSelection) -> any ConversationCache {
         HostScopedConversationCache(base: conversationCache, scope: selection.storedValue)

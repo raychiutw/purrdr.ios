@@ -38,10 +38,15 @@ final class TopNavigationUITests: XCTestCase {
         let plus = app.buttons["toolbar.newChat"]
         XCTAssertTrue(plus.waitForExistence(timeout: 10), "列表工具列沒有「+」")
         plus.tap()
-        assertSheet("sheet.newChat", isShownIn: app)
+        // 新增對話是表單：左上「Cancel」,不是「完成」(HIG 檢核清單 20.3)。
+        XCTAssertTrue(app.descendants(matching: .any)["sheet.newChat"].firstMatch.waitForExistence(timeout: 10), "沒有開出新增對話")
+        let cancel = app.buttons["newChat.cancel"]
+        XCTAssertTrue(cancel.exists, "新增對話沒有「Cancel」")
+        XCTAssertFalse(app.buttons["sheet.done"].exists, "新增對話不該同時有「完成」")
 
-        app.buttons["sheet.done"].tap()
-        assertBackOnAgentList(app)
+        cancel.tap()
+        XCTAssertTrue(cancel.waitForNonExistence(timeout: 5), "sheet 沒有關閉")
+        XCTAssertTrue(app.descendants(matching: .any)["agent.row.w1:p1"].firstMatch.exists, "沒有回到 Agent 列表")
     }
 
     /// icon-only 按鈕都要有 accessibility label(HIG 檢核清單 20.2)。
