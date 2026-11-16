@@ -16,6 +16,7 @@ App Store Connect → App → App Store 頁(各語言)。字數以字元計，�
 | 行銷網址(選填) | `https://raychiutw.github.io/purrdr/` | |
 | 授權合約 | Apple 標準 EULA | 與 `PurrdrLinks.termsOfUse` 一致;描述最後也放連結(自動續訂訂閱的要求) |
 | 版權 | `2026 <要顯示的名稱>` | 由人工決定 |
+| 供應地區 | 147 個地區：**排除歐盟 27 國與中國大陸**(2026-11-16 已在 App Store Connect 設定) | 歐盟：數位服務法(DSA)要求公開貿易商(trader)身分與聯絡資料，個人開發者暫不申報;中國大陸：上架需 ICP 備案(工信部)。之後要開放時重新評估 |
 
 關鍵字不重複名稱與副標已有的字(Apple 會一起索引):agent、chat、coding、SSH。
 **不放其他公司的商標**(審查規範 2.3.7):關鍵字不用 Claude、Codex、Tailscale;描述中以「相容」的方式提及。

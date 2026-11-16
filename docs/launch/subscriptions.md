@@ -10,7 +10,7 @@ App Store Connect → App → 營利 → 訂閱。商品 ID、期間、試用、
 | 參考名稱 | Purrdr Plus |
 | 顯示名稱(English) | Purrdr Plus |
 | 顯示名稱(繁體中文) | Purrdr Plus |
-| 方案層級 | 月繳與年繳放**同一層級**(與設定檔的 `groupNumber` 都是 1 一致):互換時於下個續訂日生效，不按比例退款 |
+| 方案層級 | 月繳與年繳放**同一層級**(等級 1,已用 App Store Connect API 設定;與設定檔的 `groupNumber` 都是 1 一致):互換時於下個續訂日生效，不按比例退款 |
 
 App 名稱的在地化(群組的「App 名稱」欄)選「使用 App 名稱」。
 
@@ -18,7 +18,7 @@ App 名稱的在地化(群組的「App 名稱」欄)選「使用 App 名稱」�
 
 | | 月繳 | 年繳 |
 |---|---|---|
-| 參考名稱 | Purrdr Plus Monthly | Purrdr Plus Yearly |
+| 參考名稱(App Store Connect) | Purrdr Plus 月繳 | Purrdr Plus 年繳 |
 | 商品 ID | `com.raychiu.purrdr.plus.monthly` | `com.raychiu.purrdr.plus.yearly` |
 | 期間 | 1 個月 | 1 年 |
 | 價格(美國) | US$4.99 | US$39.99 |
@@ -47,12 +47,13 @@ App 名稱的在地化(群組的「App 名稱」欄)選「使用 App 名稱」�
 
 | 欄位 | 值 |
 |---|---|
-| 參考名稱 | Friends and Events(與設定檔相同) |
+| 參考名稱 | 早期測試 1 個月免費(與設定檔相同) |
 | 商品 | 月繳(`com.raychiu.purrdr.plus.monthly`) |
 | 優惠 | 免費 1 個月 |
 | 資格 | 僅限新訂閱者(設定檔 `eligibility: ["new"]`) |
-| 類型與數量 | 一次性代碼，100 組 |
-| 地區 | 所有地區 |
+| 與試用疊加 | 不疊加:用 Offer Code 的新訂閱者拿 1 個月免費，不再加 2 週試用(設定檔 `isStackable: false`,`StoreKitConfigurationTests` 守住) |
+| 類型與數量 | 一次性代碼，100 組;**要等訂閱商品審查通過後才能產生**(Offer 本身已建立) |
+| 地區 | app 的所有供應地區(147 個，見 `app-store-metadata.md`「供應地區」) |
 | 到期日 | 由人工決定(依 App Store Connect 的上限) |
 
 兌換方式：app 的「Purrdr Plus → Redeem Code」(登入會員後，系統兌換畫面),或 App Store 的兌換連結。
