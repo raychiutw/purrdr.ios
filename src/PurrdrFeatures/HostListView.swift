@@ -231,22 +231,24 @@ struct HostRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon.symbol)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.secondary)
                 .frame(minWidth: 28)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
+                // `Color.primary`/`Color.secondary`:列是 Button,階層式的 `.primary`/`.secondary` 會跟著按鈕變成 tint,
+                // 副標成了淡粉紅、對比不足(#35)。
                 Text(title)
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.primary)
                     .truncationMode(.middle)
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondary)
                     .truncationMode(.middle)
                 if let session {
                     Text("Session: \(session)")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondary)
                 }
             }
             Spacer(minLength: 8)

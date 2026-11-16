@@ -437,7 +437,7 @@ struct WorkflowAgentRow: View {
                     Text(stats).font(.footnote).foregroundStyle(.secondary)
                 }
                 if let error = agent.error {
-                    Text(error).font(.footnote).foregroundStyle(.red)
+                    Text(error).font(.footnote).foregroundStyle(.errorText)
                 } else if agent.state == .running, let activity = agent.activity {
                     Text(activity).font(.footnote.monospaced()).foregroundStyle(.secondary).lineLimit(2)
                 } else if let preview = agent.resultPreview {

@@ -167,7 +167,9 @@ private extension View {
         if prominent {
             buttonStyle(.borderedProminent)
         } else {
+            // 文字用主要色：bordered 預設是 tint 字配淡 tint 底，對比約 4:1、AX 字級下更低(#35 audit)。
             buttonStyle(.bordered)
+                .foregroundStyle(Color.primary)
         }
     }
 }

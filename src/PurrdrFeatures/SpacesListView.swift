@@ -90,11 +90,15 @@ private struct WorkspaceCardHeader: View {
             .accessibilityIdentifier("workspace.card.\(card.id)")
 
             // 版面圖按鈕(田字格);觸控目標 44×44 pt。
-            Button("Workspace Layout", systemImage: "square.grid.2x2", action: showLayout)
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .frame(minWidth: 44, minHeight: 44)
-                .accessibilityIdentifier("workspace.layout.\(card.id)")
+            // frame 放在 label 裡:放在 Button 外面時，可點範圍與 accessibility frame 仍只有圖示大小(#35 audit)。
+            Button(action: showLayout) {
+                Label("Workspace Layout", systemImage: "square.grid.2x2")
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("workspace.layout.\(card.id)")
         }
     }
 
@@ -121,12 +125,18 @@ private struct TabGroupTitle: View {
 struct TerminalRowView: View {
     let row: TerminalRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 選取中(tint 填滿的底)次要色改白色(同 `AgentRowView`)。
+    @Environment(\.backgroundProminence) private var backgroundProminence
+
+    private var secondary: AnyShapeStyle {
+        backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "apple.terminal")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondary)
                 .frame(minWidth: 24)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
@@ -134,7 +144,7 @@ struct TerminalRowView: View {
                     .font(.body)
                 Text(verbatim: row.subtitle)
                     .font(.subheadline.monospaced())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondary)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
         }

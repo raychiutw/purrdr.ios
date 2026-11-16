@@ -97,4 +97,47 @@ final class IPadLayoutUITests: XCTestCase {
             要在實機接鍵盤確認。卡片的 Esc 狀態轉換由 LayoutCardModelTests 守。
             """)
     }
+
+    // MARK: - 無障礙稽核(#35)
+
+    /// 三欄(側欄、Agent 列表、對話開在對話欄):預設字級與 AX5 跑 accessibility audit。
+    @MainActor
+    func testAccessibilityAuditThreeColumns() throws {
+        continueAfterFailure = true
+        for size in [nil, AccessibilityAuditUITests.ax5] {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let row = element("agent.row.demo/w2:p1", in: app)
+            XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
+            if size == nil {
+                row.tap()
+                XCTAssertTrue(element("composer.text", in: app).waitForExistence(timeout: 15), "對話沒有開在對話欄")
+            }
+            // AX5 時三欄加上輪詢中的對話，audit 跑不完(「Audit failed to complete in time」,.tdd-logs/35-ipad-2.log);
+            // AX5 只稽核側欄與列表(對話欄是「選一個對話」),對話畫面的 AX5 由 iPhone 的 audit 涵蓋。
+            try audit(app, "iPad 三欄", contentSize: size)
+            app.terminate()
+        }
+    }
+
+    /// 釘住的版面圖浮動卡片(玻璃):預設字級與 AX5 跑 accessibility audit。
+    @MainActor
+    func testAccessibilityAuditLayoutCard() throws {
+        continueAfterFailure = true
+        for size in [nil, AccessibilityAuditUITests.ax5] {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let button = element("sidebar.layout.w3", in: app)
+            guard button.waitForExistence(timeout: 10) else {
+                // AX5 時寬度不夠三欄，系統收起側欄(沒有側欄就沒有浮動卡片;版面圖改由 Spaces 卡片開 sheet,iPhone 的 audit 已涵蓋)。
+                XCTAssertNotNil(size, "預設字級應該有側欄的版面圖按鈕")
+                app.terminate()
+                continue
+            }
+            button.tap()
+            XCTAssertTrue(element("layoutCard", in: app).waitForExistence(timeout: 5), "沒有版面圖卡片")
+            try audit(app, "iPad 版面圖卡片", contentSize: size)
+            app.terminate()
+        }
+    }
 }

@@ -22,6 +22,17 @@
         }
       }
     },
+    "%@ finished" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 完成了"
+          }
+        }
+      }
+    },
     "%@ free, then %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -44,6 +55,17 @@
         }
       }
     },
+    "%@ needs you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 需要你"
+          }
+        }
+      }
+    },
     "%@ per %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -62,6 +84,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "除非在本期結束前至少 24 小時取消，%1$@ 會以 %2$@ 自動續訂。款項向你的 Apple 帳號收取。隨時可以在「設定」›「Apple 帳號」›「訂閱項目」管理或取消。"
+          }
+        }
+      }
+    },
+    "%@ replied: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 回覆了：%2$@"
           }
         }
       }
@@ -400,13 +433,13 @@
         }
       }
     },
-    "A Mac or Linux host with your agents running in herdr 0.9.5 or later." : {
+    "A Mac, Linux, or Windows host with your agents running in herdr 0.9.5 or later." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS 或 Linux 主機，agent 在 herdr 0.9.5 以上版本裡執行。"
+            "value" : "macOS、Linux 或 Windows 主機，agent 在 herdr 0.9.5 以上版本裡執行。"
           }
         }
       }
@@ -532,13 +565,13 @@
         }
       }
     },
-    "Agent message" : {
+    "Agent:" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Agent 訊息"
+            "value" : "Agent:"
           }
         }
       }
@@ -7405,6 +7438,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的會員、推播配對與同步的主機都會被刪除，且無法復原。Purrdr Plus 訂閱不會自動取消，請到「設定」›「Apple 帳號」›「訂閱項目」取消。"
+          }
+        }
+      }
+    },
+    "Your message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訊息。"
           }
         }
       }

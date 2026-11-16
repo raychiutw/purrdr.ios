@@ -30,13 +30,13 @@ public struct WelcomeView: View {
 
                 Section("What You Need") {
                     requirement(
-                        "A Host Running herdr", systemImage: "desktopcomputer",
-                        detail: "A Mac or Linux host with your agents running in herdr 0.9.5 or later.")
+                        "A Host Running herdr", systemImage: "desktopcomputer", id: "host",
+                        detail: "A Mac, Linux, or Windows host with your agents running in herdr 0.9.5 or later.")
                     requirement(
-                        "SSH Access", systemImage: "lock.shield",
+                        "SSH Access", systemImage: "lock.shield", id: "ssh",
                         detail: "Tailscale SSH needs no keys or passwords. With OpenSSH, Purrdr makes a key on this iPhone or iPad for you to add to the host.")
                     requirement(
-                        "Notifications Are Optional", systemImage: "bell.badge",
+                        "Notifications Are Optional", systemImage: "bell.badge", id: "notifications",
                         detail: "With Purrdr Plus, a small host plugin tells you when an agent needs you. Chat and the terminal work without it.")
                 }
 
@@ -67,7 +67,9 @@ public struct WelcomeView: View {
         }
     }
 
-    private func requirement(_ title: LocalizedStringKey, systemImage: String, detail: LocalizedStringKey) -> some View {
+    private func requirement(
+        _ title: LocalizedStringKey, systemImage: String, id: String, detail: LocalizedStringKey
+    ) -> some View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -80,5 +82,6 @@ public struct WelcomeView: View {
                 .accessibilityHidden(true)
         }
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("welcome.requirement.\(id)")
     }
 }

@@ -180,7 +180,7 @@ struct HostEditorView: View {
             .accessibilityIdentifier("hostEditor.devicePublicKey")
         } else if let problem = model.deviceKeyProblem {
             Label(problem, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(.errorText)
         } else {
             ProgressView()
                 .task { await model.loadDeviceKey() }
