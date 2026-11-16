@@ -10,6 +10,8 @@ public struct TopNavigationView: View {
     let settings: SettingsModel
     /// Purrdr Plus(#28);`nil` 時選單不顯示。
     let plus: SubscriptionModel?
+    /// 主機同步(#30);`nil` 時設定頁不顯示。
+    let hostSync: HostSyncModel?
     /// 點了推播通知(#29);`nil` 時沒有推播。
     let notifications: PushNotificationRouter?
     @Environment(\.scenePhase) private var scenePhase
@@ -18,8 +20,9 @@ public struct TopNavigationView: View {
 
     public init(
         navigation: TopNavigationModel, hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
-        notifications: PushNotificationRouter? = nil
+        hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil
     ) {
+        self.hostSync = hostSync
         self.navigation = navigation
         self.hosts = hosts
         self.member = member
@@ -58,7 +61,9 @@ public struct TopNavigationView: View {
             case .hosts:
                 HostListView(model: hosts, importURL: $navigation.pendingHostImport)
             case .settings:
-                SettingsView(model: settings, member: member, plus: plus, push: hosts.push, openPlus: { navigation.sheet = .plus }) {
+                SettingsView(
+                    model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync, openPlus: { navigation.sheet = .plus }
+                ) {
                     navigation.sheet = nil
                 }
             case .member:
@@ -76,6 +81,8 @@ public struct TopNavigationView: View {
         .onOpenURL { navigation.open($0) }
         // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
         .task { await plus?.observeTransactionUpdates() }
+        // 主機同步(開啟時):啟動時拿別台裝置的修改。
+        .task { await hostSync?.sync() }
         // 連線韌性(行為規格 §7.4、§7.5):網路切換丟棄連線;背景太久回前景先探測連線。
         .task {
             for await signature in NetworkPaths.signatures() { hosts.networkPathChanged(signature) }
@@ -83,7 +90,10 @@ public struct TopNavigationView: View {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background: hosts.sceneDidEnterBackground(at: .now)
-            case .active: Task { await hosts.sceneDidBecomeActive(at: .now) }
+            case .active:
+                Task { await hosts.sceneDidBecomeActive(at: .now) }
+                // 主機同步(開啟時):回到前景拿別台裝置的修改。
+                Task { await hostSync?.sync() }
             default: break
             }
         }

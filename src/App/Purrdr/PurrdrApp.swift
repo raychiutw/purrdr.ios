@@ -17,6 +17,8 @@ struct PurrdrApp: App {
     /// Purrdr Plus(#28)。跟會員共用同一個 `MemberSession`(同一組權杖)。
     private let plus: SubscriptionModel
     private let settings: SettingsModel
+    /// 主機同步(#30):跟會員、Purrdr Plus 共用同一個 `MemberSession`。
+    private let hostSync: HostSyncModel
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -77,6 +79,9 @@ struct PurrdrApp: App {
         hosts.haptics = SystemHaptics()
         hosts.load()
         _hosts = State(initialValue: hosts)
+        // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
+        hostSync = HostSyncModel(
+            session: session, plus: plus, hosts: hosts, store: uiTesting ? InMemoryHostSyncStore() : UserDefaultsHostSyncStore())
         settings = Self.makeSettings(hosts: hosts)
     }
 
@@ -121,7 +126,8 @@ struct PurrdrApp: App {
     var body: some Scene {
         WindowGroup {
             TopNavigationView(
-                navigation: navigation, hosts: hosts, member: member, settings: settings, plus: plus, notifications: PushAppDelegate.router)
+                navigation: navigation, hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync,
+                notifications: PushAppDelegate.router)
         }
     }
 }

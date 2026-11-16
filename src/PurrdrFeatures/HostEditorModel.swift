@@ -114,6 +114,7 @@ public final class HostEditorModel {
         username = shared.endpoint.username
         herdrPath = shared.herdr.path == "herdr" ? "" : shared.herdr.path
         herdrSession = shared.herdr.session ?? ""
+        connectionMethod = shared.connectionMethod
         if let pin = shared.hostKeyPin { accepted = (pin, shared.endpoint) }
     }
 

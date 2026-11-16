@@ -93,6 +93,16 @@ public actor MemberSession {
         return try Wire.decode(Wire.SubscriptionEnvelope.self, from: response).subscription?.domain()
     }
 
+    // MARK: - 主機同步
+
+    /// 主機同步(要有效的 Purrdr Plus):送出這支裝置的變更，回傳後台套用後的整份清單與刪除紀錄。
+    /// 只送 `SyncedHost` 的欄位(白名單);沒有訂閱時後台回 403 `subscription_required`。
+    public func syncHosts(_ changes: [HostSyncChange]) async throws -> HostSyncSnapshot {
+        let body = try JSONEncoder().encode(Wire.HostSyncRequest(changes: changes.map(Wire.HostChange.init)))
+        let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/hosts/sync", body: body))
+        return try Wire.decode(Wire.HostSyncResponse.self, from: response).domain()
+    }
+
     // MARK: - 推播配對(#29)
 
     /// APNs 的環境：App Store／TestFlight 是 production,Xcode 直接安裝的 Debug build 是 sandbox。
@@ -260,6 +270,99 @@ private enum Wire {
                 status: status, store: store, productID: productId, expiresAt: expiresAt,
                 gracePeriodExpiresAt: gracePeriodExpiresAt.flatMap(Wire.date), willAutoRenew: willAutoRenew
             )
+        }
+    }
+
+    // MARK: 主機同步
+
+    struct HostSyncRequest: Encodable {
+        var changes: [HostChange]
+    }
+
+    /// 送出的一筆變更。欄位白名單(後台也只收這些):私鑰、密碼、登入方式、herdr 設定不在這裡。
+    enum HostChange: Encodable {
+        case upsert(HostBody)
+        case delete(Deletion)
+
+        init(_ change: HostSyncChange) {
+            switch change {
+            case .upsert(let host): self = .upsert(HostBody(host))
+            case .delete(let id): self = .delete(Deletion(id: id.uuidString, deleted: true))
+            }
+        }
+
+        func encode(to encoder: any Encoder) throws {
+            switch self {
+            case .upsert(let body): try body.encode(to: encoder)
+            case .delete(let deletion): try deletion.encode(to: encoder)
+            }
+        }
+    }
+
+    struct Deletion: Encodable {
+        var id: String
+        var deleted: Bool
+    }
+
+    struct HostBody: Codable {
+        var id: String
+        var name: String
+        var address: String
+        var port: Int
+        var username: String
+        var connectionMethod: String
+        var hostKeyFingerprint: String?
+        var modifiedAt: String
+
+        init(_ host: SyncedHost) {
+            id = host.id.uuidString
+            name = host.name
+            address = host.endpoint.host
+            port = host.endpoint.port
+            username = host.endpoint.username
+            connectionMethod = host.connectionMethod == .openSSH ? "openssh" : "tailscale_ssh"
+            hostKeyFingerprint = host.hostKeyPin?.stored
+            modifiedAt = host.modifiedAt.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+        }
+
+        /// 明確寫出 `null`(沒有指紋)。
+        func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+            try container.encode(name, forKey: .name)
+            try container.encode(address, forKey: .address)
+            try container.encode(port, forKey: .port)
+            try container.encode(username, forKey: .username)
+            try container.encode(connectionMethod, forKey: .connectionMethod)
+            try container.encode(hostKeyFingerprint, forKey: .hostKeyFingerprint)
+            try container.encode(modifiedAt, forKey: .modifiedAt)
+        }
+
+        func domain() throws -> SyncedHost {
+            let method: HostConfiguration.ConnectionMethod
+            switch connectionMethod {
+            case "openssh": method = .openSSH
+            case "tailscale_ssh": method = .tailscaleSSH
+            default: throw BackendError.invalidResponse
+            }
+            guard let id = UUID(uuidString: id), let modifiedAt = Wire.date(modifiedAt) else { throw BackendError.invalidResponse }
+            return SyncedHost(
+                id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
+                hostKeyPin: hostKeyFingerprint.flatMap(HostKeyFingerprint.init(stored:)), modifiedAt: modifiedAt)
+        }
+    }
+
+    struct HostSyncResponse: Decodable {
+        var hosts: [HostBody]
+        var deletedHostIds: [String]
+
+        func domain() throws -> HostSyncSnapshot {
+            HostSyncSnapshot(
+                hosts: try hosts.map { try $0.domain() },
+                deletedHostIDs: try deletedHostIds.map { text in
+                    guard let id = UUID(uuidString: text) else { throw BackendError.invalidResponse }
+                    return id
+                })
         }
     }
 
