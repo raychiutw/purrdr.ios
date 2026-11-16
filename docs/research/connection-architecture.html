@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>連線方式架構圖</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5b6475; --line: #cfd5e0;
+    --phone: #dbeafe; --net: #fef3c7; --host: #dcfce7; --herdr: #ede9fe; --warn: #fee2e2;
+    --accent: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e6e9f0; --muted: #9aa4b6; --line: #3a4252;
+      --phone: #1e3a5f; --net: #5a4a14; --host: #14532d; --herdr: #3b2d6b; --warn: #5b1f1f;
+      --accent: #7aa7ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--text);
+    font: 15px/1.6 -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 18px 14px; margin-bottom: 18px; }
+  h2 { font-size: 17px; margin: 0 0 2px; }
+  .tag { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .node { flex: 1 1 140px; min-width: 130px; border: 1.5px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; text-align: center; }
+  .node b { display: block; font-size: 14px; }
+  .node small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .phone { background: var(--phone); } .net { background: var(--net); }
+  .host { background: var(--host); } .herdr { background: var(--herdr); } .warn { background: var(--warn); }
+  .arrow { flex: 0 0 74px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--accent); text-align: center; line-height: 1.25; padding: 0 2px; }
+  .arrow::after { content: "→"; font-size: 22px; line-height: 1; }
+  ul { margin: 12px 0 4px; padding-left: 20px; }
+  li { margin: 2px 0; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 10px; }
+  .box { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .box h3 { margin: 0 0 4px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--bg); }
+  .scroll { overflow-x: auto; }
+  .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  @media (max-width: 640px) {
+    .arrow { flex: 1 1 100%; flex-direction: row; gap: 6px; padding: 4px 0; }
+    .arrow::after { content: "↓"; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>iOS 連到電腦的三種方式：角色與架構</h1>
+  <p class="sub">Tailscale SSH、OpenSSH（Purrdr 現有設計）與 Allymote 的 HTTPS（參考對象）。資料來源：<code>docs/research/allymote-https-connection.md</code>、<code>docs/research/allymote-herdr-communication.md</code>（2026-11-16）。</p>
+
+  <section>
+    <h2>① Tailscale SSH（Purrdr 現有）</h2>
+    <p class="tag">主機只需裝 Tailscale 與 herdr，不裝 Purrdr 程式（ADR-0002）</p>
+    <div class="flow">
+      <div class="node phone"><b>iPhone</b>Purrdr app<small>swift-nio-ssh</small></div>
+      <div class="arrow">SSH（none 認證）<br>走 tailnet</div>
+      <div class="node net"><b>Tailscale 網路</b><small>WireGuard 加密<br>ACL 決定誰能連</small></div>
+      <div class="arrow">Tailscale daemon 接手 SSH</div>
+      <div class="node host"><b>電腦（主機）</b>Tailscale SSH<small>不需 sshd</small></div>
+      <div class="arrow">exec</div>
+      <div class="node herdr"><b>herdr</b><small>remote-api-bridge</small></div>
+    </div>
+    <ul>
+      <li><b>身分認證</b>：由 Tailscale 帳號與 ACL 負責，app 不送密碼或金鑰。</li>
+      <li><b>手機必須在 tailnet 內</b>，主機端不需要安裝任何 Purrdr 元件。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>② OpenSSH（Purrdr 現有）</h2>
+    <p class="tag">不依賴 Tailscale；macOS、Linux、Windows 皆可，主機要有 sshd</p>
+    <div class="flow">
+      <div class="node phone"><b>iPhone</b>Purrdr app<small>swift-nio-ssh<br>Secure Enclave P256 金鑰</small></div>
+      <div class="arrow">SSH（公鑰認證）</div>
+      <div class="node net"><b>區網／VPN／網際網路</b><small>使用者自行負責可達性</small></div>
+      <div class="arrow">TCP 22</div>
+      <div class="node host"><b>電腦（主機）</b>OpenSSH sshd<small>authorized_keys</small></div>
+      <div class="arrow">exec</div>
+      <div class="node herdr"><b>herdr</b><small>remote-api-bridge</small></div>
+    </div>
+    <ul>
+      <li><b>身分認證</b>：金鑰在手機的 Secure Enclave，公鑰放進主機 <code>authorized_keys</code>。</li>
+      <li>不支援 RSA（ADR-0003）；Windows 要先把 OpenSSH Server 設好，這是使用門檻。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>③ Allymote 的 HTTPS（參考對象）</h2>
+    <p class="tag">主機要安裝 Allymote 自己的常駐伺服器；TLS 由 <code>tailscale serve</code> 終止；沒有雲端 relay</p>
+    <div class="flow">
+      <div class="node phone"><b>iPhone</b>Allymote app<small>只接受 https 位址<br>device token 存 Keychain</small></div>
+      <div class="arrow">HTTPS<br>走 tailnet</div>
+      <div class="node net"><b>Tailscale 網路</b><small>Let's Encrypt 憑證<br>僅 tailnet 內可達</small></div>
+      <div class="arrow">tailscale serve :443 終止 TLS</div>
+      <div class="node host"><b>Allymote 伺服器</b>Node.js<small>只聽 127.0.0.1:8765<br>配對、稽核、撤銷</small></div>
+      <div class="arrow">本機 socket<br>NDJSON</div>
+      <div class="node herdr"><b>herdr</b><small>herdr.sock<br>（Windows named pipe）</small></div>
+    </div>
+    <ul>
+      <li><b>身分認證</b>：電腦顯示 QR code + 一次性配對碼，app 掃描後換得每台電腦一組 device token，可撤銷、可配成唯讀。</li>
+      <li><b>手機 ↔ 伺服器</b>：單一 WebSocket <code>/ws</code>（JSON 以 <code>type</code> 區分、<code>requestId</code> 對應回應、30 秒 ping）；配對、上傳、下載走一般 HTTPS；沒有 SSE。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>③-1 Allymote 伺服器 ↔ herdr（細節）</h2>
+    <p class="tag">直接連 herdr 官方本機 socket，每個請求開一條新連線；不用 <code>remote-api-bridge</code>，執行期間不呼叫 herdr CLI</p>
+    <div class="cols">
+      <div class="box"><h3>狀態</h3>每秒輪詢 <code>session.snapshot</code>；沒有用 <code>events.subscribe</code>。</div>
+      <div class="box"><h3>對話內容</h3>依 snapshot 的 <code>agent_session</code> 定位檔案，自己讀 <code>~/.claude/projects</code>、<code>~/.codex/sessions</code> 的 jsonl，每 500 ms 檢查。</div>
+      <div class="box"><h3>輸入</h3><code>pane.send_text</code>、<code>pane.send_keys</code>。</div>
+      <div class="box"><h3>終端機</h3>不是 PTY，也不是 <code>terminal session control</code>；每 150 ms 用 <code>pane.read</code> 讀整個畫面（ANSI）推給手機。</div>
+      <div class="box"><h3>integration install</h3>只裝官方 SessionStart hook，呼叫 <code>herdr pane report-agent-session</code> 告訴 herdr session id 與紀錄路徑；不回報狀態、不提供對話。</div>
+      <div class="box"><h3>Purrdr 主機服務建議</h3>同樣直連 socket，但狀態改用 <code>events.subscribe</code> + snapshot 對帳、送 prompt 用 <code>agent.prompt</code>、終端機維持 ADR-0005 的 <code>terminal session control</code>。</div>
+    </div>
+    <p class="note">來源：<code>docs/research/allymote-herdr-communication.md</code>（herdr 官方文件為主；Allymote 部分來自使用者授權閱讀的散布檔，Purrdr 實作不依賴）。</p>
+  </section>
+
+  <section>
+    <h2>Purrdr 後台（不在資料路徑上）</h2>
+    <div class="flow">
+      <div class="node phone"><b>iPhone</b>Purrdr app</div>
+      <div class="arrow">會員、訂閱、主機同步、推播</div>
+      <div class="node warn"><b>Purrdr 後台</b><small>Cloudflare Worker + D1</small></div>
+    </div>
+    <p class="note">聊天與終端機的內容永遠不經過後台（GLOSSARY、ADR-0004、ADR-0007）。若 HTTPS 方案改走後台 relay，會與此原則衝突，研究中不建議。</p>
+  </section>
+
+  <section>
+    <h2>角色與差異對照</h2>
+    <div class="scroll">
+    <table>
+      <tr><th></th><th>Tailscale SSH</th><th>OpenSSH</th><th>Allymote HTTPS</th></tr>
+      <tr><th>手機端</th><td>SSH client</td><td>SSH client</td><td>HTTPS／WebSocket client</td></tr>
+      <tr><th>主機端要裝</th><td>Tailscale、herdr</td><td>sshd、herdr</td><td>Tailscale、herdr、<b>Allymote 伺服器</b></td></tr>
+      <tr><th>加密／TLS 誰做</th><td>WireGuard + SSH</td><td>SSH</td><td>Tailscale 終止 TLS（公共 CA 憑證）</td></tr>
+      <tr><th>認證</th><td>Tailscale 身分／ACL</td><td>公鑰（Secure Enclave）</td><td>QR 配對 → device token</td></tr>
+      <tr><th>手機需在 tailnet</th><td>是</td><td>否</td><td>是</td></tr>
+      <tr><th>撤銷與稽核</th><td>Tailscale 後台</td><td>刪 authorized_keys</td><td>裝置清單、audit log</td></tr>
+      <tr><th>穿透 herdr 的方式</th><td colspan="2">每個請求開 exec channel 跑 <code>herdr remote-api-bridge</code></td><td>伺服器直連 herdr 本機 socket（NDJSON API），輪詢 snapshot 與畫面</td></tr>
+    </table>
+    </div>
+    <p class="note">對 Purrdr 的含意：新增 HTTPS 只是替換「傳輸層」，上層功能不變；但必須在主機裝 Purrdr 的主機服務，這是 ADR-0002「主機端零安裝」的例外，已記於 ADR-0010。</p>
+  </section>
+</main>
+</body>
+</html>
