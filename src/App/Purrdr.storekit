@@ -39,9 +39,7 @@
           "codeOffers" : [
             {
               "eligibility" : [
-                "new",
-                "expired",
-                "existing"
+                "new"
               ],
               "internalID" : "5A1C6E14",
               "isStackable" : true,
