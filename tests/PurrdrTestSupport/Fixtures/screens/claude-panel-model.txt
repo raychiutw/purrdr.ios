@@ -1,13 +1,32 @@
-⏺ Done. The hourly forecast is cached for ten minutes.
 
-▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
- Select model
- Switch between models. Applies to this session and future sessions.
+ ▐▛███▛█   Claude Code v2.1.325
+▝▜██████▀  Opus 5.5 with medium effort · Claude Pro
+ ▝▝   ▝▝   /Users/demo/Projects/ledger
 
-   1. Default (recommended)   Opus · Most capable for complex work
- ❯ 2. Sonnet ✔                Sonnet · Best for everyday tasks
-   3. Haiku                   Haiku · Fastest for quick answers
 
- ◐ Medium effort ←/→ to adjust
 
- Enter to set as default · s to use this session only · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ You've used 78% of your weekly limit · resets Nov 21 at 7am (UTC) · Run /usage-credits to request more ▔
+   Select model
+   Switch between Claude models. Your pick becomes the default for new sessions. For other/previous model names, specify with --model.
+
+     1.  Default (recommended)  Opus 5.5 · Best for everyday, complex tasks
+   ❯ 2.  Opus 5.5 ✔             For complex work and everyday tasks
+     3.  Fable 5.2              For your toughest challenges
+     4.  Sonnet 5.5             Most efficient for simpler tasks
+     5.  Haiku 5.5              Fastest for quick answers
+     ▸   More models
+
+   ◐ Medium effort (default) ←/→ to adjust
+
+   Enter to set as default · s to use this session only · Esc to cancel

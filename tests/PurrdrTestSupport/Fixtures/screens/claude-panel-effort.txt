@@ -1,10 +1,32 @@
-⏺ Done. The hourly forecast is cached for ten minutes.
 
-▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
- Effort
- Higher effort spends more time thinking before answering.
+ ▐▛███▛█   Claude Code v2.1.325
+▝▜██████▀  Opus 5.5 with medium effort · Claude Pro
+ ▝▝   ▝▝   /Users/demo/Projects/ledger
 
-   ──────────▲──────────────────────────────
-   low     medium     high     xhigh     max
 
- ←/→ to adjust · Enter to confirm · Esc to cancel
+❯ /model
+  ⎿  Kept model as Opus 5.5
+
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ ◐ medium · /effort ▔
+   Effort
+
+                                                   Faster                             Smarter
+                                                   ──────────▲───────────────────────────────      Ultracode  off
+                                                   low     medium     high     xhigh      max      Tab to toggle
+
+                                                                 The default effort for this model
+
+
+   ←/→ to adjust · Enter to confirm · s for this session only · Esc to cancel

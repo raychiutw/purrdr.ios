@@ -83,11 +83,22 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
 內容(指令、路徑、問題)是自己寫的範例。測試用 `PaneScreens.read(_:)` 把它放進錄製的 `pane.read` envelope。
 真機第一次看到 blocked 畫面時，以唯讀的 `pane.read` 讀下來去識別化，換掉對應的檔案。
 
-`screens/*-panel-*.txt` 是 slash 指令開出的面板(#45,`/model`、effort 滑桿、「Switch model?」確認、Codex 的模型面板),
-同樣**依行為規格 §5.6 手寫**:2026-11-16 以唯讀 `pane.read` 看過作者主機上所有 Claude pane,都沒有開著的面板;
-為了錄製而送 `/model` 會改到真的 agent,所以不錄。形狀:Claude 以 `▔` 分隔、`Esc to …` 提示行(` · ` 分隔動作)、
-`✔` 目前值、`▲` 滑桿下一行是層級名、`←/→ to adjust`;Codex 以 `Press enter to confirm or esc to go back` 頁尾、`(current)`。
-真機看到面板時，以唯讀 `pane.read` 讀下來去識別化後替換。
+`screens/*-panel-*.txt` 是 slash 指令開出的面板(#45)。
+
+- **`claude-panel-model.txt`、`claude-panel-effort.txt`:真實錄製**(#65,2026-11-16,**Claude Code 2.1.325**、herdr 0.9.5,作者的 Mac,使用者同意)。
+  錄製方式：以 `herdr workspace create --no-focus --label purrdr-fixture --cwd <空的暫存資料夾>` 建一個專用 workspace,
+  只對它的 pane(建立時拿到的 id)操作：`herdr pane run <pane> claude`,信任該空資料夾後，送 `/model`(`send-text` + `send-keys enter`)、
+  `herdr pane read <pane> --source visible --lines 40` 存檔、`send-keys esc` 關閉(畫面回「Kept model as …」);`/effort` 同樣做法(回「Cancelled」)。
+  不送 prompt、不選任何選項、不改設定;最後 `/exit`、`herdr workspace close <id>`,以 `herdr workspace list` 確認已不存在。沒碰其他 workspace／pane。
+  pane 寬 160 欄、32 列，畫面原樣保留(行首空白、`▔` 分隔中間夾的文字、對齊)。
+  **換成假值**:工作資料夾 → `/Users/demo/Projects/ledger`、方案名稱 → `Claude Pro`、用量提醒的時區 → `UTC`、要求管理員加額度的句子改成一般說法。
+  存檔後以 `grep` 確認沒有真實的使用者名稱、主機名、路徑或組織。
+- **`claude-panel-confirm.txt`(「Switch model?」確認)、`codex-panel-model.txt`:仍依行為規格 §5.6 手寫**。
+  確認畫面要在模型面板選定才出現(會改設定),作者的 Mac 沒有 Codex,所以不錄。
+- 真實畫面和 #45 手寫版的差異(解析器已跟著改):`▔` 分隔中間會夾文字(用量提醒、`◐ medium · /effort`);
+  `/model` 有 5 個模型加一列沒有編號的 `▸   More models`(目前不當選項)、調整列是 `◐ Medium effort (default) ←/→ to adjust`;
+  `/effort` 的軌道上方有 `Faster … Smarter`、軌道右邊有 `Ultracode  off`／`Tab to toggle`(目前不提供)、軌道下方有一行說明、
+  提示行多了 `s for this session only`。
 
 ## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
 
