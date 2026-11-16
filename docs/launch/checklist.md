@@ -50,7 +50,7 @@
 | # | 步驟 | 誰做 | 狀態 |
 |---|---|---|---|
 | 4.1 | 網頁草稿 `docs/site/purrdr/`(首頁、`privacy/`、`support/`、`style.css`),純靜態、無外部資源 | 本 repo | ✅ |
-| 4.2 | 把 `REPLACE_ME@example.com`(隱私權政策、支援頁、`review-notes.md`)換成正式聯絡信箱 | 主 session | ⬜ |
+| 4.2 | 把 `REPLACE_ME@example.com`(隱私權政策、支援頁、`review-notes.md`)換成正式聯絡信箱 | 主 session | ✅ lean.lean@gmail.com |
 | 4.3 | 複製到 `raychiutw/raychiutw.github.io` 的 `purrdr/` 資料夾並發佈;確認 `https://raychiutw.github.io/purrdr/privacy/` 與 `/support/` 打得開(app 的 `PurrdrLinks` 已指向這兩個網址) | 主 session | ⬜ |
 | 4.4 | 隱私權政策的生效日期改成實際發佈日 | 主 session | ⬜ |
 

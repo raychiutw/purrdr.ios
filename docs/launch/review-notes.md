@@ -35,7 +35,7 @@ To test: ⋯ > Purrdr Plus. Tap "Sign In to Subscribe" and use Sign in with Appl
 After subscribing, the subscription status appears on the Purrdr Plus and ⋯ > Member screens. The notification toggle (⋯ > Settings) needs a real host, because it installs a small plugin on that computer; on the Demo host it explains "Choose your own host first. The demo host can't send notifications."
 Account deletion: ⋯ > Member > Delete Member…
 
-Contact: REPLACE_ME@example.com
+Contact: lean.lean@gmail.com
 ```
 
 ## 中文對照與依據
