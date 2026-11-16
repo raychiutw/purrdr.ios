@@ -9,7 +9,7 @@ import Testing
 struct HostsModelTests {
     static let pin = HostKeyFingerprint(stored: "COBpO4JIzmE5SXJiDiFEv8QW0IgLEE4H3vB2W6wHLww")!
     static let studio = HostConfiguration(
-        name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"),
+        name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"),
         herdr: HerdrInstallation(session: "work"), operatingSystem: .macOS, hostKeyPin: pin)
 
     @Test("沒有主機時選 Demo 主機，Agent 列表讀 Demo 的資料")
@@ -165,7 +165,7 @@ struct HostsModelTests {
 
         #expect(model.rows == [
             HostRow(id: plain.id, title: "Linux box", subtitle: "ops@100.64.0.9:2222", session: nil, isSelected: true),
-            HostRow(id: Self.studio.id, title: "Studio", subtitle: "demo@ray-mac-mini:22", session: "work", isSelected: false),
+            HostRow(id: Self.studio.id, title: "Studio", subtitle: "demo@studio-mac:22", session: "work", isSelected: false),
         ])
     }
 

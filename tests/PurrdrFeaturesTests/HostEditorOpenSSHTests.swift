@@ -61,7 +61,7 @@ struct HostEditorOpenSSHTests {
     }
 
     static let existing = HostConfiguration(
-        name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), connectionMethod: .openSSH,
+        name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), connectionMethod: .openSSH,
         authentication: .password, hostKeyPin: pin)
 
     @Test("密碼：連線測試用輸入的密碼登入;儲存後密碼只在祕密儲存，主機設定裡沒有")

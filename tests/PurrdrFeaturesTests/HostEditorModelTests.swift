@@ -70,7 +70,7 @@ struct HostEditorModelTests {
 
     static func fill(_ model: HostEditorModel, session: String = "") {
         model.name = "Studio"
-        model.address = "ray-mac-mini"
+        model.address = "studio-mac"
         model.username = "demo"
         model.herdrSession = session
     }
@@ -92,7 +92,7 @@ struct HostEditorModelTests {
         guard case .tested(let report) = model.phase else { Issue.record("測試沒有成功:\(model.phase)"); return }
         #expect(report.herdrVersion == HerdrVersion("0.9.5"))
         #expect(factory.pins == [nil, Self.fingerprint])
-        #expect(factory.endpoints.first == SSHEndpoint(host: "ray-mac-mini", port: 22, username: "demo"))
+        #expect(factory.endpoints.first == SSHEndpoint(host: "studio-mac", port: 22, username: "demo"))
         #expect(await healthy.disconnectCount == 1, "測試用的暫時連線沒有拆掉")
 
         let saved = try #require(model.save())
@@ -107,7 +107,7 @@ struct HostEditorModelTests {
     func editingInvalidatesTest() async {
         let factory = ChannelFactory(await Self.healthyHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint),
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint),
             makeChannel: factory.make)
 
         await model.test()
@@ -120,7 +120,7 @@ struct HostEditorModelTests {
     @Test("編輯主機只改名稱時沿用已存的 pin;改了位址才重新確認")
     func pinIsKeptUnlessEndpointChanges() async {
         let existing = HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint)
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
         let factory = ChannelFactory(await Self.healthyHost(), await Self.unverifiedHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: existing, makeChannel: factory.make)
 
@@ -136,7 +136,7 @@ struct HostEditorModelTests {
     @Test("指紋改變時阻擋並警告，顯示目前出示與已存的指紋;只 pin 剛剛出示的那一把")
     func changedHostKeyIsBlocked() async throws {
         let existing = HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint)
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
         let changed = FakeHost()
         await changed.failConnection(with: SSHConnectionError.hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
         let factory = ChannelFactory(changed, await Self.healthyHost())
@@ -162,7 +162,7 @@ struct HostEditorModelTests {
         await updater.expect(HerdrCommand.update(herdr), reply: FakeReply(stdout: Data("installed 0.9.5\n".utf8)))
         let factory = ChannelFactory(old, updater, await Self.healthyHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint),
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint),
             makeChannel: factory.make)
 
         await model.test()
@@ -225,7 +225,7 @@ struct HostEditorModelTests {
         let store = MemoryHostStore()
         store.saveError = SaveFailed()
         let model = HostEditorModel(store: store, editing: HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint),
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint),
             makeChannel: ChannelFactory(await Self.healthyHost()).make)
 
         await model.test()
