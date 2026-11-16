@@ -33,11 +33,12 @@ extension ClaudeTranscriptParser {
 
     /// 腳本中的 `meta = { name: '…', description: '…' }`(寬鬆比對：單雙反引號都接受)。
     static func workflowMeta(inScript script: String) -> (name: String?, description: String?)? {
-        guard let block = script.firstMatch(of: /meta\s*=\s*\{([\s\S]*?)\}/)?.output.1 else { return nil }
+        // 轉成 String:Android 的 Foundation 只有 String 版的 `Range(_:in:)`,Substring 編譯不過。
+        guard let block = (script.firstMatch(of: /meta\s*=\s*\{([\s\S]*?)\}/)?.output.1).map(String.init) else { return nil }
         func field(_ key: String) -> String? {
             let pattern = key + #"\s*:\s*(['"`])((?:(?!\1)[\s\S])*)\1"#
             guard let regex = try? NSRegularExpression(pattern: pattern),
-                  let match = regex.firstMatch(in: String(block), range: NSRange(block.startIndex..., in: block)),
+                  let match = regex.firstMatch(in: block, range: NSRange(block.startIndex..., in: block)),
                   let range = Range(match.range(at: 2), in: block) else { return nil }
             let value = String(block[range])
             return value.isBlank ? nil : value
@@ -141,10 +142,10 @@ enum DelegationResultText {
 
     /// 前景結果尾端的 `<usage>subagent_tokens: N\ntool_uses: N\nduration_ms: N</usage>`。
     static func usage(in text: String) -> (tokens: Int?, toolUses: Int?) {
-        guard let block = text.firstMatch(of: /<usage>([\s\S]*?)<\/usage>/)?.output.1 else { return (nil, nil) }
+        guard let block = (text.firstMatch(of: /<usage>([\s\S]*?)<\/usage>/)?.output.1).map(String.init) else { return (nil, nil) }
         func number(_ key: String) -> Int? {
             guard let regex = try? NSRegularExpression(pattern: key + #"\s*:\s*(\d+)"#),
-                  let match = regex.firstMatch(in: String(block), range: NSRange(block.startIndex..., in: block)),
+                  let match = regex.firstMatch(in: block, range: NSRange(block.startIndex..., in: block)),
                   let range = Range(match.range(at: 1), in: block) else { return nil }
             return Int(block[range])
         }
