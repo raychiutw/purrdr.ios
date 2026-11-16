@@ -101,6 +101,17 @@
         }
       }
     },
+    "%lld lines of output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 行輸出"
+          }
+        }
+      }
+    },
     "%lld months" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -211,6 +222,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個失敗"
+          }
+        }
+      }
+    },
+    "1 line of output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 行輸出"
           }
         }
       }
@@ -1184,6 +1206,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝診斷資訊"
+          }
+        }
+      }
+    },
+    "Copy Output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝輸出"
           }
         }
       }
@@ -2640,6 +2673,28 @@
         }
       }
     },
+    "No output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無輸出"
+          }
+        }
+      }
+    },
+    "No output recorded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有記錄輸出"
+          }
+        }
+      }
+    },
     "None" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2977,6 +3032,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他 Skill"
+          }
+        }
+      }
+    },
+    "Output truncated at 20,000 characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸出超過 20,000 字，已截斷"
           }
         }
       }
@@ -3619,6 +3685,17 @@
         }
       }
     },
+    "Running…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行中…"
+          }
+        }
+      }
+    },
     "Sample conversations, no computer connected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3868,6 +3945,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示"
+          }
+        }
+      }
+    },
+    "Show All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示全部"
           }
         }
       }
@@ -5078,6 +5166,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 repo 的 worktree Workspace 還開著，請先關閉它們。"
+          }
+        }
+      }
+    },
+    "This runs in the agent’s shell and won’t be sent to Claude." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會在 agent 的 shell 執行，不會送給 Claude。"
           }
         }
       }
