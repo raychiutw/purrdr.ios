@@ -131,6 +131,18 @@ public final class HostsModel {
         PaneTerminalModel(client: terminals, paneID: paneID, title: title)
     }
 
+    /// 選取中主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
+    public func loginShell() -> LoginShellModel {
+        LoginShellModel(channel: channel, title: selectedHostName)
+    }
+
+    /// 選取中主機的檔案瀏覽(從家目錄開始)。
+    public func folderBrowser() -> FolderBrowserModel {
+        FolderBrowserModel(folders: HostFolders(channel: channel), hostName: selectedHostName)
+    }
+
+    private var selectedHostName: String { selectedHost?.name ?? "Demo" }
+
     /// 選取中主機上某個 Agent 的對話 model(pane id、列表看到的 session)。
     public func conversation(paneID: String, sessionID: String?) -> ConversationModel {
         ConversationModel(
