@@ -37,7 +37,7 @@ final class YouShouldKnowUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
         let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
         XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
-        alert.buttons["Allow"].tap()
+        alert.buttons["Allow"].firstMatch.tap()
 
         let editor = app.textViews.firstMatch
         let drafted = NSPredicate(format: "value CONTAINS %@", "Here is a note offered by a side agent")
@@ -62,7 +62,7 @@ final class YouShouldKnowUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
         let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
         XCTAssertTrue(message.contains("config.toml") && message.contains("demo"), "沒說明讀寫什麼、以哪個使用者:\(message)")
-        alert.buttons["Use Theme"].tap()
+        alert.buttons["Use Theme"].firstMatch.tap()
 
         let name = element("settings.hostTheme.name", in: app)
         XCTAssertTrue(name.waitForExistence(timeout: 10), "沒有顯示主機主題")
