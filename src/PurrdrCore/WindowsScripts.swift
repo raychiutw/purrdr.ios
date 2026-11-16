@@ -247,4 +247,143 @@ enum WindowsScripts {
     static func folders(_ body: String, arguments values: [String]) -> String {
         [prelude, arguments(values), body].joined(separator: "\n")
     }
+
+    // MARK: - 主機檔案(主題、You should know、Claude 用量、推播配對;#68)
+
+    /// 與 `HostFileScript` 相同的輸出格式與 exit code。家目錄是 `%USERPROFILE%`,相對路徑的 `/` 換成 `\`。
+    ///
+    /// - 版本是「內容的 SHA-256:大小」(POSIX 版是 `cksum`):只在同一台主機上比對讀取前後，格式不必相同。
+    /// - 跟隨 symlink(`PResolve`,最多 40 層;PowerShell 5.1 的 `Item.Target`)。
+    /// - 寫入：同資料夾的暫存檔，覆寫既有檔案用 `File.Replace`(保留原檔的 ACL 與屬性),新檔用 `File.Move`。
+    /// - `rmtree` 用 `Directory.Delete(…, true)`:不跟進 junction／symlink 刪到外面(PowerShell 5.1 的
+    ///   `Remove-Item -Recurse` 會)。
+    /// - 可執行旗標在 Windows 沒有意義，忽略。
+    static let hostFileFunctions = #"""
+        function PPath([string]$r){Join-Path $env:USERPROFILE $r.Replace('/','\')}
+        function PResolve([string]$p){$n=0;while($n -lt 40){$i=Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue;if(-not $i -or -not ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) -or -not $i.Target){break};$t=@($i.Target)[0];if(-not [IO.Path]::IsPathRooted($t)){$t=Join-Path ([IO.Path]::GetDirectoryName($p)) $t};$p=$t;$n++};$p}
+        function PHashOf([byte[]]$b){(-join ([Security.Cryptography.SHA256]::Create().ComputeHash($b)|%{$_.ToString('x2')}))+':'+$b.Length}
+        function PBytes([string]$p){$h=POpen $p;try{$b=PRead $h 0 $h.Length}finally{$h.Close()};,$b}
+        function PExit([string]$s,[int]$c){PWrite $s;$o.Flush();exit $c}
+        function PAbort($e,[int]$c){[Console]::Error.Write("$($e.Exception.Message)");$o.Flush();exit $c}
+        """#
+
+    static func hostFiles(_ body: String, arguments values: [String]) -> String {
+        [prelude, arguments(values), transcriptFunctions, hostFileFunctions, body].joined(separator: "\n")
+    }
+
+    /// `HostFileScript.read`:輸出多一行 `home <家目錄>`(`/` 分隔),讓 client 知道是 Windows 與家目錄在哪。
+    static let hostFileRead = #"""
+        PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"
+        for($i=0;$i -lt $a.Count;$i++){
+        $p=PResolve (PPath $a[$i])
+        if([IO.File]::Exists($p)){
+        try{$h=POpen $p}catch{PWrite "unreadable $i`n";continue}
+        if($h.Length -gt 1048576){$h.Close();PWrite "toolarge $i`n";continue}
+        try{$b=PRead $h 0 $h.Length}catch{$h.Close();PWrite "unreadable $i`n";continue};$h.Close()
+        PWrite "file $i $(PHashOf $b) $($b.Length)`n";$o.Write($b,0,$b.Length);PWrite "`n"
+        }elseif([IO.Directory]::Exists($p)){PWrite "other $i`n"}
+        elseif([IO.Directory]::Exists([IO.Path]::GetDirectoryName($p))){PWrite "missing $i`n"}
+        else{PWrite "nodir $i`n"}
+        }
+        $o.Flush()
+        """#
+
+    /// `HostFileScript.apply`:先檢查全部(不符 → `changed <路徑>` exit 3;資料夾不存在 → `nodir <路徑>` exit 4),
+    /// 全部符合才依序寫。
+    static let hostFileApply = #"""
+        $made=@()
+        for($i=0;$i+4 -lt $a.Count;$i+=5){
+        $k=$a[$i];$r=$a[$i+1];$e=$a[$i+2]
+        if($k -ceq 'rmtree' -or $k -ceq 'rmdir'){continue}
+        $q=PPath $r
+        if($k -ceq 'mkdir'){if(Get-Item -LiteralPath $q -Force -ErrorAction SilentlyContinue){PExit "changed $r`n" 3};$made+=$q;continue}
+        $p=PResolve $q
+        if($e -ceq 'missing'){if(Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue){PExit "changed $r`n" 3}}
+        elseif($e -cne 'any'){if(-not [IO.File]::Exists($p)){PExit "changed $r`n" 3};try{$b=PBytes $p}catch{PExit "changed $r`n" 3};if((PHashOf $b) -cne $e){PExit "changed $r`n" 3}}
+        if($k -ceq 'put' -and -not $r.StartsWith('.purrdr/')){$d=[IO.Path]::GetDirectoryName($p);if(-not [IO.Directory]::Exists($d) -and -not ($made -contains $d)){PExit "nodir $r`n" 4}}
+        }
+        for($i=0;$i+4 -lt $a.Count;$i+=5){
+        $k=$a[$i];$r=$a[$i+1];$x=$a[$i+3];$q=PPath $r
+        switch -CaseSensitive($k){
+        'put'{
+        $p=PResolve $q;$d=[IO.Path]::GetDirectoryName($p)
+        try{[void][IO.Directory]::CreateDirectory($d)}catch{PAbort $_ 71}
+        try{$b=[Convert]::FromBase64String($x)}catch{PAbort $_ 72}
+        $t=Join-Path $d ('.purrdr-tmp.'+[Guid]::NewGuid().ToString('N'))
+        try{[IO.File]::WriteAllBytes($t,$b);if([IO.File]::Exists($p)){[void][IO.File]::Replace($t,$p,[NullString]::Value)}else{[IO.File]::Move($t,$p)}}catch{$f=$_;if([IO.File]::Exists($t)){[IO.File]::Delete($t)};PAbort $f 71}
+        }
+        'del'{$p=PResolve $q;try{if([IO.File]::Exists($p)){[IO.File]::Delete($p)}}catch{PAbort $_ 71}}
+        'rmtree'{
+        if(-not $r.StartsWith('.purrdr/') -or $r.Length -le 8){exit 64}
+        try{if([IO.Directory]::Exists($q)){[IO.Directory]::Delete($q,$true)}}catch{PAbort $_ 71}
+        $w=PPath '.purrdr';try{if([IO.Directory]::Exists($w) -and @([IO.Directory]::GetFileSystemEntries($w)).Count -eq 0){[IO.Directory]::Delete($w)}}catch{}
+        }
+        'mkdir'{try{[void][IO.Directory]::CreateDirectory($q)}catch{PAbort $_ 71}}
+        'rmdir'{try{if([IO.Directory]::Exists($q) -and @([IO.Directory]::GetFileSystemEntries($q)).Count -eq 0){[IO.Directory]::Delete($q)}}catch{}}
+        }
+        }
+        $o.Flush()
+        """#
+
+    /// `HostFileScript.newest`:資料夾裡檔名開頭、結尾符合、最新(修改時間)的可讀一般檔案。參數：資料夾、開頭、結尾。
+    static let hostFileNewest = #"""
+        $d=PPath $a[0];$n=$null;$m=$null
+        if([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -File)){$x=$e.Name
+        if($x.Length -ge $a[1].Length+$a[2].Length -and $x.StartsWith($a[1],[StringComparison]::Ordinal) -and $x.EndsWith($a[2],[StringComparison]::Ordinal)){
+        try{$h=POpen $e.FullName;$h.Close()}catch{continue}
+        if($m -eq $null -or $e.LastWriteTimeUtc -gt $m){$m=$e.LastWriteTimeUtc;$n=$x}}}}
+        PWrite "purrdr-newest 1`n"
+        if($n){PWrite "$($a[0])/$n`n"}
+        $o.Flush()
+        """#
+
+    /// `PushHost.otherPairingsScript`:`~\.purrdr\push-*\pairing`,每行 `push-<id>/pairing`。
+    static let pushPairings = #"""
+        $d=PPath '.purrdr'
+        if([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Directory|?{$_.Name -clike 'push-*'})){if([IO.File]::Exists((Join-Path $e.FullName 'pairing'))){PWrite "$($e.Name)/pairing`n"}}}
+        $o.Flush()
+        """#
+
+    // MARK: - Claude Code 的 slash 清單探索(#68,`ClaudeSlashCommand`)
+
+    /// 與 POSIX 版相同的紀錄格式(`@F`、`@S`、`@L`,內容每行前面加 `|`)。路徑以參數原樣為基準、往下一律接 `/`,
+    /// 所以 `ClaudeSlashDiscovery` 的解析(`/SKILL.md` 結尾、基準資料夾 + `/`)不分主機。CRLF 的檔案照樣讀得懂。
+    /// 每個函式自己吞掉錯誤(讀不到的檔就略過),與 POSIX 版一樣只要腳本跑完就是 exit 0。
+    static let slashFunctions = #"""
+        function PDump([string]$t,[string]$f){try{if([IO.File]::Exists($f)){$x=[IO.File]::ReadAllText($f,$u).Replace("`r`n","`n");PWrite "@F`t$t`t$f`n";if($x.EndsWith("`n")){$x=$x.Substring(0,$x.Length-1)};if($x.Length -gt 0){foreach($y in $x.Split("`n")){PWrite "|$y`n"}};PWrite "`n"}}catch{}}
+        function PFront([string]$t,[string]$b,[string]$f){PWrite "@S`t$t`t$b`t$f`n";try{$l=[IO.File]::ReadAllLines($f,$u)}catch{return};if($l.Count -eq 0 -or $l[0] -cne '---'){return};for($j=1;$j -lt $l.Count;$j++){if($l[$j] -ceq '---'){break};PWrite "|$($l[$j])`n"}}
+        function PSkills([string]$t,[string]$d){try{if([IO.File]::Exists("$d/SKILL.md")){PFront $t $d "$d/SKILL.md"}elseif([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Directory|Sort-Object Name)){$s="$d/$($e.Name)/SKILL.md";if([IO.File]::Exists($s)){PFront $t $d $s}}}}catch{}}
+        function PCommands([string]$t,[string]$d){try{if([IO.File]::Exists($d)){PFront $t $d.Substring(0,$d.LastIndexOfAny([char[]]'/\')) $d}elseif([IO.Directory]::Exists($d)){$r=(Get-Item -LiteralPath $d -Force).FullName.TrimEnd('\','/');foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Recurse -File|?{$_.Name.EndsWith('.md',[StringComparison]::Ordinal)})){PFront $t $d ($d+'/'+$e.FullName.Substring($r.Length+1).Replace('\','/'))}}}catch{}}
+        """#
+
+    /// 第 1 步：參數是工作資料夾、對話紀錄路徑(沒有時空字串)。
+    static let slashDiscover = slashFunctions + "\n" + #"""
+        $c=PHome $env:CLAUDE_CONFIG_DIR '.claude'
+        PDump 'installed' "$c/plugins/installed_plugins.json"
+        PDump 'settings' "$c/settings.json"
+        if($a[0]){
+        PDump 'project-settings' "$($a[0])/.claude/settings.json"
+        PDump 'local-settings' "$($a[0])/.claude/settings.local.json"
+        PSkills 'project' "$($a[0])/.claude/skills"
+        PCommands 'project' "$($a[0])/.claude/commands"
+        }
+        PSkills 'user' "$c/skills"
+        PCommands 'user' "$c/commands"
+        if($a[1] -and [IO.File]::Exists($a[1])){
+        try{$s=New-Object IO.StreamReader((POpen $a[1]),$u);PWrite "@L`n";while(($l=$s.ReadLine()) -ne $null){if($l.Contains('"skill_listing"')){PWrite "|$l`n"}};$s.Close()}catch{}
+        }
+        $o.Flush()
+        """#
+
+    /// 第 2 步：參數是每個 plugin 的 installPath。
+    static let slashManifests = slashFunctions + "\n" + #"""
+        foreach($p in $a){PDump $p "$p/.claude-plugin/plugin.json"}
+        $o.Flush()
+        """#
+
+    /// 第 3 步：參數每三個一組(種類 `s`／`c`、plugin 名稱、路徑)。
+    static let slashScan = slashFunctions + "\n" + #"""
+        for($i=0;$i+2 -lt $a.Count;$i+=3){if($a[$i] -ceq 's'){PSkills $a[$i+1] $a[$i+2]}else{PCommands $a[$i+1] $a[$i+2]}}
+        $o.Flush()
+        """#
 }

@@ -9,7 +9,7 @@ import Foundation
 /// - 跟隨 symlink 寫到真正的檔案(手動 `readlink` 迴圈最多 40 層，舊 macOS 沒有 `readlink -f`)。
 /// - 每個退出路徑都清掉暫存檔;判斷結果靠 exit code,不比對 stderr 文字。
 ///
-/// Windows 主機的 PowerShell 版本還沒做(ADR-0002)。
+/// Windows 主機由 `WindowsHostChannel` 換成同樣輸出格式的 PowerShell 版本(`WindowsScripts.hostFileRead` 等，#68)。
 enum HostFileScript {
     static let maximumCommandLength = 126 * 1024
     /// 單一檔案的讀取上限。
@@ -49,7 +49,7 @@ enum HostFileScript {
         """
 
     /// 讀取：參數是相對於家目錄的路徑。輸出
-    /// `purrdr-files 1` / `user <名稱>` / 每個檔案一筆：`missing <i>`、`nodir <i>`、`other <i>`、
+    /// `purrdr-files 1` / `user <名稱>` /(只有 Windows 版:`home <家目錄>`)/ 每個檔案一筆：`missing <i>`、`nodir <i>`、`other <i>`、
     /// `unreadable <i>`、`toolarge <i>`,或 `file <i> <版本> <bytes>` 接著原始內容再一個換行。
     static let read = prelude + """
         tmp=$(mktemp "${TMPDIR:-/tmp}/purrdr.XXXXXX") || exit 70
@@ -195,7 +195,12 @@ enum HostFileScript {
             throw HostFilesError.malformedOutput
         }
         var files: [HostPath: HostFileState] = [:]
+        var home: String?
         while let line = reader.line() {
+            if home == nil, files.isEmpty, line.hasPrefix("home ") {
+                home = String(line.dropFirst("home ".count))
+                continue
+            }
             let fields = line.split(separator: " ").map(String.init)
             guard fields.count >= 2, let index = Int(fields[1]), paths.indices.contains(index) else { throw HostFilesError.malformedOutput }
             switch fields[0] {
@@ -214,7 +219,7 @@ enum HostFileScript {
             }
         }
         guard files.count == paths.count else { throw HostFilesError.malformedOutput }
-        return HostFileRead(user: String(userLine.dropFirst("user ".count)), files: files)
+        return HostFileRead(user: String(userLine.dropFirst("user ".count)), files: files, home: home)
     }
 }
 

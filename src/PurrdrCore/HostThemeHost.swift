@@ -18,9 +18,14 @@ public struct HostThemeInspection: Equatable, Sendable {
 /// - 寫：經使用者同意後放一份主題參考檔 `~/.purrdr/theme/README.md`,說明 Purrdr 用了 herdr 主題的哪些 token、
 ///   對比規則，讓使用者或 agent 改 herdr 主題時有依據。關閉時經 `ReversibleHostWrite` 移除，主機與同意前完全相同。
 ///
-/// 不讀 herdrchat 的主題檔(#2 Out of Scope)。Windows 的 `%APPDATA%\herdr\config.toml` 還沒做(主機檔案只有 POSIX)。
+/// Windows 主機(#68)的 herdr 設定在 `%APPDATA%\herdr\config.toml`(預設是 `<家目錄>\AppData\Roaming`;被重新導向
+/// 的 `%APPDATA%` 不支援)。兩個位置在同一次往返一起讀，依主機回報的家目錄(`HostFileRead.isWindows`)選一個。
+///
+/// 不讀 herdrchat 的主題檔(#2 Out of Scope)。
 public struct HostThemeHost: Sendable {
     public static let configPath: HostPath = ".config/herdr/config.toml"
+    /// Windows 的 herdr 設定(`%APPDATA%\herdr\config.toml`)。
+    public static let windowsConfigPath: HostPath = "AppData/Roaming/herdr/config.toml"
     public static let feature = HostWriteFeature(id: "theme", userFiles: [])
     public static let referencePath = feature.ownFile("README.md")
 
@@ -51,14 +56,15 @@ public struct HostThemeHost: Sendable {
 
     /// 讀主機 herdr 的主題。沒有 `config.toml`(或沒有 `~/.config/herdr`)= herdr 預設主題。
     public func readTheme() async throws -> HostTheme {
-        let read = try await files.read([Self.configPath])
-        switch read[Self.configPath] ?? .missing {
+        let read = try await files.read([Self.configPath, Self.windowsConfigPath])
+        let path = read.isWindows ? Self.windowsConfigPath : Self.configPath
+        switch read[path] ?? .missing {
         case .missing, .missingDirectory:
             return HostTheme(config: HerdrThemeConfig(toml: nil))
         case .file(let data, _):
             return HostTheme(config: HerdrThemeConfig(toml: String(decoding: data, as: UTF8.self)))
         case .notRegularFile, .unreadable, .tooLarge:
-            throw HostWriteError.unusableFile(Self.configPath)
+            throw HostWriteError.unusableFile(path)
         }
     }
 
@@ -72,7 +78,8 @@ public struct HostThemeHost: Sendable {
 
         ## Where the colors come from
 
-        Purrdr reads `[theme]` in ~/.config/herdr/config.toml, the same file herdr uses:
+        Purrdr reads `[theme]` in ~/.config/herdr/config.toml (on Windows,
+        %APPDATA%\\herdr\\config.toml), the same file herdr uses:
 
         ```toml
         [theme]
