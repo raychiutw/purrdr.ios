@@ -206,7 +206,7 @@ private struct LayoutBlockView: View {
         case .agent(let name, let detail, let status):
             parts.append(name)
             if let detail { parts.append(detail) }
-            parts.append(String(localized: status.titleResource))
+            parts.append(String(localized: status.title))
         case .terminal(let program):
             parts.append(String(localized: "Terminal"))
             if !program.isEmpty { parts.append(program) }
@@ -222,19 +222,6 @@ private struct LayoutBlockView: View {
         case .chat: Text("Opens the chat.")
         case .terminal: Text("Opens the terminal.")
         case nil: Text("Can’t be opened.")
-        }
-    }
-}
-
-extension AgentStatus {
-    /// 狀態字(與 `title` 相同的字串),給需要 `String` 的地方用。
-    var titleResource: LocalizedStringResource {
-        switch self {
-        case .blocked: "Needs You"
-        case .working: "Working"
-        case .done: "Done"
-        case .idle: "Idle"
-        case .unknown: "Unknown"
         }
     }
 }

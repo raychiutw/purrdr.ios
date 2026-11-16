@@ -30,31 +30,43 @@ enum AgentListProjection {
         let entries = sources.enumerated().flatMap { hostOrder, source in
             entries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
         }
-        let groups = Dictionary(grouping: entries, by: \.group)
+        return grouped(entries, order: \.order).map { AgentSection(group: $0, rows: $1.map(\.row)) }
+    }
+
+    /// 依 `Entry.group` 分組(`AgentGroup` 的順序)、組內依該組的規則排序;空的組不出現。Agents 與 Spaces 檢視共用。
+    static func grouped<Item>(_ items: [Item], order: (Item) -> Entry) -> [(AgentGroup, [Item])] {
+        let groups = Dictionary(grouping: items) { order($0).group }
         return AgentGroup.allCases.compactMap { group in
-            guard let entries = groups[group], !entries.isEmpty else { return nil }
-            return AgentSection(group: group, rows: entries.sorted(by: group.areInIncreasingOrder).map(\.row))
+            guard let items = groups[group], !items.isEmpty else { return nil }
+            return (group, items.sorted { group.areInIncreasingOrder(order($0), order($1)) })
         }
     }
 
-    private static func entries(of source: Source, hostOrder: Int, needle: String, visible: ChatRoute?) -> [Entry] {
+    private struct RowEntry {
+        var row: AgentRow
+        var order: Entry
+    }
+
+    private static func entries(of source: Source, hostOrder: Int, needle: String, visible: ChatRoute?) -> [RowEntry] {
         guard let snapshot = source.snapshot else { return [] }
         let order = Dictionary(snapshot.workspaces.map { ($0.id, $0.number) }, uniquingKeysWith: { first, _ in first })
         let byWorkspace = Dictionary(grouping: snapshot.agents, by: \.workspaceID)
-        return snapshot.agents.enumerated().compactMap { position, agent -> Entry? in
+        return snapshot.agents.enumerated().compactMap { position, agent -> RowEntry? in
             let siblings = byWorkspace[agent.workspaceID] ?? [agent]
             let chat = ChatUnread.State(agent: agent, source: source, visible: visible)
             let row = AgentRow(
                 agent: agent, siblings: siblings, preview: source.previews[agent.paneID], host: source.host, label: source.label, chat: chat)
             guard needle.isEmpty || matches(needle, agent: agent, row: row) else { return nil }
-            return Entry(
-                row: row, hostOrder: hostOrder, workspaceOrder: order[agent.workspaceID] ?? .max, position: position,
-                lastMessage: source.previews[agent.paneID]?.date, pinnedAt: chat.pinnedAt)
+            return RowEntry(row: row, order: Entry(
+                status: row.status, hostOrder: hostOrder, workspaceOrder: order[agent.workspaceID] ?? .max, position: position,
+                lastMessage: source.previews[agent.paneID]?.date, pinnedAt: chat.pinnedAt))
         }
     }
 
+    /// 分組與排序鍵(Agents 檢視的列、Spaces 檢視的列與卡片共用)。
     struct Entry {
-        var row: AgentRow
+        /// 顯示的狀態(決定「需要你／工作中／閒置」)。
+        var status: AgentStatus
         var hostOrder: Int
         var workspaceOrder: Int
         var position: Int
@@ -62,7 +74,7 @@ enum AgentListProjection {
         /// 釘選時間;有值就在「已釘選」,不看狀態(行為規格 F2.2)。
         var pinnedAt: Date?
 
-        var group: AgentGroup { pinnedAt == nil ? row.status.group : .pinned }
+        var group: AgentGroup { pinnedAt == nil ? status.group : .pinned }
 
         /// 主機順序(選取中主機在前)→ workspace 順序 → snapshot 內的位置。
         var order: (Int, Int, Int) { (hostOrder, workspaceOrder, position) }
@@ -75,7 +87,12 @@ enum AgentListProjection {
             row.title, row.hostLabel?.name, agent.name, agent.sessionTitle, agent.terminalTitle, agent.kind, AgentKind.displayName(agent.kind),
             agent.cwd, agent.workspaceLabel, agent.workspaceID,
         ]
-        return fields.contains { $0?.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
+        return contains(needle, in: fields)
+    }
+
+    /// 搜尋比對：任一欄位含 `needle`(不分大小寫與變音符號)。Agents 與 Spaces 檢視共用(行為規格 F2.3)。
+    static func contains(_ needle: String, in fields: [String?]) -> Bool {
+        fields.contains { $0?.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil }
     }
 }
 

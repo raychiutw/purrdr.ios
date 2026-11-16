@@ -520,7 +520,8 @@ extension AgentGroup {
 }
 
 extension AgentStatus {
-    var title: LocalizedStringKey {
+    /// 狀態字：列表、版面圖、對話標題列共用這一份(`Text` 與 `String(localized:)` 都用它)。
+    var title: LocalizedStringResource {
         switch self {
         case .blocked: "Needs You"
         case .working: "Working"

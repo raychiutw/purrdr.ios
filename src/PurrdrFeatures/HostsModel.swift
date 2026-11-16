@@ -58,7 +58,10 @@ public enum HostManagementError: Error, Equatable {
 @Observable
 public final class HostsModel {
     public private(set) var selection: HostSelection = .demo
-    public private(set) var hosts: [HostConfiguration] = []
+    public private(set) var hosts: [HostConfiguration] = [] {
+        // 主機清單變了就重讀圖示(新增、同步來的主機可能已有存過的圖示)。
+        didSet { icons = Dictionary(hosts.map { ($0.id, hostIcons.icon(for: $0.id) ?? .default) }, uniquingKeysWith: { first, _ in first }) }
+    }
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
     /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
@@ -86,8 +89,8 @@ public final class HostsModel {
     private let conversationCache: any ConversationCache
     private let preferences: any HostChatPreferencesStore
     private let hostIcons: any HostIconStore
-    /// 主機圖示改了就遞增，讓依賴圖示的畫面(主機清單、主機鈕)重新計算。
-    private var iconRevision = 0
+    /// 已存主機的圖示(從 `hostIcons` 讀出)。是 observable 狀態：改了圖示，依賴它的畫面(主機清單、主機鈕)重新計算。
+    private var icons: [UUID: HostIcon] = [:]
     /// 已建立的主機通道(以主機 id)。
     private var channels: [UUID: any HostChannel] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
@@ -209,8 +212,7 @@ public final class HostsModel {
     }
 
     public var rows: [HostRow] {
-        _ = iconRevision
-        return hosts.map { host in
+        hosts.map { host in
             HostRow(
                 id: host.id, title: host.name,
                 subtitle: "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
@@ -234,8 +236,7 @@ public final class HostsModel {
 
     /// 主機的圖示(只存本機);沒選過是預設圖示。
     public func icon(for id: UUID) -> HostIcon {
-        _ = iconRevision
-        return hostIcons.icon(for: id) ?? .default
+        icons[id] ?? .default
     }
 
     /// 選取中主機的圖示(主機鈕用)。
@@ -244,7 +245,7 @@ public final class HostsModel {
     /// 替主機選圖示：只存在這支裝置，列表與主機鈕立刻改用它。
     public func setIcon(_ icon: HostIcon, for id: UUID) {
         hostIcons.setIcon(icon, for: id)
-        iconRevision += 1
+        icons[id] = icon
         rebuildMembers()
     }
 
