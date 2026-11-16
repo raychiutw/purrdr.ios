@@ -7,11 +7,11 @@ herdr 自己的概念(Workspace、Tab、Pane、Agent 狀態)沿用 herdr 官方�
 ## 連線
 
 **主機**(Host):
-使用者的一台電腦，上面跑著 herdr,app 透過 SSH 連進去。一台主機有一種作業系統(macOS、Linux 或 Windows)和一種連線方式。
+使用者的一台電腦，上面跑著 herdr,app 透過某種連線方式連進去。一台主機有一種作業系統(macOS、Linux 或 Windows)和一種連線方式。
 _避免_:電腦、伺服器、機器、Device、Computer
 
 **連線方式**:
-app 登入主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)與 **OpenSSH**(主機自己的 sshd,用金鑰或密碼)。
+app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。
 _避免_:Transport、Auth mode
 
 **選取中主機**:
@@ -25,6 +25,18 @@ _避免_:匯出檔、Config QR、邀請連結
 **Tailscale 重新驗證**(Tailscale check):
 Tailscale SSH 的規則要求連線端定期在瀏覽器重新登入 Tailscale(Tailscale 稱 check mode)。主機給一個驗證網址，驗證完連線才會繼續。UI 稱「Sign In to Tailscale」。
 _避免_:二次驗證、2FA、re-auth
+
+**主機服務**(Host service):
+HTTPS 連線方式在主機上執行的 Purrdr 常駐程式;只聽本機，直接連 herdr 的本機 socket,只提供 herdr 相關操作，不能執行任意指令。
+_避免_:Daemon、Agent、Server、主機外掛(主機外掛是推播用的另一個元件)
+
+**連線配對**:
+讓一支裝置可以用 HTTPS 連上某台主機的授權流程：主機顯示 QR code,裝置掃描後取得裝置權杖。
+_避免_:推播配對(那是推播用的)、Login、Register
+
+**裝置權杖**(Device token):
+連線配對後，主機服務發給某支裝置的憑證;每台主機一組，存在該裝置的 Keychain,可撤銷、可設成唯讀，永不同步。
+_避免_:API key、Session token、Pairing token、APNs token(那是推播用的)
 
 ## herdr
 
@@ -76,5 +88,5 @@ _避免_:帳號、User、Account
 _避免_:授權碼、License、Pro、Plus(單獨使用時)、推播訂閱
 
 **主機同步**:
-把會員的主機清單(主機名稱、連線方式、使用者名稱、host key 指紋)存在 Purrdr 後台，讓會員的各支裝置共用。私鑰與密碼永不同步。與 QR code 匯出匯入並存。
+把會員的主機清單(主機名稱、連線方式、使用者名稱、host key 指紋或 HTTPS 位址)存在 Purrdr 後台，讓會員的各支裝置共用。私鑰、密碼與裝置權杖永不同步。與 QR code 匯出匯入並存。
 _避免_:Backup、Cloud sync
