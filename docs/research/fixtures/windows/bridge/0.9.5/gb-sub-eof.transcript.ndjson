@@ -1,0 +1,4 @@
+{"t_ms": 1.9, "dir": "stdin", "line": "{\"id\":\"purrdr:events.subscribe\",\"method\":\"events.subscribe\",\"params\":{\"subscriptions\":[{\"type\":\"workspace.created\"},{\"type\":\"workspace.closed\"}]}}"}
+{"t_ms": 1.9, "dir": "stdin_eof", "line": null}
+{"t_ms": 1029.8, "dir": "stdout_eof", "line": null}
+{"t_ms": 1032.4, "dir": "exit", "line": 0}

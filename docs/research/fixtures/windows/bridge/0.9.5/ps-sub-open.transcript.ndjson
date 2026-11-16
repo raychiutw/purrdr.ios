@@ -1,0 +1,5 @@
+{"t_ms": 4.6, "dir": "stdin", "line": "{\"id\":\"purrdr:events.subscribe\",\"method\":\"events.subscribe\",\"params\":{\"subscriptions\":[{\"type\":\"workspace.created\"},{\"type\":\"workspace.closed\"}]}}"}
+{"t_ms": 1541.6, "dir": "stdout", "line": "{\"id\":\"purrdr:events.subscribe\",\"result\":{\"type\":\"subscription_started\"}}"}
+{"t_ms": 5012.0, "dir": "stdin_eof", "line": null}
+{"t_ms": 5120.8, "dir": "stdout_eof", "line": null}
+{"t_ms": 5123.0, "dir": "exit", "line": 0}

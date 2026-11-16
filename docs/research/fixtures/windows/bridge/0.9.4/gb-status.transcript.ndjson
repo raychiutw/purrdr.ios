@@ -1,0 +1,9 @@
+{"t_ms": 1.9, "dir": "stdin_eof", "line": null}
+{"t_ms": 1226.9, "dir": "stdout", "line": "status: running"}
+{"t_ms": 1226.9, "dir": "stdout", "line": "version: 0.9.4"}
+{"t_ms": 1226.9, "dir": "stdout", "line": "endpoint_compatible: yes"}
+{"t_ms": 1226.9, "dir": "stdout", "line": "private_protocol: 22"}
+{"t_ms": 1226.9, "dir": "stdout", "line": "private_protocol_compatible: yes"}
+{"t_ms": 1226.9, "dir": "stdout", "line": "socket: C:\\Users\\demo\\AppData\\Roaming\\herdr\\herdr.sock"}
+{"t_ms": 1238.3, "dir": "stdout_eof", "line": null}
+{"t_ms": 1241.3, "dir": "exit", "line": 0}

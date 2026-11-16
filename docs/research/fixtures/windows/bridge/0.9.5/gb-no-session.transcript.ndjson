@@ -1,0 +1,5 @@
+{"t_ms": 4.7, "dir": "stdin", "line": "{\"id\":\"purrdr:ping\",\"method\":\"ping\",\"params\":{}}"}
+{"t_ms": 1122.5, "dir": "stderr", "line": "Error: Custom { kind: NotFound, error: \"failed to connect to remote Herdr API socket C:\\\\Users\\\\demo\\\\AppData\\\\Roaming\\\\herdr\\\\sessions\\\\purrdr-nosuch\\\\herdr.sock: 系統找不到指定的檔案。 (os error 2)\" }"}
+{"t_ms": 1126.0, "dir": "stdout_eof", "line": null}
+{"t_ms": 3014.1, "dir": "stdin_eof", "line": null}
+{"t_ms": 3014.3, "dir": "exit", "line": 1}

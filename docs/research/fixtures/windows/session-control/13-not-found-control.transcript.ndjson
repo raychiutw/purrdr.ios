@@ -1,0 +1,3 @@
+{"t_ms": 1551.1, "dir": "stdout", "line": "{\"reason\":\"terminal session control failed: terminal target w9:p9 not found\",\"type\":\"terminal.closed\"}"}
+{"t_ms": 1582.4, "dir": "stdout_eof", "line": null}
+{"t_ms": 4006.2, "dir": "exit", "line": 0}

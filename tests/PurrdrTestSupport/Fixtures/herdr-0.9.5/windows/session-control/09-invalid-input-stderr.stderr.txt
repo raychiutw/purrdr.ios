@@ -1,0 +1,4 @@
+herdr: terminal session control input ignored: terminal.resize cols and rows must be greater than 0
+herdr: terminal session control input ignored: invalid json command: expected ident at line 1 column 2
+herdr: terminal session control input ignored: invalid json command: unknown variant `terminal.bogus`, expected one of `terminal.input`, `terminal.resize`, `terminal.scroll`, `terminal.mouse`, `terminal.release` at line 1 column 24
+herdr: terminal session control input ignored: terminal.input accepts text or bytes, not both
