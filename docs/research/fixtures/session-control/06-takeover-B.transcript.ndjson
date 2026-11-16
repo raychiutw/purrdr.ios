@@ -1,0 +1,5 @@
+{"t_ms": 116.3, "dir": "stdout", "line": "{\"reason\":\"terminal attach failed: terminal term_660523e11df7c5 already has an attached client; retry with --takeover\",\"type\":\"terminal.closed\"}"}
+{"t_ms": 116.6, "dir": "stdout_eof", "line": null}
+{"t_ms": 512.4, "dir": "stdin", "line": "{\"type\": \"terminal.input\", \"text\": \"echo B-rejected\\r\"}"}
+{"t_ms": 1322.8, "dir": "stdin_eof", "line": null}
+{"t_ms": 1631.7, "dir": "exit", "line": 0}

@@ -1,0 +1,111 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "5A1C6E0B",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21500000",
+      "localizations" : [
+
+      ],
+      "name" : "Purrdr Plus",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+            {
+              "eligibility" : [
+                "new",
+                "expired",
+                "existing"
+              ],
+              "internalID" : "5A1C6E14",
+              "isStackable" : true,
+              "paymentMode" : "free",
+              "referenceName" : "Friends and Events",
+              "subscriptionPeriod" : "P1M"
+            }
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "5A1C6E10",
+          "introductoryOffer" : {
+            "internalID" : "5A1C6E11",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P2W"
+          },
+          "localizations" : [
+            {
+              "description" : "Notifications when an agent needs you, and host sync across your devices.",
+              "displayName" : "Purrdr Plus Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.raychiu.purrdr.plus.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Purrdr Plus Monthly",
+          "subscriptionGroupID" : "21500000",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "39.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "5A1C6E12",
+          "introductoryOffer" : {
+            "internalID" : "5A1C6E13",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P2W"
+          },
+          "localizations" : [
+            {
+              "description" : "Notifications when an agent needs you, and host sync across your devices.",
+              "displayName" : "Purrdr Plus Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.raychiu.purrdr.plus.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Purrdr Plus Yearly",
+          "subscriptionGroupID" : "21500000",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

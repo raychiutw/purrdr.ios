@@ -1,0 +1,48 @@
+/// Claude Code 的內建 slash 指令(#15「另列內建指令」)。
+///
+/// 行為規格 F9.2 的做法是對主機上的 `claude` 執行檔做字串搜尋;這裡先用**靜態清單**(F9.1 的後備:
+/// 「讀不到時用某一版的靜態清單」),依 Claude Code 2.1 系列的官方文件(code.claude.com/docs/en/slash-commands,
+/// 2026-11 取用)整理。說明是依文件寫的簡述。主機上的版本可能多或少幾個;Claude 會自己拒絕不認得的指令。
+public enum ClaudeBuiltinCommands {
+    public static let all: [SlashCommand] = [
+        SlashCommand(name: "add-dir", argumentHint: "<path>", summary: "Add a working directory"),
+        SlashCommand(name: "agents", summary: "Manage subagents"),
+        SlashCommand(name: "bug", summary: "Report a bug to Anthropic"),
+        SlashCommand(name: "clear", summary: "Clear the conversation history"),
+        SlashCommand(name: "compact", argumentHint: "[instructions]", summary: "Compact the conversation, optionally with focus instructions"),
+        SlashCommand(name: "config", summary: "Open settings"),
+        SlashCommand(name: "context", summary: "Show context usage"),
+        SlashCommand(name: "cost", summary: "Show token usage for this session"),
+        SlashCommand(name: "doctor", summary: "Check the Claude Code installation"),
+        SlashCommand(name: "effort", argumentHint: "[level]", summary: "Set the reasoning effort"),
+        SlashCommand(name: "exit", summary: "Exit Claude Code"),
+        SlashCommand(name: "export", argumentHint: "[filename]", summary: "Export the conversation to a file or the clipboard"),
+        SlashCommand(name: "help", summary: "Show help and available commands"),
+        SlashCommand(name: "hooks", summary: "Manage hooks"),
+        SlashCommand(name: "ide", summary: "Manage IDE integrations"),
+        SlashCommand(name: "init", summary: "Create a CLAUDE.md for this project"),
+        SlashCommand(name: "login", summary: "Sign in to your Anthropic account"),
+        SlashCommand(name: "logout", summary: "Sign out of your Anthropic account"),
+        SlashCommand(name: "mcp", summary: "Manage MCP servers"),
+        SlashCommand(name: "memory", summary: "Edit CLAUDE.md memory files"),
+        SlashCommand(name: "model", argumentHint: "[model]", summary: "Choose the model"),
+        SlashCommand(name: "output-style", summary: "Choose an output style"),
+        SlashCommand(name: "permissions", summary: "View or update permissions"),
+        SlashCommand(name: "plugin", summary: "Manage plugins"),
+        SlashCommand(name: "pr-comments", summary: "Show pull request comments"),
+        SlashCommand(name: "release-notes", summary: "Show release notes"),
+        SlashCommand(name: "resume", summary: "Resume a conversation"),
+        SlashCommand(name: "review", summary: "Review a pull request"),
+        SlashCommand(name: "rewind", summary: "Rewind the conversation or code"),
+        SlashCommand(name: "security-review", summary: "Review pending changes for security issues"),
+        SlashCommand(name: "skills", summary: "List available skills"),
+        SlashCommand(name: "status", summary: "Show version, model, and account status"),
+        SlashCommand(name: "statusline", summary: "Set up the status line"),
+        SlashCommand(name: "tasks", summary: "List background tasks"),
+        SlashCommand(name: "terminal-setup", summary: "Set up terminal key bindings"),
+        SlashCommand(name: "theme", summary: "Change the color theme"),
+        SlashCommand(name: "todos", summary: "List the current todo items"),
+        SlashCommand(name: "usage", summary: "Show plan usage limits"),
+        SlashCommand(name: "vim", summary: "Toggle vim editing mode"),
+    ]
+}

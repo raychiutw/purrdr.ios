@@ -1,0 +1,2 @@
+{"type": "terminal.input", "text": "echo hello-\"\"world\r"}
+{"type": "terminal.release"}

@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# 群組名稱帶 workflow 名稱：被其他 workflow 呼叫時不會跟 PR 的 CI 搶同一個群組。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# package 與 app 兩個 job 跑在 xcode-27:GitHub 的 preview 映像(底層 macOS 27,預設 Xcode 27 / iOS 27 SDK)。
+# preview 不穩(排隊超過 30 分鐘、映像壞掉)時，把 runs-on 暫時退回 macos-26,並在 PR 記錄證據。
+jobs:
+  package:
+    name: Package 測試(swift test)
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 工具鏈版本
+        run: |
+          xcodebuild -version
+          swift --version
+
+      # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
+      # 先用 -showComponent 檢查，已安裝就不下載。
+      - name: 安裝 Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed'; then
+            echo "Metal Toolchain 已安裝，略過下載"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcodebuild -showComponent MetalToolchain
+
+      # warning 當 error 寫在 Package.swift(只對 macOS 套用)。
+      # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo。
+      - name: swift test
+        run: swift test --explicit-target-dependency-import-check error
+
+      # Xcode 建置 app 時會把 package 的 warning 壓掉，所以另外在 package 根目錄以 iOS 編譯一次。
+      # 不能用 SWIFT_TREAT_WARNINGS_AS_ERRORS=YES:它也會套到 SwiftTerm、swift-nio 這類遠端 package,
+      # 跟 Xcode 給遠端 package 的 -suppress-warnings 衝突。改用 result bundle 數 warning
+      # (遠端 package 的 warning 已被壓掉，數到的都是我們自己的)。
+      # -skipPackagePluginValidation:SwiftTerm(1.19 起)帶 build-tool plugin(SwiftTermBuildInfoPlugin),
+      # 命令列建置沒辦法像 Xcode 介面那樣按「信任」,不跳過驗證會直接失敗。
+      - name: 以 iOS 編譯 package
+        run: >
+          xcodebuild build
+          -scheme Purrdr-Package
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath .derivedData/package
+          -resultBundlePath .derivedData/package/Package.xcresult
+          -skipPackagePluginValidation
+          SWIFT_EMIT_LOC_STRINGS=YES
+
+      - name: 檢查 package 零 warning
+        run: |
+          xcrun xcresulttool get build-results --path .derivedData/package/Package.xcresult > package-results.json
+          warnings="$(jq '.warningCount' package-results.json)"
+          echo "warningCount=$warnings"
+          jq -r '.warnings[]? | "::warning::\(.message)"' package-results.json
+          test "$warnings" -eq 0
+
+      # 畫面字串(編譯器抽出)都在 String Catalog 且有繁體中文(#32)。用上一步的 derivedData,不另外建置。
+      - name: 檢查 String Catalog
+        run: scripts/strings.sh check .derivedData/package
+
+  # Purrdr 後台(backend/):Workers 本機測試環境(@cloudflare/vitest-plugin + 本機 D1),不連 Cloudflare、不部署。
+  backend:
+    name: 後台測試(vitest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: 安裝依賴
+        run: npm ci
+
+      - name: 型別檢查(含 wrangler types 是否最新)
+        run: npm run typecheck
+
+      - name: 測試
+        run: npm test
+
+  # CI 不做 UI 測試(太久);UI 測試在本機跑，只跑有修改到的類別(見 AGENTS.md「常用指令」)。
+  app:
+    name: App 編譯(xcodebuild build)
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 工具鏈版本
+        run: xcodebuild -version
+
+      # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
+      # 先用 -showComponent 檢查，已安裝就不下載。
+      - name: 安裝 Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed'; then
+            echo "Metal Toolchain 已安裝，略過下載"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcodebuild -showComponent MetalToolchain
+
+      # -skipPackagePluginValidation:同 package job,SwiftTerm 的 build-tool plugin 在命令列無法手動信任。
+      - name: xcodebuild build
+        run: >
+          xcodebuild build
+          -project src/App/Purrdr.xcodeproj
+          -scheme Purrdr
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath .derivedData
+          -resultBundlePath .derivedData/Purrdr.xcresult
+          -skipPackagePluginValidation
+
+      - name: 檢查零 warning
+        run: |
+          xcrun xcresulttool get build-results --path .derivedData/Purrdr.xcresult > build-results.json
+          warnings="$(jq '.warningCount' build-results.json)"
+          echo "warningCount=$warnings"
+          jq -r '.warnings[]? | "::warning::\(.message)"' build-results.json
+          test "$warnings" -eq 0
+
+      - name: 上傳建置結果
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Purrdr.xcresult
+          path: .derivedData/Purrdr*.xcresult
+          retention-days: 7
+
+  # 可攜核心(ADR-0006)用 Swift SDK for Android 交叉編譯，守住「不依賴 Apple 專屬 framework」。
+  # 版本與做法見 docs/research/swift-sdk-for-android.md:開源 toolchain 與 SDK 版本必須完全一致、NDK 用 r30。
+  # 只編譯可攜的 target(PurrdrCore、PurrdrDemo),SwiftUI 的 PurrdrFeatures 不在 Android 編譯範圍。
+  android:
+    name: 可攜核心 Android 編譯(Swift SDK for Android)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container: swift:6.4.2-noble
+    env:
+      SWIFT_SDK: swift-6.4.2-RELEASE_android
+      SDK_URL: https://download.swift.org/swift-6.4.2-release/android-sdk/swift-6.4.2-RELEASE/swift-6.4.2-RELEASE_android.artifactbundle.tar.gz
+      SDK_CHECKSUM: 4d6ad63ea74becd58e123ff58b1b48c3be5ec0db0dff0ea5abe37ac007dd3233
+      NDK_VERSION: r30
+    strategy:
+      fail-fast: false
+      matrix:
+        triple: [aarch64-unknown-linux-android28, x86_64-unknown-linux-android28]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 安裝工具
+        run: apt-get update && apt-get install -y --no-install-recommends curl unzip
+
+      - name: 安裝 Swift SDK for Android
+        run: |
+          swift --version
+          swift sdk install "$SDK_URL" --checksum "$SDK_CHECKSUM"
+          swift sdk list
+
+      - name: 安裝 Android NDK 並連結到 SDK
+        run: |
+          curl -fsSL -o ndk.zip "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip"
+          unzip -q ndk.zip -d "$RUNNER_TEMP"
+          export ANDROID_NDK_HOME="$RUNNER_TEMP/android-ndk-${NDK_VERSION}"
+          bundle="$(find "$HOME" -maxdepth 4 -type d -name "${SWIFT_SDK}.artifactbundle" | head -n 1)"
+          test -n "$bundle"
+          "$bundle/swift-android/scripts/setup-android-sdk.sh"
+
+      # SwiftPM 新預設 build system 的 Android 支援與 SDK 的 NDK 連結方式不同，跟 swift-nio 的 CI 一樣用 native。
+      - name: swift build(${{ matrix.triple }})
+        run: >
+          swift build
+          --build-system native
+          --swift-sdk "$SWIFT_SDK"
+          --triple "${{ matrix.triple }}"
+          --static-swift-stdlib
+          --target PurrdrDemo
+          -Xswiftc -warnings-as-errors

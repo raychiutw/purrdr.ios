@@ -1,0 +1,9 @@
+⏺ Done. The hourly forecast is cached for ten minutes:
+
+  1. Read the cache before calling the API.
+  2. Write the response with an expiry.
+
+────────────────────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────────────────────
+  ? for shortcuts
