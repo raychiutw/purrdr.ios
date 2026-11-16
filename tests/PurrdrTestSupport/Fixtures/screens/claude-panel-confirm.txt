@@ -1,0 +1,8 @@
+⏺ Done. The hourly forecast is cached for ten minutes.
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+ Switch model?
+ The conversation continues with Haiku. Earlier messages stay in context.
+
+ ❯ 1. Yes, switch
+   2. No, go back

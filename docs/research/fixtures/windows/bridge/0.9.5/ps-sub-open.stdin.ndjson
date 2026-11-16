@@ -1,0 +1,1 @@
+{"id":"purrdr:events.subscribe","method":"events.subscribe","params":{"subscriptions":[{"type":"workspace.created"},{"type":"workspace.closed"}]}}

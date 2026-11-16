@@ -1,11 +1,6 @@
 import Foundation
 
-/// 主機作業系統(GLOSSARY「主機」)。Windows 主機在之後的票支援。
-public enum HostOperatingSystem: String, Sendable, Hashable, Codable {
-    case macOS
-    case linux
-}
-
+/// 主機作業系統(GLOSSARY「主機」)。
 /// herdr 版本。以數值比較(字串比較會讓 `0.10.0` < `0.8.0`,行為規格 §3.1)。
 public struct HerdrVersion: Sendable, Hashable, Comparable, CustomStringConvertible {
     /// 最低支援 herdr 0.9.5(ADR-0002)。
@@ -80,9 +75,17 @@ public struct HostProbeReport: Sendable, Equatable {
     }
 }
 
+/// 更新 herdr 之後伺服器的狀態。
+public enum HerdrUpdateOutcome: Sendable, Equatable {
+    /// 執行中的伺服器已交接到新版(`update --handoff`)。
+    case handedOff
+    /// 只換了執行檔：要在主機上重啟 herdr 伺服器才會用新版(Windows 沒有 live handoff)。
+    case restartServerRequired
+}
+
 /// 連線測試在 herdr 這一層失敗的原因。連線層的失敗見 `SSHConnectionError`。
 public enum HostProbeError: Error, Equatable {
-    /// 主機不是 macOS 或 Linux(Windows 之後支援)。
+    /// 主機不是 macOS、Linux 或 Windows。
     case unsupportedOperatingSystem(String)
     /// 找不到 herdr(exit 127)。
     case herdrNotInstalled
@@ -110,10 +113,12 @@ public struct HostProbe: Sendable {
 
     public func run() async throws -> HostProbeReport {
         let operatingSystem = try await detectOperatingSystem()
+        // 偵測到 Windows 之後，指令一律換成 PowerShell 方言。
+        let channel = operatingSystem.channel(channel)
 
-        let version = try await run(HerdrCommand.version(herdr))
+        let version = try await channel.collect(HerdrCommand.version(herdr))
         if version.exitCode == 127 { throw HostProbeError.herdrNotInstalled }
-        guard version.exitCode == 0, let installed = HerdrVersion(version.stdout) else { throw HostProbeError.notHerdr }
+        guard version.exitCode == 0, let installed = HerdrVersion(version.stdoutText) else { throw HostProbeError.notHerdr }
         guard installed >= .minimumSupported else { throw HostProbeError.herdrOutdated(installed) }
 
         let client = HerdrClient(channel: channel, herdr: herdr)
@@ -129,43 +134,27 @@ public struct HostProbe: Sendable {
         } catch HerdrError.herdr(code: "server_not_running", _) {
             throw HostProbeError.serverNotRunning
         } catch HerdrError.herdr(_, let message) {
-            throw HostProbeError.herdr(message)
+            throw HostProbeError.herdr(WindowsErrorText.readable(message))
         }
     }
 
     /// 更新 herdr(使用者確認後才呼叫)。
-    public func updateHerdr() async throws {
-        let result = try await run(HerdrCommand.update(herdr))
+    ///
+    /// macOS／Linux 以 `update --handoff` 讓執行中的伺服器交接到新版;Windows 不支援 live handoff
+    /// (`ping` 的 `capabilities.live_handoff` 是 `false`),只換執行檔，要使用者在主機上重啟伺服器(行為規格 §11.1)。
+    @discardableResult
+    public func updateHerdr() async throws -> HerdrUpdateOutcome {
+        let operatingSystem = try await detectOperatingSystem()
+        let result = try await operatingSystem.channel(channel).collect(HerdrCommand.update(herdr))
         guard result.exitCode == 0 else {
-            let message = (result.stderr.isEmpty ? result.stdout : result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
-            throw HostProbeError.updateFailed(message)
+            let message = (result.stderr.isEmpty ? result.stdoutText : String(decoding: result.stderr, as: UTF8.self))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw HostProbeError.updateFailed(WindowsErrorText.readable(message))
         }
+        return operatingSystem == .windows ? .restartServerRequired : .handedOff
     }
 
     private func detectOperatingSystem() async throws -> HostOperatingSystem {
-        let result = try await run(HerdrCommand.operatingSystem)
-        let name = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch (result.exitCode, name) {
-        case (0, "Darwin"): return .macOS
-        case (0, "Linux"): return .linux
-        default: throw HostProbeError.unsupportedOperatingSystem(name.isEmpty ? result.stderr : name)
-        }
-    }
-
-    /// 執行一般指令，收齊輸出。非零 exit 是結果不是例外(行為規格 §3.2)。
-    private func run(_ command: String) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
-        let session = try await channel.execute(command)
-        await session.closeStdin()
-        var stdout = Data()
-        var stderr = Data()
-        var exitCode: Int32 = -1
-        for try await event in session.output {
-            switch event {
-            case .stdout(let data): stdout.append(data)
-            case .stderr(let data): stderr.append(data)
-            case .exit(let code, _): exitCode = code
-            }
-        }
-        return (String(decoding: stdout, as: UTF8.self), String(decoding: stderr, as: UTF8.self), exitCode)
+        try await HostOperatingSystem.detect(on: channel)
     }
 }

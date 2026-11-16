@@ -1,0 +1,5 @@
+{"t_ms": 3.6, "dir": "stdin", "line": "{\"id\":\"x\",\"method\":\"ping\",\"params\":{1}}"}
+{"t_ms": 3804.4, "dir": "stdout", "line": "{\"id\":\"\",\"error\":{\"code\":\"invalid_request\",\"message\":\"invalid request: key must be a string at line 1 column 37\"}}"}
+{"t_ms": 3813.1, "dir": "stdin_eof", "line": null}
+{"t_ms": 3813.2, "dir": "stdout_eof", "line": null}
+{"t_ms": 3815.0, "dir": "exit", "line": 0}

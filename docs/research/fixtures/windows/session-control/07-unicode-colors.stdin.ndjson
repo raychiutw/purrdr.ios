@@ -1,0 +1,3 @@
+{"type": "terminal.input", "text": "cls\r"}
+{"type": "terminal.input", "text": "Write-Host red -ForegroundColor Red; Write-Output \"\u4e2d\u6587 e$([char]0x301) $([char]::ConvertFromUtf32(0x1F642))\"\r"}
+{"type":"terminal.release"}

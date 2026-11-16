@@ -54,7 +54,7 @@ public struct ConversationHeader: Equatable, Sendable {
         if let kind = agent?.kind { parts.append(AgentKind.displayName(kind) ?? kind) }
         if let model = metadata.model, !model.isEmpty { parts.append(TranscriptMetadata.displayName(ofModel: model)) }
         if let effort = metadata.effort, !effort.isEmpty { parts.append(String(localized: "\(effort) effort")) }
-        if let folder = agent?.cwd?.split(separator: "/").last.map(String.init), !folder.isEmpty,
+        if let folder = agent?.cwd.flatMap(HostPathSyntax.lastComponent).map(String.init), !folder.isEmpty,
            folder.lowercased() != label?.lowercased(), folder != title {
             parts.append(folder)
         }
@@ -66,9 +66,10 @@ extension ConversationHeader.Status {
     public var title: String {
         switch self {
         case .offline: String(localized: "Offline")
-        case .working: String(localized: "Working")
-        case .needsYou: String(localized: "Needs You")
-        case .done: String(localized: "Done")
+        // 與列表共用 Agent 狀態的狀態字。
+        case .working: String(localized: AgentStatus.working.title)
+        case .needsYou: String(localized: AgentStatus.blocked.title)
+        case .done: String(localized: AgentStatus.done.title)
         case .online: String(localized: "Online")
         }
     }

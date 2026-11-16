@@ -20,6 +20,31 @@ public protocol HostChannel: Sendable {
 
 extension HostChannel {
     public func disconnect() async {}
+
+    /// 執行一般指令(先送 EOF),收齊輸出。非零 exit 是結果不是例外(行為規格 §3.2)。
+    func collect(_ command: String) async throws -> CommandResult {
+        let session = try await execute(command)
+        await session.closeStdin()
+        var result = CommandResult()
+        for try await event in session.output {
+            switch event {
+            case .stdout(let data): result.stdout.append(data)
+            case .stderr(let data): result.stderr.append(data)
+            case .exit(let code, _): result.exitCode = code
+            }
+        }
+        return result
+    }
+}
+
+/// 一次指令執行收齊的輸出。
+struct CommandResult {
+    var stdout = Data()
+    var stderr = Data()
+    var exitCode: Int32 = -1
+    var stdoutText: String { String(decoding: stdout, as: UTF8.self) }
+    /// Windows 主機的 CLIXML／Rust Debug 格式整理過(`WindowsErrorText`);其他主機只去掉前後空白。
+    var stderrText: String { WindowsErrorText.readable(String(decoding: stderr, as: UTF8.self)) }
 }
 
 /// 一次指令執行。stdout／stderr 以串流送出，最後一個事件是 `.exit`。

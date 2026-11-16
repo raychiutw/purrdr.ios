@@ -12,8 +12,9 @@ struct StoreKitConfigurationTests {
         var period: String
         var trialPeriod: String?
         var trialMode: String?
-        var codeOffers: Int
+        var codeOffers: [[String: Any]]
         var displayName: String?
+        var displayPrice: String?
     }
 
     func subscriptions() throws -> [Subscription] {
@@ -31,8 +32,9 @@ struct StoreKitConfigurationTests {
                 period: item["recurringSubscriptionPeriod"] as? String ?? "",
                 trialPeriod: intro?["subscriptionPeriod"] as? String,
                 trialMode: intro?["paymentMode"] as? String,
-                codeOffers: (item["codeOffers"] as? [Any])?.count ?? 0,
-                displayName: localization?["displayName"] as? String
+                codeOffers: item["codeOffers"] as? [[String: Any]] ?? [],
+                displayName: localization?["displayName"] as? String,
+                displayPrice: item["displayPrice"] as? String
             )
         }
     }
@@ -53,8 +55,20 @@ struct StoreKitConfigurationTests {
         }
     }
 
-    @Test("有 Offer Code 可以測兌換")
+    @Test("價格與上架設定相同：月繳 US$4.99、年繳 US$39.99(docs/launch/subscriptions.md)")
+    func prices() throws {
+        #expect(try subscriptions().map(\.displayPrice) == ["4.99", "39.99"])
+    }
+
+    @Test("Offer Code 只有月繳一組：1 個月免費、限新訂閱者、不與 2 週試用疊加(docs/launch/subscriptions.md)")
     func offerCode() throws {
-        #expect(try subscriptions().contains { $0.codeOffers > 0 })
+        let subscriptions = try subscriptions()
+        #expect(subscriptions.map(\.codeOffers.count) == [1, 0])
+        let offer = try #require(subscriptions.first?.codeOffers.first)
+        #expect(offer["paymentMode"] as? String == "free")
+        #expect(offer["subscriptionPeriod"] as? String == "P1M")
+        #expect(offer["eligibility"] as? [String] == ["new"])
+        #expect(offer["isStackable"] as? Bool == false, "App Store Connect 設定為不與推介優惠(2 週試用)疊加")
+        #expect(offer["referenceName"] as? String == "早期測試 1 個月免費", "與 App Store Connect 的參考名稱相同")
     }
 }

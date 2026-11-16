@@ -119,9 +119,9 @@ public struct SpacesLayout: Equatable, Sendable {
             }
         }
 
-        /// 終端機方塊的程式名：pane 名稱 > 終端機標題 > 資料夾最後一段 > 空字串(畫面顯示「終端機」)。
+        /// 終端機方塊的程式名：pane 名稱 > 終端機標題 > 資料夾最後一段(依主機的路徑語法，#26)> 空字串(畫面顯示「終端機」)。
         private static func program(of pane: Pane) -> String {
-            pane.label ?? pane.terminalTitle ?? pane.cwd?.split(separator: "/").last.map(String.init) ?? ""
+            pane.label ?? pane.terminalTitle ?? pane.cwd.flatMap(HostPathSyntax.lastComponent).map(String.init) ?? ""
         }
 
         public enum Content: Equatable, Sendable {

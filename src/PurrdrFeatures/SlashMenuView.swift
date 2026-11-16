@@ -3,7 +3,8 @@ import SwiftUI
 
 /// 輸入列上方的 slash 選單(#15;HIG 20.6、DESIGN.md「輸入列」)。
 ///
-/// - 依來源分組(內建、專案、使用者、各 plugin、其他),每列以指令名開頭，參數提示淡色等寬，說明在第二行。
+/// - 只有 `/` 時依來源分組(內建、專案、使用者、各 plugin、其他);輸入名稱後是沒有標題的單一排名清單(#45)。
+///   每列以指令名開頭，參數提示淡色等寬，說明在第二行。
 /// - 高度最多 260pt,內捲;點選不收鍵盤。硬體鍵盤上下選擇時高亮列捲進畫面。
 /// - 清單不完整(主機上的發現逾時)時，底部照實標示。
 /// - 內容層：不用玻璃，用 bar 背景(和送出提示一樣)。
@@ -17,15 +18,22 @@ struct SlashMenuView: View {
                     if menu.isLoading {
                         Label("Loading Commands…", systemImage: "ellipsis")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .padding(.horizontal, 12)
-                    } else if menu.sections.isEmpty {
+                    } else if menu.commands.isEmpty {
                         Text("No Matching Commands")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             .padding(.horizontal, 12)
+                    }
+                    if let ranked = menu.ranked {
+                        // 輸入名稱後：單一排名清單，沒有分組標題(#45)。
+                        ForEach(ranked, id: \.name) { command in
+                            row(command)
+                                .id(command.name)
+                        }
                     }
                     ForEach(menu.sections) { section in
                         Section {
@@ -36,19 +44,19 @@ struct SlashMenuView: View {
                         } header: {
                             Text(section.source.title)
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
+                                .foregroundStyle(.primary)
+                                // 一般大小寫，不全大寫(HIG 20.2,#35)。
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(.bar)
+                                .background(.background)
                                 .accessibilityAddTraits(.isHeader)
                         }
                     }
                     if menu.isIncomplete {
                         Label("This list may be incomplete. The host took too long to list every command.", systemImage: "exclamationmark.circle")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .padding(12)
                             .accessibilityIdentifier("slash.incomplete")
                     }
@@ -62,7 +70,9 @@ struct SlashMenuView: View {
         }
         .frame(maxHeight: 260)
         .fixedSize(horizontal: false, vertical: true)
-        .background(.bar, in: RoundedRectangle(cornerRadius: 16))
+        // 不透明底：選單蓋在訊息上，半透明的 `.bar` 讓次要色文字對比不足(#35 audit)。
+        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("Commands"))
@@ -79,15 +89,16 @@ struct SlashMenuView: View {
                         .font(.body.monospaced())
                         .foregroundStyle(.primary)
                     if let hint = command.argumentHint {
+                        // 淡色但仍承載文字：用 `secondaryText`,不用 tertiary(對比只有約 2:1,#35、#67)。
                         Text(verbatim: hint)
                             .font(.footnote.monospaced())
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 if !command.summary.isEmpty {
                     Text(verbatim: command.summary)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .lineLimit(2)
                 }
             }

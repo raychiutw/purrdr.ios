@@ -1,6 +1,6 @@
 import Foundation
 
-/// 每個聊天在本機的偏好：釘選時間與靜音(#37「釘選、靜音…存本機」)。
+/// 每個聊天在本機的偏好：釘選時間、靜音與最後開啟時間(#37「釘選、靜音…存本機」、#41 未讀)。
 ///
 /// 以 Agent 的 session id 為 key(聊天綁定 session,herdr 回收 pane 編號時不會套到別人的聊天上)。
 /// 沒有 session 的 Agent 不提供釘選與靜音(行為規格 F2.7)。
@@ -8,10 +8,24 @@ public struct ChatPreferences: Codable, Equatable, Sendable {
     /// session id → 釘選時間。「已釘選」群組依釘選時間排序(#41)。
     public var pinned: [String: Date]
     public var muted: Set<String>
+    /// session id → 最後開啟(進入或離開對話)的時間。未讀是由它與預覽推導出來的，不另存旗標(行為規格 F2.6)。
+    /// 以 session 為鍵:herdr 回收 pane 給新 session 時，新 session 沒有紀錄，自然重新算未讀。
+    public var opened: [String: Date]
 
-    public init(pinned: [String: Date] = [:], muted: Set<String> = []) {
+    public init(pinned: [String: Date] = [:], muted: Set<String> = [], opened: [String: Date] = [:]) {
         self.pinned = pinned
         self.muted = muted
+        self.opened = opened
+    }
+
+    private enum CodingKeys: String, CodingKey { case pinned, muted, opened }
+
+    /// #41 之前存的偏好沒有 `opened`:照樣讀出釘選與靜音。
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        pinned = try container.decode([String: Date].self, forKey: .pinned)
+        muted = try container.decode(Set<String>.self, forKey: .muted)
+        opened = try container.decodeIfPresent([String: Date].self, forKey: .opened) ?? [:]
     }
 }
 

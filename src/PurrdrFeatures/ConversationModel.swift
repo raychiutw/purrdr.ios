@@ -128,6 +128,20 @@ public final class ConversationModel {
             slash.update(draft: draft)
         }
     }
+    /// 選取中主機的「You should know」註記(#23);由 `HostsModel` 接上，沒有時不顯示。
+    public var youShouldKnow: YouShouldKnowModel?
+
+    /// 輸入列上方的註記：只顯示這個輸入框要送往的 session 的那則(行為規格 F17)。
+    public var note: YouShouldKnowNote? {
+        guard let session = boundSessionID ?? knownSessionID else { return nil }
+        return youShouldKnow?.note(forSession: session)
+    }
+
+    /// 把文字放進輸入框(「在聊天中討論」):空的就放入，已有文字就空一行接在後面，不蓋掉使用者打的字。
+    public func insertIntoDraft(_ text: String) {
+        draft = draft.isEmpty ? text : draft + "\n\n" + text
+    }
+
     /// 輸入 `/` 時的 slash 選單(#15)。
     public let slash: SlashMenuModel
     public private(set) var isSending = false
@@ -228,8 +242,9 @@ public final class ConversationModel {
     public private(set) var answerNotice: AnswerNotice?
 
     public let paneID: String
-    /// 不是選取中主機時的主機名(標題列第一段);選取中主機為 `nil`。
-    private let hostName: String?
+    /// 不是選取中主機時的主機名(標題列第一段);選取中主機為 `nil`。每次算標題列時才問，
+    /// 換選取中主機或主機改名後，已開啟的聊天也跟著更新(#31)。
+    private let hostName: @MainActor () -> String?
     private let client: HerdrClient
     private let transcripts: TranscriptReader
     private let cache: any ConversationCache
@@ -242,6 +257,8 @@ public final class ConversationModel {
     private let delivery: PromptDelivery
     private let slashDiscovery: ClaudeSlashDiscovery?
     private let haptics: any Haptics
+    /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
+    @ObservationIgnored public var onPromptDelivered: (@MainActor () -> Void)?
     /// 下一次輪詢要讀畫面(送出時 agent 在等回答)。
     private var probeScreen = false
     private var answerSignature: String?
@@ -280,7 +297,7 @@ public final class ConversationModel {
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
         cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: ClaudeSlashDiscovery? = nil, haptics: any Haptics = SilentHaptics(),
-        hostName: String? = nil,
+        hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
@@ -303,7 +320,10 @@ public final class ConversationModel {
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
         if images != nil { attachments = drafts.attachments(chatKey: paneID) }
         slash.loader = { [weak self] in await self?.slashCatalog() }
-        slash.onPick = { [weak self] in self?.draft = $0 }
+        slash.onPick = { [weak self] command in
+            guard let self, self.prepare(slash: command) else { return }
+            Task { await self.send() }
+        }
         slash.update(draft: draft)
     }
 
@@ -388,6 +408,7 @@ public final class ConversationModel {
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         screenThisPoll = nil
         await refreshPrompt(agent)
+        await refreshPanel(agent)
         await refreshLivePreview()
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
@@ -846,8 +867,13 @@ public final class ConversationModel {
     private func apply(_ outcome: PromptOutcome, toEcho id: String, text: String, isRetry: Bool) {
         let nothingSent: SendNotice?
         switch outcome {
-        case .delivered, .submittedCommand:
+        case .delivered:
             setEcho(id, state: .sent)
+            onPromptDelivered?()
+            return
+        case .submittedCommand:
+            setEcho(id, state: .sent)
+            watchForPanel()
             return
         case .noResponse:
             setEcho(id, state: .failed(.noResponse))
@@ -921,11 +947,105 @@ public final class ConversationModel {
         entries = EchoTimeline.merge(items: items, echoes: echoes)
     }
 
+    // MARK: - Slash 點選與面板(#45)
+
+    /// 點選 slash 指令(行為規格 F9.3):不需參數的直接送出;需要參數或有副作用的只填入 `/名稱 `(`SlashPick`)。
+    public func pick(slash command: SlashCommand) async {
+        if prepare(slash: command) { await send() }
+    }
+
+    /// 依點選規則改寫草稿;回傳要不要立刻送出。
+    private func prepare(slash command: SlashCommand) -> Bool {
+        let text = "/\(command.name)"
+        switch SlashPick.action(for: command) {
+        case .send:
+            pickedHint = nil
+            draft = text
+            return true
+        case .fill(let hint):
+            draft = text + " "
+            pickedHint = hint.map { (draft, $0) }
+            return false
+        }
+    }
+
+    /// 點選後只填入時，游標後淡淡顯示的參數提示;使用者開始打參數(草稿改變)就消失。
+    public var slashArgumentHint: String? {
+        guard let pickedHint, pickedHint.draft == draft else { return nil }
+        return pickedHint.hint
+    }
+
+    @ObservationIgnored private var pickedHint: (draft: String, hint: String)?
+
+    /// slash 指令開出的面板(F9.4);沒有面板為 `nil`。
+    public private(set) var panel: SlashPanel?
+    /// 面板按鍵送出中(卡片上的操作暫時停用)。
+    public private(set) var isOperatingPanel = false
+    /// 面板監看到這個時間為止(送出 slash 指令或操作面板後 8 秒)。
+    private var panelWatchUntil: Date?
+    @ObservationIgnored private var panelKickTask: Task<Void, Never>?
+
+    /// 面板卡片的操作：送方向鍵或面板自己的動作鍵，**永不送數字**(R-C04)。送完 0.3 秒後重讀，並把監看延長 8 秒
+    /// (面板可能接著出確認畫面)。
+    public func operatePanel(_ input: SlashPanel.Input) async {
+        guard !isOperatingPanel, let panel, let keys = panel.keys(for: input), !keys.isEmpty else { return }
+        isOperatingPanel = true
+        defer { isOperatingPanel = false }
+        haptics.play(.selection)
+        do {
+            try await client.sendKeys(paneID: paneID, keys: keys)
+        } catch {
+            notice = .panelKeysFailed
+            haptics.play(.error)
+            return
+        }
+        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
+        kickPolls(after: [.milliseconds(300)])
+    }
+
+    private static let panelWatch: TimeInterval = 8
+
+    /// 面板對 herdr 不可見(狀態仍是 idle):送出 slash 指令後監看 8 秒，0.4 秒與 1.2 秒各多讀一次。
+    private func watchForPanel() {
+        guard let kind = currentAgent?.kind, Self.panelAgents.contains(kind) else { return }
+        panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
+        kickPolls(after: [.milliseconds(400), .milliseconds(800)])
+    }
+
+    private static let panelAgents: Set<String> = ["claude", "codex"]
+
+    private func kickPolls(after delays: [Duration]) {
+        panelKickTask?.cancel()
+        panelKickTask = Task { [weak self, sleep] in
+            for delay in delays {
+                do { try await sleep(delay) } catch { return }
+                guard let self, !Task.isCancelled else { return }
+                await self.poll()
+            }
+        }
+    }
+
+    /// 監看中或面板開著時讀畫面(只限 Claude／Codex、沒有問題在等、agent 不在工作);這次輪詢已讀過畫面就順便看。
+    /// 讀不到畫面沿用上次;畫面上沒有面板、或 agent 開始工作／需要你時關掉。
+    private func refreshPanel(_ agent: Agent) async {
+        let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
+        if !watching { panelWatchUntil = nil }
+        guard Self.panelAgents.contains(agent.kind), prompt == nil, agentStatus != .working, agentStatus != .blocked else {
+            panel = nil
+            return
+        }
+        guard watching || panel != nil || screenThisPoll != nil else { return }
+        if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+        guard let screen = screenThisPoll else { return }
+        let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
+        if next != panel { panel = next }
+    }
+
     // MARK: - 標題列(#44)
 
     /// 標題下一行的資訊(F5.7)。
     public var header: ConversationHeader {
-        ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName)
+        ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName())
     }
 
     /// 標題列的動作鈕:working(或停止進行中)時「停止」,其他時候「重新載入」;還沒輪詢過時沒有。
@@ -1034,6 +1154,8 @@ public enum SendNotice: Sendable, Equatable {
     case stillWorking
     /// 送不出中斷的按鍵。
     case interruptFailed
+    /// 送不出 slash 面板的按鍵(#45)。
+    case panelKeysFailed
     /// agent 在等你回答，所以沒有送出中斷(F6.7)。
     case interruptRefusedNeedsAnswer
 }

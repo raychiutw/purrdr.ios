@@ -19,13 +19,16 @@ struct HostEditorView: View {
 
     var body: some View {
         Form {
-            Section("Host") {
+            Section {
                 field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name")
                 field("Address", text: $model.address, prompt: "my-mac or 100.64.0.1", identifier: "address")
                     .addressKeyboard()
                 field("Port", text: $model.port, prompt: "22", identifier: "port")
                     .numberKeyboard()
                 field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username")
+            } header: {
+                Text("Host")
+                    .foregroundStyle(.secondaryText)
             }
 
             Section {
@@ -37,12 +40,16 @@ struct HostEditorView: View {
                 .accessibilityIdentifier("hostEditor.connection")
             } header: {
                 Text("Connection")
+                    .foregroundStyle(.secondaryText)
             } footer: {
-                if model.connectionMethod == .tailscaleSSH {
-                    Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
-                } else {
-                    Text("Purrdr signs in to the host’s own SSH server with a key or password.")
+                Group {
+                    if model.connectionMethod == .tailscaleSSH {
+                        Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
+                    } else {
+                        Text("Purrdr signs in to the host’s own SSH server with a key or password.")
+                    }
                 }
+                .foregroundStyle(.secondaryText)
             }
 
             if model.connectionMethod == .openSSH {
@@ -54,14 +61,17 @@ struct HostEditorView: View {
                 field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")
             } header: {
                 Text("herdr")
+                    .foregroundStyle(.secondaryText)
             } footer: {
                 Text("Leave Session blank unless this computer runs more than one herdr session.")
+                    .foregroundStyle(.secondaryText)
             }
 
             Section {
                 testStatus
             } footer: {
                 Text("Purrdr tests the connection before saving the host.")
+                    .foregroundStyle(.secondaryText)
             }
 
             if let fingerprint = model.hostKeyFingerprint {
@@ -72,8 +82,10 @@ struct HostEditorView: View {
                         .accessibilityIdentifier("hostEditor.fingerprint")
                 } header: {
                     Text("Host Key")
+                        .foregroundStyle(.secondaryText)
                 } footer: {
                     Text("To compare, run ssh-keygen -lf on a host key file on that computer.")
+                        .foregroundStyle(.secondaryText)
                 }
             }
         }
@@ -122,7 +134,7 @@ struct HostEditorView: View {
             Button("Cancel", role: .cancel) { model.dismissPrompt() }
         } message: {
             if case .needsUpdate(let version) = model.phase {
-                Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will run “herdr update --handoff” as \(model.username)@\(model.address).")
+                Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will update herdr as \(model.username)@\(model.address).")
             }
         }
     }
@@ -150,15 +162,19 @@ struct HostEditorView: View {
             }
         } header: {
             Text("Sign In")
+                .foregroundStyle(.secondaryText)
         } footer: {
-            switch model.authentication {
-            case .deviceKey:
-                Text("The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first.")
-            case .importedKey:
-                Text("Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys aren’t supported. The key and passphrase are kept in this device’s keychain.")
-            case .password:
-                Text("The password is kept in this device’s keychain.")
+            Group {
+                switch model.authentication {
+                case .deviceKey:
+                    Text("The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first.")
+                case .importedKey:
+                    Text("Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys and keys protected by a passphrase aren’t supported. The key is kept in this device’s keychain.")
+                case .password:
+                    Text("The password is kept in this device’s keychain.")
+                }
             }
+            .foregroundStyle(.secondaryText)
         }
     }
 
@@ -180,7 +196,7 @@ struct HostEditorView: View {
             .accessibilityIdentifier("hostEditor.devicePublicKey")
         } else if let problem = model.deviceKeyProblem {
             Label(problem, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(.errorText)
         } else {
             ProgressView()
                 .task { await model.loadDeviceKey() }
@@ -191,14 +207,14 @@ struct HostEditorView: View {
     private var importedKeyRows: some View {
         if case .valid(let publicKey) = model.keyCheck {
             LabeledContent {
-                Button("Replace") { model.privateKeyText = ""; model.passphrase = "" }
+                Button("Replace") { model.privateKeyText = "" }
                     .accessibilityIdentifier("hostEditor.replaceKey")
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("OpenSSH private key, \(model.privateKeyText.split(whereSeparator: \.isNewline).count) lines")
                     Text(verbatim: publicKey.fingerprint.description)
                         .font(.footnote.monospaced())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .textSelection(.enabled)
                 }
             }
@@ -207,7 +223,7 @@ struct HostEditorView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Private Key")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 TextEditor(text: $model.privateKeyText)
                     .font(.footnote.monospaced())
                     .frame(minHeight: 120)
@@ -218,20 +234,15 @@ struct HostEditorView: View {
                 if model.privateKeyText.isEmpty && model.hasStoredSecret {
                     Text("Leave blank to keep the saved key.")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
-        }
-        LabeledContent("Passphrase") {
-            SecureField("Passphrase", text: $model.passphrase, prompt: Text("None"))
-                .multilineTextAlignment(.trailing)
-                .accessibilityIdentifier("hostEditor.passphrase")
-        }
-        .task(id: KeyInput(text: model.privateKeyText, passphrase: model.passphrase)) {
-            // 打字時不要每個字都跑一次 bcrypt。
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            await model.checkKey()
+            .task(id: model.privateKeyText) {
+                // 打字時不要每個字都檢查一次。
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+                await model.checkKey()
+            }
         }
         switch model.keyCheck {
         case .unchecked:
@@ -282,7 +293,7 @@ struct HostEditorView: View {
                         Text("Connected · herdr \(report.herdrVersion.description) · \(report.operatingSystem.displayName)")
                         Text(report.summary)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 } icon: {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
@@ -293,6 +304,14 @@ struct HostEditorView: View {
                     Text(message)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                }
+                .accessibilityIdentifier("hostEditor.result")
+            case .restartServerRequired:
+                // Windows 沒有 live handoff:更新只換了執行檔。
+                Label {
+                    Text("herdr is updated. Restart the herdr server on this host to use the new version, then test the connection again.")
+                } icon: {
+                    Image(systemName: "arrow.clockwise.circle.fill").foregroundStyle(.orange)
                 }
                 .accessibilityIdentifier("hostEditor.result")
             default:
@@ -339,6 +358,7 @@ extension HostOperatingSystem {
         switch self {
         case .macOS: "macOS"
         case .linux: "Linux"
+        case .windows: "Windows"
         }
     }
 }
@@ -350,11 +370,6 @@ extension HostProbeReport {
         guard !integrations.isEmpty else { return agents }
         return agents + " · " + String(localized: "Integrations: \(integrations.map(\.label).joined(separator: ", "))")
     }
-}
-
-private struct KeyInput: Equatable {
-    var text: String
-    var passphrase: String
 }
 
 private extension SSHKeyImportError {

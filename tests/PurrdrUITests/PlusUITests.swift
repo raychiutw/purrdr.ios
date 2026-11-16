@@ -82,7 +82,7 @@ final class PlusUITests: XCTestCase {
         let done = app.buttons["plus.done"]
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         done.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.w1:p1"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitForExistence(timeout: 5))
     }
 
     @MainActor

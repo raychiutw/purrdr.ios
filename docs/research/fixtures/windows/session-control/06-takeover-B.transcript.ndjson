@@ -1,0 +1,3 @@
+{"t_ms": 1188.5, "dir": "stdout", "line": "{\"reason\":\"terminal attach failed: terminal term_0000000000d001 already has an attached client; retry with --takeover\",\"type\":\"terminal.closed\"}"}
+{"t_ms": 1214.1, "dir": "stdout_eof", "line": null}
+{"t_ms": 5012.3, "dir": "exit", "line": 0}

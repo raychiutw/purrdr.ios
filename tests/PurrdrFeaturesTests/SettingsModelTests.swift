@@ -115,7 +115,7 @@ struct SettingsModelTests {
             // 改動：snapshot 的 version 換成夾帶使用者與主機名的字串。
             var result = response["result"] as! [String: Any]
             var snapshot = result["snapshot"] as! [String: Any]
-            snapshot["version"] = "0.9.5 ray@ray-mac-mini:/Users/ray"
+            snapshot["version"] = "0.9.5 someone@studio-mac:/Users/someone"
             result["snapshot"] = snapshot
             response["result"] = result
         })
@@ -126,7 +126,7 @@ struct SettingsModelTests {
         model.copyDiagnostics()
 
         let text = try #require(platform.copied.first)
-        #expect(!text.contains("ray"))
+        #expect(!text.contains("someone"))
         #expect(text.hasSuffix("herdr: unrecognized"))
     }
 

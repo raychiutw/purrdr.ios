@@ -21,6 +21,7 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `herdr-0.9.5/ping.ndjson` | `ping {}`(作者的 Mac) | 2026-11-15 | 連線測試讀伺服器版本 |
 | `herdr-0.9.5/integration.list.ndjson` | `integration.list {}`(作者的 Mac) | 2026-11-15 | 連線測試列出主機上有的 agent 整合 |
 | `herdr-0.9.5/session-control/*.stdout.ndjson`、`*.stdin.ndjson` | `herdr terminal session control`／`observe` 的 stdout 原樣與我方送出的 stdin(#4 spike,40×12 乾淨 bash) | 2026-11-15 | Pane 終端機的 frame 解析、`terminal.closed` 分類、輸入格式;情境說明與重錄方式見 `docs/research/terminal-session-control-macos.md`「Fixture」 |
+| `herdr-0.9.5/windows/*` | Windows 主機(#6 spike,server 0.9.5,登入 shell 是 Git Bash):bridge 的 `ping`(`ping.ndjson` 是 Git Bash 直接呼叫,`ping.powershell.ndjson` 是 PowerShell `-EncodedCommand` 包裝，兩者 bytes 相同)、JSON 無效的錯誤、`events.subscribe` 的 ack + `workspace_closed` 事件、連不到 socket 的 stderr(`error.server-not-running.stderr.txt`);`session-control/` 是自建 PowerShell pane 的 control／observe stdout(40×12)。#26 加錄：Git Bash 的 `uname -s`(`uname.mingw.stdout.txt`)、預設 shell 是 PowerShell 時同一行 `uname` 的 stderr(`uname.powershell.stderr.txt`,CLIXML、系統語系 Big5,在 Git Bash 裡以 `powershell.exe -EncodedCommand` 模擬)、對話紀錄 PowerShell 腳本對暫存資料夾裡三行測試檔的輸出(`transcript.window`／`transcript.tail.stdout.txt`) | 2026-11-16 | Windows 的回應走同一條解析路徑(`WindowsHostRecordingTests`)。帳號、主機名換成 `demo`/`DEMO-PC`,terminal id 換成 `term_0000000000d00N`;情境與重錄方式見 `docs/research/terminal-session-control-windows.md`「Fixture」 |
 | `herdr-0.9.5/events.subscribe.started.ndjson` | `events.subscribe`(3 個 agent pane 的 `pane.agent_status_changed` + 全主機事件),只留 ack | 2026-11-15 | 訂閱開始(`subscription_started`) |
 | `herdr-0.9.5/error.pane-not-found.ndjson` | `events.subscribe` 訂閱不存在的 pane `w9:pZ` | 2026-11-15 | 訂閱被拒;也當作 `events_lost` 的底(見下) |
 | `herdr-0.9.5/error.unknown-subscription-type.ndjson` | `events.subscribe` 訂閱 herdr 不認得的型別 `pane.turn_completed` | 2026-11-15 | 未知型別讓整個訂閱被拒(保留備查) |
@@ -81,6 +82,23 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you like to…` 段落、Grok 的 `(●)` 列、agy 的折行資料夾),
 內容(指令、路徑、問題)是自己寫的範例。測試用 `PaneScreens.read(_:)` 把它放進錄製的 `pane.read` envelope。
 真機第一次看到 blocked 畫面時，以唯讀的 `pane.read` 讀下來去識別化，換掉對應的檔案。
+
+`screens/*-panel-*.txt` 是 slash 指令開出的面板(#45)。
+
+- **`claude-panel-model.txt`、`claude-panel-effort.txt`:真實錄製**(#65,2026-11-16,**Claude Code 2.1.325**、herdr 0.9.5,作者的 Mac,使用者同意)。
+  錄製方式：以 `herdr workspace create --no-focus --label purrdr-fixture --cwd <空的暫存資料夾>` 建一個專用 workspace,
+  只對它的 pane(建立時拿到的 id)操作：`herdr pane run <pane> claude`,信任該空資料夾後，送 `/model`(`send-text` + `send-keys enter`)、
+  `herdr pane read <pane> --source visible --lines 40` 存檔、`send-keys esc` 關閉(畫面回「Kept model as …」);`/effort` 同樣做法(回「Cancelled」)。
+  不送 prompt、不選任何選項、不改設定;最後 `/exit`、`herdr workspace close <id>`,以 `herdr workspace list` 確認已不存在。沒碰其他 workspace／pane。
+  pane 寬 160 欄、32 列，畫面原樣保留(行首空白、`▔` 分隔中間夾的文字、對齊)。
+  **換成假值**:工作資料夾 → `/Users/demo/Projects/ledger`、方案名稱 → `Claude Pro`、用量提醒的時區 → `UTC`、要求管理員加額度的句子改成一般說法。
+  存檔後以 `grep` 確認沒有真實的使用者名稱、主機名、路徑或組織。
+- **`claude-panel-confirm.txt`(「Switch model?」確認)、`codex-panel-model.txt`:仍依行為規格 §5.6 手寫**。
+  確認畫面要在模型面板選定才出現(會改設定),作者的 Mac 沒有 Codex,所以不錄。
+- 真實畫面和 #45 手寫版的差異(解析器已跟著改):`▔` 分隔中間會夾文字(用量提醒、`◐ medium · /effort`);
+  `/model` 有 5 個模型加一列沒有編號的 `▸   More models`(目前不當選項)、調整列是 `◐ Medium effort (default) ←/→ to adjust`;
+  `/effort` 的軌道上方有 `Faster … Smarter`、軌道右邊有 `Ultracode  off`／`Tab to toggle`(目前不提供)、軌道下方有一行說明、
+  提示行多了 `s for this session only`。
 
 ## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
 

@@ -30,6 +30,8 @@ public final class HostEditorModel {
         /// 主機的 herdr 低於 0.9.5,可在確認後更新。
         case needsUpdate(HerdrVersion)
         case updating
+        /// herdr 已更新，但執行中的伺服器還是舊版(Windows 沒有 live handoff):請使用者在主機上重啟伺服器再測試。
+        case restartServerRequired
         case tested(HostProbeReport)
         case failed(String)
     }
@@ -59,8 +61,6 @@ public final class HostEditorModel {
     public var password = ""
     /// 貼上的 OpenSSH 私鑰。編輯既有主機時留空 = 保留原本的金鑰。
     public var privateKeyText = ""
-    /// 跟著貼上的私鑰;留空 = 沒有 passphrase。
-    public var passphrase = ""
     public private(set) var phase: Phase = .editing
     /// 這支裝置的公鑰(含註解),`loadDeviceKey()` 之後才有。
     public private(set) var devicePublicKey: SSHPublicKey?
@@ -130,7 +130,7 @@ public final class HostEditorModel {
 
     /// 有沒有未儲存的變更(按取消時要確認放棄)。
     public var hasChanges: Bool {
-        let secretsEntered = !(password.isEmpty && privateKeyText.isEmpty && passphrase.isEmpty)
+        let secretsEntered = !(password.isEmpty && privateKeyText.isEmpty)
         guard let existing else {
             return secretsEntered || !(name.isEmpty && address.isEmpty && username.isEmpty && herdrPath.isEmpty && herdrSession.isEmpty)
         }
@@ -187,13 +187,13 @@ public final class HostEditorModel {
         }
     }
 
-    /// 檢查貼上的私鑰(格式、種類、passphrase)。bcrypt 推導金鑰要一點時間，在背景做。
+    /// 檢查貼上的私鑰(格式、種類、有沒有 passphrase)。在背景做，不卡住打字。
     public func checkKey() async {
-        guard authentication == .importedKey, let entered = enteredSecret, case .privateKey(let text, let passphrase) = entered,
+        guard authentication == .importedKey, let entered = enteredSecret, case .privateKey(let text, _) = entered,
               checked?.input != entered else { return }
         let result = await Task.detached { () -> KeyCheck in
             do throws(SSHKeyImportError) {
-                return KeyCheck.valid(try SSHPrivateKey(openSSH: text, passphrase: passphrase).publicKey)
+                return KeyCheck.valid(try SSHPrivateKey(openSSH: text).publicKey)
             } catch {
                 return KeyCheck.invalid(error)
             }
@@ -205,7 +205,6 @@ public final class HostEditorModel {
     public func useDeviceKeyInstead() {
         authentication = .deviceKey
         privateKeyText = ""
-        passphrase = ""
     }
 
     /// 取得這支裝置的公鑰(第一次會在 Secure Enclave 產生金鑰)。
@@ -245,17 +244,23 @@ public final class HostEditorModel {
         phase = .editing
     }
 
-    /// 使用者確認後在主機上執行 `herdr update --handoff`,再重新測試。
+    /// 使用者確認後在主機上更新 herdr(macOS／Linux 是 `herdr update --handoff`),再重新測試。
+    /// Windows 的伺服器不會交接到新版：先請使用者在主機上重啟伺服器，不馬上重測(重測只會再看到舊版)。
     public func updateHerdr() async {
         guard let draft, case .needsUpdate = phase else { return }
         phase = .updating
         let channel = makeChannel(draft.endpoint, pin(for: draft), credential(for: draft))
+        let outcome: HerdrUpdateOutcome
         do {
-            try await HostProbe(channel: channel, herdr: draft.herdr).updateHerdr()
+            outcome = try await HostProbe(channel: channel, herdr: draft.herdr).updateHerdr()
             await channel.disconnect()
         } catch {
             await channel.disconnect()
             phase = .failed(HostErrorText.message(for: error, connection: draft.connectionMethod, authentication: draft.authentication))
+            return
+        }
+        guard outcome == .handedOff else {
+            phase = .restartServerRequired
             return
         }
         await test()
@@ -340,7 +345,7 @@ public final class HostEditorModel {
             password.isEmpty ? nil : .password(password)
         case .importedKey?:
             privateKeyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? nil : .privateKey(privateKeyText, passphrase: passphrase.isEmpty ? nil : passphrase)
+                ? nil : .privateKey(privateKeyText, passphrase: nil)
         case .deviceKey?, nil:
             nil
         }

@@ -34,11 +34,10 @@ public final class FolderPickerModel {
         return nil
     }
 
-    /// 在 `/` 或還沒讀到時不能往上。
-    public var canGoUp: Bool {
-        guard let path = chosenPath else { return false }
-        return path != "/"
-    }
+    /// 在根目錄(`/`、`C:\`)或還沒讀到時不能往上。
+    public var canGoUp: Bool { navigation.canGoUp }
+
+    private var navigation: FolderNavigation { FolderNavigation(current: chosenPath) }
 
     /// 讀 `requested`(第一次或重試)。
     public func load() async {
@@ -46,14 +45,13 @@ public final class FolderPickerModel {
     }
 
     public func open(_ name: String) async {
-        guard let path = chosenPath else { return }
-        await list(path == "/" ? "/" + name : path + "/" + name)
+        guard let child = navigation.child(name) else { return }
+        await list(child)
     }
 
     public func goUp() async {
-        guard canGoUp, let path = chosenPath else { return }
-        let parent = path.split(separator: "/").dropLast().joined(separator: "/")
-        await list("/" + parent)
+        guard let parent = navigation.parent else { return }
+        await list(parent)
     }
 
     private func list(_ path: String?) async {

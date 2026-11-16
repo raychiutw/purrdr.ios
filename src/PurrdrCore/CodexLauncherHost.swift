@@ -61,7 +61,12 @@ public struct CodexLauncherHost: Sendable {
     }
 
     /// 啟動器的位置必須是空的，或是 Purrdr 先前裝的(有安裝紀錄)。
+    ///
+    /// Windows 主機做不到(#68):啟動器是 POSIX sh,herdr 在 Windows 的 pane 預設開 PowerShell,PATH 上的 Codex 是
+    /// `codex.cmd`／`codex.exe`,不會找到 `~/.local/bin/codex`;要另寫 `.cmd`／`.ps1` 啟動器並實測 Codex 的
+    /// `-c` 在 Windows 的引號規則，本機沒有 Codex 可驗證(與 POSIX 版同樣是【未實測】)。丟 `unsupported`,不寫任何東西。
     static func checkLauncherPath(in inspection: HostWriteInspection) throws {
+        if inspection.read.isWindows { throw WindowsCommandError.unsupported(launcherPath.description) }
         switch inspection.read[launcherPath] ?? .missing {
         case .missing, .missingDirectory:
             return

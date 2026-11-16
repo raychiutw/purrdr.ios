@@ -38,7 +38,7 @@ struct BlockedPromptView: View {
             if prompt.detailsOffscreen {
                 Label("The start of this prompt is off screen. Check the terminal for the details.", systemImage: "terminal")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             if let details = prompt.details {
                 PromptDetailsView(details: details)
@@ -56,7 +56,7 @@ struct BlockedPromptView: View {
                             .frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .accessibilityLabel(Text("Dismiss"))
                 }
                 .accessibilityElement(children: .contain)
@@ -85,17 +85,17 @@ struct BlockedPromptView: View {
             if prompt.options.contains(where: { ($0.number ?? 0) > 9 }) {
                 Text("Options above 9 can’t be entered from here. Answer them in the terminal.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         case .filePicker:
             Text("Codex has its file picker open. Close it here, or choose a file in the terminal.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             answerButton(.closePicker, title: String(localized: "Close File Picker"), identifier: "prompt.closePicker")
         case .unrecognized:
             Text("Couldn’t read the choices. These send common answers; check the terminal if you’re not sure.")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             VStack(spacing: 8) {
                 answerButton(.generic(.confirm), title: String(localized: "Confirm (Return)"), identifier: "prompt.generic.confirm")
                 answerButton(.generic(.one), title: String(localized: "Choose 1"), identifier: "prompt.generic.one")
@@ -167,7 +167,9 @@ private extension View {
         if prominent {
             buttonStyle(.borderedProminent)
         } else {
+            // 文字用主要色：bordered 預設是 tint 字配淡 tint 底，對比約 4:1、AX 字級下更低(#35 audit)。
             buttonStyle(.bordered)
+                .foregroundStyle(Color.primary)
         }
     }
 }
@@ -186,7 +188,7 @@ struct PromptDetailsView: View {
             if let summary = details.summary {
                 Text(verbatim: summary)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             if !details.content.isEmpty {
                 let lines = expanded ? details.content : Array(details.content.prefix(8))
@@ -234,7 +236,7 @@ struct AnsweredPromptView: View {
                 if let question = answered.question {
                     Text(verbatim: question)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 Text("You chose: \(answered.choice)")
                     .font(.subheadline)

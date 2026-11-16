@@ -43,9 +43,9 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOSSH", package: "swift-nio-ssh"),
+                // 出口合規：只用系統加密(CryptoKit 介面;swift-crypto 在 Apple 平台就是轉呼叫 CryptoKit)。
+                // 不加入 `_CryptoExtras` 或任何自寫的加密演算法，見 docs/launch/checklist.md。
                 .product(name: "Crypto", package: "swift-crypto"),
-                // 匯入私鑰時解 aes-ctr(CryptoKit 沒有 CTR 模式)。
-                .product(name: "_CryptoExtras", package: "swift-crypto"),
             ],
             path: "src/PurrdrCore",
             swiftSettings: strictSettings

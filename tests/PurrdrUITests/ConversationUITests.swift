@@ -14,8 +14,8 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     private func open(paneID: String) -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
-        let row = app.descendants(matching: .any)["agent.row.\(paneID)"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 Agent")
+        let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         return app
     }
@@ -92,7 +92,9 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
         XCTAssertTrue(app.staticTexts["Add a header row too?"].waitForExistence(timeout: 5), "沒有回音")
-        let reply = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'This is the demo host'")).firstMatch
+        // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
+        let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
         XCTAssertTrue(reply.waitForExistence(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
         XCTAssertFalse(element("conversation.echo", in: app).exists, "對話紀錄確認後回音應消失")
     }

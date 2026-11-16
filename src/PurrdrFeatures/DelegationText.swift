@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrCore
 
-/// Subagent／workflow 卡片與背景 agents 列的文字(行為規格 F10)。英文;翻譯時改 String Catalog(#30)。
+/// Subagent／workflow 卡片與背景 agents 列的文字(行為規格 F10)。顯示文字經 String Catalog 翻譯;單位縮寫(s、m、h、k、M)不翻。
 enum DelegationText {
     /// 「<1s / 48s / 1m 6s / 1h 2m」。
     static func duration(_ seconds: Double) -> String {
@@ -14,7 +14,7 @@ enum DelegationText {
 
     /// 「940 / 21.5k / 1.2M tokens」。
     static func tokens(_ count: Int) -> String {
-        "\(compact(count)) tokens"
+        String(localized: "\(compact(count)) tokens")
     }
 
     static func compact(_ count: Int) -> String {
@@ -28,7 +28,7 @@ enum DelegationText {
     }
 
     static func toolCalls(_ count: Int) -> String {
-        count == 1 ? "1 tool call" : "\(count) tool calls"
+        count == 1 ? String(localized: "1 tool call") : String(localized: "\(count) tool calls")
     }
 
     /// 「subagent_type · 模型」;完整的 Claude 模型 id 顯示成「Sonnet 5.5」這類名稱。
@@ -54,9 +54,9 @@ enum DelegationText {
         let total = run.agents.count
         guard total > 0 else { return nil }
         if run.isRunning || run.agents.contains(where: { $0.state == .running }) {
-            return "\(run.completedAgents) of \(total) agents done"
+            return String(localized: "\(run.completedAgents) of \(total) agents done")
         }
-        return total == 1 ? "1 agent" : "\(total) agents"
+        return total == 1 ? String(localized: "1 agent") : String(localized: "\(total) agents")
     }
 
     static func workflowAgentStats(_ agent: WorkflowAgent) -> String {
@@ -75,22 +75,22 @@ enum DelegationText {
         var parts: [String] = []
         if !running.isEmpty {
             let longest = running.map { Double($0.elapsedSeconds) + secondsSinceRead }.max() ?? 0
-            parts = [running.count == 1 ? "1 agent working" : "\(running.count) agents working", duration(longest)]
+            parts = [running.count == 1 ? String(localized: "1 agent working") : String(localized: "\(running.count) agents working"), duration(longest)]
         } else if failed == 0, pane.hiddenCount == 0 {
-            parts = [done == 1 ? "1 agent done" : "\(done) agents done"]
+            parts = [done == 1 ? String(localized: "1 agent done") : String(localized: "\(done) agents done")]
         } else {
-            parts = ["\(done) done"]
-            if failed > 0 { parts.append("\(failed) failed") }
+            parts = [String(localized: "\(done) done")]
+            if failed > 0 { parts.append(String(localized: "\(failed) failed")) }
         }
-        if pane.hiddenCount > 0 { parts.append("\(pane.hiddenCount) more in the terminal") }
+        if pane.hiddenCount > 0 { parts.append(String(localized: "\(pane.hiddenCount) more in the terminal")) }
         return parts.joined(separator: " · ")
     }
 
     /// 種類：`general-purpose` → General、`fork` → Fork,其他照原名。
     static func kind(_ kind: String) -> String {
         switch kind.lowercased() {
-        case "general-purpose", "general": "General"
-        case "fork": "Fork"
+        case "general-purpose", "general": String(localized: "General")
+        case "fork": String(localized: "Fork")
         default: kind
         }
     }

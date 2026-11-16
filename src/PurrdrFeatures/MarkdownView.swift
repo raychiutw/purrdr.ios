@@ -14,6 +14,18 @@ struct MarkdownView: View {
         blocks = Markdown.parse(markdown)
     }
 
+    /// 有程式碼區塊或表格(含引言裡的)。
+    var hasStructuredBlocks: Bool {
+        func structured(_ block: MarkdownBlock) -> Bool {
+            switch block {
+            case .code, .table: true
+            case .quote(let inner): inner.contains(where: structured)
+            case .paragraph, .heading, .list, .rule: false
+            }
+        }
+        return blocks.contains(where: structured)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
@@ -41,7 +53,7 @@ private struct BlockView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(ordered ? "\(start + index)." : "•")
                             .monospacedDigit()
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         InlineText(item)
                     }
                 }
@@ -56,7 +68,7 @@ private struct BlockView: View {
                         BlockView(block: block)
                     }
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
         case .rule:
             Divider()
@@ -127,7 +139,7 @@ struct CodeBlockView: View {
             HStack {
                 Text(language ?? String(localized: "Code"))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 Spacer()
                 // 空的區塊不提供複製：複製空字串會清空剪貼簿(R-V04)。
                 if !code.isEmpty {
@@ -145,7 +157,7 @@ struct CodeBlockView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .accessibilityIdentifier("conversation.code.copy")
                 }
             }

@@ -10,8 +10,8 @@ final class DelegationUITests: XCTestCase {
     @MainActor
     private func openWeather() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
-        let row = app.descendants(matching: .any)["agent.row.w2:p1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 weather-app Agent")
+        let row = app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 weather-app Agent")
         row.tap()
         return app
     }
@@ -19,6 +19,12 @@ final class DelegationUITests: XCTestCase {
     @MainActor
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any)[identifier].firstMatch
+    }
+
+    /// 內容含某段文字的訊息(使用者泡泡或 agent 訊息;每則訊息合成一個元素，label 有作者前綴)。
+    @MainActor
+    private func message(containing text: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
     /// 卡片顯示標題、類型 · 模型、時長 · tokens · 工具數;點本體展開結果;箭頭開唯讀的 subagent 畫面。
@@ -37,7 +43,8 @@ final class DelegationUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(open.frame.width, 44)
         open.tap()
         XCTAssertTrue(element("subagent.messages", in: app).waitForExistence(timeout: 10), "沒有打開 subagent 畫面")
-        XCTAssertTrue(app.staticTexts["The timeline refreshes every 15 minutes and fetches each time."].waitForExistence(timeout: 5),
+        // 每則訊息是一個 VoiceOver 元素(label 以「Agent:」開頭,#35),以內容比對。
+        XCTAssertTrue(message(containing: "The timeline refreshes every 15 minutes and fetches each time.", in: app).waitForExistence(timeout: 5),
                       "subagent 畫面沒有顯示它的對話紀錄")
     }
 
@@ -58,6 +65,7 @@ final class DelegationUITests: XCTestCase {
         XCTAssertTrue(agent.exists, "phase 裡沒有 agent 列")
         agent.tap()
         XCTAssertTrue(element("subagent.messages", in: app).waitForExistence(timeout: 10), "沒有打開 workflow agent 的對話紀錄")
-        XCTAssertTrue(app.staticTexts["Check that cached forecasts expire after an hour."].exists, "agent 的對話紀錄內容不對")
+        XCTAssertTrue(message(containing: "Check that cached forecasts expire after an hour.", in: app).waitForExistence(timeout: 5),
+                      "agent 的對話紀錄內容不對")
     }
 }

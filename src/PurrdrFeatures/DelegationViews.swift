@@ -79,13 +79,13 @@ struct SubagentCardView: View {
                             if let subtitle = DelegationText.subtitle(of: card) {
                                 Text(subtitle)
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                             let stats = DelegationText.stats(of: card)
                             if !stats.isEmpty {
                                 Text(stats)
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                         }
                         Spacer(minLength: 4)
@@ -151,7 +151,7 @@ struct WorkflowCardView: View {
                             if let detail = card.detail {
                                 Text(detail)
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                                     .multilineTextAlignment(.leading)
                             }
                             let line = [run.flatMap(DelegationText.progress(of:)), DelegationText.stats(of: card, run: run)]
@@ -159,12 +159,12 @@ struct WorkflowCardView: View {
                             if !line.isEmpty {
                                 Text(line)
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                             if model?.stoppedTracking == true {
                                 Text("No longer tracking · Reload to check again")
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                         }
                         Spacer(minLength: 4)
@@ -292,7 +292,7 @@ struct SubagentScreen: View {
                     if let subtitle = model.subtitle {
                         Text(subtitle)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     Spacer()
                 }
@@ -360,15 +360,15 @@ struct WorkflowScreen: View {
                         DelegationStatusIcon(status: model.run.map { $0.isRunning ? DelegationStatus.running : .completed } ?? model.card.status)
                     }
                     if let detail = model.card.detail {
-                        Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                        Text(detail).font(.subheadline).foregroundStyle(.secondaryText)
                     }
                     let line = [model.run.flatMap(DelegationText.progress(of:)), DelegationText.stats(of: model.card, run: model.run)]
                         .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
                     if !line.isEmpty {
-                        Text(line).font(.footnote).foregroundStyle(.secondary)
+                        Text(line).font(.footnote).foregroundStyle(.secondaryText)
                     }
                     if model.stoppedTracking {
-                        Text("No longer tracking · Reload to check again").font(.footnote).foregroundStyle(.secondary)
+                        Text("No longer tracking · Reload to check again").font(.footnote).foregroundStyle(.secondaryText)
                     }
                     if let summary = model.run?.summary {
                         Text(summary).font(.body).textSelection(.enabled)
@@ -380,7 +380,7 @@ struct WorkflowScreen: View {
             ForEach(model.run?.phases ?? []) { phase in
                 Section {
                     if let detail = phase.detail {
-                        Text(detail).font(.footnote).foregroundStyle(.secondary)
+                        Text(detail).font(.footnote).foregroundStyle(.secondaryText)
                     }
                     ForEach(phase.agents) { agent in
                         if agent.agentID != nil {
@@ -394,13 +394,17 @@ struct WorkflowScreen: View {
                     }
                 } header: {
                     Text(phase.title)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             if let logs = model.run?.logs, !logs.isEmpty {
-                Section("Log") {
+                Section {
                     Text(logs.joined(separator: "\n"))
                         .font(.footnote.monospaced())
                         .textSelection(.enabled)
+                } header: {
+                    Text("Log")
+                        .foregroundStyle(.secondaryText)
                 }
             }
         }
@@ -434,14 +438,14 @@ struct WorkflowAgentRow: View {
                 Text(agent.label).font(.body)
                 let stats = DelegationText.workflowAgentStats(agent)
                 if !stats.isEmpty {
-                    Text(stats).font(.footnote).foregroundStyle(.secondary)
+                    Text(stats).font(.footnote).foregroundStyle(.secondaryText)
                 }
                 if let error = agent.error {
-                    Text(error).font(.footnote).foregroundStyle(.red)
+                    Text(error).font(.footnote).foregroundStyle(.errorText)
                 } else if agent.state == .running, let activity = agent.activity {
-                    Text(activity).font(.footnote.monospaced()).foregroundStyle(.secondary).lineLimit(2)
+                    Text(activity).font(.footnote.monospaced()).foregroundStyle(.secondaryText).lineLimit(2)
                 } else if let preview = agent.resultPreview {
-                    Text(preview).font(.footnote).foregroundStyle(.secondary).lineLimit(3)
+                    Text(preview).font(.footnote).foregroundStyle(.secondaryText).lineLimit(3)
                 }
             }
         }
@@ -518,7 +522,7 @@ struct AgentsBarRow: View {
                     .multilineTextAlignment(.leading)
                 Text([DelegationText.elapsed(of: row, secondsSinceRead: since), row.tokens.map(DelegationText.tokens)].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .monospacedDigit()
             }
             Spacer(minLength: 0)

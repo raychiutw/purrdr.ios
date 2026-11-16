@@ -1,0 +1,1 @@
+{"reason":"terminal attach failed: terminal term_0000000000d001 already has an attached client; retry with --takeover","type":"terminal.closed"}

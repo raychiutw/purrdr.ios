@@ -47,7 +47,7 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
 @Suite("主機存 Keychain")
 struct KeychainHostStoreTests {
     static let host = HostConfiguration(
-        name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"),
+        name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"),
         herdr: HerdrInstallation(session: "work"), operatingSystem: .macOS,
         hostKeyPin: HostKeyFingerprint(stored: "COBpO4JIzmE5SXJiDiFEv8QW0IgLEE4H3vB2W6wHLww"))
 

@@ -13,7 +13,7 @@ struct SSHKeyImportTests {
         let key = try SSHKeygen.generate(type: "ed25519")
         defer { key.remove() }
 
-        let imported = try SSHPrivateKey(openSSH: key.privateText, passphrase: nil)
+        let imported = try SSHPrivateKey(openSSH: key.privateText)
 
         #expect(imported.publicKey.openSSH == key.publicKeyWithoutComment)
     }
@@ -23,48 +23,26 @@ struct SSHKeyImportTests {
         let key = try SSHKeygen.generate(type: "ecdsa", bits: bits)
         defer { key.remove() }
 
-        let imported = try SSHPrivateKey(openSSH: key.privateText, passphrase: nil)
+        let imported = try SSHPrivateKey(openSSH: key.privateText)
 
         #expect(imported.publicKey.openSSH == key.publicKeyWithoutComment)
     }
 
-    @Test("ssh-keygen 預設加密(bcrypt + aes256-ctr)的金鑰：帶對的 passphrase 可以匯入", arguments: ["ed25519", "ecdsa"])
-    func importsEncryptedKey(type: String) throws {
-        let key = try SSHKeygen.generate(type: type, passphrase: "correct horse")
+    /// 出口合規(只用系統加密):OpenSSH 私鑰只要有 passphrase,私密區段就以 bcrypt KDF 推導金鑰加密
+    /// (`ssh-keygen` 只產生 bcrypt;cipher 不是 none 時 kdf 一定是 bcrypt),不論 cipher 是 aes-ctr 或 aes-gcm。
+    /// 不實作 bcrypt,所以一律回明確錯誤，請使用者先移除 passphrase。
+    @Test(
+        "有 passphrase 的金鑰(bcrypt + aes-ctr／aes-gcm):回 passphrase 保護錯誤，請先移除 passphrase",
+        arguments: [
+            ("ed25519", nil), ("ecdsa", nil), ("ed25519", "aes128-ctr"), ("ed25519", "aes256-gcm@openssh.com"),
+        ] as [(String, String?)])
+    func passphraseProtectedKeyIsRejected(type: String, cipher: String?) throws {
+        let key = try SSHKeygen.generate(type: type, passphrase: "correct horse", cipher: cipher)
         defer { key.remove() }
+        #expect(key.privateText.contains("BEGIN OPENSSH PRIVATE KEY"))
 
-        let imported = try SSHPrivateKey(openSSH: key.privateText, passphrase: "correct horse")
-
-        #expect(imported.publicKey.openSSH == key.publicKeyWithoutComment)
-    }
-
-    @Test("其他 ssh-keygen 可選的加密方式", arguments: ["aes128-ctr", "aes256-gcm@openssh.com"])
-    func importsOtherCiphers(cipher: String) throws {
-        let key = try SSHKeygen.generate(type: "ed25519", passphrase: "pass phrase", cipher: cipher)
-        defer { key.remove() }
-
-        let imported = try SSHPrivateKey(openSSH: key.privateText, passphrase: "pass phrase")
-
-        #expect(imported.publicKey.openSSH == key.publicKeyWithoutComment)
-    }
-
-    @Test("passphrase 錯：說 passphrase 錯，不是格式錯誤", arguments: ["aes256-ctr", "aes256-gcm@openssh.com"])
-    func wrongPassphrase(cipher: String) throws {
-        let key = try SSHKeygen.generate(type: "ed25519", passphrase: "right", cipher: cipher)
-        defer { key.remove() }
-
-        #expect(throws: SSHKeyImportError.wrongPassphrase) {
-            try SSHPrivateKey(openSSH: key.privateText, passphrase: "wrong")
-        }
-    }
-
-    @Test("有 passphrase 的金鑰沒填 passphrase:要求填寫", arguments: [nil, ""] as [String?])
-    func passphraseRequired(passphrase: String?) throws {
-        let key = try SSHKeygen.generate(type: "ecdsa", passphrase: "secret")
-        defer { key.remove() }
-
-        #expect(throws: SSHKeyImportError.passphraseRequired) {
-            try SSHPrivateKey(openSSH: key.privateText, passphrase: passphrase)
+        #expect(throws: SSHKeyImportError.passphraseProtected) {
+            try SSHPrivateKey(openSSH: key.privateText)
         }
     }
 
@@ -75,8 +53,8 @@ struct SSHKeyImportTests {
         let pem = try SSHKeygen.generate(type: "rsa", bits: 2048, format: "PEM")
         defer { pem.remove() }
 
-        #expect(throws: SSHKeyImportError.rsaNotSupported) { try SSHPrivateKey(openSSH: openSSH.privateText, passphrase: nil) }
-        #expect(throws: SSHKeyImportError.rsaNotSupported) { try SSHPrivateKey(openSSH: pem.privateText, passphrase: nil) }
+        #expect(throws: SSHKeyImportError.rsaNotSupported) { try SSHPrivateKey(openSSH: openSSH.privateText) }
+        #expect(throws: SSHKeyImportError.rsaNotSupported) { try SSHPrivateKey(openSSH: pem.privateText) }
     }
 
     @Test("貼上公鑰或其他東西：說明需要私鑰")
@@ -85,11 +63,11 @@ struct SSHKeyImportTests {
         defer { key.remove() }
 
         #expect(throws: SSHKeyImportError.publicKeyInsteadOfPrivate) {
-            try SSHPrivateKey(openSSH: key.publicKeyWithoutComment + " me@laptop", passphrase: nil)
+            try SSHPrivateKey(openSSH: key.publicKeyWithoutComment + " me@laptop")
         }
-        #expect(throws: SSHKeyImportError.unsupportedFormat) { try SSHPrivateKey(openSSH: "hello", passphrase: nil) }
+        #expect(throws: SSHKeyImportError.unsupportedFormat) { try SSHPrivateKey(openSSH: "hello") }
         let truncated = String(key.privateText.dropLast(80))
-        #expect(throws: SSHKeyImportError.malformed) { try SSHPrivateKey(openSSH: truncated, passphrase: nil) }
+        #expect(throws: SSHKeyImportError.malformed) { try SSHPrivateKey(openSSH: truncated) }
     }
 
     @Test("貼上時多出的縮排、CRLF 換行都容忍")
@@ -98,7 +76,7 @@ struct SSHKeyImportTests {
         defer { key.remove() }
         let pasted = "\n  " + key.privateText.replacingOccurrences(of: "\n", with: "\r\n  ") + "\n\n"
 
-        let imported = try SSHPrivateKey(openSSH: pasted, passphrase: nil)
+        let imported = try SSHPrivateKey(openSSH: pasted)
 
         #expect(imported.publicKey.openSSH == key.publicKeyWithoutComment)
     }

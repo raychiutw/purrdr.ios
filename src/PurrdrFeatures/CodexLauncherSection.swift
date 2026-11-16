@@ -25,13 +25,15 @@ struct CodexLauncherSection: View {
             if let message = model.message {
                 Label(message, systemImage: "exclamationmark.triangle")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .accessibilityIdentifier("settings.codexLauncher.message")
             }
         } header: {
             Text("Codex")
+                .foregroundStyle(.secondaryText)
         } footer: {
             Text("Untested. Adds ~/.local/bin/codex on the selected host so herdr can report which session each Codex chat is in. ~/.local/bin must come before Codex on your PATH. Turning it off removes everything Purrdr added.")
+                .foregroundStyle(.secondaryText)
         }
         .alert("Install Codex Launcher?", isPresented: Binding(get: { isConfirming }, set: { _ in })) {
             // 按鈕動作前 binding 會先被設成 false:取消與確認都交給按鈕處理(#22 地雷)。

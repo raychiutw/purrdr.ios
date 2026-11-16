@@ -25,7 +25,7 @@ public struct HostListView: View {
                 if model.rows.isEmpty {
                     Section {
                         Text("Add a computer that runs herdr. Purrdr connects to it with SSH over your tailnet; nothing is exposed to the internet.")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
                 if !model.rows.isEmpty {
@@ -41,8 +41,8 @@ public struct HostListView: View {
                         dismiss()
                     } label: {
                         HostRowView(
-                            title: "Demo", subtitle: String(localized: "Sample conversations, no computer connected"),
-                            session: nil, isSelected: model.selection == .demo)
+                            title: String(localized: "Demo"), subtitle: String(localized: "Sample conversations, no computer connected"),
+                            session: nil, isSelected: model.selection == .demo, icon: .default)
                     }
                     .accessibilityIdentifier("hosts.demo")
                 }
@@ -50,7 +50,7 @@ public struct HostListView: View {
                     Section {
                         Label(message, systemImage: "exclamationmark.triangle")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .accessibilityIdentifier("hosts.error")
                     }
                 }
@@ -59,8 +59,12 @@ public struct HostListView: View {
             .navigationTitle("Hosts")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("sheet.done")
+                    // 回到列表的入口旁標示需要處理的 workspace 數(行為規格 F2.8)。
+                    HStack(spacing: 6) {
+                        AttentionBadge(count: model.agentList.attentionCount)
+                        Button("Done") { dismiss() }
+                            .accessibilityIdentifier("sheet.done")
+                    }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add Host", systemImage: "plus") { path.append(.add) }
@@ -90,7 +94,7 @@ public struct HostListView: View {
             model.select(.host(row.id))
             dismiss()
         } label: {
-            HostRowView(title: row.title, subtitle: row.subtitle, session: row.session, isSelected: row.isSelected)
+            HostRowView(title: row.title, subtitle: row.subtitle, session: row.session, isSelected: row.isSelected, icon: row.icon)
         }
         .accessibilityIdentifier("hosts.row.\(row.id.uuidString)")
         // context menu 頂端的動作與滑動動作一致;刪除放最後並標 destructive(HIG 20.3)。
@@ -106,6 +110,15 @@ public struct HostListView: View {
             Button("Edit", systemImage: "pencil") { path.append(.edit(row.id)) }
             Button("Rename…", systemImage: "character.cursor.ibeam") { renaming = HostRenaming(id: row.id, name: row.title) }
             Button("Share…", systemImage: "qrcode") { path.append(.share(row.id)) }
+            // 主機圖示(#37 故事 5):只存在這支裝置，讓多台主機的列一眼分得出來。
+            Picker(selection: iconBinding(row.id)) {
+                ForEach(HostIcon.allCases, id: \.self) { icon in
+                    Label(icon.title, systemImage: icon.symbol)
+                }
+            } label: {
+                Label("Icon", systemImage: row.icon.symbol)
+            }
+            .pickerStyle(.menu)
             Divider()
             Button("Delete", systemImage: "trash", role: .destructive) { delete(row.id) }
         }
@@ -171,6 +184,10 @@ public struct HostListView: View {
         self.renaming = nil
     }
 
+    private func iconBinding(_ id: UUID) -> Binding<HostIcon> {
+        Binding { model.icon(for: id) } set: { model.setIcon($0, for: id) }
+    }
+
     private var renamingBinding: Binding<Bool> {
         // setter 留空：按鈕自己處理(見主機編輯器的 alert 同樣做法)。
         Binding { renaming != nil } set: { if !$0 { renaming = nil } }
@@ -209,22 +226,29 @@ struct HostRowView: View {
     let subtitle: String
     let session: String?
     let isSelected: Bool
+    let icon: HostIcon
 
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            Image(systemName: icon.symbol)
+                .foregroundStyle(Color.secondary)
+                .frame(minWidth: 28)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
+                // `Color.primary`/`Color.secondaryText`:列是 Button,階層式的 `.primary`/`.secondary` 會跟著按鈕變成 tint,
+                // 副標成了淡粉紅、對比不足(#35)。
                 Text(title)
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.primary)
                     .truncationMode(.middle)
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.secondaryText)
                     .truncationMode(.middle)
                 if let session {
                     Text("Session: \(session)")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.secondaryText)
                 }
             }
             Spacer(minLength: 8)

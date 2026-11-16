@@ -3,7 +3,7 @@ import PurrdrCore
 
 /// Demo 主機的家目錄：記憶體裡的假檔案，回應主機檔案的讀寫指令(`HostFileRequest`)。
 ///
-/// 一開始只有 `~/.claude/settings.json`(範例的 status line 設定)。Claude 用量的包裝腳本裝上之後，
+/// 一開始有 `~/.claude/settings.json`(範例的 status line 設定)、herdr 的 `config.toml`(主題)與「You should know」的 store。Claude 用量的包裝腳本裝上之後，
 /// 讀 `usage.json` 會拿到範例用量——就像 Claude Code 已經執行過包裝腳本(行為規格 F21:用量是假資料)。
 struct DemoFiles {
     static let user = "demo"
@@ -17,7 +17,27 @@ struct DemoFiles {
 
         """
 
-    private var files: [String: Data] = [".claude/settings.json": Data(sampleSettings.utf8)]
+    /// herdr 的設定：Demo 用 tokyo-night(主機主題，#23)。
+    static let sampleHerdrConfig = """
+        # herdr config (Purrdr demo)
+        [theme]
+        name = "tokyo-night"
+
+        """
+    static let youShouldKnowStore = ".claude/plugins/store/cc-plugin-you-should-know_builtin-d3m0d3m0d3m0.json"
+    /// 「You should know」的 store(#23):給 ledger(w1:p1)的一則註記(內容自己寫的)。
+    static let sampleYouShouldKnow = """
+        {"sessions":[{"id":"d3m0d3m0-0000-4000-8000-000000000001","view":{"kind":"offer",\
+        "line":"Decimal keeps cents exact where Double rounds them","explanation":\
+        "Double stores binary fractions, so 0.1 + 0.2 isn't 0.3. Swift's Decimal works in base 10, which is why money totals stay exact.",\
+        "shownAt":1763280000000}}],"known":[],"typedPastInARow":0,"looksToSkip":0}
+        """
+
+    private var files: [String: Data] = [
+        ".claude/settings.json": Data(sampleSettings.utf8),
+        ".config/herdr/config.toml": Data(sampleHerdrConfig.utf8),
+        youShouldKnowStore: Data(sampleYouShouldKnow.utf8),
+    ]
     /// 一定存在的資料夾(家目錄與 `~/.claude`)。
     private let baseDirectories: Set<String> = ["", ".claude"]
     /// 主機寫入建立的資料夾(例如 Codex 啟動器的 `~/.local/bin`)。
@@ -34,6 +54,14 @@ struct DemoFiles {
             }
             changes.forEach { apply($0) }
             return (Data(), 0)
+        case .newest(let directory, let prefix, let suffix):
+            // Demo 的檔案沒有修改時間：符合的取路徑排序最後一個。
+            let match = files.keys.filter {
+                guard $0.hasPrefix(directory.relative + "/") else { return false }
+                let name = String($0.dropFirst(directory.relative.count + 1))
+                return !name.contains("/") && name.hasPrefix(prefix) && name.hasSuffix(suffix)
+            }.max()
+            return (HostFileRequest.newestOutput(match.map { HostPath($0) }), 0)
         }
     }
 

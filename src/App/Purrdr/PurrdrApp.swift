@@ -2,6 +2,7 @@ import Foundation
 import PurrdrCore
 import PurrdrDemo
 import PurrdrFeatures
+import StoreKit
 import SwiftUI
 
 /// 唯一的 composition root:組裝主機儲存、主機通道、Purrdr 後台與畫面 model。
@@ -12,13 +13,14 @@ import SwiftUI
 struct PurrdrApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
     @State private var hosts: HostsModel
-    private let navigation = TopNavigationModel()
     private let member: MemberModel
     /// Purrdr Plus(#28)。跟會員共用同一個 `MemberSession`(同一組權杖)。
     private let plus: SubscriptionModel
     private let settings: SettingsModel
     /// 主機同步(#30):跟會員、Purrdr Plus 共用同一個 `MemberSession`。
     private let hostSync: HostSyncModel
+    /// 第一次開啟的歡迎頁(#34)。
+    private let welcome: WelcomeModel
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -28,9 +30,11 @@ struct PurrdrApp: App {
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
         // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
         let cache = InMemoryConversationCache()
-        // UI 測試每次啟動都從空白的釘選、靜音開始，不讀寫這台模擬器的 UserDefaults。
-        let preferences: any ChatPreferencesStore = uiTesting
-            ? InMemoryChatPreferencesStore() : UserDefaultsChatPreferencesStore()
+        // UI 測試每次啟動都從空白的釘選、靜音與主機圖示開始，不讀寫這台模擬器的 UserDefaults。
+        // 釘選、靜音依主機分開(#39);舊版沒有主機身分的資料在第一次啟動時丟棄。
+        let preferences: any HostChatPreferencesStore = uiTesting
+            ? InMemoryHostChatPreferencesStore() : UserDefaultsHostChatPreferencesStore()
+        let hostIcons: any HostIconStore = uiTesting ? InMemoryHostIconStore() : UserDefaultsHostIconStore()
         let session = Self.makeMemberSession(uiTesting: uiTesting)
         member = MemberModel(
             session: session,
@@ -57,32 +61,66 @@ struct PurrdrApp: App {
             // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
             let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
             hosts = HostsModel(
-                store: EphemeralHostStore(hosts: arguments.contains("-seedHost") ? [Self.seededHost] : []), demoChannel: demo,
-                conversationCache: cache, preferences: preferences, selectionStore: InMemoryHostSelectionStore(),
+                store: EphemeralHostStore(hosts: Self.seededHosts(arguments)), demoChannel: demo,
+                // 示範主機在 UI 測試要明確開啟(`-demoCompanions`),其他測試的列表才不會多出它們的列。
+                demoCompanions: arguments.contains("-demoCompanions") ? Self.demoCompanions(demo) : [],
+                conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
+                selectionStore: InMemoryHostSelectionStore(arguments.contains("-selectDemo") ? .demo : nil),
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                makeChannel: { _, _, _ in demo })
+                // 滑動提示每次啟動都顯示(只在記憶體)。
+                swipeHint: InMemorySwipeHintStore(),
+                listMode: Self.uiTestingListMode(arguments),
+                // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
+                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
                 secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
             // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
-                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences,
+                store: KeychainHostStore(), demoChannel: demo, demoCompanions: Self.demoCompanions(demo),
+                conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
-                push: push, tailscaleCheck: tailscaleCheck
+                push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
+                listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer)
             }
         }
         hosts.haptics = SystemHaptics()
+        hosts.reviewPrompt = Self.makeReviewPrompt(uiTesting: uiTesting)
         hosts.load()
         _hosts = State(initialValue: hosts)
         // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
         hostSync = HostSyncModel(
             session: session, plus: plus, hosts: hosts, store: uiTesting ? InMemoryHostSyncStore() : UserDefaultsHostSyncStore())
         settings = Self.makeSettings(hosts: hosts)
+        // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
+        welcome = WelcomeModel(store: uiTesting
+            ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
+    }
+
+    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體(每次啟動都是 Spaces)。
+    /// `-rememberListMode` 改存 UserDefaults(另一個 key,不碰正式的 `agentListMode`),測「重新啟動後記住」(#66);
+    /// `-resetListMode` 先清掉上次留下的值。
+    private static func uiTestingListMode(_ arguments: [String]) -> any AgentListModeStore {
+        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore() }
+        let key = "uiTesting.agentListMode"
+        if arguments.contains("-resetListMode") { UserDefaults.standard.removeObject(forKey: key) }
+        return UserDefaultsAgentListModeStore(key: key)
+    }
+
+    /// 成功送出幾次 prompt 後請求評分(#34)。UI 測試只在記憶體計數、不叫出系統的評分對話框(會擋住後面的操作)。
+    private static func makeReviewPrompt(uiTesting: Bool) -> ReviewPrompt {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        guard !uiTesting else { return ReviewPrompt(store: InMemoryReviewPromptStore(), appVersion: version) {} }
+        return ReviewPrompt(store: UserDefaultsReviewPromptStore(), appVersion: version) {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else { return }
+            AppStore.requestReview(in: scene)
+        }
     }
 
     /// 設定頁。偏好存在 `UserDefaults.standard`(輸入列的 `@AppStorage` 讀同一個 key)。
@@ -108,6 +146,26 @@ struct PurrdrApp: App {
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000001")!, name: "Studio Mac",
         endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), operatingSystem: .macOS)
 
+    /// UI 測試情境 `-seedUnreachableHost`:再存一台連不上的主機(多主機合併列表，#39)。
+    private static let unreachableHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000002")!, name: "Build Box",
+        endpoint: SSHEndpoint(host: "build-box.invalid", username: "demo"), operatingSystem: .linux)
+
+    /// Demo 的示範主機(#34,App Review 也看得到):「Studio Mac」(內容同 Demo 主機)與一律連不上的「Build Box」,
+    /// 演出多主機合併列表與連線中斷。只在 Demo 主機出現在列表時出現，不是已存主機。
+    private static func demoCompanions(_ demo: DemoHost) -> [DemoCompanionHost] {
+        [
+            DemoCompanionHost(id: UUID(uuidString: "DE300000-0000-4000-8000-000000000001")!, name: "Studio Mac", icon: .macMini, channel: demo),
+            DemoCompanionHost(
+                id: UUID(uuidString: "DE300000-0000-4000-8000-000000000002")!, name: "Build Box", icon: .rack,
+                channel: DemoUnreachableChannel()),
+        ]
+    }
+
+    private static func seededHosts(_ arguments: [String]) -> [HostConfiguration] {
+        (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
+    }
+
     /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成)。
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
@@ -124,10 +182,19 @@ struct PurrdrApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        // 主視窗(三欄)。iPad 可以開好幾個，每個視窗有自己的導覽狀態;主機與 Agent 列表共用。
+        WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
-                navigation: navigation, hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync,
-                notifications: PushAppDelegate.router)
+                hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
+                welcome: welcome)
+        }
+        .commands { PurrdrCommands() }
+        // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
+        WindowGroup(for: PaneWindow.self) { $window in
+            if let window {
+                PaneWindowView(window: window, hosts: hosts)
+            }
         }
     }
 }
+

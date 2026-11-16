@@ -17,22 +17,34 @@ public struct SettingsView: View {
     let push: PushModel?
     /// 主機同步(#30);`nil` 時不顯示。
     let hostSync: HostSyncModel?
+    /// 選取中主機的主機主題與「You should know」寫回(#23);`nil` 時不顯示。
+    let hostTheme: HostThemeModel?
+    let youShouldKnow: YouShouldKnowModel?
     /// 推播需要 Purrdr Plus 時開付費牆。
     let openPlus: () -> Void
     /// 選取中主機的 Codex 啟動器;`nil` 時不顯示。
     let codexLauncher: CodexLauncherModel?
+    /// 需要處理的 workspace 數(「完成」旁的數字，行為規格 F2.8)。
+    let attention: () -> Int
+    /// 再看一次歡迎頁(#34;HIG Onboarding:跳過後在設定找得到)。
+    let openWelcome: () -> Void
     let done: () -> Void
 
     public init(
         model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil,
-        hostSync: HostSyncModel? = nil, openPlus: @escaping () -> Void = {}, codexLauncher: CodexLauncherModel? = nil,
-        done: @escaping () -> Void
+        hostSync: HostSyncModel? = nil, hostTheme: HostThemeModel? = nil, youShouldKnow: YouShouldKnowModel? = nil,
+        openPlus: @escaping () -> Void = {}, codexLauncher: CodexLauncherModel? = nil,
+        attention: @escaping () -> Int = { 0 }, openWelcome: @escaping () -> Void = {}, done: @escaping () -> Void
     ) {
+        self.attention = attention
+        self.openWelcome = openWelcome
         self.model = model
         self.member = member
         self.plus = plus
         self.push = push
         self.hostSync = hostSync
+        self.hostTheme = hostTheme
+        self.youShouldKnow = youShouldKnow
         self.openPlus = openPlus
         self.codexLauncher = codexLauncher
         self.done = done
@@ -58,13 +70,22 @@ public struct SettingsView: View {
                     HostSyncSection(model: hostSync, plus: plus, member: member)
                 }
 
+                if let hostTheme {
+                    HostThemeSettingsSection(model: hostTheme)
+                }
+                if let youShouldKnow {
+                    YouShouldKnowSettingsSection(model: youShouldKnow)
+                }
+
                 Section {
                     Toggle("Return Key Sends", isOn: $model.returnSends)
                         .accessibilityIdentifier("settings.returnSends")
                 } header: {
                     Text("Hardware Keyboard")
+                        .foregroundStyle(.secondaryText)
                 } footer: {
                     Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
+                        .foregroundStyle(.secondaryText)
                 }
 
                 if let codexLauncher {
@@ -76,9 +97,12 @@ public struct SettingsView: View {
                         .accessibilityIdentifier("settings.haptics")
                 } footer: {
                     Text("Feel a tap when you answer an agent, and whether the answer arrived.")
+                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
+                    Button("Show Welcome", systemImage: "hand.wave") { openWelcome() }
+                        .accessibilityIdentifier("settings.welcome")
                     Button("Rate Purrdr", systemImage: "star") { model.rateApp() }
                         .accessibilityIdentifier("settings.rate")
                     Button("Support", systemImage: "questionmark.circle") { model.openSupport() }
@@ -90,25 +114,33 @@ public struct SettingsView: View {
                         .accessibilityIdentifier("settings.copyDiagnostics")
                 } header: {
                     Text("Support")
+                        .foregroundStyle(.secondaryText)
                 } footer: {
                     Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
+                        .foregroundStyle(.secondaryText)
                 }
 
-                Section("About") {
+                Section {
                     LabeledContent("Version", value: model.appVersionText)
                         .accessibilityIdentifier("settings.version")
                     LabeledContent("herdr on Host") { herdrVersionText }
                         .accessibilityIdentifier("settings.herdrVersion")
                     Button("Privacy Policy", systemImage: "hand.raised") { model.openPrivacyPolicy() }
                         .accessibilityIdentifier("settings.privacy")
+                } header: {
+                    Text("About")
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .accessibilityIdentifier("sheet.settings")
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: done)
-                        .accessibilityIdentifier("sheet.done")
+                    HStack(spacing: 6) {
+                        AttentionBadge(count: attention())
+                        Button("Done", action: done)
+                            .accessibilityIdentifier("sheet.done")
+                    }
                 }
             }
         }

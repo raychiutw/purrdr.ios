@@ -4,13 +4,12 @@ import SwiftUI
 /// Spaces 版面圖的 sheet(行為規格 F4,iPhone 版):每個 tab 一張分頁圖，點 pane 方塊開聊天或終端機。
 ///
 /// 點方塊只記下目標並關 sheet;由列表在 sheet 關閉後才開(不能在關 sheet 的同一刻 push)。
-/// iPad 的浮動卡片(指標停留顯示、點了釘住)留給 iPad 那張票。
+/// iPad 有指標停留時改用浮動卡片(`LayoutCard`,#31);iPhone 與 context menu 的「Show Layout」仍是這個 sheet。
 struct SpacesLayoutSheet: View {
     let workspaceLabel: String
     let layout: SpacesLayout?
     let onChoose: (PaneOpenTarget) -> Void
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         NavigationStack {
@@ -30,14 +29,27 @@ struct SpacesLayoutSheet: View {
 
     @ViewBuilder
     private var content: some View {
+        SpacesLayoutContent(layout: layout) { target in
+            onChoose(target)
+            dismiss()
+        }
+    }
+}
+
+/// 版面圖的內容(sheet 與 iPad 浮動卡片共用):每個 tab 一張圖;沒有版面時說明。
+struct SpacesLayoutContent: View {
+    let layout: SpacesLayout?
+    /// 最多幾欄(浮動卡片只有 340pt 寬，一欄)。
+    var maxColumns = 2
+    let onChoose: (PaneOpenTarget) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
         if let layout, !layout.tabs.isEmpty {
             ScrollView {
                 LazyVGrid(columns: columns(for: layout), alignment: .leading, spacing: 20) {
                     ForEach(layout.tabs) { tab in
-                        LayoutTabView(tab: tab) { target in
-                            onChoose(target)
-                            dismiss()
-                        }
+                        LayoutTabView(tab: tab, onChoose: onChoose)
                     }
                 }
                 .padding()
@@ -53,7 +65,7 @@ struct SpacesLayoutSheet: View {
 
     /// 2 個以上的 tab 排兩欄;AX 字級改一欄，文字才放得下。
     private func columns(for layout: SpacesLayout) -> [GridItem] {
-        let count = layout.tabs.count > 1 && !dynamicTypeSize.isAccessibilitySize ? 2 : 1
+        let count = layout.tabs.count > 1 && !dynamicTypeSize.isAccessibilitySize ? maxColumns : 1
         return Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .top), count: count)
     }
 }
@@ -72,16 +84,16 @@ private struct LayoutTabView: View {
             HStack(spacing: 4) {
                 Text(title)
                     .font(.subheadline.weight(tab.isActive ? .semibold : .regular))
-                    .foregroundStyle(tab.isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(tab.isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
                 if tab.isActive {
                     Text("Active")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 if tab.isZoomed {
                     Image(systemName: "plus.magnifyingglass")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .accessibilityLabel("Zoomed")
                 }
             }
@@ -160,7 +172,7 @@ private struct LayoutBlockView: View {
                 if let detail {
                     Text(detail)
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .lineLimit(2)
@@ -171,11 +183,11 @@ private struct LayoutBlockView: View {
             } icon: {
                 Image(systemName: "terminal")
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .lineLimit(2)
         case .unavailable:
             Image(systemName: "questionmark")
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -194,7 +206,7 @@ private struct LayoutBlockView: View {
         case .agent(let name, let detail, let status):
             parts.append(name)
             if let detail { parts.append(detail) }
-            parts.append(String(localized: status.titleResource))
+            parts.append(String(localized: status.title))
         case .terminal(let program):
             parts.append(String(localized: "Terminal"))
             if !program.isEmpty { parts.append(program) }
@@ -210,19 +222,6 @@ private struct LayoutBlockView: View {
         case .chat: Text("Opens the chat.")
         case .terminal: Text("Opens the terminal.")
         case nil: Text("Can’t be opened.")
-        }
-    }
-}
-
-extension AgentStatus {
-    /// 狀態字(與 `title` 相同的字串),給需要 `String` 的地方用。
-    var titleResource: LocalizedStringResource {
-        switch self {
-        case .blocked: "Needs You"
-        case .working: "Working"
-        case .done: "Done"
-        case .idle: "Idle"
-        case .unknown: "Unknown"
         }
     }
 }

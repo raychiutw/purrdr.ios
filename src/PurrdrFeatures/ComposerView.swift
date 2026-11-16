@@ -28,6 +28,11 @@ struct ComposerBar: View {
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
+            // 「You should know」:只顯示這個輸入框要送往的 session 的那則(#23)。
+            // slash 選單開著時先收起：鍵盤、選單、註記同時在時，AX 字級下註記卡片被擠到截字(#35)。
+            if let note = model.note, let notes = model.youShouldKnow, !model.slash.isVisible {
+                YouShouldKnowNoteView(note: note, model: notes, conversation: model)
+            }
             if !model.attachments.isEmpty {
                 AttachmentStrip(model: model)
             }
@@ -46,6 +51,8 @@ struct ComposerBar: View {
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
+        // 對話可見時自己讀註記(列表被蓋住時它的輪詢會停)。
+        .task { await model.youShouldKnow?.run() }
     }
 
     // MARK: - 輸入框
@@ -68,9 +75,19 @@ struct ComposerBar: View {
             send()
         }
         .overlay(alignment: .topLeading) {
+            if let hint = model.slashArgumentHint {
+                // 點選需要參數的 slash 指令後，游標後淡淡顯示要填什麼(#45)。草稿本身透明，只為了把提示排在它後面。
+                Text(Self.ghost(draft: model.draft, hint: hint))
+                    .lineLimit(1)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 11)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel(Text("Argument: \(hint)"))
+                    .accessibilityIdentifier("composer.argumentHint")
+            }
             if model.draft.isEmpty {
                 Text("Message")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 11)
                     .allowsHitTesting(false)
@@ -85,6 +102,15 @@ struct ComposerBar: View {
                 .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
                 .allowsHitTesting(false)
         }
+    }
+
+    private static func ghost(draft: String, hint: String) -> AttributedString {
+        var typed = AttributedString(draft)
+        typed.foregroundColor = .clear
+        var placeholder = AttributedString(hint)
+        placeholder.foregroundColor = .secondaryText
+        placeholder.font = .body.monospaced()
+        return typed + placeholder
     }
 
     // MARK: - 按鈕
@@ -136,7 +162,7 @@ struct ShellModeHint: View {
     var body: some View {
         Label("This runs in the agent’s shell and won’t be sent to Claude.", systemImage: "terminal")
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -161,7 +187,7 @@ struct SendNoticeView: View {
                     .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .accessibilityLabel(Text("Dismiss"))
             .accessibilityIdentifier("composer.notice.dismiss")
         }
@@ -186,6 +212,7 @@ extension SendNotice {
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
         case .stillWorking: String(localized: "The agent is still working. Tap Stop again, or press and hold to force quit.")
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
+        case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
         case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
@@ -198,7 +225,7 @@ extension SendNotice {
         case .needsAnswer, .interruptRefusedNeedsAnswer: "exclamationmark.circle"
         case .agentGone, .superseded: "xmark.bubble"
         case .offline: "wifi.slash"
-        case .rejected, .noResponse, .interruptFailed, .uploadFailed: "exclamationmark.triangle"
+        case .rejected, .noResponse, .interruptFailed, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
         case .imageLimit, .imageUnreadable: "photo"
         case .unconfirmed: "questionmark.circle"
         case .stillWorking: "ellipsis.circle"
@@ -227,7 +254,7 @@ struct EchoBubbleView: View {
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .background(.tint, in: RoundedRectangle(cornerRadius: 18))
+                        .hostFill(in: RoundedRectangle(cornerRadius: 18))
                         .accessibilityLabel(Text("Your message. \(echo.text)"))
                 }
                 status
@@ -243,19 +270,18 @@ struct EchoBubbleView: View {
         case .sending:
             Text("Sending…")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         case .sent:
             Text("Sent")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         case .failed(let failure):
             HStack(spacing: 4) {
                 Label(failure.text, systemImage: "exclamationmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.red)
-                Button("Retry", action: retry)
+                    .foregroundStyle(.errorText)
+                Button(action: retry) { HitTarget("Retry") }
                     .font(.caption.weight(.semibold))
-                    .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("conversation.echo.retry")
             }
         }
@@ -327,7 +353,12 @@ struct ComposerTextEditor: UIViewRepresentable {
             view.selectedRange = NSRange(location: location, length: 0)
         }
         if !isFocused, view.isFirstResponder {
-            view.resignFirstResponder()
+            // 不在畫面更新中 resign:resign 時 UIKit 會問 hosting view 的 responder,又觸發同一張 AttributeGraph 的更新，
+            // 形成循環，主執行緒卡上數分鐘(#34 的 UI 測試抓到)。等這次更新結束再收起，那時焦點仍是 false 才收。
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                if !coordinator.parent.isFocused, view.isFirstResponder { view.resignFirstResponder() }
+            }
         }
     }
 

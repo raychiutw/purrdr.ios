@@ -78,7 +78,7 @@ struct ShellRunView: View {
                 if let date = run.date {
                     Text(date, format: .dateTime.hour().minute())
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             if !visible.stdout.isEmpty || !visible.stderr.isEmpty {
@@ -90,7 +90,7 @@ struct ShellRunView: View {
                         }
                         if !visible.stderr.isEmpty {
                             Text(verbatim: visible.stderr.joined(separator: "\n"))
-                                .foregroundStyle(.red)
+                                .foregroundStyle(.errorText)
                                 .accessibilityIdentifier("conversation.shell.stderr")
                         }
                     }
@@ -118,7 +118,7 @@ struct ShellRunView: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)

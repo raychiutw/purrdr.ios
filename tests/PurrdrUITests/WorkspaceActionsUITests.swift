@@ -8,7 +8,7 @@ final class WorkspaceActionsUITests: XCTestCase {
 
     @MainActor
     private func row(_ paneID: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)["agent.row.\(paneID)"].firstMatch
+        app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
     }
 
     /// 往左滑「Workspace」→ 預填 workspace 名稱的表單 → 儲存後列表以新名稱重讀。
@@ -16,7 +16,7 @@ final class WorkspaceActionsUITests: XCTestCase {
     func testRenameWorkspaceFromSwipe() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeLeft()
         app.buttons["Workspace"].firstMatch.tap()
@@ -57,12 +57,15 @@ final class WorkspaceActionsUITests: XCTestCase {
     func testPinFromLeadingSwipe() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeRight()
         XCTAssertTrue(app.buttons["Mute"].firstMatch.waitForExistence(timeout: 5), "往右滑沒有靜音")
         app.buttons["Pin"].firstMatch.tap()
 
+        // 釘選後列移到最上方的「已釘選」組;捲回頂端再滑。
+        app.collectionViews.firstMatch.swipeDown()
+        XCTAssertTrue(app.reveal(ledger))
         ledger.swipeRight()
         XCTAssertTrue(app.buttons["Unpin"].firstMatch.waitForExistence(timeout: 5), "釘選後沒有變成「取消釘選」")
     }
@@ -99,7 +102,7 @@ final class WorkspaceActionsUITests: XCTestCase {
     func testNewWorktreeOnDemoHostExplains() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.reveal(ledger))
 
         ledger.press(forDuration: 1.2)
         app.buttons["New Worktree…"].tap()

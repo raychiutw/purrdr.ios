@@ -112,7 +112,7 @@ public struct NewChatFolders: Sendable {
         if lines.last == "" { lines.removeLast() }
         guard let first = lines.first else { return NewChatFolderListing(path: "/", folders: []) }
         let path = first.isEmpty ? "/" : first
-        guard path.hasPrefix("/") else { throw NewChatFolderError.unexpectedResponse }
+        guard HostPathSyntax.isAbsolute(path) else { throw NewChatFolderError.unexpectedResponse }
         let folders = lines.dropFirst().filter { !$0.isEmpty }.sorted {
             let order = $0.lowercased().compare($1.lowercased())
             return order == .orderedSame ? $0 < $1 : order == .orderedAscending

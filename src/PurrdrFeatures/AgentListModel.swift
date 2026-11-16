@@ -15,10 +15,11 @@ public final class AgentListModel {
     public private(set) var phase: Phase = .loading
     /// 搜尋字串。空白時列出全部。
     public var query = ""
-    /// 要直接開的聊天(pane id):從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
-    public var openedChat: String?
     /// 各 Agent(以 pane id)對話中最後一則訊息。來源是對話紀錄，由對話閱讀(#12)提供。
     public var previews: [String: MessagePreview] = [:]
+
+    /// 即時更新(`run()`),由所有顯示這份列表的視窗共用：iPad 多視窗時只跑一份(#31)。
+    @ObservationIgnored public private(set) lazy var liveUpdates = SharedRun { [weak self] in await self?.run() }
 
     /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
     public private(set) var snapshot: HostSnapshot?
@@ -29,11 +30,23 @@ public final class AgentListModel {
     /// 與退避的 `retryWaiter` 分開：網路恢復、回到前景(`retryNow()`)不會讓它重連而又跳出驗證。
     private var checkCancelWaiter: CheckedContinuation<Void, Never>?
 
+    /// 所在的主機(列的身分)。
+    public let host: HostSelection
+
+    /// 即時更新要不要訂閱版面事件(#40:只有 Spaces 檢視要)。執行中改變時，關掉目前的訂閱、立刻用新的清單重新訂閱。
+    public var subscribesToLayout = false {
+        didSet { if subscribesToLayout != oldValue { endSubscription?() } }
+    }
+
+    /// 結束目前的訂閱串流(`run()` 訂閱中才有)。
+    @ObservationIgnored private var endSubscription: (() -> Void)?
+
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
     public init(
-        client: HerdrClient, transcripts: TranscriptReader? = nil,
+        client: HerdrClient, transcripts: TranscriptReader? = nil, host: HostSelection = .demo,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
+        self.host = host
         self.client = client
         self.transcripts = transcripts
         self.sleep = sleep
@@ -41,10 +54,15 @@ public final class AgentListModel {
 
     /// 依「需要你／工作中／閒置」分組、套用搜尋後的列表。
     public var sections: [AgentSection] {
-        AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews)
+        AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews, host: host)
     }
 
     /// 列表看到的 pane 的 session 參照(id 或路徑;開對話時用來比對快取)。
+    /// 列表裡 Claude Code 的 session id → pane id(「You should know」以完整 session id 配對聊天，#23)。
+    public var claudeSessionPanes: [String: String] {
+        Dictionary((snapshot?.agents ?? []).compactMap { agent in agent.claudeSessionID.map { ($0, agent.paneID) } }) { first, _ in first }
+    }
+
     public func sessionID(ofPane paneID: String) -> String? {
         snapshot?.agents.first { $0.paneID == paneID }?.transcriptTarget?.sessionKey
     }
@@ -76,7 +94,7 @@ public final class AgentListModel {
     /// - 事件不重播，所以訂閱開始(ack)時重讀一次對帳;之後事件只當「重讀」的觸發，不把內容套到列表上。
     ///   事件是依序處理的，重讀進行中到達的事件會在讀完後再觸發一次。
     /// - `events_lost`:快取已過期，立刻重新訂閱並重讀。
-    /// - 重讀後 Agent pane 的集合變了：訂閱不能修改，關掉舊的、用新集合重新訂閱。
+    /// - 重讀後 Agent pane 的集合變了，或換了檢視(`subscribesToLayout`):訂閱不能修改，關掉舊的、用新清單重新訂閱。
     /// - 其他失敗(含訂閱在 ack 前就結束):退避 1 秒起倍增、上限 30 秒;收到 ack 即歸零。
     /// - 使用者取消了 Tailscale 重新驗證：不自動重試(否則每次重試又跳出驗證),等使用者按「再試一次」。
     public func run() async {
@@ -88,16 +106,18 @@ public final class AgentListModel {
                 if needsSnapshot { try await refresh() }
                 needsSnapshot = false
                 let panes = agentPaneIDs
-                let events = try await client.subscribe(panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide)
+                let layout = subscribesToLayout
+                let events = interruptible(try await client.subscribe(
+                    panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide + (layout ? EventSubscription.layout : [])))
+                defer { endSubscription?(); endSubscription = nil }
                 for try await event in events {
                     if case .event = event { try await sleep(Self.debounce) }
                     if event == .subscriptionStarted { failures = 0 }
                     try await refresh()
-                    if Set(agentPaneIDs) != Set(panes) {
-                        resubscribeNow = true
-                        break
-                    }
+                    if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
+                // 換了 pane 集合或檢視(訂閱中途被 `subscribesToLayout` 結束的也是):重新訂閱，不算失敗。
+                resubscribeNow = Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout
             } catch HerdrError.herdr(code: "events_lost", _) {
                 needsSnapshot = true
                 resubscribeNow = true
@@ -124,6 +144,22 @@ public final class AgentListModel {
                 return
             }
         }
+    }
+
+    /// 轉送訂閱串流，並讓 `endSubscription` 能從外面結束它(結束時取消轉送，關掉底層的訂閱通道)。
+    private func interruptible(_ events: AsyncThrowingStream<HerdrEvent, any Error>) -> AsyncThrowingStream<HerdrEvent, any Error> {
+        let (stream, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
+        let forward = Task {
+            do {
+                for try await event in events { continuation.yield(event) }
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in forward.cancel() }
+        endSubscription = { continuation.finish() }
+        return stream
     }
 
     /// 使用者按「重試」或網路恢復：正在退避就立刻重連;正在連就讓下一次退避直接跳過。
@@ -244,8 +280,10 @@ public final class AgentListModel {
     }
 }
 
-/// 列表的分組：依「需要你／工作中／閒置」排列，最需要使用者處理的在最上面。
+/// 列表的分組：依「已釘選／需要你／工作中／閒置」排列(行為規格 F2.2)。
+/// 釘選優先於狀態：已釘選的列不因狀態改變而跳組;其餘最需要使用者處理的在最上面。
 public enum AgentGroup: CaseIterable, Sendable {
+    case pinned
     case needsYou
     case working
     case idle
@@ -264,22 +302,47 @@ public struct AgentSection: Identifiable, Equatable, Sendable {
 
 /// 列表的一列。
 public struct AgentRow: Identifiable, Equatable, Sendable {
-    /// Pane id。
-    public var id: String
+    /// 所在的主機。
+    public var host: HostSelection
+    public var paneID: String
+    /// agent 種類(herdr 原文);列左側的圖示依它。
+    public var kind: String
     public var title: String
+    /// 非選取中主機的列以主機名開頭(#37 故事 2)。
     public var subtitle: String
+    /// 非選取中主機的列：主機名與圖示;選取中主機為 `nil`。
+    public var hostLabel: HostLabel?
     public var preview: Preview
     public var time: Time?
-    /// 列表上的狀態(`input_pending` 已折算成 `blocked`)。
+    /// 列表上的狀態(`input_pending` 已折算成 `blocked`;未讀的回覆是 `done`、已讀是 `idle`,行為規格 F2.5)。
     public var status: AgentStatus
+    /// 有還沒讀過的回覆(行為規格 F2.6)。
+    public var isUnread: Bool
+    /// 已釘選、已靜音(標題後的小圖示)。
+    public var isPinned: Bool
+    public var isMuted: Bool
 
-    public init(id: String, title: String, subtitle: String, preview: Preview, time: Time?, status: AgentStatus) {
-        self.id = id
+    /// 主機身分 + pane id:不同主機的同一個 pane id 是不同的列(也是 UI 測試的 `agent.row.<id>`)。
+    public var id: String { "\(host.storedValue)/\(paneID)" }
+    public var route: ChatRoute { ChatRoute(host: host, paneID: paneID) }
+
+    public init(
+        host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, subtitle: String,
+        hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
+        isUnread: Bool = false, isPinned: Bool = false, isMuted: Bool = false
+    ) {
+        self.host = host
+        self.paneID = paneID
+        self.kind = kind
         self.title = title
         self.subtitle = subtitle
+        self.hostLabel = hostLabel
         self.preview = preview
         self.time = time
         self.status = status
+        self.isUnread = isUnread
+        self.isPinned = isPinned
+        self.isMuted = isMuted
     }
 
     /// 預覽行(行為規格 F2.4)。
@@ -288,8 +351,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
         case needsInput
         /// 最後一則訊息;`fromYou` 為使用者自己送出的。
         case message(String, fromYou: Bool)
-        /// 沒有訊息時顯示狀態字。
-        case status(AgentStatus)
+        /// 沒有訊息：不顯示預覽行(狀態字已在列尾的狀態標籤，不重複，#35)。
+        case none
     }
 
     /// 右欄時間。

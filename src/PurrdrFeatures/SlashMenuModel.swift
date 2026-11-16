@@ -4,10 +4,10 @@ import PurrdrCore
 /// 輸入列上方的 slash 選單(#15、行為規格 F9.3)。
 ///
 /// - 草稿**恰好**是 `/` 加 `[\w:-]*`(後面沒有空白或其他字)時出現。
-/// - 依來源分組;輸入名稱時在每組內篩選(名稱或說明包含，不分大小寫),空的分組拿掉。
-///   單一排名清單(名稱開頭 > 名稱包含 > 說明包含)屬於 Slash 進階(#45)。
+/// - 只有 `/` 時依來源分組;輸入名稱後改成單一排名清單(#45):名稱開頭 > 名稱包含 > 說明包含(不分大小寫),
+///   同級依分組與原順序。名稱開頭看整個名稱(`kit:review` 不算以 `rev` 開頭)。
 /// - 鍵盤：上下移動高亮(停在頭尾)、Return／Tab 選取、Esc 收起(直到草稿離開 slash 狀態)。
-/// - 選取 = 把草稿換成 `/名稱 `(結尾空白，選單隨之收起);由使用者按送出。直接送出與「有副作用只填入」的規則屬於 #45。
+/// - 選取 = 交給 `onPick`(要送出或只填入由對話決定，見 `SlashPick`)。
 /// - 清單第一次需要時才載入，每個對話只載入一次;`loader` 回傳 `nil` 表示這種 agent 沒有選單。
 @MainActor
 @Observable
@@ -22,12 +22,16 @@ public final class SlashMenuModel {
         case loaded(SlashCatalog?)
     }
 
-    /// 目前顯示的分組(已依搜尋篩選)。
+    /// 只有 `/` 時顯示的分組;輸入名稱後是空的(改看 `ranked`)。
     public private(set) var sections: [SlashSection] = []
+    /// 輸入名稱後的單一排名清單;只有 `/` 時為 `nil`。
+    public private(set) var ranked: [SlashCommand]?
+    /// 目前畫面上的指令(依顯示順序)。
+    public var commands: [SlashCommand] { ranked ?? sections.flatMap(\.commands) }
     /// 高亮的指令名稱。
     public private(set) var highlighted: String?
-    /// 選取時呼叫，參數是新的草稿。
-    public var onPick: ((String) -> Void)?
+    /// 選取時呼叫。
+    public var onPick: ((SlashCommand) -> Void)?
 
     private var query: String?
     private var dismissed = false
@@ -95,7 +99,7 @@ public final class SlashMenuModel {
     @discardableResult
     public func handle(_ key: Key) -> Bool {
         guard isVisible else { return false }
-        let names = sections.flatMap(\.commands).map(\.name)
+        let names = commands.map(\.name)
         let index = highlighted.flatMap { names.firstIndex(of: $0) }
         switch key {
         case .up:
@@ -103,7 +107,7 @@ public final class SlashMenuModel {
         case .down:
             if let index { highlighted = names[min(index + 1, names.count - 1)] } else { highlighted = names.first }
         case .select:
-            guard let highlighted, let command = sections.flatMap(\.commands).first(where: { $0.name == highlighted }) else { return false }
+            guard let highlighted, let command = commands.first(where: { $0.name == highlighted }) else { return false }
             pick(command)
         case .dismiss:
             dismissed = true
@@ -111,24 +115,41 @@ public final class SlashMenuModel {
         return true
     }
 
-    /// 選取一個指令(點選或 Return):草稿換成 `/名稱 `。
+    /// 選取一個指令(點選或 Return)。
     public func pick(_ command: SlashCommand) {
-        onPick?("/\(command.name) ")
+        onPick?(command)
     }
 
     private func refilter() {
         guard let query, case .loaded(let catalog?) = state else {
             sections = []
+            ranked = nil
             highlighted = nil
             return
         }
-        let needle = query.lowercased()
-        sections = catalog.sections.compactMap { section in
-            let commands = needle.isEmpty ? section.commands : section.commands.filter {
-                $0.name.lowercased().contains(needle) || $0.summary.lowercased().contains(needle)
-            }
-            return commands.isEmpty ? nil : SlashSection(source: section.source, commands: commands)
+        if query.isEmpty {
+            sections = catalog.sections
+            ranked = nil
+        } else {
+            sections = []
+            ranked = Self.rank(catalog.sections.flatMap(\.commands), query: query)
         }
-        highlighted = sections.first?.commands.first?.name
+        highlighted = commands.first?.name
+    }
+
+    /// 單一排名(行為規格 F9.3):名稱開頭 > 名稱包含 > 說明包含;同級保留原順序(分組、組內)。
+    static func rank(_ commands: [SlashCommand], query: String) -> [SlashCommand] {
+        let needle = query.lowercased()
+        func tier(_ command: SlashCommand) -> Int? {
+            let name = command.name.lowercased()
+            if name.hasPrefix(needle) { return 0 }
+            if name.contains(needle) { return 1 }
+            if command.summary.lowercased().contains(needle) { return 2 }
+            return nil
+        }
+        return commands.enumerated()
+            .compactMap { offset, command in tier(command).map { (tier: $0, offset: offset, command: command) } }
+            .sorted { ($0.tier, $0.offset) < ($1.tier, $1.offset) }
+            .map(\.command)
     }
 }

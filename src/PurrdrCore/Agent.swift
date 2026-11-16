@@ -113,6 +113,12 @@ public struct HostSnapshot: Sendable, Equatable {
         self.panes = panes
         self.layouts = layouts
     }
+
+    /// Agent 以外的 pane(終端機列、版面圖的終端機方塊)。
+    public var terminalPanes: [Pane] {
+        let agentPanes = Set(agents.map(\.paneID))
+        return panes.filter { !agentPanes.contains($0.id) }
+    }
 }
 
 /// 一個 Agent 對話中最後一則訊息的摘要(列表的預覽行與時間)。來源是對話紀錄。

@@ -165,7 +165,7 @@ struct HostManagementTests {
         let editor = try model.makeImportEditor(url)
 
         #expect(editor.name == "Studio")
-        #expect(editor.address == "ray-mac-mini")
+        #expect(editor.address == "studio-mac")
         #expect(editor.port == "22")
         #expect(editor.username == "demo")
         #expect(editor.herdrSession == "work")

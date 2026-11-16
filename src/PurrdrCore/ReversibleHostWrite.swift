@@ -141,8 +141,10 @@ public struct ReversibleHostWrite: Sendable {
     }
 
     /// 安裝。`plan` 拿到目前的主機狀態，回傳要寫的內容;它丟出的錯誤原樣傳出(例如設定檔不是合法 JSON)。
-    public func install(_ plan: (HostWriteInspection) throws -> HostWritePlan) async throws {
-        let inspection = try await inspect()
+    ///
+    /// - Parameter extra: 同一次讀取時一起讀的檔案(例如功能自己的紀錄檔),放在 `inspection.read` 裡。
+    public func install(also extra: [HostPath] = [], _ plan: (HostWriteInspection) throws -> HostWritePlan) async throws {
+        let inspection = try await inspect(also: extra)
         let plan = try plan(inspection)
         var journal = HostWriteJournal(entries: inspection.journal?.entries.filter { plan.userFiles[HostPath($0.path)] == nil } ?? [])
         var userChanges: [HostFileChange] = []

@@ -3,10 +3,13 @@ import PurrdrCore
 import Security
 import Synchronization
 
-/// OpenSSH 主機的祕密：密碼，或匯入的私鑰(原文)與 passphrase。永不同步(GLOSSARY「主機同步」)。
+/// OpenSSH 主機的祕密：密碼，或匯入的私鑰(原文)。永不同步(GLOSSARY「主機同步」)。
 public enum HostSecret: Sendable, Hashable, Codable {
     case password(String)
-    /// OpenSSH 格式的私鑰原文，與 passphrase(沒有為 `nil`)。
+    /// OpenSSH 格式的私鑰原文。
+    ///
+    /// `passphrase` 只為了讀得懂裝置上已存的舊值(Keychain 裡的 JSON);現在不支援有 passphrase 的金鑰
+    /// (只用系統加密),新存的一律是 `nil`,舊值有 passphrase 的金鑰在連線時會說明要先移除。
     case privateKey(String, passphrase: String?)
 }
 

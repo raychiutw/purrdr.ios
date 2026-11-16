@@ -17,17 +17,28 @@ struct AgentListLiveUpdateTests {
         #"{"event":"pane_agent_status_changed","data":{"type":"pane_agent_status_changed","pane_id":"w1:pB","workspace_id":"w1","agent":"claude","agent_status":"idle"}}"#.utf8
     ) + [0x0A]
 
-    static func subscribeRequest(panes: [String]) -> String {
+    /// 全主機事件(不分檢視)。
+    static let hostWideTypes = [
+        "workspace.created", "workspace.closed", "workspace.renamed", "workspace.updated", "pane.agent_detected", "pane.exited",
+    ]
+    /// 版面事件(#40):只有 Spaces 檢視訂閱(行為規格 §3.7「Spaces 檢視另加版面事件」),卡片統計、終端機列與版面圖要即時更新。
+    /// 型別都在 herdr 回報的可訂閱清單裡(Fixtures/herdr-0.9.5/error.unknown-subscription-type.ndjson)。
+    static let layoutTypes = [
+        "tab.created", "tab.closed", "tab.renamed", "tab.moved", "pane.created", "pane.closed", "layout.updated",
+        "workspace.moved", "workspace.reordered",
+    ]
+
+    static func subscribeRequest(panes: [String], layout: Bool = false) -> String {
         let perPane = panes.map { #"{"pane_id":"\#($0)","type":"pane.agent_status_changed"}"# }
-        let hostWide = ["workspace.created", "workspace.closed", "workspace.renamed", "workspace.updated", "pane.agent_detected", "pane.exited"]
-            .map { #"{"type":"\#($0)"}"# }
+        let hostWide = (hostWideTypes + (layout ? layoutTypes : [])).map { #"{"type":"\#($0)"}"# }
         return #"{"id":"purrdr:events.subscribe","method":"events.subscribe","params":{"subscriptions":["# +
             (perPane + hostWide).joined(separator: ",") + "]}}\n"
     }
 
     /// 開始即時更新，回傳 model 與執行中的 task(測試結尾取消)。
-    static func start(_ host: FakeHost, sleeper: Sleeper) -> (AgentListModel, Task<Void, Never>) {
+    static func start(_ host: FakeHost, sleeper: Sleeper, layout: Bool = false) -> (AgentListModel, Task<Void, Never>) {
         let model = AgentListModel(client: HerdrClient(channel: host), sleep: sleeper.sleep)
+        model.subscribesToLayout = layout
         let task = Task { await model.run() }
         return (model, task)
     }
@@ -53,6 +64,49 @@ struct AgentListLiveUpdateTests {
         #expect(model.phase == .loaded)
     }
 
+    @Test("Spaces 檢視另外訂閱版面事件(#40)")
+    func spacesViewSubscribesToLayoutEvents() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.snapshot)
+        await host.expect(Self.bridge, reply: Self.started)
+        await host.expect(Self.bridge, reply: Self.snapshot)
+        let (_, task) = Self.start(host, sleeper: Sleeper(), layout: true)
+        defer { task.cancel() }
+
+        try await waitUntil { await host.consumedAll(executions: 3) }
+        #expect(await host.executions[1].stdinText == Self.subscribeRequest(panes: ["w1:p6", "w1:pA", "w1:pB"], layout: true))
+    }
+
+    @Test("Agents 檢視切到 Spaces 檢視：關掉舊訂閱，立刻帶版面事件重新訂閱;切回 Agents 再拿掉")
+    func switchingToSpacesResubscribesWithLayoutEvents() async throws {
+        let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.snapshot)
+        for _ in 0..<3 {
+            await host.expect(Self.bridge, reply: Self.started)
+            await host.expect(Self.bridge, reply: Self.snapshot)
+        }
+        let sleeper = Sleeper()
+        let (model, task) = Self.start(host, sleeper: sleeper)
+        defer { task.cancel() }
+        try await waitUntil { await host.executions.count == 3 }
+        try await waitUntil { await host.executions[2].closed }
+        #expect(await host.executions[1].stdinText == Self.subscribeRequest(panes: ["w1:p6", "w1:pA", "w1:pB"]))
+
+        model.subscribesToLayout = true
+
+        try await waitUntil { await host.executions.count == 5 }
+        #expect(await host.executions[1].closed)
+        #expect(await host.executions[3].stdinText == Self.subscribeRequest(panes: ["w1:p6", "w1:pA", "w1:pB"], layout: true))
+        try await waitUntil { await host.executions[4].closed }
+
+        model.subscribesToLayout = false
+
+        try await waitUntil { await host.consumedAll(executions: 7) }
+        #expect(await host.executions[3].closed)
+        #expect(await host.executions[5].stdinText == Self.subscribeRequest(panes: ["w1:p6", "w1:pA", "w1:pB"]))
+        #expect(await sleeper.durations.isEmpty, "換檢視不算失敗，不退避")
+    }
+
     @Test("收到事件就重讀 snapshot,列表反映主機的新狀態")
     func eventTriggersRereadAndUpdatesRows() async throws {
         let host = FakeHost()
@@ -70,7 +124,7 @@ struct AgentListLiveUpdateTests {
         await host.send(stdout: Self.statusChanged, toExecution: 1)
 
         try await waitUntil { await MainActor.run { model.sections.first?.group == .needsYou } }
-        #expect(model.sections.first?.rows.map(\.id) == ["w1:pB"])
+        #expect(model.sections.first?.rows.map(\.paneID) == ["w1:pB"])
         #expect(await host.unmetExpectations.isEmpty)
     }
 

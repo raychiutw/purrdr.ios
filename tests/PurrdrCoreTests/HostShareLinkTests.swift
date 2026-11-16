@@ -7,7 +7,7 @@ import Testing
 struct HostShareLinkTests {
     static let pin = HostKeyFingerprint(stored: "COBpO4JIzmE5SXJiDiFEv8QW0IgLEE4H3vB2W6wHLww")!
     static let studio = HostConfiguration(
-        name: "Studio Mac", endpoint: SSHEndpoint(host: "ray-mac-mini", port: 2222, username: "demo"),
+        name: "Studio Mac", endpoint: SSHEndpoint(host: "studio-mac", port: 2222, username: "demo"),
         herdr: HerdrInstallation(path: "/opt/herdr/bin/herdr", session: "work"), operatingSystem: .macOS, hostKeyPin: pin)
 
     @Test("匯出再匯入：名稱、位址、埠、使用者、連線方式、herdr 路徑與 session、host key 指紋都還原")
@@ -19,7 +19,7 @@ struct HostShareLinkTests {
         #expect(url.scheme == "purrdr")
         #expect(url.host() == "host")
         #expect(shared == SharedHost(
-            name: "Studio Mac", endpoint: SSHEndpoint(host: "ray-mac-mini", port: 2222, username: "demo"),
+            name: "Studio Mac", endpoint: SSHEndpoint(host: "studio-mac", port: 2222, username: "demo"),
             connectionMethod: .tailscaleSSH, herdr: HerdrInstallation(path: "/opt/herdr/bin/herdr", session: "work"),
             hostKeyPin: Self.pin))
     }

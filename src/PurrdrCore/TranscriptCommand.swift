@@ -29,7 +29,10 @@ public enum TranscriptCommand {
     /// 定位：`<設定目錄>/projects/<資料夾>/<id>.jsonl`;不在時在所有專案資料夾找完全相同的檔名(worktree,#89)。
     /// 印出路徑與大小兩行。參數：session id、資料夾名。
     public static func locate(sessionID: String, projectFolder: String) -> String {
-        let script = #"""
+        command(claudeLocateScript, arguments: [sessionID, projectFolder])
+    }
+
+    static let claudeLocateScript = #"""
         c=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
         f="$c/projects/$2/$1.jsonl"
         if [ ! -e "$f" ] && [ -d "$c/projects" ]; then
@@ -38,8 +41,6 @@ public enum TranscriptCommand {
         fi
         printf '%s\n' "$f"
         """# + "\n" + probe + "\n" + #"printf '%s\n' "$z""#
-        return command(script, arguments: [sessionID, projectFolder])
-    }
 
     // MARK: - 其他 agent 的定位(行為規格 §4.3–4.5)【未實測】
 
@@ -129,9 +130,13 @@ public enum TranscriptCommand {
         case .claude(let id, _), .grok(let id), .antigravity(let id), .piJournal(let id), .codex(let id): value = id
         case .reportedPath(let path): value = path
         }
+        return command(locateScript(location, readsHeader: readsHeader), arguments: [value])
+    }
+
+    static func locateScript(_ location: TranscriptTarget.Location, readsHeader: Bool) -> String {
         var script = "i=$1\n" + resolver(for: location) + "\n" + probe + "\n" + #"printf '%s\n%s\n' "$f" "$z""#
         if readsHeader { script += "\n" + #"head -n 2 "$f""# }
-        return command(script, arguments: [value])
+        return script
     }
 
     /// 視窗：以 `end` 為終點，往前取恰好 `lines` 行完整的行(行為規格 §4.7「開啟：讀最後 N 行」)。
@@ -139,7 +144,10 @@ public enum TranscriptCommand {
     /// 從 `end` 往前取一塊(預設 4MB)數換行，不夠就把塊放大 4 倍再數，直到檔頭。視窗終點是塊內最後一個換行之後
     /// (正在寫的未完成行留給追蹤)。先印「起點 終點」,再印範圍內每一行。參數：路徑、終點、行數。
     public static func window(path: String, end: Int, lines: Int, chunkBytes: Int = 4 << 20) -> String {
-        let script = #"""
+        command(windowScript, arguments: [path, String(end), String(lines), String(chunkBytes)])
+    }
+
+    static let windowScript = #"""
         f=$1
         e=$2
         n=$3
@@ -163,19 +171,18 @@ public enum TranscriptCommand {
         tail -c +$((a + 1)) "$f" | head -c $((b - a)) | ANNOTATE
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
-        return command(script, arguments: [path, String(end), String(lines), String(chunkBytes)])
-    }
 
     /// 追蹤：印出目前大小;若比游標大且落差 ≤ `limit`,再印游標之後每一行**完整**的行。參數：路徑、游標、上限。
     public static func tail(path: String, from cursor: Int, limit: Int) -> String {
-        let script = #"f=$1"# + "\n" + probe + "\n" + #"""
+        command(tailScript, arguments: [path, String(cursor), String(limit)])
+    }
+
+    static let tailScript = #"f=$1"# + "\n" + probe + "\n" + #"""
         printf '%s\n' "$z"
         if [ "$z" -gt "$2" ] && [ $((z - $2)) -le "$3" ]; then
         tail -c +$(($2 + 1)) "$f" | head -c $((z - $2)) | awk -v t=$((z - $2)) '{ p = q + length($0) + 1; if (p <= t) print; q = p }' | ANNOTATE
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
-        return command(script, arguments: [path, String(cursor), String(limit)])
-    }
 
     /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
@@ -223,7 +230,10 @@ public enum TranscriptCommand {
     /// 「分隔標記! key」與檔案前兩行(header 檢查)。每個請求在 subshell 裡定位，一個檔不存在或有歧義不讓整批失敗。
     /// 參數：標記，接著每個請求四個(key、定位方式、id 或路徑、Claude 的資料夾名)。
     static func previews(marker: String, entries: [PreviewEntry]) -> String {
-        let script = #"""
+        command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra] })
+    }
+
+    static let previewsScript = #"""
         m=$1
         shift
         while [ $# -ge 4 ]; do
@@ -274,14 +284,15 @@ public enum TranscriptCommand {
             .replacingOccurrences(of: "@PI@", with: resolver(for: .piJournal(sessionID: "")))
             .replacingOccurrences(of: "@CODEX@", with: resolver(for: .codex(sessionID: "")))
             .replacingOccurrences(of: "@STRIP@", with: stripImages)
-        return command(script, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra] })
-    }
 
     /// 找 subagent:在 `<session>/subagents/` 用 `find`(不用 glob,R-S11)列出 `agent-*.meta.json`,
     /// 內容含呼叫 id 的每個 meta 印兩行「路徑」與「內容(去掉換行)」。是否**完全相等**由 client 解析 JSON 後確認(R-W02)。
     /// 沒有資料夾 → exit 3。參數:session 資料夾、呼叫 id。
     public static func findSubagent(sessionFolder: String, callID: String) -> String {
-        let script = #"""
+        command(findSubagentScript, arguments: [sessionFolder, callID])
+    }
+
+    static let findSubagentScript = #"""
         d=$1/subagents
         if [ ! -d "$d" ]; then exit 3; fi
         if [ ! -x "$d" ]; then exit 4; fi
@@ -293,14 +304,15 @@ public enum TranscriptCommand {
         fi
         done
         """#
-        return command(script, arguments: [sessionFolder, callID])
-    }
 
     /// 讀 workflow 進度:`<session>/workflows/<runId>.json`(結束時才寫)優先，否則
     /// `<session>/subagents/workflows/<runId>/journal.jsonl`。先印「種類 checksum」一行;與參數 3 相同就不印內容(R-W03)。
     /// 兩個都沒有 → exit 3。參數:session 資料夾、run id、上次的「種類 checksum」(沒有給空字串)。
     public static func readWorkflow(sessionFolder: String, runID: String, knownChecksum: String) -> String {
-        let script = #"""
+        command(readWorkflowScript, arguments: [sessionFolder, runID, knownChecksum])
+    }
+
+    static let readWorkflowScript = #"""
         r=$1/workflows/$2.json
         j=$1/subagents/workflows/$2/journal.jsonl
         if [ -f "$r" ]; then k=run; f=$r; elif [ -f "$j" ]; then k=journal; f=$j; else exit 3; fi
@@ -309,13 +321,14 @@ public enum TranscriptCommand {
         printf '%s %s\n' "$k" "$c"
         if [ "$k $c" != "$3" ]; then cat "$f"; fi
         """#
-        return command(script, arguments: [sessionFolder, runID, knownChecksum])
-    }
 
     /// 委派是否結束(§4.6、R-W04):在父對話紀錄中找含呼叫 id 或 agent id 的行。先印這些行(剝圖後)的 checksum;
     /// 與參數 4 相同就不印內容，否則每行印「原始 byte 長度 TAB 剝除圖片後的行」。參數：路徑、id、id、上次 checksum。
     public static func delegationLines(path: String, ids: (String, String), knownChecksum: String) -> String {
-        let script = #"""
+        command(delegationLinesScript, arguments: [path, ids.0, ids.1, knownChecksum])
+    }
+
+    static let delegationLinesScript = #"""
         f=$1
         if [ ! -r "$f" ]; then exit 5; fi
         c=$(grep -F -e "$2" -e "$3" "$f" | STRIP | cksum)
@@ -324,8 +337,6 @@ public enum TranscriptCommand {
         grep -F -e "$2" -e "$3" "$f" | ANNOTATE
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip).replacingOccurrences(of: "STRIP", with: stripImages)
-        return command(script, arguments: [path, ids.0, ids.1, knownChecksum])
-    }
 
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 

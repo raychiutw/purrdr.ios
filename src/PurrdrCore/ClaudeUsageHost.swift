@@ -6,12 +6,33 @@ import Foundation
 /// 的 `statusLine.command` 換成 `~/.purrdr/claude-usage/statusline.sh`:它把輸入存成 `usage.json`,
 /// 再把同一份輸入交給使用者原本的 status line(原本的指令存在 `original-command`)。
 /// 關閉時經 `ReversibleHostWrite` 還原，主機與安裝前完全相同。
+///
+/// Windows 主機(#68):Claude Code 在 Windows 上有 Git Bash 時經 Git Bash、沒有時經 PowerShell 執行 status line
+/// (Claude Code 文件 statusline「Windows configuration」),所以包裝改成 PowerShell 腳本 `statusline.ps1`,指令寫成
+/// 兩種 shell 都能跑的 `powershell.exe … -File '<家目錄>/.purrdr/claude-usage/statusline.ps1'`(正斜線、單引號;
+/// `-ExecutionPolicy Bypass` 只對這個程序有效，不改主機設定)。原本的指令以 Git Bash 執行(找不到時用 PowerShell)。
 public struct ClaudeUsageHost: Sendable {
     public static let settingsPath: HostPath = ".claude/settings.json"
     public static let feature = HostWriteFeature(id: "claude-usage", userFiles: [settingsPath])
     public static let usagePath = feature.ownFile("usage.json")
     /// 寫進 `statusLine.command` 的指令(Claude Code 以 shell 執行，`~` 會展開)。
     public static let wrapperCommand = "~/.purrdr/claude-usage/statusline.sh"
+
+    /// Windows 主機的包裝腳本(相對於家目錄)。
+    static let windowsWrapperPath = feature.ownFile("statusline.ps1")
+
+    /// 這台主機要寫的包裝指令:Windows 主機用 PowerShell 版(`home` 是 `HostFileRead.home`,分隔符號是 `/`)。
+    public static func wrapperCommand(for operatingSystem: HostOperatingSystem?, home: String?) -> String {
+        guard operatingSystem == .windows, let home else { return wrapperCommand }
+        return "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File '\(home)/\(windowsWrapperPath.relative)'"
+    }
+
+    /// 是 Purrdr 的包裝(任一種主機的)。
+    static func isWrapper(_ command: String?) -> Bool {
+        guard let command else { return false }
+        return command == wrapperCommand
+            || (command.hasPrefix("powershell.exe ") && command.hasSuffix("/\(windowsWrapperPath.relative)'"))
+    }
 
     let write: ReversibleHostWrite
     let files: HostFiles
@@ -32,15 +53,19 @@ public struct ClaudeUsageHost: Sendable {
     public func install() async throws {
         try await write.install { inspection in
             let current = try Self.currentSettings(in: inspection)
-            var ownFiles: [String: HostWritePlan.OwnFile] = ["statusline.sh": .init(Data(Self.wrapperScript.utf8), executable: true)]
+            let read = inspection.read
+            let command = Self.wrapperCommand(for: read.operatingSystem, home: read.home)
+            var ownFiles: [String: HostWritePlan.OwnFile] = read.operatingSystem == .windows
+                ? ["statusline.ps1": .init(Data(Self.windowsWrapperScript.utf8))]
+                : ["statusline.sh": .init(Data(Self.wrapperScript.utf8), executable: true)]
             // 包裝腳本永遠不會被存成「原本的」:否則執行時會一直呼叫自己。
-            if let original = Self.statusLineCommand(in: inspection.original(of: Self.settingsPath)), original != Self.wrapperCommand {
+            if let original = Self.statusLineCommand(in: inspection.original(of: Self.settingsPath)), !Self.isWrapper(original) {
                 ownFiles["original-command"] = .init(Data(original.utf8))
             }
             let settings = try Self.settings(current) { statusLine in
                 var statusLine = statusLine ?? [:]
                 statusLine["type"] = "command"
-                statusLine["command"] = Self.wrapperCommand
+                statusLine["command"] = command
                 return statusLine
             }
             return HostWritePlan(userFiles: [Self.settingsPath: settings], ownFiles: ownFiles)
@@ -52,7 +77,7 @@ public struct ClaudeUsageHost: Sendable {
         try await write.restore { _, current, original in
             guard let object = Self.jsonObject(current) else { throw ClaudeUsageError.settingsNotJSON }
             // 使用者已經自己換掉 status line:不動它。
-            guard Self.statusLineCommand(in: current) == Self.wrapperCommand else { return current }
+            guard Self.isWrapper(Self.statusLineCommand(in: current)) else { return current }
             let originalStatusLine = original.flatMap(Self.jsonObject)?["statusLine"] as? [String: Any]
             return try Self.settings(object) { _ in originalStatusLine }
         }
@@ -123,6 +148,62 @@ public struct ClaudeUsageHost: Sendable {
         fi
 
         """
+}
+
+extension ClaudeUsageHost {
+    /// Windows 的包裝腳本(PowerShell 5.1)。與 `wrapperScript` 相同的行為：輸入有 `rate_limits` 才存 `usage.json`
+    /// (暫存檔再換上),再把同一份輸入交給原本的 status line,它的輸出直接接到 Claude Code(子程序繼承 stdout)。
+    ///
+    /// 全部 ASCII:PowerShell 5.1 把沒有 BOM 的 `.ps1` 當成系統碼頁(繁中是 Big5)讀。
+    /// 原本的指令經環境變數交給 Git Bash 的 `eval`(`CLAUDE_CODE_GIT_BASH_PATH` → `git.exe` 旁的 `bin\bash.exe` →
+    /// `%ProgramFiles%\Git\bin\bash.exe`),都沒有時以 PowerShell 的 `Invoke-Expression` 執行，與 Claude Code 的選擇一致。
+    static let windowsWrapperScript = #"""
+        # Purrdr Claude usage wrapper (Windows). Installed by the Purrdr app; turning off
+        # "Claude Usage" in Purrdr restores your original status line and removes this folder.
+        # Saves Claude Code's status line input as usage.json, then passes the same input
+        # to your original status line command.
+        $ErrorActionPreference = 'Stop'
+        $dir = $PSScriptRoot
+        $utf8 = New-Object Text.UTF8Encoding $false
+        $text = (New-Object IO.StreamReader([Console]::OpenStandardInput(), $utf8)).ReadToEnd().TrimEnd("`r", "`n")
+        if ($text.Contains('"rate_limits"')) {
+            $tmp = Join-Path $dir ('.usage.' + [Guid]::NewGuid().ToString('N'))
+            try {
+                [IO.File]::WriteAllText($tmp, '{"captured_at":' + [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + ',"status_line_input":' + $text + "}`n", $utf8)
+                $file = Join-Path $dir 'usage.json'
+                if ([IO.File]::Exists($file)) { [void][IO.File]::Replace($tmp, $file, [NullString]::Value) } else { [IO.File]::Move($tmp, $file) }
+            } catch {
+                if ([IO.File]::Exists($tmp)) { [IO.File]::Delete($tmp) }
+            }
+        }
+        $original = Join-Path $dir 'original-command'
+        if ([IO.File]::Exists($original) -and (New-Object IO.FileInfo $original).Length -gt 0) {
+            $start = New-Object Diagnostics.ProcessStartInfo
+            $start.UseShellExecute = $false
+            $start.RedirectStandardInput = $true
+            $start.EnvironmentVariables['PURRDR_ORIGINAL_COMMAND'] = [IO.File]::ReadAllText($original, $utf8)
+            $bash = $env:CLAUDE_CODE_GIT_BASH_PATH
+            if (-not $bash -or -not [IO.File]::Exists($bash)) {
+                $git = Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($git) { $bash = Join-Path (Split-Path (Split-Path $git.Source)) 'bin\bash.exe' }
+            }
+            if (-not $bash -or -not [IO.File]::Exists($bash)) { $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe' }
+            if ([IO.File]::Exists($bash)) {
+                $start.FileName = $bash
+                $start.Arguments = '-c "eval \"$PURRDR_ORIGINAL_COMMAND\""'
+            } else {
+                $start.FileName = 'powershell.exe'
+                $start.Arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Invoke-Expression $env:PURRDR_ORIGINAL_COMMAND"'
+            }
+            $process = [Diagnostics.Process]::Start($start)
+            $bytes = $utf8.GetBytes($text + "`n")
+            $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+            $process.StandardInput.Close()
+            $process.WaitForExit()
+            exit $process.ExitCode
+        }
+
+        """#
 }
 
 extension ClaudeUsage {

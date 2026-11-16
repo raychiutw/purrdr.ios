@@ -28,6 +28,8 @@ final class WorkspacePresentation {
 
     var sheet: Sheet?
     var closeRequest: CloseRequest?
+    /// 操作的是哪台主機(多主機合併列表，#39)。列設定 sheet 或確認時一併設定。
+    var host: HostSelection = .demo
     /// 版面圖裡點選的 Pane:先記下、關 sheet 之後才開(不能在關 sheet 的同一刻 push,行為規格 F4)。
     var chosenTarget: PaneOpenTarget?
 }
@@ -47,44 +49,71 @@ struct WorkspaceRowContext {
     }
 }
 
+extension EnvironmentValues {
+    /// 用了滑動面板的動作時要通知的列表(滑動提示到此為止，行為規格 F2.7)。由列表注入。
+    @Entry var swipeHintList: MergedAgentListModel?
+}
+
 extension View {
     /// 列的滑動與 context menu(行為規格 F2.7)。context menu 頂端的動作與滑動相同;破壞性的「關閉」放最後。
+    ///
+    /// `openInNewWindow` 有值時(支援多視窗)，context menu 最前面加「在新視窗開啟」(HIG Windows,#31)。
     func workspaceRowActions(
-        _ context: WorkspaceRowContext?, actions: WorkspaceActionsModel, presentation: WorkspacePresentation, snapshot: HostSnapshot?
+        _ context: WorkspaceRowContext?, host: HostSelection, actions: WorkspaceActionsModel?, presentation: WorkspacePresentation,
+        snapshot: HostSnapshot?, openInNewWindow: ((PaneWindow.Kind) -> Void)? = nil
     ) -> some View {
-        modifier(WorkspaceRowActions(context: context, actions: actions, presentation: presentation, snapshot: snapshot))
+        modifier(WorkspaceRowActions(
+            context: context, host: host, actions: actions, presentation: presentation, snapshot: snapshot,
+            openInNewWindow: openInNewWindow))
     }
 
-    /// 呈現 workspace 操作的 sheet、確認與錯誤。`onOpen` 在版面圖選了 Pane 且 sheet 關閉之後呼叫。
+    /// 呈現 workspace 操作的 sheet、確認與錯誤。`actions` 依主機取得該主機的操作;
+    /// `onOpen` 在版面圖選了 Pane 且 sheet 關閉之後呼叫(帶主機)。
     func workspaceActionsPresentation(
-        actions: WorkspaceActionsModel, presentation: WorkspacePresentation, onOpen: @escaping (PaneOpenTarget) -> Void
+        actions: @escaping (HostSelection) -> WorkspaceActionsModel?, presentation: WorkspacePresentation,
+        onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
     ) -> some View {
-        modifier(WorkspaceActionsPresenter(actions: actions, presentation: presentation, onOpen: onOpen))
+        modifier(WorkspaceActionsPresenter(resolve: actions, presentation: presentation, onOpen: onOpen))
     }
 }
 
 private struct WorkspaceRowActions: ViewModifier {
     let context: WorkspaceRowContext?
-    let actions: WorkspaceActionsModel
+    let host: HostSelection
+    let actions: WorkspaceActionsModel?
     let presentation: WorkspacePresentation
     let snapshot: HostSnapshot?
+    let openInNewWindow: ((PaneWindow.Kind) -> Void)?
+    @Environment(\.swipeHintList) private var swipeHintList
 
     func body(content: Content) -> some View {
-        if let context {
+        if let context, let actions {
             content
                 // 列表是根畫面，沒有返回手勢的邊緣，leading 滑動是安全的。
-                .swipeActions(edge: .leading) { chatButtons(context) }
+                // 滑動面板裡的動作被使用 = 使用者學會了滑動，列表的滑動提示到此為止(`fromSwipe`;context menu 不算)。
+                // 面板「滑開」本身 SwiftUI 沒有訊號:面板按鈕的 onAppear 在列出現時就會觸發(UI 測試實測)。
+                .swipeActions(edge: .leading) {
+                    chatButtons(context, actions: actions, fromSwipe: true)
+                }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
-                    closeButton(context, title: "Close", role: nil)
+                    closeButton(context, title: "Close", role: nil, fromSwipe: true)
                         .tint(.red)
-                    renameButton(context, title: "Workspace")
+                    renameButton(context, title: "Workspace", fromSwipe: true)
                 }
                 .contextMenu {
-                    chatButtons(context)
+                    if let openInNewWindow {
+                        Button("Open in New Window", systemImage: "macwindow.badge.plus") { openInNewWindow(.chat) }
+                            .accessibilityIdentifier("menu.openInNewWindow")
+                        Button("Open Terminal in New Window", systemImage: "apple.terminal") { openInNewWindow(.terminal) }
+                            .accessibilityIdentifier("menu.openTerminalInNewWindow")
+                        Divider()
+                    }
+                    chatButtons(context, actions: actions)
                     renameButton(context, title: "Rename Workspace…")
                     Button("Show Layout", systemImage: "rectangle.split.3x1") { showLayout(context) }
                     Button("New Worktree…", systemImage: "arrow.triangle.branch") {
+                        presentation.host = host
                         presentation.sheet = .worktree(workspaceID: context.agent.workspaceID, label: context.workspaceLabel)
                     }
                     Divider()
@@ -97,15 +126,17 @@ private struct WorkspaceRowActions: ViewModifier {
 
     /// 釘選、靜音:只在 Agent 有 session 時提供(聊天以 session 識別)。
     @ViewBuilder
-    private func chatButtons(_ context: WorkspaceRowContext) -> some View {
+    private func chatButtons(_ context: WorkspaceRowContext, actions: WorkspaceActionsModel, fromSwipe: Bool = false) -> some View {
         if let sessionID = context.agent.sessionID {
             let pinned = actions.isPinned(sessionID: sessionID)
             Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
+                swiped(fromSwipe)
                 actions.togglePin(sessionID: sessionID)
             }
             .tint(.orange)
             let muted = actions.isMuted(sessionID: sessionID)
             Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
+                swiped(fromSwipe)
                 actions.toggleMute(sessionID: sessionID)
             }
             .tint(.indigo)
@@ -113,36 +144,71 @@ private struct WorkspaceRowActions: ViewModifier {
     }
 
     /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
-    private func renameButton(_ context: WorkspaceRowContext, title: LocalizedStringKey) -> some View {
+    private func renameButton(_ context: WorkspaceRowContext, title: LocalizedStringKey, fromSwipe: Bool = false) -> some View {
         Button(title, systemImage: "pencil") {
+            swiped(fromSwipe)
+            presentation.host = host
             presentation.sheet = .rename(workspaceID: context.agent.workspaceID, label: context.workspaceLabel)
         }
         .tint(.gray)
     }
 
-    private func closeButton(_ context: WorkspaceRowContext, title: LocalizedStringKey, role: ButtonRole?) -> some View {
+    private func closeButton(
+        _ context: WorkspaceRowContext, title: LocalizedStringKey, role: ButtonRole?, fromSwipe: Bool = false
+    ) -> some View {
         Button(title, systemImage: "xmark.circle", role: role) {
+            swiped(fromSwipe)
+            presentation.host = host
             presentation.closeRequest = .init(
                 workspaceID: context.agent.workspaceID, label: context.workspaceLabel, sessionIDs: context.sessionIDs
             )
         }
     }
 
+    private func swiped(_ fromSwipe: Bool) {
+        if fromSwipe { swipeHintList?.swipeActionUsed() }
+    }
+
     private func showLayout(_ context: WorkspaceRowContext) {
         // 顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
         let layout = snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: context.agent.workspaceID) }
+        presentation.host = host
         presentation.sheet = .layout(workspaceLabel: context.workspaceLabel, layout: layout)
     }
 }
 
 private struct WorkspaceActionsPresenter: ViewModifier {
-    @Bindable var actions: WorkspaceActionsModel
+    let resolve: (HostSelection) -> WorkspaceActionsModel?
     @Bindable var presentation: WorkspacePresentation
-    let onOpen: (PaneOpenTarget) -> Void
+    let onOpen: (HostSelection, PaneOpenTarget) -> Void
+
+    /// 目前操作的主機的 Workspace 操作。
+    private var actions: WorkspaceActionsModel? { resolve(presentation.host) }
 
     func body(content: Content) -> some View {
         content
             .sheet(item: $presentation.sheet, onDismiss: openChosenTarget) { sheet in
+                if let actions { sheetContent(sheet, actions: actions) }
+            }
+            .confirmationDialog(
+                closeTitle, isPresented: closeDialogShown, titleVisibility: .visible, presenting: presentation.closeRequest
+            ) { request in
+                Button("Close Workspace", role: .destructive) {
+                    Task { await actions?.close(workspaceID: request.workspaceID, sessionIDs: request.sessionIDs) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("Every tab, pane, and process in this workspace will stop. Transcripts stay on the host, but the agents stop running.")
+            }
+            .alert("Couldn’t Finish", isPresented: errorShown, presenting: actions?.actionError) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { message in
+                Text(message)
+            }
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: WorkspacePresentation.Sheet, actions: WorkspaceActionsModel) -> some View {
                 switch sheet {
                 case .rename(let workspaceID, let label):
                     RenameWorkspaceSheet(actions: actions, workspaceID: workspaceID, original: label)
@@ -155,22 +221,6 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                         presentation.chosenTarget = target
                     }
                 }
-            }
-            .confirmationDialog(
-                closeTitle, isPresented: closeDialogShown, titleVisibility: .visible, presenting: presentation.closeRequest
-            ) { request in
-                Button("Close Workspace", role: .destructive) {
-                    Task { await actions.close(workspaceID: request.workspaceID, sessionIDs: request.sessionIDs) }
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { _ in
-                Text("Every tab, pane, and process in this workspace will stop. Transcripts stay on the host, but the agents stop running.")
-            }
-            .alert("Couldn’t Finish", isPresented: errorShown, presenting: actions.actionError) { _ in
-                Button("OK", role: .cancel) {}
-            } message: { message in
-                Text(message)
-            }
     }
 
     private var closeTitle: Text {
@@ -182,13 +232,13 @@ private struct WorkspaceActionsPresenter: ViewModifier {
     }
 
     private var errorShown: Binding<Bool> {
-        Binding { actions.actionError != nil } set: { if !$0 { actions.actionError = nil } }
+        Binding { actions?.actionError != nil } set: { if !$0 { actions?.actionError = nil } }
     }
 
     private func openChosenTarget() {
         guard let target = presentation.chosenTarget else { return }
         presentation.chosenTarget = nil
-        onOpen(target)
+        onOpen(presentation.host, target)
     }
 }
 
@@ -228,11 +278,12 @@ struct RenameWorkspaceSheet: View {
                         .accessibilityIdentifier("workspace.rename.field")
                 } footer: {
                     Text("This renames the workspace on the host. herdr shows the new name too.")
+                        .foregroundStyle(.secondaryText)
                 }
                 if let error = actions.renameError {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.errorText)
                             .accessibilityIdentifier("workspace.rename.error")
                     }
                 }
@@ -304,11 +355,12 @@ struct NewWorktreeSheet: View {
                         .accessibilityIdentifier("workspace.worktree.branch")
                 } footer: {
                     Text("Creates a git worktree on a new branch from “\(workspaceLabel)” and opens it as its own workspace, so its files aren’t shared with other chats in the same repo.")
+                        .foregroundStyle(.secondaryText)
                 }
                 if let error = actions.worktreeError {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.errorText)
                             .accessibilityIdentifier("workspace.worktree.error")
                     }
                 }

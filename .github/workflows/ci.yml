@@ -169,19 +169,26 @@ jobs:
       - name: 安裝工具
         run: apt-get update && apt-get install -y --no-install-recommends curl unzip
 
+      # SDK 裝到固定位置(--swift-sdks-path),後面找 bundle 與 swift build 都用它。
+      # 不能靠 $HOME:容器裡 HOME=/github/home,SwiftPM 卻依 passwd 裝到 /root/.swiftpm,
+      # 之前 `find "$HOME"` 找不到 bundle,`test -n` 在 sh -e 下無聲地讓「安裝 Android NDK」失敗。
       - name: 安裝 Swift SDK for Android
         run: |
           swift --version
-          swift sdk install "$SDK_URL" --checksum "$SDK_CHECKSUM"
-          swift sdk list
+          swift sdk install "$SDK_URL" --checksum "$SDK_CHECKSUM" --swift-sdks-path "$RUNNER_TEMP/swift-sdks"
+          swift sdk list --swift-sdks-path "$RUNNER_TEMP/swift-sdks"
 
       - name: 安裝 Android NDK 並連結到 SDK
         run: |
           curl -fsSL -o ndk.zip "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip"
           unzip -q ndk.zip -d "$RUNNER_TEMP"
           export ANDROID_NDK_HOME="$RUNNER_TEMP/android-ndk-${NDK_VERSION}"
-          bundle="$(find "$HOME" -maxdepth 4 -type d -name "${SWIFT_SDK}.artifactbundle" | head -n 1)"
-          test -n "$bundle"
+          bundle="$(find "$RUNNER_TEMP/swift-sdks" -maxdepth 2 -type d -name "${SWIFT_SDK}.artifactbundle" | head -n 1)"
+          if [ -z "$bundle" ]; then
+            echo "::error::找不到 ${SWIFT_SDK}.artifactbundle(在 $RUNNER_TEMP/swift-sdks)"
+            ls -la "$RUNNER_TEMP/swift-sdks" || true
+            exit 1
+          fi
           "$bundle/swift-android/scripts/setup-android-sdk.sh"
 
       # SwiftPM 新預設 build system 的 Android 支援與 SDK 的 NDK 連結方式不同，跟 swift-nio 的 CI 一樣用 native。
@@ -190,6 +197,7 @@ jobs:
           swift build
           --build-system native
           --swift-sdk "$SWIFT_SDK"
+          --swift-sdks-path "$RUNNER_TEMP/swift-sdks"
           --triple "${{ matrix.triple }}"
           --static-swift-stdlib
           --target PurrdrDemo

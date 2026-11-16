@@ -38,11 +38,20 @@ public struct HostFileRead: Equatable, Sendable {
     /// 執行指令的主機使用者(同意畫面要說明「以哪個使用者」修改)。
     public var user: String
     public var files: [HostPath: HostFileState]
+    /// 家目錄的絕對路徑(分隔符號一律 `/`)。只有 Windows 主機的腳本回報(`C:/Users/<帳號>`),POSIX 主機是 `nil`。
+    public var home: String?
+    /// 回報這份結果的腳本是哪種作業系統的:Windows 版(`WindowsScripts`)是 `.windows`;POSIX 版分不出 macOS／Linux,是 `nil`。
+    public var operatingSystem: HostOperatingSystem?
 
-    public init(user: String, files: [HostPath: HostFileState]) {
+    public init(user: String, files: [HostPath: HostFileState], home: String? = nil, operatingSystem: HostOperatingSystem? = nil) {
         self.user = user
         self.files = files
+        self.home = home
+        self.operatingSystem = operatingSystem
     }
+
+    /// 主機是 Windows。
+    public var isWindows: Bool { operatingSystem == .windows }
 
     public subscript(path: HostPath) -> HostFileState? { files[path] }
 }
@@ -61,6 +70,16 @@ public struct HostFiles: Sendable {
         let result = try await run(HostFileScript.read, arguments: paths.map(\.relative))
         guard result.exitCode == 0 else { throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText) }
         return try HostFileScript.parseRead(result.stdout, paths: paths)
+    }
+
+    /// 一次往返找 `directory` 裡檔名以 `prefix` 開頭、`suffix` 結尾、最新(修改時間)的可讀一般檔案;沒有是 `nil`。
+    /// 檔名含不安全字元(`HostPath` 不接受)時丟 `HostFilesError.invalidPath`。
+    public func newest(in directory: HostPath, prefix: String, suffix: String) async throws -> HostPath? {
+        try directory.validate()
+        try HostPath(directory.relative + "/" + prefix + "x" + suffix).validate()
+        let result = try await run(HostFileScript.newest, arguments: [directory.relative, prefix, suffix])
+        guard result.exitCode == 0 else { throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText) }
+        return try HostFileScript.parseNewest(result.stdout)
     }
 
     /// 一次往返套用 `changes`:先檢查每個檔案都還是預期的版本，全部符合才依序寫入(compare-and-swap)。
@@ -82,17 +101,7 @@ public struct HostFiles: Sendable {
     private func run(_ script: String, arguments: [String]) async throws -> CommandResult {
         let command = HostFileScript.command(script, arguments: arguments)
         guard command.utf8.count <= HostFileScript.maximumCommandLength else { throw HostFilesError.tooLarge }
-        let session = try await channel.execute(command)
-        await session.closeStdin()
-        var result = CommandResult()
-        for try await event in session.output {
-            switch event {
-            case .stdout(let data): result.stdout.append(data)
-            case .stderr(let data): result.stderr.append(data)
-            case .exit(let code, _): result.exitCode = code
-            }
-        }
-        return result
+        return try await channel.collect(command)
     }
 }
 
@@ -136,13 +145,6 @@ public enum HostFilesError: Error, Equatable {
     case malformedOutput
     /// 主機腳本失敗(非零 exit)。
     case failed(exitCode: Int32, message: String)
-}
-
-struct CommandResult {
-    var stdout = Data()
-    var stderr = Data()
-    var exitCode: Int32 = -1
-    var stderrText: String { String(decoding: stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) }
 }
 
 extension HostFileChange {

@@ -1,0 +1,6 @@
+{"type": "terminal.input", "text": "$Host.UI.RawUI.WindowSize\r"}
+{"type": "terminal.resize", "cols": 60, "rows": 15, "cell_width_px": 0, "cell_height_px": 0}
+{"type": "terminal.input", "text": "$Host.UI.RawUI.WindowSize\r"}
+{"type": "terminal.resize", "cols": 30, "rows": 10, "cell_width_px": 0, "cell_height_px": 0}
+{"type": "terminal.input", "text": "$Host.UI.RawUI.WindowSize\r"}
+{"type":"terminal.release"}

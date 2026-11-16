@@ -13,8 +13,10 @@ struct HostSyncSection: View {
             statusRow
         } header: {
             Text("Host Sync")
+                .foregroundStyle(.secondaryText)
         } footer: {
             Text("Host names, addresses, user names, connection methods, and host key fingerprints sync to your other devices through your Purrdr member account. Passwords and private keys never leave this device. Requires Purrdr Plus.")
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -44,7 +46,7 @@ struct HostSyncSection: View {
         case .failed(let message):
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: message)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 Button("Try Again") { Task { await model.sync() } }
                     .accessibilityIdentifier("settings.hostSync.retry")
             }

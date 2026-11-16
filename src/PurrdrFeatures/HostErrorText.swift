@@ -46,12 +46,9 @@ enum HostErrorText {
             String(localized: "This isn’t an OpenSSH private key. Paste the whole file, starting with “-----BEGIN OPENSSH PRIVATE KEY-----”. To convert an older key, run ssh-keygen -p -f on it.")
         case .publicKeyInsteadOfPrivate:
             String(localized: "This is a public key. Paste the private key file instead (the one without .pub).")
-        case .passphraseRequired:
-            String(localized: "This key is protected by a passphrase. Enter it below.")
-        case .wrongPassphrase:
-            String(localized: "The passphrase is incorrect.")
-        case .unsupportedCipher(let cipher):
-            String(localized: "This key is encrypted with \(cipher), which isn’t supported. Run ssh-keygen -p -f on the key to re-encrypt it.")
+        case .passphraseProtected:
+            // 只用系統加密，不解 passphrase(見 SSHKeyImportError.passphraseProtected)。
+            String(localized: "Keys protected by a passphrase aren’t supported. On your computer, remove the passphrase with ssh-keygen -p -N \"\" -f <key file>, then paste the key again.")
         case .malformed:
             String(localized: "This key is incomplete or damaged. Paste the whole file again.")
         }
@@ -99,7 +96,11 @@ enum HostErrorText {
         case HostProbeError.serverNotRunning:
             String(localized: "herdr isn’t running in this session on the host. Start herdr on the host, then test again.")
         case HostProbeError.unsupportedOperatingSystem:
-            String(localized: "Purrdr supports macOS and Linux hosts for now.")
+            String(localized: "Purrdr supports macOS, Linux, and Windows hosts.")
+        case WindowsCommandError.unsupported:
+            String(localized: "This isn’t available on Windows hosts yet.")
+        case WindowsCommandError.commandTooLong:
+            String(localized: "This request is too long for a Windows host.")
         case HostProbeError.herdr(let message):
             message
         case HostProbeError.updateFailed(let message):
@@ -108,4 +109,9 @@ enum HostErrorText {
             String(localized: "Couldn’t reach this host. Try again.")
         }
     }
+}
+
+/// Windows 主機還沒有 PowerShell 版本的功能(主題、用量等以 `localizedDescription` 顯示錯誤的地方)。
+extension WindowsCommandError: LocalizedError {
+    public var errorDescription: String? { HostErrorText.message(for: self) }
 }

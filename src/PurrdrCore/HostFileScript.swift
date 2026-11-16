@@ -9,7 +9,7 @@ import Foundation
 /// - 跟隨 symlink 寫到真正的檔案(手動 `readlink` 迴圈最多 40 層，舊 macOS 沒有 `readlink -f`)。
 /// - 每個退出路徑都清掉暫存檔;判斷結果靠 exit code,不比對 stderr 文字。
 ///
-/// Windows 主機的 PowerShell 版本還沒做(ADR-0002)。
+/// Windows 主機由 `WindowsHostChannel` 換成同樣輸出格式的 PowerShell 版本(`WindowsScripts.hostFileRead` 等，#68)。
 enum HostFileScript {
     static let maximumCommandLength = 126 * 1024
     /// 單一檔案的讀取上限。
@@ -49,7 +49,7 @@ enum HostFileScript {
         """
 
     /// 讀取：參數是相對於家目錄的路徑。輸出
-    /// `purrdr-files 1` / `user <名稱>` / 每個檔案一筆：`missing <i>`、`nodir <i>`、`other <i>`、
+    /// `purrdr-files 1` / `user <名稱>` /(只有 Windows 版:`home <家目錄>`)/ 每個檔案一筆：`missing <i>`、`nodir <i>`、`other <i>`、
     /// `unreadable <i>`、`toolarge <i>`,或 `file <i> <版本> <bytes>` 接著原始內容再一個換行。
     static let read = prelude + """
         tmp=$(mktemp "${TMPDIR:-/tmp}/purrdr.XXXXXX") || exit 70
@@ -162,13 +162,45 @@ enum HostFileScript {
         change "$@"
         """
 
+    /// 找最新的檔案：參數是資料夾(相對於家目錄)、檔名開頭、檔名結尾。只算可讀的一般檔案(跟隨 symlink)。
+    /// 輸出 `purrdr-newest 1`,有找到時下一行是相對於家目錄的路徑。資料夾不存在 = 沒有。
+    static let newest = prelude + """
+        newest=
+        for p in "$HOME/$1/$2"*"$3"; do
+          if [ -f "$p" ] && [ -r "$p" ]; then
+            if [ -z "$newest" ] || [ "$p" -nt "$newest" ]; then newest=$p; fi
+          fi
+        done
+        printf 'purrdr-newest 1%s' "$nl"
+        if [ -n "$newest" ]; then printf '%s%s' "${newest#"$HOME/"}" "$nl"; fi
+        """
+
+    static func parseNewest(_ output: Data) throws -> HostPath? {
+        var reader = LineReader(data: output)
+        guard reader.line() == "purrdr-newest 1" else { throw HostFilesError.malformedOutput }
+        guard let line = reader.line(), !line.isEmpty else { return nil }
+        let path = HostPath(line)
+        try path.validate()
+        return path
+    }
+
+    /// `newest` 的輸出(Demo 主機用)。
+    static func newestOutput(_ path: HostPath?) -> Data {
+        Data(("purrdr-newest 1\n" + (path.map { $0.relative + "\n" } ?? "")).utf8)
+    }
+
     static func parseRead(_ output: Data, paths: [HostPath]) throws -> HostFileRead {
         var reader = LineReader(data: output)
         guard reader.line() == "purrdr-files 1", let userLine = reader.line(), userLine.hasPrefix("user ") else {
             throw HostFilesError.malformedOutput
         }
         var files: [HostPath: HostFileState] = [:]
+        var home: String?
         while let line = reader.line() {
+            if home == nil, files.isEmpty, line.hasPrefix("home ") {
+                home = String(line.dropFirst("home ".count))
+                continue
+            }
             let fields = line.split(separator: " ").map(String.init)
             guard fields.count >= 2, let index = Int(fields[1]), paths.indices.contains(index) else { throw HostFilesError.malformedOutput }
             switch fields[0] {
@@ -187,7 +219,9 @@ enum HostFileScript {
             }
         }
         guard files.count == paths.count else { throw HostFilesError.malformedOutput }
-        return HostFileRead(user: String(userLine.dropFirst("user ".count)), files: files)
+        // `home` 行只有 Windows 版的讀腳本輸出(`WindowsScripts`)。
+        return HostFileRead(
+            user: String(userLine.dropFirst("user ".count)), files: files, home: home, operatingSystem: home == nil ? nil : .windows)
     }
 }
 

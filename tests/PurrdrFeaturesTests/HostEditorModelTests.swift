@@ -25,7 +25,7 @@ final class MemoryHostStore: HostStore {
     }
 }
 
-/// 記錄 model 用哪個 pin、哪個憑證來源開了哪些連線。
+/// 記錄 model 用哪個 pin、哪個憑證來源開了哪些連線。依建立順序給出假主機(主機清單依名稱排序建立)。
 @MainActor
 final class ChannelFactory {
     var hosts: [FakeHost]
@@ -39,7 +39,8 @@ final class ChannelFactory {
         endpoints.append(endpoint)
         pins.append(pin)
         credentials.append(credential)
-        return hosts.removeFirst()
+        // 多主機合併列表(#39)會替每台已存主機建立通道;沒指定的主機給一個空的假主機。
+        return hosts.isEmpty ? FakeHost() : hosts.removeFirst()
     }
 }
 
@@ -69,7 +70,7 @@ struct HostEditorModelTests {
 
     static func fill(_ model: HostEditorModel, session: String = "") {
         model.name = "Studio"
-        model.address = "ray-mac-mini"
+        model.address = "studio-mac"
         model.username = "demo"
         model.herdrSession = session
     }
@@ -91,7 +92,7 @@ struct HostEditorModelTests {
         guard case .tested(let report) = model.phase else { Issue.record("測試沒有成功:\(model.phase)"); return }
         #expect(report.herdrVersion == HerdrVersion("0.9.5"))
         #expect(factory.pins == [nil, Self.fingerprint])
-        #expect(factory.endpoints.first == SSHEndpoint(host: "ray-mac-mini", port: 22, username: "demo"))
+        #expect(factory.endpoints.first == SSHEndpoint(host: "studio-mac", port: 22, username: "demo"))
         #expect(await healthy.disconnectCount == 1, "測試用的暫時連線沒有拆掉")
 
         let saved = try #require(model.save())
@@ -106,7 +107,7 @@ struct HostEditorModelTests {
     func editingInvalidatesTest() async {
         let factory = ChannelFactory(await Self.healthyHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint),
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint),
             makeChannel: factory.make)
 
         await model.test()
@@ -119,7 +120,7 @@ struct HostEditorModelTests {
     @Test("編輯主機只改名稱時沿用已存的 pin;改了位址才重新確認")
     func pinIsKeptUnlessEndpointChanges() async {
         let existing = HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint)
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
         let factory = ChannelFactory(await Self.healthyHost(), await Self.unverifiedHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: existing, makeChannel: factory.make)
 
@@ -135,7 +136,7 @@ struct HostEditorModelTests {
     @Test("指紋改變時阻擋並警告，顯示目前出示與已存的指紋;只 pin 剛剛出示的那一把")
     func changedHostKeyIsBlocked() async throws {
         let existing = HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint)
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
         let changed = FakeHost()
         await changed.failConnection(with: SSHConnectionError.hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
         let factory = ChannelFactory(changed, await Self.healthyHost())
@@ -157,10 +158,11 @@ struct HostEditorModelTests {
         await old.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Darwin\n".utf8)))
         await old.expect(HerdrCommand.version(herdr), reply: FakeReply(stdout: Data("herdr 0.9.3\n".utf8)))
         let updater = FakeHost()
+        await updater.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Darwin\n".utf8)))
         await updater.expect(HerdrCommand.update(herdr), reply: FakeReply(stdout: Data("installed 0.9.5\n".utf8)))
         let factory = ChannelFactory(old, updater, await Self.healthyHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint),
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint),
             makeChannel: factory.make)
 
         await model.test()
@@ -169,8 +171,40 @@ struct HostEditorModelTests {
 
         await model.updateHerdr()
 
-        #expect(await updater.executions.map(\.command) == [HerdrCommand.update(herdr)])
+        #expect(await updater.executions.map(\.command) == [HerdrCommand.operatingSystem, HerdrCommand.update(herdr)])
         #expect(model.canSave)
+    }
+
+    @Test("Windows 主機更新 herdr 後不馬上重新測試：伺服器沒有 live handoff,請使用者先在主機上重啟 herdr 伺服器")
+    func windowsUpdateAsksToRestartServer() async {
+        let old = FakeHost()
+        await old.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("MINGW64_NT-10.0-19045\n".utf8)))
+        await old.expect(PowerShell.encodedCommand(Self.windowsHerdrScript("'--version'")), reply: FakeReply(stdout: Data("herdr 0.9.3\n".utf8)))
+        let updater = FakeHost()
+        await updater.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("MINGW64_NT-10.0-19045\n".utf8)))
+        await updater.expect(PowerShell.encodedCommand(Self.windowsHerdrScript("'update'")), reply: FakeReply(stdout: Data("installed 0.9.5\n".utf8)))
+        let factory = ChannelFactory(old, updater)
+        let model = HostEditorModel(store: MemoryHostStore(), editing: HostConfiguration(
+            name: "PC", endpoint: SSHEndpoint(host: "demo-pc", username: "demo"), hostKeyPin: Self.fingerprint),
+            makeChannel: factory.make)
+
+        await model.test()
+        await model.updateHerdr()
+
+        #expect(model.phase == .restartServerRequired)
+        #expect(await updater.unmetExpectations.isEmpty)
+        #expect(factory.endpoints.count == 2, "重啟伺服器之前就重新測試了")
+    }
+
+    /// Windows 主機的 herdr 指令(與 `WindowsHostChannelTests.herdrScript` 相同的手寫預期值)。
+    static func windowsHerdrScript(_ arguments: String) -> String {
+        """
+        $ProgressPreference='SilentlyContinue'
+        $h='herdr'
+        if(-not(Get-Command $h -CommandType Application -ErrorAction SilentlyContinue)){$h=Join-Path $env:LOCALAPPDATA 'Programs\\Herdr\\bin\\herdr.exe';if(-not(Test-Path -LiteralPath $h)){[Console]::Error.Write("herdr: command not found`n");exit 127}}
+        & $h \(arguments)
+        exit $LASTEXITCODE
+        """
     }
 
     @Test("連不上時留在編輯器並說明原因，不顯示函式庫的錯誤字串")
@@ -191,7 +225,7 @@ struct HostEditorModelTests {
         let store = MemoryHostStore()
         store.saveError = SaveFailed()
         let model = HostEditorModel(store: store, editing: HostConfiguration(
-            name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), hostKeyPin: Self.fingerprint),
+            name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint),
             makeChannel: ChannelFactory(await Self.healthyHost()).make)
 
         await model.test()

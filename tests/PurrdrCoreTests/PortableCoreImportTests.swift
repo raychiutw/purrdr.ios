@@ -10,7 +10,7 @@ struct PortableCoreImportTests {
     static let portableTargets = ["src/PurrdrCore", "src/PurrdrDemo"]
     static let allowedModules: Set<String> = [
         "Foundation", "FoundationEssentials", "FoundationNetworking", "Dispatch", "Synchronization",
-        "NIO", "NIOCore", "NIOPosix", "NIOSSH", "NIOConcurrencyHelpers", "NIOFoundationCompat", "Crypto", "_CryptoExtras",
+        "NIO", "NIOCore", "NIOPosix", "NIOSSH", "NIOConcurrencyHelpers", "NIOFoundationCompat", "Crypto",
         "PurrdrCore", "PurrdrDemo",
     ]
 
