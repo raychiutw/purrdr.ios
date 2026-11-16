@@ -36,13 +36,22 @@ public final class MergedAgentListModel {
         case list
     }
 
-    /// 一台主機：名稱、圖示、它的列表與列操作。
+    /// 一台主機：名稱、圖示、它的列表與列操作、它的「You should know」註記(#23)。
     public struct Source {
         public let host: HostSelection
         public let name: String
         public let icon: HostIcon
         public let list: AgentListModel
         public let actions: WorkspaceActionsModel
+        public var notes: YouShouldKnowModel?
+    }
+
+    /// 註記清單的一則：註記、所屬聊天(主機 + pane)與 Agent 標題。
+    public struct NoteEntry: Identifiable {
+        public let note: YouShouldKnowNote
+        public let route: ChatRoute
+        public let title: String
+        public var id: String { "\(route.host.storedValue)/\(note.id)" }
     }
 
     /// 選取中主機在前，其他依主機清單順序。
@@ -87,6 +96,29 @@ public final class MergedAgentListModel {
         if case .failed(let message)? = list(for: selected)?.phase { return .failed(message) }
         if sources.contains(where: { $0.list.phase == .loading }) { return .loading }
         return failures.isEmpty ? .empty : .list
+    }
+
+    /// 所有主機的「You should know」註記(#23):只算列表裡有的 Claude 聊天(以完整 session id 配對)。
+    /// 依主機順序(選取中主機在前)、每台主機內新→舊。
+    public var notes: [NoteEntry] {
+        let titles = Dictionary(sections.flatMap(\.rows).map { ($0.route, $0.title) }) { first, _ in first }
+        return sources.flatMap { source -> [NoteEntry] in
+            guard let model = source.notes else { return [] }
+            let panes = source.list.claudeSessionPanes
+            return model.notes.compactMap { note in
+                guard let paneID = panes[note.sessionID] else { return nil }
+                let route = ChatRoute(host: source.host, paneID: paneID)
+                return NoteEntry(note: note, route: route, title: titles[route] ?? paneID)
+            }
+        }
+    }
+
+    /// 每台主機各自輪詢註記，直到所在的 task 被取消。
+    public func runNotes() async {
+        let models = sources.compactMap(\.notes)
+        await withTaskGroup(of: Void.self) { group in
+            for model in models { group.addTask { await model.run() } }
+        }
     }
 
     /// 即時更新要跟著重來的主機集合(主機新增、刪除、編輯時改變)。

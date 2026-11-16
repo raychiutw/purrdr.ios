@@ -63,6 +63,16 @@ public struct HostFiles: Sendable {
         return try HostFileScript.parseRead(result.stdout, paths: paths)
     }
 
+    /// 一次往返找 `directory` 裡檔名以 `prefix` 開頭、`suffix` 結尾、最新(修改時間)的可讀一般檔案;沒有是 `nil`。
+    /// 檔名含不安全字元(`HostPath` 不接受)時丟 `HostFilesError.invalidPath`。
+    public func newest(in directory: HostPath, prefix: String, suffix: String) async throws -> HostPath? {
+        try directory.validate()
+        try HostPath(directory.relative + "/" + prefix + "x" + suffix).validate()
+        let result = try await run(HostFileScript.newest, arguments: [directory.relative, prefix, suffix])
+        guard result.exitCode == 0 else { throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText) }
+        return try HostFileScript.parseNewest(result.stdout)
+    }
+
     /// 一次往返套用 `changes`:先檢查每個檔案都還是預期的版本，全部符合才依序寫入(compare-and-swap)。
     ///
     /// 有一個不符就整批不寫，丟 `HostFilesError.changedSinceRead`。寫入用同資料夾的暫存檔再 `mv`,

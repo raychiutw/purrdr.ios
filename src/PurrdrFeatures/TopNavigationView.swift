@@ -44,6 +44,8 @@ public struct TopNavigationView: View {
     public var body: some View {
         @Bindable var navigation = navigation
         splitView
+            // 選取中主機的主題(#23)只套在側欄、列表、對話與終端機;sheet(設定)接在後面，維持 App 配色。
+            .selectedHostTheme(hosts)
             .onChange(of: hosts.selection) { navigation.hostChanged() }
             .onChange(of: sizeClass, initial: true) { _, sizeClass in
                 if sizeClass == .compact { navigation.workspaceFilter = nil }
@@ -58,6 +60,7 @@ public struct TopNavigationView: View {
                 case .settings:
                     SettingsView(
                         model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync,
+                        hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
                         openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher
                     ) {
                         navigation.sheet = nil

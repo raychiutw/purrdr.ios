@@ -24,6 +24,7 @@ public struct AgentListView: View {
     /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
     private let openInNewWindow: ((PaneWindow.Kind, AgentRow) -> Void)?
     @FocusState private var searchFocused: Bool
+    @State private var showingNotes = false
 
     public init(
         model: MergedAgentListModel, usage: ClaudeUsageModel? = nil, window: TopNavigationModel? = nil,
@@ -67,6 +68,14 @@ public struct AgentListView: View {
             }
         }
         .navigationTitle("Agents")
+        // 「You should know」:每台主機各自輪詢(列表可見且在前景時，#23)。
+        .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
+            guard scenePhase == .active else { return }
+            await model.runNotes()
+        }
+        .sheet(isPresented: $showingNotes) {
+            YouShouldKnowListView(entries: model.notes) { model.openedChat = $0 }
+        }
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
             guard scenePhase == .active else { return }
             // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
@@ -121,9 +130,15 @@ public struct AgentListView: View {
         return Group {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
-                List(selection: selection) { listRows(sections) }
+                List(selection: selection) {
+                    notesRow
+                    listRows(sections)
+                }
             } else {
-                List { listRows(sections) }
+                List {
+                    notesRow
+                    listRows(sections)
+                }
             }
         }
         #if os(iOS)
@@ -155,6 +170,15 @@ public struct AgentListView: View {
         #if os(iOS)
         .textInputAutocapitalization(.never)
         #endif
+    }
+
+    /// 列表最上方一行「✦ N 則註記」(#37 故事 49):所有主機、只算列表裡有的 Claude 聊天。
+    @ViewBuilder
+    private var notesRow: some View {
+        let count = model.notes.count
+        if count > 0 {
+            Section { YouShouldKnowListRow(count: count) { showingNotes = true } }
+        }
     }
 
     @ViewBuilder

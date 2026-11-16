@@ -230,6 +230,8 @@ public struct PaneWindowView: View {
                 .navigationTitle(window.title)
             }
         }
+        // 跟主視窗一樣套用選取中主機的主題(#23)。
+        .selectedHostTheme(hosts)
     }
 }
 

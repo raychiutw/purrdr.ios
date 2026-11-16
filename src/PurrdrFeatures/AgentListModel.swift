@@ -50,6 +50,11 @@ public final class AgentListModel {
     }
 
     /// 列表看到的 pane 的 session 參照(id 或路徑;開對話時用來比對快取)。
+    /// 列表裡 Claude Code 的 session id → pane id(「You should know」以完整 session id 配對聊天，#23)。
+    public var claudeSessionPanes: [String: String] {
+        Dictionary((snapshot?.agents ?? []).compactMap { agent in agent.claudeSessionID.map { ($0, agent.paneID) } }) { first, _ in first }
+    }
+
     public func sessionID(ofPane paneID: String) -> String? {
         snapshot?.agents.first { $0.paneID == paneID }?.transcriptTarget?.sessionKey
     }

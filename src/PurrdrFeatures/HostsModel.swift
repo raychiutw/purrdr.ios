@@ -31,7 +31,8 @@ public enum HostManagementError: Error, Equatable {
 ///
 /// - 所有主機的 Agent 合併在同一個列表(`agentList`):每台主機各自一條主機通道、各自的 herdr client、
 ///   列表、列操作、草稿與推播開關(`HostMember`);一台連不上不影響其他台。
-/// - 選取中主機只決定新聊天開在哪裡、列表排序與哪些列標示主機名、Claude 用量與推播設定讀哪台;切換不關閉、不重建任何連線。
+/// - 選取中主機只決定新聊天開在哪裡、列表排序與哪些列標示主機名、套用誰的主題(#23)、Claude 用量與推播設定讀哪台;
+///   切換不關閉、不重建任何連線。
 /// - Demo 主機只在沒有已存主機、或使用者選了它時出現在列表。
 /// - 選取存在本機(`HostSelectionStore`),重新啟動後選回同一台;存的主機已刪除時選第一台，沒有主機就選 Demo 主機。
 /// - 編輯、刪除主機時關閉那台主機的連線;刪除也清掉它的對話快取、釘選／靜音、草稿與圖示。
@@ -121,6 +122,11 @@ public final class HostsModel {
     public var herdrClient: HerdrClient { member(for: selection).client }
     /// 選取中主機的推播開關(#29)。
     public var push: PushModel { member(for: selection).push }
+    /// 選取中主機的主機主題(#23;DESIGN.md:選取中主機決定套用誰的主題)。每台主機各自一份、同意以主機為單位記住;
+    /// 換選取中主機就換成那台的(讀過的主題留著，切回來不必等下一次輪詢)。
+    public var hostTheme: HostThemeModel { member(for: selection).hostTheme }
+    /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
+    public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
 
     /// 某台主機上某個 Pane 的終端機 model(標題)。
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
@@ -140,12 +146,15 @@ public final class HostsModel {
     /// 某台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。
     public func conversation(_ route: ChatRoute, sessionID: String?) -> ConversationModel {
         let member = member(for: route.host)
-        return ConversationModel(
+        let model = ConversationModel(
             client: member.client, transcripts: member.transcripts, paneID: route.paneID, knownSessionID: sessionID,
             cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: ClaudeSlashDiscovery(channel: member.channel),
             haptics: haptics, hostName: route.host == selection ? nil : name(of: route.host),
             // 主機目前只有 macOS／Linux(Windows 的上傳還沒做,ADR-0002)。
             images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore))
+        // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
+        model.youShouldKnow = member.youShouldKnow
+        return model
     }
 
     /// 選取中主機上的新增對話(#18)。
@@ -410,7 +419,9 @@ public final class HostsModel {
         for host in wanted where members[host] == nil { members[host] = makeMember(host) }
         let sources = wanted.compactMap { host in
             members[host].map { member in
-                MergedAgentListModel.Source(host: host, name: name(of: host), icon: icon(of: host), list: member.list, actions: member.actions)
+                MergedAgentListModel.Source(
+                    host: host, name: name(of: host), icon: icon(of: host), list: member.list, actions: member.actions,
+                    notes: member.youShouldKnow)
             }
         }
         agentList.update(sources: sources, selected: selection)
@@ -428,7 +439,8 @@ public final class HostsModel {
         }
         return HostMember(
             host: host, configuration: configuration, channel: configuration.map(channel(for:)) ?? demoChannel,
-            preferences: preferences.store(for: host), push: pushService)
+            preferences: preferences.store(for: host), push: pushService,
+            consent: configuration == nil ? demoConsent : hostConsent)
     }
 
     private func channel(for host: HostConfiguration) -> any HostChannel {
@@ -452,7 +464,7 @@ public final class HostsModel {
     }
 }
 
-/// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿與推播開關。
+/// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿、推播開關、「You should know」註記與主機主題。
 @MainActor
 final class HostMember {
     let host: HostSelection
@@ -466,10 +478,14 @@ final class HostMember {
     let drafts = DraftStore()
     /// 這台主機的推播開關;這台主機的靜音改變時改寫它上面的靜音清單。
     let push: PushModel
+    /// 這台主機的「You should know」註記(#23)。
+    let youShouldKnow: YouShouldKnowModel
+    /// 這台主機的主機主題(#23);選取中主機的才套用到畫面。
+    let hostTheme: HostThemeModel
 
     init(
         host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, preferences: any ChatPreferencesStore,
-        push pushService: PushService?
+        push pushService: PushService?, consent: any HostWriteConsentStore
     ) {
         self.host = host
         self.channel = channel
@@ -485,5 +501,8 @@ final class HostMember {
         }
         self.push = push
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
+        let hostID = configuration?.id.uuidString ?? HostsModel.demoID
+        youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel), hostID: hostID, consent: consent)
+        hostTheme = HostThemeModel(host: HostThemeHost(channel: channel), hostID: hostID, consent: consent)
     }
 }

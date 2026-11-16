@@ -17,6 +17,9 @@ public struct SettingsView: View {
     let push: PushModel?
     /// 主機同步(#30);`nil` 時不顯示。
     let hostSync: HostSyncModel?
+    /// 選取中主機的主機主題與「You should know」寫回(#23);`nil` 時不顯示。
+    let hostTheme: HostThemeModel?
+    let youShouldKnow: YouShouldKnowModel?
     /// 推播需要 Purrdr Plus 時開付費牆。
     let openPlus: () -> Void
     /// 選取中主機的 Codex 啟動器;`nil` 時不顯示。
@@ -25,14 +28,16 @@ public struct SettingsView: View {
 
     public init(
         model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil,
-        hostSync: HostSyncModel? = nil, openPlus: @escaping () -> Void = {}, codexLauncher: CodexLauncherModel? = nil,
-        done: @escaping () -> Void
+        hostSync: HostSyncModel? = nil, hostTheme: HostThemeModel? = nil, youShouldKnow: YouShouldKnowModel? = nil,
+        openPlus: @escaping () -> Void = {}, codexLauncher: CodexLauncherModel? = nil, done: @escaping () -> Void
     ) {
         self.model = model
         self.member = member
         self.plus = plus
         self.push = push
         self.hostSync = hostSync
+        self.hostTheme = hostTheme
+        self.youShouldKnow = youShouldKnow
         self.openPlus = openPlus
         self.codexLauncher = codexLauncher
         self.done = done
@@ -56,6 +61,13 @@ public struct SettingsView: View {
 
                 if let hostSync {
                     HostSyncSection(model: hostSync, plus: plus, member: member)
+                }
+
+                if let hostTheme {
+                    HostThemeSettingsSection(model: hostTheme)
+                }
+                if let youShouldKnow {
+                    YouShouldKnowSettingsSection(model: youShouldKnow)
                 }
 
                 Section {
