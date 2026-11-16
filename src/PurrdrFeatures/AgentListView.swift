@@ -189,6 +189,7 @@ public struct AgentListView: View {
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
+        .contentMargins(.top, 0, for: .scrollContent)
         // 大標題捲過一半到導覽列底下，就換成導覽列的小標題(同系統大標題的收合)。
         .onScrollGeometryChange(for: Bool.self) { geometry in
             geometry.contentOffset.y + geometry.contentInsets.top > largeTitleHeight / 2
@@ -237,6 +238,10 @@ public struct AgentListView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         }
+        #if os(iOS)
+        // 跟系統大標題一樣貼著導覽列、跟下面的內容只隔一般間距(inset grouped 第一個 section 上方預設有一大段空白)。
+        .listSectionSpacing(.compact)
+        #endif
     }
 
     /// 列表最上方一行「✦ N 則註記」(#37 故事 49):所有主機、只算列表裡有的 Claude 聊天。
