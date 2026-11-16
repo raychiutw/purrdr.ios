@@ -43,6 +43,21 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertTrue(error.exists || scrollTo(error, in: app), "換選取中主機後錯誤行不見了")
     }
 
+    /// 正式 Demo 也演出多主機(#34):沒有已存主機時，Demo 主機的列之外還有示範主機「Studio Mac」的列(標示主機名),
+    /// 列表下方「Lab Server: 原因」;主機清單裡沒有示範主機。
+    @MainActor
+    func testDemoShowsCompanionHosts() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
+
+        let studioRow = element("agent.row.DE300000-0000-4000-8000-000000000001/w2:p1", in: app)
+        XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
+        XCTAssertTrue(studioRow.label.contains("Studio Mac"), studioRow.label)
+        let error = element("agentList.error.DE300000-0000-4000-8000-000000000002", in: app)
+        XCTAssertTrue(app.reveal(error, timeout: 20), "沒有連不上的示範主機")
+        XCTAssertTrue(error.label.hasPrefix("Lab Server: "), error.label)
+        XCTAssertEqual(app.buttons["toolbar.host"].label, "Selected Host: Demo")
+    }
+
     /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，標題列帶主機名。
     @MainActor
     func testSamePaneOnTwoHostsAreSeparateChats() {

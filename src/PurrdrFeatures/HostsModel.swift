@@ -21,6 +21,24 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Demo 的示範主機(#34):Demo 主機出現在列表時一起出現，演出多主機合併列表(含一台連不上)。
+///
+/// 不是已存主機：不在主機清單、不能編輯或刪除、不同步;通道由 composition root 給(Demo 主機或一律連不上的通道),
+/// 永遠不連網路。
+public struct DemoCompanionHost: Sendable {
+    public var id: UUID
+    public var name: String
+    public var icon: HostIcon
+    public var channel: any HostChannel
+
+    public init(id: UUID, name: String, icon: HostIcon, channel: any HostChannel) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.channel = channel
+    }
+}
+
 /// 管理主機時的錯誤。
 public enum HostManagementError: Error, Equatable {
     case emptyName
@@ -61,6 +79,8 @@ public final class HostsModel {
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
     private let demoChannel: any HostChannel
+    /// Demo 的示範主機(#34)。
+    private let demoCompanions: [DemoCompanionHost]
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     private let credentials: HostCredentials
     private let conversationCache: any ConversationCache
@@ -89,9 +109,11 @@ public final class HostsModel {
     ///   - swipeHint: 列表滑動提示是否已經不用再顯示(使用者用過滑動面板的動作)。
     ///   - listMode: 列表檢視(Spaces／Agents)的存放處。
     ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
+    ///   - demoCompanions: Demo 的示範主機(#34);Demo 主機出現在列表時一起出現。
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
-        store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
+        store: any HostStore, demoChannel: any HostChannel, demoCompanions: [DemoCompanionHost] = [],
+        conversationCache: any ConversationCache = InMemoryConversationCache(),
         preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),
         hostIcons: any HostIconStore = InMemoryHostIconStore(),
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
@@ -107,6 +129,7 @@ public final class HostsModel {
         agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
         self.selectionStore = selectionStore
         self.demoChannel = demoChannel
+        self.demoCompanions = demoCompanions
         self.makeChannel = makeChannel
         self.credentials = credentials
         self.conversationCache = conversationCache
@@ -205,7 +228,7 @@ public final class HostsModel {
     public func name(of host: HostSelection) -> String {
         switch host {
         case .demo: String(localized: "Demo")
-        case .host(let id): hosts.first { $0.id == id }?.name ?? ""
+        case .host(let id): hosts.first { $0.id == id }?.name ?? companion(id)?.name ?? ""
         }
     }
 
@@ -414,15 +437,19 @@ public final class HostsModel {
     }
 
     private func icon(of host: HostSelection) -> HostIcon {
-        if case .host(let id) = host { return icon(for: id) }
-        return .default
+        guard case .host(let id) = host else { return .default }
+        return companion(id)?.icon ?? icon(for: id)
     }
 
-    /// 列表上的主機：所有已存主機(依名稱);Demo 主機只在沒有已存主機或選了它時。
+    private func companion(_ id: UUID) -> DemoCompanionHost? {
+        demoCompanions.first { $0.id == id }
+    }
+
+    /// 列表上的主機：所有已存主機(依名稱);Demo 主機與它的示範主機(#34)只在沒有已存主機或選了 Demo 時。
     /// 已有的成員沿用(連線、列、草稿不重建)。
     private func rebuildMembers() {
         var wanted: [HostSelection] = hosts.map { .host($0.id) }
-        if hosts.isEmpty || selection == .demo { wanted.insert(.demo, at: 0) }
+        if hosts.isEmpty || selection == .demo { wanted.insert(contentsOf: [.demo] + demoCompanions.map { .host($0.id) }, at: 0) }
         members = members.filter { wanted.contains($0.key) }
         for host in wanted where members[host] == nil { members[host] = makeMember(host) }
         let sources = wanted.compactMap { host in
@@ -441,6 +468,11 @@ public final class HostsModel {
     }
 
     private func makeMember(_ host: HostSelection) -> HostMember {
+        if case .host(let id) = host, let companion = companion(id) {
+            return HostMember(
+                host: host, configuration: nil, channel: companion.channel, preferences: preferences.store(for: host),
+                push: pushService, consent: demoConsent)
+        }
         let configuration: HostConfiguration? = switch host {
         case .demo: nil
         case .host(let id): hosts.first { $0.id == id }

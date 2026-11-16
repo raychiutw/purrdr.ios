@@ -3,7 +3,7 @@
 App Store Connect → 版本 → App 審查資訊 →「備註」(上限 4,000 字元)。下方英文段落直接貼上;中文是對照與依據。
 
 **每次送審前核對**:內容必須和送審 build 的 Demo 一致(#36 驗收條件)。Demo 改了(`src/PurrdrDemo/`、`AGENTS.md`「Demo 主機」一節),這份要一起改;
-最快的核對方式是跑 `scripts/screenshots.sh`,看 11 張截圖是否仍對得上下面每一項。
+最快的核對方式是跑 `scripts/screenshots.sh`,看 11 張截圖是否仍對得上下面每一項(截圖 09 是正式 Demo 的示範主機，旗標 `-demoCompanions`)。
 
 「登入資訊」:**不需要示範帳號**(勾「不需要登入」)。聊天與終端機不需要帳號;Purrdr Plus 的會員用 Sign in with Apple 自行建立。
 
@@ -16,7 +16,7 @@ HOW TO OPEN THE DEMO
 On first launch a Welcome screen appears. Tap "Try the Demo". (If you dismissed it: ⋯ > Settings > Show Welcome, or pick "Demo" in the host menu at the top of the list.) With no hosts added, the Demo host is selected automatically.
 
 WHAT YOU CAN TRY ON THE DEMO HOST
-1. Agent list: three workspaces. "weather-app" (Claude Code) needs you, "notes" (Codex) is working, "ledger" (Claude Code) is done.
+1. Agent list: the Demo host has three workspaces. "weather-app" (Claude Code) needs you, "notes" (Codex) is working, "ledger" (Claude Code) is done.
 2. Needs you: open "weather-app". The agent asks to run a command ("Do you want to proceed?"). Tap an answer; the agent becomes done.
 3. Chat: open "ledger" and send any message; the agent replies that this is the Demo host. Scroll up to see a finished subagent card ("Check how the widget refreshes").
 4. Questions: in "ledger", send "ask me" to get two multiple-choice questions, or "trust" for a folder trust prompt.
@@ -24,6 +24,7 @@ WHAT YOU CAN TRY ON THE DEMO HOST
 6. Shell commands: in "ledger", send "!git status"; the chat shows the command and a sample output block.
 7. Live work: open "notes" to see the Codex agent writing in real time; stopping it (Esc) makes it done.
 8. Terminal: in a chat, tap the terminal button to open a terminal (an echo shell, prompt "demo@purrdr"). ⋯ > Login Shell and ⋯ > Files also work on the Demo host.
+9. Several computers: the same list also shows two simulated sample hosts. "Studio Mac" has the same sample agents, labeled with its name; "Lab Server" is always offline, so the bottom of the list shows "Lab Server: …" with Try Again. They are part of the Demo, not saved hosts: they are not listed in ⋯ > Hosts and disappear once you add your own host.
 Things the Demo host cannot do, by design: start new chats or create workspaces (it shows "The Demo host can't start new chats. Add your own host to try this."), and send notifications.
 
 WHY A REAL HOST IS NEEDED
@@ -46,6 +47,7 @@ Contact: lean.lean@gmail.com
 | 設定頁「Show Welcome」可再看 | `SettingsView`(`settings.welcome`) |
 | 沒有主機時自動選 Demo | `HostsModel.validSelection`(沒有已存主機回 `.demo`)、`rebuildMembers` |
 | 三個 workspace:weather-app 需要你、notes 工作中(Codex)、ledger 完成 | `AGENTS.md`「Demo 主機」;`src/PurrdrDemo/DemoAnswers.swift` 開頭說明;截圖 01 |
+| 示範主機:Studio Mac(同樣的範例 Agent、列標示主機名)與一律連不上的 Lab Server(列表下方「Lab Server: …」與 Try Again);不在主機清單，新增自己的主機後消失 | `PurrdrApp.demoCompanions`、`HostsModel`(`DemoCompanionHost`、`rebuildMembers`)、`DemoUnreachableChannel`;`HostsModelTests.demoShowsCompanionHosts`、`MultiHostUITests.testDemoShowsCompanionHosts`;截圖 09 |
 | weather-app 的 Bash 權限提示「Do you want to proceed?」,回答後完成 | `DemoAnswers`(`w2:p1` `.bashPermission`);截圖 02 |
 | 送任何訊息會收到「這是 Demo 主機」的固定回覆 | `DemoTranscripts.reply(to:number:at:)` |
 | subagent 卡「Check how the widget refreshes」 | `DemoTranscripts`(`subagentMeta`);截圖 03 |
@@ -65,5 +67,5 @@ Contact: lean.lean@gmail.com
 - 後台已部署，`BackendConfiguration.baseURL`、Google client ID 已換成真值(`backend/README.md`「上線前要填的東西」)。否則 Sign in with Apple 會顯示連線錯誤，審查員無法測訂閱。
 - 兩個訂閱商品已「準備提交」並跟這個版本一起送;「付費 App」合約生效。
 - App Store Server Notifications 的 Sandbox 網址已填(審查員在 Sandbox 購買)。
-- 隱私權政策與支援頁已發佈到 `https://raychiutw.github.io/purrdr/`,聯絡信箱已換掉 `REPLACE_ME@example.com`(備註最後一行也要換)。
+- 隱私權政策與支援頁已發佈到 `https://raychiutw.github.io/purrdr/`(已完成);聯絡信箱 lean.lean@gmail.com(網站與備註最後一行)。
 - 選填：附一段真實主機的錄影(推播、主機同步),放在「附件」;審查員無法自己架主機時有助於理解推播。

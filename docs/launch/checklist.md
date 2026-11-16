@@ -70,7 +70,6 @@
 
 | 值 | 位置 | 屬於 |
 |---|---|---|
-| `REPLACE_ME@example.com` | `docs/site/purrdr/privacy/`、`support/`、`docs/launch/review-notes.md` | 4.2 |
 | `https://purrdr-backend.REPLACE-ME.workers.dev` | `src/App/Purrdr/BackendConfiguration.swift`(`baseURL`) | 3.3 |
 | `REPLACE-ME.apps.googleusercontent.com` | `src/App/Purrdr/BackendConfiguration.swift`(`googleClientID`) | 3.3 |
 | `REPLACE_ME_D1_DATABASE_ID` | `backend/wrangler.jsonc` | 3.1 |

@@ -185,6 +185,36 @@ struct HostsModelTests {
         #expect(factory.pins == [Self.pin])
     }
 
+    @Test("Demo 也演出多主機(#34):沒有已存主機時，列表合併 Demo 與示範主機(含一台連不上);主機清單沒有它們;新增主機後消失")
+    func demoShowsCompanionHosts() async throws {
+        let store = MemoryHostStore()
+        let demo = FakeHost()
+        await demo.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
+        let studio = FakeHost()
+        await studio.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
+        let lab = FakeHost()
+        await lab.failConnection(with: SSHConnectionError.timedOut)
+        let companions = [
+            DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: studio),
+            DemoCompanionHost(id: UUID(), name: "Lab Server", icon: .server, channel: lab),
+        ]
+        let model = HostsModel(
+            store: store, demoChannel: demo, demoCompanions: companions, makeChannel: ChannelFactory(FakeHost()).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.selection == .demo)
+        #expect(model.agentList.sources.map(\.name) == ["Demo", "Studio Mac", "Lab Server"])
+        #expect(model.agentList.sections.flatMap(\.rows).count == 6)
+        #expect(model.agentList.failures.map(\.name) == ["Lab Server"])
+        #expect(model.rows.isEmpty, "示範主機不是已存主機，不出現在主機清單")
+
+        store.hosts = [Self.studio]
+        model.didSave(Self.studio)
+        #expect(model.agentList.sources.map(\.name) == ["Studio"])
+    }
+
     @Test("連不上選取中主機時，列表說明原因(白話),不是泛用的讀取失敗")
     func connectionFailureExplainedInAgentList() async {
         let store = MemoryHostStore()
