@@ -262,8 +262,8 @@ enum DemoPanel: Equatable {
     }
 }
 
-/// Demo 的 `/effort` 面板(形狀依錄製的 Claude effort 面板 `screens/claude-panel-effort.txt`):
-/// `▲` 所對的層級是目前值。
+/// Demo 的 `/effort` 面板(#45 依行為規格 §5.6 寫的簡化形狀;真實錄製見 `screens/claude-panel-effort.txt`,
+/// 多了 `Faster … Smarter` 標示、軌道右邊的 Ultracode 開關與 `s` 動作):`▲` 所對的層級是目前值。
 struct DemoEffortPanel: Equatable {
     static let levels = ["low", "medium", "high", "xhigh", "max"]
     static let defaultLevel = 1

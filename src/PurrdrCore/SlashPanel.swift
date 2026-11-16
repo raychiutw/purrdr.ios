@@ -149,6 +149,10 @@ public enum SlashPanelParser {
                 used.insert(index + 1)
                 panel.slider = slider(marker: line, levels: content[index + 1])
             }
+            // 軌道正上方的兩端標示(`Faster … Smarter`)屬於滑桿，不是說明。
+            if index > 0, !content[index - 1].isBlank, !used.contains(index - 1) {
+                used.insert(index - 1)
+            }
         }
         if let index = content.firstIndex(where: isAdjustLine) {
             used.insert(index)
@@ -172,9 +176,10 @@ public enum SlashPanelParser {
         return panel
     }
 
+    /// 以 8 個以上 `▔` 開頭的行。Claude Code 2.1.325 會在分隔中間夾文字(用量提醒、`◐ medium · /effort`),
+    /// 那段文字不屬於面板(#65 真實錄製)。
     private static func isTopRule(_ line: String) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        return trimmed.count >= 8 && trimmed.allSatisfy { $0 == "▔" }
+        line.trimmingCharacters(in: .whitespaces).prefix { $0 == "▔" }.count >= 8
     }
 
     private static var adjustPhrase: Regex<Substring> { /←\s*\/?\s*→\s*to adjust/ }
@@ -184,8 +189,17 @@ public enum SlashPanelParser {
     }
 
     /// `▲` 的欄位對到下一行的哪個層級名(落在名稱範圍內，否則取中心最近的)。
+    /// 層級只取從 `─` 軌道範圍內開始的字：軌道右邊還有別的控制項(`Ultracode  off`／`Tab to toggle`)。
     private static func slider(marker: String, levels line: String) -> SlashPanelSlider {
-        let markerColumn = marker.firstIndex(of: "▲").map { marker.distance(from: marker.startIndex, to: $0) }
+        let markerChars = Array(marker)
+        let markerColumn = markerChars.firstIndex(of: "▲")
+        let track: Range<Int>? = markerColumn.map { column in
+            var start = column
+            while start > 0, markerChars[start - 1] == "─" { start -= 1 }
+            var end = column + 1
+            while end < markerChars.count, markerChars[end] == "─" { end += 1 }
+            return start..<end
+        }
         var levels: [(name: String, start: Int, end: Int)] = []
         var start: Int?
         for (column, character) in (Array(line) + [" "]).enumerated() {
@@ -197,6 +211,9 @@ public enum SlashPanelParser {
             } else if start == nil {
                 start = column
             }
+        }
+        if let track {
+            levels.removeAll { !track.contains($0.start) }
         }
         let current = markerColumn.flatMap { column in
             levels.firstIndex { $0.start <= column && column < $0.end }
