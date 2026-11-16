@@ -56,11 +56,15 @@ extension EnvironmentValues {
 
 extension View {
     /// 列的滑動與 context menu(行為規格 F2.7)。context menu 頂端的動作與滑動相同;破壞性的「關閉」放最後。
+    ///
+    /// `openInNewWindow` 有值時(支援多視窗)，context menu 最前面加「在新視窗開啟」(HIG Windows,#31)。
     func workspaceRowActions(
         _ context: WorkspaceRowContext?, host: HostSelection, actions: WorkspaceActionsModel?, presentation: WorkspacePresentation,
-        snapshot: HostSnapshot?
+        snapshot: HostSnapshot?, openInNewWindow: ((PaneWindow.Kind) -> Void)? = nil
     ) -> some View {
-        modifier(WorkspaceRowActions(context: context, host: host, actions: actions, presentation: presentation, snapshot: snapshot))
+        modifier(WorkspaceRowActions(
+            context: context, host: host, actions: actions, presentation: presentation, snapshot: snapshot,
+            openInNewWindow: openInNewWindow))
     }
 
     /// 呈現 workspace 操作的 sheet、確認與錯誤。`actions` 依主機取得該主機的操作;
@@ -79,6 +83,7 @@ private struct WorkspaceRowActions: ViewModifier {
     let actions: WorkspaceActionsModel?
     let presentation: WorkspacePresentation
     let snapshot: HostSnapshot?
+    let openInNewWindow: ((PaneWindow.Kind) -> Void)?
     @Environment(\.swipeHintList) private var swipeHintList
 
     func body(content: Content) -> some View {
@@ -97,6 +102,13 @@ private struct WorkspaceRowActions: ViewModifier {
                     renameButton(context, title: "Workspace", fromSwipe: true)
                 }
                 .contextMenu {
+                    if let openInNewWindow {
+                        Button("Open in New Window", systemImage: "macwindow.badge.plus") { openInNewWindow(.chat) }
+                            .accessibilityIdentifier("menu.openInNewWindow")
+                        Button("Open Terminal in New Window", systemImage: "apple.terminal") { openInNewWindow(.terminal) }
+                            .accessibilityIdentifier("menu.openTerminalInNewWindow")
+                        Divider()
+                    }
                     chatButtons(context, actions: actions)
                     renameButton(context, title: "Rename Workspace…")
                     Button("Show Layout", systemImage: "rectangle.split.3x1") { showLayout(context) }

@@ -1,9 +1,11 @@
 import Foundation
 import Observation
+import PurrdrCore
 
-/// iPhone 頂層導覽的 model:Agent 列表之上以 sheet 開啟的畫面(#37 故事 21)。
+/// 一個視窗的導覽狀態(#37 故事 21、#31):Agent 列表之上以 sheet 開啟的畫面、三欄的選取、鍵盤快捷鍵。
 ///
 /// 不採 tab bar:列表工具列的「⋯」選單進入設定與主機，「+」新增對話;一次只開一個 sheet。
+/// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
 @MainActor
 @Observable
 public final class TopNavigationModel {
@@ -12,7 +14,70 @@ public final class TopNavigationModel {
     /// 等著匯入的主機分享連結(`purrdr://host?d=…`)。主機 sheet 開啟時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
 
+    /// 對話欄顯示的 Agent(主機 + pane id,#39)。iPhone 與窄視窗時是推入的對話。
+    public var selectedChat: ChatRoute? {
+        // 一次只有一個詳細(行為規格 F20):換聊天時，前一個聊天推入的終端機收起。
+        didSet { if selectedChat != oldValue { openedTerminal = nil } }
+    }
+
+    /// 搜尋欄是否有焦點(Command-F)。
+    public var isSearchFocused = false
+    /// 對話欄推入的 Pane 終端機(主機 + pane id)。
+    public var openedTerminal: ChatRoute?
+    /// 側欄選的 workspace(選取中主機上的);`nil` 是所有 workspace。
+    public var workspaceFilter: String?
+    /// iPad 的版面圖浮動卡片。
+    public let layoutCard = LayoutCardModel()
+
     public init() {}
+
+    /// 套用側欄 workspace 篩選後的列表;空的分組不顯示。篩選的 workspace 已不在主機上時(被關掉了)顯示全部。
+    ///
+    /// 列表合併了所有主機(#39);workspace 屬於選取中主機(`host`,`snapshot` 是它的),篩選時只留那台主機上那個 workspace 的列。
+    public func visibleSections(_ sections: [AgentSection], host: HostSelection, snapshot: HostSnapshot?) -> [AgentSection] {
+        guard let workspaceFilter, let snapshot, snapshot.workspaces.contains(where: { $0.id == workspaceFilter }) else {
+            return sections
+        }
+        let panes = Set(snapshot.agents.filter { $0.workspaceID == workspaceFilter }.map(\.paneID))
+        return sections.compactMap { section in
+            let rows = section.rows.filter { $0.host == host && panes.contains($0.paneID) }
+            return rows.isEmpty ? nil : AgentSection(group: section.group, rows: rows)
+        }
+    }
+
+    /// 列表看得到的 Agent,依畫面順序。鍵盤切換 Agent 用。
+    public func visibleAgents(_ sections: [AgentSection], host: HostSelection, snapshot: HostSnapshot?) -> [ChatRoute] {
+        visibleSections(sections, host: host, snapshot: snapshot).flatMap { $0.rows.map(\.route) }
+    }
+
+    /// 換了選取中主機：側欄的 workspace 篩選與版面圖卡片屬於前一台主機，清掉。
+    /// 選取的聊天與它的終端機留著：列表合併了所有主機(#39),聊天帶著自己的主機，換選取中主機不影響它。
+    public func hostChanged() {
+        workspaceFilter = nil
+        layoutCard.close()
+    }
+
+    /// 執行鍵盤快捷鍵。`visibleAgents` 是列表目前看得到的 Agent,依畫面順序。
+    public func perform(_ command: KeyboardCommand, visibleAgents: [ChatRoute]) {
+        switch command {
+        case .nextAgent: selectAdjacentAgent(offset: 1, in: visibleAgents)
+        case .previousAgent: selectAdjacentAgent(offset: -1, in: visibleAgents)
+        case .search: isSearchFocused = true
+        case .openTerminal: if let selectedChat { openedTerminal = selectedChat }
+        case .newChat: sheet = .newChat
+        case .settings: sheet = .settings
+        }
+    }
+
+    /// 依列表順序選上／下一個 Agent;到頭或到底就停住(不繞回)。選取的 Agent 不在列表上時，從頭(或尾)開始。
+    private func selectAdjacentAgent(offset: Int, in agents: [ChatRoute]) {
+        guard !agents.isEmpty else { return }
+        guard let current = selectedChat.flatMap(agents.firstIndex(of:)) else {
+            selectedChat = offset > 0 ? agents.first : agents.last
+            return
+        }
+        selectedChat = agents[min(max(current + offset, 0), agents.count - 1)]
+    }
 
     /// 處理深層連結。認得就開對應畫面並回傳 `true`;不認得的連結不改變畫面。
     @discardableResult

@@ -18,9 +18,16 @@ public struct AgentListView: View {
     private let makeTerminal: (@MainActor (ChatRoute, String) -> PaneTerminalModel)?
     /// 選取中主機的 Claude 用量，畫在列表最下方;讀取失敗時不顯示(行為規格 F2.9、F18)。
     private let usage: ClaudeUsageModel?
+    /// 所在視窗的導覽狀態(#31)。有的話：列是 split view 的選取(對話顯示在對話欄)、套用側欄的 workspace 篩選;
+    /// 沒有的話列表自己推入對話。
+    private let window: TopNavigationModel?
+    /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
+    private let openInNewWindow: ((PaneWindow.Kind, AgentRow) -> Void)?
+    @FocusState private var searchFocused: Bool
 
     public init(
-        model: MergedAgentListModel, usage: ClaudeUsageModel? = nil,
+        model: MergedAgentListModel, usage: ClaudeUsageModel? = nil, window: TopNavigationModel? = nil,
+        openInNewWindow: ((_ kind: PaneWindow.Kind, _ row: AgentRow) -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
     ) {
@@ -28,6 +35,8 @@ public struct AgentListView: View {
         self.makeConversation = conversation
         self.makeTerminal = terminal
         self.usage = usage
+        self.window = window
+        self.openInNewWindow = openInNewWindow
     }
 
     /// 即時更新在前景時執行;主機新增、刪除或編輯後重來。
@@ -36,20 +45,47 @@ public struct AgentListView: View {
         var lists: [ObjectIdentifier]
     }
 
-    /// 放在呼叫端的 `NavigationStack` 裡(導覽層與工具列見 `TopNavigationView`)。
+    /// 放在呼叫端的 `NavigationStack` 或 `NavigationSplitView` 的內容欄裡(導覽層與工具列見 `TopNavigationView`)。
     public var body: some View {
-        content
-            .navigationTitle("Agents")
-            .navigationDestination(for: ChatRoute.self) { route in
-                conversationScreen(route)
+        Group {
+            if let window {
+                content
+                    // 版面圖選的 Agent、點了的推播通知、新開始的對話：交給視窗的選取，在對話欄打開。
+                    .onChange(of: model.openedChat, initial: true) { _, route in
+                        guard let route else { return }
+                        model.openedChat = nil
+                        window.selectedChat = route
+                    }
+                    // 對話欄打開與換掉的聊天各記一次開啟時間;開在旁邊的不算未讀(行為規格 F2.6)。
+                    .onChange(of: window.selectedChat, initial: true) { old, new in
+                        if let old, old != new { model.chatDisappeared(old) }
+                        if let new { model.chatAppeared(new) }
+                    }
+            } else {
+                content
+                    .navigationDestination(for: ChatRoute.self) { route in
+                        conversationScreen(route)
+                    }
+                    .navigationDestination(item: $model.openedChat) { route in
+                        conversationScreen(route)
+                    }
             }
-            .navigationDestination(item: $model.openedChat) { route in
-                conversationScreen(route)
-            }
-            .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
-                guard scenePhase == .active else { return }
-                await model.run()
-            }
+        }
+        .navigationTitle("Agents")
+        .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
+            guard scenePhase == .active else { return }
+            // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
+            await model.run()
+        }
+    }
+
+    /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
+    private var sections: [AgentSection] {
+        window?.visibleSections(model.sections, host: model.selected, snapshot: model.snapshot(for: model.selected)) ?? model.sections
+    }
+
+    private var selection: Binding<ChatRoute?> {
+        Binding { window?.selectedChat } set: { window?.selectedChat = $0 }
     }
 
     private func conversationScreen(_ route: ChatRoute) -> some View {
@@ -89,51 +125,13 @@ public struct AgentListView: View {
     }
 
     private var list: some View {
-        let sections = model.sections
-        let failures = model.failures
-        return List {
-            ForEach(sections) { section in
-                Section {
-                    ForEach(section.rows) { row in
-                        NavigationLink(value: row.route) { AgentRowView(row: row) }
-                            .accessibilityIdentifier("agent.row.\(row.id)")
-                            .workspaceRowActions(
-                                WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
-                                actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host)
-                            )
-                    }
-                } header: {
-                    AgentSectionHeader(group: section.group, count: section.rows.count)
-                }
-            }
-            if !failures.isEmpty {
-                // 讀不到的主機：列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。不用 alert,也不自動消失:
-                // 重新連上才會消失;列保持最後一次讀到的樣子(HIG 20.5)。每台主機一行「主機名：原因」(#37 故事 3)。
-                Section {
-                    ForEach(failures, id: \.host) { failure in
-                        Label(failure.text, systemImage: "wifi.exclamationmark")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("agentList.error.\(failure.host.storedValue)")
-                    }
-                    Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
-                        .font(.footnote)
-                        .accessibilityIdentifier("agentList.retry")
-                } header: {
-                    Text("Connection Lost")
-                }
-            }
-            if let usage, list(failedFor: model.selected) == false {
-                Section { ClaudeUsageFooter(model: usage) }
-            }
-            if model.showsSwipeHint, !sections.isEmpty {
-                // 第一次用滑動面板的動作之前，列表底部提示有哪些滑動動作(行為規格 F2.7)。
-                Section {
-                    Label("Swipe a row left or right to pin, mute, rename, or close.", systemImage: "hand.draw")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("agentList.swipeHint")
-                }
+        let sections = sections
+        return Group {
+            // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
+            if window != nil {
+                List(selection: selection) { listRows(sections) }
+            } else {
+                List { listRows(sections) }
             }
         }
         .environment(\.swipeHintList, model)
@@ -149,15 +147,72 @@ public struct AgentListView: View {
                 )
             }
         }
-        // 版面圖選的 Pane:聊天推入對話;Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
+        // 版面圖選的 Pane:聊天推入對話(或在對話欄打開);Pane 終端機畫面還沒有(Pane 終端機那張票接上)。
         .workspaceActionsPresentation(actions: { model.actions(for: $0) }, presentation: presentation) { host, target in
             if case .chat(let paneID) = target { model.openedChat = ChatRoute(host: host, paneID: paneID) }
         }
         .searchable(text: $model.query, prompt: Text("Search"))
+        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點。
+        .searchFocused($searchFocused)
+        .onChange(of: window?.isSearchFocused ?? false) { _, focused in
+            if focused { searchFocused = true }
+        }
+        .onChange(of: searchFocused) { _, focused in
+            if !focused { window?.isSearchFocused = false }
+        }
         .autocorrectionDisabled()
         #if os(iOS)
         .textInputAutocapitalization(.never)
         #endif
+    }
+
+    @ViewBuilder
+    private func listRows(_ sections: [AgentSection]) -> some View {
+        let failures = model.failures
+        ForEach(sections) { section in
+            Section {
+                ForEach(section.rows) { row in
+                    NavigationLink(value: row.route) { AgentRowView(row: row) }
+                        .accessibilityIdentifier("agent.row.\(row.id)")
+                        .workspaceRowActions(
+                            WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
+                            actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host),
+                            openInNewWindow: openInNewWindow.map { open in { kind in open(kind, row) } }
+                        )
+                }
+            } header: {
+                AgentSectionHeader(group: section.group, count: section.rows.count)
+            }
+        }
+        if !failures.isEmpty {
+            // 讀不到的主機：列已經在畫面上時，錯誤放在列下方，不把列推走(行為規格 F2.9)。不用 alert,也不自動消失:
+            // 重新連上才會消失;列保持最後一次讀到的樣子(HIG 20.5)。每台主機一行「主機名：原因」(#37 故事 3)。
+            Section {
+                ForEach(failures, id: \.host) { failure in
+                    Label(failure.text, systemImage: "wifi.exclamationmark")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("agentList.error.\(failure.host.storedValue)")
+                }
+                Button("Try Again", systemImage: "arrow.clockwise") { model.retry() }
+                    .font(.footnote)
+                    .accessibilityIdentifier("agentList.retry")
+            } header: {
+                Text("Connection Lost")
+            }
+        }
+        if let usage, list(failedFor: model.selected) == false {
+            Section { ClaudeUsageFooter(model: usage) }
+        }
+        if model.showsSwipeHint, !sections.isEmpty {
+            // 第一次用滑動面板的動作之前，列表底部提示有哪些滑動動作(行為規格 F2.7)。
+            Section {
+                Label("Swipe a row left or right to pin, mute, rename, or close.", systemImage: "hand.draw")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("agentList.swipeHint")
+            }
+        }
     }
 
     /// 某台主機讀不到(Claude 用量只在選取中主機讀得到時顯示)。
@@ -168,34 +223,58 @@ public struct AgentListView: View {
 }
 
 /// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
-private struct ConversationScreen: View {
+///
+/// `window` 有值時(split view 的對話欄)，終端機推入與否也記在視窗的導覽狀態(Command-Shift-T 也能打開);
+/// `route` 是這個聊天(用來比對視窗要開的終端機)。
+struct ConversationScreen: View {
     @State private var model: ConversationModel
     /// 同一台主機上某個 Pane 的終端機 model(pane id、標題)。
     let makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?
+    let window: TopNavigationModel?
+    let route: ChatRoute?
     @State private var terminal: PaneTerminalModel?
 
-    init(model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?) {
+    init(
+        model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
+        window: TopNavigationModel? = nil, route: ChatRoute? = nil
+    ) {
         _model = State(wrappedValue: model())
         self.makeTerminal = makeTerminal
+        self.window = window
+        self.route = route
     }
 
     var body: some View {
         ConversationView(model: model)
             .toolbar {
-                if let makeTerminal {
+                if makeTerminal != nil {
                     // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
                     ToolbarItem(placement: .primaryAction) {
-                        PaneTerminalButton { terminal = makeTerminal(model.paneID, model.title.isEmpty ? model.paneID : model.title) }
+                        PaneTerminalButton { openTerminal() }
                     }
                 }
             }
+            .onChange(of: window?.openedTerminal, initial: true) { _, opened in
+                if let route, opened == route, terminal == nil { openTerminal() }
+            }
             #if canImport(UIKit)
             .navigationDestination(isPresented: Binding(
-                get: { terminal != nil }, set: { if !$0 { terminal = nil } }
+                get: { terminal != nil },
+                set: {
+                    guard !$0 else { return }
+                    terminal = nil
+                    if let route, window?.openedTerminal == route { window?.openedTerminal = nil }
+                }
             )) {
                 if let terminal { PaneTerminalView(model: terminal) }
             }
             #endif
+    }
+
+    private func openTerminal() {
+        guard let makeTerminal, terminal == nil else { return }
+        terminal = makeTerminal(model.paneID, model.title.isEmpty ? model.paneID : model.title)
+        if let window, let route, window.openedTerminal != route { window.openedTerminal = route }
     }
 }
 

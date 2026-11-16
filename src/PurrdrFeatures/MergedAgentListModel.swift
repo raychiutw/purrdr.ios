@@ -156,10 +156,12 @@ public final class MergedAgentListModel {
     }
 
     /// 每台主機各自的即時更新，同時進行，直到所在的 task 被取消。一台卡在退避不會擋住其他台。
+    ///
+    /// iPad 多視窗時每個視窗都會呼叫;每台主機的迴圈經 `AgentListModel.liveUpdates` 共用，各只跑一份(#31)。
     public func run() async {
         let lists = sources.map(\.list)
         await withTaskGroup(of: Void.self) { group in
-            for list in lists { group.addTask { await list.run() } }
+            for list in lists { group.addTask { await list.liveUpdates.attach() } }
         }
     }
 

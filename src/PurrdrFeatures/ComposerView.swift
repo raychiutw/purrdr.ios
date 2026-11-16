@@ -68,6 +68,16 @@ struct ComposerBar: View {
             send()
         }
         .overlay(alignment: .topLeading) {
+            if let hint = model.slashArgumentHint {
+                // 點選需要參數的 slash 指令後，游標後淡淡顯示要填什麼(#45)。草稿本身透明，只為了把提示排在它後面。
+                Text(Self.ghost(draft: model.draft, hint: hint))
+                    .lineLimit(1)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 11)
+                    .allowsHitTesting(false)
+                    .accessibilityLabel(Text("Argument: \(hint)"))
+                    .accessibilityIdentifier("composer.argumentHint")
+            }
             if model.draft.isEmpty {
                 Text("Message")
                     .foregroundStyle(.secondary)
@@ -85,6 +95,15 @@ struct ComposerBar: View {
                 .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
                 .allowsHitTesting(false)
         }
+    }
+
+    private static func ghost(draft: String, hint: String) -> AttributedString {
+        var typed = AttributedString(draft)
+        typed.foregroundColor = .clear
+        var placeholder = AttributedString(hint)
+        placeholder.foregroundColor = .secondary
+        placeholder.font = .body.monospaced()
+        return typed + placeholder
     }
 
     // MARK: - 按鈕
@@ -186,6 +205,7 @@ extension SendNotice {
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
         case .stillWorking: String(localized: "The agent is still working. Tap Stop again, or press and hold to force quit.")
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
+        case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
         case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
@@ -198,7 +218,7 @@ extension SendNotice {
         case .needsAnswer, .interruptRefusedNeedsAnswer: "exclamationmark.circle"
         case .agentGone, .superseded: "xmark.bubble"
         case .offline: "wifi.slash"
-        case .rejected, .noResponse, .interruptFailed, .uploadFailed: "exclamationmark.triangle"
+        case .rejected, .noResponse, .interruptFailed, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
         case .imageLimit, .imageUnreadable: "photo"
         case .unconfirmed: "questionmark.circle"
         case .stillWorking: "ellipsis.circle"
