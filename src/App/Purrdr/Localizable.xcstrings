@@ -400,13 +400,13 @@
         }
       }
     },
-    "A Mac or Linux host with your agents running in herdr 0.9.5 or later." : {
+    "A Mac, Linux, or Windows host with your agents running in herdr 0.9.5 or later." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "macOS 或 Linux 主機，agent 在 herdr 0.9.5 以上版本裡執行。"
+            "value" : "macOS、Linux 或 Windows 主機，agent 在 herdr 0.9.5 以上版本裡執行。"
           }
         }
       }
