@@ -304,14 +304,16 @@ extension AgentListProjection {
         return groups
     }
 
-    /// 共同資料夾的最後兩段(例如 `demo/Projects`)。
+    /// 共同資料夾的最後兩段(例如 `demo/Projects`;Windows 主機是 `demo\Projects`,#26)。
     private static func commonFolder(_ paths: [String]) -> String? {
-        let split = paths.map { $0.split(separator: "/").map(String.init) }
-        guard var common = split.first else { return nil }
+        let split = paths.map { HostPathSyntax.components($0).map(String.init) }
+        guard var common = split.first, let first = paths.first else { return nil }
         for components in split.dropFirst() {
             common = Array(zip(common, components).prefix { $0 == $1 }.map(\.0))
         }
-        let folder = common.suffix(2).joined(separator: "/")
+        // 磁碟機代號(`C:`)不算資料夾段。
+        if common.first?.hasSuffix(":") == true { common.removeFirst() }
+        let folder = common.suffix(2).joined(separator: HostPathSyntax.separator(of: first))
         return folder.isEmpty ? nil : folder
     }
 }
@@ -322,7 +324,7 @@ extension TerminalRow {
         let program = [pane.label, pane.terminalTitle]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty } ?? String(localized: "Shell")
         var parts = [program]
-        if let folder = pane.cwd.map({ $0.split(separator: "/").suffix(2).joined(separator: "/") }), !folder.isEmpty {
+        if let folder = pane.cwd.map({ HostPathSyntax.trailingComponents($0, count: 2) }), !folder.isEmpty {
             parts.append(folder)
         }
         if let hostLabel { parts.insert(hostLabel.name, at: 0) }

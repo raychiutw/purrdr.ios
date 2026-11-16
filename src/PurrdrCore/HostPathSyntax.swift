@@ -16,12 +16,48 @@ public enum HostPathSyntax {
     }
 
     /// 以 `/` 與 `\`(Windows 路徑)分段。
-    static func components(_ path: String) -> [Substring] {
+    public static func components(_ path: String) -> [Substring] {
         isWindowsDrivePath(path) ? path.split(whereSeparator: { $0 == "/" || $0 == "\\" }) : path.split(separator: "/")
     }
 
     /// 最後一段(資料夾名稱等顯示用)。
     public static func lastComponent(_ path: String) -> Substring? { components(path).last }
+
+    /// 這個路徑用的分隔字元:Windows 磁碟機路徑有 `\` 就用 `\`,其他用 `/`。
+    public static func separator(of path: String) -> String {
+        isWindowsDrivePath(path) && path.contains("\\") ? "\\" : "/"
+    }
+
+    /// 根目錄:`/`,或磁碟機根目錄 `C:\`／`C:/`。
+    public static func isRoot(_ path: String) -> Bool {
+        path == "/" || (isWindowsDrivePath(path) && path.count == 3)
+    }
+
+    /// 最後幾段，以路徑本身的分隔字元連接(列表副標的資料夾，例如 `Projects/ledger`、`Projects\ledger`)。
+    /// 磁碟機代號(`C:`)不算一段。
+    public static func trailingComponents(_ path: String, count: Int) -> String {
+        var parts = components(path)
+        if isWindowsDrivePath(path) { parts = Array(parts.dropFirst()) }
+        return parts.suffix(count).joined(separator: separator(of: path))
+    }
+
+    /// 子項目的路徑(資料夾瀏覽打開子資料夾)。
+    public static func appending(_ name: String, to path: String) -> String {
+        let separator = separator(of: path)
+        return path.hasSuffix(separator) ? path + name : path + separator + name
+    }
+
+    /// 上一層;根目錄沒有上一層(`nil`)。`C:\Users` 的上一層是 `C:\`,`/Users` 的是 `/`。
+    public static func parent(of path: String) -> String? {
+        guard !isRoot(path) else { return nil }
+        let parts = components(path)
+        if isWindowsDrivePath(path) {
+            let separator = separator(of: path)
+            guard let drive = parts.first else { return nil }
+            return drive + separator + parts.dropFirst().dropLast().joined(separator: separator)
+        }
+        return "/" + parts.dropLast().joined(separator: "/")
+    }
 
     /// 絕對路徑、沒有 `..` 段、沒有 NUL／CR／LF。
     static func isSafeAbsolute(_ path: String) -> Bool {
