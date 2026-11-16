@@ -10,25 +10,29 @@ import Testing
 struct LoginShellModelTests {
     static let shell = PTYRequest(columns: 80, rows: 24)
 
-    static func eventually(_ condition: () -> Bool) async {
-        let deadline = ContinuousClock.now + .seconds(2)
-        while !condition(), ContinuousClock.now < deadline {
+    /// 等非同步工作把狀態推到位(上限 `asyncWaitLimit`,條件一成立就返回)。逾時就讓後面的 `#expect` 失敗。
+    static func eventually(_ condition: () async -> Bool) async {
+        let deadline = ContinuousClock.now + asyncWaitLimit
+        while await !condition(), ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(5))
         }
     }
 
     /// 等假主機上的 PTY 紀錄符合條件。
     static func eventually(_ host: FakeHost, _ condition: ([FakeHost.PTYOpening]) -> Bool) async {
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + asyncWaitLimit
         while await !condition(host.ptys), ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(5))
         }
     }
 
-    /// 開好一個登入 Shell。
-    static func connected(_ host: FakeHost, output: Data = Data("demo@host ~ % ".utf8)) async -> (LoginShellModel, Rendered) {
+    /// 開好一個登入 Shell。去抖的等待注入假的(預設一直等到被取消)，測試不依賴真實時間。
+    static func connected(
+        _ host: FakeHost, output: Data = Data("demo@host ~ % ".utf8),
+        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+    ) async -> (LoginShellModel, Rendered) {
         await host.expectPTY(shell, output: output)
-        let model = LoginShellModel(channel: host, title: "Studio Mac", resizeDebounce: .milliseconds(30))
+        let model = LoginShellModel(channel: host, title: "Studio Mac", resizeDebounce: .milliseconds(30), sleep: sleep)
         let rendered = Rendered()
         model.attach { rendered.data += $0 }
         model.viewDidResize(columns: 80, rows: 24)
@@ -44,7 +48,7 @@ struct LoginShellModelTests {
     func opensLoginShellAfterSize() async throws {
         let host = FakeHost()
         await host.expectPTY(Self.shell, output: Data("demo@host ~ % ".utf8))
-        let model = LoginShellModel(channel: host, title: "Studio Mac", resizeDebounce: .milliseconds(30))
+        let model = LoginShellModel(channel: host, title: "Studio Mac", resizeDebounce: .milliseconds(30), sleep: RecordingSleeper().sleep)
         let rendered = Rendered()
         model.attach { rendered.data += $0 }
 
@@ -65,14 +69,19 @@ struct LoginShellModelTests {
     @Test("尺寸改變去抖後以 window-change 送出(只送最後一次)")
     func resizesThroughWindowChange() async throws {
         let host = FakeHost()
-        let (model, _) = await Self.connected(host)
+        let gate = DebounceGate()
+        let (model, _) = await Self.connected(host, sleep: gate.sleep)
 
         model.viewDidResize(columns: 60, rows: 20)
         model.viewDidResize(columns: 100, rows: 30)
+        await Self.eventually { await gate.requested.count == 2 }
+        // 去抖時間到：還在等的(沒被取消的)全部醒來。
+        await gate.open()
         await Self.eventually(host) { !($0.first?.sizes.isEmpty ?? true) }
-        try await Task.sleep(for: .milliseconds(100))
 
         #expect(await host.ptys.first?.sizes == [.init(columns: 100, rows: 30)])
+        // 第一次的去抖被新尺寸取消，只有最後一次等滿(不用固定等待確認「沒有多送」)。
+        #expect(await gate.completed == 1)
     }
 
     @Test("鍵盤與按鍵列的輸入原樣寫進 PTY;黏著 Ctrl 讓下一個字元變成控制字元")

@@ -139,7 +139,7 @@ public actor FakeHost: HostChannel {
     }
 
     /// 等到 app 開了 `count` 個 PTY。逾時則回傳目前數量。
-    public func waitForPTYs(_ count: Int, timeout: Duration = .seconds(2)) async -> Int {
+    public func waitForPTYs(_ count: Int, timeout: Duration = asyncWaitLimit) async -> Int {
         let deadline = ContinuousClock.now + timeout
         while ptys.count < count, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(5))
@@ -153,7 +153,7 @@ public actor FakeHost: HostChannel {
     }
 
     /// 等到 app 執行了 `count` 個指令(測試與 app 的非同步工作對齊用)。逾時則回傳目前數量。
-    public func waitForExecutions(_ count: Int, timeout: Duration = .seconds(2)) async -> Int {
+    public func waitForExecutions(_ count: Int, timeout: Duration = asyncWaitLimit) async -> Int {
         let deadline = ContinuousClock.now + timeout
         while executions.count < count, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(5))
@@ -163,7 +163,7 @@ public actor FakeHost: HostChannel {
 
     /// 等到第 `index` 個執行的 stdin 滿足 `condition`。逾時則回傳 `false`。
     public func waitForStdin(
-        ofExecution index: Int, timeout: Duration = .seconds(2), until condition: @Sendable (Execution) -> Bool
+        ofExecution index: Int, timeout: Duration = asyncWaitLimit, until condition: @Sendable (Execution) -> Bool
     ) async -> Bool {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {

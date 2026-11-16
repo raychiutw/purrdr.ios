@@ -287,11 +287,13 @@ public final class HostsModel {
 
     /// 網路路徑改變(狀態 + 可用介面類型組成的字串):丟棄所有主機的連線，下一個指令在新路由上撥號;
     /// 列表立刻重連。第一次回報只記錄。被丟棄連線上的 Pane 終端機以「連線中斷」結束(不自動重連)。
-    public func networkPathChanged(_ signature: String) {
+    /// - Returns: 丟棄連線並重連的 task(沒有要重設時是 `nil`);呼叫端不必等它，測試用來對齊。
+    @discardableResult
+    public func networkPathChanged(_ signature: String) -> Task<Void, Never>? {
         defer { networkPath = signature }
-        guard let previous = networkPath, previous != signature else { return }
+        guard let previous = networkPath, previous != signature else { return nil }
         let dropped = Array(channels.values) + [demoChannel]
-        Task {
+        return Task {
             for channel in dropped { await channel.disconnect() }
             agentList.retryNow()
         }

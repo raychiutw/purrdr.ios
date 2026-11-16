@@ -63,9 +63,10 @@ struct TailscaleCheckModelTests {
         #expect(model.agentList.phase == .failed("The Tailscale sign-in wasn’t finished in time. Try again."))
     }
 
-    /// 輪詢到條件成立(提示經 main actor 非同步送達)。
+    /// 輪詢到條件成立(提示經 main actor 非同步送達;上限 `asyncWaitLimit`)。
     private func until(_ condition: () -> Bool) async throws {
-        for _ in 0..<200 {
+        let deadline = ContinuousClock.now + asyncWaitLimit
+        while ContinuousClock.now < deadline {
             if condition() { return }
             try await Task.sleep(for: .milliseconds(10))
         }
