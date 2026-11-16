@@ -17,6 +17,7 @@ final class WorkspaceActionsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        app.reveal(ledger)
 
         ledger.swipeLeft()
         app.buttons["Workspace"].firstMatch.tap()
@@ -58,6 +59,7 @@ final class WorkspaceActionsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        app.reveal(ledger)
 
         ledger.swipeRight()
         XCTAssertTrue(app.buttons["Mute"].firstMatch.waitForExistence(timeout: 5), "往右滑沒有靜音")
@@ -100,6 +102,7 @@ final class WorkspaceActionsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(ledger.waitForExistence(timeout: 10))
+        app.reveal(ledger)
 
         ledger.press(forDuration: 1.2)
         app.buttons["New Worktree…"].tap()

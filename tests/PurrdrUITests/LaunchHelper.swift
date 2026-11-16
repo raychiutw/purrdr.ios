@@ -23,3 +23,18 @@ extension XCUIApplication {
         return app
     }
 }
+
+extension XCUIApplication {
+    /// 列被底部工具列(搜尋欄)蓋住時，把列表往上拖到列整個露出來，再滑動或點它。
+    /// 列表上方有「You should know」列(#23)、各組標題帶數量(#41)時，最後一組的列會落在工具列底下，
+    /// 這時滑動與點擊會打在工具列上。
+    @MainActor
+    func reveal(_ row: XCUIElement) {
+        let list = collectionViews.firstMatch
+        let limit = windows.firstMatch.frame.maxY - 150
+        for _ in 0..<3 where row.frame.maxY > limit {
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+                .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
+        }
+    }
+}

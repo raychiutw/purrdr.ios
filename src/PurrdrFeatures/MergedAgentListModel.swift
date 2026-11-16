@@ -61,8 +61,44 @@ public final class MergedAgentListModel {
     public var query = ""
     /// 要直接開的聊天：從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
     public var openedChat: ChatRoute?
+    /// 目前開著的聊天(iPhone 推入的對話、iPad 開在旁邊的):永遠不算未讀，也不算進需處理數量(行為規格 F2.6、F2.8)。
+    public private(set) var visibleChat: ChatRoute?
+    /// 列表底部的滑動操作提示：第一次用滑動面板的動作之前顯示(行為規格 F2.7)。
+    public private(set) var showsSwipeHint: Bool
+    private let swipeHint: any SwipeHintStore
 
-    public init() {}
+    public init(swipeHint: any SwipeHintStore = InMemorySwipeHintStore()) {
+        self.swipeHint = swipeHint
+        showsSwipeHint = !swipeHint.isDismissed
+    }
+
+    /// 對話出現在畫面上：記下開啟時間(這之前的回覆都算讀過)。
+    public func chatAppeared(_ route: ChatRoute) {
+        visibleChat = route
+        markOpened(route)
+    }
+
+    /// 對話離開畫面：再記一次開啟時間(看著的時候來的回覆也算讀過)。
+    public func chatDisappeared(_ route: ChatRoute) {
+        markOpened(route)
+        if visibleChat == route { visibleChat = nil }
+    }
+
+    /// 以列表看到的 session 記開啟時間;沒有 session 時不記(行為規格 F2.6:否則下一個用這個 pane 的聊天會被當成讀過)。
+    private func markOpened(_ route: ChatRoute) {
+        guard let session = snapshot(for: route.host)?.agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return }
+        actions(for: route.host)?.markOpened(sessionID: session, seen: list(for: route.host)?.previews[route.paneID]?.date)
+    }
+
+    /// 使用者第一次用了滑動面板的動作：之後不再顯示提示(SwiftUI 沒有「面板滑開」的訊號，以第一次使用代替)。
+    public func swipeActionUsed() {
+        guard showsSwipeHint else { return }
+        showsSwipeHint = false
+        swipeHint.dismiss()
+    }
+
+    /// 需要處理的 workspace 數(導覽入口的數字;不設 app 圖示徽章)。
+    public var attentionCount: Int { ChatUnread.attentionCount(sources: projectionSources, visible: visibleChat) }
 
     func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
@@ -71,13 +107,15 @@ public final class MergedAgentListModel {
 
     /// 合併後依「需要你／工作中／閒置」分組、套用搜尋的列表。
     public var sections: [AgentSection] {
-        AgentListProjection.sections(
-            sources: sources.map { source in
-                AgentListProjection.Source(
-                    host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
-                    snapshot: source.list.snapshot, previews: source.list.previews)
-            },
-            query: query)
+        AgentListProjection.sections(sources: projectionSources, query: query, visible: visibleChat)
+    }
+
+    private var projectionSources: [AgentListProjection.Source] {
+        sources.map { source in
+            AgentListProjection.Source(
+                host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
+                snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
+        }
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。

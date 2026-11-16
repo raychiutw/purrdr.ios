@@ -61,7 +61,8 @@ public struct TopNavigationView: View {
                     SettingsView(
                         model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync,
                         hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
-                        openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher
+                        openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher,
+                        attention: { hosts.agentList.attentionCount }
                     ) {
                         navigation.sheet = nil
                     }

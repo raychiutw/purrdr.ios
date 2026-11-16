@@ -64,6 +64,8 @@ struct PurrdrApp: App {
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
+                // 滑動提示每次啟動都顯示(只在記憶體)。
+                swipeHint: InMemorySwipeHintStore(),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
                 makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? UnreachableHostChannel() as any HostChannel : demo })
         } else {
@@ -74,7 +76,7 @@ struct PurrdrApp: App {
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
-                push: push, tailscaleCheck: tailscaleCheck
+                push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore()
             ) { endpoint, pin, credential in
                 SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer)
             }
