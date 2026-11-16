@@ -353,7 +353,12 @@ struct ComposerTextEditor: UIViewRepresentable {
             view.selectedRange = NSRange(location: location, length: 0)
         }
         if !isFocused, view.isFirstResponder {
-            view.resignFirstResponder()
+            // 不在畫面更新中 resign:resign 時 UIKit 會問 hosting view 的 responder,又觸發同一張 AttributeGraph 的更新，
+            // 形成循環，主執行緒卡上數分鐘(#34 的 UI 測試抓到)。等這次更新結束再收起，那時焦點仍是 false 才收。
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                if !coordinator.parent.isFocused, view.isFirstResponder { view.resignFirstResponder() }
+            }
         }
     }
 

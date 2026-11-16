@@ -10,7 +10,7 @@ final class ConversationHeaderUITests: XCTestCase {
     private func open(paneID: String) -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "沒有看到 Demo 主機的 Agent")
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         return app
     }

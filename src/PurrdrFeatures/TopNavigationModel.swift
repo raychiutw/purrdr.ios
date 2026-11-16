@@ -50,6 +50,22 @@ public final class TopNavigationModel {
         visibleSections(sections, host: host, snapshot: snapshot).flatMap { $0.rows.map(\.route) }
     }
 
+    /// 視窗出現了：第一次開啟 app 時開出歡迎頁(#34)。已經有 sheet(例如冷啟動的深層連結)時不蓋掉它。
+    public func launched(welcome: WelcomeModel) {
+        guard sheet == nil, welcome.takeFirstLaunch() else { return }
+        sheet = .welcome
+    }
+
+    /// 從設定頁再看一次歡迎頁(換掉設定 sheet,同一時間只開一個)。
+    public func showWelcome() {
+        sheet = .welcome
+    }
+
+    /// 歡迎頁的「新增主機」:換成主機 sheet。
+    public func welcomeAddHost() {
+        sheet = .hosts
+    }
+
     /// 換了選取中主機：側欄的 workspace 篩選與版面圖卡片屬於前一台主機，清掉。
     /// 選取的聊天與它的終端機留著：列表合併了所有主機(#39),聊天帶著自己的主機，換選取中主機不影響它。
     public func hostChanged() {
@@ -109,6 +125,8 @@ public enum TopLevelSheet: String, Identifiable, Sendable {
     case member
     /// Purrdr Plus 的付費牆與訂閱摘要(#28)。
     case plus
+    /// 第一次開啟的歡迎頁(#34)。
+    case welcome
 
     public var id: String { rawValue }
 }

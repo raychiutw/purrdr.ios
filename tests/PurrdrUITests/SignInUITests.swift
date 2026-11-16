@@ -10,7 +10,7 @@ final class SignInUITests: XCTestCase {
     func testAgentListNeedsNoSignIn() {
         let app = XCUIApplication.launchUITesting()
 
-        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["member.signIn.apple"].exists)
     }
 

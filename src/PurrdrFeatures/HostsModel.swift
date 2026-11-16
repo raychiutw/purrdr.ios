@@ -55,6 +55,8 @@ public final class HostsModel {
     public weak var changeRecorder: (any HostChangeRecorder)?
     /// 對話作答的觸覺(composition root 注入系統觸覺;測試不播放)。
     public var haptics: any Haptics = SilentHaptics()
+    /// 成功送出幾次 prompt 後請求評分(#34);`nil` 時不請求。所有主機、所有聊天共用一份計數。
+    public var reviewPrompt: ReviewPrompt?
 
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
@@ -159,6 +161,7 @@ public final class HostsModel {
             images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore))
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
+        model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
         return model
     }
 

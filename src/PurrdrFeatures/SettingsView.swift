@@ -26,15 +26,18 @@ public struct SettingsView: View {
     let codexLauncher: CodexLauncherModel?
     /// 需要處理的 workspace 數(「完成」旁的數字，行為規格 F2.8)。
     let attention: () -> Int
+    /// 再看一次歡迎頁(#34;HIG Onboarding:跳過後在設定找得到)。
+    let openWelcome: () -> Void
     let done: () -> Void
 
     public init(
         model: SettingsModel, member: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil,
         hostSync: HostSyncModel? = nil, hostTheme: HostThemeModel? = nil, youShouldKnow: YouShouldKnowModel? = nil,
         openPlus: @escaping () -> Void = {}, codexLauncher: CodexLauncherModel? = nil,
-        attention: @escaping () -> Int = { 0 }, done: @escaping () -> Void
+        attention: @escaping () -> Int = { 0 }, openWelcome: @escaping () -> Void = {}, done: @escaping () -> Void
     ) {
         self.attention = attention
+        self.openWelcome = openWelcome
         self.model = model
         self.member = member
         self.plus = plus
@@ -95,6 +98,8 @@ public struct SettingsView: View {
                 }
 
                 Section {
+                    Button("Show Welcome", systemImage: "hand.wave") { openWelcome() }
+                        .accessibilityIdentifier("settings.welcome")
                     Button("Rate Purrdr", systemImage: "star") { model.rateApp() }
                         .accessibilityIdentifier("settings.rate")
                     Button("Support", systemImage: "questionmark.circle") { model.openSupport() }

@@ -256,6 +256,8 @@ public final class ConversationModel {
     private let delivery: PromptDelivery
     private let slashDiscovery: ClaudeSlashDiscovery?
     private let haptics: any Haptics
+    /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
+    @ObservationIgnored public var onPromptDelivered: (@MainActor () -> Void)?
     /// 下一次輪詢要讀畫面(送出時 agent 在等回答)。
     private var probeScreen = false
     private var answerSignature: String?
@@ -866,6 +868,7 @@ public final class ConversationModel {
         switch outcome {
         case .delivered:
             setEcho(id, state: .sent)
+            onPromptDelivered?()
             return
         case .submittedCommand:
             setEcho(id, state: .sent)

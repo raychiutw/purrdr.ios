@@ -2,6 +2,7 @@ import Foundation
 import PurrdrCore
 import PurrdrDemo
 import PurrdrFeatures
+import StoreKit
 import SwiftUI
 
 /// 唯一的 composition root:組裝主機儲存、主機通道、Purrdr 後台與畫面 model。
@@ -18,6 +19,8 @@ struct PurrdrApp: App {
     private let settings: SettingsModel
     /// 主機同步(#30):跟會員、Purrdr Plus 共用同一個 `MemberSession`。
     private let hostSync: HostSyncModel
+    /// 第一次開啟的歡迎頁(#34)。
+    private let welcome: WelcomeModel
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -83,12 +86,27 @@ struct PurrdrApp: App {
             }
         }
         hosts.haptics = SystemHaptics()
+        hosts.reviewPrompt = Self.makeReviewPrompt(uiTesting: uiTesting)
         hosts.load()
         _hosts = State(initialValue: hosts)
         // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
         hostSync = HostSyncModel(
             session: session, plus: plus, hosts: hosts, store: uiTesting ? InMemoryHostSyncStore() : UserDefaultsHostSyncStore())
         settings = Self.makeSettings(hosts: hosts)
+        // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
+        welcome = WelcomeModel(store: uiTesting
+            ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
+    }
+
+    /// 成功送出幾次 prompt 後請求評分(#34)。UI 測試只在記憶體計數、不叫出系統的評分對話框(會擋住後面的操作)。
+    private static func makeReviewPrompt(uiTesting: Bool) -> ReviewPrompt {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        guard !uiTesting else { return ReviewPrompt(store: InMemoryReviewPromptStore(), appVersion: version) {} }
+        return ReviewPrompt(store: UserDefaultsReviewPromptStore(), appVersion: version) {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else { return }
+            AppStore.requestReview(in: scene)
+        }
     }
 
     /// 設定頁。偏好存在 `UserDefaults.standard`(輸入列的 `@AppStorage` 讀同一個 key)。
@@ -142,7 +160,8 @@ struct PurrdrApp: App {
         // 主視窗(三欄)。iPad 可以開好幾個，每個視窗有自己的導覽狀態;主機與 Agent 列表共用。
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
-                hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router)
+                hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
+                welcome: welcome)
         }
         .commands { PurrdrCommands() }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。

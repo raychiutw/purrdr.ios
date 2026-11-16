@@ -22,6 +22,8 @@ public struct TopNavigationView: View {
     let hostSync: HostSyncModel?
     /// 點了推播通知(#29);`nil` 時沒有推播。
     let notifications: PushNotificationRouter?
+    /// 第一次開啟的歡迎頁(#34);`nil` 時不自動開出。
+    let welcome: WelcomeModel?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openWindow) private var openWindow
@@ -31,8 +33,9 @@ public struct TopNavigationView: View {
 
     public init(
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
-        hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil
+        hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil
     ) {
+        self.welcome = welcome
         self.hostSync = hostSync
         self.hosts = hosts
         self.member = member
@@ -62,7 +65,7 @@ public struct TopNavigationView: View {
                         model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync,
                         hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
                         openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher,
-                        attention: { hosts.agentList.attentionCount }
+                        attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }
                     ) {
                         navigation.sheet = nil
                     }
@@ -72,6 +75,18 @@ public struct TopNavigationView: View {
                 case .plus:
                     if let plus {
                         PlusSheet(model: plus, member: member)
+                    }
+                case .welcome:
+                    WelcomeView {
+                        // 選 Demo 主機(已有主機時 Demo 也會出現在列表上)並回到列表。
+                        hosts.select(.demo)
+                        navigation.sheet = nil
+                    } addHost: {
+                        navigation.welcomeAddHost()
+                    } rate: {
+                        settings.rateApp()
+                    } done: {
+                        navigation.sheet = nil
                     }
                 case .newChat:
                     NewChatSheet(model: hosts.newChat()) {
@@ -83,6 +98,8 @@ public struct TopNavigationView: View {
                     }
                 }
             }
+            // 第一次開啟 app:開出歡迎頁(#34)。
+            .task { if let welcome { navigation.launched(welcome: welcome) } }
             // 冷啟動與從背景回來的深層連結都會走到這裡。
             .onOpenURL { navigation.open($0) }
             // StoreKit 的交易更新(續訂、別台裝置購買、兌換 Offer Code、未 finish 的交易)從啟動就要接。
