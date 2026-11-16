@@ -92,10 +92,15 @@ private struct WorkspaceSidebarRow: View {
             Label(workspace.label ?? workspace.id, systemImage: "folder")
                 .accessibilityIdentifier("sidebar.workspace.\(workspace.id)")
             Spacer()
-            Button("Show Layout", systemImage: "rectangle.split.3x1") {
+            // 觸控目標 ≥ 44×44 pt(frame 放在 label 裡才會撐大可點範圍,#35 iPad audit)。
+            Button {
                 card.tap(workspace.id)
+            } label: {
+                Label("Show Layout", systemImage: "rectangle.split.3x1")
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(.rect)
             }
-            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
             .onHover { inside in
                 Task { await card.pointer(overButton: workspace.id, isInside: inside) }

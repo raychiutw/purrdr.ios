@@ -125,12 +125,18 @@ private struct TabGroupTitle: View {
 struct TerminalRowView: View {
     let row: TerminalRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 選取中(tint 填滿的底)次要色改白色(同 `AgentRowView`)。
+    @Environment(\.backgroundProminence) private var backgroundProminence
+
+    private var secondary: AnyShapeStyle {
+        backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "apple.terminal")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondary)
                 .frame(minWidth: 24)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
@@ -138,7 +144,7 @@ struct TerminalRowView: View {
                     .font(.body)
                 Text(verbatim: row.subtitle)
                     .font(.subheadline.monospaced())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(secondary)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
         }

@@ -10,6 +10,11 @@ extension XCTestCase {
     ) throws {
         let size = contentSize == nil ? "預設字級" : "AX5"
         let context = AccessibilityAuditContext(app: app, screen: screen, isAccessibilitySize: contentSize != nil)
+        // 稽核當下的畫面(測試失敗時留在 result bundle,對照 log 的 frame 找元素)。
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "a11y-audit \(screen) \(size)"
+        shot.lifetime = .deleteOnSuccess
+        add(shot)
         try app.performAccessibilityAudit(for: types) { issue in
             let summary = AccessibilityAuditExclusions.describe(issue)
             if let reason = AccessibilityAuditExclusions.reason(for: issue, in: context) {
@@ -63,6 +68,11 @@ final class AccessibilityAuditContext {
     }()
 
     lazy var window: CGRect = app.windows.firstMatch.frame
+
+    /// 半透明填色的內容卡片(需要你、subagent、workflow)。
+    lazy var cards: [CGRect] = ["prompt.card", "conversation.subagent", "conversation.workflow"].flatMap { identifier in
+        app.descendants(matching: .any).matching(identifier: identifier).allElementsBoundByIndex.map(\.frame)
+    }.filter { !$0.isEmpty }
 
     /// 元素在導覽列裡(導覽列標題、工具列按鈕)。
     func isInNavigationBar(_ frame: CGRect) -> Bool {
@@ -187,6 +197,21 @@ enum AccessibilityAuditExclusions {
         ) { issue, _ in
             guard let element = issue.element else { return false }
             return !element.isEnabled
+        },
+        Rule(
+            types: .contrast,
+            reason: "需要你卡片、subagent／workflow 卡片裡的主要色文字(選項編號、卡片標題):截圖確認是黑字配淺灰填色(約 15:1 以上)。"
+                + "這些卡片的底是半透明填色、旁邊有轉動的進度圖示，audit 的取樣在幾輪之間時過時不過(同一份程式碼前三輪通過)"
+        ) { issue, context in
+            guard let element = issue.element, element.elementType == .staticText else { return false }
+            return context.cards.contains { $0.contains(element.frame) }
+        },
+        Rule(
+            types: [.dynamicType, .textClipped],
+            reason: "對應不到元素、說明是一般的「this element」而不是 SwiftUI 節點:UIKit 繪製的系統元件(iPad split view 的側欄切換鈕、"
+                + "視窗控制等)。app 的文字都是 SwiftUI,會以「SwiftUI.AccessibilityNode」回報"
+        ) { issue, _ in
+            issue.element == nil && !issue.detailedDescription.contains("SwiftUI")
         },
         Rule(
             types: .sufficientElementDescription,

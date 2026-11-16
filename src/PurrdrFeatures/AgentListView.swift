@@ -342,13 +342,21 @@ struct ConversationScreen: View {
 struct AgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 選取中(iPad 的 split view 列以 tint 填滿)時是 `.increased`:次要色與 tint 字都要改成白色，
+    /// 否則淡白／紅字疊在紅底上看不見(#35 iPad audit)。
+    @Environment(\.backgroundProminence) private var backgroundProminence
+
+    private var isProminent: Bool { backgroundProminence == .increased }
+
+    /// 次要色;選取中改白色。
+    private var secondary: AnyShapeStyle { isProminent ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // agent 種類圖示(#37 故事 6)。種類名稱已在副標裡，VoiceOver 不重複念。
             Image(systemName: AgentKindSymbol.name(for: row.kind))
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondary)
                 .frame(minWidth: 24)
                 .accessibilityHidden(true)
             // AX 字級改成上下堆疊，不截斷(DESIGN.md)。不用 `ViewThatFits`:它比的是文字不換行的理想寬度，
@@ -389,13 +397,13 @@ struct AgentRowView: View {
                 if row.isPinned {
                     Image(systemName: "pin.fill")
                         .imageScale(.small)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(secondary)
                         .accessibilityLabel(Text("Pinned"))
                 }
                 if row.isMuted {
                     Image(systemName: "bell.slash.fill")
                         .imageScale(.small)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(secondary)
                         .accessibilityLabel(Text("Muted"))
                 }
             }
@@ -410,7 +418,7 @@ struct AgentRowView: View {
                     .lineLimit(lines(1))
             }
             .font(.subheadline.monospaced())
-            .foregroundStyle(.secondary)
+            .foregroundStyle(secondary)
             preview
                 .font(.subheadline)
                 .lineLimit(lines(1))
@@ -422,13 +430,13 @@ struct AgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(.tint)
+                .foregroundStyle(isProminent ? AnyShapeStyle(Color.white) : AnyShapeStyle(.tint))
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondary)
         case .status(let status):
             Text(status.title)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondary)
         }
     }
 
@@ -437,7 +445,7 @@ struct AgentRowView: View {
         if let time = row.time {
             Text(time.text())
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondary)
         }
     }
 }
@@ -446,15 +454,18 @@ struct AgentRowView: View {
 /// 顏色只上在符號：文字維持次要色，確保對比;「需要你」整個用 tint(品牌紅,`#D91E36` 對白底 5.0:1)。
 struct StatusLabel: View {
     let status: AgentStatus
+    /// 選取中的列(tint 填滿的底):符號與文字都用白色，形狀仍區分狀態。
+    @Environment(\.backgroundProminence) private var backgroundProminence
 
     var body: some View {
+        let prominent = backgroundProminence == .increased
         // 不用 `Label`:在 List 列裡 Label 套的是列表樣式(圖示固定欄寬、標題對齊列文字),放進 `fixedSize` 的右側欄
         // 算不出理想寬度，標題被擠成極窄、一字一行，整列被撐高(#35)。
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: status.symbol)
-                .foregroundStyle(status.color)
+                .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : status.color)
             Text(status.title)
-                .foregroundStyle(status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
         }
         .font(.subheadline)
         .accessibilityElement(children: .combine)
