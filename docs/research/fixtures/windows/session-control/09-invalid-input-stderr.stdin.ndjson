@@ -1,0 +1,6 @@
+{"type":"terminal.resize","cols":0,"rows":10}
+this is not json
+{"type":"terminal.bogus"}
+{"type":"terminal.input","text":"x","bytes":"eA=="}
+{"type": "terminal.input", "text": "Write-Output still-alive\r"}
+{"type":"terminal.release"}

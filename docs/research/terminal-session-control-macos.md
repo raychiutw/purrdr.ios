@@ -190,7 +190,7 @@
 ## 限制與未驗證
 
 - 沒有經過真正的 SSH 通道;網路延遲、sshd 關通道時的訊號、無聲斷線後殘留的 client 都沒實測。
-- Windows 未測(ADR-0005 的另一半前提)。
+- Windows 未測(ADR-0005 的另一半前提)。→ 已在 #6 實測，見 `terminal-session-control-windows.md`。
 - 只用 bash、vim、less、top 測過，沒有測 agent 的 TUI(依安全規則不碰使用者的 agent)。
 - 延遲數據是本機 pipe,不含網路來回。
 

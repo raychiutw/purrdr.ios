@@ -1,0 +1,5 @@
+{"t_ms": 2.5, "dir": "stdin", "line": "{\"id\":\"purrdr:ping\",\"method\":\"ping\",\"params\":{}}\n{\"id\":\"purrdr:ping2\",\"method\":\"ping\",\"params\":{}}"}
+{"t_ms": 1183.2, "dir": "stdout", "line": "{\"id\":\"purrdr:ping\",\"result\":{\"type\":\"pong\",\"version\":\"0.9.5\",\"protocol\":22,\"capabilities\":{\"live_handoff\":false,\"detached_server_daemon\":true,\"endpoint_protocol_generation\":1,\"surface_interest\":true,\"health_check\":true,\"ssh_agent_registration\":false}}}"}
+{"t_ms": 1188.2, "dir": "stdout_eof", "line": null}
+{"t_ms": 3012.6, "dir": "stdin_eof", "line": null}
+{"t_ms": 3012.9, "dir": "exit", "line": 0}

@@ -1,0 +1,5 @@
+{"t_ms": 1.5, "dir": "stdin", "line": "{\"id\":\"purrdr:workspace.get\",\"method\":\"workspace.get\",\"params\":{\"workspace_id\":\"w2\"}}"}
+{"t_ms": 1143.5, "dir": "stdout", "line": "{\"id\":\"purrdr:workspace.get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"workspace_id\":\"w2\",\"number\":2,\"label\":\"purrdr-spike-測試🙂\",\"focused\":false,\"pane_count\":1,\"tab_count\":1,\"active_tab_id\":\"w2:t1\",\"agent_status\":\"unknown\"}}}"}
+{"t_ms": 1155.7, "dir": "stdout_eof", "line": null}
+{"t_ms": 1155.8, "dir": "stdin_eof", "line": null}
+{"t_ms": 1158.5, "dir": "exit", "line": 0}

@@ -1,0 +1,6 @@
+{"t_ms": 2.0, "dir": "stdin", "line": "{\"id\":\"purrdr:events.subscribe\",\"method\":\"events.subscribe\",\"params\":{\"subscriptions\":[{\"type\":\"workspace.created\"},{\"type\":\"workspace.closed\"}]}}"}
+{"t_ms": 1178.8, "dir": "stdout", "line": "{\"id\":\"purrdr:events.subscribe\",\"result\":{\"type\":\"subscription_started\"}}"}
+{"t_ms": 5593.9, "dir": "stdout", "line": "{\"data\":{\"type\":\"workspace_closed\",\"workspace\":{\"active_tab_id\":\"w2:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"purrdr-spike\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"w2\"},\"workspace_id\":\"w2\"},\"event\":\"workspace_closed\"}"}
+{"t_ms": 10012.1, "dir": "stdin_eof", "line": null}
+{"t_ms": 10094.9, "dir": "stdout_eof", "line": null}
+{"t_ms": 10097.8, "dir": "exit", "line": 0}
