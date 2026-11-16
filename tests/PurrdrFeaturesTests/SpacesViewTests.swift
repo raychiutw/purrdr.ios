@@ -45,6 +45,26 @@ struct SpacesViewTests {
         }
     }
 
+    @Test("只有終端機、沒有 Agent:Spaces 檢視照常列出;Agents 檢視說明沒有 Agent 並可切到 Spaces(#40)")
+    func onlyTerminalsShowInSpaces() async throws {
+        let model = await Self.model { response in
+            // 改動：拿掉所有 agent(與它們的 pane),只剩 w2 的 shell。
+            var result = response["result"] as? [String: Any] ?? [:]
+            var snapshot = result["snapshot"] as? [String: Any] ?? [:]
+            let agentPanes = Set((snapshot["agents"] as? [[String: Any]] ?? []).compactMap { $0["pane_id"] as? String })
+            snapshot["agents"] = [[String: Any]]()
+            snapshot["panes"] = (snapshot["panes"] as? [[String: Any]] ?? []).filter { !agentPanes.contains($0["pane_id"] as? String ?? "") }
+            result["snapshot"] = snapshot
+            response["result"] = result
+        }
+
+        model.agentList.mode = .spaces
+        #expect(model.agentList.content == .list, "只有終端機時 Spaces 檢視說成沒有 Agent")
+        #expect(!Self.cards(model).isEmpty)
+        model.agentList.mode = .agents
+        #expect(model.agentList.content == .noAgentsInAgentsView)
+    }
+
     @Test("有兩個以上 agent 的 workspace 是卡片：統計行、最急迫的狀態，多個 tab 時依 tab 名稱分組")
     func multiAgentWorkspaceIsCardGroupedByTab() async throws {
         let model = await Self.model()

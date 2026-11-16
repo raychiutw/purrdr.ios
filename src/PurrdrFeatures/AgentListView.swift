@@ -138,6 +138,15 @@ public struct AgentListView: View {
                 systemImage: "bubble.left.and.text.bubble.right",
                 description: Text("Agents you start in herdr on your hosts appear here.")
             )
+        case .noAgentsInAgentsView:
+            ContentUnavailableView {
+                Label("No Agents", systemImage: "bubble.left.and.text.bubble.right")
+            } description: {
+                Text("No workspace on your hosts is running an agent. Spaces also shows their terminals.")
+            } actions: {
+                Button("Show Spaces") { model.mode = .spaces }
+                    .accessibilityIdentifier("agentList.showSpaces")
+            }
         case .list:
             list
         }
@@ -163,6 +172,8 @@ public struct AgentListView: View {
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
+        // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
+        .id(model.mode)
         .overlay {
             if (model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
                 ContentUnavailableView(

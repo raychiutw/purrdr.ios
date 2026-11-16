@@ -33,6 +33,8 @@ public final class MergedAgentListModel {
         case failed(String)
         /// 所有主機都讀到了，沒有 Agent。
         case empty
+        /// Agents 檢視沒有 Agent,但有終端機(Spaces 檢視看得到):說明並提供切到 Spaces。
+        case noAgentsInAgentsView
         case list
     }
 
@@ -145,10 +147,20 @@ public final class MergedAgentListModel {
         }
     }
 
+    /// 任何一台主機有 Agent 以外的 pane(終端機;Spaces 檢視的卡片看得到)。
+    private var hasTerminals: Bool {
+        sources.contains { source in
+            guard let snapshot = source.list.snapshot else { return false }
+            let agentPanes = Set(snapshot.agents.map(\.paneID))
+            return snapshot.panes.contains { !agentPanes.contains($0.id) }
+        }
+    }
+
     public var content: Content {
         if hasAgents { return .list }
         if case .failed(let message)? = list(for: selected)?.phase { return .failed(message) }
         if sources.contains(where: { $0.list.phase == .loading }) { return .loading }
+        if hasTerminals { return mode == .spaces ? .list : .noAgentsInAgentsView }
         return failures.isEmpty ? .empty : .list
     }
 
