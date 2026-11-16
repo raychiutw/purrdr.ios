@@ -66,9 +66,10 @@ extension ConversationHeader.Status {
     public var title: String {
         switch self {
         case .offline: String(localized: "Offline")
-        case .working: String(localized: "Working")
-        case .needsYou: String(localized: "Needs You")
-        case .done: String(localized: "Done")
+        // 與列表共用 Agent 狀態的狀態字。
+        case .working: String(localized: AgentStatus.working.title)
+        case .needsYou: String(localized: AgentStatus.blocked.title)
+        case .done: String(localized: AgentStatus.done.title)
         case .online: String(localized: "Online")
         }
     }

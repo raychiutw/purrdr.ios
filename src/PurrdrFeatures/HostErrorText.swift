@@ -46,12 +46,9 @@ enum HostErrorText {
             String(localized: "This isn’t an OpenSSH private key. Paste the whole file, starting with “-----BEGIN OPENSSH PRIVATE KEY-----”. To convert an older key, run ssh-keygen -p -f on it.")
         case .publicKeyInsteadOfPrivate:
             String(localized: "This is a public key. Paste the private key file instead (the one without .pub).")
-        case .passphraseRequired:
-            String(localized: "This key is protected by a passphrase. Enter it below.")
-        case .wrongPassphrase:
-            String(localized: "The passphrase is incorrect.")
-        case .unsupportedCipher(let cipher):
-            String(localized: "This key is encrypted with \(cipher), which isn’t supported. Run ssh-keygen -p -f on the key to re-encrypt it.")
+        case .passphraseProtected:
+            // 只用系統加密，不解 passphrase(見 SSHKeyImportError.passphraseProtected)。
+            String(localized: "Keys protected by a passphrase aren’t supported. On your computer, remove the passphrase with ssh-keygen -p -N \"\" -f <key file>, then paste the key again.")
         case .malformed:
             String(localized: "This key is incomplete or damaged. Paste the whole file again.")
         }

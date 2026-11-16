@@ -62,6 +62,8 @@ struct PurrdrApp: App {
             let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
             hosts = HostsModel(
                 store: EphemeralHostStore(hosts: Self.seededHosts(arguments)), demoChannel: demo,
+                // 示範主機在 UI 測試要明確開啟(`-demoCompanions`),其他測試的列表才不會多出它們的列。
+                demoCompanions: arguments.contains("-demoCompanions") ? Self.demoCompanions(demo) : [],
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: InMemoryHostSelectionStore(arguments.contains("-selectDemo") ? .demo : nil),
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, tailscaleCheck: tailscaleCheck,
@@ -70,14 +72,15 @@ struct PurrdrApp: App {
                 // 滑動提示每次啟動都顯示(只在記憶體)。
                 swipeHint: InMemorySwipeHintStore(),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
-                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? UnreachableHostChannel() as any HostChannel : demo })
+                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
                 secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
             // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
-                store: KeychainHostStore(), demoChannel: demo, conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
+                store: KeychainHostStore(), demoChannel: demo, demoCompanions: Self.demoCompanions(demo),
+                conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
                 push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
                 listMode: UserDefaultsAgentListModeStore()
@@ -137,6 +140,17 @@ struct PurrdrApp: App {
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000002")!, name: "Lab Server",
         endpoint: SSHEndpoint(host: "lab-server.invalid", username: "demo"), operatingSystem: .linux)
 
+    /// Demo 的示範主機(#34,App Review 也看得到):「Studio Mac」(內容同 Demo 主機)與一律連不上的「Lab Server」,
+    /// 演出多主機合併列表與連線中斷。只在 Demo 主機出現在列表時出現，不是已存主機。
+    private static func demoCompanions(_ demo: DemoHost) -> [DemoCompanionHost] {
+        [
+            DemoCompanionHost(id: UUID(uuidString: "DE300000-0000-4000-8000-000000000001")!, name: "Studio Mac", icon: .macMini, channel: demo),
+            DemoCompanionHost(
+                id: UUID(uuidString: "DE300000-0000-4000-8000-000000000002")!, name: "Lab Server", icon: .rack,
+                channel: DemoUnreachableChannel()),
+        ]
+    }
+
     private static func seededHosts(_ arguments: [String]) -> [HostConfiguration] {
         (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
     }
@@ -173,13 +187,3 @@ struct PurrdrApp: App {
     }
 }
 
-/// UI 測試用：一律連不上的主機通道(不連網路)。
-private struct UnreachableHostChannel: HostChannel {
-    func execute(_ command: String) async throws -> any ExecSession {
-        throw SSHConnectionError.timedOut
-    }
-
-    func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
-        throw SSHConnectionError.timedOut
-    }
-}

@@ -17,6 +17,18 @@ struct DemoNewChatTests {
         await #expect(throws: NewChatFolderError.notFound("~/nope")) { try await folders.list("~/nope") }
     }
 
+    @Test("新增對話的資料夾瀏覽與檔案瀏覽看到同一棵資料夾樹(同一份 Demo 資料)")
+    func sameTreeAsFileBrowser() async throws {
+        let host = DemoHost()
+        let picker = NewChatFolders(channel: host)
+        let files = HostFolders(channel: host)
+
+        for path in ["/", "/Users", "/Users/demo", "/Users/demo/ledger", "/Users/demo/ledger/reports", "/Users/demo/notes"] {
+            let listed = try await files.list(path).entries.filter { $0.kind == .folder }.map(\.name)
+            #expect(try await picker.list(path).folders == listed, "\(path)")
+        }
+    }
+
     @Test("開始：資料夾解析得到，但 workspace.create 回 demo_unsupported")
     func startIsRejected() async throws {
         let host = DemoHost()

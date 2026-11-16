@@ -181,16 +181,12 @@ extension AgentListProjection {
     /// - 已釘選(#41):被釘選的聊天列、或有任一 Agent 被釘選的卡片，放在「已釘選」,依釘選時間舊→新
     ///   (卡片以最早釘選的 Agent 為準),不看狀態。卡片裡的列各自帶未讀與釘選記號。
     /// - Parameter visible: 目前開著的聊天(不算未讀)。
-    static func spacesSections(sources: [Source], query: String, visible: ChatRoute? = nil) -> [SpacesSection] {
+    static func spacesSections(sources: [Source], query: String, visible: Set<ChatRoute> = []) -> [SpacesSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let entries = sources.enumerated().flatMap { hostOrder, source in
             spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
         }
-        let groups = Dictionary(grouping: entries) { $0.order.group }
-        return AgentGroup.allCases.compactMap { group in
-            guard let entries = groups[group], !entries.isEmpty else { return nil }
-            return SpacesSection(group: group, items: entries.sorted { group.areInIncreasingOrder($0.order, $1.order) }.map(\.item))
-        }
+        return grouped(entries, order: \.order).map { SpacesSection(group: $0, items: $1.map(\.item)) }
     }
 
     private struct SpacesEntry {
@@ -199,73 +195,109 @@ extension AgentListProjection {
         var order: Entry
     }
 
-    private static func spacesEntries(of source: Source, hostOrder: Int, needle: String, visible: ChatRoute?) -> [SpacesEntry] {
+    /// 一台主機的 snapshot 在 Spaces 檢視要用到的東西(每個 workspace 共用，只算一次)。
+    private struct SpacesContext {
+        var source: Source
+        var snapshot: HostSnapshot
+        var hostOrder: Int
+        var needle: String
+        var visible: Set<ChatRoute>
+        /// Agents 檢視的列(以 pane id),搜尋與分組都沿用。
+        var rows: [String: AgentRow]
+        /// 命中搜尋的 Agent pane。
+        var matched: Set<String>
+        /// Agent 在 snapshot 裡的位置(排序用)。
+        var positions: [String: Int]
+        var agentPanes: Set<String>
+
+        init(source: Source, snapshot: HostSnapshot, hostOrder: Int, needle: String, visible: Set<ChatRoute>) {
+            self.source = source
+            self.snapshot = snapshot
+            self.hostOrder = hostOrder
+            self.needle = needle
+            self.visible = visible
+            rows = Dictionary(
+                AgentListProjection.sections(sources: [source], query: "", visible: visible).flatMap(\.rows).map { ($0.paneID, $0) },
+                uniquingKeysWith: { first, _ in first })
+            matched = Set(AgentListProjection.sections(sources: [source], query: needle, visible: visible).flatMap(\.rows).map(\.paneID))
+            positions = Dictionary(snapshot.agents.enumerated().map { ($1.paneID, $0) }, uniquingKeysWith: { first, _ in first })
+            agentPanes = Set(snapshot.agents.map(\.paneID))
+        }
+
+        /// workspace 依 snapshot 的順序;只出現在 agents／panes 的 workspace 也算。
+        var workspaceIDs: [String] {
+            var ids = snapshot.workspaces.map(\.id)
+            for id in snapshot.agents.map(\.workspaceID) + snapshot.panes.map(\.workspaceID) where !ids.contains(id) {
+                ids.append(id)
+            }
+            return ids
+        }
+    }
+
+    private static func spacesEntries(of source: Source, hostOrder: Int, needle: String, visible: Set<ChatRoute>) -> [SpacesEntry] {
         guard let snapshot = source.snapshot else { return [] }
-        // 搜尋與排序沿用 Agents 檢視的列(同一份分組、搜尋)。
-        let rows = Dictionary(
-            sections(sources: [source], query: "", visible: visible).flatMap(\.rows).map { ($0.paneID, $0) },
-            uniquingKeysWith: { first, _ in first })
-        let matched = Set(sections(sources: [source], query: needle, visible: visible).flatMap(\.rows).map(\.paneID))
-        let positions = Dictionary(snapshot.agents.enumerated().map { ($1.paneID, $0) }, uniquingKeysWith: { first, _ in first })
-        let agentPanes = Set(snapshot.agents.map(\.paneID))
+        let context = SpacesContext(source: source, snapshot: snapshot, hostOrder: hostOrder, needle: needle, visible: visible)
+        return context.workspaceIDs.compactMap { spacesEntry(workspaceID: $0, in: context) }
+    }
 
-        // workspace 依 snapshot 的順序;只出現在 agents／panes 的 workspace 也算。
-        var workspaceIDs = snapshot.workspaces.map(\.id)
-        for id in snapshot.agents.map(\.workspaceID) + snapshot.panes.map(\.workspaceID) where !workspaceIDs.contains(id) {
-            workspaceIDs.append(id)
+    /// 一個 workspace:只有一個 Agent、沒有其他 pane 是聊天列，否則是卡片;搜尋沒命中時 `nil`。
+    private static func spacesEntry(workspaceID: String, in context: SpacesContext) -> SpacesEntry? {
+        let snapshot = context.snapshot
+        let workspace = snapshot.workspaces.first { $0.id == workspaceID }
+        let agents = snapshot.agents.filter { $0.workspaceID == workspaceID }
+        let shells = snapshot.panes.filter { $0.workspaceID == workspaceID && !context.agentPanes.contains($0.id) }
+        let statuses = agents.map(\.effectiveStatus)
+        // 卡片的狀態：最急迫的那個(決定分組與卡片上的狀態標籤)。
+        let status: AgentStatus = statuses.contains(.blocked) ? .blocked : statuses.contains(.working) ? .working
+            : statuses.first ?? .idle
+        // 釘選時間：workspace 裡最早釘選的 Agent(單一 Agent 時就是它的)。
+        var order = Entry(
+            status: status, hostOrder: context.hostOrder, workspaceOrder: workspace?.number ?? .max,
+            position: agents.compactMap { context.positions[$0.paneID] }.min() ?? .max,
+            lastMessage: agents.compactMap { context.source.previews[$0.paneID]?.date }.max(),
+            pinnedAt: agents.compactMap { ChatUnread.State(agent: $0, source: context.source, visible: context.visible).pinnedAt }.min())
+
+        if agents.count == 1, shells.isEmpty, let agent = agents.first, let row = context.rows[agent.paneID] {
+            guard context.matched.contains(agent.paneID) else { return nil }
+            // 聊天列跟 Agents 檢視一樣依列的狀態分組(未讀折算後)。
+            order.status = row.status
+            return SpacesEntry(item: .chat(row), order: order)
         }
-        return workspaceIDs.compactMap { workspaceID -> SpacesEntry? in
-            let workspace = snapshot.workspaces.first { $0.id == workspaceID }
-            let agents = snapshot.agents.filter { $0.workspaceID == workspaceID }
-            let shells = snapshot.panes.filter { $0.workspaceID == workspaceID && !agentPanes.contains($0.id) }
-            let lastMessage = agents.compactMap { source.previews[$0.paneID]?.date }.max()
-            let position = agents.compactMap { positions[$0.paneID] }.min() ?? .max
-            // 釘選時間：workspace 裡最早釘選的 Agent(單一 Agent 時就是它的)。
-            let pinnedAt = agents.compactMap { ChatUnread.State(agent: $0, source: source, visible: visible).pinnedAt }.min()
-            let order = { (row: AgentRow) in
-                Entry(
-                    row: row, hostOrder: hostOrder, workspaceOrder: workspace?.number ?? .max, position: position, lastMessage: lastMessage,
-                    pinnedAt: pinnedAt)
-            }
+        guard !agents.isEmpty || !shells.isEmpty else { return nil }
+        let label = workspace?.label ?? agents.first?.workspaceLabel ?? workspaceID
+        return workspaceCard(
+            workspaceID: workspaceID, label: label, agents: agents, shells: shells, status: status, in: context
+        ).map { SpacesEntry(item: .card($0), order: order) }
+    }
 
-            if agents.count == 1, shells.isEmpty, let agent = agents.first, let row = rows[agent.paneID] {
-                guard matched.contains(agent.paneID) else { return nil }
-                return SpacesEntry(item: .chat(row), order: order(row))
-            }
-            guard !agents.isEmpty || !shells.isEmpty else { return nil }
+    /// workspace 卡片。搜尋：命中 workspace 本身(名稱、id、主機名)→ 全部列;否則只留命中的列，都沒命中就是 `nil`(行為規格 F2.3)。
+    private static func workspaceCard(
+        workspaceID: String, label: String, agents: [Agent], shells: [Pane], status: AgentStatus, in context: SpacesContext
+    ) -> WorkspaceCard? {
+        let source = context.source
+        let snapshot = context.snapshot
+        let terminals = shells.map { TerminalRow(pane: $0, host: source.host, hostLabel: source.label) }
+        let workspaceHit = context.needle.isEmpty || contains(context.needle, in: [label, workspaceID, source.label?.name])
+        let shownAgents = workspaceHit ? agents : agents.filter { context.matched.contains($0.paneID) }
+        let shownTerminals = workspaceHit ? terminals : terminals.filter { contains(context.needle, in: [$0.subtitle]) }
+        guard workspaceHit || !shownAgents.isEmpty || !shownTerminals.isEmpty else { return nil }
 
-            let label = workspace?.label ?? agents.first?.workspaceLabel ?? workspaceID
-            let terminals = shells.map { TerminalRow(pane: $0, host: source.host, hostLabel: source.label) }
-            // 搜尋：命中 workspace 本身(名稱、id、主機名)→ 全部列;否則只留命中的列，都沒命中就不出現(行為規格 F2.3)。
-            let workspaceHit = needle.isEmpty || [label, workspaceID, source.label?.name].contains {
-                $0?.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-            }
-            let shownAgents = workspaceHit ? agents : agents.filter { matched.contains($0.paneID) }
-            let shownTerminals = workspaceHit ? terminals : terminals.filter {
-                $0.subtitle.range(of: needle, options: [.caseInsensitive, .diacriticInsensitive]) != nil
-            }
-            guard workspaceHit || !shownAgents.isEmpty || !shownTerminals.isEmpty else { return nil }
-
-            let statuses = agents.map(\.effectiveStatus)
-            let status: AgentStatus = statuses.contains(.blocked) ? .blocked : statuses.contains(.working) ? .working
-                : statuses.first ?? .idle
-            let card = WorkspaceCard(
-                host: source.host, workspaceID: workspaceID, hostLabel: source.label, label: label,
-                agentCount: agents.count, workingCount: statuses.filter { $0 == .working }.count,
-                tabCount: tabIDs(of: workspaceID, in: snapshot).count,
-                paneCount: Set(snapshot.panes.filter { $0.workspaceID == workspaceID }.map(\.id) + agents.map(\.paneID)).count,
-                folder: commonFolder(agents.compactMap(\.cwd) + shells.compactMap(\.cwd)),
-                status: status,
-                groups: tabGroups(
-                    workspaceID: workspaceID, snapshot: snapshot,
-                    agentRows: shownAgents.compactMap { agent in rows[agent.paneID].map { (agent.tabID, WorkspaceCard.Row.agent($0)) } },
-                    terminalRows: shownTerminals.map { row in
-                        (shells.first { $0.id == row.paneID }?.tabID, WorkspaceCard.Row.terminal(row))
-                    })
-            )
-            let placeholder = AgentRow(host: source.host, paneID: workspaceID, title: label, subtitle: "", preview: .status(status), time: nil, status: status)
-            return SpacesEntry(item: .card(card), order: order(placeholder))
-        }
+        return WorkspaceCard(
+            host: source.host, workspaceID: workspaceID, hostLabel: source.label, label: label,
+            agentCount: agents.count, workingCount: agents.filter { $0.effectiveStatus == .working }.count,
+            tabCount: tabIDs(of: workspaceID, in: snapshot).count,
+            paneCount: Set(snapshot.panes.filter { $0.workspaceID == workspaceID }.map(\.id) + agents.map(\.paneID)).count,
+            folder: commonFolder(agents.compactMap(\.cwd) + shells.compactMap(\.cwd)),
+            status: status,
+            groups: tabGroups(
+                workspaceID: workspaceID, snapshot: snapshot,
+                agentRows: shownAgents.compactMap { agent in
+                    context.rows[agent.paneID].map { (agent.tabID, WorkspaceCard.Row.agent($0)) }
+                },
+                terminalRows: shownTerminals.map { row in
+                    (shells.first { $0.id == row.paneID }?.tabID, WorkspaceCard.Row.terminal(row))
+                })
+        )
     }
 
     /// 這個 workspace 的 tab:snapshot 的 tabs,再加上只出現在 pane 或版面的 tab。依 number 排序。
@@ -304,14 +336,16 @@ extension AgentListProjection {
         return groups
     }
 
-    /// 共同資料夾的最後兩段(例如 `demo/Projects`)。
+    /// 共同資料夾的最後兩段(例如 `demo/Projects`;Windows 主機是 `demo\Projects`,#26)。
     private static func commonFolder(_ paths: [String]) -> String? {
-        let split = paths.map { $0.split(separator: "/").map(String.init) }
-        guard var common = split.first else { return nil }
+        let split = paths.map { HostPathSyntax.components($0).map(String.init) }
+        guard var common = split.first, let first = paths.first else { return nil }
         for components in split.dropFirst() {
             common = Array(zip(common, components).prefix { $0 == $1 }.map(\.0))
         }
-        let folder = common.suffix(2).joined(separator: "/")
+        // 磁碟機代號(`C:`)不算資料夾段。
+        if common.first?.hasSuffix(":") == true { common.removeFirst() }
+        let folder = common.suffix(2).joined(separator: HostPathSyntax.separator(of: first))
         return folder.isEmpty ? nil : folder
     }
 }
@@ -322,7 +356,7 @@ extension TerminalRow {
         let program = [pane.label, pane.terminalTitle]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }.first { !$0.isEmpty } ?? String(localized: "Shell")
         var parts = [program]
-        if let folder = pane.cwd.map({ $0.split(separator: "/").suffix(2).joined(separator: "/") }), !folder.isEmpty {
+        if let folder = pane.cwd.map({ HostPathSyntax.trailingComponents($0, count: 2) }), !folder.isEmpty {
             parts.append(folder)
         }
         if let hostLabel { parts.insert(hostLabel.name, at: 0) }

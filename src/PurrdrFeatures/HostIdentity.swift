@@ -21,7 +21,8 @@ public enum HostIcon: String, CaseIterable, Codable, Sendable {
     case desktop
     case laptop
     case macMini
-    case server
+    /// 機架(GLOSSARY 避免「Server」)。舊版存成 `server`,讀取時由 `init(stored:)` 換成它。
+    case rack
     case pc
     case display
     case cloud
@@ -29,12 +30,17 @@ public enum HostIcon: String, CaseIterable, Codable, Sendable {
     /// 沒選過圖示的主機。
     public static let `default`: HostIcon = .desktop
 
+    /// 讀裝置上存的值;認得舊版的 `server`(現在是 `rack`)。
+    public init?(stored: String) {
+        self.init(rawValue: stored == "server" ? HostIcon.rack.rawValue : stored)
+    }
+
     public var symbol: String {
         switch self {
         case .desktop: "desktopcomputer"
         case .laptop: "laptopcomputer"
         case .macMini: "macmini"
-        case .server: "server.rack"
+        case .rack: "server.rack"
         case .pc: "pc"
         case .display: "display"
         case .cloud: "cloud"
@@ -47,7 +53,7 @@ public enum HostIcon: String, CaseIterable, Codable, Sendable {
         case .desktop: String(localized: "Desktop")
         case .laptop: String(localized: "Laptop")
         case .macMini: String(localized: "Mac mini")
-        case .server: String(localized: "Server")
+        case .rack: String(localized: "Rack")
         case .pc: String(localized: "PC")
         case .display: String(localized: "Display")
         case .cloud: String(localized: "Cloud")
@@ -88,7 +94,7 @@ public final class UserDefaultsHostIconStore: HostIconStore {
     }
 
     public func icon(for host: UUID) -> HostIcon? {
-        stored[host.uuidString].flatMap(HostIcon.init(rawValue:))
+        stored[host.uuidString].flatMap(HostIcon.init(stored:))
     }
 
     public func setIcon(_ icon: HostIcon?, for host: UUID) {

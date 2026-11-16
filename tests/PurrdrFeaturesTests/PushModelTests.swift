@@ -219,6 +219,24 @@ struct PushModelTests {
         #expect(store.keyHash(forHost: "studio") == nil)
     }
 
+    @Test("刪除主機時移除配對：用完另開的那條連線就關閉，不留著")
+    func forgettingClosesItsChannel() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let service = service()
+        await turnOn(model(service))
+        let hash = try #require(store.keyHash(forHost: "studio"))
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(hash)", .empty(204))
+        let channel = DisconnectCountingChannel(host)
+
+        service.forget(hostID: "studio", channel: channel, herdr: HerdrInstallation())
+
+        for _ in 0..<200 where await channel.disconnects == 0 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(await channel.disconnects == 1, "刪配對另開的連線沒有關閉")
+        #expect(!FakeHerdrPluginCLI.isPluginInstalled(on: host))
+    }
+
     @Test("已配對的主機重新建立 model 時是開著的")
     func pairedHostStartsOn() {
         store.setKeyHash(String(repeating: "0", count: 64), forHost: "studio")
@@ -369,5 +387,19 @@ final class FakePushPlatform: PushPlatform {
 struct FakePushPlatformError: LocalizedError {
     var message: String
     var errorDescription: String? { message }
+}
+
+/// 轉給真正的通道，記下 `disconnect()` 的次數。
+actor DisconnectCountingChannel: HostChannel {
+    private let base: any HostChannel
+    private(set) var disconnects = 0
+
+    init(_ base: any HostChannel) {
+        self.base = base
+    }
+
+    func execute(_ command: String) async throws -> any ExecSession { try await base.execute(command) }
+    func openPTY(_ request: PTYRequest) async throws -> any PTYSession { try await base.openPTY(request) }
+    func disconnect() async { disconnects += 1 }
 }
 #endif

@@ -290,7 +290,7 @@ enum WindowsRealHost {
     static func channel() async throws -> SSHHostChannel {
         let endpoint = try #require(RealHostIntegrationTests.endpoint(environment["PURRDR_WINDOWS_HOST"] ?? ""))
         let keyPath = (environment["PURRDR_WINDOWS_KEY"] ?? "").replacingOccurrences(of: "~", with: NSHomeDirectory())
-        let key = try SSHPrivateKey(openSSH: String(contentsOfFile: keyPath, encoding: .utf8), passphrase: nil)
+        let key = try SSHPrivateKey(openSSH: String(contentsOfFile: keyPath, encoding: .utf8))
         let credential: SSHCredentialProvider = { .privateKey(key) }
         do {
             _ = try await SSHHostChannel(endpoint: endpoint, hostKeyPin: nil, credential: credential).execute("true")

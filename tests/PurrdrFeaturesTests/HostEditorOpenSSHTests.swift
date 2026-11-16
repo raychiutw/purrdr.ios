@@ -1,7 +1,7 @@
 import Crypto
 import Foundation
 import PurrdrCore
-import PurrdrFeatures
+@testable import PurrdrFeatures
 import PurrdrTestSupport
 import Synchronization
 import Testing
@@ -61,7 +61,7 @@ struct HostEditorOpenSSHTests {
     }
 
     static let existing = HostConfiguration(
-        name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"), connectionMethod: .openSSH,
+        name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), connectionMethod: .openSSH,
         authentication: .password, hostKeyPin: pin)
 
     @Test("密碼：連線測試用輸入的密碼登入;儲存後密碼只在祕密儲存，主機設定裡沒有")
@@ -106,16 +106,15 @@ struct HostEditorOpenSSHTests {
     }
 
     #if os(macOS)
-    @Test("匯入有 passphrase 的金鑰：檢查後顯示公鑰;連線測試用它登入;儲存時金鑰與 passphrase 存在祕密儲存")
+    @Test("匯入金鑰：檢查後顯示公鑰;連線測試用它登入;儲存時金鑰存在祕密儲存")
     func importedKeySignsIn() async throws {
-        let generated = try SSHKeygen.generate(type: "ed25519", passphrase: "pw")
+        let generated = try SSHKeygen.generate(type: "ed25519")
         defer { generated.remove() }
         let secrets = MemorySecretStore()
         let factory = ChannelFactory(await HostEditorModelTests.healthyHost())
         let model = Self.model(secrets: secrets, factory: factory)
         model.authentication = .importedKey
         model.privateKeyText = generated.privateText
-        model.passphrase = "pw"
 
         await model.checkKey()
         #expect(model.keyCheck == .valid(SSHPublicKey(openSSH: generated.publicKeyWithoutComment)))
@@ -123,7 +122,7 @@ struct HostEditorOpenSSHTests {
         let saved = try #require(model.save())
 
         #expect(try await describe(factory.credentials.first) == "key:\(generated.publicKeyWithoutComment)")
-        #expect(secrets.stored(saved.id) == .privateKey(generated.privateText, passphrase: "pw"))
+        #expect(secrets.stored(saved.id) == .privateKey(generated.privateText, passphrase: nil))
     }
 
     @Test("匯入 RSA:說明不支援、不能測試;一鍵改用這支裝置的金鑰")
@@ -144,19 +143,19 @@ struct HostEditorOpenSSHTests {
         #expect(model.canTest)
     }
 
-    @Test("passphrase 錯：檢查結果說 passphrase 錯，不能測試")
-    func wrongPassphrase() async throws {
-        let generated = try SSHKeygen.generate(type: "ecdsa", passphrase: "right")
+    @Test("有 passphrase 的金鑰：說明要先在電腦上移除 passphrase,不能測試")
+    func passphraseProtectedKey() async throws {
+        let generated = try SSHKeygen.generate(type: "ecdsa", passphrase: "secret")
         defer { generated.remove() }
         let model = Self.model(factory: ChannelFactory())
         model.authentication = .importedKey
         model.privateKeyText = generated.privateText
-        model.passphrase = "wrong"
 
         await model.checkKey()
 
-        #expect(model.keyCheck == .invalid(.wrongPassphrase))
+        #expect(model.keyCheck == .invalid(.passphraseProtected))
         #expect(!model.canTest)
+        #expect(HostErrorText.keyImportMessage(.passphraseProtected).contains("ssh-keygen -p -N \"\" -f"))
     }
     #endif
 

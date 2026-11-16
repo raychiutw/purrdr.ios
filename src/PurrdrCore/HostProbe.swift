@@ -123,7 +123,7 @@ public struct HostProbe: Sendable {
         // 偵測到 Windows 之後，指令一律換成 PowerShell 方言。
         let channel = operatingSystem.channel(channel)
 
-        let version = try await run(HerdrCommand.version(herdr), on: channel)
+        let version = try await Self.run(HerdrCommand.version(herdr), on: channel)
         if version.exitCode == 127 { throw HostProbeError.herdrNotInstalled }
         guard version.exitCode == 0, let installed = HerdrVersion(version.stdout) else { throw HostProbeError.notHerdr }
         guard installed >= .minimumSupported else { throw HostProbeError.herdrOutdated(installed) }
@@ -152,7 +152,7 @@ public struct HostProbe: Sendable {
     @discardableResult
     public func updateHerdr() async throws -> HerdrUpdateOutcome {
         let operatingSystem = try await detectOperatingSystem()
-        let result = try await run(HerdrCommand.update(herdr), on: operatingSystem.channel(channel))
+        let result = try await Self.run(HerdrCommand.update(herdr), on: operatingSystem.channel(channel))
         guard result.exitCode == 0 else {
             let message = (result.stderr.isEmpty ? result.stdout : result.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
             throw HostProbeError.updateFailed(WindowsErrorText.readable(message))
@@ -160,25 +160,12 @@ public struct HostProbe: Sendable {
         return operatingSystem == .windows ? .restartServerRequired : .handedOff
     }
 
-    /// `uname -s` → Darwin／Linux;Git Bash(MSYS2)的 `MINGW64_NT-…`、`MINGW32_NT-…`、`MSYS_NT-…` 是 Windows。
-    /// 認不得時(預設 shell 是 cmd 或 PowerShell,沒有 `uname`)再以 PowerShell 探測(行為規格 §3.9)。
     private func detectOperatingSystem() async throws -> HostOperatingSystem {
-        let result = try await run(HerdrCommand.operatingSystem, on: channel)
-        let name = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        if result.exitCode == 0 {
-            if name == "Darwin" { return .macOS }
-            if name == "Linux" { return .linux }
-            if ["MINGW64_NT-", "MINGW32_NT-", "MSYS_NT-"].contains(where: name.hasPrefix) { return .windows }
-        }
-        let probe = try await run(PowerShell.windowsProbe, on: channel)
-        if probe.exitCode == 0, probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == PowerShell.windowsMarker {
-            return .windows
-        }
-        throw HostProbeError.unsupportedOperatingSystem(name.isEmpty ? result.stderr : name)
+        try await HostOperatingSystem.detect(on: channel)
     }
 
     /// 執行一般指令，收齊輸出。非零 exit 是結果不是例外(行為規格 §3.2)。
-    private func run(_ command: String, on channel: any HostChannel) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
+    fileprivate static func run(_ command: String, on channel: any HostChannel) async throws -> (stdout: String, stderr: String, exitCode: Int32) {
         let session = try await channel.execute(command)
         await session.closeStdin()
         var stdout = Data()
@@ -192,5 +179,26 @@ public struct HostProbe: Sendable {
             }
         }
         return (String(decoding: stdout, as: UTF8.self), String(decoding: stderr, as: UTF8.self), exitCode)
+    }
+}
+
+extension HostOperatingSystem {
+    /// 偵測主機作業系統。
+    ///
+    /// `uname -s` → Darwin／Linux;Git Bash(MSYS2)的 `MINGW64_NT-…`、`MINGW32_NT-…`、`MSYS_NT-…` 是 Windows。
+    /// 認不得時(預設 shell 是 cmd 或 PowerShell,沒有 `uname`)再以 PowerShell 探測(行為規格 §3.9)。
+    public static func detect(on channel: any HostChannel) async throws -> HostOperatingSystem {
+        let result = try await HostProbe.run(HerdrCommand.operatingSystem, on: channel)
+        let name = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if result.exitCode == 0 {
+            if name == "Darwin" { return .macOS }
+            if name == "Linux" { return .linux }
+            if ["MINGW64_NT-", "MINGW32_NT-", "MSYS_NT-"].contains(where: name.hasPrefix) { return .windows }
+        }
+        let probe = try await HostProbe.run(PowerShell.windowsProbe, on: channel)
+        if probe.exitCode == 0, probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == PowerShell.windowsMarker {
+            return .windows
+        }
+        throw HostProbeError.unsupportedOperatingSystem(name.isEmpty ? result.stderr : name)
     }
 }

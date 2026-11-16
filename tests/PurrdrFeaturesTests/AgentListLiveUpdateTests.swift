@@ -19,7 +19,13 @@ struct AgentListLiveUpdateTests {
 
     static func subscribeRequest(panes: [String]) -> String {
         let perPane = panes.map { #"{"pane_id":"\#($0)","type":"pane.agent_status_changed"}"# }
-        let hostWide = ["workspace.created", "workspace.closed", "workspace.renamed", "workspace.updated", "pane.agent_detected", "pane.exited"]
+        // 版面事件(#40):Spaces 檢視的卡片統計、終端機列與版面圖要即時更新。型別都在 herdr 回報的可訂閱清單裡
+        // (Fixtures/herdr-0.9.5/error.unknown-subscription-type.ndjson)。
+        let hostWide = [
+            "workspace.created", "workspace.closed", "workspace.renamed", "workspace.updated", "pane.agent_detected", "pane.exited",
+            "workspace.moved", "workspace.reordered", "tab.created", "tab.closed", "tab.renamed", "tab.moved",
+            "pane.created", "pane.closed", "layout.updated",
+        ]
             .map { #"{"type":"\#($0)"}"# }
         return #"{"id":"purrdr:events.subscribe","method":"events.subscribe","params":{"subscriptions":["# +
             (perPane + hostWide).joined(separator: ",") + "]}}\n"

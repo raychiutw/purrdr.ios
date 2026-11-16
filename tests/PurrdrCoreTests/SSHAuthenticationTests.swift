@@ -24,11 +24,11 @@ struct SSHAuthenticationTests {
     }
 
     #if os(macOS)
-    @Test("匯入的金鑰(ssh-keygen 產生、有 passphrase)可以登入", arguments: ["ed25519", "ecdsa"])
+    @Test("匯入的金鑰(ssh-keygen 產生)可以登入", arguments: ["ed25519", "ecdsa"])
     func signsInWithImportedKey(type: String) async throws {
-        let generated = try SSHKeygen.generate(type: type, passphrase: "pw")
+        let generated = try SSHKeygen.generate(type: type)
         defer { generated.remove() }
-        let key = try SSHPrivateKey(openSSH: generated.privateText, passphrase: "pw")
+        let key = try SSHPrivateKey(openSSH: generated.privateText)
         let authorized = try NIOSSHPublicKey(openSSHPublicKey: generated.publicKeyWithoutComment)
         let server = try await TestSSHServer.start(authentication: .publicKeys([authorized])) { _ in .reply(stdout: "ok") }
         let channel = SSHHostChannel(endpoint: server.endpoint, hostKeyPin: server.fingerprint) { .privateKey(key) }

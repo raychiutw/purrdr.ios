@@ -138,6 +138,15 @@ public struct AgentListView: View {
                 systemImage: "bubble.left.and.text.bubble.right",
                 description: Text("Agents you start in herdr on your hosts appear here.")
             )
+        case .noAgentsInAgentsView:
+            ContentUnavailableView {
+                Label("No Agents", systemImage: "bubble.left.and.text.bubble.right")
+            } description: {
+                Text("No workspace on your hosts is running an agent. Spaces also shows their terminals.")
+            } actions: {
+                Button("Show Spaces") { model.mode = .spaces }
+                    .accessibilityIdentifier("agentList.showSpaces")
+            }
         case .list:
             list
         }
@@ -163,6 +172,8 @@ public struct AgentListView: View {
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
+        // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
+        .id(model.mode)
         .overlay {
             if (model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
                 ContentUnavailableView(
@@ -434,9 +445,8 @@ struct AgentRowView: View {
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
-        case .status(let status):
-            Text(status.title)
-                .foregroundStyle(secondary)
+        case .none:
+            EmptyView()
         }
     }
 
@@ -521,7 +531,8 @@ extension AgentGroup {
 }
 
 extension AgentStatus {
-    var title: LocalizedStringKey {
+    /// 狀態字：列表、版面圖、對話標題列共用這一份(`Text` 與 `String(localized:)` 都用它)。
+    var title: LocalizedStringResource {
         switch self {
         case .blocked: "Needs You"
         case .working: "Working"

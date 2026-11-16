@@ -21,6 +21,24 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Demo 的示範主機(#34):Demo 主機出現在列表時一起出現，演出多主機合併列表(含一台連不上)。
+///
+/// 不是已存主機：不在主機清單、不能編輯或刪除、不同步;通道由 composition root 給(Demo 主機或一律連不上的通道),
+/// 永遠不連網路。
+public struct DemoCompanionHost: Sendable {
+    public var id: UUID
+    public var name: String
+    public var icon: HostIcon
+    public var channel: any HostChannel
+
+    public init(id: UUID, name: String, icon: HostIcon, channel: any HostChannel) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+        self.channel = channel
+    }
+}
+
 /// 管理主機時的錯誤。
 public enum HostManagementError: Error, Equatable {
     case emptyName
@@ -40,7 +58,10 @@ public enum HostManagementError: Error, Equatable {
 @Observable
 public final class HostsModel {
     public private(set) var selection: HostSelection = .demo
-    public private(set) var hosts: [HostConfiguration] = []
+    public private(set) var hosts: [HostConfiguration] = [] {
+        // 主機清單變了就重讀圖示(新增、同步來的主機可能已有存過的圖示)。
+        didSet { icons = Dictionary(hosts.map { ($0.id, hostIcons.icon(for: $0.id) ?? .default) }, uniquingKeysWith: { first, _ in first }) }
+    }
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
     /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
@@ -61,13 +82,15 @@ public final class HostsModel {
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
     private let demoChannel: any HostChannel
+    /// Demo 的示範主機(#34)。
+    private let demoCompanions: [DemoCompanionHost]
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     private let credentials: HostCredentials
     private let conversationCache: any ConversationCache
     private let preferences: any HostChatPreferencesStore
     private let hostIcons: any HostIconStore
-    /// 主機圖示改了就遞增，讓依賴圖示的畫面(主機清單、主機鈕)重新計算。
-    private var iconRevision = 0
+    /// 已存主機的圖示(從 `hostIcons` 讀出)。是 observable 狀態：改了圖示，依賴它的畫面(主機清單、主機鈕)重新計算。
+    private var icons: [UUID: HostIcon] = [:]
     /// 已建立的主機通道(以主機 id)。
     private var channels: [UUID: any HostChannel] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
@@ -89,9 +112,11 @@ public final class HostsModel {
     ///   - swipeHint: 列表滑動提示是否已經不用再顯示(使用者用過滑動面板的動作)。
     ///   - listMode: 列表檢視(Spaces／Agents)的存放處。
     ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
+    ///   - demoCompanions: Demo 的示範主機(#34);Demo 主機出現在列表時一起出現。
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
-        store: any HostStore, demoChannel: any HostChannel, conversationCache: any ConversationCache = InMemoryConversationCache(),
+        store: any HostStore, demoChannel: any HostChannel, demoCompanions: [DemoCompanionHost] = [],
+        conversationCache: any ConversationCache = InMemoryConversationCache(),
         preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),
         hostIcons: any HostIconStore = InMemoryHostIconStore(),
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
@@ -107,6 +132,7 @@ public final class HostsModel {
         agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
         self.selectionStore = selectionStore
         self.demoChannel = demoChannel
+        self.demoCompanions = demoCompanions
         self.makeChannel = makeChannel
         self.credentials = credentials
         self.conversationCache = conversationCache
@@ -156,7 +182,11 @@ public final class HostsModel {
         let model = ConversationModel(
             client: member.client, transcripts: member.transcripts, paneID: route.paneID, knownSessionID: sessionID,
             cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: ClaudeSlashDiscovery(channel: member.channel),
-            haptics: haptics, hostName: route.host == selection ? nil : name(of: route.host),
+            haptics: haptics,
+            hostName: { [weak self] in
+                guard let self, route.host != self.selection else { return nil }
+                return self.name(of: route.host)
+            },
             // 主機目前只有 macOS／Linux(Windows 的上傳還沒做,ADR-0002)。
             images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore))
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
@@ -186,13 +216,17 @@ public final class HostsModel {
     }
 
     public var rows: [HostRow] {
-        _ = iconRevision
-        return hosts.map { host in
+        hosts.map { host in
             HostRow(
                 id: host.id, title: host.name,
                 subtitle: "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
                 session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id))
         }
+    }
+
+    /// 列表上的主機 id:已存主機，加上 Demo 出現時的示範主機(#34)。新視窗以它判斷主機還在不在。
+    public var listedHostIDs: [UUID] {
+        hosts.map(\.id) + (members[.demo] == nil ? [] : demoCompanions.map(\.id))
     }
 
     /// 選取中的主機(Demo 時為 `nil`)。
@@ -205,14 +239,13 @@ public final class HostsModel {
     public func name(of host: HostSelection) -> String {
         switch host {
         case .demo: String(localized: "Demo")
-        case .host(let id): hosts.first { $0.id == id }?.name ?? ""
+        case .host(let id): hosts.first { $0.id == id }?.name ?? companion(id)?.name ?? ""
         }
     }
 
     /// 主機的圖示(只存本機);沒選過是預設圖示。
     public func icon(for id: UUID) -> HostIcon {
-        _ = iconRevision
-        return hostIcons.icon(for: id) ?? .default
+        icons[id] ?? .default
     }
 
     /// 選取中主機的圖示(主機鈕用)。
@@ -221,7 +254,7 @@ public final class HostsModel {
     /// 替主機選圖示：只存在這支裝置，列表與主機鈕立刻改用它。
     public func setIcon(_ icon: HostIcon, for id: UUID) {
         hostIcons.setIcon(icon, for: id)
-        iconRevision += 1
+        icons[id] = icon
         rebuildMembers()
     }
 
@@ -414,15 +447,19 @@ public final class HostsModel {
     }
 
     private func icon(of host: HostSelection) -> HostIcon {
-        if case .host(let id) = host { return icon(for: id) }
-        return .default
+        guard case .host(let id) = host else { return .default }
+        return companion(id)?.icon ?? icon(for: id)
     }
 
-    /// 列表上的主機：所有已存主機(依名稱);Demo 主機只在沒有已存主機或選了它時。
+    private func companion(_ id: UUID) -> DemoCompanionHost? {
+        demoCompanions.first { $0.id == id }
+    }
+
+    /// 列表上的主機：所有已存主機(依名稱);Demo 主機與它的示範主機(#34)只在沒有已存主機或選了 Demo 時。
     /// 已有的成員沿用(連線、列、草稿不重建)。
     private func rebuildMembers() {
         var wanted: [HostSelection] = hosts.map { .host($0.id) }
-        if hosts.isEmpty || selection == .demo { wanted.insert(.demo, at: 0) }
+        if hosts.isEmpty || selection == .demo { wanted.insert(contentsOf: [.demo] + demoCompanions.map { .host($0.id) }, at: 0) }
         members = members.filter { wanted.contains($0.key) }
         for host in wanted where members[host] == nil { members[host] = makeMember(host) }
         let sources = wanted.compactMap { host in
@@ -441,6 +478,11 @@ public final class HostsModel {
     }
 
     private func makeMember(_ host: HostSelection) -> HostMember {
+        if case .host(let id) = host, let companion = companion(id) {
+            return HostMember(
+                host: host, configuration: nil, channel: companion.channel, preferences: preferences.store(for: host),
+                push: pushService, consent: demoConsent)
+        }
         let configuration: HostConfiguration? = switch host {
         case .demo: nil
         case .host(let id): hosts.first { $0.id == id }
@@ -453,11 +495,22 @@ public final class HostsModel {
 
     private func channel(for host: HostConfiguration) -> any HostChannel {
         if let channel = channels[host.id] { return channel }
-        // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。
+        // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。作業系統未知(主機同步帶來的新主機)時先偵測，
+        // 不對可能是 Windows 的主機送 POSIX 指令。
         let base = makeChannel(host.endpoint, host.hostKeyPin, credentials.provider(for: host))
-        let channel = host.operatingSystem?.channel(base) ?? base
+        let id = host.id
+        let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { [weak self] operatingSystem in
+            await self?.recordOperatingSystem(operatingSystem, for: id)
+        }
         channels[host.id] = channel
         return channel
+    }
+
+    /// 存下偵測到的作業系統。不是使用者的修改，不通知主機同步(作業系統也不同步);連線不重建。
+    private func recordOperatingSystem(_ operatingSystem: HostOperatingSystem, for id: UUID) {
+        guard let index = hosts.firstIndex(where: { $0.id == id }), hosts[index].operatingSystem == nil else { return }
+        hosts[index].operatingSystem = operatingSystem
+        try? store.save(hosts[index])
     }
 
     /// 推播配對：另開一條不放進 `channels` 的連線刪掉主機上的配對(刪除主機會關閉它原本的連線)。

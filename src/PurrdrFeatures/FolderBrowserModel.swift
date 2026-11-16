@@ -32,18 +32,16 @@ public final class FolderBrowserModel {
         self.hostName = hostName
     }
 
-    /// 資料夾最後一段;根目錄是「/」。
+    /// 資料夾最後一段;根目錄是「/」(Windows 是「C:\」)。路徑依主機的語法切段(#26)。
     public var title: String {
         guard let path else { return String(localized: "Files") }
-        return path == "/" ? "/" : (path.split(separator: "/").last.map(String.init) ?? path)
+        return HostPathSyntax.isRoot(path) ? path : (HostPathSyntax.lastComponent(path).map(String.init) ?? path)
     }
 
     public var canGoUp: Bool { parent != nil }
 
     private var parent: String? {
-        guard let path, path != "/" else { return nil }
-        let components = path.split(separator: "/")
-        return components.count <= 1 ? "/" : "/" + components.dropLast().joined(separator: "/")
+        path.flatMap(HostPathSyntax.parent(of:))
     }
 
     /// 重新載入目前的資料夾(一開始是家目錄)。
@@ -54,7 +52,7 @@ public final class FolderBrowserModel {
     /// 打開資料夾或 symlink(指向資料夾才打得開);檔案不能打開。
     public func open(_ entry: FolderEntry) async {
         guard entry.kind == .folder || entry.kind == .symlink, let path else { return }
-        await list(path == "/" ? "/" + entry.name : path + "/" + entry.name)
+        await list(HostPathSyntax.appending(entry.name, to: path))
     }
 
     public func goUp() async {

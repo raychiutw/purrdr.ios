@@ -12,24 +12,24 @@ public enum SSHKeyImportError: Error, Equatable, Sendable {
     case unsupportedFormat
     /// 看起來是公鑰，不是私鑰。
     case publicKeyInsteadOfPrivate
-    /// 金鑰有 passphrase,但沒有提供。
-    case passphraseRequired
-    /// passphrase 不對。
-    case wrongPassphrase
-    /// 用不支援的加密方式保護(附 OpenSSH 的名稱)。
-    case unsupportedCipher(String)
+    /// 金鑰有 passphrase 保護。
+    ///
+    /// 出口合規(`docs/launch/checklist.md`):app 只用系統加密(CryptoKit、CommonCrypto、系統 TLS)。
+    /// OpenSSH 私鑰的 passphrase 一律以 bcrypt KDF(Blowfish)推導金鑰，系統沒有提供，所以不解密;
+    /// 畫面請使用者先在電腦上 `ssh-keygen -p -N "" -f <私鑰>` 移除 passphrase 再匯入。
+    case passphraseProtected
     /// 內容損毀或不完整。
     case malformed
 }
 
 extension SSHPrivateKey {
-    /// 解讀 OpenSSH 格式的私鑰(`ssh-keygen` 預設產生的格式),可帶 passphrase。
+    /// 解讀沒有 passphrase 的 OpenSSH 格式私鑰(`ssh-keygen` 預設產生的格式)。
     ///
-    /// 支援 ed25519 與 ECDSA(nistp256／384／521);加密支援 `ssh-keygen` 預設的 bcrypt + aes256-ctr,
-    /// 以及 aes128／192-ctr、aes128／256-gcm@openssh.com。
-    public init(openSSH text: String, passphrase: String?) throws(SSHKeyImportError) {
+    /// 支援 ed25519 與 ECDSA(nistp256／384／521)。有 passphrase 的金鑰丟 `.passphraseProtected`
+    /// (只用系統加密，見 `SSHKeyImportError.passphraseProtected`)。
+    public init(openSSH text: String) throws(SSHKeyImportError) {
         let body = try OpenSSHPrivateKeyFile.body(of: text)
-        self = try OpenSSHPrivateKeyFile.decode(body, passphrase: passphrase)
+        self = try OpenSSHPrivateKeyFile.decode(body)
     }
 }
 
@@ -54,22 +54,21 @@ enum OpenSSHPrivateKeyFile {
         return data.dropFirst(magic.count)
     }
 
-    static func decode(_ body: Data, passphrase: String?) throws(SSHKeyImportError) -> SSHPrivateKey {
+    static func decode(_ body: Data) throws(SSHKeyImportError) -> SSHPrivateKey {
         var reader = SSHWireReader(body)
         let cipher = try reader.string()
         let kdf = try reader.string()
-        let kdfOptions = try reader.bytes()
+        _ = try reader.bytes()  // KDF 參數
         guard try reader.uint32() == 1 else { throw .malformed }
         let publicBlob = try reader.bytes()
         try rejectUnsupportedType(of: publicBlob)
-        let sealed = try reader.bytes()
-        let tag = reader.remaining
-        let section = try OpenSSHCipher.open(
-            sealed, tag: tag, cipher: cipher, kdf: kdf, kdfOptions: kdfOptions, passphrase: passphrase)
-        return try privateKey(in: section)
+        // OpenSSH 規定：cipher 不是 none 時 kdf 一定是 bcrypt(= 有 passphrase);反之 kdf 是 none 時 cipher 也要是 none。
+        guard cipher == "none" else { throw .passphraseProtected }
+        guard kdf == "none" else { throw .malformed }
+        return try privateKey(in: try reader.bytes())
     }
 
-    /// 先看公鑰的種類：不支援的種類不需要 passphrase 就能說明。
+    /// 先看公鑰的種類：不支援的種類(例如有 passphrase 的 RSA)先說明不支援，不必先處理 passphrase。
     private static func rejectUnsupportedType(of publicBlob: Data) throws(SSHKeyImportError) {
         var reader = SSHWireReader(publicBlob)
         let type = try reader.string()
@@ -82,8 +81,8 @@ enum OpenSSHPrivateKeyFile {
 
     private static func privateKey(in section: Data) throws(SSHKeyImportError) -> SSHPrivateKey {
         var reader = SSHWireReader(section)
-        // 兩個相同的檢查值：passphrase 錯時解出來的是亂碼，兩者幾乎不可能相同。
-        guard try reader.uint32() == reader.uint32() else { throw .wrongPassphrase }
+        // 兩個相同的檢查值(加密時用來驗 passphrase;未加密時不同代表檔案損毀)。
+        guard try reader.uint32() == reader.uint32() else { throw .malformed }
         let type = try reader.string()
         do {
             switch type {

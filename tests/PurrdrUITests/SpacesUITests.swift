@@ -74,4 +74,23 @@ final class SpacesUITests: XCTestCase {
         XCTAssertFalse(element("workspace.card.demo/w3", in: app).exists, "Agents 檢視不該有卡片")
         XCTAssertFalse(element("terminal.row.demo/w3:p2", in: app).exists, "Agents 檢視不該有終端機列")
     }
+
+    /// 切換檢視時捲回最上面(#40):換了檢視就是另一份清單，不留在原本捲到的位置。
+    @MainActor
+    func testSwitchingViewScrollsToTop() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
+        XCTAssertTrue(element("workspace.card.demo/w3", in: app).waitForExistence(timeout: 10))
+        let list = app.collectionViews.firstMatch
+        for _ in 0..<4 { list.swipeUp() }
+        let top = element("agentList.section.needsYou", in: app)
+        XCTAssertFalse(top.exists && top.isHittable, "沒有捲下去，測不出來")
+
+        app.navigationBars["Spaces"].buttons["Spaces"].firstMatch.tap()
+        let agents = app.buttons["Agents"].firstMatch
+        XCTAssertTrue(agents.waitForExistence(timeout: 5))
+        agents.tap()
+
+        XCTAssertTrue(app.navigationBars["Agents"].waitForExistence(timeout: 5))
+        XCTAssertTrue(top.waitForExistence(timeout: 5) && top.isHittable, "切到 Agents 後沒有回到最上面")
+    }
 }

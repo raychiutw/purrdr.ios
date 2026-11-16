@@ -17,7 +17,7 @@ enum AgentRowText {
     /// 副標以「 · 」連接：workspace 名稱(標題不是它、也不是已顯示的資料夾段時)、序號、agent 顯示名、資料夾最後兩段。
     static func subtitle(for agent: Agent, title: String, siblings: [Agent]) -> String {
         let folder = agent.cwd.map(lastTwoSegments)
-        let folderSegments = Set((folder ?? "").split(separator: "/").map { $0.lowercased() })
+        let folderSegments = Set(HostPathSyntax.components(folder ?? "").map { $0.lowercased() })
         var parts: [String] = []
         if let label = agent.workspaceLabel, label != title, !folderSegments.contains(label.lowercased()) {
             parts.append(label)
@@ -74,8 +74,9 @@ enum AgentRowText {
         return lowered.contains(/[0-9a-f]{8}-[0-9a-f]{4}/)
     }
 
+    /// 依主機的路徑語法(#26:Windows 是 `C:\…`)。
     private static func lastTwoSegments(_ path: String) -> String {
-        path.split(separator: "/").suffix(2).joined(separator: "/")
+        HostPathSyntax.trailingComponents(path, count: 2)
     }
 }
 

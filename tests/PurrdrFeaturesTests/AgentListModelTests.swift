@@ -31,14 +31,14 @@ struct AgentListModelTests {
         #expect(model.sections == [
             AgentSection(group: .working, rows: [
                 AgentRow(paneID: "w1:pA", title: "規劃天氣小工具", subtitle: "garden-journal · Claude Code · demo/Projects",
-                         preview: .status(.working), time: .now, status: .working),
+                         preview: .none, time: .now, status: .working),
                 AgentRow(paneID: "w1:pB", title: "重構食譜匯入", subtitle: "garden-journal · Claude Code · Projects/recipe-box",
-                         preview: .status(.working), time: .now, status: .working),
+                         preview: .none, time: .now, status: .working),
             ]),
             AgentSection(group: .idle, rows: [
                 // workspace 名稱就是資料夾最後一段，已經顯示在資料夾裡，不重複。
                 AgentRow(paneID: "w1:p6", title: "整理植物照片的標籤", subtitle: "Claude Code · Projects/garden-journal",
-                         preview: .status(.idle), time: nil, status: .idle),
+                         preview: .none, time: nil, status: .idle),
             ]),
         ])
     }
@@ -254,10 +254,11 @@ struct AgentListModelTests {
         })
         let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host))
         await model.load()
-        #expect(Self.row("w1:p6", in: model)?.preview != .status(.idle))
+        #expect(Self.row("w1:p6", in: model)?.preview != Optional(.none))
 
         await model.load()
 
-        #expect(Self.row("w1:p6", in: model)?.preview == .status(.idle))
+        // 沒有預覽時不顯示狀態字(列尾的狀態標籤已經有，#35:不重複出現兩次)。
+        #expect(Self.row("w1:p6", in: model)?.preview == AgentRow.Preview.none)
     }
 }

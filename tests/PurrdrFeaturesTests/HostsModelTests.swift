@@ -9,7 +9,7 @@ import Testing
 struct HostsModelTests {
     static let pin = HostKeyFingerprint(stored: "COBpO4JIzmE5SXJiDiFEv8QW0IgLEE4H3vB2W6wHLww")!
     static let studio = HostConfiguration(
-        name: "Studio", endpoint: SSHEndpoint(host: "ray-mac-mini", username: "demo"),
+        name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"),
         herdr: HerdrInstallation(session: "work"), operatingSystem: .macOS, hostKeyPin: pin)
 
     @Test("沒有主機時選 Demo 主機，Agent 列表讀 Demo 的資料")
@@ -61,6 +61,47 @@ struct HostsModelTests {
 
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
         #expect(await real.unmetExpectations.isEmpty)
+    }
+
+    @Test("作業系統未知的主機(主機同步帶來的新主機):先偵測，偵測到 Windows 就不送 POSIX 指令，並記住 OS(#26)")
+    func unknownOperatingSystemIsDetectedBeforeCommands() async throws {
+        var synced = Self.studio
+        synced.operatingSystem = nil
+        let store = MemoryHostStore()
+        store.hosts = [synced]
+        let real = FakeHost()
+        await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("MINGW64_NT-10.0-19045\n".utf8)))
+        await real.expect(
+            PowerShell.encodedCommand(HostEditorModelTests.windowsHerdrScript("'--session' 'work' 'remote-api-bridge'")),
+            reply: .recorded("session.snapshot.ndjson"))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.agentList.sections.flatMap(\.rows).count == 3)
+        #expect(await real.unmetExpectations.isEmpty)
+        #expect(store.hosts.first?.operatingSystem == .windows, "偵測結果存起來，下次不必再偵測")
+        #expect(model.hosts.first?.operatingSystem == .windows)
+    }
+
+    @Test("作業系統未知、偵測到 macOS／Linux:之後照常送 POSIX 指令(#26)")
+    func unknownOperatingSystemDetectsPosix() async throws {
+        var synced = Self.studio
+        synced.operatingSystem = nil
+        let store = MemoryHostStore()
+        store.hosts = [synced]
+        let real = FakeHost()
+        await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Linux\n".utf8)))
+        await real.expect(HerdrCommand.bridge(Self.studio.herdr), reply: .recorded("session.snapshot.ndjson"))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.agentList.sections.flatMap(\.rows).count == 3)
+        #expect(await real.unmetExpectations.isEmpty)
+        #expect(store.hosts.first?.operatingSystem == .linux)
     }
 
     @Test("登入 Shell 與檔案瀏覽開在選取中主機上，標題／副標是主機名稱")
@@ -124,7 +165,7 @@ struct HostsModelTests {
 
         #expect(model.rows == [
             HostRow(id: plain.id, title: "Linux box", subtitle: "ops@100.64.0.9:2222", session: nil, isSelected: true),
-            HostRow(id: Self.studio.id, title: "Studio", subtitle: "demo@ray-mac-mini:22", session: "work", isSelected: false),
+            HostRow(id: Self.studio.id, title: "Studio", subtitle: "demo@studio-mac:22", session: "work", isSelected: false),
         ])
     }
 
@@ -142,6 +183,38 @@ struct HostsModelTests {
         #expect(model.selection == .host(Self.studio.id))
         #expect(model.rows.map(\.id) == [Self.studio.id])
         #expect(factory.pins == [Self.pin])
+    }
+
+    @Test("Demo 也演出多主機(#34):沒有已存主機時，列表合併 Demo 與示範主機(含一台連不上);主機清單沒有它們;新增主機後消失")
+    func demoShowsCompanionHosts() async throws {
+        let store = MemoryHostStore()
+        let demo = FakeHost()
+        await demo.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
+        let studio = FakeHost()
+        await studio.expect(HerdrCommand.bridge(), reply: .recorded("session.snapshot.ndjson"))
+        let lab = FakeHost()
+        await lab.failConnection(with: SSHConnectionError.timedOut)
+        let companions = [
+            DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: studio),
+            DemoCompanionHost(id: UUID(), name: "Lab Server", icon: .rack, channel: lab),
+        ]
+        let model = HostsModel(
+            store: store, demoChannel: demo, demoCompanions: companions, makeChannel: ChannelFactory(FakeHost()).make)
+
+        model.load()
+        await model.agentList.load()
+
+        #expect(model.selection == .demo)
+        #expect(model.agentList.sources.map(\.name) == ["Demo", "Studio Mac", "Lab Server"])
+        #expect(model.agentList.sections.flatMap(\.rows).count == 6)
+        #expect(model.agentList.failures.map(\.name) == ["Lab Server"])
+        #expect(model.rows.isEmpty, "示範主機不是已存主機，不出現在主機清單")
+        let window = PaneWindow(kind: .chat, host: .host(companions[0].id), paneID: "w1:p1", sessionID: nil, title: "ledger")
+        #expect(window.route(hostIDs: model.listedHostIDs) != nil, "示範主機的聊天在新視窗開不起來")
+
+        store.hosts = [Self.studio]
+        model.didSave(Self.studio)
+        #expect(model.agentList.sources.map(\.name) == ["Studio"])
     }
 
     @Test("連不上選取中主機時，列表說明原因(白話),不是泛用的讀取失敗")

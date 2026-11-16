@@ -17,10 +17,14 @@ public struct EventSubscription: Sendable, Equatable, Hashable {
         EventSubscription(.paneAgentStatusChanged, paneID: paneID)
     }
 
-    /// 不分 pane、整台主機的事件:workspace 的建立／關閉／改名／更新，偵測到新 agent、pane 結束。
+    /// 不分 pane、整台主機的事件:workspace 的建立／關閉／改名／更新，偵測到新 agent、pane 結束;
+    /// 加上版面事件(#40,行為規格 §3.7 的 Spaces 檢視):workspace 移動與排序、tab 與 pane 的建立／關閉、tab 改名與移動、版面更新。
+    /// 不分檢視都訂閱：Agents 檢視只是多幾次(有 debounce 的)重讀，換檢視就不必重新訂閱。
     public static let hostWide: [EventSubscription] = [
         .init(.workspaceCreated), .init(.workspaceClosed), .init(.workspaceRenamed), .init(.workspaceUpdated),
         .init(.paneAgentDetected), .init(.paneExited),
+        .init(.workspaceMoved), .init(.workspaceReordered), .init(.tabCreated), .init(.tabClosed), .init(.tabRenamed), .init(.tabMoved),
+        .init(.paneCreated), .init(.paneClosed), .init(.layoutUpdated),
     ]
 
     /// herdr protocol 22 可訂閱的事件型別(實測 `herdr api schema --json`)。目前只列用得到的。
@@ -32,6 +36,15 @@ public struct EventSubscription: Sendable, Equatable, Hashable {
         case paneAgentDetected = "pane.agent_detected"
         case paneExited = "pane.exited"
         case paneAgentStatusChanged = "pane.agent_status_changed"
+        case workspaceMoved = "workspace.moved"
+        case workspaceReordered = "workspace.reordered"
+        case tabCreated = "tab.created"
+        case tabClosed = "tab.closed"
+        case tabRenamed = "tab.renamed"
+        case tabMoved = "tab.moved"
+        case paneCreated = "pane.created"
+        case paneClosed = "pane.closed"
+        case layoutUpdated = "layout.updated"
     }
 }
 

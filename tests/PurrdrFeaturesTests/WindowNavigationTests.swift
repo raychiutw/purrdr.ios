@@ -123,7 +123,7 @@ struct WindowNavigationTests {
     ]
 
     private static func row(_ paneID: String, host: HostSelection = .demo) -> AgentRow {
-        AgentRow(host: host, paneID: paneID, title: paneID, subtitle: "", preview: .status(.idle), time: nil, status: .idle)
+        AgentRow(host: host, paneID: paneID, title: paneID, subtitle: "", preview: .none, time: nil, status: .idle)
     }
 
     @Test("側欄選了 workspace:列表只留那個 workspace 的 Agent,空的分組不顯示")

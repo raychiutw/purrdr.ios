@@ -325,8 +325,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
         case needsInput
         /// 最後一則訊息;`fromYou` 為使用者自己送出的。
         case message(String, fromYou: Bool)
-        /// 沒有訊息時顯示狀態字。
-        case status(AgentStatus)
+        /// 沒有訊息：不顯示預覽行(狀態字已在列尾的狀態標籤，不重複，#35)。
+        case none
     }
 
     /// 右欄時間。

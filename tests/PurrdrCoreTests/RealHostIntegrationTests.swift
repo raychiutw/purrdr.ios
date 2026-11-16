@@ -6,7 +6,7 @@ import Testing
 ///
 /// ```bash
 /// # 經 Tailscale SSH 連真的主機(要在另一台裝置上跑：Tailscale SSH 不接受同一台機器連自己的 tailnet IP)
-/// PURRDR_REAL_HOST=ray@ray-mac-mini swift test --filter RealHostIntegrationTests
+/// PURRDR_REAL_HOST=demo@my-mac swift test --filter RealHostIntegrationTests
 /// # 可選:PURRDR_REAL_HOST_FINGERPRINT=SHA256:…(主機上 `ssh-keygen -lf` 的結果),比對 TOFU 回報的指紋
 /// # 可選:PURRDR_REAL_HOST_SESSION=<具名 session>、PURRDR_REAL_HOST_HERDR=<herdr 路徑>
 ///

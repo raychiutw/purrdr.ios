@@ -28,7 +28,7 @@ struct ConversationHeaderTests {
         let cache = InMemoryConversationCache()
         let model = ConversationModel(
             client: HerdrClient(channel: host, sleep: sleeper.sleep), transcripts: TranscriptReader(channel: host), paneID: paneID,
-            knownSessionID: ConversationModelTests.sessionID, cache: cache, clock: clock.clock, hostName: hostName, sleep: sleeper.sleep
+            knownSessionID: ConversationModelTests.sessionID, cache: cache, clock: clock.clock, hostName: { hostName }, sleep: sleeper.sleep
         )
         return Setup(host: host, shell: shell, model: model, clock: clock, cache: cache)
     }

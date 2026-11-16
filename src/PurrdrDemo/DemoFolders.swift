@@ -2,6 +2,7 @@ import Foundation
 import PurrdrCore
 
 /// Demo 主機的資料夾(檔案瀏覽，行為規格 F13):家目錄 `/Users/demo` 與三個 workspace 的資料夾。
+/// 新增對話的資料夾瀏覽(`DemoNewChatFolders`)也用同一棵樹(`initialTree` 裡的資料夾)。
 ///
 /// 回應 `HostFolderCommand` 的精確指令，輸出與主機腳本相同的格式(`pwd` + `ls -lnA`)。
 /// 上傳的檔案只記名稱與大小(內容不保存),重開 app 就消失。
@@ -14,7 +15,8 @@ struct DemoFolders {
 
     static let home = "/Users/demo"
 
-    private var folders: [String: [Item]] = [
+    /// 一開始的內容(上傳前)。
+    static let initialTree: [String: [Item]] = [
         "/Users/demo": [
             Item(name: "ledger", isFolder: true, size: 160),
             Item(name: "notes", isFolder: true, size: 128),
@@ -23,9 +25,11 @@ struct DemoFolders {
             Item(name: "README.md", isFolder: false, size: 1_380),
         ],
         "/Users/demo/ledger": [
+            Item(name: "reports", isFolder: true, size: 64),
             Item(name: "export.csv", isFolder: false, size: 48_211),
             Item(name: "ledger.py", isFolder: false, size: 6_532),
         ],
+        "/Users/demo/ledger/reports": [],
         "/Users/demo/notes": [
             Item(name: "inbox.md", isFolder: false, size: 912),
         ],
@@ -40,6 +44,8 @@ struct DemoFolders {
             Item(name: "Users", isFolder: true, size: 160),
         ],
     ]
+
+    private var folders = Self.initialTree
 
     /// 清單指令的結果(stdout、stderr、exit code)。
     func list(_ path: String?) -> (stdout: Data, stderr: Data, exitCode: Int32) {

@@ -330,7 +330,7 @@ struct DemoHostTests {
         #expect(home.path == "/Users/demo")
         #expect(home.entries.map(\.name) == ["ledger", "notes", "weather-app", ".zshrc", "README.md"])
         let ledger = try await folders.list("/Users/demo/ledger")
-        #expect(ledger.entries.map(\.name) == ["export.csv", "ledger.py"])
+        #expect(ledger.entries.map(\.name) == ["reports", "export.csv", "ledger.py"])
         await #expect {
             _ = try await folders.list("/Users/demo/missing")
         } throws: { error in
