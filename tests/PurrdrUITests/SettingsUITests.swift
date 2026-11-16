@@ -89,7 +89,10 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Agent"].waitForExistence(timeout: 10), "列表標題不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 5), "設定頁標題不是繁體中文")
-        XCTAssertTrue(app.buttons["為 Purrdr 評分"].exists, "沒有「為 Purrdr 評分」")
+        // 通知、主機同步、Codex 區在上面，評分列要捲動才出現。
+        let rate = app.buttons["為 Purrdr 評分"]
+        scrollTo(rate, in: app)
+        XCTAssertTrue(rate.waitForExistence(timeout: 5), "沒有「為 Purrdr 評分」")
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
     }
 
