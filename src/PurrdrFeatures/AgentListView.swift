@@ -351,21 +351,23 @@ struct AgentRowView: View {
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 24)
                 .accessibilityHidden(true)
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top) {
+            // AX 字級改成上下堆疊，不截斷(DESIGN.md)。不用 `ViewThatFits`:它比的是文字不換行的理想寬度，
+            // 副標稍長(例如「Claude Code · demo/weather-app」)就在預設字級也堆疊，各列版面不一致(#35)。
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
                     texts
-                    Spacer(minLength: 8)
+                    StatusLabel(status: row.status)
+                    timeText
+                }
+            } else {
+                HStack(alignment: .top, spacing: 8) {
+                    texts
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     VStack(alignment: .trailing, spacing: 4) {
                         StatusLabel(status: row.status)
                         timeText
                     }
                     .fixedSize()
-                }
-                // AX 字級放不下時改成上下堆疊，不截斷。
-                VStack(alignment: .leading, spacing: 4) {
-                    texts
-                    StatusLabel(status: row.status)
-                    timeText
                 }
             }
         }
@@ -446,14 +448,16 @@ struct StatusLabel: View {
     let status: AgentStatus
 
     var body: some View {
-        Label {
-            Text(status.title)
-                .foregroundStyle(status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-        } icon: {
+        // 不用 `Label`:在 List 列裡 Label 套的是列表樣式(圖示固定欄寬、標題對齊列文字),放進 `fixedSize` 的右側欄
+        // 算不出理想寬度，標題被擠成極窄、一字一行，整列被撐高(#35)。
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: status.symbol)
                 .foregroundStyle(status.color)
+            Text(status.title)
+                .foregroundStyle(status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
         }
         .font(.subheadline)
+        .accessibilityElement(children: .combine)
     }
 }
 
