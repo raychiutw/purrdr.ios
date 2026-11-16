@@ -125,7 +125,7 @@ extension AgentRow {
         } else if let preview {
             .message(preview.text, fromYou: preview.isFromUser)
         } else {
-            .status(status)
+            .none
         }
         let time: Time? = status == .working ? .now : preview?.date.map(Time.date)
         var subtitle = AgentRowText.subtitle(for: agent, title: title, siblings: siblings)

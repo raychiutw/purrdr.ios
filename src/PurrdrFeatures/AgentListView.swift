@@ -434,9 +434,8 @@ struct AgentRowView: View {
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
-        case .status(let status):
-            Text(status.title)
-                .foregroundStyle(secondary)
+        case .none:
+            EmptyView()
         }
     }
 

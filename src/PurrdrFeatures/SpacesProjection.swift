@@ -263,7 +263,7 @@ extension AgentListProjection {
                         (shells.first { $0.id == row.paneID }?.tabID, WorkspaceCard.Row.terminal(row))
                     })
             )
-            let placeholder = AgentRow(host: source.host, paneID: workspaceID, title: label, subtitle: "", preview: .status(status), time: nil, status: status)
+            let placeholder = AgentRow(host: source.host, paneID: workspaceID, title: label, subtitle: "", preview: .none, time: nil, status: status)
             return SpacesEntry(item: .card(card), order: order(placeholder))
         }
     }
