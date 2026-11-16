@@ -87,10 +87,11 @@ public struct ClaudeSlashDiscovery: Sendable {
     }
 
     /// plugin 內的相對路徑(`./skills/x`)→ 絕對路徑。跳出 plugin 資料夾(`..`)的不接受。
+    /// Windows 的 installPath(`C:\…`)後面一樣接 `/…`(PowerShell 兩種分隔符號都認)。
     static func resolve(_ path: String, in root: String) -> String? {
         let parts = path.split(separator: "/").filter { $0 != "." && !$0.isEmpty }
         guard !parts.contains("..") else { return nil }
-        let base = root.hasSuffix("/") ? String(root.dropLast()) : root
+        let base = root.count > 1 && (root.hasSuffix("/") || root.hasSuffix("\\")) ? String(root.dropLast()) : root
         return parts.isEmpty ? base : base + "/" + parts.joined(separator: "/")
     }
 
@@ -219,13 +220,15 @@ struct DiscoveryState {
                 return Self.samePath(project, cwd)
             }
             let userEntry = entries.first { $0["projectPath"] == nil }
-            guard let path = (projectEntry ?? userEntry)?["installPath"] as? String, path.hasPrefix("/") else { return nil }
+            guard let path = (projectEntry ?? userEntry)?["installPath"] as? String, HostPathSyntax.isAbsolute(path) else { return nil }
             return PluginInstall(key: key, installPath: path)
         }
     }
 
     static func samePath(_ lhs: String, _ rhs: String) -> Bool {
-        func trimmed(_ path: String) -> String { path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path }
+        func trimmed(_ path: String) -> String {
+            path.count > 1 && (path.hasSuffix("/") || path.hasSuffix("\\")) ? String(path.dropLast()) : path
+        }
         return trimmed(lhs) == trimmed(rhs)
     }
 

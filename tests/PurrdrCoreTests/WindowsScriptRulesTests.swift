@@ -11,9 +11,11 @@ struct WindowsScriptRulesTests {
         let scripts = [
             WindowsScripts.prelude, WindowsScripts.transcriptFunctions, WindowsScripts.receive, WindowsScripts.imageUpload,
             WindowsScripts.folderUpload, WindowsScripts.folderList, WindowsScripts.newChatFolders,
+            WindowsScripts.hostFileFunctions, WindowsScripts.hostFileRead, WindowsScripts.hostFileApply, WindowsScripts.hostFileNewest,
+            WindowsScripts.pushPairings, WindowsScripts.slashFunctions, WindowsScripts.slashDiscover,
         ]
         let names = scripts.flatMap { $0.matches(of: /function (\w+)/).map { String($0.output.1) } }
-        #expect(names.count >= 18)
+        #expect(names.count >= 28)
         for name in names {
             #expect(name.hasPrefix("P") && name.count >= 5, "\(name) 可能撞到內建 alias")
         }

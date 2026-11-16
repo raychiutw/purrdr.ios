@@ -1,4 +1,5 @@
-/// 主機指令建構：發現 Claude Code slash 清單的 POSIX 腳本(#15)。
+/// 主機指令建構：發現 Claude Code slash 清單的 POSIX 腳本(#15)。Windows 主機由 `WindowsHostChannel` 換成
+/// 同樣輸出格式的 PowerShell 版本(`WindowsScripts.slashDiscover` 等，#68)。
 ///
 /// 腳本不解析 JSON(主機上不一定有 python／jq):只把檔案原樣印出來，由 app 解析後決定下一步要讀哪些路徑。
 /// 一共三步，每步一個指令:
@@ -26,7 +27,10 @@ public enum ClaudeSlashCommand {
 
     /// 第 1 步。參數：工作資料夾(沒有時空字串)、對話紀錄路徑(沒有時空字串)。
     public static func discover(cwd: String?, transcriptPath: String?) -> String {
-        let script = functions + "\n" + #"""
+        TranscriptCommand.command(discoverScript, arguments: [cwd ?? "", transcriptPath ?? ""])
+    }
+
+    static let discoverScript = functions + "\n" + #"""
         c=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
         dump installed "$c/plugins/installed_plugins.json"
         dump settings "$c/settings.json"
@@ -43,14 +47,13 @@ public enum ClaudeSlashCommand {
         grep -F '"skill_listing"' "$2" | sed 's/^/|/'
         fi
         """#
-        return TranscriptCommand.command(script, arguments: [cwd ?? "", transcriptPath ?? ""])
-    }
 
     /// 第 2 步。參數：每個 plugin 的 installPath。
     public static func manifests(installPaths: [String]) -> String {
-        let script = functions + "\n" + #"for p in "$@"; do dump "$p" "$p/.claude-plugin/plugin.json"; done"#
-        return TranscriptCommand.command(script, arguments: installPaths)
+        TranscriptCommand.command(manifestsScript, arguments: installPaths)
     }
+
+    static let manifestsScript = functions + "\n" + #"for p in "$@"; do dump "$p" "$p/.claude-plugin/plugin.json"; done"#
 
     /// 第 3 步要掃的一個路徑。
     public struct Scan: Sendable, Equatable {
@@ -69,12 +72,13 @@ public enum ClaudeSlashCommand {
 
     /// 第 3 步。參數：每個路徑三個(種類、plugin 名稱、路徑)。
     public static func scan(_ scans: [Scan]) -> String {
-        let script = functions + "\n" + #"""
+        TranscriptCommand.command(scanScript, arguments: scans.flatMap { [$0.kind.rawValue, $0.plugin, $0.path] })
+    }
+
+    static let scanScript = functions + "\n" + #"""
         while [ $# -ge 3 ]; do
         if [ "$1" = s ]; then skills "$2" "$3"; else commands "$2" "$3"; fi
         shift 3
         done
         """#
-        return TranscriptCommand.command(script, arguments: scans.flatMap { [$0.kind.rawValue, $0.plugin, $0.path] })
-    }
 }
