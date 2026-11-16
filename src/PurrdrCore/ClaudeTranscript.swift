@@ -50,7 +50,9 @@ extension ClaudeTranscript {
     /// 對話紀錄的 session 資料夾(放 subagent 與 workflow 檔,§4.6):主對話紀錄去掉 `.jsonl`;subagent 的對話紀錄
     /// 取 `/subagents/` 之前的部分(subagent 的 subagent 平放在同一個主 session 下)。
     public static func sessionFolder(ofTranscript path: String) -> String {
-        if let range = path.range(of: "/subagents/") { return String(path[..<range.lowerBound]) }
+        for marker in ["/subagents/", "\\subagents\\"] {
+            if let range = path.range(of: marker) { return String(path[..<range.lowerBound]) }
+        }
         return path.hasSuffix(".jsonl") ? String(path.dropLast(6)) : path
     }
 
@@ -73,7 +75,6 @@ extension ClaudeTranscript {
 
     /// 主機上的資料夾：絕對路徑、沒有 `..` 段、沒有 NUL／CR／LF。
     static func isValidFolder(_ path: String) -> Bool {
-        path.hasPrefix("/") && !path.split(separator: "/").contains("..")
-            && !path.contains { $0 == "\0" || $0 == "\r" || $0 == "\n" }
+        HostPathSyntax.isSafeAbsolute(path)
     }
 }

@@ -175,3 +175,20 @@ $ProgressPreference='SilentlyContinue'; $p = Start-Process -FilePath herdr -Argu
 去識別化:帳號、主機名換成 `demo`/`DEMO-PC`,測試 pane 的 terminal id 換成 `term_0000000000d001`、`term_0000000000d002`(已刪除的 pane)。畫面裡只有 `C:\Windows\Temp` 的 PowerShell prompt 與測試指令。匯出時以帳號、主機名、tailnet 位址、使用者 workspace 名稱與專案名稱的樣式檢查過所有文字與 base64 解開後的 frame,沒有命中。
 
 重新錄製：在實測機建一個專用 workspace(`herdr workspace create --no-focus --label purrdr-spike`),把 `sc_tests.py` 等腳本裡的 pane id 換成它的，設 `PURRDR_WIN_SSH` 後執行，再以 `export.py` 匯出(用法見檔頭)。測完 `herdr workspace close` 並確認 `workspace get` 回 `workspace_not_found`。
+
+## #26 實作時的追加實測(2026-11-16)
+
+同一台實測機(預設 shell 是 Git Bash、herdr 0.9.5)。結論已寫進 `WindowsHostChannel`／`WindowsScripts`,真實主機整合測試是 `WindowsRealHostIntegrationTests`。
+
+| 項目 | 結果 | 對策 |
+|---|---|---|
+| 預設 shell 是 cmd(在 Git Bash 裡以 `cmd.exe //c` 模擬) | `PATH="…" uname -s` 被當成 cmd 的 `PATH` 內建指令：**exit 0、沒有任何輸出**【實測】 | `uname` 認不得就再跑 `PowerShell.windowsProbe`(印 `purrdr-windows`) |
+| 預設 shell 是 PowerShell(以 `-EncodedCommand` 模擬) | 同一行是 `CommandNotFoundException`,exit 1;stderr 是 CLIXML,內文依系統語系(Big5)【實測】 | 同上;顯示錯誤前以 `WindowsErrorText` 整理 |
+| PowerShell 自己的錯誤 | stdin／stderr 被重導時，錯誤與進度都序列化成 `#< CLIXML`(`_x000D__x000A_` 是換行);沒設 `$ProgressPreference` 時，第一次載入模組也會寫進度【實測】 | 腳本開頭一律 `$ProgressPreference='SilentlyContinue'`;自己的錯誤用 exit code 回報 |
+| 函式名稱 | alias 優先於函式：自訂的 `Ls` 實際執行的是 `ls`(Get-ChildItem),`Rd` 會是 `rd`(**Remove-Item**)【實測 `Ls`】 | 腳本函式一律 `P` 開頭、至少 5 個字元(`WindowsScriptRulesTests` 守著) |
+| 同一個 exec 送兩次 EOF | 經 swift-nio-ssh 對同一個 channel 第二次 `close(mode: .output)`,輸出在結束狀態之前就斷掉(呼叫端看到「連線中斷」)【實測，可重現】 | `WindowsExecSession` 只往下送一次 |
+| stdin 的 EOF | 以 OpenSSH client 實驗時，超過 4 KiB 的 stdin 之後的 EOF 常常沒有傳到 PowerShell(程序永遠等在 `ReadToEnd`);資料本身都到了【實測，原因未查明，可能與上一列有關】 | 不靠 EOF:唯讀腳本的 stub 讀到結束標記行，上傳讀剛好宣告的大小 |
+| cmd 的命令列上限 | 8,191 字元;UTF-16 base64 把腳本放大約 2.7 倍【文件】 | 唯讀腳本經 stdin 送給固定的 stub;上傳的腳本放命令列(stdin 留給 bytes),單元測試檢查長度 |
+| herdr 不在 PATH | `%LOCALAPPDATA%\Programs\Herdr\bin\herdr.exe` 存在且可用(`PATH` 只留 System32 時 `--version` 正常)【實測】 | 找不到 `herdr` 時試它，都沒有就 exit 127 |
+| 登入 Shell | `pty-req` + `shell` 開出使用者預設的 shell(實測機是 Git Bash),打字有回應【實測】 | 不送任何指令，原樣交給 sshd |
+| 以系統管理員權限跑的 server、vim/less 的滑鼠回報、agent TUI | 未測(不改主機設定、不重啟 server;不對使用者的 agent pane 操作) | — |

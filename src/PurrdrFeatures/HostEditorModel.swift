@@ -30,6 +30,8 @@ public final class HostEditorModel {
         /// 主機的 herdr 低於 0.9.5,可在確認後更新。
         case needsUpdate(HerdrVersion)
         case updating
+        /// herdr 已更新，但執行中的伺服器還是舊版(Windows 沒有 live handoff):請使用者在主機上重啟伺服器再測試。
+        case restartServerRequired
         case tested(HostProbeReport)
         case failed(String)
     }
@@ -245,17 +247,23 @@ public final class HostEditorModel {
         phase = .editing
     }
 
-    /// 使用者確認後在主機上執行 `herdr update --handoff`,再重新測試。
+    /// 使用者確認後在主機上更新 herdr(macOS／Linux 是 `herdr update --handoff`),再重新測試。
+    /// Windows 的伺服器不會交接到新版：先請使用者在主機上重啟伺服器，不馬上重測(重測只會再看到舊版)。
     public func updateHerdr() async {
         guard let draft, case .needsUpdate = phase else { return }
         phase = .updating
         let channel = makeChannel(draft.endpoint, pin(for: draft), credential(for: draft))
+        let outcome: HerdrUpdateOutcome
         do {
-            try await HostProbe(channel: channel, herdr: draft.herdr).updateHerdr()
+            outcome = try await HostProbe(channel: channel, herdr: draft.herdr).updateHerdr()
             await channel.disconnect()
         } catch {
             await channel.disconnect()
             phase = .failed(HostErrorText.message(for: error, connection: draft.connectionMethod, authentication: draft.authentication))
+            return
+        }
+        guard outcome == .handedOff else {
+            phase = .restartServerRequired
             return
         }
         await test()

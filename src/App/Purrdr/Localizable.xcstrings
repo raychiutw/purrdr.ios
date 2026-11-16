@@ -4244,13 +4244,13 @@
         }
       }
     },
-    "Purrdr supports macOS and Linux hosts for now." : {
+    "Purrdr supports macOS, Linux, and Windows hosts." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 目前支援 macOS 與 Linux 主機。"
+            "value" : "Purrdr 支援 macOS、Linux 與 Windows 主機。"
           }
         }
       }
@@ -6213,13 +6213,13 @@
         }
       }
     },
-    "This host has herdr %@. Purrdr needs %@ or later. Purrdr will run “herdr update --handoff” as %@@%@." : {
+    "This host has herdr %@. Purrdr needs %@ or later. Purrdr will update herdr as %@@%@." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台主機的 herdr 是 %@,Purrdr 需要 %@ 以上。Purrdr 會以 %@@%@ 執行「herdr update --handoff」。"
+            "value" : "這台主機的 herdr 是 %@,Purrdr 需要 %@ 以上。Purrdr 會以 %@@%@ 更新 herdr。"
           }
         }
       }
@@ -6297,6 +6297,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這不是 OpenSSH 私鑰。請貼上整個檔案，開頭是「-----BEGIN OPENSSH PRIVATE KEY-----」。舊格式的金鑰可以對它執行 ssh-keygen -p -f 轉換。"
+          }
+        }
+      }
+    },
+    "This isn’t available on Windows hosts yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows 主機目前還不能用這項功能。"
           }
         }
       }
@@ -6451,6 +6462,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 repo 的 worktree Workspace 還開著，請先關閉它們。"
+          }
+        }
+      }
+    },
+    "This request is too long for a Windows host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個請求太長,Windows 主機無法執行。"
           }
         }
       }
@@ -7399,6 +7421,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "herdr 無法開啟這個 Pane。"
+          }
+        }
+      }
+    },
+    "herdr is updated. Restart the herdr server on this host to use the new version, then test the connection again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr 已更新。請在這台主機上重新啟動 herdr 以使用新版本，再測試一次連線。"
           }
         }
       }

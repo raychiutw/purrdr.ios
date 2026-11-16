@@ -158,6 +158,7 @@ struct HostEditorModelTests {
         await old.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Darwin\n".utf8)))
         await old.expect(HerdrCommand.version(herdr), reply: FakeReply(stdout: Data("herdr 0.9.3\n".utf8)))
         let updater = FakeHost()
+        await updater.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Darwin\n".utf8)))
         await updater.expect(HerdrCommand.update(herdr), reply: FakeReply(stdout: Data("installed 0.9.5\n".utf8)))
         let factory = ChannelFactory(old, updater, await Self.healthyHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: HostConfiguration(
@@ -170,8 +171,40 @@ struct HostEditorModelTests {
 
         await model.updateHerdr()
 
-        #expect(await updater.executions.map(\.command) == [HerdrCommand.update(herdr)])
+        #expect(await updater.executions.map(\.command) == [HerdrCommand.operatingSystem, HerdrCommand.update(herdr)])
         #expect(model.canSave)
+    }
+
+    @Test("Windows 主機更新 herdr 後不馬上重新測試：伺服器沒有 live handoff,請使用者先在主機上重啟 herdr 伺服器")
+    func windowsUpdateAsksToRestartServer() async {
+        let old = FakeHost()
+        await old.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("MINGW64_NT-10.0-19045\n".utf8)))
+        await old.expect(PowerShell.encodedCommand(Self.windowsHerdrScript("'--version'")), reply: FakeReply(stdout: Data("herdr 0.9.3\n".utf8)))
+        let updater = FakeHost()
+        await updater.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("MINGW64_NT-10.0-19045\n".utf8)))
+        await updater.expect(PowerShell.encodedCommand(Self.windowsHerdrScript("'update'")), reply: FakeReply(stdout: Data("installed 0.9.5\n".utf8)))
+        let factory = ChannelFactory(old, updater)
+        let model = HostEditorModel(store: MemoryHostStore(), editing: HostConfiguration(
+            name: "PC", endpoint: SSHEndpoint(host: "demo-pc", username: "demo"), hostKeyPin: Self.fingerprint),
+            makeChannel: factory.make)
+
+        await model.test()
+        await model.updateHerdr()
+
+        #expect(model.phase == .restartServerRequired)
+        #expect(await updater.unmetExpectations.isEmpty)
+        #expect(factory.endpoints.count == 2, "重啟伺服器之前就重新測試了")
+    }
+
+    /// Windows 主機的 herdr 指令(與 `WindowsHostChannelTests.herdrScript` 相同的手寫預期值)。
+    static func windowsHerdrScript(_ arguments: String) -> String {
+        """
+        $ProgressPreference='SilentlyContinue'
+        $h='herdr'
+        if(-not(Get-Command $h -CommandType Application -ErrorAction SilentlyContinue)){$h=Join-Path $env:LOCALAPPDATA 'Programs\\Herdr\\bin\\herdr.exe';if(-not(Test-Path -LiteralPath $h)){[Console]::Error.Write("herdr: command not found`n");exit 127}}
+        & $h \(arguments)
+        exit $LASTEXITCODE
+        """
     }
 
     @Test("連不上時留在編輯器並說明原因，不顯示函式庫的錯誤字串")

@@ -54,7 +54,7 @@ public struct ConversationHeader: Equatable, Sendable {
         if let kind = agent?.kind { parts.append(AgentKind.displayName(kind) ?? kind) }
         if let model = metadata.model, !model.isEmpty { parts.append(TranscriptMetadata.displayName(ofModel: model)) }
         if let effort = metadata.effort, !effort.isEmpty { parts.append(String(localized: "\(effort) effort")) }
-        if let folder = agent?.cwd?.split(separator: "/").last.map(String.init), !folder.isEmpty,
+        if let folder = agent?.cwd.flatMap(HostPathSyntax.lastComponent).map(String.init), !folder.isEmpty,
            folder.lowercased() != label?.lowercased(), folder != title {
             parts.append(folder)
         }

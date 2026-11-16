@@ -43,7 +43,7 @@ public struct FolderListing: Sendable, Equatable {
     /// 認不得的行(`total N`、錯誤訊息)略過。`now` 用來補只有時分的日期的年份(ls 對半年內的項目不印年份)。
     public static func parse(_ output: String, now: Date = Date()) throws -> FolderListing {
         var lines = output.split(separator: "\n", omittingEmptySubsequences: false)
-        guard let first = lines.first, first.hasPrefix("/") else { throw HostFolderError.notAFolderListing }
+        guard let first = lines.first, HostPathSyntax.isAbsolute(String(first)) else { throw HostFolderError.notAFolderListing }
         lines.removeFirst()
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -134,7 +134,7 @@ public enum HostFolderError: Error, Equatable {
 
 /// 瀏覽主機的資料夾、上傳檔案(行為規格 F13)。沒有 SFTP:清單是一個 exec,上傳的 bytes 走 exec 的 stdin(ADR-0003)。
 ///
-/// 只有 POSIX(macOS、Linux);Windows 主機還沒做。
+/// 指令是 POSIX(macOS、Linux);Windows 主機由 `WindowsHostChannel` 換成同樣輸出格式的 PowerShell(`WindowsScripts`)。
 public struct HostFolders: Sendable {
     /// 每檔上限 25 MB(十進位,與 iOS 顯示的檔案大小一致)。
     public static let maximumUploadSize = 25_000_000
@@ -162,7 +162,7 @@ public struct HostFolders: Sendable {
     public func upload(_ data: Data, named name: String, to folder: String) async throws -> String {
         guard data.count <= Self.maximumUploadSize else { throw HostFolderError.tooLarge }
         guard Self.isValidName(name) else { throw HostFolderError.invalidName }
-        guard folder.hasPrefix("/") else { throw HostFolderError.cannotOpen(folder) }
+        guard HostPathSyntax.isAbsolute(folder) else { throw HostFolderError.cannotOpen(folder) }
         let session: any ExecSession
         do {
             session = try await channel.execute(HostFolderCommand.upload(folder: folder, name: name, size: data.count))
@@ -195,7 +195,7 @@ public struct HostFolders: Sendable {
         default: throw HostFolderError.failed(exitCode: result.exitCode, message: result.stderrText)
         }
         let path = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .newlines)
-        guard path.hasPrefix("/"), path.hasSuffix("/" + name), !path.contains("\n") else {
+        guard HostPathSyntax.isAbsolute(path, endingWith: name) else {
             throw HostFolderError.unexpectedPath(path)
         }
         return path
