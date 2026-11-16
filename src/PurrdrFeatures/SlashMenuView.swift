@@ -45,7 +45,7 @@ struct SlashMenuView: View {
                             Text(section.source.title)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
+                                // 一般大小寫，不全大寫(HIG 20.2,#35)。
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
@@ -87,9 +87,10 @@ struct SlashMenuView: View {
                         .font(.body.monospaced())
                         .foregroundStyle(.primary)
                     if let hint = command.argumentHint {
+                        // 淡色但仍承載文字：用次要色，不用 tertiary(對比只有約 2:1,#35)。
                         Text(verbatim: hint)
                             .font(.footnote.monospaced())
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 if !command.summary.isEmpty {

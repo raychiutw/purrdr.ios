@@ -44,9 +44,14 @@ struct YouShouldKnowListView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
-                        Button("Go to Chat", systemImage: "arrow.right.circle") {
+                        Button {
                             dismiss()
                             go(entry.route)
+                        } label: {
+                            // 觸控目標 ≥ 44pt(frame 放在 label 裡才會撐大可點範圍,#35)。
+                            Label("Go to Chat", systemImage: "arrow.right.circle")
+                                .frame(minHeight: 44)
+                                .contentShape(.rect)
                         }
                         .font(.subheadline)
                         .buttonStyle(.borderless)
@@ -113,22 +118,22 @@ struct YouShouldKnowNoteView: View {
     @ViewBuilder
     private var actions: some View {
         if note.canLearnMore {
-            Button("Learn More") { Task { await model.perform(.learnMore, on: note) } }
-                .frame(minHeight: 44)
+            Button { Task { await model.perform(.learnMore, on: note) } } label: { HitTarget("Learn More") }
                 .accessibilityIdentifier("youShouldKnow.learnMore")
         }
-        Button(note.kind == .explained ? "Got It" : "I Knew That") { Task { await model.perform(.knewIt, on: note) } }
-            .frame(minHeight: 44)
-            .accessibilityIdentifier("youShouldKnow.knewIt")
-        Button("Discuss in Chat") {
+        Button { Task { await model.perform(.knewIt, on: note) } } label: {
+            HitTarget(note.kind == .explained ? "Got It" : "I Knew That")
+        }
+        .accessibilityIdentifier("youShouldKnow.knewIt")
+        Button {
             // 先放進輸入框(不改主機),再當作「早就知道」寫回(行為規格 F17)。
             conversation.insertIntoDraft(note.discussionDraft)
             Task { await model.perform(.knewIt, on: note) }
+        } label: {
+            HitTarget("Discuss in Chat")
         }
-        .frame(minHeight: 44)
         .accessibilityIdentifier("youShouldKnow.discuss")
-        Button("Dismiss") { Task { await model.perform(.dismiss, on: note) } }
-            .frame(minHeight: 44)
+        Button { Task { await model.perform(.dismiss, on: note) } } label: { HitTarget("Dismiss") }
             .accessibilityIdentifier("youShouldKnow.dismiss")
     }
 }

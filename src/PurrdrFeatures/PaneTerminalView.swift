@@ -363,13 +363,15 @@ struct TerminalScreen: UIViewRepresentable {
     let handle: TerminalScreenHandle
     /// 主機主題的配色;`nil` = 預設(黑底、淺灰字、SwiftTerm 的 ANSI 色)。
     var theme: TerminalTheme?
+    /// 系統「粗體文字」:終端機字型是固定大小的等寬系統字(使用者用 `Aa` 調整),不會自動變粗，要自己跟著換(#35)。
+    @Environment(\.legibilityWeight) private var legibilityWeight
 
     func makeCoordinator() -> Coordinator {
         Coordinator(model: model)
     }
 
     func makeUIView(context: Context) -> PurrdrTerminalView {
-        let view = PurrdrTerminalView(frame: .zero, font: Self.font(model.fontSize))
+        let view = PurrdrTerminalView(frame: .zero, font: Self.font(model.fontSize, bold: legibilityWeight == .bold))
         view.terminalDelegate = context.coordinator
         // 按鍵列由 SwiftUI 畫(玻璃容器);SwiftTerm 自帶的 accessory 關掉。
         view.inputAccessoryView = nil
@@ -392,8 +394,8 @@ struct TerminalScreen: UIViewRepresentable {
             Self.apply(theme, to: view)
             context.coordinator.appliedTheme = theme
         }
-        let font = Self.font(model.fontSize)
-        if view.font.pointSize != font.pointSize {
+        let font = Self.font(model.fontSize, bold: legibilityWeight == .bold)
+        if view.font.pointSize != font.pointSize || view.font.fontName != font.fontName {
             view.font = font
         }
     }
@@ -413,8 +415,8 @@ struct TerminalScreen: UIViewRepresentable {
         }
     }
 
-    static func font(_ size: Double) -> UIFont {
-        UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
+    static func font(_ size: Double, bold: Bool = false) -> UIFont {
+        UIFont.monospacedSystemFont(ofSize: size, weight: bold ? .semibold : .regular)
     }
 
     @MainActor

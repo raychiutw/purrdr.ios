@@ -97,4 +97,38 @@ final class IPadLayoutUITests: XCTestCase {
             要在實機接鍵盤確認。卡片的 Esc 狀態轉換由 LayoutCardModelTests 守。
             """)
     }
+
+    // MARK: - 無障礙稽核(#35)
+
+    /// 三欄(側欄、Agent 列表、對話開在對話欄):預設字級與 AX5 跑 accessibility audit。
+    @MainActor
+    func testAccessibilityAuditThreeColumns() throws {
+        continueAfterFailure = true
+        for size in [nil, AccessibilityAuditUITests.ax5] {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let row = element("agent.row.demo/w2:p1", in: app)
+            XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
+            row.tap()
+            XCTAssertTrue(element("prompt.card", in: app).waitForExistence(timeout: 15), "對話沒有開在對話欄")
+            try audit(app, "iPad 三欄", contentSize: size)
+            app.terminate()
+        }
+    }
+
+    /// 釘住的版面圖浮動卡片(玻璃):預設字級與 AX5 跑 accessibility audit。
+    @MainActor
+    func testAccessibilityAuditLayoutCard() throws {
+        continueAfterFailure = true
+        for size in [nil, AccessibilityAuditUITests.ax5] {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            let app = XCUIApplication.launchUITesting(contentSize: size)
+            let button = element("sidebar.layout.w3", in: app)
+            XCTAssertTrue(button.waitForExistence(timeout: 10))
+            button.tap()
+            XCTAssertTrue(element("layoutCard", in: app).waitForExistence(timeout: 5), "沒有版面圖卡片")
+            try audit(app, "iPad 版面圖卡片", contentSize: size)
+            app.terminate()
+        }
+    }
 }

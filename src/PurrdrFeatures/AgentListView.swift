@@ -469,9 +469,9 @@ struct AgentSectionHeader: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(group.title)
+            // 不再疊一層 `.secondary`:section 標題本身已是次要色，再疊一次對比只剩約 2:1(#35)。
             Text(count, format: .number)
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
         }
         .textCase(nil)
         .accessibilityElement(children: .combine)

@@ -45,3 +45,21 @@ extension ShapeStyle where Self == Color {
     /// 錯誤文字的顏色(取代承載文字的系統 `.red`)。圖示與不承載文字的標記仍可用系統紅。
     static var errorText: Color { AccessibleColors.errorText.color }
 }
+
+/// 文字按鈕的 label,觸控目標至少 44×44 pt(HIG 20.2)。
+///
+/// `frame(minHeight: 44)` 要放在 label 裡面:放在 `Button` 外面只撐大排版，可點範圍與 accessibility frame
+/// 仍然只有文字大小(#35 的 accessibility audit 抓到的 hit region 問題)。
+struct HitTarget: View {
+    let title: Text
+
+    init(_ title: LocalizedStringKey) {
+        self.title = Text(title)
+    }
+
+    var body: some View {
+        title
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(.rect)
+    }
+}

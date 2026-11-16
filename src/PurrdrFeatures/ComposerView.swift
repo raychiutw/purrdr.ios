@@ -279,9 +279,8 @@ struct EchoBubbleView: View {
                 Label(failure.text, systemImage: "exclamationmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.errorText)
-                Button("Retry", action: retry)
+                Button(action: retry) { HitTarget("Retry") }
                     .font(.caption.weight(.semibold))
-                    .frame(minWidth: 44, minHeight: 44)
                     .accessibilityIdentifier("conversation.echo.retry")
             }
         }

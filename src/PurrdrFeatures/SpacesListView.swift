@@ -90,11 +90,15 @@ private struct WorkspaceCardHeader: View {
             .accessibilityIdentifier("workspace.card.\(card.id)")
 
             // 版面圖按鈕(田字格);觸控目標 44×44 pt。
-            Button("Workspace Layout", systemImage: "square.grid.2x2", action: showLayout)
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .frame(minWidth: 44, minHeight: 44)
-                .accessibilityIdentifier("workspace.layout.\(card.id)")
+            // frame 放在 label 裡:放在 Button 外面時，可點範圍與 accessibility frame 仍只有圖示大小(#35 audit)。
+            Button(action: showLayout) {
+                Label("Workspace Layout", systemImage: "square.grid.2x2")
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("workspace.layout.\(card.id)")
         }
     }
 
