@@ -25,7 +25,7 @@ struct ConversationSlashTests {
         return (host, model)
     }
 
-    @Test("Claude:打 / 出現在主機上發現的清單(mattpocock-skills 的 27 個都在),選取後草稿換成 /名稱 ")
+    @Test("Claude:打 / 出現在主機上發現的清單(mattpocock-skills 的 27 個都在),選取有副作用的指令只填入 /名稱 ")
     func claudeMenuFromHost() async throws {
         let (host, model) = try Self.setup()
         await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
@@ -43,8 +43,11 @@ struct ConversationSlashTests {
 
         model.draft = "/mattpocock-skills:to-ti"
         #expect(model.slash.highlighted == "mattpocock-skills:to-tickets")
+        // 有副作用的指令(#45):選取只填入、不送出，選單收起。
+        model.draft = "/compac"
+        #expect(model.slash.highlighted == "compact")
         model.slash.handle(.select)
-        #expect(model.draft == "/mattpocock-skills:to-tickets ")
+        #expect(model.draft == "/compact ")
         #expect(!model.slash.isVisible)
     }
 

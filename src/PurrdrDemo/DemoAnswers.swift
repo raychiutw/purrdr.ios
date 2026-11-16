@@ -5,6 +5,8 @@ import Foundation
 /// - weather-app(`w2:p1`)一開始就卡在 Bash 權限提示;依 Claude 的規則只送數字(1–3)就回答掉，變成完成。
 /// - 在 ledger(`w1:p1`)輸入觸發語:「ask me」→ 兩題 AskUserQuestion(逐題數字作答)再到檢閱畫面;
 ///   「trust」→ 資料夾信任(狀態仍是完成，prompt 被 `agent_input_pending` 拒絕;游標起在「No, exit」)。
+/// - ledger 送出 `/model`:畫面開出模型面板(herdr 狀態仍是完成);方向鍵移動游標、←/→ 調整 effort、
+///   Enter／`s` 選定游標列、Esc 關閉(#45)。數字不算(真的 Claude 會直接存成預設)。
 /// - 工作中的 Codex(`w3:p1`)畫面上有正在寫的散文(即時預覽);收到 Esc 或 ctrl+c(停止、強制結束)就變完成(#44)。
 /// 錯的按鍵(例如 Claude 的數字加 Enter)不算回答，方便看出規則錯了。範例文字是自己寫的。
 struct DemoAnswers {
@@ -17,6 +19,10 @@ struct DemoAnswers {
     }
 
     private(set) var stages: [String: Stage] = ["w2:p1": .bashPermission]
+    /// 開著的 slash 面板(pane → 面板)。
+    private(set) var panels: [String: DemoModelPanel] = [:]
+    /// 每個 pane 目前的模型(面板關掉後保留)。
+    private var models: [String: Int] = [:]
 
     /// 工作中、可以被停止的 pane。
     static let workingPanes: Set<String> = ["w3:p1"]
@@ -42,19 +48,46 @@ struct DemoAnswers {
         }
     }
 
-    /// 送出的 prompt 是觸發語時進入情境。
-    mutating func receivedPrompt(_ text: String, paneID: String) {
+    /// 送出的 prompt 是觸發語時進入情境。回傳 `true` = 這是開面板的 slash 指令(不寫進對話紀錄)。
+    @discardableResult
+    mutating func receivedPrompt(_ text: String, paneID: String) -> Bool {
         switch text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "ask me": stages[paneID] = .askColor
         case "trust": stages[paneID] = .trust
+        case "/model":
+            let current = models[paneID] ?? 1
+            panels[paneID] = DemoModelPanel(current: current, cursor: current)
+            return true
         default: break
         }
+        return false
     }
 
     /// 收到按鍵：照 Claude 的規則(只送數字;信任提示用方向鍵)推進。
     mutating func receivedKeys(_ keys: [String], paneID: String) {
         if Self.workingPanes.contains(paneID), keys == ["esc"] || keys == ["ctrl+c"] {
             stopped.insert(paneID)
+            return
+        }
+        if var panel = panels[paneID] {
+            for key in keys {
+                switch key {
+                case "up": panel.cursor = max(0, panel.cursor - 1)
+                case "down": panel.cursor = min(DemoModelPanel.models.count - 1, panel.cursor + 1)
+                case "left": panel.effort = max(0, panel.effort - 1)
+                case "right": panel.effort = min(DemoModelPanel.efforts.count - 1, panel.effort + 1)
+                case "enter", "s":
+                    models[paneID] = panel.cursor
+                    panels[paneID] = nil
+                    return
+                case "esc":
+                    panels[paneID] = nil
+                    return
+                default:
+                    break
+                }
+            }
+            panels[paneID] = panel
             return
         }
         guard let stage = stages[paneID] else { return }
@@ -85,7 +118,10 @@ struct DemoAnswers {
                                 options: ["Small", "Medium", "Large"])
         case .askReview: Self.review
         case .trust: Self.trust
-        case nil: Self.workingPanes.contains(paneID) && !stopped.contains(paneID) ? Self.codexWorking : Self.idle
+        case nil:
+            if let panel = panels[paneID] { panel.screen }
+            else if Self.workingPanes.contains(paneID) && !stopped.contains(paneID) { Self.codexWorking }
+            else { Self.idle }
         }
     }
 
@@ -184,4 +220,41 @@ struct DemoAnswers {
           ? for shortcuts
 
         """
+}
+
+/// Demo 的 `/model` 面板(形狀依行為規格 §5.6 的 Claude 面板)。
+struct DemoModelPanel: Equatable {
+    static let models: [(name: String, detail: String)] = [
+        ("Default (recommended)", "Most capable for complex work"),
+        ("Balanced", "Good for everyday tasks"),
+        ("Quick", "Fastest for short answers"),
+    ]
+    static let efforts = ["Low", "Medium", "High"]
+
+    var current: Int
+    var cursor: Int
+    var effort = 1
+
+    var screen: String {
+        let width = Self.models.map(\.name.count).max() ?? 0
+        let rows = Self.models.enumerated().map { index, model in
+            let mark = index == current ? " ✔" : "  "
+            let name = model.name + mark + String(repeating: " ", count: width - model.name.count)
+            return (index == cursor ? " ❯ " : "   ") + "\(index + 1). \(name)   \(model.detail)"
+        }
+        return """
+            ⏺ All set.
+
+            \(String(repeating: "▔", count: 80))
+             Select model
+             Switch between models. Applies to this session and future sessions.
+
+            \(rows.joined(separator: "\n"))
+
+             ◐ \(Self.efforts[effort]) effort ←/→ to adjust
+
+             Enter to set as default · s to use this session only · Esc to cancel
+
+            """
+    }
 }
