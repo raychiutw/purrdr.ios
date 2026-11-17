@@ -44,14 +44,35 @@ jobs:
           fi
           xcodebuild -showComponent MetalToolchain
 
-      # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo、上層功能 import PurrdrSSH(#89)。
-      # 預設的 Swift Build 會忽略這個選項(實測照樣建置成功),只有 native build system 會擋，所以另外以 native 建置一次。
-      - name: 依賴方向(import check)
-        run: swift build --build-system native --build-tests --explicit-target-dependency-import-check error
-
       # warning 當 error 寫在 Package.swift(只對 macOS 套用)。
       - name: swift test
         run: swift test
+
+  # 與 package job 平行(原本跟 swift test 串在同一個 job,是 CI 最慢的一段:4～5 分 + 5 分)。
+  # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo、上層功能 import PurrdrSSH(#89)。
+  # 預設的 Swift Build 會忽略這個選項(實測照樣建置成功),只有 native build system 會擋，所以另外以 native 建置一次。
+  import-check:
+    name: 依賴方向(import check)
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 工具鏈版本
+        run: swift --version
+
+      # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
+      - name: 安裝 Metal Toolchain
+        run: |
+          if xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed'; then
+            echo "Metal Toolchain 已安裝，略過下載"
+          else
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcodebuild -showComponent MetalToolchain
+
+      - name: swift build(native,import check)
+        run: swift build --build-system native --build-tests --explicit-target-dependency-import-check error
 
   # 與 package job 平行:package 以 iOS 編譯、數 warning、檢查 String Catalog(原本跟 swift test 串在同一個 job)。
   package-ios:
