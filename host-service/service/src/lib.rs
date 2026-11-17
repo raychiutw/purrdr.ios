@@ -9,6 +9,7 @@ pub mod device_store;
 pub mod herdr_client;
 pub mod herdr_socket;
 mod http;
+pub mod management;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
 pub mod state_directory;
@@ -33,10 +34,11 @@ pub struct HostServiceConfig {
 pub const DEFAULT_PORT: u16 = 47_820;
 
 impl HostServiceConfig {
-    /// 由命令列參數建立設定:`--port <埠>`、`--session <herdr session>`;其他參數一律拒絕。
+    /// 由命令列參數建立設定:`--port <埠>`、`--session <herdr session>`、`--state-dir <資料夾>`;其他參數一律拒絕。
     pub fn from_arguments(arguments: &[String], platform: herdr_socket::Platform, environment: &herdr_socket::SocketEnvironment) -> Result<Self, String> {
         let mut port = DEFAULT_PORT;
         let mut session = None;
+        let mut state_directory = None;
         let mut remaining = arguments.iter();
         while let Some(argument) = remaining.next() {
             let mut value = || remaining.next().ok_or_else(|| format!("{argument} needs a value"));
@@ -46,15 +48,19 @@ impl HostServiceConfig {
                     port = text.parse().map_err(|_| format!("invalid port: {text}"))?;
                 }
                 "--session" => session = Some(value()?.clone()),
+                "--state-dir" => state_directory = Some(PathBuf::from(value()?)),
                 other => return Err(format!("unknown argument: {other}")),
             }
         }
         let herdr_socket =
             HerdrSocket::resolve(platform, session.as_deref(), environment).map_err(|error| format!("cannot resolve herdr socket: {error:?}"))?;
+        let state_directory = state_directory
+            .or_else(|| state_directory::resolve_state_directory(platform, environment))
+            .ok_or("cannot find the home directory; pass --state-dir")?;
         Ok(HostServiceConfig {
             port,
             herdr_socket,
-            state_directory: PathBuf::new(),
+            state_directory,
         })
     }
 }
