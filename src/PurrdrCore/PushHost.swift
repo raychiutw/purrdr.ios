@@ -48,13 +48,19 @@ public struct PushHost: Sendable {
     let herdr: HerdrInstallation
     let pluginSource: String
     let pairingFeature: HostWriteFeature
+    /// 指令期限的計時(測試注入)。
+    let sleep: @Sendable (Duration) async throws -> Void
 
     /// - Parameters:
     ///   - deviceID: 這支裝置的 id(`isValidDeviceID`),決定配對資料夾。
     ///   - pluginSource: `herdr plugin install` 的 GitHub 來源(`owner/repo[/subdir]`)。
-    public init(channel: any HostChannel, herdr: HerdrInstallation, deviceID: String, pluginSource: String) {
+    public init(
+        channel: any HostChannel, herdr: HerdrInstallation, deviceID: String, pluginSource: String,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         precondition(Self.isValidDeviceID(deviceID), "裝置 id 會拼進主機路徑")
         self.channel = channel
+        self.sleep = sleep
         self.herdr = herdr
         self.pluginSource = pluginSource
         pairingFeature = HostWriteFeature(id: "push-\(deviceID)", userFiles: [])
