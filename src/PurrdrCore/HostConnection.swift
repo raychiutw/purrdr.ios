@@ -15,11 +15,19 @@ public protocol HostConnection: Sendable {
     /// 對話紀錄：讀一次，回傳主機的原始輸出(格式見 `TranscriptReader`)。主機回報的失敗丟 `TranscriptReadError`。
     func readTranscript(_ request: TranscriptRequest) async throws -> Data
 
+    /// 不再追蹤 `path` 的尾端(對話關閉或換了 session)。主機推送尾端的連線方式(HTTPS)據此請主機停止追蹤;
+    /// 每次都向主機讀的連線方式不用做事(預設實作)。之後再讀這個路徑會重新開始追蹤。
+    func stopFollowingTranscript(path: String) async
+
     /// Pane 終端機：以 controller 身分接上 `target`(pane id 或 terminal id)。
     func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection
 
     /// 關掉底層連線。下一個操作會重新連線。
     func disconnect() async
+}
+
+extension HostConnection {
+    public func stopFollowingTranscript(path: String) async {}
 }
 
 /// 一次對話紀錄讀取。參數已由 `TranscriptReader` 驗證過安全性。

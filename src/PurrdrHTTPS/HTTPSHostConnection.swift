@@ -200,7 +200,8 @@ public actor HTTPSHostConnection: HostConnection {
         case .readOnlyDevice: HostServiceError.readOnlyDevice
         case .pairingCodeInvalid: HostServiceError.pairingCodeInvalid
         case .pairingCodeExpired: HostServiceError.pairingCodeExpired
-        case .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
+        case .invalidMessage, .handshakeRequired, .internalError, .transcriptNotAllowed, .transcriptUnsupported, .transcriptAbsent,
+             .transcriptUnreadable, .transcriptAmbiguous, .transcriptCompressed: HostServiceError.unexpectedResponse
         }
     }
 
