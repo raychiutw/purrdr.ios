@@ -62,13 +62,14 @@ struct SpacesColorsTests {
 
     @Test("Agent 種類頭像：已知種類各有字母，其他種類用顯示名的首字母")
     func avatarLetters() {
-        let letters = ["claude", "codex", "gemini", "open_code", "github_copilot", "grok", "pi"].map { AgentKindAvatarStyle(kind: $0).letter }
+        let kinds: [AgentKind] = [.claudeCode, .codex, .gemini, .openCode, .copilot, .unknown("grok"), .unknown("pi")]
+        let letters = kinds.map { AgentKindAvatarStyle(kind: $0).letter }
         #expect(letters == ["C", "X", "G", "O", "P", "G", "P"])
     }
 
     @Test("Agent 種類頭像的白色字母：底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
     func avatarContrast() {
-        for kind in ["claude", "codex", "gemini", "open_code", "github_copilot", "grok"] {
+        for kind in [AgentKind.claudeCode, .codex, .gemini, .openCode, .copilot, .unknown("grok")] {
             let palette = AgentKindAvatarStyle(kind: kind).palette
             for (name, color, minimum) in [
                 ("淺色", palette.light, 4.5), ("深色", palette.dark, 4.5),

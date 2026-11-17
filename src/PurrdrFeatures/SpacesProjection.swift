@@ -366,7 +366,7 @@ extension AgentListProjection {
         }
         let rows = sortedAgents.map { row in
             var row = row
-            row.subtitle = AgentKind.displayName(row.kind) ?? ""
+            row.subtitle = AgentKind(rawKind: row.kind).displayName ?? ""
             return WorkspaceGroup.Row.agent(row)
         } + shownTerminals.map(WorkspaceGroup.Row.terminal)
         let counts = SpacesStatusCounts(statuses: agentRows.map(\.status))

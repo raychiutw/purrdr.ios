@@ -90,25 +90,41 @@ enum AgentKind: Equatable {
     case unknown(String)
 
     init(rawKind: String) {
-        self = .unknown(rawKind)
+        self = switch rawKind {
+        case "claude": .claudeCode
+        case "codex": .codex
+        case "gemini": .gemini
+        case "open_code": .openCode
+        case "github_copilot": .copilot
+        default: .unknown(rawKind)
+        }
     }
 
-    /// 顯示名稱。
-    var displayName: String? { nil }
+    /// 顯示名稱。不認得的種類照 herdr 原文;沒有種類時 `nil`。
+    var displayName: String? {
+        switch self {
+        case .claudeCode: "Claude Code"
+        case .codex: "Codex"
+        case .gemini: "Gemini"
+        case .openCode: "opencode"
+        case .copilot: "GitHub Copilot"
+        case .unknown(let rawKind): Self.otherDisplayName(rawKind)
+        }
+    }
 
-    /// 顯示名稱。不認得的種類照 herdr 原文。
+    /// herdr 種類字串的顯示名稱。
     static func displayName(_ kind: String) -> String? {
+        AgentKind(rawKind: kind).displayName
+    }
+
+    /// 沒有專屬樣式的種類。
+    private static func otherDisplayName(_ kind: String) -> String? {
         switch kind {
         case "": nil
-        case "claude": "Claude Code"
-        case "codex": "Codex"
         case "grok": "Grok"
         case "agy", "antigravity": "Antigravity"
-        case "gemini": "Gemini"
         case "pi": "Pi"
         case "omp": "OMP"
-        case "open_code": "opencode"
-        case "github_copilot": "GitHub Copilot"
         case "cline": "Cline"
         case "amp": "Amp"
         case "droid": "Droid"

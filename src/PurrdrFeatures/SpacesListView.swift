@@ -287,7 +287,7 @@ struct SpacesAgentRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            AgentKindAvatar(kind: row.kind)
+            AgentKindAvatar(kind: AgentKind(rawKind: row.kind))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(row.title)
@@ -361,7 +361,7 @@ struct SpacesAgentRowView: View {
 
 /// Agent 種類頭像：36pt 圓角方塊，白色字母。種類名稱在列的文字裡，對 VoiceOver 隱藏。
 struct AgentKindAvatar: View {
-    let kind: String
+    let kind: AgentKind
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
