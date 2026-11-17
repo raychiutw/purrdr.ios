@@ -20,6 +20,10 @@ public actor DemoHost: HostChannel {
         case paneInUse
         /// Tailscale SSH check mode:第一個指令先要求重新驗證(經 `tailscaleCheck` 回報)。
         case tailscaleCheck(completesAfter: Duration?)
+        /// 對話畫面定位對話紀錄的指令不回應(直到關閉):停在對話載入中(#114)。列表預覽、subagent 照常回應。
+        /// 讀取有期限(`HostCommandDeadline.standard`,20 秒):期限到了 client 關閉指令、畫面離開載入中，
+        /// 所以只在進入對話後的這段時間內停在載入中。
+        case transcriptPending
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -72,6 +76,9 @@ public actor DemoHost: HostChannel {
         }
         if let stdout = DemoSlash.respond(to: command) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        if scenario == .transcriptPending, DemoTranscripts.isLocate(command) {
+            return DemoPendingSession()
         }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
@@ -665,6 +672,20 @@ private struct DemoFinishedSession: ExecSession {
     func write(_ data: Data) async throws {}
     func closeStdin() async {}
     func close() async {}
+}
+
+/// 一直不回應、直到關閉才結束的指令。
+private struct DemoPendingSession: ExecSession {
+    let output: AsyncThrowingStream<ExecOutput, any Error>
+    private let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
+
+    init() {
+        (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
+    }
+
+    func write(_ data: Data) async throws {}
+    func closeStdin() async {}
+    func close() async { continuation.finish() }
 }
 
 /// 回顯輸入的 shell。

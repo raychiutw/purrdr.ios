@@ -168,11 +168,14 @@ struct PurrdrApp: App {
         (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
     }
 
-    /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成)。
+    /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成);
+    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止)。
+    /// 情境只能選一個：旗標互斥，同時帶多個時只採用下面順序中的第一個。
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
         if arguments.contains("-demoTailscaleCheck") { return .tailscaleCheck(completesAfter: nil) }
         if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: .seconds(3)) }
+        if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
         return .standard
     }
 

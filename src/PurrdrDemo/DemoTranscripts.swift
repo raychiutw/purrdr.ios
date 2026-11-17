@@ -60,6 +60,13 @@ enum DemoTranscripts {
         return nil
     }
 
+    /// 是否為對話畫面定位某個 Demo session 對話紀錄的指令(對話畫面讀對話紀錄的第一步)。
+    static func isLocate(_ command: String) -> Bool {
+        sessions.contains {
+            command == TranscriptCommand.locate(sessionID: $0.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: $0.cwd))
+        }
+    }
+
     private static func records(_ lines: [String]) -> Data {
         Data(lines.map { "\($0.utf8.count)\t\($0)\n" }.joined().utf8)
     }
