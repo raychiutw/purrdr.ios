@@ -7,6 +7,7 @@ import PurrdrCore
 /// - 心跳(`heartbeat`)逾時視同斷線：進行中的請求與事件串流以 `connectionLost` 結束。
 /// - 權杖被拒(無效、已撤銷)後，同一個權杖不再撥號，直到存了新的權杖(重新配對):不會無限重連。
 /// - 支援的 herdr method 見 `herdrRequest`;其他丟 `HostServiceError.unsupported`(後續票依協定逐一加入)。
+/// - Pane 終端機是同一條 WSS 上的串流(`openPaneTerminal`)。
 public actor HTTPSHostConnection: HostConnection {
     private let address: HostServiceAddress
     private let deviceToken: @Sendable () throws -> String?
@@ -192,10 +193,50 @@ public actor HTTPSHostConnection: HostConnection {
         await stopFollowing(follow)
     }
 
-    // MARK: - 尚未支援
+    // MARK: - Pane 終端機
 
+    /// 主機服務以子行程執行 `herdr terminal session control`(唯讀裝置是 observe)並轉接畫面更新(#61、ADR-0005)。
+    /// 與 Agent 列表共用同一條 WSS;WSS 斷線時以 `.disconnected` 結束。開啟有期限(含撥號與握手)。
     public func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-        throw HostServiceError.unsupported("pane terminal")
+        let (session, opened) = try await withDeadline(HostCommandDeadline.standard) {
+            try await self.openTerminalStream(target: target, columns: columns, rows: rows, takeover: takeover)
+        }
+        let (events, continuation) = AsyncStream<PaneTerminalEvent>.makeStream()
+        let relay = Task {
+            for await message in opened.messages {
+                guard let event = PaneTerminalStreamEvent.make(message) else { continue }
+                continuation.yield(event)
+                if case .frame = event { continue }
+                continuation.finish()
+                return
+            }
+            // 沒有 pane.terminal.closed 就結束:WSS 斷了，可以重新連線。
+            continuation.yield(.disconnected)
+            continuation.finish()
+        }
+        continuation.onTermination = { _ in relay.cancel() }
+        let transport = HostServiceTerminalTransport(session: session, streamID: opened.result.streamId)
+        return PaneTerminalConnection(events: events, transport: transport, isViewOnly: opened.result.readOnly)
+    }
+
+    private func openTerminalStream(
+        target: String, columns: Int, rows: Int, takeover: Bool
+    ) async throws -> (HostServiceSession, (result: HostServiceProtocol.PaneTerminalOpenResult, messages: AsyncStream<HostServiceProtocol.ServerMessage>)) {
+        let session = try await liveSession()
+        let opened: (reply: HostServiceProtocol.ServerMessage, messages: AsyncStream<HostServiceProtocol.ServerMessage>)
+        do {
+            opened = try await session.openLiveStream {
+                .paneTerminalOpen(.init(requestId: $0, target: target, columns: columns, rows: rows, takeover: takeover))
+            }
+        } catch {
+            noteEnding(error, of: session)
+            throw error
+        }
+        switch opened.reply {
+        case .paneTerminalOpenResult(let result): return (session, (result, opened.messages))
+        case .errorMessage(let error): throw Self.error(for: error)
+        default: throw HostServiceError.unexpectedResponse
+        }
     }
 
     public func disconnect() async {
@@ -376,6 +417,52 @@ public actor HTTPSHostConnection: HostConnection {
         enum CodingKeys: String, CodingKey {
             case paneID = "pane_id"
             case keys
+        }
+    }
+}
+
+/// Pane 終端機的輸入以主機服務協定送出;不等回應(主機服務不回應輸入)。
+struct HostServiceTerminalTransport: PaneTerminalTransport {
+    let session: HostServiceSession
+    let streamID: String
+
+    func send(_ input: TerminalInput) async throws {
+        let message: HostServiceProtocol.ClientMessage
+        switch input {
+        case .bytes(let data):
+            message = .paneTerminalInput(.init(streamId: streamID, bytes: data.base64EncodedString()))
+        case .resize(let columns, let rows):
+            message = .paneTerminalResize(.init(streamId: streamID, columns: columns, rows: rows))
+        case .scroll(let direction, let lines, let column, let row):
+            message = .paneTerminalScroll(.init(
+                streamId: streamID, direction: direction == .up ? .up : .down, lines: lines, column: column, row: row))
+        case .release:
+            return await release()
+        }
+        try await session.post(message)
+    }
+
+    /// control 等同 release;主機服務結束子行程後送 `pane.terminal.closed`。
+    func release() async {
+        try? await session.post(.paneTerminalClose(.init(streamId: streamID)))
+    }
+}
+
+/// 主機服務的串流訊息換成 Pane 終端機事件(與 SSH 路線解出的相同)。
+enum PaneTerminalStreamEvent {
+    static func make(_ message: HostServiceProtocol.ServerMessage) -> PaneTerminalEvent? {
+        switch message {
+        case .paneTerminalFrame(let frame):
+            guard let bytes = Data(base64Encoded: frame.bytes), frame.seq > 0 else { return nil }
+            return .frame(TerminalFrame(seq: UInt64(frame.seq), columns: frame.width, rows: frame.height, full: frame.full, bytes: bytes))
+        case .paneTerminalClosed(let closed):
+            switch closed.ending {
+            case .closed: return .closed(TerminalCloseReason(herdr: closed.reason))
+            case .disconnected: return .disconnected
+            case .failed: return .failed(exitCode: Int32(clamping: closed.exitCode ?? 1), message: closed.message ?? "")
+            }
+        default:
+            return nil
         }
     }
 }

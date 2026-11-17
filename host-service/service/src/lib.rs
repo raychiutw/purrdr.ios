@@ -7,11 +7,13 @@ use std::time::Duration;
 pub mod audit_log;
 mod connection;
 pub mod device_store;
+pub mod herdr_cli;
 pub mod herdr_client;
 pub mod herdr_socket;
 mod http;
 pub mod install;
 pub mod management;
+mod pane_terminal;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
 pub mod state_directory;
@@ -22,6 +24,7 @@ mod service_main;
 
 use audit_log::AuditLog;
 use device_store::DeviceStore;
+use herdr_cli::HerdrCli;
 use herdr_client::HerdrClient;
 use herdr_socket::HerdrSocket;
 pub use http::WEBSOCKET_PATH;
@@ -33,6 +36,8 @@ pub struct HostServiceConfig {
     /// 0 表示由系統挑一個空的埠(測試用)。
     pub port: u16,
     pub herdr_socket: HerdrSocket,
+    /// Pane 終端機執行的 herdr CLI。
+    pub herdr_cli: HerdrCli,
     /// 裝置、配對碼與稽核紀錄所在的資料夾。
     pub state_directory: PathBuf,
     pub heartbeat: Heartbeat,
@@ -87,6 +92,7 @@ impl HostServiceConfig {
         Ok(HostServiceConfig {
             port,
             herdr_socket,
+            herdr_cli: HerdrCli::search(session.as_deref()),
             state_directory,
             heartbeat: Heartbeat::default(),
             transcripts: transcript::TranscriptEnvironment::resolve(platform, environment),
@@ -124,6 +130,7 @@ pub async fn start(config: HostServiceConfig) -> std::io::Result<RunningHostServ
     let local_addr = listener.local_addr()?;
     let router = http::router(http::ServiceContext {
         herdr: HerdrClient::new(config.herdr_socket),
+        herdr_cli: config.herdr_cli,
         devices: DeviceStore::new(&config.state_directory),
         audit: AuditLog::new(&config.state_directory),
         heartbeat: config.heartbeat,

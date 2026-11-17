@@ -22,6 +22,11 @@ extension HostServiceProtocol {
         case agentPrompt(AgentPrompt)
         case eventsSubscribe(EventsSubscribe)
         case eventsUnsubscribe(EventsUnsubscribe)
+        case paneTerminalOpen(PaneTerminalOpen)
+        case paneTerminalInput(PaneTerminalInput)
+        case paneTerminalResize(PaneTerminalResize)
+        case paneTerminalScroll(PaneTerminalScroll)
+        case paneTerminalClose(PaneTerminalClose)
 
         private enum TypeKey: String, CodingKey {
             case type
@@ -42,6 +47,11 @@ extension HostServiceProtocol {
             case "agent.prompt": self = .agentPrompt(try AgentPrompt(from: decoder))
             case "events.subscribe": self = .eventsSubscribe(try EventsSubscribe(from: decoder))
             case "events.unsubscribe": self = .eventsUnsubscribe(try EventsUnsubscribe(from: decoder))
+            case "pane.terminal.open": self = .paneTerminalOpen(try PaneTerminalOpen(from: decoder))
+            case "pane.terminal.input": self = .paneTerminalInput(try PaneTerminalInput(from: decoder))
+            case "pane.terminal.resize": self = .paneTerminalResize(try PaneTerminalResize(from: decoder))
+            case "pane.terminal.scroll": self = .paneTerminalScroll(try PaneTerminalScroll(from: decoder))
+            case "pane.terminal.close": self = .paneTerminalClose(try PaneTerminalClose(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
             }
@@ -83,13 +93,28 @@ extension HostServiceProtocol {
             case .eventsUnsubscribe(let message):
                 try container.encode("events.unsubscribe", forKey: .type)
                 try message.encode(to: encoder)
+            case .paneTerminalOpen(let message):
+                try container.encode("pane.terminal.open", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneTerminalInput(let message):
+                try container.encode("pane.terminal.input", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneTerminalResize(let message):
+                try container.encode("pane.terminal.resize", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneTerminalScroll(let message):
+                try container.encode("pane.terminal.scroll", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneTerminalClose(let message):
+                try container.encode("pane.terminal.close", forKey: .type)
+                try message.encode(to: encoder)
             }
         }
 
         /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
         public var isWrite: Bool {
             switch self {
-            case .paneSendKeys, .paneSendText, .agentPrompt: return true
+            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll: return true
             default: return false
             }
         }
@@ -113,6 +138,9 @@ extension HostServiceProtocol {
         case subscribedEvent(SubscribedEvent)
         case eventsEnded(EventsEnded)
         case eventsUnsubscribeResult(EventsUnsubscribeResult)
+        case paneTerminalOpenResult(PaneTerminalOpenResult)
+        case paneTerminalFrame(PaneTerminalFrame)
+        case paneTerminalClosed(PaneTerminalClosed)
         case errorMessage(ErrorMessage)
 
         private enum TypeKey: String, CodingKey {
@@ -137,6 +165,9 @@ extension HostServiceProtocol {
             case "events.event": self = .subscribedEvent(try SubscribedEvent(from: decoder))
             case "events.ended": self = .eventsEnded(try EventsEnded(from: decoder))
             case "events.unsubscribe.result": self = .eventsUnsubscribeResult(try EventsUnsubscribeResult(from: decoder))
+            case "pane.terminal.open.result": self = .paneTerminalOpenResult(try PaneTerminalOpenResult(from: decoder))
+            case "pane.terminal.frame": self = .paneTerminalFrame(try PaneTerminalFrame(from: decoder))
+            case "pane.terminal.closed": self = .paneTerminalClosed(try PaneTerminalClosed(from: decoder))
             case "error": self = .errorMessage(try ErrorMessage(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
@@ -187,6 +218,15 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .eventsUnsubscribeResult(let message):
                 try container.encode("events.unsubscribe.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneTerminalOpenResult(let message):
+                try container.encode("pane.terminal.open.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneTerminalFrame(let message):
+                try container.encode("pane.terminal.frame", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneTerminalClosed(let message):
+                try container.encode("pane.terminal.closed", forKey: .type)
                 try message.encode(to: encoder)
             case .errorMessage(let message):
                 try container.encode("error", forKey: .type)
@@ -428,6 +468,220 @@ extension HostServiceProtocol {
 
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 開 Pane 終端機(ADR-0005):主機服務以子行程執行 herdr terminal session control;唯讀裝置改用 observe(只能看)。串流識別碼就是這個請求的 request_id。
+    public struct PaneTerminalOpen: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// pane id 或 terminal id。
+        public var target: String
+        public var columns: Int
+        public var rows: Int
+        /// 接管別人正在操作的 Pane(唯讀裝置忽略)。
+        public var takeover: Bool?
+
+        public init(requestId: String, target: String, columns: Int, rows: Int, takeover: Bool? = nil) {
+            self.requestId = requestId
+            self.target = target
+            self.columns = columns
+            self.rows = rows
+            self.takeover = takeover
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case target
+            case columns
+            case rows
+            case takeover
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Pane 終端機已開啟;畫面更新接著以 pane.terminal.frame 送出，結束時送 pane.terminal.closed。
+    public struct PaneTerminalOpenResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 等於開啟請求的 request_id。
+        public var streamId: String
+        /// 唯讀裝置以 observe 接上：只能看，輸入會被拒絕。
+        public var readOnly: Bool
+
+        public init(requestId: String, streamId: String, readOnly: Bool) {
+            self.requestId = requestId
+            self.streamId = streamId
+            self.readOnly = readOnly
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case streamId = "stream_id"
+            case readOnly = "read_only"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 一次畫面更新:herdr terminal.frame 原樣轉接。
+    public struct PaneTerminalFrame: Codable, Sendable, Equatable {
+        public var streamId: String
+        /// 每條連線從 1 起算。
+        public var seq: Int
+        public var width: Int
+        public var height: Int
+        /// true 是完整重繪。
+        public var full: Bool
+        /// ANSI 畫面 bytes 的標準 base64。
+        public var bytes: String
+
+        public init(streamId: String, seq: Int, width: Int, height: Int, full: Bool, bytes: String) {
+            self.streamId = streamId
+            self.seq = seq
+            self.width = width
+            self.height = height
+            self.full = full
+            self.bytes = bytes
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case seq
+            case width
+            case height
+            case full
+            case bytes
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Pane 終端機結束，之後這個串流不再有訊息。
+    public struct PaneTerminalClosed: Codable, Sendable, Equatable {
+        public var streamId: String
+        public var ending: PaneTerminalEnding
+        /// ending 是 closed 時,herdr terminal.closed 的原文。
+        public var reason: String?
+        /// ending 是 failed 時,herdr 的 exit code。
+        public var exitCode: Int?
+        /// ending 是 failed 時,herdr 的 stderr(給開發者看)。
+        public var message: String?
+
+        public init(streamId: String, ending: PaneTerminalEnding, reason: String? = nil, exitCode: Int? = nil, message: String? = nil) {
+            self.streamId = streamId
+            self.ending = ending
+            self.reason = reason
+            self.exitCode = exitCode
+            self.message = message
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case ending
+            case reason
+            case exitCode = "exit_code"
+            case message
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// closed:herdr 送了 terminal.closed;disconnected:沒有 terminal.closed 就斷了(可重新連線);failed:herdr 沒跑起來。
+    public enum PaneTerminalEnding: String, Codable, Sendable, CaseIterable {
+        case closed
+        case disconnected
+        case failed
+    }
+}
+
+extension HostServiceProtocol {
+    /// Pane 終端機的鍵盤輸入(herdr terminal.input)。不回應;稽核只在開啟時記一筆，不記內容。
+    public struct PaneTerminalInput: Codable, Sendable, Equatable {
+        public var streamId: String
+        /// 輸入 bytes 的標準 base64,每則不超過 64 KiB。
+        public var bytes: String
+
+        public init(streamId: String, bytes: String) {
+            self.streamId = streamId
+            self.bytes = bytes
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case bytes
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 改變 viewport 格數(herdr terminal.resize)。不回應。
+    public struct PaneTerminalResize: Codable, Sendable, Equatable {
+        public var streamId: String
+        public var columns: Int
+        public var rows: Int
+
+        public init(streamId: String, columns: Int, rows: Int) {
+            self.streamId = streamId
+            self.columns = columns
+            self.rows = rows
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case columns
+            case rows
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 捲動(herdr terminal.scroll,source 固定 wheel)。不回應。
+    public struct PaneTerminalScroll: Codable, Sendable, Equatable {
+        public var streamId: String
+        public var direction: TerminalScrollDirection
+        public var lines: Int
+        public var column: Int
+        public var row: Int
+
+        public init(streamId: String, direction: TerminalScrollDirection, lines: Int, column: Int, row: Int) {
+            self.streamId = streamId
+            self.direction = direction
+            self.lines = lines
+            self.column = column
+            self.row = row
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case direction
+            case lines
+            case column
+            case row
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 捲動方向。
+    public enum TerminalScrollDirection: String, Codable, Sendable, CaseIterable {
+        case up
+        case down
+    }
+}
+
+extension HostServiceProtocol {
+    /// 關閉 Pane 終端機:control 關閉 stdin(等同 release),observe 結束子行程。不回應。
+    public struct PaneTerminalClose: Codable, Sendable, Equatable {
+        public var streamId: String
+
+        public init(streamId: String) {
+            self.streamId = streamId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
         }
     }
 }
