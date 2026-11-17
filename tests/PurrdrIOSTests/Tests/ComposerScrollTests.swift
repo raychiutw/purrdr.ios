@@ -93,7 +93,9 @@ struct ComposerScrollTests {
     // MARK: - 輔助
 
     private func mount() async throws -> (UIWindow, KeyHandlingTextView) {
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        // package 測試沒有 app 宿主、也沒有 window scene;`UIWindow(frame:)` 已 deprecated,經 UIView 的 metatype 建立。
+        let windowType: UIView.Type = UIWindow.self
+        let window = try #require(windowType.init(frame: CGRect(x: 0, y: 0, width: 390, height: 844)) as? UIWindow)
         window.rootViewController = UIHostingController(rootView: Host())
         window.makeKeyAndVisible()
         await settle()
