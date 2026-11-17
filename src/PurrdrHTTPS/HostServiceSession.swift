@@ -13,6 +13,8 @@ actor HostServiceSession {
     private var ending: (any Error)?
     private var nextRequestNumber = 0
     private var reader: Task<Void, Never>?
+    /// 開著的串流(串流識別碼 → 還沒取走的推送訊息)。
+    private var streams: [String: [HostServiceProtocol.ServerMessage]] = [:]
 
     init(socket: any WebSocketSession, deviceToken: String) {
         self.socket = socket
@@ -62,6 +64,27 @@ actor HostServiceSession {
         await socket.close()
     }
 
+    // MARK: - 串流
+
+    /// 開始收這個串流的推送(在送出開始串流的請求之前呼叫，才不會漏掉緊接著回應的推送)。
+    func openStream(_ streamID: String) {
+        streams[streamID] = []
+    }
+
+    /// 取走這個串流目前收到的推送;串流沒開、已關或積壓太多被丟掉時是 `nil`。
+    func takeStreamMessages(_ streamID: String) -> [HostServiceProtocol.ServerMessage]? {
+        guard let messages = streams[streamID] else { return nil }
+        streams[streamID] = []
+        return messages
+    }
+
+    func closeStream(_ streamID: String) {
+        streams[streamID] = nil
+    }
+
+    /// 一個串流最多積壓的推送數;超過就丟掉整個串流(呼叫端重新開始)。
+    static let maximumPendingStreamMessages = 256
+
     // MARK: - 內部
 
     private func send(_ text: String, for requestID: String) async {
@@ -110,6 +133,10 @@ actor HostServiceSession {
         }
         if let requestID = message.requestID {
             pending.removeValue(forKey: requestID)?.resume(returning: message)
+        } else if let streamID = message.streamID {
+            guard var messages = streams[streamID] else { return }
+            messages.append(message)
+            streams[streamID] = messages.count > Self.maximumPendingStreamMessages ? nil : messages
         } else if case .errorMessage(let error) = message, let rejection = HostServiceError(tokenRejection: error.code) {
             // 權杖無效或已撤銷：主機服務接著會以 4401 關閉。
             end(with: rejection)
@@ -120,6 +147,7 @@ actor HostServiceSession {
     private func end(with error: any Error) {
         guard ending == nil else { return }
         ending = error
+        streams = [:]
         let requests = pending
         pending = [:]
         for continuation in requests.values { continuation.resume(throwing: error) }
@@ -147,10 +175,21 @@ extension HostServiceProtocol.ServerMessage {
         case .welcome(let message): message.requestId
         case .agentsListResult(let message): message.requestId
         case .paneSendKeysResult(let message): message.requestId
+        case .transcriptLocateResult(let message): message.requestId
+        case .transcriptWindowResult(let message): message.requestId
+        case .transcriptFollowResult(let message): message.requestId
+        case .transcriptUnfollowResult(let message): message.requestId
+        case .transcriptUpdate: nil
         case .paneSendTextResult(let message): message.requestId
         case .agentPromptResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
         }
+    }
+
+    /// 推送訊息所屬的串流(回應是 `nil`)。
+    var streamID: String? {
+        if case .transcriptUpdate(let update) = self { return update.streamId }
+        return nil
     }
 }
 

@@ -158,6 +158,11 @@ public struct TranscriptReader: Sendable {
 
     public static let probeCursor = 1 << 50
 
+    /// 不再追蹤 `path`(對話關閉或換了 session;見 `HostConnection.stopFollowingTranscript`)。
+    public func stopFollowing(path: String) async {
+        await connection.stopFollowingTranscript(path: path)
+    }
+
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
         guard Self.isValidPath(path), cursor >= 0 else { throw TranscriptReadError.invalidReference }
