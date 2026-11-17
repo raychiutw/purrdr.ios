@@ -14,7 +14,7 @@ public enum ComposerSettings {
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
 /// - 停止與強制結束在標題列(#44,`ConversationView`)。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
-///   這時不能附圖。
+///   這時不能附圖。打過字之後清空輸入框也會取消(#127,`ConversationModel`)。
 struct ComposerBar: View {
     @Bindable var model: ConversationModel
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
@@ -200,7 +200,7 @@ struct ShellModeHint: View {
     }
 }
 
-/// 自訂回答的說明(#120):在回答哪一題，送出就是回答;「取消」回到一般輸入(什麼都還沒送出)。
+/// 自訂回答的說明(#120):在回答哪一題，送出就是回答;✕ 取消自訂回答、回到一般輸入(什麼都還沒送出)。整個 Label 用 `secondaryText`(DESIGN.md)。
 struct TypedAnswerBanner: View {
     let question: String?
     let option: PromptOption
@@ -213,7 +213,6 @@ struct TypedAnswerBanner: View {
                     Text("Your answer will be sent to the agent.")
                     if let question {
                         Text(verbatim: question)
-                            .foregroundStyle(.secondaryText)
                             .lineLimit(2)
                     }
                 }
@@ -221,6 +220,7 @@ struct TypedAnswerBanner: View {
                 Image(systemName: "keyboard")
             }
             .font(.footnote)
+            .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             Button(action: cancel) {
                 Image(systemName: "xmark")
@@ -229,7 +229,7 @@ struct TypedAnswerBanner: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondaryText)
-            .accessibilityLabel(Text("Cancel Answer"))
+            .accessibilityLabel(Text("Cancel Custom Answer"))
             .accessibilityIdentifier("composer.typedAnswer.cancel")
         }
         .padding(.leading, 12)

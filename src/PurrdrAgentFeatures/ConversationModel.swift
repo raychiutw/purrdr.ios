@@ -127,6 +127,7 @@ public final class ConversationModel {
             // 自訂回答的文字不是草稿，也不開 slash 選單(#120)。
             guard typedAnswer == nil else {
                 slash.update(draft: "")
+                typedAnswerDraftChanged()
                 return
             }
             drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
@@ -603,11 +604,12 @@ public final class ConversationModel {
     // MARK: - 送出
 
     /// 可送 = 修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
+    /// 自訂回答時改看回答在途與否，而且不能只送圖片(#120)。
     public var canSend: Bool {
-        if typedAnswer != nil {
-            return answerInFlight == nil && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasTarget
-        }
-        return !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
+        guard hasTarget else { return false }
+        let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if typedAnswer != nil { return answerInFlight == nil && hasText }
+        return !isSending && (hasText || !attachments.isEmpty)
     }
 
     /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
@@ -734,7 +736,7 @@ public final class ConversationModel {
         case .continueMultiSelect: return prompt.isMultiSelect
         case .closePicker: return prompt.kind == .filePicker
         case .generic: return prompt.kind == .unrecognized
-        case .typed(let option, _): return prompt.typedAnswerOption(agentKind: currentAgent?.kind ?? "") == option
+        case .typed(let option, _): return prompt.typedAnswerOption(agentKind: answerAgentKind) == option
         }
     }
 
@@ -785,17 +787,34 @@ public final class ConversationModel {
     public private(set) var typedAnswer: PromptOption?
     /// 進入自訂回答前的草稿(結束後放回)。
     private var draftBeforeTypedAnswer = ""
+    /// 這次自訂回答打過字了沒有。剛進入時輸入框本來就空，打過字之後再清空才算取消(#127)。
+    private var typedAnswerHasText = false
 
     /// 這個選項是不是要用輸入框打字回答的「Type something.」。
     public func isTypedAnswerOption(_ option: PromptOption) -> Bool {
-        prompt?.typedAnswerOption(agentKind: currentAgent?.kind ?? "") == option
+        prompt?.typedAnswerOption(agentKind: answerAgentKind) == option
+    }
+
+    /// 這個「Type something.」現在能不能點(進入自訂回答):沒有回答在途、它是這張問題卡的自訂回答選項。
+    /// 已經在自訂回答時也可點(不做事),所以不看 `typedAnswer`。
+    public func canBeginTypedAnswer(_ option: PromptOption) -> Bool {
+        answerInFlight == nil && isTypedAnswerOption(option)
+    }
+
+    /// 這個選項的回答是否正在送出(點選的編號，或以它送出的自訂回答)。
+    public func isAnswering(_ option: PromptOption) -> Bool {
+        switch answerInFlight {
+        case .option(let answered)?, .typed(let answered, _)?: answered == option
+        default: false
+        }
     }
 
     /// 點「Type something.」:不送任何按鍵(Claude 收到數字只會把那一列變成文字輸入),改由輸入框打字;
     /// 原本的草稿先收起來，結束時放回。
     public func beginTypedAnswer(_ option: PromptOption) {
-        guard answerInFlight == nil, isTypedAnswerOption(option), typedAnswer == nil else { return }
+        guard canBeginTypedAnswer(option), typedAnswer == nil else { return }
         typedAnswer = option
+        typedAnswerHasText = false
         draftBeforeTypedAnswer = draft
         draft = ""
     }
@@ -806,8 +825,18 @@ public final class ConversationModel {
         endTypedAnswer()
     }
 
+    /// 自訂回答時輸入框改了：打過字之後清空 = 取消，回到一般輸入(#127)。
+    private func typedAnswerDraftChanged() {
+        if !draft.isEmpty {
+            typedAnswerHasText = true
+        } else if typedAnswerHasText {
+            endTypedAnswer()
+        }
+    }
+
     private func endTypedAnswer() {
         typedAnswer = nil
+        typedAnswerHasText = false
         draft = draftBeforeTypedAnswer
         draftBeforeTypedAnswer = ""
     }
@@ -826,8 +855,11 @@ public final class ConversationModel {
     }
 
     private func inputs(for answer: PromptAnswer) -> [AnswerInput]? {
-        AnswerKeys.inputs(for: answer, agentKind: currentAgent?.kind ?? "")
+        AnswerKeys.inputs(for: answer, agentKind: answerAgentKind)
     }
+
+    /// 回答規則用的 agent 種類(還不知道 agent 時是空字串，走一般規則)。
+    private var answerAgentKind: String { agentKind ?? "" }
 
     /// 回答期限:max(12 秒, 3 × 輪詢間隔)(blocked 時每 2 秒輪詢;慢輪詢下好答案曾被判逾時,R-Q05)。
     private static let answerDeadline: TimeInterval = max(12, 3 * 2)

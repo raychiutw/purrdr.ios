@@ -995,13 +995,13 @@
         }
       }
     },
-    "Cancel Answer" : {
+    "Cancel Custom Answer" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "取消回答"
+            "value" : "取消自訂回答"
           }
         }
       }
