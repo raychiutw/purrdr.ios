@@ -80,8 +80,23 @@ enum AgentRowText {
     }
 }
 
-/// agent 種類的顯示名稱。不認得的種類照 herdr 原文。
-enum AgentKind {
+/// agent 種類。由 herdr 的種類字串解析;沒有專屬樣式的種類保留原文。
+enum AgentKind: Equatable {
+    case claudeCode
+    case codex
+    case gemini
+    case openCode
+    case copilot
+    case unknown(String)
+
+    init(rawKind: String) {
+        self = .unknown(rawKind)
+    }
+
+    /// 顯示名稱。
+    var displayName: String? { nil }
+
+    /// 顯示名稱。不認得的種類照 herdr 原文。
     static func displayName(_ kind: String) -> String? {
         switch kind {
         case "": nil
