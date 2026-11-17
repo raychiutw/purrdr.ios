@@ -202,6 +202,7 @@ public struct HostFolders: Sendable {
         case HostFolderCommand.ExitCode.cannotOpen: throw HostFolderError.cannotOpen(result.stderrText)
         case HostFolderCommand.ExitCode.alreadyExists: throw HostFolderError.alreadyExists
         case HostFolderCommand.ExitCode.sizeMismatch: throw HostFolderError.interrupted
+        case Int32(HostScriptTimeLimit.exitCode): throw HostFolderError.deadlineExceeded
         default: throw HostFolderError.failed(exitCode: result.exitCode, message: result.stderrText)
         }
         let path = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .newlines)
@@ -289,6 +290,8 @@ public struct HostFolders: Sendable {
         } catch let error as CancellationError {
             throw error
         } catch let error as HostFolderError {
+            throw error
+        } catch let error as HostCommandError {
             throw error
         } catch {
             throw HostFolderError.interrupted

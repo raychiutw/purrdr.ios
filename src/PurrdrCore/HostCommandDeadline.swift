@@ -6,12 +6,14 @@ public enum HostCommandDeadline {
     public static let standard: Duration = .seconds(20)
     /// 探測(主機作業系統):指令很短，卡住要盡早發現。
     public static let probe: Duration = .seconds(10)
-    /// 主機要連網下載的指令(`herdr update`、`herdr plugin install`)。
+    /// 主機要連網下載的 herdr 指令(`herdr update`、`herdr plugin install`;不是有自我時限的主機腳本)。
     public static let download: Duration = .seconds(300)
+    /// 讀取期限的上限：比主機腳本的自我時限(`HostScriptTimeLimit.readSeconds`,120 秒)短，app 先逾時、主機只收尾。
+    public static let maximumRead: Duration = .seconds(100)
 
-    /// 輸出可能很大的讀取：20 秒加上以 32 KiB/s 估算 `bytes` 的傳輸時間(同圖片上傳)。
+    /// 輸出可能很大的讀取：20 秒加上以 32 KiB/s 估算 `bytes` 的傳輸時間(同圖片上傳),最多 `maximumRead`。
     public static func transfer(bytes: Int) -> Duration {
-        standard + .milliseconds(bytes / 32)
+        min(standard + .milliseconds(bytes / 32), maximumRead)
     }
 }
 
@@ -50,7 +52,7 @@ extension HostChannel {
                         await race.abandon(throwing: HostCommandError.deadlineExceeded)
                     })
                     do {
-                        await race.finish(.success(try await body(session)))
+                        await race.finish(.success(try await body(HostTimeLimitedSession(session))))
                     } catch {
                         await race.finish(.failure(error))
                     }
@@ -78,6 +80,35 @@ extension HostChannel {
             return result
         }
     }
+}
+
+/// 主機腳本的自我時限到了(exit 124,#92)也是逾時：輸出串流改丟 `HostCommandError.deadlineExceeded`。
+private struct HostTimeLimitedSession: ExecSession {
+    let base: any ExecSession
+    let output: AsyncThrowingStream<ExecOutput, any Error>
+
+    init(_ base: any ExecSession) {
+        self.base = base
+        let source = base.output
+        output = AsyncThrowingStream { continuation in
+            let pump = Task {
+                do {
+                    for try await event in source {
+                        if case .exit(let code, nil) = event, code == Int32(HostScriptTimeLimit.exitCode) { throw HostCommandError.deadlineExceeded }
+                        continuation.yield(event)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in pump.cancel() }
+        }
+    }
+
+    func write(_ data: Data) async throws { try await base.write(data) }
+    func closeStdin() async { await base.closeStdin() }
+    func close() async { await base.close() }
 }
 
 /// `runOnce` 的結果只交出一次：指令結束、期限到或外層取消，先到的勝出，其餘的工作取消、通道關閉。
