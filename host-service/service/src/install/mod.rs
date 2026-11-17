@@ -524,9 +524,18 @@ impl<S: HostSystem> Installer<S> {
         if self.environment.platform == InstallPlatform::Windows && running_from_installed_copy {
             return self.system.remove_directory_after_exit(&layout.directory(), &created).map_err(InstallError::io);
         }
-        match std::fs::remove_dir_all(layout.directory()) {
-            Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(InstallError::io(error)),
-            _ => {}
+        // taskkill 剛結束的背景程式，Windows 可能還沒放開執行檔，稍等重試。
+        let mut attempts_left = 10;
+        loop {
+            match std::fs::remove_dir_all(layout.directory()) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(_) if attempts_left > 0 => {
+                    attempts_left -= 1;
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                }
+                Err(error) => return Err(InstallError::io(error)),
+                Ok(()) => break,
+            }
         }
         for directory in created {
             let _ = std::fs::remove_dir(directory);
