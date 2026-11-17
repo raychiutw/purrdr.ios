@@ -380,7 +380,10 @@ async fn read_only_device_observes_and_cannot_type() {
     assert_eq!(opened["read_only"], true);
     assert_eq!(first_frame, relayed_frames("06-takeover-observer", "t1")[0]);
     assert_eq!(rejected["code"], "read_only_device");
-    assert_eq!(closed, json!({"type": "pane.terminal.closed", "stream_id": "t1", "ending": "closed", "reason": "detached"}));
+    assert_eq!(
+        closed,
+        json!({"type": "pane.terminal.closed", "stream_id": "t1", "ending": "closed", "reason": "detached"})
+    );
     assert_eq!(
         harness.herdr_cli.arguments(),
         [["terminal", "session", "observe", "06-takeover-observer", "--cols", "40", "--rows", "12"]]
