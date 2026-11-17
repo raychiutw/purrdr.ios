@@ -80,4 +80,25 @@ struct SpacesExpansionTests {
         #expect(Self.group("w1", in: model)?.isExpanded == false)
         #expect(Self.group("w2", in: model)?.isExpanded == false)
     }
+
+    @Test("搜尋時也能收合與展開：只作用在這次搜尋，搜尋字改變或清空就丟掉，不改手動狀態")
+    func toggleDuringSearchIsScopedToSearch() async throws {
+        let model = await Self.model()
+        model.toggleExpanded(try #require(Self.group("w2", in: model)))
+
+        model.query = "garden"
+        model.toggleExpanded(try #require(Self.group("w1", in: model)))
+        #expect(Self.group("w1", in: model)?.isExpanded == false, "搜尋時點標頭沒有收合")
+        model.toggleExpanded(try #require(Self.group("w1", in: model)))
+        #expect(Self.group("w1", in: model)?.isExpanded == true, "搜尋時再點沒有展開")
+        model.toggleExpanded(try #require(Self.group("w1", in: model)))
+
+        model.query = "garden-j"
+        #expect(Self.group("w1", in: model)?.isExpanded == true, "搜尋字改變後應丟掉這次搜尋的切換")
+        model.toggleExpanded(try #require(Self.group("w1", in: model)))
+
+        model.query = ""
+        #expect(Self.group("w1", in: model)?.isExpanded == true, "清掉搜尋後應回到預設(工作中展開)")
+        #expect(Self.group("w2", in: model)?.isExpanded == true, "搜尋前的手動狀態被改掉")
+    }
 }
