@@ -284,7 +284,8 @@ struct HTTPSHostsModelTests {
         store.hosts = [synced]
         let tokens = InMemoryDeviceTokenStore()
         let connections = HostServiceConnections()
-        connections.connections = [await HostServiceConnections.healthy()]
+        // 第一條給列表上那台主機的連線，第二條給編輯器的連線測試。
+        connections.connections = [await HostServiceConnections.healthy(), await HostServiceConnections.healthy()]
         let model = HostsModel(
             store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), makeChannel: ChannelFactory().make)
         model.load()
