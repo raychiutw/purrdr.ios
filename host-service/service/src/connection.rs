@@ -1,19 +1,23 @@
 //! 一條 app 的 WebSocket 連線：解析協定訊息，轉成 herdr 請求。只處理協定定義的訊息種類。
 
+use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
+use tokio::sync::mpsc;
 
 use crate::audit_log::{AuditEvent, AuditLog};
 use crate::device_store::Device;
+use crate::herdr_cli::HerdrCli;
 use crate::herdr_client::{HerdrClient, HerdrFailure};
 use crate::http::{ServiceContext, blocking};
+use crate::pane_terminal::{self, PaneTerminal};
 use crate::protocol::{
     Agent, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION, PaneSendKeys,
-    PaneSendKeysResult, ServerMessage, Welcome, Workspace,
+    PaneSendKeysResult, PaneTerminalOpen, PaneTerminalOpenResult, ServerMessage, TerminalScrollDirection, Welcome, Workspace,
 };
 
 /// 權杖無效或已撤銷時的 close code(4000–4999 由應用程式自訂)。
@@ -43,26 +47,42 @@ pub async fn serve(mut socket: WebSocket, context: ServiceContext, device_token:
         SystemTime::now(),
     );
 
+    let (outgoing, mut stream_messages) = mpsc::channel(STREAM_MESSAGE_CAPACITY);
     let mut connection = ClientConnection {
         herdr: context.herdr.clone(),
+        herdr_cli: context.herdr_cli.clone(),
         audit: context.audit.clone(),
         handshaken: false,
+        terminals: HashMap::new(),
+        outgoing,
     };
-    while let Some(Ok(message)) = socket.recv().await {
-        let reply = match message {
-            Message::Text(text) => match context.authenticate(device_token.as_deref()).await {
-                Ok(device) => connection.handle(text.as_str(), &device).await,
-                Err(code) => return reject(socket, code).await,
-            },
-            Message::Binary(_) => error(None, ErrorCode::InvalidMessage, "binary messages are not supported"),
-            Message::Close(_) => break,
-            _ => continue,
+    // 結束時 `connection` 跟著 drop,Pane 終端機的子行程一併收尾。
+    loop {
+        let reply = tokio::select! {
+            incoming = socket.recv() => {
+                let Some(Ok(message)) = incoming else { break };
+                match message {
+                    Message::Text(text) => match context.authenticate(device_token.as_deref()).await {
+                        Ok(device) => connection.handle(text.as_str(), &device).await,
+                        Err(code) => return reject(socket, code).await,
+                    },
+                    Message::Binary(_) => Some(error(None, ErrorCode::InvalidMessage, "binary messages are not supported")),
+                    Message::Close(_) => break,
+                    _ => continue,
+                }
+            }
+            Some(message) = stream_messages.recv() => Some(message),
         };
-        if send(&mut socket, &reply).await.is_err() {
+        if let Some(reply) = reply
+            && send(&mut socket, &reply).await.is_err()
+        {
             break;
         }
     }
 }
+
+/// 串流訊息(Pane 終端機的畫面更新)等待送出的上限;滿了就讓 herdr 那端等，herdr 只送最新畫面。
+const STREAM_MESSAGE_CAPACITY: usize = 32;
 
 /// 送出錯誤訊息後以 close code 關閉。
 async fn reject(mut socket: WebSocket, code: ErrorCode) {
@@ -97,22 +117,31 @@ async fn send(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), axu
 /// 一條 app WebSocket 連線的狀態(不是 herdr 的 session)。
 struct ClientConnection {
     herdr: HerdrClient,
+    herdr_cli: HerdrCli,
     audit: AuditLog,
     handshaken: bool,
+    /// 開著的 Pane 終端機，以串流識別碼(開啟請求的 request_id)為 key。
+    terminals: HashMap<String, PaneTerminal>,
+    outgoing: mpsc::Sender<ServerMessage>,
 }
 
 impl ClientConnection {
-    async fn handle(&mut self, text: &str, device: &Device) -> ServerMessage {
+    /// 處理一個訊息;Pane 終端機的輸入與關閉沒有回應(`None`)。
+    async fn handle(&mut self, text: &str, device: &Device) -> Option<ServerMessage> {
         let Ok(value) = serde_json::from_str::<Value>(text) else {
-            return error(None, ErrorCode::InvalidMessage, "message is not valid JSON");
+            return Some(error(None, ErrorCode::InvalidMessage, "message is not valid JSON"));
         };
         let request_id = value.get("request_id").and_then(Value::as_str).map(str::to_owned);
         let message = match serde_json::from_value::<ClientMessage>(value.clone()) {
             Ok(message) => message,
-            Err(decoding_error) => return error(request_id, ErrorCode::InvalidMessage, &decoding_error.to_string()),
+            Err(decoding_error) => return Some(error(request_id, ErrorCode::InvalidMessage, &decoding_error.to_string())),
         };
-        if message.is_write() {
-            // 稽核只記操作種類與目標 Pane,不記按鍵或 prompt 內容。
+        let terminal_input = matches!(
+            message,
+            ClientMessage::PaneTerminalInput(_) | ClientMessage::PaneTerminalResize(_) | ClientMessage::PaneTerminalScroll(_)
+        );
+        // 稽核只記操作種類與目標 Pane,不記按鍵或 prompt 內容;Pane 終端機只在開啟時記一筆。
+        if message.is_write() && !terminal_input {
             self.audit.record(
                 AuditEvent::Write {
                     device_id: device.device_id.clone(),
@@ -122,15 +151,87 @@ impl ClientConnection {
                 },
                 SystemTime::now(),
             );
-            if device.read_only {
-                return error(request_id, ErrorCode::ReadOnlyDevice, "this device is paired read-only");
-            }
+        }
+        if message.is_write() && device.read_only {
+            return Some(error(request_id, ErrorCode::ReadOnlyDevice, "this device is paired read-only"));
         }
         match message {
-            ClientMessage::Hello(hello) => self.hello(hello.request_id, hello.protocol_version).await,
-            ClientMessage::AgentsList(request) => self.agents_list(request.request_id).await,
-            ClientMessage::PaneSendKeys(request) => self.pane_send_keys(request).await,
+            ClientMessage::Hello(hello) => Some(self.hello(hello.request_id, hello.protocol_version).await),
+            ClientMessage::AgentsList(request) => Some(self.agents_list(request.request_id).await),
+            ClientMessage::PaneSendKeys(request) => Some(self.pane_send_keys(request).await),
+            ClientMessage::PaneTerminalOpen(request) => Some(self.open_terminal(request, device)),
+            ClientMessage::PaneTerminalInput(input) => {
+                if input.bytes.len() > pane_terminal::MAX_INPUT_BASE64_LENGTH {
+                    return Some(error(None, ErrorCode::InvalidMessage, "terminal input is larger than 64 KiB"));
+                }
+                self.terminal(&input.stream_id)?.input(input.bytes).await;
+                None
+            }
+            ClientMessage::PaneTerminalResize(resize) => {
+                if !pane_terminal::is_valid_size(resize.columns, resize.rows) {
+                    return Some(error(None, ErrorCode::InvalidMessage, "terminal size is out of range"));
+                }
+                self.terminal(&resize.stream_id)?.resize(resize.columns, resize.rows).await;
+                None
+            }
+            ClientMessage::PaneTerminalScroll(scroll) => {
+                let direction = match scroll.direction {
+                    TerminalScrollDirection::Up => "up",
+                    TerminalScrollDirection::Down => "down",
+                };
+                self.terminal(&scroll.stream_id)?
+                    .scroll(direction, scroll.lines, scroll.column, scroll.row)
+                    .await;
+                None
+            }
+            ClientMessage::PaneTerminalClose(close) => {
+                // drop:關閉 stdin(control 等同 release)並結束子行程。
+                self.terminals.remove(&close.stream_id);
+                None
+            }
         }
+    }
+
+    /// 開著的 Pane 終端機;已關閉或不存在時略過那個訊息。
+    fn terminal(&mut self, stream_id: &str) -> Option<&mut PaneTerminal> {
+        self.terminals.get_mut(stream_id)
+    }
+
+    /// 以子行程執行 herdr;唯讀裝置用 observe(只能看)。
+    fn open_terminal(&mut self, request: PaneTerminalOpen, device: &Device) -> ServerMessage {
+        let request_id = request.request_id.clone();
+        if !self.handshaken {
+            return error(Some(request_id), ErrorCode::HandshakeRequired, "send hello first");
+        }
+        if !pane_terminal::is_valid_target(&request.target) || !pane_terminal::is_valid_size(request.columns, request.rows) {
+            return error(Some(request_id), ErrorCode::InvalidMessage, "invalid terminal target or size");
+        }
+        if self.terminals.contains_key(&request_id) {
+            return error(Some(request_id), ErrorCode::InvalidMessage, "stream is already open");
+        }
+        let observe = device.read_only;
+        let terminal = match PaneTerminal::spawn(&self.herdr_cli, &request, observe, self.outgoing.clone()) {
+            Ok(terminal) => terminal,
+            Err(spawn_error) => return error(Some(request_id), ErrorCode::HerdrUnavailable, &format!("cannot run herdr: {spawn_error}")),
+        };
+        if !observe {
+            // 接上 Pane 是寫入類操作(會改 Pane 尺寸、可能接管):記一筆，不記之後的按鍵。
+            self.audit.record(
+                AuditEvent::Write {
+                    device_id: device.device_id.clone(),
+                    operation: "pane.terminal.open".to_owned(),
+                    pane_id: Some(request.target.clone()),
+                    allowed: true,
+                },
+                SystemTime::now(),
+            );
+        }
+        self.terminals.insert(request_id.clone(), terminal);
+        ServerMessage::PaneTerminalOpenResult(PaneTerminalOpenResult {
+            request_id: request_id.clone(),
+            stream_id: request_id,
+            read_only: observe,
+        })
     }
 
     async fn pane_send_keys(&self, request: PaneSendKeys) -> ServerMessage {
