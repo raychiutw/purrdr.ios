@@ -74,9 +74,19 @@ pub enum InstallError {
 
 impl std::fmt::Display for InstallError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const DNS_SETTINGS: &str = "https://login.tailscale.com/admin/dns";
         match self {
-            InstallError::ServeChanged(handlers) => write!(formatter, "HTTPS 443 now serves {handlers}, left unchanged"),
-            other => write!(formatter, "{other:?}"),
+            InstallError::TailscaleMissing => write!(formatter, "Tailscale is not installed. Install it from https://tailscale.com/download, sign in, then run install again."),
+            InstallError::TailscaleNotRunning(state) => write!(formatter, "Tailscale is not connected (state: {state}). Run `tailscale up` and sign in, then run install again."),
+            InstallError::MagicDnsDisabled => write!(formatter, "MagicDNS is off for this tailnet. Turn on MagicDNS at {DNS_SETTINGS}, then run install again."),
+            InstallError::HttpsCertificatesDisabled => write!(
+                formatter,
+                "HTTPS Certificates are off for this tailnet. Click \"Enable HTTPS\" under HTTPS Certificates at {DNS_SETTINGS}, then run install again."
+            ),
+            InstallError::ServeFailed => write!(formatter, "`tailscale serve` failed (see its output above)."),
+            InstallError::ServeChanged(handlers) => write!(formatter, "tailscale serve HTTPS 443 now serves {handlers}, left unchanged"),
+            InstallError::Tailscale(message) | InstallError::Autostart(message) | InstallError::Io(message) => write!(formatter, "{message}"),
+            InstallError::NotInstalled => write!(formatter, "The Purrdr host service is not installed."),
         }
     }
 }

@@ -3,7 +3,7 @@
 mod install_support;
 
 use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, RUN_VALUE, SYSTEMD_UNIT, TestHost, snapshot};
-use purrdr_host_service::install::{InstallPlatform, Installer};
+use purrdr_host_service::install::{InstallError, InstallPlatform, Installer};
 
 const PORT: u16 = 47_820;
 const PLATFORMS: [InstallPlatform; 3] = [InstallPlatform::MacOs, InstallPlatform::Linux, InstallPlatform::Windows];
@@ -89,6 +89,55 @@ fn windows_uninstall_from_installed_copy_removes_files_after_it_exits() {
 
     assert_eq!(installer.system().deferred_removals, vec![host.service_directory()]);
     assert_eq!(snapshot(&host.home.0), home_before);
+}
+
+#[test]
+fn missing_prerequisites_fail_with_actionable_message_and_change_nothing() {
+    type Breaks = fn(&mut FakeSystem);
+    let cases: [(Breaks, InstallError, &[&str]); 4] = [
+        (|system| system.tailscale_program = None, InstallError::TailscaleMissing, &["https://tailscale.com/download"]),
+        (
+            |system| system.backend_state = "NeedsLogin".into(),
+            InstallError::TailscaleNotRunning("NeedsLogin".into()),
+            &["tailscale up"],
+        ),
+        (|system| system.magic_dns = false, InstallError::MagicDnsDisabled, &["MagicDNS", "https://login.tailscale.com/admin/dns"]),
+        (
+            |system| system.https_certificates = false,
+            InstallError::HttpsCertificatesDisabled,
+            &["HTTPS Certificates", "https://login.tailscale.com/admin/dns"],
+        ),
+    ];
+    for platform in PLATFORMS {
+        for (breaks, expected, hints) in &cases {
+            let host = TestHost::new(platform);
+            let mut system = FakeSystem::ready(&host.home.0);
+            breaks(&mut system);
+            let system_before = system.state.clone();
+            let mut installer = Installer::new(host.environment(), system);
+
+            let error = installer.install(&host.options(PORT), |_| true).unwrap_err();
+
+            assert_eq!(&error, expected);
+            for hint in *hints {
+                assert!(error.to_string().contains(hint), "{platform:?}: {error} 缺少 {hint}");
+            }
+            assert!(snapshot(&host.home.0).is_empty(), "{platform:?}: {expected:?}");
+            assert_eq!(installer.system().state, system_before);
+        }
+    }
+}
+
+#[test]
+fn macos_finds_tailscale_cli_inside_the_app_when_not_on_path() {
+    let host = TestHost::new(InstallPlatform::MacOs);
+    let mut system = FakeSystem::ready(&host.home.0);
+    system.tailscale_program = Some("/Applications/Tailscale.app/Contents/MacOS/Tailscale".into());
+    let mut installer = Installer::new(host.environment(), system);
+
+    installer.install(&host.options(PORT), |_| true).unwrap();
+
+    assert!(installer.system().state.serve.contains_key(&format!("{FQDN}:443")));
 }
 
 /// 安裝前就有的東西：其他 Purrdr 功能的檔案、別的自動啟動項目、其他埠的 `tailscale serve`。
