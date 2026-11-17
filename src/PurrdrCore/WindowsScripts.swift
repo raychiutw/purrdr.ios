@@ -208,8 +208,9 @@ enum WindowsScripts {
 
     /// 從 stdin 讀**剛好**宣告的大小(或讀到 EOF 為止)寫進檔案。不等 EOF:經 Git Bash 時 EOF 可能傳不到
     /// (`WindowsCommand.stdinStub`);連線中斷時讀到的會比宣告的少，由大小檢查擋下(75)。
+    /// 以 console stream 的原始 handle 建 `FileStream` 讀：經 sshd 時直接讀 console stream,超過約 128 KiB 就永遠不返回(#77)。
     static let receive = #"""
-        function PReceive($w,[long]$z){$i=[Console]::OpenStandardInput();$c=New-Object byte[] 65536;$n=[long]0;while($n -lt $z){$r=$i.Read($c,0,[int][Math]::Min([long]$c.Length,$z-$n));if($r -le 0){break};$w.Write($c,0,$r);$n+=$r}}
+        function PReceive($w,[long]$z){$q=[Console]::OpenStandardInput();$i=New-Object IO.FileStream($q.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($q),[IO.FileAccess]::Read,1,$false);$c=New-Object byte[] 65536;$n=[long]0;while($n -lt $z){$r=$i.Read($c,0,[int][Math]::Min([long]$c.Length,$z-$n));if($r -le 0){break};$w.Write($c,0,$r);$n+=$r}}
         """#
 
     static func upload(_ body: String, arguments values: [String]) -> String {
