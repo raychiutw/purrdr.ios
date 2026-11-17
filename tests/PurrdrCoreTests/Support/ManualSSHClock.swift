@@ -1,5 +1,5 @@
 import NIOCore
-import PurrdrCore
+import PurrdrSSH
 import Synchronization
 
 /// 手動推進的 SSH 期限時鐘：期限只在測試呼叫 `advance(by:)` 時才到，不受機器快慢影響。
