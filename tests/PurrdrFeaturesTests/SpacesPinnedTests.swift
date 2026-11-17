@@ -108,3 +108,26 @@ struct SpacesPinnedTests {
         #expect(Self.cardRow("w1:p6", in: card)?.status == .idle)
     }
 }
+
+extension SpacesPinnedTests {
+    @Test("已釘選組不分主機：聊天列第三行以主機名開頭、群組帶主機名;主機組裡的項目不帶")
+    func pinnedItemsNameTheirHost() async throws {
+        let clock = MarkerClock(Self.t0)
+        let studio = await Self.studioHost(clock: clock)
+        let model = UnreadPinnedTests.merged([studio])
+        await model.load()
+        #expect(Self.card("w1", in: model)?.hostName == nil)
+
+        studio.source.actions.togglePin(sessionID: UnreadPinnedTests.sessionB)
+        studio.source.actions.togglePin(sessionID: UnreadPinnedTests.sessionA)
+
+        let pinned = try #require(model.spacesSections.first { $0.kind == .pinned })
+        guard case .chat(let chat)? = pinned.items.first, case .group(let group)? = pinned.items.last else {
+            Issue.record("已釘選組應該是一個聊天列加一個群組:\(pinned.items.map(\.id))")
+            return
+        }
+        #expect(chat.subtitle.hasPrefix("Studio · "), "聊天列第三行:\(chat.subtitle)")
+        #expect(chat.hostLabel?.name == "Studio")
+        #expect(group.hostName == "Studio")
+    }
+}
