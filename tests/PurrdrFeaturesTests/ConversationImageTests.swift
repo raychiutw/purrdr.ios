@@ -89,6 +89,24 @@ struct ConversationImageTests {
         #expect(setup.model.notice == .imageUnreadable)
     }
 
+    @Test("單張上限以原始圖片判斷：剛好 20 MB 加入，超過 1 byte 就不加入並提示(縮小後再小也一樣)")
+    func originalImageSizeLimit() async throws {
+        let setup = try await Self.opened()
+        let limit = 20 * 1024 * 1024
+        let image = TestImage.png(width: 10, height: 10)
+        // PNG 讀到 IEND 為止，後面補的 bytes 不影響解碼。
+        let atLimit = image + Data(count: limit - image.count)
+        let overLimit = image + Data(count: limit + 1 - image.count)
+
+        await setup.model.addImages([atLimit])
+        #expect(setup.model.attachments.count == 1)
+        #expect(setup.model.notice == nil)
+        await setup.model.addImages([overLimit])
+
+        #expect(setup.model.attachments.count == 1)
+        #expect(setup.model.notice == .imageTooLarge)
+    }
+
     // MARK: - 送出
 
     @Test("只有圖片也可送：先上傳，prompt 是每張一行絕對路徑;送出被接受後附件清空，回音帶圖片")

@@ -99,8 +99,9 @@ enum WindowsCommand {
             return try inline(WindowsScripts.upload(WindowsScripts.imageUpload, arguments: [upload.name.value, String(upload.size)]))
         }
         if let upload = HostFolderCommand.parseUpload(command) {
-            return try inline(WindowsScripts.upload(
-                WindowsScripts.folderUpload, arguments: [upload.folder, upload.name, String(upload.size)]))
+            return try inline(WindowsScripts.upload(WindowsScripts.folderUpload, arguments: [
+                upload.folder, upload.name, String(upload.originalSize), upload.encoding.rawValue, String(upload.transferSize),
+            ]))
         }
         if let path = HostFolderCommand.parseList(command) {
             return viaStdin(WindowsScripts.folders(WindowsScripts.folderList, arguments: [path ?? ""]))
@@ -114,9 +115,9 @@ enum WindowsCommand {
     /// 命令列只放這個 stub:從 stdin 一行一行讀到結束標記，當成腳本執行。
     ///
     /// 不等 EOF:實測 OpenSSH 預設 shell 是 Git Bash 時，stdin 超過 4 KiB 後的 EOF 常常傳不到 PowerShell
-    /// (資料都到了，只有 EOF 不見，程序就永遠等下去)。
+    /// (資料都到了，只有 EOF 不見，程序就永遠等下去)。stdin 的開法同上傳(`WindowsScripts.openStdin`)。
     static let stdinStub = PowerShell.encodedCommand(
-        "$ProgressPreference='SilentlyContinue';$s=New-Object IO.StreamReader([Console]::OpenStandardInput(),(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '\(endOfScript)'){[void]$b.AppendLine($l)};iex $b.ToString()")
+        "$ProgressPreference='SilentlyContinue';\(WindowsScripts.openStdin);$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '\(endOfScript)'){[void]$b.AppendLine($l)};iex $b.ToString()")
     static let endOfScript = "#purrdr-end-of-script"
 
     static func viaStdin(_ script: String) -> WindowsInvocation {

@@ -91,7 +91,7 @@ public enum ImageUploadCommand {
 public struct ImageUploader: Sendable {
     /// stdin 每次寫入的大小(中斷時能盡早發現)。
     static let chunkSize = 64 * 1024
-    /// 單張上限(手機端已縮到 2048px JPEG,正常遠小於此)。
+    /// 單張上限。加入附件時以原始圖片判斷(`ConversationModel.addImages`);上傳時再擋一次實際送出的 bytes。
     public static let maximumSize = 20 * 1024 * 1024
 
     let channel: any HostChannel

@@ -10,8 +10,9 @@ import Testing
 @Suite("Windows 主機的主機腳本")
 struct WindowsHostScriptsTests {
     /// 唯讀腳本的 stub(手寫的預期值):從 stdin 一行一行讀到結束標記才執行，不等 EOF。
+    /// stdin 以原始 handle 建 `FileStream` 讀(#77:經 sshd 時 console stream 讀超過約 128 KiB 會卡住);取不到 handle 時退回 console stream。
     static let stub = PowerShell.encodedCommand(
-        #"$ProgressPreference='SilentlyContinue';$s=New-Object IO.StreamReader([Console]::OpenStandardInput(),(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '#purrdr-end-of-script'){[void]$b.AppendLine($l)};iex $b.ToString()"#)
+        #"$ProgressPreference='SilentlyContinue';$stdin=[Console]::OpenStandardInput();try{$stdin=New-Object IO.FileStream($stdin.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($stdin),[IO.FileAccess]::Read,1,$false)}catch{};$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '#purrdr-end-of-script'){[void]$b.AppendLine($l)};iex $b.ToString()"#)
 
     static let path = #"C:\Users\demo\.claude\projects\C--work\abc.jsonl"#
 
@@ -79,8 +80,23 @@ struct WindowsHostScriptsTests {
         _ = try await HostFolders(channel: WindowsHostChannel(host)).upload(Data("123456789".utf8), named: "報告 it's.pdf", to: longFolder)
 
         let command = try #require(await host.fake.executions.first?.command)
-        #expect(try #require(PowerShell.script(inEncodedCommand: command)).contains("\n$a=@('\(longFolder)','報告 it''s.pdf','9')\n"))
+        #expect(try #require(PowerShell.script(inEncodedCommand: command)).contains("\n$a=@('\(longFolder)','報告 it''s.pdf','9','identity','9')\n"))
         #expect(command.count <= 8_191)
+    }
+
+    @Test("檔案上傳以 gzip 傳輸：傳輸編碼與傳輸大小帶進參數,stdin 只有 gzip 後的 bytes")
+    func folderUploadGzip() async throws {
+        let host = CapturingHost(reply: FakeReply(stdout: Data((#"C:\work\build.log"# + "\n").utf8)))
+        let original = Data(repeating: 0x61, count: 1_000)
+
+        _ = try await HostFolders(channel: WindowsHostChannel(host), deflate: FixedDeflate(output: Data([1, 2, 3])))
+            .upload(original, named: "build.log", to: #"C:\work"#)
+
+        let command = try #require(await host.fake.executions.first?.command)
+        #expect(try #require(PowerShell.script(inEncodedCommand: command)).contains(#"$a=@('C:\work','build.log','1000','gzip','21')"#))
+        let stdin = try #require(await host.fake.executions.first?.stdin)
+        #expect(stdin.count == 21)
+        #expect(Array(stdin.prefix(2)) == [0x1F, 0x8B])
     }
 
     @Test("資料夾清單、新增對話的資料夾：走 stdin 的唯讀腳本")
