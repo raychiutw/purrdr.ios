@@ -67,6 +67,23 @@ struct DemoHostTests {
         #expect(items.contains { if case .skill(let skill) = $0 { skill.name == "tdd" } else { false } })
     }
 
+    @Test("對話紀錄一直讀不完的情境：讀對話紀錄的指令不回應，關閉後才結束")
+    func pendingTranscriptScenarioNeverAnswers() async throws {
+        let session = try await DemoHost(scenario: .transcriptPending).execute(
+            TranscriptCommand.locate(
+                sessionID: "d3m0d3m0-0000-4000-8000-000000000001",
+                projectFolder: ClaudeTranscript.projectFolder(forCWD: "/Users/demo/ledger")))
+        let events = Task {
+            var events: [ExecOutput] = []
+            for try await event in session.output { events.append(event) }
+            return events
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        await session.close()
+
+        #expect(try await events.value == [])
+    }
+
     @Test("列表預覽:Demo 的 Claude Code agent 各有一則預覽")
     func previewsForDemoAgents() async throws {
         let host = DemoHost()
