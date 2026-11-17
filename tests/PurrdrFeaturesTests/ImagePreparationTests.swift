@@ -39,8 +39,7 @@ struct ImagePreparationTests {
         }
         if let cpu { request.setComputeDevice(cpu, for: .main) }
         try VNImageRequestHandler(data: jpeg).perform([request])
-        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "
-")
+        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
     }
 
     @Test("大張照片：壓到目標大小以內，長邊不低於下限")
