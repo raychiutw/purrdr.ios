@@ -73,12 +73,6 @@ final class FakeHostService: Sendable {
     var address: HostServiceAddress { HostServiceAddress("http://127.0.0.1:\(port)")! }
     var log: Log { state.withLock { $0.log } }
 
-    /// 收到的訊息中 `type` 是 `type` 的(JSON)。
-    func messages(ofType type: String) -> [NSDictionary] {
-        log.messages.compactMap { (try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? NSDictionary }
-            .filter { $0["type"] as? String == type }
-    }
-
     private init(port: Int, channel: any Channel, settings: Settings) {
         self.port = port
         self.channel = channel

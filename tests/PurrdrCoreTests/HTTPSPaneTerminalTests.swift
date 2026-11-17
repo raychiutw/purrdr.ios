@@ -62,18 +62,23 @@ struct HTTPSPaneTerminalTests {
         _ = await Self.collect(connection)
 
         let streamID = try #require(service.messages(ofType: "pane.terminal.open").first?["request_id"] as? String)
-        #expect(service.messages(ofType: "pane.terminal.input") == [
+        #expect(Self.sent(service, "pane.terminal.input") == [
             Self.object(#"{"type":"pane.terminal.input","stream_id":"\#(streamID)","bytes":"FQ=="}"#),
         ])
-        #expect(service.messages(ofType: "pane.terminal.resize") == [
+        #expect(Self.sent(service, "pane.terminal.resize") == [
             Self.object(#"{"type":"pane.terminal.resize","stream_id":"\#(streamID)","columns":60,"rows":15}"#),
         ])
-        #expect(service.messages(ofType: "pane.terminal.scroll") == [
+        #expect(Self.sent(service, "pane.terminal.scroll") == [
             Self.object(#"{"type":"pane.terminal.scroll","stream_id":"\#(streamID)","direction":"down","lines":2,"column":3,"row":4}"#),
         ])
-        #expect(service.messages(ofType: "pane.terminal.close") == [
+        #expect(Self.sent(service, "pane.terminal.close") == [
             Self.object(#"{"type":"pane.terminal.close","stream_id":"\#(streamID)"}"#),
         ])
+    }
+
+    /// 假主機服務收到的 `type` 訊息(比對用 NSDictionary)。
+    private static func sent(_ service: FakeHostService, _ type: String) -> [NSDictionary] {
+        service.messages(ofType: type).map { NSDictionary(dictionary: $0) }
     }
 
     private static func object(_ json: String) -> NSDictionary {
