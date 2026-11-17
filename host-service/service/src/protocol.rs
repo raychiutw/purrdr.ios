@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// 協定版本(schema 的 `x-protocol-version`)。
 pub const PROTOCOL_VERSION: i64 = 1;
 
-/// app 送給主機服務的訊息，以 type 區分。
+/// app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientMessage {
@@ -13,6 +13,15 @@ pub enum ClientMessage {
     Hello(Hello),
     #[serde(rename = "agents.list")]
     AgentsList(AgentsList),
+    #[serde(rename = "pane.send_keys")]
+    PaneSendKeys(PaneSendKeys),
+}
+
+impl ClientMessage {
+    /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
+    pub fn is_write(&self) -> bool {
+        matches!(self, ClientMessage::PaneSendKeys(_))
+    }
 }
 
 /// 主機服務送給 app 的訊息，以 type 區分。
@@ -23,6 +32,8 @@ pub enum ServerMessage {
     Welcome(Welcome),
     #[serde(rename = "agents.list.result")]
     AgentsListResult(AgentsListResult),
+    #[serde(rename = "pane.send_keys.result")]
+    PaneSendKeysResult(PaneSendKeysResult),
     #[serde(rename = "error")]
     ErrorMessage(ErrorMessage),
 }
@@ -119,7 +130,40 @@ pub struct AgentSession {
     pub value: String,
 }
 
-/// 請求失敗。訊息本身無法解析時沒有 request_id。
+/// 對 Pane 送出按鍵(herdr pane.send_keys)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneSendKeys {
+    pub request_id: String,
+    pub pane_id: String,
+    /// herdr 鍵名，例如 enter、esc、ctrl+c。
+    pub keys: Vec<String>,
+}
+
+/// 按鍵已送到 Pane。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneSendKeysResult {
+    pub request_id: String,
+}
+
+/// POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PairRequest {
+    /// 大小寫與連字號不拘，例如 K7QM-2XPA。
+    pub pairing_code: String,
+    /// 顯示在主機裝置列表的名稱。
+    pub device_name: String,
+}
+
+/// 配對成功。device_token 只在這裡出現一次，主機只存雜湊。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PairResponse {
+    pub device_id: String,
+    pub device_token: String,
+    /// 唯讀裝置的寫入類操作會被拒絕(read_only_device)。
+    pub read_only: bool,
+}
+
+/// 請求失敗(WSS 訊息，也是配對與撤銷 HTTPS 請求失敗時的本文)。訊息本身無法解析時沒有 request_id。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ErrorMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -135,7 +179,7 @@ pub struct ErrorMessage {
     pub supported_protocol_versions: Option<Vec<i64>>,
 }
 
-/// 錯誤種類。
+/// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ErrorCode {
     #[serde(rename = "invalid_message")]
@@ -150,4 +194,16 @@ pub enum ErrorCode {
     HerdrCapabilityMissing,
     #[serde(rename = "herdr_error")]
     HerdrError,
+    #[serde(rename = "device_token_invalid")]
+    DeviceTokenInvalid,
+    #[serde(rename = "device_token_revoked")]
+    DeviceTokenRevoked,
+    #[serde(rename = "read_only_device")]
+    ReadOnlyDevice,
+    #[serde(rename = "pairing_code_invalid")]
+    PairingCodeInvalid,
+    #[serde(rename = "pairing_code_expired")]
+    PairingCodeExpired,
+    #[serde(rename = "internal_error")]
+    InternalError,
 }

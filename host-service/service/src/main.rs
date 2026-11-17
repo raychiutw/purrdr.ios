@@ -1,9 +1,13 @@
-//! `purrdr-host-service [--port <埠>] [--session <herdr session>]`
-//! `purrdr-host-service install [--port <埠>] [--session <herdr session>] [--yes]`、`uninstall`、`status`
+//! `purrdr-host-service [--port <埠>] [--session <herdr session>] [--state-dir <資料夾>]`:執行主機服務。
+//! `purrdr-host-service pair | devices | revoke …`:管理連線配對與裝置(見 `management`)。
+//! `purrdr-host-service install [--port <埠>] [--session <herdr session>] [--yes]`、`uninstall`、`status`:安裝(見 `install`)。
 
 use std::process::ExitCode;
+use std::time::SystemTime;
 
+use purrdr_host_service::herdr_socket::{Platform, SocketEnvironment};
 use purrdr_host_service::install::{self, InstallCommand};
+use purrdr_host_service::management;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -17,5 +21,21 @@ async fn main() -> ExitCode {
             }
         };
     }
-    purrdr_host_service::run_service(&arguments).await
+    match arguments.first().map(String::as_str) {
+        Some("pair" | "devices" | "revoke") => run_management(&arguments),
+        _ => purrdr_host_service::run_service(&arguments).await,
+    }
+}
+
+fn run_management(arguments: &[String]) -> ExitCode {
+    match management::run(arguments, Platform::current(), &SocketEnvironment::from_process(), SystemTime::now()) {
+        Ok(output) => {
+            print!("{output}");
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::from(2)
+        }
+    }
 }

@@ -9,10 +9,11 @@ public enum HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// app 送給主機服務的訊息，以 type 區分。
+    /// app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。
     public enum ClientMessage: Codable, Sendable, Equatable {
         case hello(Hello)
         case agentsList(AgentsList)
+        case paneSendKeys(PaneSendKeys)
 
         private enum TypeKey: String, CodingKey {
             case type
@@ -24,6 +25,7 @@ extension HostServiceProtocol {
             switch type {
             case "hello": self = .hello(try Hello(from: decoder))
             case "agents.list": self = .agentsList(try AgentsList(from: decoder))
+            case "pane.send_keys": self = .paneSendKeys(try PaneSendKeys(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
             }
@@ -38,6 +40,17 @@ extension HostServiceProtocol {
             case .agentsList(let message):
                 try container.encode("agents.list", forKey: .type)
                 try message.encode(to: encoder)
+            case .paneSendKeys(let message):
+                try container.encode("pane.send_keys", forKey: .type)
+                try message.encode(to: encoder)
+            }
+        }
+
+        /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
+        public var isWrite: Bool {
+            switch self {
+            case .paneSendKeys: return true
+            default: return false
             }
         }
     }
@@ -48,6 +61,7 @@ extension HostServiceProtocol {
     public enum ServerMessage: Codable, Sendable, Equatable {
         case welcome(Welcome)
         case agentsListResult(AgentsListResult)
+        case paneSendKeysResult(PaneSendKeysResult)
         case errorMessage(ErrorMessage)
 
         private enum TypeKey: String, CodingKey {
@@ -60,6 +74,7 @@ extension HostServiceProtocol {
             switch type {
             case "welcome": self = .welcome(try Welcome(from: decoder))
             case "agents.list.result": self = .agentsListResult(try AgentsListResult(from: decoder))
+            case "pane.send_keys.result": self = .paneSendKeysResult(try PaneSendKeysResult(from: decoder))
             case "error": self = .errorMessage(try ErrorMessage(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
@@ -74,6 +89,9 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .agentsListResult(let message):
                 try container.encode("agents.list.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneSendKeysResult(let message):
+                try container.encode("pane.send_keys.result", forKey: .type)
                 try message.encode(to: encoder)
             case .errorMessage(let message):
                 try container.encode("error", forKey: .type)
@@ -279,7 +297,86 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 請求失敗。訊息本身無法解析時沒有 request_id。
+    /// 對 Pane 送出按鍵(herdr pane.send_keys)。
+    public struct PaneSendKeys: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var paneId: String
+        /// herdr 鍵名，例如 enter、esc、ctrl+c。
+        public var keys: [String]
+
+        public init(requestId: String, paneId: String, keys: [String]) {
+            self.requestId = requestId
+            self.paneId = paneId
+            self.keys = keys
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case paneId = "pane_id"
+            case keys
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 按鍵已送到 Pane。
+    public struct PaneSendKeysResult: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。
+    public struct PairRequest: Codable, Sendable, Equatable {
+        /// 大小寫與連字號不拘，例如 K7QM-2XPA。
+        public var pairingCode: String
+        /// 顯示在主機裝置列表的名稱。
+        public var deviceName: String
+
+        public init(pairingCode: String, deviceName: String) {
+            self.pairingCode = pairingCode
+            self.deviceName = deviceName
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case pairingCode = "pairing_code"
+            case deviceName = "device_name"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 配對成功。device_token 只在這裡出現一次，主機只存雜湊。
+    public struct PairResponse: Codable, Sendable, Equatable {
+        public var deviceId: String
+        public var deviceToken: String
+        /// 唯讀裝置的寫入類操作會被拒絕(read_only_device)。
+        public var readOnly: Bool
+
+        public init(deviceId: String, deviceToken: String, readOnly: Bool) {
+            self.deviceId = deviceId
+            self.deviceToken = deviceToken
+            self.readOnly = readOnly
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case deviceId = "device_id"
+            case deviceToken = "device_token"
+            case readOnly = "read_only"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 請求失敗(WSS 訊息，也是配對與撤銷 HTTPS 請求失敗時的本文)。訊息本身無法解析時沒有 request_id。
     public struct ErrorMessage: Codable, Sendable, Equatable {
         public var requestId: String?
         public var code: ErrorCode
@@ -309,7 +406,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 錯誤種類。
+    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。
     public enum ErrorCode: String, Codable, Sendable, CaseIterable {
         case invalidMessage = "invalid_message"
         case handshakeRequired = "handshake_required"
@@ -317,5 +414,11 @@ extension HostServiceProtocol {
         case herdrUnavailable = "herdr_unavailable"
         case herdrCapabilityMissing = "herdr_capability_missing"
         case herdrError = "herdr_error"
+        case deviceTokenInvalid = "device_token_invalid"
+        case deviceTokenRevoked = "device_token_revoked"
+        case readOnlyDevice = "read_only_device"
+        case pairingCodeInvalid = "pairing_code_invalid"
+        case pairingCodeExpired = "pairing_code_expired"
+        case internalError = "internal_error"
     }
 }

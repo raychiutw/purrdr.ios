@@ -273,7 +273,7 @@ pub(crate) struct ServiceLayout {
 
 impl ServiceLayout {
     fn directory(&self) -> PathBuf {
-        self.home.join(".purrdr").join("host-service")
+        crate::state_directory::default_state_directory(&self.home)
     }
 
     fn bin_directory(&self) -> PathBuf {

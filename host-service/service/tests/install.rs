@@ -3,7 +3,12 @@
 mod install_support;
 
 use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, RUN_VALUE, SYSTEMD_UNIT, TestHost, executable_names, snapshot};
+use std::time::SystemTime;
+
+use purrdr_host_service::herdr_socket::{Platform, SocketEnvironment};
 use purrdr_host_service::install::{InstallError, InstallPlatform, Installer};
+use purrdr_host_service::management;
+use purrdr_host_service::state_directory::default_state_directory;
 
 const PORT: u16 = 47_820;
 const PLATFORMS: [InstallPlatform; 3] = [InstallPlatform::MacOs, InstallPlatform::Linux, InstallPlatform::Windows];
@@ -263,6 +268,25 @@ fn installing_again_from_the_installed_copy_keeps_the_executables() {
             assert_eq!(std::fs::read_to_string(installed).unwrap(), format!("binary {name}"), "{platform:?}");
         }
     }
+}
+
+#[test]
+fn pairing_uses_installed_address_and_uninstall_removes_paired_devices() {
+    let host = TestHost::new(InstallPlatform::current());
+    let home_before = snapshot(&host.home.0);
+    let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+    installer.install(&host.options(PORT), |_| true).unwrap();
+    let pair = ["pair", "--state-dir"]
+        .map(str::to_owned)
+        .into_iter()
+        .chain([host.service_directory().display().to_string()]);
+
+    let output = management::run(&pair.collect::<Vec<_>>(), Platform::current(), &SocketEnvironment::default(), SystemTime::now()).unwrap();
+
+    assert_eq!(default_state_directory(&host.home.0), host.service_directory());
+    assert!(output.contains(&format!("https://{FQDN}")), "{output}");
+    installer.uninstall().unwrap();
+    assert_eq!(snapshot(&host.home.0), home_before);
 }
 
 /// 安裝前就有的東西：其他 Purrdr 功能的檔案、別的自動啟動項目、其他埠的 `tailscale serve`。

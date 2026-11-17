@@ -5,7 +5,7 @@ use std::process::ExitCode;
 use crate::herdr_socket::{Platform, SocketEnvironment};
 use crate::{HostServiceConfig, WEBSOCKET_PATH};
 
-/// `[--port <埠>] [--session <herdr session>]`:啟動並一直執行。
+/// `[--port <埠>] [--session <herdr session>] [--state-dir <資料夾>]`:啟動並一直執行。
 pub async fn run_service(arguments: &[String]) -> ExitCode {
     let config = match HostServiceConfig::from_arguments(arguments, Platform::current(), &SocketEnvironment::from_process()) {
         Ok(config) => config,
@@ -23,7 +23,7 @@ pub async fn run_service(arguments: &[String]) -> ExitCode {
         }
     };
     println!(
-        "purrdr-host-service {} listening on ws://{}{WEBSOCKET_PATH} (herdr socket {herdr_socket})",
+        "purrdr-host-service {} listening on http://{} (WebSocket {WEBSOCKET_PATH}, herdr socket {herdr_socket})",
         env!("CARGO_PKG_VERSION"),
         service.local_addr()
     );

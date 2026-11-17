@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use purrdr_host_service::protocol::{AgentStatus, ClientMessage, ErrorCode, ServerMessage};
+use purrdr_host_service::protocol::{AgentStatus, ClientMessage, ErrorCode, PairRequest, PairResponse, ServerMessage};
 use serde_json::Value;
 
 fn protocol_directory() -> PathBuf {
@@ -92,4 +92,35 @@ fn decoded_examples_carry_their_values() {
     let ServerMessage::ErrorMessage(error) = error else { panic!("不是 error") };
     assert_eq!(error.code, ErrorCode::InvalidMessage);
     assert_eq!(error.request_id, None);
+}
+
+/// 配對與撤銷的 HTTPS 請求本文(protocol/examples/http/)。
+#[test]
+fn http_examples_round_trip_through_generated_types() {
+    let directory = protocol_directory().join("examples/http");
+    let mut count = 0;
+    for entry in std::fs::read_dir(&directory).expect("protocol/examples/http 存在") {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        let original: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let reencoded = match name.as_str() {
+            "pair-request.json" => serde_json::to_value(serde_json::from_value::<PairRequest>(original.clone()).unwrap()).unwrap(),
+            "pair-response.json" => serde_json::to_value(serde_json::from_value::<PairResponse>(original.clone()).unwrap()).unwrap(),
+            error if error.starts_with("error.") => serde_json::to_value(serde_json::from_value::<ServerMessage>(original.clone()).unwrap()).unwrap(),
+            other => panic!("不認得的範例 {other}"),
+        };
+        assert_eq!(reencoded, original, "{name} 編解碼後不同");
+        count += 1;
+    }
+    assert_eq!(count, 3);
+}
+
+#[test]
+fn only_write_messages_are_marked_as_write() {
+    let decode =
+        |name: &str| -> ClientMessage { serde_json::from_str(&std::fs::read_to_string(protocol_directory().join("examples").join(name)).unwrap()).unwrap() };
+
+    assert!(decode("client.pane-send-keys.json").is_write());
+    assert!(!decode("client.hello.json").is_write());
+    assert!(!decode("client.agents-list.json").is_write());
 }
