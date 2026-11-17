@@ -93,6 +93,23 @@ final class PaneTerminalUITests: XCTestCase {
         waitForScreen(screen, toContain: "^[")
     }
 
+    /// 手指往下滑回看先前的輸出(Demo 的 Pane 依 terminal.scroll 捲主機端 scrollback),打字後回到最新(#88 故事 17、19)。
+    @MainActor
+    func testSwipingDownScrollsBackToEarlierOutput() {
+        let app = XCUIApplication.launchUITesting()
+        let screen = openTerminal(app)
+        waitForScreen(screen, toContain: "Wrote export/ledger-2026-11.csv")
+        XCTAssertFalse((screen.value as? String)?.contains("python export.py") == true, "一開始就看得到最上面，測不出捲動")
+
+        for _ in 0..<8 where (screen.value as? String)?.contains("python export.py") != true {
+            screen.swipeDown()
+        }
+        waitForScreen(screen, toContain: "python export.py")
+
+        app.typeText("l")
+        waitForScreen(screen, toContain: "demo@purrdr ledger % l")
+    }
+
     @MainActor
     func testPaneInUseOffersTakeOver() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoPaneInUse"])
