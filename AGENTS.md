@@ -33,7 +33,12 @@ warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,
 
 SwiftTerm(1.19)的需求：編譯 `Shaders.metal` 要 **Metal Toolchain**(上面第一行，裝過就好);它也帶 build-tool plugin(`SwiftTermBuildInfoPlugin`),命令列 `xcodebuild` 沒辦法像 Xcode 介面那樣按「信任」,所以**每個 `xcodebuild build`／`test` 都要加 `-skipPackagePluginValidation`**,否則停在「Validate plug-in」。`swift test` 不需要。
 
-CI(`.github/workflows/ci.yml`):`swift test` + package iOS 編譯、app 編譯(零 warning)、可攜核心用 Swift SDK for Android 交叉編譯(aarch64、x86_64,API 28)、後台測試(`backend/`,vitest)。
+CI(`.github/workflows/ci.yml`):`swift test` + package iOS 編譯、app 編譯(零 warning)、可攜核心用 Swift SDK for Android 交叉編譯(aarch64、x86_64,API 28)、後台測試(`backend/`,vitest)、主機服務 `cargo test`(macOS、Linux、Windows 三平台;Linux 另跑 fmt 與 clippy)。
+
+```bash
+cd host-service && cargo test --workspace      # 主機服務與協定型別的測試(Windows 實跑 named pipe)
+cd host-service && cargo run -p protocol-codegen  # 改了 protocol/host-service.schema.json 後重新產生 Rust 與 Swift 型別
+```
 
 TestFlight(`.github/workflows/testflight.yml`,#36):合併進 `master` 自動上傳(只改 `docs/`、`.md` 不上傳),也可 `gh workflow run testflight.yml --ref master`。PR 的 CI 已通過就不重測，否則先跑 `ci.yml`。archive 不簽章、ad-hoc 寫入 entitlements,匯出時以 App Store Connect API key 自動簽章(Apple 雲端管理的 Distribution 憑證),上傳前檢查匯出的 entitlements(推播 production、time-sensitive、Sign in with Apple),最後 `scripts/wait-for-testflight.rb` 等 build 可測試(內部群組「內部測試」自動分發)。build 號是 `GITHUB_RUN_ID`;**版本號是 `MARKETING_VERSION`(4 處),每次發佈前要遞增**。需要 GitHub environment `testflight`(部署分支限定 `master`):變數 `APPLE_TEAM_ID`,secret `ASC_KEY_ID`、`ASC_ISSUER_ID`、`ASC_PRIVATE_KEY`(`.p8` 全文;key 要 **Admin** 角色)。上架的其他人工步驟見 `docs/launch/checklist.md`。
 
@@ -52,6 +57,8 @@ tests/PurrdrTestSupport/       # 假主機 FakeHost、假的主機連線 FakeHos
 tests/PurrdrCoreTests/  tests/PurrdrFeaturesTests/
 tests/PurrdrUITests/           # XCUITest
 backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript),說明見 backend/README.md
+host-service/                  # 主機服務(Rust workspace,ADR-0010):service/ 本體、codegen/ 協定型別產生器
+protocol/                      # 主機服務協定：host-service.schema.json(唯一定義)與 examples/(兩端共用的範例)
 ```
 
 依賴方向:`App → Features → Core ← Demo ← App`。**Features 不 import Demo**:畫面只透過核心的介面拿資料，不知道背後是真主機、假主機或 Demo。上層功能(Agent 列表、對話閱讀、送 prompt、Pane 終端機)只經**主機連線**;Features 裡只有 SSH 才有的功能(登入 Shell、推播外掛、主題、資料夾…)直接用主機通道。
@@ -71,6 +78,7 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
 - **推播**(ADR-0004、#29):主機外掛在本 repo 的 `host-plugin/`(herdr plugin manifest + `notify.sh`(sh + curl)／`notify.ps1`(Windows,best-effort)),發佈成公開 repo `raychiutw/purrdr-host-plugin` 後由 app 經 SSH `herdr plugin install` 安裝(來源常數 `PushSettings.pluginSource`)。核心 `PushHost`:每支裝置的配對檔 `~/.purrdr/push-<裝置 id>/pairing`(經 `ReversibleHostWrite`)、只有 Purrdr 裝的外掛才在最後一支裝置關閉時移除(紀錄在 `~/.purrdr/push-plugin/`)。配對密鑰只在主機上，後台與 app 只有它的 SHA-256。Features:`PushService`(後台、權限與 token、`PushPairingStore`)、`PushModel`(選取中主機的開關，`HostsModel.push`)、`PushNotificationRouter`(點通知 → `HostsModel.open(_:)`)、`SystemPushPlatform`(iOS);app 的 `PushAppDelegate` 接 APNs token、前景不跳通知。外掛腳本以 `HostPluginScriptTests` 在暫存家目錄實跑(假 curl／herdr),主機端用 `FakeHerdrPluginCLI`。
 - **主機主題與 You should know**(#23):核心 `HostTheme`(解析 herdr `config.toml` 的 `[theme]`、內建主題色票、對比 < 4.5:1 退回系統)、`HostThemeHost`(讀設定;經同意寫參考檔 `~/.purrdr/theme/README.md`)、`YouShouldKnowStore`／`YouShouldKnowHost`(找最新 store `HostFiles.newest`、compare-and-swap 寫回、衝突重試一次、還原只撤掉 Purrdr 加進 `known` 的句子)。Features:`HostThemeModel`、`YouShouldKnowModel` 每台主機各一份(`HostMember`)。主題套用選取中主機的(`HostsModel.hostTheme`,`.selectedHostTheme(hosts)` 接在 `TopNavigationView` 的三欄／一疊與 `PaneWindowView` 上，sheet 接在外面所以不套);註記合併所有主機(`MergedAgentListModel.notes`),聊天輸入列上方用聊天所在主機的那份。
 - **出口合規(只用系統加密)**:`ITSAppUsesNonExemptEncryption = NO` 的前提是 app 只用作業系統提供的加密——CryptoKit(含經 swift-crypto `Crypto` 轉呼叫)、CommonCrypto、系統 TLS。**不可**自寫加密演算法、加入 `_CryptoExtras`、OpenSSL／libsodium 之類的第三方加密;所以有 passphrase 的 OpenSSH 私鑰(bcrypt KDF)不支援，回 `SSHKeyImportError.passphraseProtected`。`PortableCoreImportTests` 的允許清單不含 `_CryptoExtras`。見 `docs/launch/checklist.md` 1.14。
+- **主機服務**(`host-service/`,ADR-0010、#55):Rust,只綁 127.0.0.1(預設埠 47820,`--port` 可改;不做 TLS,對外由 `tailscale serve` 提供 HTTPS)。WebSocket 路徑 `/v1/ws`,每個 herdr 請求開一條連線直接連 herdr 本機 socket(Unix socket／`\\.\pipe\<socket 路徑>`,解析順序 `--session` → `HERDR_SOCKET_PATH` → `HERDR_SESSION` → 預設);不執行任何子行程(`no_command_execution` 測試擋)。協定只改 `protocol/host-service.schema.json`,再 `cargo run -p protocol-codegen` 產生 `host-service/service/src/protocol.rs` 與 `src/PurrdrCore/HostServiceProtocol.swift`(`HostServiceProtocol` 命名空間);同步與否由 codegen 測試把關，`protocol/examples/` 由 Rust 與 Swift(`HostServiceProtocolExampleTests`)兩端各自編解碼。測試以真正的 WebSocket client 連主機服務，背後是回放 `Fixtures/herdr-0.9.5/` 錄製 NDJSON 的假 herdr socket。
 - **DI**:只用 initializer 注入;畫面 model 由 composition root 建立後傳入。
 - **Concurrency**:核心型別是 `Sendable` value type 或 actor;畫面 model 放在 main actor。
 

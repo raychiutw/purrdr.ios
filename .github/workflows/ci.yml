@@ -118,6 +118,42 @@ jobs:
       - name: 測試
         run: npm test
 
+  # 主機服務(host-service/,ADR-0010):三平台各跑一次，herdr socket 路徑解析與假 herdr socket
+  # (macOS／Linux 是 Unix socket,Windows 是 named pipe)都要在該平台實跑。
+  # 協定型別是否與 protocol/host-service.schema.json 同步，由 codegen 的測試把關。
+  host-service:
+    name: 主機服務測試(cargo test,${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, ubuntu-24.04, windows-2025]
+    defaults:
+      run:
+        working-directory: host-service
+        shell: bash
+    env:
+      RUSTFLAGS: -D warnings
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 安裝 Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup default stable
+          cargo --version
+
+      - name: 格式與 clippy
+        if: runner.os == 'Linux'
+        run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace --locked
+
   # CI 不做 UI 測試(太久);UI 測試在本機跑，只跑有修改到的類別(見 AGENTS.md「常用指令」)。
   app:
     name: App 編譯(xcodebuild build)
