@@ -8,16 +8,23 @@ import UIKit
 @Suite(.serialized)
 @MainActor
 struct ComposerScrollTests {
+    /// 跟輸入列一樣放在兩側有按鈕的 HStack 裡:SwiftUI 會以 0 與無限寬度探問理想大小。
     private struct Host: View {
         @State var text = ""
         @State var isFocused = true
 
         var body: some View {
-            ComposerTextEditor(
-                text: $text, isFocused: $isFocused, returnSends: false, canSend: true,
-                slashKey: { _ in false }, pasteAction: { .system }, onPasteImages: {}, onSend: {}
-            )
-            .frame(width: 280)
+            HStack(alignment: .bottom, spacing: 8) {
+                Color.clear.frame(width: 44, height: 44)
+                ComposerTextEditor(
+                    text: $text, isFocused: $isFocused, returnSends: false, canSend: true,
+                    slashKey: { _ in false }, pasteAction: { .system }, onPasteImages: {}, onSend: {}
+                )
+                .frame(minHeight: 44)
+                Color.clear.frame(width: 44, height: 44)
+            }
+            .padding(.horizontal)
+            .frame(width: 390)
         }
     }
 
