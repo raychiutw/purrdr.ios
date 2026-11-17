@@ -154,10 +154,8 @@ struct SSHHostChannelTests {
 
     @Test("連不上(拒絕連線)回報白話的原因，不是函式庫的錯誤字串")
     func connectionRefused() async throws {
-        let server = try await TestSSHServer.start { _ in .reply() }
-        let endpoint = server.endpoint
-        await server.stop()
-        let channel = SSHHostChannel(endpoint: endpoint, hostKeyPin: nil)
+        // 埠 1 不在臨時埠範圍：停掉的伺服器釋出的臨時埠可能被同時跑的其他測試拿去開伺服器，埠 1 不會。
+        let channel = SSHHostChannel(endpoint: SSHEndpoint(host: "127.0.0.1", port: 1, username: "demo"), hostKeyPin: nil)
 
         await #expect(throws: SSHConnectionError.connectionRefused) {
             _ = try await channel.execute("x")
