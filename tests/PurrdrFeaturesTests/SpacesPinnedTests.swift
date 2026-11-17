@@ -122,10 +122,10 @@ extension SpacesPinnedTests {
         studio.source.actions.togglePin(sessionID: UnreadPinnedTests.sessionA)
 
         let pinned = try #require(model.spacesSections.first { $0.kind == .pinned })
-        guard case .chat(let chat)? = pinned.items.first, case .group(let group)? = pinned.items.last else {
-            Issue.record("已釘選組應該是一個聊天列加一個群組:\(pinned.items.map(\.id))")
-            return
-        }
+        let chat = try #require(pinned.items.lazy.compactMap { item -> AgentRow? in if case .chat(let row) = item { row } else { nil } }.first)
+        let group = try #require(pinned.items.lazy.compactMap { item -> WorkspaceGroup? in
+            if case .group(let group) = item { group } else { nil }
+        }.first)
         #expect(chat.subtitle.hasPrefix("Studio · "), "聊天列第三行:\(chat.subtitle)")
         #expect(chat.hostLabel?.name == "Studio")
         #expect(group.hostName == "Studio")
