@@ -365,7 +365,7 @@ final class SSHConnection: Sendable {
         on channel: any Channel, every interval: TimeAmount, replyWithin limit: TimeAmount, scheduler: any SSHDeadlineScheduler
     ) {
         let eventLoop = channel.eventLoop
-        let nextRound = NIOLoopBoundBox<SSHScheduledDeadline?>(nil, eventLoop: eventLoop)
+        let nextRound = NIOLoopBoundBox.makeEmptyBox(valueType: SSHScheduledDeadline.self, eventLoop: eventLoop)
         // 上一輪有結果後才排下一輪，間隔從那時算起(與 scheduleRepeatedAsyncTask 相同)。
         @Sendable func scheduleRound() {
             guard channel.isActive else { return }
