@@ -17,10 +17,10 @@ struct HostFoldersTests {
         }
     }
 
-    @Test("超過 25 MB 拒絕上傳，什麼指令都不送")
+    @Test("超過 25 MB 拒絕上傳(以原始大小判斷，壓得再小也一樣),什麼指令都不送")
     func rejectsUploadOverLimit() async throws {
         let host = FakeHost()
-        let folders = HostFolders(channel: host)
+        let folders = HostFolders(channel: host, deflate: FixedDeflate(output: Data(count: 1)))
 
         await #expect(throws: HostFolderError.tooLarge) {
             _ = try await folders.upload(Data(count: HostFolders.maximumUploadSize + 1), named: "big.bin", to: "/Users/demo")
@@ -39,6 +39,45 @@ struct HostFoldersTests {
             }
         }
         #expect(await host.executions.isEmpty)
+    }
+
+    @Test("一般檔案壓得小時以 gzip 傳輸：指令帶原始大小、gzip 與傳輸大小,stdin 是 gzip 後的 bytes")
+    func uploadsGzipWhenSmaller() async throws {
+        let host = FakeHost()
+        let original = Data(repeating: 0x61, count: 1_000)
+        await host.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "build.log", size: 1_000, encoding: .gzip, transferSize: 21),
+            reply: FakeReply(stdout: Data("/Users/demo/build.log\n".utf8)))
+
+        let path = try await HostFolders(channel: host, deflate: FixedDeflate(output: Data([1, 2, 3])))
+            .upload(original, named: "build.log", to: "/Users/demo")
+
+        #expect(path == "/Users/demo/build.log")
+        let stdin = try #require(await host.executions.first?.stdin)
+        #expect(Array(stdin.prefix(3)) == [0x1F, 0x8B, 0x08])
+        #expect(stdin.count == 21)
+        #expect(Array(stdin.suffix(4)) == [0xE8, 0x03, 0x00, 0x00], "原始長度 1,000")
+        #expect(await host.unmetExpectations.isEmpty)
+    }
+
+    @Test("主機沒有 gzip(exit 69):改用 identity 重傳一次")
+    func fallsBackToIdentityWithoutGzip() async throws {
+        let host = FakeHost()
+        let original = Data(repeating: 0x61, count: 1_000)
+        await host.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "build.log", size: 1_000, encoding: .gzip, transferSize: 21),
+            reply: FakeReply(exitCode: 69))
+        await host.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "build.log", size: 1_000),
+            reply: FakeReply(stdout: Data("/Users/demo/build.log\n".utf8)))
+
+        let path = try await HostFolders(channel: host, deflate: FixedDeflate(output: Data([1, 2, 3])))
+            .upload(original, named: "build.log", to: "/Users/demo")
+
+        #expect(path == "/Users/demo/build.log")
+        #expect(await host.executions.count == 2)
+        #expect(await host.executions.last?.stdin == original)
+        #expect(await host.unmetExpectations.isEmpty)
     }
 
     @Test("上傳的資料夾必須是絕對路徑")
@@ -143,10 +182,49 @@ struct HostFolderScriptTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: host.url("inbox").path).isEmpty)
     }
 
+    @Test("gzip 傳輸：主機以 gzip -dc 解壓後寫入，內容與原檔相同")
+    func uploadsGzipThroughStdin() async throws {
+        try FileManager.default.createDirectory(at: host.url("inbox"), withIntermediateDirectories: true)
+        let original = Data((0..<300_000).map { UInt8(97 + ($0 / 5) % 26) })
+        let folders = HostFolders(channel: host, deflate: StandardRawDeflate())
+
+        let path = try await folders.upload(original, named: "build.log", to: home + "/inbox")
+
+        #expect(path == home + "/inbox/build.log")
+        #expect(try Data(contentsOf: host.url("inbox/build.log")) == original)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: host.url("inbox").path) == ["build.log"])
+        let command = try #require(host.commands.last)
+        let sent = HostFolderCommand.parseUpload(command)
+        #expect(sent?.encoding == .gzip)
+        #expect((sent?.transferSize ?? .max) < original.count / 10)
+    }
+
+    @Test("腳本:gzip 的傳輸大小或解壓後的原始大小與宣告的不同時 exit 75,不留下任何檔案", arguments: ["transfer", "original"])
+    func scriptRejectsGzipSizeMismatch(mismatch: String) async throws {
+        try FileManager.default.createDirectory(at: host.url("inbox"), withIntermediateDirectories: true)
+        let original = Data(String(repeating: "purrdr log\n", count: 1_000).utf8)
+        let gzip = try StandardGzip.compress(original)
+        let command = HostFolderCommand.upload(
+            folder: home + "/inbox", name: "a.log", size: original.count + (mismatch == "original" ? 1 : 0),
+            encoding: .gzip, transferSize: gzip.count + (mismatch == "transfer" ? 1 : 0))
+
+        let session = try await host.execute(command)
+        try await session.write(gzip)
+        await session.closeStdin()
+        var code: Int32?
+        for try await event in session.output {
+            if case .exit(let exit, _) = event { code = exit }
+        }
+
+        #expect(code == 75)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: host.url("inbox").path).isEmpty)
+    }
+
     @Test("腳本不含反斜線(fish 在單引號內仍處理 `\\`)")
     func scriptsHaveNoBackslash() {
         #expect(!HostFolderCommand.list("/a b").contains("\\"))
         #expect(!HostFolderCommand.upload(folder: "/a", name: "b", size: 1).contains("\\"))
+        #expect(!HostFolderCommand.upload(folder: "/a", name: "b", size: 1, encoding: .gzip, transferSize: 2).contains("\\"))
     }
 }
 #endif

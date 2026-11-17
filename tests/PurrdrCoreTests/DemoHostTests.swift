@@ -347,6 +347,29 @@ struct DemoHostTests {
         }
     }
 
+    @Test("檔案上傳:Demo 主機認得 gzip 傳輸的指令，收到傳輸大小的 bytes 就成功，清單顯示原始大小")
+    func acceptsGzipUploadCommand() async throws {
+        let host = DemoHost()
+        let session = try await host.execute(
+            HostFolderCommand.upload(folder: "/Users/demo/notes", name: "build.log", size: 1_000, encoding: .gzip, transferSize: 21))
+        try await session.write(Data(count: 21))
+        await session.closeStdin()
+        var stdout = Data()
+        var code: Int32?
+        for try await event in session.output {
+            switch event {
+            case .stdout(let chunk): stdout.append(chunk)
+            case .stderr: break
+            case .exit(let exit, _): code = exit
+            }
+        }
+
+        #expect(code == 0)
+        #expect(String(decoding: stdout, as: UTF8.self) == "/Users/demo/notes/build.log\n")
+        let notes = try await HostFolders(channel: host).list("/Users/demo/notes")
+        #expect(notes.entries.first { $0.name == "build.log" }?.size == 1_000)
+    }
+
     @Test("登入 Shell:Demo 主機開回顯的 shell")
     func opensLoginShell() async throws {
         let pty = try await DemoHost().openPTY(PTYRequest(columns: 80, rows: 24))
