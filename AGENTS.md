@@ -29,6 +29,8 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params] [ssh 目的地]  # �
 scripts/strings.sh sync                                          # 把畫面新字串加進 String Catalog(之後補繁中);check 只檢查(CI 也跑)
 PURRDR_WINDOWS_HOST=user@host PURRDR_WINDOWS_KEY=<私鑰> \
   python -I scripts/windows-upload-repro.py                      # Windows 上傳與 stdin stub 經真正 sshd 的回歸檢查(案例見腳本說明);Windows 開發機 SSH 到本機就能跑
+PURRDR_REPRO_HOST=user@host PURRDR_REPRO_KEY=<私鑰> PURRDR_REPRO_HOST_KEY=<主機公鑰檔> \
+  scripts/host-poll-repro/run.sh [次數]                          # 以可攜核心連真主機、模擬 app 並行輪詢(容器編譯);任一步失敗或取消後仍不返回就 RED
 ```
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
@@ -68,6 +70,7 @@ protocol/                      # 主機服務協定：host-service.schema.json(�
 - **可攜核心**(PurrdrCore、PurrdrDemo,ADR-0006)只能 import Foundation 與 swift-nio／swift-nio-ssh／swift-crypto 系列。Apple 專屬的東西(SwiftUI、Security、StoreKit、SwiftData…)放 Features 或 app,以 protocol 從核心注入。`PortableCoreImportTests` 在 `swift test` 先擋;CI 的 Android job 是最終守門。新增可攜 module 時兩邊(測試的允許清單、CI 的 `--target`)都要更新。
 - **主機連線**(`HostConnection`,#54、ADR-0010):上層功能對一台主機的 herdr 操作——herdr 單次請求(一行 NDJSON 進、第一行回應出)、Agent 事件串流(逐行)、對話紀錄讀取(`TranscriptRequest`)、Pane 終端機。`HerdrClient`、`TranscriptReader`、`PaneTerminalClient` 以 `init(connection:)` 建在它上面(`init(channel:)` 是 SSH 的捷徑,Features 不用，`HostConnectionBoundaryTests` 擋)。SSH 實作 `SSHHostConnection` 包住主機通道(Demo 主機也經過它);登入 Shell 不在介面裡，只有 SSH 提供。
 - **主機通道**(`HostChannel`):`execute(command)` 回傳 `ExecSession`(stdout／stderr／exit 串流，可寫 stdin、送 EOF、關閉);`openPTY(PTYRequest)` 回傳 `PTYSession`。連線重用、逾時、「連線層失敗不重送」都封裝在實作內;`disconnect()` 關掉底層連線。
+- **一次性指令一律經有期限的入口**(#91):讀對話紀錄、slash 探索、資料夾清單、主機檔案、推播外掛、作業系統偵測等「跑完就結束」的主機指令都走 `HostChannel.runOnce`(收齊輸出用 `collect(_:deadline:sleep:)`),不要直接 `execute` 再自己讀。期限從通道開好起算，依指令性質取 `HostCommandDeadline`(預設 20 秒、探測 10 秒、大讀取 20 秒加上以 32 KiB/s 估算的傳輸時間、主機要下載的 300 秒);到了丟 `HostCommandError.deadlineExceeded`,外層取消丟 `CancellationError`,兩者都立刻返回、不等讀取配合，通道在背景關閉。計時以 `sleep` 注入(測試用 `RecordingSleeper`,卡住用假主機 `FakeReply(keepsOpen: true)`)。長時間串流(事件訂閱、Pane 終端機)不經這裡;herdr 單次請求、圖片與檔案上傳、喚醒探測各自已有期限。真主機的並行輪詢回歸：`scripts/host-poll-repro/run.sh`。
 - **真 SSH**(`SSHHostChannel`,ADR-0003):swift-nio-ssh,Tailscale SSH 用 `none` 認證。沒有 host key pin 時**不登入**,丟 `SSHConnectionError.hostKeyUnverified(presented:)` 讓畫面請使用者確認;指紋不符丟 `hostKeyChanged`。主機設定與 pin 存 Keychain(`KeychainHostStore`,解鎖時、僅此裝置)。
 - **herdr client**:SSH 連線(`SSHHostConnection`)每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
 - **主機指令建構**(`HerdrCommand`):POSIX 指令前綴明確 PATH、引號用 `'"'"'`(行為規格 §3.2)。herdr 路徑與具名 session 由 `HerdrInstallation` 帶入(`--session <name>` 放在子指令前;`--version`、`update` 不帶)。
