@@ -75,6 +75,8 @@ public struct PromptDelivery: Sendable {
         let reply: PromptReply
         do {
             reply = try await client.prompt(target: agent.paneID, text: text, wait: .seconds(8))
+        } catch HostServiceError.readOnlyDevice {
+            return .readOnlyDevice
         } catch let error as HerdrError {
             return outcome(of: error, agent: agent)
         } catch {
@@ -93,6 +95,8 @@ public struct PromptDelivery: Sendable {
         do {
             _ = try await client.prompt(target: agent.paneID, text: text, wait: nil)
             return .submittedCommand
+        } catch HostServiceError.readOnlyDevice {
+            return .readOnlyDevice
         } catch let error as HerdrError {
             if case .herdr = error { return outcome(of: error, agent: agent) }
             return .unconfirmed(.connectionLost)

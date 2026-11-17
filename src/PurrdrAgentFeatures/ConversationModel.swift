@@ -401,6 +401,8 @@ public final class ConversationModel {
         }
         isOffline = false
         if banner == .offline { banner = nil }
+        // 送出時被拒過就維持唯讀。
+        if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
         guard let agent = currentAgent else {
             unbind()
@@ -596,7 +598,7 @@ public final class ConversationModel {
 
     /// 可送 = 修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     public var canSend: Bool {
-        !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
+        !isReadOnly && !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
     }
 
     /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
@@ -606,7 +608,7 @@ public final class ConversationModel {
     }
 
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
-    public var canStop: Bool { agentStatus == .working && !isStopping }
+    public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly }
 
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
@@ -711,7 +713,7 @@ public final class ConversationModel {
 
     /// 這個回答現在能不能送:沒有回答在途、提示還在，且有按鍵可送(編號 10 以上不行,R-Q04)。
     public func canAnswer(_ answer: PromptAnswer) -> Bool {
-        guard answerInFlight == nil, let prompt, keys(for: answer) != nil else { return false }
+        guard !isReadOnly, answerInFlight == nil, let prompt, keys(for: answer) != nil else { return false }
         switch answer {
         case .option(let option): return prompt.options.contains(option)
         case .continueMultiSelect: return prompt.isMultiSelect
@@ -737,6 +739,12 @@ public final class ConversationModel {
         } catch {
             guard answerInFlight == answer else { return }
             clearAnswer()
+            if error as? HostServiceError == .readOnlyDevice {
+                // 卡片改顯示唯讀說明，不另外提示。
+                isReadOnly = true
+                haptics.play(.error)
+                return
+            }
             answerNotice = .sendFailed
             haptics.play(.error)
             return
@@ -892,6 +900,7 @@ public final class ConversationModel {
         case .rejected(let message):
             nothingSent = .rejected(message)
         case .readOnlyDevice:
+            isReadOnly = true
             nothingSent = .readOnlyDevice
         }
         notice = nothingSent

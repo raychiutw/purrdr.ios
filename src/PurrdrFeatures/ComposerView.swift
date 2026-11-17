@@ -19,6 +19,16 @@ struct ComposerBar: View {
     @State private var isFocused = false
 
     var body: some View {
+        if model.isReadOnly {
+            ReadOnlyComposerNotice()
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+        } else {
+            composer
+        }
+    }
+
+    private var composer: some View {
         VStack(spacing: 8) {
             if model.slash.isVisible {
                 SlashMenuView(menu: model.slash)
@@ -169,6 +179,21 @@ struct ShellModeHint: View {
             .padding(.vertical, 8)
             .background(.bar, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityIdentifier("composer.shellHint")
+    }
+}
+
+/// 唯讀裝置(#60):輸入列換成說明，沒有輸入框與送出鈕。
+struct ReadOnlyComposerNotice: View {
+    var body: some View {
+        Label("This device is paired read-only, so it can’t send anything to this host.", systemImage: "lock")
+            .font(.footnote)
+            .foregroundStyle(.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("composer.readOnly")
     }
 }
 
