@@ -156,7 +156,7 @@ struct SpacesViewTests {
         }
     }
 
-    @Test("Agents 檢視：每個 agent 一列，沒有卡片也沒有終端機列;只有 shell 的 workspace 不出現")
+    @Test("Agents 檢視：每個 agent 一列，沒有群組也沒有終端機列;只有 shell 的 workspace 不出現")
     func agentsViewHasNoTerminalRows() async throws {
         let model = await Self.model()
         model.agentList.mode = .agents

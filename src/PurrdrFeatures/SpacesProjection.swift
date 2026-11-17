@@ -3,7 +3,7 @@ import PurrdrCore
 
 /// Agent 列表的兩種檢視(行為規格 F2.1、#37 故事 7–14)。
 public enum AgentListMode: String, CaseIterable, Sendable {
-    /// 每個 workspace 一項：單一 agent 的 workspace 是聊天列，其他是 workspace 卡片。
+    /// 每個 workspace 一項：依主機分組，單一 agent 的 workspace 是聊天列，其他是 workspace 群組。
     case spaces
     /// 每個 Agent 平鋪一列，不顯示終端機列。
     case agents

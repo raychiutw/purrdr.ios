@@ -36,7 +36,7 @@ final class ScreenshotTourUITests: XCTestCase {
     }
 
     @MainActor
-    func test01AgentListWithWorkspaceCards() {
+    func test01AgentListWithWorkspaceGroups() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
         // Spaces 檢視：notes 有 Codex 與 shell,是 workspace 群組。
