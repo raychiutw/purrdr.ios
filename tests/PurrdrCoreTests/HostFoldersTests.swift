@@ -196,19 +196,16 @@ struct HostFolderScriptTests {
         let session = try await host.execute(HostFolderCommand.upload(folder: home + "/inbox", name: "a.txt", size: 10))
         try await session.write(Data("12345".utf8))
         await session.closeStdin()
-        var code: Int32?
-        for try await event in session.output {
-            if case .exit(let exit, _) = event { code = exit }
-        }
+        let exitCode = try await session.collectOutput().exitCode
 
-        #expect(code != 0)
+        #expect(exitCode != 0)
         #expect(try FileManager.default.contentsOfDirectory(atPath: host.url("inbox").path).isEmpty)
     }
 
     @Test("gzip 傳輸：主機以 gzip -dc 解壓後寫入，內容與原檔相同")
     func uploadsGzipThroughStdin() async throws {
         try FileManager.default.createDirectory(at: host.url("inbox"), withIntermediateDirectories: true)
-        let original = Data((0..<300_000).map { UInt8(97 + ($0 / 5) % 26) })
+        let original = TestUploadData.letters(count: 300_000)
         let folders = HostFolders(channel: host, deflate: StandardRawDeflate())
 
         let path = try await folders.upload(original, named: "build.log", to: home + "/inbox")
@@ -227,7 +224,7 @@ struct HostFolderScriptTests {
         // macOS 一定有 /usr/bin/gzip(腳本的 PATH 也固定含 /usr/bin),所以把腳本找的指令名換成不存在的。
         let withoutGzip = RewritingChannel(base: host, replacing: "command -v gzip", with: "command -v purrdr-missing-gzip")
         try FileManager.default.createDirectory(at: host.url("inbox"), withIntermediateDirectories: true)
-        let original = Data((0..<300_000).map { UInt8(97 + ($0 / 5) % 26) })
+        let original = TestUploadData.letters(count: 300_000)
 
         let path = try await HostFolders(channel: withoutGzip, deflate: StandardRawDeflate())
             .upload(original, named: "build.log", to: home + "/inbox")
@@ -242,24 +239,27 @@ struct HostFolderScriptTests {
         #expect(commands.last?.contains(" 'identity' ") == true)
     }
 
-    @Test("腳本:gzip 的傳輸大小或解壓後的原始大小與宣告的不同時 exit 75,不留下任何檔案", arguments: ["transfer", "original"])
-    func scriptRejectsGzipSizeMismatch(mismatch: String) async throws {
+    /// 宣告的哪一個大小和實際的不同。
+    enum DeclaredSizeMismatch: CaseIterable, Sendable {
+        case transferSize
+        case originalSize
+    }
+
+    @Test("腳本:gzip 的傳輸大小或解壓後的原始大小與宣告的不同時 exit 75,不留下任何檔案", arguments: DeclaredSizeMismatch.allCases)
+    func scriptRejectsGzipSizeMismatch(mismatch: DeclaredSizeMismatch) async throws {
         try FileManager.default.createDirectory(at: host.url("inbox"), withIntermediateDirectories: true)
         let original = Data(String(repeating: "purrdr log\n", count: 1_000).utf8)
         let gzip = try StandardGzip.compress(original)
         let command = HostFolderCommand.upload(
-            folder: home + "/inbox", name: "a.log", size: original.count + (mismatch == "original" ? 1 : 0),
-            encoding: .gzip, transferSize: gzip.count + (mismatch == "transfer" ? 1 : 0))
+            folder: home + "/inbox", name: "a.log", size: original.count + (mismatch == .originalSize ? 1 : 0),
+            encoding: .gzip, transferSize: gzip.count + (mismatch == .transferSize ? 1 : 0))
 
         let session = try await host.execute(command)
         try await session.write(gzip)
         await session.closeStdin()
-        var code: Int32?
-        for try await event in session.output {
-            if case .exit(let exit, _) = event { code = exit }
-        }
+        let exitCode = try await session.collectOutput().exitCode
 
-        #expect(code == 75)
+        #expect(exitCode == 75)
         #expect(try FileManager.default.contentsOfDirectory(atPath: host.url("inbox").path).isEmpty)
     }
 

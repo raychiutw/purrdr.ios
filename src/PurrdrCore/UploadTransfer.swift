@@ -1,48 +1,5 @@
 import Foundation
 
-/// 原始 DEFLATE(RFC 1951)壓縮，由平台注入(iOS 用系統 Compression)。
-public protocol RawDeflate: Sendable {
-    /// 壓縮失敗回 `nil`。
-    func deflate(_ data: Data) -> Data?
-}
-
-/// gzip 封裝(RFC 1952):標頭、原始 DEFLATE、CRC32、原始長度。
-public enum Gzip {
-    /// 壓縮失敗回 `nil`。
-    public static func encode(_ data: Data, using deflate: any RawDeflate) -> Data? {
-        guard let deflated = deflate.deflate(data) else { return nil }
-        // ID1 ID2、CM = 8(DEFLATE)、無旗標、MTIME = 0、XFL = 0、OS = 255(未知)。
-        var output = Data([0x1F, 0x8B, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF])
-        output.append(deflated)
-        appendLittleEndian(CRC32.checksum(data), to: &output)
-        appendLittleEndian(UInt32(truncatingIfNeeded: data.count), to: &output)
-        return output
-    }
-
-    private static func appendLittleEndian(_ value: UInt32, to data: inout Data) {
-        data.append(contentsOf: [UInt8(value & 0xFF), UInt8(value >> 8 & 0xFF), UInt8(value >> 16 & 0xFF), UInt8(value >> 24)])
-    }
-}
-
-/// CRC-32(IEEE 802.3,gzip 用的那個)。
-enum CRC32 {
-    private static let table: [UInt32] = (0..<256).map { index in
-        var crc = UInt32(index)
-        for _ in 0..<8 {
-            crc = crc & 1 == 1 ? 0xEDB8_8320 ^ (crc >> 1) : crc >> 1
-        }
-        return crc
-    }
-
-    static func checksum(_ data: Data) -> UInt32 {
-        var crc: UInt32 = 0xFFFF_FFFF
-        for byte in data {
-            crc = table[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
-        }
-        return crc ^ 0xFFFF_FFFF
-    }
-}
-
 /// 上傳時 bytes 在 stdin 上的編碼。
 public enum UploadTransferEncoding: String, Sendable, Equatable {
     case identity
@@ -60,6 +17,7 @@ public struct UploadTransfer: Sendable, Equatable {
     }
 
     /// 已知的壓縮格式(副檔名，小寫):再壓也不會變小。
+    /// 選法：內容本身已壓縮的常見格式(封存、圖片、影音、zip 包裝的文件與安裝檔),票上列的之外補上同類。
     static let compressedExtensions: Set<String> = [
         "zip", "gz", "tgz", "bz2", "xz", "zst", "7z", "rar", "br",
         "jpg", "jpeg", "png", "gif", "heic", "heif", "webp", "avif",

@@ -63,12 +63,13 @@ struct DemoFolders {
 
     /// 上傳:資料夾不存在 exit 66、同名 exit 73、收到的 bytes 與傳輸大小不符 exit 75;成功時以原始大小記下檔案並回傳路徑
     /// (gzip 傳輸不解壓)。
-    mutating func upload(folder: String, name: String, size: Int, transferSize: Int, received: Int) -> (stdout: Data, exitCode: Int32) {
+    mutating func upload(_ upload: FolderUpload, received: Int) -> (stdout: Data, exitCode: Int32) {
+        let folder = upload.folder
         guard folders[folder] != nil else { return (Data(), 66) }
-        guard received == transferSize else { return (Data(), 75) }
-        guard !(folders[folder] ?? []).contains(where: { $0.name == name }) else { return (Data(), 73) }
-        folders[folder, default: []].append(Item(name: name, isFolder: false, size: size))
-        return (Data("\(folder == "/" ? "" : folder)/\(name)\n".utf8), 0)
+        guard received == upload.transferSize else { return (Data(), 75) }
+        guard !(folders[folder] ?? []).contains(where: { $0.name == upload.name }) else { return (Data(), 73) }
+        folders[folder, default: []].append(Item(name: upload.name, isFolder: false, size: upload.originalSize))
+        return (Data("\(folder == "/" ? "" : folder)/\(upload.name)\n".utf8), 0)
     }
 }
 

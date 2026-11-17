@@ -258,7 +258,7 @@ struct WindowsRealHostIntegrationTests {
         let folder = temp.path + #"\gzip"#
         try await temp.makeDirectory(folder)
         let channel = WindowsHostChannel(ssh)
-        let original = Data((0..<300_000).map { UInt8(97 + ($0 / 5) % 26) })
+        let original = TestUploadData.letters(count: 300_000)
 
         log("gzip 上傳…")
         let path = try await HostFolders(channel: channel, deflate: StandardRawDeflate()).upload(original, named: "build.log", to: folder)
