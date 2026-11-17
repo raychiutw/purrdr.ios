@@ -73,10 +73,16 @@ public struct ComposerImages: Sendable {
     }
 }
 
-/// 送出前在手機上處理圖片：長邊縮到 ≤ 2048px、重新編碼成 JPEG 品質 0.8(行為規格 F7)。
+/// 送出前在手機上處理圖片：長邊縮到 ≤ 2048px、重新編碼成 JPEG(行為規格 F7)。
+/// 超過目標大小時先依序降品質，仍超過再縮小長邊，到下限為止(#78)。
 public enum ImagePreparation {
     public static let maximumPixelSize = 2048
-    public static let quality = 0.8
+    /// 目標大小(bytes)。
+    public static let targetSize = 500 * 1024
+    /// 依序嘗試的長邊;最後一個是下限。
+    public static let pixelSizeSteps = [2048, 1792, 1536, 1280]
+    /// 每個長邊依序嘗試的 JPEG 品質;最後一個是下限(截圖文字仍可讀)。
+    public static let qualitySteps = [0.8, 0.7, 0.6, 0.5, 0.4]
 
     public struct Prepared: Sendable {
         public let jpeg: Data
@@ -87,19 +93,42 @@ public enum ImagePreparation {
     }
 
     /// 讀不出圖片時回傳 `nil`。方向(EXIF orientation)會套用到像素上。
+    /// 長邊與品質都到下限仍超過目標時，回傳下限的結果。
     public static func prepare(_ data: Data) -> Prepared? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0 else { return nil }
+        var lowestAttempt: Prepared?
+        var previousLongSide: Int?
+        for pixelSize in pixelSizeSteps {
+            guard let image = thumbnail(of: source, maximumPixelSize: pixelSize) else { return nil }
+            let longSide = max(image.width, image.height)
+            // 原圖比這一步還小：縮不下去了。
+            if longSide == previousLongSide { break }
+            previousLongSide = longSide
+            for quality in qualitySteps {
+                guard let jpeg = encode(image, quality: quality) else { return nil }
+                let prepared = Prepared(jpeg: jpeg, width: image.width, height: image.height, quality: quality)
+                if jpeg.count <= targetSize { return prepared }
+                lowestAttempt = prepared
+            }
+        }
+        return lowestAttempt
+    }
+
+    private static func thumbnail(of source: CGImageSource, maximumPixelSize: Int) -> CGImage? {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: maximumPixelSize,
             kCGImageSourceShouldCacheImmediately: true,
         ]
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
+    private static func encode(_ image: CGImage, quality: Double) -> Data? {
         let output = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { return nil }
-        return Prepared(jpeg: output as Data, width: image.width, height: image.height, quality: quality)
+        return output as Data
     }
 }
