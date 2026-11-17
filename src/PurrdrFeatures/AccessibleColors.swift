@@ -49,6 +49,22 @@ enum AccessibleColors {
         lightHighContrast: ThemeColor(red: 0x48, green: 0x48, blue: 0x4A), // 白底 9.1:1、#F2F2F7 8.2:1、#EFEFF0 7.9:1
         darkHighContrast: ThemeColor(red: 0xD1, green: 0xD1, blue: 0xD6)   // 黑底 13.8:1、#1C1C1E 11.2:1、#2C2C2E 9.2:1
     )
+
+    /// 紅字(品牌紅的文字與 tint 角色;#70)。Asset Catalog 的 `AccentColor` 與它同值。
+    static let brandText = ContrastPalette(
+        light: ThemeColor(red: 0xD9, green: 0x1E, blue: 0x36),
+        dark: ThemeColor(red: 0xFF, green: 0x4D, blue: 0x63),
+        lightHighContrast: ThemeColor(red: 0xB0, green: 0x14, blue: 0x2A),
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0x7A, blue: 0x8B)
+    )
+
+    /// 紅底(承載白字的品牌紅填色;#70):送出鍵、使用者泡泡、主要按鈕、膠囊標籤。
+    static let brandFill = ContrastPalette(
+        light: ThemeColor(red: 0xD9, green: 0x1E, blue: 0x36),
+        dark: ThemeColor(red: 0xFF, green: 0x4D, blue: 0x63),
+        lightHighContrast: ThemeColor(red: 0xB0, green: 0x14, blue: 0x2A),
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0x7A, blue: 0x8B)
+    )
 }
 
 extension ShapeStyle where Self == Color {
