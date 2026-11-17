@@ -9,16 +9,20 @@ pub mod device_store;
 pub mod herdr_client;
 pub mod herdr_socket;
 mod http;
+pub mod install;
 pub mod management;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
 pub mod state_directory;
+
+mod service_main;
 
 use audit_log::AuditLog;
 use device_store::DeviceStore;
 use herdr_client::HerdrClient;
 use herdr_socket::HerdrSocket;
 pub use http::WEBSOCKET_PATH;
+pub use service_main::run_service;
 
 /// 主機服務的設定。位址固定是 127.0.0.1,對外由 `tailscale serve` 提供 HTTPS。
 #[derive(Debug, Clone)]
