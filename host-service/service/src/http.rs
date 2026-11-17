@@ -116,20 +116,30 @@ async fn pair(State(context): State<ServiceContext>, body: Bytes) -> Response {
             .into_response()
         }
         Err(PairingFailure::Invalid) => {
-            context
-                .audit
-                .record(AuditEvent::PairingFailed { reason: "pairing_code_invalid" }, SystemTime::now());
+            context.audit.record(
+                AuditEvent::PairingFailed {
+                    reason: "pairing_code_invalid",
+                },
+                SystemTime::now(),
+            );
             error_response(StatusCode::UNAUTHORIZED, ErrorCode::PairingCodeInvalid, "unknown or used pairing code")
         }
         Err(PairingFailure::Expired) => {
-            context
-                .audit
-                .record(AuditEvent::PairingFailed { reason: "pairing_code_expired" }, SystemTime::now());
+            context.audit.record(
+                AuditEvent::PairingFailed {
+                    reason: "pairing_code_expired",
+                },
+                SystemTime::now(),
+            );
             error_response(StatusCode::UNAUTHORIZED, ErrorCode::PairingCodeExpired, "pairing code expired")
         }
         Err(PairingFailure::Storage(error)) => {
             eprintln!("cannot update device store: {error}");
-            error_response(StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::InternalError, "host service cannot update its device store")
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ErrorCode::InternalError,
+                "host service cannot update its device store",
+            )
         }
     }
 }
@@ -184,7 +194,11 @@ fn error_response(status: StatusCode, code: ErrorCode, message: &str) -> Respons
 fn sanitized_device_name(name: &str) -> String {
     let cleaned: String = name.chars().filter(|character| !character.is_control()).take(MAX_DEVICE_NAME_LENGTH).collect();
     let trimmed = cleaned.trim();
-    if trimmed.is_empty() { "unnamed device".to_owned() } else { trimmed.to_owned() }
+    if trimmed.is_empty() {
+        "unnamed device".to_owned()
+    } else {
+        trimmed.to_owned()
+    }
 }
 
 /// 先完成升級再驗證權杖，被拒絕時才能以 close code 告訴 app 原因。

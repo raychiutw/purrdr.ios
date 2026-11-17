@@ -68,9 +68,10 @@ async fn audit_log_records_pairing_connection_writes_and_revocation_without_cont
             json!({"event": "connection_rejected", "device_id": device_id, "reason": "device_token_revoked"}),
         ]
     );
-    assert!(of_device(&read_only.device.device_id).contains(
-        &json!({"event": "write", "device_id": read_only.device.device_id, "operation": "pane.send_keys", "pane_id": "w1:p6", "allowed": false})
-    ));
+    assert!(
+        of_device(&read_only.device.device_id)
+            .contains(&json!({"event": "write", "device_id": read_only.device.device_id, "operation": "pane.send_keys", "pane_id": "w1:p6", "allowed": false}))
+    );
     assert!(events.iter().all(|event| event["time"].as_str().is_some_and(|time| time.ends_with('Z'))));
     for secret in [SECRET_KEYS, &device_token, &read_only.device_token, &code, &code.replace('-', "")] {
         assert!(!audit_log.contains(secret), "稽核紀錄含有 {secret}");

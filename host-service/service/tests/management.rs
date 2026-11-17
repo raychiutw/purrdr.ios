@@ -20,7 +20,12 @@ fn arguments(text: &str, state_directory: &Path) -> Vec<String> {
 }
 
 fn run(text: &str, state_directory: &Path) -> Result<String, String> {
-    management::run(&arguments(text, state_directory), Platform::current(), &SocketEnvironment::default(), SystemTime::now())
+    management::run(
+        &arguments(text, state_directory),
+        Platform::current(),
+        &SocketEnvironment::default(),
+        SystemTime::now(),
+    )
 }
 
 /// 輸出裡 `Pairing code:` 那行的配對碼。
@@ -108,11 +113,20 @@ async fn devices_lists_name_access_last_connection_and_revocation() {
 
     let output = run("devices", service.state_directory.path()).unwrap();
 
-    let line_of = |device_id: &str| output.lines().find(|line| line.contains(device_id)).unwrap_or_else(|| panic!("{output}")).to_owned();
+    let line_of = |device_id: &str| {
+        output
+            .lines()
+            .find(|line| line.contains(device_id))
+            .unwrap_or_else(|| panic!("{output}"))
+            .to_owned()
+    };
     let phone_line = line_of(&phone.device.device_id);
     let tablet_line = line_of(&tablet.device.device_id);
     let lost_line = line_of(&lost.device.device_id);
-    assert!(phone_line.contains("Ray 的 iPhone") && phone_line.contains("full") && phone_line.contains('Z'), "{phone_line}");
+    assert!(
+        phone_line.contains("Ray 的 iPhone") && phone_line.contains("full") && phone_line.contains('Z'),
+        "{phone_line}"
+    );
     assert!(tablet_line.contains("read-only") && tablet_line.contains("never"), "{tablet_line}");
     assert!(lost_line.contains("revoked"), "{lost_line}");
     assert!(!phone_line.contains("revoked"), "{phone_line}");
@@ -162,7 +176,12 @@ fn management_defaults_to_the_purrdr_folder_in_home() {
         ..SocketEnvironment::default()
     };
 
-    let output = management::run(&["pair".to_owned(), "--address".to_owned(), ADDRESS.to_owned()], Platform::current(), &environment, SystemTime::now());
+    let output = management::run(
+        &["pair".to_owned(), "--address".to_owned(), ADDRESS.to_owned()],
+        Platform::current(),
+        &environment,
+        SystemTime::now(),
+    );
 
     assert!(output.is_ok(), "{output:?}");
     assert!(home.path().join(".purrdr").join("host-service").join("devices.json").exists());

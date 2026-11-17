@@ -117,9 +117,8 @@ fn http_examples_round_trip_through_generated_types() {
 
 #[test]
 fn only_write_messages_are_marked_as_write() {
-    let decode = |name: &str| -> ClientMessage {
-        serde_json::from_str(&std::fs::read_to_string(protocol_directory().join("examples").join(name)).unwrap()).unwrap()
-    };
+    let decode =
+        |name: &str| -> ClientMessage { serde_json::from_str(&std::fs::read_to_string(protocol_directory().join("examples").join(name)).unwrap()).unwrap() };
 
     assert!(decode("client.pane-send-keys.json").is_write());
     assert!(!decode("client.hello.json").is_write());

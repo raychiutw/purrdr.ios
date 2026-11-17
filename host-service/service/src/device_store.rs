@@ -132,10 +132,7 @@ impl DeviceStore {
     pub fn create_pairing_code(&self, read_only: bool, now: SystemTime) -> io::Result<PairingCode> {
         let mut random = [0u8; PAIRING_CODE_LENGTH];
         fill_random(&mut random)?;
-        let characters: String = random
-            .iter()
-            .map(|byte| PAIRING_CODE_ALPHABET[usize::from(byte % 32)] as char)
-            .collect();
+        let characters: String = random.iter().map(|byte| PAIRING_CODE_ALPHABET[usize::from(byte % 32)] as char).collect();
         let expires_at = now + PAIRING_CODE_LIFETIME;
         self.update(|state| {
             let now_seconds = unix_seconds(now);
@@ -254,8 +251,16 @@ impl DeviceStore {
 
     fn lock(&self, exclusive: bool) -> io::Result<File> {
         create_private_directory(&self.directory)?;
-        let lock = OpenOptions::new().create(true).truncate(false).write(true).open(self.directory.join("devices.lock"))?;
-        if exclusive { lock.lock()? } else { lock.lock_shared()? }
+        let lock = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(self.directory.join("devices.lock"))?;
+        if exclusive {
+            lock.lock()?
+        } else {
+            lock.lock_shared()?
+        }
         Ok(lock)
     }
 

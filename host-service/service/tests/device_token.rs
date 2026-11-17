@@ -101,9 +101,8 @@ async fn connecting_records_last_connected_time() {
     let mut client = TestClient::connect_with_token(&service, Some(&issued.device_token)).await;
     client.request(hello("r1")).await;
 
-    let device_named = |devices: &[purrdr_host_service::device_store::Device]| {
-        devices.iter().find(|device| device.device_id == issued.device.device_id).cloned().unwrap()
-    };
+    let device_named =
+        |devices: &[purrdr_host_service::device_store::Device]| devices.iter().find(|device| device.device_id == issued.device.device_id).cloned().unwrap();
     assert_eq!(device_named(&before).last_connected_at, None);
     assert!(device_named(&service.store().devices().unwrap()).last_connected_at.is_some());
 }

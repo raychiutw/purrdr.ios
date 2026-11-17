@@ -136,9 +136,7 @@ impl TestClient {
     pub async fn connect_with_token(service: &TestHostService, device_token: Option<&str>) -> TestClient {
         let mut request = format!("ws://{}/v1/ws", service.local_addr()).into_client_request().unwrap();
         if let Some(device_token) = device_token {
-            request
-                .headers_mut()
-                .insert(AUTHORIZATION, format!("Bearer {device_token}").parse().unwrap());
+            request.headers_mut().insert(AUTHORIZATION, format!("Bearer {device_token}").parse().unwrap());
         }
         let (stream, _) = tokio_tungstenite::connect_async(request).await.expect("連上主機服務");
         TestClient { stream }
@@ -274,6 +272,10 @@ pub async fn http_request(service: &TestHostService, method: &str, path: &str, d
     let response = String::from_utf8(response).unwrap();
     let (head, body) = response.split_once("\r\n\r\n").expect("HTTP 回應有標頭");
     let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
-    let body = if body.trim().is_empty() { Value::Null } else { serde_json::from_str(body).unwrap_or(Value::String(body.to_owned())) };
+    let body = if body.trim().is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_str(body).unwrap_or(Value::String(body.to_owned()))
+    };
     (status, body)
 }

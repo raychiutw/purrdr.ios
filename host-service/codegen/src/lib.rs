@@ -245,7 +245,10 @@ fn rust_definition(definition: &Definition) -> String {
                 output += &format!("\nimpl {name} {{\n");
                 output += "    /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。\n";
                 let patterns: Vec<String> = write_variants.iter().map(|target| format!("{name}::{target}(_)")).collect();
-                output += &format!("    pub fn is_write(&self) -> bool {{\n        matches!(self, {})\n    }}\n}}\n", patterns.join(" | "));
+                output += &format!(
+                    "    pub fn is_write(&self) -> bool {{\n        matches!(self, {})\n    }}\n}}\n",
+                    patterns.join(" | ")
+                );
             }
             output
         }

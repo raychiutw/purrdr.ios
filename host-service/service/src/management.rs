@@ -17,7 +17,6 @@ use crate::device_store::{DeviceStore, PAIRING_CODE_LIFETIME, RevokeFailure};
 use crate::herdr_socket::{Platform, SocketEnvironment};
 use crate::state_directory::resolve_state_directory;
 
-
 const USAGE: &str = "usage: purrdr-host-service pair [--read-only] [--address <https address>] | devices | revoke <device id>  [--state-dir <dir>]";
 
 #[derive(Default)]
@@ -110,7 +109,11 @@ fn pair(state_directory: &Path, address: Option<String>, read_only: bool, now: S
     let _ = writeln!(output, "{rendered}");
     let _ = writeln!(output, "Scan with Purrdr (Add host → HTTPS), or enter manually:");
     let _ = writeln!(output, "  Address:      {address}");
-    let _ = writeln!(output, "  Pairing code: {}  ({access}; single use, expires in {minutes} minutes)", pairing_code.code);
+    let _ = writeln!(
+        output,
+        "  Pairing code: {}  ({access}; single use, expires in {minutes} minutes)",
+        pairing_code.code
+    );
     let _ = writeln!(output, "  Link:         {invitation}");
     Ok(output)
 }

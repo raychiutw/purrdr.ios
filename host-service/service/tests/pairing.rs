@@ -159,7 +159,11 @@ async fn device_can_revoke_its_own_token() {
     assert_eq!(status, 204);
     assert_eq!(handshake(&service, &issued.device_token).await["code"], "device_token_revoked");
     let devices = service.store().devices().unwrap();
-    assert!(devices.iter().any(|device| device.device_id == issued.device.device_id && device.revoked_at.is_some()));
+    assert!(
+        devices
+            .iter()
+            .any(|device| device.device_id == issued.device.device_id && device.revoked_at.is_some())
+    );
 }
 
 #[tokio::test]

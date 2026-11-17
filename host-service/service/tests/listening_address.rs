@@ -80,7 +80,10 @@ fn state_directory_defaults_to_purrdr_folder_in_home_and_can_be_configured() {
     let configured = HostServiceConfig::from_arguments(&arguments("--state-dir /tmp/purrdr-test"), Platform::Unix, &environment()).unwrap();
 
     assert_eq!(unix.state_directory, std::path::Path::new("/Users/demo/.purrdr/host-service"));
-    assert_eq!(windows.state_directory, std::path::Path::new(r"C:\Users\demo").join(".purrdr").join("host-service"));
+    assert_eq!(
+        windows.state_directory,
+        std::path::Path::new(r"C:\Users\demo").join(".purrdr").join("host-service")
+    );
     assert_eq!(configured.state_directory, std::path::Path::new("/tmp/purrdr-test"));
 }
 

@@ -11,12 +11,28 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum AuditEvent {
-    PairingCodeCreated { read_only: bool },
-    Paired { device_id: String, device_name: String, read_only: bool },
-    PairingFailed { reason: &'static str },
-    Connected { device_id: String },
-    ConnectionRejected { reason: &'static str, device_id: Option<String> },
-    Revoked { device_id: String, by: RevokedBy },
+    PairingCodeCreated {
+        read_only: bool,
+    },
+    Paired {
+        device_id: String,
+        device_name: String,
+        read_only: bool,
+    },
+    PairingFailed {
+        reason: &'static str,
+    },
+    Connected {
+        device_id: String,
+    },
+    ConnectionRejected {
+        reason: &'static str,
+        device_id: Option<String>,
+    },
+    Revoked {
+        device_id: String,
+        by: RevokedBy,
+    },
     Write {
         device_id: String,
         operation: String,
