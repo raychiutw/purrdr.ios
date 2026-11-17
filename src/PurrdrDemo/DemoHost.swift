@@ -20,7 +20,9 @@ public actor DemoHost: HostChannel {
         case paneInUse
         /// Tailscale SSH check mode:第一個指令先要求重新驗證(經 `tailscaleCheck` 回報)。
         case tailscaleCheck(completesAfter: Duration?)
-        /// 對話紀錄一直讀不完(指令不回應，直到關閉):停在對話載入中(#114)。
+        /// 對話畫面定位對話紀錄的指令不回應(直到關閉):停在對話載入中(#114)。列表預覽、subagent 照常回應。
+        /// 讀取有期限(`HostCommandDeadline.standard`,20 秒):期限到了 client 關閉指令、畫面離開載入中，
+        /// 所以只在進入對話後的這段時間內停在載入中。
         case transcriptPending
     }
 
@@ -75,8 +77,10 @@ public actor DemoHost: HostChannel {
         if let stdout = DemoSlash.respond(to: command) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
+        if scenario == .transcriptPending, DemoTranscripts.isLocate(command) {
+            return DemoPendingSession()
+        }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
-            if scenario == .transcriptPending { return DemoPendingSession() }
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         if let path = HostFolderCommand.parseList(command) {

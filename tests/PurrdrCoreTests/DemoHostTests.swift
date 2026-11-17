@@ -67,7 +67,8 @@ struct DemoHostTests {
         #expect(items.contains { if case .skill(let skill) = $0 { skill.name == "tdd" } else { false } })
     }
 
-    @Test("對話紀錄一直讀不完的情境：讀對話紀錄的指令不回應，關閉後才結束")
+    // 回歸時(session 不因關閉而結束)不能永遠卡住。
+    @Test("對話紀錄一直讀不完的情境：讀對話紀錄的指令不回應，關閉後才結束", .timeLimit(.minutes(1)))
     func pendingTranscriptScenarioNeverAnswers() async throws {
         let session = try await DemoHost(scenario: .transcriptPending).execute(
             TranscriptCommand.locate(
@@ -82,6 +83,19 @@ struct DemoHostTests {
         await session.close()
 
         #expect(try await events.value == [])
+    }
+
+    @Test("對話紀錄一直讀不完的情境：只掛住對話畫面的讀取，列表預覽照常回應", .timeLimit(.minutes(1)))
+    func pendingTranscriptScenarioStillAnswersPreviews() async throws {
+        let host = DemoHost(scenario: .transcriptPending)
+        let snapshot = try await HerdrClient(channel: host).snapshot()
+        let requests = snapshot.agents.compactMap { agent in
+            agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
+        }
+
+        let previews = try await TranscriptReader(channel: host).previews(of: requests)
+
+        #expect(previews.keys.sorted() == ["w1:p1", "w2:p1"])
     }
 
     @Test("列表預覽:Demo 的 Claude Code agent 各有一則預覽")
