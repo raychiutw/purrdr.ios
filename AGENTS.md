@@ -49,7 +49,7 @@ cd host-service && cargo test --workspace      # 主機服務與協定型別的�
 cd host-service && cargo run -p protocol-codegen  # 改了 protocol/host-service.schema.json 後重新產生 Rust 與 Swift 型別
 ```
 
-TestFlight(`.github/workflows/testflight.yml`,#36):合併進 `master` 自動上傳(只改 `docs/`、`.md` 不上傳),也可 `gh workflow run testflight.yml --ref master`。PR 的 CI 已通過就不重測，否則先跑 `ci.yml`。archive 不簽章、ad-hoc 寫入 entitlements,匯出時以 App Store Connect API key 自動簽章(Apple 雲端管理的 Distribution 憑證),上傳前檢查匯出的 entitlements(推播 production、time-sensitive、Sign in with Apple),最後 `scripts/wait-for-testflight.rb` 等 build 可測試(內部群組「內部測試」自動分發)。build 號是 `GITHUB_RUN_ID`;**版本號是 `MARKETING_VERSION`(4 處),每次發佈前要遞增**。需要 GitHub environment `testflight`(部署分支限定 `master`):變數 `APPLE_TEAM_ID`,secret `ASC_KEY_ID`、`ASC_ISSUER_ID`、`ASC_PRIVATE_KEY`(`.p8` 全文;key 要 **Admin** 角色)。上架的其他人工步驟見 `docs/launch/checklist.md`。
+TestFlight(`.github/workflows/testflight.yml`,#36):合併進 `master` 且**版本號有變**才自動上傳(合併前後以 `scripts/marketing-version.sh` 比對;平常的 PR 合併不上傳),也可 `gh workflow run testflight.yml --ref master`(手動一律上傳)。發版 = 開一個只遞增版本號的 PR 並合併。PR 的 CI 已通過就不重測，否則先跑 `ci.yml`。archive 不簽章、ad-hoc 寫入 entitlements,匯出時以 App Store Connect API key 自動簽章(Apple 雲端管理的 Distribution 憑證),上傳前檢查匯出的 entitlements(推播 production、time-sensitive、Sign in with Apple),最後 `scripts/wait-for-testflight.rb` 等 build 可測試(內部群組「內部測試」自動分發)。build 號是 `GITHUB_RUN_ID`;**版本號是 `MARKETING_VERSION`(4 處，要一致，不一致時 workflow 失敗)**。需要 GitHub environment `testflight`(部署分支限定 `master`):變數 `APPLE_TEAM_ID`,secret `ASC_KEY_ID`、`ASC_ISSUER_ID`、`ASC_PRIVATE_KEY`(`.p8` 全文;key 要 **Admin** 角色)。上架的其他人工步驟見 `docs/launch/checklist.md`。
 
 ## 架構
 

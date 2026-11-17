@@ -1,7 +1,8 @@
 name: TestFlight
 
-# 合併進 master 就自動上傳;也可以手動觸發(gh workflow run testflight.yml --ref master)。
-# 只改文件的合併不上傳。做法參照 raychiutw/my-money.ios 與 raychiutw/vocaby 的 TestFlight workflow。
+# 合併進 master 且**版本號(MARKETING_VERSION)有變**才自動上傳(同 raychiutw/trip-planner.flutter 的「改 VERSION 才發版」);
+# 平常的 PR 合併不上傳。也可以手動觸發(gh workflow run testflight.yml --ref master),手動一律上傳。
+# 上傳做法參照 raychiutw/my-money.ios 與 raychiutw/vocaby 的 TestFlight workflow。
 #
 # 需要的設定(GitHub → Settings → Environments → testflight,部署分支限定 master):
 #   變數 APPLE_TEAM_ID      Apple Developer Team ID(8Z6WVFJ574)
@@ -13,9 +14,9 @@ name: TestFlight
 on:
   push:
     branches: [master]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
+    # 版本號只在 project.pbxproj;改到它才啟動，再由 version job 確認版本號真的變了。
+    paths:
+      - 'src/App/Purrdr.xcodeproj/project.pbxproj'
   workflow_dispatch:
 
 permissions:
@@ -26,10 +27,46 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # 合併前後的版本號不同才發版(project.pbxproj 也會因為別的原因改到);手動觸發一律發版。
+  # 4 處 MARKETING_VERSION 不一致時直接失敗(scripts/marketing-version.sh)。
+  version:
+    name: 確認版本號有變
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.version.outputs.release }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 2
+
+      - id: version
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          current="$(scripts/marketing-version.sh HEAD)"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "手動觸發：發版 $current"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # merge commit 的第一個 parent 是合併前的 master。
+          previous="$(scripts/marketing-version.sh HEAD^1)"
+          if [ "$current" = "$previous" ]; then
+            echo "版本號沒變($current),不發版"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "版本號 $previous → $current,發版"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # 同一份程式碼不測兩次：這個 commit 是 PR 的 merge commit,而且那個 PR 的 CI 成功過，就直接上傳。
   # 其他情況(直接 push、手動觸發在沒跑過 CI 的 commit 上)才在這裡跑完整的 CI。
   check:
     name: 確認 PR 的 CI 已通過
+    needs: version
+    if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:
