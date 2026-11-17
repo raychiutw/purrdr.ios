@@ -172,7 +172,9 @@ public struct HostFolders: Sendable {
 
     /// 列出資料夾;`path` 為 `nil` 時是家目錄。
     public func list(_ path: String? = nil) async throws -> FolderListing {
-        let result = try await run(channel.execute(HostFolderCommand.list(path)), input: nil)
+        let result = try await channel.runOnce(HostFolderCommand.list(path), deadline: HostCommandDeadline.standard, sleep: sleep) { session in
+            try await self.run(session, input: nil)
+        }
         if result.exitCode == HostFolderCommand.ExitCode.cannotOpen {
             throw HostFolderError.cannotOpen(result.stderrText)
         }

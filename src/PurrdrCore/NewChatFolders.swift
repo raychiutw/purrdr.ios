@@ -41,18 +41,21 @@ public struct NewChatFolders: Sendable {
     /// 列出 `path` 的子資料夾;`nil` 或空白 = 家目錄。資料夾不存在丟 `NewChatFolderError.notFound`。
     public func list(_ path: String?) async throws -> NewChatFolderListing {
         let requested = path ?? ""
-        let session = try await channel.execute(Self.command(for: requested))
-        var stdout = Data()
-        var stderr = Data()
-        var exitCode: Int32?
-        for try await output in session.output {
-            switch output {
-            case .stdout(let data): stdout.append(data)
-            case .stderr(let data): stderr.append(data)
-            case .exit(let code, _): exitCode = code
+        let (stdout, stderr, exitCode) = try await channel.runOnce(
+            Self.command(for: requested), deadline: HostCommandDeadline.standard, sleep: sleep
+        ) { session in
+            var stdout = Data()
+            var stderr = Data()
+            var exitCode: Int32?
+            for try await output in session.output {
+                switch output {
+                case .stdout(let data): stdout.append(data)
+                case .stderr(let data): stderr.append(data)
+                case .exit(let code, _): exitCode = code
+                }
             }
+            return (stdout, stderr, exitCode)
         }
-        await session.close()
         switch exitCode {
         case 0?:
             return try Self.parse(stdout)

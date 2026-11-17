@@ -104,7 +104,7 @@ public struct HostFiles: Sendable {
     private func run(_ script: String, arguments: [String]) async throws -> CommandResult {
         let command = HostFileScript.command(script, arguments: arguments)
         guard command.utf8.count <= HostFileScript.maximumCommandLength else { throw HostFilesError.tooLarge }
-        return try await channel.collect(command)
+        return try await channel.collect(command, deadline: HostCommandDeadline.standard, sleep: sleep)
     }
 }
 
