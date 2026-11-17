@@ -13,17 +13,22 @@ fn touch(path: &Path) {
 
 #[test]
 fn herdr_on_path_wins_over_install_locations() {
+    // 以執行測試的平台組 PATH(Windows 的路徑有磁碟代號的 `:`)。
+    let platform = Platform::current();
+    let name = if platform == Platform::Windows { "herdr.exe" } else { "herdr" };
     let home = tempfile::tempdir().unwrap();
     let on_path = home.path().join("tools");
-    touch(&on_path.join("herdr"));
+    touch(&on_path.join(name));
     touch(&home.path().join(".local/bin/herdr"));
+    let missing = home.path().join("missing");
+    let path = std::env::join_paths([missing.as_path(), on_path.as_path()]).unwrap();
     let search = HerdrSearch {
-        path: Some(format!("/purrdr/missing:{}", on_path.display())),
+        path: Some(path.to_string_lossy().into_owned()),
         home: Some(home.path().to_string_lossy().into_owned()),
         local_app_data: None,
     };
 
-    assert_eq!(search.locate(Platform::Unix), Some(on_path.join("herdr")));
+    assert_eq!(search.locate(platform), Some(on_path.join(name)));
 }
 
 #[test]
