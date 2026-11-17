@@ -19,6 +19,16 @@ public struct HerdrClient: Sendable {
         self.sleep = sleep
     }
 
+    /// 紅燈用的暫時實作：還沒接上主機連線。
+    public init(connection: any HostConnection) {
+        self.init(channel: UnconnectedChannel())
+    }
+
+    private struct UnconnectedChannel: HostChannel {
+        func execute(_ command: String) async throws -> any ExecSession { throw HerdrError.malformedResponse }
+        func openPTY(_ request: PTYRequest) async throws -> any PTYSession { throw HerdrError.malformedResponse }
+    }
+
     /// 讀主機目前的全量狀態(`session.snapshot`)。
     public func snapshot() async throws -> HostSnapshot {
         let result = try await request(method: "session.snapshot", as: SnapshotResult.self)
