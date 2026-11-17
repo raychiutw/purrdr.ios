@@ -3804,6 +3804,17 @@
         }
       }
     },
+    "Not Paired on This Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置尚未配對"
+          }
+        }
+      }
+    },
     "Not Selected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4090,6 +4101,17 @@
         }
       }
     },
+    "Opens pairing for this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟這台主機的連線配對。"
+          }
+        }
+      }
+    },
     "Opens the Tailscale sign-in page in your browser." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4200,6 +4222,17 @@
         }
       }
     },
+    "Pair" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配對"
+          }
+        }
+      }
+    },
     "Pairing Code" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4207,6 +4240,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配對碼"
+          }
+        }
+      }
+    },
+    "Pair…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配對…"
           }
         }
       }

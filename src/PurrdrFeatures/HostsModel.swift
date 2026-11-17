@@ -104,6 +104,8 @@ public final class HostsModel {
     private var icons: [UUID: HostIcon] = [:]
     /// 已建立的主機通道(以主機 id)。
     private var channels: [UUID: any HostChannel] = [:]
+    /// 這支裝置還沒有裝置權杖的 HTTPS 主機(主機清單標示要配對)。
+    private var unpairedHostIDs: Set<UUID> = []
     /// 已建立的 HTTPS 主機連線(以主機 id)。
     private var hostServiceConnections: [UUID: any HostConnection] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
@@ -244,7 +246,8 @@ public final class HostsModel {
             HostRow(
                 id: host.id, title: host.name,
                 subtitle: host.hostService?.description ?? "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
-                session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id))
+                session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id),
+                needsPairing: unpairedHostIDs.contains(host.id))
         }
     }
 
@@ -286,6 +289,7 @@ public final class HostsModel {
     public func load() {
         do {
             hosts = try sortedHosts()
+            refreshPairing()
             loadError = nil
         } catch {
             loadError = String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)")
@@ -318,6 +322,7 @@ public final class HostsModel {
     public func didSave(_ host: HostConfiguration) {
         changeRecorder?.hostSaved(host.id)
         hosts = (try? sortedHosts()) ?? hosts
+        refreshPairing()
         dropChannel(of: host.id)
         members[.host(host.id)] = nil
         select(.host(host.id))
@@ -362,6 +367,7 @@ public final class HostsModel {
         for id in outcome.deletions {
             try await remove(id)
         }
+        refreshPairing()
         if reselect { select(validSelection(selection)) } else { rebuildMembers() }
     }
 
@@ -477,6 +483,14 @@ public final class HostsModel {
     private var backgroundSince: Date?
 
     // MARK: - 內部
+
+    /// 重算哪些 HTTPS 主機在這支裝置沒有裝置權杖(讀 Keychain,所以不在每次畫列表時做)。
+    private func refreshPairing() {
+        let tokens = hostService.tokens
+        unpairedHostIDs = Set(hosts.filter { host in
+            host.connectionMethod == .https && (try? tokens.deviceToken(for: host.id)) == nil
+        }.map(\.id))
+    }
 
     private func sortedHosts() throws -> [HostConfiguration] {
         try store.loadHosts().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

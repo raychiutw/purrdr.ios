@@ -170,8 +170,14 @@ struct PurrdrApp: App {
         ]
     }
 
+    /// UI 測試情境 `-seedUnpairedHTTPSHost`:主機同步帶來、這支裝置還沒配對的 HTTPS 主機(#63)。
+    private static let unpairedHTTPSHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000003")!, name: "Studio HTTPS",
+        hostService: HostServiceAddress("studio.tail1234.ts.net")!)
+
     private static func seededHosts(_ arguments: [String]) -> [HostConfiguration] {
         (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
+            + (arguments.contains("-seedUnpairedHTTPSHost") ? [unpairedHTTPSHost] : [])
     }
 
     /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成)。

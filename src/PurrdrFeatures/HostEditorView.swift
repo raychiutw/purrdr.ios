@@ -27,7 +27,7 @@ struct HostEditorView: View {
                     field("Address", text: $model.address, prompt: "my-mac.tailnet.ts.net", identifier: "address")
                         .addressKeyboard()
                     field(
-                        "Pairing Code", text: $model.pairingCode, prompt: model.isEditing ? "Unchanged" : "K7QM-2XPA",
+                        "Pairing Code", text: $model.pairingCode, prompt: model.needsPairingCode ? "K7QM-2XPA" : "Unchanged",
                         identifier: "pairingCode")
                 } else {
                     field("Address", text: $model.address, prompt: "my-mac or 100.64.0.1", identifier: "address")

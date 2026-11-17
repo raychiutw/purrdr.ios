@@ -2,7 +2,7 @@ import Foundation
 
 /// 主機同步(GLOSSARY「主機同步」、ADR-0007)的一台主機：只有會在會員各裝置間同步的欄位。
 ///
-/// 刻意是獨立的型別，不直接編碼 `HostConfiguration`:私鑰、密碼、登入方式、herdr 設定、作業系統都留在這支裝置，
+/// 刻意是獨立的型別，不直接編碼 `HostConfiguration`:私鑰、密碼、裝置權杖、登入方式、herdr 設定、作業系統都留在這支裝置，
 /// 主機設定之後加欄位也不會跟著上傳。
 public struct SyncedHost: Sendable, Equatable {
     public var id: UUID
@@ -32,7 +32,7 @@ public struct SyncedHost: Sendable, Equatable {
     public init(_ host: HostConfiguration, modifiedAt: Date) {
         self.init(
             id: host.id, name: host.name, endpoint: host.endpoint, connectionMethod: host.connectionMethod,
-            hostKeyPin: host.hostKeyPin, modifiedAt: modifiedAt)
+            hostKeyPin: host.hostKeyPin, hostService: host.hostService, modifiedAt: modifiedAt)
     }
 }
 
@@ -96,8 +96,7 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
     /// 要上傳的變更：還沒上傳的修改與刪除。沒有修改紀錄的主機(開啟同步前就存在)以 `now` 當修改時間記下來。
     public mutating func pendingChanges(hosts: [HostConfiguration], now: Date) -> [HostSyncChange] {
         var changes: [HostSyncChange] = []
-        // HTTPS 主機還不同步(#63):後台的連線方式只認得 SSH 兩種。
-        for host in hosts.sorted(by: { $0.id.uuidString < $1.id.uuidString }) where host.connectionMethod != .https {
+        for host in hosts.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
             let modifiedAt = modified[host.id] ?? Self.milliseconds(now)
             modified[host.id] = modifiedAt
             if synced[host.id] != modifiedAt { changes.append(.upsert(SyncedHost(host, modifiedAt: modifiedAt))) }
@@ -154,7 +153,11 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
 
 extension SyncedHost {
     /// 套用到這支裝置的主機設定：只換同步的欄位;沒有這台主機時建立新的(OpenSSH 預設用這支裝置的金鑰)。
+    /// HTTPS 主機的裝置權杖不同步，這支裝置要自己連線配對。
     func applied(to existing: HostConfiguration?) -> HostConfiguration {
+        if existing == nil, connectionMethod == .https, let hostService {
+            return HostConfiguration(id: id, name: name, hostService: hostService)
+        }
         guard var host = existing else {
             return HostConfiguration(
                 id: id, name: name, endpoint: endpoint, connectionMethod: connectionMethod,
@@ -167,6 +170,7 @@ extension SyncedHost {
             host.authentication = connectionMethod == .openSSH ? (host.authentication ?? .deviceKey) : nil
         }
         host.hostKeyPin = hostKeyPin
+        host.hostService = connectionMethod == .https ? hostService : nil
         return host
     }
 }
