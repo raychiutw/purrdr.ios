@@ -2,6 +2,7 @@ import Foundation
 import NIOCore
 import NIOPosix
 import PurrdrCore
+import PurrdrSSH
 import Testing
 
 /// 真 SSH 的主機通道，對本機的測試用 SSH 伺服器(只接受 `none` 認證，模擬 Tailscale SSH)。
@@ -128,13 +129,20 @@ struct SSHHostChannelTests {
 
     @Test("主機不回 keepalive(半開連線):期限到就丟棄連線，下一個指令重新撥號、不重送", .timeLimit(.minutes(1)))
     func unansweredKeepaliveDropsConnection() async throws {
-        let server = try await TestSSHServer.start(keepalive: .ignore) { _ in .reply(stdout: "ok") }
+        // 機器忙：第一個指令的回應比 keepalive 間隔加回應期限還慢。
+        let server = try await TestSSHServer.start(keepalive: .ignore) { command in
+            command == "first" ? .slowReply(after: .milliseconds(500), stdout: "ok") : .reply(stdout: "ok")
+        }
+        let clock = ManualSSHClock()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
-            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)))
+            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)), scheduler: clock)
 
         _ = try await collect(channel.execute("first"))
-        // 不用固定等待：等到 keepalive 期限到、連線被丟棄(主機看到斷線)。
+        // 期限由手動時鐘推進：第一個指令再慢，keepalive 也要等這裡才送出、才到期。
+        await clock.advance(by: .milliseconds(100))
+        try await eventually { server.snapshot.keepalives == 1 }
+        await clock.advance(by: .milliseconds(200))
         try await eventually { server.snapshot.disconnections == 1 }
         let next = try await collect(channel.execute("second"))
 
@@ -147,10 +155,8 @@ struct SSHHostChannelTests {
 
     @Test("連不上(拒絕連線)回報白話的原因，不是函式庫的錯誤字串")
     func connectionRefused() async throws {
-        let server = try await TestSSHServer.start { _ in .reply() }
-        let endpoint = server.endpoint
-        await server.stop()
-        let channel = SSHHostChannel(endpoint: endpoint, hostKeyPin: nil)
+        // 埠 1 不在臨時埠範圍：停掉的伺服器釋出的臨時埠可能被同時跑的其他測試拿去開伺服器，埠 1 不會。
+        let channel = SSHHostChannel(endpoint: SSHEndpoint(host: "127.0.0.1", port: 1, username: "demo"), hostKeyPin: nil)
 
         await #expect(throws: SSHConnectionError.connectionRefused) {
             _ = try await channel.execute("x")

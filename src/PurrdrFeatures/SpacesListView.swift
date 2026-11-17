@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -34,6 +35,7 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
                                         TerminalRowView(row: row)
                                     }
                                     .accessibilityIdentifier("terminal.row.\(row.id)")
+                                    .selectionFill(for: row.route)
                                 }
                             }
                         }
@@ -272,11 +274,11 @@ private struct StatusBarView: View {
 struct SpacesAgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(iPad 的 split view 列以 tint 填滿):次要色改白色(同 `AgentRowView`)。
+    /// 選取中(紅底，`selectionFill(for:)`):次要色改選取列文字色(同 `AgentRowView`)。
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondaryText)
+        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
@@ -329,7 +331,7 @@ struct SpacesAgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.tint))
+                .foregroundStyle(backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.tint))
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
@@ -379,11 +381,11 @@ struct AgentKindAvatar: View {
 struct TerminalRowView: View {
     let row: TerminalRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(tint 填滿的底)次要色改白色(同 `AgentRowView`)。
+    /// 選取中(紅底)次要色改白色(同 `AgentRowView`)。
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondaryText)
+        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
     }
 
     var body: some View {

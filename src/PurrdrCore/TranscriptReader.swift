@@ -45,20 +45,46 @@ public enum TranscriptReadError: Error, Equatable {
     case failed(exitCode: Int32?)
 }
 
+extension TranscriptReadError {
+    /// 對話紀錄指令的 exit code(POSIX 與 Windows 腳本相同，行為規格 §4.7)。
+    public enum ExitCode {
+        public static let absent: Int32 = 3
+        public static let folderNotSearchable: Int32 = 4
+        public static let fileUnreadable: Int32 = 5
+        public static let ambiguous: Int32 = 6
+        public static let compressed: Int32 = 7
+    }
+
+    /// 主機指令的結束狀態對應的錯誤;成功(0)是 `nil`。沒有結束狀態也是失敗。
+    public init?(exitStatus: Int32?) {
+        switch exitStatus {
+        case .some(0): return nil
+        case .some(ExitCode.absent): self = .absent
+        case .some(ExitCode.folderNotSearchable), .some(ExitCode.fileUnreadable): self = .unreadable
+        case .some(ExitCode.ambiguous): self = .ambiguous
+        case .some(ExitCode.compressed): self = .compressed
+        default: self = .failed(exitCode: exitStatus)
+        }
+    }
+}
+
 /// 讀主機上的對話紀錄(行為規格 §4.7)。以 session 為身分、永不猜檔;游標是主機上檔案的 UTF-8 byte 數。
 ///
 /// 增量讀取用輪詢：每次以 `tail(path:from:)` 讀游標之後新增的完整行。落後太多時改讀新視窗
 /// (`window`),不逐行重播大量積壓(R-B08)。
 public struct TranscriptReader: Sendable {
-    private let channel: any HostChannel
+    private let connection: any HostConnection
     private let windowChunkBytes: Int
     private let marker: @Sendable () -> String
 
     /// - Parameters:
     ///   - windowChunkBytes: 視窗讀取每次往前取的區塊大小(測試用小值驗證「放大區塊重數」)。
     ///   - marker: 列表預覽的分隔標記產生器(每次呼叫隨機;測試注入固定值)。
-    public init(channel: any HostChannel, windowChunkBytes: Int = 4 << 20, marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }) {
-        self.channel = channel
+    public init(
+        connection: any HostConnection, windowChunkBytes: Int = 4 << 20,
+        marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }
+    ) {
+        self.connection = connection
         self.windowChunkBytes = windowChunkBytes
         self.marker = marker
     }
@@ -69,7 +95,7 @@ public struct TranscriptReader: Sendable {
     ///   `.unreadable`(權限)、`.invalidReference`(id 不安全，不執行任何指令)。
     public func locate(sessionID: String, cwd: String) async throws -> TranscriptFile {
         guard ClaudeTranscript.isSafeSessionID(sessionID) else { throw TranscriptReadError.invalidReference }
-        let output = try await run(TranscriptCommand.locate(sessionID: sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: cwd)))
+        let output = try await run(.locateClaude(sessionID: sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: cwd)))
         let lines = output.lines
         guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]) else { throw TranscriptReadError.changed }
         return TranscriptFile(path: lines[0], size: size)
@@ -95,7 +121,7 @@ public struct TranscriptReader: Sendable {
             expectedSuffix = nil
         }
         let readsHeader = target.format == .piJournal || target.format == .codex
-        let lines = try await run(TranscriptCommand.locate(target.location, readsHeader: readsHeader)).lines
+        let lines = try await run(.locate(target.location, readsHeader: readsHeader)).lines
         guard lines.count >= 2, let size = Int(lines[1]), Self.isValidPath(lines[0]),
               expectedSuffix.map({ Self.hasComponents(lines[0], $0) }) ?? true else { throw TranscriptReadError.changed }
         if case .codex(let id) = target.location {
@@ -112,7 +138,7 @@ public struct TranscriptReader: Sendable {
     /// 讀以 `end` 為終點的最後 `lines` 行(開啟時與往上翻頁)。
     public func window(path: String, endingAt end: Int, lines: Int) async throws -> TranscriptChunk {
         guard Self.isValidPath(path), end >= 0, lines > 0 else { throw TranscriptReadError.invalidReference }
-        let output = try await run(TranscriptCommand.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes))
+        let output = try await run(.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes))
         guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
         let header = String(decoding: output.stdout[..<newline], as: UTF8.self).split(separator: " ").compactMap { Int($0) }
         guard header.count == 2, header[0] <= header[1], header[1] <= end else { throw TranscriptReadError.changed }
@@ -135,7 +161,7 @@ public struct TranscriptReader: Sendable {
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
         guard Self.isValidPath(path), cursor >= 0 else { throw TranscriptReadError.invalidReference }
-        let output = try await run(TranscriptCommand.tail(path: path, from: cursor, limit: limit))
+        let output = try await run(.tail(path: path, from: cursor, limit: limit))
         guard let newline = output.stdout.firstIndex(of: 0x0A),
               let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
         if size < cursor { return .shrank(size: size) }
@@ -152,32 +178,9 @@ public struct TranscriptReader: Sendable {
         var lines: [String] { String(decoding: stdout, as: UTF8.self).split(separator: "\n").map(String.init) }
     }
 
-    /// 執行並收集輸出;依 exit code 判斷，不比對 stderr 文字(R-S15)。
-    func run(_ command: String) async throws -> Output {
-        let session = try await channel.execute(command)
-        var stdout = Data()
-        var exitCode: Int32?
-        do {
-            for try await event in session.output {
-                switch event {
-                case .stdout(let data): stdout.append(data)
-                case .stderr: break
-                case .exit(let code, _): exitCode = code
-                }
-            }
-        } catch {
-            await session.close()
-            throw error
-        }
-        await session.close()
-        switch exitCode {
-        case 0?: return Output(stdout: stdout)
-        case 3?: throw TranscriptReadError.absent
-        case 4?, 5?: throw TranscriptReadError.unreadable
-        case 6?: throw TranscriptReadError.ambiguous
-        case 7?: throw TranscriptReadError.compressed
-        default: throw TranscriptReadError.failed(exitCode: exitCode)
-        }
+    /// 經主機連線讀一次;主機回報的失敗丟 `TranscriptReadError`。
+    func run(_ request: TranscriptRequest) async throws -> Output {
+        Output(stdout: try await connection.readTranscript(request))
     }
 
     /// 「原始 byte 長度 TAB 行」的紀錄。回傳行與原始 byte 總數(含換行)。
@@ -236,10 +239,9 @@ extension TranscriptReader {
     /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 或路徑不安全的請求略過。
     /// 回傳 key → 最後一則可讀訊息;沒有檔案、有歧義、header 不符(Pi／OMP)或沒有可讀訊息的聊天不在結果裡。
     public func previews(of requests: [PreviewRequest]) async throws -> [String: MessagePreview] {
-        let entries = requests.compactMap(TranscriptCommand.PreviewEntry.init)
-        guard !entries.isEmpty else { return [:] }
+        guard requests.contains(where: { TranscriptCommand.PreviewEntry($0) != nil }) else { return [:] }
         let marker = marker()
-        let output = try await run(TranscriptCommand.previews(marker: marker, entries: entries))
+        let output = try await run(.previews(marker: marker, requests: requests))
         var bodies: [String: [String]] = [:]
         var headers: [String: [String]] = [:]
         var current: (key: String, isHeader: Bool)?
@@ -286,7 +288,7 @@ extension TranscriptReader {
         guard ClaudeTranscript.isSafeDelegationID(callID), ClaudeTranscript.isValidFolder(sessionFolder) else {
             throw TranscriptReadError.invalidReference
         }
-        let output = try await run(TranscriptCommand.findSubagent(sessionFolder: sessionFolder, callID: callID))
+        let output = try await run(.findSubagent(sessionFolder: sessionFolder, callID: callID))
         let lines = output.lines
         var matches: [String] = []
         for pair in stride(from: 0, to: lines.count - 1, by: 2) {
@@ -309,7 +311,7 @@ extension TranscriptReader {
     public func delegationLines(path: String, callID: String, agentID: String?, knownChecksum: String?) async throws -> (checksum: String, lines: [String]?) {
         guard Self.isValidPath(path), ClaudeTranscript.isSafeDelegationID(callID),
               agentID.map(ClaudeTranscript.isSafeDelegationID) ?? true else { throw TranscriptReadError.invalidReference }
-        let output = try await run(TranscriptCommand.delegationLines(path: path, ids: (callID, agentID ?? callID), knownChecksum: knownChecksum ?? ""))
+        let output = try await run(.delegationLines(path: path, callID: callID, agentID: agentID ?? callID, knownChecksum: knownChecksum ?? ""))
         guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
         let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
         if checksum == knownChecksum { return (checksum, nil) }

@@ -175,7 +175,7 @@ extension TranscriptReader {
         guard ClaudeTranscript.isSafeDelegationID(runID), ClaudeTranscript.isValidFolder(sessionFolder) else {
             throw TranscriptReadError.invalidReference
         }
-        let output = try await run(TranscriptCommand.readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum ?? ""))
+        let output = try await run(.readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum ?? ""))
         guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
         let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
         if checksum == knownChecksum { return .unchanged }

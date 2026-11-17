@@ -52,6 +52,25 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(card.waitForNonExistence(timeout: 10), "回答後提示卡應消失")
     }
 
+    /// 選項是同寬的圓角長方形選項卡，長文字多行完整顯示(#93)。外觀以截圖附件確認。
+    @MainActor
+    func testLongOptionWrapsOnMultipleLines() {
+        let app = open(paneID: "w2:p1")
+        let card = element("prompt.card", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "沒有提示卡")
+        let short = element("prompt.option.1", in: app)
+        let long = element("prompt.option.2", in: app)
+        XCTAssertTrue(long.exists)
+        XCTAssertEqual(short.frame.width, long.frame.width, accuracy: 1, "同一組選項應同寬")
+        XCTAssertGreaterThan(long.frame.height, short.frame.height + 10, "長選項應多行顯示，不截斷")
+        XCTAssertTrue(long.label.contains("/Users/demo/weather-app"), "長選項的朗讀內容應完整:\(long.label)")
+
+        let shot = XCTAttachment(screenshot: card.screenshot())
+        shot.name = "prompt-options"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     /// 「ask me」:兩題 AskUserQuestion 逐題作答，再到檢閱畫面送出。
     @MainActor
     func testAskUserQuestionStepByStep() {

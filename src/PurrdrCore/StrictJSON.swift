@@ -4,10 +4,10 @@ import Foundation
 ///
 /// Foundation 的 `JSONSerialization` 會接受尾端逗號等寬鬆語法，但 Claude Code(`JSON.parse`)不接受;
 /// 主機上的設定檔若連 Claude Code 自己都讀不了，我們就不該修改它。
-enum StrictJSON {
-    static let maximumDepth = 512
+package enum StrictJSON {
+    package static let maximumDepth = 512
 
-    static func isValid(_ data: Data) -> Bool {
+    package static func isValid(_ data: Data) -> Bool {
         var parser = Parser(bytes: Array(data))
         parser.skipWhitespace()
         guard parser.value(depth: 0) else { return false }

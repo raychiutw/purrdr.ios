@@ -25,7 +25,7 @@ struct ClaudeUsageModelTests {
         try Data(text.utf8).write(to: url)
     }
 
-    func model(hostID: String = "mac", now: Date = Date(timeIntervalSince1970: 1_738_400_000), sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }) -> ClaudeUsageModel {
+    func model(hostID: String = "mac", now: Date = Date(timeIntervalSince1970: 1_738_400_000), sleep: @escaping Sleep = { _ in }) -> ClaudeUsageModel {
         ClaudeUsageModel(host: ClaudeUsageHost(channel: host), hostID: hostID, consent: consent, now: { now }, sleep: sleep)
     }
 

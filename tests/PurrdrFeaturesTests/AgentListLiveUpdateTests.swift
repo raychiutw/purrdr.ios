@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -302,7 +303,7 @@ actor Sleeper {
         self.blockAfter = blockAfter
     }
 
-    nonisolated var sleep: @Sendable (Duration) async throws -> Void {
+    nonisolated var sleep: Sleep {
         { duration in try await self.sleep(for: duration) }
     }
 

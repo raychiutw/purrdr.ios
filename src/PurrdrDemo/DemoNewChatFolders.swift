@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// Demo 主機的資料夾(新增對話的資料夾瀏覽，行為規格 F3.3)。與檔案瀏覽同一棵樹(`DemoFolders.initialTree`),只列資料夾。
 enum DemoNewChatFolders {

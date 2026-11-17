@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -16,7 +17,7 @@ struct PaneTerminalModelTests {
     /// 去抖的等待注入假的(預設一直等到被取消)，測試不依賴真實時間。
     static func makeModel(
         _ host: FakeHost, debounce: Duration = .milliseconds(30),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+        sleep: @escaping Sleep = RecordingSleeper().sleep
     ) -> PaneTerminalModel {
         PaneTerminalModel(client: PaneTerminalClient(channel: host), paneID: "w1:p1", title: "Tidy up the CSV export",
                           resizeDebounce: debounce, sleep: sleep)
@@ -86,7 +87,7 @@ struct PaneTerminalModelTests {
     /// 開好一條連線並收到第一個 frame。
     static func connected(
         _ host: FakeHost, debounce: Duration = .milliseconds(30),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+        sleep: @escaping Sleep = RecordingSleeper().sleep
     ) async -> PaneTerminalModel {
         await host.expect(control(), reply: FakeReply(keepsOpen: true))
         let model = makeModel(host, debounce: debounce, sleep: sleep)
@@ -133,7 +134,8 @@ struct PaneTerminalModelTests {
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1, timeout: Self.timeout)
         await Self.replay("07-unicode-colors.stdout.ndjson", on: host, finish: false)
-        await Self.eventually { screen.lines[8] == "中文輸入" }
+        // 「中文輸入」在第 6 個 frame、`echo pasted` 在第 8 個:等到後者，否則高負載時會比 frame 早檢查。
+        await Self.eventually { screen.lines[9] == "$ echo pasted" }
 
         // 寬字元各佔兩格、組合字元與基底同一格，後面的字沒有被擠歪。
         #expect(screen.lines[6] == "中文 🐱 é x")

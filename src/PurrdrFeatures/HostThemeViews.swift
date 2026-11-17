@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -31,7 +32,7 @@ extension View {
             .task(id: ObjectIdentifier(model)) { await model.run() }
     }
 
-    /// 放白字的填色(使用者泡泡、送出鈕):沒有主機主題時是 tint;有主題時用主題的填色，白字對比不足就用品牌紅。
+    /// 放白字的填色(使用者泡泡、送出鈕):有主機主題時用主題的填色，沒有主題或白字對比不足就用紅底角色。
     func hostFill<S: Shape>(in shape: S) -> some View {
         modifier(HostFillModifier(shape: shape))
     }
@@ -54,12 +55,13 @@ private struct HostFillModifier<S: Shape>: ViewModifier {
     @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
-        if let theme {
-            content.background(theme.app(ThemeAppearance(scheme)).fill.map(Color.init) ?? Color.accentColor, in: shape)
-        } else {
-            content.background(.tint, in: shape)
-        }
+        content.background(whiteTextFill(theme: theme, scheme: scheme), in: shape)
     }
+}
+
+/// 放白字的填色：主機主題的填色(白字對比已檢查),沒有就用紅底角色。
+func whiteTextFill(theme: HostTheme?, scheme: ColorScheme) -> Color {
+    theme?.app(ThemeAppearance(scheme)).fill.map(Color.init) ?? .brandFill
 }
 
 /// 設定頁的「主機主題」區(#23)。開關打開時先說明會在主機上寫什麼、以哪個使用者，確認才寫入。

@@ -1,4 +1,5 @@
 import PurrdrCore
+import PurrdrSSH
 import SwiftUI
 import UniformTypeIdentifiers
 

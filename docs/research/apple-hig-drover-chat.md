@@ -1132,7 +1132,7 @@ ASRG 2.1(a):"include demo account info … if your app includes a login. If you 
 - [ ] 沒有與系統邊緣手勢衝突的自訂手勢 — [Gestures](https://developer.apple.com/design/human-interface-guidelines/gestures)
 - [ ] 終端機配色主題對比 ≥ 4.5:1 — Accessibility 【推論】
 - [ ] app 快捷鍵只用 Command;終端機聚焦時 Control 組合鍵與 Esc 送給遠端 — [Keyboards](https://developer.apple.com/design/human-interface-guidelines/keyboards) 【推論:終端機按鍵優先權 HIG 未規定】
-- [ ] 避開 iPhone Duo 折疊區與鏡頭區(ReservedRegion)— Designing for iPhone Duo(#69:`ReservedRegion` 要 iOS 27.1 SDK,待 Xcode 27.1 與 Duo 模擬器，見 `iphone-duo.md`)
+- [ ] 避開 iPhone Duo 折疊區與鏡頭區(ReservedRegion)— Designing for iPhone Duo(#69:終端機按鍵列已用 `reservedRegions(kind: .division)` 避開直向折疊;其餘畫面是系統元件。未在 Duo 模擬器或實機確認，見 `iphone-duo.md`)
 - [ ] iPad 指標在終端機區顯示 I-beam — Pointing devices 【推論】
 
 ### 20.9 iPad(三欄、多視窗、鍵盤)
@@ -1217,7 +1217,7 @@ ASRG 2.1(a):"include demo account info … if your app includes a login. If you 
 - [ ] 沒有固定寬度或綁定特定螢幕的版面 — Designing for iPhone Duo
 - [ ] 不覆寫系統的直式工具列位置 — Designing for iPhone Duo
 - [ ] ellipsis 只用於 overflow 選單，其他選單用不同符號;優先用系統 overflow menu — Designing for iPhone Duo
-- [ ] 折疊時版面只做小幅調整，不大幅重排 — Designing for iPhone Duo
+- [ ] 折疊時版面只做小幅調整，不大幅重排 — Designing for iPhone Duo(#69:按鍵列折疊時只把貼上與收起鍵盤移到折疊另一側，按鍵順序不變)
 
 ---
 

@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// Demo 主機(行為規格 F21):不連任何機器的主機通道。
 ///
@@ -247,6 +248,7 @@ struct DemoPaneControl {
 
 /// Demo 的 Pane:一個會回顯的 shell,以 herdr `terminal session control` 的 NDJSON 格式輸出。
 /// 認得 `ls`;其他指令回「command not found」。控制字元以 `^C`、`^[` 顯示，方便看出按鍵有送到遠端。
+/// `terminal.scroll` 像一般 shell 一樣捲主機端 scrollback(開啟前已有一段 `python export.py` 的輸出)。
 private actor DemoPaneSession: ExecSession {
     static let prompt = "demo@purrdr ledger % "
 
@@ -258,14 +260,25 @@ private actor DemoPaneSession: ExecSession {
     private var finished = false
     private var columns: Int
     private var rows: Int
+    /// 主機端的畫面與 scrollback(最後一列是目前的 prompt 列)。
+    private var lines: [String]
+    /// 從底部往上捲了幾列(herdr 的 `offset_from_bottom`)。
+    private var scrollOffset = 0
+
+    /// 開啟前已經在 Pane 裡的輸出，讓終端機有東西可以捲回去看。
+    static let earlierOutput = ["\(prompt)python export.py", "Reading ledger.csv"]
+        + (1...60).map { "Exported row \($0) of 60" }
+        + ["Wrote export/ledger-2026-11.csv"]
 
     init(columns: Int, rows: Int) {
         (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
         self.columns = columns
         self.rows = rows
+        lines = Self.earlierOutput + [Self.prompt]
         seq = 1
+        let bottom = lines.suffix(rows).joined(separator: "\r\n")
         continuation.yield(.stdout(Self.frameLine(seq: 1, columns: columns, rows: rows, full: true,
-                                                  text: "\u{1B}[2J\u{1B}[H" + Self.prompt)))
+                                                  text: "\u{1B}[2J\u{1B}[H" + bottom)))
     }
 
     func write(_ data: Data) async throws {
@@ -289,11 +302,29 @@ private actor DemoPaneSession: ExecSession {
             let bytes = (json["bytes"] as? String).flatMap { Data(base64Encoded: $0) }
                 ?? Data((json["text"] as? String ?? "").utf8)
             let echo = render(bytes)
-            if !echo.isEmpty { emit(full: false, text: echo) }
+            guard !echo.isEmpty else { return }
+            record(echo)
+            if scrollOffset > 0 {
+                // 跟 herdr 一樣：輸入把主機端 scrollback 捲回底部。
+                scrollOffset = 0
+                emit(full: false, text: viewport())
+            } else {
+                emit(full: false, text: echo)
+            }
         case "terminal.resize":
             columns = json["cols"] as? Int ?? columns
             rows = json["rows"] as? Int ?? rows
-            emit(full: true, text: "\u{1B}[2J\u{1B}[H" + Self.prompt + line)
+            scrollOffset = min(scrollOffset, maxScrollOffset)
+            emit(full: true, text: viewport())
+        case "terminal.scroll":
+            // 一般 shell:捲主機端 scrollback `lines` 列;沒有變化時不送 frame。
+            let distance = max(1, json["lines"] as? Int ?? 1)
+            let target = json["direction"] as? String == "up"
+                ? min(scrollOffset + distance, maxScrollOffset)
+                : max(scrollOffset - distance, 0)
+            guard target != scrollOffset else { return }
+            scrollOffset = target
+            emit(full: false, text: viewport())
         case "terminal.release":
             close(reason: "detached")
         default:
@@ -327,6 +358,26 @@ private actor DemoPaneSession: ExecSession {
             }
         }
         return echo
+    }
+
+    /// 把畫到畫面上的文字記進 `lines`(換行開新列，`\u{8} \u{8}` 刪一個字)。
+    private func record(_ echo: String) {
+        for (segmentIndex, segment) in echo.components(separatedBy: "\u{8} \u{8}").enumerated() {
+            if segmentIndex > 0, !lines[lines.count - 1].isEmpty { lines[lines.count - 1].removeLast() }
+            for (pieceIndex, piece) in segment.components(separatedBy: "\r\n").enumerated() {
+                if pieceIndex > 0 { lines.append("") }
+                lines[lines.count - 1] += piece
+            }
+        }
+    }
+
+    private var maxScrollOffset: Int { max(0, lines.count - rows) }
+
+    /// 依捲動位置重畫整個 viewport;在底部時游標停在 prompt 結尾。
+    private func viewport() -> String {
+        let end = lines.count - scrollOffset
+        let start = max(0, end - rows)
+        return "\u{1B}[2J\u{1B}[H" + lines[start..<end].joined(separator: "\r\n")
     }
 
     private static func run(_ command: String) -> String {

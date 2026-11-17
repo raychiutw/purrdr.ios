@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 
 /// 一個 workspace 的 Spaces 版面圖(行為規格 F4):每個 tab 一張分頁圖，裡面是依 herdr 版面排好的 pane 方塊。

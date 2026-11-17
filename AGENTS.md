@@ -14,13 +14,18 @@ Purrdr:在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理的 co
 ```bash
 xcodebuild -showComponent MetalToolchain | grep -q 'Status: installed' \
   || xcodebuild -downloadComponent MetalToolchain               # 一次性：SwiftTerm 的 Metal shader 需要(Xcode 27 不內建，約 900 MB)
-swift test --explicit-target-dependency-import-check error     # package 全部測試，並檢查依賴方向
+swift test                                                      # package 全部測試
+swift build --build-system native --build-tests \
+  --explicit-target-dependency-import-check error               # 檢查依賴方向(預設的 Swift Build 忽略這個選項，只有 native 會擋;只建置不跑測試)
 swift test --filter PurrdrCoreTests                             # 單一 test target(或 --filter 測試 suite 的型別名)
 xcodebuild test -project src/App/Purrdr.xcodeproj -scheme Purrdr \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -derivedDataPath .derivedData -parallel-testing-enabled NO -disable-concurrent-destination-testing \
   -skipPackagePluginValidation \
   -only-testing:PurrdrUITests/AgentListUITests                  # UI 測試：本機跑，只跑有修改到的類別(CI 不做)。模擬器固定一台「iPhone 17」,不要另外建立或讓 Xcode clone
+(cd tests/PurrdrIOSTests && xcodebuild test -scheme PurrdrIOSTests-Package \
+  -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../../.derivedData/ios \
+  -skipPackagePluginValidation)                                  # iOS 專用測試(UIKit 行為：輸入框內捲):本機跑，CI 不跑
 rm -rf .derivedData/package/Package.xcresult && xcodebuild build -scheme Purrdr-Package \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath .derivedData/package \
   -resultBundlePath .derivedData/package/Package.xcresult -skipPackagePluginValidation \
@@ -28,14 +33,21 @@ rm -rf .derivedData/package/Package.xcresult && xcodebuild build -scheme Purrdr-
 scripts/record-herdr-fixture.sh <檔名> <method> [params] [ssh 目的地]  # 從真實主機錄 herdr 回應，見 tests/PurrdrTestSupport/Fixtures/README.md
 scripts/strings.sh sync                                          # 把畫面新字串加進 String Catalog(之後補繁中);check 只檢查(CI 也跑)
 PURRDR_WINDOWS_HOST=user@host PURRDR_WINDOWS_KEY=<私鑰> \
-  python -I scripts/windows-upload-repro.py                      # Windows 上傳與 stdin stub 經真正 sshd 的回歸檢查(案例見腳本說明);Windows 開發機 SSH 到本機就能跑
+  python -I scripts/windows-upload-repro.py                      # Windows 上傳、stdin stub 與自我時限(--kind limit)經真正 sshd 的回歸檢查(案例見腳本說明);Windows 開發機 SSH 到本機就能跑
+PURRDR_REPRO_HOST=user@host PURRDR_REPRO_KEY=<私鑰> PURRDR_REPRO_HOST_KEY=<主機公鑰檔> \
+  scripts/host-poll-repro/run.sh [次數]                          # 以可攜核心連真主機、模擬 app 並行輪詢(容器編譯);任一步失敗或取消後仍不返回就 RED
 ```
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
 
 SwiftTerm(1.19)的需求：編譯 `Shaders.metal` 要 **Metal Toolchain**(上面第一行，裝過就好);它也帶 build-tool plugin(`SwiftTermBuildInfoPlugin`),命令列 `xcodebuild` 沒辦法像 Xcode 介面那樣按「信任」,所以**每個 `xcodebuild build`／`test` 都要加 `-skipPackagePluginValidation`**,否則停在「Validate plug-in」。`swift test` 不需要。
 
-CI(`.github/workflows/ci.yml`):`swift test` + package iOS 編譯、app 編譯(零 warning)、可攜核心用 Swift SDK for Android 交叉編譯(aarch64、x86_64,API 28)、後台測試(`backend/`,vitest)。
+CI(`.github/workflows/ci.yml`):`swift test` + package iOS 編譯、app 編譯(零 warning)、可攜核心用 Swift SDK for Android 交叉編譯(aarch64、x86_64,API 28)、後台測試(`backend/`,vitest)、主機服務 `cargo test`(macOS、Linux、Windows 三平台;Linux 另跑 fmt 與 clippy)。
+
+```bash
+cd host-service && cargo test --workspace      # 主機服務與協定型別的測試(Windows 實跑 named pipe)
+cd host-service && cargo run -p protocol-codegen  # 改了 protocol/host-service.schema.json 後重新產生 Rust 與 Swift 型別
+```
 
 TestFlight(`.github/workflows/testflight.yml`,#36):合併進 `master` 自動上傳(只改 `docs/`、`.md` 不上傳),也可 `gh workflow run testflight.yml --ref master`。PR 的 CI 已通過就不重測，否則先跑 `ci.yml`。archive 不簽章、ad-hoc 寫入 entitlements,匯出時以 App Store Connect API key 自動簽章(Apple 雲端管理的 Distribution 憑證),上傳前檢查匯出的 entitlements(推播 production、time-sensitive、Sign in with Apple),最後 `scripts/wait-for-testflight.rb` 等 build 可測試(內部群組「內部測試」自動分發)。build 號是 `GITHUB_RUN_ID`;**版本號是 `MARKETING_VERSION`(4 處),每次發佈前要遞增**。需要 GitHub environment `testflight`(部署分支限定 `master`):變數 `APPLE_TEAM_ID`,secret `ASC_KEY_ID`、`ASC_ISSUER_ID`、`ASC_PRIVATE_KEY`(`.p8` 全文;key 要 **Admin** 角色)。上架的其他人工步驟見 `docs/launch/checklist.md`。
 
@@ -47,21 +59,38 @@ TestFlight(`.github/workflows/testflight.yml`,#36):合併進 `master` 自動上�
 Package.swift                  # 根目錄 local package,用 path: 指向 src/、tests/
 src/App/Purrdr.xcodeproj       # app target、UI test target(buildable folders)
 src/App/Purrdr/                # @main(PurrdrApp)= 唯一的 composition root;AppIcon.icon、Assets.xcassets(AccentColor)
-src/PurrdrCore/                # 可攜核心：主機通道 HostChannel(真 SSH:SSHHostChannel)、主機指令建構 HerdrCommand、herdr client、連線測試 HostProbe、領域型別
+src/PurrdrCore/                # 可攜核心：主機連線 HostConnection、主機指令建構 HerdrCommand、herdr client、領域型別與錯誤
+src/PurrdrSSH/                 # 可攜：主機通道 HostChannel(真 SSH:SSHHostChannel)、SSHHostConnection、Windows 方言、只有 SSH 才有的主機功能(連線測試 HostProbe、主機檔案、資料夾、上傳、推播外掛、主題…)
 src/PurrdrDemo/                # 可攜:Demo 主機 DemoHost(HostChannel 的實作)
-src/PurrdrFeatures/            # SwiftUI 畫面 + 每畫面一個 @MainActor @Observable model
-tests/PurrdrTestSupport/       # 假主機 FakeHost、錄製回應 Fixtures/
+src/PurrdrAgentFeatures/       # 上層功能的 @MainActor @Observable model(Agent 列表、對話、Pane 終端機、You should know):只經主機連線
+src/PurrdrFeatures/            # SwiftUI 畫面、SSH 專屬功能(主機管理、登入 Shell、推播、主題、資料夾…)的 model 與平台服務
+tests/PurrdrTestSupport/       # 假主機 FakeHost、假的主機連線 FakeHostConnection、錄製回應 Fixtures/(import 它就帶出 PurrdrSSH)
 tests/PurrdrCoreTests/  tests/PurrdrFeaturesTests/
 tests/PurrdrUITests/           # XCUITest
 backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript),說明見 backend/README.md
+host-service/                  # 主機服務(Rust workspace,ADR-0010):service/ 本體、codegen/ 協定型別產生器
+protocol/                      # 主機服務協定：host-service.schema.json(唯一定義)與 examples/(兩端共用的範例)
 ```
 
-依賴方向:`App → Features → Core ← Demo ← App`。**Features 不 import Demo**:畫面只透過 `HostChannel` 拿資料，不知道背後是真主機、假主機或 Demo。
+依賴方向(#89):
 
-- **可攜核心**(PurrdrCore、PurrdrDemo,ADR-0006)只能 import Foundation 與 swift-nio／swift-nio-ssh／swift-crypto 系列。Apple 專屬的東西(SwiftUI、Security、StoreKit、SwiftData…)放 Features 或 app,以 protocol 從核心注入。`PortableCoreImportTests` 在 `swift test` 先擋;CI 的 Android job 是最終守門。新增可攜 module 時兩邊(測試的允許清單、CI 的 `--target`)都要更新。
-- **主機通道**(`HostChannel`):`execute(command)` 回傳 `ExecSession`(stdout／stderr／exit 串流，可寫 stdin、送 EOF、關閉);`openPTY(PTYRequest)` 回傳 `PTYSession`。連線重用、逾時、「連線層失敗不重送」都封裝在實作內;`disconnect()` 關掉底層連線。
+```text
+App → Features → AgentFeatures → Core
+App → Features → SSH → Core
+App → Demo → SSH
+```
+
+**Features 不 import Demo**:畫面只透過核心與主機通道的介面拿資料，不知道背後是真主機、假主機或 Demo。上層功能(Agent 列表、對話閱讀、送 prompt、Pane 終端機)在 `PurrdrAgentFeatures`,只依賴 `PurrdrCore`,**看不到主機通道**——由 target 宣告與 `--explicit-target-dependency-import-check error` 強制，`HostConnectionBoundaryTests` 只確認這些 model 留在那個 target、沒有 import `PurrdrSSH`。上層功能需要的 SSH 專屬能力以核心的 protocol 注入:slash 清單 `SlashDiscovering`(`ClaudeSlashDiscovery`)、圖片上傳 `ImageUploading`(`ImageUploader`)、You should know 的主機端 `YouShouldKnowHosting`(`YouShouldKnowHost`),由 `HostsModel` 以主機通道建好後接上。只有 SSH 才有的功能(登入 Shell、推播外掛、主題、資料夾…)在 `PurrdrFeatures`,直接用主機通道。跨 module 但只給 package 內用的成員用 `package` 存取層級。
+
+- **可攜核心**(PurrdrCore、PurrdrSSH、PurrdrDemo,ADR-0006)只能 import Foundation 與 swift-nio／swift-nio-ssh／swift-crypto 系列。Apple 專屬的東西(SwiftUI、Security、StoreKit、SwiftData…)放 Features 或 app,以 protocol 從核心注入。`PortableCoreImportTests` 在 `swift test` 先擋;CI 的 Android job 是最終守門。新增可攜 module 時兩邊(測試的允許清單、CI 的 `--target`;CI 編 `PurrdrDemo` 會連帶編它依賴的 module)都要更新。
+- **主機連線**(`HostConnection`,#54、ADR-0010):上層功能對一台主機的 herdr 操作——herdr 單次請求(一行 NDJSON 進、第一行回應出)、Agent 事件串流(逐行)、對話紀錄讀取(`TranscriptRequest`)、Pane 終端機。`HerdrClient`、`TranscriptReader`、`PaneTerminalClient` 以 `init(connection:)` 建在它上面(`init(channel:)` 是 SSH 的捷徑，在 `PurrdrSSH`;畫面不用，`HostConnectionBoundaryTests` 擋)。SSH 實作 `SSHHostConnection` 包住主機通道(Demo 主機也經過它);登入 Shell 不在介面裡，只有 SSH 提供。
+- **主機通道**(`HostChannel`,在 `PurrdrSSH`):`execute(command)` 回傳 `ExecSession`(在核心，因為 Pane 終端機連線建在它上面;只有主機通道開得出來)(stdout／stderr／exit 串流，可寫 stdin、送 EOF、關閉);`openPTY(PTYRequest)` 回傳 `PTYSession`。連線重用、逾時、「連線層失敗不重送」都封裝在實作內;`disconnect()` 關掉底層連線。
+- **一次性指令一律經有期限的入口**(#91):讀對話紀錄、slash 探索、資料夾清單、主機檔案、推播外掛、作業系統偵測等「跑完就結束」的主機指令都走 `HostChannel.runOnce`(收齊輸出用 `collect(_:deadline:sleep:)`,自己讀用 `ExecSession.read(onStdout:)`),不要直接 `execute` 再自己讀。`runOnce` 建在可攜核心的計時入口 `HostCommandDeadline.run` 上(逾時型別 `HostCommandError` 也在核心，其他連線方式共用)。期限從通道開好起算，依指令性質取 `HostCommandDeadline`(預設 20 秒、探測 10 秒、大讀取 20 秒加上以 32 KiB/s 估算的傳輸時間但最多 100 秒、主機要下載的 herdr 指令 300 秒;讀取都比主機腳本的自我時限 120 秒短，app 先逾時);到了丟 `HostCommandError.deadlineExceeded`(主機腳本自己逾時的 exit 124 也是;上傳丟各自的 `deadlineExceeded`),外層取消丟 `CancellationError`,兩者都立刻返回、不等讀取配合，通道在背景關閉。計時以 `sleep`(型別 `Sleep`,正式程式 `Sleeping.task`)注入(測試用 `RecordingSleeper`,卡住用假主機 `FakeReply(keepsOpen: true)`、開通道卡住用 `GatedChannel`,期限內等結果用 `boundedOutcome`)。herdr 單次請求(沒有等待參數的 20 秒，有的照參數加緩衝)、圖片與檔案上傳(20 秒加上傳輸時間)、喚醒探測(3 秒，連開通道一起算的 `includesOpening`)也經這裡，逾時丟各自的 `deadlineExceeded`(由 `HostCommandError` 包裝)。長時間串流(事件訂閱、Pane 終端機)不經這裡。真主機的並行輪詢回歸：`scripts/host-poll-repro/run.sh`。
+- **主機腳本的自我時限**(`HostScriptTimeLimit`,#92):Windows OpenSSH 與 Tailscale SSH 在 channel 關閉時都不結束卡住的子程序，所以一次性腳本自己有時限，逾時 exit 124、不留程序。唯讀腳本 120 秒;上傳 120 秒加上以 16,000 bytes/秒估算的傳輸時間(都比 app 端期限寬，app 先逾時)。POSIX(`posix`/`posixRead`/`posixUpload`,包在 `TranscriptCommand.command`、`HostFileScript.command`、資料夾與上傳腳本外面):macOS 沒有 `timeout`,背景 shell 每秒確認，到時限以 `ps` 的 pid／ppid 停住整棵程序樹、TERM、1 秒後 KILL(不依賴程序群組);上傳腳本自己的 TERM trap 刪暫存檔、以 70 結束。Windows(`WindowsScripts.limit(seconds:)`、上傳用 `uploadLimit(transferSizeArgument:)`):背景 runspace 到時限刪掉登記的暫存檔並 `[Environment]::Exit(124)`;stdin stub 30 秒內沒讀到結束標記就結束，讀到後腳本本體另有 120 秒。`HostScriptTimeLimit` 留在核心，因為 POSIX 腳本(`TranscriptCommand`、`HostFileScript`、`ImageUploadCommand`)在核心組;PowerShell 方言 `WindowsScripts` 只有 `WindowsHostChannel` 用，在 `PurrdrSSH`。**新增一次性主機腳本要經這些入口**(`HostScriptTimeLimitTests` 守門);長時間串流(`remote-api-bridge`、`terminal session control`)不加，靠 stdin EOF 結束。
+  - 清除 Windows 主機上舊的殘留程序(sshd 底下超過 10 分鐘的 `powershell.exe`;先列出確認，再把最後的 `Select-Object …` 換成 `ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`):
+    `$all=@(Get-CimInstance Win32_Process);$byId=@{};$all|ForEach-Object{$byId[[int]$_.ProcessId]=$_};$all|Where-Object{$_.Name -eq 'powershell.exe' -and $_.CreationDate -lt (Get-Date).AddMinutes(-10)}|Where-Object{$ancestor=$_;$hops=0;while($ancestor -and $hops -lt 10){$ancestor=$byId[[int]$ancestor.ParentProcessId];if($ancestor.Name -eq 'sshd.exe'){return $true};$hops++};$false}|Select-Object ProcessId,CreationDate`
 - **真 SSH**(`SSHHostChannel`,ADR-0003):swift-nio-ssh,Tailscale SSH 用 `none` 認證。沒有 host key pin 時**不登入**,丟 `SSHConnectionError.hostKeyUnverified(presented:)` 讓畫面請使用者確認;指紋不符丟 `hostKeyChanged`。主機設定與 pin 存 Keychain(`KeychainHostStore`,解鎖時、僅此裝置)。
-- **herdr client**:每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
+- **herdr client**:SSH 連線(`SSHHostConnection`)每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
 - **主機指令建構**(`HerdrCommand`):POSIX 指令前綴明確 PATH、引號用 `'"'"'`(行為規格 §3.2)。herdr 路徑與具名 session 由 `HerdrInstallation` 帶入(`--session <name>` 放在子指令前;`--version`、`update` 不帶)。
 - **Windows 主機**(#26):呼叫端照常送 POSIX 指令，`WindowsHostChannel`(包住真正的通道;`HostsModel` 依主機設定的 `operatingSystem == .windows` 套上;作業系統未知(主機同步帶來的新主機)時包 `OperatingSystemDetectingChannel`,第一個指令前先偵測、存回主機設定，偵測完才送指令;連線測試偵測到 Windows 後自己套上)在通道層換成 `powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand`,所以不要求 Git Bash。herdr 指令把 `PATH=… '<herdr>' 參數…` 換成 `& $h 參數…`(找不到 `herdr` 試 `%LOCALAPPDATA%\Programs\Herdr\bin\herdr.exe`,`update --handoff` 換成 `update`);對話紀錄、圖片／檔案上傳、資料夾清單、主機檔案讀寫(`HostFileScript` 的讀、compare-and-swap 寫、找最新檔，含推播配對清單;版本是 SHA-256:大小,讀的輸出多一行 `home C:/Users/<帳號>`,`HostFileRead.operatingSystem` 由它判斷)與 Claude slash 清單探索有同樣輸出格式與 exit code 的 PowerShell 版本(`WindowsScripts`,#68),其他指令丟 `WindowsCommandError.unsupported`,不把 POSIX 腳本送過去。Windows 的差異：主題讀 `%APPDATA%\herdr\config.toml`(`HostThemeHost.windowsConfigPath`);Claude 用量的包裝是 `statusline.ps1`,指令 `powershell.exe … -ExecutionPolicy Bypass -File '<家目錄>/.purrdr/claude-usage/statusline.ps1'`(Claude Code 經 Git Bash 或 PowerShell 跑都可以，原本的 status line 以 Git Bash 執行);Codex 啟動器做不到(丟 `unsupported`,畫面顯示「Windows 主機目前還不能用這項功能」)。唯讀腳本經 stdin 送給固定的 stub(cmd 的命令列上限 8,191 字元),**不靠 EOF**:stub 讀到結束標記行、上傳讀剛好宣告的大小;同一個指令只送一次 EOF。stdin 以 console stream 的原始 handle 建 `FileStream` 讀(`WindowsScripts.openStdin`;經 sshd 直接讀 console stream 超過約 128 KiB 會卡住，取不到 handle 時退回 console stream)。PowerShell 函式一律 `P` 開頭(alias 優先於函式，`rd` 是 Remove-Item)。路徑驗證、切段、上一層與顯示(列表副標、資料夾瀏覽)都認 `C:\…`(`HostPathSyntax`);錯誤訊息的 CLIXML／Rust Debug 格式由 `WindowsErrorText` 整理。偵測：`uname -s` 的 `MINGW64_NT-…`／`MSYS_NT-…`,沒有 `uname`(cmd／PowerShell)時再跑 `PowerShell.windowsProbe`。Windows 沒有 live handoff:更新 herdr 後請使用者重啟伺服器(`HerdrUpdateOutcome.restartServerRequired`)。
 - **檔案上傳的 gzip 傳輸**(#79):`HostFolders` 以 `UploadTransfer.prepare` 決定傳輸編碼(已知壓縮格式的副檔名、gzip 後沒有至少小 10% 都照原樣傳;圖片上傳不用)。gzip 封裝(標頭、CRC32、原始長度)在可攜核心(`Gzip`),原始 DEFLATE 由平台注入(`RawDeflate`;iOS 是 Features 的 `SystemDeflate`)。上傳指令多兩個參數：傳輸編碼(`identity`／`gzip`)與傳輸大小;主機檢查傳輸 bytes 等於傳輸大小、解壓後等於原始大小，否則 exit 75 並刪暫存檔。POSIX 用 `gzip -dc`(主機沒有 `gzip` 時 exit 69,client 改用 identity 重傳一次，並記在那台主機的 `HostGzipAvailability`,之後直接用 identity),Windows 把傳輸 bytes 寫進第二個暫存檔再以 .NET `GZipStream` 解壓(不整個放進記憶體)。上限以原始大小判斷(附圖的單張上限也是以使用者挑的原始圖片判斷)。測試用的 DEFLATE 與解壓是系統 `gzip`(`StandardGzip`／`StandardRawDeflate`,只在 macOS)。
@@ -73,6 +102,7 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
 - **推播**(ADR-0004、#29):主機外掛在本 repo 的 `host-plugin/`(herdr plugin manifest + `notify.sh`(sh + curl)／`notify.ps1`(Windows,best-effort)),發佈成公開 repo `raychiutw/purrdr-host-plugin` 後由 app 經 SSH `herdr plugin install` 安裝(來源常數 `PushSettings.pluginSource`)。核心 `PushHost`:每支裝置的配對檔 `~/.purrdr/push-<裝置 id>/pairing`(經 `ReversibleHostWrite`)、只有 Purrdr 裝的外掛才在最後一支裝置關閉時移除(紀錄在 `~/.purrdr/push-plugin/`)。配對密鑰只在主機上，後台與 app 只有它的 SHA-256。Features:`PushService`(後台、權限與 token、`PushPairingStore`)、`PushModel`(選取中主機的開關，`HostsModel.push`)、`PushNotificationRouter`(點通知 → `HostsModel.open(_:)`)、`SystemPushPlatform`(iOS);app 的 `PushAppDelegate` 接 APNs token、前景不跳通知。外掛腳本以 `HostPluginScriptTests` 在暫存家目錄實跑(假 curl／herdr),主機端用 `FakeHerdrPluginCLI`。
 - **主機主題與 You should know**(#23):核心 `HostTheme`(解析 herdr `config.toml` 的 `[theme]`、內建主題色票、對比 < 4.5:1 退回系統)、`HostThemeHost`(讀設定;經同意寫參考檔 `~/.purrdr/theme/README.md`)、`YouShouldKnowStore`／`YouShouldKnowHost`(找最新 store `HostFiles.newest`、compare-and-swap 寫回、衝突重試一次、還原只撤掉 Purrdr 加進 `known` 的句子)。Features:`HostThemeModel`、`YouShouldKnowModel` 每台主機各一份(`HostMember`)。主題套用選取中主機的(`HostsModel.hostTheme`,`.selectedHostTheme(hosts)` 接在 `TopNavigationView` 的三欄／一疊與 `PaneWindowView` 上，sheet 接在外面所以不套);註記合併所有主機(`MergedAgentListModel.notes`),聊天輸入列上方用聊天所在主機的那份。
 - **出口合規(只用系統加密)**:`ITSAppUsesNonExemptEncryption = NO` 的前提是 app 只用作業系統提供的加密——CryptoKit(含經 swift-crypto `Crypto` 轉呼叫)、CommonCrypto、系統 TLS。**不可**自寫加密演算法、加入 `_CryptoExtras`、OpenSSL／libsodium 之類的第三方加密;所以有 passphrase 的 OpenSSH 私鑰(bcrypt KDF)不支援，回 `SSHKeyImportError.passphraseProtected`。`PortableCoreImportTests` 的允許清單不含 `_CryptoExtras`。見 `docs/launch/checklist.md` 1.14。
+- **主機服務**(`host-service/`,ADR-0010、#55):Rust,只綁 127.0.0.1(預設埠 47820,`--port` 可改;不做 TLS,對外由 `tailscale serve` 提供 HTTPS)。WebSocket 路徑 `/v1/ws`,每個 herdr 請求開一條連線直接連 herdr 本機 socket(Unix socket／`\\.\pipe\<socket 路徑>`,解析順序 `--session` → `HERDR_SOCKET_PATH` → `HERDR_SESSION` → 預設);不執行任何子行程(`no_command_execution` 測試擋)。協定只改 `protocol/host-service.schema.json`,再 `cargo run -p protocol-codegen` 產生 `host-service/service/src/protocol.rs` 與 `src/PurrdrCore/HostServiceProtocol.swift`(`HostServiceProtocol` 命名空間);同步與否由 codegen 測試把關，`protocol/examples/` 由 Rust 與 Swift(`HostServiceProtocolExampleTests`)兩端各自編解碼。測試以真正的 WebSocket client 連主機服務，背後是回放 `Fixtures/herdr-0.9.5/` 錄製 NDJSON 的假 herdr socket。
 - **Slash 選定**(#83):選定任何 slash 項目都只把 `/名稱 ` 填進輸入框，由使用者按送出(`ConversationModel.pick(slash:)`)。刻意偏離行為規格 F9.3「不需參數、無副作用的直接送出」,因為使用者常要在指令後補說明。
 - **DI**:只用 initializer 注入;畫面 model 由 composition root 建立後傳入。
 - **Concurrency**:核心型別是 `Sendable` value type 或 actor;畫面 model 放在 main actor。
@@ -92,6 +122,7 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
 ## 測試慣例
 
 - 單元與 integration 測試用 Swift Testing;UI 流程用 XCUITest。測試名稱使用 `GLOSSARY.md` 的詞。
+- **主機連線**:上層功能不在乎連線方式的測試用**假的主機連線**(`FakeHostConnection`):`expect("session.snapshot", reply: Fixtures.data(…))` 以 herdr method 比對、回放錄製回應;`events.subscribe` 回完保持開著，用 `send(event:toSubscription:)` 推事件;`requests` 是送出的請求行。對話紀錄與 Pane 終端機尚未支援(丟 `unsupported`)。斷言指令字串、bridge 規則等 SSH 細節的測試照舊用假主機。
 - **Seam 1 主機通道**:核心與畫面 model 的測試都透過**假主機**:
 
   ```swift
@@ -115,6 +146,7 @@ backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript
 - **Windows 真實主機整合測試**(`WindowsRealHostIntegrationTests`):`PURRDR_WINDOWS_HOST=user@host[:port]`、`PURRDR_WINDOWS_KEY=<OpenSSH 私鑰路徑>`(可加 `PURRDR_WINDOWS_FINGERPRINT`)。既有 workspace 只讀;寫入只在 `%TEMP%\purrdr-test-<亂數>`(測完刪掉，家目錄 `USERPROFILE` 與 agent 設定目錄以環境變數指過去;主機檔案的還原以資料夾快照 `WindowsTemp.snapshot` 比對),Pane 終端機只開在自建的 `purrdr-test` workspace(只有 shell,測完以建立時拿到的 id 關閉)。預設 shell 是 cmd／PowerShell 的情況以 `DefaultShellChannel` 在 Git Bash 裡明確呼叫模擬。
 - **真實主機整合測試**(`RealHostIntegrationTests`)以環境變數開啟、只跑唯讀指令:`PURRDR_REAL_HOST=user@host[:port]`(可加 `PURRDR_REAL_HOST_FINGERPRINT`、`PURRDR_REAL_HOST_SESSION`)經 Tailscale SSH;`PURRDR_LOCAL_HERDR=1` 讓本機的真 herdr 經測試用 SSH 伺服器跑。Tailscale SSH 不接受同一台機器連自己的 tailnet IP,要從另一台裝置跑。
 - **UI 測試**一律用 `XCUIApplication.launchUITesting(flags:contentSize:)` 啟動(帶 `-uiTesting`,只用 Demo 主機、不連網路;主機存在記憶體，任何主機的通道也是 Demo 主機)。元素用 accessibility identifier 找(例：Agent 列是 `agent.row.<主機身分>/<pane id>`,主機身分是主機 id,Demo 主機是 `demo`,如 `agent.row.demo/w1:p1`)。多主機情境旗標:`-seedHost`(已存主機 Studio Mac,通道是 Demo)、`-seedUnreachableHost`(已存主機 Build Box,一律連不上)、`-selectDemo`、`-demoCompanions`(正式 Demo 的示範主機，見下)。`-showWelcome`:當作第一次開啟(UI 測試預設已看過歡迎頁)。列表是 lazy,畫面外的列不在 accessibility tree:找列一律用 `XCUIApplication.reveal(_:)`,不要直接 `waitForExistence`。
+- **iOS 專用測試**(`tests/PurrdrIOSTests/`,#94):`swift test`(macOS)測不到的 UIKit 行為，把真正的 UIKit 視圖放進 `UIWindow` 驗證(例：`ComposerTextEditor` 逐字 `insertText`、`setMarkedText` 組字後游標在可見範圍)。獨立成 package,因為根 package 的 PurrdrCoreTests／PurrdrFeaturesTests 有 macOS 專用程式碼，iOS 編不過;檔案包在 `#if os(iOS)`。等 UIKit／SwiftUI 的非同步更新一律 `await Task.sleep`(讓出主執行緒),`RunLoop.run` 等不到 `DispatchQueue.main.async`。這裡沒有 app 宿主與 window scene:UITextView 自己的「捲到游標」(`scrollRangeToVisible`、打字時跟隨)不會動，直接設 `contentOffset` 才會;版面要照實際畫面擺(例：輸入框放進有按鈕的 HStack,SwiftUI 才會用無限寬度探問)。手勢(真的手指滑動)用 XCUITest。
 - TDD 紅綠燈的本機紀錄放 `.tdd-logs/`(不進 git),摘要寫在 PR。
 
 ## 開發流程

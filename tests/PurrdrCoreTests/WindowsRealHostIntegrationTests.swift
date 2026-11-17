@@ -1,6 +1,7 @@
 import Crypto
 import Foundation
 @testable import PurrdrCore
+@testable import PurrdrSSH
 import PurrdrTestSupport
 import Testing
 

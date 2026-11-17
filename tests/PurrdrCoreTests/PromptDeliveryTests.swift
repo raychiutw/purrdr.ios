@@ -318,8 +318,8 @@ struct PromptDeliveryTests {
             // 主機會收下按鍵：實作若錯送了，會留在送出紀錄裡。
             await host.expect(Self.bridge, reply: Self.keysAccepted)
 
-            // 等待立刻結束：實作若錯送了 Esc,測試不會卡在 500ms 的確認迴圈。
-            let outcome = await Self.delivery(host, sleeper: RecordingSleeper { _ in true }).stop(paneID: Self.paneID)
+            // 等待立刻結束(herdr 請求的期限除外):實作若錯送了 Esc,測試不會卡在 500ms 的確認迴圈。
+            let outcome = await Self.delivery(host, sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard }).stop(paneID: Self.paneID)
 
             #expect(outcome == .needsAnswer)
             #expect(await Self.keyRequests(host).isEmpty)

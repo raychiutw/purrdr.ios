@@ -1,4 +1,4 @@
-@testable import PurrdrFeatures
+import PurrdrAgentFeatures
 import Testing
 
 /// Agent 種類由 herdr 的種類字串解析(#103 review)。

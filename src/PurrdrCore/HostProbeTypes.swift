@@ -1,0 +1,104 @@
+// 連線測試的領域型別(herdr 版本、agent 整合、報告、錯誤);執行測試的 `HostProbe` 在 PurrdrSSH。
+import Foundation
+
+/// 主機作業系統(GLOSSARY「主機」)。
+/// herdr 版本。以數值比較(字串比較會讓 `0.10.0` < `0.8.0`,行為規格 §3.1)。
+public struct HerdrVersion: Sendable, Hashable, Comparable, CustomStringConvertible {
+    /// 最低支援 herdr 0.9.5(ADR-0002)。
+    public static let minimumSupported = HerdrVersion(major: 0, minor: 9, patch: 5)
+
+    public let major: Int
+    public let minor: Int
+    public let patch: Int
+
+    public init(major: Int, minor: Int, patch: Int) {
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+    }
+
+    /// 容忍 `herdr ` 前綴、前導 `v` 與 build／預覽尾碼;無法解析回傳 `nil`(視為不支援)。
+    public init?(_ text: String) {
+        var word = Substring(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        if word.hasPrefix("herdr ") { word = word.dropFirst("herdr ".count) }
+        if word.hasPrefix("v") { word = word.dropFirst() }
+        let core = word.prefix { $0.isNumber || $0 == "." }
+        let parts = core.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+        guard parts.count == 3, let major = parts[0], let minor = parts[1], let patch = parts[2] else { return nil }
+        self.init(major: major, minor: minor, patch: patch)
+    }
+
+    public static func < (lhs: HerdrVersion, rhs: HerdrVersion) -> Bool {
+        (lhs.major, lhs.minor, lhs.patch) < (rhs.major, rhs.minor, rhs.patch)
+    }
+
+    public var description: String { "\(major).\(minor).\(patch)" }
+}
+
+/// herdr 的 agent 整合(`integration.list`)。
+public struct AgentIntegration: Sendable, Hashable {
+    public enum State: String, Sendable, Hashable {
+        case current
+        case outdated
+        case notInstalled = "not_installed"
+        case unknown
+    }
+
+    /// herdr 的整合名稱(`claude`、`codex`、`antigravity_cli`…)。
+    public var target: String
+    public var label: String
+    public var state: State
+    /// 主機上找得到這個 agent 的指令。
+    public var available: Bool
+
+    public init(target: String, label: String, state: State, available: Bool = true) {
+        self.target = target
+        self.label = label
+        self.state = state
+        self.available = available
+    }
+}
+
+/// 連線測試的結果。
+public struct HostProbeReport: Sendable, Equatable {
+    public var operatingSystem: HostOperatingSystem
+    /// 執行中的 herdr server 版本(UI 顯示這個，行為規格 §3.1)。
+    public var herdrVersion: HerdrVersion
+    public var agentCount: Int
+    /// 主機上有那個 agent 指令的整合。
+    public var integrations: [AgentIntegration]
+
+    public init(operatingSystem: HostOperatingSystem, herdrVersion: HerdrVersion, agentCount: Int, integrations: [AgentIntegration]) {
+        self.operatingSystem = operatingSystem
+        self.herdrVersion = herdrVersion
+        self.agentCount = agentCount
+        self.integrations = integrations
+    }
+}
+
+/// 更新 herdr 之後 herdr server 的狀態。
+public enum HerdrUpdateOutcome: Sendable, Equatable {
+    /// 執行中的 herdr server 已交接到新版(`update --handoff`)。
+    case handedOff
+    /// 只換了執行檔：要在主機上重啟 herdr server 才會用新版(Windows 沒有 live handoff)。
+    case restartServerRequired
+}
+
+/// 連線測試在 herdr 這一層失敗的原因。連線層的失敗見 `SSHConnectionError`。
+public enum HostProbeError: Error, Equatable {
+    /// 主機不是 macOS、Linux 或 Windows。
+    case unsupportedOperatingSystem(String)
+    /// 找不到 herdr(exit 127)。
+    case herdrNotInstalled
+    /// herdr 路徑跑的不是 herdr(例如 Herdr Desktop 的 `herdr-core`)。
+    case notHerdr
+    /// herdr 低於 0.9.5。安裝的執行檔或執行中的 herdr server 其中之一太舊。
+    case herdrOutdated(HerdrVersion)
+    /// 這個 session 沒有在跑 herdr。
+    case serverNotRunning
+    /// herdr 回了錯誤(保留原文，行為規格 §3.8)。
+    case herdr(String)
+    /// `herdr update` 失敗，附主機的錯誤訊息。
+    case updateFailed(String)
+}
+

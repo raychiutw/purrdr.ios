@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 
 public struct HostRow: Identifiable, Equatable, Sendable {
     public var id: UUID
@@ -542,6 +544,7 @@ public final class HostsModel {
 @MainActor
 final class HostMember {
     let host: HostSelection
+    /// 只有 SSH 才有的功能(登入 Shell、推播外掛、主題、資料夾…)用;上層功能的 client 經主機連線建立。
     let channel: any HostChannel
     let client: HerdrClient
     let transcripts: TranscriptReader
@@ -566,9 +569,10 @@ final class HostMember {
         self.host = host
         self.channel = channel
         let herdr = configuration?.herdr ?? HerdrInstallation()
-        client = HerdrClient(channel: channel, herdr: herdr)
-        transcripts = TranscriptReader(channel: channel)
-        terminals = PaneTerminalClient(channel: channel, herdr: herdr)
+        let connection = SSHHostConnection(channel: channel, herdr: herdr)
+        client = HerdrClient(connection: connection)
+        transcripts = TranscriptReader(connection: connection)
+        terminals = PaneTerminalClient(connection: connection)
         let list = AgentListModel(client: client, transcripts: transcripts, host: host)
         self.list = list
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })

@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// 寫進 stdin 超過 `failAfter` bytes 時連線斷掉：寫入丟錯、底層通道關閉(主機上的腳本讀到提早結束的 stdin)。
 public struct InterruptingChannel: HostChannel {

@@ -1,4 +1,5 @@
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 

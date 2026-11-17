@@ -45,7 +45,7 @@ public struct WelcomeView: View {
 
                 Section {
                     Button("Try the Demo", action: tryDemo)
-                        .buttonStyle(.borderedProminent)
+                        .filledProminentButtonStyle()
                         .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("welcome.demo")
                     Button("Add Host", systemImage: "plus", action: addHost)

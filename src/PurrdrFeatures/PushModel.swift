@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrSSH
 
 /// 通知權限(只讀現況時不跳系統對話框)。「暫時授權」視為已授權(行為規格 F14)。
 public enum PushAuthorization: Sendable, Equatable {

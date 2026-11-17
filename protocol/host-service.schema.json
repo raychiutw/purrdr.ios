@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://purrdr.app/protocol/host-service.schema.json",
+  "title": "Purrdr 主機服務協定",
+  "description": "app 與主機服務之間 WSS 上的 JSON 訊息(ADR-0010)。這份檔案是唯一定義:Rust 與 Swift 型別都由它產生(host-service/codegen)。解碼端一律忽略未知欄位。",
+  "x-protocol-version": 1,
+  "$defs": {
+    "ClientMessage": {
+      "description": "app 送給主機服務的訊息，以 type 區分。",
+      "oneOf": [
+        { "$ref": "#/$defs/Hello" },
+        { "$ref": "#/$defs/AgentsList" }
+      ]
+    },
+    "ServerMessage": {
+      "description": "主機服務送給 app 的訊息，以 type 區分。",
+      "oneOf": [
+        { "$ref": "#/$defs/Welcome" },
+        { "$ref": "#/$defs/AgentsListResult" },
+        { "$ref": "#/$defs/ErrorMessage" }
+      ]
+    },
+    "Hello": {
+      "description": "握手：連線後第一個請求，帶 app 使用的協定版本。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "hello" },
+        "request_id": { "type": "string", "description": "請求識別碼，回應帶回同一個值。" },
+        "protocol_version": { "type": "integer", "minimum": 1 },
+        "app_version": { "type": "string", "description": "app 版本，只用於診斷。" }
+      },
+      "required": ["type", "request_id", "protocol_version"]
+    },
+    "Welcome": {
+      "description": "握手成功：主機服務的協定版本、版本，以及 herdr 伺服器 ping 回報的版本與能力。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "welcome" },
+        "request_id": { "type": "string" },
+        "protocol_version": { "type": "integer", "minimum": 1 },
+        "host_service_version": { "type": "string" },
+        "herdr": { "$ref": "#/$defs/HerdrServer" }
+      },
+      "required": ["type", "request_id", "protocol_version", "host_service_version", "herdr"]
+    },
+    "HerdrServer": {
+      "description": "herdr 伺服器(不是 CLI)的版本與能力。",
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" },
+        "protocol": { "type": "integer", "minimum": 0 },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "ping 的 capabilities 裡值為 true 的名稱。"
+        }
+      },
+      "required": ["version", "protocol", "capabilities"]
+    },
+    "AgentsList": {
+      "description": "取得 Agent 列表(herdr session.snapshot)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "agents.list" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "AgentsListResult": {
+      "description": "Agent 列表與它們所在的 workspace。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "agents.list.result" },
+        "request_id": { "type": "string" },
+        "workspaces": { "type": "array", "items": { "$ref": "#/$defs/Workspace" } },
+        "agents": { "type": "array", "items": { "$ref": "#/$defs/Agent" } }
+      },
+      "required": ["type", "request_id", "workspaces", "agents"]
+    },
+    "Workspace": {
+      "type": "object",
+      "properties": {
+        "workspace_id": { "type": "string" },
+        "label": { "type": "string" }
+      },
+      "required": ["workspace_id", "label"]
+    },
+    "Agent": {
+      "description": "herdr 在某個 Pane 偵測到的 Agent。",
+      "type": "object",
+      "properties": {
+        "pane_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "tab_id": { "type": "string" },
+        "agent": { "type": "string", "description": "herdr 的 agent 名稱，例如 claude、codex。" },
+        "status": { "$ref": "#/$defs/AgentStatus" },
+        "title": { "type": "string", "description": "去掉狀態符號的終端機標題。" },
+        "cwd": { "type": "string" },
+        "session": { "$ref": "#/$defs/AgentSession" }
+      },
+      "required": ["pane_id", "workspace_id", "tab_id", "status"]
+    },
+    "AgentStatus": {
+      "description": "herdr 回報的 Agent 狀態。",
+      "type": "string",
+      "enum": ["idle", "working", "blocked", "done", "unknown"]
+    },
+    "AgentSession": {
+      "description": "herdr 的 agent_session:定位對話紀錄用。",
+      "type": "object",
+      "properties": {
+        "source": { "type": "string" },
+        "agent": { "type": "string" },
+        "kind": { "type": "string" },
+        "value": { "type": "string" }
+      },
+      "required": ["source", "agent", "kind", "value"]
+    },
+    "ErrorMessage": {
+      "description": "請求失敗。訊息本身無法解析時沒有 request_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "error" },
+        "request_id": { "type": "string" },
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string", "description": "給開發者看的說明，不顯示給使用者。" },
+        "herdr_code": { "type": "string", "description": "code 是 herdr_error 時，herdr 原本的錯誤碼。" },
+        "supported_protocol_versions": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "description": "code 是 protocol_version_unsupported 時，主機服務支援的協定版本。"
+        }
+      },
+      "required": ["type", "code", "message"]
+    },
+    "ErrorCode": {
+      "description": "錯誤種類。",
+      "type": "string",
+      "enum": [
+        "invalid_message",
+        "handshake_required",
+        "protocol_version_unsupported",
+        "herdr_unavailable",
+        "herdr_capability_missing",
+        "herdr_error"
+      ]
+    }
+  }
+}

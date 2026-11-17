@@ -158,7 +158,7 @@ public struct PlusView: View {
                 .font(.headline)
                 .frame(maxWidth: .infinity, minHeight: 44)
         }
-        .buttonStyle(.borderedProminent)
+        .filledProminentButtonStyle()
         .accessibilityIdentifier("plus.subscribe")
     }
 

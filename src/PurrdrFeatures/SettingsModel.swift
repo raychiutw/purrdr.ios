@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 
 /// 平台服務(Seam 3):開外部網址、剪貼簿。iOS 實作是 `SystemPlatformServices`,測試用記錄呼叫的假實作。
