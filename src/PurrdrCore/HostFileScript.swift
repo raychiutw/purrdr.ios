@@ -16,7 +16,7 @@ enum HostFileScript {
     static let maximumFileSize = 1024 * 1024
 
     static func command(_ script: String, arguments: [String]) -> String {
-        (["/bin/sh", "-c", PosixShell.quote(script), "purrdr"] + arguments.map(PosixShell.quote)).joined(separator: " ")
+        (["/bin/sh", "-c", PosixShell.quote(HostScriptTimeLimit.posixRead(script)), "purrdr"] + arguments.map(PosixShell.quote)).joined(separator: " ")
     }
 
     /// 共用開頭：固定 PATH 與 locale、新檔只有本人可讀、`resolve` 跟隨 symlink。
