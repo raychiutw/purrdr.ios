@@ -500,7 +500,7 @@ struct AgentRowView: View {
 }
 
 /// Agent 狀態同時用文字、符號形狀與顏色表示，不只靠顏色(DESIGN.md)。
-/// 顏色只上在符號：文字維持次要色，確保對比;「需要你」整個用 tint(品牌紅,`#D91E36` 對白底 5.0:1)。
+/// 顏色只上在符號：文字維持次要色，確保對比;「需要你」整個用 tint(紅字角色，對各背景 ≥ 4.5:1,#70)。
 struct StatusLabel: View {
     let status: AgentStatus
     /// 選取中的列(tint 填滿的底):符號與文字都用白色，形狀仍區分狀態。
@@ -552,7 +552,7 @@ struct AttentionBadge: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
-                .background(Capsule().fill(.tint))
+                .background(Capsule().fill(.brandFill))
                 .accessibilityLabel(count == 1 ? Text("1 workspace needs you") : Text("\(count) workspaces need you"))
                 .accessibilityIdentifier("attention.badge")
         }

@@ -51,19 +51,20 @@ enum AccessibleColors {
     )
 
     /// 紅字(品牌紅的文字與 tint 角色;#70)。Asset Catalog 的 `AccentColor` 與它同值。
+    /// 色相與飽和度同 `#FA2D48`,只調明度。
     static let brandText = ContrastPalette(
-        light: ThemeColor(red: 0xD9, green: 0x1E, blue: 0x36),
-        dark: ThemeColor(red: 0xFF, green: 0x4D, blue: 0x63),
-        lightHighContrast: ThemeColor(red: 0xB0, green: 0x14, blue: 0x2A),
-        darkHighContrast: ThemeColor(red: 0xFF, green: 0x7A, blue: 0x8B)
+        light: ThemeColor(red: 0xD8, green: 0x05, blue: 0x21),             // #EFEFF0 4.6:1、#F2F2F7 4.7:1、白底 5.3:1
+        dark: ThemeColor(red: 0xFC, green: 0x5D, blue: 0x72),              // #2C2C2E 4.6:1、#1C1C1E 5.6:1、黑底 6.9:1
+        lightHighContrast: ThemeColor(red: 0xA2, green: 0x04, blue: 0x19), // #EFEFF0 7.1:1
+        darkHighContrast: ThemeColor(red: 0xFC, green: 0xA1, blue: 0xAD)   // #2C2C2E 7.1:1
     )
 
-    /// 紅底(承載白字的品牌紅填色;#70):送出鍵、使用者泡泡、主要按鈕、膠囊標籤。
+    /// 紅底(承載白字的品牌紅填色;#70):送出鍵、使用者泡泡、主要按鈕、膠囊標籤。深色模式不跟著紅字變亮。
     static let brandFill = ContrastPalette(
-        light: ThemeColor(red: 0xD9, green: 0x1E, blue: 0x36),
-        dark: ThemeColor(red: 0xFF, green: 0x4D, blue: 0x63),
-        lightHighContrast: ThemeColor(red: 0xB0, green: 0x14, blue: 0x2A),
-        darkHighContrast: ThemeColor(red: 0xFF, green: 0x7A, blue: 0x8B)
+        light: ThemeColor(red: 0xEA, green: 0x08, blue: 0x26),             // 白字 4.6:1
+        dark: ThemeColor(red: 0xEA, green: 0x08, blue: 0x26),
+        lightHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B), // 白字 7.1:1
+        darkHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B)
     )
 }
 
@@ -73,6 +74,9 @@ extension ShapeStyle where Self == Color {
 
     /// 承載資訊的次要文字顏色(取代系統 `.secondary`／`.tertiary` 文字)。圖示、分隔線、底色等純裝飾仍用系統階層色。
     static var secondaryText: Color { AccessibleColors.secondaryText.color }
+
+    /// 承載白字的品牌紅填色(紅底角色)。紅字與 tint 用 `AccentColor`。
+    static var brandFill: Color { AccessibleColors.brandFill.color }
 }
 
 /// 文字按鈕的 label,觸控目標至少 44×44 pt(HIG 20.2)。

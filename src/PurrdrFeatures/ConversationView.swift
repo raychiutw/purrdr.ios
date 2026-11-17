@@ -401,7 +401,7 @@ struct AgentMessageView: View {
     }
 }
 
-/// 使用者泡泡：右對齊、tint 填色(#D91E36 配白字 5.0:1)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
+/// 使用者泡泡：右對齊、紅底填色(`hostFill`,白字 ≥ 4.5:1)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
 struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context

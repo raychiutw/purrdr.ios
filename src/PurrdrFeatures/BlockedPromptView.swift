@@ -29,7 +29,7 @@ struct BlockedPromptView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("Needs You: \(prompt.question ?? String(localized: "The agent is waiting for you."))"))
@@ -165,7 +165,7 @@ private extension View {
     @ViewBuilder
     func optionStyle(prominent: Bool) -> some View {
         if prominent {
-            buttonStyle(.borderedProminent)
+            filledProminentButtonStyle()
         } else {
             // 文字用主要色：bordered 預設是 tint 字配淡 tint 底，對比約 4:1、AX 字級下更低(#35 audit)。
             buttonStyle(.bordered)
