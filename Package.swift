@@ -94,5 +94,16 @@ let package = Package(
             path: "tests/PurrdrFeaturesTests",
             swiftSettings: strictSettings
         ),
+        // 只在 iOS 模擬器跑的 UIKit 行為測試(輸入框內捲、終端機捲動)。檔案都包在 `#if os(iOS)`,
+        // `swift test` 只編出空的 target;執行方式見 AGENTS.md「常用指令」。CI 不跑。
+        .testTarget(
+            name: "PurrdrIOSTests",
+            dependencies: [
+                "PurrdrFeatures", "PurrdrCore",
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+            ],
+            path: "tests/PurrdrIOSTests",
+            swiftSettings: strictSettings
+        ),
     ]
 )
