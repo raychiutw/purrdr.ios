@@ -87,6 +87,17 @@ public struct SpacesHost: Equatable, Sendable {
     }
 }
 
+/// 狀態條的一段：狀態與相對長度。
+public struct StatusSegment: Equatable, Sendable {
+    public var status: AgentStatus
+    public var weight: Int
+
+    public init(status: AgentStatus, weight: Int) {
+        self.status = status
+        self.weight = weight
+    }
+}
+
 /// 依狀態的 Agent 數量。完成只算未讀的;已讀的完成算閒置(#41)。
 public struct SpacesStatusCounts: Equatable, Sendable {
     public var needsYou = 0
@@ -139,6 +150,8 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
     public var agentCount: Int
     public var terminalCount: Int
     public var counts: SpacesStatusCounts
+    /// 收合標頭的狀態條;沒有 Agent 時是空的。
+    public var bar: [StatusSegment]
     /// Agent 列依狀態(需要你在前),終端機列在後。
     public var rows: [Row]
 
@@ -146,7 +159,8 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
     public var id: String { "\(host.storedValue)/\(workspaceID)" }
 
     public init(
-        host: HostSelection, workspaceID: String, label: String, agentCount: Int, terminalCount: Int, counts: SpacesStatusCounts, rows: [Row]
+        host: HostSelection, workspaceID: String, label: String, agentCount: Int, terminalCount: Int, counts: SpacesStatusCounts,
+        bar: [StatusSegment] = [], rows: [Row]
     ) {
         self.host = host
         self.workspaceID = workspaceID
@@ -154,6 +168,7 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
         self.agentCount = agentCount
         self.terminalCount = terminalCount
         self.counts = counts
+        self.bar = bar
         self.rows = rows
     }
 
