@@ -344,6 +344,6 @@ public enum TranscriptCommand {
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 
     static func command(_ script: String, arguments: [String]) -> String {
-        ([prefix + PosixShell.quote(script), "sh"] + arguments.map(PosixShell.quote)).joined(separator: " ")
+        ([prefix + PosixShell.quote(HostScriptTimeLimit.posixRead(script)), "sh"] + arguments.map(PosixShell.quote)).joined(separator: " ")
     }
 }

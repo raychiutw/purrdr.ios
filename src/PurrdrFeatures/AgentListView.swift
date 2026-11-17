@@ -177,6 +177,7 @@ public struct AgentListView: View {
                     notesRow
                     listRows(sections)
                 }
+                .environment(\.selectedChatRoute, window?.selectedChat)
             } else {
                 List {
                     largeTitleRow
@@ -302,6 +303,7 @@ public struct AgentListView: View {
     private func agentRow(_ row: AgentRow) -> some View {
         NavigationLink(value: row.route) { AgentRowView(row: row) }
             .accessibilityIdentifier("agent.row.\(row.id)")
+            .selectionFill(for: row.route)
             .workspaceRowActions(
                 WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,
                 actions: model.actions(for: row.host), presentation: presentation, snapshot: model.snapshot(for: row.host),
@@ -392,14 +394,14 @@ struct ConversationScreen: View {
 struct AgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(iPad 的 split view 列以 tint 填滿)時是 `.increased`:次要色與 tint 字都要改成白色，
+    /// 選取中(iPad 的 split view 列以紅底填滿，`selectionFill(for:)`)時是 `.increased`:次要色與 tint 字都要改成白色，
     /// 否則淡白／紅字疊在紅底上看不見(#35 iPad audit)。
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var isProminent: Bool { backgroundProminence == .increased }
 
     /// 次要色;選取中改白色。
-    private var secondary: AnyShapeStyle { isProminent ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondaryText) }
+    private var secondary: AnyShapeStyle { isProminent ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -480,7 +482,7 @@ struct AgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(isProminent ? AnyShapeStyle(Color.white) : AnyShapeStyle(.tint))
+                .foregroundStyle(isProminent ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.tint))
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
@@ -503,7 +505,7 @@ struct AgentRowView: View {
 /// 顏色只上在符號：文字維持次要色，確保對比;「需要你」整個用 tint(紅字角色，對各背景 ≥ 4.5:1,#70)。
 struct StatusLabel: View {
     let status: AgentStatus
-    /// 選取中的列(tint 填滿的底):符號與文字都用白色，形狀仍區分狀態。
+    /// 選取中的列(紅底):符號與文字都用白色，形狀仍區分狀態。
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     var body: some View {
@@ -512,9 +514,9 @@ struct StatusLabel: View {
         // 算不出理想寬度，標題被擠成極窄、一字一行，整列被撐高(#35)。
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: status.symbol)
-                .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : status.color)
+                .foregroundStyle(prominent ? AnyShapeStyle(.selectedRowText) : status.color)
             Text(status.title)
-                .foregroundStyle(prominent ? AnyShapeStyle(Color.white) : status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
+                .foregroundStyle(prominent ? AnyShapeStyle(.selectedRowText) : status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
         }
         .font(.subheadline)
         .accessibilityElement(children: .combine)
@@ -603,5 +605,34 @@ extension AgentStatus {
         case .idle: AnyShapeStyle(.green)
         case .unknown: AnyShapeStyle(.gray)
         }
+    }
+}
+
+extension EnvironmentValues {
+    /// iPad split view 列表目前選取的聊天(`selectionFill(for:)` 用);獨立的 NavigationStack 沒有選取。
+    @Entry var selectedChatRoute: ChatRoute?
+}
+
+extension View {
+    /// iPad 選取列改用紅底(或主機主題的白字填色)，不用系統以 tint(紅字角色)畫的選取底色(#95)。
+    func selectionFill(for route: ChatRoute) -> some View {
+        modifier(SelectionFillModifier(route: route))
+    }
+}
+
+private struct SelectionFillModifier: ViewModifier {
+    let route: ChatRoute
+    @Environment(\.selectedChatRoute) private var selectedChatRoute
+    @Environment(\.hostTheme) private var theme
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.backgroundProminence) private var backgroundProminence
+
+    // 不用 if/else 分支：選取切換時列的 identity 不變(滑動與選單狀態不重建)。
+    func body(content: Content) -> some View {
+        let isSelected = selectedChatRoute == route
+        content
+            .foregroundStyle(isSelected ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.primary))
+            .environment(\.backgroundProminence, isSelected ? .increased : backgroundProminence)
+            .listRowBackground(isSelected ? theme?.app(ThemeAppearance(scheme)).fill.map(Color.init) ?? AccessibleColors.selectionFill.color : nil)
     }
 }

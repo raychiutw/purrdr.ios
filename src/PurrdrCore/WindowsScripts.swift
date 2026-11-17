@@ -169,13 +169,14 @@ enum WindowsScripts {
     /// 上傳資料夾在使用者設定檔資料夾底下，繼承它的 ACL(只有本人、SYSTEM 與 Administrators)。
     static let imageUpload = #"""
         $n=$a[0];$z=[long]$a[1]
+        $purrdrSeconds=\#(HostScriptTimeLimit.readSeconds)+$z/\#(HostScriptTimeLimit.uploadBytesPerSecond);\#(limit)
         if($n -cnotmatch '^[A-Za-z0-9-][A-Za-z0-9.-]*$'){exit 64}
         $d=Join-Path $env:USERPROFILE '.purrdr\uploads'
         try{[void][IO.Directory]::CreateDirectory($d)}catch{exit 71}
-        $t=Join-Path $d ('.upload.'+[Guid]::NewGuid().ToString('N'))
+        $t=Join-Path $d ('.upload.'+[Guid]::NewGuid().ToString('N'));$purrdrLimit.Files+=$t
         $p=Join-Path $d $n
         try{
-        try{$w=[IO.File]::Open($t,'CreateNew','Write','None')}catch{exit 71}
+        try{$w=[IO.File]::Open($t,'CreateNew','Write','Delete')}catch{exit 71}
         try{PReceive $w $z}catch{exit 72}finally{$w.Close()}
         if((New-Object IO.FileInfo $t).Length -ne $z){exit 75}
         if(Test-Path -LiteralPath $p){exit 73}
@@ -191,17 +192,18 @@ enum WindowsScripts {
     /// 解壓後要等於原始大小，否則 75。參數：資料夾、檔名、原始大小、傳輸編碼(`identity`／`gzip`)、傳輸大小。
     static let folderUpload = #"""
         $n=$a[1];$z=[long]$a[2];$transferSize=[long]$a[4]
+        $purrdrSeconds=\#(HostScriptTimeLimit.readSeconds)+$transferSize/\#(HostScriptTimeLimit.uploadBytesPerSecond);\#(limit)
         if(-not $n -or $n -eq '.' -or $n -eq '..' -or $n.Contains('/') -or $n.Contains('\')){exit 64}
         if(-not [IO.Directory]::Exists($a[0])){[Console]::Error.Write("cannot open $($a[0])");exit 66}
         $d=(Get-Item -LiteralPath $a[0] -Force).FullName
-        $t=Join-Path $d ('.purrdr-upload.'+[Guid]::NewGuid().ToString('N'))
+        $t=Join-Path $d ('.purrdr-upload.'+[Guid]::NewGuid().ToString('N'));$purrdrLimit.Files+=$t
         $gz=$null;$transfer=$null
         $p=Join-Path $d $n
         try{
-        try{$w=[IO.File]::Open($t,'CreateNew','Write','None')}catch{exit 71}
+        try{$w=[IO.File]::Open($t,'CreateNew','Write','Delete')}catch{exit 71}
         try{
         if($a[3] -ceq 'gzip'){
-        $gz="$t.gz";try{$transfer=[IO.File]::Open($gz,'CreateNew','ReadWrite','None')}catch{exit 71}
+        $gz="$t.gz";$purrdrLimit.Files+=$gz;try{$transfer=[IO.File]::Open($gz,'CreateNew','ReadWrite','Delete')}catch{exit 71}
         try{PReceive $transfer $transferSize}catch{exit 72}
         if($transfer.Length -ne $transferSize){exit 75}
         $transfer.Position=0;try{(New-Object IO.Compression.GZipStream($transfer,[IO.Compression.CompressionMode]::Decompress)).CopyTo($w)}catch{exit 75}
@@ -214,6 +216,10 @@ enum WindowsScripts {
         PWrite "$p`n"
         }finally{foreach($f in @($t,$gz)){if($f){Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue}}}
         """#
+
+    /// 一次性腳本的自我時限(#92):先設 `$purrdrSeconds`。背景 runspace 到 `$purrdrLimit.At` 就刪掉登記在
+    /// `$purrdrLimit.Files` 的暫存檔(開檔要允許 `Delete` 共用)、以 124 結束整個 PowerShell;主執行緒卡在讀 stdin 也有效。
+    static let limit = "$purrdrLimit=[hashtable]::Synchronized(@{At=[DateTime]::UtcNow.AddSeconds($purrdrSeconds);Files=@()});$purrdrState=[Management.Automation.Runspaces.InitialSessionState]::Create();$purrdrState.LanguageMode='FullLanguage';$purrdrSpace=[runspacefactory]::CreateRunspace($purrdrState);$purrdrSpace.Open();$purrdrSpace.SessionStateProxy.SetVariable('d',$purrdrLimit);$purrdrWatch=[PowerShell]::Create();$purrdrWatch.Runspace=$purrdrSpace;[void]$purrdrWatch.AddScript('while([DateTime]::UtcNow -lt $d.At){[Threading.Thread]::Sleep(200)};foreach($f in $d.Files){try{[IO.File]::Delete($f)}catch{}};[Environment]::Exit(\(HostScriptTimeLimit.exitCode))').BeginInvoke()"
 
     /// 把 stdin 開成 `$stdin`:以 console stream 的原始 handle 建 `FileStream`(經 sshd 時直接讀 console stream,
     /// 超過約 128 KiB 就永遠不返回，#77);取不到 handle 時退回 console stream。上傳與 `WindowsCommand.stdinStub` 共用。

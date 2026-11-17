@@ -342,13 +342,14 @@ public enum HostFolderCommand {
 
         """
 
-    static let listScript = prelude + """
+    static let listScript = HostScriptTimeLimit.posixRead(prelude + """
         if [ -n "$1" ]; then cd "$1" || exit 66; else cd || exit 66; fi
         pwd
         ls -lnA
-        """
+        """)
 
-    static let uploadScript = prelude + """
+    /// 逾時時 TERM 由這裡的 trap 處理：刪暫存檔、exit 70。
+    static let uploadScript = HostScriptTimeLimit.posixUpload(prelude + """
         umask 077
         nl='
         '
@@ -381,7 +382,7 @@ public enum HostFolderCommand {
         d=$(pwd)
         if [ "$d" = / ]; then d=; fi
         printf '%s/%s%s' "$d" "$name" "$nl"
-        """
+        """, transferSizeParameter: 5)
 
     public static func list(_ path: String?) -> String {
         command(listScript, name: "purrdr-ls", arguments: [path ?? ""])
