@@ -80,6 +80,29 @@ struct HostFoldersTests {
         #expect(await host.unmetExpectations.isEmpty)
     }
 
+    @Test("主機沒有 gzip 後記住：之後的上傳直接用 identity,不再先試 gzip")
+    func remembersHostWithoutGzip() async throws {
+        let host = FakeHost()
+        let original = Data(repeating: 0x61, count: 1_000)
+        await host.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "a.log", size: 1_000, encoding: .gzip, transferSize: 21),
+            reply: FakeReply(exitCode: 69))
+        await host.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "a.log", size: 1_000),
+            reply: FakeReply(stdout: Data("/Users/demo/a.log\n".utf8)))
+        await host.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "b.log", size: 1_000),
+            reply: FakeReply(stdout: Data("/Users/demo/b.log\n".utf8)))
+        let folders = HostFolders(channel: host, deflate: FixedDeflate(output: Data([1, 2, 3])))
+
+        _ = try await folders.upload(original, named: "a.log", to: "/Users/demo")
+        let path = try await folders.upload(original, named: "b.log", to: "/Users/demo")
+
+        #expect(path == "/Users/demo/b.log")
+        #expect(await host.executions.count == 3)
+        #expect(await host.unmetExpectations.isEmpty)
+    }
+
     @Test("上傳的資料夾必須是絕對路徑")
     func rejectsRelativeFolder() async throws {
         let host = FakeHost()
@@ -199,6 +222,26 @@ struct HostFolderScriptTests {
         #expect((sent?.transferSize ?? .max) < original.count / 10)
     }
 
+    @Test("主機沒有 gzip(模擬):腳本 exit 69,client 改用 identity 重傳，內容與原檔相同")
+    func scriptWithoutGzipFallsBackToIdentity() async throws {
+        // macOS 一定有 /usr/bin/gzip(腳本的 PATH 也固定含 /usr/bin),所以把腳本找的指令名換成不存在的。
+        let withoutGzip = RewritingChannel(base: host, replacing: "command -v gzip", with: "command -v purrdr-missing-gzip")
+        try FileManager.default.createDirectory(at: host.url("inbox"), withIntermediateDirectories: true)
+        let original = Data((0..<300_000).map { UInt8(97 + ($0 / 5) % 26) })
+
+        let path = try await HostFolders(channel: withoutGzip, deflate: StandardRawDeflate())
+            .upload(original, named: "build.log", to: home + "/inbox")
+
+        #expect(path == home + "/inbox/build.log")
+        #expect(try Data(contentsOf: host.url("inbox/build.log")) == original)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: host.url("inbox").path) == ["build.log"])
+        let commands = host.commands
+        #expect(commands.count == 2)
+        #expect(commands.first?.contains("command -v purrdr-missing-gzip") == true)
+        #expect(commands.first?.contains(" 'gzip' ") == true)
+        #expect(commands.last?.contains(" 'identity' ") == true)
+    }
+
     @Test("腳本:gzip 的傳輸大小或解壓後的原始大小與宣告的不同時 exit 75,不留下任何檔案", arguments: ["transfer", "original"])
     func scriptRejectsGzipSizeMismatch(mismatch: String) async throws {
         try FileManager.default.createDirectory(at: host.url("inbox"), withIntermediateDirectories: true)
@@ -226,5 +269,24 @@ struct HostFolderScriptTests {
         #expect(!HostFolderCommand.upload(folder: "/a", name: "b", size: 1).contains("\\"))
         #expect(!HostFolderCommand.upload(folder: "/a", name: "b", size: 1, encoding: .gzip, transferSize: 2).contains("\\"))
     }
+}
+
+/// 把指令裡的一段文字換掉再交給 `base`,模擬主機環境的差異(例如沒有 `gzip`)。
+struct RewritingChannel: HostChannel {
+    let base: any HostChannel
+    let replacing: String
+    let replacement: String
+
+    init(base: any HostChannel, replacing: String, with replacement: String) {
+        self.base = base
+        self.replacing = replacing
+        self.replacement = replacement
+    }
+
+    func execute(_ command: String) async throws -> any ExecSession {
+        try await base.execute(command.replacingOccurrences(of: replacing, with: replacement))
+    }
+
+    func openPTY(_ request: PTYRequest) async throws -> any PTYSession { try await base.openPTY(request) }
 }
 #endif

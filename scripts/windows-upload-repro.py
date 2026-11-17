@@ -1,16 +1,25 @@
-"""Windows 主機上傳的回歸檢查(#77):經真正的 sshd 執行 app 實際送出的上傳指令。
+"""Windows 主機上傳的回歸檢查(#76):經真正的 sshd 執行 app 實際送出的上傳指令與 stdin stub。
 
-從 `src/PurrdrCore/WindowsScripts.swift` 取出 prelude、receive 與上傳腳本，照 `WindowsScripts.upload` 組成
-`powershell.exe … -EncodedCommand`,經 `ssh` 執行並把 bytes 寫進 stdin(送完送 EOF)。
-期限內 exit 0、印出的路徑正確、主機檔案 SHA-256 與送出的相同為綠;逾時(卡住)或其他結果為紅。
+從 `src/PurrdrCore/WindowsScripts.swift`、`WindowsHostChannel.swift` 取出腳本，照 `WindowsScripts.upload`
+(stub 照 `WindowsCommand.viaStdin`)組成 `powershell.exe … -EncodedCommand`,經 `ssh` 執行並把 bytes 寫進 stdin。
+期限內 exit 0、輸出正確、主機檔案 SHA-256 與原檔相同為綠;逾時(卡住)或其他結果為紅。
+
+kind(各跑每個大小):
+  image   圖片上傳
+  folder  檔案上傳，identity 傳輸
+  gzip    檔案上傳，gzip 傳輸;另加傳輸／原始大小不符(exit 75、不留檔)與
+          「傳到一半時已收到的 bytes 已寫到磁碟」(不整個放進記憶體)
+  stub    唯讀腳本的 stdin stub:送指定大小的腳本，讀到結束標記就執行
+每個 kind 另跑 100 bytes 的「沒有 `_handle` 欄位」模擬(換掉欄位名，應退回直接讀 console stream)。
+shell:`bash` 直接執行(主機預設 shell,這台是 Git Bash);`cmd` 包成 `cmd.exe //c '<指令>'`,模擬預設 shell 是 cmd。
 
 用法:
   PURRDR_WINDOWS_HOST=user@host[:port] PURRDR_WINDOWS_KEY=<私鑰> \
-    python -I scripts/windows-upload-repro.py [大小…] [--kind image|folder|both] [--timeout 秒]
-  預設大小 100、300000、2500000,kind both。全部綠 exit 0。
+    python -I scripts/windows-upload-repro.py [大小…] [--kind image|folder|gzip|stub|all] [--shell bash|cmd|all] [--timeout 秒]
+  預設大小 100、300000、2500000,kind all,shell all。全部綠 exit 0。
 
 每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(圖片上傳以 `$env:USERPROFILE` 指過去，檔案上傳的目的資料夾也在裡面),
-結束就刪掉。逾時時只結束命令列含本案例指令的程序(含卡住的 PowerShell)。
+結束就刪掉。逾時時只結束開著本案例暫存檔的程序(卡住的 PowerShell)。
 """
 import argparse
 import base64
@@ -36,6 +45,27 @@ def swift_literal(source, name):
     return "\n".join(line[len(indent):] if line.startswith(indent) else line for line in body.split("\n"))
 
 
+def swift_string(source, name):
+    """`static let <name> = "…"`(一行、不含跳脫字元的一般字串)。"""
+    match = re.search(r'static let ' + name + r' = "([^"\\]*)"', source)
+    if not match:
+        sys.exit(f"找不到 {name}")
+    return match.group(1)
+
+
+def resolve(text, source):
+    """展開 `\\(X)`、`\\#(X)` 字串插值(X 是 `source` 裡的一行字串常數)。"""
+    return re.sub(r"\\#?\((?:\w+\.)?(\w+)\)", lambda match: swift_string(source, match.group(1)), text)
+
+
+def stdin_stub(source):
+    """`WindowsCommand.stdinStub` 的腳本(插值已展開)。"""
+    match = re.search(r'static let stdinStub = PowerShell\.encodedCommand\(\s*"(.*?)"\)\n', source, re.S)
+    if not match:
+        sys.exit("WindowsHostChannel.swift 找不到 stdinStub")
+    return resolve(match.group(1), source)
+
+
 def quote(text):
     """同 `PowerShell.quote`:單引號(含彎引號)重複。"""
     return "'" + "".join(c * 2 if c in "'‘’‚‛" else c for c in text) + "'"
@@ -45,7 +75,13 @@ def encoded(script):
     return LAUNCHER + base64.b64encode(script.encode("utf-16-le")).decode()
 
 
-def ssh_argv(remote_command):
+def posix_quote(text):
+    return "'" + text.replace("'", "'\\''") + "'"
+
+
+def ssh_argv(remote_command, shell="bash"):
+    if shell == "cmd":
+        remote_command = "cmd.exe //c " + posix_quote(remote_command)
     target = os.environ.get("PURRDR_WINDOWS_HOST") or sys.exit("要設定 PURRDR_WINDOWS_HOST=user@host[:port]")
     argv = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"]
     if os.environ.get("PURRDR_WINDOWS_KEY"):
@@ -114,53 +150,105 @@ def compressible(size):
     return b"".join(lines)[:size]
 
 
-def run_case(source, kind, size, timeout, mismatch=None):
-    """`mismatch`:`transfer` 或 `original` 時宣告的大小故意多 1,預期 exit 75、資料夾是空的。"""
+STUB_OK = "purrdr-stub-ok"
+MISSING_FIELD = "'_purrdrNoSuchField'"
+
+
+def stub_script(size):
+    """印出 `STUB_OK` 的腳本，以註解行補到約 `size` bytes。"""
+    lines, total = ["[Console]::Out.Write('" + STUB_OK + "')"], 0
+    while total < size:
+        lines.append("# " + "x" * 98)
+        total += 101
+    return "\n".join(lines)
+
+
+def on_disk_bytes(folder):
+    """資料夾裡所有檔案(含開著的暫存檔)的大小總和。
+    目錄列舉的大小要等檔案關閉才更新，所以逐檔以 `FileInfo` 重查。"""
+    total = run_powershell("(@(Get-ChildItem -LiteralPath " + quote(folder) + " -Force -File|%{(New-Object IO.FileInfo $_.FullName).Length})"
+                           "|Measure-Object -Sum).Sum")
+    return int(total) if total.isdigit() else 0
+
+
+def run_case(source, kind, size, timeout, shell, variant=None):
+    """`variant`:
+    - `transfer`／`original`:宣告的大小故意多 1,預期 exit 75、資料夾是空的。
+    - `spool`:先送一半，等已收到的 bytes 出現在磁碟上，再送完。
+    - `no-handle`:console stream 沒有 `_handle` 欄位(換掉欄位名),預期照常完成。
+    """
     workspace = run_powershell(
         "$d=Join-Path $env:TEMP ('purrdr-repro-'+[Guid]::NewGuid().ToString('N'));"
         "[void][IO.Directory]::CreateDirectory((Join-Path $d 'files'));[Console]::Out.Write($d)")
     if not workspace:
         return False, "建立主機暫存資料夾失敗"
     name = uuid.uuid4().hex[:12] + (".jpg" if kind == "image" else ".bin")
-    prelude, receive = swift_literal(source, "prelude"), swift_literal(source, "receive")
+    prelude, receive = swift_literal(source, "prelude"), resolve(swift_literal(source, "receive"), source)
     payload = compressible(size) if kind == "gzip" else os.urandom(size)
     sent = payload
-    if kind == "image":
-        arguments = [name, str(size)]
-        body = "$env:USERPROFILE=" + quote(workspace) + "\n" + swift_literal(source, "imageUpload")
-        expected_path = workspace + "\\.purrdr\\uploads\\" + name
+    folder = workspace + "\\files"
+    if kind == "stub":
+        command_script = stdin_stub(source)
+        sent = (stub_script(size) + "\n" + swift_string(source, "endOfScript") + "\n").encode()
+        expected_output = STUB_OK
     else:
-        folder = workspace + "\\files"
-        if kind == "gzip":
-            sent = gzip.compress(payload, mtime=0)
-        original_size = size + (1 if mismatch == "original" else 0)
-        transfer_size = len(sent) + (1 if mismatch == "transfer" else 0)
-        arguments = [folder, name, str(original_size), "gzip" if kind == "gzip" else "identity", str(transfer_size)]
-        body = swift_literal(source, "folderUpload")
-        expected_path = folder + "\\" + name
-    upload_command = encoded("\n".join([prelude, "$a=@(" + ",".join(quote(v) for v in arguments) + ")", receive, body]))
+        if kind == "image":
+            arguments = [name, str(size)]
+            body = "$env:USERPROFILE=" + quote(workspace) + "\n" + swift_literal(source, "imageUpload")
+            expected_output = workspace + "\\.purrdr\\uploads\\" + name
+        else:
+            if kind == "gzip":
+                sent = gzip.compress(payload, mtime=0)
+            original_size = size + (1 if variant == "original" else 0)
+            transfer_size = len(sent) + (1 if variant == "transfer" else 0)
+            arguments = [folder, name, str(original_size), "gzip" if kind == "gzip" else "identity", str(transfer_size)]
+            body = swift_literal(source, "folderUpload")
+            expected_output = folder + "\\" + name
+        command_script = "\n".join([prelude, "$a=@(" + ",".join(quote(v) for v in arguments) + ")", receive, body])
+    if variant == "no-handle":
+        if "'_handle'" not in command_script:
+            return False, "腳本裡沒有 '_handle',模擬不成立"
+        command_script = command_script.replace("'_handle'", MISSING_FIELD)
 
     started = time.monotonic()
-    process = subprocess.Popen(ssh_argv(upload_command), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    process = subprocess.Popen(ssh_argv(encoded(command_script), shell), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
     try:
-        stdout, stderr = process.communicate(sent, timeout=timeout)
+        spooled = None
+        if variant == "spool":
+            half = len(sent) // 2
+            process.stdin.write(sent[:half])
+            process.stdin.flush()
+            deadline = time.monotonic() + 8
+            spooled = on_disk_bytes(folder)
+            while spooled == 0 and time.monotonic() < deadline:
+                time.sleep(0.5)
+                spooled = on_disk_bytes(folder)
+            sent_rest = sent[half:]
+        else:
+            sent_rest = sent
+        stdout, stderr = process.communicate(sent_rest, timeout=timeout)
         elapsed = time.monotonic() - started
         printed = stdout.decode("utf-8", errors="replace").strip()
-        if mismatch:
-            left = run_powershell("@(Get-ChildItem -LiteralPath " + quote(workspace + "\\files") + " -Force).Count")
+        if variant in ("transfer", "original"):
+            left = run_powershell("@(Get-ChildItem -LiteralPath " + quote(folder) + " -Force).Count")
             if process.returncode != 75 or left != "0":
                 return False, f"exit={process.returncode} 資料夾剩 {left} 個項目(預期 exit 75、0 個)"
             return True, f"{elapsed:.1f}s exit 75、沒留下檔案"
-        if process.returncode != 0 or printed != expected_path:
-            detail = f"exit={process.returncode} {elapsed:.1f}s stdout={printed!r} stderr={stderr.decode(errors='replace')[:200]!r}"
+        if process.returncode != 0 or printed != expected_output:
+            detail = f"exit={process.returncode} {elapsed:.1f}s stdout={printed!r} stderr={stderr.decode(errors='replace')[:300]!r}"
             return False, detail
-        remote_hash = run_powershell("(Get-FileHash -Algorithm SHA256 -LiteralPath " + quote(expected_path) + ").Hash")
+        if spooled == 0:
+            return False, f"送出一半({len(sent) // 2} bytes)後磁碟上仍是 0 bytes:傳輸整個放在記憶體"
+        spool_note = f"送一半時磁碟上 {spooled} bytes " if spooled else ""
+        if kind == "stub":
+            return True, f"{elapsed:.1f}s 腳本 {len(sent)} bytes 已執行"
+        remote_hash = run_powershell("(Get-FileHash -Algorithm SHA256 -LiteralPath " + quote(expected_output) + ").Hash")
         original_hash = hashlib.sha256(payload).hexdigest()
         if remote_hash.lower() != original_hash:
             return False, f"{elapsed:.1f}s SHA-256 不同：原檔 {original_hash} 主機 {remote_hash.lower()}"
         transfer = f"傳輸 {len(sent)} bytes " if sent is not payload else ""
-        return True, f"{elapsed:.1f}s {transfer}SHA-256 相同"
+        return True, f"{elapsed:.1f}s {transfer}{spool_note}SHA-256 相同"
     except subprocess.TimeoutExpired:
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)] if os.name == "nt" else ["kill", str(process.pid)],
                        capture_output=True)
@@ -174,21 +262,27 @@ def run_case(source, kind, size, timeout, mismatch=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("sizes", nargs="*", type=int, default=[100, 300_000, 2_500_000])
-    parser.add_argument("--kind", choices=["image", "folder", "gzip", "all"], default="all")
+    parser.add_argument("--kind", choices=["image", "folder", "gzip", "stub", "all"], default="all")
+    parser.add_argument("--shell", choices=["bash", "cmd", "all"], default="all")
     parser.add_argument("--timeout", type=float, default=20)
     options = parser.parse_args()
-    with open(os.path.join(REPO, "src", "PurrdrCore", "WindowsScripts.swift"), encoding="utf-8") as file:
-        source = file.read()
-    kinds = ["image", "folder", "gzip"] if options.kind == "all" else [options.kind]
+    source = ""
+    for file_name in ("WindowsScripts.swift", "WindowsHostChannel.swift"):
+        with open(os.path.join(REPO, "src", "PurrdrCore", file_name), encoding="utf-8") as file:
+            source += file.read()
+    kinds = ["image", "folder", "gzip", "stub"] if options.kind == "all" else [options.kind]
+    shells = ["bash", "cmd"] if options.shell == "all" else [options.shell]
     cases = [(kind, size, None) for kind in kinds for size in options.sizes]
     if "gzip" in kinds:
-        cases += [("gzip", max(options.sizes), mismatch) for mismatch in ("transfer", "original")]
+        cases += [("gzip", max(options.sizes), variant) for variant in ("transfer", "original", "spool")]
+    cases += [(kind, 100, "no-handle") for kind in kinds]
     all_green = True
-    for kind, size, mismatch in cases:
-        green, detail = run_case(source, kind, size, options.timeout, mismatch)
-        all_green &= green
-        label = kind + (f"({mismatch} 不符)" if mismatch else "")
-        print(f"{'GREEN' if green else 'RED  '} {label:16} {size:>9} bytes  {detail}", flush=True)
+    for shell in shells:
+        for kind, size, variant in cases:
+            green, detail = run_case(source, kind, size, options.timeout, shell, variant)
+            all_green &= green
+            label = f"{shell} {kind}" + (f"({variant})" if variant else "")
+            print(f"{'GREEN' if green else 'RED  '} {label:24} {size:>9} bytes  {detail}", flush=True)
     print("全部綠燈" if all_green else "有紅燈")
     sys.exit(0 if all_green else 1)
 

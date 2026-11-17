@@ -148,6 +148,42 @@ struct HostsModelTests {
         #expect(await real.unmetExpectations.isEmpty)
     }
 
+    @Test("主機沒有 gzip 時記住：再開一次檔案瀏覽，上傳直接用 identity")
+    func filesRemembersHostWithoutGzip() async throws {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let real = FakeHost()
+        let log = Data(String(repeating: "purrdr upload log line\n", count: 200).utf8)
+        let transfer = UploadTransfer.prepare(log, named: "first.log", deflate: SystemDeflate())
+        let home = FakeReply(stdout: Data("/Users/demo\n".utf8))
+        for _ in 0..<2 {
+            await real.expect(HostFolderCommand.list(nil), reply: home)
+            await real.expect(HostFolderCommand.list("/Users/demo"), reply: home)
+        }
+        await real.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "first.log", size: log.count, encoding: .gzip, transferSize: transfer.payload.count),
+            reply: FakeReply(exitCode: 69))
+        await real.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "first.log", size: log.count),
+            reply: FakeReply(stdout: Data("/Users/demo/first.log\n".utf8)))
+        await real.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "second.log", size: log.count),
+            reply: FakeReply(stdout: Data("/Users/demo/second.log\n".utf8)))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+        model.load()
+
+        let first = model.folderBrowser()
+        await first.load()
+        await first.upload(log, named: "first.log")
+        let second = model.folderBrowser()
+        await second.load()
+        await second.upload(log, named: "second.log")
+
+        #expect(transfer.encoding == .gzip)
+        #expect(await real.unmetExpectations.isEmpty)
+        #expect(await real.executions.count == 7)
+    }
+
     @Test("檔案瀏覽上傳文字檔時以 gzip 傳輸(系統 DEFLATE)")
     func filesUploadUsesGzip() async throws {
         let store = MemoryHostStore()
