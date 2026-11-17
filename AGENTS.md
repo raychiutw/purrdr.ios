@@ -21,6 +21,9 @@ xcodebuild test -project src/App/Purrdr.xcodeproj -scheme Purrdr \
   -derivedDataPath .derivedData -parallel-testing-enabled NO -disable-concurrent-destination-testing \
   -skipPackagePluginValidation \
   -only-testing:PurrdrUITests/AgentListUITests                  # UI 測試：本機跑，只跑有修改到的類別(CI 不做)。模擬器固定一台「iPhone 17」,不要另外建立或讓 Xcode clone
+(cd tests/PurrdrIOSTests && xcodebuild test -scheme PurrdrIOSTests-Package \
+  -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../../.derivedData/ios \
+  -skipPackagePluginValidation)                                  # iOS 專用測試(UIKit 行為：輸入框內捲、終端機捲動):本機跑，CI 不跑
 rm -rf .derivedData/package/Package.xcresult && xcodebuild build -scheme Purrdr-Package \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath .derivedData/package \
   -resultBundlePath .derivedData/package/Package.xcresult -skipPackagePluginValidation \
@@ -125,6 +128,7 @@ protocol/                      # 主機服務協定：host-service.schema.json(�
 - **Windows 真實主機整合測試**(`WindowsRealHostIntegrationTests`):`PURRDR_WINDOWS_HOST=user@host[:port]`、`PURRDR_WINDOWS_KEY=<OpenSSH 私鑰路徑>`(可加 `PURRDR_WINDOWS_FINGERPRINT`)。既有 workspace 只讀;寫入只在 `%TEMP%\purrdr-test-<亂數>`(測完刪掉，家目錄 `USERPROFILE` 與 agent 設定目錄以環境變數指過去;主機檔案的還原以資料夾快照 `WindowsTemp.snapshot` 比對),Pane 終端機只開在自建的 `purrdr-test` workspace(只有 shell,測完以建立時拿到的 id 關閉)。預設 shell 是 cmd／PowerShell 的情況以 `DefaultShellChannel` 在 Git Bash 裡明確呼叫模擬。
 - **真實主機整合測試**(`RealHostIntegrationTests`)以環境變數開啟、只跑唯讀指令:`PURRDR_REAL_HOST=user@host[:port]`(可加 `PURRDR_REAL_HOST_FINGERPRINT`、`PURRDR_REAL_HOST_SESSION`)經 Tailscale SSH;`PURRDR_LOCAL_HERDR=1` 讓本機的真 herdr 經測試用 SSH 伺服器跑。Tailscale SSH 不接受同一台機器連自己的 tailnet IP,要從另一台裝置跑。
 - **UI 測試**一律用 `XCUIApplication.launchUITesting(flags:contentSize:)` 啟動(帶 `-uiTesting`,只用 Demo 主機、不連網路;主機存在記憶體，任何主機的通道也是 Demo 主機)。元素用 accessibility identifier 找(例：Agent 列是 `agent.row.<主機身分>/<pane id>`,主機身分是主機 id,Demo 主機是 `demo`,如 `agent.row.demo/w1:p1`)。多主機情境旗標:`-seedHost`(已存主機 Studio Mac,通道是 Demo)、`-seedUnreachableHost`(已存主機 Build Box,一律連不上)、`-selectDemo`、`-demoCompanions`(正式 Demo 的示範主機，見下)。`-showWelcome`:當作第一次開啟(UI 測試預設已看過歡迎頁)。列表是 lazy,畫面外的列不在 accessibility tree:找列一律用 `XCUIApplication.reveal(_:)`,不要直接 `waitForExistence`。
+- **iOS 專用測試**(`tests/PurrdrIOSTests/`,#94):`swift test`(macOS)測不到的 UIKit 行為，把真正的 UIKit 視圖放進 `UIWindow` 驗證(例：`ComposerTextEditor` 逐字 `insertText`、`setMarkedText` 組字後游標在可見範圍)。獨立成 package,因為根 package 的 PurrdrCoreTests／PurrdrFeaturesTests 有 macOS 專用程式碼，iOS 編不過;檔案包在 `#if os(iOS)`。等 UIKit／SwiftUI 的非同步更新一律 `await Task.sleep`(讓出主執行緒),`RunLoop.run` 等不到 `DispatchQueue.main.async`。手勢(真的手指滑動)用 XCUITest。
 - TDD 紅綠燈的本機紀錄放 `.tdd-logs/`(不進 git),摘要寫在 PR。
 
 ## 開發流程

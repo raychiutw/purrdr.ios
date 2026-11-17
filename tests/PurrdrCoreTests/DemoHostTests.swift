@@ -259,12 +259,16 @@ struct DemoHostTests {
         #expect(first.contains("Wrote export/ledger-2026-11.csv"))
         #expect(!first.contains("Exported row 40 of 60"), "一開始只看得到最後 12 列")
 
-        for _ in 0..<12 {
+        for _ in 0..<13 {
             try await connection.send(.scroll(.up, column: 0, row: 0))
-            _ = await events.next()
         }
-        try await connection.send(.scroll(.up, column: 0, row: 0))
-        let scrolled = Self.text(await events.next())
+        // 同尺寸的 resize 一定回一個 full frame:畫出目前的捲動位置，也讓沒捲動時不會一直等。
+        try await connection.send(.resize(columns: 40, rows: 12))
+        var scrolled = ""
+        while case .frame(let frame) = await events.next() {
+            scrolled = String(decoding: frame.bytes, as: UTF8.self)
+            if frame.full { break }
+        }
         #expect(scrolled.contains("Exported row 47 of 60"), "往上捲 13 列要看到先前的輸出:\(scrolled)")
         #expect(!scrolled.contains("Wrote export/ledger-2026-11.csv"), "最後幾列已捲出畫面")
 
