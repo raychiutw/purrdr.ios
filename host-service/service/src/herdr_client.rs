@@ -49,10 +49,15 @@ impl HerdrClient {
 
     /// 送一個請求，回傳 `result`。
     pub async fn request(&self, method: &str, params: Value) -> Result<Value, HerdrFailure> {
+        self.request_waiting(method, params, Duration::ZERO).await
+    }
+
+    /// 同 `request`,但 herdr 自己會等 `herdr_wait`(例如 `agent.prompt` 的 wait),上限跟著延長。
+    pub async fn request_waiting(&self, method: &str, params: Value, herdr_wait: Duration) -> Result<Value, HerdrFailure> {
         let id = format!("purrdr-host:{}", NEXT_REQUEST_ID.fetch_add(1, Ordering::Relaxed));
         let mut line = serde_json::to_vec(&json!({"id": id, "method": method, "params": params})).expect("請求可序列化");
         line.push(b'\n');
-        let response = tokio::time::timeout(REQUEST_TIMEOUT, self.exchange(&line))
+        let response = tokio::time::timeout(REQUEST_TIMEOUT + herdr_wait, self.exchange(&line))
             .await
             .map_err(|_| HerdrFailure::Unavailable(format!("herdr did not answer {method} in time")))??;
         let response: Value = serde_json::from_str(&response).map_err(|error| HerdrFailure::UnexpectedResponse(error.to_string()))?;
