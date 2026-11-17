@@ -386,6 +386,8 @@ public final class ConversationModel {
                 }
             }
         }
+        // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
+        if let path = file?.path { await transcripts.stopFollowing(path: path) }
     }
 
     /// 一次輪詢:snapshot → 綁定 session → 讀對話紀錄。
@@ -1085,6 +1087,10 @@ public final class ConversationModel {
     // MARK: - 內部
 
     private func unbind() {
+        if let path = file?.path {
+            let transcripts = transcripts
+            Task { await transcripts.stopFollowing(path: path) }
+        }
         generation += 1
         workflowModels = [:]
         boundSessionID = nil
