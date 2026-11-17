@@ -5,6 +5,7 @@ import UIKit
 @testable import PurrdrFeatures
 
 /// 輸入框超過 4 行內捲後，捲動位置一律包含游標(#88 第 4 項)。以真正的 `ComposerTextEditor` 放進視窗驗證。
+@Suite(.serialized)
 @MainActor
 struct ComposerScrollTests {
     private struct Host: View {
