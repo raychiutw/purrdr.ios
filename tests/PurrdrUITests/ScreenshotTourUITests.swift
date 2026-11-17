@@ -39,8 +39,8 @@ final class ScreenshotTourUITests: XCTestCase {
     func test01AgentListWithWorkspaceCards() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
-        // Spaces 檢視：notes 有 Codex 與 shell,是 workspace 卡片。
-        XCTAssertTrue(app.staticTexts["notes"].waitForExistence(timeout: 10), "沒有 workspace 卡片")
+        // Spaces 檢視：notes 有 Codex 與 shell,是 workspace 群組。
+        XCTAssertTrue(app.buttons["workspace.group.demo/w3"].waitForExistence(timeout: 10), "沒有 workspace 群組")
         capture("01-agent-list", app)
     }
 

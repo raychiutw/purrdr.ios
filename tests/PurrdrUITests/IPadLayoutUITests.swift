@@ -37,11 +37,11 @@ final class IPadLayoutUITests: XCTestCase {
         XCTAssertTrue(row.exists, "對話推走了列表(應該在列表旁)")
     }
 
-    /// 列表欄也是大標題(#66):在列表欄裡、導覽列下方;點了切到 Agents,卡片消失。
+    /// 列表欄也是大標題(#66):在列表欄裡、導覽列下方;點了切到 Agents,群組消失。
     @MainActor
     func testListColumnLargeTitleSwitchesView() {
         let app = launchInLandscape()
-        let card = element("workspace.card.demo/w3", in: app)
+        let card = element("workspace.group.demo/w3", in: app)
         XCTAssertTrue(app.reveal(card), "沒有看到 Spaces 檢視")
 
         let title = app.buttons["agentList.title"]
