@@ -30,6 +30,8 @@ package enum HostErrorText {
             String(localized: "This device can’t create a key in the Secure Enclave. Import a key or use a password.")
         case let error as SSHKeyImportError:
             keyImportMessage(error)
+        case let error as HostServiceError:
+            hostServiceMessage(error)
         default:
             commonMessage(for: error)
         }
@@ -66,8 +68,44 @@ package enum HostErrorText {
             String(localized: "The host didn’t accept this device’s key. Add the public key to ~/.ssh/authorized_keys on the host, and check the user name.")
         case (.openSSH?, _):
             String(localized: "The host didn’t accept this key. Check that its public key is in ~/.ssh/authorized_keys on the host, and check the user name.")
-        case (nil, _):
+        case (nil, _), (.https?, _):
             String(localized: "The host didn’t let this user sign in. Edit the host to check the user name and how Purrdr signs in.")
+        }
+    }
+
+    /// HTTPS 連線方式(主機服務)的說明。權杖失效時引導重新配對。
+    package static func hostServiceMessage(_ error: HostServiceError) -> String {
+        switch error {
+        case .notPaired:
+            String(localized: "This device isn’t paired with this host. Edit the host and pair again with a new pairing code.")
+        case .deviceTokenInvalid:
+            String(localized: "The host doesn’t recognize this device anymore. Edit the host and pair again with a new pairing code.")
+        case .deviceTokenRevoked:
+            String(localized: "This device’s access was revoked on the host. Edit the host and pair again with a new pairing code.")
+        case .pairingCodeInvalid:
+            String(localized: "This pairing code isn’t valid or was already used. Run the pair command on the host again for a new code.")
+        case .pairingCodeExpired:
+            String(localized: "This pairing code expired. Run the pair command on the host again for a new code.")
+        case .protocolVersionUnsupported:
+            String(localized: "The Purrdr host service on this host doesn’t match this version of Purrdr. Update Purrdr and the host service.")
+        case .herdrUnavailable:
+            String(localized: "The host service can’t reach herdr. Start herdr on the host, then try again.")
+        case .herdrCapabilityMissing:
+            String(localized: "The herdr server on this host is too old for this. Update herdr and restart its server.")
+        case .readOnlyDevice:
+            String(localized: "This device is paired read-only, so it can’t send anything to this host.")
+        case .unsupported:
+            String(localized: "This isn’t available over HTTPS yet.")
+        case .hostNotFound:
+            String(localized: "Couldn’t find this host name. Check the address and that this device is on your tailnet.")
+        case .unreachable:
+            String(localized: "Couldn’t reach this host. Make sure both devices are on your tailnet.")
+        case .hostServiceNotRunning:
+            String(localized: "The host is reachable, but the Purrdr host service isn’t running. Start it on the host, then try again.")
+        case .connectionLost:
+            String(localized: "The connection dropped. Try again.")
+        case .unexpectedResponse:
+            String(localized: "The host service sent a response Purrdr doesn’t understand. Update Purrdr and the host service.")
         }
     }
 

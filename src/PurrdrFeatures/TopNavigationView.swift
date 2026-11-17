@@ -227,10 +227,13 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.hosts")
                 // 選取中主機的登入 Shell 與檔案(行為規格 F13;iPad 上也是推疊)。
                 // 不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
-                Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
-                    .accessibilityIdentifier("menu.loginShell")
-                Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
-                    .accessibilityIdentifier("menu.files")
+                // HTTPS 主機沒有登入 Shell 與檔案(ADR-0010)。
+                if hosts.selectedHostSupportsShell {
+                    Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
+                        .accessibilityIdentifier("menu.loginShell")
+                    Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
+                        .accessibilityIdentifier("menu.files")
+                }
                 Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
                     .accessibilityIdentifier("menu.member")
                 if plus != nil {

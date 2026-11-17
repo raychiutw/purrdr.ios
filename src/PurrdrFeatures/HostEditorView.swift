@@ -6,6 +6,7 @@ import SwiftUI
 ///
 /// 儲存前必須通過連線測試;第一次連線以 alert 確認 host key 指紋;herdr 過舊時確認後更新。
 /// OpenSSH 主機可用這支裝置的金鑰、匯入的私鑰或密碼登入;公鑰與加入指令在同一個 sheet 內 push。
+/// HTTPS 主機(ADR-0010)只填位址與配對碼;掃主機配對指令的 QR code 會帶入兩者(系統相機開 `purrdr://pair?…`)。
 struct HostEditorView: View {
     @State private var model: HostEditorModel
     @State private var confirmingDiscard = false
@@ -22,11 +23,19 @@ struct HostEditorView: View {
         Form {
             Section {
                 field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name")
-                field("Address", text: $model.address, prompt: "my-mac or 100.64.0.1", identifier: "address")
-                    .addressKeyboard()
-                field("Port", text: $model.port, prompt: "22", identifier: "port")
-                    .numberKeyboard()
-                field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username")
+                if model.connectionMethod == .https {
+                    field("Address", text: $model.address, prompt: "my-mac.tailnet.ts.net", identifier: "address")
+                        .addressKeyboard()
+                    field(
+                        "Pairing Code", text: $model.pairingCode, prompt: model.isEditing ? "Unchanged" : "K7QM-2XPA",
+                        identifier: "pairingCode")
+                } else {
+                    field("Address", text: $model.address, prompt: "my-mac or 100.64.0.1", identifier: "address")
+                        .addressKeyboard()
+                    field("Port", text: $model.port, prompt: "22", identifier: "port")
+                        .numberKeyboard()
+                    field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username")
+                }
             } header: {
                 Text("Host")
                     .foregroundStyle(.secondaryText)
@@ -36,6 +45,7 @@ struct HostEditorView: View {
                 Picker("Connection", selection: $model.connectionMethod) {
                     Text(verbatim: "Tailscale SSH").tag(HostConfiguration.ConnectionMethod.tailscaleSSH)
                     Text(verbatim: "OpenSSH").tag(HostConfiguration.ConnectionMethod.openSSH)
+                    Text(verbatim: "HTTPS").tag(HostConfiguration.ConnectionMethod.https)
                 }
                 // 選單樣式：AX5 字級時分段控制會把「Tailscale SSH」截斷。
                 .accessibilityIdentifier("hostEditor.connection")
@@ -44,10 +54,13 @@ struct HostEditorView: View {
                     .foregroundStyle(.secondaryText)
             } footer: {
                 Group {
-                    if model.connectionMethod == .tailscaleSSH {
+                    switch model.connectionMethod {
+                    case .tailscaleSSH:
                         Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
-                    } else {
+                    case .openSSH:
                         Text("Purrdr signs in to the host’s own SSH server with a key or password.")
+                    case .https:
+                        Text("On the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. Login Shell and Files aren’t available over HTTPS.")
                     }
                 }
                 .foregroundStyle(.secondaryText)
@@ -57,15 +70,18 @@ struct HostEditorView: View {
                 signInSection
             }
 
-            Section {
-                field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath")
-                field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")
-            } header: {
-                Text("herdr")
-                    .foregroundStyle(.secondaryText)
-            } footer: {
-                Text("Leave Session blank unless this computer runs more than one herdr session.")
-                    .foregroundStyle(.secondaryText)
+            // HTTPS 的 herdr session 由主機服務決定。
+            if model.connectionMethod != .https {
+                Section {
+                    field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath")
+                    field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")
+                } header: {
+                    Text("herdr")
+                        .foregroundStyle(.secondaryText)
+                } footer: {
+                    Text("Leave Session blank unless this computer runs more than one herdr session.")
+                        .foregroundStyle(.secondaryText)
+                }
             }
 
             Section {
@@ -300,6 +316,18 @@ struct HostEditorView: View {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 }
                 .accessibilityIdentifier("hostEditor.result")
+            case .connected(let check):
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Connected · herdr \(check.herdrVersion)")
+                        Text(check.summary)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondaryText)
+                    }
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+                .accessibilityIdentifier("hostEditor.result")
             case .failed(let message):
                 Label {
                     Text(message)
@@ -370,6 +398,14 @@ extension HostProbeReport {
         let agents = String(localized: "\(agentCount) agents")
         guard !integrations.isEmpty else { return agents }
         return agents + " · " + String(localized: "Integrations: \(integrations.map(\.label).joined(separator: ", "))")
+    }
+}
+
+extension HostEditorModel.HostServiceCheck {
+    /// 「3 agents · Read-only」
+    var summary: String {
+        let agents = String(localized: "\(agentCount) agents")
+        return readOnly == true ? agents + " · " + String(localized: "Read-only") : agents
     }
 }
 

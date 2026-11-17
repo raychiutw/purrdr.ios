@@ -121,6 +121,14 @@ public final class AgentListModel {
             } catch HerdrError.herdr(code: "events_lost", _) {
                 needsSnapshot = true
                 resubscribeNow = true
+            } catch let error as HostServiceError where error.requiresPairing {
+                // 權杖失效：重連也一樣被拒，等使用者重新配對後按「再試一次」。
+                fail(with: error)
+                await waitForUserRetry()
+                if Task.isCancelled { return }
+                failures = 0
+                needsSnapshot = true
+                continue
             } catch SSHConnectionError.tailscaleCheckCancelled {
                 fail(with: SSHConnectionError.tailscaleCheckCancelled)
                 await waitForUserRetry()
@@ -272,7 +280,7 @@ public final class AgentListModel {
         case HerdrError.herdr(_, let message):
             // 未知碼保留 herdr 原文(行為規格 §3.8)。
             phase = .failed(message)
-        case is SSHConnectionError:
+        case is SSHConnectionError, is HostServiceError:
             phase = .failed(HostErrorText.message(for: error))
         default:
             phase = .failed(String(localized: "Couldn’t read this host’s herdr status."))

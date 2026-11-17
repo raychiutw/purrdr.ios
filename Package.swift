@@ -2,7 +2,8 @@
 // 依賴方向由 target 宣告強制(#89):
 //   App → Features → AgentFeatures → Core
 //   App → Features → SSH → Core;App → Demo → SSH
-// - 可攜核心(PurrdrCore、PurrdrSSH、PurrdrDemo)不依賴任何 Apple 專屬 framework(ADR-0006),
+//   App → Features → HTTPS → Core
+// - 可攜核心(PurrdrCore、PurrdrSSH、PurrdrHTTPS、PurrdrDemo)不依賴任何 Apple 專屬 framework(ADR-0006),
 //   CI 用 Swift SDK for Android 編譯它們把關;`PortableCoreImportTests` 在本機先擋一次。
 // - 上層功能(PurrdrAgentFeatures:Agent 列表、對話、Pane 終端機)只依賴核心的主機連線 HostConnection,
 //   看不到主機通道 HostChannel(在 PurrdrSSH);SSH 專屬功能在 PurrdrFeatures。
@@ -25,6 +26,7 @@ let package = Package(
     products: [
         .library(name: "PurrdrCore", targets: ["PurrdrCore"]),
         .library(name: "PurrdrSSH", targets: ["PurrdrSSH"]),
+        .library(name: "PurrdrHTTPS", targets: ["PurrdrHTTPS"]),
         .library(name: "PurrdrDemo", targets: ["PurrdrDemo"]),
         .library(name: "PurrdrAgentFeatures", targets: ["PurrdrAgentFeatures"]),
         .library(name: "PurrdrFeatures", targets: ["PurrdrFeatures"]),
@@ -66,6 +68,13 @@ let package = Package(
             path: "src/PurrdrSSH",
             swiftSettings: strictSettings
         ),
+        // HTTPS 連線方式(ADR-0010):主機服務的主機連線與連線配對。可攜，限制同核心;TLS 由系統的 URLSession 處理。
+        .target(
+            name: "PurrdrHTTPS",
+            dependencies: ["PurrdrCore"],
+            path: "src/PurrdrHTTPS",
+            swiftSettings: strictSettings
+        ),
         // Demo 主機：不連網路的主機通道實作。App Review 與 UI 測試都靠它，所以 Release 也會帶。
         .target(
             name: "PurrdrDemo",
@@ -84,7 +93,7 @@ let package = Package(
         .target(
             name: "PurrdrFeatures",
             dependencies: [
-                "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", .product(name: "SwiftTerm", package: "SwiftTerm"),
+                "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "src/PurrdrFeatures",
             swiftSettings: strictSettings
@@ -100,10 +109,12 @@ let package = Package(
         .testTarget(
             name: "PurrdrCoreTests",
             dependencies: [
-                "PurrdrCore", "PurrdrSSH", "PurrdrDemo", "PurrdrTestSupport",
-                // 測試用 SSH 伺服器(swift-nio-ssh server 角色)。
+                "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo", "PurrdrTestSupport",
+                // 測試用 SSH 伺服器(swift-nio-ssh server 角色)與假的主機服務(WebSocket／HTTP)。
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOWebSocket", package: "swift-nio"),
                 .product(name: "NIOSSH", package: "swift-nio-ssh"),
                 .product(name: "Crypto", package: "swift-crypto"),
             ],
@@ -113,7 +124,7 @@ let package = Package(
         .testTarget(
             name: "PurrdrFeaturesTests",
             dependencies: [
-                "PurrdrFeatures", "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", "PurrdrTestSupport",
+                "PurrdrFeatures", "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrTestSupport",
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "tests/PurrdrFeaturesTests",
