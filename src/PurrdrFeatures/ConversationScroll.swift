@@ -34,3 +34,33 @@ public struct ConversationScroll: Equatable, Sendable {
         distanceFromBottom = 0
     }
 }
+
+/// 對話捲動的量測值，取自 SwiftUI `ScrollGeometry`。
+///
+/// `containerHeight` 是 `containerSize.height`,**已扣掉** content insets(導覽列、輸入列);捲到底時
+/// `contentOffsetY` = 內容高 + 底部 inset − 整個捲動視圖高 = 內容高 − `containerHeight` − 頂部 inset。
+public struct ConversationScrollMetrics: Equatable, Sendable {
+    public var contentHeight: Double
+    public var containerHeight: Double
+    public var contentOffsetY: Double
+    public var topInset: Double
+    public var bottomInset: Double
+
+    public init(contentHeight: Double, containerHeight: Double, contentOffsetY: Double, topInset: Double, bottomInset: Double) {
+        self.contentHeight = contentHeight
+        self.containerHeight = containerHeight
+        self.contentOffsetY = contentOffsetY
+        self.topInset = topInset
+        self.bottomInset = bottomInset
+    }
+
+    /// 可見範圍底緣到內容底緣的距離;內容短到不用捲時是負的。
+    public var distanceFromBottom: Double {
+        contentHeight + bottomInset - containerHeight - contentOffsetY
+    }
+
+    /// 可見範圍頂緣到內容頂緣的距離。
+    public var distanceFromTop: Double {
+        contentOffsetY + topInset
+    }
+}
