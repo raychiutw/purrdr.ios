@@ -69,15 +69,73 @@ extension SpacesStatusCounts {
     var spokenText: [String] {
         nonZero.map { "\(String(localized: $0.status.title)) \($0.count)" }
     }
+}
 
-    /// 圖例「● 需要你 1 · ● 工作中 2」:狀態同時有符號、文字與顏色;AX 字級自然換行。
-    var legend: Text {
-        nonZero.enumerated().reduce(Text(verbatim: "")) { text, entry in
-            let separator = entry.offset == 0 ? Text(verbatim: "") : Text(verbatim: "  ·  ")
-            let status = entry.element.status
-            return text + separator + Text(Image(systemName: status.symbol)).foregroundStyle(status.segmentColor)
-                + Text(verbatim: " ") + Text(status.title) + Text(verbatim: " \(entry.element.count)")
+/// 圖例「● 需要你 1  ● 工作中 2」:狀態同時有符號、文字與顏色;項目放不下時換行。
+struct StatusLegend: View {
+    let counts: SpacesStatusCounts
+    /// 圖例前的文字(已釘選組的主機名)。
+    var leading: String?
+    /// 圖例後的文字(終端機數)。
+    var trailing: String?
+
+    var body: some View {
+        FlowLayout(spacing: 10, lineSpacing: 2) {
+            if let leading {
+                Text(verbatim: leading)
+            }
+            ForEach(counts.nonZero, id: \.status) { entry in
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Image(systemName: entry.status.symbol)
+                        .foregroundStyle(entry.status.segmentColor)
+                    Text(entry.status.title)
+                    Text(entry.count, format: .number)
+                        .monospacedDigit()
+                }
+            }
+            if let trailing {
+                Text(verbatim: trailing)
+            }
         }
+    }
+}
+
+/// 依寬度換行的水平排列：一行放不下就換到下一行，單一項目比一行寬時由它自己換行。
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let frames = arrange(subviews, width: proposal.width ?? .infinity)
+        let width = frames.map(\.maxX).max() ?? 0
+        let height = frames.map(\.maxY).max() ?? 0
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = arrange(subviews, width: bounds.width)
+        for (subview, frame) in zip(subviews, frames) {
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(width: frame.width, height: frame.height))
+        }
+    }
+
+    private func arrange(_ subviews: Subviews, width maxWidth: CGFloat) -> [CGRect] {
+        var frames: [CGRect] = []
+        var origin = CGPoint.zero
+        var lineHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            if origin.x > 0, origin.x + size.width > maxWidth {
+                origin = CGPoint(x: 0, y: origin.y + lineHeight + lineSpacing)
+                lineHeight = 0
+            }
+            frames.append(CGRect(origin: origin, size: size))
+            origin.x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        return frames
     }
 }
 
@@ -99,7 +157,7 @@ private struct SpacesHostHeader: View {
                     .foregroundStyle(.secondary)
             }
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-            host.counts.legend
+            StatusLegend(counts: host.counts)
                 .font(.footnote)
                 .foregroundStyle(.secondaryText)
         }
@@ -144,7 +202,7 @@ private struct WorkspaceGroupHeader: View {
                     if !group.bar.isEmpty {
                         StatusBarView(segments: group.bar)
                     }
-                    legend
+                    StatusLegend(counts: group.counts, leading: group.hostName, trailing: legendTrailing)
                         .font(.footnote)
                         .foregroundStyle(.secondaryText)
                 }
@@ -165,18 +223,10 @@ private struct WorkspaceGroupHeader: View {
         .accessibilityIdentifier("workspace.group.\(group.id)")
     }
 
-    /// 第三行：已釘選組先寫主機名;各狀態數量;有終端機時加終端機數(只有終端機時是「N 個終端機」)。
-    private var legend: Text {
-        var text = group.hostName.map { Text(verbatim: "\($0)  ·  ") } ?? Text(verbatim: "")
-        if group.agentCount > 0 {
-            text = text + group.counts.legend
-            if group.terminalCount > 0 {
-                text = text + Text(verbatim: "  ·  ") + Text("Terminals \(group.terminalCount)")
-            }
-        } else {
-            text = text + Text(verbatim: terminalPhrase)
-        }
-        return text
+    /// 圖例最後：有終端機時「終端機 N」;只有終端機時「N 個終端機」。
+    private var legendTrailing: String? {
+        guard group.terminalCount > 0 else { return nil }
+        return group.agentCount > 0 ? String(localized: "Terminals \(group.terminalCount)") : terminalPhrase
     }
 
     private var terminalPhrase: String {
