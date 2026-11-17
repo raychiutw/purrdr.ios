@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -35,6 +36,7 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
                                     }
                                     .accessibilityIdentifier("terminal.row.\(row.id)")
                                     .cardRail()
+                                    .selectionFill(for: row.route)
                                 }
                             }
                         }
@@ -125,11 +127,11 @@ private struct TabGroupTitle: View {
 struct TerminalRowView: View {
     let row: TerminalRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(tint 填滿的底)次要色改白色(同 `AgentRowView`)。
+    /// 選取中(紅底)次要色改白色(同 `AgentRowView`)。
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondaryText)
+        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
     }
 
     var body: some View {

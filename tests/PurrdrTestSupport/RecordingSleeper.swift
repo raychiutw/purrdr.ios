@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 /// 記錄每次等待時間的 sleep(注入給 client 的期限、輪詢間隔)。
 ///
@@ -13,7 +14,7 @@ public actor RecordingSleeper {
     }
 
     /// 給被測物注入的 closure。
-    public nonisolated var sleep: @Sendable (Duration) async throws -> Void {
+    public nonisolated var sleep: Sleep {
         { duration in try await self.wait(duration) }
     }
 

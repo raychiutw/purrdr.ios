@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 
 /// 登入 Shell(行為規格 F13、GLOSSARY):對主機開 PTY(`pty-req` + `shell`),由 sshd 以登入模式執行使用者預設的 shell,
 /// 背後沒有 herdr Pane。尺寸改變以 `window-change` 送出(去抖 250 ms)。
@@ -29,7 +31,7 @@ public final class LoginShellModel: TerminalSessionModel {
     private let channel: any HostChannel
     private let resizeDebounce: Duration
     /// 去抖用的等待;測試注入假的。
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     private var size: (columns: Int, rows: Int)?
     private var sentSize: (columns: Int, rows: Int)?
     private var outbox: AsyncStream<Outgoing>.Continuation?
@@ -43,7 +45,7 @@ public final class LoginShellModel: TerminalSessionModel {
 
     public init(
         channel: any HostChannel, title: String, resizeDebounce: Duration = .milliseconds(250),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.channel = channel
         self.title = title

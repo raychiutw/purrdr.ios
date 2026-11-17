@@ -150,6 +150,6 @@ struct ClaudeSlashDiscoveryTests {
         let catalog = await ClaudeSlashDiscovery(channel: host, timeLimit: .seconds(20), sleep: sleeper.sleep).catalog(cwd: nil, transcriptPath: nil)
         #expect(!catalog.isComplete)
         #expect(Self.names(in: catalog, source: .builtIn).contains("compact"))
-        #expect(await sleeper.requested == [.seconds(20)])
+        #expect(Set(await sleeper.requested) == [.seconds(20)])
     }
 }

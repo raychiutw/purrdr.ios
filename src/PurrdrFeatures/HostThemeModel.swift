@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrSSH
 
 /// 一台主機的主機主題(#23;選取中主機的才套用到畫面):經同意後套用主機 herdr 的配色到對話與終端機。
 ///
@@ -29,11 +30,11 @@ public final class HostThemeModel {
     private let host: HostThemeHost
     private let hostID: String
     private let consent: any HostWriteConsentStore
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     private var feature: String { HostThemeHost.feature.id }
 
     public init(host: HostThemeHost, hostID: String, consent: any HostWriteConsentStore,
-                sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+                sleep: @escaping Sleep = Sleeping.task) {
         self.host = host
         self.hostID = hostID
         self.consent = consent

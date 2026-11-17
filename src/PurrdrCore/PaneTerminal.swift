@@ -1,24 +1,19 @@
 import Foundation
 
-/// 開 Pane 終端機的 client:經主機通道執行 `herdr terminal session control`(ADR-0005)。
+/// 開 Pane 終端機的 client:經主機連線接上 pane(SSH 是執行 `herdr terminal session control`,ADR-0005)。
 ///
 /// 協定的實測行為見 `docs/research/terminal-session-control-macos.md`。wire format(NDJSON、snake_case)
 /// 只在這個檔案處理。
 public struct PaneTerminalClient: Sendable {
-    private let channel: any HostChannel
-    private let herdr: HerdrInstallation
+    private let connection: any HostConnection
 
-    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation()) {
-        self.channel = channel
-        self.herdr = herdr
+    public init(connection: any HostConnection) {
+        self.connection = connection
     }
 
     /// 以 controller 身分接上 `target`(pane id 或 terminal id),以 `columns`×`rows` 做 handshake。
     public func control(target: String, columns: Int, rows: Int, takeover: Bool = false) async throws -> PaneTerminalConnection {
-        let command = HerdrCommand.terminalSessionControl(
-            target: target, columns: columns, rows: rows, takeover: takeover, herdr: herdr
-        )
-        return PaneTerminalConnection(session: try await channel.execute(command))
+        try await connection.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
     }
 }
 
@@ -30,7 +25,7 @@ public actor PaneTerminalConnection {
     private let session: any ExecSession
     private var reader: Task<Void, Never>?
 
-    init(session: any ExecSession) {
+    package init(session: any ExecSession) {
         self.session = session
         let (events, continuation) = AsyncStream<PaneTerminalEvent>.makeStream()
         self.events = events

@@ -5,7 +5,7 @@ import Foundation
 /// 產生的是 POSIX `sh` 指令(macOS、Linux);Windows 主機由 `WindowsHostChannel` 在通道層換成 PowerShell `-EncodedCommand`。
 public enum HerdrCommand {
     /// 非互動 SSH shell 不讀 profile,herdr 的安裝位置常不在 PATH(行為規格 §3.2)。
-    static let pathPrefix =
+    package static let pathPrefix =
         #"PATH="$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH""#
 
     /// 執行 `herdr remote-api-bridge`:stdin 一行請求進、stdout 一行回應出(行為規格 §3.3)。

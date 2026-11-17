@@ -58,7 +58,7 @@ public struct SlashCatalog: Sendable, Equatable {
 
     /// 依來源合併：同名指令只留優先序最高的來源(F9.1);分組順序為內建、專案、使用者、plugin(依名稱)、其他。
     /// 每組內依名稱排序。說明空白時，用同名的其他來源(例如 `skill_listing`)補上。
-    static func merged(_ entries: [(source: SlashSource, command: SlashCommand)], isComplete: Bool) -> SlashCatalog {
+    package static func merged(_ entries: [(source: SlashSource, command: SlashCommand)], isComplete: Bool) -> SlashCatalog {
         var best: [String: (source: SlashSource, command: SlashCommand)] = [:]
         var summaries: [String: String] = [:]
         for entry in entries {
@@ -82,4 +82,12 @@ public struct SlashCatalog: Sendable, Equatable {
             }
         return SlashCatalog(sections: sections, isComplete: isComplete)
     }
+}
+
+/// Claude Code 的 slash 清單來源。SSH 實作是 `PurrdrSSH.ClaudeSlashDiscovery`。
+public protocol SlashDiscovering: Sendable {
+    /// - Parameters:
+    ///   - cwd: agent 的工作資料夾。
+    ///   - transcriptPath: session 的對話紀錄。
+    func catalog(cwd: String?, transcriptPath: String?) async -> SlashCatalog
 }

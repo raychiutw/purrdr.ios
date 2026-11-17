@@ -30,7 +30,7 @@ public enum ClaudeSlashCommand {
         TranscriptCommand.command(discoverScript, arguments: [cwd ?? "", transcriptPath ?? ""])
     }
 
-    static let discoverScript = functions + "\n" + #"""
+    package static let discoverScript = functions + "\n" + #"""
         c=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
         dump installed "$c/plugins/installed_plugins.json"
         dump settings "$c/settings.json"
@@ -53,7 +53,7 @@ public enum ClaudeSlashCommand {
         TranscriptCommand.command(manifestsScript, arguments: installPaths)
     }
 
-    static let manifestsScript = functions + "\n" + #"for p in "$@"; do dump "$p" "$p/.claude-plugin/plugin.json"; done"#
+    package static let manifestsScript = functions + "\n" + #"for p in "$@"; do dump "$p" "$p/.claude-plugin/plugin.json"; done"#
 
     /// 第 3 步要掃的一個路徑。
     public struct Scan: Sendable, Equatable {
@@ -75,7 +75,7 @@ public enum ClaudeSlashCommand {
         TranscriptCommand.command(scanScript, arguments: scans.flatMap { [$0.kind.rawValue, $0.plugin, $0.path] })
     }
 
-    static let scanScript = functions + "\n" + #"""
+    package static let scanScript = functions + "\n" + #"""
         while [ $# -ge 3 ]; do
         if [ "$1" = s ]; then skills "$2" "$3"; else commands "$2" "$3"; fi
         shift 3

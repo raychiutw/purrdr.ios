@@ -22,10 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      # SwiftUI 模組版本：同一版 Swift 編譯器分不出 SDK 27.0／27.1,`canImport(SwiftUI, _version:)` 以它判斷(PaneTerminalView)。
       - name: 工具鏈版本
         run: |
           xcodebuild -version
           swift --version
+          for sdk in macosx iphonesimulator; do
+            grep -ho 'user-module-version [0-9.]*' \
+              "$(xcrun --sdk "$sdk" --show-sdk-path)"/System/Library/Frameworks/SwiftUI.framework/Modules/SwiftUI.swiftmodule/*.swiftinterface \
+              | sort -u | sed "s/^/$sdk SwiftUI /"
+          done
 
       # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
       # 先用 -showComponent 檢查，已安裝就不下載。
@@ -38,10 +44,14 @@ jobs:
           fi
           xcodebuild -showComponent MetalToolchain
 
+      # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo、上層功能 import PurrdrSSH(#89)。
+      # 預設的 Swift Build 會忽略這個選項(實測照樣建置成功),只有 native build system 會擋，所以另外以 native 建置一次。
+      - name: 依賴方向(import check)
+        run: swift build --build-system native --build-tests --explicit-target-dependency-import-check error
+
       # warning 當 error 寫在 Package.swift(只對 macOS 套用)。
-      # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo。
       - name: swift test
-        run: swift test --explicit-target-dependency-import-check error
+        run: swift test
 
   # 與 package job 平行:package 以 iOS 編譯、數 warning、檢查 String Catalog(原本跟 swift test 串在同一個 job)。
   package-ios:
@@ -118,6 +128,42 @@ jobs:
       - name: 測試
         run: npm test
 
+  # 主機服務(host-service/,ADR-0010):三平台各跑一次，herdr socket 路徑解析與假 herdr socket
+  # (macOS／Linux 是 Unix socket,Windows 是 named pipe)都要在該平台實跑。
+  # 協定型別是否與 protocol/host-service.schema.json 同步，由 codegen 的測試把關。
+  host-service:
+    name: 主機服務測試(cargo test,${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, ubuntu-24.04, windows-2025]
+    defaults:
+      run:
+        working-directory: host-service
+        shell: bash
+    env:
+      RUSTFLAGS: -D warnings
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 安裝 Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup default stable
+          cargo --version
+
+      - name: 格式與 clippy
+        if: runner.os == 'Linux'
+        run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace --locked
+
   # CI 不做 UI 測試(太久);UI 測試在本機跑，只跑有修改到的類別(見 AGENTS.md「常用指令」)。
   app:
     name: App 編譯(xcodebuild build)
@@ -169,7 +215,7 @@ jobs:
 
   # 可攜核心(ADR-0006)用 Swift SDK for Android 交叉編譯，守住「不依賴 Apple 專屬 framework」。
   # 版本與做法見 docs/research/swift-sdk-for-android.md:開源 toolchain 與 SDK 版本必須完全一致、NDK 用 r30。
-  # 只編譯可攜的 target(PurrdrCore、PurrdrDemo),SwiftUI 的 PurrdrFeatures 不在 Android 編譯範圍。
+  # 只編譯可攜的 target(PurrdrDemo,連帶編譯它依賴的 PurrdrSSH、PurrdrCore),SwiftUI 的 Features 不在 Android 編譯範圍。
   android:
     name: 可攜核心 Android 編譯(Swift SDK for Android)
     runs-on: ubuntu-24.04

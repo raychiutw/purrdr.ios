@@ -1,0 +1,153 @@
+//! 由 protocol/host-service.schema.json 產生，不要手動修改。重新產生:cd host-service && cargo run -p protocol-codegen
+
+use serde::{Deserialize, Serialize};
+
+/// 協定版本(schema 的 `x-protocol-version`)。
+pub const PROTOCOL_VERSION: i64 = 1;
+
+/// app 送給主機服務的訊息，以 type 區分。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ClientMessage {
+    #[serde(rename = "hello")]
+    Hello(Hello),
+    #[serde(rename = "agents.list")]
+    AgentsList(AgentsList),
+}
+
+/// 主機服務送給 app 的訊息，以 type 區分。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ServerMessage {
+    #[serde(rename = "welcome")]
+    Welcome(Welcome),
+    #[serde(rename = "agents.list.result")]
+    AgentsListResult(AgentsListResult),
+    #[serde(rename = "error")]
+    ErrorMessage(ErrorMessage),
+}
+
+/// 握手：連線後第一個請求，帶 app 使用的協定版本。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Hello {
+    /// 請求識別碼，回應帶回同一個值。
+    pub request_id: String,
+    pub protocol_version: i64,
+    /// app 版本，只用於診斷。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_version: Option<String>,
+}
+
+/// 握手成功：主機服務的協定版本、版本，以及 herdr 伺服器 ping 回報的版本與能力。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Welcome {
+    pub request_id: String,
+    pub protocol_version: i64,
+    pub host_service_version: String,
+    pub herdr: HerdrServer,
+}
+
+/// herdr 伺服器(不是 CLI)的版本與能力。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HerdrServer {
+    pub version: String,
+    pub protocol: i64,
+    /// ping 的 capabilities 裡值為 true 的名稱。
+    pub capabilities: Vec<String>,
+}
+
+/// 取得 Agent 列表(herdr session.snapshot)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentsList {
+    pub request_id: String,
+}
+
+/// Agent 列表與它們所在的 workspace。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentsListResult {
+    pub request_id: String,
+    pub workspaces: Vec<Workspace>,
+    pub agents: Vec<Agent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Workspace {
+    pub workspace_id: String,
+    pub label: String,
+}
+
+/// herdr 在某個 Pane 偵測到的 Agent。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Agent {
+    pub pane_id: String,
+    pub workspace_id: String,
+    pub tab_id: String,
+    /// herdr 的 agent 名稱，例如 claude、codex。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
+    pub status: AgentStatus,
+    /// 去掉狀態符號的終端機標題。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<AgentSession>,
+}
+
+/// herdr 回報的 Agent 狀態。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AgentStatus {
+    #[serde(rename = "idle")]
+    Idle,
+    #[serde(rename = "working")]
+    Working,
+    #[serde(rename = "blocked")]
+    Blocked,
+    #[serde(rename = "done")]
+    Done,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+/// herdr 的 agent_session:定位對話紀錄用。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentSession {
+    pub source: String,
+    pub agent: String,
+    pub kind: String,
+    pub value: String,
+}
+
+/// 請求失敗。訊息本身無法解析時沒有 request_id。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ErrorMessage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    pub code: ErrorCode,
+    /// 給開發者看的說明，不顯示給使用者。
+    pub message: String,
+    /// code 是 herdr_error 時，herdr 原本的錯誤碼。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub herdr_code: Option<String>,
+    /// code 是 protocol_version_unsupported 時，主機服務支援的協定版本。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supported_protocol_versions: Option<Vec<i64>>,
+}
+
+/// 錯誤種類。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ErrorCode {
+    #[serde(rename = "invalid_message")]
+    InvalidMessage,
+    #[serde(rename = "handshake_required")]
+    HandshakeRequired,
+    #[serde(rename = "protocol_version_unsupported")]
+    ProtocolVersionUnsupported,
+    #[serde(rename = "herdr_unavailable")]
+    HerdrUnavailable,
+    #[serde(rename = "herdr_capability_missing")]
+    HerdrCapabilityMissing,
+    #[serde(rename = "herdr_error")]
+    HerdrError,
+}

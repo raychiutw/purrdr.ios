@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// 假主機(Seam 1):對「預期的指令」回放錄製的真實回應，並記錄 app 實際送出的指令與 stdin。
 ///
@@ -168,6 +169,16 @@ public actor FakeHost: HostChannel {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
             if index < executions.count, condition(executions[index]) { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return false
+    }
+
+    /// 等到 app 關閉第 `index` 個執行的通道。逾時則回傳 `false`。
+    public func waitUntilClosed(execution index: Int, timeout: Duration = asyncWaitLimit) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if index < executions.count, executions[index].closed { return true }
             try? await Task.sleep(for: .milliseconds(5))
         }
         return false

@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// Demo 主機上 Claude Code 的 slash 清單發現(#15)。對 `ClaudeSlashCommand` 的**精確**指令回應，走正式的解析路徑。
 ///

@@ -11,8 +11,9 @@ import Testing
 struct WindowsHostScriptsTests {
     /// 唯讀腳本的 stub(手寫的預期值):從 stdin 一行一行讀到結束標記才執行，不等 EOF。
     /// stdin 以原始 handle 建 `FileStream` 讀(#77:經 sshd 時 console stream 讀超過約 128 KiB 會卡住);取不到 handle 時退回 console stream。
+    /// 自我時限(#92):30 秒內沒讀到結束標記就 exit 124,讀到後腳本本體另有 120 秒。
     static let stub = PowerShell.encodedCommand(
-        #"$ProgressPreference='SilentlyContinue';$stdin=[Console]::OpenStandardInput();try{$stdin=New-Object IO.FileStream($stdin.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($stdin),[IO.FileAccess]::Read,1,$false)}catch{};$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '#purrdr-end-of-script'){[void]$b.AppendLine($l)};iex $b.ToString()"#)
+        #"$ProgressPreference='SilentlyContinue';$purrdrSeconds=30;$purrdrLimit=[hashtable]::Synchronized(@{At=[DateTime]::UtcNow.AddSeconds($purrdrSeconds);Files=@()});$purrdrState=[Management.Automation.Runspaces.InitialSessionState]::Create();$purrdrState.LanguageMode='FullLanguage';$purrdrSpace=[runspacefactory]::CreateRunspace($purrdrState);$purrdrSpace.Open();$purrdrSpace.SessionStateProxy.SetVariable('limit',$purrdrLimit);$purrdrWatch=[PowerShell]::Create();$purrdrWatch.Runspace=$purrdrSpace;[void]$purrdrWatch.AddScript('while([DateTime]::UtcNow -lt $limit.At){[Threading.Thread]::Sleep(200)};foreach($file in $limit.Files){try{[IO.File]::Delete($file)}catch{}};[Environment]::Exit(124)').BeginInvoke();$stdin=[Console]::OpenStandardInput();try{$stdin=New-Object IO.FileStream($stdin.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($stdin),[IO.FileAccess]::Read,1,$false)}catch{};$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '#purrdr-end-of-script'){[void]$b.AppendLine($l)};$purrdrLimit.At=[DateTime]::UtcNow.AddSeconds(120);iex $b.ToString()"#)
 
     static let path = #"C:\Users\demo\.claude\projects\C--work\abc.jsonl"#
 

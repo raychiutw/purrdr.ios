@@ -1,4 +1,5 @@
 import PhotosUI
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 #if canImport(UIKit)

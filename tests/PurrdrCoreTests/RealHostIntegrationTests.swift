@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 import Testing
 
 /// 對真實主機的整合測試，以環境變數開啟(預設不跑;CI 不跑)。只執行唯讀指令。

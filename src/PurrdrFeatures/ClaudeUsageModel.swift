@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrSSH
 
 /// 列表底部「Claude 用量」的 model(行為規格 F18)。
 @MainActor
@@ -32,7 +33,7 @@ public final class ClaudeUsageModel {
     private let hostID: String
     private let consent: any HostWriteConsentStore
     private let now: () -> Date
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     private var feature: String { ClaudeUsageHost.feature.id }
 
     /// - Parameters:
@@ -40,7 +41,7 @@ public final class ClaudeUsageModel {
     ///   - sleep: 輪詢的等待;測試注入假的。
     public init(host: ClaudeUsageHost, hostID: String, consent: any HostWriteConsentStore,
                 now: @escaping () -> Date = Date.init,
-                sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+                sleep: @escaping Sleep = Sleeping.task) {
         self.host = host
         self.hostID = hostID
         self.consent = consent

@@ -19,14 +19,14 @@ final class TestSSHServer: Sendable {
     enum Auth: Sendable {
         /// 立即放行。
         case accept
-        /// check mode:送出 `banner` 後先不回覆，再依 `then` 收尾。
-        case check(banner: String, then: CheckResult)
+        /// check mode:送出 `banner` 後先不回覆，再依 `then` 收尾。`bannerDelay` 模擬機器忙時橫幅晚到。
+        case check(banner: String, bannerDelay: TimeAmount = .zero, then: CheckResult)
     }
 
     /// check mode 等待後的結果。
     enum CheckResult: Sendable {
-        /// 使用者在瀏覽器完成驗證：過 `after` 後放行。
-        case approve(after: TimeAmount)
+        /// 使用者在瀏覽器完成驗證：等測試呼叫 `approveChecks()` 才放行。
+        case approveOnRequest
         /// 驗證被拒：過 `after` 後回認證失敗。
         case deny(after: TimeAmount)
         /// 過 `after` 後切斷 TCP(例如 app 進背景時連線被系統關掉)。
@@ -39,6 +39,8 @@ final class TestSSHServer: Sendable {
     enum Behavior: Sendable {
         /// 立即回應後結束。
         case reply(stdout: String = "", stderr: String = "", exitCode: Int32 = 0)
+        /// 模擬機器忙：過 `after` 才回應 stdout 並結束(exit 0)。
+        case slowReply(after: TimeAmount, stdout: String)
         /// 被訊號殺死(SSH `exit-signal`)。
         case killed(signal: String)
         /// 像 `herdr remote-api-bridge`:等 stdin 收到一行，回 `"echo:" + 那一行`,結束。
@@ -97,6 +99,7 @@ final class TestSSHServer: Sendable {
     let hostKey: NIOSSHPrivateKey
     private let channel: any Channel
     private let log: Mutex<Log>
+    private let approvals: CheckApprovals
 
     var fingerprint: HostKeyFingerprint {
         try! HostKeyFingerprint(openSSHPublicKey: String(openSSHPublicKey: hostKey.publicKey))
@@ -106,11 +109,17 @@ final class TestSSHServer: Sendable {
 
     var endpoint: SSHEndpoint { SSHEndpoint(host: "127.0.0.1", port: port, username: "demo") }
 
-    private init(port: Int, hostKey: NIOSSHPrivateKey, channel: any Channel) {
+    private init(port: Int, hostKey: NIOSSHPrivateKey, channel: any Channel, approvals: CheckApprovals) {
         self.port = port
         self.hostKey = hostKey
         self.channel = channel
         self.log = Mutex(Log())
+        self.approvals = approvals
+    }
+
+    /// 放行所有以 `.approveOnRequest` 等待中的 check mode 認證。
+    func approveChecks() {
+        approvals.approveAll()
     }
 
     static func start(
@@ -120,6 +129,7 @@ final class TestSSHServer: Sendable {
     ) async throws -> TestSSHServer {
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let recorder = Recorder()
+        let approvals = CheckApprovals()
         let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
@@ -128,7 +138,7 @@ final class TestSSHServer: Sendable {
                 channel.closeFuture.whenComplete { _ in recorder.update { $0.disconnections += 1 } }
                 return channel.eventLoop.makeCompletedFuture {
                     let delegate = AuthenticationDelegate(
-                        recorder: recorder, accepts: authentication, auth: auth(number), connection: channel)
+                        recorder: recorder, accepts: authentication, auth: auth(number), connection: channel, approvals: approvals)
                     let handler = NIOSSHHandler(
                         role: .server(.init(
                             hostKeys: [hostKey], userAuthDelegate: delegate,
@@ -145,7 +155,7 @@ final class TestSSHServer: Sendable {
                 }
             }
         let channel = try await bootstrap.bind(host: "127.0.0.1", port: 0).get()
-        let server = TestSSHServer(port: channel.localAddress!.port!, hostKey: hostKey, channel: channel)
+        let server = TestSSHServer(port: channel.localAddress!.port!, hostKey: hostKey, channel: channel, approvals: approvals)
         recorder.attach(server)
         return server
     }
@@ -156,6 +166,23 @@ final class TestSSHServer: Sendable {
 
     fileprivate func record(_ change: (inout Log) -> Void) {
         log.withLock { change(&$0) }
+    }
+}
+
+/// 以 `.approveOnRequest` 等待放行的 check mode 認證。
+private final class CheckApprovals: Sendable {
+    private let pending = Mutex<[EventLoopPromise<NIOSSHUserAuthenticationOutcome>]>([])
+
+    func add(_ promise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+        pending.withLock { $0.append(promise) }
+    }
+
+    func approveAll() {
+        let waiting = pending.withLock { pending in
+            defer { pending = [] }
+            return pending
+        }
+        for promise in waiting { promise.succeed(.success) }
     }
 }
 
@@ -196,12 +223,17 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
     /// `none` 被接受時(Tailscale SSH)怎麼回應:立即放行或 check mode。
     let auth: TestSSHServer.Auth
     let connection: any Channel
+    let approvals: CheckApprovals
 
-    init(recorder: Recorder, accepts: TestSSHServer.Authentication, auth: TestSSHServer.Auth, connection: any Channel) {
+    init(
+        recorder: Recorder, accepts: TestSSHServer.Authentication, auth: TestSSHServer.Auth, connection: any Channel,
+        approvals: CheckApprovals
+    ) {
         self.recorder = recorder
         self.accepts = accepts
         self.auth = auth
         self.connection = connection
+        self.approvals = approvals
     }
 
     var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods {
@@ -245,13 +277,11 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
         switch auth {
         case .accept:
             responsePromise.succeed(.success)
-        case .check(let banner, let result):
-            sendBanner(banner)
+        case .check(let banner, let bannerDelay, let result):
+            sendBanner(banner, after: bannerDelay)
             recorder.update { $0.checkBanners += 1 }
             let loop = connection.eventLoop
             switch result {
-            case .approve(let delay):
-                loop.scheduleTask(in: delay) { responsePromise.succeed(.success) }
             case .deny(let delay):
                 loop.scheduleTask(in: delay) { responsePromise.succeed(.failure) }
             case .drop(let delay):
@@ -259,6 +289,9 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
                     connection.close(promise: nil)
                     responsePromise.fail(ChannelError.ioOnClosedChannel)
                 }
+            case .approveOnRequest:
+                approvals.add(responsePromise)
+                connection.closeFuture.whenComplete { _ in responsePromise.fail(ChannelError.ioOnClosedChannel) }
             case .hold:
                 // 不回覆;連線關閉時才讓 promise 結束，避免 promise 洩漏。
                 connection.closeFuture.whenComplete { _ in responsePromise.fail(ChannelError.ioOnClosedChannel) }
@@ -268,8 +301,8 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
 
     /// 在認證進行中送出 SSH_MSG_USERAUTH_BANNER(Tailscale 的 `SendAuthBanner`)。
     /// 這裡還在 handler 處理收到的認證請求途中，排到下一輪 event loop 才寫，避免重入 handler。
-    private func sendBanner(_ message: String) {
-        connection.eventLoop.execute { [connection] in
+    private func sendBanner(_ message: String, after delay: TimeAmount) {
+        connection.eventLoop.scheduleTask(in: delay) { [connection] in
             Self.write(banner: message, on: connection)
         }
     }
@@ -423,6 +456,11 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
                 SSHChannelRequestEvent.ExitSignal(signalName: signal, errorMessage: "", language: "", dumpedCore: false),
                 promise: nil)
             context.close(promise: nil)
+        case .slowReply(let delay, let stdout):
+            let bound = NIOLoopBound((handler: self, context: context), eventLoop: context.eventLoop)
+            context.eventLoop.scheduleTask(in: delay) {
+                bound.value.handler.run(.reply(stdout: stdout), command: command, context: bound.value.context)
+            }
         case .echoFirstLine:
             mode = .echoFirstLine
         case .dropConnection:

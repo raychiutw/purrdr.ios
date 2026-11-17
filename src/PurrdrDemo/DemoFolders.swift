@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// Demo 主機的資料夾(檔案瀏覽，行為規格 F13):家目錄 `/Users/demo` 與三個 workspace 的資料夾。
 /// 新增對話的資料夾瀏覽(`DemoNewChatFolders`)也用同一棵樹(`initialTree` 裡的資料夾)。

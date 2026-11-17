@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 // 用 `Process` 跑系統的 `/usr/bin/gzip`,只在 macOS(`swift test`)提供。
 #if os(macOS)
