@@ -193,7 +193,8 @@ struct HostFolderScriptTests {
         #expect(path == home + "/inbox/build.log")
         #expect(try Data(contentsOf: host.url("inbox/build.log")) == original)
         #expect(try FileManager.default.contentsOfDirectory(atPath: host.url("inbox").path) == ["build.log"])
-        let sent = HostFolderCommand.parseUpload(try #require(host.commands.last))
+        let command = try #require(host.commands.last)
+        let sent = HostFolderCommand.parseUpload(command)
         #expect(sent?.encoding == .gzip)
         #expect((sent?.transferSize ?? .max) < original.count / 10)
     }

@@ -164,34 +164,17 @@ public struct HostFolders: Sendable {
 
     /// 上傳到 `folder`(絕對路徑),回傳主機上的絕對路徑。
     ///
-    /// 大小與檔名在送出任何指令之前檢查;主機上已有同名項目時拒絕(永不覆寫)。
+    /// 大小(原始大小)與檔名在送出任何指令之前檢查;主機上已有同名項目時拒絕(永不覆寫)。
+    /// 壓得小的一般檔案以 gzip 傳輸;主機沒有 `gzip` 時改用 identity 重傳一次。
     public func upload(_ data: Data, named name: String, to folder: String) async throws -> String {
         guard data.count <= Self.maximumUploadSize else { throw HostFolderError.tooLarge }
         guard Self.isValidName(name) else { throw HostFolderError.invalidName }
         guard HostPathSyntax.isAbsolute(folder) else { throw HostFolderError.cannotOpen(folder) }
-        let session: any ExecSession
-        do {
-            session = try await channel.execute(HostFolderCommand.upload(folder: folder, name: name, size: data.count))
-        } catch {
-            throw HostFolderError.interrupted
+        let transfer = UploadTransfer.prepare(data, named: name, deflate: deflate)
+        var result = try await send(transfer, size: data.count, named: name, to: folder)
+        if transfer.encoding == .gzip, result.exitCode == HostFolderCommand.ExitCode.gzipUnavailable {
+            result = try await send(UploadTransfer(encoding: .identity, payload: data), size: data.count, named: name, to: folder)
         }
-        let sleep = sleep
-        let result: CommandResult? = try await withThrowingTaskGroup(of: CommandResult?.self) { group in
-            group.addTask { try await self.run(session, input: data) }
-            group.addTask {
-                try await sleep(Self.deadline(forSize: data.count))
-                return nil
-            }
-            defer { group.cancelAll() }
-            do {
-                return try await group.next() ?? nil
-            } catch {
-                await session.close()
-                throw error
-            }
-        }
-        await session.close()
-        guard let result else { throw HostFolderError.deadlineExceeded }
         switch result.exitCode {
         case 0: break
         case HostFolderCommand.ExitCode.invalidName: throw HostFolderError.invalidName
@@ -205,6 +188,36 @@ public struct HostFolders: Sendable {
             throw HostFolderError.unexpectedPath(path)
         }
         return path
+    }
+
+    /// 執行一次上傳指令、寫入傳輸 bytes,在期限內讀到結束狀態。
+    private func send(_ transfer: UploadTransfer, size: Int, named name: String, to folder: String) async throws -> CommandResult {
+        let payload = transfer.payload
+        let session: any ExecSession
+        do {
+            session = try await channel.execute(HostFolderCommand.upload(
+                folder: folder, name: name, size: size, encoding: transfer.encoding, transferSize: payload.count))
+        } catch {
+            throw HostFolderError.interrupted
+        }
+        let sleep = sleep
+        let result: CommandResult? = try await withThrowingTaskGroup(of: CommandResult?.self) { group in
+            group.addTask { try await self.run(session, input: payload) }
+            group.addTask {
+                try await sleep(Self.deadline(forSize: payload.count))
+                return nil
+            }
+            defer { group.cancelAll() }
+            do {
+                return try await group.next() ?? nil
+            } catch {
+                await session.close()
+                throw error
+            }
+        }
+        await session.close()
+        guard let result else { throw HostFolderError.deadlineExceeded }
+        return result
     }
 
     /// 檔名不可為空、`.`、`..`,不可含 `/`、NUL;也不可含換行(主機回傳的路徑以換行結尾)。
@@ -266,13 +279,16 @@ public struct HostFolders: Sendable {
 /// - 指令是 `/bin/sh -c '<腳本>' <名稱> '<參數>'…`:不依賴使用者的登入 shell(可能是 fish)。腳本不含反斜線
 ///   (fish 在單引號內仍處理 `\`)、不明確 `exit 0`(行為規格 §3.2)。
 /// - 清單：第一行 `pwd`,接著 `LC_ALL=C ls -lnA`(含隱藏檔;數字 uid 不洩漏使用者名稱;月份固定英文)。
-/// - 上傳:bytes 走 stdin,寫到目的資料夾的隱藏暫存檔;收到的大小不同(中斷)就刪掉、失敗結束;
+/// - 上傳:bytes 走 stdin,寫到目的資料夾的隱藏暫存檔;收到的大小不同(中斷)就刪掉、失敗結束。
+///   gzip 傳輸先檢查收到的傳輸大小，再以 `gzip -dc` 解壓並檢查原始大小;
 ///   同名項目已存在則拒絕。以 `ln` 建立正式檔(已存在時失敗，不會有「檢查後被別人建立」的覆寫)。
 ///   `umask 077`:新檔只有本人可讀。
 public enum HostFolderCommand {
     enum ExitCode {
         static let invalidName: Int32 = 64
         static let cannotOpen: Int32 = 66
+        /// 主機沒有 `gzip`(gzip 傳輸時):呼叫端改用 identity。
+        static let gzipUnavailable: Int32 = 69
         static let alreadyExists: Int32 = 73
         static let sizeMismatch: Int32 = 75
     }
@@ -297,14 +313,22 @@ public enum HostFolderCommand {
         dir=$1
         name=$2
         size=$3
+        encoding=$4
+        transfer=$5
         case $name in
           '' | . | .. | */*) exit 64 ;;
         esac
         cd "$dir" || exit 66
+        if [ "$encoding" = gzip ] && ! command -v gzip > /dev/null 2>&1; then exit 69; fi
         tmp=$(mktemp ./.purrdr-upload.XXXXXX) || exit 71
-        trap 'rm -f "$tmp"' EXIT
-        trap 'rm -f "$tmp"; exit 70' HUP INT TERM PIPE
-        cat > "$tmp" || exit 72
+        raw=$tmp
+        trap 'rm -f "$tmp" "$raw"' EXIT
+        trap 'rm -f "$tmp" "$raw"; exit 70' HUP INT TERM PIPE
+        if [ "$encoding" = gzip ]; then raw=$(mktemp ./.purrdr-upload.XXXXXX) || exit 71; fi
+        cat > "$raw" || exit 72
+        got=$(($(wc -c < "$raw")))
+        if [ "$got" != "$transfer" ]; then exit 75; fi
+        if [ "$raw" != "$tmp" ]; then gzip -dc < "$raw" > "$tmp" 2> /dev/null || exit 75; fi
         got=$(($(wc -c < "$tmp")))
         if [ "$got" != "$size" ]; then exit 75; fi
         if [ -e "./$name" ] || [ -L "./$name" ]; then exit 73; fi
@@ -327,7 +351,7 @@ public enum HostFolderCommand {
     public static func upload(
         folder: String, name: String, size: Int, encoding: UploadTransferEncoding = .identity, transferSize: Int? = nil
     ) -> String {
-        command(uploadScript, name: "purrdr-put", arguments: [folder, name, String(size)])
+        command(uploadScript, name: "purrdr-put", arguments: [folder, name, String(size), encoding.rawValue, String(transferSize ?? size)])
     }
 
     private static func command(_ script: String, name: String, arguments: [String]) -> String {
@@ -343,9 +367,10 @@ public enum HostFolderCommand {
     /// Demo 主機與 Windows 通道用：認得上傳指令就回傳資料夾、檔名、原始大小、傳輸編碼與傳輸大小。
     public static func parseUpload(_ command: String)
         -> (folder: String, name: String, size: Int, encoding: UploadTransferEncoding, transferSize: Int)? {
-        guard let arguments = arguments(of: command, script: uploadScript, name: "purrdr-put"), arguments.count == 3,
-              let size = Int(arguments[2]) else { return nil }
-        return (arguments[0], arguments[1], size, .identity, size)
+        guard let arguments = arguments(of: command, script: uploadScript, name: "purrdr-put"), arguments.count == 5,
+              let size = Int(arguments[2]), let encoding = UploadTransferEncoding(rawValue: arguments[3]),
+              let transferSize = Int(arguments[4]) else { return nil }
+        return (arguments[0], arguments[1], size, encoding, transferSize)
     }
 
     private static func arguments(of command: String, script: String, name: String) -> [String]? {
