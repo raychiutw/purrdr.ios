@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 mod connection;
 pub mod herdr_client;
 pub mod herdr_socket;
+pub mod install;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
 
