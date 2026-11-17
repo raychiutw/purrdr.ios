@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrCore
 
 /// iPad 版面圖浮動卡片的狀態(#31 補充、#37 故事 22、行為規格 F4)。每個視窗一份。
 ///
@@ -32,14 +33,14 @@ public final class LayoutCardModel {
     static let showDelay = Duration.milliseconds(300)
     static let hideDelay = Duration.milliseconds(200)
 
-    private let sleep: @Sendable (Duration) async -> Void
+    private let sleep: Sleep
     /// 指標目前停在哪個 workspace 的版面圖按鈕上。
     @ObservationIgnored private var hoveredButton: String?
     @ObservationIgnored private var isOverCard = false
     /// 每次指標進出就加一;等待結束時不一樣了，代表那次等待已過時。
     @ObservationIgnored private var generation = 0
 
-    public init(sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
+    public init(sleep: @escaping Sleep = Sleeping.task) {
         self.sleep = sleep
     }
 
@@ -83,11 +84,11 @@ public final class LayoutCardModel {
         guard !isPinned else { return }
         if let hoveredButton {
             if workspaceID == hoveredButton { return }
-            await sleep(Self.showDelay)
+            try? await sleep(Self.showDelay)
             guard current == generation, !isPinned else { return }
             state = .peeking(workspaceID: hoveredButton)
         } else if !isOverCard, state != .hidden {
-            await sleep(Self.hideDelay)
+            try? await sleep(Self.hideDelay)
             guard current == generation, !isPinned else { return }
             state = .hidden
         }
