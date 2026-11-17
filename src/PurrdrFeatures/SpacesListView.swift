@@ -22,8 +22,8 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
                     case .group(let group):
                         WorkspaceGroupHeader(group: group) { model.toggleExpanded(group) }
                             .workspaceGroupActions(
-                                workspaceID: group.workspaceID, label: group.label, host: group.host,
-                                snapshot: model.snapshot(for: group.host), presentation: presentation)
+                                WorkspaceTarget(workspaceID: group.workspaceID, label: group.label, snapshot: model.snapshot(for: group.host)),
+                                host: group.host, snapshot: model.snapshot(for: group.host), presentation: presentation)
                         if group.isExpanded {
                             ForEach(group.rows) { row in
                                 switch row {
@@ -62,7 +62,7 @@ extension AgentStatus {
 extension SpacesStatusCounts {
     /// 數量不為 0 的狀態，依需要你 > 工作中 > 完成 > 閒置。
     var nonZero: [(status: AgentStatus, count: Int)] {
-        [(AgentStatus.blocked, needsYou), (.working, working), (.done, done), (.idle, idle)].filter { $0.1 > 0 }
+        AgentStatus.urgencyOrder.map { ($0, count(of: $0)) }.filter { $0.1 > 0 }
     }
 
     /// VoiceOver 用:「Needs You 1」「Working 2」。
@@ -199,8 +199,8 @@ private struct WorkspaceGroupHeader: View {
                                 .background(Capsule().fill(.fill.tertiary))
                         }
                     }
-                    if !group.bar.isEmpty {
-                        StatusBarView(segments: group.bar)
+                    if !group.statusBar.isEmpty {
+                        StatusBarView(segments: group.statusBar)
                     }
                     StatusLegend(counts: group.counts, leading: group.hostName, trailing: legendTrailing)
                         .font(.footnote)
@@ -218,7 +218,6 @@ private struct WorkspaceGroupHeader: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: spokenLabel))
-        .accessibilityHint(Text("Shows or hides the agents."))
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("workspace.group.\(group.id)")
     }

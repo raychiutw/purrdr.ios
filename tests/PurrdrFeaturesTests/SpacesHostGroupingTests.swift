@@ -21,17 +21,19 @@ struct SpacesHostGroupingTests {
 
     @Test("每台主機一組，選取中主機在前，每組都有主機名與圖示")
     func groupsByHostWithSelectedFirst() async {
-        let clock = MarkerClock(Self.t0)
-        let lab = await UnreadPinnedTests.host(Self.lab, name: "Lab", clock: clock)
-        let studio = await UnreadPinnedTests.host(Self.studio, name: "Studio", clock: clock)
-        let model = UnreadPinnedTests.merged([lab, studio], selected: Self.studio)
-        await model.load()
+        let channels = ChannelsByAddress(["studio": await MultiHostTests.healthy(), "lab": await MultiHostTests.healthy()])
+        let model = MultiHostTests.model(channels)
+        model.load()
+        model.select(.host(MultiHostTests.lab.id))
+        await model.agentList.load()
 
-        let hosts = Self.hostSections(model)
-        #expect(hosts.map(\.host) == [Self.studio, Self.lab])
-        #expect(hosts.map(\.name) == ["Studio", "Lab"])
+        let lab = HostSelection.host(MultiHostTests.lab.id)
+        let studio = HostSelection.host(MultiHostTests.studio.id)
+        let hosts = model.agentList.spacesSections.compactMap(\.host)
+        #expect(hosts.map(\.host) == [lab, studio])
+        #expect(hosts.map(\.name) == ["Lab", "Studio"])
         #expect(hosts.map(\.icon) == [.default, .default])
-        #expect(model.spacesSections.map(\.id) == [Self.studio.storedValue, Self.lab.storedValue])
+        #expect(model.agentList.spacesSections.map(\.id) == [lab.storedValue, studio.storedValue])
     }
 
     @Test("非選取中主機的列與終端機列不再加「主機名 ·」:主機由分組標題表示")

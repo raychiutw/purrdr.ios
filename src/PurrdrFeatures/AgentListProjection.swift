@@ -82,14 +82,9 @@ enum AgentListProjection {
         /// 主機順序(選取中主機在前)→ workspace 順序 → snapshot 內的位置。
         var order: (Int, Int, Int) { (hostOrder, workspaceOrder, position) }
 
-        /// Spaces 主機組內：需要你 > 工作中 > 其他，再依 workspace 順序與位置。
+        /// Spaces 主機組內：需要你 > 工作中 > 其他(完成與閒置同一級),再依 workspace 順序與位置。
         var urgencyOrder: (Int, Int, Int) {
-            let rank = switch status {
-            case .blocked: 0
-            case .working: 1
-            case .done, .idle, .unknown: 2
-            }
-            return (rank, workspaceOrder, position)
+            (min(status.urgencyRank, AgentStatus.done.urgencyRank), workspaceOrder, position)
         }
     }
 
@@ -133,6 +128,15 @@ extension Agent {
 }
 
 extension AgentStatus {
+    /// 急迫度：需要你 > 工作中 > 完成 > 閒置(未知算閒置)。列表排序、狀態條與圖例共用。
+    static let urgencyOrder: [AgentStatus] = [.blocked, .working, .done, .idle]
+
+    /// 依急迫度歸類的狀態：未知算閒置。
+    var urgencyStatus: AgentStatus { self == .unknown ? .idle : self }
+
+    /// 在 `urgencyOrder` 的位置(越小越急迫)。
+    var urgencyRank: Int { Self.urgencyOrder.firstIndex(of: urgencyStatus) ?? Self.urgencyOrder.count }
+
     /// 「需要你」只有 `blocked`;`done`、`idle`、`unknown` 都算閒置。
     var group: AgentGroup {
         switch self {

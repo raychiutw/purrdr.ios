@@ -34,18 +34,29 @@ final class WorkspacePresentation {
     var chosenTarget: PaneOpenTarget?
 }
 
+/// 一個 workspace 的操作對象：id、名稱與它所有 Agent 的 session(關閉時一併清掉本機偏好)。
+struct WorkspaceTarget {
+    var workspaceID: String
+    var label: String
+    var sessionIDs: [String]
+
+    init(workspaceID: String, label: String, snapshot: HostSnapshot?) {
+        self.workspaceID = workspaceID
+        self.label = label
+        sessionIDs = snapshot?.agents.filter { $0.workspaceID == workspaceID }.compactMap(\.sessionID) ?? []
+    }
+}
+
 /// 一個 workspace 在列表裡的身分：列的操作需要的值。
 struct WorkspaceRowContext {
     var agent: Agent
-    var workspaceLabel: String
-    /// 同一個 workspace 所有 Agent 的 session(關閉時一併清掉本機偏好)。
-    var sessionIDs: [String]
+    var workspace: WorkspaceTarget
 
     init?(paneID: String, snapshot: HostSnapshot?) {
         guard let snapshot, let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else { return nil }
         self.agent = agent
-        workspaceLabel = snapshot.workspaces.first { $0.id == agent.workspaceID }?.label ?? agent.workspaceID
-        sessionIDs = snapshot.agents.filter { $0.workspaceID == agent.workspaceID }.compactMap(\.sessionID)
+        let label = snapshot.workspaces.first { $0.id == agent.workspaceID }?.label ?? agent.workspaceID
+        workspace = WorkspaceTarget(workspaceID: agent.workspaceID, label: label, snapshot: snapshot)
     }
 }
 
@@ -69,29 +80,15 @@ extension View {
 
     /// Spaces 群組標頭的 context menu(#103):第一項是版面圖，其餘同列的 workspace 動作。
     func workspaceGroupActions(
-        workspaceID: String, label: String, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation
+        _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation
     ) -> some View {
         contextMenu {
-            Button("Show Layout", systemImage: "rectangle.split.3x1") {
-                // 顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
-                presentation.host = host
-                presentation.sheet = .layout(
-                    workspaceLabel: label, layout: snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) })
-            }
-            Button("Rename Workspace…", systemImage: "pencil") {
-                presentation.host = host
-                presentation.sheet = .rename(workspaceID: workspaceID, label: label)
-            }
-            Button("New Worktree…", systemImage: "arrow.triangle.branch") {
-                presentation.host = host
-                presentation.sheet = .worktree(workspaceID: workspaceID, label: label)
-            }
+            let buttons = WorkspaceButtons(target: target, host: host, snapshot: snapshot, presentation: presentation)
+            buttons.showLayout()
+            buttons.rename(title: "Rename Workspace…")
+            buttons.newWorktree()
             Divider()
-            Button("Close Workspace…", systemImage: "xmark.circle", role: .destructive) {
-                presentation.host = host
-                let sessionIDs = snapshot?.agents.filter { $0.workspaceID == workspaceID }.compactMap(\.sessionID) ?? []
-                presentation.closeRequest = .init(workspaceID: workspaceID, label: label, sessionIDs: sessionIDs)
-            }
+            buttons.close(title: "Close Workspace…", role: .destructive)
         }
     }
 
@@ -102,6 +99,49 @@ extension View {
         onOpen: @escaping (HostSelection, PaneOpenTarget) -> Void
     ) -> some View {
         modifier(WorkspaceActionsPresenter(resolve: actions, presentation: presentation, onOpen: onOpen))
+    }
+}
+
+/// 列與群組標頭共用的 workspace 動作按鈕。`used` 在按下時先呼叫(滑動面板用來結束滑動提示)。
+@MainActor
+private struct WorkspaceButtons {
+    let target: WorkspaceTarget
+    let host: HostSelection
+    let snapshot: HostSnapshot?
+    let presentation: WorkspacePresentation
+
+    /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
+    func rename(title: LocalizedStringKey, used: @escaping () -> Void = {}) -> some View {
+        Button(title, systemImage: "pencil") {
+            used()
+            presentation.host = host
+            presentation.sheet = .rename(workspaceID: target.workspaceID, label: target.label)
+        }
+        .tint(.gray)
+    }
+
+    func close(title: LocalizedStringKey, role: ButtonRole?, used: @escaping () -> Void = {}) -> some View {
+        Button(title, systemImage: "xmark.circle", role: role) {
+            used()
+            presentation.host = host
+            presentation.closeRequest = .init(workspaceID: target.workspaceID, label: target.label, sessionIDs: target.sessionIDs)
+        }
+    }
+
+    func showLayout() -> some View {
+        Button("Show Layout", systemImage: "rectangle.split.3x1") {
+            // 顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
+            presentation.host = host
+            presentation.sheet = .layout(
+                workspaceLabel: target.label, layout: snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: target.workspaceID) })
+        }
+    }
+
+    func newWorktree() -> some View {
+        Button("New Worktree…", systemImage: "arrow.triangle.branch") {
+            presentation.host = host
+            presentation.sheet = .worktree(workspaceID: target.workspaceID, label: target.label)
+        }
     }
 }
 
@@ -116,18 +156,19 @@ private struct WorkspaceRowActions: ViewModifier {
 
     func body(content: Content) -> some View {
         if let context, let actions {
+            let buttons = WorkspaceButtons(target: context.workspace, host: host, snapshot: snapshot, presentation: presentation)
             content
                 // 列表是根畫面，沒有返回手勢的邊緣，leading 滑動是安全的。
-                // 滑動面板裡的動作被使用 = 使用者學會了滑動，列表的滑動提示到此為止(`fromSwipe`;context menu 不算)。
+                // 滑動面板裡的動作被使用 = 使用者學會了滑動，列表的滑動提示到此為止(`used`;context menu 不算)。
                 // 面板「滑開」本身 SwiftUI 沒有訊號:面板按鈕的 onAppear 在列出現時就會觸發(UI 測試實測)。
                 .swipeActions(edge: .leading) {
                     chatButtons(context, actions: actions, fromSwipe: true)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
-                    closeButton(context, title: "Close", role: nil, fromSwipe: true)
+                    buttons.close(title: "Close", role: nil, used: swiped)
                         .tint(.red)
-                    renameButton(context, title: "Workspace", fromSwipe: true)
+                    buttons.rename(title: "Workspace", used: swiped)
                 }
                 .contextMenu {
                     if let openInNewWindow {
@@ -138,14 +179,11 @@ private struct WorkspaceRowActions: ViewModifier {
                         Divider()
                     }
                     chatButtons(context, actions: actions)
-                    renameButton(context, title: "Rename Workspace…")
-                    Button("Show Layout", systemImage: "rectangle.split.3x1") { showLayout(context) }
-                    Button("New Worktree…", systemImage: "arrow.triangle.branch") {
-                        presentation.host = host
-                        presentation.sheet = .worktree(workspaceID: context.agent.workspaceID, label: context.workspaceLabel)
-                    }
+                    buttons.rename(title: "Rename Workspace…")
+                    buttons.showLayout()
+                    buttons.newWorktree()
                     Divider()
-                    closeButton(context, title: "Close Workspace…", role: .destructive)
+                    buttons.close(title: "Close Workspace…", role: .destructive)
                 }
         } else {
             content
@@ -158,50 +196,21 @@ private struct WorkspaceRowActions: ViewModifier {
         if let sessionID = context.agent.sessionID {
             let pinned = actions.isPinned(sessionID: sessionID)
             Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
-                swiped(fromSwipe)
+                if fromSwipe { swiped() }
                 actions.togglePin(sessionID: sessionID)
             }
             .tint(.orange)
             let muted = actions.isMuted(sessionID: sessionID)
             Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
-                swiped(fromSwipe)
+                if fromSwipe { swiped() }
                 actions.toggleMute(sessionID: sessionID)
             }
             .tint(.indigo)
         }
     }
 
-    /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
-    private func renameButton(_ context: WorkspaceRowContext, title: LocalizedStringKey, fromSwipe: Bool = false) -> some View {
-        Button(title, systemImage: "pencil") {
-            swiped(fromSwipe)
-            presentation.host = host
-            presentation.sheet = .rename(workspaceID: context.agent.workspaceID, label: context.workspaceLabel)
-        }
-        .tint(.gray)
-    }
-
-    private func closeButton(
-        _ context: WorkspaceRowContext, title: LocalizedStringKey, role: ButtonRole?, fromSwipe: Bool = false
-    ) -> some View {
-        Button(title, systemImage: "xmark.circle", role: role) {
-            swiped(fromSwipe)
-            presentation.host = host
-            presentation.closeRequest = .init(
-                workspaceID: context.agent.workspaceID, label: context.workspaceLabel, sessionIDs: context.sessionIDs
-            )
-        }
-    }
-
-    private func swiped(_ fromSwipe: Bool) {
-        if fromSwipe { swipeHintList?.swipeActionUsed() }
-    }
-
-    private func showLayout(_ context: WorkspaceRowContext) {
-        // 顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
-        let layout = snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: context.agent.workspaceID) }
-        presentation.host = host
-        presentation.sheet = .layout(workspaceLabel: context.workspaceLabel, layout: layout)
+    private func swiped() {
+        swipeHintList?.swipeActionUsed()
     }
 }
 

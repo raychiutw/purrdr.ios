@@ -49,7 +49,7 @@ struct SpacesStatusBarTests {
         ]
 
         let group = try #require(Self.group("w1", in: model))
-        #expect(group.bar == [
+        #expect(group.statusBar == [
             StatusSegment(status: .blocked, weight: 1), StatusSegment(status: .working, weight: 1), StatusSegment(status: .done, weight: 1),
         ])
     }
@@ -62,8 +62,8 @@ struct SpacesStatusBarTests {
 
         let group = try #require(Self.group("w1", in: model))
         #expect(group.agentCount == 20)
-        #expect(group.bar.count == 20)
-        #expect(group.bar.allSatisfy { $0.weight == 1 })
+        #expect(group.statusBar.count == 20)
+        #expect(group.statusBar.allSatisfy { $0.weight == 1 })
     }
 
     @Test("超過 20 個 Agent 依狀態合併，每段的權重等於該狀態的數量")
@@ -74,7 +74,7 @@ struct SpacesStatusBarTests {
 
         let group = try #require(Self.group("w1", in: model))
         #expect(group.agentCount == 21)
-        #expect(group.bar == [
+        #expect(group.statusBar == [
             StatusSegment(status: .blocked, weight: 2), StatusSegment(status: .working, weight: 2), StatusSegment(status: .idle, weight: 17),
         ])
     }
@@ -84,6 +84,6 @@ struct SpacesStatusBarTests {
         let model = await SpacesViewTests.model()
 
         let group = try #require(Self.group("w2", in: model))
-        #expect(group.bar.isEmpty)
+        #expect(group.statusBar.isEmpty)
     }
 }

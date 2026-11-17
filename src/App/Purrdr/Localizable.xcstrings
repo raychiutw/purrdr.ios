@@ -5322,17 +5322,6 @@
         }
       }
     },
-    "Shows or hides the agents." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示或隱藏 Agent。"
-          }
-        }
-      }
-    },
     "Shows the background agents" : {
       "extractionState" : "manual",
       "localizations" : {

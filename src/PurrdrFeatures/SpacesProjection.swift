@@ -115,12 +115,22 @@ public struct SpacesStatusCounts: Equatable, Sendable {
     /// 以列表上的狀態(已折算未讀)計數。
     init(statuses: [AgentStatus]) {
         for status in statuses {
-            switch status {
+            switch status.urgencyStatus {
             case .blocked: needsYou += 1
             case .working: working += 1
             case .done: done += 1
             case .idle, .unknown: idle += 1
             }
+        }
+    }
+
+    /// 某個狀態的數量(未知算閒置)。
+    func count(of status: AgentStatus) -> Int {
+        switch status.urgencyStatus {
+        case .blocked: needsYou
+        case .working: working
+        case .done: done
+        case .idle, .unknown: idle
         }
     }
 }
@@ -141,8 +151,8 @@ public enum SpacesItem: Identifiable, Equatable, Sendable {
 }
 
 extension SpacesItem {
-    /// 標出主機(已釘選組):聊天列第三行以主機名開頭，群組帶主機名。
-    func naming(_ hostLabel: HostLabel) -> SpacesItem {
+    /// 標出主機(已釘選組):聊天列的副標(第三行)前加主機名，群組帶主機名。
+    func prefixingSubtitle(withHost hostLabel: HostLabel) -> SpacesItem {
         switch self {
         case .chat(var row):
             row.hostLabel = hostLabel
@@ -166,7 +176,7 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
     public var terminalCount: Int
     public var counts: SpacesStatusCounts
     /// 收合標頭的狀態條;沒有 Agent 時是空的。
-    public var bar: [StatusSegment]
+    public var statusBar: [StatusSegment]
     /// Agent 列依狀態(需要你在前),終端機列在後。
     public var rows: [Row]
     /// 展開中(列出 `rows`);收合時只有標頭。
@@ -179,7 +189,7 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
 
     public init(
         host: HostSelection, workspaceID: String, label: String, agentCount: Int, terminalCount: Int, counts: SpacesStatusCounts,
-        bar: [StatusSegment] = [], rows: [Row], isExpanded: Bool = false, hostName: String? = nil
+        statusBar: [StatusSegment] = [], rows: [Row], isExpanded: Bool = false, hostName: String? = nil
     ) {
         self.host = host
         self.workspaceID = workspaceID
@@ -187,7 +197,7 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
         self.agentCount = agentCount
         self.terminalCount = terminalCount
         self.counts = counts
-        self.bar = bar
+        self.statusBar = statusBar
         self.rows = rows
         self.isExpanded = isExpanded
         self.hostName = hostName
@@ -243,18 +253,21 @@ extension AgentListProjection {
         var pinned: [SpacesEntry] = []
         var hostSections: [SpacesSection] = []
         for (hostOrder, source) in sources.enumerated() {
-            let entries = spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible, expansion: expansion)
+            guard let snapshot = source.snapshot else { continue }
+            let context = SpacesContext(
+                source: source, snapshot: snapshot, hostOrder: hostOrder, needle: needle, visible: visible, expansion: expansion)
+            let entries = context.workspaceIDs.compactMap { spacesEntry(workspaceID: $0, in: context) }
             // 已釘選組不分主機：項目自己標出主機。
             let hostLabel = HostLabel(name: source.name, icon: source.icon)
             pinned += entries.filter { $0.order.pinnedAt != nil }.map { entry in
                 var entry = entry
-                entry.item = entry.item.naming(hostLabel)
+                entry.item = entry.item.prefixingSubtitle(withHost: hostLabel)
                 return entry
             }
             let items = entries.filter { $0.order.pinnedAt == nil }.sorted { $0.order.urgencyOrder < $1.order.urgencyOrder }
             guard !items.isEmpty else { continue }
-            let statuses = sections(sources: [source], query: "", visible: visible).flatMap(\.rows).map(\.status)
-            let header = SpacesHost(host: source.host, name: source.name, icon: source.icon, counts: SpacesStatusCounts(statuses: statuses))
+            let counts = SpacesStatusCounts(statuses: context.rows.values.map(\.status))
+            let header = SpacesHost(host: source.host, name: source.name, icon: source.icon, counts: counts)
             hostSections.append(SpacesSection(kind: .host(header), items: items.map(\.item)))
         }
         let pinnedItems = pinned.sorted { AgentGroup.pinned.areInIncreasingOrder($0.order, $1.order) }.map(\.item)
@@ -310,15 +323,6 @@ extension AgentListProjection {
         }
     }
 
-    private static func spacesEntries(
-        of source: Source, hostOrder: Int, needle: String, visible: Set<ChatRoute>, expansion: [String: Bool]
-    ) -> [SpacesEntry] {
-        guard let snapshot = source.snapshot else { return [] }
-        let context = SpacesContext(
-            source: source, snapshot: snapshot, hostOrder: hostOrder, needle: needle, visible: visible, expansion: expansion)
-        return context.workspaceIDs.compactMap { spacesEntry(workspaceID: $0, in: context) }
-    }
-
     /// 一個 workspace:只有一個 Agent、沒有其他 pane 是聊天列，否則是群組;搜尋沒命中時 `nil`。
     private static func spacesEntry(workspaceID: String, in context: SpacesContext) -> SpacesEntry? {
         let snapshot = context.snapshot
@@ -355,7 +359,7 @@ extension AgentListProjection {
     ) -> WorkspaceGroup? {
         let source = context.source
         let terminals = shells.map { TerminalRow(pane: $0, host: source.host, hostLabel: nil) }
-        let workspaceHit = context.needle.isEmpty || contains(context.needle, in: [label, workspaceID, source.name, source.label?.name])
+        let workspaceHit = context.needle.isEmpty || contains(context.needle, in: [label, workspaceID, source.name])
         let shownAgents = workspaceHit ? agentRows : agentRows.filter { context.matched.contains($0.paneID) }
         let shownTerminals = workspaceHit ? terminals : terminals.filter { contains(context.needle, in: [$0.subtitle]) }
         guard workspaceHit || !shownAgents.isEmpty || !shownTerminals.isEmpty else { return nil }
@@ -372,7 +376,7 @@ extension AgentListProjection {
         let counts = SpacesStatusCounts(statuses: agentRows.map(\.status))
         var group = WorkspaceGroup(
             host: source.host, workspaceID: workspaceID, label: label, agentCount: agentRows.count, terminalCount: shells.count,
-            counts: counts, bar: statusBar(agentRows.map(\.status)), rows: rows)
+            counts: counts, statusBar: statusSegments(agentRows.map(\.status)), rows: rows)
         // 搜尋時命中的預設展開;否則預設只展開有需要你或工作中的。使用者的切換優先。
         let expandedByDefault = !context.needle.isEmpty || counts.needsYou > 0 || counts.working > 0
         group.isExpanded = context.expansion[group.id] ?? expandedByDefault
@@ -380,8 +384,8 @@ extension AgentListProjection {
     }
 
     /// 狀態條：20 個以內每個 Agent 一段(需要你 > 工作中 > 完成 > 閒置);超過時依狀態合併，段長與數量成正比。
-    static func statusBar(_ statuses: [AgentStatus]) -> [StatusSegment] {
-        let ranked = statuses.map { $0.urgencyRank == 3 ? AgentStatus.idle : $0 }.sorted { $0.urgencyRank < $1.urgencyRank }
+    static func statusSegments(_ statuses: [AgentStatus]) -> [StatusSegment] {
+        let ranked = statuses.map(\.urgencyStatus).sorted { $0.urgencyRank < $1.urgencyRank }
         guard ranked.count > 20 else { return ranked.map { StatusSegment(status: $0, weight: 1) } }
         var merged: [StatusSegment] = []
         for status in ranked {
@@ -395,17 +399,6 @@ extension AgentListProjection {
     }
 }
 
-extension AgentStatus {
-    /// 需要你 0、工作中 1、完成 2、閒置 3(Spaces 的 Agent 列與狀態條排序)。
-    var urgencyRank: Int {
-        switch self {
-        case .blocked: 0
-        case .working: 1
-        case .done: 2
-        case .idle, .unknown: 3
-        }
-    }
-}
 
 extension TerminalRow {
     /// 副標：程式名(pane 名稱 > 終端機標題;都沒有時「Shell」)與資料夾最後兩段。
