@@ -368,9 +368,19 @@ async fn read_only_device_observes_and_cannot_type() {
         }
     };
 
+    client.send(json!({"type": "pane.terminal.close", "stream_id": "t1"})).await;
+    // observer 關 stdin 不會結束：主機服務結束子行程後自己送 closed,app 的串流才會結束。
+    let closed = loop {
+        let message = client.receive().await;
+        if message["type"] == "pane.terminal.closed" {
+            break message;
+        }
+    };
+
     assert_eq!(opened["read_only"], true);
     assert_eq!(first_frame, relayed_frames("06-takeover-observer", "t1")[0]);
     assert_eq!(rejected["code"], "read_only_device");
+    assert_eq!(closed, json!({"type": "pane.terminal.closed", "stream_id": "t1", "ending": "closed", "reason": "detached"}));
     assert_eq!(
         harness.herdr_cli.arguments(),
         [["terminal", "session", "observe", "06-takeover-observer", "--cols", "40", "--rows", "12"]]

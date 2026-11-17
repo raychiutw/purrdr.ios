@@ -147,6 +147,8 @@ async fn relay(mut child: Child, stream_id: String, outgoing: mpsc::Sender<Serve
             _ = &mut stopped, if stop_deadline.is_none() => stop_deadline = Some(Instant::now() + grace),
             _ = tokio::time::sleep_until(stop_deadline.unwrap_or_else(Instant::now)), if stop_deadline.is_some() => {
                 let _ = child.kill().await;
+                // observe 不會自己送 closed:由主機服務補上(app 已關閉時送不出去也沒關係)。
+                let _ = outgoing.try_send(closed(&stream_id, PaneTerminalEnding::Closed, Some("detached".into()), None, None));
                 return;
             }
         }

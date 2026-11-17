@@ -10,6 +10,8 @@ actor HostServiceSession {
     private let socket: any WebSocketSession
     private var pending: [String: CheckedContinuation<HostServiceProtocol.ServerMessage, any Error>] = [:]
     private var closeWaiters: [UUID: CheckedContinuation<any Error, Never>] = [:]
+    /// 開著的串流，以串流識別碼為 key。
+    private var streams: [String: AsyncStream<HostServiceProtocol.ServerMessage>.Continuation] = [:]
     private var ending: (any Error)?
     private var nextRequestNumber = 0
     private var reader: Task<Void, Never>?
@@ -27,10 +29,48 @@ actor HostServiceSession {
 
     /// 送出一個請求(`make` 拿到請求識別碼),等同一個識別碼的回應。外層取消時丟 `CancellationError`。
     func request(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> HostServiceProtocol.ServerMessage {
+        try await request(make, stream: nil)
+    }
+
+    /// 開一個串流：串流識別碼就是請求識別碼。回應之後帶這個串流識別碼的訊息依序交給 `messages`;
+    /// 串流結束(`pane.terminal.closed`)或連線結束時 `messages` 結束。開啟失敗時 `messages` 不會有訊息。
+    func openStream(
+        _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage
+    ) async throws -> (reply: HostServiceProtocol.ServerMessage, messages: AsyncStream<HostServiceProtocol.ServerMessage>) {
+        let (messages, continuation) = AsyncStream<HostServiceProtocol.ServerMessage>.makeStream()
+        let reply = try await request(make, stream: continuation)
+        if case .errorMessage(let error) = reply, let requestID = error.requestId {
+            streams.removeValue(forKey: requestID)?.finish()
+        }
+        return (reply, messages)
+    }
+
+    /// 送出沒有回應的訊息(串流上的輸入)。連線已結束時丟結束原因。
+    func post(_ message: HostServiceProtocol.ClientMessage) async throws {
         if let ending { throw ending }
+        let text = try String(decoding: JSONEncoder().encode(message), as: UTF8.self)
+        do {
+            try await socket.send(text)
+        } catch {
+            let failure = error as? HostServiceError ?? .connectionLost
+            end(with: failure)
+            throw failure
+        }
+    }
+
+    /// 串流先登記再送出請求：回應之後立刻到的串流訊息不會漏掉。
+    private func request(
+        _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage,
+        stream: AsyncStream<HostServiceProtocol.ServerMessage>.Continuation?
+    ) async throws -> HostServiceProtocol.ServerMessage {
+        if let ending {
+            stream?.finish()
+            throw ending
+        }
         nextRequestNumber += 1
         let requestID = "r\(nextRequestNumber)"
         let text = try String(decoding: JSONEncoder().encode(make(requestID)), as: UTF8.self)
+        if let stream { streams[requestID] = stream }
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 guard !Task.isCancelled else { return continuation.resume(throwing: CancellationError()) }
@@ -74,6 +114,7 @@ actor HostServiceSession {
 
     private func abandon(_ requestID: String) {
         pending.removeValue(forKey: requestID)?.resume(throwing: CancellationError())
+        streams.removeValue(forKey: requestID)?.finish()
     }
 
     private func stopWaiting(_ waiterID: UUID) {
@@ -108,7 +149,10 @@ actor HostServiceSession {
             }
             return
         }
-        if let requestID = message.requestID {
+        if let streamID = message.streamID {
+            streams[streamID]?.yield(message)
+            if case .paneTerminalClosed = message { streams.removeValue(forKey: streamID)?.finish() }
+        } else if let requestID = message.requestID {
             pending.removeValue(forKey: requestID)?.resume(returning: message)
         } else if case .errorMessage(let error) = message, let rejection = HostServiceError(tokenRejection: error.code) {
             // 權杖無效或已撤銷：主機服務接著會以 4401 關閉。
@@ -126,6 +170,9 @@ actor HostServiceSession {
         let waiters = closeWaiters
         closeWaiters = [:]
         for continuation in waiters.values { continuation.resume(returning: error) }
+        let openStreams = streams
+        streams = [:]
+        for continuation in openStreams.values { continuation.finish() }
     }
 
     /// 權杖無效或已撤銷時主機服務關閉連線的 close code。
@@ -150,6 +197,15 @@ extension HostServiceProtocol.ServerMessage {
         case .paneTerminalOpenResult(let message): message.requestId
         case .paneTerminalFrame, .paneTerminalClosed: nil
         case .errorMessage(let message): message.requestId
+        }
+    }
+
+    /// 串流訊息的串流識別碼(其他訊息是 `nil`)。
+    var streamID: String? {
+        switch self {
+        case .paneTerminalFrame(let message): message.streamId
+        case .paneTerminalClosed(let message): message.streamId
+        default: nil
         }
     }
 }
