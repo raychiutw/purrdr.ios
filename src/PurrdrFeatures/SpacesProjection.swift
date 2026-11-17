@@ -215,13 +215,17 @@ extension AgentListProjection {
     /// - 主機組內：有需要你的在前、再來是工作中，其他依 workspace 編號。
     /// - 已釘選(#41):被釘選的聊天列、或有任一 Agent 被釘選的群組，依釘選時間舊→新(群組以最早釘選的 Agent 為準)。
     /// - 沒有項目的主機組不出現(例如搜尋沒命中)。
-    /// - Parameter visible: 目前開著的聊天(不算未讀)。
-    static func spacesSections(sources: [Source], query: String, visible: Set<ChatRoute> = []) -> [SpacesSection] {
+    /// - Parameters:
+    ///   - visible: 目前開著的聊天(不算未讀)。
+    ///   - expansion: 使用者手動展開(`true`)或收合的群組(以群組 id),覆蓋預設規則。
+    static func spacesSections(
+        sources: [Source], query: String, visible: Set<ChatRoute> = [], expansion: [String: Bool] = [:]
+    ) -> [SpacesSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         var pinned: [SpacesEntry] = []
         var hostSections: [SpacesSection] = []
         for (hostOrder, source) in sources.enumerated() {
-            let entries = spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
+            let entries = spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible, expansion: expansion)
             pinned += entries.filter { $0.order.pinnedAt != nil }
             let items = entries.filter { $0.order.pinnedAt == nil }.sorted { $0.order.urgencyOrder < $1.order.urgencyOrder }
             guard !items.isEmpty else { continue }
@@ -246,6 +250,7 @@ extension AgentListProjection {
         var hostOrder: Int
         var needle: String
         var visible: Set<ChatRoute>
+        var expansion: [String: Bool]
         /// 不帶主機前綴的列(以 pane id):Spaces 檢視以主機組標題表示主機。
         var rows: [String: AgentRow]
         /// 命中搜尋的 Agent pane。
@@ -253,8 +258,11 @@ extension AgentListProjection {
         /// Agent 在 snapshot 裡的位置(排序用)。
         var positions: [String: Int]
 
-        init(source: Source, snapshot: HostSnapshot, hostOrder: Int, needle: String, visible: Set<ChatRoute>) {
+        init(
+            source: Source, snapshot: HostSnapshot, hostOrder: Int, needle: String, visible: Set<ChatRoute>, expansion: [String: Bool]
+        ) {
             self.source = source
+            self.expansion = expansion
             self.snapshot = snapshot
             self.hostOrder = hostOrder
             self.needle = needle
@@ -278,9 +286,12 @@ extension AgentListProjection {
         }
     }
 
-    private static func spacesEntries(of source: Source, hostOrder: Int, needle: String, visible: Set<ChatRoute>) -> [SpacesEntry] {
+    private static func spacesEntries(
+        of source: Source, hostOrder: Int, needle: String, visible: Set<ChatRoute>, expansion: [String: Bool]
+    ) -> [SpacesEntry] {
         guard let snapshot = source.snapshot else { return [] }
-        let context = SpacesContext(source: source, snapshot: snapshot, hostOrder: hostOrder, needle: needle, visible: visible)
+        let context = SpacesContext(
+            source: source, snapshot: snapshot, hostOrder: hostOrder, needle: needle, visible: visible, expansion: expansion)
         return context.workspaceIDs.compactMap { spacesEntry(workspaceID: $0, in: context) }
     }
 
@@ -334,9 +345,13 @@ extension AgentListProjection {
             row.subtitle = AgentKind.displayName(row.kind) ?? ""
             return WorkspaceGroup.Row.agent(row)
         } + shownTerminals.map(WorkspaceGroup.Row.terminal)
-        return WorkspaceGroup(
+        let counts = SpacesStatusCounts(statuses: agentRows.map(\.status))
+        var group = WorkspaceGroup(
             host: source.host, workspaceID: workspaceID, label: label, agentCount: agentRows.count, terminalCount: shells.count,
-            counts: SpacesStatusCounts(statuses: agentRows.map(\.status)), bar: statusBar(agentRows.map(\.status)), rows: rows)
+            counts: counts, bar: statusBar(agentRows.map(\.status)), rows: rows)
+        // 搜尋時命中的一律展開;否則手動狀態 > 預設(有需要你或工作中才展開)。
+        group.isExpanded = !context.needle.isEmpty || (context.expansion[group.id] ?? (counts.needsYou > 0 || counts.working > 0))
+        return group
     }
 
     /// 狀態條：20 個以內每個 Agent 一段(需要你 > 工作中 > 完成 > 閒置);超過時依狀態合併，段長與數量成正比。

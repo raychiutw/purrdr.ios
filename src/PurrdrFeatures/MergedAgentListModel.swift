@@ -81,6 +81,8 @@ public final class MergedAgentListModel {
     }
 
     private let modeStore: any AgentListModeStore
+    /// Spaces 群組的手動展開狀態(以群組 id):只在記憶體，App 結束就忘記(#103)。
+    private var expansion: [String: Bool] = [:]
 
     public init(swipeHint: any SwipeHintStore = InMemorySwipeHintStore(), modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
         self.swipeHint = swipeHint
@@ -143,11 +145,14 @@ public final class MergedAgentListModel {
 
     /// Spaces 檢視：每個 workspace 一項，依同樣的分組與搜尋。
     public var spacesSections: [SpacesSection] {
-        AgentListProjection.spacesSections(sources: projectionSources, query: query, visible: visibleChats)
+        AgentListProjection.spacesSections(sources: projectionSources, query: query, visible: visibleChats, expansion: expansion)
     }
 
-    /// 點群組標頭：展開或收合。
-    public func toggleExpanded(_ group: WorkspaceGroup) {}
+    /// 點群組標頭：展開或收合。搜尋時群組一律展開，不改手動狀態。
+    public func toggleExpanded(_ group: WorkspaceGroup) {
+        guard query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        expansion[group.id] = !group.isExpanded
+    }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { sources.contains { $0.list.hasAgents } }
