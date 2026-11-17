@@ -56,6 +56,50 @@ struct DemoAnswerTests {
         #expect(try await Self.status("w1:p1", on: host) == .done)
     }
 
+    @Test("ask me 的「Type something.」:數字只把那一列變成文字輸入，之後的數字鍵變成那一列的文字，不算回答(#120 症狀)")
+    func typeSomethingDigitOpensInlineInput() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        _ = try await client.prompt(target: "w1:p1", text: "ask me", wait: .seconds(8))
+
+        try await client.sendKeys(paneID: "w1:p1", keys: ["4"])
+        let typing = try #require(try await Self.prompt("w1:p1", on: host))
+        #expect(typing.question == "Which color should the chart use?")
+        #expect(typing.options.last == PromptOption(number: 4, label: "Type something.", isCursor: true))
+
+        try await client.sendKeys(paneID: "w1:p1", keys: ["1"])
+        let typed = try #require(try await Self.prompt("w1:p1", on: host))
+        #expect(typed.question == "Which color should the chart use?")
+        #expect(typed.options.last == PromptOption(number: 4, label: "1", isCursor: true))
+        #expect(try await Self.status("w1:p1", on: host) == .blocked)
+    }
+
+    @Test("ask me 的「Type something.」:數字 → 文字 → enter 才算回答，進到下一題")
+    func typeSomethingAnswersWithTextThenEnter() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        _ = try await client.prompt(target: "w1:p1", text: "ask me", wait: .seconds(8))
+
+        try await client.sendKeys(paneID: "w1:p1", keys: ["4"])
+        try await client.sendText(paneID: "w1:p1", text: "綠色 green")
+        #expect(try await Self.prompt("w1:p1", on: host)?.options.last?.label == "綠色 green")
+        try await client.sendKeys(paneID: "w1:p1", keys: ["enter"])
+
+        #expect(try await Self.prompt("w1:p1", on: host)?.question == "How large should the chart be?")
+    }
+
+    @Test("沒進文字輸入時 send_text 不算回答")
+    func textWithoutTypeSomethingDoesNotAnswer() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        _ = try await client.prompt(target: "w1:p1", text: "ask me", wait: .seconds(8))
+
+        try await client.sendText(paneID: "w1:p1", text: "teal")
+        try await client.sendKeys(paneID: "w1:p1", keys: ["enter"])
+
+        #expect(try await Self.prompt("w1:p1", on: host)?.question == "Which color should the chart use?")
+    }
+
     @Test("觸發語「trust」:ledger 顯示資料夾信任(狀態仍是閒置、prompt 被 agent_input_pending 拒絕);down+enter 信任後恢復")
     func trustScenario() async throws {
         let host = DemoHost()

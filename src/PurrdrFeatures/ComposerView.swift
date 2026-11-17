@@ -13,6 +13,8 @@ public enum ComposerSettings {
 /// - 多行，長到 4 行後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
 /// - 停止與強制結束在標題列(#44,`ConversationView`)。
+/// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
+///   這時不能附圖。
 struct ComposerBar: View {
     @Bindable var model: ConversationModel
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
@@ -29,17 +31,20 @@ struct ComposerBar: View {
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
+            if let option = model.typedAnswer {
+                TypedAnswerBanner(question: model.prompt?.question, option: option) { model.cancelTypedAnswer() }
+            }
             // 「You should know」:只顯示這個輸入框要送往的 session 的那則(#23)。
             // slash 選單開著時先收起：鍵盤、選單、註記同時在時，AX 字級下註記卡片被擠到截字(#35)。
             if let note = model.note, let notes = model.youShouldKnow, !model.slash.isVisible {
                 YouShouldKnowNoteView(note: note, model: notes, conversation: model)
             }
-            if !model.attachments.isEmpty {
+            if !model.attachments.isEmpty && model.typedAnswer == nil {
                 AttachmentStrip(model: model)
             }
             GlassEffectContainer(spacing: 8) {
                 HStack(alignment: .bottom, spacing: 8) {
-                    if model.canAttachImages {
+                    if model.canAttachImages && model.typedAnswer == nil {
                         AddImageButton(model: model)
                     }
                     editor
@@ -52,6 +57,11 @@ struct ComposerBar: View {
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
+        // 點了「Type something.」:輸入框取得焦點(#120)。離開聊天就取消。
+        .onChange(of: model.typedAnswer) { _, option in
+            if option != nil { isFocused = true }
+        }
+        .onDisappear { model.cancelTypedAnswer() }
         // 對話可見時自己讀註記(列表被蓋住時它的輪詢會停)。
         .task { await model.youShouldKnow?.run() }
     }
@@ -60,7 +70,7 @@ struct ComposerBar: View {
 
     private var editor: some View {
         ComposerTextEditor(
-            text: $model.draft, isFocused: $isFocused, returnSends: returnSends, canSend: model.canSend,
+            text: $model.draft, isFocused: $isFocused, placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
             slashKey: { model.slash.handle($0) },
             pasteAction: { [model] in
                 ComposerPaste.action(
@@ -87,7 +97,7 @@ struct ComposerBar: View {
                     .accessibilityIdentifier("composer.argumentHint")
             }
             if model.draft.isEmpty {
-                Text("Message")
+                Text(verbatim: placeholder)
                     .foregroundStyle(.secondaryText)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 11)
@@ -103,6 +113,11 @@ struct ComposerBar: View {
                 .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
                 .allowsHitTesting(false)
         }
+    }
+
+    /// 輸入框的提示(也是朗讀標籤)。
+    private var placeholder: String {
+        model.typedAnswer == nil ? String(localized: "Message") : String(localized: "Type your answer")
     }
 
     private static func ghost(draft: String, hint: String) -> AttributedString {
@@ -169,6 +184,45 @@ struct ShellModeHint: View {
             .padding(.vertical, 8)
             .background(.bar, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityIdentifier("composer.shellHint")
+    }
+}
+
+/// 自訂回答的說明(#120):在回答哪一題，送出就是回答;「取消」回到一般輸入(什麼都還沒送出)。
+struct TypedAnswerBanner: View {
+    let question: String?
+    let option: PromptOption
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your answer will be sent to the agent.")
+                    if let question {
+                        Text(verbatim: question)
+                            .foregroundStyle(.secondaryText)
+                            .lineLimit(2)
+                    }
+                }
+            } icon: {
+                Image(systemName: "keyboard")
+            }
+            .font(.footnote)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: cancel) {
+                Image(systemName: "xmark")
+                    .font(.footnote.weight(.semibold))
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondaryText)
+            .accessibilityLabel(Text("Cancel Answer"))
+            .accessibilityIdentifier("composer.typedAnswer.cancel")
+        }
+        .padding(.leading, 12)
+        .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("composer.typedAnswer")
     }
 }
 
@@ -308,6 +362,8 @@ import UIKit
 struct ComposerTextEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
+    /// 輸入框的提示，也當朗讀標籤。
+    var placeholder: String
     var returnSends: Bool
     var canSend: Bool
     /// slash 選單顯示時攔截硬體鍵盤的上下、Return、Tab、Esc(回傳 true 表示已處理)。
@@ -333,13 +389,14 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.textContainerInset = Self.insets
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.accessibilityIdentifier = "composer.text"
-        view.accessibilityLabel = String(localized: "Message")
+        view.accessibilityLabel = placeholder
         view.text = text
         return view
     }
 
     func updateUIView(_ view: KeyHandlingTextView, context: Context) {
         context.coordinator.parent = self
+        view.accessibilityLabel = placeholder
         view.returnAction = { modifiers, isComposing in
             ComposerKeys.actionForReturn(modifiers: modifiers, returnSends: returnSends, canSend: canSend, isComposing: isComposing)
         }
@@ -354,6 +411,13 @@ struct ComposerTextEditor: UIViewRepresentable {
             let location = max(0, (text as NSString).length - max(0, fromEnd))
             view.selectedRange = NSRange(location: location, length: 0)
             view.contentDidChange()
+        }
+        if isFocused, !view.isFirstResponder, view.window != nil {
+            // 程式要求聚焦(點「Type something.」,#120)。同樣等這次畫面更新結束再取得焦點。
+            let coordinator = context.coordinator
+            DispatchQueue.main.async {
+                if coordinator.parent.isFocused, !view.isFirstResponder { view.becomeFirstResponder() }
+            }
         }
         if !isFocused, view.isFirstResponder {
             // 不在畫面更新中 resign:resign 時 UIKit 會問 hosting view 的 responder,又觸發同一張 AttributeGraph 的更新，
@@ -528,6 +592,7 @@ final class KeyHandlingTextView: UITextView {
 struct ComposerTextEditor: View {
     @Binding var text: String
     @Binding var isFocused: Bool
+    var placeholder: String
     var returnSends: Bool
     var canSend: Bool
     var slashKey: (SlashMenuModel.Key) -> Bool

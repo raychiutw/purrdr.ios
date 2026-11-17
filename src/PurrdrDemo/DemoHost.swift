@@ -198,7 +198,7 @@ public actor DemoHost: HostChannel {
         return DemoSnapshot.response(to: requestLine, state: &state)
     }
 
-    /// `pane.read`(各 pane 畫面上的提示)與 `pane.send_keys`(回答提示)。其他請求回 `nil`。
+    /// `pane.read`(各 pane 畫面上的提示)、`pane.send_keys` 與 `pane.send_text`(回答提示)。其他請求回 `nil`。
     private func paneResponse(to requestLine: Data) -> (line: Data, keepsOpen: Bool)? {
         let request = (try? JSONSerialization.jsonObject(with: requestLine)) as? [String: Any]
         let id = request?["id"] as? String ?? ""
@@ -209,6 +209,9 @@ public actor DemoHost: HostChannel {
             return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID))
         case "pane.send_keys":
             answers.receivedKeys(params["keys"] as? [String] ?? [], paneID: paneID)
+            return DemoSnapshot.ok(id: id)
+        case "pane.send_text":
+            answers.receivedText(params["text"] as? String ?? "", paneID: paneID)
             return DemoSnapshot.ok(id: id)
         default:
             return nil

@@ -162,6 +162,11 @@ public struct HerdrClient: Sendable {
         _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self)
     }
 
+    /// `pane.send_text`:把文字原樣打進 pane(不含 Enter)。用在 Claude 問題卡「Type something.」的自訂回答(#120)。
+    public func sendText(paneID: String, text: String) async throws {
+        _ = try await request(method: "pane.send_text", params: SendTextParams(paneID: paneID, text: text), as: TypedResult.self)
+    }
+
     private static func milliseconds(_ duration: Duration) -> Int {
         Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
     }
@@ -267,6 +272,16 @@ private struct SendKeysParams: Encodable {
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case keys
+    }
+}
+
+private struct SendTextParams: Encodable {
+    var paneID: String
+    var text: String
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case text
     }
 }
 
