@@ -4,7 +4,7 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// Slash 進階(#45):點選行為(直接送出／只填入／參數提示)與 slash 面板卡片(行為規格 F9.3、F9.4、R-C04、R-C05)。
+/// Slash 進階(#45、#83):點選行為(一律只填入／參數提示)與 slash 面板卡片(行為規格 F9.3、F9.4、R-C04、R-C05)。
 /// herdr 走假主機;Claude `/model` 面板畫面是真實錄製(#65,`PaneScreens`),`agent.prompt`、`pane.send_keys` 的回應不錄。
 /// **不對任何真實 agent 送 slash 指令或按鍵。**
 @MainActor
@@ -33,18 +33,39 @@ struct ConversationSlashPanelTests {
 
     // MARK: - 點選行為
 
-    @Test("點選不需參數的指令：直接送出 `/名稱`,輸入框清空")
-    func pickWithoutArgumentsSends() async throws {
+    @Test(
+        "點選任何指令都只填入 `/名稱 `,不送出任何主機指令;有參數提示照樣提示(#83)",
+        arguments: [
+            SlashCommand(name: "context", summary: "Show context usage"),
+            SlashCommand(name: "model", argumentHint: "[model]", summary: "Choose the model"),
+            SlashCommand(name: "review", summary: "Review a pull request"),
+            SlashCommand(name: "demo-kit:changelog", summary: "Summarize recent changes"),
+        ]
+    )
+    func pickOnlyFills(command: SlashCommand) async throws {
         let setup = try await Self.opened()
-        await Self.expectSlashSend(setup)
-        setup.model.draft = "/cont"
+        let executionsBefore = await setup.host.bridge.executions.count
+        setup.model.draft = "/" + String(command.name.prefix(3))
 
-        await setup.model.pick(slash: SlashCommand(name: "context", summary: "Show context usage"))
+        await setup.model.pick(slash: command)
 
-        let prompts = await Self.promptRequests(setup)
-        #expect(prompts.count == 1)
-        #expect(prompts.first?.contains(#""text":"\/context""#) == true || prompts.first?.contains(#""text":"/context""#) == true)
-        #expect(setup.model.draft.isEmpty)
+        #expect(setup.model.draft == "/\(command.name) ")
+        #expect(setup.model.slashArgumentHint == command.argumentHint)
+        #expect(await setup.host.bridge.executions.count == executionsBefore)
+    }
+
+    @Test("在 slash 選單按 Return 選定 `/model`:只填入 `/model `,不送出(#83)")
+    func returnInMenuOnlyFills() async throws {
+        let setup = try await Self.opened()
+        setup.model.draft = "/model"
+        await setup.model.slash.load()
+        let executionsBefore = await setup.host.bridge.executions.count
+
+        #expect(setup.model.slash.handle(.select))
+
+        #expect(setup.model.draft == "/model ")
+        #expect(setup.model.slashArgumentHint == "[model]")
+        #expect(await setup.host.bridge.executions.count == executionsBefore)
     }
 
     @Test("點選有副作用的指令(/compact):只填入 `/compact `,不送出;選填參數照樣淡淡提示")
@@ -75,11 +96,12 @@ struct ConversationSlashPanelTests {
 
     // MARK: - 面板
 
-    /// 送出 `/model` 後讀畫面看到面板。
+    /// 點選 `/model`、使用者按送出後讀畫面看到面板。
     static func panelOpen(sleeper: RecordingSleeper = RecordingSleeper()) async throws -> ConversationAnswerTests.Setup {
         let setup = try await Self.opened(sleeper: sleeper)
         await Self.expectSlashSend(setup)
         await setup.model.pick(slash: SlashCommand(name: "model", argumentHint: "[model]", summary: "Choose the model"))
+        await setup.model.send()
         await setup.host.bridge.expect(bridge, reply: idle())
         await setup.host.bridge.expect(bridge, reply: PaneScreens.read("claude-panel-model"))
         await setup.model.poll()
