@@ -175,10 +175,11 @@ public final class HostsModel {
         LoginShellModel(channel: member(for: selection).channel, title: name(of: selection))
     }
 
-    /// 選取中主機的檔案瀏覽(從家目錄開始);壓得小的檔案以 gzip 傳輸。
+    /// 選取中主機的檔案瀏覽(從家目錄開始);壓得小的檔案以 gzip 傳輸，主機沒有 `gzip` 時記在那台主機的成員上。
     public func folderBrowser() -> FolderBrowserModel {
-        FolderBrowserModel(
-            folders: HostFolders(channel: member(for: selection).channel, deflate: SystemDeflate()), hostName: name(of: selection))
+        let member = member(for: selection)
+        let folders = HostFolders(channel: member.channel, deflate: SystemDeflate(), gzipAvailability: member.gzipAvailability)
+        return FolderBrowserModel(folders: folders, hostName: name(of: selection))
     }
 
     /// 某台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。
@@ -555,6 +556,8 @@ final class HostMember {
     let youShouldKnow: YouShouldKnowModel
     /// 這台主機的主機主題(#23);選取中主機的才套用到畫面。
     let hostTheme: HostThemeModel
+    /// 這台主機有沒有 `gzip`(檔案上傳的 gzip 傳輸，#76)。
+    let gzipAvailability = HostGzipAvailability()
 
     init(
         host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, preferences: any ChatPreferencesStore,

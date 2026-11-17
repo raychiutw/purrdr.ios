@@ -96,10 +96,9 @@ public enum ImagePreparation {
     public static func prepare(_ data: Data) -> Prepared? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0 else { return nil }
         var lowestAttempt: Prepared?
-        // 暫時的突變(驗證新斷言抓得到順序錯誤):先縮長邊再降品質。綠燈 commit 還原。
-        for quality in qualitySteps {
-            for pixelSize in pixelSizeSteps {
-                guard let image = thumbnail(of: source, maximumPixelSize: pixelSize) else { return nil }
+        for pixelSize in pixelSizeSteps {
+            guard let image = thumbnail(of: source, maximumPixelSize: pixelSize) else { return nil }
+            for quality in qualitySteps {
                 guard let jpeg = encode(image, quality: quality) else { return nil }
                 let prepared = Prepared(jpeg: jpeg, width: image.width, height: image.height, quality: quality)
                 if jpeg.count <= targetSize { return prepared }

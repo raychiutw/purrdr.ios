@@ -157,11 +157,16 @@ public final class ConversationModel {
     public var canAttachImages: Bool { images != nil }
     public var remainingImageSlots: Int { max(0, Self.maximumImages - attachments.count) }
 
-    /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過 4 張的部分不加入並提示。
+    /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過 4 張的部分、原始大小超過單張上限的不加入並提示。
     public func addImages(_ items: [Data]) async {
         guard let images, !items.isEmpty else { return }
         if items.count > remainingImageSlots { notice = .imageLimit }
         for data in items.prefix(remainingImageSlots) {
+            // 單張上限以使用者挑的原始圖片判斷，不因縮小而改變(#76)。
+            guard data.count <= ImageUploader.maximumSize else {
+                notice = .imageTooLarge
+                continue
+            }
             let prepared = await Task.detached(priority: .userInitiated) { ImagePreparation.prepare(data) }.value
             guard let prepared, remainingImageSlots > 0 else {
                 if prepared == nil { notice = .imageUnreadable }
