@@ -1148,6 +1148,8 @@ public enum SendNotice: Sendable, Equatable {
     case imageLimit
     /// 讀不出圖片。
     case imageUnreadable
+    /// 原始圖片超過單張上限(`ImageUploader.maximumSize`)。
+    case imageTooLarge
     /// 圖片上傳失敗：整則沒送出，草稿與圖片保留。
     case uploadFailed
     /// 停止後 3 秒仍在工作。

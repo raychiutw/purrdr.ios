@@ -6565,6 +6565,17 @@
         }
       }
     },
+    "This image is over 20 MB." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這張圖片超過 20 MB。"
+          }
+        }
+      }
+    },
     "This is a public key. Paste the private key file instead (the one without .pub)." : {
       "extractionState" : "manual",
       "localizations" : {

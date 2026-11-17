@@ -84,6 +84,9 @@ struct ImagePreparationTests {
         #expect(Self.isJPEG(prepared.jpeg))
         // 長寬比不變(4:3)。
         #expect(abs(Double(prepared.width) / Double(prepared.height) - 4.0 / 3.0) < 0.01)
+        // 先降品質再縮長邊:2048px 降到 0.4 仍超過，才縮到 1792px(品質從 0.8 重試，到 0.4 才夠;CI 實測值)。
+        #expect(Self.longSide(prepared) == 1792)
+        #expect(prepared.quality == 0.4)
     }
 
     @Test("文字截圖：壓到目標大小以內，文字區與原圖差異小(文字仍可讀)")
@@ -94,6 +97,7 @@ struct ImagePreparationTests {
         #expect(prepared.jpeg.count <= Self.targetBytes)
         // 先降品質：降到 0.5 就夠，不縮小解析度。
         #expect(Self.longSide(prepared) == 2048)
+        #expect(prepared.quality == 0.5)
         // 下限(1280px、品質 0.4)約 31 dB,目視文字仍清楚。
         #expect(try Self.textRegionPSNR(prepared.jpeg, original: original) >= 30)
     }
