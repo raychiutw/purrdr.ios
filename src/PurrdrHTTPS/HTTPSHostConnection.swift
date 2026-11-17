@@ -35,7 +35,9 @@ public actor HTTPSHostConnection: HostConnection {
 
     /// 握手得到的主機服務與 herdr 伺服器資訊(連線測試顯示用)。
     public func hostServiceInfo() async throws -> HostServiceProtocol.Welcome {
-        throw HostServiceError.unexpectedResponse
+        _ = try await liveSession()
+        guard let welcome else { throw HostServiceError.unexpectedResponse }
+        return welcome
     }
 
     // MARK: - herdr 單次請求
@@ -43,7 +45,19 @@ public actor HTTPSHostConnection: HostConnection {
     /// 支援 `session.snapshot`(主機服務的 `agents.list`)、`ping`(握手的 herdr 資訊)、`pane.send_keys`。
     /// 期限到丟 `HerdrError.deadlineExceeded`(含撥號與握手)。
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-        throw HostServiceError.unexpectedResponse
+        let herdr = try HerdrRequestLine(request)
+        return try await withDeadline(deadline) {
+            switch herdr.method {
+            case "session.snapshot":
+                return try await self.snapshot(id: herdr.id)
+            case "ping":
+                return try await self.ping(id: herdr.id)
+            case "pane.send_keys":
+                return try await self.sendKeys(id: herdr.id, params: herdr.params)
+            default:
+                throw HostServiceError.unsupported(herdr.method)
+            }
+        }
     }
 
     private func snapshot(id: String?) async throws -> Data {
@@ -70,7 +84,18 @@ public actor HTTPSHostConnection: HostConnection {
     /// `events.subscribe`:目前主機服務還不推送事件(#58),所以回 ack 後保持開著，直到連線結束(以結束原因失敗)
     /// 或呼叫端不再讀。上層據此在重連時重讀 snapshot。
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-        throw HostServiceError.unexpectedResponse
+        let herdr = try HerdrRequestLine(request)
+        guard herdr.method == "events.subscribe" else { throw HostServiceError.unsupported(herdr.method) }
+        let session = try await withDeadline(HostCommandDeadline.standard) { try await self.liveSession() }
+        let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
+        continuation.yield(try HerdrResponseLine.subscriptionStarted(id: herdr.id))
+        let watcher = Task {
+            let ending = await session.waitUntilClosed()
+            self.noteEnding(ending, of: session)
+            continuation.finish(throwing: ending)
+        }
+        continuation.onTermination = { _ in watcher.cancel() }
+        return lines
     }
 
     // MARK: - 尚未支援

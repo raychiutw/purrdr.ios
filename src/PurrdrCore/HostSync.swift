@@ -94,7 +94,7 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
     public mutating func pendingChanges(hosts: [HostConfiguration], now: Date) -> [HostSyncChange] {
         var changes: [HostSyncChange] = []
         // HTTPS 主機還不同步(#63):後台的連線方式只認得 SSH 兩種。
-        for host in hosts.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
+        for host in hosts.sorted(by: { $0.id.uuidString < $1.id.uuidString }) where host.connectionMethod != .https {
             let modifiedAt = modified[host.id] ?? Self.milliseconds(now)
             modified[host.id] = modifiedAt
             if synced[host.id] != modifiedAt { changes.append(.upsert(SyncedHost(host, modifiedAt: modifiedAt))) }

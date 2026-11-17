@@ -180,7 +180,7 @@ public final class HostsModel {
     }
 
     /// 選取中主機有沒有登入 Shell 與檔案(HTTPS 連線方式沒有，ADR-0010)。
-    public var selectedHostSupportsShell: Bool { true }
+    public var selectedHostSupportsShell: Bool { selectedHost?.connectionMethod != .https }
 
     /// 選取中主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
     public func loginShell() -> LoginShellModel {
@@ -237,7 +237,7 @@ public final class HostsModel {
         hosts.map { host in
             HostRow(
                 id: host.id, title: host.name,
-                subtitle: "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
+                subtitle: host.hostService?.description ?? "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
                 session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id))
         }
     }
@@ -363,9 +363,17 @@ public final class HostsModel {
         let removed = hosts.first { $0.id == id }
         // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
         let secret = try? credentials.secrets.secret(for: id)
+        let deviceToken = try? hostService.tokens.deviceToken(for: id)
         try credentials.secrets.setSecret(nil, for: id)
+        try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        if let removed { forgetPush(of: removed, secret: secret) }
+        if let removed {
+            if let address = removed.hostService {
+                revokeDeviceToken(deviceToken, at: address)
+            } else {
+                forgetPush(of: removed, secret: secret)
+            }
+        }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
         let channel = channels.removeValue(forKey: id)
@@ -411,6 +419,11 @@ public final class HostsModel {
     /// 從主機分享連結或主機配對指令的 QR code(`purrdr://pair?…`)新增主機：帶入欄位的編輯器。
     /// 連結不合法時丟 `HostShareLinkError` 或 `HostServicePairingLinkError`。
     public func makeImportEditor(_ url: URL) throws -> HostEditorModel {
+        if HostServicePairingLink.isPairingLink(url) {
+            return HostEditorModel(
+                store: store, pairing: try HostServicePairingLink(url: url), credentials: credentials, hostService: hostService,
+                makeChannel: makeChannel)
+        }
         return HostEditorModel(
             store: store, importing: try HostShareLink.decode(url), credentials: credentials, hostService: hostService,
             makeChannel: makeChannel)
@@ -511,6 +524,12 @@ public final class HostsModel {
         let configuration: HostConfiguration? = switch host {
         case .demo: nil
         case .host(let id): hosts.first { $0.id == id }
+        }
+        if let configuration, let address = configuration.hostService {
+            return HostMember(
+                host: host, configuration: configuration, channel: HostServiceOnlyChannel(),
+                connection: hostServiceConnection(for: configuration, address: address), preferences: preferences.store(for: host),
+                push: nil, consent: hostConsent)
         }
         return HostMember(
             host: host, configuration: configuration, channel: configuration.map(channel(for:)) ?? demoChannel,

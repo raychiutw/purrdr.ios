@@ -103,7 +103,7 @@ public final class TopNavigationModel {
         switch url.host()?.lowercased() {
         case "settings":
             sheet = .settings
-        case "host":
+        case "host", "pair":
             // 系統相機掃 QR code(主機分享連結，或主機配對指令的 `purrdr://pair?…`)或點連結都會走到這裡;
             // 內容在主機 sheet 裡解析與說明。
             pendingHostImport = url

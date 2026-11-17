@@ -47,11 +47,34 @@ public struct KeychainDeviceTokenStore: DeviceTokenStore {
     }
 
     public func deviceToken(for host: UUID) throws -> String? {
-        nil
+        var query = itemQuery(host)
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query[kSecReturnData as String] = true
+        let (status, result) = keychain.copyMatching(query)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data else { throw KeychainError(status: status) }
+        return String(decoding: data, as: UTF8.self)
     }
 
     public func setDeviceToken(_ token: String?, for host: UUID) throws {
-
+        guard let token else {
+            let status = keychain.delete(itemQuery(host))
+            guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError(status: status) }
+            return
+        }
+        let data = Data(token.utf8)
+        var attributes = itemQuery(host)
+        attributes[kSecValueData as String] = data
+        // 可存取等級只能在新增項目時設定。
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        attributes[kSecAttrLabel as String] = "Purrdr device token"
+        let status = keychain.add(attributes)
+        if status == errSecDuplicateItem {
+            let updated = keychain.update(itemQuery(host), [kSecValueData as String: data])
+            guard updated == errSecSuccess else { throw KeychainError(status: updated) }
+            return
+        }
+        guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 
     private func itemQuery(_ host: UUID) -> [String: Any] {

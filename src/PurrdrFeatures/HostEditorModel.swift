@@ -227,7 +227,33 @@ public final class HostEditorModel {
 
     /// HTTPS 主機：有配對碼就先配對換權杖(同一個配對碼只換一次),沒有就用存著的權杖;再連上主機服務讀一次 Agent 列表。
     private func testHostService(_ draft: Draft, address: HostServiceAddress) async {
-        phase = .failed("not implemented")
+        attempt += 1
+        let current = attempt
+        phase = .testing
+        let result: Result<HostServiceCheck, any Error>
+        do {
+            let (token, readOnly) = try await deviceToken(for: draft, address: address)
+            let connection = hostService.makeConnection(address) { token }
+            let snapshot: HostSnapshot
+            do {
+                snapshot = try await HerdrClient(connection: connection).snapshot()
+                await connection.disconnect()
+            } catch {
+                await connection.disconnect()
+                throw error
+            }
+            result = .success(HostServiceCheck(herdrVersion: snapshot.version, agentCount: snapshot.agents.count, readOnly: readOnly))
+        } catch {
+            result = .failure(error)
+        }
+        guard current == attempt else { return }
+        switch result {
+        case .success(let check):
+            tested = (draft, nil)
+            phase = .connected(check)
+        case .failure(let error):
+            phase = .failed(HostErrorText.message(for: error, connection: .https))
+        }
     }
 
     /// 測試用的權杖：這次的配對碼換得的，或已存主機的。
@@ -361,7 +387,29 @@ public final class HostEditorModel {
 
     /// HTTPS 主機：新配對的權杖先寫(寫不進 Keychain 就什麼都不存),再存主機設定;SSH 的祕密不再需要，刪掉。
     private func saveHostService(_ draft: Draft, address: HostServiceAddress) -> HostConfiguration? {
-        nil
+        let host = HostConfiguration(id: existing?.id ?? UUID(), name: draft.name, hostService: address)
+        let newToken = draft.pairingCode == nil ? nil : paired?.device.deviceToken
+        let previousToken = try? hostService.tokens.deviceToken(for: host.id)
+        do {
+            if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
+            if existing != nil { try credentials.secrets.setSecret(nil, for: host.id) }
+        } catch {
+            phase = .failed(String(localized: "Couldn’t save this host’s device token on this device. \(error.localizedDescription)"))
+            return nil
+        }
+        do {
+            try store.save(host)
+        } catch {
+            if newToken != nil { try? hostService.tokens.setDeviceToken(previousToken, for: host.id) }
+            phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
+            return nil
+        }
+        // 重新配對換了權杖：舊的請主機撤銷(失敗也不影響，舊權杖可在主機上撤銷)。
+        if let newToken, let previousToken, previousToken != newToken, let previousAddress = existing?.hostService {
+            let pairing = hostService.pairing
+            Task { try? await pairing.revoke(address: previousAddress, deviceToken: previousToken) }
+        }
+        return host
     }
 
     // MARK: - 內部
