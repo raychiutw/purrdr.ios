@@ -137,7 +137,7 @@ public final class MergedAgentListModel {
         sources.map { source in
             AgentListProjection.Source(
                 host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
-                snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
+                name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
         }
     }
 

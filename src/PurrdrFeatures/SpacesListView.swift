@@ -42,7 +42,7 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
                 }
             } header: {
                 // 數量是這組顯示的項目數(卡片或列),跟 Agents 檢視一樣數畫面上的項目。
-                AgentSectionHeader(group: section.group, count: section.count)
+                AgentSectionHeader(group: .pinned, count: section.items.count)
             }
         }
     }

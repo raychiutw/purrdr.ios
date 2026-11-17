@@ -46,9 +46,9 @@ struct SpacesPinnedTests {
         clock.now = Self.t0.addingTimeInterval(10)
         studio.source.actions.togglePin(sessionID: UnreadPinnedTests.sessionA)
 
-        // 只有 shell 的 `w2`(scratch)沒有 Agent 可釘，留在閒置。
+        // 只有 shell 的 `w2`(scratch)沒有 Agent 可釘，留在主機組。
         let sections = model.spacesSections
-        #expect(sections.map(\.group) == [.pinned, .idle])
+        #expect(sections.map(\.id) == ["pinned", Self.studio.storedValue])
         let pinned = try #require(sections.first)
         #expect(pinned.items.map(\.id) == [Self.id("w1:pB"), Self.id("w1")])
         #expect(sections.last?.items.map(\.id) == [Self.id("w2")])
@@ -68,11 +68,11 @@ struct SpacesPinnedTests {
         studio.source.actions.togglePin(sessionID: UnreadPinnedTests.sessionP6)
 
         let pinned = try #require(model.spacesSections.first)
-        #expect(pinned.group == .pinned)
+        #expect(pinned.kind == .pinned)
         #expect(pinned.items.map(\.id) == [Self.id("w1"), Self.id("w1:pB")])
     }
 
-    @Test("各組數量是該組顯示的項目數(卡片或列),不是 Agent 數")
+    @Test("已釘選的項目不在主機組再出現一次")
     func sectionCountIsItemCount() async throws {
         let clock = MarkerClock(Self.t0)
         let studio = await Self.studioHost(clock: clock)
@@ -84,10 +84,10 @@ struct SpacesPinnedTests {
         studio.source.actions.togglePin(sessionID: UnreadPinnedTests.sessionA)
         studio.source.actions.togglePin(sessionID: UnreadPinnedTests.sessionB)
 
-        let pinned = try #require(model.spacesSections.first { $0.group == .pinned })
-        #expect(pinned.count == 2)
-        // 閒置只剩只有 shell 的 `w2` 卡片;釘選的項目不在別組再算一次。
-        #expect(model.spacesSections.map(\.count) == [2, 1])
+        let pinned = try #require(model.spacesSections.first { $0.kind == .pinned })
+        #expect(pinned.items.count == 2)
+        // 主機組只剩只有 shell 的 `w2`。
+        #expect(model.spacesSections.map(\.items.count) == [2, 1])
     }
 
     @Test("卡片裡的 Agent 列帶各自的未讀;開著的聊天不算未讀")

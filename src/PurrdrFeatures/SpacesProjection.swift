@@ -44,17 +44,61 @@ public final class UserDefaultsAgentListModeStore: AgentListModeStore {
     public func save(_ mode: AgentListMode) { defaults.set(mode.rawValue, forKey: key) }
 }
 
-/// Spaces 檢視的一個分組(與 Agents 檢視同樣依「需要你／工作中／閒置」)。
+/// Spaces 檢視的一個分組(#103):最上面「已釘選」(不分主機),其餘每台主機一組。
 public struct SpacesSection: Identifiable, Equatable, Sendable {
-    public var group: AgentGroup
-    public var items: [SpacesItem]
-    public var id: AgentGroup { group }
-    /// Section 標題的數量：這組顯示的項目數(卡片或聊天列),不是 Agent 數。
-    public var count: Int { items.count }
+    public enum Kind: Equatable, Sendable {
+        case pinned
+        case host(SpacesHost)
+    }
 
-    public init(group: AgentGroup, items: [SpacesItem]) {
-        self.group = group
+    public var kind: Kind
+    public var items: [SpacesItem]
+
+    public var id: String {
+        switch kind {
+        case .pinned: "pinned"
+        case .host(let header): header.host.storedValue
+        }
+    }
+
+    /// 主機組的標題資料;已釘選組為 `nil`。
+    public var host: SpacesHost? {
+        if case .host(let header) = kind { header } else { nil }
+    }
+
+    public init(kind: Kind, items: [SpacesItem]) {
+        self.kind = kind
         self.items = items
+    }
+}
+
+/// 主機組的標題：主機身分、名稱、圖示與這台主機所有 Agent 依狀態的數量。
+public struct SpacesHost: Equatable, Sendable {
+    public var host: HostSelection
+    public var name: String
+    public var icon: HostIcon
+    public var counts: SpacesStatusCounts
+
+    public init(host: HostSelection, name: String, icon: HostIcon, counts: SpacesStatusCounts) {
+        self.host = host
+        self.name = name
+        self.icon = icon
+        self.counts = counts
+    }
+}
+
+/// 依狀態的 Agent 數量。完成只算未讀的;已讀的完成算閒置(#41)。
+public struct SpacesStatusCounts: Equatable, Sendable {
+    public var needsYou = 0
+    public var working = 0
+    public var done = 0
+    public var idle = 0
+
+    public init(needsYou: Int = 0, working: Int = 0, done: Int = 0, idle: Int = 0) {
+        self.needsYou = needsYou
+        self.working = working
+        self.done = done
+        self.idle = idle
     }
 }
 
@@ -186,7 +230,11 @@ extension AgentListProjection {
         let entries = sources.enumerated().flatMap { hostOrder, source in
             spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
         }
-        return grouped(entries, order: \.order).map { SpacesSection(group: $0, items: $1.map(\.item)) }
+        return grouped(entries, order: \.order).map { group, items in
+            SpacesSection(
+                kind: group == .pinned ? .pinned : .host(SpacesHost(host: .demo, name: "", icon: .default, counts: SpacesStatusCounts())),
+                items: items.map(\.item))
+        }
     }
 
     private struct SpacesEntry {

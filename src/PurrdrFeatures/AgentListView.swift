@@ -322,7 +322,7 @@ public struct AgentListView: View {
                 case .card(let card): card.host == model.selected && card.workspaceID == filter
                 }
             }
-            return items.isEmpty ? nil : SpacesSection(group: section.group, items: items)
+            return items.isEmpty ? nil : SpacesSection(kind: section.kind, items: items)
         }
     }
 

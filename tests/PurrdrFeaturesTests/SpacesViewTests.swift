@@ -88,9 +88,7 @@ struct SpacesViewTests {
         #expect(card.status == .working)
         #expect(card.groups.map(\.title) == ["1", "2", "3"])
         #expect(card.groups.map { $0.rows.map(\.id) } == [["demo/w1:p6"], ["demo/w1:pA"], ["demo/w1:pB"]])
-        // 卡片在「工作中」,卡片裡的 agent 不再單獨出現。
-        let working = try #require(model.agentList.spacesSections.first { $0.group == .working })
-        #expect(working.items.map(\.id) == ["demo/w1"])
+        // 卡片裡的 agent 不再單獨出現。
         #expect(Self.chats(model).isEmpty)
     }
 

@@ -11,6 +11,9 @@ enum AgentListProjection {
         var host: HostSelection
         /// 非選取中主機的名稱與圖示;選取中主機為 `nil`(列上不標示)。
         var label: HostLabel?
+        /// 主機名稱與圖示(Spaces 檢視的主機組標題;不分選取中與否)。
+        var name = ""
+        var icon = HostIcon.default
         var snapshot: HostSnapshot?
         /// 以 pane id 為鍵(同一台主機內唯一)。
         var previews: [String: MessagePreview]
