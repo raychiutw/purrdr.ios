@@ -67,8 +67,14 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B)
     )
 
-    /// 對話中的連結。目前沿用 tint(紅字)。
-    static let linkText = brandText
+    /// 對話中的連結(#93):系統連結藍的色相(`#007AFF`／`#0A84FF`),只調明度。
+    /// 系統 `.link` 淺色對 `#EFEFF0` 只有 3.5:1、深色對 `#2C2C2E` 3.8:1,不能承載文字。
+    static let linkText = ContrastPalette(
+        light: ThemeColor(red: 0x00, green: 0x68, blue: 0xDA),             // 白底 5.3:1、#F2F2F7 4.7:1、#EFEFF0 4.6:1
+        dark: ThemeColor(red: 0x2D, green: 0x96, blue: 0xFF),              // 黑底 6.9:1、#1C1C1E 5.6:1、#2C2C2E 4.6:1
+        lightHighContrast: ThemeColor(red: 0x00, green: 0x4D, blue: 0xA2), // #EFEFF0 7.1:1
+        darkHighContrast: ThemeColor(red: 0x7D, green: 0xBE, blue: 0xFF)   // #2C2C2E 7.1:1
+    )
 }
 
 extension ShapeStyle where Self == Color {
@@ -80,6 +86,9 @@ extension ShapeStyle where Self == Color {
 
     /// 承載白字的品牌紅填色(紅底角色)。紅字與 tint 用 `AccentColor`。
     static var brandFill: Color { AccessibleColors.brandFill.color }
+
+    /// 對話中連結的顏色(連結藍，不用品牌紅 tint)。
+    static var linkText: Color { AccessibleColors.linkText.color }
 }
 
 /// 文字按鈕的 label,觸控目標至少 44×44 pt(HIG 20.2)。

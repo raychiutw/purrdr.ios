@@ -120,6 +120,7 @@ struct BlockedPromptView: View {
                         .accessibilityHidden(true)
                 }
                 Text(verbatim: option.label)
+                    .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                 if model.answerInFlight == answer {
@@ -161,14 +162,17 @@ struct BlockedPromptView: View {
 }
 
 private extension View {
-    /// 同一組選項同尺寸;建議選項用 prominent 樣式而非大小區分(HIG 20.7)。
+    /// 同一組選項同尺寸;建議選項用紅底 prominent 樣式而非大小區分(HIG 20.7)。
+    /// 圓角長方形選項卡(#93):膠囊形像按鈕列，多行文字也不好讀。
     @ViewBuilder
     func optionStyle(prominent: Bool) -> some View {
         if prominent {
             filledProminentButtonStyle()
+                .buttonBorderShape(.roundedRectangle(radius: PromptOptionStyle.cornerRadius))
         } else {
             // 文字用主要色：bordered 預設是 tint 字配淡 tint 底，對比約 4:1、AX 字級下更低(#35 audit)。
             buttonStyle(.bordered)
+                .buttonBorderShape(.roundedRectangle(radius: PromptOptionStyle.cornerRadius))
                 .foregroundStyle(Color.primary)
         }
     }

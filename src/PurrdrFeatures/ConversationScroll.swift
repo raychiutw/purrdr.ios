@@ -56,7 +56,7 @@ public struct ConversationScrollMetrics: Equatable, Sendable {
 
     /// 可見範圍底緣到內容底緣的距離;內容短到不用捲時是負的。
     public var distanceFromBottom: Double {
-        contentHeight + bottomInset - containerHeight - contentOffsetY
+        contentHeight - containerHeight - topInset - contentOffsetY
     }
 
     /// 可見範圍頂緣到內容頂緣的距離。
