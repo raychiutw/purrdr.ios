@@ -208,7 +208,7 @@ struct WindowsRealHostIntegrationTests {
 
     // MARK: - 上傳
 
-    @Test("上傳圖片(%USERPROFILE% 指向暫存資料夾)與檔案：bytes 經 stdin 原樣寫入、不覆寫;資料夾清單與新增對話的資料夾")
+    @Test("上傳圖片(%USERPROFILE% 指向暫存資料夾)與檔案：300 KB(超過經 sshd 讀 console stream 會卡住的約 128 KiB)經 stdin 原樣寫入、不覆寫;資料夾清單與新增對話的資料夾")
     func uploadsAndFolders() async throws {
         let ssh = try await WindowsRealHost.channel()
         let temp = try await WindowsTemp.create(on: ssh)
@@ -216,7 +216,7 @@ struct WindowsRealHostIntegrationTests {
         let home = temp.path + #"\家"#
         try await temp.makeDirectory(home + #"\專案"#)
         let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["USERPROFILE": home]))
-        var bytes = Data((0..<70_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+        var bytes = Data((0..<300_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
         bytes.append(contentsOf: [0x0D, 0x0A, 0x1A, 0x00])
 
         let name = UploadFileName("purrdr-test-1.jpg")!
