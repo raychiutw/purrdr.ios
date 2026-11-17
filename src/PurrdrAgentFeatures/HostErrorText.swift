@@ -30,6 +30,8 @@ package enum HostErrorText {
             String(localized: "This device can’t create a key in the Secure Enclave. Import a key or use a password.")
         case let error as SSHKeyImportError:
             keyImportMessage(error)
+        case let error as HostServiceError:
+            hostServiceMessage(error)
         default:
             commonMessage(for: error)
         }
@@ -66,9 +68,14 @@ package enum HostErrorText {
             String(localized: "The host didn’t accept this device’s key. Add the public key to ~/.ssh/authorized_keys on the host, and check the user name.")
         case (.openSSH?, _):
             String(localized: "The host didn’t accept this key. Check that its public key is in ~/.ssh/authorized_keys on the host, and check the user name.")
-        case (nil, _):
+        case (nil, _), (.https?, _):
             String(localized: "The host didn’t let this user sign in. Edit the host to check the user name and how Purrdr signs in.")
         }
+    }
+
+    /// HTTPS 連線方式(主機服務)的說明。權杖失效時引導重新配對。
+    package static func hostServiceMessage(_ error: HostServiceError) -> String {
+        String(localized: "The connection dropped. Try again.")
     }
 
     private static func commonMessage(for error: any Error) -> String {

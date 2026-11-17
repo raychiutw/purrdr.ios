@@ -1,0 +1,112 @@
+import XCTest
+
+/// 新增 HTTPS 主機(ADR-0010)。UI 測試的配對不連網路(配對碼 `K7QM-2XPA` 成功、`OLD0-CODE` 過期),連線是 Demo 主機。
+final class HTTPSHostUITests: XCTestCase {
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
+    /// 選 HTTPS 只填位址與配對碼，說明不支援登入 Shell;配對、測試、儲存後列表顯示這台主機的 Agent,選單沒有登入 Shell。
+    @MainActor
+    func testAddHTTPSHostWithPairingCode() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        chooseHTTPS(app)
+
+        XCTAssertFalse(app.textFields["hostEditor.username"].exists, "HTTPS 不需要使用者名稱")
+        let explanation = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Login Shell")).firstMatch
+        XCTAssertTrue(explanation.exists || scrollTo(explanation, in: app), "沒有說明 HTTPS 不支援登入 Shell")
+        fill(app, code: "K7QM-2XPA")
+
+        let test = app.buttons["hostEditor.test"]
+        XCTAssertTrue(test.exists || scrollTo(test, in: app))
+        test.tap()
+        let result = app.descendants(matching: .any)["hostEditor.result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 10) || scrollTo(result, in: app))
+        XCTAssertTrue(result.label.contains("Connected"), "沒有連上:\(result.label)")
+        let save = app.buttons["hostEditor.save"]
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT (identifier BEGINSWITH %@)", "agent.row.", "agent.row.demo/"))
+            .firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
+        app.buttons["toolbar.more"].tap()
+        XCTAssertTrue(app.buttons["menu.hosts"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["menu.loginShell"].exists, "HTTPS 主機不應該有登入 Shell")
+    }
+
+    /// 配對碼過期：說明原因，不能儲存。
+    @MainActor
+    func testExpiredPairingCodeIsExplained() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        chooseHTTPS(app)
+        fill(app, code: "OLD0-CODE")
+
+        let test = app.buttons["hostEditor.test"]
+        XCTAssertTrue(test.exists || scrollTo(test, in: app))
+        test.tap()
+
+        let result = app.descendants(matching: .any)["hostEditor.result"]
+        XCTAssertTrue(result.waitForExistence(timeout: 10) || scrollTo(result, in: app))
+        XCTAssertTrue(result.label.contains("expired"), "沒有說明配對碼過期:\(result.label)")
+        XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled)
+    }
+
+    /// 系統相機掃主機配對指令的 QR code(`purrdr://pair?…`):開啟新增主機，帶入 HTTPS、位址與配對碼。
+    @MainActor
+    func testPairingLinkFillsAddHost() {
+        let app = XCUIApplication.launchUITesting()
+        XCTAssertTrue(app.buttons["toolbar.more"].waitForExistence(timeout: 10))
+
+        app.open(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net&code=K7QM-2XPA")!)
+
+        let address = app.textFields["hostEditor.address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 10))
+        XCTAssertEqual(address.value as? String, "https://studio.tail1234.ts.net")
+        XCTAssertEqual(app.textFields["hostEditor.pairingCode"].value as? String, "K7QM-2XPA")
+    }
+
+    @MainActor
+    private func openAddHost(_ app: XCUIApplication) {
+        let more = app.buttons["toolbar.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
+        app.buttons["menu.hosts"].tap()
+        let add = app.buttons["hosts.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+    }
+
+    @MainActor
+    private func chooseHTTPS(_ app: XCUIApplication) {
+        let connection = app.buttons["hostEditor.connection"]
+        XCTAssertTrue(connection.waitForExistence(timeout: 5) || scrollTo(connection, in: app), "沒有連線方式選單")
+        connection.tap()
+        let https = app.buttons["HTTPS"].firstMatch
+        XCTAssertTrue(https.waitForExistence(timeout: 5), "沒有 HTTPS 連線方式")
+        https.tap()
+    }
+
+    @MainActor
+    private func fill(_ app: XCUIApplication, code: String) {
+        app.swipeDown()
+        for (identifier, text) in [("name", "Studio"), ("address", "studio.tail1234.ts.net"), ("pairingCode", code)] {
+            let field = app.textFields["hostEditor.\(identifier)"]
+            XCTAssertTrue(field.waitForExistence(timeout: 5), "沒有 \(identifier) 欄位")
+            field.tap()
+            field.typeText(text)
+        }
+    }
+
+    /// 往下捲到元素出現(表單比畫面長)。
+    @MainActor
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        for _ in 0..<6 where !element.isHittable {
+            app.swipeUp()
+        }
+        return element.exists
+    }
+}

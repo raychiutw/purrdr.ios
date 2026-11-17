@@ -68,6 +68,11 @@ struct HostShareLinkTests {
 
         components.queryItems = [URLQueryItem(name: "d", value: Self.encode(["v": 1, "name": " ", "host": "h", "port": 22, "user": "u"]))]
         #expect(throws: HostShareLinkError.malformed) { try HostShareLink.decode(components.url!) }
+
+        // HTTPS 主機的匯出匯入還沒支援(#63):不讓它變成沒有位址的 HTTPS 主機。
+        components.queryItems = [URLQueryItem(
+            name: "d", value: Self.encode(["v": 1, "name": "x", "host": "h", "port": 443, "user": "u", "method": "https"]))]
+        #expect(throws: HostShareLinkError.malformed) { try HostShareLink.decode(components.url!) }
     }
 
     @Test("連結夠短，可以放進 QR code(低於 version 40 的 2953 bytes 很多)")

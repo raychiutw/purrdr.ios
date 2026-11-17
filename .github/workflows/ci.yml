@@ -215,7 +215,8 @@ jobs:
 
   # 可攜核心(ADR-0006)用 Swift SDK for Android 交叉編譯，守住「不依賴 Apple 專屬 framework」。
   # 版本與做法見 docs/research/swift-sdk-for-android.md:開源 toolchain 與 SDK 版本必須完全一致、NDK 用 r30。
-  # 只編譯可攜的 target(PurrdrDemo,連帶編譯它依賴的 PurrdrSSH、PurrdrCore),SwiftUI 的 Features 不在 Android 編譯範圍。
+  # 只編譯可攜的 target(PurrdrDemo,連帶編譯它依賴的 PurrdrSSH、PurrdrCore;PurrdrHTTPS 另外編),
+  # SwiftUI 的 Features 不在 Android 編譯範圍。
   android:
     name: 可攜核心 Android 編譯(Swift SDK for Android)
     runs-on: ubuntu-24.04
@@ -259,13 +260,16 @@ jobs:
           "$bundle/swift-android/scripts/setup-android-sdk.sh"
 
       # SwiftPM 新預設 build system 的 Android 支援與 SDK 的 NDK 連結方式不同，跟 swift-nio 的 CI 一樣用 native。
+      # PurrdrHTTPS 經 FoundationNetworking(libcurl)用 URLSession 的 WebSocket(ADR-0010)。
       - name: swift build(${{ matrix.triple }})
-        run: >
-          swift build
-          --build-system native
-          --swift-sdk "$SWIFT_SDK"
-          --swift-sdks-path "$RUNNER_TEMP/swift-sdks"
-          --triple "${{ matrix.triple }}"
-          --static-swift-stdlib
-          --target PurrdrDemo
-          -Xswiftc -warnings-as-errors
+        run: |
+          for target in PurrdrDemo PurrdrHTTPS; do
+            swift build \
+              --build-system native \
+              --swift-sdk "$SWIFT_SDK" \
+              --swift-sdks-path "$RUNNER_TEMP/swift-sdks" \
+              --triple "${{ matrix.triple }}" \
+              --static-swift-stdlib \
+              --target "$target" \
+              -Xswiftc -warnings-as-errors
+          done

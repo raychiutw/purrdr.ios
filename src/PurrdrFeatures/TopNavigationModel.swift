@@ -12,7 +12,7 @@ import PurrdrCore
 public final class TopNavigationModel {
     /// 目前開著的 sheet;`nil` 表示停在 Agent 列表。
     public var sheet: TopLevelSheet?
-    /// 等著匯入的主機分享連結(`purrdr://host?d=…`)。主機 sheet 開啟時帶入新增主機編輯器，之後清掉。
+    /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 sheet 開啟時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
 
     /// 對話欄顯示的 Agent(主機 + pane id,#39)。iPhone 與窄視窗時是推入的對話。
@@ -104,7 +104,8 @@ public final class TopNavigationModel {
         case "settings":
             sheet = .settings
         case "host":
-            // 系統相機掃 QR code 或點分享連結都會走到這裡;內容在主機 sheet 裡解析與說明。
+            // 系統相機掃 QR code(主機分享連結，或主機配對指令的 `purrdr://pair?…`)或點連結都會走到這裡;
+            // 內容在主機 sheet 裡解析與說明。
             pendingHostImport = url
             sheet = .hosts
         default:
