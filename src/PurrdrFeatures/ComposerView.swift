@@ -42,6 +42,10 @@ struct ComposerBar: View {
             if !model.attachments.isEmpty && model.typedAnswer == nil {
                 AttachmentStrip(model: model)
             }
+            // Claude Code 的建議提示詞(#123):只在輸入框空白時有，點了填入並聚焦，不送出。
+            if let suggestion = model.suggestion {
+                PromptSuggestionView(suggestion: suggestion) { acceptSuggestion() }
+            }
             GlassEffectContainer(spacing: 8) {
                 HStack(alignment: .bottom, spacing: 8) {
                     if model.canAttachImages && model.typedAnswer == nil {
@@ -72,6 +76,7 @@ struct ComposerBar: View {
         ComposerTextEditor(
             text: $model.draft, isFocused: $isFocused, placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
             slashKey: { model.slash.handle($0) },
+            tabKey: acceptSuggestion,
             pasteAction: { [model] in
                 ComposerPaste.action(
                     hasImages: model.canAttachImages && ImageSources.pasteboardHasImages,
@@ -168,6 +173,14 @@ struct ComposerBar: View {
 
     private func send() {
         Task { await model.send() }
+    }
+
+    /// 接受建議(點建議列，或輸入框空白時按硬體鍵盤 Tab):填入輸入框並叫出鍵盤，游標在結尾。沒有建議回 `false`。
+    @discardableResult
+    private func acceptSuggestion() -> Bool {
+        guard model.acceptSuggestion() else { return false }
+        isFocused = true
+        return true
     }
 }
 
@@ -368,6 +381,8 @@ struct ComposerTextEditor: UIViewRepresentable {
     var canSend: Bool
     /// slash 選單顯示時攔截硬體鍵盤的上下、Return、Tab、Esc(回傳 true 表示已處理)。
     var slashKey: (SlashMenuModel.Key) -> Bool
+    /// slash 選單沒處理的硬體鍵盤 Tab(接受建議提示詞，#123;回傳 true 表示已處理，否則交給系統)。
+    var tabKey: () -> Bool = { false }
     /// 貼上(Command-V 或編輯選單)時要當圖片附件還是交給系統。
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
@@ -402,6 +417,7 @@ struct ComposerTextEditor: UIViewRepresentable {
         }
         view.onSend = onSend
         view.slashKey = slashKey
+        view.tabKey = tabKey
         view.pasteAction = pasteAction
         view.onPasteImages = onPasteImages
         if view.text != text {
@@ -413,7 +429,7 @@ struct ComposerTextEditor: UIViewRepresentable {
             view.contentDidChange()
         }
         if isFocused, !view.isFirstResponder, view.window != nil {
-            // 程式要求聚焦(點「Type something.」,#120)。同樣等這次畫面更新結束再取得焦點。
+            // 程式要求聚焦(點「Type something.」#120、接受建議後叫出鍵盤 #123):等這次畫面更新結束再取得焦點。
             let coordinator = context.coordinator
             DispatchQueue.main.async {
                 if coordinator.parent.isFocused, !view.isFirstResponder { view.becomeFirstResponder() }
@@ -469,6 +485,7 @@ final class KeyHandlingTextView: UITextView {
     var returnAction: ((ReturnModifiers, Bool) -> ComposerKeyAction)?
     var onSend: (() -> Void)?
     var slashKey: ((SlashMenuModel.Key) -> Bool)?
+    var tabKey: (() -> Bool)?
     private var handled = Set<UIPress>()
     var pasteAction: (() -> ComposerPaste.Action)?
     var onPasteImages: (() -> Void)?
@@ -551,6 +568,11 @@ final class KeyHandlingTextView: UITextView {
                 handled.insert(press)
                 continue
             }
+            if let key = press.key, key.keyCode == .keyboardTab, markedTextRange == nil,
+               key.modifierFlags.intersection([.command, .shift, .alternate, .control]).isEmpty, tabKey?() == true {
+                handled.insert(press)
+                continue
+            }
             guard let key = press.key, key.keyCode == .keyboardReturnOrEnter, let returnAction else {
                 passThrough.insert(press)
                 continue
@@ -596,6 +618,7 @@ struct ComposerTextEditor: View {
     var returnSends: Bool
     var canSend: Bool
     var slashKey: (SlashMenuModel.Key) -> Bool
+    var tabKey: () -> Bool = { false }
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
     var onSend: () -> Void

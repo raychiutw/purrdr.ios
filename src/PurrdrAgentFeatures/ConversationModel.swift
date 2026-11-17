@@ -406,6 +406,7 @@ public final class ConversationModel {
         if banner == .offline { banner = nil }
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
         guard let agent = currentAgent else {
+            clearSuggestion()
             unbind()
             phase = .agentGone
             agentStatus = nil
@@ -415,7 +416,9 @@ public final class ConversationModel {
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         screenThisPoll = nil
         await refreshPrompt(agent)
+        let suggestionRead = await readSuggestion(agent)
         await refreshPanel(agent)
+        applySuggestion(suggestionRead, agent: agent)
         await refreshLivePreview()
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
@@ -566,6 +569,8 @@ public final class ConversationModel {
     /// 連不上主機：畫面空著時，唯讀顯示同一 session 的快取(只在快取屬於列表看到的 session 時,R-B16)。
     private func showOffline() async {
         isOffline = true
+        // 看不到主機畫面，建議可能已過時;恢復連線後重讀(#123)。
+        clearSuggestion()
         banner = .offline
         updateWorkingSince()
         if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID) {
@@ -638,6 +643,8 @@ public final class ConversationModel {
         }
         notice = nil
         draft = ""
+        // 送出後舊建議已不適用;下次完成時重讀(herdr 可能來不及回報工作中,#123)。
+        clearSuggestion()
         let sentImages = attachments
         let echo = PromptEcho(
             id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs,
@@ -1094,6 +1101,77 @@ public final class ConversationModel {
         guard let screen = screenThisPoll else { return }
         let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
         if next != panel { panel = next }
+    }
+
+    // MARK: - 建議提示詞(#121、#123)
+
+    /// 輸入列上方要顯示的 Claude Code 建議提示詞;沒有建議、或輸入框已有文字時為 `nil`
+    /// (不蓋掉使用者打的字，#121 故事 4)。
+    public var suggestion: String? { draft.isEmpty ? detectedSuggestion : nil }
+
+    /// 接受建議：只把文字填入輸入框，**不送任何 herdr 請求**(同 slash 選定,#83)。
+    /// 沒有顯示中的建議(例如輸入框已有字)時什麼都不做並回傳 `false`(硬體鍵盤的 Tab 照常交給系統)。
+    @discardableResult
+    public func acceptSuggestion() -> Bool {
+        guard let suggestion else { return false }
+        draft = suggestion
+        return true
+    }
+
+    /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
+    private var detectedSuggestion: String?
+    /// 這段完成期間還能讀幾次畫面找建議。Claude Code 回完之後才另外產生建議，第一次讀常常還沒有，
+    /// 所以沒讀到時之後的輪詢再讀，讀到就停;次數有上限(指令預算 R-F01)。離開完成、送出、離線時重來。
+    @ObservationIgnored private var suggestionReadsLeft = ConversationModel.suggestionReadLimit
+    /// 每次清掉建議就加一:在途的讀取回來時若已不同，結果作廢(期間送出過，舊建議不適用)。
+    @ObservationIgnored private var suggestionEpoch = 0
+
+    /// 同一段完成期間最多讀幾次畫面找建議。
+    static let suggestionReadLimit = 3
+
+    /// 一次讀畫面認出的建議(可能沒有)與讀取開始時的 epoch。
+    private struct SuggestionRead {
+        var suggestion: String?
+        var epoch: Int
+    }
+
+    /// Claude Code 在等下一步(完成或閒置——閒置是 herdr 把完成標成看過，#121 故事 5;沒有提示)。
+    private func awaitsNextPrompt(_ agent: Agent) -> Bool {
+        agent.kind == "claude" && (agentStatus == .done || agentStatus == .idle) && prompt == nil
+    }
+
+    /// 在等下一步、這段期間還能讀時，讀含 ANSI 的畫面找建議(#121)。在面板判定之前讀，讀到的畫面去掉 ANSI 後
+    /// 給這次輪詢的面板、背景 agents 窗格共用(R-F02);這次輪詢已讀過純文字畫面(分不出灰色建議)就留到下次。
+    /// 讀取期間建議被清掉(送出)時結果作廢，畫面也不共用。
+    private func readSuggestion(_ agent: Agent) async -> SuggestionRead? {
+        guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, screenThisPoll == nil else { return nil }
+        let epoch = suggestionEpoch
+        suggestionReadsLeft -= 1
+        guard let screen = try? await client.readPane(paneID: paneID, format: .ansi), epoch == suggestionEpoch else { return nil }
+        screenThisPoll = Self.plainText(ansi: screen)
+        return SuggestionRead(suggestion: PromptSuggestion.detect(screen: screen), epoch: epoch)
+    }
+
+    /// 面板判定之後才決定：不在等下一步、或面板開著就拿掉;這次有讀到就換上(讀到建議後這段期間不再讀)。
+    private func applySuggestion(_ read: SuggestionRead?, agent: Agent) {
+        guard awaitsNextPrompt(agent), panel == nil else {
+            clearSuggestion()
+            return
+        }
+        guard let read, read.epoch == suggestionEpoch else { return }
+        detectedSuggestion = read.suggestion
+        if read.suggestion != nil { suggestionReadsLeft = 0 }
+    }
+
+    private func clearSuggestion() {
+        detectedSuggestion = nil
+        suggestionReadsLeft = Self.suggestionReadLimit
+        suggestionEpoch += 1
+    }
+
+    /// 去掉跳脫序列與 `\r`:`.ansi` 畫面只差在跳脫序列與行尾，其他解析器吃的是純文字。
+    static func plainText(ansi screen: String) -> String {
+        ANSIText.strip(screen).replacingOccurrences(of: "\r", with: "")
     }
 
     // MARK: - 標題列(#44)

@@ -33,6 +33,25 @@ scripts/record-herdr-fixture.sh <檔名> <method> [params JSON] [ssh 目的地]
 | `herdr-0.9.5/pane.report-metadata.ndjson` | `pane.report_metadata`(`phone:on`、`model`、`ttl_ms` 45000、`seq`) | 2026-11-16 | 在場回報被接受(`{"type":"ok"}`) |
 | `herdr-0.9.5/pane.read.visible.ndjson` | `pane.read {pane_id, source:"visible", lines:40}`,對一個**已經閒置**的 Claude pane(唯讀) | 2026-11-16 | `pane_read` envelope 的形狀。**`text` 整段換成手寫的 `screens/claude-idle.txt`**、pane／tab id 換成假值(原畫面含個人內容) |
 | `herdr-0.9.5/pane.read.agents-pane.ndjson` | `pane.read {"pane_id":…,"source":"visible","lines":40}`(一個有 5 個背景 agent 在跑的 Claude Code pane) | 2026-11-16 | 背景 agents 窗格的解析與讀取時機(#17)。窗格的記號、種類、經過時間、tokens、`↓ 4 more` 與欄寬原樣;回覆內容、輸入框、狀態列(專案、分支、費用)與每列的任務文字換成假值 |
+| `herdr-0.9.5/pane.read.ansi.*.ndjson` | `pane.read {pane_id, source:"visible", lines:40, format:"ansi"}`,對自建 `purrdr-test` workspace 裡的 Claude Code 2.1.326(`CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=true claude --model haiku`,資料夾是有兩個 commit 的暫存 git repo) | 2026-11-17 | 建議提示詞辨識(#122,見下) |
+
+### 建議提示詞的畫面(`pane.read.ansi.*`,#122)
+
+錄製方式:`herdr workspace create --label purrdr-test --no-focus --cwd <暫存 git repo>`,只對建立時拿到的 pane 操作(`pane run`、`send-text`、`send-keys`),
+以 `herdr remote-api-bridge` 送上面的請求存檔;最後 `/exit`、`herdr workspace close <id>`,以 `herdr workspace list` 確認已不存在。沒碰其他 workspace／pane。
+帳號接近每週用量上限(會暫停建議),所以 session 以 `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=true` 啟動。pane 寬 160 欄，行尾是 `\r\n`,ANSI 序列原樣。
+
+| 檔案 | 情境 |
+|---|---|
+| `session-start` | 信任資料夾後剛開的 session:輸入列 `❯`+NBSP + `ESC[2m` 的 `Try "create a util logging.py that…"`(引號內截斷) |
+| `session-start-short` | 重開一個 session:`Try "refactor <filepath>"` |
+| `suggestion` | 第二輪回完後的建議:`❯`+NBSP + `ESC[0mESC[2madd subtract to calc.py ESC[0m`(第一輪沒有建議) |
+| `typed` | 同一畫面在輸入列打了 `hello there`(沒有任何 SGR;刪掉後建議又出現) |
+| `no-suggestion` | 切到 plan mode 再問一輪:輸入列只有 `❯`+NBSP(plan mode 不產生建議) |
+
+**換成假值**:工作資料夾 → `/Users/demo/Projects/ledger`、方案名稱 → `Claude Pro`、用量提醒的時區 → `UTC`、要求管理員加額度的句子改成一般說法;
+pane／tab／workspace id → `w1:pA`／`w1:tA`／`w1`。對話內容是錄製時自己打的範例。存檔前以腳本確認沒有真實的使用者名稱、路徑或組織。
+`<signal … />` 裸標籤(2.1.326 已修正)錄不到，測試以 `suggestion` 為底換掉建議文字。
 
 ## Claude Code 對話紀錄(`claude-code/`)
 
