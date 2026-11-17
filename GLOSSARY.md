@@ -65,16 +65,16 @@ _避免_:Log、History
 _避免_:Chat list、Inbox、Home
 
 **Spaces 檢視**:
-Agent 列表以 workspace 為單位呈現：只有一個 Agent、沒有其他 Pane 的 workspace 是一列聊天，其餘是一張 workspace 卡片。UI 稱「Spaces」,繁中也保留英文。
+Agent 列表依主機分組、以 workspace 為單位呈現：只有一個 Agent、沒有其他 Pane 的 workspace 是一列聊天，其餘是一個可收合的 workspace 群組。UI 稱「Spaces」,繁中也保留英文。
 _避免_:Workspace 檢視、Grouped view
 
 **Agents 檢視**:
 Agent 列表每個 Agent 一列，不分 workspace。
 _避免_:Flat view、Chats 檢視
 
-**Workspace 卡片**:
-Spaces 檢視裡代表一個 workspace 的項目：有兩個以上的 Agent,或有 Agent 以外的 Pane(終端機)時才出現;依 Tab 分組列出底下的 Agent 與終端機。
-_避免_:Workspace row、Group、Folder
+**Workspace 群組**:
+Spaces 檢視裡代表一個 workspace 的項目：有兩個以上的 Agent,或有 Agent 以外的 Pane(終端機)時才出現。收合時只有一列標頭(名稱、Agent 數、狀態條),展開後列出底下的 Agent 與終端機。
+_避免_:Workspace 卡片、Workspace row、Folder
 
 **已釘選**(Pinned):
 使用者在這支裝置上釘到 Agent 列表最前面的聊天，自成一組、不論 Agent 狀態。只存在這支裝置。
