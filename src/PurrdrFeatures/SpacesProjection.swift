@@ -140,6 +140,21 @@ public enum SpacesItem: Identifiable, Equatable, Sendable {
     }
 }
 
+extension SpacesItem {
+    /// 標出主機(已釘選組):聊天列第三行以主機名開頭，群組帶主機名。
+    func naming(_ hostLabel: HostLabel) -> SpacesItem {
+        switch self {
+        case .chat(var row):
+            row.hostLabel = hostLabel
+            row.subtitle = "\(hostLabel.name) · \(row.subtitle)"
+            return .chat(row)
+        case .group(var group):
+            group.hostName = hostLabel.name
+            return .group(group)
+        }
+    }
+}
+
 /// Workspace 群組(#103):收合時只有標頭(名稱、Agent 數、狀態條、各狀態數量),展開後列出 Agent 列與終端機列。
 public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
     public var host: HostSelection
@@ -229,7 +244,13 @@ extension AgentListProjection {
         var hostSections: [SpacesSection] = []
         for (hostOrder, source) in sources.enumerated() {
             let entries = spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible, expansion: expansion)
-            pinned += entries.filter { $0.order.pinnedAt != nil }
+            // 已釘選組不分主機：項目自己標出主機。
+            let hostLabel = HostLabel(name: source.name, icon: source.icon)
+            pinned += entries.filter { $0.order.pinnedAt != nil }.map { entry in
+                var entry = entry
+                entry.item = entry.item.naming(hostLabel)
+                return entry
+            }
             let items = entries.filter { $0.order.pinnedAt == nil }.sorted { $0.order.urgencyOrder < $1.order.urgencyOrder }
             guard !items.isEmpty else { continue }
             let statuses = sections(sources: [source], query: "", visible: visible).flatMap(\.rows).map(\.status)
