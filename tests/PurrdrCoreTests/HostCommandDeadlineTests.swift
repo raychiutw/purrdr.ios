@@ -130,7 +130,7 @@ struct HostCommandDeadlineTests {
         await host.expect(stuck.command, reply: FakeReply(keepsOpen: true))
         let sleeper = RecordingSleeper { $0 == stuck.deadline }
 
-        let outcome = await Self.outcome { try await stuck.run(host, sleeper.sleep) }
+        let outcome = await boundedOutcome { try await stuck.run(host, sleeper.sleep) }
 
         guard let outcome else {
             Issue.record("指令卡住後沒有在期限到時返回(期限 \(stuck.deadline);要求過的等待：\(await sleeper.requested))")
@@ -152,7 +152,7 @@ struct HostCommandDeadlineTests {
 
         task.cancel()
 
-        let finished = await Self.outcome { try await task.value }
+        let finished = await boundedOutcome { try await task.value }
         #expect(finished != nil, "取消後沒有立刻返回")
         #expect(await host.waitUntilClosed(execution: 0))
     }
@@ -173,70 +173,70 @@ struct HostCommandDeadlineTests {
 
         task.cancel()
 
-        let finished = await Self.outcome { try await task.value }
+        let finished = await boundedOutcome { try await task.value }
         await channel.open()
         #expect(finished != nil, "開通道卡住時，取消後沒有立刻返回")
         #expect(await host.waitUntilClosed(execution: 0))
     }
 
-    // MARK: - 輔助
+    /// 開通道卡住時要立刻回應外層取消的操作：上傳與 herdr 請求原本各自計時，現在都經同一個入口(#86)。
+    struct OpeningOperation: Sendable, CustomTestStringConvertible {
+        let testDescription: String
+        let command: String
+        let run: @Sendable (any HostChannel) async throws -> Void
+    }
 
-    /// 在 `limit` 內等 `operation` 結束;沒結束就取消它並回傳 `nil`(卡住時以斷言失敗呈現，不讓測試掛住)。
-    /// 上限放寬到 `asyncWaitLimit`:平行跑的其他測試會以同步等待佔住執行緒。
-    static func outcome<Value: Sendable>(
-        within limit: Duration = asyncWaitLimit, _ operation: @escaping @Sendable () async throws -> Value
-    ) async -> Result<Value, any Error>? {
-        let box = OutcomeBox<Value>()
-        let task = Task {
-            do {
-                await box.set(.success(try await operation()))
-            } catch {
-                await box.set(.failure(error))
-            }
-        }
-        let deadline = ContinuousClock.now + limit
-        while ContinuousClock.now < deadline {
-            if let result = await box.result { return result }
-            try? await Task.sleep(for: .milliseconds(5))
-        }
+    static let openingOperations: [OpeningOperation] = [
+        OpeningOperation(
+            testDescription: "圖片上傳",
+            command: ImageUploadCommand.posix(name: UploadFileName("a.png")!, size: 5)
+        ) { channel in
+            _ = try await ImageUploader(channel: channel, sleep: RecordingSleeper().sleep).upload(Data("hello".utf8), named: UploadFileName("a.png")!)
+        },
+        OpeningOperation(
+            testDescription: "檔案上傳",
+            command: HostFolderCommand.upload(folder: "/Users/demo", name: "a.txt", size: 5)
+        ) { channel in
+            _ = try await HostFolders(channel: channel, sleep: RecordingSleeper().sleep).upload(Data("hello".utf8), named: "a.txt", to: "/Users/demo")
+        },
+        OpeningOperation(testDescription: "herdr 單次請求", command: HerdrCommand.bridge()) { channel in
+            _ = try await HerdrClient(channel: channel, sleep: RecordingSleeper().sleep).snapshot()
+        },
+    ]
+
+    @Test("外層取消：上傳與 herdr 請求在開通道卡住時也立刻返回，晚到的通道一到就關閉", arguments: openingOperations)
+    func cancellationReturnsWhileOpeningChannelForEveryEntry(_ operation: OpeningOperation) async throws {
+        let host = FakeHost()
+        await host.expect(operation.command, reply: FakeReply(keepsOpen: true))
+        let channel = GatedChannel(base: host)
+        let task = Task { try await operation.run(channel) }
+        #expect(await channel.waitUntilWaiting())
+
         task.cancel()
-        return nil
-    }
-}
 
-private actor OutcomeBox<Value: Sendable> {
-    var result: Result<Value, any Error>?
-    func set(_ result: Result<Value, any Error>) { self.result = result }
-}
-
-/// 開通道時先卡在一個不理會取消的閘門，`open()` 之後才交給底層通道。
-private actor GatedChannel: HostChannel {
-    let base: any HostChannel
-    private var waiting: [CheckedContinuation<Void, Never>] = []
-    private var isOpen = false
-
-    init(base: any HostChannel) {
-        self.base = base
+        let finished = await boundedOutcome { try await task.value }
+        await channel.open()
+        #expect(finished != nil, "開通道卡住時，取消後沒有立刻返回")
+        #expect(await host.waitUntilClosed(execution: 0))
     }
 
-    func execute(_ command: String) async throws -> any ExecSession {
-        if !isOpen { await withCheckedContinuation { waiting.append($0) } }
-        return try await base.execute(command)
-    }
+    /// 掛起期間死掉的連線，開通道本身就可能卡住：喚醒探測的 3 秒包含開通道。
+    @Test("喚醒探測：開通道卡住時 3 秒到就回報失敗並丟棄連線")
+    func wakeProbeGivesUpWhileOpeningChannel() async throws {
+        let host = FakeHost()
+        await host.expect(WakeProbe.command, reply: FakeReply(keepsOpen: true))
+        let channel = GatedChannel(base: host)
+        let sleeper = RecordingSleeper { $0 == WakeProbe.timeout }
 
-    func openPTY(_ request: PTYRequest) async throws -> any PTYSession { try await base.openPTY(request) }
+        let outcome = await boundedOutcome { await WakeProbe(channel: channel, sleep: sleeper.sleep).run() }
+        await channel.open()
 
-    func open() {
-        isOpen = true
-        waiting.forEach { $0.resume() }
-        waiting = []
-    }
-
-    func waitUntilWaiting(timeout: Duration = asyncWaitLimit) async -> Bool {
-        let deadline = ContinuousClock.now + timeout
-        while waiting.isEmpty, ContinuousClock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(5))
+        guard let outcome else {
+            Issue.record("開通道卡住時，喚醒探測沒有在 3 秒期限到時返回")
+            return
         }
-        return !waiting.isEmpty
+        #expect(try outcome.get() == false)
+        #expect(await host.disconnectCount == 1)
+        #expect(await host.waitUntilClosed(execution: 0))
     }
 }
