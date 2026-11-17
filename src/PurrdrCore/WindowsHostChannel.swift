@@ -100,7 +100,7 @@ enum WindowsCommand {
         }
         if let upload = HostFolderCommand.parseUpload(command) {
             return try inline(WindowsScripts.upload(WindowsScripts.folderUpload, arguments: [
-                upload.folder, upload.name, String(upload.size), upload.encoding.rawValue, String(upload.transferSize),
+                upload.folder, upload.name, String(upload.originalSize), upload.encoding.rawValue, String(upload.transferSize),
             ]))
         }
         if let path = HostFolderCommand.parseList(command) {

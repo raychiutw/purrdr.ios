@@ -6,7 +6,7 @@ import PurrdrCore
 
 /// 系統的 `gzip`:檢查 gzip 封裝標準工具解得開，也當測試用的原始 DEFLATE 來源(不依賴 app 的實作)。
 public enum StandardGzip {
-    public struct Failure: Error, Equatable {
+    public struct Failure: Error {
         public var exitCode: Int32
     }
 
