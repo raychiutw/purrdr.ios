@@ -233,6 +233,9 @@ public enum TranscriptCommand {
         command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra] })
     }
 
+    /// 列表預覽每個請求最多讀的檔尾 bytes(與 `previewsScript` 的 `tail -c` 相同;估算期限用)。
+    static let previewBytes = 48_000
+
     static let previewsScript = #"""
         m=$1
         shift
@@ -341,6 +344,6 @@ public enum TranscriptCommand {
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 
     static func command(_ script: String, arguments: [String]) -> String {
-        ([prefix + PosixShell.quote(script), "sh"] + arguments.map(PosixShell.quote)).joined(separator: " ")
+        ([prefix + PosixShell.quote(HostScriptTimeLimit.posixRead(script)), "sh"] + arguments.map(PosixShell.quote)).joined(separator: " ")
     }
 }

@@ -153,11 +153,11 @@ public struct SSHHostConnection: HostConnection {
     // MARK: - 對話紀錄
 
     /// 執行對話紀錄指令並收集 stdout;依 exit code 判斷，不比對 stderr 文字(R-S15)。
+    /// 期限(`deadline(for:)`)到了丟 `HostCommandError.deadlineExceeded`。
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        let session = try await channel.execute(Self.command(for: request))
-        var stdout = Data()
-        var exitCode: Int32?
-        do {
+        let (stdout, exitCode) = try await channel.runOnce(Self.command(for: request), deadline: Self.deadline(for: request), sleep: sleep) { session in
+            var stdout = Data()
+            var exitCode: Int32?
             for try await event in session.output {
                 switch event {
                 case .stdout(let data): stdout.append(data)
@@ -165,11 +165,8 @@ public struct SSHHostConnection: HostConnection {
                 case .exit(let code, _): exitCode = code
                 }
             }
-        } catch {
-            await session.close()
-            throw error
+            return (stdout, exitCode)
         }
-        await session.close()
         switch exitCode {
         case 0?: return stdout
         case 3?: throw TranscriptReadError.absent
@@ -177,6 +174,16 @@ public struct SSHHostConnection: HostConnection {
         case 6?: throw TranscriptReadError.ambiguous
         case 7?: throw TranscriptReadError.compressed
         default: throw TranscriptReadError.failed(exitCode: exitCode)
+        }
+    }
+
+    /// 視窗、追蹤與列表預覽依讀取上限加上傳輸時間;其他是預設的 20 秒。
+    static func deadline(for request: TranscriptRequest) -> Duration {
+        switch request {
+        case .window(_, _, _, let chunkBytes): HostCommandDeadline.transfer(bytes: chunkBytes)
+        case .tail(_, _, let limit): HostCommandDeadline.transfer(bytes: limit)
+        case .previews(_, let requests): HostCommandDeadline.transfer(bytes: requests.count * TranscriptCommand.previewBytes)
+        case .locateClaude, .locate, .findSubagent, .readWorkflow, .delegationLines: HostCommandDeadline.standard
         }
     }
 

@@ -173,6 +173,16 @@ public actor FakeHost: HostChannel {
         return false
     }
 
+    /// 等到 app 關閉第 `index` 個執行的通道。逾時則回傳 `false`。
+    public func waitUntilClosed(execution index: Int, timeout: Duration = asyncWaitLimit) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if index < executions.count, executions[index].closed { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return false
+    }
+
     // MARK: - 給 session 回報
 
     fileprivate func received(_ data: Data, for id: Int) throws {

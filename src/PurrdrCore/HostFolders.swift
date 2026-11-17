@@ -172,7 +172,9 @@ public struct HostFolders: Sendable {
 
     /// 列出資料夾;`path` 為 `nil` 時是家目錄。
     public func list(_ path: String? = nil) async throws -> FolderListing {
-        let result = try await run(channel.execute(HostFolderCommand.list(path)), input: nil)
+        let result = try await channel.runOnce(HostFolderCommand.list(path), deadline: HostCommandDeadline.standard, sleep: sleep) { session in
+            try await self.run(session, input: nil)
+        }
         if result.exitCode == HostFolderCommand.ExitCode.cannotOpen {
             throw HostFolderError.cannotOpen(result.stderrText)
         }
@@ -200,6 +202,7 @@ public struct HostFolders: Sendable {
         case HostFolderCommand.ExitCode.cannotOpen: throw HostFolderError.cannotOpen(result.stderrText)
         case HostFolderCommand.ExitCode.alreadyExists: throw HostFolderError.alreadyExists
         case HostFolderCommand.ExitCode.sizeMismatch: throw HostFolderError.interrupted
+        case Int32(HostScriptTimeLimit.exitCode): throw HostFolderError.deadlineExceeded
         default: throw HostFolderError.failed(exitCode: result.exitCode, message: result.stderrText)
         }
         let path = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .newlines)
@@ -288,6 +291,8 @@ public struct HostFolders: Sendable {
             throw error
         } catch let error as HostFolderError {
             throw error
+        } catch let error as HostCommandError {
+            throw error
         } catch {
             throw HostFolderError.interrupted
         }
@@ -340,13 +345,14 @@ public enum HostFolderCommand {
 
         """
 
-    static let listScript = prelude + """
+    static let listScript = HostScriptTimeLimit.posixRead(prelude + """
         if [ -n "$1" ]; then cd "$1" || exit 66; else cd || exit 66; fi
         pwd
         ls -lnA
-        """
+        """)
 
-    static let uploadScript = prelude + """
+    /// 逾時時 TERM 由這裡的 trap 處理：刪暫存檔、exit 70。
+    static let uploadScript = HostScriptTimeLimit.posixUpload(prelude + """
         umask 077
         nl='
         '
@@ -379,7 +385,7 @@ public enum HostFolderCommand {
         d=$(pwd)
         if [ "$d" = / ]; then d=; fi
         printf '%s/%s%s' "$d" "$name" "$nl"
-        """
+        """, transferSizeParameter: 5)
 
     public static func list(_ path: String?) -> String {
         command(listScript, name: "purrdr-ls", arguments: [path ?? ""])

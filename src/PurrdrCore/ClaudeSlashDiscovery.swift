@@ -95,12 +95,11 @@ public struct ClaudeSlashDiscovery: Sendable {
         return parts.isEmpty ? base : base + "/" + parts.joined(separator: "/")
     }
 
-    /// 執行並收集 stdout;exit code 不是 0、通道失敗或被取消 → nil。
+    /// 執行並收集 stdout;exit code 不是 0、通道失敗、逾時(每個指令的期限同時間上限)或被取消 → nil。
     private func run(_ command: String) async -> String? {
-        guard let session = try? await channel.execute(command) else { return nil }
-        var stdout = Data()
-        var exitCode: Int32?
-        do {
+        let output = try? await channel.runOnce(command, deadline: timeLimit, sleep: sleep) { session in
+            var stdout = Data()
+            var exitCode: Int32?
             for try await event in session.output {
                 switch event {
                 case .stdout(let data): stdout.append(data)
@@ -108,12 +107,9 @@ public struct ClaudeSlashDiscovery: Sendable {
                 case .exit(let code, _): exitCode = code
                 }
             }
-        } catch {
-            await session.close()
-            return nil
+            return (stdout, exitCode)
         }
-        await session.close()
-        guard exitCode == 0, !Task.isCancelled else { return nil }
+        guard let (stdout, exitCode) = output, exitCode == 0, !Task.isCancelled else { return nil }
         return String(decoding: stdout, as: UTF8.self)
     }
 

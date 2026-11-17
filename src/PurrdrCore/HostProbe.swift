@@ -105,10 +105,16 @@ public enum HostProbeError: Error, Equatable {
 public struct HostProbe: Sendable {
     private let channel: any HostChannel
     private let herdr: HerdrInstallation
+    /// 指令期限的計時(測試注入)。
+    private let sleep: @Sendable (Duration) async throws -> Void
 
-    public init(channel: any HostChannel, herdr: HerdrInstallation) {
+    public init(
+        channel: any HostChannel, herdr: HerdrInstallation,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.channel = channel
         self.herdr = herdr
+        self.sleep = sleep
     }
 
     public func run() async throws -> HostProbeReport {
@@ -116,7 +122,7 @@ public struct HostProbe: Sendable {
         // 偵測到 Windows 之後，指令一律換成 PowerShell 方言。
         let channel = operatingSystem.channel(channel)
 
-        let version = try await channel.collect(HerdrCommand.version(herdr))
+        let version = try await channel.collect(HerdrCommand.version(herdr), deadline: HostCommandDeadline.standard, sleep: sleep)
         if version.exitCode == 127 { throw HostProbeError.herdrNotInstalled }
         guard version.exitCode == 0, let installed = HerdrVersion(version.stdoutText) else { throw HostProbeError.notHerdr }
         guard installed >= .minimumSupported else { throw HostProbeError.herdrOutdated(installed) }
@@ -145,7 +151,8 @@ public struct HostProbe: Sendable {
     @discardableResult
     public func updateHerdr() async throws -> HerdrUpdateOutcome {
         let operatingSystem = try await detectOperatingSystem()
-        let result = try await operatingSystem.channel(channel).collect(HerdrCommand.update(herdr))
+        let result = try await operatingSystem.channel(channel)
+            .collect(HerdrCommand.update(herdr), deadline: HostCommandDeadline.download, sleep: sleep)
         guard result.exitCode == 0 else {
             let message = (result.stderr.isEmpty ? result.stdoutText : String(decoding: result.stderr, as: UTF8.self))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -155,6 +162,6 @@ public struct HostProbe: Sendable {
     }
 
     private func detectOperatingSystem() async throws -> HostOperatingSystem {
-        try await HostOperatingSystem.detect(on: channel)
+        try await HostOperatingSystem.detect(on: channel, sleep: sleep)
     }
 }

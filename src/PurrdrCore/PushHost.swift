@@ -48,13 +48,19 @@ public struct PushHost: Sendable {
     let herdr: HerdrInstallation
     let pluginSource: String
     let pairingFeature: HostWriteFeature
+    /// 指令期限的計時(測試注入)。
+    let sleep: @Sendable (Duration) async throws -> Void
 
     /// - Parameters:
     ///   - deviceID: 這支裝置的 id(`isValidDeviceID`),決定配對資料夾。
     ///   - pluginSource: `herdr plugin install` 的 GitHub 來源(`owner/repo[/subdir]`)。
-    public init(channel: any HostChannel, herdr: HerdrInstallation, deviceID: String, pluginSource: String) {
+    public init(
+        channel: any HostChannel, herdr: HerdrInstallation, deviceID: String, pluginSource: String,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         precondition(Self.isValidDeviceID(deviceID), "裝置 id 會拼進主機路徑")
         self.channel = channel
+        self.sleep = sleep
         self.herdr = herdr
         self.pluginSource = pluginSource
         pairingFeature = HostWriteFeature(id: "push-\(deviceID)", userFiles: [])
@@ -82,7 +88,7 @@ public struct PushHost: Sendable {
         guard try await !pluginInstalled() else { return }
         let marker = ReversibleHostWrite(channel: channel, feature: Self.pluginFeature)
         try await marker.install { _ in HostWritePlan(userFiles: [:], ownFiles: ["source": .init(Data((pluginSource + "\n").utf8))]) }
-        let result = try await run(HerdrCommand.pluginInstall(source: pluginSource, herdr: herdr))
+        let result = try await run(HerdrCommand.pluginInstall(source: pluginSource, herdr: herdr), deadline: HostCommandDeadline.download)
         guard result.exitCode == 0 else {
             try await marker.restore { _, current, _ in current }
             try await pairing.restore { _, current, _ in current }
@@ -143,20 +149,9 @@ public struct PushHost: Sendable {
         }
     }
 
-    /// 執行一般指令，收齊輸出。非零 exit 是結果不是例外(行為規格 §3.2)。
-    func run(_ command: String) async throws -> Result {
-        let session = try await channel.execute(command)
-        await session.closeStdin()
-        var stdout = Data()
-        var stderr = Data()
-        var exitCode: Int32 = -1
-        for try await event in session.output {
-            switch event {
-            case .stdout(let data): stdout.append(data)
-            case .stderr(let data): stderr.append(data)
-            case .exit(let code, _): exitCode = code
-            }
-        }
-        return Result(stdout: String(decoding: stdout, as: UTF8.self), stderr: String(decoding: stderr, as: UTF8.self), exitCode: exitCode)
+    /// 執行一般指令，在期限內收齊輸出。非零 exit 是結果不是例外(行為規格 §3.2)。
+    func run(_ command: String, deadline: Duration = HostCommandDeadline.standard) async throws -> Result {
+        let result = try await channel.collect(command, deadline: deadline, sleep: sleep)
+        return Result(stdout: result.stdoutText, stderr: String(decoding: result.stderr, as: UTF8.self), exitCode: result.exitCode)
     }
 }
