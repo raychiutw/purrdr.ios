@@ -8,6 +8,7 @@
 // PURRDR_REPRO_HOST_KEY(主機公鑰檔，`ssh-keyscan` 的一行)、ROUNDS、SUBSCRIPTIONS、WORKERS、STEP_LIMIT、CANCEL_GRACE。
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 func log(_ line: String) {
     FileHandle.standardOutput.write(Data((line + "\n").utf8))
