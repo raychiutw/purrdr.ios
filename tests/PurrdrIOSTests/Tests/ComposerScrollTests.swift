@@ -114,8 +114,7 @@ struct ComposerScrollTests {
         let visibleTop = textView.contentOffset.y
         let visibleBottom = visibleTop + textView.bounds.height
         #expect(caret.minY >= visibleTop - 0.5 && caret.maxY <= visibleBottom + 0.5,
-                "游標 \(caret.minY)…\(caret.maxY) 不在可見範圍 \(visibleTop)…\(visibleBottom)"
-                + "(contentSize \(textView.contentSize.height),內捲 \(textView.isScrollEnabled))",
+                "游標 \(caret.minY)…\(caret.maxY) 不在可見範圍 \(visibleTop)…\(visibleBottom)(內容高 \(textView.contentSize.height))",
                 sourceLocation: sourceLocation)
     }
 
