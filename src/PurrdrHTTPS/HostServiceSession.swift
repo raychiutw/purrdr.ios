@@ -180,6 +180,8 @@ extension HostServiceProtocol.ServerMessage {
         case .transcriptFollowResult(let message): message.requestId
         case .transcriptUnfollowResult(let message): message.requestId
         case .transcriptUpdate: nil
+        case .paneSendTextResult(let message): message.requestId
+        case .agentPromptResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
         }
     }

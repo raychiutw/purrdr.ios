@@ -45,7 +45,7 @@ public actor HTTPSHostConnection: HostConnection {
 
     // MARK: - herdr 單次請求
 
-    /// 支援 `session.snapshot`(主機服務的 `agents.list`)、`ping`(握手的 herdr 資訊)、`pane.send_keys`。
+    /// 支援 `session.snapshot`(主機服務的 `agents.list`)、`ping`(握手的 herdr 資訊)、`pane.send_keys`、`pane.send_text`、`agent.prompt`。
     /// 期限到丟 `HerdrError.deadlineExceeded`(含撥號與握手)。
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let herdr = try HerdrRequestLine(request)
@@ -57,6 +57,10 @@ public actor HTTPSHostConnection: HostConnection {
                 return try await self.ping(id: herdr.id)
             case "pane.send_keys":
                 return try await self.sendKeys(id: herdr.id, params: herdr.params)
+            case "pane.send_text":
+                return try await self.sendText(id: herdr.id, params: herdr.params)
+            case "agent.prompt":
+                return try await self.prompt(id: herdr.id, params: herdr.params)
             default:
                 throw HostServiceError.unsupported(herdr.method)
             }
@@ -80,6 +84,28 @@ public actor HTTPSHostConnection: HostConnection {
         let reply = try await send { .paneSendKeys(.init(requestId: $0, paneId: keys.paneID, keys: keys.keys)) }
         guard case .paneSendKeysResult = reply else { throw HostServiceError.unexpectedResponse }
         return try HerdrResponseLine.ok(id: id)
+    }
+
+    private func sendText(id: String?, params: Data) async throws -> Data {
+        let text = try JSONDecoder().decode(SendTextParams.self, from: params)
+        let reply = try await send { .paneSendText(.init(requestId: $0, paneId: text.paneID, text: text.text)) }
+        guard case .paneSendTextResult = reply else { throw HostServiceError.unexpectedResponse }
+        return try HerdrResponseLine.ok(id: id)
+    }
+
+    private func prompt(id: String?, params: Data) async throws -> Data {
+        let prompt = try JSONDecoder().decode(PromptParams.self, from: params)
+        let wait = prompt.wait.map { wait in
+            HostServiceProtocol.PromptWait(until: wait.until.compactMap(HostServiceProtocol.AgentStatus.init(rawValue:)), timeoutMs: wait.timeoutMs)
+        }
+        let reply = try await send { .agentPrompt(.init(requestId: $0, paneId: prompt.target, text: prompt.text, wait: wait)) }
+        guard case .agentPromptResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+        return try HerdrResponseLine.prompted(id: id, delivery: result.delivery)
+    }
+
+    /// 握手時主機服務回報的唯讀。
+    public func isReadOnlyDevice() async throws -> Bool {
+        try await hostServiceInfo().readOnly
     }
 
     // MARK: - Agent 事件串流
@@ -249,6 +275,33 @@ public actor HTTPSHostConnection: HostConnection {
         }
     }
 
+    private struct SendTextParams: Decodable {
+        var paneID: String
+        var text: String
+
+        enum CodingKeys: String, CodingKey {
+            case paneID = "pane_id"
+            case text
+        }
+    }
+
+    /// herdr `agent.prompt` 的 params(`HerdrClient` 送出的形狀)。
+    private struct PromptParams: Decodable {
+        var target: String
+        var text: String
+        var wait: Wait?
+
+        struct Wait: Decodable {
+            var until: [String]
+            var timeoutMs: Int
+
+            enum CodingKeys: String, CodingKey {
+                case until
+                case timeoutMs = "timeout_ms"
+            }
+        }
+    }
+
     private struct SendKeysParams: Decodable {
         var paneID: String
         var keys: [String]
@@ -299,6 +352,11 @@ enum HerdrResponseLine {
         try encode(Envelope(id: id, result: Typed(type: "ok")))
     }
 
+    /// `agent.prompt` 成功;`delivery` 照主機回報(沒有就省略)。
+    static func prompted(id: String?, delivery: String?) throws -> Data {
+        try encode(Envelope(id: id, result: Prompted(type: "agent_prompted", delivery: delivery)))
+    }
+
     static func subscriptionStarted(id: String?) throws -> Data {
         try encode(Envelope(id: id, result: Typed(type: "subscription_started")))
     }
@@ -316,6 +374,11 @@ enum HerdrResponseLine {
 
     private struct Typed: Encodable {
         var type: String
+    }
+
+    private struct Prompted: Encodable {
+        var type: String
+        var delivery: String?
     }
 
     private struct Ping: Encodable {

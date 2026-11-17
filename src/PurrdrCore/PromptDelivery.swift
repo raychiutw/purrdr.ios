@@ -14,6 +14,8 @@ public enum PromptOutcome: Sendable, Equatable {
     case needsAnswer
     /// herdr 拒絕了請求，什麼都沒送出。訊息是 herdr 原文。
     case rejected(message: String)
+    /// 這支裝置配對成唯讀，主機服務拒絕寫入：什麼都沒送出。
+    case readOnlyDevice
 }
 
 /// 無法確認的原因。
@@ -73,6 +75,8 @@ public struct PromptDelivery: Sendable {
         let reply: PromptReply
         do {
             reply = try await client.prompt(target: agent.paneID, text: text, wait: .seconds(8))
+        } catch HostServiceError.readOnlyDevice {
+            return .readOnlyDevice
         } catch let error as HerdrError {
             return outcome(of: error, agent: agent)
         } catch {
@@ -91,6 +95,8 @@ public struct PromptDelivery: Sendable {
         do {
             _ = try await client.prompt(target: agent.paneID, text: text, wait: nil)
             return .submittedCommand
+        } catch HostServiceError.readOnlyDevice {
+            return .readOnlyDevice
         } catch let error as HerdrError {
             if case .herdr = error { return outcome(of: error, agent: agent) }
             return .unconfirmed(.connectionLost)

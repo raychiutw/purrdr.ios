@@ -53,8 +53,14 @@ pub struct FakeHerdr {
 impl FakeHerdr {
     /// 依 method 回應;沒列到的 method 不回應而直接關閉連線。
     pub async fn start(replies: Vec<(&str, Value)>) -> FakeHerdr {
+        FakeHerdr::start_delayed(replies.into_iter().map(|(method, reply)| (method, reply, Duration::ZERO)).collect()).await
+    }
+
+    /// 同 `start`,但每個 method 等指定的時間才回應(模擬 herdr 等待 agent)。
+    pub async fn start_delayed(replies: Vec<(&str, Value, Duration)>) -> FakeHerdr {
         let socket = unique_socket();
-        let replies: Arc<HashMap<String, Value>> = Arc::new(replies.into_iter().map(|(method, reply)| (method.to_owned(), reply)).collect());
+        let replies: Arc<HashMap<String, (Value, Duration)>> =
+            Arc::new(replies.into_iter().map(|(method, reply, delay)| (method.to_owned(), (reply, delay))).collect());
         let requests = Arc::new(Mutex::new(Vec::new()));
         listen(&socket, replies, requests.clone());
         FakeHerdr { socket, requests }
@@ -76,16 +82,17 @@ impl FakeHerdr {
     }
 }
 
-async fn serve_connection<S: AsyncRead + AsyncWrite + Unpin>(stream: S, replies: Arc<HashMap<String, Value>>, requests: Arc<Mutex<Vec<Value>>>) {
+async fn serve_connection<S: AsyncRead + AsyncWrite + Unpin>(stream: S, replies: Arc<HashMap<String, (Value, Duration)>>, requests: Arc<Mutex<Vec<Value>>>) {
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
     while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
         let request: Value = serde_json::from_str(&line).unwrap();
         line.clear();
         requests.lock().unwrap().push(request.clone());
-        let Some(reply) = replies.get(request["method"].as_str().unwrap_or_default()) else {
+        let Some((reply, delay)) = replies.get(request["method"].as_str().unwrap_or_default()) else {
             return;
         };
+        tokio::time::sleep(*delay).await;
         let mut reply = reply.clone();
         reply["id"] = request["id"].clone();
         let mut bytes = serde_json::to_vec(&reply).unwrap();
@@ -95,7 +102,7 @@ async fn serve_connection<S: AsyncRead + AsyncWrite + Unpin>(stream: S, replies:
 }
 
 #[cfg(unix)]
-fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, Value>>, requests: Arc<Mutex<Vec<Value>>>) {
+fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, (Value, Duration)>>, requests: Arc<Mutex<Vec<Value>>>) {
     let _ = std::fs::remove_file(socket.native_name());
     let listener = tokio::net::UnixListener::bind(socket.native_name()).unwrap();
     tokio::spawn(async move {
@@ -106,7 +113,7 @@ fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, Value>>, requests: 
 }
 
 #[cfg(windows)]
-fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, Value>>, requests: Arc<Mutex<Vec<Value>>>) {
+fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, (Value, Duration)>>, requests: Arc<Mutex<Vec<Value>>>) {
     use tokio::net::windows::named_pipe::ServerOptions;
     let name = socket.native_name();
     let mut server = ServerOptions::new().first_pipe_instance(true).create(&name).unwrap();
@@ -170,8 +177,13 @@ impl TestClient {
 
     /// 下一個文字訊息(JSON)。
     pub async fn receive(&mut self) -> Value {
+        self.receive_within(Duration::from_secs(10)).await
+    }
+
+    /// 下一個文字訊息(JSON),最多等 `limit`。
+    pub async fn receive_within(&mut self, limit: Duration) -> Value {
         loop {
-            let message = tokio::time::timeout(Duration::from_secs(10), self.stream.next())
+            let message = tokio::time::timeout(limit, self.stream.next())
                 .await
                 .expect("等回應逾時")
                 .expect("連線關閉")

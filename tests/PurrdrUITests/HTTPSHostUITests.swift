@@ -37,6 +37,36 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertFalse(app.buttons["menu.loginShell"].exists, "HTTPS 主機不應該有登入 Shell")
     }
 
+    /// 唯讀配對(配對碼 `R3AD-0NLY`,#60):聊天沒有輸入框，「需要你」卡片沒有選項，兩處都說明是唯讀。
+    @MainActor
+    func testReadOnlyDeviceHasNoComposerOrAnswers() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        chooseHTTPS(app)
+        fill(app, code: "R3AD-0NLY")
+        let test = app.buttons["hostEditor.test"]
+        XCTAssertTrue(test.exists || scrollTo(test, in: app))
+        test.tap()
+        let readOnly = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Read-only")).firstMatch
+        XCTAssertTrue(readOnly.waitForExistence(timeout: 10) || scrollTo(readOnly, in: app), "連線結果沒有標示唯讀")
+        app.buttons["hostEditor.save"].tap()
+
+        // Demo 的 w2:p1 卡在 Bash 權限(AnswerPromptUITests)。
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier ENDSWITH %@ AND NOT (identifier BEGINSWITH %@)", "/w2:p1", "agent.row.demo/"))
+            .firstMatch
+        XCTAssertTrue(app.reveal(row), "列表沒有 HTTPS 主機的 Agent")
+        row.tap()
+
+        let card = app.descendants(matching: .any)["prompt.card"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 10), "沒有提示卡")
+        XCTAssertTrue(app.descendants(matching: .any)["prompt.readOnly"].firstMatch.exists, "提示卡沒有說明唯讀")
+        XCTAssertFalse(app.descendants(matching: .any)["prompt.option.1"].firstMatch.exists, "唯讀裝置不應該有回答選項")
+        XCTAssertTrue(app.descendants(matching: .any)["composer.readOnly"].firstMatch.exists, "輸入列沒有說明唯讀")
+        XCTAssertFalse(app.descendants(matching: .any)["composer.text"].firstMatch.exists, "唯讀裝置不應該有輸入框")
+        XCTAssertFalse(app.descendants(matching: .any)["composer.send"].firstMatch.exists, "唯讀裝置不應該有送出鈕")
+    }
+
     /// 配對碼過期：說明原因，不能儲存。
     @MainActor
     func testExpiredPairingCodeIsExplained() {

@@ -12,8 +12,8 @@ use crate::device_store::Device;
 use crate::herdr_client::{HerdrClient, HerdrFailure};
 use crate::http::{ServiceContext, blocking};
 use crate::protocol::{
-    Agent, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION, PaneSendKeys,
-    PaneSendKeysResult, ServerMessage, TranscriptLocate, Welcome, Workspace,
+    Agent, AgentPrompt, AgentPromptResult, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION,
+    PaneSendKeys, PaneSendKeysResult, PaneSendText, PaneSendTextResult, ServerMessage, TranscriptLocate, Welcome, Workspace,
 };
 use crate::transcript::AgentSessionInfo;
 use crate::transcript_session::TranscriptSession;
@@ -145,13 +145,47 @@ impl ClientConnection {
             }
         }
         match message {
-            ClientMessage::Hello(hello) => self.hello(hello.request_id, hello.protocol_version).await,
+            ClientMessage::Hello(hello) => self.hello(hello.request_id, hello.protocol_version, device.read_only).await,
             ClientMessage::AgentsList(request) => self.agents_list(request.request_id).await,
             ClientMessage::PaneSendKeys(request) => self.pane_send_keys(request).await,
             ClientMessage::TranscriptLocate(request) => self.transcript_locate(request).await,
             ClientMessage::TranscriptWindow(request) => self.transcripts.window(request).await,
             ClientMessage::TranscriptFollow(request) => self.transcripts.follow(request).await,
             ClientMessage::TranscriptUnfollow(request) => self.transcripts.unfollow(request),
+            ClientMessage::PaneSendText(request) => self.pane_send_text(request).await,
+            ClientMessage::AgentPrompt(request) => self.agent_prompt(request).await,
+        }
+    }
+
+    async fn pane_send_text(&self, request: PaneSendText) -> ServerMessage {
+        if !self.handshaken {
+            return error(Some(request.request_id), ErrorCode::HandshakeRequired, "send hello first");
+        }
+        let params = json!({"pane_id": request.pane_id, "text": request.text});
+        match self.herdr.request("pane.send_text", params).await {
+            Ok(_) => ServerMessage::PaneSendTextResult(PaneSendTextResult {
+                request_id: request.request_id,
+            }),
+            Err(failure) => herdr_error(request.request_id, "pane.send_text", failure),
+        }
+    }
+
+    async fn agent_prompt(&self, request: AgentPrompt) -> ServerMessage {
+        if !self.handshaken {
+            return error(Some(request.request_id), ErrorCode::HandshakeRequired, "send hello first");
+        }
+        let mut params = json!({"target": request.pane_id, "text": request.text});
+        let mut herdr_wait = Duration::ZERO;
+        if let Some(wait) = request.wait {
+            herdr_wait = Duration::from_millis(u64::try_from(wait.timeout_ms).unwrap_or(0));
+            params["wait"] = json!({"until": wait.until, "timeout_ms": wait.timeout_ms});
+        }
+        match self.herdr.request_waiting("agent.prompt", params, herdr_wait).await {
+            Ok(result) => ServerMessage::AgentPromptResult(AgentPromptResult {
+                request_id: request.request_id,
+                delivery: result["delivery"].as_str().map(str::to_owned),
+            }),
+            Err(failure) => herdr_error(request.request_id, "agent.prompt", failure),
         }
     }
 
@@ -196,7 +230,7 @@ impl ClientConnection {
         }
     }
 
-    async fn hello(&mut self, request_id: String, protocol_version: i64) -> ServerMessage {
+    async fn hello(&mut self, request_id: String, protocol_version: i64, read_only: bool) -> ServerMessage {
         if protocol_version != PROTOCOL_VERSION {
             let mut unsupported = error_message(
                 Some(request_id),
@@ -234,6 +268,7 @@ impl ClientConnection {
                 protocol,
                 capabilities,
             },
+            read_only,
         })
     }
 

@@ -44,7 +44,16 @@ struct BlockedPromptView: View {
             if let details = prompt.details {
                 PromptDetailsView(details: details)
             }
-            choices(prompt)
+            if model.isReadOnly {
+                // 唯讀裝置(#60):不顯示選項，說明到主機或可寫入的裝置回答。
+                Label("This device is paired read-only. Answer on the host or from a device that can send.", systemImage: "lock")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("prompt.readOnly")
+            } else {
+                choices(prompt)
+            }
             if let notice = model.answerNotice {
                 HStack(alignment: .firstTextBaseline) {
                     Label(notice.text, systemImage: "exclamationmark.triangle")
