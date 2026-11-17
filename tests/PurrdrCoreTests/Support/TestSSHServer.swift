@@ -25,16 +25,14 @@ final class TestSSHServer: Sendable {
 
     /// check mode 等待後的結果。
     enum CheckResult: Sendable {
-        /// 使用者在瀏覽器完成驗證：過 `after` 後放行。
-        case approve(after: TimeAmount)
+        /// 使用者在瀏覽器完成驗證：等測試呼叫 `approveChecks()` 才放行。
+        case approveOnRequest
         /// 驗證被拒：過 `after` 後回認證失敗。
         case deny(after: TimeAmount)
         /// 過 `after` 後切斷 TCP(例如 app 進背景時連線被系統關掉)。
         case drop(after: TimeAmount)
         /// 一直不回覆。
         case hold
-        /// 等測試呼叫 `approveChecks()` 才放行。
-        case approveOnRequest
     }
 
     /// 一個 exec 指令的回應方式。
@@ -284,8 +282,6 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
             recorder.update { $0.checkBanners += 1 }
             let loop = connection.eventLoop
             switch result {
-            case .approve(let delay):
-                loop.scheduleTask(in: delay) { responsePromise.succeed(.success) }
             case .deny(let delay):
                 loop.scheduleTask(in: delay) { responsePromise.succeed(.failure) }
             case .drop(let delay):
