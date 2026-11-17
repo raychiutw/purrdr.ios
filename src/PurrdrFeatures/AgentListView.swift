@@ -257,7 +257,7 @@ public struct AgentListView: View {
     private func listRows(_ sections: [AgentSection]) -> some View {
         let failures = model.failures
         if model.mode == .spaces {
-            SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation) { row in agentRow(row) }
+            SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation) { row in agentRow(row, spaces: true) }
         } else {
             ForEach(sections) { section in
                 Section {
@@ -298,9 +298,11 @@ public struct AgentListView: View {
         }
     }
 
-    /// 一個 Agent 列(兩種檢視共用：同樣的滑動、選單、已讀與釘選)。
-    private func agentRow(_ row: AgentRow) -> some View {
-        NavigationLink(value: row.route) { AgentRowView(row: row) }
+    /// 一個 Agent 列(兩種檢視共用：同樣的滑動、選單、已讀與釘選;Spaces 檢視的版面不同)。
+    private func agentRow(_ row: AgentRow, spaces: Bool = false) -> some View {
+        NavigationLink(value: row.route) {
+            if spaces { SpacesAgentRowView(row: row) } else { AgentRowView(row: row) }
+        }
             .accessibilityIdentifier("agent.row.\(row.id)")
             .workspaceRowActions(
                 WorkspaceRowContext(paneID: row.paneID, snapshot: model.snapshot(for: row.host)), host: row.host,

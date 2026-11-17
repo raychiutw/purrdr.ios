@@ -67,6 +67,34 @@ extension View {
             openInNewWindow: openInNewWindow))
     }
 
+    /// Spaces 群組標頭的 context menu(#103):第一項是版面圖，其餘同列的 workspace 動作。
+    func workspaceGroupActions(
+        workspaceID: String, label: String, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation
+    ) -> some View {
+        contextMenu {
+            Button("Show Layout", systemImage: "rectangle.split.3x1") {
+                // 顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
+                presentation.host = host
+                presentation.sheet = .layout(
+                    workspaceLabel: label, layout: snapshot.flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) })
+            }
+            Button("Rename Workspace…", systemImage: "pencil") {
+                presentation.host = host
+                presentation.sheet = .rename(workspaceID: workspaceID, label: label)
+            }
+            Button("New Worktree…", systemImage: "arrow.triangle.branch") {
+                presentation.host = host
+                presentation.sheet = .worktree(workspaceID: workspaceID, label: label)
+            }
+            Divider()
+            Button("Close Workspace…", systemImage: "xmark.circle", role: .destructive) {
+                presentation.host = host
+                let sessionIDs = snapshot?.agents.filter { $0.workspaceID == workspaceID }.compactMap(\.sessionID) ?? []
+                presentation.closeRequest = .init(workspaceID: workspaceID, label: label, sessionIDs: sessionIDs)
+            }
+        }
+    }
+
     /// 呈現 workspace 操作的 sheet、確認與錯誤。`actions` 依主機取得該主機的操作;
     /// `onOpen` 在版面圖選了 Pane 且 sheet 關閉之後呼叫(帶主機)。
     func workspaceActionsPresentation(
