@@ -27,6 +27,8 @@ rm -rf .derivedData/package/Package.xcresult && xcodebuild build -scheme Purrdr-
   && xcrun xcresulttool get build-results --path .derivedData/package/Package.xcresult | jq .warningCount  # 以 iOS 編譯 package,warning 要是 0
 scripts/record-herdr-fixture.sh <檔名> <method> [params] [ssh 目的地]  # 從真實主機錄 herdr 回應，見 tests/PurrdrTestSupport/Fixtures/README.md
 scripts/strings.sh sync                                          # 把畫面新字串加進 String Catalog(之後補繁中);check 只檢查(CI 也跑)
+PURRDR_WINDOWS_HOST=user@host PURRDR_WINDOWS_KEY=<私鑰> \
+  python -I scripts/windows-upload-repro.py                      # Windows 主機上傳經真正 sshd 的回歸檢查(100 B／300 KB／2.5 MB,20 秒內、SHA-256 相同);Windows 開發機可 SSH 到本機跑，不需要 Mac
 ```
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
