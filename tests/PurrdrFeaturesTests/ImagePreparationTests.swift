@@ -6,17 +6,12 @@ import PurrdrFeatures
 import Testing
 import UniformTypeIdentifiers
 
-/// 附圖送出前的手機端前處理：大小上限(#78)。樣本是 `Resources/images/` 的合成影像(產生方式見 make-samples.py)。
+/// 附圖送出前的手機端前處理：大小上限(#78)。樣本是執行時產生的合成影像(`SyntheticImages`)。
 @Suite("圖片前處理的大小上限")
 struct ImagePreparationTests {
     /// 目標大小 500 KB 與長邊下限 1280px(#78 定案值，以獨立字面值斷言)。
     static let targetBytes = 500 * 1024
     static let minimumLongSide = 1280
-
-    static func sample(_ name: String) throws -> Data {
-        let url = try #require(Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Resources/images"))
-        return try Data(contentsOf: url)
-    }
 
     static func longSide(_ prepared: ImagePreparation.Prepared) -> Int {
         max(prepared.width, prepared.height)
@@ -76,7 +71,7 @@ struct ImagePreparationTests {
 
     @Test("大張照片：壓到目標大小以內，長邊不低於下限")
     func largePhotoFitsTarget() throws {
-        let prepared = try #require(ImagePreparation.prepare(Self.sample("photo-4032x3024.jpg")))
+        let prepared = try #require(ImagePreparation.prepare(SyntheticImages.photo))
 
         #expect(prepared.jpeg.count <= Self.targetBytes)
         #expect(Self.longSide(prepared) >= Self.minimumLongSide)
@@ -84,16 +79,20 @@ struct ImagePreparationTests {
         #expect(Self.isJPEG(prepared.jpeg))
         // 長寬比不變(4:3)。
         #expect(abs(Double(prepared.width) / Double(prepared.height) - 4.0 / 3.0) < 0.01)
+        // 先降品質再縮長邊:2048px 降到 0.4 仍超過，才縮到 1792px(品質從 0.8 重試，到 0.4 才夠;CI 實測值)。
+        #expect(Self.longSide(prepared) == 1792)
+        #expect(prepared.quality == 0.4)
     }
 
     @Test("文字截圖：壓到目標大小以內，文字區與原圖差異小(文字仍可讀)")
     func screenshotStaysReadable() throws {
-        let original = try Self.sample("screenshot-1290x2796.png")
+        let original = SyntheticImages.screenshot
         let prepared = try #require(ImagePreparation.prepare(original))
 
         #expect(prepared.jpeg.count <= Self.targetBytes)
         // 先降品質：降到 0.5 就夠，不縮小解析度。
         #expect(Self.longSide(prepared) == 2048)
+        #expect(prepared.quality == 0.5)
         // 下限(1280px、品質 0.4)約 31 dB,目視文字仍清楚。
         #expect(try Self.textRegionPSNR(prepared.jpeg, original: original) >= 30)
     }

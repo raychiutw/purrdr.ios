@@ -10,9 +10,9 @@ import Testing
 @Suite("Windows 主機的主機腳本")
 struct WindowsHostScriptsTests {
     /// 唯讀腳本的 stub(手寫的預期值):從 stdin 一行一行讀到結束標記才執行，不等 EOF。
-    /// stdin 以原始 handle 建 `FileStream` 讀(#77:經 sshd 時 console stream 讀超過約 128 KiB 會卡住)。
+    /// stdin 以原始 handle 建 `FileStream` 讀(#77:經 sshd 時 console stream 讀超過約 128 KiB 會卡住);取不到 handle 時退回 console stream。
     static let stub = PowerShell.encodedCommand(
-        #"$ProgressPreference='SilentlyContinue';$q=[Console]::OpenStandardInput();$i=New-Object IO.FileStream($q.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($q),[IO.FileAccess]::Read,1,$false);$s=New-Object IO.StreamReader($i,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '#purrdr-end-of-script'){[void]$b.AppendLine($l)};iex $b.ToString()"#)
+        #"$ProgressPreference='SilentlyContinue';$stdin=[Console]::OpenStandardInput();try{$stdin=New-Object IO.FileStream($stdin.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($stdin),[IO.FileAccess]::Read,1,$false)}catch{};$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '#purrdr-end-of-script'){[void]$b.AppendLine($l)};iex $b.ToString()"#)
 
     static let path = #"C:\Users\demo\.claude\projects\C--work\abc.jsonl"#
 

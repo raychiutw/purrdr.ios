@@ -354,18 +354,10 @@ struct DemoHostTests {
             HostFolderCommand.upload(folder: "/Users/demo/notes", name: "build.log", size: 1_000, encoding: .gzip, transferSize: 21))
         try await session.write(Data(count: 21))
         await session.closeStdin()
-        var stdout = Data()
-        var code: Int32?
-        for try await event in session.output {
-            switch event {
-            case .stdout(let chunk): stdout.append(chunk)
-            case .stderr: break
-            case .exit(let exit, _): code = exit
-            }
-        }
+        let output = try await session.collectOutput()
 
-        #expect(code == 0)
-        #expect(String(decoding: stdout, as: UTF8.self) == "/Users/demo/notes/build.log\n")
+        #expect(output.exitCode == 0)
+        #expect(output.stdoutText == "/Users/demo/notes/build.log\n")
         let notes = try await HostFolders(channel: host).list("/Users/demo/notes")
         #expect(notes.entries.first { $0.name == "build.log" }?.size == 1_000)
     }

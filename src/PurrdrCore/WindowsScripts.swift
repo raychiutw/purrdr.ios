@@ -187,31 +187,42 @@ enum WindowsScripts {
         """#
 
     /// 檔案上傳到使用者選的資料夾(行為規格 F13):檔名不可為空、`.`、`..`,不可含 `/` 或 `\`(64);資料夾打不開 66。
-    /// gzip 傳輸：收到的傳輸 bytes 要等於傳輸大小，以 `GZipStream` 解壓後要等於原始大小，否則 75。
-    /// 參數：資料夾、檔名、原始大小、傳輸編碼(`identity`／`gzip`)、傳輸大小。
+    /// gzip 傳輸：傳輸 bytes 先寫進第二個暫存檔(不放記憶體),大小要等於傳輸大小，再以 `GZipStream` 解壓，
+    /// 解壓後要等於原始大小，否則 75。參數：資料夾、檔名、原始大小、傳輸編碼(`identity`／`gzip`)、傳輸大小。
     static let folderUpload = #"""
-        $n=$a[1];$z=[long]$a[2];$y=[long]$a[4]
+        $n=$a[1];$z=[long]$a[2];$transferSize=[long]$a[4]
         if(-not $n -or $n -eq '.' -or $n -eq '..' -or $n.Contains('/') -or $n.Contains('\')){exit 64}
         if(-not [IO.Directory]::Exists($a[0])){[Console]::Error.Write("cannot open $($a[0])");exit 66}
         $d=(Get-Item -LiteralPath $a[0] -Force).FullName
         $t=Join-Path $d ('.purrdr-upload.'+[Guid]::NewGuid().ToString('N'))
+        $gz=$null;$transfer=$null
         $p=Join-Path $d $n
         try{
         try{$w=[IO.File]::Open($t,'CreateNew','Write','None')}catch{exit 71}
-        try{if($a[3] -ceq 'gzip'){$m=New-Object IO.MemoryStream;try{PReceive $m $y}catch{exit 72};if($m.Length -ne $y){exit 75};$m.Position=0;try{(New-Object IO.Compression.GZipStream($m,[IO.Compression.CompressionMode]::Decompress)).CopyTo($w)}catch{exit 75}}else{try{PReceive $w $y}catch{exit 72}}}finally{$w.Close()}
+        try{
+        if($a[3] -ceq 'gzip'){
+        $gz="$t.gz";try{$transfer=[IO.File]::Open($gz,'CreateNew','ReadWrite','None')}catch{exit 71}
+        try{PReceive $transfer $transferSize}catch{exit 72}
+        if($transfer.Length -ne $transferSize){exit 75}
+        $transfer.Position=0;try{(New-Object IO.Compression.GZipStream($transfer,[IO.Compression.CompressionMode]::Decompress)).CopyTo($w)}catch{exit 75}
+        }else{try{PReceive $w $transferSize}catch{exit 72}}
+        }finally{$w.Close();if($transfer){$transfer.Close()}}
         if((New-Object IO.FileInfo $t).Length -ne $z){exit 75}
         if(Test-Path -LiteralPath $p){exit 73}
         try{[IO.File]::Move($t,$p)}catch{if(Test-Path -LiteralPath $p){exit 73};exit 71}
         $t=$null
         PWrite "$p`n"
-        }finally{if($t){Remove-Item -LiteralPath $t -Force -ErrorAction SilentlyContinue}}
+        }finally{foreach($f in @($t,$gz)){if($f){Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue}}}
         """#
+
+    /// 把 stdin 開成 `$stdin`:以 console stream 的原始 handle 建 `FileStream`(經 sshd 時直接讀 console stream,
+    /// 超過約 128 KiB 就永遠不返回，#77);取不到 handle 時退回 console stream。上傳與 `WindowsCommand.stdinStub` 共用。
+    static let openStdin = "$stdin=[Console]::OpenStandardInput();try{$stdin=New-Object IO.FileStream($stdin.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($stdin),[IO.FileAccess]::Read,1,$false)}catch{}"
 
     /// 從 stdin 讀**剛好**宣告的大小(或讀到 EOF 為止)寫進檔案。不等 EOF:經 Git Bash 時 EOF 可能傳不到
     /// (`WindowsCommand.stdinStub`);連線中斷時讀到的會比宣告的少，由大小檢查擋下(75)。
-    /// 以 console stream 的原始 handle 建 `FileStream` 讀：經 sshd 時直接讀 console stream,超過約 128 KiB 就永遠不返回(#77)。
     static let receive = #"""
-        function PReceive($w,[long]$z){$q=[Console]::OpenStandardInput();$i=New-Object IO.FileStream($q.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($q),[IO.FileAccess]::Read,1,$false);$c=New-Object byte[] 65536;$n=[long]0;while($n -lt $z){$r=$i.Read($c,0,[int][Math]::Min([long]$c.Length,$z-$n));if($r -le 0){break};$w.Write($c,0,$r);$n+=$r}}
+        function PReceive($w,[long]$z){\#(openStdin);$c=New-Object byte[] 65536;$n=[long]0;while($n -lt $z){$r=$stdin.Read($c,0,[int][Math]::Min([long]$c.Length,$z-$n));if($r -le 0){break};$w.Write($c,0,$r);$n+=$r}}
         """#
 
     static func upload(_ body: String, arguments values: [String]) -> String {

@@ -132,6 +132,19 @@ public enum HostFolderError: Error, Equatable {
     case deadlineExceeded
 }
 
+/// 一台主機有沒有 `gzip`:上傳收到 exit 69 後記住，之後這台主機的上傳直接用 identity。
+///
+/// 由呼叫端依主機保存(`HostsModel` 的每台主機一份，主機設定改了就重建、重新試)。
+public actor HostGzipAvailability {
+    public private(set) var isUnavailable = false
+
+    public init() {}
+
+    func markUnavailable() {
+        isUnavailable = true
+    }
+}
+
 /// 瀏覽主機的資料夾、上傳檔案(行為規格 F13)。沒有 SFTP:清單是一個 exec,上傳的 bytes 走 exec 的 stdin(ADR-0003)。
 ///
 /// 指令是 POSIX(macOS、Linux);Windows 主機由 `WindowsHostChannel` 換成同樣輸出格式的 PowerShell(`WindowsScripts`)。
@@ -141,15 +154,19 @@ public struct HostFolders: Sendable {
 
     let channel: any HostChannel
     let deflate: (any RawDeflate)?
+    let gzipAvailability: HostGzipAvailability
     let sleep: @Sendable (Duration) async throws -> Void
 
-    /// - Parameter deflate: 有的話，一般檔案壓得小時以 gzip 傳輸(`UploadTransfer.prepare`)。
+    /// - Parameters:
+    ///   - deflate: 有的話，一般檔案壓得小時以 gzip 傳輸(`UploadTransfer.prepare`)。
+    ///   - gzipAvailability: 這台主機有沒有 `gzip`;同一台主機的 `HostFolders` 共用一份。
     public init(
-        channel: any HostChannel, deflate: (any RawDeflate)? = nil,
+        channel: any HostChannel, deflate: (any RawDeflate)? = nil, gzipAvailability: HostGzipAvailability = HostGzipAvailability(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.channel = channel
         self.deflate = deflate
+        self.gzipAvailability = gzipAvailability
         self.sleep = sleep
     }
 
@@ -165,15 +182,17 @@ public struct HostFolders: Sendable {
     /// 上傳到 `folder`(絕對路徑),回傳主機上的絕對路徑。
     ///
     /// 大小(原始大小)與檔名在送出任何指令之前檢查;主機上已有同名項目時拒絕(永不覆寫)。
-    /// 壓得小的一般檔案以 gzip 傳輸;主機沒有 `gzip` 時改用 identity 重傳一次。
+    /// 壓得小的一般檔案以 gzip 傳輸;主機沒有 `gzip` 時改用 identity 重傳一次，並記住(`HostGzipAvailability`)。
     public func upload(_ data: Data, named name: String, to folder: String) async throws -> String {
         guard data.count <= Self.maximumUploadSize else { throw HostFolderError.tooLarge }
         guard Self.isValidName(name) else { throw HostFolderError.invalidName }
         guard HostPathSyntax.isAbsolute(folder) else { throw HostFolderError.cannotOpen(folder) }
-        let transfer = UploadTransfer.prepare(data, named: name, deflate: deflate)
-        var result = try await send(transfer, size: data.count, named: name, to: folder)
+        let usableDeflate = await gzipAvailability.isUnavailable ? nil : deflate
+        let transfer = UploadTransfer.prepare(data, named: name, deflate: usableDeflate)
+        var result = try await send(transfer, originalSize: data.count, named: name, to: folder)
         if transfer.encoding == .gzip, result.exitCode == HostFolderCommand.ExitCode.gzipUnavailable {
-            result = try await send(UploadTransfer(encoding: .identity, payload: data), size: data.count, named: name, to: folder)
+            await gzipAvailability.markUnavailable()
+            result = try await send(UploadTransfer(encoding: .identity, payload: data), originalSize: data.count, named: name, to: folder)
         }
         switch result.exitCode {
         case 0: break
@@ -191,12 +210,13 @@ public struct HostFolders: Sendable {
     }
 
     /// 執行一次上傳指令、寫入傳輸 bytes,在期限內讀到結束狀態。
-    private func send(_ transfer: UploadTransfer, size: Int, named name: String, to folder: String) async throws -> CommandResult {
+    private func send(_ transfer: UploadTransfer, originalSize: Int, named name: String, to folder: String) async throws -> CommandResult {
         let payload = transfer.payload
+        let upload = FolderUpload(
+            folder: folder, name: name, originalSize: originalSize, encoding: transfer.encoding, transferSize: payload.count)
         let session: any ExecSession
         do {
-            session = try await channel.execute(HostFolderCommand.upload(
-                folder: folder, name: name, size: size, encoding: transfer.encoding, transferSize: payload.count))
+            session = try await channel.execute(HostFolderCommand.upload(upload))
         } catch {
             throw HostFolderError.interrupted
         }
@@ -274,6 +294,26 @@ public struct HostFolders: Sendable {
     }
 }
 
+/// 一次檔案上傳在指令上的參數。
+public struct FolderUpload: Sendable, Equatable {
+    /// 目的資料夾(絕對路徑)。
+    public var folder: String
+    public var name: String
+    /// 原始大小：主機最後寫入的檔案大小。
+    public var originalSize: Int
+    public var encoding: UploadTransferEncoding
+    /// stdin 上的 bytes 數(identity 時同原始大小)。
+    public var transferSize: Int
+
+    public init(folder: String, name: String, originalSize: Int, encoding: UploadTransferEncoding, transferSize: Int) {
+        self.folder = folder
+        self.name = name
+        self.originalSize = originalSize
+        self.encoding = encoding
+        self.transferSize = transferSize
+    }
+}
+
 /// 清單與上傳的主機指令(POSIX sh)。
 ///
 /// - 指令是 `/bin/sh -c '<腳本>' <名稱> '<參數>'…`:不依賴使用者的登入 shell(可能是 fish)。腳本不含反斜線
@@ -345,13 +385,19 @@ public enum HostFolderCommand {
         command(listScript, name: "purrdr-ls", arguments: [path ?? ""])
     }
 
+    public static func upload(_ upload: FolderUpload) -> String {
+        command(uploadScript, name: "purrdr-put", arguments: [
+            upload.folder, upload.name, String(upload.originalSize), upload.encoding.rawValue, String(upload.transferSize),
+        ])
+    }
+
     /// - Parameters:
     ///   - size: 原始大小(主機寫入的檔案大小)。
     ///   - transferSize: stdin 上的 bytes 數;`nil` 時同 `size`。
     public static func upload(
         folder: String, name: String, size: Int, encoding: UploadTransferEncoding = .identity, transferSize: Int? = nil
     ) -> String {
-        command(uploadScript, name: "purrdr-put", arguments: [folder, name, String(size), encoding.rawValue, String(transferSize ?? size)])
+        upload(FolderUpload(folder: folder, name: name, originalSize: size, encoding: encoding, transferSize: transferSize ?? size))
     }
 
     private static func command(_ script: String, name: String, arguments: [String]) -> String {
@@ -364,13 +410,13 @@ public enum HostFolderCommand {
         return .some(arguments[0].isEmpty ? nil : arguments[0])
     }
 
-    /// Demo 主機與 Windows 通道用：認得上傳指令就回傳資料夾、檔名、原始大小、傳輸編碼與傳輸大小。
-    public static func parseUpload(_ command: String)
-        -> (folder: String, name: String, size: Int, encoding: UploadTransferEncoding, transferSize: Int)? {
+    /// Demo 主機與 Windows 通道用：認得上傳指令就回傳它的參數。
+    public static func parseUpload(_ command: String) -> FolderUpload? {
         guard let arguments = arguments(of: command, script: uploadScript, name: "purrdr-put"), arguments.count == 5,
-              let size = Int(arguments[2]), let encoding = UploadTransferEncoding(rawValue: arguments[3]),
+              let originalSize = Int(arguments[2]), let encoding = UploadTransferEncoding(rawValue: arguments[3]),
               let transferSize = Int(arguments[4]) else { return nil }
-        return (arguments[0], arguments[1], size, encoding, transferSize)
+        return FolderUpload(
+            folder: arguments[0], name: arguments[1], originalSize: originalSize, encoding: encoding, transferSize: transferSize)
     }
 
     private static func arguments(of command: String, script: String, name: String) -> [String]? {
