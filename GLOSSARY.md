@@ -38,6 +38,10 @@ _避免_:Daemon、Agent、Server、主機外掛(主機外掛是推播用的另�
 讓一支裝置可以用 HTTPS 連上某台主機的授權流程：主機顯示 QR code,裝置掃描後取得裝置權杖。
 _避免_:推播配對(那是推播用的)、Login、Register
 
+**配對碼**(Pairing code):
+主機配對指令產生、隨 QR code 顯示的一次性短碼(例如 `K7QM-2XPA`),幾分鐘內有效、用過即作廢;app 用它換裝置權杖。
+_避免_:PIN、OTP、密碼
+
 **裝置權杖**(Device token):
 連線配對後，主機服務發給某支裝置的憑證;每台主機一組，存在該裝置的 Keychain,可撤銷、可設成唯讀，永不同步。
 _避免_:API key、Session token、Pairing token、APNs token(那是推播用的)
