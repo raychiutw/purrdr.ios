@@ -14,12 +14,82 @@ mod tailscale;
 use system::HostSystem;
 use tailscale::Tailscale;
 
+use crate::herdr_client::HerdrClient;
+use crate::herdr_socket::{HerdrSocket, Platform, SocketEnvironment};
+
 /// 安裝目標的作業系統。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallPlatform {
     MacOs,
     Linux,
     Windows,
+}
+
+impl InstallPlatform {
+    /// 這支程式執行所在的平台。
+    pub fn current() -> Self {
+        if cfg!(windows) {
+            InstallPlatform::Windows
+        } else if cfg!(target_os = "macos") {
+            InstallPlatform::MacOs
+        } else {
+            InstallPlatform::Linux
+        }
+    }
+}
+
+/// `tailscale serve` 的 HTTPS 443 設定。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServeStatus {
+    /// 轉到主機服務(proxy 目標)。
+    Configured(String),
+    NotConfigured,
+    /// 轉到別的地方。
+    Other(String),
+    /// 查不到(例如 Tailscale 沒裝)。
+    Unavailable(String),
+}
+
+/// herdr 伺服器的狀態。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HerdrStatus {
+    Running { version: String },
+    NotRunning(String),
+}
+
+/// `status` 指令的結果。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostStatus {
+    pub installed: bool,
+    pub autostart_registered: bool,
+    /// 127.0.0.1 上的埠有主機服務在聽。
+    pub listening: bool,
+    pub port: u16,
+    pub https_address: Option<String>,
+    pub serve: ServeStatus,
+    pub herdr: HerdrStatus,
+}
+
+impl std::fmt::Display for HostStatus {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let yes_no = |value: bool| if value { "yes" } else { "no" };
+        writeln!(formatter, "host service: {}", if self.installed { "installed" } else { "not installed" })?;
+        writeln!(formatter, "  starts at login: {}", yes_no(self.autostart_registered))?;
+        writeln!(formatter, "  listening on 127.0.0.1:{}: {}", self.port, yes_no(self.listening))?;
+        if let Some(address) = &self.https_address {
+            writeln!(formatter, "  HTTPS address: {address}")?;
+        }
+        match &self.serve {
+            ServeStatus::Configured(target) => writeln!(formatter, "tailscale serve: HTTPS 443 -> {target}")?,
+            ServeStatus::NotConfigured => writeln!(formatter, "tailscale serve: HTTPS 443 not configured")?,
+            ServeStatus::Other(handlers) => writeln!(formatter, "tailscale serve: HTTPS 443 serves something else ({handlers})")?,
+            ServeStatus::Unavailable(message) => writeln!(formatter, "tailscale serve: unknown ({message})")?,
+        }
+        match &self.herdr {
+            HerdrStatus::Running { version } => write!(formatter, "herdr: running ({version})"),
+            HerdrStatus::NotRunning(message) => write!(formatter, "herdr: not running ({message})"),
+        }
+    }
 }
 
 /// 安裝流程需要的主機資訊。
@@ -299,6 +369,30 @@ impl<S: HostSystem> Installer<S> {
         let _ = self.remove_files(layout, record);
     }
 
+    /// 主機服務、自動啟動、`tailscale serve` 與 herdr 的狀態。
+    pub async fn status(&mut self, socket_environment: &SocketEnvironment) -> HostStatus {
+        let layout = self.layout();
+        let record = self.read_record(&layout).ok().flatten();
+        let port = record.as_ref().map_or(crate::DEFAULT_PORT, |record| record.port);
+        let target = tailscale::serve_target(port);
+        let serve = match Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.https_handlers(&mut self.system)) {
+            Ok(handlers) if handlers.is_empty() => ServeStatus::NotConfigured,
+            Ok(handlers) if handlers == BTreeMap::from([("/".to_owned(), target.clone())]) => ServeStatus::Configured(target),
+            Ok(handlers) => ServeStatus::Other(tailscale::describe(&handlers)),
+            Err(error) => ServeStatus::Unavailable(error.to_string()),
+        };
+        let session = record.as_ref().and_then(|record| record.herdr_session.clone());
+        HostStatus {
+            installed: record.is_some(),
+            autostart_registered: autostart::is_registered(&mut self.system, &layout),
+            listening: is_listening(port).await,
+            port,
+            https_address: record.map(|record| record.https_address),
+            serve,
+            herdr: herdr_status(self.environment.platform, session.as_deref(), socket_environment).await,
+        }
+    }
+
     /// 移除自動啟動、`tailscale serve` 設定與主機服務的檔案;還原不了的項目列在 `warnings`。
     pub fn uninstall(&mut self) -> Result<Uninstalled, InstallError> {
         let layout = self.layout();
@@ -357,6 +451,25 @@ impl<S: HostSystem> Installer<S> {
         if let Ok(relative) = directory.strip_prefix(&self.environment.home) {
             record.created_directories.push(relative.to_string_lossy().replace('\\', "/"));
         }
+    }
+}
+
+async fn is_listening(port: u16) -> bool {
+    let connect = tokio::net::TcpStream::connect(("127.0.0.1", port));
+    matches!(tokio::time::timeout(std::time::Duration::from_secs(2), connect).await, Ok(Ok(_)))
+}
+
+async fn herdr_status(platform: InstallPlatform, session: Option<&str>, socket_environment: &SocketEnvironment) -> HerdrStatus {
+    let socket_platform = if platform == InstallPlatform::Windows { Platform::Windows } else { Platform::Unix };
+    let socket = match HerdrSocket::resolve(socket_platform, session, socket_environment) {
+        Ok(socket) => socket,
+        Err(error) => return HerdrStatus::NotRunning(format!("cannot resolve herdr socket: {error:?}")),
+    };
+    match HerdrClient::new(socket).request("ping", serde_json::json!({})).await {
+        Ok(pong) => HerdrStatus::Running {
+            version: pong["version"].as_str().unwrap_or("unknown").to_owned(),
+        },
+        Err(failure) => HerdrStatus::NotRunning(format!("{failure:?}")),
     }
 }
 

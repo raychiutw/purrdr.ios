@@ -98,6 +98,19 @@ pub(super) fn unregister(system: &mut impl HostSystem, layout: &ServiceLayout, u
     Ok(())
 }
 
+/// 系統是否登記了自動啟動。
+pub(super) fn is_registered(system: &mut impl HostSystem, layout: &ServiceLayout) -> bool {
+    let query = match layout.platform {
+        InstallPlatform::MacOs => match gui_domain(system) {
+            Ok(domain) => ("launchctl", vec!["print".to_owned(), format!("{domain}/{LAUNCH_AGENT_LABEL}")]),
+            Err(_) => return false,
+        },
+        InstallPlatform::Linux => ("systemctl", arguments(&["--user", "is-enabled", SYSTEMD_UNIT])),
+        InstallPlatform::Windows => ("reg", arguments(&["query", RUN_KEY, "/v", RUN_VALUE])),
+    };
+    system.run(query.0, &query.1).is_ok_and(|output| output.success)
+}
+
 /// Windows 命令列的一個參數：空的或含空白時加雙引號(session 名稱不會含雙引號)。
 fn windows_quote(argument: &str) -> String {
     if argument.is_empty() || argument.contains(char::is_whitespace) {
