@@ -132,6 +132,19 @@ public enum HostFolderError: Error, Equatable {
     case deadlineExceeded
 }
 
+/// 一台主機有沒有 `gzip`:上傳收到 exit 69 後記住，之後這台主機的上傳直接用 identity。
+///
+/// 由呼叫端依主機保存(`HostsModel` 的每台主機一份，主機設定改了就重建、重新試)。
+public actor HostGzipAvailability {
+    public private(set) var isUnavailable = false
+
+    public init() {}
+
+    func markUnavailable() {
+        isUnavailable = true
+    }
+}
+
 /// 瀏覽主機的資料夾、上傳檔案(行為規格 F13)。沒有 SFTP:清單是一個 exec,上傳的 bytes 走 exec 的 stdin(ADR-0003)。
 ///
 /// 指令是 POSIX(macOS、Linux);Windows 主機由 `WindowsHostChannel` 換成同樣輸出格式的 PowerShell(`WindowsScripts`)。
@@ -141,15 +154,19 @@ public struct HostFolders: Sendable {
 
     let channel: any HostChannel
     let deflate: (any RawDeflate)?
+    let gzipAvailability: HostGzipAvailability
     let sleep: @Sendable (Duration) async throws -> Void
 
-    /// - Parameter deflate: 有的話，一般檔案壓得小時以 gzip 傳輸(`UploadTransfer.prepare`)。
+    /// - Parameters:
+    ///   - deflate: 有的話，一般檔案壓得小時以 gzip 傳輸(`UploadTransfer.prepare`)。
+    ///   - gzipAvailability: 這台主機有沒有 `gzip`;同一台主機的 `HostFolders` 共用一份。
     public init(
-        channel: any HostChannel, deflate: (any RawDeflate)? = nil,
+        channel: any HostChannel, deflate: (any RawDeflate)? = nil, gzipAvailability: HostGzipAvailability = HostGzipAvailability(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
         self.channel = channel
         self.deflate = deflate
+        self.gzipAvailability = gzipAvailability
         self.sleep = sleep
     }
 
@@ -165,14 +182,16 @@ public struct HostFolders: Sendable {
     /// 上傳到 `folder`(絕對路徑),回傳主機上的絕對路徑。
     ///
     /// 大小(原始大小)與檔名在送出任何指令之前檢查;主機上已有同名項目時拒絕(永不覆寫)。
-    /// 壓得小的一般檔案以 gzip 傳輸;主機沒有 `gzip` 時改用 identity 重傳一次。
+    /// 壓得小的一般檔案以 gzip 傳輸;主機沒有 `gzip` 時改用 identity 重傳一次，並記住(`HostGzipAvailability`)。
     public func upload(_ data: Data, named name: String, to folder: String) async throws -> String {
         guard data.count <= Self.maximumUploadSize else { throw HostFolderError.tooLarge }
         guard Self.isValidName(name) else { throw HostFolderError.invalidName }
         guard HostPathSyntax.isAbsolute(folder) else { throw HostFolderError.cannotOpen(folder) }
-        let transfer = UploadTransfer.prepare(data, named: name, deflate: deflate)
+        let usableDeflate = await gzipAvailability.isUnavailable ? nil : deflate
+        let transfer = UploadTransfer.prepare(data, named: name, deflate: usableDeflate)
         var result = try await send(transfer, size: data.count, named: name, to: folder)
         if transfer.encoding == .gzip, result.exitCode == HostFolderCommand.ExitCode.gzipUnavailable {
+            await gzipAvailability.markUnavailable()
             result = try await send(UploadTransfer(encoding: .identity, payload: data), size: data.count, named: name, to: folder)
         }
         switch result.exitCode {
