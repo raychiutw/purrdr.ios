@@ -69,7 +69,7 @@ struct TailscaleCheckCard: View {
             Label("Open Sign-In Page", systemImage: "safari")
                 .frame(minHeight: 44)
         }
-        .buttonStyle(.borderedProminent)
+        .filledProminentButtonStyle()
         .accessibilityHint("Opens the Tailscale sign-in page in your browser.")
         .accessibilityIdentifier("tailscaleCheck.open")
         Button("Cancel", role: .cancel, action: cancel)

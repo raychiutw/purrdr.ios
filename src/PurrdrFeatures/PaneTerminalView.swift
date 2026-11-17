@@ -150,12 +150,12 @@ struct TerminalBanner: View {
     private var action: some View {
         if model.canTakeOver {
             Button("Take Over") { model.takeOver() }
-                .buttonStyle(.borderedProminent)
+                .filledProminentButtonStyle()
                 .frame(minHeight: 44)
                 .accessibilityIdentifier("terminal.takeOver")
         } else if model.canReconnect {
             Button("Reconnect") { model.reconnect() }
-                .buttonStyle(.borderedProminent)
+                .filledProminentButtonStyle()
                 .frame(minHeight: 44)
                 .accessibilityIdentifier("terminal.reconnect")
         }
