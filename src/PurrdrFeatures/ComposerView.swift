@@ -128,7 +128,7 @@ struct ComposerBar: View {
             }
             .frame(width: 30, height: 30)
         }
-        .buttonStyle(.glassProminent)
+        .filledGlassProminentButtonStyle()
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
         .disabled(!model.canSend)

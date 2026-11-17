@@ -150,12 +150,12 @@ struct TerminalBanner: View {
     private var action: some View {
         if model.canTakeOver {
             Button("Take Over") { model.takeOver() }
-                .buttonStyle(.borderedProminent)
+                .filledProminentButtonStyle()
                 .frame(minHeight: 44)
                 .accessibilityIdentifier("terminal.takeOver")
         } else if model.canReconnect {
             Button("Reconnect") { model.reconnect() }
-                .buttonStyle(.borderedProminent)
+                .filledProminentButtonStyle()
                 .frame(minHeight: 44)
                 .accessibilityIdentifier("terminal.reconnect")
         }
@@ -204,26 +204,74 @@ struct TerminalKeyBar: View {
         BarKey(id: "end", title: "end", label: String(localized: "End"), key: .end),
     ]
 
+    /// iPhone Duo 直向折疊穿過按鍵列時的切分(#69);其他裝置與全開時是 `nil`。
+    @State private var foldSplit: TerminalKeyBarFoldSplit?
+
     var body: some View {
         GlassEffectContainer {
-            HStack(spacing: 0) {
-                ScrollView(.horizontal) {
+            if let foldSplit {
+                HStack(spacing: 0) {
                     HStack(spacing: 0) {
-                        ForEach(Self.keys) { key in
-                            BarKeyButton(key: key, model: model)
-                        }
+                        keyScroller
+                    }
+                    .padding(.horizontal, 6)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                    .padding(.leading, 8)
+                    .frame(width: foldSplit.leadingWidth)
+                    SwiftUI.Color.clear
+                        .frame(width: foldSplit.gapWidth)
+                        .accessibilityHidden(true)
+                    HStack(spacing: 0) {
+                        actionKeys
+                    }
+                    .padding(.horizontal, 6)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                    .padding(.trailing, 8)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            } else {
+                HStack(spacing: 0) {
+                    keyScroller
+                    Divider().frame(height: 28)
+                    actionKeys
+                }
+                .padding(.horizontal, 6)
+                .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                .padding(.horizontal, 8)
+            }
+        }
+        .padding(.vertical, 6)
+        .background {
+            if #available(iOS 27.1, *) {
+                // 只取作用中的折疊區：全開時不留空，折疊時才小幅移開按鍵(HIG Designing for iPhone Duo)。
+                GeometryReader { proxy in
+                    let measuredSplit = TerminalKeyBarFoldSplit(
+                        barWidth: proxy.size.width,
+                        divisionFrames: proxy.reservedRegions(kind: .division).map(\.frame)
+                    )
+                    SwiftUI.Color.clear.onChange(of: measuredSplit, initial: true) { _, newSplit in
+                        foldSplit = newSplit
                     }
                 }
-                .scrollIndicators(.hidden)
-                Divider().frame(height: 28)
-                PasteKey(model: model, screen: screen)
-                KeyboardToggle(screen: screen)
             }
-            .padding(.horizontal, 6)
-            .glassEffect(.regular, in: .rect(cornerRadius: 22))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+    }
+
+    private var keyScroller: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 0) {
+                ForEach(Self.keys) { key in
+                    BarKeyButton(key: key, model: model)
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    @ViewBuilder
+    private var actionKeys: some View {
+        PasteKey(model: model, screen: screen)
+        KeyboardToggle(screen: screen)
     }
 }
 

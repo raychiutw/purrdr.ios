@@ -245,7 +245,7 @@ public struct TopNavigationView: View {
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
-                .buttonStyle(.glassProminent)
+                .filledGlassProminentButtonStyle()
                 .accessibilityIdentifier("toolbar.newChat")
         }
     }
