@@ -93,6 +93,48 @@ struct ConversationTypedAnswerTests {
         #expect(await Self.inputRequests(setup).isEmpty)
     }
 
+    @Test("打過字之後清空訊息框：離開自訂回答，草稿放回，什麼都不送(#127)")
+    func clearingAfterTypingEndsTypedAnswer() async throws {
+        let (setup, option) = try await Self.setupAsking()
+        setup.model.draft = "earlier draft"
+        setup.model.beginTypedAnswer(option)
+        setup.model.draft = "hal"
+
+        setup.model.draft = ""
+
+        #expect(setup.model.typedAnswer == nil)
+        #expect(setup.model.draft == "earlier draft")
+        #expect(await Self.inputRequests(setup).isEmpty)
+    }
+
+    @Test("剛進入自訂回答、還沒打字時訊息框本來就空：仍停在自訂回答(#127)")
+    func emptyBeforeTypingStaysInTypedAnswer() async throws {
+        let (setup, option) = try await Self.setupAsking()
+        setup.model.draft = "earlier draft"
+        setup.model.beginTypedAnswer(option)
+
+        setup.model.draft = ""
+
+        #expect(setup.model.typedAnswer == option)
+        #expect(setup.model.draft == "")
+    }
+
+    @Test("送不出去後回到自訂回答，再清空訊息框：離開自訂回答(#127)")
+    func clearingAfterSendFailureEndsTypedAnswer() async throws {
+        let (setup, option) = try await Self.setupAsking()
+        setup.model.draft = "earlier draft"
+        setup.model.beginTypedAnswer(option)
+        await setup.host.bridge.expect(Answer.bridge, reply: PromptReplies.error("pane_not_found", "pane w1:p6 not found"))
+        setup.model.draft = "Teal"
+        await setup.model.send()
+        #expect(setup.model.typedAnswer == option)
+
+        setup.model.draft = ""
+
+        #expect(setup.model.typedAnswer == nil)
+        #expect(setup.model.draft == "earlier draft")
+    }
+
     @Test("提示不見了(在終端機回答掉):離開自訂回答，草稿放回")
     func promptGoneEndsTypedAnswer() async throws {
         let (setup, option) = try await Self.setupAsking()
