@@ -1,3 +1,4 @@
+// 主機檔案的領域型別(路徑、版本、狀態、變更);經主機通道讀寫的實作在 PurrdrSSH 的 `HostFiles`。
 import Foundation
 
 /// 主機上的一個檔案路徑，相對於家目錄(例如 `.claude/settings.json`)。

@@ -33,7 +33,7 @@ public actor FakeHostConnection: HostConnection {
     /// 還沒被送出的預期請求(method)。
     public var unmetExpectations: [String] { expectations.map(\.method) }
 
-    public func herdrRequest(_ request: Data, deadline: Duration?) async throws -> Data {
+    public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let reply = try consume(request)
         return reply.firstIndex(of: 0x0A).map { reply[reply.startIndex..<$0] } ?? reply
     }

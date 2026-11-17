@@ -30,11 +30,11 @@ public final class HostThemeModel {
     private let host: HostThemeHost
     private let hostID: String
     private let consent: any HostWriteConsentStore
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     private var feature: String { HostThemeHost.feature.id }
 
     public init(host: HostThemeHost, hostID: String, consent: any HostWriteConsentStore,
-                sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+                sleep: @escaping Sleep = Sleeping.task) {
         self.host = host
         self.hostID = hostID
         self.consent = consent

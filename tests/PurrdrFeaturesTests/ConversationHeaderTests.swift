@@ -164,7 +164,8 @@ struct ConversationHeaderTests {
     /// F6.7:畫面上是 2 秒前的 working,按下停止時 agent 已經在等你回答 → 一個按鍵都不送，並說明原因。
     @Test("停止：送前重讀到「需要你」→ 不送 Esc,提示先回答")
     func stopRefusesAgentThatNowNeedsYou() async throws {
-        let setup = try Self.setup(sleeper: RecordingSleeper { _ in true })
+        // 等待立刻結束，herdr 請求的期限除外。
+        let setup = try Self.setup(sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard })
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
         #expect(setup.model.canStop)

@@ -46,7 +46,7 @@ public final class WorkflowModel {
     }
 
     /// 執行中每 3 秒讀一次，直到不再追蹤或所在的 task 被取消。
-    public func track(sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) async {
+    public func track(sleep: @escaping Sleep = Sleeping.task) async {
         while !Task.isCancelled, isTracking {
             await poll()
             guard isTracking else { return }

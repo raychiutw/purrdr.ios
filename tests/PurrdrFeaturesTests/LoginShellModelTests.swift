@@ -29,7 +29,7 @@ struct LoginShellModelTests {
     /// 開好一個登入 Shell。去抖的等待注入假的(預設一直等到被取消)，測試不依賴真實時間。
     static func connected(
         _ host: FakeHost, output: Data = Data("demo@host ~ % ".utf8),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+        sleep: @escaping Sleep = RecordingSleeper().sleep
     ) async -> (LoginShellModel, Rendered) {
         await host.expectPTY(shell, output: output)
         let model = LoginShellModel(channel: host, title: "Studio Mac", resizeDebounce: .milliseconds(30), sleep: sleep)

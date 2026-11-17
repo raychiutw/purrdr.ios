@@ -31,7 +31,7 @@ public final class LoginShellModel: TerminalSessionModel {
     private let channel: any HostChannel
     private let resizeDebounce: Duration
     /// 去抖用的等待;測試注入假的。
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     private var size: (columns: Int, rows: Int)?
     private var sentSize: (columns: Int, rows: Int)?
     private var outbox: AsyncStream<Outgoing>.Continuation?
@@ -45,7 +45,7 @@ public final class LoginShellModel: TerminalSessionModel {
 
     public init(
         channel: any HostChannel, title: String, resizeDebounce: Duration = .milliseconds(250),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.channel = channel
         self.title = title

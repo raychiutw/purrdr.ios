@@ -273,7 +273,7 @@ public final class ConversationModel {
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
     @ObservationIgnored private var screenThisPoll: String?
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -304,7 +304,7 @@ public final class ConversationModel {
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.images = images
         self.client = client
@@ -370,7 +370,7 @@ public final class ConversationModel {
 
     /// 畫面可見且 app 在前景時執行，直到所在的 task 被取消。agent 工作中或等你回答時每 2 秒，否則每 4 秒
     /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 20 秒回報在場。
-    public func run(sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) async {
+    public func run(sleep: @escaping Sleep = Sleeping.task) async {
         await restoreFromCache()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
@@ -574,7 +574,7 @@ public final class ConversationModel {
     // MARK: - 在場回報
 
     /// 每 20 秒回報一次「手機正在看」(F5.13),直到所在的 task 被取消。純裝飾，失敗不影響任何事。
-    public func reportPresence(sleep: @escaping @Sendable (Duration) async throws -> Void) async {
+    public func reportPresence(sleep: @escaping Sleep) async {
         while !Task.isCancelled {
             let nowMillis = UInt64(max(0, clock.now().timeIntervalSince1970 * 1000))
             // herdr 忽略不大於上次的 seq(即使過了 TTL):以時鐘起算並保持單調(R-H22)。

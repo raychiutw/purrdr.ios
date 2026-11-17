@@ -1,7 +1,8 @@
 """Windows 主機上傳的回歸檢查(#76):經真正的 sshd 執行 app 實際送出的上傳指令與 stdin stub。
 
-從 `src/PurrdrCore/WindowsScripts.swift`、`WindowsHostChannel.swift`(常數另讀 `HostScriptTimeLimit.swift`)取出腳本，照 `WindowsScripts.upload`
+從 `src/*/` 底下的 `WindowsScripts.swift`、`WindowsHostChannel.swift`(常數另讀 `HostScriptTimeLimit.swift`)取出腳本，照 `WindowsScripts.upload`
 (stub 照 `WindowsCommand.viaStdin`)組成 `powershell.exe … -EncodedCommand`,經 `ssh` 執行並把 bytes 寫進 stdin。
+腳本以 regex 從 Swift 原始碼抽出：抽不到或有沒展開的插值時直接結束並說明(Swift 寫法改了要同步改這裡)。
 期限內 exit 0、輸出正確、主機檔案 SHA-256 與原檔相同為綠;逾時(卡住)或其他結果為紅。
 
 kind(各跑每個大小):
@@ -25,6 +26,7 @@ shell:`bash` 直接執行(主機預設 shell,這台是 Git Bash);`cmd` 包成 `c
 """
 import argparse
 import base64
+import glob
 import gzip
 import hashlib
 import os
@@ -38,16 +40,34 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LAUNCHER = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand "
 
 
+SWIFT_FILES = ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift")
+
+
+def swift_source():
+    """`SWIFT_FILES` 的內容(在 `src/` 底下哪個 target 都可以;找不到或不只一份就結束)。"""
+    source = ""
+    for file_name in SWIFT_FILES:
+        found = glob.glob(os.path.join(REPO, "src", "*", file_name))
+        if len(found) != 1:
+            sys.exit(f"src/*/{file_name} 找到 {len(found)} 份(要剛好一份):檔案搬家或改名了，請更新 SWIFT_FILES")
+        with open(found[0], encoding="utf-8") as file:
+            source += file.read()
+    return source
+
+
 def swift_literal(source, name):
     """`static let <name> = #\"\"\" … \"\"\"#` 的內容(去掉縮排，與 Swift 多行字串相同)。"""
     match = re.search(r"static let " + name + r' = #"""\n(.*?)\n( *)"""#', source, re.S)
     if not match:
-        sys.exit(f"WindowsScripts.swift 找不到 {name}")
+        sys.exit(f"Swift 原始碼找不到 `static let {name} = #\"\"\"…\"\"\"#`:寫法改了，請更新本腳本的抽取方式")
     body, indent = match.group(1), match.group(2)
     return "\n".join(line[len(indent):] if line.startswith(indent) else line for line in body.split("\n"))
 
 
 INTERPOLATION = r"\\#?\((?:\w+\.)?(\w+)\)"
+# `WindowsScripts.limit(seconds: X)` 與 `uploadLimit(transferSizeArgument: N)`:照 Swift 的組法展開。
+LIMIT = r"\\#?\((?:WindowsScripts\.)?limit\(seconds: (?:\w+\.)?(\w+)\)\)"
+UPLOAD_LIMIT = r"\\#?\((?:WindowsScripts\.)?uploadLimit\(transferSizeArgument: (\d+)\)\)"
 
 
 def swift_string(source, name, overrides=None):
@@ -59,20 +79,36 @@ def swift_string(source, name, overrides=None):
         return resolve(match.group(1), source, overrides)
     match = re.search(r"static let " + name + r" = ([0-9_]+)\n", source)
     if not match:
-        sys.exit(f"找不到 {name}")
+        sys.exit(f"Swift 原始碼找不到常數 {name}(一行字串或整數):寫法改了，請更新本腳本的抽取方式")
     return match.group(1).replace("_", "")
 
 
+def limit_script(seconds, source, overrides=None):
+    """同 `WindowsScripts.limit(secondsExpression:)`:`$purrdrSeconds=<秒數算式>;` 加上監看 runspace。"""
+    return "$purrdrSeconds=" + seconds + ";" + swift_string(source, "limitWatcher", overrides)
+
+
 def resolve(text, source, overrides=None):
-    """展開 `\\(X)`、`\\#(X)` 字串插值(X 是 `source` 裡的一行字串常數或整數常數)。"""
-    return re.sub(INTERPOLATION, lambda match: swift_string(source, match.group(1), overrides), text)
+    """展開 `\\(X)`、`\\#(X)` 字串插值(X 是 `source` 裡的一行字串常數或整數常數)與時限的函式呼叫。
+    展開後仍有插值就結束：不把沒展開的 Swift 語法當成 PowerShell 送出去。"""
+    def constant(name):
+        return swift_string(source, name, overrides)
+
+    text = re.sub(LIMIT, lambda match: limit_script(constant(match.group(1)), source, overrides), text)
+    text = re.sub(UPLOAD_LIMIT, lambda match: limit_script(
+        constant("readSeconds") + "+[long]$a[" + match.group(1) + "]/" + constant("uploadBytesPerSecond"), source, overrides), text)
+    text = re.sub(INTERPOLATION, lambda match: constant(match.group(1)), text)
+    leftover = re.search(r"\\#?\([^)]*\)?", text)
+    if leftover:
+        sys.exit(f"有展開不了的 Swift 插值 {leftover.group(0)!r}:寫法改了，請更新本腳本的 resolve")
+    return text
 
 
 def stdin_stub(source, overrides=None):
     """`WindowsCommand.stdinStub` 的腳本(插值已展開)。"""
     match = re.search(r'static let stdinStub = PowerShell\.encodedCommand\(\s*"(.*?)"\)\n', source, re.S)
     if not match:
-        sys.exit("WindowsHostChannel.swift 找不到 stdinStub")
+        sys.exit("Swift 原始碼找不到 `static let stdinStub = PowerShell.encodedCommand(\"…\")`:寫法改了，請更新本腳本")
     return resolve(match.group(1), source, overrides)
 
 
@@ -189,15 +225,16 @@ def upload_script(source, kind, arguments, workspace, overrides=None):
         body = "$env:USERPROFILE=" + quote(workspace) + "\n" + resolve(swift_literal(source, "imageUpload"), source, overrides)
     else:
         body = resolve(swift_literal(source, "folderUpload"), source, overrides)
+    # `$a` 是 `WindowsScripts.arguments` 的參數陣列，所有 Windows 腳本共用;上傳腳本在 cmd 命令列(8,191 字元)裡，名稱維持短。
     return "\n".join([prelude, "$a=@(" + ",".join(quote(v) for v in arguments) + ")", receive, body])
 
 
 # 程序樹：從根(Windows pid)往下找子孫，子程序的建立時間不早於父程序(避開重複使用的 pid)。
 TREE = r"""
-$p=@(Get-CimInstance Win32_Process);$k=@{};$r=@($p|?{$_.ProcessId -eq ROOT});if($r.Count){$k[[int]ROOT]=$r[0]}
-$q=New-Object Collections.Queue;$q.Enqueue([int]ROOT)
-while($q.Count){$c=$q.Dequeue();foreach($x in $p){$i=[int]$x.ProcessId;if($x.ParentProcessId -eq $c -and $i -ne $c -and -not $k.ContainsKey($i) -and (-not $k[$c] -or $x.CreationDate -ge $k[$c].CreationDate)){$k[$i]=$x;$q.Enqueue($i)}}}
-$k.Values|%{"$($_.ProcessId) $($_.Name) $($_.CreationDate.ToFileTimeUtc())"}
+$processes=@(Get-CimInstance Win32_Process);$found=@{};$root=@($processes|Where-Object{$_.ProcessId -eq ROOT});if($root.Count){$found[[int]ROOT]=$root[0]}
+$queue=New-Object Collections.Queue;$queue.Enqueue([int]ROOT)
+while($queue.Count){$current=$queue.Dequeue();foreach($process in $processes){$id=[int]$process.ProcessId;if($process.ParentProcessId -eq $current -and $id -ne $current -and -not $found.ContainsKey($id) -and (-not $found[$current] -or $process.CreationDate -ge $found[$current].CreationDate)){$found[$id]=$process;$queue.Enqueue($id)}}}
+$found.Values|ForEach-Object{"$($_.ProcessId) $($_.Name) $($_.CreationDate.ToFileTimeUtc())"}
 """
 
 
@@ -395,10 +432,7 @@ def main():
     parser.add_argument("--shell", choices=["bash", "cmd", "all"], default="all")
     parser.add_argument("--timeout", type=float, default=20)
     options = parser.parse_args()
-    source = ""
-    for file_name in ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift"):
-        with open(os.path.join(REPO, "src", "PurrdrCore", file_name), encoding="utf-8") as file:
-            source += file.read()
+    source = swift_source()
     kinds = ["image", "folder", "gzip", "stub", "limit"] if options.kind == "all" else [options.kind]
     shells = ["bash", "cmd"] if options.shell == "all" else [options.shell]
     upload_kinds = [kind for kind in kinds if kind != "limit"]

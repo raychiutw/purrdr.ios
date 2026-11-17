@@ -17,7 +17,7 @@ struct PaneTerminalModelTests {
     /// 去抖的等待注入假的(預設一直等到被取消)，測試不依賴真實時間。
     static func makeModel(
         _ host: FakeHost, debounce: Duration = .milliseconds(30),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+        sleep: @escaping Sleep = RecordingSleeper().sleep
     ) -> PaneTerminalModel {
         PaneTerminalModel(client: PaneTerminalClient(channel: host), paneID: "w1:p1", title: "Tidy up the CSV export",
                           resizeDebounce: debounce, sleep: sleep)
@@ -87,7 +87,7 @@ struct PaneTerminalModelTests {
     /// 開好一條連線並收到第一個 frame。
     static func connected(
         _ host: FakeHost, debounce: Duration = .milliseconds(30),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = RecordingSleeper().sleep
+        sleep: @escaping Sleep = RecordingSleeper().sleep
     ) async -> PaneTerminalModel {
         await host.expect(control(), reply: FakeReply(keepsOpen: true))
         let model = makeModel(host, debounce: debounce, sleep: sleep)

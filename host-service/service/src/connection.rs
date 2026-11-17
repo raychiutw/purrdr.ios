@@ -1,6 +1,8 @@
 //! 一條 app 的 WebSocket 連線：解析協定訊息，轉成 herdr 請求。只處理協定定義的訊息種類。
 
 use futures_util::{SinkExt, StreamExt};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
@@ -33,10 +35,10 @@ pub async fn serve(stream: TcpStream, herdr: HerdrClient) {
     let Ok(mut websocket) = tokio_tungstenite::accept_hdr_async(stream, only_protocol_path).await else {
         return;
     };
-    let mut session = Session { herdr, handshaken: false };
+    let mut connection = ClientConnection { herdr, handshaken: false };
     while let Some(Ok(message)) = websocket.next().await {
         let reply = match message {
-            Message::Text(text) => session.handle(text.as_str()).await,
+            Message::Text(text) => connection.handle(text.as_str()).await,
             Message::Binary(_) => error(None, ErrorCode::InvalidMessage, "binary messages are not supported"),
             Message::Close(_) => break,
             _ => continue,
@@ -48,12 +50,13 @@ pub async fn serve(stream: TcpStream, herdr: HerdrClient) {
     }
 }
 
-struct Session {
+/// 一條 app WebSocket 連線的狀態(不是 herdr 的 session)。
+struct ClientConnection {
     herdr: HerdrClient,
     handshaken: bool,
 }
 
-impl Session {
+impl ClientConnection {
     async fn handle(&mut self, text: &str) -> ServerMessage {
         let Ok(value) = serde_json::from_str::<Value>(text) else {
             return error(None, ErrorCode::InvalidMessage, "message is not valid JSON");
@@ -117,33 +120,92 @@ impl Session {
             return error(Some(request_id), ErrorCode::HandshakeRequired, "send hello first");
         }
         match self.herdr.request("session.snapshot", json!({})).await {
-            Ok(result) => ServerMessage::AgentsListResult(agents_list_result(request_id, &result["snapshot"])),
+            Ok(result) => ServerMessage::AgentsListResult(agents_list_result(request_id, result)),
             Err(failure) => herdr_error(request_id, "session.snapshot", failure),
         }
     }
 }
 
-fn agents_list_result(request_id: String, snapshot: &Value) -> AgentsListResult {
-    let text = |value: &Value| value.as_str().map(str::to_owned);
-    let items = |key: &str| snapshot[key].as_array().cloned().unwrap_or_default();
-    let workspaces = items("workspaces")
-        .iter()
+/// herdr `session.snapshot` 的結果裡用到的部分(herdr 的 snake_case 原樣)。
+/// 跟 app 端一樣寬鬆：欄位缺少或格式不對時用預設值，不讓整個列表失敗。
+#[derive(Deserialize, Default)]
+struct SnapshotResult {
+    #[serde(default, deserialize_with = "lenient_value")]
+    snapshot: HerdrSnapshot,
+}
+
+#[derive(Deserialize, Default)]
+struct HerdrSnapshot {
+    #[serde(default, deserialize_with = "lenient_list")]
+    workspaces: Vec<HerdrWorkspace>,
+    #[serde(default, deserialize_with = "lenient_list")]
+    agents: Vec<HerdrAgent>,
+}
+
+#[derive(Deserialize, Default)]
+struct HerdrWorkspace {
+    #[serde(default, deserialize_with = "lenient_value")]
+    workspace_id: String,
+    #[serde(default, deserialize_with = "lenient_value")]
+    label: String,
+}
+
+#[derive(Deserialize, Default)]
+struct HerdrAgent {
+    #[serde(default, deserialize_with = "lenient_value")]
+    pane_id: String,
+    #[serde(default, deserialize_with = "lenient_value")]
+    workspace_id: String,
+    #[serde(default, deserialize_with = "lenient_value")]
+    tab_id: String,
+    #[serde(default, deserialize_with = "lenient_value")]
+    agent: Option<String>,
+    #[serde(default, deserialize_with = "lenient_value")]
+    agent_status: Option<AgentStatus>,
+    #[serde(default, deserialize_with = "lenient_value")]
+    terminal_title_stripped: Option<String>,
+    #[serde(default, deserialize_with = "lenient_value")]
+    cwd: Option<String>,
+    #[serde(default, deserialize_with = "lenient_value")]
+    agent_session: Option<AgentSession>,
+}
+
+/// 格式不對的值當成沒有(預設值)。
+fn lenient_value<'de, D: Deserializer<'de>, T: DeserializeOwned + Default>(deserializer: D) -> Result<T, D::Error> {
+    Ok(serde_json::from_value(Value::deserialize(deserializer)?).unwrap_or_default())
+}
+
+/// 不是陣列當成空的;陣列裡格式不對的項目用預設值。
+fn lenient_list<'de, D: Deserializer<'de>, T: DeserializeOwned + Default>(deserializer: D) -> Result<Vec<T>, D::Error> {
+    let items = match Value::deserialize(deserializer)? {
+        Value::Array(items) => items,
+        _ => Vec::new(),
+    };
+    Ok(items.into_iter().map(|item| serde_json::from_value(item).unwrap_or_default()).collect())
+}
+
+fn agents_list_result(request_id: String, result: Value) -> AgentsListResult {
+    let snapshot = serde_json::from_value::<SnapshotResult>(result).unwrap_or_default().snapshot;
+    let workspaces = snapshot
+        .workspaces
+        .into_iter()
         .map(|workspace| Workspace {
-            workspace_id: text(&workspace["workspace_id"]).unwrap_or_default(),
-            label: text(&workspace["label"]).unwrap_or_default(),
+            workspace_id: workspace.workspace_id,
+            label: workspace.label,
         })
         .collect();
-    let agents = items("agents")
-        .iter()
+    let agents = snapshot
+        .agents
+        .into_iter()
         .map(|agent| Agent {
-            pane_id: text(&agent["pane_id"]).unwrap_or_default(),
-            workspace_id: text(&agent["workspace_id"]).unwrap_or_default(),
-            tab_id: text(&agent["tab_id"]).unwrap_or_default(),
-            agent: text(&agent["agent"]),
-            status: serde_json::from_value(agent["agent_status"].clone()).unwrap_or(AgentStatus::Unknown),
-            title: text(&agent["terminal_title_stripped"]),
-            cwd: text(&agent["cwd"]),
-            session: serde_json::from_value::<AgentSession>(agent["agent_session"].clone()).ok(),
+            pane_id: agent.pane_id,
+            workspace_id: agent.workspace_id,
+            tab_id: agent.tab_id,
+            agent: agent.agent,
+            status: agent.agent_status.unwrap_or(AgentStatus::Unknown),
+            title: agent.terminal_title_stripped,
+            cwd: agent.cwd,
+            session: agent.agent_session,
         })
         .collect();
     AgentsListResult {

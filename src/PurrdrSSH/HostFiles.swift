@@ -5,9 +5,9 @@ import PurrdrCore
 public struct HostFiles: Sendable {
     let channel: any HostChannel
     /// 指令期限的計時(測試注入)。
-    let sleep: @Sendable (Duration) async throws -> Void
+    let sleep: Sleep
 
-    public init(channel: any HostChannel, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(channel: any HostChannel, sleep: @escaping Sleep = Sleeping.task) {
         self.channel = channel
         self.sleep = sleep
     }

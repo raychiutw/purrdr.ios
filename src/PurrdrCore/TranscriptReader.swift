@@ -45,6 +45,29 @@ public enum TranscriptReadError: Error, Equatable {
     case failed(exitCode: Int32?)
 }
 
+extension TranscriptReadError {
+    /// 對話紀錄指令的 exit code(POSIX 與 Windows 腳本相同，行為規格 §4.7)。
+    public enum ExitCode {
+        public static let absent: Int32 = 3
+        public static let folderNotSearchable: Int32 = 4
+        public static let fileUnreadable: Int32 = 5
+        public static let ambiguous: Int32 = 6
+        public static let compressed: Int32 = 7
+    }
+
+    /// 主機指令的結束狀態對應的錯誤;成功(0)是 `nil`。沒有結束狀態也是失敗。
+    public init?(exitStatus: Int32?) {
+        switch exitStatus {
+        case .some(0): return nil
+        case .some(ExitCode.absent): self = .absent
+        case .some(ExitCode.folderNotSearchable), .some(ExitCode.fileUnreadable): self = .unreadable
+        case .some(ExitCode.ambiguous): self = .ambiguous
+        case .some(ExitCode.compressed): self = .compressed
+        default: self = .failed(exitCode: exitStatus)
+        }
+    }
+}
+
 /// 讀主機上的對話紀錄(行為規格 §4.7)。以 session 為身分、永不猜檔;游標是主機上檔案的 UTF-8 byte 數。
 ///
 /// 增量讀取用輪詢：每次以 `tail(path:from:)` 讀游標之後新增的完整行。落後太多時改讀新視窗

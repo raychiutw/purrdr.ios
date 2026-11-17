@@ -1,3 +1,4 @@
+// 連線測試的領域型別(herdr 版本、agent 整合、報告、錯誤);執行測試的 `HostProbe` 在 PurrdrSSH。
 import Foundation
 
 /// 主機作業系統(GLOSSARY「主機」)。
@@ -61,7 +62,7 @@ public struct AgentIntegration: Sendable, Hashable {
 /// 連線測試的結果。
 public struct HostProbeReport: Sendable, Equatable {
     public var operatingSystem: HostOperatingSystem
-    /// 執行中的 herdr 伺服器版本(UI 顯示這個，行為規格 §3.1)。
+    /// 執行中的 herdr server 版本(UI 顯示這個，行為規格 §3.1)。
     public var herdrVersion: HerdrVersion
     public var agentCount: Int
     /// 主機上有那個 agent 指令的整合。
@@ -75,11 +76,11 @@ public struct HostProbeReport: Sendable, Equatable {
     }
 }
 
-/// 更新 herdr 之後伺服器的狀態。
+/// 更新 herdr 之後 herdr server 的狀態。
 public enum HerdrUpdateOutcome: Sendable, Equatable {
-    /// 執行中的伺服器已交接到新版(`update --handoff`)。
+    /// 執行中的 herdr server 已交接到新版(`update --handoff`)。
     case handedOff
-    /// 只換了執行檔：要在主機上重啟 herdr 伺服器才會用新版(Windows 沒有 live handoff)。
+    /// 只換了執行檔：要在主機上重啟 herdr server 才會用新版(Windows 沒有 live handoff)。
     case restartServerRequired
 }
 
@@ -91,7 +92,7 @@ public enum HostProbeError: Error, Equatable {
     case herdrNotInstalled
     /// herdr 路徑跑的不是 herdr(例如 Herdr Desktop 的 `herdr-core`)。
     case notHerdr
-    /// herdr 低於 0.9.5。安裝的執行檔或執行中的伺服器其中之一太舊。
+    /// herdr 低於 0.9.5。安裝的執行檔或執行中的 herdr server 其中之一太舊。
     case herdrOutdated(HerdrVersion)
     /// 這個 session 沒有在跑 herdr。
     case serverNotRunning

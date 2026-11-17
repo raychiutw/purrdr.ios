@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 /// 測試等非同步副作用(背景 task、串流、actor 之間的往返)時的安全上限。
 ///
@@ -19,7 +20,7 @@ public actor DebounceGate {
     public init() {}
 
     /// 給被測物注入的 closure。
-    public nonisolated var sleep: @Sendable (Duration) async throws -> Void {
+    public nonisolated var sleep: Sleep {
         { duration in try await self.wait(duration) }
     }
 

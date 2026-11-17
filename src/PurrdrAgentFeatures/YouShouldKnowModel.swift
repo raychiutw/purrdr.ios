@@ -32,12 +32,12 @@ public final class YouShouldKnowModel {
     private let host: any YouShouldKnowHosting
     private let hostID: String
     private let consent: any HostWriteConsentStore
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     private var storePath: HostPath?
     private var locatedAt: Date?
 
     public init(host: any YouShouldKnowHosting, hostID: String, consent: any HostWriteConsentStore,
-                sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+                sleep: @escaping Sleep = Sleeping.task) {
         self.host = host
         self.hostID = hostID
         self.consent = consent

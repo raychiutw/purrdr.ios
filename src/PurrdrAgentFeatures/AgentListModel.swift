@@ -25,7 +25,7 @@ public final class AgentListModel {
     public private(set) var snapshot: HostSnapshot?
     private let client: HerdrClient
     private let transcripts: TranscriptReader?
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     /// 使用者取消了 Tailscale 重新驗證：即時更新停下來等「再試一次」(`load()`)。
     /// 與退避的 `retryWaiter` 分開：網路恢復、回到前景(`retryNow()`)不會讓它重連而又跳出驗證。
     private var checkCancelWaiter: CheckedContinuation<Void, Never>?
@@ -44,7 +44,7 @@ public final class AgentListModel {
     /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
     public init(
         client: HerdrClient, transcripts: TranscriptReader? = nil, host: HostSelection = .demo,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.host = host
         self.client = client

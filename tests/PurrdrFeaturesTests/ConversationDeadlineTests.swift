@@ -41,7 +41,7 @@ struct ConversationDeadlineTests {
         await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
         await host.expect(Self.locate, reply: FakeReply(keepsOpen: true))
 
-        #expect(await Self.finishes { await model.poll() }, "定位卡住後輪詢沒有在期限到時結束")
+        #expect(await boundedOutcome { await model.poll() } != nil, "定位卡住後輪詢沒有在期限到時結束")
 
         #expect(model.banner == .readFailed)
         #expect(model.phase == .ready)
@@ -60,27 +60,5 @@ struct ConversationDeadlineTests {
         #expect(model.banner == nil)
         #expect(model.items.count == Self.fixtureItemCount)
         #expect(await host.unmetExpectations.isEmpty)
-    }
-
-    /// `operation` 在 `limit` 內結束回傳 `true`;沒結束就取消它並回傳 `false`(卡住時以斷言失敗呈現，不讓測試掛住)。
-    static func finishes(within limit: Duration = asyncWaitLimit, _ operation: @escaping @MainActor () async -> Void) async -> Bool {
-        let task = Task { @MainActor in await operation() }
-        let finished = Task {
-            await task.value
-            return true
-        }
-        let timer = Task {
-            try? await Task.sleep(for: limit)
-            return false
-        }
-        let result = await withTaskGroup(of: Bool.self) { group in
-            group.addTask { await finished.value }
-            group.addTask { await timer.value }
-            let first = await group.next() ?? false
-            if !first { task.cancel() }
-            timer.cancel()
-            return first
-        }
-        return result
     }
 }

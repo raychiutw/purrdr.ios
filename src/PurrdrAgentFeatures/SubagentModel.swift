@@ -63,7 +63,7 @@ public final class SubagentModel {
     }
 
     /// 畫面可見時執行，直到所在的 task 被取消。
-    public func run(sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) async {
+    public func run(sleep: @escaping Sleep = Sleeping.task) async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
                 while !Task.isCancelled {

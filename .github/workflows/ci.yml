@@ -22,10 +22,16 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      # SwiftUI 模組版本：同一版 Swift 編譯器分不出 SDK 27.0／27.1,`canImport(SwiftUI, _version:)` 以它判斷(PaneTerminalView)。
       - name: 工具鏈版本
         run: |
           xcodebuild -version
           swift --version
+          for sdk in macosx iphonesimulator; do
+            grep -ho 'user-module-version [0-9.]*' \
+              "$(xcrun --sdk "$sdk" --show-sdk-path)"/System/Library/Frameworks/SwiftUI.framework/Modules/SwiftUI.swiftmodule/*.swiftinterface \
+              | sort -u | sed "s/^/$sdk SwiftUI /"
+          done
 
       # SwiftTerm(1.12 起)帶 Shaders.metal,編譯要 Metal Toolchain;Xcode 27 不內建，要另外下載(約 900 MB)。
       # 先用 -showComponent 檢查，已安裝就不下載。

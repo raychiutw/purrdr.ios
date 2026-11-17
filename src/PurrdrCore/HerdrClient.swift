@@ -1,6 +1,9 @@
 import Foundation
 
 /// 經主機連線呼叫 herdr socket API 的 client。wire format(snake_case)只在這個檔案處理。
+///
+/// 每個單次請求都有期限(#86):沒有等待參數的是 `HostCommandDeadline.standard`(20 秒),
+/// 有等待參數的(`prompt`、`waitForAgent`、`startAgent`、`createWorkspace`)見各自的說明。
 public struct HerdrClient: Sendable {
     private let connection: any HostConnection
 
@@ -138,7 +141,8 @@ public struct HerdrClient: Sendable {
             target: target, text: text,
             wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) }
         )
-        let result = try await request(method: "agent.prompt", params: params, as: PromptResult.self, deadline: (wait ?? .zero) + .seconds(20))
+        let result = try await request(
+            method: "agent.prompt", params: params, as: PromptResult.self, deadline: (wait ?? .zero) + HostCommandDeadline.standard)
         return PromptReply(writtenOnly: result.delivery == "written_to_pty")
     }
 
@@ -146,16 +150,16 @@ public struct HerdrClient: Sendable {
     public func waitForAgent(target: String, until: [AgentStatus], timeout: Duration) async throws -> Bool {
         let params = WaitParams(target: target, until: until.map(\.rawValue), timeoutMs: Self.milliseconds(timeout))
         do {
-            _ = try await request(method: "agent.wait", params: params, as: TypedResult.self, deadline: timeout + .seconds(20))
+            _ = try await request(method: "agent.wait", params: params, as: TypedResult.self, deadline: timeout + HostCommandDeadline.standard)
             return true
         } catch HerdrError.herdr(code: "timeout", _) {
             return false
         }
     }
 
-    /// `pane.send_keys`(herdr 鍵名語法：`enter`、`esc`、`ctrl+c`,§3.4)。期限 20 秒。
+    /// `pane.send_keys`(herdr 鍵名語法：`enter`、`esc`、`ctrl+c`,§3.4)。
     public func sendKeys(paneID: String, keys: [String]) async throws {
-        _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self, deadline: .seconds(20))
+        _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self)
     }
 
     private static func milliseconds(_ duration: Duration) -> Int {
@@ -165,7 +169,7 @@ public struct HerdrClient: Sendable {
     // MARK: - 請求
 
     private func request<Result: Decodable>(
-        method: String, params: some Encodable = NoParams(), as: Result.Type, deadline: Duration? = nil
+        method: String, params: some Encodable = NoParams(), as: Result.Type, deadline: Duration = HostCommandDeadline.standard
     ) async throws -> Result {
         let line = try await connection.herdrRequest(Self.requestLine(method: method, params: params), deadline: deadline)
         return try Self.decode(line, as: Result.self)

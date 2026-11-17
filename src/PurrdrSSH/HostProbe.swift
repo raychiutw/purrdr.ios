@@ -1,16 +1,16 @@
 import Foundation
 import PurrdrCore
 
-/// 儲存主機前的連線測試：主機 OS → 安裝的 herdr 版本 → 伺服器 ping → snapshot → agent 整合(行為規格 F1.2)。
+/// 儲存主機前的連線測試：主機 OS → 安裝的 herdr 版本 → herdr server ping → snapshot → agent 整合(行為規格 F1.2)。
 public struct HostProbe: Sendable {
     private let channel: any HostChannel
     private let herdr: HerdrInstallation
     /// 指令期限的計時(測試注入)。
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
 
     public init(
         channel: any HostChannel, herdr: HerdrInstallation,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.channel = channel
         self.herdr = herdr
@@ -46,8 +46,8 @@ public struct HostProbe: Sendable {
 
     /// 更新 herdr(使用者確認後才呼叫)。
     ///
-    /// macOS／Linux 以 `update --handoff` 讓執行中的伺服器交接到新版;Windows 不支援 live handoff
-    /// (`ping` 的 `capabilities.live_handoff` 是 `false`),只換執行檔，要使用者在主機上重啟伺服器(行為規格 §11.1)。
+    /// macOS／Linux 以 `update --handoff` 讓執行中的 herdr server 交接到新版;Windows 不支援 live handoff
+    /// (`ping` 的 `capabilities.live_handoff` 是 `false`),只換執行檔，要使用者在主機上重啟 herdr server(行為規格 §11.1)。
     @discardableResult
     public func updateHerdr() async throws -> HerdrUpdateOutcome {
         let operatingSystem = try await detectOperatingSystem()

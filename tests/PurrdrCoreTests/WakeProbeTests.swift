@@ -29,7 +29,8 @@ struct WakeProbeTests {
         #expect(!alive)
         #expect(await waited.durations == [.seconds(3)])
         #expect(await host.disconnectCount == 1)
-        #expect(await host.executions.first?.closed == true)
+        // 期限到時立刻返回，探測的通道在背景關閉。
+        #expect(await host.waitUntilClosed(execution: 0))
     }
 
     @Test("連線層錯誤 → 丟棄連線(下一個指令重新撥號)")

@@ -111,7 +111,7 @@ enum WindowsCommand {
     /// (資料都到了，只有 EOF 不見，程序就永遠等下去)。stdin 的開法同上傳(`WindowsScripts.openStdin`)。
     /// 自我時限(#92):`stdinScriptSeconds` 內沒讀到結束標記就以 124 結束;讀到後腳本本體另有 `readSeconds`。
     static let stdinStub = PowerShell.encodedCommand(
-        "$ProgressPreference='SilentlyContinue';$purrdrSeconds=\(HostScriptTimeLimit.stdinScriptSeconds);\(WindowsScripts.limit);\(WindowsScripts.openStdin);$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '\(endOfScript)'){[void]$b.AppendLine($l)};$purrdrLimit.At=[DateTime]::UtcNow.AddSeconds(\(HostScriptTimeLimit.readSeconds));iex $b.ToString()")
+        "$ProgressPreference='SilentlyContinue';\(WindowsScripts.limit(seconds: HostScriptTimeLimit.stdinScriptSeconds));\(WindowsScripts.openStdin);$s=New-Object IO.StreamReader($stdin,(New-Object Text.UTF8Encoding $false));$b=New-Object Text.StringBuilder;while(($l=$s.ReadLine()) -ne $null -and $l -ne '\(endOfScript)'){[void]$b.AppendLine($l)};$purrdrLimit.At=[DateTime]::UtcNow.AddSeconds(\(HostScriptTimeLimit.readSeconds));iex $b.ToString()")
     static let endOfScript = "#purrdr-end-of-script"
 
     static func viaStdin(_ script: String) -> WindowsInvocation {
