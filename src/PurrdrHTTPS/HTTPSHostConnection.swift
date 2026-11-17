@@ -18,6 +18,9 @@ public actor HTTPSHostConnection: HostConnection {
     private var connecting: Task<HostServiceSession, any Error>?
     /// 被拒的權杖與原因。
     private var rejection: (deviceToken: String, error: HostServiceError)?
+    /// 追蹤中的對話紀錄(路徑 → 追蹤)。見 `HTTPSTranscripts.swift`。
+    var transcriptFollows: [String: TranscriptFollow] = [:]
+    var nextTranscriptStream = 0
 
     /// - Parameters:
     ///   - deviceToken: 撥號時才讀(Keychain);`nil` 表示還沒配對。
@@ -125,10 +128,17 @@ public actor HTTPSHostConnection: HostConnection {
         return lines
     }
 
-    // MARK: - 尚未支援
+    // MARK: - 對話紀錄
 
+    /// 定位、視窗與尾端追蹤(#59);列表預覽、subagent、workflow、委派的讀取丟 `unsupported`。
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        throw HostServiceError.unsupported("transcript")
+        try await transcript(request)
+    }
+
+    /// 請主機服務停止追蹤這個對話紀錄。
+    public func stopFollowingTranscript(path: String) async {
+        guard let follow = transcriptFollows.removeValue(forKey: path) else { return }
+        await stopFollowing(follow)
     }
 
     // MARK: - Pane 終端機
@@ -163,7 +173,7 @@ public actor HTTPSHostConnection: HostConnection {
         let session = try await liveSession()
         let opened: (reply: HostServiceProtocol.ServerMessage, messages: AsyncStream<HostServiceProtocol.ServerMessage>)
         do {
-            opened = try await session.openStream {
+            opened = try await session.openLiveStream {
                 .paneTerminalOpen(.init(requestId: $0, target: target, columns: columns, rows: rows, takeover: takeover))
             }
         } catch {
@@ -181,14 +191,22 @@ public actor HTTPSHostConnection: HostConnection {
         let current = session
         session = nil
         welcome = nil
+        // 主機服務在連線結束時停止這條連線的所有追蹤。
+        transcriptFollows = [:]
         await current?.close()
     }
 
     // MARK: - 連線
 
     /// 送出請求;權杖被拒時記下來。
-    private func send(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> HostServiceProtocol.ServerMessage {
-        let session = try await liveSession()
+    func send(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> HostServiceProtocol.ServerMessage {
+        try await send(on: liveSession(), make)
+    }
+
+    /// 在這條連線送出請求(呼叫端先在連線上準備好，例如開好串流)。
+    func send(
+        on session: HostServiceSession, _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage
+    ) async throws -> HostServiceProtocol.ServerMessage {
         let reply: HostServiceProtocol.ServerMessage
         do {
             reply = try await session.request(make)
@@ -200,7 +218,7 @@ public actor HTTPSHostConnection: HostConnection {
         return reply
     }
 
-    private func liveSession() async throws -> HostServiceSession {
+    func liveSession() async throws -> HostServiceSession {
         if let session, await session.isOpen { return session }
         if let connecting { return try await connecting.value }
         guard let token = try deviceToken() else { throw HostServiceError.notPaired }
@@ -269,12 +287,18 @@ public actor HTTPSHostConnection: HostConnection {
         case .readOnlyDevice: HostServiceError.readOnlyDevice
         case .pairingCodeInvalid: HostServiceError.pairingCodeInvalid
         case .pairingCodeExpired: HostServiceError.pairingCodeExpired
+        case .transcriptAbsent: TranscriptReadError.absent
+        case .transcriptUnreadable: TranscriptReadError.unreadable
+        case .transcriptAmbiguous: TranscriptReadError.ambiguous
+        case .transcriptCompressed: TranscriptReadError.compressed
+        case .transcriptNotAllowed: TranscriptReadError.invalidReference
+        case .transcriptUnsupported: HostServiceError.unsupported("transcript")
         case .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
         }
     }
 
     /// 期限到丟 `HerdrError.deadlineExceeded`;外層取消丟 `CancellationError`。
-    private func withDeadline<Value: Sendable>(
+    func withDeadline<Value: Sendable>(
         _ deadline: Duration, _ operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
         try await withThrowingTaskGroup(of: Value?.self) { group in

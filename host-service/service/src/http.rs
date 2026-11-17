@@ -16,6 +16,7 @@ use crate::device_store::{Device, DeviceStore, PairingFailure, RevokeFailure, To
 use crate::herdr_cli::HerdrCli;
 use crate::herdr_client::HerdrClient;
 use crate::protocol::{ErrorCode, ErrorMessage, PairRequest, PairResponse, ServerMessage};
+use crate::transcript::TranscriptEnvironment;
 
 /// app 連線的 WebSocket 路徑。
 pub const WEBSOCKET_PATH: &str = "/v1/ws";
@@ -35,6 +36,7 @@ pub(crate) struct ServiceContext {
     pub herdr_cli: HerdrCli,
     pub devices: DeviceStore,
     pub audit: AuditLog,
+    pub transcripts: TranscriptEnvironment,
 }
 
 impl ServiceContext {

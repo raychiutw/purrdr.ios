@@ -18,8 +18,10 @@ use crate::pane_terminal::{self, PaneTerminal};
 use crate::protocol::{
     Agent, AgentPrompt, AgentPromptResult, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION,
     PaneSendKeys, PaneSendKeysResult, PaneSendText, PaneSendTextResult, PaneTerminalOpen, PaneTerminalOpenResult, ServerMessage, TerminalScrollDirection,
-    Welcome, Workspace,
+    TranscriptLocate, Welcome, Workspace,
 };
+use crate::transcript::AgentSessionInfo;
+use crate::transcript_session::TranscriptSession;
 
 /// 權杖無效或已撤銷時的 close code(4000–4999 由應用程式自訂)。
 pub const UNAUTHORIZED_CLOSE_CODE: u16 = 4401;
@@ -48,16 +50,18 @@ pub async fn serve(mut socket: WebSocket, context: ServiceContext, device_token:
         SystemTime::now(),
     );
 
+    // 串流(對話紀錄追蹤、Pane 終端機)推送的訊息;連線結束時 `connection` 一起 drop,串流隨之停止、子行程收尾。
+    let (pushes, mut pushed) = mpsc::unbounded_channel();
     let (outgoing, mut stream_messages) = mpsc::channel(STREAM_MESSAGE_CAPACITY);
     let mut connection = ClientConnection {
         herdr: context.herdr.clone(),
         herdr_cli: context.herdr_cli.clone(),
         audit: context.audit.clone(),
         handshaken: false,
+        transcripts: TranscriptSession::new(context.transcripts.clone(), pushes),
         terminals: HashMap::new(),
         outgoing,
     };
-    // 結束時 `connection` 跟著 drop,Pane 終端機的子行程一併收尾。
     loop {
         let reply = tokio::select! {
             incoming = socket.recv() => {
@@ -72,6 +76,7 @@ pub async fn serve(mut socket: WebSocket, context: ServiceContext, device_token:
                     _ => continue,
                 }
             }
+            Some(push) = pushed.recv() => Some(push),
             Some(message) = stream_messages.recv() => Some(message),
         };
         if let Some(reply) = reply
@@ -121,6 +126,7 @@ struct ClientConnection {
     herdr_cli: HerdrCli,
     audit: AuditLog,
     handshaken: bool,
+    transcripts: TranscriptSession,
     /// 開著的 Pane 終端機，以串流識別碼(開啟請求的 request_id)為 key。
     terminals: HashMap<String, PaneTerminal>,
     outgoing: mpsc::Sender<ServerMessage>,
@@ -162,6 +168,10 @@ impl ClientConnection {
             ClientMessage::PaneSendKeys(request) => Some(self.pane_send_keys(request).await),
             ClientMessage::PaneSendText(request) => Some(self.pane_send_text(request).await),
             ClientMessage::AgentPrompt(request) => Some(self.agent_prompt(request).await),
+            ClientMessage::TranscriptLocate(request) => Some(self.transcript_locate(request).await),
+            ClientMessage::TranscriptWindow(request) => Some(self.transcripts.window(request).await),
+            ClientMessage::TranscriptFollow(request) => Some(self.transcripts.follow(request).await),
+            ClientMessage::TranscriptUnfollow(request) => Some(self.transcripts.unfollow(request)),
             ClientMessage::PaneTerminalOpen(request) => Some(self.open_terminal(request, device)),
             ClientMessage::PaneTerminalInput(input) => {
                 if input.bytes.len() > pane_terminal::MAX_INPUT_BASE64_LENGTH {
@@ -267,6 +277,34 @@ impl ClientConnection {
             stream_id: request_id,
             read_only: observe,
         })
+    }
+
+    /// 對話紀錄只能依 herdr 目前回報的 agent_session 定位(#59)。
+    async fn transcript_locate(&mut self, request: TranscriptLocate) -> ServerMessage {
+        if !self.handshaken {
+            return error(Some(request.request_id), ErrorCode::HandshakeRequired, "send hello first");
+        }
+        let result = match self.herdr.request("session.snapshot", json!({})).await {
+            Ok(result) => result,
+            Err(failure) => return herdr_error(request.request_id, "session.snapshot", failure),
+        };
+        let snapshot = serde_json::from_value::<SnapshotResult>(result).unwrap_or_default().snapshot;
+        let reported = snapshot.agents.iter().find(|agent| {
+            agent
+                .agent_session
+                .as_ref()
+                .is_some_and(|session| session.kind == request.session.kind && session.value == request.session.value)
+        });
+        let Some(agent) = reported else {
+            return error(Some(request.request_id), ErrorCode::TranscriptNotAllowed, "herdr does not report this session");
+        };
+        let session = AgentSessionInfo {
+            agent: agent.agent.clone().unwrap_or_default(),
+            cwd: agent.cwd.clone().unwrap_or_default(),
+            kind: request.session.kind,
+            value: request.session.value,
+        };
+        self.transcripts.locate(request.request_id, session, request.header).await
     }
 
     async fn pane_send_keys(&self, request: PaneSendKeys) -> ServerMessage {

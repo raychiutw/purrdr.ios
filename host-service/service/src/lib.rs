@@ -16,6 +16,8 @@ mod pane_terminal;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
 pub mod state_directory;
+pub mod transcript;
+mod transcript_session;
 
 mod service_main;
 
@@ -37,6 +39,8 @@ pub struct HostServiceConfig {
     pub herdr_cli: HerdrCli,
     /// 裝置、配對碼與稽核紀錄所在的資料夾。
     pub state_directory: PathBuf,
+    /// 對話紀錄所在的家目錄與設定目錄。
+    pub transcripts: transcript::TranscriptEnvironment,
 }
 
 /// 預設埠(127.0.0.1 上)。
@@ -71,6 +75,7 @@ impl HostServiceConfig {
             herdr_socket,
             herdr_cli: HerdrCli::search(session.as_deref()),
             state_directory,
+            transcripts: transcript::TranscriptEnvironment::resolve(platform, environment),
         })
     }
 }
@@ -108,6 +113,7 @@ pub async fn start(config: HostServiceConfig) -> std::io::Result<RunningHostServ
         herdr_cli: config.herdr_cli,
         devices: DeviceStore::new(&config.state_directory),
         audit: AuditLog::new(&config.state_directory),
+        transcripts: config.transcripts,
     });
     let accept_loop = tokio::spawn(async move {
         if let Err(error) = axum::serve(listener, router).await {
