@@ -9,9 +9,12 @@ pub mod install;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
 
+mod service_main;
+
 pub use connection::WEBSOCKET_PATH;
 use herdr_client::HerdrClient;
 use herdr_socket::HerdrSocket;
+pub use service_main::run_service;
 
 /// 主機服務的設定。只能設定埠：位址固定是 127.0.0.1,對外由 `tailscale serve` 提供 HTTPS。
 #[derive(Debug, Clone)]

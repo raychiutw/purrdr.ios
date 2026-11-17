@@ -187,8 +187,7 @@ impl FakeSystem {
                 for (host_port, handlers) in &self.state.serve {
                     let port = host_port.rsplit(':').next().unwrap();
                     tcp.insert(port.into(), json!({"HTTPS": true}));
-                    let handlers: serde_json::Map<String, Value> =
-                        handlers.iter().map(|(path, proxy)| (path.clone(), json!({"Proxy": proxy}))).collect();
+                    let handlers: serde_json::Map<String, Value> = handlers.iter().map(|(path, proxy)| (path.clone(), json!({"Proxy": proxy}))).collect();
                     web.insert(host_port.clone(), json!({"Handlers": handlers}));
                 }
                 ok(&json!({"TCP": tcp, "Web": web}).to_string())
@@ -228,11 +227,19 @@ impl FakeSystem {
             }
             ["bootout", target] => {
                 let label = target.trim_start_matches("gui/501/");
-                if self.state.launchd_loaded.remove(label) { ok("") } else { failed("Boot-out failed: 3: No such process\n") }
+                if self.state.launchd_loaded.remove(label) {
+                    ok("")
+                } else {
+                    failed("Boot-out failed: 3: No such process\n")
+                }
             }
             ["print", target] => {
                 let label = target.trim_start_matches("gui/501/");
-                if self.state.launchd_loaded.contains(label) { ok("state = running\n") } else { failed("Could not find service\n") }
+                if self.state.launchd_loaded.contains(label) {
+                    ok("state = running\n")
+                } else {
+                    failed("Could not find service\n")
+                }
             }
             other => panic!("假 launchctl 不認得：{other:?}"),
         }
@@ -261,7 +268,11 @@ impl FakeSystem {
                 ok("")
             }
             ["--user", "is-enabled", unit] => {
-                if self.state.systemd_enabled.contains(*unit) { ok("enabled\n") } else { failed("disabled\n") }
+                if self.state.systemd_enabled.contains(*unit) {
+                    ok("enabled\n")
+                } else {
+                    failed("disabled\n")
+                }
             }
             other => panic!("假 systemctl 不認得：{other:?}"),
         }
@@ -278,10 +289,18 @@ impl FakeSystem {
                 ok("The operation completed successfully.\n")
             }
             ["delete", RUN_KEY, "/v", name, "/f"] => {
-                if self.state.run_values.remove(*name).is_some() { ok("") } else { failed("ERROR: The system was unable to find the specified registry key or value.\n") }
+                if self.state.run_values.remove(*name).is_some() {
+                    ok("")
+                } else {
+                    failed("ERROR: The system was unable to find the specified registry key or value.\n")
+                }
             }
             ["query", RUN_KEY, "/v", name] => {
-                if self.state.run_values.contains_key(*name) { ok("") } else { failed("ERROR: unable to find\n") }
+                if self.state.run_values.contains_key(*name) {
+                    ok("")
+                } else {
+                    failed("ERROR: unable to find\n")
+                }
             }
             other => panic!("假 reg 不認得：{other:?}"),
         }
@@ -296,7 +315,11 @@ impl FakeSystem {
                 self.state
                     .background_processes
                     .retain(|process| !Path::new(&process[0]).file_name().is_some_and(|name| name == *image));
-                if self.state.background_processes.len() < before { ok("SUCCESS\n") } else { failed("ERROR: not found\n") }
+                if self.state.background_processes.len() < before {
+                    ok("SUCCESS\n")
+                } else {
+                    failed("ERROR: not found\n")
+                }
             }
             other => panic!("假 taskkill 不認得：{other:?}"),
         }

@@ -143,7 +143,11 @@ fn run_checked(system: &mut impl HostSystem, program: &str, arguments: &[String]
     if output.success {
         Ok(())
     } else {
-        Err(InstallError::Autostart(format!("{program} {} failed: {}", arguments.join(" "), output.stderr.trim())))
+        Err(InstallError::Autostart(format!(
+            "{program} {} failed: {}",
+            arguments.join(" "),
+            output.stderr.trim()
+        )))
     }
 }
 

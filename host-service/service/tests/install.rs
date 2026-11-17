@@ -70,7 +70,10 @@ fn windows_install_registers_windowless_executable_at_logon_and_starts_it() {
     let background = host.service_directory().join("bin").join("purrdr-host-service-background.exe");
     let system = installer.system();
     assert_eq!(system.state.run_values[RUN_VALUE], format!("\"{}\" --port 47820", background.display()));
-    assert_eq!(system.state.background_processes, vec![vec![background.display().to_string(), "--port".into(), "47820".into()]]);
+    assert_eq!(
+        system.state.background_processes,
+        vec![vec![background.display().to_string(), "--port".into(), "47820".into()]]
+    );
     assert_eq!(system.state.serve[&format!("{FQDN}:443")]["/"], "http://127.0.0.1:47820");
     assert!(host.service_directory().join("bin/purrdr-host-service.exe").is_file());
 }
@@ -95,13 +98,21 @@ fn windows_uninstall_from_installed_copy_removes_files_after_it_exits() {
 fn missing_prerequisites_fail_with_actionable_message_and_change_nothing() {
     type Breaks = fn(&mut FakeSystem);
     let cases: [(Breaks, InstallError, &[&str]); 4] = [
-        (|system| system.tailscale_program = None, InstallError::TailscaleMissing, &["https://tailscale.com/download"]),
+        (
+            |system| system.tailscale_program = None,
+            InstallError::TailscaleMissing,
+            &["https://tailscale.com/download"],
+        ),
         (
             |system| system.backend_state = "NeedsLogin".into(),
             InstallError::TailscaleNotRunning("NeedsLogin".into()),
             &["tailscale up"],
         ),
-        (|system| system.magic_dns = false, InstallError::MagicDnsDisabled, &["MagicDNS", "https://login.tailscale.com/admin/dns"]),
+        (
+            |system| system.magic_dns = false,
+            InstallError::MagicDnsDisabled,
+            &["MagicDNS", "https://login.tailscale.com/admin/dns"],
+        ),
         (
             |system| system.https_certificates = false,
             InstallError::HttpsCertificatesDisabled,

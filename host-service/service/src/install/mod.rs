@@ -8,9 +8,11 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 mod autostart;
+mod command;
 pub mod system;
 mod tailscale;
 
+pub use command::run_command;
 use system::HostSystem;
 use tailscale::Tailscale;
 
@@ -105,6 +107,79 @@ pub struct HostEnvironment {
     pub current_executable: PathBuf,
 }
 
+impl HostEnvironment {
+    /// 由環境變數建立。
+    pub fn resolve(platform: InstallPlatform, variable: impl Fn(&str) -> Option<String>, current_executable: PathBuf) -> Result<Self, InstallError> {
+        let non_empty = |name: &str| variable(name).filter(|value| !value.is_empty());
+        let home_variable = if platform == InstallPlatform::Windows { "USERPROFILE" } else { "HOME" };
+        let home = non_empty(home_variable).ok_or_else(|| InstallError::Io(format!("{home_variable} is not set")))?;
+        Ok(HostEnvironment {
+            platform,
+            home: PathBuf::from(home),
+            xdg_config_home: non_empty("XDG_CONFIG_HOME").map(PathBuf::from),
+            user_name: non_empty(if platform == InstallPlatform::Windows { "USERNAME" } else { "USER" }),
+            current_executable,
+        })
+    }
+
+    /// 這個行程的主機資訊。
+    pub fn from_process() -> Result<Self, InstallError> {
+        let current_executable = std::env::current_exe().map_err(InstallError::io)?;
+        Self::resolve(InstallPlatform::current(), |name| std::env::var(name).ok(), current_executable)
+    }
+}
+
+/// 安裝相關的子命令。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstallCommand {
+    Install {
+        port: u16,
+        herdr_session: Option<String>,
+        assume_yes: bool,
+    },
+    Uninstall,
+    Status,
+}
+
+impl InstallCommand {
+    /// 第一個參數是 `install`／`uninstall`／`status` 時解析;其他交給主機服務本身。
+    pub fn parse(arguments: &[String]) -> Option<Result<Self, String>> {
+        let (name, options) = arguments.split_first()?;
+        let command = match name.as_str() {
+            "install" => Self::parse_install(options),
+            "uninstall" | "status" => match options.first() {
+                Some(extra) => Err(format!("unknown argument: {extra}")),
+                None if name == "status" => Ok(InstallCommand::Status),
+                None => Ok(InstallCommand::Uninstall),
+            },
+            _ => return None,
+        };
+        Some(command)
+    }
+
+    fn parse_install(options: &[String]) -> Result<Self, String> {
+        let (mut port, mut herdr_session, mut assume_yes) = (crate::DEFAULT_PORT, None, false);
+        let mut remaining = options.iter();
+        while let Some(option) = remaining.next() {
+            let mut value = || remaining.next().ok_or_else(|| format!("{option} needs a value"));
+            match option.as_str() {
+                "--port" => {
+                    let text = value()?;
+                    port = text.parse().map_err(|_| format!("invalid port: {text}"))?;
+                }
+                "--session" => herdr_session = Some(value()?.clone()),
+                "--yes" => assume_yes = true,
+                other => return Err(format!("unknown argument: {other}")),
+            }
+        }
+        Ok(InstallCommand::Install {
+            port,
+            herdr_session,
+            assume_yes,
+        })
+    }
+}
+
 /// `install` 的選項。
 #[derive(Debug, Clone)]
 pub struct InstallOptions {
@@ -151,9 +226,18 @@ impl std::fmt::Display for InstallError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const DNS_SETTINGS: &str = "https://login.tailscale.com/admin/dns";
         match self {
-            InstallError::TailscaleMissing => write!(formatter, "Tailscale is not installed. Install it from https://tailscale.com/download, sign in, then run install again."),
-            InstallError::TailscaleNotRunning(state) => write!(formatter, "Tailscale is not connected (state: {state}). Run `tailscale up` and sign in, then run install again."),
-            InstallError::MagicDnsDisabled => write!(formatter, "MagicDNS is off for this tailnet. Turn on MagicDNS at {DNS_SETTINGS}, then run install again."),
+            InstallError::TailscaleMissing => write!(
+                formatter,
+                "Tailscale is not installed. Install it from https://tailscale.com/download, sign in, then run install again."
+            ),
+            InstallError::TailscaleNotRunning(state) => write!(
+                formatter,
+                "Tailscale is not connected (state: {state}). Run `tailscale up` and sign in, then run install again."
+            ),
+            InstallError::MagicDnsDisabled => write!(
+                formatter,
+                "MagicDNS is off for this tailnet. Turn on MagicDNS at {DNS_SETTINGS}, then run install again."
+            ),
             InstallError::HttpsCertificatesDisabled => write!(
                 formatter,
                 "HTTPS Certificates are off for this tailnet. Click \"Enable HTTPS\" under HTTPS Certificates at {DNS_SETTINGS}, then run install again."
@@ -289,7 +373,9 @@ impl<S: HostSystem> Installer<S> {
         let handlers = tailscale.https_handlers(&mut self.system)?;
         let proxy_to = |port: u16| BTreeMap::from([("/".to_owned(), tailscale::serve_target(port))]);
         let serve_in_place = handlers == proxy_to(options.port);
-        let ours_from_previous_install = previous.as_ref().is_some_and(|record| record.serve_configured && handlers == proxy_to(record.port));
+        let ours_from_previous_install = previous
+            .as_ref()
+            .is_some_and(|record| record.serve_configured && handlers == proxy_to(record.port));
         if !handlers.is_empty() && !serve_in_place && !ours_from_previous_install {
             return Err(InstallError::ServePortTaken(tailscale::describe(&handlers)));
         }
@@ -316,7 +402,9 @@ impl<S: HostSystem> Installer<S> {
             }
             return Err(error);
         }
-        Ok(Installed { https_address: record.https_address })
+        Ok(Installed {
+            https_address: record.https_address,
+        })
     }
 
     fn read_record(&self, layout: &ServiceLayout) -> Result<Option<InstallRecord>, InstallError> {
@@ -330,7 +418,14 @@ impl<S: HostSystem> Installer<S> {
     }
 
     /// 安裝的每一步;`record` 隨時反映已做的變更，失敗時依它還原。
-    fn apply(&mut self, layout: &ServiceLayout, tailscale: &Tailscale, options: &InstallOptions, serve_in_place: bool, record: &mut InstallRecord) -> Result<(), InstallError> {
+    fn apply(
+        &mut self,
+        layout: &ServiceLayout,
+        tailscale: &Tailscale,
+        options: &InstallOptions,
+        serve_in_place: bool,
+        record: &mut InstallRecord,
+    ) -> Result<(), InstallError> {
         for directory in [layout.bin_directory(), layout.log_file().parent().unwrap().to_path_buf()] {
             self.create_directory(&directory, record)?;
         }
@@ -341,7 +436,12 @@ impl<S: HostSystem> Installer<S> {
                 std::fs::copy(&source, &destination).map_err(InstallError::io)?;
             }
         }
-        write_json(&layout.config_file(), &ServiceConfig { https_address: &record.https_address })?;
+        write_json(
+            &layout.config_file(),
+            &ServiceConfig {
+                https_address: &record.https_address,
+            },
+        )?;
 
         if !serve_in_place {
             record.serve_configured = true;
@@ -401,7 +501,8 @@ impl<S: HostSystem> Installer<S> {
 
         autostart::unregister(&mut self.system, &layout, self.environment.user_name.as_deref())?;
         if record.serve_configured {
-            let removed = Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.remove_serve(&mut self.system, record.port));
+            let removed =
+                Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.remove_serve(&mut self.system, record.port));
             if let Err(error) = removed {
                 warnings.push(format!("tailscale serve was not removed: {error}"));
             }
@@ -421,10 +522,7 @@ impl<S: HostSystem> Installer<S> {
             .collect();
         let running_from_installed_copy = self.environment.current_executable.starts_with(layout.directory());
         if self.environment.platform == InstallPlatform::Windows && running_from_installed_copy {
-            return self
-                .system
-                .remove_directory_after_exit(&layout.directory(), &created)
-                .map_err(InstallError::io);
+            return self.system.remove_directory_after_exit(&layout.directory(), &created).map_err(InstallError::io);
         }
         match std::fs::remove_dir_all(layout.directory()) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(InstallError::io(error)),
@@ -460,7 +558,11 @@ async fn is_listening(port: u16) -> bool {
 }
 
 async fn herdr_status(platform: InstallPlatform, session: Option<&str>, socket_environment: &SocketEnvironment) -> HerdrStatus {
-    let socket_platform = if platform == InstallPlatform::Windows { Platform::Windows } else { Platform::Unix };
+    let socket_platform = if platform == InstallPlatform::Windows {
+        Platform::Windows
+    } else {
+        Platform::Unix
+    };
     let socket = match HerdrSocket::resolve(socket_platform, session, socket_environment) {
         Ok(socket) => socket,
         Err(error) => return HerdrStatus::NotRunning(format!("cannot resolve herdr socket: {error:?}")),

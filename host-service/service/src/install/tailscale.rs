@@ -121,7 +121,11 @@ impl Tailscale {
             .run(&self.program, &arguments)
             .map_err(|error| InstallError::Tailscale(error.to_string()))?;
         if !output.success {
-            return Err(InstallError::Tailscale(format!("tailscale {} failed: {}", arguments.join(" "), output.stderr.trim())));
+            return Err(InstallError::Tailscale(format!(
+                "tailscale {} failed: {}",
+                arguments.join(" "),
+                output.stderr.trim()
+            )));
         }
         Ok(output.stdout)
     }
@@ -148,7 +152,11 @@ struct Handler {
 
 /// 例如 `/ → http://127.0.0.1:3000`。
 pub(super) fn describe(handlers: &BTreeMap<String, String>) -> String {
-    handlers.iter().map(|(path, target)| format!("{path} -> {target}")).collect::<Vec<_>>().join(", ")
+    handlers
+        .iter()
+        .map(|(path, target)| format!("{path} -> {target}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// `tailscale serve` 的 proxy 目標(官方文件：proxy 只支援 `http://127.0.0.1`)。
