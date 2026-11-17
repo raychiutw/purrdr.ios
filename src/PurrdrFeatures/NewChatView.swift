@@ -150,7 +150,7 @@ struct FolderPickerView: View {
                         onChoose(path)
                         dismiss()
                     }
-                    .buttonStyle(.glassProminent)
+                    .filledGlassProminentButtonStyle()
                     .disabled(model.chosenPath == nil)
                     .accessibilityIdentifier("folderPicker.use")
                 }
