@@ -19,8 +19,8 @@ final class TestSSHServer: Sendable {
     enum Auth: Sendable {
         /// 立即放行。
         case accept
-        /// check mode:送出 `banner` 後先不回覆，再依 `then` 收尾。
-        case check(banner: String, then: CheckResult)
+        /// check mode:送出 `banner` 後先不回覆，再依 `then` 收尾。`bannerDelay` 模擬機器忙時橫幅晚到。
+        case check(banner: String, bannerDelay: TimeAmount = .zero, then: CheckResult)
     }
 
     /// check mode 等待後的結果。
@@ -39,6 +39,8 @@ final class TestSSHServer: Sendable {
     enum Behavior: Sendable {
         /// 立即回應後結束。
         case reply(stdout: String = "", stderr: String = "", exitCode: Int32 = 0)
+        /// 模擬機器忙：過 `after` 才回應 stdout 並結束(exit 0)。
+        case slowReply(after: TimeAmount, stdout: String)
         /// 被訊號殺死(SSH `exit-signal`)。
         case killed(signal: String)
         /// 像 `herdr remote-api-bridge`:等 stdin 收到一行，回 `"echo:" + 那一行`,結束。
@@ -245,8 +247,8 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
         switch auth {
         case .accept:
             responsePromise.succeed(.success)
-        case .check(let banner, let result):
-            sendBanner(banner)
+        case .check(let banner, let bannerDelay, let result):
+            sendBanner(banner, after: bannerDelay)
             recorder.update { $0.checkBanners += 1 }
             let loop = connection.eventLoop
             switch result {
@@ -268,8 +270,8 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
 
     /// 在認證進行中送出 SSH_MSG_USERAUTH_BANNER(Tailscale 的 `SendAuthBanner`)。
     /// 這裡還在 handler 處理收到的認證請求途中，排到下一輪 event loop 才寫，避免重入 handler。
-    private func sendBanner(_ message: String) {
-        connection.eventLoop.execute { [connection] in
+    private func sendBanner(_ message: String, after delay: TimeAmount) {
+        connection.eventLoop.scheduleTask(in: delay) { [connection] in
             Self.write(banner: message, on: connection)
         }
     }
@@ -423,6 +425,11 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
                 SSHChannelRequestEvent.ExitSignal(signalName: signal, errorMessage: "", language: "", dumpedCore: false),
                 promise: nil)
             context.close(promise: nil)
+        case .slowReply(let delay, let stdout):
+            let bound = NIOLoopBound((handler: self, context: context), eventLoop: context.eventLoop)
+            context.eventLoop.scheduleTask(in: delay) {
+                bound.value.handler.run(.reply(stdout: stdout), command: command, context: bound.value.context)
+            }
         case .echoFirstLine:
             mode = .echoFirstLine
         case .dropConnection:

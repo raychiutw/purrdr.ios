@@ -128,7 +128,10 @@ struct SSHHostChannelTests {
 
     @Test("主機不回 keepalive(半開連線):期限到就丟棄連線，下一個指令重新撥號、不重送", .timeLimit(.minutes(1)))
     func unansweredKeepaliveDropsConnection() async throws {
-        let server = try await TestSSHServer.start(keepalive: .ignore) { _ in .reply(stdout: "ok") }
+        // 機器忙：第一個指令的回應比 keepalive 間隔加回應期限還慢。
+        let server = try await TestSSHServer.start(keepalive: .ignore) { command in
+            command == "first" ? .slowReply(after: .milliseconds(500), stdout: "ok") : .reply(stdout: "ok")
+        }
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
             timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)))

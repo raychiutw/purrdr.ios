@@ -16,7 +16,10 @@ struct TailscaleCheckChannelTests {
     func waitsForCheckThenRuns() async throws {
         // 驗證等待(2 秒)比握手期限(1 秒)長：等待期間仍套用握手期限的話會逾時。
         // 握手期限只要涵蓋「連上到收到驗證網址」,給 1 秒，機器忙時才不會在網址送到前就逾時。
-        let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .approve(after: .seconds(2))) }) {
+        // 機器忙：驗證網址比握手期限晚到(CI 同時跑很多測試時會這樣)。
+        let server = try await TestSSHServer.start(auth: { _ in
+            .check(banner: Self.banner, bannerDelay: .milliseconds(1500), then: .approve(after: .seconds(2)))
+        }) {
             _ in .reply(stdout: "ok")
         }
         let prompts = PromptLog()
