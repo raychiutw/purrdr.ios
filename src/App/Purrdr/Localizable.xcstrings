@@ -115,17 +115,6 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
-    "%@, %lld working" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@,%lld 個工作中"
-          }
-        }
-      }
-    },
     "%@: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -291,13 +280,13 @@
         }
       }
     },
-    "%lld tabs" : {
+    "%lld terminals" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 個 Tab"
+            "value" : "%lld 個終端機"
           }
         }
       }
@@ -461,24 +450,13 @@
         }
       }
     },
-    "1 pane" : {
+    "1 terminal" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1 個 Pane"
-          }
-        }
-      }
-    },
-    "1 tab" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 個 Tab"
+            "value" : "1 個終端機"
           }
         }
       }
@@ -1549,6 +1527,17 @@
         }
       }
     },
+    "Collapsed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收合"
+          }
+        }
+      }
+    },
     "Color chats and the terminal with this host’s herdr theme. Colors without enough contrast fall back to the system colors." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2535,6 +2524,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 Workspace 裡的每個 Tab、Pane 與程序都會停止。對話紀錄仍留在主機上，但 Agent 會停止執行。"
+          }
+        }
+      }
+    },
+    "Expanded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已展開"
           }
         }
       }
@@ -5322,6 +5322,17 @@
         }
       }
     },
+    "Shows or hides the agents." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示或隱藏 Agent。"
+          }
+        }
+      }
+    },
     "Shows the background agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5329,17 +5340,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示背景 Agent"
-          }
-        }
-      }
-    },
-    "Shows the layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示版面"
           }
         }
       }
@@ -5802,6 +5802,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終端機"
+          }
+        }
+      }
+    },
+    "Terminals %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端機 %lld"
           }
         }
       }
@@ -7463,17 +7474,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Workspace"
-          }
-        }
-      }
-    },
-    "Workspace Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workspace 版面"
           }
         }
       }
