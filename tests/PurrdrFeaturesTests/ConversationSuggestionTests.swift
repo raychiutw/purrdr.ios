@@ -256,7 +256,10 @@ struct ConversationSuggestionTests {
     @Test("連不上主機：拿掉建議;恢復後重讀")
     func offlineClearsSuggestion() async throws {
         let setup = try await Self.withSuggestion()
-        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(stderr: Data("ssh: connect to host timed out".utf8), exitCode: 255))
+        // 連續兩次失敗(第一次靜默重試，R-B11)才算連不上。
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(stderr: Data("ssh: connect to host timed out".utf8), exitCode: 255))
+        }
         await setup.model.poll()
         #expect(setup.model.isOffline)
         #expect(setup.model.suggestion == nil)

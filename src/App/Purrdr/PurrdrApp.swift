@@ -88,7 +88,10 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
                 listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in
-                SSHHostChannel(endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer)
+                SSHHostChannel(
+                    endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer,
+                    // 連線診斷(#133):Console 篩 subsystem com.raychiu.purrdr、category ssh。
+                    diagnostics: SSHConnectionLog.system(host: endpoint.host))
             }
         }
         hosts.haptics = SystemHaptics()

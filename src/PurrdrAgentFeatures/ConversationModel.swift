@@ -398,7 +398,7 @@ public final class ConversationModel {
     public func poll() async {
         let snapshot: HostSnapshot
         do {
-            snapshot = try await client.snapshot()
+            snapshot = try await snapshotRetryingOnce()
         } catch {
             await showOffline()
             return
@@ -566,6 +566,21 @@ public final class ConversationModel {
     }
 
     // MARK: - 離線
+
+    /// 讀 snapshot;失敗就立刻靜默重試一次，連續第二次失敗才往外丟(R-B11、F5.3 第 6 點、#133)。
+    ///
+    /// 第一次失敗多半是連線剛被丟棄(keepalive 逾時、網路切換、喚醒探測):重試在新連線上撥號，使用者不會看到「連線中斷」。
+    /// snapshot 是唯讀請求，重送不違反「連線層失敗不重送」(行為規格 §7.3 針對的是寫入)。
+    private func snapshotRetryingOnce() async throws -> HostSnapshot {
+        do {
+            return try await client.snapshot()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            try Task.checkCancellation()
+            return try await client.snapshot()
+        }
+    }
 
     /// 連不上主機：畫面空著時，唯讀顯示同一 session 的快取(只在快取屬於列表看到的 session 時,R-B16)。
     private func showOffline() async {

@@ -81,6 +81,43 @@ struct ConnectionRecoveryTests {
         #expect(await studio.disconnectCount == 1)
     }
 
+    /// #133:實機斷線時，從 Console 看得出是不是網路切換丟掉了連線。
+    @Test("網路路徑改變而丟棄連線時留下診斷紀錄(舊路徑 → 新路徑);第一次回報與沒變不記")
+    func networkChangeIsLogged() async throws {
+        let log = RecordingDiagnosticLog()
+        let store = MemoryHostStore()
+        store.hosts = [HostManagementTests.linux]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), diagnostics: log.log, makeChannel: ChannelFactory([FakeHost()]).make)
+        model.load()
+
+        await model.networkPathChanged("satisfied|wifi")?.value
+        await model.networkPathChanged("satisfied|wifi")?.value
+        #expect(log.messages.isEmpty)
+
+        await model.networkPathChanged("satisfied|cellular,other")?.value
+        #expect(log.messages.count == 1)
+        #expect(log.messages.first?.contains("satisfied|wifi → satisfied|cellular,other") == true, "\(log.messages)")
+    }
+
+    @Test("喚醒探測失敗而丟棄連線時留下診斷紀錄")
+    func failedWakeProbeIsLogged() async throws {
+        let log = RecordingDiagnosticLog()
+        // 沒有預期的指令：假主機讓探測立刻以連線層錯誤失敗。
+        let linux = FakeHost()
+        let store = MemoryHostStore()
+        store.hosts = [HostManagementTests.linux]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), diagnostics: log.log, makeChannel: ChannelFactory([linux]).make)
+        model.load()
+        let start = Date(timeIntervalSince1970: 1_000)
+
+        model.sceneDidEnterBackground(at: start)
+        await model.sceneDidBecomeActive(at: start.addingTimeInterval(61))
+
+        #expect(await linux.disconnectCount == 1)
+        #expect(log.messages.count == 1)
+        #expect(log.messages.first?.contains("Wake probe failed") == true, "\(log.messages)")
+    }
+
     @Test("背景超過 60 秒回前景：對已連過的主機跑喚醒探測(true)")
     func longBackgroundRunsWakeProbe() async throws {
         let linux = FakeHost()
