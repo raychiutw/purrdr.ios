@@ -8,6 +8,7 @@ import SwiftUI
 /// - 「拒絕」不套 destructive 紅色;會結束 agent 的選項不設為建議(`PromptOptionStyle`)。
 /// - 編號 10 以上顯示但停用，並說明到終端機回答(R-Q04)。
 /// - 作答後選項全部停用、被點的列轉圈;送達後以文字顯示選了什麼(不只改顏色)。
+/// - Claude 的「Type something.」不送按鍵，改用底部輸入框打自訂答案(#120,`ConversationModel.beginTypedAnswer`)。
 struct BlockedPromptView: View {
     let model: ConversationModel
 
@@ -108,8 +109,13 @@ struct BlockedPromptView: View {
 
     private func optionButton(_ option: PromptOption, in prompt: BlockedPrompt) -> some View {
         let answer = PromptAnswer.option(option)
+        let typesAnswer = model.isTypedAnswerOption(option)
         return Button {
-            Task { await model.answer(answer) }
+            if typesAnswer {
+                model.beginTypedAnswer(option)
+            } else {
+                Task { await model.answer(answer) }
+            }
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let number = option.number {
@@ -124,17 +130,30 @@ struct BlockedPromptView: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                if model.answerInFlight == answer {
+                if model.answerInFlight == answer || isTypedAnswerInFlight(option) {
                     ProgressView()
+                } else if typesAnswer {
+                    Image(systemName: model.typedAnswer == option ? "keyboard.fill" : "keyboard")
+                        .accessibilityHidden(true)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
         }
         .optionStyle(prominent: PromptOptionStyle.isRecommended(option))
-        .disabled(!model.canAnswer(answer))
+        .disabled(typesAnswer ? model.answerInFlight != nil : !model.canAnswer(answer))
         .accessibilityLabel(optionAccessibilityLabel(option))
-        .accessibilityHint((option.number ?? 0) > 9 ? Text("Answer this option in the terminal.") : Text(verbatim: ""))
+        .accessibilityHint(optionHint(option, typesAnswer: typesAnswer))
         .accessibilityIdentifier("prompt.option.\(option.id)")
+    }
+
+    private func isTypedAnswerInFlight(_ option: PromptOption) -> Bool {
+        if case .typed(let typed, _)? = model.answerInFlight { return typed == option }
+        return false
+    }
+
+    private func optionHint(_ option: PromptOption, typesAnswer: Bool) -> Text {
+        if typesAnswer { return Text("Type your answer in the message field.") }
+        return (option.number ?? 0) > 9 ? Text("Answer this option in the terminal.") : Text(verbatim: "")
     }
 
     private func optionAccessibilityLabel(_ option: PromptOption) -> Text {

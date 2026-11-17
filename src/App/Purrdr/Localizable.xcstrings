@@ -995,6 +995,17 @@
         }
       }
     },
+    "Cancel Answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消回答"
+          }
+        }
+      }
+    },
     "Can’t Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4519,6 +4530,17 @@
         }
       }
     },
+    "Puts the suggestion in the message box without sending it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把建議放進輸入框，不會送出。"
+          }
+        }
+      }
+    },
     "QR code for %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5615,6 +5637,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "訂閱"
+          }
+        }
+      }
+    },
+    "Suggestion: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議：%@"
           }
         }
       }
@@ -6950,6 +6983,28 @@
         }
       }
     },
+    "Type your answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入你的回答"
+          }
+        }
+      }
+    },
+    "Type your answer in the message field." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在下方訊息框輸入你的回答。"
+          }
+        }
+      }
+    },
     "Unavailable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7570,6 +7625,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的 Purrdr Plus 訂閱已在這個會員啟用。"
+          }
+        }
+      }
+    },
+    "Your answer will be sent to the agent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出的內容會當成回答交給 Agent。"
           }
         }
       }
