@@ -6,17 +6,12 @@ import PurrdrFeatures
 import Testing
 import UniformTypeIdentifiers
 
-/// 附圖送出前的手機端前處理：大小上限(#78)。樣本是 `Resources/images/` 的合成影像(產生方式見 make-samples.py)。
+/// 附圖送出前的手機端前處理：大小上限(#78)。樣本是執行時產生的合成影像(`SyntheticImages`)。
 @Suite("圖片前處理的大小上限")
 struct ImagePreparationTests {
     /// 目標大小 500 KB 與長邊下限 1280px(#78 定案值，以獨立字面值斷言)。
     static let targetBytes = 500 * 1024
     static let minimumLongSide = 1280
-
-    static func sample(_ name: String) throws -> Data {
-        let url = try #require(Bundle.module.url(forResource: name, withExtension: nil, subdirectory: "Resources/images"))
-        return try Data(contentsOf: url)
-    }
 
     static func longSide(_ prepared: ImagePreparation.Prepared) -> Int {
         max(prepared.width, prepared.height)
@@ -76,7 +71,7 @@ struct ImagePreparationTests {
 
     @Test("大張照片：壓到目標大小以內，長邊不低於下限")
     func largePhotoFitsTarget() throws {
-        let prepared = try #require(ImagePreparation.prepare(Self.sample("photo-4032x3024.jpg")))
+        let prepared = try #require(ImagePreparation.prepare(SyntheticImages.photo))
 
         #expect(prepared.jpeg.count <= Self.targetBytes)
         #expect(Self.longSide(prepared) >= Self.minimumLongSide)
@@ -91,7 +86,7 @@ struct ImagePreparationTests {
 
     @Test("文字截圖：壓到目標大小以內，文字區與原圖差異小(文字仍可讀)")
     func screenshotStaysReadable() throws {
-        let original = try Self.sample("screenshot-1290x2796.png")
+        let original = SyntheticImages.screenshot
         let prepared = try #require(ImagePreparation.prepare(original))
 
         #expect(prepared.jpeg.count <= Self.targetBytes)
@@ -100,6 +95,35 @@ struct ImagePreparationTests {
         #expect(prepared.quality == 0.5)
         // 下限(1280px、品質 0.4)約 31 dB,目視文字仍清楚。
         #expect(try Self.textRegionPSNR(prepared.jpeg, original: original) >= 30)
+    }
+
+    @Test("暫時量測(定案後移除)")
+    func measureSamples() throws {
+        for (label, data) in [("photo", SyntheticImages.photo), ("screenshot", SyntheticImages.screenshot)] {
+            let source = try #require(CGImageSourceCreateWithData(data as CFData, nil))
+            print("MEASURE \(label) original \(data.count / 1024)K")
+            for pixelSize in ImagePreparation.pixelSizeSteps {
+                let options: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: pixelSize,
+                ]
+                let image = try #require(CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary))
+                var row = "MEASURE \(label) \(pixelSize):"
+                for quality in [0.8, 0.7, 0.6, 0.5, 0.4, 0.3] {
+                    let output = NSMutableData()
+                    let destination = try #require(CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil))
+                    CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+                    CGImageDestinationFinalize(destination)
+                    let jpeg = output as Data
+                    row += " \(jpeg.count / 1024)K"
+                    if label == "screenshot" {
+                        row += String(format: "/%.1fdB", try Self.textRegionPSNR(jpeg, original: data))
+                    }
+                }
+                print(row)
+            }
+        }
     }
 
     @Test("已小於目標大小的圖片：維持品質 0.8 與解析度")
