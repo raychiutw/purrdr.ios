@@ -206,7 +206,8 @@ public actor DemoHost: HostChannel {
         let paneID = params["pane_id"] as? String ?? ""
         switch request?["method"] as? String {
         case "pane.read":
-            return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID))
+            let ansi = params["format"] as? String == "ansi"
+            return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID, ansi: ansi), ansi: ansi)
         case "pane.send_keys":
             answers.receivedKeys(params["keys"] as? [String] ?? [], paneID: paneID)
             return DemoSnapshot.ok(id: id)
@@ -525,9 +526,9 @@ enum DemoSnapshot {
     }
 
     /// `pane.read` 的結果(形狀依錄製的 `pane.read.visible.ndjson`)。
-    static func paneRead(id: String, paneID: String, text: String) -> (line: Data, keepsOpen: Bool) {
+    static func paneRead(id: String, paneID: String, text: String, ansi: Bool = false) -> (line: Data, keepsOpen: Bool) {
         let read: [String: Any] = [
-            "pane_id": paneID, "workspace_id": String(paneID.prefix { $0 != ":" }), "source": "visible", "format": "text",
+            "pane_id": paneID, "workspace_id": String(paneID.prefix { $0 != ":" }), "source": "visible", "format": ansi ? "ansi" : "text",
             "text": text, "revision": 0, "truncated": false,
         ]
         return (result(id: id, ["type": "pane_read", "read": read]), false)

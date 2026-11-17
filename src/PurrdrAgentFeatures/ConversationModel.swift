@@ -410,6 +410,7 @@ public final class ConversationModel {
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         screenThisPoll = nil
         await refreshPrompt(agent)
+        await refreshSuggestion(agent)
         await refreshPanel(agent)
         await refreshLivePreview()
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
@@ -626,6 +627,8 @@ public final class ConversationModel {
         }
         notice = nil
         draft = ""
+        // 送出後舊建議已不適用;下次完成時重讀(herdr 可能來不及回報工作中,#123)。
+        clearSuggestion()
         let sentImages = attachments
         let echo = PromptEcho(
             id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs,
@@ -1027,6 +1030,51 @@ public final class ConversationModel {
         guard let screen = screenThisPoll else { return }
         let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
         if next != panel { panel = next }
+    }
+
+    // MARK: - 建議提示詞(#121、#123)
+
+    /// 輸入列上方要顯示的 Claude Code 建議提示詞;沒有建議、或輸入框已有文字時為 `nil`
+    /// (不蓋掉使用者打的字，#121 故事 4)。
+    public var suggestion: String? { draft.isEmpty ? detectedSuggestion : nil }
+
+    /// 接受建議：只把文字填入輸入框，**不送任何 herdr 請求**(同 slash 選定,#83)。
+    /// 沒有顯示中的建議(例如輸入框已有字)時什麼都不做並回傳 `false`(硬體鍵盤的 Tab 照常交給系統)。
+    @discardableResult
+    public func acceptSuggestion() -> Bool {
+        guard let suggestion else { return false }
+        draft = suggestion
+        return true
+    }
+
+    /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
+    private var detectedSuggestion: String?
+    /// 這段完成期間還沒讀過建議：完成時只讀一次畫面(指令預算 R-F01),離開完成或送出後重新讀。
+    @ObservationIgnored private var suggestionNeedsRead = true
+
+    /// Claude Code 完成(不是工作中、需要你，沒有提示或面板)時讀含 ANSI 的畫面找建議(#121)。
+    /// 這次輪詢已讀過畫面(純文字分不出灰色建議)就留到下次;讀到的畫面去掉 ANSI 後給這次輪詢的其他解析共用(R-F02)。
+    private func refreshSuggestion(_ agent: Agent) async {
+        guard agent.kind == "claude", agentStatus == .done, prompt == nil, panel == nil else {
+            clearSuggestion()
+            return
+        }
+        guard suggestionNeedsRead, screenThisPoll == nil,
+              let screen = try? await client.readPane(paneID: paneID, format: .ansi) else { return }
+        screenThisPoll = Self.plainText(ansi: screen)
+        suggestionNeedsRead = false
+        detectedSuggestion = PromptSuggestion.detect(screen: screen)
+    }
+
+    private func clearSuggestion() {
+        detectedSuggestion = nil
+        suggestionNeedsRead = true
+    }
+
+    /// 去掉 CSI 跳脫序列與 `\r`:`.ansi` 畫面只差在 SGR 與行尾,其他解析器吃的是純文字。
+    static func plainText(ansi screen: String) -> String {
+        screen.replacingOccurrences(of: "\u{1B}\\[[0-9;:?]*[@-~]", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\r", with: "")
     }
 
     // MARK: - 標題列(#44)
