@@ -14,6 +14,7 @@
 """
 import argparse
 import base64
+import gzip
 import hashlib
 import os
 import re
@@ -103,7 +104,18 @@ def stop_stuck_processes(workspace):
         "if($f.Count){[PurrdrReproLockers]::Of($f)|%{Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue;$_}}")
 
 
-def run_case(source, kind, size, timeout):
+def compressible(size):
+    """像 log 的文字(gzip 壓得小)。"""
+    lines, total = [], 0
+    while total < size:
+        line = f"{total:09d} {os.urandom(6).hex()} purrdr upload log line\n".encode()
+        lines.append(line)
+        total += len(line)
+    return b"".join(lines)[:size]
+
+
+def run_case(source, kind, size, timeout, mismatch=None):
+    """`mismatch`:`transfer` 或 `original` 時宣告的大小故意多 1,預期 exit 75、資料夾是空的。"""
     workspace = run_powershell(
         "$d=Join-Path $env:TEMP ('purrdr-repro-'+[Guid]::NewGuid().ToString('N'));"
         "[void][IO.Directory]::CreateDirectory((Join-Path $d 'files'));[Console]::Out.Write($d)")
@@ -111,33 +123,44 @@ def run_case(source, kind, size, timeout):
         return False, "建立主機暫存資料夾失敗"
     name = uuid.uuid4().hex[:12] + (".jpg" if kind == "image" else ".bin")
     prelude, receive = swift_literal(source, "prelude"), swift_literal(source, "receive")
+    payload = compressible(size) if kind == "gzip" else os.urandom(size)
+    sent = payload
     if kind == "image":
         arguments = [name, str(size)]
         body = "$env:USERPROFILE=" + quote(workspace) + "\n" + swift_literal(source, "imageUpload")
         expected_path = workspace + "\\.purrdr\\uploads\\" + name
     else:
         folder = workspace + "\\files"
-        arguments = [folder, name, str(size)]
+        if kind == "gzip":
+            sent = gzip.compress(payload, mtime=0)
+        original_size = size + (1 if mismatch == "original" else 0)
+        transfer_size = len(sent) + (1 if mismatch == "transfer" else 0)
+        arguments = [folder, name, str(original_size), "gzip" if kind == "gzip" else "identity", str(transfer_size)]
         body = swift_literal(source, "folderUpload")
         expected_path = folder + "\\" + name
     upload_command = encoded("\n".join([prelude, "$a=@(" + ",".join(quote(v) for v in arguments) + ")", receive, body]))
 
-    payload = os.urandom(size)
     started = time.monotonic()
     process = subprocess.Popen(ssh_argv(upload_command), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
     try:
-        stdout, stderr = process.communicate(payload, timeout=timeout)
+        stdout, stderr = process.communicate(sent, timeout=timeout)
         elapsed = time.monotonic() - started
         printed = stdout.decode("utf-8", errors="replace").strip()
+        if mismatch:
+            left = run_powershell("@(Get-ChildItem -LiteralPath " + quote(workspace + "\\files") + " -Force).Count")
+            if process.returncode != 75 or left != "0":
+                return False, f"exit={process.returncode} 資料夾剩 {left} 個項目(預期 exit 75、0 個)"
+            return True, f"{elapsed:.1f}s exit 75、沒留下檔案"
         if process.returncode != 0 or printed != expected_path:
             detail = f"exit={process.returncode} {elapsed:.1f}s stdout={printed!r} stderr={stderr.decode(errors='replace')[:200]!r}"
             return False, detail
         remote_hash = run_powershell("(Get-FileHash -Algorithm SHA256 -LiteralPath " + quote(expected_path) + ").Hash")
-        sent_hash = hashlib.sha256(payload).hexdigest()
-        if remote_hash.lower() != sent_hash:
-            return False, f"{elapsed:.1f}s SHA-256 不同：送出 {sent_hash} 主機 {remote_hash.lower()}"
-        return True, f"{elapsed:.1f}s SHA-256 相同"
+        original_hash = hashlib.sha256(payload).hexdigest()
+        if remote_hash.lower() != original_hash:
+            return False, f"{elapsed:.1f}s SHA-256 不同：原檔 {original_hash} 主機 {remote_hash.lower()}"
+        transfer = f"傳輸 {len(sent)} bytes " if sent is not payload else ""
+        return True, f"{elapsed:.1f}s {transfer}SHA-256 相同"
     except subprocess.TimeoutExpired:
         subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)] if os.name == "nt" else ["kill", str(process.pid)],
                        capture_output=True)
@@ -151,18 +174,21 @@ def run_case(source, kind, size, timeout):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("sizes", nargs="*", type=int, default=[100, 300_000, 2_500_000])
-    parser.add_argument("--kind", choices=["image", "folder", "both"], default="both")
+    parser.add_argument("--kind", choices=["image", "folder", "gzip", "all"], default="all")
     parser.add_argument("--timeout", type=float, default=20)
     options = parser.parse_args()
     with open(os.path.join(REPO, "src", "PurrdrCore", "WindowsScripts.swift"), encoding="utf-8") as file:
         source = file.read()
-    kinds = ["image", "folder"] if options.kind == "both" else [options.kind]
+    kinds = ["image", "folder", "gzip"] if options.kind == "all" else [options.kind]
+    cases = [(kind, size, None) for kind in kinds for size in options.sizes]
+    if "gzip" in kinds:
+        cases += [("gzip", max(options.sizes), mismatch) for mismatch in ("transfer", "original")]
     all_green = True
-    for kind in kinds:
-        for size in options.sizes:
-            green, detail = run_case(source, kind, size, options.timeout)
-            all_green &= green
-            print(f"{'GREEN' if green else 'RED  '} {kind:6} {size:>9} bytes  {detail}", flush=True)
+    for kind, size, mismatch in cases:
+        green, detail = run_case(source, kind, size, options.timeout, mismatch)
+        all_green &= green
+        label = kind + (f"({mismatch} 不符)" if mismatch else "")
+        print(f"{'GREEN' if green else 'RED  '} {label:16} {size:>9} bytes  {detail}", flush=True)
     print("全部綠燈" if all_green else "有紅燈")
     sys.exit(0 if all_green else 1)
 

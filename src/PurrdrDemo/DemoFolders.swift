@@ -61,12 +61,13 @@ struct DemoFolders {
         return (Data((lines.joined(separator: "\n") + "\n").utf8), Data(), 0)
     }
 
-    /// 上傳:資料夾不存在 exit 66、同名 exit 73、大小不符 exit 75;成功時記下檔案並回傳路徑。
-    mutating func upload(folder: String, name: String, declaredSize: Int, received: Int) -> (stdout: Data, exitCode: Int32) {
+    /// 上傳:資料夾不存在 exit 66、同名 exit 73、收到的 bytes 與傳輸大小不符 exit 75;成功時以原始大小記下檔案並回傳路徑
+    /// (gzip 傳輸不解壓)。
+    mutating func upload(folder: String, name: String, size: Int, transferSize: Int, received: Int) -> (stdout: Data, exitCode: Int32) {
         guard folders[folder] != nil else { return (Data(), 66) }
-        guard received == declaredSize else { return (Data(), 75) }
+        guard received == transferSize else { return (Data(), 75) }
         guard !(folders[folder] ?? []).contains(where: { $0.name == name }) else { return (Data(), 73) }
-        folders[folder, default: []].append(Item(name: name, isFolder: false, size: received))
+        folders[folder, default: []].append(Item(name: name, isFolder: false, size: size))
         return (Data("\(folder == "/" ? "" : folder)/\(name)\n".utf8), 0)
     }
 }

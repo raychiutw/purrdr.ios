@@ -80,8 +80,23 @@ struct WindowsHostScriptsTests {
         _ = try await HostFolders(channel: WindowsHostChannel(host)).upload(Data("123456789".utf8), named: "報告 it's.pdf", to: longFolder)
 
         let command = try #require(await host.fake.executions.first?.command)
-        #expect(try #require(PowerShell.script(inEncodedCommand: command)).contains("\n$a=@('\(longFolder)','報告 it''s.pdf','9')\n"))
+        #expect(try #require(PowerShell.script(inEncodedCommand: command)).contains("\n$a=@('\(longFolder)','報告 it''s.pdf','9','identity','9')\n"))
         #expect(command.count <= 8_191)
+    }
+
+    @Test("檔案上傳以 gzip 傳輸：傳輸編碼與傳輸大小帶進參數,stdin 只有 gzip 後的 bytes")
+    func folderUploadGzip() async throws {
+        let host = CapturingHost(reply: FakeReply(stdout: Data((#"C:\work\build.log"# + "\n").utf8)))
+        let original = Data(repeating: 0x61, count: 1_000)
+
+        _ = try await HostFolders(channel: WindowsHostChannel(host), deflate: FixedDeflate(output: Data([1, 2, 3])))
+            .upload(original, named: "build.log", to: #"C:\work"#)
+
+        let command = try #require(await host.fake.executions.first?.command)
+        #expect(try #require(PowerShell.script(inEncodedCommand: command)).contains(#"$a=@('C:\work','build.log','1000','gzip','21')"#))
+        let stdin = try #require(await host.fake.executions.first?.stdin)
+        #expect(stdin.count == 21)
+        #expect(Array(stdin.prefix(2)) == [0x1F, 0x8B])
     }
 
     @Test("資料夾清單、新增對話的資料夾：走 stdin 的唯讀腳本")

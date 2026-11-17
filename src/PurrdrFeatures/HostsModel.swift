@@ -175,9 +175,10 @@ public final class HostsModel {
         LoginShellModel(channel: member(for: selection).channel, title: name(of: selection))
     }
 
-    /// 選取中主機的檔案瀏覽(從家目錄開始)。
+    /// 選取中主機的檔案瀏覽(從家目錄開始);壓得小的檔案以 gzip 傳輸。
     public func folderBrowser() -> FolderBrowserModel {
-        FolderBrowserModel(folders: HostFolders(channel: member(for: selection).channel), hostName: name(of: selection))
+        FolderBrowserModel(
+            folders: HostFolders(channel: member(for: selection).channel, deflate: SystemDeflate()), hostName: name(of: selection))
     }
 
     /// 某台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。
