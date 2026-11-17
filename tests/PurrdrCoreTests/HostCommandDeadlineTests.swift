@@ -172,7 +172,7 @@ struct HostCommandDeadlineTests {
 
         task.cancel()
 
-        let finished = await Self.outcome(within: .seconds(2)) { try await task.value }
+        let finished = await Self.outcome { try await task.value }
         await channel.open()
         #expect(finished != nil, "開通道卡住時，取消後沒有立刻返回")
         #expect(await host.waitUntilClosed(execution: 0))
@@ -181,8 +181,9 @@ struct HostCommandDeadlineTests {
     // MARK: - 輔助
 
     /// 在 `limit` 內等 `operation` 結束;沒結束就取消它並回傳 `nil`(卡住時以斷言失敗呈現，不讓測試掛住)。
+    /// 上限放寬到 `asyncWaitLimit`:平行跑的其他測試會以同步等待佔住執行緒。
     static func outcome<Value: Sendable>(
-        within limit: Duration = .seconds(5), _ operation: @escaping @Sendable () async throws -> Value
+        within limit: Duration = asyncWaitLimit, _ operation: @escaping @Sendable () async throws -> Value
     ) async -> Result<Value, any Error>? {
         let box = OutcomeBox<Value>()
         let task = Task {

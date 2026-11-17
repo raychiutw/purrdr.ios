@@ -62,7 +62,7 @@ struct ConversationDeadlineTests {
     }
 
     /// `operation` 在 `limit` 內結束回傳 `true`;沒結束就取消它並回傳 `false`(卡住時以斷言失敗呈現，不讓測試掛住)。
-    static func finishes(within limit: Duration = .seconds(5), _ operation: @escaping @MainActor () async -> Void) async -> Bool {
+    static func finishes(within limit: Duration = asyncWaitLimit, _ operation: @escaping @MainActor () async -> Void) async -> Bool {
         let task = Task { @MainActor in await operation() }
         let finished = Task {
             await task.value
