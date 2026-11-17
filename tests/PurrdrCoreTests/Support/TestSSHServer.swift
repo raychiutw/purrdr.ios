@@ -33,6 +33,8 @@ final class TestSSHServer: Sendable {
         case drop(after: TimeAmount)
         /// 一直不回覆。
         case hold
+        /// 等測試呼叫 `approveChecks()` 才放行。
+        case approveOnRequest
     }
 
     /// 一個 exec 指令的回應方式。
@@ -99,6 +101,7 @@ final class TestSSHServer: Sendable {
     let hostKey: NIOSSHPrivateKey
     private let channel: any Channel
     private let log: Mutex<Log>
+    private let approvals: CheckApprovals
 
     var fingerprint: HostKeyFingerprint {
         try! HostKeyFingerprint(openSSHPublicKey: String(openSSHPublicKey: hostKey.publicKey))
@@ -108,11 +111,17 @@ final class TestSSHServer: Sendable {
 
     var endpoint: SSHEndpoint { SSHEndpoint(host: "127.0.0.1", port: port, username: "demo") }
 
-    private init(port: Int, hostKey: NIOSSHPrivateKey, channel: any Channel) {
+    private init(port: Int, hostKey: NIOSSHPrivateKey, channel: any Channel, approvals: CheckApprovals) {
         self.port = port
         self.hostKey = hostKey
         self.channel = channel
         self.log = Mutex(Log())
+        self.approvals = approvals
+    }
+
+    /// 放行所有以 `.approveOnRequest` 等待中的 check mode 認證。
+    func approveChecks() {
+        approvals.approveAll()
     }
 
     static func start(
@@ -122,6 +131,7 @@ final class TestSSHServer: Sendable {
     ) async throws -> TestSSHServer {
         let hostKey = NIOSSHPrivateKey(ed25519Key: .init())
         let recorder = Recorder()
+        let approvals = CheckApprovals()
         let bootstrap = ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
@@ -130,7 +140,7 @@ final class TestSSHServer: Sendable {
                 channel.closeFuture.whenComplete { _ in recorder.update { $0.disconnections += 1 } }
                 return channel.eventLoop.makeCompletedFuture {
                     let delegate = AuthenticationDelegate(
-                        recorder: recorder, accepts: authentication, auth: auth(number), connection: channel)
+                        recorder: recorder, accepts: authentication, auth: auth(number), connection: channel, approvals: approvals)
                     let handler = NIOSSHHandler(
                         role: .server(.init(
                             hostKeys: [hostKey], userAuthDelegate: delegate,
@@ -147,7 +157,7 @@ final class TestSSHServer: Sendable {
                 }
             }
         let channel = try await bootstrap.bind(host: "127.0.0.1", port: 0).get()
-        let server = TestSSHServer(port: channel.localAddress!.port!, hostKey: hostKey, channel: channel)
+        let server = TestSSHServer(port: channel.localAddress!.port!, hostKey: hostKey, channel: channel, approvals: approvals)
         recorder.attach(server)
         return server
     }
@@ -158,6 +168,23 @@ final class TestSSHServer: Sendable {
 
     fileprivate func record(_ change: (inout Log) -> Void) {
         log.withLock { change(&$0) }
+    }
+}
+
+/// 以 `.approveOnRequest` 等待放行的 check mode 認證。
+private final class CheckApprovals: Sendable {
+    private let pending = Mutex<[EventLoopPromise<NIOSSHUserAuthenticationOutcome>]>([])
+
+    func add(_ promise: EventLoopPromise<NIOSSHUserAuthenticationOutcome>) {
+        pending.withLock { $0.append(promise) }
+    }
+
+    func approveAll() {
+        let waiting = pending.withLock { pending in
+            defer { pending = [] }
+            return pending
+        }
+        for promise in waiting { promise.succeed(.success) }
     }
 }
 
@@ -198,12 +225,17 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
     /// `none` 被接受時(Tailscale SSH)怎麼回應:立即放行或 check mode。
     let auth: TestSSHServer.Auth
     let connection: any Channel
+    let approvals: CheckApprovals
 
-    init(recorder: Recorder, accepts: TestSSHServer.Authentication, auth: TestSSHServer.Auth, connection: any Channel) {
+    init(
+        recorder: Recorder, accepts: TestSSHServer.Authentication, auth: TestSSHServer.Auth, connection: any Channel,
+        approvals: CheckApprovals
+    ) {
         self.recorder = recorder
         self.accepts = accepts
         self.auth = auth
         self.connection = connection
+        self.approvals = approvals
     }
 
     var supportedAuthenticationMethods: NIOSSHAvailableUserAuthenticationMethods {
@@ -261,6 +293,9 @@ private final class AuthenticationDelegate: NIOSSHServerUserAuthenticationDelega
                     connection.close(promise: nil)
                     responsePromise.fail(ChannelError.ioOnClosedChannel)
                 }
+            case .approveOnRequest:
+                approvals.add(responsePromise)
+                connection.closeFuture.whenComplete { _ in responsePromise.fail(ChannelError.ioOnClosedChannel) }
             case .hold:
                 // 不回覆;連線關閉時才讓 promise 結束，避免 promise 洩漏。
                 connection.closeFuture.whenComplete { _ in responsePromise.fail(ChannelError.ioOnClosedChannel) }

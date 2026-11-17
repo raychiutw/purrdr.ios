@@ -90,6 +90,7 @@ public actor SSHHostChannel: HostChannel {
     private let timeouts: SSHTimeouts
     private let group: any EventLoopGroup
     private let tailscaleCheck: TailscaleCheckObserver?
+    private let scheduler: any SSHDeadlineScheduler
 
     private var connection: SSHConnection?
     private var dial: (id: Int, task: Task<SSHConnection, any Error>)?
@@ -97,12 +98,15 @@ public actor SSHHostChannel: HostChannel {
     /// 使用者取消了這次撥號的 check mode 等待(讓等待中的指令拿到 `.tailscaleCheckCancelled`)。
     private var checkCancelled = false
 
-    /// - Parameter credential: 登入用的憑證，第一次撥號時才取得(Tailscale SSH 是 `none`)。
+    /// - Parameters:
+    ///   - credential: 登入用的憑證，第一次撥號時才取得(Tailscale SSH 是 `none`)。
+    ///   - scheduler: 排定 `timeouts` 的時鐘(TCP 連線期限除外)。
     public init(
         endpoint: SSHEndpoint, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts = SSHTimeouts(),
         eventLoopGroup: any EventLoopGroup = MultiThreadedEventLoopGroup.singleton,
         credential: @escaping SSHCredentialProvider = { .none },
-        tailscaleCheck: TailscaleCheckObserver? = nil
+        tailscaleCheck: TailscaleCheckObserver? = nil,
+        scheduler: any SSHDeadlineScheduler = EventLoopDeadlineScheduler()
     ) {
         self.endpoint = endpoint
         self.hostKeyPin = hostKeyPin
@@ -110,6 +114,7 @@ public actor SSHHostChannel: HostChannel {
         self.timeouts = timeouts
         group = eventLoopGroup
         self.tailscaleCheck = tailscaleCheck
+        self.scheduler = scheduler
     }
 
     public func execute(_ command: String) async throws -> any ExecSession {
@@ -161,7 +166,7 @@ public actor SSHHostChannel: HostChannel {
         let id = dialCount
         checkCancelled = false
         let cancel: @Sendable () async -> Void = { [weak self] in await self?.cancelTailscaleCheck() }
-        let task = Task { [endpoint, hostKeyPin, timeouts, group, credential, tailscaleCheck] in
+        let task = Task { [endpoint, hostKeyPin, timeouts, group, credential, tailscaleCheck, scheduler] in
             // 讀不到憑證(祕密不在、金鑰壞了)就不撥號。
             let user = try await credential()
             let prompt: @Sendable (URL) -> Void = { url in tailscaleCheck?(TailscaleCheckPrompt(url: url, cancel: cancel)) }
@@ -170,7 +175,8 @@ public actor SSHHostChannel: HostChannel {
             while true {
                 do {
                     let (connection, checked) = try await SSHConnection.connect(
-                        to: endpoint, credential: user, hostKeyPin: hostKeyPin, timeouts: timeouts, group: group, onCheck: prompt)
+                        to: endpoint, credential: user, hostKeyPin: hostKeyPin, timeouts: timeouts, group: group,
+                        scheduler: scheduler, onCheck: prompt)
                     prompted = prompted || checked
                     return connection
                 } catch let interrupted as CheckInterrupted {
@@ -248,9 +254,11 @@ enum SessionEvent: Sendable {
 
 final class SSHConnection: Sendable {
     let channel: any Channel
+    private let scheduler: any SSHDeadlineScheduler
 
-    private init(channel: any Channel) {
+    private init(channel: any Channel, scheduler: any SSHDeadlineScheduler) {
         self.channel = channel
+        self.scheduler = scheduler
     }
 
     var isActive: Bool { channel.isActive }
@@ -261,7 +269,7 @@ final class SSHConnection: Sendable {
     /// 取消(Task cancellation)會關掉連線。
     static func connect(
         to endpoint: SSHEndpoint, credential: SSHUserCredential, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts,
-        group: any EventLoopGroup, onCheck: @escaping @Sendable (URL) -> Void
+        group: any EventLoopGroup, scheduler: any SSHDeadlineScheduler, onCheck: @escaping @Sendable (URL) -> Void
     ) async throws -> (SSHConnection, checked: Bool) {
         let eventLoop = group.next()
         let authenticated = eventLoop.makePromise(of: Bool.self)
@@ -275,7 +283,7 @@ final class SSHConnection: Sendable {
                     try channel.pipeline.syncOperations.addHandler(
                         NIOSSHHandler(role: .client(configuration), allocator: channel.allocator, inboundChildChannelInitializer: nil))
                     try channel.pipeline.syncOperations.addHandler(
-                        HandshakeHandler(authenticated: authenticated, timeouts: timeouts, onCheck: onCheck))
+                        HandshakeHandler(authenticated: authenticated, timeouts: timeouts, scheduler: scheduler, onCheck: onCheck))
                 }
             }
 
@@ -293,9 +301,9 @@ final class SSHConnection: Sendable {
                 channel.close(promise: nil)
             }
             if let interval = timeouts.keepaliveInterval {
-                startKeepalive(on: channel, every: interval, replyWithin: timeouts.keepaliveReply)
+                startKeepalive(on: channel, every: interval, replyWithin: timeouts.keepaliveReply, scheduler: scheduler)
             }
-            return (SSHConnection(channel: channel), checked)
+            return (SSHConnection(channel: channel, scheduler: scheduler), checked)
         } catch {
             // 握手或認證失敗時一定要關 TCP,否則每次重試留下一個未認證連線(行為規格 §7.1)。
             try? await channel.close()
@@ -310,7 +318,7 @@ final class SSHConnection: Sendable {
         let (events, continuation) = AsyncStream<SessionEvent>.makeStream()
         let channel = self.channel
         let started = channel.eventLoop.makePromise(of: (any Channel).self)
-        let deadline = channel.eventLoop.scheduleTask(in: timeout) {
+        let deadline = scheduler.schedule(in: timeout, on: channel.eventLoop) {
             started.fail(SSHConnectionError.timedOut)
         }
         channel.eventLoop.execute {
@@ -353,25 +361,30 @@ final class SSHConnection: Sendable {
     /// (`cancel-tcpip-forward`,位址是 `.invalid` 網域、埠 0):主機回成功或失敗都證明連線活著，
     /// 而且不會影響任何東西。期限內沒有任何回應 = 半開連線 → 關掉整條連線，下一個指令重新撥號;
     /// 進行中的指令以 `connectionLost` 結束(不重送)。
-    private static func startKeepalive(on channel: any Channel, every interval: TimeAmount, replyWithin limit: TimeAmount) {
+    private static func startKeepalive(
+        on channel: any Channel, every interval: TimeAmount, replyWithin limit: TimeAmount, scheduler: any SSHDeadlineScheduler
+    ) {
         let eventLoop = channel.eventLoop
-        let task = eventLoop.scheduleRepeatedAsyncTask(initialDelay: interval, delay: interval) { _ in
-            let round = eventLoop.makePromise(of: Void.self)
-            guard channel.isActive, let handler = try? channel.pipeline.syncOperations.handler(type: NIOSSHHandler.self) else {
-                round.succeed()
-                return round.futureResult
+        let nextRound = NIOLoopBoundBox<SSHScheduledDeadline?>(nil, eventLoop: eventLoop)
+        // 上一輪有結果後才排下一輪，間隔從那時算起(與 scheduleRepeatedAsyncTask 相同)。
+        @Sendable func scheduleRound() {
+            guard channel.isActive else { return }
+            nextRound.value = scheduler.schedule(in: interval, on: eventLoop) {
+                guard channel.isActive, let handler = try? channel.pipeline.syncOperations.handler(type: NIOSSHHandler.self) else {
+                    return
+                }
+                let reply = eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
+                // 關閉連線時未回應的請求會失敗，這一輪也就跟著結束。
+                let deadline = scheduler.schedule(in: limit, on: eventLoop) { channel.close(promise: nil) }
+                reply.futureResult.whenComplete { _ in
+                    deadline.cancel()
+                    scheduleRound()
+                }
+                handler.sendTCPForwardingRequest(.cancel(host: "purrdr-keepalive.invalid", port: 0), promise: reply)
             }
-            let reply = eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
-            // 關閉連線時未回應的請求會失敗，這一輪也就跟著結束。
-            let deadline = eventLoop.scheduleTask(in: limit) { channel.close(promise: nil) }
-            reply.futureResult.whenComplete { _ in
-                deadline.cancel()
-                round.succeed()
-            }
-            handler.sendTCPForwardingRequest(.cancel(host: "purrdr-keepalive.invalid", port: 0), promise: reply)
-            return round.futureResult
         }
-        channel.closeFuture.whenComplete { _ in task.cancel() }
+        eventLoop.execute { scheduleRound() }
+        channel.closeFuture.whenComplete { _ in nextRound.value?.cancel() }
     }
 
     private static func connectFailure(_ error: any Error) -> SSHConnectionError {
@@ -480,13 +493,18 @@ private final class HandshakeHandler: ChannelInboundHandler {
     typealias InboundIn = Any
     private let authenticated: EventLoopPromise<Bool>
     private let timeouts: SSHTimeouts
+    private let scheduler: any SSHDeadlineScheduler
     private let onCheck: @Sendable (URL) -> Void
-    private var deadline: Scheduled<Void>?
+    private var deadline: SSHScheduledDeadline?
     private var checked = false
 
-    init(authenticated: EventLoopPromise<Bool>, timeouts: SSHTimeouts, onCheck: @escaping @Sendable (URL) -> Void) {
+    init(
+        authenticated: EventLoopPromise<Bool>, timeouts: SSHTimeouts, scheduler: any SSHDeadlineScheduler,
+        onCheck: @escaping @Sendable (URL) -> Void
+    ) {
         self.authenticated = authenticated
         self.timeouts = timeouts
+        self.scheduler = scheduler
         self.onCheck = onCheck
     }
 
@@ -526,7 +544,7 @@ private final class HandshakeHandler: ChannelInboundHandler {
     private func arm(in time: TimeAmount, failing error: SSHConnectionError, context: ChannelHandlerContext) {
         deadline?.cancel()
         let handler = NIOLoopBound(self, eventLoop: context.eventLoop)
-        deadline = context.eventLoop.scheduleTask(in: time) { handler.value.fail(error) }
+        deadline = scheduler.schedule(in: time, on: context.eventLoop) { handler.value.fail(error) }
     }
 
     private func fail(_ error: SSHConnectionError) {

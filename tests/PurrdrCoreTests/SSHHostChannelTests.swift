@@ -132,12 +132,16 @@ struct SSHHostChannelTests {
         let server = try await TestSSHServer.start(keepalive: .ignore) { command in
             command == "first" ? .slowReply(after: .milliseconds(500), stdout: "ok") : .reply(stdout: "ok")
         }
+        let clock = ManualSSHClock()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
-            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)))
+            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)), scheduler: clock)
 
         _ = try await collect(channel.execute("first"))
-        // 不用固定等待：等到 keepalive 期限到、連線被丟棄(主機看到斷線)。
+        // 期限由手動時鐘推進：第一個指令再慢，keepalive 也要等這裡才送出、才到期。
+        await clock.advance(by: .milliseconds(100))
+        try await eventually { server.snapshot.keepalives == 1 }
+        await clock.advance(by: .milliseconds(200))
         try await eventually { server.snapshot.disconnections == 1 }
         let next = try await collect(channel.execute("second"))
 

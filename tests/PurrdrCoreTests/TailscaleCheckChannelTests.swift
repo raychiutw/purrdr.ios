@@ -14,20 +14,24 @@ struct TailscaleCheckChannelTests {
 
     @Test("要求重新驗證：回報驗證網址、等待期間不受握手期限限制，驗證完指令自動繼續", .timeLimit(.minutes(1)))
     func waitsForCheckThenRuns() async throws {
-        // 驗證等待(2 秒)比握手期限(1 秒)長：等待期間仍套用握手期限的話會逾時。
-        // 握手期限只要涵蓋「連上到收到驗證網址」,給 1 秒，機器忙時才不會在網址送到前就逾時。
-        // 機器忙：驗證網址比握手期限晚到(CI 同時跑很多測試時會這樣)。
+        // 期限由手動時鐘推進：機器忙(驗證網址晚到)也不會在網址送到前就逾時。
         let server = try await TestSSHServer.start(auth: { _ in
-            .check(banner: Self.banner, bannerDelay: .milliseconds(1500), then: .approve(after: .seconds(2)))
+            .check(banner: Self.banner, bannerDelay: .milliseconds(1500), then: .approveOnRequest)
         }) {
             _ in .reply(stdout: "ok")
         }
         let prompts = PromptLog()
+        let clock = ManualSSHClock()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
-            timeouts: SSHTimeouts(handshake: .seconds(1)), tailscaleCheck: prompts.observe)
+            timeouts: SSHTimeouts(handshake: .seconds(1)), tailscaleCheck: prompts.observe, scheduler: clock)
 
-        let result = try await collect(channel.execute("x"))
+        let pending = Task { try await collect(channel.execute("x")) }
+        _ = try await prompts.firstPrompt()
+        // 等驗證時過了握手期限：仍套用握手期限的話這裡就會逾時。
+        await clock.advance(by: .seconds(2))
+        server.approveChecks()
+        let result = try await pending.value
 
         #expect(result.stdout == "ok")
         #expect(prompts.urls == [Self.url, nil], "先顯示驗證網址，完成後收起")
@@ -91,12 +95,17 @@ struct TailscaleCheckChannelTests {
     func checkTimesOut() async throws {
         let server = try await TestSSHServer.start(auth: { _ in .check(banner: Self.banner, then: .hold) }) { _ in .reply() }
         let prompts = PromptLog()
+        let clock = ManualSSHClock()
         let channel = SSHHostChannel(
             endpoint: server.endpoint, hostKeyPin: server.fingerprint,
-            // 握手期限給寬(機器忙時才不會在驗證網址送到前就逾時);等驗證的期限才是這裡要測的。
-            timeouts: SSHTimeouts(handshake: .seconds(10), tailscaleCheck: .milliseconds(600)), tailscaleCheck: prompts.observe)
+            timeouts: SSHTimeouts(handshake: .seconds(1), tailscaleCheck: .seconds(5)), tailscaleCheck: prompts.observe,
+            scheduler: clock)
 
-        await #expect(throws: SSHConnectionError.tailscaleCheckTimedOut) { _ = try await channel.execute("x") }
+        let pending = Task { try await channel.execute("x") }
+        _ = try await prompts.firstPrompt()
+        await clock.advance(by: .seconds(5))
+
+        await #expect(throws: SSHConnectionError.tailscaleCheckTimedOut) { _ = try await pending.value }
         #expect(server.snapshot.connections == 1)
         #expect(prompts.urls == [Self.url, nil])
         try await eventually { server.snapshot.disconnections == 1 }
