@@ -1,0 +1,1 @@
+{"type":"welcome","request_id":"r1","protocol_version":1,"host_service_version":"0.1.0","herdr":{"version":"0.9.5","protocol":22,"capabilities":["detached_server_daemon","health_check","live_handoff","ssh_agent_registration","surface_interest"]}}
