@@ -100,6 +100,18 @@ public struct SpacesStatusCounts: Equatable, Sendable {
         self.done = done
         self.idle = idle
     }
+
+    /// 以列表上的狀態(已折算未讀)計數。
+    init(statuses: [AgentStatus]) {
+        for status in statuses {
+            switch status {
+            case .blocked: needsYou += 1
+            case .working: working += 1
+            case .done: done += 1
+            case .idle, .unknown: idle += 1
+            }
+        }
+    }
 }
 
 /// Spaces 檢視的一項。
@@ -218,23 +230,28 @@ public struct TerminalRow: Identifiable, Equatable, Sendable {
 }
 
 extension AgentListProjection {
-    /// Spaces 檢視：每個 workspace 一項，分組與排序跟 Agents 檢視相同(行為規格 F2.1–F2.3)。
+    /// Spaces 檢視(#103):最上面「已釘選」(不分主機),其餘每台主機一組，主機順序同合併列表(選取中主機在前)。
     ///
-    /// - 只有一個 Agent、沒有其他 pane → 聊天列(跟 Agents 檢視的列相同)。
-    /// - 兩個以上 Agent,或有 Agent 以外的 pane(含只有 shell)→ workspace 卡片，放在最急迫的狀態那組。
-    /// - 已釘選(#41):被釘選的聊天列、或有任一 Agent 被釘選的卡片，放在「已釘選」,依釘選時間舊→新
-    ///   (卡片以最早釘選的 Agent 為準),不看狀態。卡片裡的列各自帶未讀與釘選記號。
+    /// - 只有一個 Agent、沒有其他 pane → 聊天列;其他(含只有 shell)→ workspace 群組。
+    /// - 主機組內：有需要你的在前、再來是工作中，其他依 workspace 編號。
+    /// - 已釘選(#41):被釘選的聊天列、或有任一 Agent 被釘選的群組，依釘選時間舊→新(群組以最早釘選的 Agent 為準)。
+    /// - 沒有項目的主機組不出現(例如搜尋沒命中)。
     /// - Parameter visible: 目前開著的聊天(不算未讀)。
     static func spacesSections(sources: [Source], query: String, visible: Set<ChatRoute> = []) -> [SpacesSection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let entries = sources.enumerated().flatMap { hostOrder, source in
-            spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
+        var pinned: [SpacesEntry] = []
+        var hostSections: [SpacesSection] = []
+        for (hostOrder, source) in sources.enumerated() {
+            let entries = spacesEntries(of: source, hostOrder: hostOrder, needle: needle, visible: visible)
+            pinned += entries.filter { $0.order.pinnedAt != nil }
+            let items = entries.filter { $0.order.pinnedAt == nil }.sorted { $0.order.urgencyOrder < $1.order.urgencyOrder }
+            guard !items.isEmpty else { continue }
+            let statuses = sections(sources: [source], query: "", visible: visible).flatMap(\.rows).map(\.status)
+            let header = SpacesHost(host: source.host, name: source.name, icon: source.icon, counts: SpacesStatusCounts(statuses: statuses))
+            hostSections.append(SpacesSection(kind: .host(header), items: items.map(\.item)))
         }
-        return grouped(entries, order: \.order).map { group, items in
-            SpacesSection(
-                kind: group == .pinned ? .pinned : .host(SpacesHost(host: .demo, name: "", icon: .default, counts: SpacesStatusCounts())),
-                items: items.map(\.item))
-        }
+        let pinnedItems = pinned.sorted { AgentGroup.pinned.areInIncreasingOrder($0.order, $1.order) }.map(\.item)
+        return (pinnedItems.isEmpty ? [] : [SpacesSection(kind: .pinned, items: pinnedItems)]) + hostSections
     }
 
     private struct SpacesEntry {

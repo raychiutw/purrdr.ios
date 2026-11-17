@@ -81,6 +81,16 @@ enum AgentListProjection {
 
         /// 主機順序(選取中主機在前)→ workspace 順序 → snapshot 內的位置。
         var order: (Int, Int, Int) { (hostOrder, workspaceOrder, position) }
+
+        /// Spaces 主機組內：需要你 > 工作中 > 其他，再依 workspace 順序與位置。
+        var urgencyOrder: (Int, Int, Int) {
+            let rank = switch status {
+            case .blocked: 0
+            case .working: 1
+            case .done, .idle, .unknown: 2
+            }
+            return (rank, workspaceOrder, position)
+        }
     }
 
     /// 不分大小寫的子字串比對：標題、herdr 名稱、session 與終端機標題、agent 種類與顯示名、資料夾、workspace 名稱與 id。
