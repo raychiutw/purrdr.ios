@@ -93,6 +93,22 @@ struct BrandRedTests {
         }
     }
 
+    @Test("iPad 選取列：列文字與「需要你」對選取底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
+    func selectedRowContrast() {
+        let text = AccessibleColors.selectedRowText
+        let fill = AccessibleColors.selectionFill
+        let cases: [(String, ThemeColor, ThemeColor, Double)] = [
+            ("淺色", text.light, fill.light, 4.5),
+            ("深色", text.dark, fill.dark, 4.5),
+            ("淺色高對比", text.lightHighContrast, fill.lightHighContrast, 7),
+            ("深色高對比", text.darkHighContrast, fill.darkHighContrast, 7),
+        ]
+        for (name, foreground, background, minimum) in cases {
+            let ratio = foreground.contrastRatio(with: background)
+            #expect(ratio >= minimum, "\(name) \(foreground) 對選取底色 \(background) 只有 \(ratio)")
+        }
+    }
+
     @Test("AccentColor 四種外觀與紅字同值")
     func accentColorMatchesBrandText() throws {
         let url = URL(filePath: #filePath)

@@ -66,6 +66,17 @@ enum AccessibleColors {
         lightHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B), // 白字 7.1:1
         darkHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B)
     )
+
+    /// iPad 列表選取列的底色(#95)。
+    static let selectionFill = brandText
+
+    /// 選取列上的文字與「需要你」(符號與狀態字)。
+    static let selectedRowText = ContrastPalette(
+        light: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),
+        dark: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),
+        lightHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
+    )
 }
 
 extension ShapeStyle where Self == Color {
