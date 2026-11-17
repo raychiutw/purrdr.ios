@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Purrdr Spaces 版面原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 版面：左側說明 + 右側 iPhone 尺寸的列表模擬;窄螢幕時模擬畫面滿版、說明移到下方。顏色取自 DESIGN.md 的 iOS 系統色與 brandText/secondaryText。 */
+:root{
+  --bg:#F2F2F7; --surface:#FFFFFF; --surface2:#E9E9EE; --fg:#000000; --muted:#636366; --sep:rgba(60,60,67,.18);
+  --brand:#D80521; --brandFill:#EA0826; --working:#C25E00; --done:#0A7E8C; --idle:#248A3D; --needs:#D80521;
+  --chip:#E5E5EA; --page:#DCDCE2; --bar:#1C1C1E; --barFg:#FFFFFF;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC","Helvetica Neue",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#000000; --surface:#1C1C1E; --surface2:#2C2C2E; --fg:#FFFFFF; --muted:#AEAEB2; --sep:rgba(84,84,88,.55);
+  --brand:#FC5D72; --brandFill:#EA0826; --working:#FF9F0A; --done:#40C8E0; --idle:#30D158; --needs:#FC5D72;
+  --chip:#2C2C2E; --page:#111113; --bar:#F2F2F7; --barFg:#000000; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#000000; --surface:#1C1C1E; --surface2:#2C2C2E; --fg:#FFFFFF; --muted:#AEAEB2; --sep:rgba(84,84,88,.55);
+  --brand:#FC5D72; --brandFill:#EA0826; --working:#FF9F0A; --done:#40C8E0; --idle:#30D158; --needs:#FC5D72;
+  --chip:#2C2C2E; --page:#111113; --bar:#F2F2F7; --barFg:#000000; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font-family:var(--font);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 110px}
+.wrap{max-width:980px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:32px;align-items:start}
+.notes{min-width:0;position:sticky;top:24px}
+.notes h1{font-size:28px;margin:0 0 4px;text-wrap:balance}
+.notes .kicker{color:var(--muted);font-size:13px;letter-spacing:.04em;margin:0 0 20px}
+.notes h2{font-size:20px;margin:0 0 8px}
+.notes p,.notes li{line-height:1.6;max-width:62ch}
+.notes ul{padding-left:20px;margin:8px 0}
+.notes .ref{font-size:13px;color:var(--muted)}
+.bug{margin-top:20px;padding:12px 14px;border-radius:12px;background:var(--surface);font-size:14px;line-height:1.6}
+.bug b{color:var(--brand)}
+.phone{width:390px;max-width:100%;height:780px;border-radius:44px;background:var(--bg);overflow:hidden;position:relative;
+  box-shadow:0 0 0 10px #000,0 20px 50px rgba(0,0,0,.35);display:flex;flex-direction:column}
+@media (max-width:820px){
+  .wrap{grid-template-columns:minmax(0,1fr)}
+  .phone{order:-1;margin:0 auto;height:720px;border-radius:32px;box-shadow:0 0 0 6px #000}
+  .notes{position:static}
+}
+.status{height:44px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 28px;font-weight:600;font-size:15px}
+.toolbar{flex:none;display:flex;align-items:center;gap:10px;padding:4px 16px 0}
+.tb-btn{width:44px;height:44px;border-radius:22px;background:var(--surface2);display:grid;place-items:center;border:0;color:var(--fg);font-size:18px}
+.tb-btn.plus{background:var(--brandFill);color:#fff;font-size:26px}
+.tb-spacer{flex:1}
+.host-pill{height:36px;border-radius:18px;background:var(--surface2);border:0;color:var(--fg);padding:0 12px;display:flex;align-items:center;gap:6px;font:600 14px var(--font)}
+.screen{flex:1;overflow-y:auto;padding:0 16px 90px;scrollbar-width:none}
+.screen::-webkit-scrollbar{display:none}
+.big{font-size:34px;font-weight:700;margin:6px 0 10px;display:flex;align-items:center;gap:6px}
+.big small{font-size:20px;color:var(--muted);font-weight:600}
+.search{position:absolute;left:16px;right:16px;bottom:18px;height:48px;border-radius:24px;background:color-mix(in srgb,var(--surface2) 88%,transparent);
+  backdrop-filter:blur(14px);display:flex;align-items:center;gap:8px;padding:0 16px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+.dot.working{background:var(--working)} .dot.done{background:var(--done)} .dot.idle{border:1.5px solid var(--idle)} .dot.needs{background:var(--needs)}
+.st{font-size:13px;font-weight:600}
+.st.working{color:var(--working)} .st.done{color:var(--done)} .st.idle{color:var(--idle)} .st.needs{color:var(--needs)}
+.time{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.hostchip{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);background:var(--chip);border-radius:6px;padding:1px 6px;white-space:nowrap}
+.kind{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:15px;font-weight:700;flex:none;color:#fff}
+.kind.claude{background:#C96442} .kind.codex{background:#3A3A3C} .kind.gemini{background:#3C6FE0} .kind.shell{background:#48484A;font-family:var(--mono);font-size:13px}
+
+/* ---------- A 聊天清單 ---------- */
+.A-sec{font-size:13px;font-weight:600;color:var(--muted);margin:16px 4px 6px;letter-spacing:.02em}
+.A-list{background:var(--surface);border-radius:14px;overflow:hidden}
+.A-row{display:flex;gap:12px;padding:11px 14px;align-items:flex-start;position:relative;cursor:pointer}
+.A-row + .A-row::before,.A-sub + .A-row::before{content:"";position:absolute;left:62px;right:0;top:0;height:1px;background:var(--sep)}
+.A-avs{position:relative;width:40px;height:40px;flex:none}
+.A-avs .kind{position:absolute;width:30px;height:30px;font-size:13px;border:2px solid var(--surface)}
+.A-avs .kind:nth-child(1){left:0;top:0}.A-avs .kind:nth-child(2){left:12px;top:10px}
+.A-body{flex:1;min-width:0}
+.A-l1{display:flex;gap:8px;align-items:baseline}
+.A-l1 .t{font-weight:600;font-size:16px;flex:1}
+.A-l2{color:var(--muted);font-size:14px;margin-top:2px}
+.A-l3{display:flex;gap:6px;align-items:center;margin-top:5px}
+.A-count{font-size:12px;color:var(--muted)}
+.A-chev{color:var(--muted);transition:transform .15s;font-size:12px}
+.A-row[aria-expanded="true"] .A-chev{transform:rotate(90deg)}
+.A-sub{display:flex;gap:10px;align-items:center;padding:9px 14px 9px 62px;font-size:14px;position:relative;background:color-mix(in srgb,var(--surface2) 40%,var(--surface))}
+.A-sub::before{content:"";position:absolute;left:62px;right:0;top:0;height:1px;background:var(--sep)}
+.A-sub .t{flex:1}
+
+/* ---------- B 依主機分組 ---------- */
+.B-host{display:flex;align-items:center;gap:8px;margin:18px 2px 8px}
+.B-host .name{font-size:20px;font-weight:700}
+.B-host .sum{margin-left:auto;display:flex;gap:10px;font-size:13px;color:var(--muted)}
+.B-host .sum span{display:inline-flex;align-items:center;gap:4px}
+.B-group{background:var(--surface);border-radius:14px;overflow:hidden;margin-bottom:10px}
+.B-ws{display:flex;align-items:center;gap:8px;padding:10px 14px 6px;font-size:13px;color:var(--muted)}
+.B-ws b{color:var(--fg);font-size:14px}
+.B-ws .grid{margin-left:auto;color:var(--brand);font-size:15px}
+.B-row{display:flex;align-items:center;gap:10px;padding:0 14px;min-height:44px;position:relative}
+.B-row::before{content:"";position:absolute;left:33px;right:0;top:0;height:1px;background:var(--sep)}
+.B-row .t{flex:1;font-size:15px}
+.B-row.needs .t{font-weight:600}
+.B-single{display:flex;align-items:center;gap:10px;padding:0 14px;min-height:50px}
+.B-single .t{flex:1;font-size:15px}
+.B-single .ws{font-size:12px;color:var(--muted)}
+
+/* ---------- C 收件匣 ---------- */
+.C-chips{display:flex;gap:8px;overflow-x:auto;margin:2px -16px 10px;padding:0 16px;scrollbar-width:none}
+.C-chip{flex:none;height:32px;border-radius:16px;border:0;background:var(--chip);color:var(--fg);padding:0 12px;font:500 14px var(--font);display:flex;align-items:center;gap:6px}
+.C-chip[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.C-chip .n{font-variant-numeric:tabular-nums;opacity:.7}
+.C-card{background:var(--surface);border-radius:16px;padding:14px;margin-bottom:10px;border:1.5px solid color-mix(in srgb,var(--needs) 55%,transparent)}
+.C-card .q{font-size:16px;font-weight:600;margin:6px 0 10px;line-height:1.4}
+.C-card .acts{display:flex;gap:8px}
+.C-card .acts button{flex:1;height:38px;border-radius:10px;border:0;font:600 14px var(--font)}
+.C-card .yes{background:var(--brandFill);color:#fff}.C-card .no{background:var(--surface2);color:var(--fg)}
+.C-row{display:flex;gap:12px;padding:12px 2px;position:relative}
+.C-row + .C-row{border-top:1px solid var(--sep)}
+.C-body{flex:1;min-width:0}
+.C-l1{display:flex;gap:8px;align-items:baseline}
+.C-l1 .t{flex:1;font-weight:600;font-size:16px}
+.C-l2{color:var(--muted);font-size:14px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4}
+.C-tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.C-tag{font-size:12px;color:var(--muted);background:var(--chip);border-radius:6px;padding:1px 6px}
+.C-day{font-size:13px;font-weight:600;color:var(--muted);margin:14px 2px 2px}
+.empty{color:var(--muted);text-align:center;padding:40px 0}
+
+/* ---------- 切換列(不屬於設計) ---------- */
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;
+  display:flex;align-items:center;gap:4px;background:var(--bar);color:var(--barFg);border-radius:999px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.4);
+  max-width:calc(100vw - 32px)}
+.switcher button{width:40px;height:40px;border-radius:20px;border:0;background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.switcher button:hover{background:color-mix(in srgb,var(--barFg) 14%,transparent)}
+.switcher .lbl{padding:0 10px;font:600 14px var(--font);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+button:focus-visible,.A-row:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <section class="notes" aria-live="polite">
+    <h1>Spaces 列表：三個方向</h1>
+    <p class="kicker">PROTOTYPE · 用完即丟 · 下方切換列或鍵盤 ← → 切換</p>
+    <div id="note"></div>
+    <div class="bug">
+      <b>Ray PC 沒顯示電腦名</b>不是程式錯誤，而是目前的規則：只有「非選取中主機」才在卡片標題與副標前加主機名（<code>MergedAgentListModel.swift:139</code>，DESIGN.md「Agent 列表」）。Ray PC 是選取中主機，所以沒有前綴。<br>
+      問題在於多台主機混在同一個列表時，看起來像漏掉。三個方向都改成<b>每一列都標主機</b>（A、C 用小標籤，B 直接用主機當分組標題），不再區分選取中與否。
+    </div>
+  </section>
+
+  <div class="phone" role="img" aria-label="iPhone 列表模擬畫面">
+    <div class="status"><span>14:26</span><span>43%</span></div>
+    <div class="toolbar" id="toolbar"></div>
+    <div class="screen" id="screen"></div>
+    <div class="search">⌕ 搜尋</div>
+  </div>
+</div>
+
+<nav class="switcher" aria-label="原型切換">
+  <button id="prev" aria-label="上一個樣式">‹</button>
+  <span class="lbl" id="lbl"></span>
+  <button id="next" aria-label="下一個樣式">›</button>
+</nav>
+
+<script>
+// 範例資料：來自截圖的兩個 workspace，另加一個「需要你」與一個單一 Agent 的 workspace 作對照(示意)。
+const hosts = { pc:{name:"Ray PC", icon:"🖥"}, mini:{name:"Ray Mac Mini", icon:"🖥"} };
+const workspaces = [
+  { id:"w-push", host:"pc", label:"uTagGoClassic.PushService", folder:"TSPCollection", agents:[
+    { kind:"claude", title:"推播重送排程修正", status:"needs", time:"現在", preview:"要允許執行 dotnet test 嗎？", question:"要允許執行 `dotnet test --filter PushRetry` 嗎？" } ]},
+  { id:"w-ios", host:"pc", label:"purrdr.ios", folder:"Desktop\\Source", agents:[
+    { kind:"claude", title:"UAT 分支 git pull", status:"working", time:"現在", preview:"手動用 Debug 建置驗證中…" },
+    { kind:"claude", title:"allymote-releases HTTP 下載", status:"done", time:"14:20", preview:"PR #87 已經合併，TestFlight 上傳中" },
+    { kind:"codex",  title:"azure-mcp-uat-auth 應用程式", status:"done", time:"14:06", preview:"已建立 App Registration，等你確認權限" } ]},
+  { id:"w-trip", host:"mini", label:"trip-planner.flutter", folder:"ray/Projects", agents:[
+    { kind:"claude", title:"Herdrchat iOS 聊天終端機 App", status:"idle", time:"07:47", preview:"太好了，TestFlight 已可以安裝" },
+    { kind:"claude", title:"地圖 POI tab 玻璃風格設計", status:"idle", time:"07:04", preview:"0.42.0 已上傳到 TestFlight" },
+    { kind:"gemini", title:"API repo 新導入", status:"done", time:"昨天", preview:"README 與 CI 設定完成" },
+    { kind:"claude", title:"行程匯出 PDF", status:"idle", time:"昨天", preview:"版面調整好了，要再看一次嗎？" } ]},
+];
+const stText = {needs:"需要你", working:"工作中", done:"完成", idle:"閒置"};
+const rank = {needs:0, working:1, done:2, idle:3};
+const kindLetter = {claude:"C", codex:"X", gemini:"G", shell:">_"};
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const wsStatus = ws => ws.agents.map(a=>a.status).sort((x,y)=>rank[x]-rank[y])[0];
+const hostChip = h => `<span class="hostchip">${hosts[h].icon} ${esc(hosts[h].name)}</span>`;
+const allAgents = () => workspaces.flatMap(ws => ws.agents.map(a => ({...a, ws})));
+
+const toolbarDefault = `<button class="tb-btn" aria-label="主機">🖥</button><div class="tb-spacer"></div>
+  <button class="tb-btn" aria-label="更多">⋯</button><button class="tb-btn plus" aria-label="新增對話">+</button>`;
+
+const variants = [
+{ key:"A", name:"聊天清單",
+  note:`<h2>A · 聊天清單（Messages 式）</h2>
+  <p>一個 workspace 就是一列，像 iMessage／Telegram／ChatGPT 的對話清單。多 Agent 的 workspace 疊兩個頭像、顯示「3 個 Agent」，點一下就地展開成單行子列，不再固定攤開 Tab 1／2／3。</p>
+  <ul><li>拿掉：卡片外框、Tab 編號列、統計行（Tab／Pane 數）、左側軌道。</li>
+  <li>保留：需要你／工作中／閒置分組、預覽一行、時間。</li>
+  <li>主機用小標籤放在第三行，每一列都有。</li></ul>
+  <p class="ref">參考：iMessage、Telegram 對話清單、ChatGPT／Claude App 的歷史列表、Happy（Claude Code 手機用戶端）的 session 列表。</p>`,
+  toolbar: toolbarDefault,
+  render(){
+    const groups = [["needs","需要你"],["working","工作中"],["rest","閒置與完成"]];
+    return `<div class="big">Spaces <small>⌄</small></div>` + groups.map(([g,label]) => {
+      const items = workspaces.filter(ws => { const s = wsStatus(ws); return g==="rest" ? (s==="done"||s==="idle") : s===g; });
+      if(!items.length) return "";
+      return `<div class="A-sec">${label} ${items.length}</div><div class="A-list">${items.map(ws => {
+        const top = [...ws.agents].sort((x,y)=>rank[x.status]-rank[y.status])[0];
+        const multi = ws.agents.length > 1, s = wsStatus(ws);
+        const avs = multi ? ws.agents.slice(0,2).map(a=>`<span class="kind ${a.kind}">${kindLetter[a.kind]}</span>`).join("")
+                          : `<span class="kind ${top.kind}" style="width:40px;height:40px">${kindLetter[top.kind]}</span>`;
+        const head = `<div class="A-row" ${multi?`tabindex="0" role="button" aria-expanded="false" data-ws="${ws.id}"`:""}>
+          <div class="A-avs">${avs}</div>
+          <div class="A-body">
+            <div class="A-l1"><span class="t ell">${esc(multi ? ws.label : top.title)}</span><span class="time">${top.time}</span></div>
+            <div class="A-l2 ell">${s==="needs" ? `<span class="st needs">! ${esc(top.preview)}</span>` : esc(top.preview)}</div>
+            <div class="A-l3">${hostChip(ws.host)}${multi?`<span class="A-count">${ws.agents.length} 個 Agent</span>`:""}
+              <span class="dot ${s}"></span><span class="st ${s}">${stText[s]}</span>
+              ${multi?`<span style="margin-left:auto" class="A-chev">▶</span>`:""}</div>
+          </div></div>`;
+        const subs = multi ? `<div class="A-subs" data-for="${ws.id}" hidden>${ws.agents.map(a=>`
+          <div class="A-sub"><span class="dot ${a.status}"></span><span class="t ell">${esc(a.title)}</span><span class="time">${a.time}</span></div>`).join("")}</div>` : "";
+        return head + subs;
+      }).join("")}</div>`;
+    }).join("");
+  },
+  bind(root){
+    root.querySelectorAll(".A-row[data-ws]").forEach(row => {
+      const toggle = () => { const open = row.getAttribute("aria-expanded")!=="true";
+        row.setAttribute("aria-expanded", open); root.querySelector(`.A-subs[data-for="${row.dataset.ws}"]`).hidden = !open; };
+      row.addEventListener("click", toggle);
+      row.addEventListener("keydown", e => { if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggle(); } });
+    });
+  }},
+
+{ key:"B", name:"依主機分組",
+  note:`<h2>B · 依主機分組（側欄式）</h2>
+  <p>最精簡：每個 Agent 只佔一行（狀態點 · 標題 · 時間），不顯示預覽。主機是第一層分組標題，旁邊有各狀態數量；workspace 降為組內的小字標頭，右側保留版面圖按鈕。</p>
+  <ul><li>一個畫面看得到的 Agent 數約是現在的 3 倍。</li>
+  <li>主機名永遠在分組標題上，選取中主機的問題自然消失。</li>
+  <li>代價：看不到最後一則訊息，要點進去才知道內容。「需要你」的列改粗體。</li></ul>
+  <p class="ref">參考：Slack／Discord 側欄、Linear 的清單密度、Cursor 背景 Agent 面板、herdr 桌機側欄本身的樹狀結構。</p>`,
+  toolbar: toolbarDefault,
+  render(){
+    return `<div class="big">Spaces <small>⌄</small></div>` + Object.keys(hosts).map(h => {
+      const wss = workspaces.filter(ws => ws.host===h);
+      const counts = {}; wss.forEach(ws => ws.agents.forEach(a => counts[a.status]=(counts[a.status]||0)+1));
+      const sum = ["needs","working","done","idle"].filter(s=>counts[s]).map(s=>`<span><span class="dot ${s}"></span>${counts[s]}</span>`).join("");
+      return `<div class="B-host"><span aria-hidden="true">${hosts[h].icon}</span><span class="name">${esc(hosts[h].name)}</span><span class="sum">${sum}</span></div>` +
+        wss.map(ws => ws.agents.length===1
+          ? `<div class="B-group"><div class="B-single"><span class="dot ${ws.agents[0].status}"></span>
+              <div style="flex:1;min-width:0"><div class="t ell" style="font-weight:${ws.agents[0].status==="needs"?600:400}">${esc(ws.agents[0].title)}</div>
+              <div class="ws ell">${esc(ws.label)}${ws.agents[0].status==="needs"?` · <span class="st needs">! 需要你</span>`:""}</div></div>
+              <span class="time">${ws.agents[0].time}</span></div></div>`
+          : `<div class="B-group"><div class="B-ws"><b>${esc(ws.label)}</b><span class="ell">${esc(ws.folder)}</span><span class="grid" aria-label="版面圖">▦</span></div>
+              ${[...ws.agents].sort((x,y)=>rank[x.status]-rank[y.status]).map(a=>`<div class="B-row ${a.status}"><span class="dot ${a.status}"></span><span class="t ell">${esc(a.title)}</span><span class="time">${a.status==="working"?`<span class="st working">工作中</span>`:a.time}</span></div>`).join("")}</div>`
+        ).join("");
+    }).join("");
+  }},
+
+{ key:"C", name:"收件匣",
+  note:`<h2>C · 收件匣（任務式）</h2>
+  <p>不再以 workspace 當容器：所有 Agent 平鋪、依時間排序，workspace 與主機變成列底的標籤。「需要你」提升成最上方的卡片，可以直接按「允許／拒絕」不必點進對話。頂端篩選 chip 取代分組標題，也能按主機篩。</p>
+  <ul><li>適合「我只想知道誰在等我、誰做完了」的用法。</li>
+  <li>代價：同一個 workspace 的 Agent 會分散在不同位置；版面圖改從標籤長按進入。</li></ul>
+  <p class="ref">參考：Codex（ChatGPT）手機版任務清單、Devin／Cursor 的 Agent 收件匣、GitHub Mobile 通知收件匣、Gmail 的 chip 篩選。</p>`,
+  toolbar: toolbarDefault,
+  filter:"all",
+  render(){
+    const agents = allAgents();
+    const counts = s => agents.filter(a => s==="all" || a.status===s).length;
+    const chips = [["all","全部"],["needs","需要你"],["working","工作中"],["done","完成"],["idle","閒置"]]
+      .map(([k,l]) => `<button class="C-chip" data-f="${k}" aria-pressed="${this.filter===k}">${l} <span class="n">${counts(k)}</span></button>`).join("")
+      + Object.keys(hosts).map(h=>`<button class="C-chip" data-f="host:${h}" aria-pressed="${this.filter==="host:"+h}">${hosts[h].icon} ${esc(hosts[h].name)}</button>`).join("");
+    const match = a => this.filter==="all" || a.status===this.filter || this.filter==="host:"+a.ws.host;
+    const shown = agents.filter(match);
+    const needs = shown.filter(a=>a.status==="needs");
+    const order = ["現在","14:20","14:06","07:47","07:04","昨天"];
+    const others = shown.filter(a=>a.status!=="needs").sort((x,y)=>order.indexOf(x.time)-order.indexOf(y.time));
+    const row = a => `<div class="C-row"><span class="kind ${a.kind}">${kindLetter[a.kind]}</span><div class="C-body">
+        <div class="C-l1"><span class="t ell">${esc(a.title)}</span><span class="time">${a.time}</span></div>
+        <div class="C-l2">${esc(a.preview)}</div>
+        <div class="C-tags"><span class="dot ${a.status}" style="align-self:center"></span><span class="st ${a.status}">${stText[a.status]}</span>${hostChip(a.ws.host)}<span class="C-tag">${esc(a.ws.label)}</span></div>
+      </div></div>`;
+    const today = others.filter(a=>a.time!=="昨天"), yday = others.filter(a=>a.time==="昨天");
+    return `<div class="big">收件匣</div><div class="C-chips">${chips}</div>` +
+      needs.map(a=>`<div class="C-card"><div style="display:flex;gap:8px;align-items:center"><span class="st needs">! 需要你</span>${hostChip(a.ws.host)}<span class="C-tag">${esc(a.ws.label)}</span><span class="time" style="margin-left:auto">${a.time}</span></div>
+        <div class="q">${esc(a.question)}</div><div class="acts"><button class="yes">允許</button><button class="no">拒絕</button><button class="no">開啟</button></div></div>`).join("") +
+      (today.length?`<div class="C-day">今天</div>`+today.map(row).join(""):"") +
+      (yday.length?`<div class="C-day">昨天</div>`+yday.map(row).join(""):"") +
+      (shown.length?"":`<div class="empty">沒有符合的 Agent</div>`);
+  },
+  bind(root){
+    root.querySelectorAll(".C-chip").forEach(b => b.addEventListener("click", () => {
+      this.filter = this.filter===b.dataset.f && b.dataset.f!=="all" ? "all" : b.dataset.f; show(current); }));
+  }},
+];
+
+let current = 0;
+function show(i){
+  current = (i + variants.length) % variants.length;
+  const v = variants[current];
+  document.getElementById("toolbar").innerHTML = v.toolbar;
+  const screen = document.getElementById("screen");
+  screen.innerHTML = v.render.call(v);
+  if(v.bind) v.bind.call(v, screen);
+  document.getElementById("note").innerHTML = v.note;
+  document.getElementById("lbl").textContent = `${v.key}（${v.name}）  ${current+1}/${variants.length}`;
+  if(location.hash !== "#"+v.key) history.replaceState(null, "", "#"+v.key);
+}
+document.getElementById("prev").onclick = () => show(current-1);
+document.getElementById("next").onclick = () => show(current+1);
+document.addEventListener("keydown", e => {
+  if(e.target.closest("input,textarea,[contenteditable]")) return;
+  if(e.key==="ArrowLeft") show(current-1);
+  if(e.key==="ArrowRight") show(current+1);
+});
+const fromHash = () => { const k = location.hash.slice(1).toUpperCase(); const idx = variants.findIndex(v=>v.key===k); return idx<0?0:idx; };
+window.addEventListener("hashchange", () => show(fromHash()));
+show(fromHash());
+</script>

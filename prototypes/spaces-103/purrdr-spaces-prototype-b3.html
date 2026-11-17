@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Purrdr Spaces B3 原型</title>
+<style>
+/* PROTOTYPE，用完即丟。B3（workspace 可收合）完整畫面 + 1～6 個 Agent 的頭像堆疊三種畫法。顏色取自 DESIGN.md。 */
+:root{
+  --bg:#F2F2F7; --surface:#FFFFFF; --surface2:#E9E9EE; --fg:#000000; --muted:#636366; --sep:rgba(60,60,67,.18);
+  --brand:#D80521; --brandFill:#EA0826; --working:#C25E00; --done:#0A7E8C; --idle:#248A3D; --needs:#D80521;
+  --page:#DCDCE2; --bar:#1C1C1E; --barFg:#FFFFFF;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC","Microsoft JhengHei","Helvetica Neue",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#000000; --surface:#1C1C1E; --surface2:#2C2C2E; --fg:#FFFFFF; --muted:#AEAEB2; --sep:rgba(84,84,88,.55);
+  --brand:#FC5D72; --working:#FF9F0A; --done:#40C8E0; --idle:#30D158; --needs:#FC5D72;
+  --page:#111113; --bar:#F2F2F7; --barFg:#000000; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font-family:var(--font);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 110px}
+.wrap{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:32px;align-items:start}
+.notes{min-width:0}
+.notes h1{font-size:28px;margin:0 0 4px}
+.notes .kicker{color:var(--muted);font-size:13px;letter-spacing:.04em;margin:0 0 20px}
+.notes h2{font-size:20px;margin:0 0 8px}
+.notes h3{font-size:15px;margin:20px 0 8px;color:var(--muted)}
+.notes p,.notes li{line-height:1.6;max-width:62ch}
+.notes ul{padding-left:20px;margin:8px 0}
+.gallery{background:var(--surface);border-radius:14px;overflow:hidden;max-width:400px}
+.gallery .b3-head{cursor:default}
+.gallery .b3-head + .b3-head{border-top:1px solid var(--sep)}
+.phone{width:390px;max-width:100%;height:800px;border-radius:44px;background:var(--bg);overflow:hidden;position:relative;
+  box-shadow:0 0 0 10px #000,0 20px 50px rgba(0,0,0,.35);display:flex;flex-direction:column;position:sticky;top:24px}
+@media (max-width:820px){.wrap{grid-template-columns:minmax(0,1fr)}.phone{order:-1;margin:0 auto;height:720px;border-radius:32px;box-shadow:0 0 0 6px #000;position:relative;top:0}}
+.status{height:44px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 28px;font-weight:600}
+.toolbar{flex:none;display:flex;align-items:center;gap:10px;padding:4px 16px 0}
+.tb-btn{width:44px;height:44px;border-radius:22px;background:var(--surface2);display:grid;place-items:center;border:0;color:var(--fg);font-size:18px}
+.tb-btn.plus{background:var(--brandFill);color:#fff;font-size:26px}
+.tb-spacer{flex:1}
+.screen{flex:1;overflow-y:auto;padding:0 16px 90px;scrollbar-width:none}
+.screen::-webkit-scrollbar{display:none}
+.big{font-size:34px;font-weight:700;margin:6px 0 4px;display:flex;align-items:center;gap:6px}
+.big small{font-size:20px;color:var(--muted);font-weight:600}
+.search{position:absolute;left:16px;right:16px;bottom:18px;height:48px;border-radius:24px;background:color-mix(in srgb,var(--surface2) 88%,transparent);
+  backdrop-filter:blur(14px);display:flex;align-items:center;gap:8px;padding:0 16px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+.dot.working{background:var(--working)} .dot.done{background:var(--done)} .dot.idle{border:1.5px solid var(--idle)} .dot.needs{background:var(--needs)}
+.st{font-size:13px;font-weight:600;white-space:nowrap}
+.st.working{color:var(--working)} .st.done{color:var(--done)} .st.idle{color:var(--idle)} .st.needs{color:var(--needs)}
+.time{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.kind{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:15px;font-weight:700;flex:none;color:#fff}
+.kind.claude{background:#C96442} .kind.codex{background:#48484A} .kind.gemini{background:#3C6FE0} .kind.opencode{background:#2E8B57} .kind.copilot{background:#8250DF}
+.host{display:flex;align-items:center;gap:8px;margin:18px 2px 8px}
+.host .name{font-size:20px;font-weight:700}
+.host .sum{margin-left:auto;display:flex;gap:10px;font-size:13px;color:var(--muted)}
+.host .sum span{display:inline-flex;align-items:center;gap:4px}
+
+.b3-group{background:var(--surface);border-radius:14px;overflow:hidden;margin-bottom:10px}
+.b3-head{display:flex;align-items:center;gap:12px;padding:12px 14px;width:100%;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;min-height:60px}
+.b3-hbody{flex:1;min-width:0}
+.b3-hbody .t{font-size:16px;font-weight:600}
+.b3-hbody .s{font-size:13px;color:var(--muted);margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.b3-hbody .s .sep{opacity:.6}
+.b3-chev{color:var(--muted);font-size:12px;transition:transform .15s;flex:none}
+.b3-head[aria-expanded="true"] .b3-chev{transform:rotate(90deg)}
+.b3-row{display:flex;gap:12px;padding:10px 14px;align-items:flex-start;position:relative}
+.b3-row::before{content:"";position:absolute;left:14px;right:0;top:0;height:1px;background:var(--sep)}
+.b3-group > .b3-row:first-child::before{display:none}
+.b3-body{flex:1;min-width:0}
+.b3-l1{display:flex;gap:8px;align-items:baseline}
+.b3-l1 .t{flex:1;font-size:15px;line-height:1.3}
+.b3-row.needs .t{font-weight:600}
+.b3-p{font-size:14px;color:var(--muted);margin-top:2px;line-height:1.4}
+.b3-st{display:flex;gap:5px;align-items:center;margin-top:4px}
+
+/* 頭像堆疊：寬度固定 64，標題在每列對齊 */
+.stack{width:64px;height:40px;flex:none;position:relative}
+/* S1 重疊：依數量縮小間距 */
+.s1 .kind{position:absolute;top:6px;width:28px;height:28px;font-size:12px;border-radius:8px;border:2px solid var(--surface)}
+/* S2 方格：最多 2×3 */
+.s2{display:grid;grid-template-columns:repeat(3,18px);grid-auto-rows:18px;gap:3px;align-content:center;justify-content:start}
+.s2 .kind{width:18px;height:18px;font-size:10px;border-radius:5px}
+.s2.n1{grid-template-columns:36px;grid-auto-rows:36px}.s2.n1 .kind{width:36px;height:36px;font-size:15px;border-radius:10px}
+.s2.n2{grid-template-columns:repeat(2,22px);grid-auto-rows:22px}.s2.n2 .kind{width:22px;height:22px;font-size:11px;border-radius:6px}
+.s2.n3,.s2.n4{grid-template-columns:repeat(2,18px)}
+/* S3 三個 + 「+N」 */
+.s3 .kind{position:absolute;top:6px;width:28px;height:28px;font-size:12px;border-radius:8px;border:2px solid var(--surface)}
+.s3 .more{position:absolute;top:6px;height:28px;min-width:28px;padding:0 5px;border-radius:14px;background:var(--surface2);border:2px solid var(--surface);
+  font-size:12px;font-weight:700;display:grid;place-items:center;color:var(--fg);font-variant-numeric:tabular-nums}
+/* 工作中／需要你的頭像加外框，看得出是哪一個 */
+.stack .kind.ring-working{box-shadow:0 0 0 2px var(--working)}
+.stack .kind.ring-needs{box-shadow:0 0 0 2px var(--needs)}
+
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:20;
+  display:flex;align-items:center;gap:4px;background:var(--bar);color:var(--barFg);border-radius:999px;padding:6px;box-shadow:0 8px 28px rgba(0,0,0,.4);max-width:calc(100vw - 32px)}
+.switcher button{width:40px;height:40px;border-radius:20px;border:0;background:transparent;color:inherit;font-size:18px;cursor:pointer}
+.switcher .lbl{padding:0 10px;font:600 14px var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <section class="notes">
+    <h1>Spaces B3：多個 Agent 的頭像</h1>
+    <p class="kicker">PROTOTYPE · 用完即丟 · 下方切換列或鍵盤 ← → 切換頭像畫法</p>
+    <div id="note"></div>
+    <h3>1～6 個 Agent（另附 8 個，看超過 6 個時怎麼辦）</h3>
+    <div class="gallery" id="gallery"></div>
+    <h3>收合列的副標</h3>
+    <ul>
+      <li>格式：<b>N 個 Agent · 狀態點 最急迫狀態 × 數量</b>，例如「5 個 Agent · ● 需要你 1 · ● 工作中 2」。</li>
+      <li>原本「3 個 Agent，1 個工作中 · 工作中」重複講了兩次工作中，這版合併成一次。</li>
+      <li>全部閒置或完成時只顯示最後活動時間：「4 個 Agent · 07:47」。</li>
+    </ul>
+  </section>
+  <div class="phone" role="img" aria-label="iPhone 列表模擬畫面">
+    <div class="status"><span>14:26</span><span>43%</span></div>
+    <div class="toolbar"><button class="tb-btn" aria-label="主機">🖥</button><div class="tb-spacer"></div>
+      <button class="tb-btn" aria-label="更多">⋯</button><button class="tb-btn plus" aria-label="新增對話">+</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="search">⌕ 搜尋</div>
+  </div>
+</div>
+<nav class="switcher" aria-label="原型切換">
+  <button id="prev" aria-label="上一個畫法">‹</button><span class="lbl" id="lbl"></span><button id="next" aria-label="下一個畫法">›</button>
+</nav>
+
+<script>
+// 範例資料：purrdr.ios 與 trip-planner.flutter 來自截圖，其餘為虛構的對照資料（用來湊出 1～6 個 Agent）。
+const hosts = { pc:{name:"Ray PC", icon:"🖥"}, mini:{name:"Ray Mac Mini", icon:"🖥"} };
+const A = (kind, title, status, time, preview) => ({kind, title, status, time, preview});
+const workspaces = [
+  { id:"w-push", host:"pc", label:"uTagGoClassic.PushService", agents:[
+    A("claude","推播重送排程修正","needs","現在","要允許執行 dotnet test --filter PushRetry 嗎？") ]},
+  { id:"w-acc", host:"pc", label:"uTagGoBiz.AccountService", agents:[
+    A("claude","會員註冊流程改用 Mediator","needs","現在","要覆寫 RegisterHandler.cs 嗎？"),
+    A("claude","整合測試改 Testcontainers","working","現在","正在啟動 SQL Server 容器…"),
+    A("codex","Mapperly 遷移","working","2 分鐘前","已轉換 12/18 個 mapper"),
+    A("gemini","API 文件補 XML 註解","done","13:52","完成 46 個公開成員的註解"),
+    A("claude","AutoFixture 客製化重構","idle","11:30","測試全綠，等你 review"),
+    A("opencode","套件升級到最新穩定版","idle","10:05","Shouldly 4.3 有一個破壞性變更") ]},
+  { id:"w-ios", host:"pc", label:"purrdr.ios", agents:[
+    A("claude","UAT 分支 git pull","working","現在","手動用 Debug 建置驗證中，跑到 PurrdrFeaturesTests…"),
+    A("claude","allymote-releases HTTP 下載","done","14:20","PR #87 已經合併，TestFlight 上傳中"),
+    A("codex","azure-mcp-uat-auth 應用程式註冊與權限設定","done","14:06","已建立 App Registration，等你確認 Graph 權限") ]},
+  { id:"w-msg", host:"pc", label:"MessageHub.JobService", agents:[
+    A("claude","Hangfire 重試次數設定","done","12:40","已改成 3 次並補測試"),
+    A("codex","ELK 查詢 log 欄位對齊","idle","12:10","欄位名稱對照表放在 docs/"),
+    A("copilot","PR 描述產生","idle","11:58","PR #212 描述已更新"),
+    A("claude","排程時區修正","idle","09:20","改用 TimeZoneInfo 台北時區"),
+    A("gemini","移除舊版 Polly 用法","idle","昨天","剩 2 個檔案要手動確認") ]},
+  { id:"w-trip", host:"mini", label:"trip-planner.flutter", agents:[
+    A("claude","Herdrchat iOS 聊天終端機 App","idle","07:47","太好了，TestFlight 已可以安裝，下一步要做推播嗎？"),
+    A("claude","地圖 POI tab 玻璃風格設計","idle","07:04","0.42.0 已上傳到 TestFlight"),
+    A("gemini","API repo 新導入","done","昨天","README 與 CI 設定完成"),
+    A("claude","行程匯出 PDF","idle","昨天","版面調整好了，要再看一次嗎？") ]},
+  { id:"w-blog", host:"mini", label:"raychiutw.github.io", agents:[
+    A("claude","文章：Liquid Glass 心得","idle","昨天","草稿完成，約 1,800 字"),
+    A("codex","Hexo 主題升級","done","昨天","已升到 7.3，預覽正常") ]},
+];
+const stText = {needs:"需要你", working:"工作中", done:"完成", idle:"閒置"};
+const kindName = {claude:"Claude Code", codex:"Codex", gemini:"Gemini CLI", opencode:"opencode", copilot:"Copilot"};
+const kindLetter = {claude:"C", codex:"X", gemini:"G", opencode:"O", copilot:"P"};
+const rank = {needs:0, working:1, done:2, idle:3};
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+const byStatus = list => [...list].sort((x,y)=>rank[x.status]-rank[y.status]);
+const ring = a => a.status==="working" ? "ring-working" : a.status==="needs" ? "ring-needs" : "";
+const kindEl = (a, cls="", style="") => `<span class="kind ${a.kind} ${cls}" style="${style}" aria-hidden="true">${kindLetter[a.kind]}</span>`;
+
+// 三種頭像堆疊；一律依狀態排序，最急迫的在最前面
+const stacks = [
+{ key:"S1", name:"重疊堆疊",
+  note:`<h2>S1 · 重疊堆疊</h2><p>全部頭像重疊排在固定 64pt 寬的區域內，數量越多間距越小。6 個時每個只露出約 7pt，看得出「很多」但認不出是誰。超過 6 個只畫前 6 個。</p>
+  <ul><li>優點：一眼看出數量多寡，跟截圖現有樣式最接近。</li><li>缺點：5～6 個時後面的頭像幾乎只剩一條色邊。</li></ul>`,
+  draw(agents){ const list = byStatus(agents).slice(0,6), n = list.length, size = 28, w = 64;
+    const step = n>1 ? Math.min(18, (w-size)/(n-1)) : 0;
+    return `<span class="stack s1">${list.map((a,i)=>kindEl(a, ring(a), `left:${i*step}px;z-index:${10-i}`)).join("")}</span>`; }},
+{ key:"S2", name:"方格",
+  note:`<h2>S2 · 方格（像資料夾圖示）</h2><p>依數量換排法：1 個大頭像、2 個並排、3～4 個 2×2、5～6 個 2×3。每個頭像都完整可見，超過 6 個時最後一格變成「+N」。</p>
+  <ul><li>優點：6 個也認得出每一種 Agent；工作中、需要你的那格有外框。</li><li>缺點：字母只剩 10pt，主要靠顏色辨識；跟單一 Agent 列的大頭像比起來略顯擁擠。</li></ul>`,
+  draw(agents){ const sorted = byStatus(agents), n = sorted.length;
+    const shown = n>6 ? sorted.slice(0,5) : sorted;
+    return `<span class="stack s2 n${Math.min(n,6)}">${shown.map(a=>kindEl(a, ring(a))).join("")}${n>6?`<span class="kind" style="background:var(--surface2);color:var(--fg)">+${n-5}</span>`:""}</span>`; }},
+{ key:"S3", name:"三個 + 數字",
+  note:`<h2>S3 · 最多三個 + 「+N」</h2><p>只畫最急迫的前 3 個頭像，其餘收成一顆「+N」膠囊。4～6 個時固定長這樣，寬度不變。</p>
+  <ul><li>優點：頭像大小與間距固定，每個都認得出；最需要注意的 Agent 永遠在最前面。</li><li>缺點：看不出後面幾個是什麼種類，要展開才知道。</li></ul>`,
+  draw(agents){ const sorted = byStatus(agents), n = sorted.length, shown = sorted.slice(0, n>3 ? 2 : 3);
+    return `<span class="stack s3">${shown.map((a,i)=>kindEl(a, ring(a), `left:${i*14}px;z-index:${10-i}`)).join("")}${n>3?`<span class="more" style="left:${2*14}px">+${n-2}</span>`:""}</span>`; }},
+];
+
+function summary(ws){
+  const counts = {}; ws.agents.forEach(a => counts[a.status]=(counts[a.status]||0)+1);
+  const active = ["needs","working"].filter(s=>counts[s]).map(s=>`<span class="dot ${s}"></span><span class="st ${s}">${stText[s]} ${counts[s]}</span>`);
+  const latest = byStatus(ws.agents).map(a=>a.time).find(t=>t);
+  return `<span>${ws.agents.length} 個 Agent</span><span class="sep">·</span>` + (active.length ? active.join(`<span class="sep">·</span>`) : `<span class="time">${latest}</span>`);
+}
+function head(ws, stack, isOpen, interactive=true){
+  const label = `${ws.label}，${ws.agents.length} 個 Agent`;
+  return `<${interactive?"button":"div"} class="b3-head" ${interactive?`aria-expanded="${isOpen}" data-ws="${ws.id}"`:""} aria-label="${esc(label)}">
+    ${stack.draw(ws.agents)}
+    <span class="b3-hbody"><div class="t ell">${esc(ws.label)}</div><div class="s">${summary(ws)}</div></span>
+    ${interactive?`<span class="b3-chev">▶</span>`:""}</${interactive?"button":"div"}>`;
+}
+const row = (a, extra) => `<div class="b3-row ${a.status}">${kindEl(a)}<div class="b3-body">
+    <div class="b3-l1"><span class="t clamp2">${esc(a.title)}</span><span class="time">${a.time}</span></div>
+    <div class="b3-p clamp2">${esc(a.preview)}</div>
+    <div class="b3-st"><span class="dot ${a.status}"></span><span class="st ${a.status}">${a.status==="needs"?"! ":""}${stText[a.status]}</span><span class="time">· ${esc(extra)}</span></div></div></div>`;
+
+const open = new Set(workspaces.filter(ws => ws.agents.length>1 && ws.agents.some(a => a.status==="needs"||a.status==="working")).map(ws=>ws.id));
+function hostHeader(h){
+  const counts = {}; workspaces.filter(ws=>ws.host===h).forEach(ws => ws.agents.forEach(a => counts[a.status]=(counts[a.status]||0)+1));
+  const sum = ["needs","working","done","idle"].filter(s=>counts[s]).map(s=>`<span><span class="dot ${s}"></span>${counts[s]}</span>`).join("");
+  return `<div class="host"><span aria-hidden="true">${hosts[h].icon}</span><span class="name">${esc(hosts[h].name)}</span><span class="sum">${sum}</span></div>`;
+}
+function renderScreen(stack){
+  return `<div class="big">Spaces <small>⌄</small></div>` + Object.keys(hosts).map(h => hostHeader(h) +
+    workspaces.filter(ws=>ws.host===h).map(ws => ws.agents.length===1
+      ? `<div class="b3-group">${row(ws.agents[0], ws.label)}</div>`
+      : `<div class="b3-group">${head(ws, stack, open.has(ws.id))}${open.has(ws.id) ? byStatus(ws.agents).map(a=>row(a, kindName[a.kind])).join("") : ""}</div>`
+    ).join("")).join("");
+}
+function renderGallery(stack){
+  const pool = workspaces.find(ws=>ws.id==="w-acc").agents;
+  const extra = [A("claude","x","idle","09:00",""), A("codex","x","idle","08:30","")];
+  return [1,2,3,4,5,6,8].map(n => {
+    const agents = [...pool, ...extra].slice(0,n);
+    return head({id:"g"+n, label:`${n} 個 Agent 的 workspace`, agents}, stack, false, false);
+  }).join("");
+}
+
+let current = 0;
+function show(i){
+  current = (i + stacks.length) % stacks.length;
+  const s = stacks[current], screen = document.getElementById("screen");
+  screen.innerHTML = renderScreen(s);
+  screen.querySelectorAll(".b3-head[data-ws]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.ws; open.has(id) ? open.delete(id) : open.add(id); show(current); }));
+  document.getElementById("gallery").innerHTML = renderGallery(s);
+  document.getElementById("note").innerHTML = s.note;
+  document.getElementById("lbl").textContent = `${s.key}（${s.name}）  ${current+1}/${stacks.length}`;
+  if(location.hash !== "#"+s.key) history.replaceState(null, "", "#"+s.key);
+}
+document.getElementById("prev").onclick = () => show(current-1);
+document.getElementById("next").onclick = () => show(current+1);
+document.addEventListener("keydown", e => { if(e.key==="ArrowLeft") show(current-1); if(e.key==="ArrowRight") show(current+1); });
+const idx = stacks.findIndex(s => s.key === location.hash.slice(1).toUpperCase());
+show(idx < 0 ? 0 : idx);
+</script>
+</html>
