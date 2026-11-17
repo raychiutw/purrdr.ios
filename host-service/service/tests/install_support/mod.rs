@@ -129,6 +129,8 @@ pub struct SystemState {
 /// 可設定前置條件的假系統。
 pub struct FakeSystem {
     pub home: PathBuf,
+    /// systemd 讀 user unit 的資料夾。
+    pub systemd_user_directory: PathBuf,
     pub state: SystemState,
     /// 找得到 tailscale 的路徑;None 表示沒安裝。
     pub tailscale_program: Option<String>,
@@ -146,6 +148,7 @@ impl FakeSystem {
     pub fn ready(home: &Path) -> FakeSystem {
         FakeSystem {
             home: home.to_path_buf(),
+            systemd_user_directory: home.join(".config/systemd/user"),
             state: SystemState::default(),
             tailscale_program: Some("tailscale".into()),
             backend_state: "Running".into(),
@@ -237,11 +240,11 @@ impl FakeSystem {
             return failed("Failed to connect to bus: No medium found\n");
         }
         let arguments: Vec<&str> = arguments.iter().map(String::as_str).collect();
-        let wants = self.home.join(".config/systemd/user/default.target.wants");
+        let wants = self.systemd_user_directory.join("default.target.wants");
         match arguments.as_slice() {
             ["--user", "daemon-reload"] => ok(""),
             ["--user", "enable", "--now", unit] => {
-                assert!(self.home.join(".config/systemd/user").join(unit).is_file(), "enable 前 unit 檔要存在");
+                assert!(self.systemd_user_directory.join(unit).is_file(), "enable 前 unit 檔要存在");
                 std::fs::create_dir_all(&wants).unwrap();
                 std::fs::write(wants.join(unit), "symlink").unwrap();
                 self.state.systemd_enabled.insert((*unit).into());

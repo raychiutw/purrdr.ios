@@ -91,6 +91,7 @@ impl InstallError {
 pub(crate) struct ServiceLayout {
     platform: InstallPlatform,
     home: PathBuf,
+    xdg_config_home: Option<PathBuf>,
 }
 
 impl ServiceLayout {
@@ -164,6 +165,7 @@ impl<S: HostSystem> Installer<S> {
         ServiceLayout {
             platform: self.environment.platform,
             home: self.environment.home.clone(),
+            xdg_config_home: self.environment.xdg_config_home.clone(),
         }
     }
 
@@ -190,6 +192,11 @@ impl<S: HostSystem> Installer<S> {
 
         if let Some(registration) = autostart::registration_file(&layout) {
             self.create_directory(registration.parent().unwrap(), &mut record)?;
+        }
+        for directory in autostart::system_created_directories(&layout) {
+            if !directory.exists() {
+                self.record_created(&directory, &mut record);
+            }
         }
         write_json(&layout.record_file(), &record)?;
         autostart::register(&mut self.system, &layout, &service_arguments(&record))?;
@@ -242,11 +249,15 @@ impl<S: HostSystem> Installer<S> {
         std::fs::create_dir_all(directory).map_err(InstallError::io)?;
         missing.reverse();
         for created in missing {
-            if let Ok(relative) = created.strip_prefix(&self.environment.home) {
-                record.created_directories.push(relative.to_string_lossy().replace('\\', "/"));
-            }
+            self.record_created(created, record);
         }
         Ok(())
+    }
+
+    fn record_created(&self, directory: &Path, record: &mut InstallRecord) {
+        if let Ok(relative) = directory.strip_prefix(&self.environment.home) {
+            record.created_directories.push(relative.to_string_lossy().replace('\\', "/"));
+        }
     }
 }
 
