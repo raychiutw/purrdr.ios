@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime};
 use futures_util::{SinkExt, StreamExt};
 use purrdr_host_service::device_store::{DeviceStore, IssuedDevice};
 use purrdr_host_service::herdr_socket::{HerdrSocket, Platform};
+use purrdr_host_service::transcript::TranscriptEnvironment;
 use purrdr_host_service::{HostServiceConfig, RunningHostService};
 use serde_json::Value;
 use tempfile::TempDir;
@@ -241,13 +242,19 @@ impl TestHostService {
     }
 }
 
-/// 以假 herdr 啟動主機服務(埠 0:由系統挑)。
+/// 以假 herdr 啟動主機服務(埠 0:由系統挑)。對話紀錄的家目錄不存在(讀不到任何對話紀錄)。
 pub async fn start_service(herdr_socket: HerdrSocket) -> TestHostService {
+    start_service_with_transcripts(herdr_socket, TranscriptEnvironment::default()).await
+}
+
+/// 以假 herdr 與指定的對話紀錄位置啟動主機服務。
+pub async fn start_service_with_transcripts(herdr_socket: HerdrSocket, transcripts: TranscriptEnvironment) -> TestHostService {
     let state_directory = tempfile::tempdir().unwrap();
     let service = purrdr_host_service::start(HostServiceConfig {
         port: 0,
         herdr_socket,
         state_directory: state_directory.path().to_owned(),
+        transcripts,
     })
     .await
     .expect("啟動主機服務");

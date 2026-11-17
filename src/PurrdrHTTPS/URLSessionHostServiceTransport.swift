@@ -21,6 +21,8 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         let task = session.webSocketTask(with: request)
+        // 預設上限 1 MiB;對話紀錄的視窗(300 行)可能更大。
+        task.maximumMessageSize = 64 << 20
         task.resume()
         return URLSessionWebSocket(task: task)
     }
