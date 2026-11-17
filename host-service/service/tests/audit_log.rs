@@ -107,7 +107,10 @@ async fn prompts_and_text_are_audited_by_operation_and_pane_without_content() {
         .collect();
     assert_eq!(
         writes,
-        [("agent.prompt".to_owned(), "w1:p2".to_owned()), ("pane.send_text".to_owned(), "w1:p3".to_owned())]
+        [
+            ("agent.prompt".to_owned(), "w1:p2".to_owned()),
+            ("pane.send_text".to_owned(), "w1:p3".to_owned())
+        ]
     );
     assert!(!audit_log.contains(SECRET_PROMPT));
     assert!(!audit_log.contains(SECRET_TEXT));
