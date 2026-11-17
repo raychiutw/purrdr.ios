@@ -19,6 +19,16 @@ struct ComposerBar: View {
     @State private var isFocused = false
 
     var body: some View {
+        if model.isReadOnly {
+            ReadOnlyComposerNotice()
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+        } else {
+            composer
+        }
+    }
+
+    private var composer: some View {
         VStack(spacing: 8) {
             if model.slash.isVisible {
                 SlashMenuView(menu: model.slash)
@@ -172,6 +182,21 @@ struct ShellModeHint: View {
     }
 }
 
+/// 唯讀裝置(#60):輸入列換成說明，沒有輸入框與送出鈕。
+struct ReadOnlyComposerNotice: View {
+    var body: some View {
+        Label("This device is paired read-only, so it can’t send anything to this host.", systemImage: "lock")
+            .font(.footnote)
+            .foregroundStyle(.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("composer.readOnly")
+    }
+}
+
 /// 送出與中斷的提示：留在畫面上直到使用者關閉、下一次送出或對話紀錄確認(不自動消失,R-P11)。
 struct SendNoticeView: View {
     let notice: SendNotice
@@ -215,6 +240,7 @@ extension SendNotice {
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
+        case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
@@ -226,6 +252,7 @@ extension SendNotice {
         switch self {
         case .needsAnswer, .interruptRefusedNeedsAnswer: "exclamationmark.circle"
         case .agentGone, .superseded: "xmark.bubble"
+        case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
         case .rejected, .noResponse, .interruptFailed, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
         case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"

@@ -14,6 +14,8 @@ extension HostServiceProtocol {
         case hello(Hello)
         case agentsList(AgentsList)
         case paneSendKeys(PaneSendKeys)
+        case paneSendText(PaneSendText)
+        case agentPrompt(AgentPrompt)
 
         private enum TypeKey: String, CodingKey {
             case type
@@ -26,6 +28,8 @@ extension HostServiceProtocol {
             case "hello": self = .hello(try Hello(from: decoder))
             case "agents.list": self = .agentsList(try AgentsList(from: decoder))
             case "pane.send_keys": self = .paneSendKeys(try PaneSendKeys(from: decoder))
+            case "pane.send_text": self = .paneSendText(try PaneSendText(from: decoder))
+            case "agent.prompt": self = .agentPrompt(try AgentPrompt(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
             }
@@ -43,13 +47,19 @@ extension HostServiceProtocol {
             case .paneSendKeys(let message):
                 try container.encode("pane.send_keys", forKey: .type)
                 try message.encode(to: encoder)
+            case .paneSendText(let message):
+                try container.encode("pane.send_text", forKey: .type)
+                try message.encode(to: encoder)
+            case .agentPrompt(let message):
+                try container.encode("agent.prompt", forKey: .type)
+                try message.encode(to: encoder)
             }
         }
 
         /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
         public var isWrite: Bool {
             switch self {
-            case .paneSendKeys: return true
+            case .paneSendKeys, .paneSendText, .agentPrompt: return true
             default: return false
             }
         }
@@ -62,6 +72,8 @@ extension HostServiceProtocol {
         case welcome(Welcome)
         case agentsListResult(AgentsListResult)
         case paneSendKeysResult(PaneSendKeysResult)
+        case paneSendTextResult(PaneSendTextResult)
+        case agentPromptResult(AgentPromptResult)
         case errorMessage(ErrorMessage)
 
         private enum TypeKey: String, CodingKey {
@@ -75,6 +87,8 @@ extension HostServiceProtocol {
             case "welcome": self = .welcome(try Welcome(from: decoder))
             case "agents.list.result": self = .agentsListResult(try AgentsListResult(from: decoder))
             case "pane.send_keys.result": self = .paneSendKeysResult(try PaneSendKeysResult(from: decoder))
+            case "pane.send_text.result": self = .paneSendTextResult(try PaneSendTextResult(from: decoder))
+            case "agent.prompt.result": self = .agentPromptResult(try AgentPromptResult(from: decoder))
             case "error": self = .errorMessage(try ErrorMessage(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
@@ -92,6 +106,12 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .paneSendKeysResult(let message):
                 try container.encode("pane.send_keys.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .paneSendTextResult(let message):
+                try container.encode("pane.send_text.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .agentPromptResult(let message):
+                try container.encode("agent.prompt.result", forKey: .type)
                 try message.encode(to: encoder)
             case .errorMessage(let message):
                 try container.encode("error", forKey: .type)
@@ -125,18 +145,21 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 握手成功：主機服務的協定版本、版本，以及 herdr 伺服器 ping 回報的版本與能力。
+    /// 握手成功：主機服務的協定版本、版本，herdr 伺服器 ping 回報的版本與能力，以及這支裝置是否唯讀。
     public struct Welcome: Codable, Sendable, Equatable {
         public var requestId: String
         public var protocolVersion: Int
         public var hostServiceVersion: String
         public var herdr: HerdrServer
+        /// 這支裝置配對成唯讀：寫入類操作會被拒絕(read_only_device),app 停用輸入。
+        public var readOnly: Bool
 
-        public init(requestId: String, protocolVersion: Int, hostServiceVersion: String, herdr: HerdrServer) {
+        public init(requestId: String, protocolVersion: Int, hostServiceVersion: String, herdr: HerdrServer, readOnly: Bool) {
             self.requestId = requestId
             self.protocolVersion = protocolVersion
             self.hostServiceVersion = hostServiceVersion
             self.herdr = herdr
+            self.readOnly = readOnly
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -144,6 +167,7 @@ extension HostServiceProtocol {
             case protocolVersion = "protocol_version"
             case hostServiceVersion = "host_service_version"
             case herdr
+            case readOnly = "read_only"
         }
     }
 }
@@ -329,6 +353,103 @@ extension HostServiceProtocol {
 
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 對 Pane 送出文字(herdr pane.send_text),不補 Enter。
+    public struct PaneSendText: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var paneId: String
+        public var text: String
+
+        public init(requestId: String, paneId: String, text: String) {
+            self.requestId = requestId
+            self.paneId = paneId
+            self.text = text
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case paneId = "pane_id"
+            case text
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 文字已送到 Pane。
+    public struct PaneSendTextResult: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 對 Agent 送出 prompt(herdr agent.prompt,target 是 pane_id)。
+    public struct AgentPrompt: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var paneId: String
+        public var text: String
+        public var wait: PromptWait?
+
+        public init(requestId: String, paneId: String, text: String, wait: PromptWait? = nil) {
+            self.requestId = requestId
+            self.paneId = paneId
+            self.text = text
+            self.wait = wait
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case paneId = "pane_id"
+            case text
+            case wait
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr agent.prompt 的 wait:等 Agent 進入其中一個狀態;主機服務等 herdr 的時間隨 timeout_ms 延長。
+    public struct PromptWait: Codable, Sendable, Equatable {
+        public var until: [AgentStatus]
+        public var timeoutMs: Int
+
+        public init(until: [AgentStatus], timeoutMs: Int) {
+            self.until = until
+            self.timeoutMs = timeoutMs
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case until
+            case timeoutMs = "timeout_ms"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr 收下 prompt。等待逾時、Agent 在等回答等情況以 herdr_error 回報(herdr_code 如 timeout、agent_blocked)。
+    public struct AgentPromptResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// herdr 回報的送達方式(例如 written_to_pty);沒有時省略。
+        public var delivery: String?
+
+        public init(requestId: String, delivery: String? = nil) {
+            self.requestId = requestId
+            self.delivery = delivery
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case delivery
         }
     }
 }

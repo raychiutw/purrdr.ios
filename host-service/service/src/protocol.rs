@@ -15,12 +15,16 @@ pub enum ClientMessage {
     AgentsList(AgentsList),
     #[serde(rename = "pane.send_keys")]
     PaneSendKeys(PaneSendKeys),
+    #[serde(rename = "pane.send_text")]
+    PaneSendText(PaneSendText),
+    #[serde(rename = "agent.prompt")]
+    AgentPrompt(AgentPrompt),
 }
 
 impl ClientMessage {
     /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
     pub fn is_write(&self) -> bool {
-        matches!(self, ClientMessage::PaneSendKeys(_))
+        matches!(self, ClientMessage::PaneSendKeys(_) | ClientMessage::PaneSendText(_) | ClientMessage::AgentPrompt(_))
     }
 }
 
@@ -34,6 +38,10 @@ pub enum ServerMessage {
     AgentsListResult(AgentsListResult),
     #[serde(rename = "pane.send_keys.result")]
     PaneSendKeysResult(PaneSendKeysResult),
+    #[serde(rename = "pane.send_text.result")]
+    PaneSendTextResult(PaneSendTextResult),
+    #[serde(rename = "agent.prompt.result")]
+    AgentPromptResult(AgentPromptResult),
     #[serde(rename = "error")]
     ErrorMessage(ErrorMessage),
 }
@@ -49,13 +57,15 @@ pub struct Hello {
     pub app_version: Option<String>,
 }
 
-/// 握手成功：主機服務的協定版本、版本，以及 herdr 伺服器 ping 回報的版本與能力。
+/// 握手成功：主機服務的協定版本、版本，herdr 伺服器 ping 回報的版本與能力，以及這支裝置是否唯讀。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Welcome {
     pub request_id: String,
     pub protocol_version: i64,
     pub host_service_version: String,
     pub herdr: HerdrServer,
+    /// 這支裝置配對成唯讀：寫入類操作會被拒絕(read_only_device),app 停用輸入。
+    pub read_only: bool,
 }
 
 /// herdr 伺服器(不是 CLI)的版本與能力。
@@ -143,6 +153,46 @@ pub struct PaneSendKeys {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaneSendKeysResult {
     pub request_id: String,
+}
+
+/// 對 Pane 送出文字(herdr pane.send_text),不補 Enter。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneSendText {
+    pub request_id: String,
+    pub pane_id: String,
+    pub text: String,
+}
+
+/// 文字已送到 Pane。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneSendTextResult {
+    pub request_id: String,
+}
+
+/// 對 Agent 送出 prompt(herdr agent.prompt,target 是 pane_id)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentPrompt {
+    pub request_id: String,
+    pub pane_id: String,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wait: Option<PromptWait>,
+}
+
+/// herdr agent.prompt 的 wait:等 Agent 進入其中一個狀態;主機服務等 herdr 的時間隨 timeout_ms 延長。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PromptWait {
+    pub until: Vec<AgentStatus>,
+    pub timeout_ms: i64,
+}
+
+/// herdr 收下 prompt。等待逾時、Agent 在等回答等情況以 herdr_error 回報(herdr_code 如 timeout、agent_blocked)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentPromptResult {
+    pub request_id: String,
+    /// herdr 回報的送達方式(例如 written_to_pty);沒有時省略。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery: Option<String>,
 }
 
 /// POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。
