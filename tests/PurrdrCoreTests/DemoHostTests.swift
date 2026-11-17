@@ -1,6 +1,7 @@
 import Foundation
 import PurrdrCore
 import PurrdrDemo
+import PurrdrSSH
 import Testing
 
 /// Demo 主機走正式程式路徑：herdr client 對它送的是跟真主機一模一樣的指令。

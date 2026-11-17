@@ -3,7 +3,7 @@ import Foundation
 /// 主機回報的絕對路徑：POSIX 的 `/…`,或 Windows 的磁碟機路徑 `C:\…`(也接受 `C:/…`)。
 /// 驗證規則不分主機(行為規格 §11.1「檔案路徑一律以 `/` 開頭驗證 → 依主機 OS 驗證」);UNC(`\\server\share`)不接受。
 public enum HostPathSyntax {
-    static func isAbsolute(_ path: String) -> Bool {
+    package static func isAbsolute(_ path: String) -> Bool {
         if path.hasPrefix("/") { return true }
         return isWindowsDrivePath(path)
     }
@@ -70,7 +70,7 @@ public enum HostPathSyntax {
     }
 
     /// 絕對路徑，最後一段剛好是 `name`。
-    static func isAbsolute(_ path: String, endingWith name: String) -> Bool {
+    package static func isAbsolute(_ path: String, endingWith name: String) -> Bool {
         isAbsolute(path) && !path.contains("\n") && lastComponent(path).map(String.init) == name
             && (path.hasSuffix("/" + name) || path.hasSuffix("\\" + name))
     }

@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// Demo 主機上 Claude Code agent 的對話紀錄(行為規格 F21)。
 ///

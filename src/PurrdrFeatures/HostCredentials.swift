@@ -1,11 +1,6 @@
 import Foundation
 import PurrdrCore
 
-public enum HostCredentialError: Error, Equatable {
-    /// 主機設定在，但這台主機的密碼或私鑰不在這支裝置上(例如從備份還原)。不要用空密碼去試(行為規格 §8.1)。
-    case missingSecret
-}
-
 /// 依主機設定決定登入用的憑證：Tailscale SSH 用 `none`、OpenSSH 依登入方式讀祕密或裝置金鑰。
 ///
 /// 回傳的憑證來源在撥號時才讀 Keychain(行為規格 §7.1 lazy)。

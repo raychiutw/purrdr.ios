@@ -11,11 +11,6 @@ public struct PaneTerminalClient: Sendable {
         self.connection = connection
     }
 
-    /// SSH 連線方式(主機通道)的捷徑。
-    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation()) {
-        self.init(connection: SSHHostConnection(channel: channel, herdr: herdr))
-    }
-
     /// 以 controller 身分接上 `target`(pane id 或 terminal id),以 `columns`×`rows` 做 handshake。
     public func control(target: String, columns: Int, rows: Int, takeover: Bool = false) async throws -> PaneTerminalConnection {
         try await connection.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
@@ -30,7 +25,7 @@ public actor PaneTerminalConnection {
     private let session: any ExecSession
     private var reader: Task<Void, Never>?
 
-    init(session: any ExecSession) {
+    package init(session: any ExecSession) {
         self.session = session
         let (events, continuation) = AsyncStream<PaneTerminalEvent>.makeStream()
         self.events = events

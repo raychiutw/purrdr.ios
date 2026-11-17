@@ -1,10 +1,13 @@
 // swift-tools-version: 6.2
-// 依賴方向由 target 宣告強制:
-//   App → Features → Core ← Demo ← App
-// - 可攜核心(PurrdrCore、PurrdrDemo)不依賴任何 Apple 專屬 framework(ADR-0006),
+// 依賴方向由 target 宣告強制(#89):
+//   App → Features → AgentFeatures → Core
+//   App → Features → SSH → Core;App → Demo → SSH
+// - 可攜核心(PurrdrCore、PurrdrSSH、PurrdrDemo)不依賴任何 Apple 專屬 framework(ADR-0006),
 //   CI 用 Swift SDK for Android 編譯它們把關;`PortableCoreImportTests` 在本機先擋一次。
-// - Features 不依賴 Demo:畫面只透過核心的介面(主機連線 HostConnection;SSH 專屬功能用主機通道 HostChannel)拿資料，不知道背後是誰。
-// CI 另外用 `swift test --explicit-target-dependency-import-check error` 把關，
+// - 上層功能(PurrdrAgentFeatures:Agent 列表、對話、Pane 終端機)只依賴核心的主機連線 HostConnection,
+//   看不到主機通道 HostChannel(在 PurrdrSSH);SSH 專屬功能在 PurrdrFeatures。
+// - Features 不依賴 Demo:畫面只透過核心與主機通道的介面拿資料，不知道背後是誰。
+// CI 另外用 `swift build --build-system native --build-tests --explicit-target-dependency-import-check error` 把關，
 // 避免增量建置放過「沒宣告依賴卻 import」的違規。
 import PackageDescription
 
@@ -21,7 +24,9 @@ let package = Package(
     platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
         .library(name: "PurrdrCore", targets: ["PurrdrCore"]),
+        .library(name: "PurrdrSSH", targets: ["PurrdrSSH"]),
         .library(name: "PurrdrDemo", targets: ["PurrdrDemo"]),
+        .library(name: "PurrdrAgentFeatures", targets: ["PurrdrAgentFeatures"]),
         .library(name: "PurrdrFeatures", targets: ["PurrdrFeatures"]),
         .library(name: "PurrdrTestSupport", targets: ["PurrdrTestSupport"]),
     ],
@@ -36,7 +41,7 @@ let package = Package(
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", exact: "1.19.0"),
     ],
     targets: [
-        // 可攜核心：主機通道(含 SSH)、herdr client、領域型別。只用 Foundation 與 swift-nio／swift-nio-ssh／swift-crypto。
+        // 可攜核心：主機連線、herdr client、領域型別。只用 Foundation 與 swift-nio／swift-nio-ssh／swift-crypto。
         .target(
             name: "PurrdrCore",
             dependencies: [
@@ -50,24 +55,45 @@ let package = Package(
             path: "src/PurrdrCore",
             swiftSettings: strictSettings
         ),
+        // 主機通道(HostChannel)與只有 SSH 連線方式才有的主機功能。可攜，限制同核心。
+        .target(
+            name: "PurrdrSSH",
+            dependencies: [
+                "PurrdrCore",
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+                .product(name: "NIOSSH", package: "swift-nio-ssh"),
+            ],
+            path: "src/PurrdrSSH",
+            swiftSettings: strictSettings
+        ),
         // Demo 主機：不連網路的主機通道實作。App Review 與 UI 測試都靠它，所以 Release 也會帶。
         .target(
             name: "PurrdrDemo",
-            dependencies: ["PurrdrCore"],
+            dependencies: ["PurrdrCore", "PurrdrSSH"],
             path: "src/PurrdrDemo",
             swiftSettings: strictSettings
         ),
-        // SwiftUI 畫面 + 每畫面一個 @MainActor @Observable model。
+        // 上層功能(Agent 列表、對話、Pane 終端機)的畫面 model:只經主機連線，看不到主機通道(不依賴 PurrdrSSH)。
+        .target(
+            name: "PurrdrAgentFeatures",
+            dependencies: ["PurrdrCore"],
+            path: "src/PurrdrAgentFeatures",
+            swiftSettings: strictSettings
+        ),
+        // SwiftUI 畫面、SSH 專屬功能(主機管理、登入 Shell、推播外掛、主題、資料夾…)與它們的 model。
         .target(
             name: "PurrdrFeatures",
-            dependencies: ["PurrdrCore", .product(name: "SwiftTerm", package: "SwiftTerm")],
+            dependencies: [
+                "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", .product(name: "SwiftTerm", package: "SwiftTerm"),
+            ],
             path: "src/PurrdrFeatures",
             swiftSettings: strictSettings
         ),
         // 假主機與錄製回應：核心與畫面 model 的測試共用(Seam 1)。
         .target(
             name: "PurrdrTestSupport",
-            dependencies: ["PurrdrCore"],
+            dependencies: ["PurrdrCore", "PurrdrSSH"],
             path: "tests/PurrdrTestSupport",
             resources: [.copy("Fixtures")],
             swiftSettings: strictSettings
@@ -75,7 +101,7 @@ let package = Package(
         .testTarget(
             name: "PurrdrCoreTests",
             dependencies: [
-                "PurrdrCore", "PurrdrDemo", "PurrdrTestSupport",
+                "PurrdrCore", "PurrdrSSH", "PurrdrDemo", "PurrdrTestSupport",
                 // 測試用 SSH 伺服器(swift-nio-ssh server 角色)。
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
@@ -88,7 +114,7 @@ let package = Package(
         .testTarget(
             name: "PurrdrFeaturesTests",
             dependencies: [
-                "PurrdrFeatures", "PurrdrCore", "PurrdrTestSupport",
+                "PurrdrFeatures", "PurrdrAgentFeatures", "PurrdrCore", "PurrdrSSH", "PurrdrTestSupport",
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "tests/PurrdrFeaturesTests",

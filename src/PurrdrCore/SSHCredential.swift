@@ -19,7 +19,7 @@ public typealias SSHCredentialProvider = @Sendable () async throws -> SSHUserCre
 /// 可以拿來登入的私鑰。支援 ed25519、ECDSA(P-256／P-384／P-521)與 Secure Enclave P-256;
 /// swift-nio-ssh 不支援 RSA(ADR-0003)。
 public struct SSHPrivateKey: Sendable {
-    let key: NIOSSHPrivateKey
+    package let key: NIOSSHPrivateKey
 
     init(key: NIOSSHPrivateKey) {
         self.key = key

@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// Demo 主機的家目錄：記憶體裡的假檔案，回應主機檔案的讀寫指令(`HostFileRequest`)。
 ///

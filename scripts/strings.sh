@@ -4,7 +4,7 @@
 #   scripts/strings.sh sync  [derivedData]   以編譯器抽出畫面字串，把缺的 key 加進 catalog、移除程式碼已不用的 key
 #   scripts/strings.sh check [derivedData]   只檢查：缺 key、沒有繁體中文、程式碼已不用 → exit 1
 #
-# 為什麼要這支腳本：畫面字串寫在 package(PurrdrFeatures),catalog 放在 app(`src/App/Purrdr/Localizable.xcstrings`),
+# 為什麼要這支腳本：畫面字串寫在 package(PurrdrFeatures、PurrdrAgentFeatures),catalog 放在 app(`src/App/Purrdr/Localizable.xcstrings`),
 # 執行時 SwiftUI 與 String(localized:) 預設從 Bundle.main 查字串。Xcode 只會把 app target 自己的字串
 # 同步進 app 的 catalog,不會抽 package 的字串，所以由這支腳本以「編譯器抽出的 .stringsdata」補上。
 # catalog 裡的 key 一律標 `extractionState: manual`,Xcode 建置 app 時才不會把它們標成 stale。

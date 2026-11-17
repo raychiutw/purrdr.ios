@@ -1,4 +1,5 @@
 import PurrdrCore
+import PurrdrSSH
 import SwiftUI
 
 /// 新增對話(行為規格 F3.1;#18):選取中主機上的資料夾、名稱、agent、權限模式。

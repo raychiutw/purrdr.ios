@@ -4,7 +4,7 @@ import Testing
 /// 上層功能(Agent 列表、對話閱讀、送 prompt、Pane 終端機)只依賴主機連線(#54、#89、ADR-0010)。
 ///
 /// 依賴方向由 target 強制：上層功能在 `PurrdrAgentFeatures`,它只依賴 `PurrdrCore`,看不到主機通道(`PurrdrSSH`);
-/// `swift test --explicit-target-dependency-import-check error` 擋住沒宣告依賴的 import。
+/// `swift build --build-system native --explicit-target-dependency-import-check error` 擋住沒宣告依賴的 import(預設的 Swift Build 不擋)。
 /// 這個測試只確認上層功能的畫面 model 放在那個 target、那個 target 沒有 import 主機通道。
 @Suite("主機連線邊界")
 struct HostConnectionBoundaryTests {

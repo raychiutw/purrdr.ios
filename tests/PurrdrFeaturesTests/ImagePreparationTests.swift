@@ -2,6 +2,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import PurrdrAgentFeatures
 import PurrdrFeatures
 import Testing
 import UniformTypeIdentifiers

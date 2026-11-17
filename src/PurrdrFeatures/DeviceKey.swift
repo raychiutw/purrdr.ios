@@ -12,11 +12,6 @@ public protocol DeviceKey: Sendable {
     func signingKey() throws -> SSHPrivateKey
 }
 
-public enum DeviceKeyError: Error, Equatable {
-    /// 這台裝置(例如模擬器)沒有 Secure Enclave。
-    case secureEnclaveUnavailable
-}
-
 /// Secure Enclave 的介面(正式用 `SystemSecureEnclave`,測試用假實作;模擬器與 `swift test` 沒有 Secure Enclave)。
 public protocol SecureEnclaveAPI: Sendable {
     var isAvailable: Bool { get }

@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 
 /// 檔案瀏覽(行為規格 F13):列出主機的資料夾(從家目錄開始)、打開資料夾、上一層、上傳檔案到目前的資料夾。
 ///

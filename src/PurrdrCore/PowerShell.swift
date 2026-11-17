@@ -12,7 +12,7 @@ public enum PowerShell {
     /// 偵測原生 Windows(行為規格 §3.9):預設 shell 是 cmd 或 PowerShell 時沒有 `uname`,改以 PowerShell 印出標記。
     /// 只寫標記本身(`Out.Write` 不加 `\r\n`)。
     public static let windowsProbe = encodedCommand("$ProgressPreference='SilentlyContinue';[Console]::Out.Write('\(windowsMarker)')")
-    static let windowsMarker = "purrdr-windows"
+    package static let windowsMarker = "purrdr-windows"
 
     /// 包好的完整指令。
     public static func encodedCommand(_ script: String) -> String {

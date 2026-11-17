@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// 假主機(Seam 1):對「預期的指令」回放錄製的真實回應，並記錄 app 實際送出的指令與 stdin。
 ///

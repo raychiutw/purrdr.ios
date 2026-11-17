@@ -1,6 +1,7 @@
 import Foundation
 import PurrdrCore
 import PurrdrDemo
+import PurrdrSSH
 import Testing
 
 /// Demo 主機上的新增對話(行為規格 F3.1、F21):資料夾瀏覽走得通，但開始時拒絕並說明要用自己的主機。

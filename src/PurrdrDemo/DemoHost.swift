@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// Demo 主機(行為規格 F21):不連任何機器的主機通道。
 ///
