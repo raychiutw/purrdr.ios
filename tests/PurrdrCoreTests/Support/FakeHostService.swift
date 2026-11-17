@@ -16,10 +16,19 @@ final class FakeHostService: Sendable {
     enum AgentsReply: Sendable {
         /// `server.agents-list-result.json` 的內容。
         case example
+        /// 範例內容，但換掉某些 Pane 的狀態(pane id → 狀態)。
+        case statuses([String: String])
         /// 錯誤訊息(`code` 是協定的錯誤碼)。
         case error(code: String, message: String = "failed", herdrCode: String? = nil)
         /// 一直不回應。
         case silent
+    }
+
+    /// `events.subscribe` 的回應方式。
+    enum SubscribeReply: Sendable {
+        /// 接受，之後用 `pushEvent` 推事件。
+        case accept
+        case error(code: String, message: String = "failed", herdrCode: String? = nil)
     }
 
     struct Log: Sendable {
@@ -33,6 +42,8 @@ final class FakeHostService: Sendable {
         var pairRequests: [Data] = []
         /// `POST /v1/revoke` 的 `Authorization` 標頭。
         var revokeAuthorizations: [String?] = []
+        /// 收到的 WebSocket ping 數。
+        var pings = 0
     }
 
     struct Settings: Sendable {
@@ -41,6 +52,9 @@ final class FakeHostService: Sendable {
         var readOnlyTokens: Set<String> = []
         var supportedProtocolVersions: [Int] = [HostServiceProtocol.version]
         var agentsReply: AgentsReply = .example
+        var subscribeReply: SubscribeReply = .accept
+        /// `false` 時不回 pong(模擬卡住的連線)。
+        var answersPings = true
         /// 這個配對碼換得 `pairedToken`。
         var pairingCode = "K7QM-2XPA"
         var expiredPairingCode = "OLD0-CODE"
@@ -55,15 +69,58 @@ final class FakeHostService: Sendable {
 
     let port: Int
     private let channel: any Channel
-    private let state: Mutex<(log: Log, settings: Settings, sockets: [any Channel])>
+    private let state: Mutex<(log: Log, settings: Settings, sockets: [any Channel], streams: [EventStream])>
+
+    /// 開著的事件串流。
+    private struct EventStream {
+        var socket: any Channel
+        var streamID: String
+    }
 
     var address: HostServiceAddress { HostServiceAddress("http://127.0.0.1:\(port)")! }
     var log: Log { state.withLock { $0.log } }
+    /// 開著的事件串流識別碼。
+    var openStreams: [String] { state.withLock { $0.streams.map(\.streamID) } }
 
     private init(port: Int, channel: any Channel, settings: Settings) {
         self.port = port
         self.channel = channel
-        state = Mutex((Log(), settings, []))
+        state = Mutex((Log(), settings, [], []))
+    }
+
+    /// 對每條開著的事件串流推一個 herdr 事件。
+    func pushEvent(_ name: String, paneID: String? = nil) {
+        for stream in state.withLock({ $0.streams }) {
+            var event: [String: Any] = ["type": "events.event", "stream_id": stream.streamID, "event": name]
+            event["pane_id"] = paneID
+            _ = stream.socket.writeAndFlush(Self.textFrame(Self.json(event), on: stream.socket))
+        }
+    }
+
+    /// 主機端結束每條事件串流;`code` 有值表示失敗(例如 herdr 的 `events_lost`)。
+    func endStreams(code: String? = nil, message: String? = nil, herdrCode: String? = nil) {
+        let streams = state.withLock { state in
+            defer { state.streams = [] }
+            return state.streams
+        }
+        for stream in streams {
+            var ended: [String: Any] = ["type": "events.ended", "stream_id": stream.streamID]
+            ended["code"] = code
+            ended["message"] = message
+            ended["herdr_code"] = herdrCode
+            _ = stream.socket.writeAndFlush(Self.textFrame(Self.json(ended), on: stream.socket))
+        }
+    }
+
+    fileprivate func receivedPing() -> Bool {
+        state.withLock {
+            $0.log.pings += 1
+            return $0.settings.answersPings
+        }
+    }
+
+    private static func textFrame(_ text: String, on socket: any Channel) -> WebSocketFrame {
+        WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
     }
 
     static func start(_ settings: Settings = Settings()) async throws -> FakeHostService {
@@ -135,7 +192,10 @@ final class FakeHostService: Sendable {
     /// 切斷所有 WebSocket 連線(不送 close frame,模擬網路中斷)。
     func dropConnections() async {
         let sockets = state.withLock { state in
-            defer { state.sockets = [] }
+            defer {
+                state.sockets = []
+                state.streams = []
+            }
             return state.sockets
         }
         for socket in sockets { try? await socket.close() }
@@ -157,7 +217,7 @@ final class FakeHostService: Sendable {
         return rejection(for: authorization) ?? []
     }
 
-    fileprivate func respond(to text: String, authorization: String?) -> [Outgoing] {
+    fileprivate func respond(to text: String, authorization: String?, socket: any Channel) -> [Outgoing] {
         state.withLock { $0.log.messages.append(text) }
         if let rejection = rejection(for: authorization) { return rejection }
         let settings = state.withLock { $0.settings }
@@ -179,9 +239,23 @@ final class FakeHostService: Sendable {
         case "agents.list":
             switch settings.agentsReply {
             case .example: return [.text(Self.example("server.agents-list-result.json", requestID: requestID))]
+            case .statuses(let statuses): return [.text(Self.agents(requestID: requestID, statuses: statuses))]
             case .error(let code, let text, let herdrCode): return [.text(Self.error(requestID, code, message: text, herdrCode: herdrCode))]
             case .silent: return []
             }
+        case "events.subscribe":
+            let streamID = message["stream_id"] as? String ?? ""
+            switch settings.subscribeReply {
+            case .accept:
+                state.withLock { $0.streams.append(EventStream(socket: socket, streamID: streamID)) }
+                return [.text(Self.json(["type": "events.subscribe.result", "request_id": requestID as Any, "stream_id": streamID]))]
+            case .error(let code, let text, let herdrCode):
+                return [.text(Self.error(requestID, code, message: text, herdrCode: herdrCode))]
+            }
+        case "events.unsubscribe":
+            let streamID = message["stream_id"] as? String
+            state.withLock { $0.streams.removeAll { $0.socket === socket && $0.streamID == streamID } }
+            return [.text(Self.json(["type": "events.unsubscribe.result", "request_id": requestID as Any]))]
         case let transcript where transcript.hasPrefix("transcript."):
             guard let reply = settings.transcriptReplies[transcript],
                   var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
@@ -251,6 +325,19 @@ final class FakeHostService: Sendable {
         var object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         object.merge(changes) { _, changed in changed }
         object["request_id"] = requestID
+        return json(object)
+    }
+
+    /// Agent 列表範例，換掉指定 Pane 的狀態。
+    private static func agents(requestID: String?, statuses: [String: String]) -> String {
+        let data = (try? Data(contentsOf: examplesDirectory.appending(path: "server.agents-list-result.json"))) ?? Data()
+        var object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        object["request_id"] = requestID
+        object["agents"] = (object["agents"] as? [[String: Any]] ?? []).map { agent in
+            var agent = agent
+            if let paneID = agent["pane_id"] as? String, let status = statuses[paneID] { agent["status"] = status }
+            return agent
+        }
         return json(object)
     }
 
@@ -340,10 +427,11 @@ private final class WebSocketHandler: ChannelInboundHandler {
         case .text:
             var payload = frame.unmaskedData
             let text = payload.readString(length: payload.readableBytes) ?? ""
-            send(server.respond(to: text, authorization: authorization), context: context)
+            send(server.respond(to: text, authorization: authorization, socket: context.channel), context: context)
         case .connectionClose:
             context.close(promise: nil)
         case .ping:
+            guard server.receivedPing() else { return }
             context.writeAndFlush(wrapOutboundOut(WebSocketFrame(fin: true, opcode: .pong, data: frame.unmaskedData)), promise: nil)
         default:
             break

@@ -286,6 +286,17 @@ struct HTTPSDeviceTokenRejectionTests {
             #expect(HostErrorText.message(for: error).contains("pair"), "\(error)")
         }
     }
+
+    @Test("協定版本不相容：說明要更新的是主機服務還是 Purrdr;herdr 太舊時說明更新 herdr")
+    func updateMessagesNameWhatToUpdate() {
+        let olderHostService = HostErrorText.message(for: HostServiceError.protocolVersionUnsupported(supported: [HostServiceProtocol.version - 1]))
+        let newerHostService = HostErrorText.message(for: HostServiceError.protocolVersionUnsupported(supported: [HostServiceProtocol.version + 1]))
+        let olderHerdr = HostErrorText.message(for: HostServiceError.herdrCapabilityMissing)
+
+        #expect(olderHostService == String(localized: "The Purrdr host service on this host is older than this version of Purrdr. Update the host service on the host."))
+        #expect(newerHostService == String(localized: "The Purrdr host service on this host is newer than this version of Purrdr. Update Purrdr."))
+        #expect(olderHerdr.contains("Update herdr"))
+    }
 }
 
 @Suite("裝置權杖存 Keychain")

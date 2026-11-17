@@ -20,6 +20,8 @@ extension HostServiceProtocol {
         case transcriptUnfollow(TranscriptUnfollow)
         case paneSendText(PaneSendText)
         case agentPrompt(AgentPrompt)
+        case eventsSubscribe(EventsSubscribe)
+        case eventsUnsubscribe(EventsUnsubscribe)
 
         private enum TypeKey: String, CodingKey {
             case type
@@ -38,6 +40,8 @@ extension HostServiceProtocol {
             case "transcript.unfollow": self = .transcriptUnfollow(try TranscriptUnfollow(from: decoder))
             case "pane.send_text": self = .paneSendText(try PaneSendText(from: decoder))
             case "agent.prompt": self = .agentPrompt(try AgentPrompt(from: decoder))
+            case "events.subscribe": self = .eventsSubscribe(try EventsSubscribe(from: decoder))
+            case "events.unsubscribe": self = .eventsUnsubscribe(try EventsUnsubscribe(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
             }
@@ -73,6 +77,12 @@ extension HostServiceProtocol {
             case .agentPrompt(let message):
                 try container.encode("agent.prompt", forKey: .type)
                 try message.encode(to: encoder)
+            case .eventsSubscribe(let message):
+                try container.encode("events.subscribe", forKey: .type)
+                try message.encode(to: encoder)
+            case .eventsUnsubscribe(let message):
+                try container.encode("events.unsubscribe", forKey: .type)
+                try message.encode(to: encoder)
             }
         }
 
@@ -99,6 +109,10 @@ extension HostServiceProtocol {
         case transcriptUnfollowResult(TranscriptUnfollowResult)
         case paneSendTextResult(PaneSendTextResult)
         case agentPromptResult(AgentPromptResult)
+        case eventsSubscribeResult(EventsSubscribeResult)
+        case subscribedEvent(SubscribedEvent)
+        case eventsEnded(EventsEnded)
+        case eventsUnsubscribeResult(EventsUnsubscribeResult)
         case errorMessage(ErrorMessage)
 
         private enum TypeKey: String, CodingKey {
@@ -119,6 +133,10 @@ extension HostServiceProtocol {
             case "transcript.unfollow.result": self = .transcriptUnfollowResult(try TranscriptUnfollowResult(from: decoder))
             case "pane.send_text.result": self = .paneSendTextResult(try PaneSendTextResult(from: decoder))
             case "agent.prompt.result": self = .agentPromptResult(try AgentPromptResult(from: decoder))
+            case "events.subscribe.result": self = .eventsSubscribeResult(try EventsSubscribeResult(from: decoder))
+            case "events.event": self = .subscribedEvent(try SubscribedEvent(from: decoder))
+            case "events.ended": self = .eventsEnded(try EventsEnded(from: decoder))
+            case "events.unsubscribe.result": self = .eventsUnsubscribeResult(try EventsUnsubscribeResult(from: decoder))
             case "error": self = .errorMessage(try ErrorMessage(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
@@ -157,6 +175,18 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .agentPromptResult(let message):
                 try container.encode("agent.prompt.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .eventsSubscribeResult(let message):
+                try container.encode("events.subscribe.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .subscribedEvent(let message):
+                try container.encode("events.event", forKey: .type)
+                try message.encode(to: encoder)
+            case .eventsEnded(let message):
+                try container.encode("events.ended", forKey: .type)
+                try message.encode(to: encoder)
+            case .eventsUnsubscribeResult(let message):
+                try container.encode("events.unsubscribe.result", forKey: .type)
                 try message.encode(to: encoder)
             case .errorMessage(let message):
                 try container.encode("error", forKey: .type)
@@ -757,6 +787,148 @@ extension HostServiceProtocol {
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
             case delivery
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 開一條 Agent 事件串流(herdr events.subscribe)。herdr 接受後回 events.subscribe.result,之後以 events.event 推送，直到 events.ended 或 events.unsubscribe。事件只是「該重讀了」的訊號，對帳用 agents.list。
+    public struct EventsSubscribe: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 串流識別碼(app 自訂，同一條連線內不可重複);這條串流的訊息都帶它。
+        public var streamId: String
+        public var subscriptions: [EventSubscription]
+
+        public init(requestId: String, streamId: String, subscriptions: [EventSubscription]) {
+            self.requestId = requestId
+            self.streamId = streamId
+            self.subscriptions = subscriptions
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case streamId = "stream_id"
+            case subscriptions
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 一筆 herdr 事件訂閱。herdr 不認得的事件或不存在的 Pane 會讓整個訂閱被拒(herdr_error)。
+    public struct EventSubscription: Codable, Sendable, Equatable {
+        /// herdr 的訂閱型別，例如 pane.agent_status_changed、workspace.created。
+        public var event: String
+        /// pane.agent_status_changed 必填;其他型別不帶。
+        public var paneId: String?
+
+        public init(event: String, paneId: String? = nil) {
+            self.event = event
+            self.paneId = paneId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case event
+            case paneId = "pane_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr 接受了訂閱。此後的變化才會推送;之前的要靠 agents.list 對帳。
+    public struct EventsSubscribeResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var streamId: String
+
+        public init(requestId: String, streamId: String) {
+            self.requestId = requestId
+            self.streamId = streamId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case streamId = "stream_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr 推送的一個事件(沒有 request_id)。
+    public struct SubscribedEvent: Codable, Sendable, Equatable {
+        public var streamId: String
+        /// herdr 事件的 wire 名稱，例如 pane_agent_status_changed。
+        public var event: String
+        /// 事件指名 Pane 時才有。
+        public var paneId: String?
+
+        public init(streamId: String, event: String, paneId: String? = nil) {
+            self.streamId = streamId
+            self.event = event
+            self.paneId = paneId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case event
+            case paneId = "pane_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 事件串流在主機端結束(沒有 request_id)。有 code 表示失敗;herdr 的 events_lost 是 code herdr_error 加 herdr_code events_lost,app 重新訂閱並對帳。
+    public struct EventsEnded: Codable, Sendable, Equatable {
+        public var streamId: String
+        public var code: ErrorCode?
+        /// 給開發者看的說明。
+        public var message: String?
+        /// code 是 herdr_error 時，herdr 原本的錯誤碼。
+        public var herdrCode: String?
+
+        public init(streamId: String, code: ErrorCode? = nil, message: String? = nil, herdrCode: String? = nil) {
+            self.streamId = streamId
+            self.code = code
+            self.message = message
+            self.herdrCode = herdrCode
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case code
+            case message
+            case herdrCode = "herdr_code"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 關閉一條事件串流，主機服務關掉對應的 herdr 訂閱。不認得的串流識別碼也回成功。
+    public struct EventsUnsubscribe: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var streamId: String
+
+        public init(requestId: String, streamId: String) {
+            self.requestId = requestId
+            self.streamId = streamId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case streamId = "stream_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 事件串流已關閉，之後不再有這條串流的訊息。
+    public struct EventsUnsubscribeResult: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
         }
     }
 }

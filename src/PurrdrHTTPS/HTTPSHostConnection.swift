@@ -4,6 +4,7 @@ import PurrdrCore
 /// HTTPS 連線方式的主機連線(ADR-0010):單一 WSS 連到主機服務，帶裝置權杖;herdr 請求換成主機服務協定的窄 API。
 ///
 /// - 第一個操作時才撥號並握手(`hello`);斷線後下一個操作重新撥號，進行中的請求不重送。
+/// - 心跳(`heartbeat`)逾時視同斷線：進行中的請求與事件串流以 `connectionLost` 結束。
 /// - 權杖被拒(無效、已撤銷)後，同一個權杖不再撥號，直到存了新的權杖(重新配對):不會無限重連。
 /// - 支援的 herdr method 見 `herdrRequest`;其他丟 `HostServiceError.unsupported`(後續票依協定逐一加入)。
 public actor HTTPSHostConnection: HostConnection {
@@ -11,8 +12,10 @@ public actor HTTPSHostConnection: HostConnection {
     private let deviceToken: @Sendable () throws -> String?
     private let transport: any WebSocketConnecting
     private let appVersion: String?
+    private let heartbeat: HostServiceHeartbeat
     private let sleep: Sleep
     private var session: HostServiceSession?
+    private var nextStreamNumber = 0
     private var welcome: HostServiceProtocol.Welcome?
     private var connecting: Task<HostServiceSession, any Error>?
     /// 被拒的權杖與原因。
@@ -23,16 +26,18 @@ public actor HTTPSHostConnection: HostConnection {
 
     /// - Parameters:
     ///   - deviceToken: 撥號時才讀(Keychain);`nil` 表示還沒配對。
-    ///   - sleep: 期限計時用(測試注入)。
+    ///   - heartbeat: WSS 心跳的間隔與逾時(測試用短的)。
+    ///   - sleep: 期限與心跳計時用(測試注入)。
     public init(
         address: HostServiceAddress, deviceToken: @escaping @Sendable () throws -> String?,
         transport: any WebSocketConnecting = URLSessionHostServiceTransport(), appVersion: String? = nil,
-        sleep: @escaping Sleep = Sleeping.task
+        heartbeat: HostServiceHeartbeat = .standard, sleep: @escaping Sleep = Sleeping.task
     ) {
         self.address = address
         self.deviceToken = deviceToken
         self.transport = transport
         self.appVersion = appVersion
+        self.heartbeat = heartbeat
         self.sleep = sleep
     }
 
@@ -110,21 +115,68 @@ public actor HTTPSHostConnection: HostConnection {
 
     // MARK: - Agent 事件串流
 
-    /// `events.subscribe`:目前主機服務還不推送事件(#58),所以回 ack 後保持開著，直到連線結束(以結束原因失敗)
-    /// 或呼叫端不再讀。上層據此在重連時重讀 snapshot。
+    /// `events.subscribe` → 主機服務的事件串流(herdr 接受後才回 ack)。事件換成 herdr 的事件行;
+    /// 主機端結束串流(`events_lost` 是 `HerdrError.herdr`)或連線結束(含心跳逾時)時串流跟著結束，上層據此重連對帳。
+    /// 呼叫端不再讀時通知主機服務關掉那條串流，連線留給其他操作。
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
         let herdr = try HerdrRequestLine(request)
         guard herdr.method == "events.subscribe" else { throw HostServiceError.unsupported(herdr.method) }
-        let session = try await withDeadline(HostCommandDeadline.standard) { try await self.liveSession() }
+        let subscriptions = try JSONDecoder().decode(SubscribeParams.self, from: herdr.params).subscriptions.map {
+            HostServiceProtocol.EventSubscription(event: $0.type, paneId: $0.paneID)
+        }
+        let (session, streamID, messages) = try await withDeadline(HostCommandDeadline.standard) {
+            try await self.subscribeEvents(subscriptions)
+        }
         let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
         continuation.yield(try HerdrResponseLine.subscriptionStarted(id: herdr.id))
-        let watcher = Task {
-            let ending = await session.waitUntilClosed()
-            self.noteEnding(ending, of: session)
-            continuation.finish(throwing: ending)
+        let forwarding = Task {
+            do {
+                for try await message in messages {
+                    switch message {
+                    case .subscribedEvent(let event):
+                        continuation.yield(try HerdrResponseLine.event(name: event.event, paneID: event.paneId))
+                    case .eventsEnded(let ended):
+                        if let code = ended.code {
+                            throw Self.error(for: .init(code: code, message: ended.message ?? "", herdrCode: ended.herdrCode))
+                        }
+                    default:
+                        continue
+                    }
+                }
+                continuation.finish()
+            } catch {
+                self.noteEnding(error, of: session)
+                continuation.finish(throwing: error)
+            }
         }
-        continuation.onTermination = { _ in watcher.cancel() }
+        continuation.onTermination = { _ in
+            forwarding.cancel()
+            Task { await self.unsubscribeEvents(streamID, on: session) }
+        }
         return lines
+    }
+
+    private func subscribeEvents(
+        _ subscriptions: [HostServiceProtocol.EventSubscription]
+    ) async throws -> (HostServiceSession, String, AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>) {
+        let session = try await liveSession()
+        nextStreamNumber += 1
+        let streamID = "s\(nextStreamNumber)"
+        let messages = await session.openEventStream(streamID)
+        do {
+            let reply = try await send(on: session) { .eventsSubscribe(.init(requestId: $0, streamId: streamID, subscriptions: subscriptions)) }
+            guard case .eventsSubscribeResult = reply else { throw HostServiceError.unexpectedResponse }
+        } catch {
+            _ = await session.closeEventStream(streamID)
+            throw error
+        }
+        return (session, streamID, messages)
+    }
+
+    /// 呼叫端不再讀：串流還開著就請主機服務關掉(主機端已結束或連線已斷就不必)。
+    private func unsubscribeEvents(_ streamID: String, on session: HostServiceSession) async {
+        guard await session.closeEventStream(streamID) else { return }
+        _ = try? await session.request { .eventsUnsubscribe(.init(requestId: $0, streamId: streamID)) }
     }
 
     // MARK: - 對話紀錄
@@ -199,7 +251,7 @@ public actor HTTPSHostConnection: HostConnection {
     private func open(deviceToken token: String) async throws -> HostServiceSession {
         let socket = try await transport.connect(to: address.webSocketURL, bearerToken: token)
         let opened = HostServiceSession(socket: socket, deviceToken: token)
-        await opened.start()
+        await opened.start(heartbeat: heartbeat, sleep: sleep)
         let appVersion = appVersion
         let reply: HostServiceProtocol.ServerMessage
         do {
@@ -272,6 +324,21 @@ public actor HTTPSHostConnection: HostConnection {
                 throw HerdrError.deadlineExceeded
             }
             return value
+        }
+    }
+
+    /// herdr `events.subscribe` 的 params。
+    private struct SubscribeParams: Decodable {
+        var subscriptions: [Subscription]
+
+        struct Subscription: Decodable {
+            var type: String
+            var paneID: String?
+
+            enum CodingKeys: String, CodingKey {
+                case type
+                case paneID = "pane_id"
+            }
         }
     }
 
@@ -359,6 +426,24 @@ enum HerdrResponseLine {
 
     static func subscriptionStarted(id: String?) throws -> Data {
         try encode(Envelope(id: id, result: Typed(type: "subscription_started")))
+    }
+
+    /// herdr 的事件行(`{"event": …, "data": {"pane_id": …}}`)。
+    static func event(name: String, paneID: String?) throws -> Data {
+        try encode(EventLine(event: name, data: EventLine.EventData(paneID: paneID)))
+    }
+
+    private struct EventLine: Encodable {
+        var event: String
+        var data: EventData
+
+        struct EventData: Encodable {
+            var paneID: String?
+
+            enum CodingKeys: String, CodingKey {
+                case paneID = "pane_id"
+            }
+        }
     }
 
     private static func encode(_ value: some Encodable) throws -> Data {
