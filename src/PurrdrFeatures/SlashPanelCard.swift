@@ -164,7 +164,7 @@ struct SlashPanelCard: View {
             }
             .accessibilityIdentifier("panel.action.\(action.key)")
             if action.key == "enter" {
-                button.buttonStyle(.borderedProminent)
+                button.filledProminentButtonStyle()
             } else {
                 // 文字用主要色(取消要中性):bordered 預設是 tint 字配淡 tint 底，在卡片填色上對比不到 4.5:1(#67 audit)。
                 button.buttonStyle(.bordered)
