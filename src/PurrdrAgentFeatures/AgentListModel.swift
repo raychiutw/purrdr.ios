@@ -95,6 +95,7 @@ public final class AgentListModel {
     ///   事件是依序處理的，重讀進行中到達的事件會在讀完後再觸發一次。
     /// - `events_lost`:快取已過期，立刻重新訂閱並重讀。
     /// - 重讀後 Agent pane 的集合變了，或換了檢視(`subscribesToLayout`):訂閱不能修改，關掉舊的、用新清單重新訂閱。
+    /// - herdr 沒有事件訂閱(`herdrCapabilityMissing`):不算失敗，每 30 秒重讀。
     /// - 其他失敗(含訂閱在 ack 前就結束):退避 1 秒起倍增、上限 30 秒;收到 ack 即歸零。
     /// - 使用者取消了 Tailscale 重新驗證：不自動重試(否則每次重試又跳出驗證),等使用者按「再試一次」。
     public func run() async {
@@ -107,8 +108,17 @@ public final class AgentListModel {
                 needsSnapshot = false
                 let panes = agentPaneIDs
                 let layout = subscribesToLayout
-                let events = interruptible(try await client.subscribe(
-                    panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide + (layout ? EventSubscription.layout : [])))
+                let subscription: AsyncThrowingStream<HerdrEvent, any Error>
+                do {
+                    subscription = try await client.subscribe(
+                        panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide + (layout ? EventSubscription.layout : []))
+                } catch HostServiceError.herdrCapabilityMissing {
+                    // herdr 太舊沒有事件訂閱：只停用即時更新，列表照常顯示並定期重讀。
+                    try await sleep(Self.pollingInterval)
+                    needsSnapshot = true
+                    continue
+                }
+                let events = interruptible(subscription)
                 defer { endSubscription?(); endSubscription = nil }
                 for try await event in events {
                     if case .event = event { try await sleep(Self.debounce) }
@@ -239,6 +249,9 @@ public final class AgentListModel {
 
     /// 事件去抖：連續的事件只觸發一次重讀的機會變大，也不會讓列表跳動得太頻繁。
     package static let debounce: Duration = .milliseconds(250)
+
+    /// 沒有事件訂閱可用時重讀的間隔。
+    package static let pollingInterval: Duration = .seconds(30)
 
     /// 1 秒起倍增、上限 30 秒。
     package static func backoff(afterFailures failures: Int) -> Duration {

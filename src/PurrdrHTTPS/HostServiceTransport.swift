@@ -12,6 +12,8 @@ public protocol WebSocketSession: Sendable {
     func send(_ text: String) async throws
     /// 下一個訊息;主機服務關閉連線時回 `.closed`,連線層失敗丟 `HostServiceError`。
     func receive() async throws -> WebSocketMessage
+    /// 送 WebSocket ping,收到 pong 才返回(心跳)。
+    func sendPing() async throws
     func close() async
 }
 
