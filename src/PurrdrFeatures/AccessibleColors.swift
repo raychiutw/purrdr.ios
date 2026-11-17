@@ -76,3 +76,21 @@ struct HitTarget: View {
             .contentShape(.rect)
     }
 }
+
+extension AccessibleColors {
+    /// 狀態條的閒置段。
+    static let idleSegment = ContrastPalette(
+        light: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), dark: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),
+        lightHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), darkHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF))
+}
+
+/// Agent 種類頭像：底色與字母。
+struct AgentKindAvatarStyle {
+    var letter: String
+    var palette: ContrastPalette
+
+    init(kind: String) {
+        letter = ""
+        palette = AccessibleColors.idleSegment
+    }
+}
