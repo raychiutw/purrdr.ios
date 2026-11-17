@@ -15,6 +15,14 @@ pub enum ClientMessage {
     AgentsList(AgentsList),
     #[serde(rename = "pane.send_keys")]
     PaneSendKeys(PaneSendKeys),
+    #[serde(rename = "transcript.locate")]
+    TranscriptLocate(TranscriptLocate),
+    #[serde(rename = "transcript.window")]
+    TranscriptWindow(TranscriptWindow),
+    #[serde(rename = "transcript.follow")]
+    TranscriptFollow(TranscriptFollow),
+    #[serde(rename = "transcript.unfollow")]
+    TranscriptUnfollow(TranscriptUnfollow),
 }
 
 impl ClientMessage {
@@ -34,6 +42,16 @@ pub enum ServerMessage {
     AgentsListResult(AgentsListResult),
     #[serde(rename = "pane.send_keys.result")]
     PaneSendKeysResult(PaneSendKeysResult),
+    #[serde(rename = "transcript.locate.result")]
+    TranscriptLocateResult(TranscriptLocateResult),
+    #[serde(rename = "transcript.window.result")]
+    TranscriptWindowResult(TranscriptWindowResult),
+    #[serde(rename = "transcript.follow.result")]
+    TranscriptFollowResult(TranscriptFollowResult),
+    #[serde(rename = "transcript.update")]
+    TranscriptUpdate(TranscriptUpdate),
+    #[serde(rename = "transcript.unfollow.result")]
+    TranscriptUnfollowResult(TranscriptUnfollowResult),
     #[serde(rename = "error")]
     ErrorMessage(ErrorMessage),
 }
@@ -145,6 +163,121 @@ pub struct PaneSendKeysResult {
     pub request_id: String,
 }
 
+/// 定位對話紀錄(#59)。session 必須是 herdr snapshot 目前某個 Agent 的 agent_session;格式與 cwd 由主機服務從 snapshot 取得，app 不能指定路徑。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptLocate {
+    pub request_id: String,
+    pub session: SessionReference,
+    /// 是否一併回傳檔案前兩行(Codex、Pi／OMP 的 header 檢查)。
+    pub header: bool,
+}
+
+/// herdr agent_session 的 kind 與 value。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionReference {
+    /// id 或 path。
+    pub kind: String,
+    pub value: String,
+}
+
+/// 對話紀錄的路徑與大小(byte)。之後這條連線才能以這個路徑讀視窗與追蹤。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptLocateResult {
+    pub request_id: String,
+    pub path: String,
+    pub size: i64,
+    /// 請求 header 時，檔案前兩行(原樣)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub header: Option<Vec<String>>,
+}
+
+/// 讀以 end 為終點的最後 lines 行完整的行(開啟與往上翻頁)。path 必須是這條連線定位過的。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptWindow {
+    pub request_id: String,
+    pub path: String,
+    pub end: i64,
+    pub lines: i64,
+}
+
+/// 視窗的 byte 範圍與範圍內的行。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptWindowResult {
+    pub request_id: String,
+    pub start: i64,
+    pub end: i64,
+    pub records: Vec<TranscriptRecord>,
+}
+
+/// 對話紀錄的一行：原始 byte 長度(不含換行)與剝除圖片後的內容(行為規格 R-B04、R-B06)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptRecord {
+    pub length: i64,
+    pub text: String,
+}
+
+/// 開始追蹤對話紀錄尾端：從 from 起，主機服務把新增的完整行以 transcript.update 推送，直到 transcript.unfollow、追蹤結束或連線關閉。stream_id 由 app 指定，同一條連線內不可重複。path 必須是這條連線定位過的。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptFollow {
+    pub request_id: String,
+    pub stream_id: String,
+    pub path: String,
+    pub from: i64,
+    /// 一次落後超過這麼多 byte 就結束追蹤(too_far_behind),由 app 改讀視窗。
+    pub limit: i64,
+}
+
+/// 追蹤開始，帶目前的大小與 from 之後已有的完整行;ended 有值時主機服務沒有開始追蹤。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptFollowResult {
+    pub request_id: String,
+    pub stream_id: String,
+    pub size: i64,
+    /// records 第一行的位置(byte)。
+    pub start: i64,
+    pub records: Vec<TranscriptRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended: Option<TranscriptStreamEnd>,
+}
+
+/// 追蹤中的對話紀錄有了新的完整行，或追蹤結束(ended)。主機服務主動推送，沒有 request_id。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptUpdate {
+    pub stream_id: String,
+    pub size: i64,
+    /// records 第一行的位置(byte)。
+    pub start: i64,
+    pub records: Vec<TranscriptRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ended: Option<TranscriptStreamEnd>,
+}
+
+/// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TranscriptStreamEnd {
+    #[serde(rename = "shrank")]
+    Shrank,
+    #[serde(rename = "too_far_behind")]
+    TooFarBehind,
+    #[serde(rename = "absent")]
+    Absent,
+    #[serde(rename = "unreadable")]
+    Unreadable,
+}
+
+/// 停止追蹤(對話關閉)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptUnfollow {
+    pub request_id: String,
+    pub stream_id: String,
+}
+
+/// 已停止追蹤;之後不再推送這個 stream_id。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TranscriptUnfollowResult {
+    pub request_id: String,
+}
+
 /// POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PairRequest {
@@ -179,7 +312,7 @@ pub struct ErrorMessage {
     pub supported_protocol_versions: Option<Vec<i64>>,
 }
 
-/// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。
+/// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ErrorCode {
     #[serde(rename = "invalid_message")]
@@ -204,6 +337,18 @@ pub enum ErrorCode {
     PairingCodeInvalid,
     #[serde(rename = "pairing_code_expired")]
     PairingCodeExpired,
+    #[serde(rename = "transcript_not_allowed")]
+    TranscriptNotAllowed,
+    #[serde(rename = "transcript_unsupported")]
+    TranscriptUnsupported,
+    #[serde(rename = "transcript_absent")]
+    TranscriptAbsent,
+    #[serde(rename = "transcript_unreadable")]
+    TranscriptUnreadable,
+    #[serde(rename = "transcript_ambiguous")]
+    TranscriptAmbiguous,
+    #[serde(rename = "transcript_compressed")]
+    TranscriptCompressed,
     #[serde(rename = "internal_error")]
     InternalError,
 }
