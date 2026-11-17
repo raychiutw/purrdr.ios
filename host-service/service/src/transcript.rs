@@ -74,9 +74,8 @@ pub fn locate(environment: &TranscriptEnvironment, session: &AgentSessionInfo) -
         }
         ("agy", "id") => {
             require_safe_id(&session.value)?;
-            Ok(home_relative(environment, ".gemini/antigravity-cli/brain")
-                .join(&session.value)
-                .join(".system_generated/logs/transcript.jsonl"))
+            let brain = home_relative(environment, &[".gemini", "antigravity-cli", "brain"]);
+            Ok(joined(&brain, &[&session.value, ".system_generated", "logs", "transcript.jsonl"]))
         }
         // 只有 agy、Pi、OMP 的 integration 以路徑回報(行為規格 §4.0)。
         ("agy" | "pi" | "omp", "path") if is_safe_reported_path(&session.value) => Ok(PathBuf::from(&session.value)),
@@ -95,7 +94,7 @@ fn is_safe_reported_path(path: &str) -> bool {
 /// `${CODEX_HOME:-~/.codex}` 的 sessions 與 archived_sessions 下的 `rollout-*-<id>.jsonl`(含倒帶的 `_<rolloutId>`,§4.2)。
 /// 不只一個時不猜(SSH 路線會問 Codex 的狀態資料庫;主機服務不執行指令，所以回有歧義)。
 fn locate_codex(environment: &TranscriptEnvironment, session_id: &str) -> Result<PathBuf, TranscriptFailure> {
-    let codex_home = environment.codex_home.clone().unwrap_or_else(|| home_relative(environment, ".codex"));
+    let codex_home = environment.codex_home.clone().unwrap_or_else(|| home_relative(environment, &[".codex"]));
     let mut rollouts = Vec::new();
     let mut compressed = false;
     for folder in ["sessions", "archived_sessions"] {
@@ -332,8 +331,13 @@ fn require_safe_id(id: &str) -> Result<(), TranscriptFailure> {
     if safe { Ok(()) } else { Err(TranscriptFailure::NotAllowed) }
 }
 
-fn home_relative(environment: &TranscriptEnvironment, relative: &str) -> PathBuf {
-    environment.home.clone().unwrap_or_default().join(relative)
+/// 家目錄底下的路徑。逐段 join,Windows 上才是一致的 `\`(app 顯示與比對路徑用)。
+fn home_relative(environment: &TranscriptEnvironment, components: &[&str]) -> PathBuf {
+    joined(&environment.home.clone().unwrap_or_default(), components)
+}
+
+fn joined(base: &Path, components: &[&str]) -> PathBuf {
+    components.iter().fold(base.to_owned(), |path, component| path.join(component))
 }
 
 /// `<設定目錄>/projects/<cwd 轉成的資料夾名>/<id>.jsonl`;不在時找其他專案資料夾的同名檔(worktree,§4.1)。
@@ -341,7 +345,7 @@ fn locate_claude(environment: &TranscriptEnvironment, session_id: &str, cwd: &st
     let projects = environment
         .claude_config_dir
         .clone()
-        .unwrap_or_else(|| home_relative(environment, ".claude"))
+        .unwrap_or_else(|| home_relative(environment, &[".claude"]))
         .join("projects");
     let file_name = format!("{session_id}.jsonl");
     let expected = projects.join(claude_project_folder(cwd)).join(&file_name);

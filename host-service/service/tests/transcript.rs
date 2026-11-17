@@ -62,7 +62,8 @@ impl Fixture {
 
 /// 在 `root` 底下寫一個檔案(含上層資料夾)。
 fn write_file(root: &Path, relative: &str, content: &str) -> PathBuf {
-    let path = root.join(relative);
+    // 逐段 join:Windows 上與主機服務回報的路徑一樣都是 `\`。
+    let path = relative.split('/').fold(root.to_owned(), |path, component| path.join(component));
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(&path, content).unwrap();
     path
