@@ -59,9 +59,12 @@ public struct HostFileRead: Equatable, Sendable {
 /// 主機檔案：一次往返讀多個檔案;一次往返以 compare-and-swap 寫多個檔案。
 public struct HostFiles: Sendable {
     let channel: any HostChannel
+    /// 指令期限的計時(測試注入)。
+    let sleep: @Sendable (Duration) async throws -> Void
 
-    public init(channel: any HostChannel) {
+    public init(channel: any HostChannel, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.channel = channel
+        self.sleep = sleep
     }
 
     /// 一次往返讀取 `paths`(跟隨 symlink)。每個檔案最多 1 MiB。
@@ -101,7 +104,7 @@ public struct HostFiles: Sendable {
     private func run(_ script: String, arguments: [String]) async throws -> CommandResult {
         let command = HostFileScript.command(script, arguments: arguments)
         guard command.utf8.count <= HostFileScript.maximumCommandLength else { throw HostFilesError.tooLarge }
-        return try await channel.collect(command)
+        return try await channel.collect(command, deadline: HostCommandDeadline.standard, sleep: sleep)
     }
 }
 

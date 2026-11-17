@@ -66,9 +66,12 @@ public struct TranscriptReader: Sendable {
         self.marker = marker
     }
 
-    /// SSH 連線方式(主機通道)的捷徑。
-    public init(channel: any HostChannel, windowChunkBytes: Int = 4 << 20, marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString }) {
-        self.init(connection: SSHHostConnection(channel: channel), windowChunkBytes: windowChunkBytes, marker: marker)
+    /// SSH 連線方式(主機通道)的捷徑。`sleep` 是指令期限的計時(測試注入)。
+    public init(
+        channel: any HostChannel, windowChunkBytes: Int = 4 << 20, marker: @escaping @Sendable () -> String = { "purrdr-" + UUID().uuidString },
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
+        self.init(connection: SSHHostConnection(channel: channel, sleep: sleep), windowChunkBytes: windowChunkBytes, marker: marker)
     }
 
     /// 找出 Claude Code session 的對話紀錄並取得大小。
