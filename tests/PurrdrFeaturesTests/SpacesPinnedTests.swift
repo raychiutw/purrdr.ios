@@ -22,14 +22,14 @@ struct SpacesPinnedTests {
 
     static func id(_ local: String) -> String { "\(studio.storedValue)/\(local)" }
 
-    static func card(_ workspaceID: String, in model: MergedAgentListModel) -> WorkspaceCard? {
-        model.spacesSections.flatMap(\.items).lazy.compactMap { item -> WorkspaceCard? in
-            if case .card(let card) = item, card.workspaceID == workspaceID { card } else { nil }
+    static func card(_ workspaceID: String, in model: MergedAgentListModel) -> WorkspaceGroup? {
+        model.spacesSections.flatMap(\.items).lazy.compactMap { item -> WorkspaceGroup? in
+            if case .group(let group) = item, group.workspaceID == workspaceID { group } else { nil }
         }.first
     }
 
-    static func cardRow(_ paneID: String, in card: WorkspaceCard?) -> AgentRow? {
-        card?.groups.flatMap(\.rows).lazy.compactMap { row -> AgentRow? in
+    static func cardRow(_ paneID: String, in card: WorkspaceGroup?) -> AgentRow? {
+        card?.rows.lazy.compactMap { row -> AgentRow? in
             if case .agent(let agent) = row, agent.paneID == paneID { agent } else { nil }
         }.first
     }

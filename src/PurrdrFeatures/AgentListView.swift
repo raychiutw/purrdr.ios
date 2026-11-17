@@ -319,7 +319,7 @@ public struct AgentListView: View {
             let items = section.items.filter { item in
                 switch item {
                 case .chat(let row): row.host == model.selected && panes.contains(row.paneID)
-                case .card(let card): card.host == model.selected && card.workspaceID == filter
+                case .group(let group): group.host == model.selected && group.workspaceID == filter
                 }
             }
             return items.isEmpty ? nil : SpacesSection(kind: section.kind, items: items)

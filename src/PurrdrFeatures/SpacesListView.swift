@@ -19,23 +19,18 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
                     switch item {
                     case .chat(let row):
                         agentRow(row)
-                    case .card(let card):
-                        WorkspaceCardHeader(card: card) { showLayout(card) }
-                        ForEach(card.groups) { group in
-                            if let title = group.title {
-                                TabGroupTitle(title: title)
-                            }
-                            ForEach(group.rows) { row in
-                                switch row {
-                                case .agent(let row):
-                                    agentRow(row).cardRail()
-                                case .terminal(let row):
-                                    NavigationLink(value: row.route) {
-                                        TerminalRowView(row: row)
-                                    }
-                                    .accessibilityIdentifier("terminal.row.\(row.id)")
-                                    .cardRail()
+                    case .group(let group):
+                        WorkspaceGroupHeader(group: group) { showLayout(group) }
+                        ForEach(group.rows) { row in
+                            switch row {
+                            case .agent(let row):
+                                agentRow(row).cardRail()
+                            case .terminal(let row):
+                                NavigationLink(value: row.route) {
+                                    TerminalRowView(row: row)
                                 }
+                                .accessibilityIdentifier("terminal.row.\(row.id)")
+                                .cardRail()
                             }
                         }
                     }
@@ -48,16 +43,16 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
     }
 
     /// 點卡片本身或版面圖按鈕：開版面圖。顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
-    private func showLayout(_ card: WorkspaceCard) {
-        let layout = model.snapshot(for: card.host).flatMap { SpacesLayout(snapshot: $0, workspaceID: card.workspaceID) }
-        presentation.host = card.host
-        presentation.sheet = .layout(workspaceLabel: card.label, layout: layout)
+    private func showLayout(_ group: WorkspaceGroup) {
+        let layout = model.snapshot(for: group.host).flatMap { SpacesLayout(snapshot: $0, workspaceID: group.workspaceID) }
+        presentation.host = group.host
+        presentation.sheet = .layout(workspaceLabel: group.label, layout: layout)
     }
 }
 
 /// Workspace 卡片本身：標題、統計行、工作中狀態與版面圖按鈕。點了開版面圖，不是開聊天(#37 故事 11)。
-private struct WorkspaceCardHeader: View {
-    let card: WorkspaceCard
+private struct WorkspaceGroupHeader: View {
+    let group: WorkspaceGroup
     let showLayout: () -> Void
 
     var body: some View {
@@ -70,15 +65,9 @@ private struct WorkspaceCardHeader: View {
                         .frame(minWidth: 24)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: title)
+                        Text(verbatim: group.label)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
-                        Text(verbatim: card.summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondaryText)
-                        if card.status == .working || card.status == .blocked {
-                            StatusLabel(status: card.status)
-                        }
                     }
                     Spacer(minLength: 0)
                 }
@@ -87,7 +76,7 @@ private struct WorkspaceCardHeader: View {
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityHint(Text("Shows the layout"))
-            .accessibilityIdentifier("workspace.card.\(card.id)")
+            .accessibilityIdentifier("workspace.card.\(group.id)")
 
             // 版面圖按鈕(田字格);觸控目標 44×44 pt。
             // frame 放在 label 裡:放在 Button 外面時，可點範圍與 accessibility frame 仍只有圖示大小(#35 audit)。
@@ -98,26 +87,8 @@ private struct WorkspaceCardHeader: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.borderless)
-            .accessibilityIdentifier("workspace.layout.\(card.id)")
+            .accessibilityIdentifier("workspace.layout.\(group.id)")
         }
-    }
-
-    /// 非選取中主機：標題以主機名開頭(行為規格 F2.1)。
-    private var title: String {
-        card.hostLabel.map { "\($0.name) · \(card.label)" } ?? card.label
-    }
-}
-
-/// 卡片裡 tab 不只一個時的 tab 名稱。
-private struct TabGroupTitle: View {
-    let title: String
-
-    var body: some View {
-        Text(verbatim: title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondaryText)
-            .accessibilityAddTraits(.isHeader)
-            .cardRail()
     }
 }
 

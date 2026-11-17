@@ -34,6 +34,25 @@ struct SpacesHostGroupingTests {
         #expect(model.spacesSections.map(\.id) == [Self.studio.storedValue, Self.lab.storedValue])
     }
 
+    @Test("非選取中主機的列與終端機列不再加「主機名 ·」:主機由分組標題表示")
+    func rowsCarryNoHostPrefix() async throws {
+        let clock = MarkerClock(Self.t0)
+        let lab = await UnreadPinnedTests.host(Self.lab, name: "Lab", clock: clock)
+        let studio = await UnreadPinnedTests.host(Self.studio, name: "Studio", clock: clock)
+        let model = UnreadPinnedTests.merged([studio, lab], selected: Self.studio)
+        await model.load()
+
+        let labSection = try #require(model.spacesSections.first { $0.host?.host == Self.lab })
+        let rows = labSection.items.flatMap { item -> [WorkspaceGroup.Row] in
+            if case .group(let group) = item { group.rows } else { [] }
+        }
+        let agentRows = rows.compactMap { row -> AgentRow? in if case .agent(let agent) = row { agent } else { nil } }
+        let terminalRows = rows.compactMap { row -> TerminalRow? in if case .terminal(let terminal) = row { terminal } else { nil } }
+        #expect(agentRows.count == 3)
+        #expect(agentRows.allSatisfy { $0.hostLabel == nil && !$0.subtitle.contains("Lab") })
+        #expect(terminalRows.map(\.subtitle) == ["Shell · tmp/scratch"])
+    }
+
     @Test("主機組內：有需要你的 workspace 在前、再來是工作中，其他依 workspace 編號")
     func itemsWithinHostOrderedByUrgency() async throws {
         let clock = MarkerClock(Self.t0)

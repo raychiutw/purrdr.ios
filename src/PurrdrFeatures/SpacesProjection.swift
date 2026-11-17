@@ -118,13 +118,54 @@ public struct SpacesStatusCounts: Equatable, Sendable {
 public enum SpacesItem: Identifiable, Equatable, Sendable {
     /// 只有一個 Agent、沒有其他 pane 的 workspace:直接是聊天列。
     case chat(AgentRow)
-    /// 兩個以上 Agent,或有 Agent 以外 pane 的 workspace。
-    case card(WorkspaceCard)
+    /// 兩個以上 Agent,或有 Agent 以外 pane 的 workspace:可收合的群組。
+    case group(WorkspaceGroup)
 
     public var id: String {
         switch self {
         case .chat(let row): row.id
-        case .card(let card): card.id
+        case .group(let group): group.id
+        }
+    }
+}
+
+/// Workspace 群組(#103):收合時只有標頭(名稱、Agent 數、狀態條、各狀態數量),展開後列出 Agent 列與終端機列。
+public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
+    public var host: HostSelection
+    public var workspaceID: String
+    /// Workspace 名稱(沒有時是 workspace id)。
+    public var label: String
+    /// 只算 Agent,終端機另計。
+    public var agentCount: Int
+    public var terminalCount: Int
+    public var counts: SpacesStatusCounts
+    /// Agent 列依狀態(需要你在前),終端機列在後。
+    public var rows: [Row]
+
+    /// 主機身分 + workspace id(`w1` 在每台主機都有)。
+    public var id: String { "\(host.storedValue)/\(workspaceID)" }
+
+    public init(
+        host: HostSelection, workspaceID: String, label: String, agentCount: Int, terminalCount: Int, counts: SpacesStatusCounts, rows: [Row]
+    ) {
+        self.host = host
+        self.workspaceID = workspaceID
+        self.label = label
+        self.agentCount = agentCount
+        self.terminalCount = terminalCount
+        self.counts = counts
+        self.rows = rows
+    }
+
+    public enum Row: Identifiable, Equatable, Sendable {
+        case agent(AgentRow)
+        case terminal(TerminalRow)
+
+        public var id: String {
+            switch self {
+            case .agent(let row): row.id
+            case .terminal(let row): row.id
+            }
         }
     }
 }
@@ -330,7 +371,16 @@ extension AgentListProjection {
         let label = workspace?.label ?? agents.first?.workspaceLabel ?? workspaceID
         return workspaceCard(
             workspaceID: workspaceID, label: label, agents: agents, shells: shells, status: status, in: context
-        ).map { SpacesEntry(item: .card($0), order: order) }
+        ).map { card in
+            SpacesEntry(item: .group(WorkspaceGroup(
+                host: card.host, workspaceID: card.workspaceID, label: card.label, agentCount: card.agentCount, terminalCount: 0,
+                counts: SpacesStatusCounts(), rows: card.groups.flatMap(\.rows).map { row in
+                    switch row {
+                    case .agent(let agent): .agent(agent)
+                    case .terminal(let terminal): .terminal(terminal)
+                    }
+                })), order: order)
+        }
     }
 
     /// workspace 卡片。搜尋：命中 workspace 本身(名稱、id、主機名)→ 全部列;否則只留命中的列，都沒命中就是 `nil`(行為規格 F2.3)。
