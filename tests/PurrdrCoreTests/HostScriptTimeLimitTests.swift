@@ -6,6 +6,28 @@ import Testing
 /// 主機腳本的自我時限(#92):一次性腳本超過時限就結束自己與子程序，不在主機上留下程序。
 @Suite("主機腳本時限")
 struct HostScriptTimeLimitTests {
+    @Test("一次性的 POSIX 主機指令都帶時限;長時間串流(bridge、Pane 終端機)不帶")
+    func oneShotPosixCommandsCarryTimeLimit() throws {
+        let uploadName = try #require(UploadFileName("a-1.jpg"))
+        let oneShot = [
+            TranscriptCommand.locate(sessionID: "s", projectFolder: "p"),
+            TranscriptCommand.window(path: "/t.jsonl", end: 10, lines: 5),
+            ClaudeSlashCommand.discover(cwd: "/w", transcriptPath: nil),
+            HostFileScript.command(HostFileScript.read, arguments: ["a"]),
+            HostFolderCommand.list(nil),
+            HostFolderCommand.upload(folder: "/f", name: "n", size: 3),
+            NewChatFolders.command(for: "~"),
+            ImageUploadCommand.posix(name: uploadName, size: 3),
+        ]
+        for command in oneShot {
+            #expect(command.contains(HostScriptTimeLimit.posixMarker), "\(command.prefix(120))")
+        }
+        let streams = [HerdrCommand.bridge(), HerdrCommand.terminalSessionControl(target: "p", columns: 80, rows: 24)]
+        for command in streams {
+            #expect(!command.contains(HostScriptTimeLimit.posixMarker))
+        }
+    }
+
     #if os(macOS)
     @Test("卡住的 POSIX 腳本在時限內以 exit 124 結束，背景程序、子 shell 與讀 stdin 的程序都不留下")
     func stuckPosixScriptEndsWithinLimit() async throws {

@@ -12,6 +12,18 @@ enum HostScriptTimeLimit {
     static let uploadBytesPerSecond = 16_000
     /// 逾時的 exit code(同 GNU `timeout`)。
     static let exitCode = 124
+    /// 帶時限的 POSIX 腳本都有這個函式名稱(守門測試用)。
+    static let posixMarker = "purrdr_limit"
+
+    /// 唯讀腳本：固定 `readSeconds`。
+    static func posixRead(_ script: String) -> String {
+        posix(script, seconds: String(readSeconds))
+    }
+
+    /// 上傳腳本：時限隨傳輸大小加長。`transferSizeParameter` 是傳輸大小在第幾個位置參數。
+    static func posixUpload(_ script: String, transferSizeParameter: Int) -> String {
+        posix(script, seconds: "$((\(readSeconds) + $\(transferSizeParameter) / \(uploadBytesPerSecond)))")
+    }
 
     /// 在 POSIX 腳本開頭加上時限。`seconds` 是 shell 算式(可用腳本的位置參數)。
     ///
