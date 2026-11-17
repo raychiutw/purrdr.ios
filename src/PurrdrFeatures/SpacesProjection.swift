@@ -235,7 +235,7 @@ extension AgentListProjection {
     /// - 沒有項目的主機組不出現(例如搜尋沒命中)。
     /// - Parameters:
     ///   - visible: 目前開著的聊天(不算未讀)。
-    ///   - expansion: 使用者手動展開(`true`)或收合的群組(以群組 id),覆蓋預設規則。
+    ///   - expansion: 使用者展開(`true`)或收合的群組(以群組 id),覆蓋預設規則;搜尋時是這次搜尋的切換。
     static func spacesSections(
         sources: [Source], query: String, visible: Set<ChatRoute> = [], expansion: [String: Bool] = [:]
     ) -> [SpacesSection] {
@@ -373,8 +373,9 @@ extension AgentListProjection {
         var group = WorkspaceGroup(
             host: source.host, workspaceID: workspaceID, label: label, agentCount: agentRows.count, terminalCount: shells.count,
             counts: counts, bar: statusBar(agentRows.map(\.status)), rows: rows)
-        // 搜尋時命中的一律展開;否則手動狀態 > 預設(有需要你或工作中才展開)。
-        group.isExpanded = !context.needle.isEmpty || (context.expansion[group.id] ?? (counts.needsYou > 0 || counts.working > 0))
+        // 搜尋時命中的預設展開;否則預設只展開有需要你或工作中的。使用者的切換優先。
+        let expandedByDefault = !context.needle.isEmpty || counts.needsYou > 0 || counts.working > 0
+        group.isExpanded = context.expansion[group.id] ?? expandedByDefault
         return group
     }
 
