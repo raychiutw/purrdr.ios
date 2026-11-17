@@ -76,10 +76,9 @@ public struct ComposerImages: Sendable {
 /// 送出前在手機上處理圖片：長邊縮到 ≤ 2048px、重新編碼成 JPEG(行為規格 F7)。
 /// 超過目標大小時先依序降品質，仍超過再縮小長邊，到下限為止(#78)。
 public enum ImagePreparation {
-    public static let maximumPixelSize = 2048
     /// 目標大小(bytes)。
     public static let targetSize = 500 * 1024
-    /// 依序嘗試的長邊;最後一個是下限。
+    /// 依序嘗試的長邊：第一個是上限，最後一個是下限。
     public static let pixelSizeSteps = [2048, 1792, 1536, 1280]
     /// 每個長邊依序嘗試的 JPEG 品質;最後一個是下限(截圖文字仍可讀)。
     public static let qualitySteps = [0.8, 0.7, 0.6, 0.5, 0.4]
@@ -97,13 +96,8 @@ public enum ImagePreparation {
     public static func prepare(_ data: Data) -> Prepared? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0 else { return nil }
         var lowestAttempt: Prepared?
-        var previousLongSide: Int?
         for pixelSize in pixelSizeSteps {
             guard let image = thumbnail(of: source, maximumPixelSize: pixelSize) else { return nil }
-            let longSide = max(image.width, image.height)
-            // 原圖比這一步還小：縮不下去了。
-            if longSide == previousLongSide { break }
-            previousLongSide = longSide
             for quality in qualitySteps {
                 guard let jpeg = encode(image, quality: quality) else { return nil }
                 let prepared = Prepared(jpeg: jpeg, width: image.width, height: image.height, quality: quality)
