@@ -163,27 +163,37 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(text.value as? String, "Go ahead", "被拒時草稿應放回輸入框")
     }
 
-    /// 對話載入中(#114):輸入列貼在畫面底部(與載入完成後同一個位置),轉圈仍在畫面中央。
+    /// 對話載入中(#114):輸入列與載入完成後在同一個位置(畫面底部),轉圈仍在輸入列上方的中段。
     @MainActor
     func testComposerStaysAtBottomWhileConversationLoads() {
+        // 基準：同一台模擬器上載入完成後的輸入框位置(不寫死機型幾何)。
+        let loaded = openLedger()
+        XCTAssertTrue(element("conversation.user", in: loaded).waitForExistence(timeout: 10), "對話沒有載入完成")
+        let loadedText = element("composer.text", in: loaded)
+        XCTAssertTrue(loadedText.waitForExistence(timeout: 5), "載入完成後沒有輸入列")
+        let expected = loadedText.frame
+        loaded.terminate()
+
+        // 對話紀錄的讀取有 20 秒期限(HostCommandDeadline.standard),期限到了就離開載入中：下面的等待合計在期限內，
+        // 量完再確認仍在載入中，量到的才是載入中的位置。
         let app = open(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
-        let loading = app.activityIndicators.firstMatch
+        let loading = element("conversation.loading", in: app)
         XCTAssertTrue(loading.waitForExistence(timeout: 10), "沒有停在載入中")
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 5), "載入中沒有輸入列")
-
+        let actual = text.frame
+        let spinner = loading.frame
         let screen = app.windows.firstMatch.frame
+        XCTAssertTrue(loading.exists, "量測時已離開載入中(超過對話紀錄的讀取期限)")
+
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-loading"
         shot.lifetime = .keepAlways
         add(shot)
 
-        // 輸入框底緣到畫面底緣：home indicator 的 safe area(34)加輸入列的邊距，不會超過 100 pt。
-        let gap = screen.maxY - text.frame.maxY
-        XCTAssertLessThan(gap, 100, "輸入列沒有貼在畫面底部(輸入框底緣離畫面底緣 \(gap) pt)")
-        // 轉圈仍在輸入列上方的中段。
-        XCTAssertLessThan(loading.frame.maxY, text.frame.minY, "轉圈不在輸入列上方")
-        XCTAssertGreaterThan(loading.frame.midY, screen.height * 0.3, "轉圈沒有置中")
-        XCTAssertLessThan(loading.frame.midY, screen.height * 0.7, "轉圈沒有置中")
+        XCTAssertEqual(actual.maxY, expected.maxY, accuracy: 1, "載入中的輸入列不在載入完成後的位置(底緣 \(actual.maxY),應為 \(expected.maxY))")
+        XCTAssertLessThan(spinner.maxY, actual.minY, "轉圈不在輸入列上方")
+        XCTAssertGreaterThan(spinner.midY, screen.height * 0.3, "轉圈沒有置中")
+        XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 }
