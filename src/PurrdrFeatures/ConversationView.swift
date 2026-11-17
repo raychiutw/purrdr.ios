@@ -222,7 +222,9 @@ public struct ConversationView: View {
     private var placeholder: some View {
         switch model.phase {
         case .loading:
+            // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著轉圈置中(#114)。
             ProgressView("Loading conversation…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .waitingForSession:
             ContentUnavailableView {
                 Label("Waiting for the Session", systemImage: "hourglass")

@@ -20,6 +20,8 @@ public actor DemoHost: HostChannel {
         case paneInUse
         /// Tailscale SSH check mode:第一個指令先要求重新驗證(經 `tailscaleCheck` 回報)。
         case tailscaleCheck(completesAfter: Duration?)
+        /// 對話紀錄一直讀不完(指令不回應，直到關閉):停在對話載入中(#114)。
+        case transcriptPending
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -74,6 +76,7 @@ public actor DemoHost: HostChannel {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
+            if scenario == .transcriptPending { return DemoPendingSession() }
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         if let path = HostFolderCommand.parseList(command) {
@@ -665,6 +668,20 @@ private struct DemoFinishedSession: ExecSession {
     func write(_ data: Data) async throws {}
     func closeStdin() async {}
     func close() async {}
+}
+
+/// 一直不回應、直到關閉才結束的指令。
+private struct DemoPendingSession: ExecSession {
+    let output: AsyncThrowingStream<ExecOutput, any Error>
+    private let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
+
+    init() {
+        (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
+    }
+
+    func write(_ data: Data) async throws {}
+    func closeStdin() async {}
+    func close() async { continuation.finish() }
 }
 
 /// 回顯輸入的 shell。

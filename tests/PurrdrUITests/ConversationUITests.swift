@@ -12,8 +12,8 @@ final class ConversationUITests: XCTestCase {
     }
 
     @MainActor
-    private func open(paneID: String) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting()
+    private func open(paneID: String, flags: [String] = []) -> XCUIApplication {
+        let app = XCUIApplication.launchUITesting(flags: flags)
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
@@ -161,5 +161,29 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(element("composer.notice", in: app).waitForExistence(timeout: 10), "沒有提示先回答")
         XCTAssertEqual(text.value as? String, "Go ahead", "被拒時草稿應放回輸入框")
+    }
+
+    /// 對話載入中(#114):輸入列貼在畫面底部(與載入完成後同一個位置),轉圈仍在畫面中央。
+    @MainActor
+    func testComposerStaysAtBottomWhileConversationLoads() {
+        let app = open(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
+        let loading = app.activityIndicators.firstMatch
+        XCTAssertTrue(loading.waitForExistence(timeout: 10), "沒有停在載入中")
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 5), "載入中沒有輸入列")
+
+        let screen = app.windows.firstMatch.frame
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-loading"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        // 輸入框底緣到畫面底緣：home indicator 的 safe area(34)加輸入列的邊距，不會超過 100 pt。
+        let gap = screen.maxY - text.frame.maxY
+        XCTAssertLessThan(gap, 100, "輸入列沒有貼在畫面底部(輸入框底緣離畫面底緣 \(gap) pt)")
+        // 轉圈仍在輸入列上方的中段。
+        XCTAssertLessThan(loading.frame.maxY, text.frame.minY, "轉圈不在輸入列上方")
+        XCTAssertGreaterThan(loading.frame.midY, screen.height * 0.3, "轉圈沒有置中")
+        XCTAssertLessThan(loading.frame.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 }
