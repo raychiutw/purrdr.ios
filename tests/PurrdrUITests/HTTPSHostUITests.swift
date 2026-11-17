@@ -21,9 +21,9 @@ final class HTTPSHostUITests: XCTestCase {
         let test = app.buttons["hostEditor.test"]
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         test.tap()
-        let result = app.descendants(matching: .any)["hostEditor.result"]
-        XCTAssertTrue(result.waitForExistence(timeout: 10) || scrollTo(result, in: app))
-        XCTAssertTrue(result.label.contains("Connected"), "沒有連上:\(result.label)")
+        // 結果列(Label)裡有兩行文字，各自帶 identifier:以文字找第一行。
+        let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch
+        XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
         let save = app.buttons["hostEditor.save"]
         XCTAssertTrue(save.isEnabled)
         save.tap()
@@ -49,9 +49,8 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         test.tap()
 
-        let result = app.descendants(matching: .any)["hostEditor.result"]
-        XCTAssertTrue(result.waitForExistence(timeout: 10) || scrollTo(result, in: app))
-        XCTAssertTrue(result.label.contains("expired"), "沒有說明配對碼過期:\(result.label)")
+        let expired = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "pairing code expired")).firstMatch
+        XCTAssertTrue(expired.waitForExistence(timeout: 10) || scrollTo(expired, in: app), "沒有說明配對碼過期")
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled)
     }
 
