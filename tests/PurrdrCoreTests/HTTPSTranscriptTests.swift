@@ -180,6 +180,28 @@ struct HTTPSTranscriptTests {
         #expect(service.messages(ofType: "transcript.unfollow").first?["stream_id"] as? String == streamID)
     }
 
+    @Test("同一個對話紀錄同時開了兩個追蹤：只留一個，另一個請主機停止")
+    func concurrentFollowsKeepOne() async throws {
+        let service = try await Self.start([
+            "transcript.follow": #"{"type":"transcript.follow.result","size":100,"start":100,"records":[]}"#,
+            "transcript.unfollow": #"{"type":"transcript.unfollow.result"}"#,
+        ])
+        defer { Task { await service.stop() } }
+        let reader = Self.reader(for: service).0
+
+        async let first = reader.tail(path: Self.path, from: 100)
+        async let second = reader.tail(path: Self.path, from: 100)
+        _ = try await (first, second)
+        let stopped = try await Self.eventually { !service.messages(ofType: "transcript.unfollow").isEmpty }
+
+        let follows = service.messages(ofType: "transcript.follow").compactMap { $0["stream_id"] as? String }
+        let unfollows = service.messages(ofType: "transcript.unfollow").compactMap { $0["stream_id"] as? String }
+        #expect(follows.count == 2)
+        #expect(stopped)
+        #expect(unfollows.count == 1)
+        #expect(unfollows.allSatisfy(follows.contains))
+    }
+
     @Test(
         "主機服務回報的失敗對應到與 SSH 相同的對話紀錄錯誤種類",
         arguments: [

@@ -90,7 +90,10 @@ extension HTTPSHostConnection {
         guard let ended = follow.ended else {
             var kept = follow
             kept.discard(before: cursor)
-            transcriptFollows[path] = kept
+            // 同一個路徑同時被兩個讀取開了追蹤：只留最新的，另一個請主機停止。
+            if let replaced = transcriptFollows.updateValue(kept, forKey: path), replaced.streamID != kept.streamID {
+                await stopFollowing(replaced)
+            }
             return output
         }
         await follow.session.closeStream(follow.streamID)
