@@ -124,6 +124,11 @@ public final class ConversationModel {
     /// 輸入框的文字。改動即存進 `DraftStore`(離開聊天保留)。
     public var draft = "" {
         didSet {
+            // 自訂回答的文字不是草稿，也不開 slash 選單(#120)。
+            guard typedAnswer == nil else {
+                slash.update(draft: "")
+                return
+            }
             drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
             slash.update(draft: draft)
         }
@@ -594,12 +599,15 @@ public final class ConversationModel {
 
     /// 可送 = 修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     public var canSend: Bool {
-        !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
+        if typedAnswer != nil {
+            return answerInFlight == nil && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasTarget
+        }
+        return !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
     }
 
     /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
     public var isShellMode: Bool {
-        guard let kind = currentAgent?.kind else { return false }
+        guard typedAnswer == nil, let kind = currentAgent?.kind else { return false }
         return PromptDelivery.isShellCommand(draft, kind: kind)
     }
 
@@ -617,6 +625,10 @@ public final class ConversationModel {
     /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
     public func send() async {
         guard canSend else { return }
+        if let typedAnswer {
+            await sendTypedAnswer(typedAnswer)
+            return
+        }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         isSending = true
         updateWorkingSince()
@@ -709,12 +721,13 @@ public final class ConversationModel {
 
     /// 這個回答現在能不能送:沒有回答在途、提示還在，且有按鍵可送(編號 10 以上不行,R-Q04)。
     public func canAnswer(_ answer: PromptAnswer) -> Bool {
-        guard answerInFlight == nil, let prompt, keys(for: answer) != nil else { return false }
+        guard answerInFlight == nil, let prompt, inputs(for: answer) != nil else { return false }
         switch answer {
         case .option(let option): return prompt.options.contains(option)
         case .continueMultiSelect: return prompt.isMultiSelect
         case .closePicker: return prompt.kind == .filePicker
         case .generic: return prompt.kind == .unrecognized
+        case .typed(let option, _): return prompt.typedAnswerOption(agentKind: currentAgent?.kind ?? "") == option
         }
     }
 
@@ -723,7 +736,7 @@ public final class ConversationModel {
     /// 送出前就鎖住所有選項(兩次快速點擊在重繪前就會到);之後每次輪詢判定：提示不見了或換成別的 → 已送達;
     /// 同一個提示超過期限 → 逾時、解鎖並提示可能沒送到;按鍵送不出去 → 立刻解鎖並顯示錯誤(R-Q05)。
     public func answer(_ answer: PromptAnswer) async {
-        guard canAnswer(answer), let prompt, let keys = keys(for: answer) else { return }
+        guard canAnswer(answer), let prompt, let inputs = inputs(for: answer) else { return }
         answerInFlight = answer
         answerSignature = prompt.signature
         answerQuestion = prompt.question
@@ -731,7 +744,12 @@ public final class ConversationModel {
         answerNotice = nil
         haptics.play(.selection)
         do {
-            try await client.sendKeys(paneID: paneID, keys: keys)
+            for input in inputs {
+                switch input {
+                case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys)
+                case .text(let text): try await client.sendText(paneID: paneID, text: text)
+                }
+            }
         } catch {
             guard answerInFlight == answer else { return }
             clearAnswer()
@@ -754,8 +772,54 @@ public final class ConversationModel {
 
     public func dismissAnswerNotice() { answerNotice = nil }
 
-    private func keys(for answer: PromptAnswer) -> [String]? {
-        AnswerKeys.keys(for: answer, agentKind: currentAgent?.kind ?? "")
+    // MARK: 自訂回答(Type something,#120)
+
+    /// 正在用輸入框打自訂答案的「Type something.」選項;`nil` = 一般輸入。
+    public private(set) var typedAnswer: PromptOption?
+    /// 進入自訂回答前的草稿(結束後放回)。
+    private var draftBeforeTypedAnswer = ""
+
+    /// 這個選項是不是要用輸入框打字回答的「Type something.」。
+    public func isTypedAnswerOption(_ option: PromptOption) -> Bool {
+        prompt?.typedAnswerOption(agentKind: currentAgent?.kind ?? "") == option
+    }
+
+    /// 點「Type something.」:不送任何按鍵(Claude 收到數字只會把那一列變成文字輸入),改由輸入框打字;
+    /// 原本的草稿先收起來，結束時放回。
+    public func beginTypedAnswer(_ option: PromptOption) {
+        guard answerInFlight == nil, isTypedAnswerOption(option), typedAnswer == nil else { return }
+        typedAnswer = option
+        draftBeforeTypedAnswer = draft
+        draft = ""
+    }
+
+    /// 取消自訂回答，回到一般輸入(什麼都沒送過，不必還原 pane)。
+    public func cancelTypedAnswer() {
+        guard typedAnswer != nil else { return }
+        endTypedAnswer()
+    }
+
+    private func endTypedAnswer() {
+        typedAnswer = nil
+        draft = draftBeforeTypedAnswer
+        draftBeforeTypedAnswer = ""
+    }
+
+    /// 送出自訂回答：數字 → 文字 → enter(`AnswerKeys.inputs`)。送不出去就回到自訂回答、保留打的字。
+    private func sendTypedAnswer(_ option: PromptOption) async {
+        let text = draft
+        let answer = PromptAnswer.typed(option, text: text)
+        guard canAnswer(answer) else { return }
+        endTypedAnswer()
+        await self.answer(answer)
+        if answerNotice == .sendFailed, isTypedAnswerOption(option) {
+            beginTypedAnswer(option)
+            draft = text
+        }
+    }
+
+    private func inputs(for answer: PromptAnswer) -> [AnswerInput]? {
+        AnswerKeys.inputs(for: answer, agentKind: currentAgent?.kind ?? "")
     }
 
     /// 回答期限:max(12 秒, 3 × 輪詢間隔)(blocked 時每 2 秒輪詢;慢輪詢下好答案曾被判逾時,R-Q05)。
@@ -807,6 +871,8 @@ public final class ConversationModel {
             }
         }
         if next?.signature != prompt?.signature || (next == nil) != (prompt == nil) { prompt = next }
+        // 提示換了或不見了(例如在終端機回答掉):自訂回答跟著結束。
+        if let typedAnswer, !isTypedAnswerOption(typedAnswer) { endTypedAnswer() }
     }
 
     private func checkAnswerDeadline() {
@@ -833,6 +899,7 @@ public final class ConversationModel {
         case .generic(.one): "1"
         case .generic(.two): "2"
         case .generic(.escape): String(localized: "Esc")
+        case .typed(_, let text): text
         }
     }
 
