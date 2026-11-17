@@ -4,6 +4,7 @@ import NIOHTTP1
 import NIOPosix
 import NIOWebSocket
 import PurrdrCore
+import PurrdrTestSupport
 import Synchronization
 
 /// 假的主機服務：本機 127.0.0.1 隨機埠上的 HTTP + WebSocket 伺服器，照協定(`protocol/host-service.schema.json`)回應。
@@ -20,6 +21,15 @@ final class FakeHostService: Sendable {
         case error(code: String, message: String = "failed", herdrCode: String? = nil)
         /// 一直不回應。
         case silent
+    }
+
+    /// `pane.terminal.open` 的回應方式(仿照主機服務轉接 `herdr terminal session control`)。
+    enum PaneTerminalReply: Sendable {
+        /// 回放 `session-control/<錄製檔>` 的 stdout:frame 依序轉成 `pane.terminal.frame`;
+        /// 錄製檔最後是 `detached` 時等 app 送 `pane.terminal.close` 才結束，沒有 `terminal.closed` 時以 disconnected 結束。
+        case replay(String)
+        /// herdr 沒跑起來。
+        case failed(exitCode: Int, message: String)
     }
 
     struct Log: Sendable {
@@ -41,6 +51,7 @@ final class FakeHostService: Sendable {
         var readOnlyTokens: Set<String> = []
         var supportedProtocolVersions: [Int] = [HostServiceProtocol.version]
         var agentsReply: AgentsReply = .example
+        var paneTerminalReply: PaneTerminalReply = .replay("01-handshake-echo-release.stdout.ndjson")
         /// 這個配對碼換得 `pairedToken`。
         var pairingCode = "K7QM-2XPA"
         var expiredPairingCode = "OLD0-CODE"
@@ -50,9 +61,17 @@ final class FakeHostService: Sendable {
     let port: Int
     private let channel: any Channel
     private let state: Mutex<(log: Log, settings: Settings, sockets: [any Channel])>
+    /// 等 app 關閉才送出的 `terminal.closed`(以串流識別碼為 key)。
+    private let pendingTerminalClosings = Mutex<[String: String]>([:])
 
     var address: HostServiceAddress { HostServiceAddress("http://127.0.0.1:\(port)")! }
     var log: Log { state.withLock { $0.log } }
+
+    /// 收到的訊息中 `type` 是 `type` 的(JSON)。
+    func messages(ofType type: String) -> [NSDictionary] {
+        log.messages.compactMap { (try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? NSDictionary }
+            .filter { $0["type"] as? String == type }
+    }
 
     private init(port: Int, channel: any Channel, settings: Settings) {
         self.port = port
@@ -162,9 +181,66 @@ final class FakeHostService: Sendable {
                 return [.text(Self.error(requestID, "read_only_device"))]
             }
             return [.text(Self.json(["type": "pane.send_keys.result", "request_id": requestID as Any]))]
+        case "pane.terminal.open":
+            let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) == true
+            return openTerminal(streamID: requestID ?? "", readOnly: readOnly, reply: settings.paneTerminalReply)
+        case "pane.terminal.input", "pane.terminal.resize", "pane.terminal.scroll":
+            if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+                return [.text(Self.error(nil, "read_only_device"))]
+            }
+            return []
+        case "pane.terminal.close":
+            let streamID = message["stream_id"] as? String ?? ""
+            guard let reason = pendingTerminalClosings.withLock({ $0.removeValue(forKey: streamID) }) else { return [] }
+            return [.text(Self.terminalClosed(streamID, ending: "closed", reason: reason))]
         default:
             return [.text(Self.error(requestID, "invalid_message"))]
         }
+    }
+
+    /// 主機服務對錄製的 herdr stdout 做的轉接:frame 欄位原樣、加上串流識別碼。
+    private func openTerminal(streamID: String, readOnly: Bool, reply: PaneTerminalReply) -> [Outgoing] {
+        var outgoing: [Outgoing] = [.text(Self.json([
+            "type": "pane.terminal.open.result", "request_id": streamID, "stream_id": streamID, "read_only": readOnly,
+        ]))]
+        switch reply {
+        case .failed(let exitCode, let message):
+            outgoing.append(.text(Self.json([
+                "type": "pane.terminal.closed", "stream_id": streamID, "ending": "failed", "exit_code": exitCode, "message": message,
+            ])))
+        case .replay(let fixture):
+            var closedReason: String?
+            for line in Fixtures.sessionControlLines(fixture) {
+                guard let herdr = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] else { continue }
+                switch herdr["type"] as? String {
+                case "terminal.frame":
+                    var frame = herdr
+                    frame["type"] = "pane.terminal.frame"
+                    frame["stream_id"] = streamID
+                    frame["encoding"] = nil
+                    outgoing.append(.text(Self.json(frame)))
+                case "terminal.closed":
+                    closedReason = herdr["reason"] as? String ?? ""
+                default:
+                    continue
+                }
+            }
+            switch closedReason {
+            case "detached":
+                pendingTerminalClosings.withLock { $0[streamID] = "detached" }
+            case let reason?:
+                outgoing.append(.text(Self.terminalClosed(streamID, ending: "closed", reason: reason)))
+            case nil:
+                outgoing.append(.text(Self.terminalClosed(streamID, ending: "disconnected")))
+            }
+        }
+        return outgoing
+    }
+
+    private static func terminalClosed(_ streamID: String, ending: String, reason: String? = nil) -> String {
+        var object: [String: Any] = ["type": "pane.terminal.closed", "stream_id": streamID, "ending": ending]
+        object["reason"] = reason
+        return json(object)
     }
 
     fileprivate func pair(_ body: Data) -> (HTTPResponseStatus, String) {

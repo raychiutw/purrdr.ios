@@ -123,6 +123,31 @@ struct PaneTerminalModelTests {
         #expect(screen.lines[1] == "hello-world")
     }
 
+    @Test("唯讀裝置(HTTPS 以 observe 接上):畫面照常更新，但按鍵、貼上、捲動、resize 都不送，並說明只能看")
+    func readOnlyDeviceCanOnlyWatch() async {
+        let connection = FakeHostConnection()
+        await connection.expectPaneTerminal(replaying: "01-handshake-echo-release.stdout.ndjson", readOnly: true)
+        let model = PaneTerminalModel(client: PaneTerminalClient(connection: connection), paneID: "w1:p1", title: "Tidy up the CSV export",
+                                      resizeDebounce: .zero, sleep: { _ in })
+        let screen = Screen()
+        model.attach { screen.feed($0) }
+
+        model.viewDidResize(columns: 40, rows: 12)
+        await Self.eventually { screen.lines.contains("hello-world") }
+        model.type(Data("x".utf8))
+        model.press(.escape)
+        model.paste("echo hi")
+        model.scroll(.up, rows: 2, column: 0, row: 0)
+        model.viewDidResize(columns: 60, rows: 15)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(model.status == .connected)
+        #expect(!model.isInteractive)
+        #expect(model.bannerText == "This device is paired read-only. You can watch this pane but not type.")
+        #expect(await connection.paneTerminalInputs.isEmpty)
+        #expect(await connection.paneTerminalOpenings == [.init(target: "w1:p1", columns: 40, rows: 12, takeover: false)])
+    }
+
     @Test("中文、emoji 寬字元與組合字元畫在正確的格子")
     func rendersWideCharacters() async {
         let host = FakeHost()
