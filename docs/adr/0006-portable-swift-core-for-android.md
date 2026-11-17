@@ -12,3 +12,5 @@
 - 最低 Android API 以 28 規劃。
 
 後來加入 HTTPS 連線方式(ADR-0010):核心另需 WSS 的 TLS 相依(例如 swift-nio-ssl),以及由 JSON Schema 產生的協定型別;同樣要在 Android 交叉編譯驗證。
+
+實作時(#57)WSS 改用 Foundation 的 `URLSessionWebSocketTask`(非 Apple 平台經 FoundationNetworking／libcurl),放在可攜的 `PurrdrHTTPS`,傳輸以 protocol 注入：不需要 swift-nio-ssl,也不帶入第三方加密(出口合規維持只用系統加密)。Android 在執行期的 WebSocket 與 CA 憑證路徑還沒實測，只驗證到編得過。
