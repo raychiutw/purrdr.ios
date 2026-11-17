@@ -191,10 +191,103 @@ struct HTTPSHostConnectionTests {
         let service = try await FakeHostService.start()
         defer { Task { await service.stop() } }
 
-        await #expect(throws: HostServiceError.unsupported("agent.prompt")) {
-            _ = try await HerdrClient(connection: Self.connection(to: service)).prompt(target: "w1:p6", text: "hi", wait: nil)
+        await #expect(throws: HostServiceError.unsupported("agent.wait")) {
+            _ = try await HerdrClient(connection: Self.connection(to: service)).waitForAgent(target: "w1:p6", until: [.working], timeout: .seconds(1))
         }
-        #expect(!service.log.messages.contains { $0.contains("prompt") })
+        #expect(!service.log.messages.contains { $0.contains("wait") })
+    }
+
+    // MARK: - 送 prompt、文字與按鍵(#60)
+
+    private static func lastMessage(_ service: FakeHostService) throws -> [String: Any] {
+        try #require(service.log.messages.last.flatMap { try JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
+    }
+
+    @Test("prompt 送到主機服務的 agent.prompt,帶 pane、文字與等待")
+    func promptGoesToAgentPrompt() async throws {
+        let service = try await FakeHostService.start()
+        defer { Task { await service.stop() } }
+
+        let reply = try await HerdrClient(connection: Self.connection(to: service)).prompt(target: "w1:p6", text: "再跑一次測試", wait: .seconds(8))
+
+        let sent = try Self.lastMessage(service)
+        #expect(sent["type"] as? String == "agent.prompt")
+        #expect(sent["pane_id"] as? String == "w1:p6")
+        #expect(sent["text"] as? String == "再跑一次測試")
+        let wait = try #require(sent["wait"] as? [String: Any])
+        #expect(wait["until"] as? [String] == ["working", "blocked"])
+        #expect(wait["timeout_ms"] as? Int == 8000)
+        #expect(reply == PromptReply(writtenOnly: false))
+    }
+
+    @Test("slash 指令的 prompt 不帶等待")
+    func promptWithoutWait() async throws {
+        let service = try await FakeHostService.start()
+        defer { Task { await service.stop() } }
+
+        _ = try await HerdrClient(connection: Self.connection(to: service)).prompt(target: "w1:p6", text: "/compact", wait: nil)
+
+        #expect(try Self.lastMessage(service)["wait"] == nil)
+    }
+
+    @Test("主機只回報寫進終端機時，prompt 結果與 SSH 路線一樣是 writtenOnly")
+    func promptWrittenOnly() async throws {
+        let service = try await FakeHostService.start(.init(promptDelivery: "written_to_pty"))
+        defer { Task { await service.stop() } }
+
+        let reply = try await HerdrClient(connection: Self.connection(to: service)).prompt(target: "w1:p6", text: "hi", wait: .seconds(8))
+
+        #expect(reply == PromptReply(writtenOnly: true))
+    }
+
+    @Test("agent 在等回答：herdr 的 agent_blocked 原樣回報，送出結果是 needsAnswer")
+    func promptToBlockedAgent() async throws {
+        let service = try await FakeHostService.start(.init(promptHerdrError: "agent_blocked"))
+        defer { Task { await service.stop() } }
+        let agent = Agent(paneID: "w1:p6", workspaceID: "w1", kind: "claude", status: .blocked)
+
+        let outcome = await PromptDelivery(client: HerdrClient(connection: Self.connection(to: service))).send("hi", to: agent)
+
+        #expect(outcome == .needsAnswer)
+    }
+
+    @Test("文字送到主機服務的 pane.send_text")
+    func sendTextGoesToPaneSendText() async throws {
+        let service = try await FakeHostService.start()
+        defer { Task { await service.stop() } }
+        let request = Data(#"{"id":"purrdr:pane.send_text","method":"pane.send_text","params":{"pane_id":"w1:p6","text":"yes"}}"#.utf8)
+
+        let reply = try await Self.connection(to: service).herdrRequest(request, deadline: .seconds(20))
+
+        let sent = try Self.lastMessage(service)
+        #expect(sent["type"] as? String == "pane.send_text")
+        #expect(sent["pane_id"] as? String == "w1:p6")
+        #expect(sent["text"] as? String == "yes")
+        let envelope = try #require(try JSONSerialization.jsonObject(with: reply) as? [String: Any])
+        #expect(envelope["id"] as? String == "purrdr:pane.send_text")
+        #expect((envelope["result"] as? [String: Any])?["type"] as? String == "ok")
+    }
+
+    @Test("唯讀裝置：連線回報唯讀;送 prompt 什麼都沒送出，結果是 readOnlyDevice")
+    func readOnlyDevicePrompt() async throws {
+        let service = try await FakeHostService.start(.init(readOnlyTokens: ["token-ok"]))
+        defer { Task { await service.stop() } }
+        let client = HerdrClient(connection: Self.connection(to: service))
+        let agent = Agent(paneID: "w1:p6", workspaceID: "w1", kind: "claude", status: .idle)
+
+        let readOnly = try await client.isReadOnlyDevice()
+        let outcome = await PromptDelivery(client: client).send("hi", to: agent)
+
+        #expect(readOnly)
+        #expect(outcome == .readOnlyDevice)
+    }
+
+    @Test("可寫入的裝置：連線回報不是唯讀")
+    func writableDevice() async throws {
+        let service = try await FakeHostService.start()
+        defer { Task { await service.stop() } }
+
+        #expect(try await HerdrClient(connection: Self.connection(to: service)).isReadOnlyDevice() == false)
     }
 
     @Test("Agent 事件串流：先回 ack,連線斷了以 connectionLost 結束(上層據此重連對帳)")

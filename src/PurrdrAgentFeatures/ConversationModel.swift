@@ -145,6 +145,8 @@ public final class ConversationModel {
     /// 輸入 `/` 時的 slash 選單(#15)。
     public let slash: SlashMenuModel
     public private(set) var isSending = false
+    /// 這支裝置配對成唯讀(HTTPS):不能送 prompt、回答或中斷。
+    public private(set) var isReadOnly = false
 
     // MARK: 圖片(F7)
 
@@ -889,6 +891,8 @@ public final class ConversationModel {
             nothingSent = .needsAnswer
         case .rejected(let message):
             nothingSent = .rejected(message)
+        case .readOnlyDevice:
+            nothingSent = .readOnlyDevice
         }
         notice = nothingSent
         if isRetry {
@@ -902,7 +906,7 @@ public final class ConversationModel {
     /// 什麼都沒送出的提示(草稿放回)。
     private static func nothingSent(_ notice: SendNotice?) -> Bool {
         switch notice {
-        case .needsAnswer?, .rejected?: true
+        case .needsAnswer?, .rejected?, .readOnlyDevice?: true
         default: false
         }
     }
@@ -1148,4 +1152,6 @@ public enum SendNotice: Sendable, Equatable {
     case panelKeysFailed
     /// agent 在等你回答，所以沒有送出中斷(F6.7)。
     case interruptRefusedNeedsAnswer
+    /// 這支裝置配對成唯讀，什麼都沒送出。
+    case readOnlyDevice
 }

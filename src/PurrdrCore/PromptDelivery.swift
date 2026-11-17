@@ -14,6 +14,8 @@ public enum PromptOutcome: Sendable, Equatable {
     case needsAnswer
     /// herdr 拒絕了請求，什麼都沒送出。訊息是 herdr 原文。
     case rejected(message: String)
+    /// 這支裝置配對成唯讀，主機服務拒絕寫入：什麼都沒送出。
+    case readOnlyDevice
 }
 
 /// 無法確認的原因。
