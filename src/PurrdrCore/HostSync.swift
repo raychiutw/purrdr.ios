@@ -11,18 +11,21 @@ public struct SyncedHost: Sendable, Equatable {
     public var endpoint: SSHEndpoint
     public var connectionMethod: HostConfiguration.ConnectionMethod
     public var hostKeyPin: HostKeyFingerprint?
+    /// HTTPS 主機的主機服務位址(裝置權杖永不同步)。
+    public var hostService: HostServiceAddress?
     /// 修改這台主機的時間(最後修改者勝)。
     public var modifiedAt: Date
 
     public init(
         id: UUID, name: String, endpoint: SSHEndpoint, connectionMethod: HostConfiguration.ConnectionMethod,
-        hostKeyPin: HostKeyFingerprint?, modifiedAt: Date
+        hostKeyPin: HostKeyFingerprint?, hostService: HostServiceAddress? = nil, modifiedAt: Date
     ) {
         self.id = id
         self.name = name
         self.endpoint = endpoint
         self.connectionMethod = connectionMethod
         self.hostKeyPin = hostKeyPin
+        self.hostService = hostService
         self.modifiedAt = modifiedAt
     }
 

@@ -10,16 +10,19 @@ public struct SharedHost: Sendable, Equatable {
     public var connectionMethod: HostConfiguration.ConnectionMethod
     public var herdr: HerdrInstallation
     public var hostKeyPin: HostKeyFingerprint?
+    /// HTTPS 主機的主機服務位址(裝置權杖不分享)。
+    public var hostService: HostServiceAddress?
 
     public init(
         name: String, endpoint: SSHEndpoint, connectionMethod: HostConfiguration.ConnectionMethod = .tailscaleSSH,
-        herdr: HerdrInstallation = HerdrInstallation(), hostKeyPin: HostKeyFingerprint? = nil
+        herdr: HerdrInstallation = HerdrInstallation(), hostKeyPin: HostKeyFingerprint? = nil, hostService: HostServiceAddress? = nil
     ) {
         self.name = name
         self.endpoint = endpoint
         self.connectionMethod = connectionMethod
         self.herdr = herdr
         self.hostKeyPin = hostKeyPin
+        self.hostService = hostService
     }
 
     public init(_ host: HostConfiguration) {

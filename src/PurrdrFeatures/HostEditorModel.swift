@@ -85,6 +85,9 @@ public final class HostEditorModel {
     /// 是否是編輯既有主機。
     public var isEditing: Bool { existing != nil }
 
+    /// HTTPS 主機要輸入配對碼：新主機，或這支裝置還沒有它的裝置權杖。
+    public var needsPairingCode: Bool { false }
+
     private let store: any HostStore
     private let existing: HostConfiguration?
     private let credentials: HostCredentials

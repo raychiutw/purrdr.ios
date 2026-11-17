@@ -13,14 +13,20 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var isSelected: Bool
     /// 使用者替主機選的圖示(只存本機);沒選過是預設圖示。
     public var icon: HostIcon
+    /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
+    public var needsPairing: Bool
 
-    public init(id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default) {
+    public init(
+        id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
+        needsPairing: Bool = false
+    ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.session = session
         self.isSelected = isSelected
         self.icon = icon
+        self.needsPairing = needsPairing
     }
 }
 
