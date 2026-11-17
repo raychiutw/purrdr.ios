@@ -81,8 +81,8 @@ struct ConversationSuggestionTests {
     }
 
     @Test(
-        "工作中、需要你、閒置、非 Claude 的 Agent:不讀含 ANSI 的畫面、不顯示建議",
-        arguments: [("working", "claude"), ("blocked", "claude"), ("idle", "claude"), ("done", "codex")]
+        "工作中、需要你、非 Claude 的 Agent:不讀含 ANSI 的畫面、不顯示建議",
+        arguments: [("working", "claude"), ("blocked", "claude"), ("done", "codex"), ("idle", "codex")]
     )
     func notCompletedClaudeHasNoSuggestion(status: String, kind: String) async throws {
         let setup = try ConversationAnswerTests.setup()
@@ -161,5 +161,131 @@ struct ConversationSuggestionTests {
         await setup.model.poll()
         #expect(await Self.ansiReads(setup) == 2)
         #expect(setup.model.suggestion == nil)
+    }
+
+    // MARK: - code review(#124)
+
+    @Test("閒置(herdr 已把完成標成看過)也是等下一步：讀含 ANSI 的畫面、顯示建議(#121 故事 5)")
+    func idleClaudeShowsSuggestion() async throws {
+        let setup = try ConversationAnswerTests.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.ansiScreen("suggestion"))
+
+        await setup.model.poll()
+
+        #expect(setup.model.suggestion == "add subtract to calc.py")
+        #expect(await Self.ansiReads(setup) == 1)
+    }
+
+    @Test("完成轉閒置不算新的一段：已讀到建議就不重讀，建議保留")
+    func doneToIdleKeepsSuggestion() async throws {
+        let setup = try await Self.withSuggestion()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
+        await Self.trap(setup)
+
+        await setup.model.poll()
+
+        #expect(setup.model.suggestion == "add subtract to calc.py")
+        #expect(await Self.ansiReads(setup) == 1)
+    }
+
+    @Test("讀畫面時從手機送出：舊的讀取回來後不把舊建議寫回，下次輪詢重讀")
+    func sendDuringReadDiscardsStaleSuggestion() async throws {
+        let setup = try ConversationAnswerTests.setup()
+        // 先有一次完整的輪詢(工作中),聊天才可以送出。
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-idle"))
+        await setup.model.poll()
+        // 完成：畫面讀取(第 4 次執行)先不回應，等送出完成後才回。
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(keepsOpen: true))
+        let polling = Task { await setup.model.poll() }
+        #expect(await setup.host.bridge.waitForExecutions(4) == 4)
+
+        setup.model.draft = "hello"
+        await ConversationSlashPanelTests.expectSlashSend(setup)
+        await setup.model.send()
+        #expect(setup.model.draft.isEmpty)
+        await setup.host.bridge.send(stdout: Fixtures.data("pane.read.ansi.suggestion.ndjson"), toExecution: 3)
+        await polling.value
+
+        #expect(setup.model.suggestion == nil)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.ansiScreen("suggestion"))
+        await setup.model.poll()
+        #expect(setup.model.suggestion == "add subtract to calc.py")
+    }
+
+    @Test("Claude 還沒產生建議：同一段完成期間之後的輪詢再讀，讀到就停")
+    func rereadsUntilSuggestionAppears() async throws {
+        let setup = try ConversationAnswerTests.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.ansiScreen("no-suggestion"))
+        await setup.model.poll()
+        #expect(setup.model.suggestion == nil)
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.ansiScreen("suggestion"))
+        await setup.model.poll()
+        #expect(setup.model.suggestion == "add subtract to calc.py")
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await Self.trap(setup)
+        await setup.model.poll()
+        #expect(await Self.ansiReads(setup) == 2)
+        #expect(await setup.host.bridge.unmetExpectations.count == 1)
+    }
+
+    @Test("一直沒有建議：同一段完成期間最多讀 3 次畫面(指令預算 R-F01)")
+    func rereadsAreBounded() async throws {
+        let setup = try ConversationAnswerTests.setup()
+        for _ in 0..<3 {
+            await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+            await setup.host.bridge.expect(Self.bridge, reply: Self.ansiScreen("no-suggestion"))
+            await setup.model.poll()
+        }
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await Self.trap(setup)
+        await setup.model.poll()
+
+        #expect(setup.model.suggestion == nil)
+        #expect(await Self.ansiReads(setup) == 3)
+        #expect(await setup.host.bridge.unmetExpectations.count == 1)
+    }
+
+    @Test("連不上主機：拿掉建議;恢復後重讀")
+    func offlineClearsSuggestion() async throws {
+        let setup = try await Self.withSuggestion()
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(stderr: Data("ssh: connect to host timed out".utf8), exitCode: 255))
+        await setup.model.poll()
+        #expect(setup.model.isOffline)
+        #expect(setup.model.suggestion == nil)
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.ansiScreen("suggestion"))
+        await setup.model.poll()
+        #expect(setup.model.suggestion == "add subtract to calc.py")
+    }
+
+    /// 以錄製的 snapshot 為底，把這個 Pane 的 id 換掉(= Agent 不在了)。
+    @Test("Agent 不在了：拿掉建議")
+    func agentGoneClearsSuggestion() async throws {
+        let setup = try await Self.withSuggestion()
+        await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.snapshot { $0["pane_id"] = "w1:p99" })
+        await setup.model.poll()
+
+        #expect(setup.model.suggestion == nil)
+    }
+
+    @Test("面板剛關掉的這次輪詢：同一次讀畫面就判定面板與建議，建議立刻出現")
+    func suggestionAfterPanelClosesUsesThisPoll() async throws {
+        let setup = try await ConversationSlashPanelTests.panelOpen()
+        #expect(setup.model.panel != nil)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.ansiScreen("suggestion"))
+        await setup.model.poll()
+
+        #expect(setup.model.panel == nil)
+        #expect(setup.model.suggestion == "add subtract to calc.py")
     }
 }

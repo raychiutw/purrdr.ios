@@ -49,9 +49,7 @@ public enum LivePreview {
     /// 去 OSC、CSI 與其他跳脫序列(正規式真的含 ESC 字元,#12);只修剪兩端框線，內部 `│┃` 換成 `|`。
     static func clean(_ raw: String) -> String {
         var line = raw.replacingOccurrences(of: "\r", with: "")
-        line = line.replacingMatches("\u{1B}\\][^\u{07}\u{1B}]*(?:\u{07}|\u{1B}\\\\)", with: "")
-        line = line.replacingMatches("\u{1B}\\[[0-?]*[ -/]*[@-~]", with: "")
-        line = line.replacingMatches("\u{1B}[@-Z\\\\-_]", with: "")
+        line = ANSIText.strip(line)
         line = line.trimmingCharacters(in: borders)
         return line.replacingOccurrences(of: "│", with: "|").replacingOccurrences(of: "┃", with: "|")
     }

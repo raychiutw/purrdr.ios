@@ -293,11 +293,9 @@ public enum ClaudeTranscriptParser {
         return String(text[open.upperBound..<close.lowerBound])
     }
 
-    /// 去掉 ANSI 跳脫序列(CSI 與 OSC)。正規式裡一定要真的含 ESC 字元(R-Q10)。
+    /// 去掉 ANSI 跳脫序列(見 `ANSIText.strip`)。
     static func stripANSI(_ text: String) -> String {
-        text.replacingMatches("\u{1B}\\][^\u{07}\u{1B}]*(\u{07}|\u{1B}\\\\)", with: "")
-            .replacingMatches("\u{1B}\\[[0-9;?]*[ -/]*[@-~]", with: "")
-            .replacingMatches("\u{1B}[@-Z\\\\-_]", with: "")
+        ANSIText.strip(text)
     }
 }
 

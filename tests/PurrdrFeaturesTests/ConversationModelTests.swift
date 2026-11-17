@@ -19,6 +19,9 @@ struct ConversationModelTests {
     /// fixture 轉成的對話項目數(見 `ClaudeTranscriptParserTests.fixtureBecomesConversationItems`)。
     static let fixtureItemCount = 13
 
+    /// 閒置／完成的 Claude Code 在輪詢時讀的含 ANSI 畫面(#123),輸入列沒有建議提示詞(真實錄製)。
+    static let noSuggestionScreen = FakeReply.recorded("pane.read.ansi.no-suggestion.ndjson")
+
     static func snapshot(_ change: ((inout [String: Any]) -> Void)? = nil) -> FakeReply {
         guard let change else { return .recorded("session.snapshot.ndjson") }
         return .recorded("session.snapshot.ndjson") { SnapshotEdit.agent(paneID, in: &$0, change) }
@@ -64,8 +67,11 @@ struct ConversationModelTests {
     @Test("增量讀取：之後的輪詢只讀游標之後新增的行並接在後面")
     func laterPollsAppendNewLines() async throws {
         let setup = try Self.setup()
+        // 這個 Agent 是閒置的 Claude Code:每次輪詢都讀一次含 ANSI 的畫面找建議提示詞(#123),這裡沒有建議。
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.host.bridge.expect(Self.bridge, reply: Self.noSuggestionScreen)
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.host.bridge.expect(Self.bridge, reply: Self.noSuggestionScreen)
         await setup.model.poll()
 
         // 以 fixture 第 6 行(使用者打的字)為底，換一個 uuid 當作新訊息。
@@ -147,9 +153,11 @@ struct ConversationModelTests {
         let otherSession = "00000000-0000-0000-0000-0000000000aa"
         try setup.shell.write(Data((Self.fixtureLines[6] + "\n").utf8), to: ".claude/projects/-Users-demo-Projects-garden-journal/\(otherSession).jsonl")
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.host.bridge.expect(Self.bridge, reply: Self.noSuggestionScreen)
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot {
             $0["agent_session"] = ["source": "herdr:claude", "agent": "claude", "kind": "id", "value": otherSession]
         })
+        await setup.host.bridge.expect(Self.bridge, reply: Self.noSuggestionScreen)
 
         await setup.model.poll()
         await setup.model.poll()
