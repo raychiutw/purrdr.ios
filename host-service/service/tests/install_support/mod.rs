@@ -142,6 +142,8 @@ pub struct FakeSystem {
     /// launchctl／systemctl／reg 是否失敗(例如沒有 systemd user session)。
     pub autostart_fails: bool,
     pub commands: Vec<String>,
+    /// 等行程結束後才刪的資料夾(fake 會立刻刪)。
+    pub deferred_removals: Vec<PathBuf>,
 }
 
 impl FakeSystem {
@@ -157,6 +159,7 @@ impl FakeSystem {
             serve_denied: false,
             autostart_fails: false,
             commands: Vec::new(),
+            deferred_removals: Vec::new(),
         }
     }
 
@@ -354,6 +357,7 @@ impl HostSystem for FakeSystem {
     }
 
     fn remove_directory_after_exit(&mut self, directory: &Path, empty_directories: &[PathBuf]) -> std::io::Result<()> {
+        self.deferred_removals.push(directory.to_path_buf());
         std::fs::remove_dir_all(directory)?;
         for empty in empty_directories {
             let _ = std::fs::remove_dir(empty);

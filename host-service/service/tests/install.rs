@@ -2,12 +2,11 @@
 
 mod install_support;
 
-use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, SYSTEMD_UNIT, TestHost, snapshot};
+use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, RUN_VALUE, SYSTEMD_UNIT, TestHost, snapshot};
 use purrdr_host_service::install::{InstallPlatform, Installer};
 
 const PORT: u16 = 47_820;
-// Windows 在後面的 cycle 加入。
-const PLATFORMS: [InstallPlatform; 2] = [InstallPlatform::MacOs, InstallPlatform::Linux];
+const PLATFORMS: [InstallPlatform; 3] = [InstallPlatform::MacOs, InstallPlatform::Linux, InstallPlatform::Windows];
 
 #[test]
 fn macos_install_starts_launch_agent_and_serves_https_through_tailscale() {
@@ -59,6 +58,37 @@ fn linux_unit_goes_to_xdg_config_home_when_set() {
 
     assert!(host.home.0.join("xdg/systemd/user").join(SYSTEMD_UNIT).is_file());
     assert!(!host.home.0.join(".config").exists());
+}
+
+#[test]
+fn windows_install_registers_windowless_executable_at_logon_and_starts_it() {
+    let host = TestHost::new(InstallPlatform::Windows);
+    let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+
+    installer.install(&host.options(PORT), |_| true).unwrap();
+
+    let background = host.service_directory().join("bin").join("purrdr-host-service-background.exe");
+    let system = installer.system();
+    assert_eq!(system.state.run_values[RUN_VALUE], format!("\"{}\" --port 47820", background.display()));
+    assert_eq!(system.state.background_processes, vec![vec![background.display().to_string(), "--port".into(), "47820".into()]]);
+    assert_eq!(system.state.serve[&format!("{FQDN}:443")]["/"], "http://127.0.0.1:47820");
+    assert!(host.service_directory().join("bin/purrdr-host-service.exe").is_file());
+}
+
+#[test]
+fn windows_uninstall_from_installed_copy_removes_files_after_it_exits() {
+    let host = TestHost::new(InstallPlatform::Windows);
+    let home_before = snapshot(&host.home.0);
+    let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+    installer.install(&host.options(PORT), |_| true).unwrap();
+    let mut environment = host.environment();
+    environment.current_executable = host.service_directory().join("bin/purrdr-host-service.exe");
+    let mut installer = Installer::new(environment, FakeSystem::ready(&host.home.0));
+
+    installer.uninstall().unwrap();
+
+    assert_eq!(installer.system().deferred_removals, vec![host.service_directory()]);
+    assert_eq!(snapshot(&host.home.0), home_before);
 }
 
 /// 安裝前就有的東西：其他 Purrdr 功能的檔案、別的自動啟動項目、其他埠的 `tailscale serve`。

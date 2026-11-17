@@ -1,4 +1,4 @@
-//! 登入後自動啟動:macOS LaunchAgent、Linux systemd user unit。
+//! 登入後自動啟動:macOS LaunchAgent、Linux systemd user unit、Windows HKCU Run 機碼(不需系統管理員)。
 
 use std::path::{Path, PathBuf};
 
@@ -9,6 +9,9 @@ use super::{InstallError, InstallPlatform, ServiceLayout};
 const LAUNCH_AGENT_LABEL: &str = "com.raychiu.purrdr.host-service";
 /// systemd user unit 名稱。
 const SYSTEMD_UNIT: &str = "purrdr-host-service.service";
+/// 目前使用者登入時執行的程式。
+const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+const RUN_VALUE: &str = "PurrdrHostService";
 
 /// 自動啟動的登記檔(macOS plist、Linux unit);沒有檔案的平台回 None。
 pub(super) fn registration_file(layout: &ServiceLayout) -> Option<PathBuf> {
@@ -50,12 +53,24 @@ pub(super) fn register(system: &mut impl HostSystem, layout: &ServiceLayout, ser
             run_checked(system, "systemctl", &arguments(&["--user", "daemon-reload"]))?;
             run_checked(system, "systemctl", &arguments(&["--user", "enable", "--now", SYSTEMD_UNIT]))
         }
-        InstallPlatform::Windows => unimplemented!(),
+        InstallPlatform::Windows => {
+            // console 程式從 Run 機碼啟動會開視窗，所以登記不開視窗的那支。
+            let background = layout.background_executable().display().to_string();
+            let run_command = std::iter::once(format!("\"{background}\""))
+                .chain(service_arguments.iter().map(|argument| windows_quote(argument)))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let add = [RUN_KEY, "/v", RUN_VALUE, "/t", "REG_SZ", "/d", &run_command, "/f"];
+            run_checked(system, "reg", &std::iter::once("add").chain(add).map(str::to_owned).collect::<Vec<_>>())?;
+            system
+                .spawn_detached(&background, service_arguments)
+                .map_err(|error| InstallError::Autostart(format!("cannot start {background}: {error}")))
+        }
     }
 }
 
 /// 停止並取消登記，刪除登記檔;沒有登記時不算失敗。
-pub(super) fn unregister(system: &mut impl HostSystem, layout: &ServiceLayout) -> Result<(), InstallError> {
+pub(super) fn unregister(system: &mut impl HostSystem, layout: &ServiceLayout, user_name: Option<&str>) -> Result<(), InstallError> {
     match layout.platform {
         InstallPlatform::MacOs => {
             let domain = gui_domain(system)?;
@@ -64,7 +79,15 @@ pub(super) fn unregister(system: &mut impl HostSystem, layout: &ServiceLayout) -
         InstallPlatform::Linux => {
             let _ = system.run("systemctl", &arguments(&["--user", "disable", "--now", SYSTEMD_UNIT]));
         }
-        InstallPlatform::Windows => unimplemented!(),
+        InstallPlatform::Windows => {
+            let image = layout.background_executable_name();
+            let mut taskkill = arguments(&["/F", "/IM", image]);
+            if let Some(user_name) = user_name {
+                taskkill.extend(["/FI".to_owned(), format!("USERNAME eq {user_name}")]);
+            }
+            let _ = system.run("taskkill", &taskkill);
+            let _ = system.run("reg", &arguments(&["delete", RUN_KEY, "/v", RUN_VALUE, "/f"]));
+        }
     }
     if let Some(file) = registration_file(layout) {
         remove_file_if_exists(&file)?;
@@ -73,6 +96,15 @@ pub(super) fn unregister(system: &mut impl HostSystem, layout: &ServiceLayout) -
         let _ = system.run("systemctl", &arguments(&["--user", "daemon-reload"]));
     }
     Ok(())
+}
+
+/// Windows 命令列的一個參數：空的或含空白時加雙引號(session 名稱不會含雙引號)。
+fn windows_quote(argument: &str) -> String {
+    if argument.is_empty() || argument.contains(char::is_whitespace) {
+        format!("\"{argument}\"")
+    } else {
+        argument.to_owned()
+    }
 }
 
 fn arguments(texts: &[&str]) -> Vec<String> {

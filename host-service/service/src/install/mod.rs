@@ -114,6 +114,23 @@ impl ServiceLayout {
         self.bin_directory().join(self.executable_name())
     }
 
+    /// Windows 自動啟動用的、不開 console 視窗的執行檔。
+    fn background_executable_name(&self) -> &'static str {
+        "purrdr-host-service-background.exe"
+    }
+
+    fn background_executable(&self) -> PathBuf {
+        self.bin_directory().join(self.background_executable_name())
+    }
+
+    /// 要從下載資料夾複製到 `bin/` 的執行檔。
+    fn executable_names(&self) -> Vec<&'static str> {
+        match self.platform {
+            InstallPlatform::Windows => vec![self.executable_name(), self.background_executable_name()],
+            _ => vec![self.executable_name()],
+        }
+    }
+
     fn log_file(&self) -> PathBuf {
         self.directory().join("logs").join("host-service.log")
     }
@@ -184,7 +201,9 @@ impl<S: HostSystem> Installer<S> {
         for directory in [layout.bin_directory(), layout.log_file().parent().unwrap().to_path_buf()] {
             self.create_directory(&directory, &mut record)?;
         }
-        std::fs::copy(options.source_directory.join(layout.executable_name()), layout.executable()).map_err(InstallError::io)?;
+        for name in layout.executable_names() {
+            std::fs::copy(options.source_directory.join(name), layout.bin_directory().join(name)).map_err(InstallError::io)?;
+        }
         write_json(&layout.config_file(), &ServiceConfig { https_address: &record.https_address })?;
 
         tailscale.serve(&mut self.system, options.port)?;
@@ -213,7 +232,7 @@ impl<S: HostSystem> Installer<S> {
         let record: InstallRecord = serde_json::from_str(&text).map_err(|error| InstallError::Io(format!("{}: {error}", layout.record_file().display())))?;
         let mut warnings = Vec::new();
 
-        autostart::unregister(&mut self.system, &layout)?;
+        autostart::unregister(&mut self.system, &layout, self.environment.user_name.as_deref())?;
         if record.serve_configured {
             let removed = Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.remove_serve(&mut self.system, record.port));
             if let Err(error) = removed {
@@ -233,6 +252,13 @@ impl<S: HostSystem> Installer<S> {
             .map(|relative| self.environment.home.join(relative))
             .filter(|directory| !directory.starts_with(layout.directory()))
             .collect();
+        let running_from_installed_copy = self.environment.current_executable.starts_with(layout.directory());
+        if self.environment.platform == InstallPlatform::Windows && running_from_installed_copy {
+            return self
+                .system
+                .remove_directory_after_exit(&layout.directory(), &created)
+                .map_err(InstallError::io);
+        }
         match std::fs::remove_dir_all(layout.directory()) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(InstallError::io(error)),
             _ => {}
