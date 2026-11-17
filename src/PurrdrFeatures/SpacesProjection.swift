@@ -154,13 +154,15 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
     public var bar: [StatusSegment]
     /// Agent 列依狀態(需要你在前),終端機列在後。
     public var rows: [Row]
+    /// 展開中(列出 `rows`);收合時只有標頭。
+    public var isExpanded: Bool
 
     /// 主機身分 + workspace id(`w1` 在每台主機都有)。
     public var id: String { "\(host.storedValue)/\(workspaceID)" }
 
     public init(
         host: HostSelection, workspaceID: String, label: String, agentCount: Int, terminalCount: Int, counts: SpacesStatusCounts,
-        bar: [StatusSegment] = [], rows: [Row]
+        bar: [StatusSegment] = [], rows: [Row], isExpanded: Bool = false
     ) {
         self.host = host
         self.workspaceID = workspaceID
@@ -170,6 +172,7 @@ public struct WorkspaceGroup: Identifiable, Equatable, Sendable {
         self.counts = counts
         self.bar = bar
         self.rows = rows
+        self.isExpanded = isExpanded
     }
 
     public enum Row: Identifiable, Equatable, Sendable {

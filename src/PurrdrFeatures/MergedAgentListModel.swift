@@ -146,6 +146,9 @@ public final class MergedAgentListModel {
         AgentListProjection.spacesSections(sources: projectionSources, query: query, visible: visibleChats)
     }
 
+    /// 點群組標頭：展開或收合。
+    public func toggleExpanded(_ group: WorkspaceGroup) {}
+
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
     public var hasAgents: Bool { sources.contains { $0.list.hasAgents } }
 
