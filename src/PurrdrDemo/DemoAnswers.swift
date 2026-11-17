@@ -9,6 +9,8 @@ import Foundation
 ///   Enter／`s` 選定游標列、Esc 關閉(#45)。數字不算(真的 Claude 會直接存成預設)。
 /// - 送出 `/effort`:effort 滑桿面板(low…max);←/→ 移動層級、Enter 確認(下次開面板從確認的層級開始)、Esc 取消(#34)。
 /// - 工作中的 Codex(`w3:p1`)畫面上有正在寫的散文(即時預覽);收到 Esc 或 ctrl+c(停止、強制結束)就變完成(#44)。
+/// - ledger 完成時輸入列帶 Claude Code 的灰色建議提示詞(#123,含 ANSI 的畫面才看得出 dim);每送出一個 prompt 換下一句，
+///   用完就沒有建議。開面板的 slash 指令不算。
 /// 錯的按鍵(例如 Claude 的數字加 Enter)不算回答，方便看出規則錯了。範例文字是自己寫的。
 struct DemoAnswers {
     enum Stage: Equatable {
@@ -26,6 +28,20 @@ struct DemoAnswers {
     private var models: [String: Int] = [:]
     /// 每個 pane 目前的 effort 層級(`/effort` 面板確認後保留)。
     private var efforts: [String: Int] = [:]
+
+    /// 建議提示詞(#123):依序出現的句子(pane → 句子)。
+    static let suggestions: [String: [String]] = [
+        "w1:p1": ["Add a test for CSV export with commas in the memo", "Run the tests"],
+    ]
+    /// 每個 pane 已經送出幾個 prompt(決定目前是第幾句建議)。
+    private var promptCounts: [String: Int] = [:]
+
+    /// 目前的建議;用完或這個 pane 沒有建議為 `nil`。
+    func suggestion(for paneID: String) -> String? {
+        let list = Self.suggestions[paneID] ?? []
+        let index = promptCounts[paneID] ?? 0
+        return index < list.count ? list[index] : nil
+    }
 
     /// 工作中、可以被停止的 pane。
     static let workingPanes: Set<String> = ["w3:p1"]
@@ -66,6 +82,7 @@ struct DemoAnswers {
             return true
         default: break
         }
+        promptCounts[paneID, default: 0] += 1
         return false
     }
 
@@ -135,8 +152,8 @@ struct DemoAnswers {
         }
     }
 
-    /// `pane.read` 的畫面文字。
-    func screen(for paneID: String) -> String {
+    /// `pane.read` 的畫面文字。`ansi`:建議提示詞以 SGR 2(dim)包住(同真實 Claude Code 的錄製)。
+    func screen(for paneID: String, ansi: Bool = false) -> String {
         switch stages[paneID] {
         case .bashPermission: Self.bashPermission
         case .askColor: Self.ask(header: "☐ Color  ☐ Size", question: "Which color should the chart use?",
@@ -148,7 +165,7 @@ struct DemoAnswers {
         case nil:
             if let panel = panels[paneID] { panel.screen }
             else if Self.workingPanes.contains(paneID) && !stopped.contains(paneID) { Self.codexWorking }
-            else { Self.idle }
+            else { Self.idle(suggestion: suggestion(for: paneID), ansi: ansi) }
         }
     }
 
@@ -238,15 +255,19 @@ struct DemoAnswers {
 
         """
 
-    private static let idle = """
-        ⏺ All set.
+    /// 完成的 Claude Code:輸入列是 `❯` + NBSP,有建議時接在後面(灰色)。
+    private static func idle(suggestion: String?, ansi: Bool) -> String {
+        let input = suggestion.map { ansi ? "\u{1B}[0m\u{1B}[2m\($0)\u{1B}[0m" : $0 } ?? ""
+        return """
+            ⏺ All set.
 
-        \(separator)
-        ❯
-        \(separator)
-          ? for shortcuts
+            \(separator)
+            ❯\u{00A0}\(input)
+            \(separator)
+              ? for shortcuts
 
-        """
+            """
+    }
 }
 
 /// 開著的 slash 面板。

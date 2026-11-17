@@ -4519,6 +4519,17 @@
         }
       }
     },
+    "Puts the suggestion in the message box without sending it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把建議放進輸入框，不會送出。"
+          }
+        }
+      }
+    },
     "QR code for %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5626,6 +5637,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "訂閱"
+          }
+        }
+      }
+    },
+    "Suggestion: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議：%@"
           }
         }
       }
