@@ -156,14 +156,14 @@ public struct HostFolders: Sendable {
     let channel: any HostChannel
     let deflate: (any RawDeflate)?
     let gzipAvailability: HostGzipAvailability
-    let sleep: @Sendable (Duration) async throws -> Void
+    let sleep: Sleep
 
     /// - Parameters:
     ///   - deflate: 有的話，一般檔案壓得小時以 gzip 傳輸(`UploadTransfer.prepare`)。
     ///   - gzipAvailability: 這台主機有沒有 `gzip`;同一台主機的 `HostFolders` 共用一份。
     public init(
         channel: any HostChannel, deflate: (any RawDeflate)? = nil, gzipAvailability: HostGzipAvailability = HostGzipAvailability(),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.channel = channel
         self.deflate = deflate
@@ -203,7 +203,6 @@ public struct HostFolders: Sendable {
         case HostFolderCommand.ExitCode.cannotOpen: throw HostFolderError.cannotOpen(result.stderrText)
         case HostFolderCommand.ExitCode.alreadyExists: throw HostFolderError.alreadyExists
         case HostFolderCommand.ExitCode.sizeMismatch: throw HostFolderError.interrupted
-        case Int32(HostScriptTimeLimit.exitCode): throw HostFolderError.deadlineExceeded
         default: throw HostFolderError.failed(exitCode: result.exitCode, message: result.stderrText)
         }
         let path = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .newlines)
@@ -213,35 +212,26 @@ public struct HostFolders: Sendable {
         return path
     }
 
-    /// 執行一次上傳指令、寫入傳輸 bytes,在期限內讀到結束狀態。
+    /// 執行一次上傳指令、寫入傳輸 bytes,在期限內(`HostCommandDeadline.upload`)讀到結束狀態。
     private func send(_ transfer: UploadTransfer, originalSize: Int, named name: String, to folder: String) async throws -> CommandResult {
         let payload = transfer.payload
         let upload = FolderUpload(
             folder: folder, name: name, originalSize: originalSize, encoding: transfer.encoding, transferSize: payload.count)
-        let session: any ExecSession
         do {
-            session = try await channel.execute(HostFolderCommand.upload(upload))
+            return try await channel.runOnce(
+                HostFolderCommand.upload(upload), deadline: HostCommandDeadline.upload(bytes: payload.count), sleep: sleep
+            ) { session in
+                try await self.run(session, input: payload)
+            }
+        } catch HostCommandError.deadlineExceeded {
+            throw HostFolderError.deadlineExceeded
+        } catch let error as CancellationError {
+            throw error
+        } catch let error as HostFolderError {
+            throw error
         } catch {
             throw HostFolderError.interrupted
         }
-        let sleep = sleep
-        let result: CommandResult? = try await withThrowingTaskGroup(of: CommandResult?.self) { group in
-            group.addTask { try await self.run(session, input: payload) }
-            group.addTask {
-                try await sleep(Self.deadline(forSize: payload.count))
-                return nil
-            }
-            defer { group.cancelAll() }
-            do {
-                return try await group.next() ?? nil
-            } catch {
-                await session.close()
-                throw error
-            }
-        }
-        await session.close()
-        guard let result else { throw HostFolderError.deadlineExceeded }
-        return result
     }
 
     /// 檔名不可為空、`.`、`..`,不可含 `/`、NUL;也不可含換行(主機回傳的路徑以換行結尾)。
@@ -249,15 +239,11 @@ public struct HostFolders: Sendable {
         !name.isEmpty && name != "." && name != ".." && !name.contains { $0 == "/" || $0 == "\u{0}" || $0.isNewline }
     }
 
-    /// 期限:20 秒加上以 32 KiB/s 估算的傳輸時間。
-    static func deadline(forSize size: Int) -> Duration {
-        .seconds(20) + .milliseconds(size / 32)
-    }
-
     /// stdin 每次寫入的大小(中斷時能盡早發現)。
     static let chunkSize = 64 * 1024
 
-    /// 寫 bytes(有的話)、送 EOF、讀到結束狀態。連線層失敗、被訊號結束、沒有結束狀態就斷了，都是 `interrupted`。
+    /// 寫 bytes(有的話)、送 EOF、讀到結束狀態。連線層失敗、被訊號結束、沒有結束狀態就斷了，都是 `interrupted`;
+    /// 逾時(`HostCommandError`)與取消照原樣丟出。
     private func run(_ session: any ExecSession, input: Data?) async throws -> CommandResult {
         do {
             if let input {
@@ -274,19 +260,8 @@ public struct HostFolders: Sendable {
                 }
             }
             await session.closeStdin()
-            var result = CommandResult()
-            var exited = false
-            for try await event in session.output {
-                switch event {
-                case .stdout(let chunk): result.stdout.append(chunk)
-                case .stderr(let chunk): result.stderr.append(chunk)
-                case .exit(let code, let signal):
-                    if signal != nil { throw HostFolderError.interrupted }
-                    result.exitCode = code
-                    exited = true
-                }
-            }
-            guard exited else { throw HostFolderError.interrupted }
+            let result = try await session.read()
+            guard result.didExit, result.signal == nil else { throw HostFolderError.interrupted }
             return result
         } catch let error as CancellationError {
             throw error

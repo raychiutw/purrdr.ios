@@ -98,20 +98,11 @@ public struct ClaudeSlashDiscovery: SlashDiscovering {
 
     /// 執行並收集 stdout;exit code 不是 0、通道失敗、逾時(每個指令的期限同時間上限)或被取消 → nil。
     private func run(_ command: String) async -> String? {
-        let output = try? await channel.runOnce(command, deadline: timeLimit, sleep: sleep) { session in
-            var stdout = Data()
-            var exitCode: Int32?
-            for try await event in session.output {
-                switch event {
-                case .stdout(let data): stdout.append(data)
-                case .stderr: break
-                case .exit(let code, _): exitCode = code
-                }
-            }
-            return (stdout, exitCode)
+        let result = try? await channel.runOnce(command, deadline: timeLimit, sleep: sleep) { session in
+            try await session.read()
         }
-        guard let (stdout, exitCode) = output, exitCode == 0, !Task.isCancelled else { return nil }
-        return String(decoding: stdout, as: UTF8.self)
+        guard let result, result.exitStatus == 0, !Task.isCancelled else { return nil }
+        return result.stdoutText
     }
 
     // MARK: - 輸出解析

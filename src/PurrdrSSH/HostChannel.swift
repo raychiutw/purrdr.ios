@@ -27,7 +27,14 @@ extension HostChannel {
 struct CommandResult {
     var stdout = Data()
     var stderr = Data()
+    /// 沒有結束狀態(輸出就斷了)時是 -1,見 `didExit`。
     var exitCode: Int32 = -1
+    /// 被訊號結束時的訊號名稱(SSH `exit-signal`)。
+    var signal: String?
+    /// 收到結束狀態。
+    var didExit = false
+    /// 結束狀態;沒收到是 `nil`。
+    var exitStatus: Int32? { didExit ? exitCode : nil }
     var stdoutText: String { String(decoding: stdout, as: UTF8.self) }
     /// Windows 主機的 CLIXML／Rust Debug 格式整理過(`WindowsErrorText`);其他主機只去掉前後空白。
     var stderrText: String { WindowsErrorText.readable(String(decoding: stderr, as: UTF8.self)) }

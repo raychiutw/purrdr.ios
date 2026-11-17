@@ -13,48 +13,21 @@ public struct WakeProbe: Sendable {
     public static let timeout: Duration = .seconds(3)
 
     private let channel: any HostChannel
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
 
-    public init(channel: any HostChannel, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(channel: any HostChannel, sleep: @escaping Sleep = Sleeping.task) {
         self.channel = channel
         self.sleep = sleep
     }
 
-    /// 連線活著回傳 `true`;期限到或連線層錯誤時丟棄連線(下一個指令重新撥號)並回傳 `false`。
+    /// 連線活著回傳 `true`;期限到(含開通道卡住)或連線層錯誤時丟棄連線(下一個指令重新撥號)並回傳 `false`。
     @discardableResult
     public func run() async -> Bool {
-        let started = StartedSession()
-        let alive = await withTaskGroup(of: Bool.self) { group in
-            group.addTask { [channel] in
-                do {
-                    let session = try await channel.execute(Self.command)
-                    await started.set(session)
-                    // 有結束狀態就代表通道與連線都正常(exit code 不重要)。
-                    for try await event in session.output {
-                        if case .exit = event { return true }
-                    }
-                    return false
-                } catch {
-                    return false
-                }
-            }
-            group.addTask { [sleep] in
-                try? await sleep(Self.timeout)
-                return false
-            }
-            let first = await group.next() ?? false
-            group.cancelAll()
-            return first
-        }
-        if !alive {
-            await started.session?.close()
-            await channel.disconnect()
-        }
+        let alive = (try? await channel.runOnce(Self.command, deadline: Self.timeout, includesOpening: true, sleep: sleep) { session in
+            // 有結束狀態就代表通道與連線都正常(exit code 不重要)。
+            try await session.read().didExit
+        }) ?? false
+        if !alive { await channel.disconnect() }
         return alive
     }
-}
-
-private actor StartedSession {
-    private(set) var session: (any ExecSession)?
-    func set(_ session: any ExecSession) { self.session = session }
 }
