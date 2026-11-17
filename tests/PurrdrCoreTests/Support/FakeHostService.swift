@@ -59,6 +59,8 @@ final class FakeHostService: Sendable {
         var pairingCode = "K7QM-2XPA"
         var expiredPairingCode = "OLD0-CODE"
         var pairedToken = "token-paired"
+        /// 對話紀錄訊息(`transcript.*`)的回應：訊息種類 → JSON 物件(不含 `request_id`;請求帶 `stream_id` 時換上請求的)。
+        var transcriptReplies: [String: String] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
@@ -169,6 +171,24 @@ final class FakeHostService: Sendable {
         state.withLock { change(&$0.settings) }
     }
 
+    /// 主機服務主動推送一個訊息(例如 `transcript.update`)給所有連線。
+    func push(_ text: String) async throws {
+        let sockets = state.withLock { $0.sockets }
+        for socket in sockets {
+            let frame = WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
+            try await socket.writeAndFlush(frame)
+        }
+    }
+
+    /// 收到的 WebSocket 訊息中種類是 `type` 的(解析成 JSON 物件)。
+    func messages(ofType type: String) -> [[String: Any]] {
+        log.messages.compactMap { text in
+            guard let object = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+                  object["type"] as? String == type else { return nil }
+            return object
+        }
+    }
+
     /// 切斷所有 WebSocket 連線(不送 close frame,模擬網路中斷)。
     func dropConnections() async {
         let sockets = state.withLock { state in
@@ -236,6 +256,14 @@ final class FakeHostService: Sendable {
             let streamID = message["stream_id"] as? String
             state.withLock { $0.streams.removeAll { $0.socket === socket && $0.streamID == streamID } }
             return [.text(Self.json(["type": "events.unsubscribe.result", "request_id": requestID as Any]))]
+        case let transcript where transcript.hasPrefix("transcript."):
+            guard let reply = settings.transcriptReplies[transcript],
+                  var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
+            if let streamID = message["stream_id"] { object["stream_id"] = streamID }
+            return [.text(Self.json(object))]
         case "pane.send_keys", "pane.send_text", "agent.prompt":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]

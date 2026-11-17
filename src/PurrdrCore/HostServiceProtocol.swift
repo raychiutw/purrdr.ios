@@ -14,6 +14,10 @@ extension HostServiceProtocol {
         case hello(Hello)
         case agentsList(AgentsList)
         case paneSendKeys(PaneSendKeys)
+        case transcriptLocate(TranscriptLocate)
+        case transcriptWindow(TranscriptWindow)
+        case transcriptFollow(TranscriptFollow)
+        case transcriptUnfollow(TranscriptUnfollow)
         case paneSendText(PaneSendText)
         case agentPrompt(AgentPrompt)
         case eventsSubscribe(EventsSubscribe)
@@ -30,6 +34,10 @@ extension HostServiceProtocol {
             case "hello": self = .hello(try Hello(from: decoder))
             case "agents.list": self = .agentsList(try AgentsList(from: decoder))
             case "pane.send_keys": self = .paneSendKeys(try PaneSendKeys(from: decoder))
+            case "transcript.locate": self = .transcriptLocate(try TranscriptLocate(from: decoder))
+            case "transcript.window": self = .transcriptWindow(try TranscriptWindow(from: decoder))
+            case "transcript.follow": self = .transcriptFollow(try TranscriptFollow(from: decoder))
+            case "transcript.unfollow": self = .transcriptUnfollow(try TranscriptUnfollow(from: decoder))
             case "pane.send_text": self = .paneSendText(try PaneSendText(from: decoder))
             case "agent.prompt": self = .agentPrompt(try AgentPrompt(from: decoder))
             case "events.subscribe": self = .eventsSubscribe(try EventsSubscribe(from: decoder))
@@ -50,6 +58,18 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .paneSendKeys(let message):
                 try container.encode("pane.send_keys", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptLocate(let message):
+                try container.encode("transcript.locate", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptWindow(let message):
+                try container.encode("transcript.window", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptFollow(let message):
+                try container.encode("transcript.follow", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptUnfollow(let message):
+                try container.encode("transcript.unfollow", forKey: .type)
                 try message.encode(to: encoder)
             case .paneSendText(let message):
                 try container.encode("pane.send_text", forKey: .type)
@@ -82,6 +102,11 @@ extension HostServiceProtocol {
         case welcome(Welcome)
         case agentsListResult(AgentsListResult)
         case paneSendKeysResult(PaneSendKeysResult)
+        case transcriptLocateResult(TranscriptLocateResult)
+        case transcriptWindowResult(TranscriptWindowResult)
+        case transcriptFollowResult(TranscriptFollowResult)
+        case transcriptUpdate(TranscriptUpdate)
+        case transcriptUnfollowResult(TranscriptUnfollowResult)
         case paneSendTextResult(PaneSendTextResult)
         case agentPromptResult(AgentPromptResult)
         case eventsSubscribeResult(EventsSubscribeResult)
@@ -101,6 +126,11 @@ extension HostServiceProtocol {
             case "welcome": self = .welcome(try Welcome(from: decoder))
             case "agents.list.result": self = .agentsListResult(try AgentsListResult(from: decoder))
             case "pane.send_keys.result": self = .paneSendKeysResult(try PaneSendKeysResult(from: decoder))
+            case "transcript.locate.result": self = .transcriptLocateResult(try TranscriptLocateResult(from: decoder))
+            case "transcript.window.result": self = .transcriptWindowResult(try TranscriptWindowResult(from: decoder))
+            case "transcript.follow.result": self = .transcriptFollowResult(try TranscriptFollowResult(from: decoder))
+            case "transcript.update": self = .transcriptUpdate(try TranscriptUpdate(from: decoder))
+            case "transcript.unfollow.result": self = .transcriptUnfollowResult(try TranscriptUnfollowResult(from: decoder))
             case "pane.send_text.result": self = .paneSendTextResult(try PaneSendTextResult(from: decoder))
             case "agent.prompt.result": self = .agentPromptResult(try AgentPromptResult(from: decoder))
             case "events.subscribe.result": self = .eventsSubscribeResult(try EventsSubscribeResult(from: decoder))
@@ -124,6 +154,21 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .paneSendKeysResult(let message):
                 try container.encode("pane.send_keys.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptLocateResult(let message):
+                try container.encode("transcript.locate.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptWindowResult(let message):
+                try container.encode("transcript.window.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptFollowResult(let message):
+                try container.encode("transcript.follow.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptUpdate(let message):
+                try container.encode("transcript.update", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptUnfollowResult(let message):
+                try container.encode("transcript.unfollow.result", forKey: .type)
                 try message.encode(to: encoder)
             case .paneSendTextResult(let message):
                 try container.encode("pane.send_text.result", forKey: .type)
@@ -375,6 +420,268 @@ extension HostServiceProtocol {
 extension HostServiceProtocol {
     /// 按鍵已送到 Pane。
     public struct PaneSendKeysResult: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 定位對話紀錄(#59)。session 必須是 herdr snapshot 目前某個 Agent 的 agent_session;格式與 cwd 由主機服務從 snapshot 取得，app 不能指定路徑。
+    public struct TranscriptLocate: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var session: SessionReference
+        /// 是否一併回傳檔案前兩行(Codex、Pi／OMP 的 header 檢查)。
+        public var header: Bool
+
+        public init(requestId: String, session: SessionReference, header: Bool) {
+            self.requestId = requestId
+            self.session = session
+            self.header = header
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case session
+            case header
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// herdr agent_session 的 kind 與 value。
+    public struct SessionReference: Codable, Sendable, Equatable {
+        /// id 或 path。
+        public var kind: String
+        public var value: String
+
+        public init(kind: String, value: String) {
+            self.kind = kind
+            self.value = value
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case kind
+            case value
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 對話紀錄的路徑與大小(byte)。之後這條連線才能以這個路徑讀視窗與追蹤。
+    public struct TranscriptLocateResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var path: String
+        public var size: Int
+        /// 請求 header 時，檔案前兩行(原樣)。
+        public var header: [String]?
+
+        public init(requestId: String, path: String, size: Int, header: [String]? = nil) {
+            self.requestId = requestId
+            self.path = path
+            self.size = size
+            self.header = header
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+            case size
+            case header
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 讀以 end 為終點的最後 lines 行完整的行(開啟與往上翻頁)。path 必須是這條連線定位過的。
+    public struct TranscriptWindow: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var path: String
+        public var end: Int
+        public var lines: Int
+
+        public init(requestId: String, path: String, end: Int, lines: Int) {
+            self.requestId = requestId
+            self.path = path
+            self.end = end
+            self.lines = lines
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+            case end
+            case lines
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 視窗的 byte 範圍與範圍內的行。
+    public struct TranscriptWindowResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var start: Int
+        public var end: Int
+        public var records: [TranscriptRecord]
+
+        public init(requestId: String, start: Int, end: Int, records: [TranscriptRecord]) {
+            self.requestId = requestId
+            self.start = start
+            self.end = end
+            self.records = records
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case start
+            case end
+            case records
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 對話紀錄的一行：原始 byte 長度(不含換行)與剝除圖片後的內容(行為規格 R-B04、R-B06)。
+    public struct TranscriptRecord: Codable, Sendable, Equatable {
+        public var length: Int
+        public var text: String
+
+        public init(length: Int, text: String) {
+            self.length = length
+            self.text = text
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case length
+            case text
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 開始追蹤對話紀錄尾端：從 from 起，主機服務把新增的完整行以 transcript.update 推送，直到 transcript.unfollow、追蹤結束或連線關閉。stream_id 由 app 指定，同一條連線內不可重複。path 必須是這條連線定位過的。
+    public struct TranscriptFollow: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var streamId: String
+        public var path: String
+        public var from: Int
+        /// 一次落後超過這麼多 byte 就結束追蹤(too_far_behind),由 app 改讀視窗。
+        public var limit: Int
+
+        public init(requestId: String, streamId: String, path: String, from: Int, limit: Int) {
+            self.requestId = requestId
+            self.streamId = streamId
+            self.path = path
+            self.from = from
+            self.limit = limit
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case streamId = "stream_id"
+            case path
+            case from
+            case limit
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 追蹤開始，帶目前的大小與 from 之後已有的完整行;ended 有值時主機服務沒有開始追蹤。
+    public struct TranscriptFollowResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var streamId: String
+        public var size: Int
+        /// records 第一行的位置(byte)。
+        public var start: Int
+        public var records: [TranscriptRecord]
+        public var ended: TranscriptStreamEnd?
+
+        public init(requestId: String, streamId: String, size: Int, start: Int, records: [TranscriptRecord], ended: TranscriptStreamEnd? = nil) {
+            self.requestId = requestId
+            self.streamId = streamId
+            self.size = size
+            self.start = start
+            self.records = records
+            self.ended = ended
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case streamId = "stream_id"
+            case size
+            case start
+            case records
+            case ended
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 追蹤中的對話紀錄有了新的完整行，或追蹤結束(ended)。主機服務主動推送，沒有 request_id。
+    public struct TranscriptUpdate: Codable, Sendable, Equatable {
+        public var streamId: String
+        public var size: Int
+        /// records 第一行的位置(byte)。
+        public var start: Int
+        public var records: [TranscriptRecord]
+        public var ended: TranscriptStreamEnd?
+
+        public init(streamId: String, size: Int, start: Int, records: [TranscriptRecord], ended: TranscriptStreamEnd? = nil) {
+            self.streamId = streamId
+            self.size = size
+            self.start = start
+            self.records = records
+            self.ended = ended
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case streamId = "stream_id"
+            case size
+            case start
+            case records
+            case ended
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。
+    public enum TranscriptStreamEnd: String, Codable, Sendable, CaseIterable {
+        case shrank
+        case tooFarBehind = "too_far_behind"
+        case absent
+        case unreadable
+    }
+}
+
+extension HostServiceProtocol {
+    /// 停止追蹤(對話關閉)。
+    public struct TranscriptUnfollow: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var streamId: String
+
+        public init(requestId: String, streamId: String) {
+            self.requestId = requestId
+            self.streamId = streamId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case streamId = "stream_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 已停止追蹤;之後不再推送這個 stream_id。
+    public struct TranscriptUnfollowResult: Codable, Sendable, Equatable {
         public var requestId: String
 
         public init(requestId: String) {
@@ -699,7 +1006,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。
+    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
     public enum ErrorCode: String, Codable, Sendable, CaseIterable {
         case invalidMessage = "invalid_message"
         case handshakeRequired = "handshake_required"
@@ -712,6 +1019,12 @@ extension HostServiceProtocol {
         case readOnlyDevice = "read_only_device"
         case pairingCodeInvalid = "pairing_code_invalid"
         case pairingCodeExpired = "pairing_code_expired"
+        case transcriptNotAllowed = "transcript_not_allowed"
+        case transcriptUnsupported = "transcript_unsupported"
+        case transcriptAbsent = "transcript_absent"
+        case transcriptUnreadable = "transcript_unreadable"
+        case transcriptAmbiguous = "transcript_ambiguous"
+        case transcriptCompressed = "transcript_compressed"
         case internalError = "internal_error"
     }
 }

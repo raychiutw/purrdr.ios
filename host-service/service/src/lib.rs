@@ -15,6 +15,8 @@ pub mod management;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
 pub mod state_directory;
+pub mod transcript;
+mod transcript_session;
 
 mod service_main;
 
@@ -34,6 +36,8 @@ pub struct HostServiceConfig {
     /// 裝置、配對碼與稽核紀錄所在的資料夾。
     pub state_directory: PathBuf,
     pub heartbeat: Heartbeat,
+    /// 對話紀錄所在的家目錄與設定目錄。
+    pub transcripts: transcript::TranscriptEnvironment,
 }
 
 /// 預設埠(127.0.0.1 上)。
@@ -85,6 +89,7 @@ impl HostServiceConfig {
             herdr_socket,
             state_directory,
             heartbeat: Heartbeat::default(),
+            transcripts: transcript::TranscriptEnvironment::resolve(platform, environment),
         })
     }
 }
@@ -122,6 +127,7 @@ pub async fn start(config: HostServiceConfig) -> std::io::Result<RunningHostServ
         devices: DeviceStore::new(&config.state_directory),
         audit: AuditLog::new(&config.state_directory),
         heartbeat: config.heartbeat,
+        transcripts: config.transcripts,
     });
     let accept_loop = tokio::spawn(async move {
         if let Err(error) = axum::serve(listener, router).await {

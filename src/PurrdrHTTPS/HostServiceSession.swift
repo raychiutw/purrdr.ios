@@ -2,7 +2,7 @@ import Foundation
 import PurrdrCore
 
 /// 一條到主機服務的 WSS 連線：送出的請求帶請求識別碼，回應依識別碼交回呼叫端(可同時有多個請求);
-/// 串流的訊息依串流識別碼交給 `openStream` 的串流。
+/// 事件串流的訊息交給 `openEventStream` 的串流，對話紀錄的推送暫存到 `takeStreamMessages` 取走。
 ///
 /// 連線結束(斷線、close frame、權杖被拒、心跳逾時)後不再使用;所有等待中的請求與串流以結束原因失敗，不重送。
 actor HostServiceSession {
@@ -10,12 +10,15 @@ actor HostServiceSession {
     let deviceToken: String
     private let socket: any WebSocketSession
     private var pending: [String: CheckedContinuation<HostServiceProtocol.ServerMessage, any Error>] = [:]
-    private var streams: [String: AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>.Continuation] = [:]
+    /// 開著的事件串流(串流識別碼 → 交出訊息的串流)。
+    private var eventStreams: [String: AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>.Continuation] = [:]
     private var closeWaiters: [UUID: CheckedContinuation<any Error, Never>] = [:]
     private var ending: (any Error)?
     private var nextRequestNumber = 0
     private var reader: Task<Void, Never>?
     private var heartbeat: Task<Void, Never>?
+    /// 開著的串流(串流識別碼 → 還沒取走的推送訊息)。
+    private var streams: [String: [HostServiceProtocol.ServerMessage]] = [:]
 
     init(socket: any WebSocketSession, deviceToken: String) {
         self.socket = socket
@@ -29,21 +32,21 @@ actor HostServiceSession {
         heartbeat = Task { await self.beat(settings, sleep: sleep) }
     }
 
-    /// 開始收某條串流的訊息(在送出開串流的請求之前呼叫，才不會漏掉緊接著回應的訊息)。
+    /// 開始收某條事件串流的訊息(在送出 `events.subscribe` 之前呼叫，才不會漏掉緊接著回應的事件)。
     /// 主機端結束串流(`events.ended`)時先交出那則訊息再結束;連線結束時以結束原因失敗。
-    func openStream(_ streamID: String) -> AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error> {
+    func openEventStream(_ streamID: String) -> AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error> {
         let (messages, continuation) = AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>.makeStream()
         if let ending {
             continuation.finish(throwing: ending)
         } else {
-            streams[streamID] = continuation
+            eventStreams[streamID] = continuation
         }
         return messages
     }
 
-    /// 不再收這條串流;回傳它原本是否還開著(主機端已結束或連線已斷的回 `false`)。
-    func closeStream(_ streamID: String) -> Bool {
-        guard let continuation = streams.removeValue(forKey: streamID) else { return false }
+    /// 不再收這條事件串流;回傳它原本是否還開著(主機端已結束或連線已斷的回 `false`)。
+    func closeEventStream(_ streamID: String) -> Bool {
+        guard let continuation = eventStreams.removeValue(forKey: streamID) else { return false }
         continuation.finish()
         return true
     }
@@ -84,6 +87,27 @@ actor HostServiceSession {
         end(with: HostServiceError.connectionLost)
         await socket.close()
     }
+
+    // MARK: - 串流
+
+    /// 開始收這個串流的推送(在送出開始串流的請求之前呼叫，才不會漏掉緊接著回應的推送)。
+    func openStream(_ streamID: String) {
+        streams[streamID] = []
+    }
+
+    /// 取走這個串流目前收到的推送;串流沒開、已關或積壓太多被丟掉時是 `nil`。
+    func takeStreamMessages(_ streamID: String) -> [HostServiceProtocol.ServerMessage]? {
+        guard let messages = streams[streamID] else { return nil }
+        streams[streamID] = []
+        return messages
+    }
+
+    func closeStream(_ streamID: String) {
+        streams[streamID] = nil
+    }
+
+    /// 一個串流最多積壓的推送數;超過就丟掉整個串流(呼叫端重新開始)。
+    static let maximumPendingStreamMessages = 256
 
     // MARK: - 內部
 
@@ -166,11 +190,15 @@ actor HostServiceSession {
         }
         switch message {
         case .subscribedEvent(let event):
-            streams[event.streamId]?.yield(message)
+            eventStreams[event.streamId]?.yield(message)
         case .eventsEnded(let ended):
-            let stream = streams.removeValue(forKey: ended.streamId)
+            let stream = eventStreams.removeValue(forKey: ended.streamId)
             stream?.yield(message)
             stream?.finish()
+        case .transcriptUpdate(let update):
+            guard var messages = streams[update.streamId] else { return }
+            messages.append(message)
+            streams[update.streamId] = messages.count > Self.maximumPendingStreamMessages ? nil : messages
         case .errorMessage(let error) where error.requestId == nil:
             // 權杖無效或已撤銷：主機服務接著會以 4401 關閉。
             if let rejection = HostServiceError(tokenRejection: error.code) { end(with: rejection) }
@@ -184,12 +212,13 @@ actor HostServiceSession {
         guard ending == nil else { return }
         ending = error
         heartbeat?.cancel()
+        streams = [:]
         let requests = pending
         pending = [:]
         for continuation in requests.values { continuation.resume(throwing: error) }
-        let openStreams = streams
-        streams = [:]
-        for continuation in openStreams.values { continuation.finish(throwing: error) }
+        let openEventStreams = eventStreams
+        eventStreams = [:]
+        for continuation in openEventStreams.values { continuation.finish(throwing: error) }
         let waiters = closeWaiters
         closeWaiters = [:]
         for continuation in waiters.values { continuation.resume(returning: error) }
@@ -214,12 +243,16 @@ extension HostServiceProtocol.ServerMessage {
         case .welcome(let message): message.requestId
         case .agentsListResult(let message): message.requestId
         case .paneSendKeysResult(let message): message.requestId
+        case .transcriptLocateResult(let message): message.requestId
+        case .transcriptWindowResult(let message): message.requestId
+        case .transcriptFollowResult(let message): message.requestId
+        case .transcriptUnfollowResult(let message): message.requestId
         case .paneSendTextResult(let message): message.requestId
         case .agentPromptResult(let message): message.requestId
         case .eventsSubscribeResult(let message): message.requestId
         case .eventsUnsubscribeResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
-        case .subscribedEvent, .eventsEnded: nil
+        case .transcriptUpdate, .subscribedEvent, .eventsEnded: nil
         }
     }
 }

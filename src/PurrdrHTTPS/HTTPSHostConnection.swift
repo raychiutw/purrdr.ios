@@ -20,6 +20,9 @@ public actor HTTPSHostConnection: HostConnection {
     private var connecting: Task<HostServiceSession, any Error>?
     /// 被拒的權杖與原因。
     private var rejection: (deviceToken: String, error: HostServiceError)?
+    /// 追蹤中的對話紀錄(路徑 → 追蹤)。見 `HTTPSTranscripts.swift`。
+    var transcriptFollows: [String: TranscriptFollow] = [:]
+    var nextTranscriptStream = 0
 
     /// - Parameters:
     ///   - deviceToken: 撥號時才讀(Keychain);`nil` 表示還沒配對。
@@ -122,7 +125,7 @@ public actor HTTPSHostConnection: HostConnection {
             HostServiceProtocol.EventSubscription(event: $0.type, paneId: $0.paneID)
         }
         let (session, streamID, messages) = try await withDeadline(HostCommandDeadline.standard) {
-            try await self.openEventStream(subscriptions)
+            try await self.subscribeEvents(subscriptions)
         }
         let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
         continuation.yield(try HerdrResponseLine.subscriptionStarted(id: herdr.id))
@@ -148,39 +151,48 @@ public actor HTTPSHostConnection: HostConnection {
         }
         continuation.onTermination = { _ in
             forwarding.cancel()
-            Task { await self.closeEventStream(streamID, on: session) }
+            Task { await self.unsubscribeEvents(streamID, on: session) }
         }
         return lines
     }
 
-    private func openEventStream(
+    private func subscribeEvents(
         _ subscriptions: [HostServiceProtocol.EventSubscription]
     ) async throws -> (HostServiceSession, String, AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>) {
         let session = try await liveSession()
         nextStreamNumber += 1
         let streamID = "s\(nextStreamNumber)"
-        let messages = await session.openStream(streamID)
+        let messages = await session.openEventStream(streamID)
         do {
-            let reply = try await send({ .eventsSubscribe(.init(requestId: $0, streamId: streamID, subscriptions: subscriptions)) }, on: session)
+            let reply = try await send(on: session) { .eventsSubscribe(.init(requestId: $0, streamId: streamID, subscriptions: subscriptions)) }
             guard case .eventsSubscribeResult = reply else { throw HostServiceError.unexpectedResponse }
         } catch {
-            _ = await session.closeStream(streamID)
+            _ = await session.closeEventStream(streamID)
             throw error
         }
         return (session, streamID, messages)
     }
 
     /// 呼叫端不再讀：串流還開著就請主機服務關掉(主機端已結束或連線已斷就不必)。
-    private func closeEventStream(_ streamID: String, on session: HostServiceSession) async {
-        guard await session.closeStream(streamID) else { return }
+    private func unsubscribeEvents(_ streamID: String, on session: HostServiceSession) async {
+        guard await session.closeEventStream(streamID) else { return }
         _ = try? await session.request { .eventsUnsubscribe(.init(requestId: $0, streamId: streamID)) }
     }
 
-    // MARK: - 尚未支援
+    // MARK: - 對話紀錄
 
+    /// 定位、視窗與尾端追蹤(#59);列表預覽、subagent、workflow、委派的讀取丟 `unsupported`。
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        throw HostServiceError.unsupported("transcript")
+        try await transcript(request)
     }
+
+    /// 請主機服務停止追蹤這個對話紀錄。
+    public func stopFollowingTranscript(path: String) async {
+        guard let follow = transcriptFollows.removeValue(forKey: path) else { return }
+        await stopFollowing(follow)
+    }
+
+    // MARK: - 尚未支援
 
     public func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
         throw HostServiceError.unsupported("pane terminal")
@@ -190,18 +202,21 @@ public actor HTTPSHostConnection: HostConnection {
         let current = session
         session = nil
         welcome = nil
+        // 主機服務在連線結束時停止這條連線的所有追蹤。
+        transcriptFollows = [:]
         await current?.close()
     }
 
     // MARK: - 連線
 
     /// 送出請求;權杖被拒時記下來。
-    private func send(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> HostServiceProtocol.ServerMessage {
-        try await send(make, on: try await liveSession())
+    func send(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> HostServiceProtocol.ServerMessage {
+        try await send(on: liveSession(), make)
     }
 
-    private func send(
-        _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage, on session: HostServiceSession
+    /// 在這條連線送出請求(呼叫端先在連線上準備好，例如開好串流)。
+    func send(
+        on session: HostServiceSession, _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage
     ) async throws -> HostServiceProtocol.ServerMessage {
         let reply: HostServiceProtocol.ServerMessage
         do {
@@ -214,7 +229,7 @@ public actor HTTPSHostConnection: HostConnection {
         return reply
     }
 
-    private func liveSession() async throws -> HostServiceSession {
+    func liveSession() async throws -> HostServiceSession {
         if let session, await session.isOpen { return session }
         if let connecting { return try await connecting.value }
         guard let token = try deviceToken() else { throw HostServiceError.notPaired }
@@ -283,12 +298,18 @@ public actor HTTPSHostConnection: HostConnection {
         case .readOnlyDevice: HostServiceError.readOnlyDevice
         case .pairingCodeInvalid: HostServiceError.pairingCodeInvalid
         case .pairingCodeExpired: HostServiceError.pairingCodeExpired
+        case .transcriptAbsent: TranscriptReadError.absent
+        case .transcriptUnreadable: TranscriptReadError.unreadable
+        case .transcriptAmbiguous: TranscriptReadError.ambiguous
+        case .transcriptCompressed: TranscriptReadError.compressed
+        case .transcriptNotAllowed: TranscriptReadError.invalidReference
+        case .transcriptUnsupported: HostServiceError.unsupported("transcript")
         case .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
         }
     }
 
     /// 期限到丟 `HerdrError.deadlineExceeded`;外層取消丟 `CancellationError`。
-    private func withDeadline<Value: Sendable>(
+    func withDeadline<Value: Sendable>(
         _ deadline: Duration, _ operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
         try await withThrowingTaskGroup(of: Value?.self) { group in
