@@ -92,7 +92,9 @@ struct ImagePreparationTests {
         let prepared = try #require(ImagePreparation.prepare(original))
 
         #expect(prepared.jpeg.count <= Self.targetBytes)
-        #expect(Self.longSide(prepared) >= Self.minimumLongSide)
+        // 先降品質：降到 0.5 就夠，不縮小解析度。
+        #expect(Self.longSide(prepared) == 2048)
+        // 下限(1280px、品質 0.4)約 31 dB,目視文字仍清楚。
         #expect(try Self.textRegionPSNR(prepared.jpeg, original: original) >= 30)
     }
 
@@ -137,45 +139,4 @@ enum NoiseImage {
     }
 }
 
-/// 暫時的量測(#78 定案參數用，定案後移除):每個長邊 × 品質的輸出大小與截圖文字區 PSNR。
-@Suite("圖片前處理量測(暫時)")
-struct ImagePreparationMeasurement {
-    static func encode(_ data: Data, longSide: Int, quality: Double) -> (bytes: Int, jpeg: Data)? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: longSide,
-        ]
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-        let output = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
-        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
-        guard CGImageDestinationFinalize(destination) else { return nil }
-        return (output.length, output as Data)
-    }
-
-    @Test("輸出大小表")
-    func report() throws {
-        for name in ["photo-4032x3024.jpg", "screenshot-1290x2796.png", "noise-3000x2000"] {
-            let data = try name.hasPrefix("noise") ? NoiseImage.png(width: 3000, height: 2000) : ImagePreparationTests.sample(name)
-            for longSide in [2048, 1792, 1536, 1280] {
-                var cells: [String] = []
-                for quality in [0.8, 0.7, 0.6, 0.5, 0.4, 0.3] {
-                    guard let encoded = Self.encode(data, longSide: longSide, quality: quality) else { continue }
-                    var cell = "q\(quality)=\(encoded.bytes / 1024)K"
-                    if name.hasPrefix("screenshot") {
-                        let psnr = try ImagePreparationTests.textRegionPSNR(encoded.jpeg, original: data)
-                        cell += "(text \(String(format: "%.1f", psnr))dB)"
-                        if (longSide == 1280 && quality == 0.4) || (longSide == 2048 && quality == 0.5) {
-                            print("JPEGB64 \(longSide)-\(quality) \(encoded.jpeg.base64EncodedString())")
-                        }
-                    }
-                    cells.append(cell)
-                }
-                print("MEASURE \(name) \(longSide) \(cells.joined(separator: " "))")
-            }
-        }
-    }
-}
 #endif
