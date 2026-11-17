@@ -2,6 +2,7 @@
 //!
 //! 檔案都放在 `~/.purrdr/host-service/`(`~/.purrdr/` 與其他功能共用);解除安裝依安裝紀錄完整還原。
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -64,6 +65,10 @@ pub enum InstallError {
     MagicDnsDisabled,
     HttpsCertificatesDisabled,
     ServeFailed,
+    /// 使用者看過 Certificate Transparency 的說明後取消。
+    Declined,
+    /// HTTPS 443 已經轉到別的服務。
+    ServePortTaken(String),
     /// HTTPS 443 的 `tailscale serve` 設定已不是安裝時設的。
     ServeChanged(String),
     Tailscale(String),
@@ -83,7 +88,15 @@ impl std::fmt::Display for InstallError {
                 formatter,
                 "HTTPS Certificates are off for this tailnet. Click \"Enable HTTPS\" under HTTPS Certificates at {DNS_SETTINGS}, then run install again."
             ),
-            InstallError::ServeFailed => write!(formatter, "`tailscale serve` failed (see its output above)."),
+            InstallError::ServeFailed => write!(
+                formatter,
+                "`tailscale serve` failed (see its output above). On Linux, allow your account first with `sudo tailscale set --operator=$USER`."
+            ),
+            InstallError::Declined => write!(formatter, "Install cancelled; nothing was changed."),
+            InstallError::ServePortTaken(handlers) => write!(
+                formatter,
+                "tailscale serve already uses HTTPS 443 ({handlers}). Remove it with `tailscale serve --https=443 off` if you no longer need it, then run install again."
+            ),
             InstallError::ServeChanged(handlers) => write!(formatter, "tailscale serve HTTPS 443 now serves {handlers}, left unchanged"),
             InstallError::Tailscale(message) | InstallError::Autostart(message) | InstallError::Io(message) => write!(formatter, "{message}"),
             InstallError::NotInstalled => write!(formatter, "The Purrdr host service is not installed."),
@@ -197,39 +210,68 @@ impl<S: HostSystem> Installer<S> {
     }
 
     /// 檢查前置條件、複製執行檔、設定 `tailscale serve` 與登入後自動啟動。
-    pub fn install(&mut self, options: &InstallOptions, _confirm: impl FnOnce(&str) -> bool) -> Result<Installed, InstallError> {
+    /// `confirm` 收到 Certificate Transparency 的說明，回 false 就取消(此時還沒有改任何東西)。
+    pub fn install(&mut self, options: &InstallOptions, confirm: impl FnOnce(&str) -> bool) -> Result<Installed, InstallError> {
         let layout = self.layout();
         let tailscale = Tailscale::locate(&mut self.system, self.environment.platform)?;
         let host_name = tailscale.host_name(&mut self.system)?;
+        let handlers = tailscale.https_handlers(&mut self.system)?;
+        let serve_in_place = handlers == BTreeMap::from([("/".to_owned(), tailscale::serve_target(options.port))]);
+        if !handlers.is_empty() && !serve_in_place {
+            return Err(InstallError::ServePortTaken(tailscale::describe(&handlers)));
+        }
+        if !confirm(&certificate_transparency_notice(&host_name)) {
+            return Err(InstallError::Declined);
+        }
+
         let mut record = InstallRecord {
             port: options.port,
             herdr_session: options.herdr_session.clone(),
             https_address: format!("https://{host_name}"),
             ..InstallRecord::default()
         };
+        let applied = self.apply(&layout, &tailscale, options, serve_in_place, &mut record);
+        if let Err(error) = applied {
+            self.roll_back(&layout, &tailscale, &record);
+            return Err(error);
+        }
+        Ok(Installed { https_address: record.https_address })
+    }
 
+    /// 安裝的每一步;`record` 隨時反映已做的變更，失敗時依它還原。
+    fn apply(&mut self, layout: &ServiceLayout, tailscale: &Tailscale, options: &InstallOptions, serve_in_place: bool, record: &mut InstallRecord) -> Result<(), InstallError> {
         for directory in [layout.bin_directory(), layout.log_file().parent().unwrap().to_path_buf()] {
-            self.create_directory(&directory, &mut record)?;
+            self.create_directory(&directory, record)?;
         }
         for name in layout.executable_names() {
             std::fs::copy(options.source_directory.join(name), layout.bin_directory().join(name)).map_err(InstallError::io)?;
         }
         write_json(&layout.config_file(), &ServiceConfig { https_address: &record.https_address })?;
 
-        tailscale.serve(&mut self.system, options.port)?;
-        record.serve_configured = true;
-
-        if let Some(registration) = autostart::registration_file(&layout) {
-            self.create_directory(registration.parent().unwrap(), &mut record)?;
+        if !serve_in_place {
+            record.serve_configured = true;
+            tailscale.serve(&mut self.system, options.port)?;
         }
-        for directory in autostart::system_created_directories(&layout) {
+
+        if let Some(registration) = autostart::registration_file(layout) {
+            self.create_directory(registration.parent().unwrap(), record)?;
+        }
+        for directory in autostart::system_created_directories(layout) {
             if !directory.exists() {
-                self.record_created(&directory, &mut record);
+                self.record_created(&directory, record);
             }
         }
-        write_json(&layout.record_file(), &record)?;
-        autostart::register(&mut self.system, &layout, &service_arguments(&record))?;
-        Ok(Installed { https_address: record.https_address })
+        write_json(&layout.record_file(), record)?;
+        autostart::register(&mut self.system, layout, &service_arguments(record))
+    }
+
+    /// 安裝失敗時盡力還原;還原本身的錯誤不蓋過原本的錯誤。
+    fn roll_back(&mut self, layout: &ServiceLayout, tailscale: &Tailscale, record: &InstallRecord) {
+        let _ = autostart::unregister(&mut self.system, layout, self.environment.user_name.as_deref());
+        if record.serve_configured {
+            let _ = tailscale.remove_serve(&mut self.system, record.port);
+        }
+        let _ = self.remove_files(layout, record);
     }
 
     /// 移除自動啟動、`tailscale serve` 設定與主機服務的檔案;還原不了的項目列在 `warnings`。
@@ -295,6 +337,15 @@ impl<S: HostSystem> Installer<S> {
             record.created_directories.push(relative.to_string_lossy().replace('\\', "/"));
         }
     }
+}
+
+/// 設定 `tailscale serve` 前給使用者看的說明。
+fn certificate_transparency_notice(host_name: &str) -> String {
+    format!(
+        "Tailscale will get an HTTPS certificate for {host_name}. Certificates are recorded in public Certificate Transparency logs, \
+         so this name becomes publicly visible. If it reveals something sensitive, rename this machine at \
+         https://login.tailscale.com/admin/machines first."
+    )
 }
 
 /// 自動啟動時傳給主機服務的參數。

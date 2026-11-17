@@ -140,6 +140,75 @@ fn macos_finds_tailscale_cli_inside_the_app_when_not_on_path() {
     assert!(installer.system().state.serve.contains_key(&format!("{FQDN}:443")));
 }
 
+#[test]
+fn install_warns_that_host_name_enters_certificate_transparency_and_stops_when_declined() {
+    let host = TestHost::new(InstallPlatform::Linux);
+    let system = FakeSystem::ready(&host.home.0);
+    let system_before = system.state.clone();
+    let mut installer = Installer::new(host.environment(), system);
+    let mut notice = String::new();
+
+    let error = installer
+        .install(&host.options(PORT), |text| {
+            notice = text.to_owned();
+            false
+        })
+        .unwrap_err();
+
+    assert_eq!(error, InstallError::Declined);
+    assert!(notice.contains(FQDN), "{notice}");
+    assert!(notice.contains("Certificate Transparency"), "{notice}");
+    assert!(snapshot(&host.home.0).is_empty());
+    assert_eq!(installer.system().state, system_before);
+}
+
+#[test]
+fn https_port_already_served_by_something_else_is_left_alone() {
+    for platform in PLATFORMS {
+        let host = TestHost::new(platform);
+        let mut system = FakeSystem::ready(&host.home.0);
+        system
+            .state
+            .serve
+            .insert(format!("{FQDN}:443"), [("/".to_owned(), "http://127.0.0.1:3000".to_owned())].into());
+        let system_before = system.state.clone();
+        let mut installer = Installer::new(host.environment(), system);
+
+        let error = installer.install(&host.options(PORT), |_| true).unwrap_err();
+
+        assert_eq!(error, InstallError::ServePortTaken("/ -> http://127.0.0.1:3000".into()));
+        assert!(error.to_string().contains("tailscale serve --https=443 off"), "{error}");
+        assert!(snapshot(&host.home.0).is_empty(), "{platform:?}");
+        assert_eq!(installer.system().state, system_before);
+    }
+}
+
+#[test]
+fn failure_after_changes_rolls_everything_back() {
+    type Breaks = fn(&mut FakeSystem);
+    let cases: [Breaks; 2] = [|system| system.serve_denied = true, |system| system.autostart_fails = true];
+    for platform in PLATFORMS {
+        for breaks in cases {
+            let host = TestHost::new(platform);
+            let mut system = FakeSystem::ready(&host.home.0);
+            existing_files_and_settings(&host, &mut system);
+            breaks(&mut system);
+            let home_before = snapshot(&host.home.0);
+            let system_before = system.state.clone();
+            let mut installer = Installer::new(host.environment(), system);
+
+            let result = installer.install(&host.options(PORT), |_| true);
+
+            let error = result.unwrap_err();
+            if platform == InstallPlatform::Linux && error == InstallError::ServeFailed {
+                assert!(error.to_string().contains("sudo tailscale set --operator=$USER"), "{error}");
+            }
+            assert_eq!(snapshot(&host.home.0), home_before, "{platform:?}: {error:?}");
+            assert_eq!(installer.system().state, system_before, "{platform:?}: {error:?}");
+        }
+    }
+}
+
 /// 安裝前就有的東西：其他 Purrdr 功能的檔案、別的自動啟動項目、其他埠的 `tailscale serve`。
 fn existing_files_and_settings(host: &TestHost, system: &mut FakeSystem) {
     let push = host.home.0.join(".purrdr/push-device/pairing");
