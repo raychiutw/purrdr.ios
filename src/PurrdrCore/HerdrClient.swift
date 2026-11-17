@@ -1,22 +1,19 @@
 import Foundation
 
-/// 經主機通道呼叫 herdr socket API 的 client。
-///
-/// 每個請求開一個 `herdr remote-api-bridge`,把請求一行寫進 stdin,**不送 EOF**(bridge 在 EOF 時會放棄
-/// 「需要等待」的請求),讀到第一行回應後由我方關閉通道(行為規格 §3.3)。
+/// 經主機連線呼叫 herdr socket API 的 client。wire format(snake_case)只在這個檔案處理。
 public struct HerdrClient: Sendable {
-    private let channel: any HostChannel
-    private let herdr: HerdrInstallation
-    /// 期限計時用(測試注入)。
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let connection: any HostConnection
 
+    public init(connection: any HostConnection) {
+        self.connection = connection
+    }
+
+    /// SSH 連線方式(主機通道)的捷徑。
     public init(
         channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
-        self.channel = channel
-        self.herdr = herdr
-        self.sleep = sleep
+        self.init(connection: SSHHostConnection(channel: channel, herdr: herdr, sleep: sleep))
     }
 
     /// 讀主機目前的全量狀態(`session.snapshot`)。
@@ -59,63 +56,27 @@ public struct HerdrClient: Sendable {
 
     /// 訂閱事件(`events.subscribe`)。
     ///
-    /// 跟其他請求一樣開一個 bridge、寫一行請求、**不送 EOF**(bridge 在 EOF 時只回 ack 就結束);
-    /// 之後持續讀事件，直到主機那端結束、herdr 回錯誤(例如 `events_lost`),或呼叫端不再讀(此時關閉通道)。
+    /// 持續讀事件，直到主機那端結束、herdr 回錯誤(例如 `events_lost`),或呼叫端不再讀(此時關閉串流)。
     /// 串流第一項是 `.subscriptionStarted`;在它之前就結束算失敗(行為規格 §3.7)。
     public func subscribe(_ subscriptions: [EventSubscription]) async throws -> AsyncThrowingStream<HerdrEvent, any Error> {
-        let session = try await channel.execute(HerdrCommand.bridge(herdr))
-        do {
-            try await session.write(Self.requestLine(method: "events.subscribe", params: SubscribeParams(subscriptions: subscriptions)))
-        } catch {
-            await session.close()
-            throw error
-        }
+        let lines = try await connection.herdrEvents(Self.requestLine(method: "events.subscribe", params: SubscribeParams(subscriptions: subscriptions)))
         let (events, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
         let reader = Task {
             do {
-                try await Self.readEvents(from: session, into: continuation)
+                var started = false
+                for try await line in lines {
+                    guard let event = try Self.decodeStreamLine(line, started: started) else { continue }
+                    if event == .subscriptionStarted { started = true }
+                    continuation.yield(event)
+                }
+                guard started else { throw HerdrError.noResponse(exitCode: nil, stderr: "") }
                 continuation.finish()
             } catch {
                 continuation.finish(throwing: error)
             }
-            await session.close()
         }
-        continuation.onTermination = { _ in
-            reader.cancel()
-            Task { await session.close() }
-        }
+        continuation.onTermination = { _ in reader.cancel() }
         return events
-    }
-
-    private static func readEvents(from session: any ExecSession, into continuation: AsyncThrowingStream<HerdrEvent, any Error>.Continuation) async throws {
-        var buffer = Data()
-        var stderr = Data()
-        var exitCode: Int32?
-        var started = false
-        for try await output in session.output {
-            switch output {
-            case .stdout(let data):
-                buffer.append(data)
-                while let newline = buffer.firstIndex(of: 0x0A) {
-                    let line = Data(buffer[buffer.startIndex..<newline])
-                    buffer.removeSubrange(buffer.startIndex...newline)
-                    if let event = try decodeStreamLine(line, started: started) {
-                        if event == .subscriptionStarted { started = true }
-                        continuation.yield(event)
-                    }
-                }
-            case .stderr(let data):
-                stderr.append(data)
-            case .exit(let code, _):
-                exitCode = code
-            }
-        }
-        guard !started else { return }
-        // herdr 失敗時可能把錯誤 envelope 印在 stderr(行為規格 §3.2)。
-        if let envelope = stderr.split(separator: 0x0A).first(where: { $0.first == UInt8(ascii: "{") }) {
-            _ = try decodeStreamLine(Data(envelope), started: false)
-        }
-        throw HerdrError.noResponse(exitCode: exitCode, stderr: String(decoding: stderr, as: UTF8.self))
     }
 
     /// 串流中的一行:ack、事件，或錯誤 envelope(丟出)。ack 之後看不懂的行略過。
@@ -214,40 +175,8 @@ public struct HerdrClient: Sendable {
     private func request<Result: Decodable>(
         method: String, params: some Encodable = NoParams(), as: Result.Type, deadline: Duration? = nil
     ) async throws -> Result {
-        let session = try await channel.execute(HerdrCommand.bridge(herdr))
-        let line: Data
-        do {
-            try await session.write(Self.requestLine(method: method, params: params))
-            if let deadline {
-                line = try await Self.firstLine(of: session, within: deadline, sleep: sleep)
-            } else {
-                line = try await Self.firstLine(of: session)
-            }
-        } catch {
-            await session.close()
-            throw error
-        }
-        await session.close()
+        let line = try await connection.herdrRequest(Self.requestLine(method: method, params: params), deadline: deadline)
         return try Self.decode(line, as: Result.self)
-    }
-
-    /// 在期限內讀第一行;期限先到就關閉通道並丟 `HerdrError.deadlineExceeded`(§7.2)。
-    private static func firstLine(
-        of session: any ExecSession, within deadline: Duration, sleep: @escaping @Sendable (Duration) async throws -> Void
-    ) async throws -> Data {
-        try await withThrowingTaskGroup(of: Data?.self) { group in
-            group.addTask { try await firstLine(of: session) }
-            group.addTask {
-                try await sleep(deadline)
-                return nil
-            }
-            defer { group.cancelAll() }
-            guard let first = try await group.next(), let line = first else {
-                await session.close()
-                throw HerdrError.deadlineExceeded
-            }
-            return line
-        }
     }
 
     /// 一行請求(結尾換行)。請求 id 固定是 `purrdr:<method>`:一個 bridge 程序只處理一個請求。
@@ -255,37 +184,6 @@ public struct HerdrClient: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(WireRequest(id: "purrdr:\(method)", method: method, params: params)) + [0x0A]
-    }
-
-    /// 讀到 stdout 的第一行就停。stdout 沒有任何內容就結束時，帶上 exit code 與 stderr 回報。
-    private static func firstLine(of session: any ExecSession) async throws -> Data {
-        var stdout = Data()
-        var stderr = Data()
-        var exitCode: Int32?
-        for try await event in session.output {
-            switch event {
-            case .stdout(let data):
-                stdout.append(data)
-                if let newline = stdout.firstIndex(of: 0x0A) { return stdout[stdout.startIndex..<newline] }
-            case .stderr(let data):
-                stderr.append(data)
-            case .exit(let code, _):
-                exitCode = code
-            }
-        }
-        // herdr 失敗時可能把錯誤 envelope 印在 stderr(行為規格 §3.2)。
-        if stdout.isEmpty, let envelope = stderr.split(separator: 0x0A).first(where: { $0.first == UInt8(ascii: "{") }) {
-            return Data(envelope)
-        }
-        // bridge 連不到 socket = 這個 session 沒有在跑 herdr(行為規格 §3.3)。
-        let stderrText = String(decoding: stderr, as: UTF8.self)
-        if stdout.isEmpty, stderrText.contains("failed to connect to remote Herdr API socket") {
-            throw HerdrError.herdr(code: "server_not_running", message: stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        guard !stdout.isEmpty else {
-            throw HerdrError.noResponse(exitCode: exitCode, stderr: String(decoding: stderr, as: UTF8.self))
-        }
-        return stdout
     }
 
     private static func decode<Result: Decodable>(_ line: Data, as: Result.Type) throws -> Result {

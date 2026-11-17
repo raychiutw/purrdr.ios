@@ -50,10 +50,10 @@ TestFlight(`.github/workflows/testflight.yml`,#36):合併進 `master` 自動上�
 Package.swift                  # 根目錄 local package,用 path: 指向 src/、tests/
 src/App/Purrdr.xcodeproj       # app target、UI test target(buildable folders)
 src/App/Purrdr/                # @main(PurrdrApp)= 唯一的 composition root;AppIcon.icon、Assets.xcassets(AccentColor)
-src/PurrdrCore/                # 可攜核心：主機通道 HostChannel(真 SSH:SSHHostChannel)、主機指令建構 HerdrCommand、herdr client、連線測試 HostProbe、領域型別
+src/PurrdrCore/                # 可攜核心：主機連線 HostConnection(SSH:SSHHostConnection)、主機通道 HostChannel(真 SSH:SSHHostChannel)、主機指令建構 HerdrCommand、herdr client、連線測試 HostProbe、領域型別
 src/PurrdrDemo/                # 可攜:Demo 主機 DemoHost(HostChannel 的實作)
 src/PurrdrFeatures/            # SwiftUI 畫面 + 每畫面一個 @MainActor @Observable model
-tests/PurrdrTestSupport/       # 假主機 FakeHost、錄製回應 Fixtures/
+tests/PurrdrTestSupport/       # 假主機 FakeHost、假的主機連線 FakeHostConnection、錄製回應 Fixtures/
 tests/PurrdrCoreTests/  tests/PurrdrFeaturesTests/
 tests/PurrdrUITests/           # XCUITest
 backend/                       # Purrdr 後台(Cloudflare Worker + D1,TypeScript),說明見 backend/README.md
@@ -61,12 +61,13 @@ host-service/                  # 主機服務(Rust workspace,ADR-0010):service/ 
 protocol/                      # 主機服務協定：host-service.schema.json(唯一定義)與 examples/(兩端共用的範例)
 ```
 
-依賴方向:`App → Features → Core ← Demo ← App`。**Features 不 import Demo**:畫面只透過 `HostChannel` 拿資料，不知道背後是真主機、假主機或 Demo。
+依賴方向:`App → Features → Core ← Demo ← App`。**Features 不 import Demo**:畫面只透過核心的介面拿資料，不知道背後是真主機、假主機或 Demo。上層功能(Agent 列表、對話閱讀、送 prompt、Pane 終端機)只經**主機連線**;Features 裡只有 SSH 才有的功能(登入 Shell、推播外掛、主題、資料夾…)直接用主機通道。
 
 - **可攜核心**(PurrdrCore、PurrdrDemo,ADR-0006)只能 import Foundation 與 swift-nio／swift-nio-ssh／swift-crypto 系列。Apple 專屬的東西(SwiftUI、Security、StoreKit、SwiftData…)放 Features 或 app,以 protocol 從核心注入。`PortableCoreImportTests` 在 `swift test` 先擋;CI 的 Android job 是最終守門。新增可攜 module 時兩邊(測試的允許清單、CI 的 `--target`)都要更新。
+- **主機連線**(`HostConnection`,#54、ADR-0010):上層功能對一台主機的 herdr 操作——herdr 單次請求(一行 NDJSON 進、第一行回應出)、Agent 事件串流(逐行)、對話紀錄讀取(`TranscriptRequest`)、Pane 終端機。`HerdrClient`、`TranscriptReader`、`PaneTerminalClient` 以 `init(connection:)` 建在它上面(`init(channel:)` 是 SSH 的捷徑,Features 不用，`HostConnectionBoundaryTests` 擋)。SSH 實作 `SSHHostConnection` 包住主機通道(Demo 主機也經過它);登入 Shell 不在介面裡，只有 SSH 提供。
 - **主機通道**(`HostChannel`):`execute(command)` 回傳 `ExecSession`(stdout／stderr／exit 串流，可寫 stdin、送 EOF、關閉);`openPTY(PTYRequest)` 回傳 `PTYSession`。連線重用、逾時、「連線層失敗不重送」都封裝在實作內;`disconnect()` 關掉底層連線。
 - **真 SSH**(`SSHHostChannel`,ADR-0003):swift-nio-ssh,Tailscale SSH 用 `none` 認證。沒有 host key pin 時**不登入**,丟 `SSHConnectionError.hostKeyUnverified(presented:)` 讓畫面請使用者確認;指紋不符丟 `hostKeyChanged`。主機設定與 pin 存 Keychain(`KeychainHostStore`,解鎖時、僅此裝置)。
-- **herdr client**:每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
+- **herdr client**:SSH 連線(`SSHHostConnection`)每個請求開一個 `herdr remote-api-bridge`,stdin 寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。錯誤 envelope → `HerdrError.herdr(code:message:)`,未知碼保留 herdr 原文。wire format(snake_case)只在 `HerdrClient.swift` 處理。
 - **主機指令建構**(`HerdrCommand`):POSIX 指令前綴明確 PATH、引號用 `'"'"'`(行為規格 §3.2)。herdr 路徑與具名 session 由 `HerdrInstallation` 帶入(`--session <name>` 放在子指令前;`--version`、`update` 不帶)。
 - **Windows 主機**(#26):呼叫端照常送 POSIX 指令，`WindowsHostChannel`(包住真正的通道;`HostsModel` 依主機設定的 `operatingSystem == .windows` 套上;作業系統未知(主機同步帶來的新主機)時包 `OperatingSystemDetectingChannel`,第一個指令前先偵測、存回主機設定，偵測完才送指令;連線測試偵測到 Windows 後自己套上)在通道層換成 `powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand`,所以不要求 Git Bash。herdr 指令把 `PATH=… '<herdr>' 參數…` 換成 `& $h 參數…`(找不到 `herdr` 試 `%LOCALAPPDATA%\Programs\Herdr\bin\herdr.exe`,`update --handoff` 換成 `update`);對話紀錄、圖片／檔案上傳、資料夾清單、主機檔案讀寫(`HostFileScript` 的讀、compare-and-swap 寫、找最新檔，含推播配對清單;版本是 SHA-256:大小,讀的輸出多一行 `home C:/Users/<帳號>`,`HostFileRead.operatingSystem` 由它判斷)與 Claude slash 清單探索有同樣輸出格式與 exit code 的 PowerShell 版本(`WindowsScripts`,#68),其他指令丟 `WindowsCommandError.unsupported`,不把 POSIX 腳本送過去。Windows 的差異：主題讀 `%APPDATA%\herdr\config.toml`(`HostThemeHost.windowsConfigPath`);Claude 用量的包裝是 `statusline.ps1`,指令 `powershell.exe … -ExecutionPolicy Bypass -File '<家目錄>/.purrdr/claude-usage/statusline.ps1'`(Claude Code 經 Git Bash 或 PowerShell 跑都可以，原本的 status line 以 Git Bash 執行);Codex 啟動器做不到(丟 `unsupported`,畫面顯示「Windows 主機目前還不能用這項功能」)。唯讀腳本經 stdin 送給固定的 stub(cmd 的命令列上限 8,191 字元),**不靠 EOF**:stub 讀到結束標記行、上傳讀剛好宣告的大小;同一個指令只送一次 EOF。PowerShell 函式一律 `P` 開頭(alias 優先於函式，`rd` 是 Remove-Item)。路徑驗證、切段、上一層與顯示(列表副標、資料夾瀏覽)都認 `C:\…`(`HostPathSyntax`);錯誤訊息的 CLIXML／Rust Debug 格式由 `WindowsErrorText` 整理。偵測：`uname -s` 的 `MINGW64_NT-…`／`MSYS_NT-…`,沒有 `uname`(cmd／PowerShell)時再跑 `PowerShell.windowsProbe`。Windows 沒有 live handoff:更新 herdr 後請使用者重啟伺服器(`HerdrUpdateOutcome.restartServerRequired`)。
 - **Purrdr 後台(會員)**:核心的 `MemberSession`(actor)管登入與權杖(更新權杖存 `TokenStore`,iOS 是 Keychain;401 自動換權杖重送一次),經 `BackendTransport` 送出;iOS 傳輸是 Features 的 `URLSessionBackendTransport`。wire format(camelCase)只在 `MemberSession.swift`,契約在 `backend/README.md`。`-uiTesting` 時權杖只放記憶體、後台指向 `backend.invalid`。app 端測試用 `HTTPStub`(URLProtocol)擋後台。
@@ -96,6 +97,7 @@ protocol/                      # 主機服務協定：host-service.schema.json(�
 ## 測試慣例
 
 - 單元與 integration 測試用 Swift Testing;UI 流程用 XCUITest。測試名稱使用 `GLOSSARY.md` 的詞。
+- **主機連線**:上層功能不在乎連線方式的測試用**假的主機連線**(`FakeHostConnection`):`expect("session.snapshot", reply: Fixtures.data(…))` 以 herdr method 比對、回放錄製回應;`events.subscribe` 回完保持開著，用 `send(event:toSubscription:)` 推事件;`requests` 是送出的請求行。對話紀錄與 Pane 終端機尚未支援(丟 `unsupported`)。斷言指令字串、bridge 規則等 SSH 細節的測試照舊用假主機。
 - **Seam 1 主機通道**:核心與畫面 model 的測試都透過**假主機**:
 
   ```swift
