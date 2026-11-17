@@ -1,3 +1,4 @@
+// 可還原主機寫入的領域型別(功能、安裝紀錄、計畫、錯誤);經主機通道執行的 `ReversibleHostWrite` 在 PurrdrSSH。
 import Foundation
 
 /// 一個會寫入主機的功能(ADR-0002):它會修改哪些使用者檔案，自己的檔案放在 `~/.purrdr/<id>/`。
