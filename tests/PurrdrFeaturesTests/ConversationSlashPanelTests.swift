@@ -4,7 +4,7 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// Slash 進階(#45、#83):點選行為(一律只填入／參數提示)與 slash 面板卡片(行為規格 F9.3、F9.4、R-C04、R-C05)。
+/// Slash 進階(#45、#83):點選行為(一律只填入／參數提示)與 slash 面板卡片(行為規格 F9.3、F9.4、R-C04)。
 /// herdr 走假主機;Claude `/model` 面板畫面是真實錄製(#65,`PaneScreens`),`agent.prompt`、`pane.send_keys` 的回應不錄。
 /// **不對任何真實 agent 送 slash 指令或按鍵。**
 @MainActor
@@ -44,14 +44,17 @@ struct ConversationSlashPanelTests {
     )
     func pickOnlyFills(command: SlashCommand) async throws {
         let setup = try await Self.opened()
+        // 備好送出的回應：真的送出就會被用掉。
+        await Self.expectSlashSend(setup)
         let executionsBefore = await setup.host.bridge.executions.count
         setup.model.draft = "/" + String(command.name.prefix(3))
 
-        await setup.model.pick(slash: command)
+        setup.model.pick(slash: command)
 
         #expect(setup.model.draft == "/\(command.name) ")
         #expect(setup.model.slashArgumentHint == command.argumentHint)
         #expect(await setup.host.bridge.executions.count == executionsBefore)
+        #expect(await setup.host.bridge.unmetExpectations.count == 2)
     }
 
     @Test("在 slash 選單按 Return 選定 `/model`:只填入 `/model `,不送出(#83)")
@@ -73,7 +76,7 @@ struct ConversationSlashPanelTests {
         let setup = try await Self.opened()
         setup.model.draft = "/comp"
 
-        await setup.model.pick(slash: SlashCommand(name: "compact", argumentHint: "[instructions]", summary: "Compact the conversation"))
+        setup.model.pick(slash: SlashCommand(name: "compact", argumentHint: "[instructions]", summary: "Compact the conversation"))
 
         #expect(setup.model.draft == "/compact ")
         #expect(await Self.promptRequests(setup).isEmpty)
@@ -85,7 +88,7 @@ struct ConversationSlashPanelTests {
         let setup = try await Self.opened()
         setup.model.draft = "/add"
 
-        await setup.model.pick(slash: SlashCommand(name: "add-dir", argumentHint: "<path>", summary: "Add a working directory"))
+        setup.model.pick(slash: SlashCommand(name: "add-dir", argumentHint: "<path>", summary: "Add a working directory"))
 
         #expect(setup.model.draft == "/add-dir ")
         #expect(setup.model.slashArgumentHint == "<path>")
@@ -100,7 +103,7 @@ struct ConversationSlashPanelTests {
     static func panelOpen(sleeper: RecordingSleeper = RecordingSleeper()) async throws -> ConversationAnswerTests.Setup {
         let setup = try await Self.opened(sleeper: sleeper)
         await Self.expectSlashSend(setup)
-        await setup.model.pick(slash: SlashCommand(name: "model", argumentHint: "[model]", summary: "Choose the model"))
+        setup.model.pick(slash: SlashCommand(name: "model", argumentHint: "[model]", summary: "Choose the model"))
         await setup.model.send()
         await setup.host.bridge.expect(bridge, reply: idle())
         await setup.host.bridge.expect(bridge, reply: PaneScreens.read("claude-panel-model"))

@@ -131,6 +131,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             try audit(app, "slash 選單", contentSize: size)
             text.typeText("model")
             element("slash.row.model", in: app).tap()
+            element("composer.send", in: app).tap()
             XCTAssertTrue(element("panel.card", in: app).waitForExistence(timeout: 10))
             element("composer.hideKeyboard", in: app).tap()
             try audit(app, "/model 面板卡片", contentSize: size)
