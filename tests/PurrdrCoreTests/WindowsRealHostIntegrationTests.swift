@@ -1,6 +1,7 @@
 import Crypto
 import Foundation
 @testable import PurrdrCore
+import PurrdrTestSupport
 import Testing
 
 /// 對真實 Windows 主機(OpenSSH + herdr Windows 版)的整合測試(#26),以環境變數開啟(預設不跑;CI 不跑)。
@@ -208,7 +209,7 @@ struct WindowsRealHostIntegrationTests {
 
     // MARK: - 上傳
 
-    @Test("上傳圖片(%USERPROFILE% 指向暫存資料夾)與檔案：bytes 經 stdin 原樣寫入、不覆寫;資料夾清單與新增對話的資料夾")
+    @Test("上傳圖片(%USERPROFILE% 指向暫存資料夾)與檔案：300 KB(超過經 sshd 讀 console stream 會卡住的約 128 KiB)經 stdin 原樣寫入、不覆寫;資料夾清單與新增對話的資料夾")
     func uploadsAndFolders() async throws {
         let ssh = try await WindowsRealHost.channel()
         let temp = try await WindowsTemp.create(on: ssh)
@@ -216,7 +217,7 @@ struct WindowsRealHostIntegrationTests {
         let home = temp.path + #"\家"#
         try await temp.makeDirectory(home + #"\專案"#)
         let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["USERPROFILE": home]))
-        var bytes = Data((0..<70_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
+        var bytes = Data((0..<300_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
         bytes.append(contentsOf: [0x0D, 0x0A, 0x1A, 0x00])
 
         let name = UploadFileName("purrdr-test-1.jpg")!
@@ -247,6 +248,38 @@ struct WindowsRealHostIntegrationTests {
         await temp.remove()
         await ssh.disconnect()
     }
+
+    #if os(macOS)
+    @Test("檔案上傳以 gzip 傳輸(#79):主機以 GZipStream 解壓後 SHA-256 與原檔相同;傳輸大小或原始大小不符時 exit 75、不留檔")
+    func gzipFolderUpload() async throws {
+        let ssh = try await WindowsRealHost.channel()
+        let temp = try await WindowsTemp.create(on: ssh)
+        defer { Task { await temp.remove() } }
+        let folder = temp.path + #"\gzip"#
+        try await temp.makeDirectory(folder)
+        let channel = WindowsHostChannel(ssh)
+        let original = TestUploadData.letters(count: 300_000)
+
+        log("gzip 上傳…")
+        let path = try await HostFolders(channel: channel, deflate: StandardRawDeflate()).upload(original, named: "build.log", to: folder)
+        #expect(path == folder + #"\build.log"#)
+        #expect(try await temp.sha256(of: path) == SHA256.hash(data: original).map { String(format: "%02x", $0) }.joined())
+
+        let gzip = try StandardGzip.compress(original)
+        for (size, transferSize) in [(original.count, gzip.count + 1), (original.count + 1, gzip.count)] {
+            let session = try await channel.execute(
+                HostFolderCommand.upload(folder: folder, name: "bad.log", size: size, encoding: .gzip, transferSize: transferSize))
+            try await session.write(gzip)
+            await session.closeStdin()
+            let result = try await WindowsRealHost.collect(session)
+            log("大小不符(\(size)/\(transferSize)):exit \(result.exitCode)")
+            #expect(result.exitCode == 75)
+        }
+        #expect(try await HostFolders(channel: channel).list(folder).entries.map(\.name) == ["build.log"])
+        await temp.remove()
+        await ssh.disconnect()
+    }
+    #endif
 
     // MARK: - 主機檔案讀寫(#68;家目錄 %USERPROFILE% 指向暫存資料夾)
 

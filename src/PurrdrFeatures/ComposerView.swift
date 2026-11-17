@@ -216,6 +216,7 @@ extension SendNotice {
         case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
         case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
+        case .imageTooLarge: String(localized: "This image is over 20 MB.")
         case .uploadFailed: String(localized: "Couldn’t upload the image to the host. Your message wasn’t sent; try again.")
         }
     }
@@ -226,7 +227,7 @@ extension SendNotice {
         case .agentGone, .superseded: "xmark.bubble"
         case .offline: "wifi.slash"
         case .rejected, .noResponse, .interruptFailed, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
-        case .imageLimit, .imageUnreadable: "photo"
+        case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .unconfirmed: "questionmark.circle"
         case .stillWorking: "ellipsis.circle"
         }

@@ -83,7 +83,7 @@ public actor DemoHost: HostChannel {
         if let upload = HostFolderCommand.parseUpload(command) {
             return DemoUploadSession { [weak self] received in
                 guard let self else { return (Data(), 70) }
-                return await self.finishUpload(folder: upload.folder, name: upload.name, size: upload.size, received: received)
+                return await self.finishUpload(upload, received: received)
             }
         }
         if let listing = DemoNewChatFolders.respond(to: command) {
@@ -139,8 +139,8 @@ public actor DemoHost: HostChannel {
         checkWait?.cancel()
     }
 
-    private func finishUpload(folder: String, name: String, size: Int, received: Int) -> (stdout: Data, exitCode: Int32) {
-        folders.upload(folder: folder, name: name, declaredSize: size, received: received)
+    private func finishUpload(_ upload: FolderUpload, received: Int) -> (stdout: Data, exitCode: Int32) {
+        folders.upload(upload, received: received)
     }
 
     /// `agent.prompt` 的回應：閒置的 Claude Code agent 收下後，對話紀錄接上新的行;不是 `agent.prompt` 回 `nil`。
