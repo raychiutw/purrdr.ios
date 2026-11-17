@@ -41,8 +41,8 @@ impl Drop for TempDirectory {
 }
 
 /// 資料夾內所有檔案與資料夾(相對路徑 → 檔案內容;資料夾為 None)。
-pub fn snapshot(root: &Path) -> BTreeMap<String, Option<Vec<u8>>> {
-    fn walk(root: &Path, directory: &Path, entries: &mut BTreeMap<String, Option<Vec<u8>>>) {
+pub fn snapshot(root: &Path) -> BTreeMap<String, Option<String>> {
+    fn walk(root: &Path, directory: &Path, entries: &mut BTreeMap<String, Option<String>>) {
         for entry in std::fs::read_dir(directory).unwrap() {
             let path = entry.unwrap().path();
             let relative = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
@@ -50,7 +50,7 @@ pub fn snapshot(root: &Path) -> BTreeMap<String, Option<Vec<u8>>> {
                 entries.insert(format!("{relative}/"), None);
                 walk(root, &path, entries);
             } else {
-                entries.insert(relative, Some(std::fs::read(&path).unwrap()));
+                entries.insert(relative, Some(String::from_utf8_lossy(&std::fs::read(&path).unwrap()).into_owned()));
             }
         }
     }

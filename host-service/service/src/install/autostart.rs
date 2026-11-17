@@ -24,6 +24,23 @@ pub(super) fn register(system: &mut impl HostSystem, layout: &ServiceLayout, ser
     run_checked(system, "launchctl", &["bootstrap".into(), domain, plist.display().to_string()])
 }
 
+/// 停止並取消登記，刪除登記檔;沒有登記時不算失敗。
+pub(super) fn unregister(system: &mut impl HostSystem, layout: &ServiceLayout) -> Result<(), InstallError> {
+    let domain = gui_domain(system)?;
+    let _ = system.run("launchctl", &["bootout".into(), format!("{domain}/{LAUNCH_AGENT_LABEL}")]);
+    if let Some(file) = registration_file(layout) {
+        remove_file_if_exists(&file)?;
+    }
+    Ok(())
+}
+
+fn remove_file_if_exists(file: &std::path::Path) -> Result<(), InstallError> {
+    match std::fs::remove_file(file) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(InstallError::io(error)),
+        _ => Ok(()),
+    }
+}
+
 fn gui_domain(system: &mut impl HostSystem) -> Result<String, InstallError> {
     let output = system.run("id", &["-u".into()]).map_err(|error| InstallError::Autostart(error.to_string()))?;
     Ok(format!("gui/{}", output.stdout.trim()))

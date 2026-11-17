@@ -49,7 +49,14 @@ pub struct Installed {
     pub https_address: String,
 }
 
-/// 安裝失敗。
+/// 解除安裝完成。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Uninstalled {
+    /// 沒能還原的項目。
+    pub warnings: Vec<String>,
+}
+
+/// 安裝或解除安裝失敗。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstallError {
     TailscaleMissing,
@@ -57,9 +64,21 @@ pub enum InstallError {
     MagicDnsDisabled,
     HttpsCertificatesDisabled,
     ServeFailed,
+    /// HTTPS 443 的 `tailscale serve` 設定已不是安裝時設的。
+    ServeChanged(String),
     Tailscale(String),
     Autostart(String),
+    NotInstalled,
     Io(String),
+}
+
+impl std::fmt::Display for InstallError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstallError::ServeChanged(handlers) => write!(formatter, "HTTPS 443 now serves {handlers}, left unchanged"),
+            other => write!(formatter, "{other:?}"),
+        }
+    }
 }
 
 impl InstallError {
@@ -175,6 +194,46 @@ impl<S: HostSystem> Installer<S> {
         write_json(&layout.record_file(), &record)?;
         autostart::register(&mut self.system, &layout, &service_arguments(&record))?;
         Ok(Installed { https_address: record.https_address })
+    }
+
+    /// 移除自動啟動、`tailscale serve` 設定與主機服務的檔案;還原不了的項目列在 `warnings`。
+    pub fn uninstall(&mut self) -> Result<Uninstalled, InstallError> {
+        let layout = self.layout();
+        let text = match std::fs::read_to_string(layout.record_file()) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(InstallError::NotInstalled),
+            result => result.map_err(InstallError::io)?,
+        };
+        let record: InstallRecord = serde_json::from_str(&text).map_err(|error| InstallError::Io(format!("{}: {error}", layout.record_file().display())))?;
+        let mut warnings = Vec::new();
+
+        autostart::unregister(&mut self.system, &layout)?;
+        if record.serve_configured {
+            let removed = Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.remove_serve(&mut self.system, record.port));
+            if let Err(error) = removed {
+                warnings.push(format!("tailscale serve was not removed: {error}"));
+            }
+        }
+        self.remove_files(&layout, &record)?;
+        Ok(Uninstalled { warnings })
+    }
+
+    /// 刪除主機服務的資料夾，再刪除安裝時新建、現在是空的資料夾(由深到淺)。
+    fn remove_files(&mut self, layout: &ServiceLayout, record: &InstallRecord) -> Result<(), InstallError> {
+        let created: Vec<PathBuf> = record
+            .created_directories
+            .iter()
+            .rev()
+            .map(|relative| self.environment.home.join(relative))
+            .filter(|directory| !directory.starts_with(layout.directory()))
+            .collect();
+        match std::fs::remove_dir_all(layout.directory()) {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => return Err(InstallError::io(error)),
+            _ => {}
+        }
+        for directory in created {
+            let _ = std::fs::remove_dir(directory);
+        }
+        Ok(())
     }
 
     /// 建立資料夾，並把新建的每一層記在安裝紀錄。

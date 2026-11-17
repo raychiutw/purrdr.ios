@@ -1,5 +1,7 @@
 //! 安裝流程裡的 Tailscale:前置條件檢查與 `tailscale serve` 設定。
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 
 use super::system::HostSystem;
@@ -81,6 +83,38 @@ impl Tailscale {
         if succeeded { Ok(()) } else { Err(InstallError::ServeFailed) }
     }
 
+    /// HTTPS 443 目前的 proxy 設定(路徑 → 目標);沒有設定時是空的。
+    pub(super) fn https_handlers(&self, system: &mut impl HostSystem) -> Result<BTreeMap<String, String>, InstallError> {
+        let output = self.run(system, &["serve", "status", "--json"])?;
+        let output = output.trim();
+        let config: ServeConfig = if output.is_empty() {
+            ServeConfig::default()
+        } else {
+            serde_json::from_str(output).map_err(|_| InstallError::Tailscale(format!("unexpected tailscale serve status: {output}")))?
+        };
+        let suffix = format!(":{HTTPS_PORT}");
+        Ok(config
+            .web
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(host_port, _)| host_port.ends_with(&suffix))
+            .flat_map(|(_, web)| web.handlers.unwrap_or_default())
+            .map(|(path, handler)| (path, handler.proxy.unwrap_or_else(|| "(not a proxy)".into())))
+            .collect())
+    }
+
+    /// 移除 HTTPS 443 的設定，但只在它仍是安裝時設的那一個時才移除。
+    pub(super) fn remove_serve(&self, system: &mut impl HostSystem, port: u16) -> Result<(), InstallError> {
+        let handlers = self.https_handlers(system)?;
+        if handlers.is_empty() {
+            return Ok(());
+        }
+        if handlers != BTreeMap::from([("/".to_owned(), serve_target(port))]) {
+            return Err(InstallError::ServeChanged(describe(&handlers)));
+        }
+        self.run(system, &[&format!("--https={HTTPS_PORT}"), "off"]).map(|_| ())
+    }
+
     fn run(&self, system: &mut impl HostSystem, arguments: &[&str]) -> Result<String, InstallError> {
         let arguments: Vec<String> = arguments.iter().map(|argument| (*argument).to_owned()).collect();
         let output = system
@@ -91,6 +125,30 @@ impl Tailscale {
         }
         Ok(output.stdout)
     }
+}
+
+/// `tailscale serve status --json` 裡用得到的部分。
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ServeConfig {
+    web: Option<BTreeMap<String, WebServer>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct WebServer {
+    handlers: Option<BTreeMap<String, Handler>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct Handler {
+    proxy: Option<String>,
+}
+
+/// 例如 `/ → http://127.0.0.1:3000`。
+pub(super) fn describe(handlers: &BTreeMap<String, String>) -> String {
+    handlers.iter().map(|(path, target)| format!("{path} -> {target}")).collect::<Vec<_>>().join(", ")
 }
 
 /// `tailscale serve` 的 proxy 目標(官方文件：proxy 只支援 `http://127.0.0.1`)。
