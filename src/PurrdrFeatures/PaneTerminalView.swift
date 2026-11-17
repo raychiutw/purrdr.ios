@@ -243,6 +243,8 @@ struct TerminalKeyBar: View {
         }
         .padding(.vertical, 6)
         .background {
+            // iOS 27.0 SDK(SwiftUI 8.0.84)沒有 `reservedRegions`,同一版編譯器分不出 SDK,所以以 SwiftUI 模組版本判斷。
+            #if !os(iOS) || canImport(SwiftUI, _version: 8.0.85)
             if #available(iOS 27.1, *) {
                 // 只取作用中的折疊區：全開時不留空，折疊時才小幅移開按鍵(HIG Designing for iPhone Duo)。
                 GeometryReader { proxy in
@@ -255,6 +257,7 @@ struct TerminalKeyBar: View {
                     }
                 }
             }
+            #endif
         }
     }
 
