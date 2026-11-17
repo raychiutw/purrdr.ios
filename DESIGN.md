@@ -13,7 +13,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 |---|---|---|
 | 品牌紅 | `#FA2D48` | 接近 Apple Music 紅。只用在圖示與不承載文字的裝飾;配白字只有 3.8:1 |
 | 紅字 `brandText`(#70;`AccentColor` 同值，即系統 tint) | light `#D80521`／dark `#FC5D72`／light 高對比 `#A20419`／dark 高對比 `#FCA1AD` | tint、狀態文字、「需要你」(不用於對話中的連結)。淺色對白底 5.3:1、`#F2F2F7` 4.7:1、`#EFEFF0` 4.6:1;深色對黑底 6.9:1、`#1C1C1E` 5.6:1、`#2C2C2E` 4.6:1;高對比兩值對同一組背景都 ≥ 7.1:1 |
-| 紅底 `brandFill`(#70) | light 與 dark `#EA0826`／兩種高對比 `#B3041B` | 承載白字的填色：送出鍵、使用者泡泡、主要按鈕、「+」、膠囊標籤。白字 4.6:1、高對比 7.1:1;深色模式不跟著紅字變亮 |
+| 紅底 `brandFill`(#70) | light 與 dark `#EA0826`／兩種高對比 `#B3041B` | 承載白字的填色：送出鍵、使用者泡泡、主要按鈕、「+」、膠囊標籤、iPad 列表的選取列(#95)。白字 4.6:1、高對比 7.1:1;深色模式不跟著紅字變亮 |
 | 次要文字 `secondaryText`(#67) | light `#636366`／dark `#AEAEB2`／light 高對比 `#48484A`／dark 高對比 `#D1D1D6` | 取代承載資訊的系統 `.secondary`／`.tertiary` 文字(系統 secondaryLabel 白底只有 3.4:1)。淺色對白底 6.0:1、grouped `#F2F2F7` 5.4:1、淡填色卡片 `#EFEFF0` 5.2:1;深色對黑底 9.5:1、`#1C1C1E` 7.7:1、grouped 列 `#2C2C2E` 6.3:1;高對比兩值對同一組背景都 ≥ 7.9:1 |
 | 連結 `linkText`(#93) | light `#0068DA`／dark `#2D96FF`／light 高對比 `#004DA2`／dark 高對比 `#7DBEFF` | 對話中的連結(markdown)。系統連結藍的色相，只調明度:系統 `.link` 淺色對 `#EFEFF0` 只有 3.5:1、深色對 `#2C2C2E` 3.8:1。對比對同一組背景與紅字相同(淺色 ≥ 4.6:1、深色 ≥ 4.6:1、高對比 ≥ 7.1:1) |
 | 錯誤文字 `errorText`(#35) | light `#C4001A`／dark `#FF7A70`／light 高對比 `#A50011`／dark 高對比 `#FF9F97` | 取代承載文字的系統 `.red`(白底 3.6:1);圖示與小紅點仍用系統紅 |
@@ -21,6 +21,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - 每個自訂顏色都要有 light／dark／各自 high contrast 四個值，放在 Asset Catalog 或程式碼的 `ContrastPalette`(`AccessibleColors`)都可以;四個值都要有對比測試(對它實際出現的背景計算，一般 ≥ 4.5:1、高對比 ≥ 7:1,見 `AccessibleColorsTests`)。
 - 紅色只用在主要動作與「需要你」狀態;每個畫面 prominent 按鈕最多 2 個。
 - 紅底白字一律用紅底角色：填色寫 `.brandFill` 或 `hostFill(in:)`,prominent 按鈕用 `filledProminentButtonStyle()`／`filledGlassProminentButtonStyle()`;不要用 tint／`Color.accentColor` 當白字的底(`BrandFillUsageTests` 擋)。
+- iPad 列表(split view 內容欄)的選取列不用系統選取底色(它是 tint,也就是紅字角色，深色白字只有 3.0:1、深色高對比 1.9:1):列加 `selectionFill(for:)`,底色是紅底角色(有主機主題時用主題的白字填色)，列內文字、次要文字與「需要你」的符號、狀態字、「Waiting for your input」一律改成白字 `selectedRowText`(對紅底 4.6:1、高對比 7.1:1);「需要你」在選取列靠 `!` 符號與文字辨認(`AccessibleColorsTests` 的選取列對比測試)。
 - 紅色在 iOS 常代表危險，所以「需要你」一律同時有 `!` 符號與文字，不只靠顏色;真正的錯誤與刪除用系統 `.red`／destructive role,不用品牌紅。
 - 次要文字的判斷原則(#67):**承載資訊的文字一律用 `secondaryText`**——副標、時間、說明、狀態字、預覽、參數提示、placeholder、空狀態與錯誤說明，List／Form 的 section 標題與註腳(系統預設是 secondaryLabel,要明確指定;iPad 側欄的系統樣式 section 標題除外，保留系統色：它畫在系統的 Liquid Glass 側欄上，系統依底下透出的內容、深淺色與「增加對比」調整文字的 vibrancy,換成固定的 `secondaryText` 反而失去這層調整;側欄只用系統語意色文字，audit 透過玻璃取樣不穩定的情況記在 `AccessibilityAudit` 的排除規則),以及「圖示 + 文字」的 Label 整體、只有圖示的按鈕(關閉、複製)與單獨表達狀態的圖示(縮放、未知)。**純裝飾可留系統階層色**:旁邊已有文字說明或對 VoiceOver 隱藏的圖示(卡片種類圖示、主機圖示、工具種類圖示、檔案圖示、圖片佔位圖示、展開箭頭 chevron)、軌道線、分隔線、邊框與底色(`.fill.*`、`.background.secondary`、`Color.secondary.opacity(…)`)。在按鈕(List 列、`DisclosureGroup` label)裡也不會被 tint 染色，因為 `secondaryText` 是固定色。
 - 其他使用系統外觀，不提供 app 內的深淺色設定。

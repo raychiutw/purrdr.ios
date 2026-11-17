@@ -67,6 +67,17 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B)
     )
 
+    /// iPad 列表選取列的底色(#95):紅底角色。系統的選取底色是 tint(紅字角色),深色白字只有 3.0:1。
+    static let selectionFill = brandFill
+
+    /// 選取列上的文字與「需要你」(符號與狀態字)。
+    static let selectedRowText = ContrastPalette(
+        light: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),             // 選取底色 4.6:1
+        dark: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),              // 選取底色 4.6:1
+        lightHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), // 選取底色 7.1:1
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)   // 選取底色 7.1:1
+    )
+
     /// 對話中的連結(#93):系統連結藍的色相(`#007AFF`／`#0A84FF`),只調明度。
     /// 系統 `.link` 淺色對 `#EFEFF0` 只有 3.5:1、深色對 `#2C2C2E` 3.8:1,不能承載文字。
     static let linkText = ContrastPalette(
@@ -86,6 +97,9 @@ extension ShapeStyle where Self == Color {
 
     /// 承載白字的品牌紅填色(紅底角色)。紅字與 tint 用 `AccentColor`。
     static var brandFill: Color { AccessibleColors.brandFill.color }
+
+    /// iPad 選取列上的文字與「需要你」。
+    static var selectedRowText: Color { AccessibleColors.selectedRowText.color }
 
     /// 對話中連結的顏色(連結藍，不用品牌紅 tint)。
     static var linkText: Color { AccessibleColors.linkText.color }
