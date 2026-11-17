@@ -333,7 +333,22 @@ extension AgentListProjection {
         } + shownTerminals.map(WorkspaceGroup.Row.terminal)
         return WorkspaceGroup(
             host: source.host, workspaceID: workspaceID, label: label, agentCount: agentRows.count, terminalCount: shells.count,
-            counts: SpacesStatusCounts(statuses: agentRows.map(\.status)), rows: rows)
+            counts: SpacesStatusCounts(statuses: agentRows.map(\.status)), bar: statusBar(agentRows.map(\.status)), rows: rows)
+    }
+
+    /// 狀態條：20 個以內每個 Agent 一段(需要你 > 工作中 > 完成 > 閒置);超過時依狀態合併，段長與數量成正比。
+    static func statusBar(_ statuses: [AgentStatus]) -> [StatusSegment] {
+        let ranked = statuses.map { $0.urgencyRank == 3 ? AgentStatus.idle : $0 }.sorted { $0.urgencyRank < $1.urgencyRank }
+        guard ranked.count > 20 else { return ranked.map { StatusSegment(status: $0, weight: 1) } }
+        var merged: [StatusSegment] = []
+        for status in ranked {
+            if merged.last?.status == status {
+                merged[merged.count - 1].weight += 1
+            } else {
+                merged.append(StatusSegment(status: status, weight: 1))
+            }
+        }
+        return merged
     }
 }
 
