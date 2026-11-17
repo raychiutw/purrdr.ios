@@ -37,11 +37,25 @@ struct HostCommandDeadlineTests {
             _ = try await TranscriptReader(channel: host, sleep: sleep).tail(path: transcriptPath, from: 100)
         },
         StuckCommand(
-            testDescription: "讀對話紀錄：視窗(20 秒加上 4 MiB 區塊的傳輸時間)",
+            testDescription: "讀對話紀錄：視窗(4 MiB 區塊估算要 151 秒，封頂 100 秒，比主機腳本的自我時限 120 秒短)",
             command: TranscriptCommand.window(path: transcriptPath, end: 5000, lines: 200, chunkBytes: 4 << 20),
-            deadline: .milliseconds(151_072)
+            deadline: .seconds(100)
         ) { host, sleep in
             _ = try await TranscriptReader(channel: host, sleep: sleep).window(path: transcriptPath, endingAt: 5000, lines: 200)
+        },
+        StuckCommand(
+            testDescription: "讀對話紀錄：列表預覽(2 個聊天，20 秒加上 2 × 48,000 bytes 的傳輸時間)",
+            command: TranscriptCommand.previews(marker: "m", entries: previewRequests(2).compactMap(TranscriptCommand.PreviewEntry.init)),
+            deadline: .milliseconds(23_000)
+        ) { host, sleep in
+            _ = try await TranscriptReader(channel: host, marker: { "m" }, sleep: sleep).previews(of: previewRequests(2))
+        },
+        StuckCommand(
+            testDescription: "讀對話紀錄：列表預覽(100 個聊天，封頂 100 秒)",
+            command: TranscriptCommand.previews(marker: "m", entries: previewRequests(100).compactMap(TranscriptCommand.PreviewEntry.init)),
+            deadline: .seconds(100)
+        ) { host, sleep in
+            _ = try await TranscriptReader(channel: host, marker: { "m" }, sleep: sleep).previews(of: previewRequests(100))
         },
         StuckCommand(
             testDescription: "新增對話的資料夾清單",
@@ -80,6 +94,34 @@ struct HostCommandDeadlineTests {
             _ = try await HostOperatingSystem.detect(on: host, sleep: sleep)
         },
     ]
+
+    static func previewRequests(_ count: Int) -> [PreviewRequest] {
+        (0..<count).map { PreviewRequest(key: "chat\($0)", sessionID: sessionID, cwd: cwd) }
+    }
+
+    /// 主機腳本的自我時限(#92)到了以 exit 124 結束：同樣是逾時，不是一般失敗或缺席。
+    @Test("主機腳本自己逾時(exit 124):當成逾時", arguments: stuckCommands)
+    func hostScriptTimeLimitIsDeadline(_ stuck: StuckCommand) async throws {
+        let host = FakeHost()
+        await host.expect(stuck.command, reply: FakeReply(exitCode: 124))
+        let sleeper = RecordingSleeper()
+
+        await #expect(throws: HostCommandError.deadlineExceeded) { try await stuck.run(host, sleeper.sleep) }
+    }
+
+    @Test("上傳時主機腳本自己逾時(exit 124):圖片與檔案上傳都當成逾時")
+    func uploadTimeLimitIsDeadline() async throws {
+        let host = FakeHost()
+        let data = Data("hello".utf8)
+        let name = try #require(UploadFileName("a.png"))
+        await host.expect(ImageUploadCommand.posix(name: name, size: data.count), reply: FakeReply(exitCode: 124))
+        await host.expect(
+            HostFolderCommand.upload(FolderUpload(folder: "/Users/demo", name: "a.txt", originalSize: data.count, encoding: .identity, transferSize: data.count)),
+            reply: FakeReply(exitCode: 124))
+
+        await #expect(throws: ImageUploadError.deadlineExceeded) { _ = try await ImageUploader(channel: host).upload(data, named: name) }
+        await #expect(throws: HostFolderError.deadlineExceeded) { _ = try await HostFolders(channel: host).upload(data, named: "a.txt", to: "/Users/demo") }
+    }
 
     @Test("指令卡住：期限到時丟逾時錯誤並關閉通道", arguments: stuckCommands)
     func stuckCommandTimesOut(_ stuck: StuckCommand) async throws {
