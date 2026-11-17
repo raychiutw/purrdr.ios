@@ -14,6 +14,7 @@ use crate::Heartbeat;
 use crate::audit_log::{AuditEvent, AuditLog, RevokedBy};
 use crate::connection;
 use crate::device_store::{Device, DeviceStore, PairingFailure, RevokeFailure, TokenRejection};
+use crate::herdr_cli::HerdrCli;
 use crate::herdr_client::HerdrClient;
 use crate::protocol::{ErrorCode, ErrorMessage, PairRequest, PairResponse, ServerMessage};
 use crate::transcript::TranscriptEnvironment;
@@ -33,6 +34,7 @@ const MAX_DEVICE_NAME_LENGTH: usize = 64;
 #[derive(Clone)]
 pub(crate) struct ServiceContext {
     pub herdr: HerdrClient,
+    pub herdr_cli: HerdrCli,
     pub devices: DeviceStore,
     pub audit: AuditLog,
     pub heartbeat: Heartbeat,

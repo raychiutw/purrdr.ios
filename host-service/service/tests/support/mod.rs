@@ -11,6 +11,7 @@ use std::time::{Duration, SystemTime};
 
 use futures_util::{SinkExt, StreamExt};
 use purrdr_host_service::device_store::{DeviceStore, IssuedDevice};
+use purrdr_host_service::herdr_cli::HerdrCli;
 use purrdr_host_service::herdr_socket::{HerdrSocket, Platform};
 use purrdr_host_service::transcript::TranscriptEnvironment;
 use purrdr_host_service::{Heartbeat, HostServiceConfig, RunningHostService};
@@ -334,24 +335,30 @@ impl TestHostService {
 
 /// 以假 herdr 啟動主機服務(埠 0:由系統挑)。對話紀錄的家目錄不存在(讀不到任何對話紀錄)。
 pub async fn start_service(herdr_socket: HerdrSocket) -> TestHostService {
-    start_service_with(herdr_socket, Heartbeat::default(), TranscriptEnvironment::default()).await
+    start_service_with(herdr_socket, HerdrCli::search(None), Heartbeat::default(), TranscriptEnvironment::default()).await
 }
 
 /// 指定心跳間隔與逾時(測試心跳用很短的時間)。
 pub async fn start_service_with_heartbeat(herdr_socket: HerdrSocket, heartbeat: Heartbeat) -> TestHostService {
-    start_service_with(herdr_socket, heartbeat, TranscriptEnvironment::default()).await
+    start_service_with(herdr_socket, HerdrCli::search(None), heartbeat, TranscriptEnvironment::default()).await
 }
 
 /// 以假 herdr 與指定的對話紀錄位置啟動主機服務。
 pub async fn start_service_with_transcripts(herdr_socket: HerdrSocket, transcripts: TranscriptEnvironment) -> TestHostService {
-    start_service_with(herdr_socket, Heartbeat::default(), transcripts).await
+    start_service_with(herdr_socket, HerdrCli::search(None), Heartbeat::default(), transcripts).await
 }
 
-async fn start_service_with(herdr_socket: HerdrSocket, heartbeat: Heartbeat, transcripts: TranscriptEnvironment) -> TestHostService {
+/// 同 `start_service`,Pane 終端機執行 `herdr_cli`(假的 herdr CLI)。
+pub async fn start_service_with_herdr_cli(herdr_socket: HerdrSocket, herdr_cli: HerdrCli) -> TestHostService {
+    start_service_with(herdr_socket, herdr_cli, Heartbeat::default(), TranscriptEnvironment::default()).await
+}
+
+async fn start_service_with(herdr_socket: HerdrSocket, herdr_cli: HerdrCli, heartbeat: Heartbeat, transcripts: TranscriptEnvironment) -> TestHostService {
     let state_directory = tempfile::tempdir().unwrap();
     let service = purrdr_host_service::start(HostServiceConfig {
         port: 0,
         herdr_socket,
+        herdr_cli,
         state_directory: state_directory.path().to_owned(),
         heartbeat,
         transcripts,

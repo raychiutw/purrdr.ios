@@ -14,12 +14,14 @@ use tokio::task::JoinHandle;
 
 use crate::audit_log::{AuditEvent, AuditLog};
 use crate::device_store::Device;
+use crate::herdr_cli::HerdrCli;
 use crate::herdr_client::{HerdrClient, HerdrFailure, HerdrSubscription};
 use crate::http::{ServiceContext, blocking};
+use crate::pane_terminal::{self, PaneTerminal};
 use crate::protocol::{
     Agent, AgentPrompt, AgentPromptResult, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, EventsEnded, EventsSubscribe,
     EventsSubscribeResult, EventsUnsubscribeResult, HerdrServer, PROTOCOL_VERSION, PaneSendKeys, PaneSendKeysResult, PaneSendText, PaneSendTextResult,
-    ServerMessage, SubscribedEvent, TranscriptLocate, Welcome, Workspace,
+    PaneTerminalOpen, PaneTerminalOpenResult, ServerMessage, SubscribedEvent, TerminalScrollDirection, TranscriptLocate, Welcome, Workspace,
 };
 use crate::transcript::AgentSessionInfo;
 use crate::transcript_session::TranscriptSession;
@@ -57,16 +59,21 @@ pub async fn serve(socket: WebSocket, context: ServiceContext, device_token: Opt
     let (outbound, outbound_queue) = mpsc::unbounded_channel();
     // 串流(對話紀錄追蹤)推送的訊息也由送出段送出;連線結束時 `connection` 一起 drop,串流隨之停止。
     let (pushes, pushed) = mpsc::unbounded_channel();
-    let writer = tokio::spawn(write_outbound(sink, outbound_queue, pushed, heartbeat.interval));
+    // Pane 終端機的畫面更新：有界，送出段跟不上時 herdr 那端等(herdr 只送最新畫面)。
+    let (terminal_frames, terminal_frame_queue) = mpsc::channel(TERMINAL_FRAME_CAPACITY);
+    let writer = tokio::spawn(write_outbound(sink, outbound_queue, pushed, terminal_frame_queue, heartbeat.interval));
     let (requests, request_queue) = mpsc::unbounded_channel();
     let connection = ClientConnection {
         herdr: context.herdr.clone(),
+        herdr_cli: context.herdr_cli.clone(),
         audit: context.audit.clone(),
         outbound: outbound.clone(),
         handshaken: false,
         transcripts: TranscriptSession::new(context.transcripts.clone(), pushes),
         subscriptions: HashMap::new(),
         accepted_subscription: None,
+        terminals: HashMap::new(),
+        terminal_frames,
     };
     let handler = tokio::spawn(handle_requests(connection, request_queue, context, device_token));
     // 逾時沒收到任何 frame(含 pong)就當作 app 已經不在。
@@ -82,10 +89,13 @@ pub async fn serve(socket: WebSocket, context: ServiceContext, device_token: Opt
             _ => continue,
         }
     }
-    // 結束處理就放掉這條連線的 herdr 訂閱。
+    // 結束處理就放掉這條連線的 herdr 訂閱，Pane 終端機的子行程一併收尾。
     handler.abort();
     writer.abort();
 }
+
+/// Pane 終端機畫面更新等待送出的上限。
+const TERMINAL_FRAME_CAPACITY: usize = 32;
 
 /// 要送給 app 的訊息。
 enum Outbound {
@@ -99,6 +109,7 @@ async fn write_outbound(
     mut sink: SplitSink<WebSocket, Message>,
     mut queue: mpsc::UnboundedReceiver<Outbound>,
     mut pushes: mpsc::UnboundedReceiver<ServerMessage>,
+    mut terminal_frames: mpsc::Receiver<ServerMessage>,
     ping_interval: Duration,
 ) {
     let mut pings = tokio::time::interval_at(tokio::time::Instant::now() + ping_interval, ping_interval);
@@ -110,6 +121,7 @@ async fn write_outbound(
                 None => return,
             },
             Some(push) = pushes.recv() => (Message::Text(serde_json::to_string(&push).expect("協定訊息可序列化").into()), false),
+            Some(frame) = terminal_frames.recv() => (Message::Text(serde_json::to_string(&frame).expect("協定訊息可序列化").into()), false),
             _ = pings.tick() => (Message::Ping(Default::default()), false),
         };
         if sink.send(frame).await.is_err() || last {
@@ -181,6 +193,10 @@ struct ClientConnection {
     subscriptions: HashMap<String, JoinHandle<()>>,
     /// herdr 剛接受、等訂閱結果送出後才開始轉送的訂閱。
     accepted_subscription: Option<(String, HerdrSubscription)>,
+    herdr_cli: HerdrCli,
+    /// 開著的 Pane 終端機，以串流識別碼(開啟請求的 request_id)為 key;drop 時子行程收尾。
+    terminals: HashMap<String, PaneTerminal>,
+    terminal_frames: mpsc::Sender<ServerMessage>,
 }
 
 impl Drop for ClientConnection {
@@ -193,39 +209,47 @@ impl Drop for ClientConnection {
 
 impl ClientConnection {
     async fn handle(&mut self, text: &str, device: &Device) {
-        let reply = self.reply(text, device).await;
-        let _ = self.outbound.send(Outbound::Message(reply));
+        // Pane 終端機的輸入與關閉沒有回應。
+        if let Some(reply) = self.reply(text, device).await {
+            let _ = self.outbound.send(Outbound::Message(reply));
+        }
         // 訂閱結果送出後才開始轉送，事件不會比結果早到。
         if let Some((stream_id, subscription)) = self.accepted_subscription.take() {
             self.start_forwarding(stream_id, subscription);
         }
     }
 
-    async fn reply(&mut self, text: &str, device: &Device) -> ServerMessage {
+    async fn reply(&mut self, text: &str, device: &Device) -> Option<ServerMessage> {
         let Ok(value) = serde_json::from_str::<Value>(text) else {
-            return error(None, ErrorCode::InvalidMessage, "message is not valid JSON");
+            return Some(error(None, ErrorCode::InvalidMessage, "message is not valid JSON"));
         };
         let request_id = value.get("request_id").and_then(Value::as_str).map(str::to_owned);
         let message = match serde_json::from_value::<ClientMessage>(value.clone()) {
             Ok(message) => message,
-            Err(decoding_error) => return error(request_id, ErrorCode::InvalidMessage, &decoding_error.to_string()),
+            Err(decoding_error) => return Some(error(request_id, ErrorCode::InvalidMessage, &decoding_error.to_string())),
         };
+        let terminal_input = matches!(
+            message,
+            ClientMessage::PaneTerminalInput(_) | ClientMessage::PaneTerminalResize(_) | ClientMessage::PaneTerminalScroll(_)
+        );
         if message.is_write() {
-            // 稽核只記操作種類與目標 Pane,不記按鍵或 prompt 內容。
-            self.audit.record(
-                AuditEvent::Write {
-                    device_id: device.device_id.clone(),
-                    operation: value["type"].as_str().unwrap_or_default().to_owned(),
-                    pane_id: value["pane_id"].as_str().map(str::to_owned),
-                    allowed: !device.read_only,
-                },
-                SystemTime::now(),
-            );
+            // 稽核只記操作種類與目標 Pane,不記按鍵或 prompt 內容;Pane 終端機只在開啟時記一筆。
+            if !terminal_input {
+                self.audit.record(
+                    AuditEvent::Write {
+                        device_id: device.device_id.clone(),
+                        operation: value["type"].as_str().unwrap_or_default().to_owned(),
+                        pane_id: value["pane_id"].as_str().map(str::to_owned),
+                        allowed: !device.read_only,
+                    },
+                    SystemTime::now(),
+                );
+            }
             if device.read_only {
-                return error(request_id, ErrorCode::ReadOnlyDevice, "this device is paired read-only");
+                return Some(error(request_id, ErrorCode::ReadOnlyDevice, "this device is paired read-only"));
             }
         }
-        match message {
+        let reply = match message {
             ClientMessage::Hello(hello) => self.hello(hello.request_id, hello.protocol_version, device.read_only).await,
             ClientMessage::AgentsList(request) => self.agents_list(request.request_id).await,
             ClientMessage::PaneSendKeys(request) => self.pane_send_keys(request).await,
@@ -244,7 +268,80 @@ impl ClientConnection {
                     request_id: request.request_id,
                 })
             }
+            ClientMessage::PaneTerminalOpen(request) => self.open_terminal(request, device),
+            ClientMessage::PaneTerminalInput(input) => {
+                if input.bytes.len() > pane_terminal::MAX_INPUT_BASE64_LENGTH {
+                    return Some(error(None, ErrorCode::InvalidMessage, "terminal input is larger than 64 KiB"));
+                }
+                self.terminal(&input.stream_id)?.input(input.bytes).await;
+                return None;
+            }
+            ClientMessage::PaneTerminalResize(resize) => {
+                if !pane_terminal::is_valid_size(resize.columns, resize.rows) {
+                    return Some(error(None, ErrorCode::InvalidMessage, "terminal size is out of range"));
+                }
+                self.terminal(&resize.stream_id)?.resize(resize.columns, resize.rows).await;
+                return None;
+            }
+            ClientMessage::PaneTerminalScroll(scroll) => {
+                let direction = match scroll.direction {
+                    TerminalScrollDirection::Up => "up",
+                    TerminalScrollDirection::Down => "down",
+                };
+                self.terminal(&scroll.stream_id)?
+                    .scroll(direction, scroll.lines, scroll.column, scroll.row)
+                    .await;
+                return None;
+            }
+            ClientMessage::PaneTerminalClose(close) => {
+                // drop:關閉 stdin(control 等同 release)並結束子行程。
+                self.terminals.remove(&close.stream_id);
+                return None;
+            }
+        };
+        Some(reply)
+    }
+
+    /// 開著的 Pane 終端機;已關閉或不存在時略過那個訊息。
+    fn terminal(&mut self, stream_id: &str) -> Option<&mut PaneTerminal> {
+        self.terminals.get_mut(stream_id)
+    }
+
+    /// 以子行程執行 herdr;唯讀裝置用 observe(只能看)。
+    fn open_terminal(&mut self, request: PaneTerminalOpen, device: &Device) -> ServerMessage {
+        let request_id = request.request_id.clone();
+        if !self.handshaken {
+            return error(Some(request_id), ErrorCode::HandshakeRequired, "send hello first");
         }
+        if !pane_terminal::is_valid_target(&request.target) || !pane_terminal::is_valid_size(request.columns, request.rows) {
+            return error(Some(request_id), ErrorCode::InvalidMessage, "invalid terminal target or size");
+        }
+        if self.terminals.contains_key(&request_id) {
+            return error(Some(request_id), ErrorCode::InvalidMessage, "stream is already open");
+        }
+        let observe = device.read_only;
+        let terminal = match PaneTerminal::spawn(&self.herdr_cli, &request, observe, self.terminal_frames.clone()) {
+            Ok(terminal) => terminal,
+            Err(spawn_error) => return error(Some(request_id), ErrorCode::HerdrUnavailable, &format!("cannot run herdr: {spawn_error}")),
+        };
+        if !observe {
+            // 接上 Pane 是寫入類操作(會改 Pane 尺寸、可能接管):記一筆，不記之後的按鍵。
+            self.audit.record(
+                AuditEvent::Write {
+                    device_id: device.device_id.clone(),
+                    operation: "pane.terminal.open".to_owned(),
+                    pane_id: Some(request.target.clone()),
+                    allowed: true,
+                },
+                SystemTime::now(),
+            );
+        }
+        self.terminals.insert(request_id.clone(), terminal);
+        ServerMessage::PaneTerminalOpenResult(PaneTerminalOpenResult {
+            request_id: request_id.clone(),
+            stream_id: request_id,
+            read_only: observe,
+        })
     }
 
     async fn pane_send_text(&self, request: PaneSendText) -> ServerMessage {

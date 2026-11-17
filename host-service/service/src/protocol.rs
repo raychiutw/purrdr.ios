@@ -31,12 +31,22 @@ pub enum ClientMessage {
     EventsSubscribe(EventsSubscribe),
     #[serde(rename = "events.unsubscribe")]
     EventsUnsubscribe(EventsUnsubscribe),
+    #[serde(rename = "pane.terminal.open")]
+    PaneTerminalOpen(PaneTerminalOpen),
+    #[serde(rename = "pane.terminal.input")]
+    PaneTerminalInput(PaneTerminalInput),
+    #[serde(rename = "pane.terminal.resize")]
+    PaneTerminalResize(PaneTerminalResize),
+    #[serde(rename = "pane.terminal.scroll")]
+    PaneTerminalScroll(PaneTerminalScroll),
+    #[serde(rename = "pane.terminal.close")]
+    PaneTerminalClose(PaneTerminalClose),
 }
 
 impl ClientMessage {
     /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
     pub fn is_write(&self) -> bool {
-        matches!(self, ClientMessage::PaneSendKeys(_) | ClientMessage::PaneSendText(_) | ClientMessage::AgentPrompt(_))
+        matches!(self, ClientMessage::PaneSendKeys(_) | ClientMessage::PaneSendText(_) | ClientMessage::AgentPrompt(_) | ClientMessage::PaneTerminalInput(_) | ClientMessage::PaneTerminalResize(_) | ClientMessage::PaneTerminalScroll(_))
     }
 }
 
@@ -72,6 +82,12 @@ pub enum ServerMessage {
     EventsEnded(EventsEnded),
     #[serde(rename = "events.unsubscribe.result")]
     EventsUnsubscribeResult(EventsUnsubscribeResult),
+    #[serde(rename = "pane.terminal.open.result")]
+    PaneTerminalOpenResult(PaneTerminalOpenResult),
+    #[serde(rename = "pane.terminal.frame")]
+    PaneTerminalFrame(PaneTerminalFrame),
+    #[serde(rename = "pane.terminal.closed")]
+    PaneTerminalClosed(PaneTerminalClosed),
     #[serde(rename = "error")]
     ErrorMessage(ErrorMessage),
 }
@@ -183,6 +199,111 @@ pub struct PaneSendKeys {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaneSendKeysResult {
     pub request_id: String,
+}
+
+/// 開 Pane 終端機(ADR-0005):主機服務以子行程執行 herdr terminal session control;唯讀裝置改用 observe(只能看)。串流識別碼就是這個請求的 request_id。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalOpen {
+    pub request_id: String,
+    /// pane id 或 terminal id。
+    pub target: String,
+    pub columns: i64,
+    pub rows: i64,
+    /// 接管別人正在操作的 Pane(唯讀裝置忽略)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub takeover: Option<bool>,
+}
+
+/// Pane 終端機已開啟;畫面更新接著以 pane.terminal.frame 送出，結束時送 pane.terminal.closed。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalOpenResult {
+    pub request_id: String,
+    /// 等於開啟請求的 request_id。
+    pub stream_id: String,
+    /// 唯讀裝置以 observe 接上：只能看，輸入會被拒絕。
+    pub read_only: bool,
+}
+
+/// 一次畫面更新:herdr terminal.frame 原樣轉接。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalFrame {
+    pub stream_id: String,
+    /// 每條連線從 1 起算。
+    pub seq: i64,
+    pub width: i64,
+    pub height: i64,
+    /// true 是完整重繪。
+    pub full: bool,
+    /// ANSI 畫面 bytes 的標準 base64。
+    pub bytes: String,
+}
+
+/// Pane 終端機結束，之後這個串流不再有訊息。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalClosed {
+    pub stream_id: String,
+    pub ending: PaneTerminalEnding,
+    /// ending 是 closed 時,herdr terminal.closed 的原文。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    /// ending 是 failed 時,herdr 的 exit code。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
+    /// ending 是 failed 時,herdr 的 stderr(給開發者看)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+/// closed:herdr 送了 terminal.closed;disconnected:沒有 terminal.closed 就斷了(可重新連線);failed:herdr 沒跑起來。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PaneTerminalEnding {
+    #[serde(rename = "closed")]
+    Closed,
+    #[serde(rename = "disconnected")]
+    Disconnected,
+    #[serde(rename = "failed")]
+    Failed,
+}
+
+/// Pane 終端機的鍵盤輸入(herdr terminal.input)。不回應;稽核只在開啟時記一筆，不記內容。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalInput {
+    pub stream_id: String,
+    /// 輸入 bytes 的標準 base64,每則不超過 64 KiB。
+    pub bytes: String,
+}
+
+/// 改變 viewport 格數(herdr terminal.resize)。不回應。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalResize {
+    pub stream_id: String,
+    pub columns: i64,
+    pub rows: i64,
+}
+
+/// 捲動(herdr terminal.scroll,source 固定 wheel)。不回應。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalScroll {
+    pub stream_id: String,
+    pub direction: TerminalScrollDirection,
+    pub lines: i64,
+    pub column: i64,
+    pub row: i64,
+}
+
+/// 捲動方向。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TerminalScrollDirection {
+    #[serde(rename = "up")]
+    Up,
+    #[serde(rename = "down")]
+    Down,
+}
+
+/// 關閉 Pane 終端機:control 關閉 stdin(等同 release),observe 結束子行程。不回應。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaneTerminalClose {
+    pub stream_id: String,
 }
 
 /// 定位對話紀錄(#59)。session 必須是 herdr snapshot 目前某個 Agent 的 agent_session;格式與 cwd 由主機服務從 snapshot 取得，app 不能指定路徑。

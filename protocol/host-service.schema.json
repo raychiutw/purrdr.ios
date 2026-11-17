@@ -18,7 +18,12 @@
         { "$ref": "#/$defs/PaneSendText" },
         { "$ref": "#/$defs/AgentPrompt" },
         { "$ref": "#/$defs/EventsSubscribe" },
-        { "$ref": "#/$defs/EventsUnsubscribe" }
+        { "$ref": "#/$defs/EventsUnsubscribe" },
+        { "$ref": "#/$defs/PaneTerminalOpen" },
+        { "$ref": "#/$defs/PaneTerminalInput" },
+        { "$ref": "#/$defs/PaneTerminalResize" },
+        { "$ref": "#/$defs/PaneTerminalScroll" },
+        { "$ref": "#/$defs/PaneTerminalClose" }
       ]
     },
     "ServerMessage": {
@@ -38,6 +43,9 @@
         { "$ref": "#/$defs/SubscribedEvent" },
         { "$ref": "#/$defs/EventsEnded" },
         { "$ref": "#/$defs/EventsUnsubscribeResult" },
+        { "$ref": "#/$defs/PaneTerminalOpenResult" },
+        { "$ref": "#/$defs/PaneTerminalFrame" },
+        { "$ref": "#/$defs/PaneTerminalClosed" },
         { "$ref": "#/$defs/ErrorMessage" }
       ]
     },
@@ -158,6 +166,113 @@
         "request_id": { "type": "string" }
       },
       "required": ["type", "request_id"]
+    },
+    "PaneTerminalOpen": {
+      "description": "開 Pane 終端機(ADR-0005):主機服務以子行程執行 herdr terminal session control;唯讀裝置改用 observe(只能看)。串流識別碼就是這個請求的 request_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.open" },
+        "request_id": { "type": "string" },
+        "target": { "type": "string", "description": "pane id 或 terminal id。" },
+        "columns": { "type": "integer", "minimum": 1 },
+        "rows": { "type": "integer", "minimum": 1 },
+        "takeover": { "type": "boolean", "description": "接管別人正在操作的 Pane(唯讀裝置忽略)。" }
+      },
+      "required": ["type", "request_id", "target", "columns", "rows"]
+    },
+    "PaneTerminalOpenResult": {
+      "description": "Pane 終端機已開啟;畫面更新接著以 pane.terminal.frame 送出，結束時送 pane.terminal.closed。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.open.result" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string", "description": "等於開啟請求的 request_id。" },
+        "read_only": { "type": "boolean", "description": "唯讀裝置以 observe 接上：只能看，輸入會被拒絕。" }
+      },
+      "required": ["type", "request_id", "stream_id", "read_only"]
+    },
+    "PaneTerminalFrame": {
+      "description": "一次畫面更新:herdr terminal.frame 原樣轉接。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.frame" },
+        "stream_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 1, "description": "每條連線從 1 起算。" },
+        "width": { "type": "integer" },
+        "height": { "type": "integer" },
+        "full": { "type": "boolean", "description": "true 是完整重繪。" },
+        "bytes": { "type": "string", "description": "ANSI 畫面 bytes 的標準 base64。" }
+      },
+      "required": ["type", "stream_id", "seq", "width", "height", "full", "bytes"]
+    },
+    "PaneTerminalClosed": {
+      "description": "Pane 終端機結束，之後這個串流不再有訊息。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.closed" },
+        "stream_id": { "type": "string" },
+        "ending": { "$ref": "#/$defs/PaneTerminalEnding" },
+        "reason": { "type": "string", "description": "ending 是 closed 時,herdr terminal.closed 的原文。" },
+        "exit_code": { "type": "integer", "description": "ending 是 failed 時,herdr 的 exit code。" },
+        "message": { "type": "string", "description": "ending 是 failed 時,herdr 的 stderr(給開發者看)。" }
+      },
+      "required": ["type", "stream_id", "ending"]
+    },
+    "PaneTerminalEnding": {
+      "description": "closed:herdr 送了 terminal.closed;disconnected:沒有 terminal.closed 就斷了(可重新連線);failed:herdr 沒跑起來。",
+      "type": "string",
+      "enum": ["closed", "disconnected", "failed"]
+    },
+    "PaneTerminalInput": {
+      "description": "Pane 終端機的鍵盤輸入(herdr terminal.input)。不回應;稽核只在開啟時記一筆，不記內容。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.terminal.input" },
+        "stream_id": { "type": "string" },
+        "bytes": { "type": "string", "description": "輸入 bytes 的標準 base64,每則不超過 64 KiB。" }
+      },
+      "required": ["type", "stream_id", "bytes"]
+    },
+    "PaneTerminalResize": {
+      "description": "改變 viewport 格數(herdr terminal.resize)。不回應。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.terminal.resize" },
+        "stream_id": { "type": "string" },
+        "columns": { "type": "integer", "minimum": 1 },
+        "rows": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["type", "stream_id", "columns", "rows"]
+    },
+    "PaneTerminalScroll": {
+      "description": "捲動(herdr terminal.scroll,source 固定 wheel)。不回應。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.terminal.scroll" },
+        "stream_id": { "type": "string" },
+        "direction": { "$ref": "#/$defs/TerminalScrollDirection" },
+        "lines": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 0 },
+        "row": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["type", "stream_id", "direction", "lines", "column", "row"]
+    },
+    "TerminalScrollDirection": {
+      "description": "捲動方向。",
+      "type": "string",
+      "enum": ["up", "down"]
+    },
+    "PaneTerminalClose": {
+      "description": "關閉 Pane 終端機:control 關閉 stdin(等同 release),observe 結束子行程。不回應。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.close" },
+        "stream_id": { "type": "string" }
+      },
+      "required": ["type", "stream_id"]
     },
     "TranscriptLocate": {
       "description": "定位對話紀錄(#59)。session 必須是 herdr snapshot 目前某個 Agent 的 agent_session;格式與 cwd 由主機服務從 snapshot 取得，app 不能指定路徑。",

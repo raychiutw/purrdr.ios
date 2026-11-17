@@ -17,24 +17,45 @@ public struct PaneTerminalClient: Sendable {
     }
 }
 
+/// Pane 終端機連線底下的傳輸：SSH 是 `herdr terminal session control` 的 stdin,HTTPS 是主機服務的串流。
+package protocol PaneTerminalTransport: Sendable {
+    /// 送一則輸入(不含 `.release`)。
+    func send(_ input: TerminalInput) async throws
+    /// 放開 controller 並結束這條連線。
+    func release() async
+}
+
 /// 一條 Pane 終端機連線。`events` 結束時連線就結束了;要再接上得開新連線。
 public actor PaneTerminalConnection {
     /// 主機送來的事件，依到達順序。最後一個一定是 `.closed`、`.disconnected` 或 `.failed`。
     public nonisolated let events: AsyncStream<PaneTerminalEvent>
+    /// 唯讀裝置(HTTPS 以 observe 接上):只能看，輸入會被主機拒絕。
+    public nonisolated let isViewOnly: Bool
 
-    private let session: any ExecSession
-    private var reader: Task<Void, Never>?
+    private let transport: any PaneTerminalTransport
+    private let reader: Task<Void, Never>?
 
+    /// SSH:讀 `herdr terminal session control` 的 stdout。
     package init(session: any ExecSession) {
-        self.session = session
         let (events, continuation) = AsyncStream<PaneTerminalEvent>.makeStream()
         self.events = events
+        isViewOnly = false
+        transport = ExecSessionTerminalTransport(session: session)
         reader = Task { await Self.read(session.output, into: continuation) }
+    }
+
+    /// 事件由傳輸自己產生(例如主機服務已轉好的畫面更新)。
+    package init(events: AsyncStream<PaneTerminalEvent>, transport: any PaneTerminalTransport, isViewOnly: Bool) {
+        self.events = events
+        self.transport = transport
+        self.isViewOnly = isViewOnly
+        reader = nil
     }
 
     /// 送一則輸入。
     public func send(_ input: TerminalInput) async throws {
-        try await session.write(input.line)
+        guard input != .release else { return await release() }
+        try await transport.send(input)
     }
 
     /// 送出鍵盤輸入的 bytes。超過單則上限時切成多則(herdr 收到 > 1 MiB 的單則輸入會直接斷線，不送 closed)。
@@ -44,11 +65,9 @@ public actor PaneTerminalConnection {
         }
     }
 
-    /// 放開 controller:送 `terminal.release` 後關閉通道。主機會恢復桌機的 pane 尺寸。
+    /// 放開 controller 並關閉連線。主機會恢復桌機的 pane 尺寸。
     public func release() async {
-        try? await session.write(TerminalInput.release.line)
-        await session.closeStdin()
-        await session.close()
+        await transport.release()
         reader?.cancel()
     }
 
@@ -99,6 +118,22 @@ public actor PaneTerminalConnection {
             continuation.yield(.failed(exitCode: exitCode, message: message))
         }
         continuation.finish()
+    }
+}
+
+/// SSH:輸入寫進 control 的 stdin。
+private struct ExecSessionTerminalTransport: PaneTerminalTransport {
+    let session: any ExecSession
+
+    func send(_ input: TerminalInput) async throws {
+        try await session.write(input.line)
+    }
+
+    /// 送 `terminal.release` 後關閉通道。
+    func release() async {
+        try? await session.write(TerminalInput.release.line)
+        await session.closeStdin()
+        await session.close()
     }
 }
 
