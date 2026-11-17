@@ -7,7 +7,7 @@
 ## 1. 結論
 
 1. 官方 API 是 **`ReservedRegion`**(SwiftUI:`GeometryProxy.reservedRegions(kind:options:layoutDirectionBehavior:)`;UIKit:`UIView.reservedRegions(kind:options:)`)與 **`ArrangementView`**(UIKit:`UIArrangementViewController`),**iOS 27.1 起才有**,隨 **Xcode 27.1** 的 iOS 27.1 SDK 提供。iPhone Duo 模擬器也是 Xcode 27.1 才有。
-2. 本機是 Xcode 27.0(27A266a,iOS Simulator SDK 27.0):**編譯不到這些 API,也沒有 iPhone Duo 模擬器**【本機驗證，見 §4】。所以 #69 這次**不改程式**,折疊區與鏡頭區的處理記成「待 API(Xcode 27.1)／待模擬器或實機」。
+2. 本機是 Xcode 27.0(27A266a,iOS Simulator SDK 27.0):**編譯不到這些 API,也沒有 iPhone Duo 模擬器**【本機驗證，見 §4】。本機無法驗證;但 CI 的 `xcode-27` 映像已是 Xcode 27.1(27A9275,iPhoneSimulator27.1.sdk),所以終端機按鍵列的折疊區處理已實作並由 CI 編譯把關(見 §6),模擬器與實機確認仍待辦。
 3. 不用 SDK 裡的私有符號，也不寫死座標:iOS 27.0 SDK 的 SwiftUICore 二進位已經有 `ReservedRegion` 符號，但公開的 `.swiftinterface` 沒有，屬於非公開 API。
 4. 用 iOS 27 SDK(包含 27.0)建置的 app,系統在 iPhone Duo 上會**避開右側的狀態列**(外螢幕前鏡頭就在這一欄);27.1 SDK 起才會延伸到全螢幕、工具列改到側邊。所以目前的建置，外鏡頭由系統處理【官方，見 §2.4】。
 5. 現有畫面已經是 Apple 建議的做法：三欄 `NavigationSplitView`(系統會依折疊調整欄寬)、按 safe area 排版、主要畫面的互動元件沒有 `ignoresSafeArea`、沒有綁定裝置尺寸的固定寬度。真正需要 `ReservedRegion` 的是**自訂排版的元件**,Purrdr 裡最明顯的是終端機的按鍵列(橫向一整條)與終端機畫面(見 §3)。
@@ -69,7 +69,7 @@ Known Issues 有 "StandBy is unavailable in the iPhone Duo Simulator runtime." �
 |---|---|---|---|---|
 | Agent 列表 | `NavigationSplitView` 內容欄的 `List` | 內螢幕是 regular 寬度時是三欄，系統依折疊調整欄寬(§2.1);列表本身是捲動容器，列可能橫過水平折疊(筆電姿態),Apple 說預設如此 | 按 safe area;外鏡頭目前由系統避開(§2.4) | 系統元件，**待模擬器／實機確認**三欄在折疊時的欄寬 |
 | 對話 | 詳細欄的 `ScrollView` + `safeAreaBar` 輸入列 + `safeAreaInset` 橫幅 | 書本姿態:詳細欄在折疊的一側(若系統照 §2.1 調整欄寬);筆電姿態：輸入列在下半部底端，不會在中線 | 同上 | **待模擬器／實機** |
-| 終端機按鍵列 | 詳細欄底部、自訂的橫向一整條(`TerminalKeyBar`) | 詳細欄單獨全寬時(例如收起其他欄、或以「Open Terminal in New Window」開在支援多視窗的環境),書本姿態的垂直折疊會穿過按鍵列中段 → 這是 Apple 說要自己用 `ReservedRegion` 處理的「自訂元件」 | 按 safe area | **待 API**:Xcode 27.1 後以 `reservedRegions(kind: .division, options: .includeInactive)` 讓按鍵不落在折疊區(小幅調整，不重排) |
+| 終端機按鍵列 | 詳細欄底部、自訂的橫向一整條(`TerminalKeyBar`) | 詳細欄單獨全寬時(例如收起其他欄、或以「Open Terminal in New Window」開在支援多視窗的環境),書本姿態的垂直折疊會穿過按鍵列中段 → 這是 Apple 說要自己用 `ReservedRegion` 處理的「自訂元件」 | 按 safe area | **已實作**(§6):以 `reservedRegions(kind: .division)` 讓按鍵不落在折疊區(小幅調整，不重排);**待模擬器／實機** |
 | 終端機畫面 | SwiftTerm(UIKit),全寬 | 終端機的格子無法拆成兩半;Apple 對捲動內容的建議是「若影響閱讀才自行處理」 | 按 safe area | **待實機**判斷是否需要處理 |
 
 【推論】iOS 27.0 SDK 下 app 不延伸到狀態列那一欄，所以外鏡頭不會蓋到 Purrdr 的元件;內鏡頭只有相機使用中才出現，Purrdr 的拍照用系統的 `UIImagePickerController`(全螢幕)。這兩點仍需在 Duo 模擬器上看過才算確認。
@@ -96,3 +96,10 @@ Known Issues 有 "StandBy is unavailable in the iPhone Duo Simulator runtime." �
    - 同時處理 HIG 的直式工具列(27.1 SDK 起才會出現):工具列項目同時有 title 與 symbol;`principal` 的自訂標題(終端機、對話的標題)不會進直式工具列(Preparing 頁:"If your item uses a custom view rather than a title or icon, the system doesn't present it vertically.")。
 2. 上架前準備 iPhone Duo 截圖(產品頁標示最佳化)。
 3. CI 的 `xcode-27` 映像若預設仍是 27.0,要確認升到 27.1 後才能合併使用 27.1 API 的程式。
+
+## 6. 實作(#69)
+
+- `TerminalKeyBarFoldSplit`(`src/PurrdrFeatures/TerminalKeyBarFoldSplit.swift`):純計算。輸入按鍵列寬度與按鍵列座標系的 `.division` frame;只處理直向(書本姿態)且穿過按鍵列的折疊，回傳「前段寬度」與「留空寬度」;任一側放不下兩顆 44pt 按鍵就不切分。測試 `tests/PurrdrFeaturesTests/TerminalKeyBarFoldTests.swift`。
+- `TerminalKeyBar`:`if #available(iOS 27.1, *)` 內以背景 `GeometryReader` 讀 `proxy.reservedRegions(kind: .division)`(官方文件的寫法，frame 已含 margins、預設依 RTL 鏡像)。切分時前段是可橫捲的按鍵、折疊區留空、後段是「貼上」與「收起鍵盤」;按鍵順序不變。只取作用中的區域(不用 `.includeInactive`):全開時不留空。iOS 27.1 以前與非 Duo 裝置維持原本單一玻璃列。
+- 未處理：橫向折疊(筆電姿態)按鍵列在下半部底端，預期不會碰到中線，但鍵盤升起時的位置未確認;鏡頭區(`.occlusion`)在畫面頂端，按鍵列在底部，未讀取。
+- 未驗證：沒有 Duo 模擬器與實機，各姿態截圖、`GeometryReader` 在折疊時是否即時更新，都待 Xcode 27.1 模擬器或實機確認。
