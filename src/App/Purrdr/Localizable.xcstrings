@@ -6576,6 +6576,17 @@
         }
       }
     },
+    "This device is paired read-only. Answer on the host or from a device that can send." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置以唯讀方式配對。請在主機上，或用可以送出的裝置回答。"
+          }
+        }
+      }
+    },
     "This device isn’t paired with this host. Edit the host and pair again with a new pairing code." : {
       "extractionState" : "manual",
       "localizations" : {
