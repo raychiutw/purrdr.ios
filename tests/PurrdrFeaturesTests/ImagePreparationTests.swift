@@ -1,5 +1,6 @@
 #if os(macOS)
 import CoreGraphics
+import CoreML
 import Foundation
 import ImageIO
 import PurrdrFeatures
@@ -28,13 +29,18 @@ struct ImagePreparationTests {
         return CGImageSourceGetType(source) as String? == UTType.jpeg.identifier
     }
 
-    /// 以系統文字辨識讀出的所有文字(一行一筆)。
-    static func recognizedText(_ jpeg: Data) async throws -> String {
-        var request = RecognizeTextRequest()
+    /// 以系統文字辨識讀出的所有文字(一行一筆)。只用 CPU:CI 的虛擬機沒有可用的 Neural Engine／GPU。
+    static func recognizedText(_ jpeg: Data) throws -> String {
+        let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = false
-        let observations = try await request.perform(on: jpeg)
-        return observations.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+        let cpu = try request.supportedComputeStageDevices[.main]?.first { device in
+            if case .cpu = device { true } else { false }
+        }
+        if let cpu { request.setComputeDevice(cpu, for: .main) }
+        try VNImageRequestHandler(data: jpeg).perform([request])
+        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "
+")
     }
 
     @Test("大張照片：壓到目標大小以內，長邊不低於下限")
@@ -50,12 +56,12 @@ struct ImagePreparationTests {
     }
 
     @Test("文字截圖：壓到目標大小以內，文字仍可辨識")
-    func screenshotStaysReadable() async throws {
+    func screenshotStaysReadable() throws {
         let prepared = try #require(ImagePreparation.prepare(Self.sample("screenshot-1290x2796.png")))
 
         #expect(prepared.jpeg.count <= Self.targetBytes)
         #expect(Self.longSide(prepared) >= Self.minimumLongSide)
-        let text = try await Self.recognizedText(prepared.jpeg)
+        let text = try Self.recognizedText(prepared.jpeg)
         for phrase in ["PX-4821", "ImageCodec.swift", "17:45", "3,915.62", "Purrdr Sample Chat"] {
             #expect(text.contains(phrase), "壓縮後讀不出「\(phrase)」")
         }
@@ -121,7 +127,7 @@ struct ImagePreparationMeasurement {
     }
 
     @Test("輸出大小表")
-    func report() async throws {
+    func report() throws {
         let phrases = ["PX-4821", "ImageCodec.swift", "17:45", "3,915.62", "Purrdr Sample Chat"]
         for name in ["photo-4032x3024.jpg", "screenshot-1290x2796.png"] {
             let data = try ImagePreparationTests.sample(name)
@@ -131,7 +137,8 @@ struct ImagePreparationMeasurement {
                     guard let encoded = Self.encode(data, longSide: longSide, quality: quality) else { continue }
                     var cell = "q\(quality)=\(encoded.bytes / 1024)K"
                     if name.hasPrefix("screenshot") {
-                        let text = (try? await ImagePreparationTests.recognizedText(encoded.jpeg)) ?? ""
+                        let text: String
+                        do { text = try ImagePreparationTests.recognizedText(encoded.jpeg) } catch { text = ""; cell += "(ocr error \(error))" }
                         cell += "(ocr \(phrases.filter { text.contains($0) }.count)/\(phrases.count))"
                     }
                     cells.append(cell)
