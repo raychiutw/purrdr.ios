@@ -16,11 +16,11 @@ import PurrdrCore
 public struct ClaudeSlashDiscovery: SlashDiscovering {
     private let channel: any HostChannel
     private let timeLimit: Duration
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
 
     public init(
         channel: any HostChannel, timeLimit: Duration = .seconds(20),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.channel = channel
         self.timeLimit = timeLimit

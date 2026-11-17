@@ -85,13 +85,13 @@ public actor NewChatLauncher {
 
     private let client: HerdrClient
     private let folders: NewChatFolders
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
     /// 上次建立、但 agent 還沒成功啟動的 workspace(與它的資料夾)。
     private var pending: (folder: String, workspace: CreatedWorkspace)?
 
     public init(
         client: HerdrClient, folders: NewChatFolders,
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.client = client
         self.folders = folders

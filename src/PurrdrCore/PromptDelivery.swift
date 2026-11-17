@@ -58,9 +58,9 @@ public enum ForceQuitOutcome: Sendable, Equatable {
 /// - Slash 指令與 Claude 的 `!` 指令不等待、不補 Enter(R-P15、F6.4)。
 public struct PromptDelivery: Sendable {
     private let client: HerdrClient
-    private let sleep: @Sendable (Duration) async throws -> Void
+    private let sleep: Sleep
 
-    public init(client: HerdrClient, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    public init(client: HerdrClient, sleep: @escaping Sleep = Sleeping.task) {
         self.client = client
         self.sleep = sleep
     }

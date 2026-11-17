@@ -8,8 +8,6 @@ import Testing
 /// `HostCommandError.deadlineExceeded`;外層取消立刻返回並關閉通道。卡住以假主機「回應後保持開著」模擬。
 @Suite("主機指令期限")
 struct HostCommandDeadlineTests {
-    typealias Sleep = @Sendable (Duration) async throws -> Void
-
     /// 一種一次性主機指令：卡住的指令字串、預期的期限，以及經正式程式路徑送出它的動作。
     struct StuckCommand: Sendable, CustomTestStringConvertible {
         let testDescription: String
