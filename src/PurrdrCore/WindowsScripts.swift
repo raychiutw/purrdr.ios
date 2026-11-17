@@ -187,9 +187,10 @@ enum WindowsScripts {
         """#
 
     /// 檔案上傳到使用者選的資料夾(行為規格 F13):檔名不可為空、`.`、`..`,不可含 `/` 或 `\`(64);資料夾打不開 66。
-    /// 參數：資料夾、檔名、大小。
+    /// gzip 傳輸：收到的傳輸 bytes 要等於傳輸大小，以 `GZipStream` 解壓後要等於原始大小，否則 75。
+    /// 參數：資料夾、檔名、原始大小、傳輸編碼(`identity`／`gzip`)、傳輸大小。
     static let folderUpload = #"""
-        $n=$a[1];$z=[long]$a[2]
+        $n=$a[1];$z=[long]$a[2];$y=[long]$a[4]
         if(-not $n -or $n -eq '.' -or $n -eq '..' -or $n.Contains('/') -or $n.Contains('\')){exit 64}
         if(-not [IO.Directory]::Exists($a[0])){[Console]::Error.Write("cannot open $($a[0])");exit 66}
         $d=(Get-Item -LiteralPath $a[0] -Force).FullName
@@ -197,7 +198,7 @@ enum WindowsScripts {
         $p=Join-Path $d $n
         try{
         try{$w=[IO.File]::Open($t,'CreateNew','Write','None')}catch{exit 71}
-        try{PReceive $w $z}catch{exit 72}finally{$w.Close()}
+        try{if($a[3] -ceq 'gzip'){$m=New-Object IO.MemoryStream;try{PReceive $m $y}catch{exit 72};if($m.Length -ne $y){exit 75};$m.Position=0;try{(New-Object IO.Compression.GZipStream($m,[IO.Compression.CompressionMode]::Decompress)).CopyTo($w)}catch{exit 75}}else{try{PReceive $w $y}catch{exit 72}}}finally{$w.Close()}
         if((New-Object IO.FileInfo $t).Length -ne $z){exit 75}
         if(Test-Path -LiteralPath $p){exit 73}
         try{[IO.File]::Move($t,$p)}catch{if(Test-Path -LiteralPath $p){exit 73};exit 71}
