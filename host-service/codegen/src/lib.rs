@@ -5,6 +5,7 @@
 //!   `type` 欄位若是 `const`,當作訊息種類，不產生欄位。
 //! - 字串列舉:`type: string` + `enum`。
 //! - 訊息聯集:`oneOf` 只列 `$ref`,每個都是帶 `type` const 的物件。
+//!   有變體標 `x-write: true` 時，聯集多產生 `is_write()`(Swift `isWrite`)。
 
 use serde_json::Value;
 
@@ -48,6 +49,8 @@ enum Definition {
         name: String,
         description: Option<String>,
         variants: Vec<(String, String)>,
+        /// 標 `x-write: true` 的變體(寫入類訊息)。
+        write_variants: Vec<String>,
     },
 }
 
@@ -114,17 +117,22 @@ fn parse_definition(name: &str, definition: &Value, schema: &Value) -> Result<De
     let description = description_of(definition);
     if let Some(variants) = definition["oneOf"].as_array() {
         let mut parsed = Vec::new();
+        let mut write_variants = Vec::new();
         for variant in variants {
             let target = reference_name(variant["$ref"].as_str().ok_or_else(|| format!("{name}:oneOf 只能列 $ref"))?)?;
             let tag = schema["$defs"][&target]["properties"]["type"]["const"]
                 .as_str()
                 .ok_or_else(|| format!("{name}:{target} 沒有 type const"))?;
+            if schema["$defs"][&target]["x-write"].as_bool() == Some(true) {
+                write_variants.push(target.clone());
+            }
             parsed.push((tag.to_owned(), target));
         }
         return Ok(Definition::Union {
             name: name.to_owned(),
             description,
             variants: parsed,
+            write_variants,
         });
     }
     match definition["type"].as_str() {
@@ -220,14 +228,26 @@ fn rust_type(field_type: &FieldType) -> String {
 
 fn rust_definition(definition: &Definition) -> String {
     match definition {
-        Definition::Union { name, description, variants } => {
+        Definition::Union {
+            name,
+            description,
+            variants,
+            write_variants,
+        } => {
             let mut output = doc_comment(description, "");
             output += "#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]\n#[serde(tag = \"type\")]\n";
             output += &format!("pub enum {name} {{\n");
             for (tag, target) in variants {
                 output += &format!("    #[serde(rename = \"{tag}\")]\n    {target}({target}),\n");
             }
-            output + "}\n"
+            output += "}\n";
+            if !write_variants.is_empty() {
+                output += &format!("\nimpl {name} {{\n");
+                output += "    /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。\n";
+                let patterns: Vec<String> = write_variants.iter().map(|target| format!("{name}::{target}(_)")).collect();
+                output += &format!("    pub fn is_write(&self) -> bool {{\n        matches!(self, {})\n    }}\n}}\n", patterns.join(" | "));
+            }
+            output
         }
         Definition::StringEnum { name, description, values } => {
             let mut output = doc_comment(description, "");
@@ -277,7 +297,12 @@ fn swift_identifier(name: &str) -> String {
 fn swift_definition(definition: &Definition) -> String {
     let mut output = "extension HostServiceProtocol {\n".to_owned();
     match definition {
-        Definition::Union { name, description, variants } => {
+        Definition::Union {
+            name,
+            description,
+            variants,
+            write_variants,
+        } => {
             output += &doc_comment(description, "    ");
             output += &format!("    public enum {name}: Codable, Sendable, Equatable {{\n");
             for (_, target) in variants {
@@ -303,7 +328,18 @@ fn swift_definition(definition: &Definition) -> String {
                 output += &format!("                try container.encode(\"{tag}\", forKey: .type)\n");
                 output += "                try message.encode(to: encoder)\n";
             }
-            output += "            }\n        }\n    }\n";
+            output += "            }\n        }\n";
+            if !write_variants.is_empty() {
+                output += "\n        /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。\n";
+                output += "        public var isWrite: Bool {\n            switch self {\n";
+                let cases: Vec<String> = write_variants.iter().map(|target| format!(".{}", camel_case(target))).collect();
+                output += &format!("            case {}: return true\n", cases.join(", "));
+                if write_variants.len() < variants.len() {
+                    output += "            default: return false\n";
+                }
+                output += "            }\n        }\n";
+            }
+            output += "    }\n";
         }
         Definition::StringEnum { name, description, values } => {
             output += &doc_comment(description, "    ");

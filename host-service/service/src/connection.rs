@@ -1,53 +1,96 @@
 //! 一條 app 的 WebSocket 連線：解析協定訊息，轉成 herdr 請求。只處理協定定義的訊息種類。
 
-use futures_util::{SinkExt, StreamExt};
+use std::time::{Duration, SystemTime};
+
+use axum::extract::ws::{CloseFrame, Message, WebSocket};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
-use tokio::net::TcpStream;
-use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
-use tokio_tungstenite::tungstenite::http::StatusCode;
 
+use crate::audit_log::AuditEvent;
+use crate::device_store::Device;
 use crate::herdr_client::{HerdrClient, HerdrFailure};
+use crate::http::{ServiceContext, blocking};
 use crate::protocol::{
     Agent, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION, ServerMessage, Welcome,
     Workspace,
 };
 
-/// app 連線的 WebSocket 路徑。
-pub const WEBSOCKET_PATH: &str = "/v1/ws";
+/// 權杖無效或已撤銷時的 close code(4000–4999 由應用程式自訂)。
+pub const UNAUTHORIZED_CLOSE_CODE: u16 = 4401;
 
-/// 只有協定路徑升級成 WebSocket,其他回 404。
-#[allow(clippy::result_large_err)] // 回傳型別由 tungstenite 的 callback 規定。
-fn only_protocol_path(request: &Request, response: Response) -> Result<Response, ErrorResponse> {
-    if request.uri().path() == WEBSOCKET_PATH {
-        Ok(response)
-    } else {
-        let mut not_found = ErrorResponse::new(None);
-        *not_found.status_mut() = StatusCode::NOT_FOUND;
-        Err(not_found)
-    }
-}
+/// 主機服務內部錯誤的 close code(RFC 6455)。
+const INTERNAL_ERROR_CLOSE_CODE: u16 = 1011;
 
-/// 接受一條連線並處理到它關閉為止。
-pub async fn serve(stream: TcpStream, herdr: HerdrClient) {
-    let Ok(mut websocket) = tokio_tungstenite::accept_hdr_async(stream, only_protocol_path).await else {
-        return;
+/// 送出 close 後等 app 回 close 的上限。
+const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// 驗證權杖後處理到連線關閉為止。每個訊息都重新驗證，撤銷立即生效。
+pub async fn serve(mut socket: WebSocket, context: ServiceContext, device_token: Option<String>) {
+    let device = match context.authenticate(device_token.as_deref()).await {
+        Ok(device) => device,
+        Err(code) => return reject(socket, code).await,
     };
-    let mut connection = ClientConnection { herdr, handshaken: false };
-    while let Some(Ok(message)) = websocket.next().await {
+    let devices = context.devices.clone();
+    let device_id = device.device_id.clone();
+    if let Err(error) = blocking(move || devices.record_connection(&device_id, SystemTime::now())).await {
+        eprintln!("cannot record connection: {error}");
+    }
+    context.audit.record(
+        AuditEvent::Connected {
+            device_id: device.device_id.clone(),
+        },
+        SystemTime::now(),
+    );
+
+    let mut connection = ClientConnection {
+        herdr: context.herdr.clone(),
+        handshaken: false,
+    };
+    while let Some(Ok(message)) = socket.recv().await {
         let reply = match message {
-            Message::Text(text) => connection.handle(text.as_str()).await,
+            Message::Text(text) => match context.authenticate(device_token.as_deref()).await {
+                Ok(device) => connection.handle(text.as_str(), &device).await,
+                Err(code) => return reject(socket, code).await,
+            },
             Message::Binary(_) => error(None, ErrorCode::InvalidMessage, "binary messages are not supported"),
             Message::Close(_) => break,
             _ => continue,
         };
-        let text = serde_json::to_string(&reply).expect("協定訊息可序列化");
-        if websocket.send(Message::text(text)).await.is_err() {
+        if send(&mut socket, &reply).await.is_err() {
             break;
         }
     }
+}
+
+/// 送出錯誤訊息後以 close code 關閉。
+async fn reject(mut socket: WebSocket, code: ErrorCode) {
+    let (close_code, reason, message) = match code {
+        ErrorCode::DeviceTokenRevoked => (UNAUTHORIZED_CLOSE_CODE, "device_token_revoked", "device token was revoked"),
+        ErrorCode::DeviceTokenInvalid => (UNAUTHORIZED_CLOSE_CODE, "device_token_invalid", "missing or unknown device token"),
+        _ => (INTERNAL_ERROR_CLOSE_CODE, "internal_error", "host service cannot read its device store"),
+    };
+    let _ = send(&mut socket, &error(None, code, message)).await;
+    let _ = socket
+        .send(Message::Close(Some(CloseFrame {
+            code: close_code,
+            reason: reason.into(),
+        })))
+        .await;
+    // 等 app 回 close 再斷線;直接斷線會讓 app 收到 TCP reset 而讀不到 close code。
+    let _ = tokio::time::timeout(CLOSE_HANDSHAKE_TIMEOUT, async {
+        while let Some(Ok(message)) = socket.recv().await {
+            if matches!(message, Message::Close(_)) {
+                break;
+            }
+        }
+    })
+    .await;
+}
+
+async fn send(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), axum::Error> {
+    let text = serde_json::to_string(message).expect("協定訊息可序列化");
+    socket.send(Message::Text(text.into())).await
 }
 
 /// 一條 app WebSocket 連線的狀態(不是 herdr 的 session)。
@@ -57,7 +100,7 @@ struct ClientConnection {
 }
 
 impl ClientConnection {
-    async fn handle(&mut self, text: &str) -> ServerMessage {
+    async fn handle(&mut self, text: &str, _device: &Device) -> ServerMessage {
         let Ok(value) = serde_json::from_str::<Value>(text) else {
             return error(None, ErrorCode::InvalidMessage, "message is not valid JSON");
         };
@@ -71,6 +114,7 @@ impl ClientConnection {
         match message {
             ClientMessage::Hello(hello) => self.hello(hello.request_id, hello.protocol_version).await,
             ClientMessage::AgentsList(request) => self.agents_list(request.request_id).await,
+            ClientMessage::PaneSendKeys(request) => error(Some(request.request_id), ErrorCode::InvalidMessage, "not supported yet"),
         }
     }
 

@@ -1,23 +1,32 @@
 //! Purrdr 主機服務(ADR-0010)。
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
+pub mod audit_log;
 mod connection;
+pub mod device_store;
 pub mod herdr_client;
 pub mod herdr_socket;
+mod http;
 #[rustfmt::skip] // 由 codegen 產生。
 pub mod protocol;
+pub mod state_directory;
 
-pub use connection::WEBSOCKET_PATH;
+use audit_log::AuditLog;
+use device_store::DeviceStore;
 use herdr_client::HerdrClient;
 use herdr_socket::HerdrSocket;
+pub use http::WEBSOCKET_PATH;
 
-/// 主機服務的設定。只能設定埠：位址固定是 127.0.0.1,對外由 `tailscale serve` 提供 HTTPS。
+/// 主機服務的設定。位址固定是 127.0.0.1,對外由 `tailscale serve` 提供 HTTPS。
 #[derive(Debug, Clone)]
 pub struct HostServiceConfig {
     /// 0 表示由系統挑一個空的埠(測試用)。
     pub port: u16,
     pub herdr_socket: HerdrSocket,
+    /// 裝置、配對碼與稽核紀錄所在的資料夾。
+    pub state_directory: PathBuf,
 }
 
 /// 預設埠(127.0.0.1 上)。
@@ -42,7 +51,11 @@ impl HostServiceConfig {
         }
         let herdr_socket =
             HerdrSocket::resolve(platform, session.as_deref(), environment).map_err(|error| format!("cannot resolve herdr socket: {error:?}"))?;
-        Ok(HostServiceConfig { port, herdr_socket })
+        Ok(HostServiceConfig {
+            port,
+            herdr_socket,
+            state_directory: PathBuf::new(),
+        })
     }
 }
 
@@ -70,14 +83,18 @@ impl Drop for RunningHostService {
     }
 }
 
-/// 綁定 127.0.0.1 並開始接受 WebSocket 連線。
+/// 綁定 127.0.0.1 並開始接受連線。
 pub async fn start(config: HostServiceConfig) -> std::io::Result<RunningHostService> {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", config.port)).await?;
     let local_addr = listener.local_addr()?;
-    let herdr = HerdrClient::new(config.herdr_socket);
+    let router = http::router(http::ServiceContext {
+        herdr: HerdrClient::new(config.herdr_socket),
+        devices: DeviceStore::new(&config.state_directory),
+        audit: AuditLog::new(&config.state_directory),
+    });
     let accept_loop = tokio::spawn(async move {
-        while let Ok((stream, _)) = listener.accept().await {
-            tokio::spawn(connection::serve(stream, herdr.clone()));
+        if let Err(error) = axum::serve(listener, router).await {
+            eprintln!("host service stopped: {error}");
         }
     });
     Ok(RunningHostService { local_addr, accept_loop })
