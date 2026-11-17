@@ -82,6 +82,8 @@ public enum ImagePreparation {
         public let jpeg: Data
         public let width: Int
         public let height: Int
+        /// 編碼用的 JPEG 品質。
+        public let quality: Double
     }
 
     /// 讀不出圖片時回傳 `nil`。方向(EXIF orientation)會套用到像素上。
@@ -98,6 +100,6 @@ public enum ImagePreparation {
         guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { return nil }
-        return Prepared(jpeg: output as Data, width: image.width, height: image.height)
+        return Prepared(jpeg: output as Data, width: image.width, height: image.height, quality: quality)
     }
 }

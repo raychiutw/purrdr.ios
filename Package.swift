@@ -92,6 +92,8 @@ let package = Package(
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "tests/PurrdrFeaturesTests",
+            // 圖片前處理的合成樣本(#78)。
+            resources: [.copy("Resources")],
             swiftSettings: strictSettings
         ),
     ]
