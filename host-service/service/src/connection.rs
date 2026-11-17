@@ -1,19 +1,25 @@
 //! 一條 app 的 WebSocket 連線：解析協定訊息，轉成 herdr 請求。只處理協定定義的訊息種類。
 
+use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket};
+use futures_util::stream::SplitSink;
+use futures_util::{SinkExt, StreamExt};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::audit_log::{AuditEvent, AuditLog};
 use crate::device_store::Device;
-use crate::herdr_client::{HerdrClient, HerdrFailure};
+use crate::herdr_client::{HerdrClient, HerdrFailure, HerdrSubscription};
 use crate::http::{ServiceContext, blocking};
 use crate::protocol::{
-    Agent, AgentPrompt, AgentPromptResult, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION,
-    PaneSendKeys, PaneSendKeysResult, PaneSendText, PaneSendTextResult, ServerMessage, TranscriptLocate, Welcome, Workspace,
+    Agent, AgentPrompt, AgentPromptResult, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, EventsEnded, EventsSubscribe,
+    EventsSubscribeResult, EventsUnsubscribeResult, HerdrServer, PROTOCOL_VERSION, PaneSendKeys, PaneSendKeysResult, PaneSendText, PaneSendTextResult,
+    ServerMessage, SubscribedEvent, TranscriptLocate, Welcome, Workspace,
 };
 use crate::transcript::AgentSessionInfo;
 use crate::transcript_session::TranscriptSession;
@@ -28,7 +34,7 @@ const INTERNAL_ERROR_CLOSE_CODE: u16 = 1011;
 const CLOSE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// 驗證權杖後處理到連線關閉為止。每個訊息都重新驗證，撤銷立即生效。
-pub async fn serve(mut socket: WebSocket, context: ServiceContext, device_token: Option<String>) {
+pub async fn serve(socket: WebSocket, context: ServiceContext, device_token: Option<String>) {
     let device = match context.authenticate(device_token.as_deref()).await {
         Ok(device) => device,
         Err(code) => return reject(socket, code).await,
@@ -45,56 +51,109 @@ pub async fn serve(mut socket: WebSocket, context: ServiceContext, device_token:
         SystemTime::now(),
     );
 
-    // 串流(對話紀錄追蹤)推送的訊息;連線結束時 `connection` 一起 drop,串流隨之停止。
-    let (pushes, mut pushed) = tokio::sync::mpsc::unbounded_channel();
-    let mut connection = ClientConnection {
+    // 讀取、處理、送出分開：處理請求(等 herdr)時仍持續收訊息、回 pong,事件與心跳也能隨時送出。
+    let heartbeat = context.heartbeat;
+    let (sink, mut incoming) = socket.split();
+    let (outbound, outbound_queue) = mpsc::unbounded_channel();
+    // 串流(對話紀錄追蹤)推送的訊息也由送出段送出;連線結束時 `connection` 一起 drop,串流隨之停止。
+    let (pushes, pushed) = mpsc::unbounded_channel();
+    let writer = tokio::spawn(write_outbound(sink, outbound_queue, pushed, heartbeat.interval));
+    let (requests, request_queue) = mpsc::unbounded_channel();
+    let connection = ClientConnection {
         herdr: context.herdr.clone(),
         audit: context.audit.clone(),
+        outbound: outbound.clone(),
         handshaken: false,
         transcripts: TranscriptSession::new(context.transcripts.clone(), pushes),
+        subscriptions: HashMap::new(),
+        accepted_subscription: None,
     };
-    loop {
-        let message = tokio::select! {
-            incoming = socket.recv() => match incoming {
-                Some(Ok(message)) => message,
-                _ => break,
-            },
-            Some(push) = pushed.recv() => {
-                if send(&mut socket, &push).await.is_err() {
-                    break;
-                }
-                continue;
+    let handler = tokio::spawn(handle_requests(connection, request_queue, context, device_token));
+    // 逾時沒收到任何 frame(含 pong)就當作 app 已經不在。
+    while let Ok(Some(Ok(message))) = tokio::time::timeout(heartbeat.timeout, incoming.next()).await {
+        match message {
+            Message::Text(text) => {
+                let _ = requests.send(text.to_string());
             }
-        };
-        let reply = match message {
-            Message::Text(text) => match context.authenticate(device_token.as_deref()).await {
-                Ok(device) => connection.handle(text.as_str(), &device).await,
-                Err(code) => return reject(socket, code).await,
-            },
-            Message::Binary(_) => error(None, ErrorCode::InvalidMessage, "binary messages are not supported"),
+            Message::Binary(_) => {
+                let _ = outbound.send(Outbound::Message(error(None, ErrorCode::InvalidMessage, "binary messages are not supported")));
+            }
             Message::Close(_) => break,
             _ => continue,
+        }
+    }
+    // 結束處理就放掉這條連線的 herdr 訂閱。
+    handler.abort();
+    writer.abort();
+}
+
+/// 要送給 app 的訊息。
+enum Outbound {
+    Message(ServerMessage),
+    /// 送出 close frame 後不再送任何東西。
+    Close(CloseFrame),
+}
+
+/// 依序送出訊息，並每 `ping_interval` 送一次 ping。
+async fn write_outbound(
+    mut sink: SplitSink<WebSocket, Message>,
+    mut queue: mpsc::UnboundedReceiver<Outbound>,
+    mut pushes: mpsc::UnboundedReceiver<ServerMessage>,
+    ping_interval: Duration,
+) {
+    let mut pings = tokio::time::interval_at(tokio::time::Instant::now() + ping_interval, ping_interval);
+    loop {
+        let (frame, last) = tokio::select! {
+            item = queue.recv() => match item {
+                Some(Outbound::Message(message)) => (Message::Text(serde_json::to_string(&message).expect("協定訊息可序列化").into()), false),
+                Some(Outbound::Close(frame)) => (Message::Close(Some(frame)), true),
+                None => return,
+            },
+            Some(push) = pushes.recv() => (Message::Text(serde_json::to_string(&push).expect("協定訊息可序列化").into()), false),
+            _ = pings.tick() => (Message::Ping(Default::default()), false),
         };
-        if send(&mut socket, &reply).await.is_err() {
-            break;
+        if sink.send(frame).await.is_err() || last {
+            return;
         }
     }
 }
 
-/// 送出錯誤訊息後以 close code 關閉。
-async fn reject(mut socket: WebSocket, code: ErrorCode) {
+/// 依序處理請求;每個訊息都重新驗證權杖，被拒時送錯誤與 close frame 後停止。
+async fn handle_requests(mut connection: ClientConnection, mut queue: mpsc::UnboundedReceiver<String>, context: ServiceContext, device_token: Option<String>) {
+    while let Some(text) = queue.recv().await {
+        match context.authenticate(device_token.as_deref()).await {
+            Ok(device) => connection.handle(&text, &device).await,
+            Err(code) => {
+                let (message, frame) = rejection(code);
+                let _ = connection.outbound.send(Outbound::Message(message));
+                let _ = connection.outbound.send(Outbound::Close(frame));
+                return;
+            }
+        }
+    }
+}
+
+/// 權杖被拒時的錯誤訊息與 close frame。
+fn rejection(code: ErrorCode) -> (ServerMessage, CloseFrame) {
     let (close_code, reason, message) = match code {
         ErrorCode::DeviceTokenRevoked => (UNAUTHORIZED_CLOSE_CODE, "device_token_revoked", "device token was revoked"),
         ErrorCode::DeviceTokenInvalid => (UNAUTHORIZED_CLOSE_CODE, "device_token_invalid", "missing or unknown device token"),
         _ => (INTERNAL_ERROR_CLOSE_CODE, "internal_error", "host service cannot read its device store"),
     };
-    let _ = send(&mut socket, &error(None, code, message)).await;
-    let _ = socket
-        .send(Message::Close(Some(CloseFrame {
+    (
+        error(None, code, message),
+        CloseFrame {
             code: close_code,
             reason: reason.into(),
-        })))
-        .await;
+        },
+    )
+}
+
+/// 連線一開始權杖就被拒：送出錯誤訊息後以 close code 關閉。
+async fn reject(mut socket: WebSocket, code: ErrorCode) {
+    let (message, frame) = rejection(code);
+    let _ = send(&mut socket, &message).await;
+    let _ = socket.send(Message::Close(Some(frame))).await;
     // 等 app 回 close 再斷線;直接斷線會讓 app 收到 TCP reset 而讀不到 close code。
     let _ = tokio::time::timeout(CLOSE_HANDSHAKE_TIMEOUT, async {
         while let Some(Ok(message)) = socket.recv().await {
@@ -111,16 +170,38 @@ async fn send(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), axu
     socket.send(Message::Text(text.into())).await
 }
 
-/// 一條 app WebSocket 連線的狀態(不是 herdr 的 session)。
+/// 一條 app WebSocket 連線的狀態(不是 herdr 的 session)。drop 時結束這條連線的 herdr 訂閱。
 struct ClientConnection {
     herdr: HerdrClient,
     audit: AuditLog,
+    outbound: mpsc::UnboundedSender<Outbound>,
     handshaken: bool,
     transcripts: TranscriptSession,
+    /// 事件串流識別碼 → 轉送 herdr 事件的 task。
+    subscriptions: HashMap<String, JoinHandle<()>>,
+    /// herdr 剛接受、等訂閱結果送出後才開始轉送的訂閱。
+    accepted_subscription: Option<(String, HerdrSubscription)>,
+}
+
+impl Drop for ClientConnection {
+    fn drop(&mut self) {
+        for forwarding in self.subscriptions.values() {
+            forwarding.abort();
+        }
+    }
 }
 
 impl ClientConnection {
-    async fn handle(&mut self, text: &str, device: &Device) -> ServerMessage {
+    async fn handle(&mut self, text: &str, device: &Device) {
+        let reply = self.reply(text, device).await;
+        let _ = self.outbound.send(Outbound::Message(reply));
+        // 訂閱結果送出後才開始轉送，事件不會比結果早到。
+        if let Some((stream_id, subscription)) = self.accepted_subscription.take() {
+            self.start_forwarding(stream_id, subscription);
+        }
+    }
+
+    async fn reply(&mut self, text: &str, device: &Device) -> ServerMessage {
         let Ok(value) = serde_json::from_str::<Value>(text) else {
             return error(None, ErrorCode::InvalidMessage, "message is not valid JSON");
         };
@@ -154,6 +235,15 @@ impl ClientConnection {
             ClientMessage::TranscriptUnfollow(request) => self.transcripts.unfollow(request),
             ClientMessage::PaneSendText(request) => self.pane_send_text(request).await,
             ClientMessage::AgentPrompt(request) => self.agent_prompt(request).await,
+            ClientMessage::EventsSubscribe(request) => self.events_subscribe(request).await,
+            ClientMessage::EventsUnsubscribe(request) => {
+                if let Some(forwarding) = self.subscriptions.remove(&request.stream_id) {
+                    forwarding.abort();
+                }
+                ServerMessage::EventsUnsubscribeResult(EventsUnsubscribeResult {
+                    request_id: request.request_id,
+                })
+            }
         }
     }
 
@@ -187,6 +277,80 @@ impl ClientConnection {
             }),
             Err(failure) => herdr_error(request.request_id, "agent.prompt", failure),
         }
+    }
+
+    /// 開 herdr 訂閱;herdr 接受後先回結果，再開始轉送事件(順序不會顛倒)。
+    async fn events_subscribe(&mut self, request: EventsSubscribe) -> ServerMessage {
+        if !self.handshaken {
+            return error(Some(request.request_id), ErrorCode::HandshakeRequired, "send hello first");
+        }
+        if self.subscriptions.contains_key(&request.stream_id) {
+            return error(
+                Some(request.request_id),
+                ErrorCode::InvalidMessage,
+                "stream_id is already used on this connection",
+            );
+        }
+        let subscriptions: Vec<Value> = request
+            .subscriptions
+            .iter()
+            .map(|subscription| match &subscription.pane_id {
+                Some(pane_id) => json!({"type": subscription.event, "pane_id": pane_id}),
+                None => json!({"type": subscription.event}),
+            })
+            .collect();
+        let subscription = match self.herdr.subscribe(json!({"subscriptions": subscriptions})).await {
+            Ok(subscription) => subscription,
+            Err(failure) => return herdr_error(request.request_id, "events.subscribe", failure),
+        };
+        self.accepted_subscription = Some((request.stream_id.clone(), subscription));
+        ServerMessage::EventsSubscribeResult(EventsSubscribeResult {
+            request_id: request.request_id,
+            stream_id: request.stream_id,
+        })
+    }
+
+    /// 轉送 herdr 事件;herdr 結束訂閱時送 `events.ended`(失敗時帶錯誤碼)。
+    fn start_forwarding(&mut self, stream_id: String, mut subscription: HerdrSubscription) {
+        let outbound = self.outbound.clone();
+        let forwarded_stream_id = stream_id.clone();
+        let forwarding = tokio::spawn(async move {
+            let mut ended = EventsEnded {
+                stream_id: forwarded_stream_id.clone(),
+                code: None,
+                message: None,
+                herdr_code: None,
+            };
+            loop {
+                match subscription.next_event().await {
+                    Ok(Some(event)) => {
+                        let _ = outbound.send(Outbound::Message(ServerMessage::SubscribedEvent(SubscribedEvent {
+                            stream_id: forwarded_stream_id.clone(),
+                            event: event["event"].as_str().unwrap_or_default().to_owned(),
+                            // 有些事件的 pane id 在 data 頂層，有些包在 pane 物件內。
+                            pane_id: event["data"]["pane_id"]
+                                .as_str()
+                                .or_else(|| event["data"]["pane"]["pane_id"].as_str())
+                                .map(str::to_owned),
+                        })));
+                    }
+                    Ok(None) => break,
+                    Err(HerdrFailure::Herdr { code, message }) => {
+                        ended.code = Some(ErrorCode::HerdrError);
+                        ended.message = Some(message);
+                        ended.herdr_code = Some(code);
+                        break;
+                    }
+                    Err(HerdrFailure::Unavailable(message) | HerdrFailure::UnexpectedResponse(message)) => {
+                        ended.code = Some(ErrorCode::HerdrUnavailable);
+                        ended.message = Some(message);
+                        break;
+                    }
+                }
+            }
+            let _ = outbound.send(Outbound::Message(ServerMessage::EventsEnded(ended)));
+        });
+        self.subscriptions.insert(stream_id, forwarding);
     }
 
     /// 對話紀錄只能依 herdr 目前回報的 agent_session 定位(#59)。

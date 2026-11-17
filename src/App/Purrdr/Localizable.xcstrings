@@ -6004,6 +6004,28 @@
         }
       }
     },
+    "The Purrdr host service on this host is newer than this version of Purrdr. Update Purrdr." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機上的 Purrdr 主機服務比這個版本的 Purrdr 新。請更新 Purrdr。"
+          }
+        }
+      }
+    },
+    "The Purrdr host service on this host is older than this version of Purrdr. Update the host service on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機上的 Purrdr 主機服務比這個版本的 Purrdr 舊。請在主機上更新主機服務。"
+          }
+        }
+      }
+    },
     "The Tailscale sign-in wasn’t finished in time. Try again." : {
       "extractionState" : "manual",
       "localizations" : {

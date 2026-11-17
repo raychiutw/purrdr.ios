@@ -16,7 +16,9 @@
         { "$ref": "#/$defs/TranscriptFollow" },
         { "$ref": "#/$defs/TranscriptUnfollow" },
         { "$ref": "#/$defs/PaneSendText" },
-        { "$ref": "#/$defs/AgentPrompt" }
+        { "$ref": "#/$defs/AgentPrompt" },
+        { "$ref": "#/$defs/EventsSubscribe" },
+        { "$ref": "#/$defs/EventsUnsubscribe" }
       ]
     },
     "ServerMessage": {
@@ -32,6 +34,10 @@
         { "$ref": "#/$defs/TranscriptUnfollowResult" },
         { "$ref": "#/$defs/PaneSendTextResult" },
         { "$ref": "#/$defs/AgentPromptResult" },
+        { "$ref": "#/$defs/EventsSubscribeResult" },
+        { "$ref": "#/$defs/SubscribedEvent" },
+        { "$ref": "#/$defs/EventsEnded" },
+        { "$ref": "#/$defs/EventsUnsubscribeResult" },
         { "$ref": "#/$defs/ErrorMessage" }
       ]
     },
@@ -332,6 +338,78 @@
         "type": { "const": "agent.prompt.result" },
         "request_id": { "type": "string" },
         "delivery": { "type": "string", "description": "herdr 回報的送達方式(例如 written_to_pty);沒有時省略。" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "EventsSubscribe": {
+      "description": "開一條 Agent 事件串流(herdr events.subscribe)。herdr 接受後回 events.subscribe.result,之後以 events.event 推送，直到 events.ended 或 events.unsubscribe。事件只是「該重讀了」的訊號，對帳用 agents.list。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.subscribe" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string", "description": "串流識別碼(app 自訂，同一條連線內不可重複);這條串流的訊息都帶它。" },
+        "subscriptions": { "type": "array", "items": { "$ref": "#/$defs/EventSubscription" } }
+      },
+      "required": ["type", "request_id", "stream_id", "subscriptions"]
+    },
+    "EventSubscription": {
+      "description": "一筆 herdr 事件訂閱。herdr 不認得的事件或不存在的 Pane 會讓整個訂閱被拒(herdr_error)。",
+      "type": "object",
+      "properties": {
+        "event": { "type": "string", "description": "herdr 的訂閱型別，例如 pane.agent_status_changed、workspace.created。" },
+        "pane_id": { "type": "string", "description": "pane.agent_status_changed 必填;其他型別不帶。" }
+      },
+      "required": ["event"]
+    },
+    "EventsSubscribeResult": {
+      "description": "herdr 接受了訂閱。此後的變化才會推送;之前的要靠 agents.list 對帳。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.subscribe.result" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "stream_id"]
+    },
+    "SubscribedEvent": {
+      "description": "herdr 推送的一個事件(沒有 request_id)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.event" },
+        "stream_id": { "type": "string" },
+        "event": { "type": "string", "description": "herdr 事件的 wire 名稱，例如 pane_agent_status_changed。" },
+        "pane_id": { "type": "string", "description": "事件指名 Pane 時才有。" }
+      },
+      "required": ["type", "stream_id", "event"]
+    },
+    "EventsEnded": {
+      "description": "事件串流在主機端結束(沒有 request_id)。有 code 表示失敗;herdr 的 events_lost 是 code herdr_error 加 herdr_code events_lost,app 重新訂閱並對帳。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.ended" },
+        "stream_id": { "type": "string" },
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string", "description": "給開發者看的說明。" },
+        "herdr_code": { "type": "string", "description": "code 是 herdr_error 時，herdr 原本的錯誤碼。" }
+      },
+      "required": ["type", "stream_id"]
+    },
+    "EventsUnsubscribe": {
+      "description": "關閉一條事件串流，主機服務關掉對應的 herdr 訂閱。不認得的串流識別碼也回成功。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.unsubscribe" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "stream_id"]
+    },
+    "EventsUnsubscribeResult": {
+      "description": "事件串流已關閉，之後不再有這條串流的訊息。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.unsubscribe.result" },
+        "request_id": { "type": "string" }
       },
       "required": ["type", "request_id"]
     },

@@ -10,6 +10,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 
+use crate::Heartbeat;
 use crate::audit_log::{AuditEvent, AuditLog, RevokedBy};
 use crate::connection;
 use crate::device_store::{Device, DeviceStore, PairingFailure, RevokeFailure, TokenRejection};
@@ -34,6 +35,7 @@ pub(crate) struct ServiceContext {
     pub herdr: HerdrClient,
     pub devices: DeviceStore,
     pub audit: AuditLog,
+    pub heartbeat: Heartbeat,
     pub transcripts: TranscriptEnvironment,
 }
 
