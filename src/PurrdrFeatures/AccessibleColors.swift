@@ -66,6 +66,9 @@ enum AccessibleColors {
         lightHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B), // 白字 7.1:1
         darkHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B)
     )
+
+    /// 對話中的連結。目前沿用 tint(紅字)。
+    static let linkText = brandText
 }
 
 extension ShapeStyle where Self == Color {

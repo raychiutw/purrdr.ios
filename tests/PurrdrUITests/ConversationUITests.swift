@@ -45,6 +45,12 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(app.links["RFC 4180"].waitForExistence(timeout: 5), "https 連結不可點")
         XCTAssertFalse(app.links["the README"].exists, "file:// 連結不該可點")
+
+        // 連結是系統連結藍(#93),以截圖附件確認。
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-links"
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 
     /// 程式碼區塊有複製鈕(document.on.document,有 label),且在自己的容器內可橫捲。
@@ -117,6 +123,30 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "鍵盤沒有收起")
         XCTAssertEqual(text.value as? String, "Half a thought", "草稿不見了")
         XCTAssertFalse(element("conversation.echo", in: app).exists, "收起鍵盤不該送出")
+    }
+
+    /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
+    @MainActor
+    func testJumpToLatestOnlyWhenAwayFromBottom() {
+        let app = open(paneID: "w2:p1")
+        XCTAssertTrue(element("prompt.card", in: app).waitForExistence(timeout: 10), "沒有提示卡")
+        let jump = element("conversation.jumpToLatest", in: app)
+        let list = app.scrollViews.firstMatch
+        XCTAssertFalse(jump.waitForExistence(timeout: 2), "在底部時不該顯示")
+
+        list.swipeDown()
+        list.swipeDown()
+        XCTAssertTrue(jump.waitForExistence(timeout: 5), "往上捲後應顯示")
+
+        for _ in 0..<4 { list.swipeUp() }
+        XCTAssertTrue(jump.waitForNonExistence(timeout: 5), "自己捲回底部後應隱藏")
+
+        list.swipeDown()
+        list.swipeDown()
+        XCTAssertTrue(jump.waitForExistence(timeout: 5), "再往上捲應顯示")
+        jump.tap()
+        XCTAssertTrue(jump.waitForNonExistence(timeout: 5), "點了回到最新後應隱藏")
+        XCTAssertTrue(element("prompt.option.3", in: app).isHittable, "回到底部後最後一個選項應可點")
     }
 
     /// 「需要你」的 agent 拒收：草稿放回輸入框，提示先回答。
