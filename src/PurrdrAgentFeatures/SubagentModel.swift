@@ -86,7 +86,8 @@ public final class SubagentModel {
         let ended = status != .running
         do {
             if let file {
-                switch try await transcripts.tail(path: file.path, from: file.cursor) {
+                // 開著的畫面：落後多少都從游標分段接著讀，不改讀新視窗取代已顯示的訊息(#130)。
+                switch try await transcripts.catchUp(path: file.path, from: file.cursor) {
                 case .unchanged:
                     break
                 case .appended(let chunk):

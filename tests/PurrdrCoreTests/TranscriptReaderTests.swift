@@ -173,6 +173,54 @@ struct TranscriptReaderTests {
         #expect(tail == .tooFarBehind(size: Self.fixture.count))
     }
 
+    /// #130:畫面已有內容的即時追蹤落後超過上限時，從游標分段接著讀(不改讀新視窗取代畫面)。
+    @Test("分段追趕：落後超過上限時，從游標讀不超過上限的完整行，其餘留給下一次")
+    func catchUpReadsCompleteLinesUpToLimit() async throws {
+        let (host, path) = try Self.host()
+        let reader = TranscriptReader(channel: host)
+        let lines = Self.fixtureLines
+        let limit = lines[0].utf8.count + 1 + lines[1].utf8.count + 1 + lines[2].utf8.count / 2
+
+        let first = try await reader.catchUp(path: path, from: 0, limit: limit)
+
+        let twoLines = lines[0].utf8.count + 1 + lines[1].utf8.count + 1
+        #expect(first == .appended(TranscriptChunk(start: 0, end: twoLines, lines: Array(lines[0...1]))))
+
+        // 接著讀到檔尾，最後與整份檔案相同。
+        var cursor = twoLines
+        var collected = Array(lines[0...1])
+        while case .appended(let chunk) = try await reader.catchUp(path: path, from: cursor, limit: max(limit, 64 << 10)) {
+            #expect(chunk.start == cursor)
+            collected += chunk.lines
+            cursor = chunk.end
+        }
+        #expect(cursor == Self.fixture.count)
+        #expect(collected.count == lines.count)
+    }
+
+    /// 單行比上限大(大的工具結果):以完整行前進，不切斷、不卡住。
+    @Test("分段追趕：第一行就超過上限時整行讀出，不切斷")
+    func catchUpReadsOversizedLineWhole() async throws {
+        let big = #"{"type":"assistant","text":""# + String(repeating: "很長的輸出 ", count: 400) + #""}"#
+        let next = Self.fixtureLines[6]
+        let (host, path) = try Self.host(with: Data((big + "\n" + next + "\n").utf8))
+
+        let tail = try await TranscriptReader(channel: host).catchUp(path: path, from: 0, limit: 1024)
+
+        #expect(big.utf8.count > 1024)
+        #expect(tail == .appended(TranscriptChunk(start: 0, end: big.utf8.count + 1, lines: [big])))
+    }
+
+    @Test("分段追趕：沒有新的完整行是 unchanged,檔案變小是 shrank")
+    func catchUpReportsUnchangedAndShrunk() async throws {
+        let (host, path) = try Self.host()
+        let reader = TranscriptReader(channel: host)
+        try host.append(Data(#"{"type":"user","mess"#.utf8), to: Self.relativePath)
+
+        #expect(try await reader.catchUp(path: path, from: Self.fixture.count, limit: 1024) == .unchanged)
+        #expect(try await reader.catchUp(path: path, from: Self.fixture.count + 1000, limit: 1024) == .shrank(size: Self.fixture.count + 20))
+    }
+
     @Test("追蹤：檔案比游標短(被換掉)時回報 shrank")
     func tailReportsShrunkFile() async throws {
         let (host, path) = try Self.host()

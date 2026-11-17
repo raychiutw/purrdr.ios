@@ -167,6 +167,11 @@ struct WindowsRealHostIntegrationTests {
         #expect(tail == .appended(TranscriptChunk(
             start: lines[0].utf8.count + 1, end: body.count, lines: [#"{"type":"assistant","n":2,"image":""}"#, lines[2]])))
         #expect(try await reader.tail(path: claudeFile, from: body.count) == .unchanged)
+        // 分段追趕(#130):上限只夠第一行(而且第一行比上限大)時整行讀出;其餘下一次接著讀。
+        let first = lines[0].utf8.count + 1
+        #expect(try await reader.catchUp(path: claudeFile, from: 0, limit: 1) == .appended(TranscriptChunk(start: 0, end: first, lines: [lines[0]])))
+        #expect(try await reader.catchUp(path: claudeFile, from: first, limit: 1 << 20) == tail)
+        #expect(try await reader.catchUp(path: claudeFile, from: body.count, limit: 1 << 20) == .unchanged)
 
         let previews = try await reader.previews(of: [
             PreviewRequest(key: "c", sessionID: id, cwd: #"C:\work"#),

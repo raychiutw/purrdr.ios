@@ -34,14 +34,22 @@ enum DemoTranscripts {
                 return Data("\(session.path)\n\(size)\n".utf8)
             }
             if command == TranscriptCommand.window(path: session.path, end: size, lines: 300) {
-                return Data("0 \(size)\n".utf8) + records(Array(session.lines.suffix(300)))
+                // 視窗起點是最後 300 行之前的 byte 數(行數超過 300 時不是 0)。
+                let window = Array(session.lines.suffix(300))
+                let start = size - window.reduce(0) { $0 + $1.utf8.count + 1 }
+                return Data("\(start) \(size)\n".utf8) + records(window)
             }
             // 游標可能停在任何一個行邊界(送出 prompt 前讀到的大小)。
             var cursor = 0
             for (index, line) in session.lines.enumerated() {
                 cursor += line.utf8.count + 1
                 if command == TranscriptCommand.tail(path: session.path, from: cursor, limit: 64 << 10) {
+                    // 落後超過上限時主機只印大小(開啟時改讀新視窗)。
+                    guard size - cursor <= 64 << 10 else { return Data("\(size)\n".utf8) }
                     return Data("\(size)\n".utf8) + records(Array(session.lines[(index + 1)...]))
+                }
+                if command == TranscriptCommand.catchUp(path: session.path, from: cursor, limit: TranscriptReader.catchUpLimit) {
+                    return Data("\(size)\n".utf8) + records(catchUp(Array(session.lines[(index + 1)...]), limit: TranscriptReader.catchUpLimit))
                 }
             }
         }
@@ -65,6 +73,18 @@ enum DemoTranscripts {
         sessions.contains {
             command == TranscriptCommand.locate(sessionID: $0.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: $0.cwd))
         }
+    }
+
+    /// 分段追趕：累計不超過 `limit` 的完整行;第一行就超過時只有那一行(與主機腳本相同)。
+    private static func catchUp(_ lines: [String], limit: Int) -> [String] {
+        var total = 0
+        var taken: [String] = []
+        for line in lines {
+            total += line.utf8.count + 1
+            if total > limit, !taken.isEmpty { break }
+            taken.append(line)
+        }
+        return taken
     }
 
     private static func records(_ lines: [String]) -> Data {
@@ -180,6 +200,39 @@ enum DemoTranscripts {
         ]
     }
 
+    /// 大量輸出(`-demoLargeOutput`,#130):agent 一口氣讀了 160 份記錄檔，一次寫出 321 行、超過 64 KiB
+    /// (超過開啟時「落後太多」的門檻，也比開啟視窗的 300 行多)。最後一則是收尾的文字。
+    /// `run` 區分同一個對話裡的多次大量輸出(每次的行 id 不同)。
+    static func largeOutput(run: Int = 0, at date: Date) -> [String] {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let timestamp = formatter.string(from: date)
+        var lines: [String] = []
+        for number in 1...160 {
+            let id = "toolu_demo_log_\(run)_\(number)"
+            lines.append(assistantTool("d3m0-log-\(run)-\(number)-c", timestamp, id: id, name: "Read", input: ["file_path": "/Users/demo/ledger/logs/export-\(number).log"]))
+            lines.append(toolResult("d3m0-log-\(run)-\(number)-r", timestamp, id: id, text: String(repeating: "2026-11-16 09:01:00 export row \(number) ok\n", count: 12)))
+        }
+        lines.append(assistantText("d3m0-log-\(run)-done", timestamp, largeOutputSummary))
+        return lines
+    }
+
+    /// 長對話(`-demoLargeOutputOnPrompt`):150 輪你來我往的文字訊息，畫面上有很多高的列。
+    static func longChat(at date: Date) -> [String] {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let timestamp = formatter.string(from: date)
+        let paragraph = "The export keeps dates first and quotes notes that contain commas, so spreadsheets open them cleanly."
+        return (1...150).flatMap { number in
+            [
+                user("d3m0-chat-\(number)-u", timestamp, "Question \(number): is row \(number) of the export correct?"),
+                assistantText("d3m0-chat-\(number)-a", timestamp, "Row \(number) looks right.\n\n" + Array(repeating: paragraph, count: 3).joined(separator: "\n\n")),
+            ]
+        }
+    }
+
+    static let largeOutputSummary = "I read all 160 export logs; every row exported cleanly."
+
     // MARK: - Subagent 與 workflow(行為規格 F21:已完成的 subagent、執行中的 workflow)
 
     static let subagentCall = "toolu_demo_13"
@@ -229,7 +282,8 @@ enum DemoTranscripts {
             if command == TranscriptCommand.window(path: file.path, end: size, lines: 300) {
                 return Data("0 \(size)\n".utf8) + records(file.lines)
             }
-            if command == TranscriptCommand.tail(path: file.path, from: size, limit: 64 << 10) {
+            if command == TranscriptCommand.tail(path: file.path, from: size, limit: 64 << 10)
+                || command == TranscriptCommand.catchUp(path: file.path, from: size, limit: TranscriptReader.catchUpLimit) {
                 return Data("\(size)\n".utf8)
             }
         }

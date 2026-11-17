@@ -284,7 +284,9 @@ public final class ConversationModel {
     private var boundSessionID: String?
     /// 對話紀錄的格式，依 Agent 種類(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
     private var format: TranscriptFormat = .claude
-    private var file: (path: String, cursor: Int, windowStart: Int)?
+    /// `live`:這次開著的畫面已經讀過主機(開了視窗或從游標續讀成功)。之後落後再多也從游標分段接著讀(#130);
+    /// 還沒讀過(剛從快取恢復)時落後太多才改讀新視窗(F5.3 第 3 點、R-B08)。
+    private var file: (path: String, cursor: Int, windowStart: Int, live: Bool)?
     /// 開啟視窗與之後追蹤到的訊息(會寫入快取)。
     private var recent: [TranscriptMessage] = []
     /// 往上翻載入的舊訊息(不寫入快取)。
@@ -363,7 +365,7 @@ public final class ConversationModel {
         guard let knownSessionID, items.isEmpty, let cached = await cache.load(chatKey: chatKey),
               cached.matches(sessionID: knownSessionID) else { return }
         boundSessionID = knownSessionID
-        file = (cached.path, cached.cursor, cached.windowStart)
+        file = (cached.path, cached.cursor, cached.windowStart, false)
         recent = cached.messages
         metadata = cached.metadata
         older = cached.windowStart > 0 ? .available : .reachedStart
@@ -476,14 +478,20 @@ public final class ConversationModel {
         let generation = generation
         do {
             if let file {
-                switch try await transcripts.tail(path: file.path, from: file.cursor) {
+                // 畫面已在追蹤：落後多少都從游標分段接著讀，不改讀新視窗取代已顯示與往上翻的訊息(#130、R-B09)。
+                // 剛從快取恢復：落後太多不逐段重播積壓，讀新視窗(R-B08)。
+                let read = file.live
+                    ? try await transcripts.catchUp(path: file.path, from: file.cursor)
+                    : try await transcripts.tail(path: file.path, from: file.cursor)
+                switch read {
                 case .unchanged:
-                    break
+                    guard generation == self.generation else { return }
+                    self.file?.live = true
                 case .appended(let chunk):
                     guard generation == self.generation else { return }
                     append(chunk)
                 case .tooFarBehind(let size), .shrank(let size):
-                    // 落後太多不逐行重播積壓;檔案被換掉就重讀(R-B08)。
+                    // 檔案被換掉(變小)是真正的斷層：重讀視窗並重建列表。
                     try await openWindow(path: file.path, size: size, generation: generation)
                 }
             } else {
@@ -527,7 +535,7 @@ public final class ConversationModel {
         // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。
         let chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines)
         guard generation == self.generation else { return }
-        file = (path, chunk.end, chunk.start)
+        file = (path, chunk.end, chunk.start, true)
         recent = parse(chunk.lines)
         olderMessages = []
         metadata = format.latestMetadata(in: chunk.lines)
@@ -537,6 +545,7 @@ public final class ConversationModel {
 
     private func append(_ chunk: TranscriptChunk) {
         file?.cursor = chunk.end
+        file?.live = true
         let known = Set(recent.map(\.id))
         recent += parse(chunk.lines).filter { !known.contains($0.id) }
         for line in chunk.lines { format.updateMetadata(&metadata, with: line) }

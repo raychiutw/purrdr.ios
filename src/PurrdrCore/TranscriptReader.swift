@@ -171,6 +171,27 @@ public struct TranscriptReader: Sendable {
         return .appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines))
     }
 
+    /// 即時追蹤的單次上限(#130)。
+    ///
+    /// 256 KiB:是開啟時「落後太多」門檻(64 KiB)的 4 倍，本機量到的 2 秒寫入量多半一次讀完;以讀取期限的
+    /// 32 KiB/s 估算約 8 秒傳完，遠低於讀取期限;每次輪詢仍只有一個主機指令(R-F01 的指令預算不變),
+    /// 工作中每 2 秒一次，行動網路下每分鐘最多約 7.5 MiB(剝圖後)。
+    public static let catchUpLimit = 256 << 10
+
+    /// 分段追趕：從游標讀最多 `limit` bytes 的完整行，即使後面還有(畫面已有內容時的即時追蹤，#130)。
+    /// 不回報 `tooFarBehind`:落後多少都從游標接著讀，下一次從新游標繼續;單行超過 `limit` 時整行讀出。
+    public func catchUp(path: String, from cursor: Int, limit: Int = catchUpLimit) async throws -> TranscriptTail {
+        guard Self.isValidPath(path), cursor >= 0, limit > 0 else { throw TranscriptReadError.invalidReference }
+        let output = try await run(.catchUp(path: path, from: cursor, limit: limit))
+        guard let newline = output.stdout.firstIndex(of: 0x0A),
+              let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
+        if size < cursor { return .shrank(size: size) }
+        let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
+        guard !records.lines.isEmpty else { return .unchanged }
+        guard cursor + records.bytes <= size else { throw TranscriptReadError.changed }
+        return .appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines))
+    }
+
     // MARK: - 輸出
 
     struct Output {

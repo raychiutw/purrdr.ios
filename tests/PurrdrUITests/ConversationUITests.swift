@@ -172,6 +172,70 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(element("prompt.option.3", in: app).isHittable, "回到底部後最後一個選項應可點")
     }
 
+    /// #130:往上翻看舊訊息時 agent 一次寫出超過 64 KiB(`-demoLargeOutput`:開啟 8 秒後寫出 321 行):
+    /// 畫面不空白，正在看的舊訊息還在原處，新訊息接在後面。
+    @MainActor
+    func testLargeOutputWhileReadingKeepsMessages() {
+        let app = open(paneID: "w1:p1", flags: ["-demoLargeOutput"])
+        let first = app.staticTexts["Tidy up the CSV export: dates first, and escape commas in notes."]
+        XCTAssertTrue(first.waitForExistence(timeout: 10), "對話沒有載入完成")
+        let list = app.scrollViews.firstMatch
+        let jump = element("conversation.jumpToLatest", in: app)
+        for _ in 0..<4 { list.swipeDown() }
+        XCTAssertTrue(element("conversation.beginning", in: app).waitForExistence(timeout: 5), "沒有翻到對話開頭")
+        XCTAssertTrue(jump.waitForExistence(timeout: 5), "往上翻後應是閱讀中")
+
+        // 開啟後 8 秒寫出;已完成的 agent 每 4 秒輪詢一次。等寫出之後的兩次輪詢。
+        Thread.sleep(forTimeInterval: 18)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-large-output-while-reading"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        XCTAssertTrue(first.exists && first.isHittable, "正在看的舊訊息不見了(畫面被取代或停在內容之外)")
+        XCTAssertTrue(element("conversation.beginning", in: app).exists, "對話開頭不見了(改讀了新視窗)")
+        XCTAssertTrue(jump.exists, "應仍在閱讀中")
+        jump.tap()
+        let summary = app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'")).firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 5), "新訊息沒有接在後面")
+    }
+
+    /// 畫面上看得到(可點)的訊息列：使用者泡泡、agent 文字、工具串、回音。
+    @MainActor
+    private func visibleMessageRows(in app: XCUIApplication) -> Int {
+        let rows = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier IN %@", ["conversation.user", "conversation.agent", "conversation.toolRun", "conversation.echo"]))
+        return rows.allElementsBoundByIndex.filter(\.isHittable).count
+    }
+
+    /// #130(使用者回報最常見的情況):長對話中送出 prompt 後，agent 立刻一次寫出超過 64 KiB
+    /// (`-demoLargeOutputOnPrompt`)。送出時切回跟隨並捲到底，畫面不可變成一片空白，最新的訊息在畫面上。
+    @MainActor
+    func testSendingThenLargeOutputKeepsMessagesVisible() {
+        let app = open(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
+        XCTAssertTrue(element("conversation.agent", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+
+        text.tap()
+        text.typeText("Check the logs once more")
+        element("composer.send", in: app).tap()
+        let echo = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Check the logs once more'")).firstMatch
+        XCTAssertTrue(echo.waitForExistence(timeout: 5), "沒有回音")
+        // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);等兩次輪詢與捲動穩定。
+        Thread.sleep(forTimeInterval: 10)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-large-output-after-send"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        XCTAssertGreaterThan(visibleMessageRows(in: app), 0, "送出後畫面上沒有任何訊息列(空白)")
+        let summaries = app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'"))
+        XCTAssertTrue(summaries.allElementsBoundByIndex.contains(where: \.isHittable), "跟隨中最新的訊息應在畫面上")
+    }
+
     /// 「需要你」的 agent 拒收：草稿放回輸入框，提示先回答。
     @MainActor
     func testBlockedAgentKeepsDraftAndExplains() {
