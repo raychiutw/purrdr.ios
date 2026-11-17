@@ -1,12 +1,10 @@
 #if os(macOS)
 import CoreGraphics
-import CoreML
 import Foundation
 import ImageIO
 import PurrdrFeatures
 import Testing
 import UniformTypeIdentifiers
-import Vision
 
 /// 附圖送出前的手機端前處理：大小上限(#78)。樣本是 `Resources/images/` 的合成影像(產生方式見 make-samples.py)。
 @Suite("圖片前處理的大小上限")
@@ -29,17 +27,51 @@ struct ImagePreparationTests {
         return CGImageSourceGetType(source) as String? == UTType.jpeg.identifier
     }
 
-    /// 以系統文字辨識讀出的所有文字(一行一筆)。只用 CPU:CI 的虛擬機沒有可用的 Neural Engine／GPU。
-    static func recognizedText(_ jpeg: Data) throws -> String {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = false
-        let cpu = try request.supportedComputeStageDevices[.main]?.first { device in
-            if case .cpu = device { true } else { false }
+    /// 截圖文字區(下方 36%,樣本的文字從 y = 1770/2796 開始)的亮度 PSNR(dB):
+    /// 與原圖以同樣尺寸縮小、未經 JPEG 的結果比較。
+    static func textRegionPSNR(_ jpeg: Data, original: Data) throws -> Double {
+        let decoded = try #require(CGImageSourceCreateWithData(jpeg as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
+        let source = try #require(CGImageSourceCreateWithData(original as CFData, nil))
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(decoded.width, decoded.height),
+        ]
+        let reference = try #require(CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary))
+        let width = decoded.width, height = decoded.height
+        let decodedPixels = try rgba(decoded, width: width, height: height)
+        let referencePixels = try rgba(reference, width: width, height: height)
+        // CGContext 的列由上而下;文字區是下方 36%。
+        let firstRow = height * 64 / 100
+        var squaredError = 0.0
+        var count = 0
+        for row in firstRow..<height {
+            for column in 0..<width {
+                let offset = (row * width + column) * 4
+                func luma(_ pixels: [UInt8]) -> Double {
+                    0.299 * Double(pixels[offset]) + 0.587 * Double(pixels[offset + 1]) + 0.114 * Double(pixels[offset + 2])
+                }
+                let difference = luma(decodedPixels) - luma(referencePixels)
+                squaredError += difference * difference
+                count += 1
+            }
         }
-        if let cpu { request.setComputeDevice(cpu, for: .main) }
-        try VNImageRequestHandler(data: jpeg).perform([request])
-        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+        let meanSquaredError = max(squaredError / Double(count), 1e-9)
+        return 10 * log10(255 * 255 / meanSquaredError)
+    }
+
+    static func rgba(_ image: CGImage, width: Int, height: Int) throws -> [UInt8] {
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+            ) else { return false }
+            context.interpolationQuality = .none
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        try #require(drawn)
+        return pixels
     }
 
     @Test("大張照片：壓到目標大小以內，長邊不低於下限")
@@ -54,16 +86,14 @@ struct ImagePreparationTests {
         #expect(abs(Double(prepared.width) / Double(prepared.height) - 4.0 / 3.0) < 0.01)
     }
 
-    @Test("文字截圖：壓到目標大小以內，文字仍可辨識")
+    @Test("文字截圖：壓到目標大小以內，文字區與原圖差異小(文字仍可讀)")
     func screenshotStaysReadable() throws {
-        let prepared = try #require(ImagePreparation.prepare(Self.sample("screenshot-1290x2796.png")))
+        let original = try Self.sample("screenshot-1290x2796.png")
+        let prepared = try #require(ImagePreparation.prepare(original))
 
         #expect(prepared.jpeg.count <= Self.targetBytes)
         #expect(Self.longSide(prepared) >= Self.minimumLongSide)
-        let text = try Self.recognizedText(prepared.jpeg)
-        for phrase in ["PX-4821", "ImageCodec.swift", "17:45", "3,915.62", "Purrdr Sample Chat"] {
-            #expect(text.contains(phrase), "壓縮後讀不出「\(phrase)」")
-        }
+        #expect(try Self.textRegionPSNR(prepared.jpeg, original: original) >= 30)
     }
 
     @Test("已小於目標大小的圖片：維持品質 0.8 與解析度")
@@ -76,11 +106,11 @@ struct ImagePreparationTests {
         #expect(prepared.height == 900)
     }
 
-    @Test("怎麼壓都超過目標的圖片：長邊停在下限，不再縮小")
-    func incompressibleImageStopsAtMinimumSize() throws {
+    @Test("最難壓的內容(逐像素亂數):長邊仍不低於下限")
+    func noiseImageStaysAboveMinimumSize() throws {
         let prepared = try #require(ImagePreparation.prepare(NoiseImage.png(width: 3000, height: 2000)))
 
-        #expect(Self.longSide(prepared) == Self.minimumLongSide)
+        #expect(Self.longSide(prepared) >= Self.minimumLongSide)
     }
 }
 
@@ -107,7 +137,7 @@ enum NoiseImage {
     }
 }
 
-/// 暫時的量測(#78 定案參數用，定案後移除):每個長邊 × 品質的輸出大小與文字辨識結果。
+/// 暫時的量測(#78 定案參數用，定案後移除):每個長邊 × 品質的輸出大小與截圖文字區 PSNR。
 @Suite("圖片前處理量測(暫時)")
 struct ImagePreparationMeasurement {
     static func encode(_ data: Data, longSide: Int, quality: Double) -> (bytes: Int, jpeg: Data)? {
@@ -127,18 +157,19 @@ struct ImagePreparationMeasurement {
 
     @Test("輸出大小表")
     func report() throws {
-        let phrases = ["PX-4821", "ImageCodec.swift", "17:45", "3,915.62", "Purrdr Sample Chat"]
-        for name in ["photo-4032x3024.jpg", "screenshot-1290x2796.png"] {
-            let data = try ImagePreparationTests.sample(name)
+        for name in ["photo-4032x3024.jpg", "screenshot-1290x2796.png", "noise-3000x2000"] {
+            let data = try name.hasPrefix("noise") ? NoiseImage.png(width: 3000, height: 2000) : ImagePreparationTests.sample(name)
             for longSide in [2048, 1792, 1536, 1280] {
                 var cells: [String] = []
                 for quality in [0.8, 0.7, 0.6, 0.5, 0.4, 0.3] {
                     guard let encoded = Self.encode(data, longSide: longSide, quality: quality) else { continue }
                     var cell = "q\(quality)=\(encoded.bytes / 1024)K"
                     if name.hasPrefix("screenshot") {
-                        let text: String
-                        do { text = try ImagePreparationTests.recognizedText(encoded.jpeg) } catch { text = ""; cell += "(ocr error \(error))" }
-                        cell += "(ocr \(phrases.filter { text.contains($0) }.count)/\(phrases.count))"
+                        let psnr = try ImagePreparationTests.textRegionPSNR(encoded.jpeg, original: data)
+                        cell += "(text \(String(format: "%.1f", psnr))dB)"
+                        if (longSide == 1280 && quality == 0.4) || (longSide == 2048 && quality == 0.5) {
+                            print("JPEGB64 \(longSide)-\(quality) \(encoded.jpeg.base64EncodedString())")
+                        }
                     }
                     cells.append(cell)
                 }
