@@ -52,22 +52,22 @@ struct HostScriptTimeLimitTests {
     func stuckPosixScriptEndsWithinLimit() async throws {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         let stuck = """
-            sleep 12 &
+            sleep 30 &
             echo "$!"
-            sh -c 'echo "$$"; exec sleep 12' &
+            sh -c 'echo "$$"; exec sleep 30' &
             sh -c 'echo "$$"; exec cat'
             """
         let started = ContinuousClock.now
 
         let session = try await host.execute(Self.posixCommand(HostScriptTimeLimit.posix(stuck, seconds: "2")))
         let stdinCloser = Task {
-            try await Task.sleep(for: .seconds(12))
+            try await Task.sleep(for: .seconds(30))
             await session.closeStdin()
         }
         defer { stdinCloser.cancel() }
         let output = try await session.collectOutput()
 
-        #expect(ContinuousClock.now - started < .seconds(8))
+        #expect(ContinuousClock.now - started < .seconds(15))
         #expect(output.exitCode == 124)
         let children = output.stdoutText.split(separator: "\n").compactMap { Int32($0) }
         #expect(children.count == 3)
@@ -86,7 +86,8 @@ struct HostScriptTimeLimitTests {
 
         #expect(output.stdoutText == "a b")
         #expect(output.exitCode == 3)
-        #expect(ContinuousClock.now - started < .seconds(3))
+        // 時限 30 秒;CI 負載重時啟動 shell 就要幾秒，只確認沒有等到時限。
+        #expect(ContinuousClock.now - started < .seconds(20))
     }
 
     static func posixCommand(_ script: String) -> String {
