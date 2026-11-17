@@ -148,6 +148,30 @@ struct HostsModelTests {
         #expect(await real.unmetExpectations.isEmpty)
     }
 
+    @Test("檔案瀏覽上傳文字檔時以 gzip 傳輸(系統 DEFLATE)")
+    func filesUploadUsesGzip() async throws {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio]
+        let real = FakeHost()
+        let log = Data(String(repeating: "purrdr upload log line\n", count: 200).utf8)
+        let transfer = UploadTransfer.prepare(log, named: "build.log", deflate: SystemDeflate())
+        await real.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data("/Users/demo\n".utf8)))
+        await real.expect(
+            HostFolderCommand.upload(folder: "/Users/demo", name: "build.log", size: log.count, encoding: .gzip, transferSize: transfer.payload.count),
+            reply: FakeReply(stdout: Data("/Users/demo/build.log\n".utf8)))
+        await real.expect(HostFolderCommand.list("/Users/demo"), reply: FakeReply(stdout: Data("/Users/demo\n".utf8)))
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
+        model.load()
+
+        let files = model.folderBrowser()
+        await files.load()
+        await files.upload(log, named: "build.log")
+
+        #expect(transfer.encoding == .gzip)
+        #expect(await real.executions.dropFirst().first?.stdin == transfer.payload)
+        #expect(await real.unmetExpectations.isEmpty)
+    }
+
     @Test("新增對話開在選取中主機(帶 herdr session);開始後重讀列表並開那個 pane 的聊天")
     func newChatUsesSelectedHostAndOpensChat() async throws {
         let store = MemoryHostStore()

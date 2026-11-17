@@ -140,10 +140,16 @@ public struct HostFolders: Sendable {
     public static let maximumUploadSize = 25_000_000
 
     let channel: any HostChannel
+    let deflate: (any RawDeflate)?
     let sleep: @Sendable (Duration) async throws -> Void
 
-    public init(channel: any HostChannel, sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    /// - Parameter deflate: 有的話，一般檔案壓得小時以 gzip 傳輸(`UploadTransfer.prepare`)。
+    public init(
+        channel: any HostChannel, deflate: (any RawDeflate)? = nil,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) {
         self.channel = channel
+        self.deflate = deflate
         self.sleep = sleep
     }
 
@@ -315,7 +321,12 @@ public enum HostFolderCommand {
         command(listScript, name: "purrdr-ls", arguments: [path ?? ""])
     }
 
-    public static func upload(folder: String, name: String, size: Int) -> String {
+    /// - Parameters:
+    ///   - size: 原始大小(主機寫入的檔案大小)。
+    ///   - transferSize: stdin 上的 bytes 數;`nil` 時同 `size`。
+    public static func upload(
+        folder: String, name: String, size: Int, encoding: UploadTransferEncoding = .identity, transferSize: Int? = nil
+    ) -> String {
         command(uploadScript, name: "purrdr-put", arguments: [folder, name, String(size)])
     }
 
@@ -329,11 +340,12 @@ public enum HostFolderCommand {
         return .some(arguments[0].isEmpty ? nil : arguments[0])
     }
 
-    /// Demo 主機用：認得上傳指令就回傳資料夾、檔名與宣告的大小。
-    public static func parseUpload(_ command: String) -> (folder: String, name: String, size: Int)? {
+    /// Demo 主機與 Windows 通道用：認得上傳指令就回傳資料夾、檔名、原始大小、傳輸編碼與傳輸大小。
+    public static func parseUpload(_ command: String)
+        -> (folder: String, name: String, size: Int, encoding: UploadTransferEncoding, transferSize: Int)? {
         guard let arguments = arguments(of: command, script: uploadScript, name: "purrdr-put"), arguments.count == 3,
               let size = Int(arguments[2]) else { return nil }
-        return (arguments[0], arguments[1], size)
+        return (arguments[0], arguments[1], size, .identity, size)
     }
 
     private static func arguments(of command: String, script: String, name: String) -> [String]? {
