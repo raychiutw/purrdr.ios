@@ -97,35 +97,6 @@ struct ImagePreparationTests {
         #expect(try Self.textRegionPSNR(prepared.jpeg, original: original) >= 30)
     }
 
-    @Test("暫時量測(定案後移除)")
-    func measureSamples() throws {
-        for (label, data) in [("photo", SyntheticImages.photo), ("screenshot", SyntheticImages.screenshot)] {
-            let source = try #require(CGImageSourceCreateWithData(data as CFData, nil))
-            print("MEASURE \(label) original \(data.count / 1024)K")
-            for pixelSize in ImagePreparation.pixelSizeSteps {
-                let options: [CFString: Any] = [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceThumbnailMaxPixelSize: pixelSize,
-                ]
-                let image = try #require(CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary))
-                var row = "MEASURE \(label) \(pixelSize):"
-                for quality in [0.8, 0.7, 0.6, 0.5, 0.4, 0.3] {
-                    let output = NSMutableData()
-                    let destination = try #require(CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil))
-                    CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
-                    CGImageDestinationFinalize(destination)
-                    let jpeg = output as Data
-                    row += " \(jpeg.count / 1024)K"
-                    if label == "screenshot" {
-                        row += String(format: "/%.1fdB", try Self.textRegionPSNR(jpeg, original: data))
-                    }
-                }
-                print(row)
-            }
-        }
-    }
-
     @Test("已小於目標大小的圖片：維持品質 0.8 與解析度")
     func smallImageKeepsQualityAndResolution() throws {
         let prepared = try #require(ImagePreparation.prepare(TestImage.png(width: 1600, height: 900)))
