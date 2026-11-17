@@ -233,6 +233,9 @@ public enum TranscriptCommand {
         command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra] })
     }
 
+    /// 列表預覽每個請求最多讀的檔尾 bytes(與 `previewsScript` 的 `tail -c` 相同;估算期限用)。
+    static let previewBytes = 48_000
+
     static let previewsScript = #"""
         m=$1
         shift

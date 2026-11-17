@@ -135,6 +135,7 @@ public struct ImageUploader: Sendable {
             throw ImageUploadError.deadlineExceeded
         }
         await session.close()
+        if result.exitCode == Int32(HostScriptTimeLimit.exitCode) { throw ImageUploadError.deadlineExceeded }
         guard result.exitCode == 0 else { throw ImageUploadError.failed(exitCode: result.exitCode, message: result.stderrText) }
         let path = String(decoding: result.stdout, as: UTF8.self).trimmingCharacters(in: .newlines)
         guard HostPathSyntax.isAbsolute(path, endingWith: name.value) else {
