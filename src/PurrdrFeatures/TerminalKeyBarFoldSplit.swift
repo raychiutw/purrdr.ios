@@ -9,6 +9,22 @@ public struct TerminalKeyBarFoldSplit: Equatable, Sendable {
 
     /// `divisionFrames` 是按鍵列自己座標系的 `.division` 區域;不需切分時回傳 `nil`。
     public init?(barWidth: CGFloat, divisionFrames: [CGRect]) {
-        return nil
+        let verticalFold = divisionFrames.first { frame in
+            frame.height > frame.width && frame.minX < barWidth && frame.maxX > 0
+        }
+        guard let verticalFold else {
+            return nil
+        }
+        let leadingWidth = max(verticalFold.minX, 0)
+        let trailingStart = min(verticalFold.maxX, barWidth)
+        // 任一側放不下兩顆按鍵就維持單一列，避免按鍵被擠到看不見(HIG:只做小幅調整)。
+        guard leadingWidth >= Self.minimumSegmentWidth, barWidth - trailingStart >= Self.minimumSegmentWidth else {
+            return nil
+        }
+        self.leadingWidth = leadingWidth
+        self.gapWidth = trailingStart - leadingWidth
     }
+
+    /// 外距 8 + 玻璃內距 6×2 + 兩顆 44pt 按鍵。
+    static let minimumSegmentWidth: CGFloat = 108
 }
