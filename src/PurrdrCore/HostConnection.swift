@@ -20,6 +20,14 @@ public protocol HostConnection: Sendable {
 
     /// 關掉底層連線。下一個操作會重新連線。
     func disconnect() async
+
+    /// 這支裝置是否配對成唯讀(寫入類操作會被拒絕)。
+    func isReadOnlyDevice() async throws -> Bool
+}
+
+extension HostConnection {
+    /// SSH 等沒有裝置權限的連線方式一律可寫入。
+    public func isReadOnlyDevice() async throws -> Bool { false }
 }
 
 /// 一次對話紀錄讀取。參數已由 `TranscriptReader` 驗證過安全性。

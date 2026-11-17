@@ -11,6 +11,11 @@ public struct HerdrClient: Sendable {
         self.connection = connection
     }
 
+    /// 這支裝置是否配對成唯讀(HTTPS 連線方式;唯讀時送 prompt、文字與按鍵都會被拒絕)。
+    public func isReadOnlyDevice() async throws -> Bool {
+        try await connection.isReadOnlyDevice()
+    }
+
     /// 讀主機目前的全量狀態(`session.snapshot`)。
     public func snapshot() async throws -> HostSnapshot {
         let result = try await request(method: "session.snapshot", as: SnapshotResult.self)

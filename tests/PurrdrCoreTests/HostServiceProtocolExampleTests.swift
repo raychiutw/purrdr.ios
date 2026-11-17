@@ -91,6 +91,8 @@ struct HostServiceProtocolExampleTests {
         }
 
         #expect(try decoded("client.pane-send-keys.json").isWrite)
+        #expect(try decoded("client.pane-send-text.json").isWrite)
+        #expect(try decoded("client.agent-prompt.json").isWrite)
         #expect(try !decoded("client.hello.json").isWrite)
         #expect(try !decoded("client.agents-list.json").isWrite)
     }

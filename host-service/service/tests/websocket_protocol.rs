@@ -40,7 +40,8 @@ async fn handshake_exchanges_protocol_host_service_version_and_herdr_capabilitie
                 "version": "0.9.5",
                 "protocol": 22,
                 "capabilities": ["detached_server_daemon", "health_check", "live_handoff", "ssh_agent_registration", "surface_interest"]
-            }
+            },
+            "read_only": false
         })
     );
     assert_eq!(herdr.methods(), ["ping"]);
