@@ -31,20 +31,20 @@ package enum HostScriptTimeLimit {
     package static func posix(_ script: String, seconds: String) -> String {
         """
         purrdr_tree() {
-        ps -A -o pid= -o ppid= 2>/dev/null | awk -v r="$1" -v s="$2" '{ c[$2] = c[$2] " " $1 } END { q = r; while (q != "") { n = split(q, a, " "); q = ""; for (i = 1; i <= n; i++) if (a[i] != s) { printf "%s ", a[i]; q = q " " c[a[i]] } } }'
+        ps -A -o pid= -o ppid= 2>/dev/null | awk -v root="$1" -v skip="$2" '{ children[$2] = children[$2] " " $1 } END { queue = root; while (queue != "") { count = split(queue, pids, " "); queue = ""; for (i = 1; i <= count; i++) if (pids[i] != skip) { printf "%s ", pids[i]; queue = queue " " children[pids[i]] } } }'
         }
         \(posixMarker)() {
-        n=0
-        while [ "$n" -lt "$2" ]; do kill -0 "$1" 2>/dev/null || exit 0; sleep 1; n=$((n + 1)); done
-        s=$(exec sh -c 'echo "$PPID"')
-        t=$(purrdr_tree "$1" "$s")
-        if [ -z "$t" ]; then t=$1; fi
-        kill -STOP $t 2>/dev/null
-        t="$t $(purrdr_tree "$1" "$s")"
-        kill -TERM $t 2>/dev/null
-        kill -CONT $t 2>/dev/null
+        elapsed=0
+        while [ "$elapsed" -lt "$2" ]; do kill -0 "$1" 2>/dev/null || exit 0; sleep 1; elapsed=$((elapsed + 1)); done
+        watcher=$(exec sh -c 'echo "$PPID"')
+        targets=$(purrdr_tree "$1" "$watcher")
+        if [ -z "$targets" ]; then targets=$1; fi
+        kill -STOP $targets 2>/dev/null
+        targets="$targets $(purrdr_tree "$1" "$watcher")"
+        kill -TERM $targets 2>/dev/null
+        kill -CONT $targets 2>/dev/null
         sleep 1
-        kill -KILL $t 2>/dev/null
+        kill -KILL $targets 2>/dev/null
         }
         trap 'exit \(exitCode)' TERM
         \(posixMarker) "$$" "\(seconds)" < /dev/null > /dev/null 2>&1 &
