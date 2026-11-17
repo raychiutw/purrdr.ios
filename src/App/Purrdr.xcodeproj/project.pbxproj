@@ -10,6 +10,8 @@
 		4D4D00000000000000000052 /* PurrdrCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000042 /* PurrdrCore */; };
 		4D4D00000000000000000053 /* PurrdrFeatures in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000043 /* PurrdrFeatures */; };
 		4D4D00000000000000000054 /* PurrdrDemo in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000044 /* PurrdrDemo */; };
+		4D4D00000000000000000055 /* PurrdrSSH in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000045 /* PurrdrSSH */; };
+		4D4D00000000000000000056 /* PurrdrAgentFeatures in Frameworks */ = {isa = PBXBuildFile; productRef = 4D4D00000000000000000046 /* PurrdrAgentFeatures */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +64,8 @@
 				4D4D00000000000000000052 /* PurrdrCore in Frameworks */,
 				4D4D00000000000000000053 /* PurrdrFeatures in Frameworks */,
 				4D4D00000000000000000054 /* PurrdrDemo in Frameworks */,
+				4D4D00000000000000000055 /* PurrdrSSH in Frameworks */,
+				4D4D00000000000000000056 /* PurrdrAgentFeatures in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -116,6 +120,8 @@
 				4D4D00000000000000000042 /* PurrdrCore */,
 				4D4D00000000000000000043 /* PurrdrFeatures */,
 				4D4D00000000000000000044 /* PurrdrDemo */,
+				4D4D00000000000000000045 /* PurrdrSSH */,
+				4D4D00000000000000000046 /* PurrdrAgentFeatures */,
 			);
 			productName = Purrdr;
 			productReference = 4D4D00000000000000000006 /* Purrdr.app */;
@@ -453,6 +459,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4D4D00000000000000000040 /* XCLocalSwiftPackageReference "../.." */;
 			productName = PurrdrDemo;
+		};
+		4D4D00000000000000000045 /* PurrdrSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4D4D00000000000000000040 /* XCLocalSwiftPackageReference "../.." */;
+			productName = PurrdrSSH;
+		};
+		4D4D00000000000000000046 /* PurrdrAgentFeatures */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4D4D00000000000000000040 /* XCLocalSwiftPackageReference "../.." */;
+			productName = PurrdrAgentFeatures;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

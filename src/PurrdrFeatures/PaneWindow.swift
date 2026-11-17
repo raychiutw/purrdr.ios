@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 
 /// 開在新視窗的 Agent 對話或 Pane 終端機(#31)。是 `WindowGroup(for:)` 的值：系統還原視窗時以它重建內容。
 ///

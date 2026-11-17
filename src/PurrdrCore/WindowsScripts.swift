@@ -9,13 +9,13 @@ import Foundation
 ///   (會轉碼、會加 `\r\n`)。檔案以 bytes 讀，游標是 byte 數。
 /// - 家目錄是 `%USERPROFILE%`;檔案以 `FileShare.ReadWrite|Delete` 開(agent 正在寫的檔案也讀得到)。
 /// - exit code 與 POSIX 相同:`3` 缺席、`4` 資料夾不可搜尋、`5` 檔案不可讀、`6` 有歧義、`7` 只有壓縮檔。
-enum WindowsScripts {
-    static func arguments(_ values: [String]) -> String {
+package enum WindowsScripts {
+    package static func arguments(_ values: [String]) -> String {
         "$a=@(" + values.map(PowerShell.quote).joined(separator: ",") + ")"
     }
 
     /// 所有腳本共用的開頭：不印進度(否則 PowerShell 把它序列化成 CLIXML 寫到 stderr)、錯誤即停、UTF-8 輸出。
-    static let prelude = #"""
+    package static let prelude = #"""
         $ProgressPreference='SilentlyContinue'
         $ErrorActionPreference='Stop'
         $u=New-Object Text.UTF8Encoding $false
@@ -35,7 +35,7 @@ enum WindowsScripts {
     /// - `PLines`:把 `$b[$i..$t)` 裡**完整**的行(以 `\n` 結尾)印成「原始 byte 長度 TAB 剝除後的行」。
     /// - `PRead`:從 `$s` 讀 `$n` bytes(檔案較短時讀到結尾)。
     /// - `PFail`:丟出帶 exit code 的錯誤，由呼叫處決定要結束還是略過(列表預覽一個失敗不影響其他)。
-    static let transcriptFunctions = #"""
+    package static let transcriptFunctions = #"""
         function PStrip([string]$s){$s=[regex]::Replace($s,'"[A-Za-z0-9+/=]{128,}"','""');[regex]::Replace($s,'"data:[^"]*;base64,[^"]*"','""')}
         function PLines([byte[]]$b,[int]$i,[int]$t){while($i -lt $t){$j=[Array]::IndexOf($b,[byte]10,$i,$t-$i);if($j -lt 0){break};PWrite ("$($j-$i)`t"+(PStrip $u.GetString($b,$i,$j-$i))+"`n");$i=$j+1}}
         function POpen([string]$f){[IO.File]::Open($f,'Open','Read','ReadWrite,Delete')}
@@ -55,12 +55,12 @@ enum WindowsScripts {
         function PRunBlock([scriptblock]$k){try{& $k}catch{$o.Flush();exit (PCode $_)};$o.Flush()}
         """#
 
-    static func transcript(_ body: String, arguments values: [String]) -> String {
+    package static func transcript(_ body: String, arguments values: [String]) -> String {
         [prelude, arguments(values), transcriptFunctions, body].joined(separator: "\n")
     }
 
     /// Claude Code:預期路徑不在時，在所有專案資料夾找同名檔(worktree)。參數:session id、資料夾名。
-    static let claudeLocate = #"""
+    package static let claudeLocate = #"""
         PRunBlock {
         $c=Join-Path (PHome $env:CLAUDE_CONFIG_DIR '.claude') 'projects'
         $f=PClaude $a[0] $a[1]
@@ -72,7 +72,7 @@ enum WindowsScripts {
         """#
 
     /// 其他 agent:印路徑與大小;`header` 時再印檔案前兩行(原樣)。參數:session id 或路徑。
-    static func locate(type: String, header: Bool) -> String {
+    package static func locate(type: String, header: Bool) -> String {
         """
         PRunBlock {
         $f=PFind \(PowerShell.quote(type)) $a[0] ''
@@ -84,7 +84,7 @@ enum WindowsScripts {
     }
 
     /// 視窗：以 `end` 為終點往前取恰好 `lines` 行完整的行(演算法與 POSIX 版相同)。參數：路徑、終點、行數、區塊大小。
-    static let window = #"""
+    package static let window = #"""
         PRunBlock {
         $f=$a[0];$e=[long]$a[1];$n=[int]$a[2];$c=[long]$a[3]
         try{$h=POpen $f}catch{PFail 5}
@@ -102,7 +102,7 @@ enum WindowsScripts {
         """#
 
     /// 追蹤：印目前大小;比游標大且落差 ≤ 上限時，再印游標之後完整的行。參數：路徑、游標、上限。
-    static let tail = #"""
+    package static let tail = #"""
         PRunBlock {
         $f=$a[0];$p=[long]$a[1];$m=[long]$a[2]
         $z=PProbe $f
@@ -113,7 +113,7 @@ enum WindowsScripts {
 
     /// 列表預覽：每個請求「標記 key」,再印剝除圖片後的檔尾 48,000 bytes;Pi／OMP、Codex 先印「標記! key」與前兩行。
     /// 每個請求各自 try:一個檔不在或有歧義不影響其他。參數：標記，接著每個請求四個(key、種類、id 或路徑、資料夾名)。
-    static let previews = #"""
+    package static let previews = #"""
         $m=$a[0]
         for($r=1;$r+3 -lt $a.Count;$r+=4){
         $y=$a[$r];$t=$a[$r+1]
@@ -130,7 +130,7 @@ enum WindowsScripts {
         """#
 
     /// 找 subagent:`<session>\subagents\agent-*.meta.json` 中含呼叫 id 的，印路徑與內容(去掉 `\n`)。參數:session 資料夾、呼叫 id。
-    static let findSubagent = #"""
+    package static let findSubagent = #"""
         PRunBlock {
         $d=Join-Path $a[0] 'subagents'
         if(-not [IO.Directory]::Exists($d)){PFail 3}
@@ -139,7 +139,7 @@ enum WindowsScripts {
         """#
 
     /// 讀 workflow 進度:先印「種類 checksum」(SHA-256 與大小);與參數 3 相同就不印內容。參數:session 資料夾、run id、上次的值。
-    static let readWorkflow = #"""
+    package static let readWorkflow = #"""
         PRunBlock {
         $r=Join-Path $a[0] "workflows\$($a[1]).json";$j=Join-Path $a[0] "subagents\workflows\$($a[1])\journal.jsonl"
         if([IO.File]::Exists($r)){$k='run';$f=$r}elseif([IO.File]::Exists($j)){$k='journal';$f=$j}else{PFail 3}
@@ -152,7 +152,7 @@ enum WindowsScripts {
 
     /// 委派是否結束：父對話紀錄裡含任一 id 的行。先印這些行(剝圖後)的 checksum,與參數 4 相同就不印內容。
     /// 參數：路徑、id、id、上次的值。
-    static let delegationLines = #"""
+    package static let delegationLines = #"""
         PRunBlock {
         try{$h=POpen $a[0];$b=PRead $h 0 $h.Length;$h.Close()}catch{PFail 5}
         $l=@();$i=0;while($i -lt $b.Length){$j=[Array]::IndexOf($b,[byte]10,$i);if($j -lt 0){$j=$b.Length};$x=$u.GetString($b,$i,$j-$i);if($x.Contains($a[1]) -or $x.Contains($a[2])){$l+=,@(($j-$i),$x)};$i=$j+1}
@@ -167,7 +167,7 @@ enum WindowsScripts {
     /// 圖片上傳到 `%USERPROFILE%\.purrdr\uploads`:與 POSIX 版相同的檢查與 exit code(64 檔名、71 建立失敗、72 讀 stdin、
     /// 73 已存在、75 大小不符)。先寫隱藏的暫存檔，大小相同才改名(改名不覆寫);刪掉 7 天前的檔案。參數：檔名、大小。
     /// 上傳資料夾在使用者設定檔資料夾底下，繼承它的 ACL(只有本人、SYSTEM 與 Administrators)。
-    static let imageUpload = #"""
+    package static let imageUpload = #"""
         $n=$a[0];$z=[long]$a[1]
         $purrdrSeconds=\#(HostScriptTimeLimit.readSeconds)+$z/\#(HostScriptTimeLimit.uploadBytesPerSecond);\#(limit)
         if($n -cnotmatch '^[A-Za-z0-9-][A-Za-z0-9.-]*$'){exit 64}
@@ -190,7 +190,7 @@ enum WindowsScripts {
     /// 檔案上傳到使用者選的資料夾(行為規格 F13):檔名不可為空、`.`、`..`,不可含 `/` 或 `\`(64);資料夾打不開 66。
     /// gzip 傳輸：傳輸 bytes 先寫進第二個暫存檔(不放記憶體),大小要等於傳輸大小，再以 `GZipStream` 解壓，
     /// 解壓後要等於原始大小，否則 75。參數：資料夾、檔名、原始大小、傳輸編碼(`identity`／`gzip`)、傳輸大小。
-    static let folderUpload = #"""
+    package static let folderUpload = #"""
         $n=$a[1];$z=[long]$a[2];$transferSize=[long]$a[4]
         $purrdrSeconds=\#(HostScriptTimeLimit.readSeconds)+$transferSize/\#(HostScriptTimeLimit.uploadBytesPerSecond);\#(limit)
         if(-not $n -or $n -eq '.' -or $n -eq '..' -or $n.Contains('/') -or $n.Contains('\')){exit 64}
@@ -219,19 +219,19 @@ enum WindowsScripts {
 
     /// 一次性腳本的自我時限(#92):先設 `$purrdrSeconds`。背景 runspace 到 `$purrdrLimit.At` 就刪掉登記在
     /// `$purrdrLimit.Files` 的暫存檔(開檔要允許 `Delete` 共用)、以 124 結束整個 PowerShell;主執行緒卡在讀 stdin 也有效。
-    static let limit = "$purrdrLimit=[hashtable]::Synchronized(@{At=[DateTime]::UtcNow.AddSeconds($purrdrSeconds);Files=@()});$purrdrState=[Management.Automation.Runspaces.InitialSessionState]::Create();$purrdrState.LanguageMode='FullLanguage';$purrdrSpace=[runspacefactory]::CreateRunspace($purrdrState);$purrdrSpace.Open();$purrdrSpace.SessionStateProxy.SetVariable('d',$purrdrLimit);$purrdrWatch=[PowerShell]::Create();$purrdrWatch.Runspace=$purrdrSpace;[void]$purrdrWatch.AddScript('while([DateTime]::UtcNow -lt $d.At){[Threading.Thread]::Sleep(200)};foreach($f in $d.Files){try{[IO.File]::Delete($f)}catch{}};[Environment]::Exit(\(HostScriptTimeLimit.exitCode))').BeginInvoke()"
+    package static let limit = "$purrdrLimit=[hashtable]::Synchronized(@{At=[DateTime]::UtcNow.AddSeconds($purrdrSeconds);Files=@()});$purrdrState=[Management.Automation.Runspaces.InitialSessionState]::Create();$purrdrState.LanguageMode='FullLanguage';$purrdrSpace=[runspacefactory]::CreateRunspace($purrdrState);$purrdrSpace.Open();$purrdrSpace.SessionStateProxy.SetVariable('d',$purrdrLimit);$purrdrWatch=[PowerShell]::Create();$purrdrWatch.Runspace=$purrdrSpace;[void]$purrdrWatch.AddScript('while([DateTime]::UtcNow -lt $d.At){[Threading.Thread]::Sleep(200)};foreach($f in $d.Files){try{[IO.File]::Delete($f)}catch{}};[Environment]::Exit(\(HostScriptTimeLimit.exitCode))').BeginInvoke()"
 
     /// 把 stdin 開成 `$stdin`:以 console stream 的原始 handle 建 `FileStream`(經 sshd 時直接讀 console stream,
     /// 超過約 128 KiB 就永遠不返回，#77);取不到 handle 時退回 console stream。上傳與 `WindowsCommand.stdinStub` 共用。
-    static let openStdin = "$stdin=[Console]::OpenStandardInput();try{$stdin=New-Object IO.FileStream($stdin.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($stdin),[IO.FileAccess]::Read,1,$false)}catch{}"
+    package static let openStdin = "$stdin=[Console]::OpenStandardInput();try{$stdin=New-Object IO.FileStream($stdin.GetType().GetField('_handle',[Reflection.BindingFlags]'NonPublic,Instance').GetValue($stdin),[IO.FileAccess]::Read,1,$false)}catch{}"
 
     /// 從 stdin 讀**剛好**宣告的大小(或讀到 EOF 為止)寫進檔案。不等 EOF:經 Git Bash 時 EOF 可能傳不到
     /// (`WindowsCommand.stdinStub`);連線中斷時讀到的會比宣告的少，由大小檢查擋下(75)。
-    static let receive = #"""
+    package static let receive = #"""
         function PReceive($w,[long]$z){\#(openStdin);$c=New-Object byte[] 65536;$n=[long]0;while($n -lt $z){$r=$stdin.Read($c,0,[int][Math]::Min([long]$c.Length,$z-$n));if($r -le 0){break};$w.Write($c,0,$r);$n+=$r}}
         """#
 
-    static func upload(_ body: String, arguments values: [String]) -> String {
+    package static func upload(_ body: String, arguments values: [String]) -> String {
         [prelude, arguments(values), receive, body].joined(separator: "\n")
     }
 
@@ -239,7 +239,7 @@ enum WindowsScripts {
 
     /// 資料夾清單：第一行是絕對路徑，接著每個項目一行，格式同 `ls -lnA`(種類、連結數、uid、gid、大小、月 日 時:分或年、名稱),
     /// 讓 `FolderListing.parse` 不分主機。打不開 → 66。參數：路徑(空 = 家目錄)。
-    static let folderList = #"""
+    package static let folderList = #"""
         $d=$a[0];if(-not $d){$d=$env:USERPROFILE}
         if(-not [IO.Directory]::Exists($d)){[Console]::Error.Write("cannot open $d");exit 66}
         try{$e=@(Get-ChildItem -LiteralPath $d -Force)}catch{[Console]::Error.Write("cannot open $d");exit 66}
@@ -254,7 +254,7 @@ enum WindowsScripts {
 
     /// 新增對話的資料夾瀏覽：第一行是絕對路徑，之後每行一個子資料夾(不含 `.` 開頭與隱藏的)。`~`、`~/…`、`~\…` 是家目錄。
     /// 不存在 → 66。參數：路徑。
-    static let newChatFolders = #"""
+    package static let newChatFolders = #"""
         $d=$a[0]
         if(-not $d -or $d -eq '~'){$d=$env:USERPROFILE}elseif($d.StartsWith('~/') -or $d.StartsWith('~\')){$d=Join-Path $env:USERPROFILE $d.Substring(2)}
         if(-not [IO.Directory]::Exists($d)){exit 66}
@@ -263,7 +263,7 @@ enum WindowsScripts {
         foreach($x in $e){if(-not $x.Name.StartsWith('.')){PWrite "$($x.Name)`n"}}
         """#
 
-    static func folders(_ body: String, arguments values: [String]) -> String {
+    package static func folders(_ body: String, arguments values: [String]) -> String {
         [prelude, arguments(values), body].joined(separator: "\n")
     }
 
@@ -277,7 +277,7 @@ enum WindowsScripts {
     /// - `rmtree` 用 `Directory.Delete(…, true)`:不跟進 junction／symlink 刪到外面(PowerShell 5.1 的
     ///   `Remove-Item -Recurse` 會)。
     /// - 可執行旗標在 Windows 沒有意義，忽略。
-    static let hostFileFunctions = #"""
+    package static let hostFileFunctions = #"""
         function PPath([string]$r){Join-Path $env:USERPROFILE $r.Replace('/','\')}
         function PResolve([string]$p){$n=0;while($n -lt 40){$i=Get-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue;if(-not $i -or -not ($i.Attributes -band [IO.FileAttributes]::ReparsePoint) -or -not $i.Target){break};$t=@($i.Target)[0];if(-not [IO.Path]::IsPathRooted($t)){$t=Join-Path ([IO.Path]::GetDirectoryName($p)) $t};$p=$t;$n++};$p}
         function PHashOf([byte[]]$b){(-join ([Security.Cryptography.SHA256]::Create().ComputeHash($b)|%{$_.ToString('x2')}))+':'+$b.Length}
@@ -286,12 +286,12 @@ enum WindowsScripts {
         function PAbort($e,[int]$c){[Console]::Error.Write("$($e.Exception.Message)");$o.Flush();exit $c}
         """#
 
-    static func hostFiles(_ body: String, arguments values: [String]) -> String {
+    package static func hostFiles(_ body: String, arguments values: [String]) -> String {
         [prelude, arguments(values), transcriptFunctions, hostFileFunctions, body].joined(separator: "\n")
     }
 
     /// `HostFileScript.read`:輸出多一行 `home <家目錄>`(`/` 分隔),讓 client 知道是 Windows 與家目錄在哪。
-    static let hostFileRead = #"""
+    package static let hostFileRead = #"""
         PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"
         for($i=0;$i -lt $a.Count;$i++){
         $p=PResolve (PPath $a[$i])
@@ -309,7 +309,7 @@ enum WindowsScripts {
 
     /// `HostFileScript.apply`:先檢查全部(不符 → `changed <路徑>` exit 3;資料夾不存在 → `nodir <路徑>` exit 4),
     /// 全部符合才依序寫。
-    static let hostFileApply = #"""
+    package static let hostFileApply = #"""
         $made=@()
         for($i=0;$i+4 -lt $a.Count;$i+=5){
         $k=$a[$i];$r=$a[$i+1];$e=$a[$i+2]
@@ -345,7 +345,7 @@ enum WindowsScripts {
         """#
 
     /// `HostFileScript.newest`:資料夾裡檔名開頭、結尾符合、最新(修改時間)的可讀一般檔案。參數：資料夾、開頭、結尾。
-    static let hostFileNewest = #"""
+    package static let hostFileNewest = #"""
         $d=PPath $a[0];$n=$null;$m=$null
         if([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -File)){$x=$e.Name
         if($x.Length -ge $a[1].Length+$a[2].Length -and $x.StartsWith($a[1],[StringComparison]::Ordinal) -and $x.EndsWith($a[2],[StringComparison]::Ordinal)){
@@ -357,7 +357,7 @@ enum WindowsScripts {
         """#
 
     /// `PushHost.otherPairingsScript`:`~\.purrdr\push-*\pairing`,每行 `push-<id>/pairing`。
-    static let pushPairings = #"""
+    package static let pushPairings = #"""
         $d=PPath '.purrdr'
         if([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Directory|?{$_.Name -clike 'push-*'})){if([IO.File]::Exists((Join-Path $e.FullName 'pairing'))){PWrite "$($e.Name)/pairing`n"}}}
         $o.Flush()
@@ -368,7 +368,7 @@ enum WindowsScripts {
     /// 與 POSIX 版相同的紀錄格式(`@F`、`@S`、`@L`,內容每行前面加 `|`)。路徑以參數原樣為基準、往下一律接 `/`,
     /// 所以 `ClaudeSlashDiscovery` 的解析(`/SKILL.md` 結尾、基準資料夾 + `/`)不分主機。CRLF 的檔案照樣讀得懂。
     /// 每個函式自己吞掉錯誤(讀不到的檔就略過),與 POSIX 版一樣只要腳本跑完就是 exit 0。
-    static let slashFunctions = #"""
+    package static let slashFunctions = #"""
         function PDump([string]$t,[string]$f){try{if([IO.File]::Exists($f)){$x=[IO.File]::ReadAllText($f,$u).Replace("`r`n","`n");PWrite "@F`t$t`t$f`n";if($x.EndsWith("`n")){$x=$x.Substring(0,$x.Length-1)};if($x.Length -gt 0){foreach($y in $x.Split("`n")){PWrite "|$y`n"}};PWrite "`n"}}catch{}}
         function PFront([string]$t,[string]$b,[string]$f){PWrite "@S`t$t`t$b`t$f`n";try{$l=[IO.File]::ReadAllLines($f,$u)}catch{return};if($l.Count -eq 0 -or $l[0] -cne '---'){return};for($j=1;$j -lt $l.Count;$j++){if($l[$j] -ceq '---'){break};PWrite "|$($l[$j])`n"}}
         function PSkills([string]$t,[string]$d){try{if([IO.File]::Exists("$d/SKILL.md")){PFront $t $d "$d/SKILL.md"}elseif([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Directory|Sort-Object Name)){$s="$d/$($e.Name)/SKILL.md";if([IO.File]::Exists($s)){PFront $t $d $s}}}}catch{}}
@@ -376,7 +376,7 @@ enum WindowsScripts {
         """#
 
     /// 第 1 步：參數是工作資料夾、對話紀錄路徑(沒有時空字串)。
-    static let slashDiscover = slashFunctions + "\n" + #"""
+    package static let slashDiscover = slashFunctions + "\n" + #"""
         $c=PHome $env:CLAUDE_CONFIG_DIR '.claude'
         PDump 'installed' "$c/plugins/installed_plugins.json"
         PDump 'settings' "$c/settings.json"
@@ -395,13 +395,13 @@ enum WindowsScripts {
         """#
 
     /// 第 2 步：參數是每個 plugin 的 installPath。
-    static let slashManifests = slashFunctions + "\n" + #"""
+    package static let slashManifests = slashFunctions + "\n" + #"""
         foreach($p in $a){PDump $p "$p/.claude-plugin/plugin.json"}
         $o.Flush()
         """#
 
     /// 第 3 步：參數每三個一組(種類 `s`／`c`、plugin 名稱、路徑)。
-    static let slashScan = slashFunctions + "\n" + #"""
+    package static let slashScan = slashFunctions + "\n" + #"""
         for($i=0;$i+2 -lt $a.Count;$i+=3){if($a[$i] -ceq 's'){PSkills $a[$i+1] $a[$i+2]}else{PCommands $a[$i+1] $a[$i+2]}}
         $o.Flush()
         """#

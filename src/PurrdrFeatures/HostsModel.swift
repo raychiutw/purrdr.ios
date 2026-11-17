@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 
 public struct HostRow: Identifiable, Equatable, Sendable {
     public var id: UUID

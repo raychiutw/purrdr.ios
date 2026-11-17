@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// 假的主機連線：對預期的 herdr 請求(以 method 比對)回放錄製的真實回應，並記錄 app 送出的請求。
 /// 上層功能的測試用它，就不必知道連線方式。

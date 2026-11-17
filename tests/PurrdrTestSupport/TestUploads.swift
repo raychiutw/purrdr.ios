@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 /// 讀完一次 exec 收齊的輸出。
 public struct CollectedOutput: Sendable {

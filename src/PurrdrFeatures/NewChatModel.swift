@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 
 /// 新增對話的資料夾瀏覽(行為規格 F3.3):在主機上一層層挑資料夾。
 ///

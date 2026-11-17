@@ -1,6 +1,7 @@
 import Foundation
 import PurrdrCore
 import PurrdrDemo
+import PurrdrSSH
 import Testing
 
 /// Demo 主機也接受主機檔案的讀寫(記憶體裡的假檔案),所以 Claude 用量在 Demo 走的是正式程式路徑。

@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 
 /// 主機的儲存。正式實作是 `KeychainHostStore`(主機設定與 pin 存 Keychain,僅本裝置、解鎖後)。
 @MainActor

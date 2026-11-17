@@ -89,7 +89,7 @@ public enum HostFileRequest: Equatable, Sendable {
 
 extension PosixShell {
     /// `quote` 的反向：把以空白分隔、每個都用單引號包住(內部單引號寫成 `'"'"'`)的參數還原。
-    static func unquote(_ text: String) -> [String]? {
+    package static func unquote(_ text: String) -> [String]? {
         var arguments: [String] = []
         var current: String?
         var rest = text[...]

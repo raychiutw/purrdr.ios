@@ -1,6 +1,8 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrSSH
 
 /// 登入 Shell(行為規格 F13、GLOSSARY):對主機開 PTY(`pty-req` + `shell`),由 sshd 以登入模式執行使用者預設的 shell,
 /// 背後沒有 herdr Pane。尺寸改變以 `window-change` 送出(去抖 250 ms)。

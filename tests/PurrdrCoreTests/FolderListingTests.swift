@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 import Testing
 
 /// 資料夾清單的解析(行為規格 F13):第一行是 `pwd`,接著是 `LC_ALL=C ls -lnA` 的長格式。

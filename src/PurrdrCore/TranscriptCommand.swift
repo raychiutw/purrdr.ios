@@ -32,7 +32,7 @@ public enum TranscriptCommand {
         command(claudeLocateScript, arguments: [sessionID, projectFolder])
     }
 
-    static let claudeLocateScript = #"""
+    package static let claudeLocateScript = #"""
         c=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
         f="$c/projects/$2/$1.jsonl"
         if [ ! -e "$f" ] && [ -d "$c/projects" ]; then
@@ -133,7 +133,7 @@ public enum TranscriptCommand {
         return command(locateScript(location, readsHeader: readsHeader), arguments: [value])
     }
 
-    static func locateScript(_ location: TranscriptTarget.Location, readsHeader: Bool) -> String {
+    package static func locateScript(_ location: TranscriptTarget.Location, readsHeader: Bool) -> String {
         var script = "i=$1\n" + resolver(for: location) + "\n" + probe + "\n" + #"printf '%s\n%s\n' "$f" "$z""#
         if readsHeader { script += "\n" + #"head -n 2 "$f""# }
         return script
@@ -147,7 +147,7 @@ public enum TranscriptCommand {
         command(windowScript, arguments: [path, String(end), String(lines), String(chunkBytes)])
     }
 
-    static let windowScript = #"""
+    package static let windowScript = #"""
         f=$1
         e=$2
         n=$3
@@ -177,7 +177,7 @@ public enum TranscriptCommand {
         command(tailScript, arguments: [path, String(cursor), String(limit)])
     }
 
-    static let tailScript = #"f=$1"# + "\n" + probe + "\n" + #"""
+    package static let tailScript = #"f=$1"# + "\n" + probe + "\n" + #"""
         printf '%s\n' "$z"
         if [ "$z" -gt "$2" ] && [ $((z - $2)) -le "$3" ]; then
         tail -c +$(($2 + 1)) "$f" | head -c $((z - $2)) | awk -v t=$((z - $2)) '{ p = q + length($0) + 1; if (p <= t) print; q = p }' | ANNOTATE
@@ -190,13 +190,13 @@ public enum TranscriptCommand {
     }
 
     /// 列表預覽的一個請求：key、定位方式、id 或路徑、Claude 的資料夾名。
-    struct PreviewEntry: Sendable, Equatable {
-        var key: String
-        var type: String
-        var value: String
-        var extra: String
+    package struct PreviewEntry: Sendable, Equatable {
+        package var key: String
+        package var type: String
+        package var value: String
+        package var extra: String
 
-        init(key: String, type: String, value: String, extra: String = "") {
+        package init(key: String, type: String, value: String, extra: String = "") {
             self.key = key
             self.type = type
             self.value = value
@@ -204,7 +204,7 @@ public enum TranscriptCommand {
         }
 
         /// id 或路徑不安全時為 `nil`(不進 shell,R-I12)。
-        init?(_ request: PreviewRequest) {
+        package init?(_ request: PreviewRequest) {
             let header = request.target.format == .piJournal
             switch request.target.location {
             case .claude(let id, let cwd):
@@ -229,14 +229,14 @@ public enum TranscriptCommand {
     /// 列表預覽：每個請求印一行「分隔標記 key」,再印剝除圖片後的檔尾 48,000 bytes(§4.7);Pi／OMP 先印
     /// 「分隔標記! key」與檔案前兩行(header 檢查)。每個請求在 subshell 裡定位，一個檔不存在或有歧義不讓整批失敗。
     /// 參數：標記，接著每個請求四個(key、定位方式、id 或路徑、Claude 的資料夾名)。
-    static func previews(marker: String, entries: [PreviewEntry]) -> String {
+    package static func previews(marker: String, entries: [PreviewEntry]) -> String {
         command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra] })
     }
 
     /// 列表預覽每個請求最多讀的檔尾 bytes(與 `previewsScript` 的 `tail -c` 相同;估算期限用)。
-    static let previewBytes = 48_000
+    package static let previewBytes = 48_000
 
-    static let previewsScript = #"""
+    package static let previewsScript = #"""
         m=$1
         shift
         while [ $# -ge 4 ]; do
@@ -295,7 +295,7 @@ public enum TranscriptCommand {
         command(findSubagentScript, arguments: [sessionFolder, callID])
     }
 
-    static let findSubagentScript = #"""
+    package static let findSubagentScript = #"""
         d=$1/subagents
         if [ ! -d "$d" ]; then exit 3; fi
         if [ ! -x "$d" ]; then exit 4; fi
@@ -315,7 +315,7 @@ public enum TranscriptCommand {
         command(readWorkflowScript, arguments: [sessionFolder, runID, knownChecksum])
     }
 
-    static let readWorkflowScript = #"""
+    package static let readWorkflowScript = #"""
         r=$1/workflows/$2.json
         j=$1/subagents/workflows/$2/journal.jsonl
         if [ -f "$r" ]; then k=run; f=$r; elif [ -f "$j" ]; then k=journal; f=$j; else exit 3; fi
@@ -331,7 +331,7 @@ public enum TranscriptCommand {
         command(delegationLinesScript, arguments: [path, ids.0, ids.1, knownChecksum])
     }
 
-    static let delegationLinesScript = #"""
+    package static let delegationLinesScript = #"""
         f=$1
         if [ ! -r "$f" ]; then exit 5; fi
         c=$(grep -F -e "$2" -e "$3" "$f" | STRIP | cksum)
@@ -343,7 +343,7 @@ public enum TranscriptCommand {
 
     static let stripImages = ##"sed -e 's#"[A-Za-z0-9+/=]\{128,\}"#""#g' -e 's#"data:[^"]*;base64,[^"]*"#""#g'"##
 
-    static func command(_ script: String, arguments: [String]) -> String {
+    package static func command(_ script: String, arguments: [String]) -> String {
         ([prefix + PosixShell.quote(HostScriptTimeLimit.posixRead(script)), "sh"] + arguments.map(PosixShell.quote)).joined(separator: " ")
     }
 }

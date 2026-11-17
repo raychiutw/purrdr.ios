@@ -38,10 +38,14 @@ jobs:
           fi
           xcodebuild -showComponent MetalToolchain
 
+      # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo、上層功能 import PurrdrSSH(#89)。
+      # 預設的 Swift Build 會忽略這個選項(實測照樣建置成功),只有 native build system 會擋，所以另外以 native 建置一次。
+      - name: 依賴方向(import check)
+        run: swift build --build-system native --build-tests --explicit-target-dependency-import-check error
+
       # warning 當 error 寫在 Package.swift(只對 macOS 套用)。
-      # import check 抓「沒宣告依賴卻 import」,例如 Features import Demo。
       - name: swift test
-        run: swift test --explicit-target-dependency-import-check error
+        run: swift test
 
   # 與 package job 平行:package 以 iOS 編譯、數 warning、檢查 String Catalog(原本跟 swift test 串在同一個 job)。
   package-ios:
@@ -205,7 +209,7 @@ jobs:
 
   # 可攜核心(ADR-0006)用 Swift SDK for Android 交叉編譯，守住「不依賴 Apple 專屬 framework」。
   # 版本與做法見 docs/research/swift-sdk-for-android.md:開源 toolchain 與 SDK 版本必須完全一致、NDK 用 r30。
-  # 只編譯可攜的 target(PurrdrCore、PurrdrDemo),SwiftUI 的 PurrdrFeatures 不在 Android 編譯範圍。
+  # 只編譯可攜的 target(PurrdrDemo,連帶編譯它依賴的 PurrdrSSH、PurrdrCore),SwiftUI 的 Features 不在 Android 編譯範圍。
   android:
     name: 可攜核心 Android 編譯(Swift SDK for Android)
     runs-on: ubuntu-24.04

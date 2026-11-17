@@ -1,7 +1,9 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrDemo
 import PurrdrFeatures
+import PurrdrSSH
 import StoreKit
 import SwiftUI
 

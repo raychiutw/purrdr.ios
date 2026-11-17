@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrSSH
 
 /// 列表底部「Claude 用量」的 model(行為規格 F18)。
 @MainActor
