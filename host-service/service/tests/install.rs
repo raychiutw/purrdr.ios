@@ -20,7 +20,7 @@ fn macos_install_starts_launch_agent_and_serves_https_through_tailscale() {
     assert!(system.state.launchd_loaded.contains(LAUNCH_AGENT_LABEL));
     assert_eq!(system.state.serve[&format!("{FQDN}:443")]["/"], "http://127.0.0.1:47820");
     let plist = std::fs::read_to_string(host.home.0.join(format!("Library/LaunchAgents/{LAUNCH_AGENT_LABEL}.plist"))).unwrap();
-    let installed_binary = host.service_directory().join("bin/purrdr-host-service");
+    let installed_binary = host.service_directory().join("bin").join("purrdr-host-service");
     assert!(plist.contains(&format!("<string>{}</string>", installed_binary.display())), "{plist}");
     assert!(plist.contains("<key>RunAtLoad</key>"));
     assert_eq!(std::fs::read_to_string(&installed_binary).unwrap(), "binary purrdr-host-service");
@@ -40,8 +40,10 @@ fn linux_install_enables_systemd_user_unit_started_at_login() {
     assert!(system.state.systemd_active.contains(SYSTEMD_UNIT));
     assert_eq!(system.state.serve[&format!("{FQDN}:443")]["/"], "http://127.0.0.1:47820");
     let unit = std::fs::read_to_string(host.home.0.join(".config/systemd/user").join(SYSTEMD_UNIT)).unwrap();
-    let installed_binary = host.service_directory().join("bin/purrdr-host-service");
-    assert!(unit.contains(&format!("ExecStart=\"{}\" --port 47820", installed_binary.display())), "{unit}");
+    // systemd 引號內的反斜線要跳脫(只有在 Windows CI 跑 Linux 流程時路徑才會有反斜線)。
+    let installed_binary = host.service_directory().join("bin").join("purrdr-host-service");
+    let quoted_binary = installed_binary.display().to_string().replace('\\', "\\\\");
+    assert!(unit.contains(&format!("ExecStart=\"{quoted_binary}\" --port 47820")), "{unit}");
     assert!(unit.contains("WantedBy=default.target"), "{unit}");
 }
 
