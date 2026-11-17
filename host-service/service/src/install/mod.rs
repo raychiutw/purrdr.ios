@@ -213,11 +213,14 @@ impl<S: HostSystem> Installer<S> {
     /// `confirm` 收到 Certificate Transparency 的說明，回 false 就取消(此時還沒有改任何東西)。
     pub fn install(&mut self, options: &InstallOptions, confirm: impl FnOnce(&str) -> bool) -> Result<Installed, InstallError> {
         let layout = self.layout();
+        let previous = self.read_record(&layout)?;
         let tailscale = Tailscale::locate(&mut self.system, self.environment.platform)?;
         let host_name = tailscale.host_name(&mut self.system)?;
         let handlers = tailscale.https_handlers(&mut self.system)?;
-        let serve_in_place = handlers == BTreeMap::from([("/".to_owned(), tailscale::serve_target(options.port))]);
-        if !handlers.is_empty() && !serve_in_place {
+        let proxy_to = |port: u16| BTreeMap::from([("/".to_owned(), tailscale::serve_target(port))]);
+        let serve_in_place = handlers == proxy_to(options.port);
+        let ours_from_previous_install = previous.as_ref().is_some_and(|record| record.serve_configured && handlers == proxy_to(record.port));
+        if !handlers.is_empty() && !serve_in_place && !ours_from_previous_install {
             return Err(InstallError::ServePortTaken(tailscale::describe(&handlers)));
         }
         if !confirm(&certificate_transparency_notice(&host_name)) {
@@ -228,14 +231,32 @@ impl<S: HostSystem> Installer<S> {
             port: options.port,
             herdr_session: options.herdr_session.clone(),
             https_address: format!("https://{host_name}"),
-            ..InstallRecord::default()
+            serve_configured: previous.as_ref().is_some_and(|record| record.serve_configured),
+            created_directories: previous.as_ref().map(|record| record.created_directories.clone()).unwrap_or_default(),
         };
+        if previous.is_some() {
+            // 先停掉執行中的舊版，執行檔才換得掉(Windows)。
+            autostart::unregister(&mut self.system, &layout, self.environment.user_name.as_deref())?;
+        }
         let applied = self.apply(&layout, &tailscale, options, serve_in_place, &mut record);
         if let Err(error) = applied {
-            self.roll_back(&layout, &tailscale, &record);
+            // 重新安裝失敗時保留已配對的裝置，不還原。
+            if previous.is_none() {
+                self.roll_back(&layout, &tailscale, &record);
+            }
             return Err(error);
         }
         Ok(Installed { https_address: record.https_address })
+    }
+
+    fn read_record(&self, layout: &ServiceLayout) -> Result<Option<InstallRecord>, InstallError> {
+        let text = match std::fs::read_to_string(layout.record_file()) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            result => result.map_err(InstallError::io)?,
+        };
+        serde_json::from_str(&text)
+            .map(Some)
+            .map_err(|error| InstallError::Io(format!("{}: {error}", layout.record_file().display())))
     }
 
     /// 安裝的每一步;`record` 隨時反映已做的變更，失敗時依它還原。
@@ -244,7 +265,11 @@ impl<S: HostSystem> Installer<S> {
             self.create_directory(&directory, record)?;
         }
         for name in layout.executable_names() {
-            std::fs::copy(options.source_directory.join(name), layout.bin_directory().join(name)).map_err(InstallError::io)?;
+            let (source, destination) = (options.source_directory.join(name), layout.bin_directory().join(name));
+            // 從安裝好的那份再執行 install 時，複製到自己會把檔案清空。
+            if !same_file(&source, &destination) {
+                std::fs::copy(&source, &destination).map_err(InstallError::io)?;
+            }
         }
         write_json(&layout.config_file(), &ServiceConfig { https_address: &record.https_address })?;
 
@@ -277,11 +302,7 @@ impl<S: HostSystem> Installer<S> {
     /// 移除自動啟動、`tailscale serve` 設定與主機服務的檔案;還原不了的項目列在 `warnings`。
     pub fn uninstall(&mut self) -> Result<Uninstalled, InstallError> {
         let layout = self.layout();
-        let text = match std::fs::read_to_string(layout.record_file()) {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Err(InstallError::NotInstalled),
-            result => result.map_err(InstallError::io)?,
-        };
-        let record: InstallRecord = serde_json::from_str(&text).map_err(|error| InstallError::Io(format!("{}: {error}", layout.record_file().display())))?;
+        let record = self.read_record(&layout)?.ok_or(InstallError::NotInstalled)?;
         let mut warnings = Vec::new();
 
         autostart::unregister(&mut self.system, &layout, self.environment.user_name.as_deref())?;
@@ -355,6 +376,13 @@ fn service_arguments(record: &InstallRecord) -> Vec<String> {
         arguments.extend(["--session".to_owned(), session.clone()]);
     }
     arguments
+}
+
+fn same_file(first: &Path, second: &Path) -> bool {
+    match (first.canonicalize(), second.canonicalize()) {
+        (Ok(first), Ok(second)) => first == second,
+        _ => false,
+    }
 }
 
 fn write_json(path: &Path, value: &impl Serialize) -> Result<(), InstallError> {

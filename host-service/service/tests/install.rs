@@ -2,7 +2,7 @@
 
 mod install_support;
 
-use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, RUN_VALUE, SYSTEMD_UNIT, TestHost, snapshot};
+use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, RUN_VALUE, SYSTEMD_UNIT, TestHost, executable_names, snapshot};
 use purrdr_host_service::install::{InstallError, InstallPlatform, Installer};
 
 const PORT: u16 = 47_820;
@@ -205,6 +205,49 @@ fn failure_after_changes_rolls_everything_back() {
             }
             assert_eq!(snapshot(&host.home.0), home_before, "{platform:?}: {error:?}");
             assert_eq!(installer.system().state, system_before, "{platform:?}: {error:?}");
+        }
+    }
+}
+
+#[test]
+fn installing_again_updates_in_place_and_keeps_paired_devices() {
+    for platform in PLATFORMS {
+        let host = TestHost::new(platform);
+        let home_before = snapshot(&host.home.0);
+        let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+        installer.install(&host.options(PORT), |_| true).unwrap();
+        let devices = host.service_directory().join("devices.json");
+        std::fs::write(&devices, "{}").unwrap();
+        std::fs::write(host.downloads.0.join(executable_names(platform)[0]), "binary v2").unwrap();
+
+        installer.install(&host.options(47_821), |_| true).unwrap();
+
+        assert_eq!(std::fs::read_to_string(&devices).unwrap(), "{}", "{platform:?}");
+        let installed = host.service_directory().join("bin").join(executable_names(platform)[0]);
+        assert_eq!(std::fs::read_to_string(installed).unwrap(), "binary v2");
+        let state = &installer.system().state;
+        assert_eq!(state.serve[&format!("{FQDN}:443")]["/"], "http://127.0.0.1:47821");
+        assert!(state.background_processes.len() <= 1, "{platform:?}: {:?}", state.background_processes);
+        installer.uninstall().unwrap();
+        assert_eq!(snapshot(&host.home.0), home_before, "{platform:?}");
+        assert!(installer.system().state.serve.is_empty(), "{platform:?}");
+    }
+}
+
+#[test]
+fn installing_again_from_the_installed_copy_keeps_the_executables() {
+    for platform in PLATFORMS {
+        let host = TestHost::new(platform);
+        let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+        installer.install(&host.options(PORT), |_| true).unwrap();
+        let mut options = host.options(PORT);
+        options.source_directory = host.service_directory().join("bin");
+
+        installer.install(&options, |_| true).unwrap();
+
+        for name in executable_names(platform) {
+            let installed = host.service_directory().join("bin").join(name);
+            assert_eq!(std::fs::read_to_string(installed).unwrap(), format!("binary {name}"), "{platform:?}");
         }
     }
 }
