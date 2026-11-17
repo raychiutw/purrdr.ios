@@ -3,7 +3,7 @@
 //   App → Features → Core ← Demo ← App
 // - 可攜核心(PurrdrCore、PurrdrDemo)不依賴任何 Apple 專屬 framework(ADR-0006),
 //   CI 用 Swift SDK for Android 編譯它們把關;`PortableCoreImportTests` 在本機先擋一次。
-// - Features 不依賴 Demo:畫面只透過主機通道(HostChannel)拿資料，不知道背後是誰。
+// - Features 不依賴 Demo:畫面只透過核心的介面(主機連線 HostConnection;SSH 專屬功能用主機通道 HostChannel)拿資料，不知道背後是誰。
 // CI 另外用 `swift test --explicit-target-dependency-import-check error` 把關，
 // 避免增量建置放過「沒宣告依賴卻 import」的違規。
 import PackageDescription
