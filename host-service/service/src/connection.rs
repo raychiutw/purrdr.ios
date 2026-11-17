@@ -7,13 +7,13 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer};
 use serde_json::{Value, json};
 
-use crate::audit_log::AuditEvent;
+use crate::audit_log::{AuditEvent, AuditLog};
 use crate::device_store::Device;
 use crate::herdr_client::{HerdrClient, HerdrFailure};
 use crate::http::{ServiceContext, blocking};
 use crate::protocol::{
-    Agent, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION, ServerMessage, Welcome,
-    Workspace,
+    Agent, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, HerdrServer, PROTOCOL_VERSION, PaneSendKeys,
+    PaneSendKeysResult, ServerMessage, Welcome, Workspace,
 };
 
 /// 權杖無效或已撤銷時的 close code(4000–4999 由應用程式自訂)。
@@ -45,6 +45,7 @@ pub async fn serve(mut socket: WebSocket, context: ServiceContext, device_token:
 
     let mut connection = ClientConnection {
         herdr: context.herdr.clone(),
+        audit: context.audit.clone(),
         handshaken: false,
     };
     while let Some(Ok(message)) = socket.recv().await {
@@ -96,25 +97,52 @@ async fn send(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), axu
 /// 一條 app WebSocket 連線的狀態(不是 herdr 的 session)。
 struct ClientConnection {
     herdr: HerdrClient,
+    audit: AuditLog,
     handshaken: bool,
 }
 
 impl ClientConnection {
-    async fn handle(&mut self, text: &str, _device: &Device) -> ServerMessage {
+    async fn handle(&mut self, text: &str, device: &Device) -> ServerMessage {
         let Ok(value) = serde_json::from_str::<Value>(text) else {
             return error(None, ErrorCode::InvalidMessage, "message is not valid JSON");
         };
+        let request_id = value.get("request_id").and_then(Value::as_str).map(str::to_owned);
         let message = match serde_json::from_value::<ClientMessage>(value.clone()) {
             Ok(message) => message,
-            Err(decoding_error) => {
-                let request_id = value.get("request_id").and_then(Value::as_str).map(str::to_owned);
-                return error(request_id, ErrorCode::InvalidMessage, &decoding_error.to_string());
-            }
+            Err(decoding_error) => return error(request_id, ErrorCode::InvalidMessage, &decoding_error.to_string()),
         };
+        if message.is_write() {
+            // 稽核只記操作種類與目標 Pane,不記按鍵或 prompt 內容。
+            self.audit.record(
+                AuditEvent::Write {
+                    device_id: device.device_id.clone(),
+                    operation: value["type"].as_str().unwrap_or_default().to_owned(),
+                    pane_id: value["pane_id"].as_str().map(str::to_owned),
+                    allowed: !device.read_only,
+                },
+                SystemTime::now(),
+            );
+            if device.read_only {
+                return error(request_id, ErrorCode::ReadOnlyDevice, "this device is paired read-only");
+            }
+        }
         match message {
             ClientMessage::Hello(hello) => self.hello(hello.request_id, hello.protocol_version).await,
             ClientMessage::AgentsList(request) => self.agents_list(request.request_id).await,
-            ClientMessage::PaneSendKeys(request) => error(Some(request.request_id), ErrorCode::InvalidMessage, "not supported yet"),
+            ClientMessage::PaneSendKeys(request) => self.pane_send_keys(request).await,
+        }
+    }
+
+    async fn pane_send_keys(&self, request: PaneSendKeys) -> ServerMessage {
+        if !self.handshaken {
+            return error(Some(request.request_id), ErrorCode::HandshakeRequired, "send hello first");
+        }
+        let params = json!({"pane_id": request.pane_id, "keys": request.keys});
+        match self.herdr.request("pane.send_keys", params).await {
+            Ok(_) => ServerMessage::PaneSendKeysResult(PaneSendKeysResult {
+                request_id: request.request_id,
+            }),
+            Err(failure) => herdr_error(request.request_id, "pane.send_keys", failure),
         }
     }
 

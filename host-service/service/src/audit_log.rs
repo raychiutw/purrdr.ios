@@ -17,7 +17,13 @@ pub enum AuditEvent {
     Connected { device_id: String },
     ConnectionRejected { reason: &'static str, device_id: Option<String> },
     Revoked { device_id: String, by: RevokedBy },
-    Write { device_id: String, operation: String, pane_id: String, allowed: bool },
+    Write {
+        device_id: String,
+        operation: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pane_id: Option<String>,
+        allowed: bool,
+    },
 }
 
 /// 誰撤銷的。
