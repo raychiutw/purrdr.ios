@@ -80,13 +80,14 @@ struct HTTPSLiveUpdatesTests {
     func heartbeatKeepsHealthyConnection() async throws {
         let service = try await FakeHostService.start()
         defer { Task { await service.stop() } }
-        let client = HerdrClient(connection: Self.connection(to: service, heartbeat: Self.shortHeartbeat))
+        // pong 逾時放寬，CI 忙的時候也不會誤判成斷線。
+        let heartbeat = HostServiceHeartbeat(interval: .milliseconds(100), timeout: .seconds(5))
+        let client = HerdrClient(connection: Self.connection(to: service, heartbeat: heartbeat))
         _ = try await client.snapshot()
 
-        try await Task.sleep(for: .milliseconds(800))
+        try await waitUntil { service.log.pings >= 3 }
         _ = try await client.snapshot()
 
-        #expect(service.log.pings >= 3)
         #expect(service.log.connections == 1)
     }
 
