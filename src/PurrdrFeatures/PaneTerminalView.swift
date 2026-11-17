@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -487,8 +488,8 @@ struct TerminalScreen: UIViewRepresentable {
             pan.maximumNumberOfTouches = 1
             pan.delegate = self
             view.addGestureRecognizer(pan)
-            // 捏合與滑動互斥。
-            pan.require(toFail: pinch)
+            // 捏合(兩指)與滑動(一指)預設就不會同時辨識。不能用 `require(toFail: pinch)`:
+            // 一指時捏合要等手指離開才失敗，滑動被壓到放開才開始，一列都沒送出(#94)。
         }
 
         /// 只接手垂直滑動;水平滑動留給系統(例如返回手勢)。

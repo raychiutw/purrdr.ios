@@ -8,14 +8,6 @@ public struct HerdrClient: Sendable {
         self.connection = connection
     }
 
-    /// SSH 連線方式(主機通道)的捷徑。
-    public init(
-        channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
-    ) {
-        self.init(connection: SSHHostConnection(channel: channel, herdr: herdr, sleep: sleep))
-    }
-
     /// 讀主機目前的全量狀態(`session.snapshot`)。
     public func snapshot() async throws -> HostSnapshot {
         let result = try await request(method: "session.snapshot", as: SnapshotResult.self)

@@ -127,3 +127,22 @@ public struct YouShouldKnowStore: @unchecked Sendable {
         return try JSONSerialization.data(withJSONObject: root, options: [.withoutEscapingSlashes])
     }
 }
+
+/// 「You should know」註記的主機端操作。SSH 實作是 `PurrdrSSH.YouShouldKnowHost`。
+public protocol YouShouldKnowHosting: Sendable {
+    /// 最新的 store;plugin 沒開過時是 `nil`。
+    func locate() async throws -> HostPath?
+    /// 讀 store;檔案不見時是 `nil`。
+    func read(_ path: HostPath) async throws -> YouShouldKnowStore?
+    /// 寫回時用的主機使用者名稱(徵求同意時顯示)。
+    func user() async throws -> String
+    /// 對註記做動作，寫回 store。
+    func perform(_ action: YouShouldKnowAction, on note: YouShouldKnowNote, at path: HostPath) async throws
+    /// 撤掉 Purrdr 的修改。
+    func restore() async throws
+}
+
+/// 「You should know」寫回功能的 id(同意紀錄與安裝紀錄都用它)。
+public enum YouShouldKnowFeature {
+    public static let id = "you-should-know"
+}

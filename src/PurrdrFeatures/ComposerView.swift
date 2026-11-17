@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -352,6 +353,7 @@ struct ComposerTextEditor: UIViewRepresentable {
             view.text = text
             let location = max(0, (text as NSString).length - max(0, fromEnd))
             view.selectedRange = NSRange(location: location, length: 0)
+            view.contentDidChange()
         }
         if !isFocused, view.isFirstResponder {
             // 不在畫面更新中 resign:resign 時 UIKit 會問 hosting view 的 responder,又觸發同一張 AttributeGraph 的更新，
@@ -363,16 +365,12 @@ struct ComposerTextEditor: UIViewRepresentable {
         }
     }
 
+    /// 只回答高度。要不要內捲由視圖依實際寬度決定(`KeyHandlingTextView.layoutSubviews`):
+    /// SwiftUI 也會以 0 與無限寬度探問理想大小，拿探問的結果切換內捲會把捲動位置歸零(#94)。
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: KeyHandlingTextView, context: Context) -> CGSize? {
         let width = proposal.width ?? 240
         let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
-        let lineHeight = (uiView.font ?? .preferredFont(forTextStyle: .body)).lineHeight
-        let maxHeight = ceil(lineHeight * Self.maxLines + Self.insets.top + Self.insets.bottom)
-        let scrolls = fitting > maxHeight
-        if uiView.isScrollEnabled != scrolls {
-            DispatchQueue.main.async { uiView.isScrollEnabled = scrolls }
-        }
-        return CGSize(width: width, height: min(fitting, maxHeight))
+        return CGSize(width: width, height: min(fitting, uiView.maxHeight))
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -384,6 +382,11 @@ struct ComposerTextEditor: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
+            (textView as? KeyHandlingTextView)?.contentDidChange()
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            (textView as? KeyHandlingTextView)?.contentDidChange()
         }
 
         // 收起鍵盤是在 updateUIView 裡 resign,這時 binding 已經是 false:只在值不同時才寫，避免在畫面更新中改狀態。
@@ -405,6 +408,51 @@ final class KeyHandlingTextView: UITextView {
     private var handled = Set<UIPress>()
     var pasteAction: (() -> ComposerPaste.Action)?
     var onPasteImages: (() -> Void)?
+    /// 草稿或游標變了，下次排版要重新判斷內捲並跟上游標。
+    private var needsCaretFollow = false
+    private var measuredSize = CGSize.zero
+
+    /// 4 行加上下內距(F6.1)。
+    var maxHeight: CGFloat {
+        let lineHeight = (font ?? .preferredFont(forTextStyle: .body)).lineHeight
+        let insets = ComposerTextEditor.insets
+        return ceil(lineHeight * ComposerTextEditor.maxLines + insets.top + insets.bottom)
+    }
+
+    /// 打字、組字、程式改寫草稿或移動游標後呼叫。
+    func contentDidChange() {
+        needsCaretFollow = true
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // 使用者自己捲動時也會排版：只在內容、游標或大小變了才動捲動位置，不把人拉回游標。
+        guard needsCaretFollow || bounds.size != measuredSize, bounds.width > 0 else { return }
+        needsCaretFollow = false
+        measuredSize = bounds.size
+        let contentHeight = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
+        let scrolls = contentHeight > maxHeight
+        if isScrollEnabled != scrolls { isScrollEnabled = scrolls }
+        if scrolls { scrollCaretIntoView(contentHeight: contentHeight) }
+    }
+
+    /// 讓捲動位置包含游標(組字中是組字尾端)。直接設 `contentOffset`:`scrollRangeToVisible` 在剛開啟內捲時不會動，
+    /// `contentSize` 也可能還沒更新，所以用量好的內容高度。
+    private func scrollCaretIntoView(contentHeight: CGFloat) {
+        guard let caretPosition = selectedTextRange?.end else { return }
+        let caret = caretRect(for: caretPosition)
+        guard !caret.isNull, !caret.isInfinite, caret.height > 1 else { return }
+        let maxOffset = max(0, contentHeight - bounds.height)
+        var offset = contentOffset.y
+        if caret.maxY + textContainerInset.bottom > offset + bounds.height {
+            offset = caret.maxY + textContainerInset.bottom - bounds.height
+        } else if caret.minY - textContainerInset.top < offset {
+            offset = caret.minY - textContainerInset.top
+        }
+        offset = min(max(0, offset), maxOffset)
+        if offset != contentOffset.y { setContentOffset(CGPoint(x: contentOffset.x, y: offset), animated: false) }
+    }
 
     /// 剪貼簿只有圖片時，貼上是加成附件(#37 故事 33);其他照系統貼上文字。
     override func paste(_ sender: Any?) {

@@ -10,17 +10,17 @@ import Foundation
 /// - 每個退出路徑都清掉暫存檔;判斷結果靠 exit code,不比對 stderr 文字。
 ///
 /// Windows 主機由 `WindowsHostChannel` 換成同樣輸出格式的 PowerShell 版本(`WindowsScripts.hostFileRead` 等，#68)。
-enum HostFileScript {
-    static let maximumCommandLength = 126 * 1024
+package enum HostFileScript {
+    package static let maximumCommandLength = 126 * 1024
     /// 單一檔案的讀取上限。
-    static let maximumFileSize = 1024 * 1024
+    package static let maximumFileSize = 1024 * 1024
 
-    static func command(_ script: String, arguments: [String]) -> String {
+    package static func command(_ script: String, arguments: [String]) -> String {
         (["/bin/sh", "-c", PosixShell.quote(HostScriptTimeLimit.posixRead(script)), "purrdr"] + arguments.map(PosixShell.quote)).joined(separator: " ")
     }
 
     /// 共用開頭：固定 PATH 與 locale、新檔只有本人可讀、`resolve` 跟隨 symlink。
-    static let prelude = """
+    package static let prelude = """
         PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH
         LC_ALL=C
         export PATH LC_ALL
@@ -51,7 +51,7 @@ enum HostFileScript {
     /// 讀取：參數是相對於家目錄的路徑。輸出
     /// `purrdr-files 1` / `user <名稱>` /(只有 Windows 版:`home <家目錄>`)/ 每個檔案一筆：`missing <i>`、`nodir <i>`、`other <i>`、
     /// `unreadable <i>`、`toolarge <i>`,或 `file <i> <版本> <bytes>` 接著原始內容再一個換行。
-    static let read = prelude + """
+    package static let read = prelude + """
         tmp=$(mktemp "${TMPDIR:-/tmp}/purrdr.XXXXXX") || exit 70
         trap 'rm -f "$tmp"' EXIT
         printf 'purrdr-files 1%suser %s%s' "$nl" "$(id -un)" "$nl"
@@ -85,7 +85,7 @@ enum HostFileScript {
     /// 套用變更：參數每五個一組(`put`／`del`／`rmtree`／`mkdir`／`rmdir`、路徑、`any`／`missing`／版本、base64、是否可執行)。
     /// 先檢查全部(不符 → 印 `changed <路徑>` exit 3;資料夾不存在 → `nodir <路徑>` exit 4),
     /// 全部符合才依序寫。覆寫既有檔案時先 `cp -p` 到暫存檔保留權限，再寫入內容、`mv` 換上。
-    static let apply = prelude + """
+    package static let apply = prelude + """
         tmp=
         trap 'if [ -n "$tmp" ]; then rm -f "$tmp"; fi' EXIT
         made=
@@ -164,7 +164,7 @@ enum HostFileScript {
 
     /// 找最新的檔案：參數是資料夾(相對於家目錄)、檔名開頭、檔名結尾。只算可讀的一般檔案(跟隨 symlink)。
     /// 輸出 `purrdr-newest 1`,有找到時下一行是相對於家目錄的路徑。資料夾不存在 = 沒有。
-    static let newest = prelude + """
+    package static let newest = prelude + """
         newest=
         for p in "$HOME/$1/$2"*"$3"; do
           if [ -f "$p" ] && [ -r "$p" ]; then
@@ -175,7 +175,7 @@ enum HostFileScript {
         if [ -n "$newest" ]; then printf '%s%s' "${newest#"$HOME/"}" "$nl"; fi
         """
 
-    static func parseNewest(_ output: Data) throws -> HostPath? {
+    package static func parseNewest(_ output: Data) throws -> HostPath? {
         var reader = LineReader(data: output)
         guard reader.line() == "purrdr-newest 1" else { throw HostFilesError.malformedOutput }
         guard let line = reader.line(), !line.isEmpty else { return nil }
@@ -185,11 +185,11 @@ enum HostFileScript {
     }
 
     /// `newest` 的輸出(Demo 主機用)。
-    static func newestOutput(_ path: HostPath?) -> Data {
+    package static func newestOutput(_ path: HostPath?) -> Data {
         Data(("purrdr-newest 1\n" + (path.map { $0.relative + "\n" } ?? "")).utf8)
     }
 
-    static func parseRead(_ output: Data, paths: [HostPath]) throws -> HostFileRead {
+    package static func parseRead(_ output: Data, paths: [HostPath]) throws -> HostFileRead {
         var reader = LineReader(data: output)
         guard reader.line() == "purrdr-files 1", let userLine = reader.line(), userLine.hasPrefix("user ") else {
             throw HostFilesError.malformedOutput

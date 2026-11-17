@@ -5,7 +5,7 @@ import json
 import os
 import sys
 
-TARGETS = ("PurrdrFeatures",)
+TARGETS = ("PurrdrFeatures", "PurrdrAgentFeatures")
 
 
 def source_strings(derived):

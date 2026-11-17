@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -133,7 +134,8 @@ struct PaneTerminalModelTests {
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1, timeout: Self.timeout)
         await Self.replay("07-unicode-colors.stdout.ndjson", on: host, finish: false)
-        await Self.eventually { screen.lines[8] == "中文輸入" }
+        // 「中文輸入」在第 6 個 frame、`echo pasted` 在第 8 個:等到後者，否則高負載時會比 frame 早檢查。
+        await Self.eventually { screen.lines[9] == "$ echo pasted" }
 
         // 寬字元各佔兩格、組合字元與基底同一格，後面的字沒有被擠歪。
         #expect(screen.lines[6] == "中文 🐱 é x")

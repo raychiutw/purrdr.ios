@@ -2,6 +2,7 @@ import Foundation
 import NIOCore
 import NIOPosix
 import PurrdrCore
+import PurrdrSSH
 import Testing
 
 /// 真 SSH 的主機通道，對本機的測試用 SSH 伺服器(只接受 `none` 認證，模擬 Tailscale SSH)。

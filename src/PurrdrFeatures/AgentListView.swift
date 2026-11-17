@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -573,17 +574,6 @@ extension AgentGroup {
 }
 
 extension AgentStatus {
-    /// 狀態字：列表、版面圖、對話標題列共用這一份(`Text` 與 `String(localized:)` 都用它)。
-    var title: LocalizedStringResource {
-        switch self {
-        case .blocked: "Needs You"
-        case .working: "Working"
-        case .done: "Done"
-        case .idle: "Idle"
-        case .unknown: "Unknown"
-        }
-    }
-
     /// 「需要你」一律有 `!` 符號(DESIGN.md 顏色一節)。每個狀態的形狀都不同。
     var symbol: String {
         switch self {

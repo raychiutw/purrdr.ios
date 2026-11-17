@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrSSH
 
 // 用 `Process` 在本機跑 shell,只在 macOS(`swift test`)提供。
 #if os(macOS)

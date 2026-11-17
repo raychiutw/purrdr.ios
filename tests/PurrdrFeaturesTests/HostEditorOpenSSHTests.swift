@@ -1,5 +1,6 @@
 import Crypto
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 @testable import PurrdrFeatures
 import PurrdrTestSupport

@@ -1,6 +1,7 @@
 import Foundation
 import PurrdrCore
 import PurrdrDemo
+import PurrdrSSH
 import Testing
 
 /// Demo 主機的主機主題與「You should know」註記(#23;行為規格 F21:Demo 演不出來的功能先加 Demo 情境)。

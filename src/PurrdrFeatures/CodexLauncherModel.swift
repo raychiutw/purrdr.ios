@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrSSH
 
 /// 設定頁「Codex 啟動器」的 model(行為規格 §4.2「Session 回報」,ADR-0002 的寫入例外)。【未實測】
 ///
