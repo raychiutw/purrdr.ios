@@ -320,10 +320,7 @@ public final class ConversationModel {
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
         if images != nil { attachments = drafts.attachments(chatKey: paneID) }
         slash.loader = { [weak self] in await self?.slashCatalog() }
-        slash.onPick = { [weak self] command in
-            guard let self, self.prepare(slash: command) else { return }
-            Task { await self.send() }
-        }
+        slash.onPick = { [weak self] command in self?.pick(slash: command) }
         slash.update(draft: draft)
     }
 
@@ -949,27 +946,13 @@ public final class ConversationModel {
 
     // MARK: - Slash 點選與面板(#45)
 
-    /// 點選 slash 指令(行為規格 F9.3):不需參數的直接送出;需要參數或有副作用的只填入 `/名稱 `(`SlashPick`)。
-    public func pick(slash command: SlashCommand) async {
-        if prepare(slash: command) { await send() }
+    /// 點選 slash 指令：一律只填入 `/名稱 `,由使用者自己按送出(#83,刻意偏離行為規格 F9.3 的直接送出)。
+    public func pick(slash command: SlashCommand) {
+        draft = "/\(command.name) "
+        pickedHint = command.argumentHint.map { (draft, $0) }
     }
 
-    /// 依點選規則改寫草稿;回傳要不要立刻送出。
-    private func prepare(slash command: SlashCommand) -> Bool {
-        let text = "/\(command.name)"
-        switch SlashPick.action(for: command) {
-        case .send:
-            pickedHint = nil
-            draft = text
-            return true
-        case .fill(let hint):
-            draft = text + " "
-            pickedHint = hint.map { (draft, $0) }
-            return false
-        }
-    }
-
-    /// 點選後只填入時，游標後淡淡顯示的參數提示;使用者開始打參數(草稿改變)就消失。
+    /// 點選後游標後淡淡顯示的參數提示;使用者開始打參數(草稿改變)就消失。
     public var slashArgumentHint: String? {
         guard let pickedHint, pickedHint.draft == draft else { return nil }
         return pickedHint.hint

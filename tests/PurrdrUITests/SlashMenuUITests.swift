@@ -82,7 +82,7 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertFalse(element("composer.argumentHint", in: app).exists, "打了參數後提示應消失")
     }
 
-    /// `/model` 直接送出 → 聊天內出現面板卡片;點選項移動游標(送方向鍵)、按「Set as default」選定後卡片消失(#45)。
+    /// 選定 `/model` 只填入、鍵盤不收起，按送出後聊天內出現面板卡片(#83);點選項移動游標(送方向鍵)、按「Set as default」選定後卡片消失(#45)。
     @MainActor
     func testModelPanelCard() {
         let app = XCUIApplication.launchUITesting()
@@ -91,6 +91,10 @@ final class SlashMenuUITests: XCTestCase {
         let row = element("slash.row.model", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
+        XCTAssertEqual(text.value as? String, "/model ")
+        XCTAssertTrue(element("composer.hideKeyboard", in: app).exists, "選定不該收起鍵盤")
+        XCTAssertFalse(element("panel.card", in: app).exists, "選定不該送出")
+        element("composer.send", in: app).tap()
 
         let card = element("panel.card", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: 10), "送出 /model 後沒有出現面板卡片")
@@ -113,7 +117,7 @@ final class SlashMenuUITests: XCTestCase {
         tap(element("panel.action.enter", in: app), until: NSPredicate(format: "exists == false"), on: card, "選定後卡片沒有消失")
     }
 
-    /// `/effort` 直接送出 → 面板卡片有分段控制;點層級送方向鍵，按「confirm」後卡片消失(#34)。
+    /// 選定 `/effort` 後按送出 → 面板卡片有分段控制(#83);點層級送方向鍵，按「confirm」後卡片消失(#34)。
     @MainActor
     func testEffortPanelCard() {
         let app = XCUIApplication.launchUITesting()
@@ -122,6 +126,8 @@ final class SlashMenuUITests: XCTestCase {
         let row = element("slash.row.effort", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
+        XCTAssertEqual(text.value as? String, "/effort ")
+        element("composer.send", in: app).tap()
 
         let card = element("panel.card", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: 10), "送出 /effort 後沒有出現面板卡片")
