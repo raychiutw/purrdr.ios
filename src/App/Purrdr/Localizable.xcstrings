@@ -1604,6 +1604,17 @@
         }
       }
     },
+    "Connected · herdr %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已連線 · herdr %@"
+          }
+        }
+      }
+    },
     "Connected · herdr %@ · %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2040,6 +2051,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法在這台裝置上儲存這台主機。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t save this host’s device token on this device. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在這支裝置上儲存這台主機的裝置權杖。%@"
           }
         }
       }
@@ -3122,6 +3144,17 @@
         }
       }
     },
+    "K7QM-2XPA" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "K7QM-2XPA"
+          }
+        }
+      }
+    },
     "Keep Editing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3947,6 +3980,17 @@
         }
       }
     },
+    "On the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主機上執行 purrdr-host-service pair,再用「相機」App 掃描它顯示的 QR code,或輸入它顯示的位址與配對碼。HTTPS 不支援登入 Shell 與檔案。"
+          }
+        }
+      }
+    },
     "Online" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4152,6 +4196,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PC"
+          }
+        }
+      }
+    },
+    "Pairing Code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配對碼"
           }
         }
       }
@@ -4614,6 +4669,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 iPhone 或 iPad 上看、回覆、操作 herdr 在你主機上執行的 coding agent,也能開終端機進那台主機。"
+          }
+        }
+      }
+    },
+    "Read-only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀"
           }
         }
       }
@@ -5883,6 +5949,17 @@
         }
       }
     },
+    "The Purrdr host service on this host doesn’t match this version of Purrdr. Update Purrdr and the host service." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機上的 Purrdr 主機服務與這個版本的 Purrdr 不相容。請更新 Purrdr 與主機服務。"
+          }
+        }
+      }
+    },
     "The Tailscale sign-in wasn’t finished in time. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6059,6 +6136,17 @@
         }
       }
     },
+    "The herdr server on this host is too old for this. Update herdr and restart its server." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機上執行中的 herdr 版本太舊，不支援這項功能。請更新 herdr 並重新啟動它。"
+          }
+        }
+      }
+    },
     "The host couldn’t save the file." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6158,6 +6246,28 @@
         }
       }
     },
+    "The host doesn’t recognize this device anymore. Edit the host and pair again with a new pairing code." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機已經不認得這支裝置。請編輯主機，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "The host is reachable, but the Purrdr host service isn’t running. Start it on the host, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連得到主機，但 Purrdr 主機服務沒有在執行。請在主機上啟動它後再試一次。"
+          }
+        }
+      }
+    },
     "The host refused the connection. Check that Remote Login (SSH) is on and the port is right." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6187,6 +6297,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機把檔案存到了意外的位置。"
+          }
+        }
+      }
+    },
+    "The host service can’t reach herdr. Start herdr on the host, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務連不到 herdr。請在主機上啟動 herdr 後再試一次。"
+          }
+        }
+      }
+    },
+    "The host service sent a response Purrdr doesn’t understand. Update Purrdr and the host service." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務回傳了 Purrdr 看不懂的回應。請更新 Purrdr 與主機服務。"
           }
         }
       }
@@ -6433,6 +6565,39 @@
         }
       }
     },
+    "This device is paired read-only, so it can’t send anything to this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置以唯讀方式配對，不能對這台主機送出任何內容。"
+          }
+        }
+      }
+    },
+    "This device isn’t paired with this host. Edit the host and pair again with a new pairing code." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置還沒和這台主機完成連線配對。請編輯主機，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "This device’s access was revoked on the host. Edit the host and pair again with a new pairing code." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置的裝置權杖已在主機上撤銷。請編輯主機，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
     "This file name can’t be used on the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6620,6 +6785,17 @@
         }
       }
     },
+    "This isn’t available over HTTPS yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTPS 連線方式目前還不能用這項功能。"
+          }
+        }
+      }
+    },
     "This key is incomplete or damaged. Paste the whole file again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6671,6 +6847,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上的這則註記已經變了，改為顯示最新的。"
+          }
+        }
+      }
+    },
+    "This pairing code expired. Run the pair command on the host again for a new code." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個配對碼已過期。請在主機上再執行一次配對指令，取得新的配對碼。"
+          }
+        }
+      }
+    },
+    "This pairing code isn’t valid or was already used. Run the pair command on the host again for a new code." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個配對碼不正確或已經用過。請在主機上再執行一次配對指令，取得新的配對碼。"
           }
         }
       }
@@ -7858,6 +8056,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false,
       "localizations" : {}
+    },
+    "my-mac.tailnet.ts.net" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "my-mac.tailnet.ts.net"
+          }
+        }
+      }
     },
     "the user Purrdr signs in as" : {
       "extractionState" : "manual",

@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrHTTPS
 import PurrdrSSH
 
 public struct HostRow: Identifiable, Equatable, Sendable {
@@ -88,6 +89,8 @@ public final class HostsModel {
     private let demoCompanions: [DemoCompanionHost]
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     private let credentials: HostCredentials
+    /// HTTPS 主機的裝置權杖、連線配對與主機連線(ADR-0010)。
+    private let hostService: HostServiceAccess
     private let conversationCache: any ConversationCache
     private let preferences: any HostChatPreferencesStore
     private let hostIcons: any HostIconStore
@@ -95,6 +98,8 @@ public final class HostsModel {
     private var icons: [UUID: HostIcon] = [:]
     /// 已建立的主機通道(以主機 id)。
     private var channels: [UUID: any HostChannel] = [:]
+    /// 已建立的 HTTPS 主機連線(以主機 id)。
+    private var hostServiceConnections: [UUID: any HostConnection] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
     private var members: [HostSelection: HostMember] = [:]
     /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
@@ -126,6 +131,7 @@ public final class HostsModel {
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
+        hostService: HostServiceAccess = HostServiceAccess(),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
@@ -140,6 +146,7 @@ public final class HostsModel {
         self.demoCompanions = demoCompanions
         self.makeChannel = makeChannel
         self.credentials = credentials
+        self.hostService = hostService
         self.conversationCache = conversationCache
         self.preferences = preferences
         self.hostIcons = hostIcons
@@ -171,6 +178,9 @@ public final class HostsModel {
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
         PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
     }
+
+    /// 選取中主機有沒有登入 Shell 與檔案(HTTPS 連線方式沒有，ADR-0010)。
+    public var selectedHostSupportsShell: Bool { selectedHost?.connectionMethod != .https }
 
     /// 選取中主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
     public func loginShell() -> LoginShellModel {
@@ -227,7 +237,7 @@ public final class HostsModel {
         hosts.map { host in
             HostRow(
                 id: host.id, title: host.name,
-                subtitle: "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
+                subtitle: host.hostService?.description ?? "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
                 session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id))
         }
     }
@@ -353,18 +363,28 @@ public final class HostsModel {
         let removed = hosts.first { $0.id == id }
         // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
         let secret = try? credentials.secrets.secret(for: id)
+        let deviceToken = try? hostService.tokens.deviceToken(for: id)
         try credentials.secrets.setSecret(nil, for: id)
+        try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        if let removed { forgetPush(of: removed, secret: secret) }
+        if let removed {
+            if let address = removed.hostService {
+                revokeDeviceToken(deviceToken, at: address)
+            } else {
+                forgetPush(of: removed, secret: secret)
+            }
+        }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
         let channel = channels.removeValue(forKey: id)
+        let connection = hostServiceConnections.removeValue(forKey: id)
         members[.host(id)] = nil
         preferences.removeAll(for: .host(id))
         hostIcons.setIcon(nil, for: id)
         if selection == .host(id) { select(validSelection(nil)) } else { rebuildMembers() }
         await conversationCache.removeAll(chatKeyPrefix: HostScopedConversationCache.prefix(scope: HostSelection.host(id).storedValue))
         await channel?.disconnect()
+        await connection?.disconnect()
     }
 
     /// 主機的分享連結(QR code 內容)。不含任何祕密。
@@ -393,12 +413,20 @@ public final class HostsModel {
 
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。
     public func makeEditor(editing: HostConfiguration? = nil) -> HostEditorModel {
-        HostEditorModel(store: store, editing: editing, credentials: credentials, makeChannel: makeChannel)
+        HostEditorModel(store: store, editing: editing, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
     }
 
-    /// 從主機分享連結匯入：帶入欄位的新增主機編輯器。連結不合法時丟 `HostShareLinkError`。
+    /// 從主機分享連結或主機配對指令的 QR code(`purrdr://pair?…`)新增主機：帶入欄位的編輯器。
+    /// 連結不合法時丟 `HostShareLinkError` 或 `HostServicePairingLinkError`。
     public func makeImportEditor(_ url: URL) throws -> HostEditorModel {
-        HostEditorModel(store: store, importing: try HostShareLink.decode(url), credentials: credentials, makeChannel: makeChannel)
+        if HostServicePairingLink.isPairingLink(url) {
+            return HostEditorModel(
+                store: store, pairing: try HostServicePairingLink(url: url), credentials: credentials, hostService: hostService,
+                makeChannel: makeChannel)
+        }
+        return HostEditorModel(
+            store: store, importing: try HostShareLink.decode(url), credentials: credentials, hostService: hostService,
+            makeChannel: makeChannel)
     }
 
     // MARK: - 連線韌性(行為規格 §7.4、§7.5)
@@ -411,9 +439,11 @@ public final class HostsModel {
         defer { networkPath = signature }
         guard let previous = networkPath, previous != signature else { return nil }
         let dropped = Array(channels.values) + [demoChannel]
+        let droppedConnections = Array(hostServiceConnections.values)
         let agentList = agentList
         return Task {
             for channel in dropped { await channel.disconnect() }
+            for connection in droppedConnections { await connection.disconnect() }
             agentList.retryNow()
         }
     }
@@ -495,10 +525,30 @@ public final class HostsModel {
         case .demo: nil
         case .host(let id): hosts.first { $0.id == id }
         }
+        if let configuration, let address = configuration.hostService {
+            return HostMember(
+                host: host, configuration: configuration, channel: HostServiceOnlyChannel(),
+                connection: hostServiceConnection(for: configuration, address: address), preferences: preferences.store(for: host),
+                push: nil, consent: hostConsent)
+        }
         return HostMember(
             host: host, configuration: configuration, channel: configuration.map(channel(for:)) ?? demoChannel,
             preferences: preferences.store(for: host), push: pushService,
             consent: configuration == nil ? demoConsent : hostConsent)
+    }
+
+    private func hostServiceConnection(for host: HostConfiguration, address: HostServiceAddress) -> any HostConnection {
+        if let connection = hostServiceConnections[host.id] { return connection }
+        let connection = hostService.connection(for: host, address: address)
+        hostServiceConnections[host.id] = connection
+        return connection
+    }
+
+    /// 刪除 HTTPS 主機：不等待地請主機服務撤銷這支裝置的權杖(主機離線時留在主機上，可在主機上撤銷)。
+    private func revokeDeviceToken(_ token: String?, at address: HostServiceAddress) {
+        guard let token else { return }
+        let pairing = hostService.pairing
+        Task { try? await pairing.revoke(address: address, deviceToken: token) }
     }
 
     private func channel(for host: HostConfiguration) -> any HostChannel {
@@ -535,8 +585,13 @@ public final class HostsModel {
     }
 
     private func dropChannel(of id: UUID) {
-        guard let channel = channels.removeValue(forKey: id) else { return }
-        Task { await channel.disconnect() }
+        let channel = channels.removeValue(forKey: id)
+        let connection = hostServiceConnections.removeValue(forKey: id)
+        guard channel != nil || connection != nil else { return }
+        Task {
+            await channel?.disconnect()
+            await connection?.disconnect()
+        }
     }
 }
 
@@ -562,14 +617,15 @@ final class HostMember {
     /// 這台主機有沒有 `gzip`(檔案上傳的 gzip 傳輸，#76)。
     let gzipAvailability = HostGzipAvailability()
 
+    /// - Parameter connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
     init(
-        host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, preferences: any ChatPreferencesStore,
-        push pushService: PushService?, consent: any HostWriteConsentStore
+        host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
+        preferences: any ChatPreferencesStore, push pushService: PushService?, consent: any HostWriteConsentStore
     ) {
         self.host = host
         self.channel = channel
         let herdr = configuration?.herdr ?? HerdrInstallation()
-        let connection = SSHHostConnection(channel: channel, herdr: herdr)
+        let connection = connection ?? SSHHostConnection(channel: channel, herdr: herdr)
         client = HerdrClient(connection: connection)
         transcripts = TranscriptReader(connection: connection)
         terminals = PaneTerminalClient(connection: connection)

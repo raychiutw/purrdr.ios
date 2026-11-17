@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrHTTPS
 import PurrdrSSH
 
 /// 主機的儲存。正式實作是 `KeychainHostStore`(主機設定與 pin 存 Keychain,僅本裝置、解鎖後)。
@@ -35,7 +36,17 @@ public final class HostEditorModel {
         /// herdr 已更新，但執行中的伺服器還是舊版(Windows 沒有 live handoff):請使用者在主機上重啟伺服器再測試。
         case restartServerRequired
         case tested(HostProbeReport)
+        /// HTTPS 主機：配對(或用存著的權杖)後連上主機服務。
+        case connected(HostServiceCheck)
         case failed(String)
+    }
+
+    /// HTTPS 主機的連線測試結果。
+    public struct HostServiceCheck: Equatable, Sendable {
+        public var herdrVersion: String
+        public var agentCount: Int
+        /// 這次配對成唯讀;用存著的權杖測試時不知道(`nil`)。
+        public var readOnly: Bool?
     }
 
     /// 匯入私鑰的檢查結果。
@@ -63,6 +74,8 @@ public final class HostEditorModel {
     public var password = ""
     /// 貼上的 OpenSSH 私鑰。編輯既有主機時留空 = 保留原本的金鑰。
     public var privateKeyText = ""
+    /// HTTPS 主機的配對碼(主機配對指令顯示的)。編輯已配對的主機時留空 = 沿用存著的裝置權杖。
+    public var pairingCode = ""
     public private(set) var phase: Phase = .editing
     /// 這支裝置的公鑰(含註解),`loadDeviceKey()` 之後才有。
     public private(set) var devicePublicKey: SSHPublicKey?
@@ -75,25 +88,30 @@ public final class HostEditorModel {
     private let store: any HostStore
     private let existing: HostConfiguration?
     private let credentials: HostCredentials
+    private let hostService: HostServiceAccess
+    /// 這次編輯中配對拿到的權杖(配對碼只能用一次，再測沿用)。
+    private var paired: (address: HostServiceAddress, code: String, device: PairedDevice)?
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     /// 最近一次檢查的私鑰輸入與結果。
     private var checked: (input: HostSecret, result: KeyCheck)?
     /// 這次編輯中使用者確認過的指紋，以及它屬於哪個端點。
     private var accepted: (fingerprint: HostKeyFingerprint, endpoint: SSHEndpoint)?
-    private var tested: (draft: Draft, report: HostProbeReport)?
+    private var tested: (draft: Draft, operatingSystem: HostOperatingSystem?)?
     private var attempt = 0
 
     public init(
         store: any HostStore, editing: HostConfiguration? = nil, credentials: HostCredentials = HostCredentials(),
+        hostService: HostServiceAccess = HostServiceAccess(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
         existing = editing
         self.credentials = credentials
+        self.hostService = hostService
         self.makeChannel = makeChannel
         if let editing {
             name = editing.name
-            address = editing.endpoint.host
+            address = editing.hostService?.description ?? editing.endpoint.host
             port = String(editing.endpoint.port)
             username = editing.endpoint.username
             herdrPath = editing.herdr.path == "herdr" ? "" : editing.herdr.path
@@ -107,9 +125,10 @@ public final class HostEditorModel {
     /// 所以連線測試只接受那一把 key(主機出示別的 key 時一樣阻擋);仍要測試通過才能儲存。
     public convenience init(
         store: any HostStore, importing shared: SharedHost, credentials: HostCredentials = HostCredentials(),
+        hostService: HostServiceAccess = HostServiceAccess(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
-        self.init(store: store, editing: nil, credentials: credentials, makeChannel: makeChannel)
+        self.init(store: store, editing: nil, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
         name = shared.name
         address = shared.endpoint.host
         port = String(shared.endpoint.port)
@@ -120,19 +139,35 @@ public final class HostEditorModel {
         if let pin = shared.hostKeyPin { accepted = (pin, shared.endpoint) }
     }
 
+    /// 從主機配對指令的 QR code(`purrdr://pair?…`)新增 HTTPS 主機：帶入位址與配對碼，名稱預設是主機名稱的第一段。
+    public convenience init(
+        store: any HostStore, pairing link: HostServicePairingLink, credentials: HostCredentials = HostCredentials(),
+        hostService: HostServiceAccess = HostServiceAccess(),
+        makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
+    ) {
+        self.init(store: store, editing: nil, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+        connectionMethod = .https
+        address = link.address.description
+        pairingCode = link.pairingCode
+        name = link.address.hostName.split(separator: ".").first.map(String.init) ?? link.address.hostName
+    }
+
     // MARK: - 狀態
 
     public var canTest: Bool { draft != nil && phase != .testing && phase != .updating }
 
     /// 最近一次測試成功，而且之後沒有改過任何欄位。
     public var canSave: Bool {
-        guard let tested, case .tested = phase else { return false }
-        return tested.draft == draft
+        guard let tested else { return false }
+        switch phase {
+        case .tested, .connected: return tested.draft == draft
+        default: return false
+        }
     }
 
     /// 有沒有未儲存的變更(按取消時要確認放棄)。
     public var hasChanges: Bool {
-        let secretsEntered = !(password.isEmpty && privateKeyText.isEmpty)
+        let secretsEntered = !(password.isEmpty && privateKeyText.isEmpty && pairingCode.isEmpty)
         guard let existing else {
             return secretsEntered || !(name.isEmpty && address.isEmpty && username.isEmpty && herdrPath.isEmpty && herdrSession.isEmpty)
         }
@@ -160,6 +195,7 @@ public final class HostEditorModel {
     /// 連線測試：主機 OS、herdr 版本、snapshot、agent 整合。
     public func test() async {
         guard let draft else { return }
+        if let address = draft.hostService { return await testHostService(draft, address: address) }
         attempt += 1
         let current = attempt
         phase = .testing
@@ -176,7 +212,7 @@ public final class HostEditorModel {
         guard current == attempt else { return }
         switch result {
         case .success(let report):
-            tested = (Draft(draft, pin: pin), report)
+            tested = (Draft(draft, pin: pin), report.operatingSystem)
             phase = .tested(report)
         case .failure(SSHConnectionError.hostKeyUnverified(let presented)):
             phase = .confirmHostKey(presented)
@@ -187,6 +223,49 @@ public final class HostEditorModel {
         case .failure(let error):
             phase = .failed(HostErrorText.message(for: error, connection: draft.connectionMethod, authentication: draft.authentication))
         }
+    }
+
+    /// HTTPS 主機：有配對碼就先配對換權杖(同一個配對碼只換一次),沒有就用存著的權杖;再連上主機服務讀一次 Agent 列表。
+    private func testHostService(_ draft: Draft, address: HostServiceAddress) async {
+        attempt += 1
+        let current = attempt
+        phase = .testing
+        let result: Result<HostServiceCheck, any Error>
+        do {
+            let (token, readOnly) = try await deviceToken(for: draft, address: address)
+            let connection = hostService.makeConnection(address) { token }
+            let snapshot: HostSnapshot
+            do {
+                snapshot = try await HerdrClient(connection: connection).snapshot()
+                await connection.disconnect()
+            } catch {
+                await connection.disconnect()
+                throw error
+            }
+            result = .success(HostServiceCheck(herdrVersion: snapshot.version, agentCount: snapshot.agents.count, readOnly: readOnly))
+        } catch {
+            result = .failure(error)
+        }
+        guard current == attempt else { return }
+        switch result {
+        case .success(let check):
+            tested = (draft, nil)
+            phase = .connected(check)
+        case .failure(let error):
+            phase = .failed(HostErrorText.message(for: error, connection: .https))
+        }
+    }
+
+    /// 測試用的權杖：這次的配對碼換得的，或已存主機的。
+    private func deviceToken(for draft: Draft, address: HostServiceAddress) async throws -> (String, Bool?) {
+        guard let code = draft.pairingCode else {
+            guard let existing, let token = try hostService.tokens.deviceToken(for: existing.id) else { throw HostServiceError.notPaired }
+            return (token, nil)
+        }
+        if let paired, paired.address == address, paired.code == code { return (paired.device.deviceToken, paired.device.readOnly) }
+        let device = try await hostService.pairing.pair(address: address, pairingCode: code, deviceName: hostService.deviceName)
+        paired = (address, code, device)
+        return (device.deviceToken, device.readOnly)
     }
 
     /// 檢查貼上的私鑰(格式、種類、有沒有 passphrase)。在背景做，不卡住打字。
@@ -275,9 +354,10 @@ public final class HostEditorModel {
     public func save() -> HostConfiguration? {
         guard canSave, let tested else { return nil }
         let draft = tested.draft
+        if let address = draft.hostService { return saveHostService(draft, address: address) }
         let host = HostConfiguration(
             id: existing?.id ?? UUID(), name: draft.name, endpoint: draft.endpoint, connectionMethod: draft.connectionMethod,
-            authentication: draft.authentication, herdr: draft.herdr, operatingSystem: tested.report.operatingSystem,
+            authentication: draft.authentication, herdr: draft.herdr, operatingSystem: tested.operatingSystem,
             hostKeyPin: draft.pin)
         let wroteSecret: Bool
         do {
@@ -305,6 +385,33 @@ public final class HostEditorModel {
         }
     }
 
+    /// HTTPS 主機：新配對的權杖先寫(寫不進 Keychain 就什麼都不存),再存主機設定;SSH 的祕密不再需要，刪掉。
+    private func saveHostService(_ draft: Draft, address: HostServiceAddress) -> HostConfiguration? {
+        let host = HostConfiguration(id: existing?.id ?? UUID(), name: draft.name, hostService: address)
+        let newToken = draft.pairingCode == nil ? nil : paired?.device.deviceToken
+        let previousToken = try? hostService.tokens.deviceToken(for: host.id)
+        do {
+            if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
+            if existing != nil { try credentials.secrets.setSecret(nil, for: host.id) }
+        } catch {
+            phase = .failed(String(localized: "Couldn’t save this host’s device token on this device. \(error.localizedDescription)"))
+            return nil
+        }
+        do {
+            try store.save(host)
+        } catch {
+            if newToken != nil { try? hostService.tokens.setDeviceToken(previousToken, for: host.id) }
+            phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
+            return nil
+        }
+        // 重新配對換了權杖：舊的請主機撤銷(失敗也不影響，舊權杖可在主機上撤銷)。
+        if let newToken, let previousToken, previousToken != newToken, let previousAddress = existing?.hostService {
+            let pairing = hostService.pairing
+            Task { try? await pairing.revoke(address: previousAddress, deviceToken: previousToken) }
+        }
+        return host
+    }
+
     // MARK: - 內部
 
     private struct Draft: Equatable {
@@ -316,6 +423,9 @@ public final class HostEditorModel {
         /// 這次輸入的祕密;`nil` = 不需要或沿用已存的。
         var secret: HostSecret?
         var pin: HostKeyFingerprint?
+        /// HTTPS 主機的主機服務位址與配對碼(`nil` = 沿用存著的權杖)。
+        var hostService: HostServiceAddress?
+        var pairingCode: String?
 
         init(_ draft: Draft, pin: HostKeyFingerprint?) {
             self = draft
@@ -372,6 +482,7 @@ public final class HostEditorModel {
     }
 
     private var draft: Draft? {
+        if connectionMethod == .https { return hostServiceDraft }
         let name = name.trimmingCharacters(in: .whitespaces)
         let address = address.trimmingCharacters(in: .whitespaces)
         let username = username.trimmingCharacters(in: .whitespaces)
@@ -382,6 +493,20 @@ public final class HostEditorModel {
             herdr: HerdrInstallation(path: herdrPath, session: herdrSession), connectionMethod: connectionMethod,
             authentication: selectedAuthentication, secret: enteredSecret)
         return Draft(base, pin: pin(for: base))
+    }
+
+    /// HTTPS 主機：名稱、https 位址，以及配對碼(已存的 HTTPS 主機可以不填，沿用存著的權杖)。
+    private var hostServiceDraft: Draft? {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        let code = pairingCode.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, let address = HostServiceAddress(address) else { return nil }
+        guard !code.isEmpty || existing?.connectionMethod == .https else { return nil }
+        let host = HostConfiguration(name: name, hostService: address)
+        var draft = Draft(
+            name: name, endpoint: host.endpoint, herdr: HerdrInstallation(), connectionMethod: .https, authentication: nil, secret: nil)
+        draft.hostService = address
+        draft.pairingCode = code.isEmpty ? nil : code
+        return draft
     }
 
     /// 只有主機或埠改變(或新主機)才重設 pin;改名稱、使用者、herdr 設定不重設(行為規格 §8.2)。

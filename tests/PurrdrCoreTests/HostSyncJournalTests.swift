@@ -30,6 +30,15 @@ struct HostSyncJournalTests {
         #expect(changes == [.upsert(Self.remote(at: Self.t1))])
     }
 
+    @Test("HTTPS 主機還不上傳(主機同步支援 HTTPS 前，避免被當成 Tailscale SSH 主機)")
+    func httpsHostIsNotPending() throws {
+        var journal = HostSyncJournal()
+        let https = HostConfiguration(name: "Studio Mac", hostService: try #require(HostServiceAddress("studio.tail1234.ts.net")))
+        journal.recordSave(https.id, at: Self.t1)
+
+        #expect(journal.pendingChanges(hosts: [https], now: Self.t3).isEmpty)
+    }
+
     @Test("後台確認之後就不再上傳")
     func confirmedHostIsNotPending() {
         var journal = HostSyncJournal()

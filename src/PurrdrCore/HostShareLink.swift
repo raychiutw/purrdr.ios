@@ -77,7 +77,8 @@ public enum HostShareLink {
         guard !name.isEmpty, !host.isEmpty, !user.isEmpty, (1...65_535).contains(wire.port) else { throw HostShareLinkError.malformed }
         let method: HostConfiguration.ConnectionMethod
         if let raw = wire.method {
-            guard let known = HostConfiguration.ConnectionMethod(rawValue: raw) else { throw HostShareLinkError.malformed }
+            // HTTPS 主機的匯出匯入還沒支援(#63)。
+            guard let known = HostConfiguration.ConnectionMethod(rawValue: raw), known != .https else { throw HostShareLinkError.malformed }
             method = known
         } else {
             method = .tailscaleSSH

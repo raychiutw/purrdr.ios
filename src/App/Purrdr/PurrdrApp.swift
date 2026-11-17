@@ -68,7 +68,9 @@ struct PurrdrApp: App {
                 demoCompanions: arguments.contains("-demoCompanions") ? Self.demoCompanions(demo) : [],
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: InMemoryHostSelectionStore(arguments.contains("-selectDemo") ? .demo : nil),
-                hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials, push: push, tailscaleCheck: tailscaleCheck,
+                hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials,
+                // HTTPS 主機：配對不連網路，連線是 Demo 主機。
+                hostService: .uiTesting(channel: demo), push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
                 // 滑動提示每次啟動都顯示(只在記憶體)。
@@ -85,6 +87,10 @@ struct PurrdrApp: App {
                 store: KeychainHostStore(), demoChannel: demo, demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
+                // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。
+                hostService: .system(
+                    deviceName: UIDevice.current.model,
+                    appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
                 push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
                 listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in

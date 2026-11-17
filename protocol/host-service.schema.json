@@ -2,14 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://purrdr.app/protocol/host-service.schema.json",
   "title": "Purrdr 主機服務協定",
-  "description": "app 與主機服務之間 WSS 上的 JSON 訊息(ADR-0010)。這份檔案是唯一定義:Rust 與 Swift 型別都由它產生(host-service/codegen)。解碼端一律忽略未知欄位。",
+  "description": "app 與主機服務之間的 JSON 訊息(ADR-0010):WSS 上的訊息，以及連線配對與撤銷的 HTTPS 請求本文。這份檔案是唯一定義:Rust 與 Swift 型別都由它產生(host-service/codegen)。解碼端一律忽略未知欄位。WSS 與 POST /v1/revoke 都以 Authorization: Bearer <裝置權杖> 認證。",
   "x-protocol-version": 1,
   "$defs": {
     "ClientMessage": {
-      "description": "app 送給主機服務的訊息，以 type 區分。",
+      "description": "app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。",
       "oneOf": [
         { "$ref": "#/$defs/Hello" },
-        { "$ref": "#/$defs/AgentsList" }
+        { "$ref": "#/$defs/AgentsList" },
+        { "$ref": "#/$defs/PaneSendKeys" }
       ]
     },
     "ServerMessage": {
@@ -17,6 +18,7 @@
       "oneOf": [
         { "$ref": "#/$defs/Welcome" },
         { "$ref": "#/$defs/AgentsListResult" },
+        { "$ref": "#/$defs/PaneSendKeysResult" },
         { "$ref": "#/$defs/ErrorMessage" }
       ]
     },
@@ -116,8 +118,48 @@
       },
       "required": ["source", "agent", "kind", "value"]
     },
+    "PaneSendKeys": {
+      "description": "對 Pane 送出按鍵(herdr pane.send_keys)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.send_keys" },
+        "request_id": { "type": "string" },
+        "pane_id": { "type": "string" },
+        "keys": { "type": "array", "items": { "type": "string" }, "description": "herdr 鍵名，例如 enter、esc、ctrl+c。" }
+      },
+      "required": ["type", "request_id", "pane_id", "keys"]
+    },
+    "PaneSendKeysResult": {
+      "description": "按鍵已送到 Pane。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.send_keys.result" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "PairRequest": {
+      "description": "POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。",
+      "type": "object",
+      "properties": {
+        "pairing_code": { "type": "string", "description": "大小寫與連字號不拘，例如 K7QM-2XPA。" },
+        "device_name": { "type": "string", "description": "顯示在主機裝置列表的名稱。" }
+      },
+      "required": ["pairing_code", "device_name"]
+    },
+    "PairResponse": {
+      "description": "配對成功。device_token 只在這裡出現一次，主機只存雜湊。",
+      "type": "object",
+      "properties": {
+        "device_id": { "type": "string" },
+        "device_token": { "type": "string" },
+        "read_only": { "type": "boolean", "description": "唯讀裝置的寫入類操作會被拒絕(read_only_device)。" }
+      },
+      "required": ["device_id", "device_token", "read_only"]
+    },
     "ErrorMessage": {
-      "description": "請求失敗。訊息本身無法解析時沒有 request_id。",
+      "description": "請求失敗(WSS 訊息，也是配對與撤銷 HTTPS 請求失敗時的本文)。訊息本身無法解析時沒有 request_id。",
       "type": "object",
       "properties": {
         "type": { "const": "error" },
@@ -134,7 +176,7 @@
       "required": ["type", "code", "message"]
     },
     "ErrorCode": {
-      "description": "錯誤種類。",
+      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。",
       "type": "string",
       "enum": [
         "invalid_message",
@@ -142,7 +184,13 @@
         "protocol_version_unsupported",
         "herdr_unavailable",
         "herdr_capability_missing",
-        "herdr_error"
+        "herdr_error",
+        "device_token_invalid",
+        "device_token_revoked",
+        "read_only_device",
+        "pairing_code_invalid",
+        "pairing_code_expired",
+        "internal_error"
       ]
     }
   }
