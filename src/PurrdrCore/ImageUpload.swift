@@ -46,7 +46,7 @@ public enum ImageUploadError: Error, Equatable {
 /// - 成功後刪掉上傳資料夾裡 7 天(10,080 分鐘)前的檔案(含中斷留下的暫存檔),印出絕對路徑。
 /// - 腳本不含反斜線(fish 在單引號內仍處理 `\`)、不明確 `exit 0`(行為規格 §3.2)。
 public enum ImageUploadCommand {
-    static let script = """
+    static let script = HostScriptTimeLimit.posixUpload("""
         PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH
         LC_ALL=C
         export PATH LC_ALL
@@ -71,7 +71,7 @@ public enum ImageUploadCommand {
         find "$d" -type f -mmin +10080 -exec rm -f {} + 2> /dev/null
         printf '%s/%s
         ' "$d" "$name"
-        """
+        """, transferSizeParameter: 2)
 
     public static func posix(name: UploadFileName, size: Int) -> String {
         ["/bin/sh", "-c", PosixShell.quote(script), "purrdr-upload", PosixShell.quote(name.value), PosixShell.quote(String(size))].joined(separator: " ")

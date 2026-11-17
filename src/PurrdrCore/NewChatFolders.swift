@@ -70,7 +70,7 @@ public struct NewChatFolders: Sendable {
     static let notFoundExitCode: Int32 = 66
     private static let tag = "purrdr-dirs"
 
-    static let script = """
+    static let script = HostScriptTimeLimit.posixRead("""
         PATH=/usr/bin:/bin:$PATH
         export PATH
         nl='
@@ -86,7 +86,7 @@ public struct NewChatFolders: Sendable {
         for f in *; do
           if [ -d "$f" ]; then printf '%s%s' "$f" "$nl"; fi
         done
-        """
+        """)
 
     /// 列出某個路徑的指令(`""` = 家目錄)。
     public static func command(for path: String) -> String {

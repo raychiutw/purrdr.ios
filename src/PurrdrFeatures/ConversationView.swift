@@ -16,8 +16,7 @@ public struct ConversationView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scroll = ConversationScroll()
     @State private var position = ScrollPosition(edge: .bottom)
-    @State private var userIsScrolling = false
-    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
+    @State private var userIsScrolling = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
     @State private var viewerImage: ViewerImage?
@@ -145,12 +144,13 @@ public struct ConversationView: View {
             userIsScrolling = phase == .interacting || phase == .tracking || phase == .decelerating
             if phase == .interacting { userHasDragged = true }
         }
-        .onScrollGeometryChange(for: ScrollMetrics.self) { geometry in
-            ScrollMetrics(
-                distanceFromBottom: geometry.contentSize.height + geometry.contentInsets.bottom
-                    - geometry.containerSize.height - geometry.contentOffset.y,
-                distanceFromTop: geometry.contentOffset.y + geometry.contentInsets.top,
-                viewportHeight: geometry.containerSize.height
+        .onScrollGeometryChange(for: ConversationScrollMetrics.self) { geometry in
+            ConversationScrollMetrics(
+                contentHeight: geometry.contentSize.height,
+                containerHeight: geometry.containerSize.height,
+                contentOffsetY: geometry.contentOffset.y,
+                topInset: geometry.contentInsets.top,
+                bottomInset: geometry.contentInsets.bottom
             )
         } action: { _, metrics in
             if userIsScrolling {
@@ -159,7 +159,7 @@ public struct ConversationView: View {
                 scroll.layoutChanged(distanceFromBottom: metrics.distanceFromBottom)
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
-            if userHasDragged, metrics.distanceFromTop <= metrics.viewportHeight, model.older == .available {
+            if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
                 Task { await model.loadOlder() }
             }
         }
@@ -193,8 +193,7 @@ public struct ConversationView: View {
                 }
                 .buttonStyle(.glass)
                 .padding()
-                .accessibilityIdentifier("conversation.jumpToLatest")
-            }
+                .accessibilityIdentifier("conversation.jumpToLatest")            }
         }
     }
 
@@ -325,12 +324,6 @@ private struct HeaderActionButton: View {
             .accessibilityIdentifier("conversation.stop")
         }
     }
-}
-
-private struct ScrollMetrics: Equatable {
-    var distanceFromBottom: Double
-    var distanceFromTop: Double
-    var viewportHeight: Double
 }
 
 extension ConversationModel.Banner {

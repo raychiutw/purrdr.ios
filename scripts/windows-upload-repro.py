@@ -1,6 +1,6 @@
 """Windows 主機上傳的回歸檢查(#76):經真正的 sshd 執行 app 實際送出的上傳指令與 stdin stub。
 
-從 `src/PurrdrCore/WindowsScripts.swift`、`WindowsHostChannel.swift` 取出腳本，照 `WindowsScripts.upload`
+從 `src/PurrdrCore/WindowsScripts.swift`、`WindowsHostChannel.swift`(常數另讀 `HostScriptTimeLimit.swift`)取出腳本，照 `WindowsScripts.upload`
 (stub 照 `WindowsCommand.viaStdin`)組成 `powershell.exe … -EncodedCommand`,經 `ssh` 執行並把 bytes 寫進 stdin。
 期限內 exit 0、輸出正確、主機檔案 SHA-256 與原檔相同為綠;逾時(卡住)或其他結果為紅。
 
@@ -10,12 +10,14 @@ kind(各跑每個大小):
   gzip    檔案上傳，gzip 傳輸;另加傳輸／原始大小不符(exit 75、不留檔)與
           「傳到一半時已收到的 bytes 已寫到磁碟」(不整個放進記憶體)
   stub    唯讀腳本的 stdin stub:送指定大小的腳本，讀到結束標記就執行
-每個 kind 另跑 100 bytes 的「沒有 `_handle` 欄位」模擬(換掉欄位名，應退回直接讀 console stream)。
+  limit   自我時限(#92,時限換短，見 `SHORT_LIMITS`):stub 只收到一半腳本、腳本本體卡住、圖片／檔案上傳只送一半，
+          都要以 exit 124 結束、程序樹不留程序、上傳不留暫存檔(需要主機預設 shell 是 Git Bash,以 `/proc/$$/winpid` 找根)
+上傳與 stub 的 kind 另跑 100 bytes 的「沒有 `_handle` 欄位」模擬(換掉欄位名，應退回直接讀 console stream)。
 shell:`bash` 直接執行(主機預設 shell,這台是 Git Bash);`cmd` 包成 `cmd.exe //c '<指令>'`,模擬預設 shell 是 cmd。
 
 用法:
   PURRDR_WINDOWS_HOST=user@host[:port] PURRDR_WINDOWS_KEY=<私鑰> \
-    python -I scripts/windows-upload-repro.py [大小…] [--kind image|folder|gzip|stub|all] [--shell bash|cmd|all] [--timeout 秒]
+    python -I scripts/windows-upload-repro.py [大小…] [--kind image|folder|gzip|stub|limit|all] [--shell bash|cmd|all] [--timeout 秒]
   預設大小 100、300000、2500000,kind all,shell all。全部綠 exit 0。
 
 每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(圖片上傳以 `$env:USERPROFILE` 指過去，檔案上傳的目的資料夾也在裡面),
@@ -45,25 +47,33 @@ def swift_literal(source, name):
     return "\n".join(line[len(indent):] if line.startswith(indent) else line for line in body.split("\n"))
 
 
-def swift_string(source, name):
-    """`static let <name> = "…"`(一行、不含跳脫字元的一般字串)。"""
-    match = re.search(r'static let ' + name + r' = "([^"\\]*)"', source)
+INTERPOLATION = r"\\#?\((?:\w+\.)?(\w+)\)"
+
+
+def swift_string(source, name, overrides=None):
+    """`static let <name> = "…"`(一行、除了插值不含跳脫字元的一般字串)或整數常數;`overrides` 換掉常數值。"""
+    if overrides and name in overrides:
+        return overrides[name]
+    match = re.search(r'static let ' + name + r' = "((?:[^"\\]|' + INTERPOLATION + r')*)"', source)
+    if match:
+        return resolve(match.group(1), source, overrides)
+    match = re.search(r"static let " + name + r" = ([0-9_]+)\n", source)
     if not match:
         sys.exit(f"找不到 {name}")
-    return match.group(1)
+    return match.group(1).replace("_", "")
 
 
-def resolve(text, source):
-    """展開 `\\(X)`、`\\#(X)` 字串插值(X 是 `source` 裡的一行字串常數)。"""
-    return re.sub(r"\\#?\((?:\w+\.)?(\w+)\)", lambda match: swift_string(source, match.group(1)), text)
+def resolve(text, source, overrides=None):
+    """展開 `\\(X)`、`\\#(X)` 字串插值(X 是 `source` 裡的一行字串常數或整數常數)。"""
+    return re.sub(INTERPOLATION, lambda match: swift_string(source, match.group(1), overrides), text)
 
 
-def stdin_stub(source):
+def stdin_stub(source, overrides=None):
     """`WindowsCommand.stdinStub` 的腳本(插值已展開)。"""
     match = re.search(r'static let stdinStub = PowerShell\.encodedCommand\(\s*"(.*?)"\)\n', source, re.S)
     if not match:
         sys.exit("WindowsHostChannel.swift 找不到 stdinStub")
-    return resolve(match.group(1), source)
+    return resolve(match.group(1), source, overrides)
 
 
 def quote(text):
@@ -171,6 +181,128 @@ def on_disk_bytes(folder):
     return int(total) if total.isdigit() else 0
 
 
+def upload_script(source, kind, arguments, workspace, overrides=None):
+    """照 `WindowsScripts.upload` 組成上傳腳本;圖片上傳以 `$env:USERPROFILE` 指到 `workspace`。"""
+    prelude = swift_literal(source, "prelude")
+    receive = resolve(swift_literal(source, "receive"), source, overrides)
+    if kind == "image":
+        body = "$env:USERPROFILE=" + quote(workspace) + "\n" + resolve(swift_literal(source, "imageUpload"), source, overrides)
+    else:
+        body = resolve(swift_literal(source, "folderUpload"), source, overrides)
+    return "\n".join([prelude, "$a=@(" + ",".join(quote(v) for v in arguments) + ")", receive, body])
+
+
+# 程序樹：從根(Windows pid)往下找子孫，子程序的建立時間不早於父程序(避開重複使用的 pid)。
+TREE = r"""
+$p=@(Get-CimInstance Win32_Process);$k=@{};$r=@($p|?{$_.ProcessId -eq ROOT});if($r.Count){$k[[int]ROOT]=$r[0]}
+$q=New-Object Collections.Queue;$q.Enqueue([int]ROOT)
+while($q.Count){$c=$q.Dequeue();foreach($x in $p){$i=[int]$x.ProcessId;if($x.ParentProcessId -eq $c -and $i -ne $c -and -not $k.ContainsKey($i) -and (-not $k[$c] -or $x.CreationDate -ge $k[$c].CreationDate)){$k[$i]=$x;$q.Enqueue($i)}}}
+$k.Values|%{"$($_.ProcessId) $($_.Name) $($_.CreationDate.ToFileTimeUtc())"}
+"""
+
+
+def host_tree(root):
+    """主機上 `root` 與它所有子孫：[(pid, 名稱, 建立時間)]。"""
+    lines = run_powershell(TREE.replace("ROOT", str(int(root)))).splitlines()
+    return [tuple(line.split(" ")) for line in lines if line.count(" ") == 2]
+
+
+def still_running(processes):
+    """`processes` 裡還在的(pid 與建立時間都相同)。"""
+    if not processes:
+        return []
+    wanted = ",".join(f"'{pid} {created}'" for pid, _, created in processes)
+    alive = run_powershell("$w=@(" + wanted + ");Get-CimInstance Win32_Process|?{$w -contains \"$($_.ProcessId) $($_.CreationDate.ToFileTimeUtc())\"}"
+                           "|%{$_.ProcessId}").split()
+    return [process for process in processes if process[0] in alive]
+
+
+def stop_processes(processes):
+    """只結束 `processes` 裡還在的程序(以 pid 與建立時間確認是同一個)。"""
+    for pid, _, _ in still_running(processes):
+        run_powershell(f"Stop-Process -Id {int(pid)} -Force -ErrorAction SilentlyContinue")
+
+
+# 自我時限的案例把時限換短(秒;上傳的速度換大，時限就只剩固定的部分)。
+SHORT_LIMITS = {"stdinScriptSeconds": "4", "readSeconds": "6", "uploadBytesPerSecond": "1000000000"}
+LIMIT_CASES = {
+    "stub-partial": "stdin stub 只收到一半腳本(沒有結束標記)",
+    "stub-stuck": "stdin stub 收到完整腳本，腳本本體卡住",
+    "image-stall": "圖片上傳只送一半 bytes",
+    "folder-stall": "檔案上傳只送一半 bytes",
+}
+
+
+def run_limit_case(source, case, timeout, shell):
+    """卡住的 Windows 腳本要在時限內以 exit 124 結束，程序樹(以 Git Bash 的 `/proc/$$/winpid` 為根)不留下任何程序;
+    上傳另檢查暫存檔已刪掉。stdin 一直開著(不送 EOF),模擬 app 斷線但 channel 沒關。"""
+    workspace = run_powershell(
+        "$d=Join-Path $env:TEMP ('purrdr-repro-'+[Guid]::NewGuid().ToString('N'));"
+        "[void][IO.Directory]::CreateDirectory((Join-Path $d 'files'));[Console]::Out.Write($d)")
+    if not workspace:
+        return False, "建立主機暫存資料夾失敗"
+    end_marker = swift_string(source, "endOfScript")
+    limit = int(SHORT_LIMITS["readSeconds"])
+    if case in ("stub-partial", "stub-stuck"):
+        command_script = stdin_stub(source, SHORT_LIMITS)
+        if case == "stub-partial":
+            feed = stub_script(1000).encode()[:500]
+            limit = int(SHORT_LIMITS["stdinScriptSeconds"])
+        else:
+            feed = ("[Threading.Thread]::Sleep(-1)\n" + end_marker + "\n").encode()
+            limit += int(SHORT_LIMITS["stdinScriptSeconds"])
+        check_folder = None
+    else:
+        size = 300_000
+        name = uuid.uuid4().hex[:12] + (".jpg" if case == "image-stall" else ".bin")
+        if case == "image-stall":
+            arguments = [name, str(size)]
+            check_folder = workspace + "\\.purrdr\\uploads"
+        else:
+            check_folder = workspace + "\\files"
+            arguments = [check_folder, name, str(size), "identity", str(size)]
+        command_script = upload_script(source, case.split("-")[0], arguments, workspace, SHORT_LIMITS)
+        feed = os.urandom(size // 2)
+    remote = "cat /proc/$$/winpid >&2; " + (encoded(command_script) if shell == "bash" else "cmd.exe //c " + posix_quote(encoded(command_script)))
+    started = time.monotonic()
+    process = subprocess.Popen(ssh_argv(remote), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    processes = []
+    try:
+        root = process.stderr.readline().decode().strip()
+        if not root.isdigit():
+            return False, f"拿不到主機程序的 winpid({root!r});預設 shell 要是 Git Bash"
+        process.stdin.write(feed)
+        process.stdin.flush()
+        time.sleep(1.5)
+        processes = host_tree(root)
+        if not any(name.lower() == "powershell.exe" for _, name, _ in processes):
+            return False, f"程序樹裡沒有 powershell.exe:{processes}"
+        deadline = started + limit + timeout
+        while process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.2)
+        elapsed = time.monotonic() - started
+        if process.poll() is None:
+            return False, f"{elapsed:.1f}s 還沒結束(時限 {limit}s)"
+        processes = processes + [p for p in host_tree(root) if p not in processes]
+        time.sleep(0.5)
+        left = still_running(processes)
+        if left:
+            return False, f"{elapsed:.1f}s exit={process.returncode},主機還留著 {left}"
+        if process.returncode != 124:
+            return False, f"{elapsed:.1f}s exit={process.returncode}(預期 124)"
+        files = run_powershell("@(Get-ChildItem -LiteralPath " + quote(check_folder) + " -Force -ErrorAction SilentlyContinue).Count") if check_folder else "0"
+        if files not in ("", "0"):
+            return False, f"{elapsed:.1f}s exit 124,但上傳資料夾留下 {files} 個暫存檔"
+        return True, f"{elapsed:.1f}s exit 124(時限 {limit}s),程序樹 {len(processes)} 個程序都已結束"
+    finally:
+        if process.poll() is None:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)] if os.name == "nt" else ["kill", str(process.pid)],
+                           capture_output=True)
+        process.communicate()
+        stop_processes(processes)
+        run_powershell("Remove-Item -LiteralPath " + quote(workspace) + " -Recurse -Force -ErrorAction SilentlyContinue")
+
+
 def run_case(source, kind, size, timeout, shell, variant=None):
     """`variant`:
     - `transfer`／`original`:宣告的大小故意多 1,預期 exit 75、資料夾是空的。
@@ -183,7 +315,6 @@ def run_case(source, kind, size, timeout, shell, variant=None):
     if not workspace:
         return False, "建立主機暫存資料夾失敗"
     name = uuid.uuid4().hex[:12] + (".jpg" if kind == "image" else ".bin")
-    prelude, receive = swift_literal(source, "prelude"), resolve(swift_literal(source, "receive"), source)
     payload = compressible(size) if kind == "gzip" else os.urandom(size)
     sent = payload
     folder = workspace + "\\files"
@@ -194,7 +325,6 @@ def run_case(source, kind, size, timeout, shell, variant=None):
     else:
         if kind == "image":
             arguments = [name, str(size)]
-            body = "$env:USERPROFILE=" + quote(workspace) + "\n" + swift_literal(source, "imageUpload")
             expected_output = workspace + "\\.purrdr\\uploads\\" + name
         else:
             if kind == "gzip":
@@ -202,9 +332,8 @@ def run_case(source, kind, size, timeout, shell, variant=None):
             original_size = size + (1 if variant == "original" else 0)
             transfer_size = len(sent) + (1 if variant == "transfer" else 0)
             arguments = [folder, name, str(original_size), "gzip" if kind == "gzip" else "identity", str(transfer_size)]
-            body = swift_literal(source, "folderUpload")
             expected_output = folder + "\\" + name
-        command_script = "\n".join([prelude, "$a=@(" + ",".join(quote(v) for v in arguments) + ")", receive, body])
+        command_script = upload_script(source, kind, arguments, workspace)
     if variant == "no-handle":
         if "'_handle'" not in command_script:
             return False, "腳本裡沒有 '_handle',模擬不成立"
@@ -262,20 +391,21 @@ def run_case(source, kind, size, timeout, shell, variant=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("sizes", nargs="*", type=int, default=[100, 300_000, 2_500_000])
-    parser.add_argument("--kind", choices=["image", "folder", "gzip", "stub", "all"], default="all")
+    parser.add_argument("--kind", choices=["image", "folder", "gzip", "stub", "limit", "all"], default="all")
     parser.add_argument("--shell", choices=["bash", "cmd", "all"], default="all")
     parser.add_argument("--timeout", type=float, default=20)
     options = parser.parse_args()
     source = ""
-    for file_name in ("WindowsScripts.swift", "WindowsHostChannel.swift"):
+    for file_name in ("WindowsScripts.swift", "WindowsHostChannel.swift", "HostScriptTimeLimit.swift"):
         with open(os.path.join(REPO, "src", "PurrdrCore", file_name), encoding="utf-8") as file:
             source += file.read()
-    kinds = ["image", "folder", "gzip", "stub"] if options.kind == "all" else [options.kind]
+    kinds = ["image", "folder", "gzip", "stub", "limit"] if options.kind == "all" else [options.kind]
     shells = ["bash", "cmd"] if options.shell == "all" else [options.shell]
-    cases = [(kind, size, None) for kind in kinds for size in options.sizes]
+    upload_kinds = [kind for kind in kinds if kind != "limit"]
+    cases = [(kind, size, None) for kind in upload_kinds for size in options.sizes]
     if "gzip" in kinds:
         cases += [("gzip", max(options.sizes), variant) for variant in ("transfer", "original", "spool")]
-    cases += [(kind, 100, "no-handle") for kind in kinds]
+    cases += [(kind, 100, "no-handle") for kind in upload_kinds]
     all_green = True
     for shell in shells:
         for kind, size, variant in cases:
@@ -283,6 +413,11 @@ def main():
             all_green &= green
             label = f"{shell} {kind}" + (f"({variant})" if variant else "")
             print(f"{'GREEN' if green else 'RED  '} {label:24} {size:>9} bytes  {detail}", flush=True)
+        if "limit" in kinds:
+            for case in LIMIT_CASES:
+                green, detail = run_limit_case(source, case, options.timeout, shell)
+                all_green &= green
+                print(f"{'GREEN' if green else 'RED  '} {shell + ' ' + case:24} {LIMIT_CASES[case]}  {detail}", flush=True)
     print("全部綠燈" if all_green else "有紅燈")
     sys.exit(0 if all_green else 1)
 

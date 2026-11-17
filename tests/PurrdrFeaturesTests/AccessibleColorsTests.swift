@@ -93,6 +93,22 @@ struct BrandRedTests {
         }
     }
 
+    @Test("iPad 選取列：列文字與「需要你」對選取底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
+    func selectedRowContrast() {
+        let text = AccessibleColors.selectedRowText
+        let fill = AccessibleColors.selectionFill
+        let cases: [(String, ThemeColor, ThemeColor, Double)] = [
+            ("淺色", text.light, fill.light, 4.5),
+            ("深色", text.dark, fill.dark, 4.5),
+            ("淺色高對比", text.lightHighContrast, fill.lightHighContrast, 7),
+            ("深色高對比", text.darkHighContrast, fill.darkHighContrast, 7),
+        ]
+        for (name, foreground, background, minimum) in cases {
+            let ratio = foreground.contrastRatio(with: background)
+            #expect(ratio >= minimum, "\(name) \(foreground) 對選取底色 \(background) 只有 \(ratio)")
+        }
+    }
+
     @Test("AccentColor 四種外觀與紅字同值")
     func accentColorMatchesBrandText() throws {
         let url = URL(filePath: #filePath)
@@ -118,5 +134,33 @@ struct BrandRedTests {
             "light": palette.light, "dark": palette.dark,
             "lightHighContrast": palette.lightHighContrast, "darkHighContrast": palette.darkHighContrast,
         ])
+    }
+}
+
+/// 對話中的連結(#93):系統連結藍的色相，與品牌紅的強調元素分開;四種外觀對主要與卡片背景達標。
+@Suite("連結顏色")
+struct LinkTextTests {
+    static let appearances: [(String, ThemeColor, [ThemeColor], Double)] = [
+        ("淺色", AccessibleColors.linkText.light, AccessibleColorsTests.lightSecondaryBackgrounds, 4.5),
+        ("深色", AccessibleColors.linkText.dark, AccessibleColorsTests.darkSecondaryBackgrounds, 4.5),
+        ("淺色高對比", AccessibleColors.linkText.lightHighContrast, AccessibleColorsTests.lightSecondaryBackgrounds, 7),
+        ("深色高對比", AccessibleColors.linkText.darkHighContrast, AccessibleColorsTests.darkSecondaryBackgrounds, 7),
+    ]
+
+    @Test("連結：深淺色對主要、grouped 與卡片背景 ≥ 4.5:1,高對比 ≥ 7:1")
+    func linkTextContrast() {
+        for (name, color, backgrounds, minimum) in Self.appearances {
+            for background in backgrounds {
+                let ratio = color.contrastRatio(with: background)
+                #expect(ratio >= minimum, "\(name) \(color) 對 \(background) 只有 \(ratio)")
+            }
+        }
+    }
+
+    @Test("連結是藍色，不是品牌紅")
+    func linkTextIsBlue() {
+        for (name, color, _, _) in Self.appearances {
+            #expect(color.blue > color.red && color.blue > color.green, "\(name) \(color) 不是藍色")
+        }
     }
 }
