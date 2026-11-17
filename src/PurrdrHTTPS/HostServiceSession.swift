@@ -147,7 +147,10 @@ extension HostServiceProtocol.ServerMessage {
         case .welcome(let message): message.requestId
         case .agentsListResult(let message): message.requestId
         case .paneSendKeysResult(let message): message.requestId
+        case .eventsSubscribeResult(let message): message.requestId
+        case .eventsUnsubscribeResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
+        case .subscribedEvent, .eventsEnded: nil
         }
     }
 }

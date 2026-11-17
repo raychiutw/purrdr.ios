@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 pub mod audit_log;
 mod connection;
@@ -32,10 +33,28 @@ pub struct HostServiceConfig {
     pub herdr_socket: HerdrSocket,
     /// 裝置、配對碼與稽核紀錄所在的資料夾。
     pub state_directory: PathBuf,
+    pub heartbeat: Heartbeat,
 }
 
 /// 預設埠(127.0.0.1 上)。
 pub const DEFAULT_PORT: u16 = 47_820;
+
+/// WebSocket 心跳：每 `interval` 送一次 ping;`timeout` 內沒收到 app 的任何 frame(含 pong)就斷線。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Heartbeat {
+    pub interval: Duration,
+    pub timeout: Duration,
+}
+
+impl Default for Heartbeat {
+    /// app 每 15 秒 ping 一次，所以 45 秒沒消息就算斷了。
+    fn default() -> Self {
+        Heartbeat {
+            interval: Duration::from_secs(15),
+            timeout: Duration::from_secs(45),
+        }
+    }
+}
 
 impl HostServiceConfig {
     /// 由命令列參數建立設定:`--port <埠>`、`--session <herdr session>`、`--state-dir <資料夾>`;其他參數一律拒絕。
@@ -65,6 +84,7 @@ impl HostServiceConfig {
             port,
             herdr_socket,
             state_directory,
+            heartbeat: Heartbeat::default(),
         })
     }
 }
@@ -101,6 +121,7 @@ pub async fn start(config: HostServiceConfig) -> std::io::Result<RunningHostServ
         herdr: HerdrClient::new(config.herdr_socket),
         devices: DeviceStore::new(&config.state_directory),
         audit: AuditLog::new(&config.state_directory),
+        heartbeat: config.heartbeat,
     });
     let accept_loop = tokio::spawn(async move {
         if let Err(error) = axum::serve(listener, router).await {

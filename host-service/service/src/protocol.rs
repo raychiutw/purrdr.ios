@@ -15,6 +15,10 @@ pub enum ClientMessage {
     AgentsList(AgentsList),
     #[serde(rename = "pane.send_keys")]
     PaneSendKeys(PaneSendKeys),
+    #[serde(rename = "events.subscribe")]
+    EventsSubscribe(EventsSubscribe),
+    #[serde(rename = "events.unsubscribe")]
+    EventsUnsubscribe(EventsUnsubscribe),
 }
 
 impl ClientMessage {
@@ -34,6 +38,14 @@ pub enum ServerMessage {
     AgentsListResult(AgentsListResult),
     #[serde(rename = "pane.send_keys.result")]
     PaneSendKeysResult(PaneSendKeysResult),
+    #[serde(rename = "events.subscribe.result")]
+    EventsSubscribeResult(EventsSubscribeResult),
+    #[serde(rename = "events.event")]
+    SubscribedEvent(SubscribedEvent),
+    #[serde(rename = "events.ended")]
+    EventsEnded(EventsEnded),
+    #[serde(rename = "events.unsubscribe.result")]
+    EventsUnsubscribeResult(EventsUnsubscribeResult),
     #[serde(rename = "error")]
     ErrorMessage(ErrorMessage),
 }
@@ -142,6 +154,70 @@ pub struct PaneSendKeys {
 /// 按鍵已送到 Pane。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaneSendKeysResult {
+    pub request_id: String,
+}
+
+/// 開一條 Agent 事件串流(herdr events.subscribe)。herdr 接受後回 events.subscribe.result,之後以 events.event 推送，直到 events.ended 或 events.unsubscribe。事件只是「該重讀了」的訊號，對帳用 agents.list。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventsSubscribe {
+    pub request_id: String,
+    /// 串流識別碼(app 自訂，同一條連線內不可重複);這條串流的訊息都帶它。
+    pub stream_id: String,
+    pub subscriptions: Vec<EventSubscription>,
+}
+
+/// 一筆 herdr 事件訂閱。herdr 不認得的事件或不存在的 Pane 會讓整個訂閱被拒(herdr_error)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventSubscription {
+    /// herdr 的訂閱型別，例如 pane.agent_status_changed、workspace.created。
+    pub event: String,
+    /// pane.agent_status_changed 必填;其他型別不帶。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pane_id: Option<String>,
+}
+
+/// herdr 接受了訂閱。此後的變化才會推送;之前的要靠 agents.list 對帳。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventsSubscribeResult {
+    pub request_id: String,
+    pub stream_id: String,
+}
+
+/// herdr 推送的一個事件(沒有 request_id)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscribedEvent {
+    pub stream_id: String,
+    /// herdr 事件的 wire 名稱，例如 pane_agent_status_changed。
+    pub event: String,
+    /// 事件指名 Pane 時才有。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pane_id: Option<String>,
+}
+
+/// 事件串流在主機端結束(沒有 request_id)。有 code 表示失敗;herdr 的 events_lost 是 code herdr_error 加 herdr_code events_lost,app 重新訂閱並對帳。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventsEnded {
+    pub stream_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<ErrorCode>,
+    /// 給開發者看的說明。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    /// code 是 herdr_error 時，herdr 原本的錯誤碼。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub herdr_code: Option<String>,
+}
+
+/// 關閉一條事件串流，主機服務關掉對應的 herdr 訂閱。不認得的串流識別碼也回成功。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventsUnsubscribe {
+    pub request_id: String,
+    pub stream_id: String,
+}
+
+/// 事件串流已關閉，之後不再有這條串流的訊息。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventsUnsubscribeResult {
     pub request_id: String,
 }
 
