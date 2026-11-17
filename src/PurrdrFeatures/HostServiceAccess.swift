@@ -107,11 +107,11 @@ extension HostServiceAccess {
         }
     }
 
-    /// UI 測試：不連網路、權杖只在記憶體。配對碼 `K7QM-2XPA` 換得權杖、`OLD0-CODE` 過期、其他不對;
+    /// UI 測試：不連網路、權杖只在記憶體。配對碼 `K7QM-2XPA` 換得權杖、`R3AD-0NLY` 換得唯讀權杖、`OLD0-CODE` 過期、其他不對;
     /// HTTPS 主機的連線是包住 `channel`(Demo 主機)的主機連線，畫面看到 Demo 的 Agent。
     public static func uiTesting(channel: any HostChannel) -> HostServiceAccess {
-        HostServiceAccess(pairing: HostServicePairing(http: UITestingHostServiceHTTP()), deviceName: "iPhone") { _, _ in
-            SSHHostConnection(channel: channel)
+        HostServiceAccess(pairing: HostServicePairing(http: UITestingHostServiceHTTP()), deviceName: "iPhone") { _, deviceToken in
+            UITestingHostServiceConnection(base: SSHHostConnection(channel: channel), deviceToken: deviceToken)
         }
     }
 }
@@ -125,6 +125,10 @@ private struct UITestingHostServiceHTTP: HostServiceHTTPSending {
         case "K7QM-2XPA":
             let paired = HostServiceProtocol.PairResponse(deviceId: "ui-testing", deviceToken: "ui-testing-token", readOnly: false)
             return HostServiceHTTPResponse(status: 200, body: try JSONEncoder().encode(paired))
+        case UITestingHostServiceConnection.readOnlyPairingCode:
+            let paired = HostServiceProtocol.PairResponse(
+                deviceId: "ui-testing-read-only", deviceToken: UITestingHostServiceConnection.readOnlyToken, readOnly: true)
+            return HostServiceHTTPResponse(status: 200, body: try JSONEncoder().encode(paired))
         case "OLD0-CODE":
             return try Self.error(.pairingCodeExpired)
         default:
@@ -135,5 +139,42 @@ private struct UITestingHostServiceHTTP: HostServiceHTTPSending {
     private static func error(_ code: HostServiceProtocol.ErrorCode) throws -> HostServiceHTTPResponse {
         let message = HostServiceProtocol.ServerMessage.errorMessage(.init(code: code, message: code.rawValue))
         return HostServiceHTTPResponse(status: 401, body: try JSONEncoder().encode(message))
+    }
+}
+
+/// UI 測試的 HTTPS 主機連線：轉給 Demo 主機;唯讀權杖時像主機服務一樣回報唯讀並拒絕寫入類操作。
+private struct UITestingHostServiceConnection: HostConnection {
+    static let readOnlyPairingCode = "R3AD-0NLY"
+    static let readOnlyToken = "ui-testing-read-only-token"
+
+    let base: any HostConnection
+    let deviceToken: @Sendable () throws -> String?
+
+    func isReadOnlyDevice() async throws -> Bool {
+        try deviceToken() == Self.readOnlyToken
+    }
+
+    func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
+        let method = (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
+        if ["agent.prompt", "pane.send_text", "pane.send_keys"].contains(method), try await isReadOnlyDevice() {
+            throw HostServiceError.readOnlyDevice
+        }
+        return try await base.herdrRequest(request, deadline: deadline)
+    }
+
+    func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
+        try await base.herdrEvents(request)
+    }
+
+    func readTranscript(_ request: TranscriptRequest) async throws -> Data {
+        try await base.readTranscript(request)
+    }
+
+    func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
+        try await base.openPaneTerminal(target: target, columns: columns, rows: rows, takeover: takeover)
+    }
+
+    func disconnect() async {
+        await base.disconnect()
     }
 }

@@ -52,7 +52,8 @@ pub struct FakeHerdr {
 }
 
 struct FakeHerdrState {
-    replies: HashMap<String, Value>,
+    /// method → (回應, 回應前等多久)。
+    replies: HashMap<String, (Value, Duration)>,
     requests: Mutex<Vec<Value>>,
     subscriptions: Mutex<Vec<tokio::sync::mpsc::UnboundedSender<Push>>>,
 }
@@ -66,9 +67,14 @@ enum Push {
 impl FakeHerdr {
     /// 依 method 回應;沒列到的 method 不回應而直接關閉連線。
     pub async fn start(replies: Vec<(&str, Value)>) -> FakeHerdr {
+        FakeHerdr::start_delayed(replies.into_iter().map(|(method, reply)| (method, reply, Duration::ZERO)).collect()).await
+    }
+
+    /// 同 `start`,但每個 method 等指定的時間才回應(模擬 herdr 等待 agent)。
+    pub async fn start_delayed(replies: Vec<(&str, Value, Duration)>) -> FakeHerdr {
         let socket = unique_socket();
         let shared = Arc::new(FakeHerdrState {
-            replies: replies.into_iter().map(|(method, reply)| (method.to_owned(), reply)).collect(),
+            replies: replies.into_iter().map(|(method, reply, delay)| (method.to_owned(), (reply, delay))).collect(),
             requests: Mutex::new(Vec::new()),
             subscriptions: Mutex::new(Vec::new()),
         });
@@ -143,9 +149,10 @@ async fn serve_connection<S: AsyncRead + AsyncWrite + Unpin>(stream: S, shared: 
                 line.clear();
                 shared.requests.lock().unwrap().push(request.clone());
                 let method = request["method"].as_str().unwrap_or_default();
-                let Some(reply) = shared.replies.get(method) else {
+                let Some((reply, delay)) = shared.replies.get(method) else {
                     return;
                 };
+                tokio::time::sleep(*delay).await;
                 let mut reply = reply.clone();
                 reply["id"] = request["id"].clone();
                 write_line(&mut writing, &reply).await;
@@ -246,8 +253,13 @@ impl TestClient {
 
     /// 下一個文字訊息(JSON)。
     pub async fn receive(&mut self) -> Value {
+        self.receive_within(Duration::from_secs(10)).await
+    }
+
+    /// 下一個文字訊息(JSON),最多等 `limit`。
+    pub async fn receive_within(&mut self, limit: Duration) -> Value {
         loop {
-            let message = tokio::time::timeout(Duration::from_secs(10), self.stream.next())
+            let message = tokio::time::timeout(limit, self.stream.next())
                 .await
                 .expect("等回應逾時")
                 .expect("連線關閉")

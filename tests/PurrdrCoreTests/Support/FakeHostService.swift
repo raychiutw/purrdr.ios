@@ -59,6 +59,10 @@ final class FakeHostService: Sendable {
         var pairingCode = "K7QM-2XPA"
         var expiredPairingCode = "OLD0-CODE"
         var pairedToken = "token-paired"
+        /// `agent.prompt` 成功時回報的 `delivery`。
+        var promptDelivery: String?
+        /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
+        var promptHerdrError: String?
     }
 
     let port: Int
@@ -210,7 +214,8 @@ final class FakeHostService: Sendable {
                     "supported_protocol_versions": settings.supportedProtocolVersions,
                 ]))]
             }
-            return [.text(Self.example("server.welcome.json", requestID: requestID))]
+            let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) ?? false
+            return [.text(Self.example("server.welcome.json", requestID: requestID, changing: ["read_only": readOnly]))]
         case "agents.list":
             switch settings.agentsReply {
             case .example: return [.text(Self.example("server.agents-list-result.json", requestID: requestID))]
@@ -231,11 +236,16 @@ final class FakeHostService: Sendable {
             let streamID = message["stream_id"] as? String
             state.withLock { $0.streams.removeAll { $0.socket === socket && $0.streamID == streamID } }
             return [.text(Self.json(["type": "events.unsubscribe.result", "request_id": requestID as Any]))]
-        case "pane.send_keys":
+        case "pane.send_keys", "pane.send_text", "agent.prompt":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
             }
-            return [.text(Self.json(["type": "pane.send_keys.result", "request_id": requestID as Any]))]
+            if type == "agent.prompt", let herdrCode = settings.promptHerdrError {
+                return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
+            }
+            var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
+            if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
+            return [.text(Self.json(result))]
         default:
             return [.text(Self.error(requestID, "invalid_message"))]
         }
@@ -282,9 +292,10 @@ final class FakeHostService: Sendable {
         .appending(path: "protocol/examples")
 
     /// 協定範例，換上這次的請求識別碼。
-    private static func example(_ name: String, requestID: String?) -> String {
+    private static func example(_ name: String, requestID: String?, changing changes: [String: Any] = [:]) -> String {
         let data = (try? Data(contentsOf: examplesDirectory.appending(path: name))) ?? Data()
         var object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+        object.merge(changes) { _, changed in changed }
         object["request_id"] = requestID
         return json(object)
     }
