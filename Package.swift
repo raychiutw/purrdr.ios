@@ -109,7 +109,7 @@ let package = Package(
         .testTarget(
             name: "PurrdrCoreTests",
             dependencies: [
-                "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo", "PurrdrTestSupport",
+                "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo", "PurrdrAgentFeatures", "PurrdrTestSupport",
                 // 測試用 SSH 伺服器(swift-nio-ssh server 角色)與假的主機服務(WebSocket／HTTP)。
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),

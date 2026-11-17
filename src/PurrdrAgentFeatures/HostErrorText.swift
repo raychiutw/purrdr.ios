@@ -86,6 +86,10 @@ package enum HostErrorText {
             String(localized: "This pairing code isn’t valid or was already used. Run the pair command on the host again for a new code.")
         case .pairingCodeExpired:
             String(localized: "This pairing code expired. Run the pair command on the host again for a new code.")
+        case .protocolVersionUnsupported(let supported) where supported.max().map({ $0 < HostServiceProtocol.version }) == true:
+            String(localized: "The Purrdr host service on this host is older than this version of Purrdr. Update the host service on the host.")
+        case .protocolVersionUnsupported(let supported) where supported.min().map({ $0 > HostServiceProtocol.version }) == true:
+            String(localized: "The Purrdr host service on this host is newer than this version of Purrdr. Update Purrdr.")
         case .protocolVersionUnsupported:
             String(localized: "The Purrdr host service on this host doesn’t match this version of Purrdr. Update Purrdr and the host service.")
         case .herdrUnavailable:

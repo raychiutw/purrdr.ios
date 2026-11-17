@@ -14,7 +14,7 @@ use purrdr_host_service::device_store::{DeviceStore, IssuedDevice};
 use purrdr_host_service::herdr_cli::HerdrCli;
 use purrdr_host_service::herdr_socket::{HerdrSocket, Platform};
 use purrdr_host_service::transcript::TranscriptEnvironment;
-use purrdr_host_service::{HostServiceConfig, RunningHostService};
+use purrdr_host_service::{Heartbeat, HostServiceConfig, RunningHostService};
 use serde_json::Value;
 use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -46,9 +46,24 @@ pub fn unique_socket() -> HerdrSocket {
 }
 
 /// 假的 herdr socket:每行請求依 method 回放一行錄製回應(換上請求的 id),並記下收到的請求。
+///
+/// `events.subscribe` 被接受(回應有 `result`)後連線保持開著，之後用 `push_event` 推事件、`end_subscriptions` 結束。
 pub struct FakeHerdr {
     pub socket: HerdrSocket,
-    requests: Arc<Mutex<Vec<Value>>>,
+    shared: Arc<FakeHerdrState>,
+}
+
+struct FakeHerdrState {
+    /// method → (回應, 回應前等多久)。
+    replies: HashMap<String, (Value, Duration)>,
+    requests: Mutex<Vec<Value>>,
+    subscriptions: Mutex<Vec<tokio::sync::mpsc::UnboundedSender<Push>>>,
+}
+
+/// 推給訂閱連線的東西。
+enum Push {
+    Line(Value),
+    Close,
 }
 
 impl FakeHerdr {
@@ -60,61 +75,123 @@ impl FakeHerdr {
     /// 同 `start`,但每個 method 等指定的時間才回應(模擬 herdr 等待 agent)。
     pub async fn start_delayed(replies: Vec<(&str, Value, Duration)>) -> FakeHerdr {
         let socket = unique_socket();
-        let replies: Arc<HashMap<String, (Value, Duration)>> =
-            Arc::new(replies.into_iter().map(|(method, reply, delay)| (method.to_owned(), (reply, delay))).collect());
-        let requests = Arc::new(Mutex::new(Vec::new()));
-        listen(&socket, replies, requests.clone());
-        FakeHerdr { socket, requests }
+        let shared = Arc::new(FakeHerdrState {
+            replies: replies.into_iter().map(|(method, reply, delay)| (method.to_owned(), (reply, delay))).collect(),
+            requests: Mutex::new(Vec::new()),
+            subscriptions: Mutex::new(Vec::new()),
+        });
+        listen(&socket, shared.clone());
+        FakeHerdr { socket, shared }
     }
 
     /// 收到的請求(整行 JSON),依收到順序。
     pub fn requests(&self) -> Vec<Value> {
-        self.requests.lock().unwrap().clone()
+        self.shared.requests.lock().unwrap().clone()
     }
 
     /// 收到的請求的 method,依收到順序。
     pub fn methods(&self) -> Vec<String> {
-        self.requests
-            .lock()
-            .unwrap()
+        self.requests()
             .iter()
             .map(|request| request["method"].as_str().unwrap_or_default().to_owned())
             .collect()
     }
-}
 
-async fn serve_connection<S: AsyncRead + AsyncWrite + Unpin>(stream: S, replies: Arc<HashMap<String, (Value, Duration)>>, requests: Arc<Mutex<Vec<Value>>>) {
-    let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
-        let request: Value = serde_json::from_str(&line).unwrap();
-        line.clear();
-        requests.lock().unwrap().push(request.clone());
-        let Some((reply, delay)) = replies.get(request["method"].as_str().unwrap_or_default()) else {
-            return;
-        };
-        tokio::time::sleep(*delay).await;
-        let mut reply = reply.clone();
-        reply["id"] = request["id"].clone();
-        let mut bytes = serde_json::to_vec(&reply).unwrap();
-        bytes.push(b'\n');
-        reader.get_mut().write_all(&bytes).await.unwrap();
+    /// 對每條開著的訂閱推一行(事件或錯誤 envelope)。
+    pub fn push_event(&self, line: Value) {
+        for subscription in self.shared.subscriptions.lock().unwrap().iter() {
+            let _ = subscription.send(Push::Line(line.clone()));
+        }
+    }
+
+    /// herdr 結束每條訂閱：先送 `last_line`(例如 `events_lost`),再關閉連線。
+    pub fn end_subscriptions(&self, last_line: Option<Value>) {
+        for subscription in self.shared.subscriptions.lock().unwrap().iter() {
+            if let Some(line) = &last_line {
+                let _ = subscription.send(Push::Line(line.clone()));
+            }
+            let _ = subscription.send(Push::Close);
+        }
+    }
+
+    /// 還開著的訂閱連線數(主機服務關掉的不算)。
+    pub fn open_subscriptions(&self) -> usize {
+        self.shared
+            .subscriptions
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|subscription| !subscription.is_closed())
+            .count()
+    }
+
+    /// 等到條件成立(最多 10 秒)。
+    pub async fn wait_until(&self, condition: impl Fn(&FakeHerdr) -> bool) {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+        while !condition(self) {
+            assert!(tokio::time::Instant::now() < deadline, "等假 herdr 的狀態逾時");
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
     }
 }
 
+async fn serve_connection<S: AsyncRead + AsyncWrite + Unpin>(stream: S, shared: Arc<FakeHerdrState>) {
+    let (reading, mut writing) = tokio::io::split(stream);
+    let mut reader = BufReader::new(reading);
+    let (pushes, mut pushed) = tokio::sync::mpsc::unbounded_channel();
+    let mut pushes = Some(pushes);
+    let mut line = String::new();
+    loop {
+        tokio::select! {
+            read = reader.read_line(&mut line) => {
+                if read.unwrap_or(0) == 0 {
+                    return;
+                }
+                let request: Value = serde_json::from_str(&line).unwrap();
+                line.clear();
+                shared.requests.lock().unwrap().push(request.clone());
+                let method = request["method"].as_str().unwrap_or_default();
+                let Some((reply, delay)) = shared.replies.get(method) else {
+                    return;
+                };
+                tokio::time::sleep(*delay).await;
+                let mut reply = reply.clone();
+                reply["id"] = request["id"].clone();
+                write_line(&mut writing, &reply).await;
+                if method == "events.subscribe"
+                    && reply.get("result").is_some()
+                    && let Some(pushes) = pushes.take()
+                {
+                    shared.subscriptions.lock().unwrap().push(pushes);
+                }
+            }
+            Some(push) = pushed.recv() => match push {
+                Push::Line(line) => write_line(&mut writing, &line).await,
+                Push::Close => return,
+            },
+        }
+    }
+}
+
+async fn write_line<W: AsyncWrite + Unpin>(writing: &mut W, line: &Value) {
+    let mut bytes = serde_json::to_vec(line).unwrap();
+    bytes.push(b'\n');
+    let _ = writing.write_all(&bytes).await;
+}
+
 #[cfg(unix)]
-fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, (Value, Duration)>>, requests: Arc<Mutex<Vec<Value>>>) {
+fn listen(socket: &HerdrSocket, shared: Arc<FakeHerdrState>) {
     let _ = std::fs::remove_file(socket.native_name());
     let listener = tokio::net::UnixListener::bind(socket.native_name()).unwrap();
     tokio::spawn(async move {
         while let Ok((stream, _)) = listener.accept().await {
-            tokio::spawn(serve_connection(stream, replies.clone(), requests.clone()));
+            tokio::spawn(serve_connection(stream, shared.clone()));
         }
     });
 }
 
 #[cfg(windows)]
-fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, (Value, Duration)>>, requests: Arc<Mutex<Vec<Value>>>) {
+fn listen(socket: &HerdrSocket, shared: Arc<FakeHerdrState>) {
     use tokio::net::windows::named_pipe::ServerOptions;
     let name = socket.native_name();
     let mut server = ServerOptions::new().first_pipe_instance(true).create(&name).unwrap();
@@ -125,7 +202,7 @@ fn listen(socket: &HerdrSocket, replies: Arc<HashMap<String, (Value, Duration)>>
             }
             let connected = server;
             server = ServerOptions::new().create(&name).unwrap();
-            tokio::spawn(serve_connection(connected, replies.clone(), requests.clone()));
+            tokio::spawn(serve_connection(connected, shared.clone()));
         }
     });
 }
@@ -199,6 +276,19 @@ impl TestClient {
         self.send(message).await;
         self.receive().await
     }
+
+    /// 持續讀 `duration`(讀的同時自動回 pong),回傳收到的 frame 與連線是否已結束。
+    pub async fn read_for(&mut self, duration: Duration) -> (Vec<Message>, bool) {
+        let deadline = tokio::time::Instant::now() + duration;
+        let mut frames = Vec::new();
+        loop {
+            match tokio::time::timeout_at(deadline, self.stream.next()).await {
+                Err(_) => return (frames, false),
+                Ok(Some(Ok(Message::Close(_)) | Err(_)) | None) => return (frames, true),
+                Ok(Some(Ok(frame))) => frames.push(frame),
+            }
+        }
+    }
 }
 
 /// 測試用的主機服務：自己的暫存資料夾，並預先配對好一支可寫入的裝置。
@@ -245,26 +335,32 @@ impl TestHostService {
 
 /// 以假 herdr 啟動主機服務(埠 0:由系統挑)。對話紀錄的家目錄不存在(讀不到任何對話紀錄)。
 pub async fn start_service(herdr_socket: HerdrSocket) -> TestHostService {
-    start_service_with(herdr_socket, HerdrCli::search(None), TranscriptEnvironment::default()).await
+    start_service_with(herdr_socket, HerdrCli::search(None), Heartbeat::default(), TranscriptEnvironment::default()).await
+}
+
+/// 指定心跳間隔與逾時(測試心跳用很短的時間)。
+pub async fn start_service_with_heartbeat(herdr_socket: HerdrSocket, heartbeat: Heartbeat) -> TestHostService {
+    start_service_with(herdr_socket, HerdrCli::search(None), heartbeat, TranscriptEnvironment::default()).await
 }
 
 /// 以假 herdr 與指定的對話紀錄位置啟動主機服務。
 pub async fn start_service_with_transcripts(herdr_socket: HerdrSocket, transcripts: TranscriptEnvironment) -> TestHostService {
-    start_service_with(herdr_socket, HerdrCli::search(None), transcripts).await
+    start_service_with(herdr_socket, HerdrCli::search(None), Heartbeat::default(), transcripts).await
 }
 
 /// 同 `start_service`,Pane 終端機執行 `herdr_cli`(假的 herdr CLI)。
 pub async fn start_service_with_herdr_cli(herdr_socket: HerdrSocket, herdr_cli: HerdrCli) -> TestHostService {
-    start_service_with(herdr_socket, herdr_cli, TranscriptEnvironment::default()).await
+    start_service_with(herdr_socket, herdr_cli, Heartbeat::default(), TranscriptEnvironment::default()).await
 }
 
-async fn start_service_with(herdr_socket: HerdrSocket, herdr_cli: HerdrCli, transcripts: TranscriptEnvironment) -> TestHostService {
+async fn start_service_with(herdr_socket: HerdrSocket, herdr_cli: HerdrCli, heartbeat: Heartbeat, transcripts: TranscriptEnvironment) -> TestHostService {
     let state_directory = tempfile::tempdir().unwrap();
     let service = purrdr_host_service::start(HostServiceConfig {
         port: 0,
         herdr_socket,
         herdr_cli,
         state_directory: state_directory.path().to_owned(),
+        heartbeat,
         transcripts,
     })
     .await
