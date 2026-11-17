@@ -1,4 +1,4 @@
-//! 稽核紀錄(spec #52、#56):記下配對、連線、撤銷與寫入類操作，不含按鍵、prompt、權杖與配對碼。
+//! 稽核紀錄(spec #52、#56、#60):記下配對、連線、撤銷與寫入類操作，不含按鍵、prompt、權杖與配對碼。
 
 mod support;
 
@@ -76,4 +76,39 @@ async fn audit_log_records_pairing_connection_writes_and_revocation_without_cont
     for secret in [SECRET_KEYS, &device_token, &read_only.device_token, &code, &code.replace('-', "")] {
         assert!(!audit_log.contains(secret), "稽核紀錄含有 {secret}");
     }
+}
+
+#[tokio::test]
+async fn prompts_and_text_are_audited_by_operation_and_pane_without_content() {
+    const SECRET_PROMPT: &str = "秘密 prompt 內容";
+    const SECRET_TEXT: &str = "秘密文字內容";
+    let herdr = FakeHerdr::start(vec![
+        ("ping", recorded("ping.ndjson")),
+        ("agent.prompt", json!({"id": "", "result": {"type": "agent_prompted"}})),
+        ("pane.send_text", json!({"id": "", "result": {"type": "ok"}})),
+    ])
+    .await;
+    let service = start_service(herdr.socket.clone()).await;
+    let mut client = TestClient::connect(&service).await;
+    client.request(json!({"type": "hello", "request_id": "r1", "protocol_version": 1})).await;
+
+    client
+        .request(json!({"type": "agent.prompt", "request_id": "r2", "pane_id": "w1:p2", "text": SECRET_PROMPT}))
+        .await;
+    client
+        .request(json!({"type": "pane.send_text", "request_id": "r3", "pane_id": "w1:p3", "text": SECRET_TEXT}))
+        .await;
+
+    let audit_log = service.audit_log();
+    let writes: Vec<(String, String)> = events(&audit_log)
+        .into_iter()
+        .filter(|event| event["event"] == "write")
+        .map(|event| (event["operation"].as_str().unwrap().to_owned(), event["pane_id"].as_str().unwrap().to_owned()))
+        .collect();
+    assert_eq!(
+        writes,
+        [("agent.prompt".to_owned(), "w1:p2".to_owned()), ("pane.send_text".to_owned(), "w1:p3".to_owned())]
+    );
+    assert!(!audit_log.contains(SECRET_PROMPT));
+    assert!(!audit_log.contains(SECRET_TEXT));
 }
