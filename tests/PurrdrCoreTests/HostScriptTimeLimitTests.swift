@@ -28,6 +28,25 @@ struct HostScriptTimeLimitTests {
         }
     }
 
+    @Test("Windows 的 stdin stub 與上傳腳本都帶時限且仍在 cmd 命令列上限內;herdr bridge 不帶(實跑見 scripts/windows-upload-repro.py --kind limit)")
+    func windowsOneShotScriptsCarryTimeLimit() throws {
+        let uploadName = try #require(UploadFileName("a-1.jpg"))
+        let folder = "C:\\Users\\someone\\Documents\\" + String(repeating: "folder name ", count: 8)
+        let commands = [
+            try WindowsCommand.translate(TranscriptCommand.window(path: "C:/t.jsonl", end: 10, lines: 5)).command,
+            try WindowsCommand.translate(ImageUploadCommand.posix(name: uploadName, size: 25_000_000)).command,
+            try WindowsCommand.translate(HostFolderCommand.upload(
+                folder: folder, name: "a long file name.bin", size: 25_000_000, encoding: .gzip, transferSize: 24_000_000)).command,
+        ]
+        for command in commands {
+            let script = try #require(PowerShell.script(inEncodedCommand: command))
+            #expect(script.contains("$purrdrLimit"))
+            #expect(command.count <= WindowsCommand.commandLimit)
+        }
+        let bridge = try #require(PowerShell.script(inEncodedCommand: try WindowsCommand.translate(HerdrCommand.bridge()).command))
+        #expect(!bridge.contains("$purrdrLimit"))
+    }
+
     #if os(macOS)
     @Test("卡住的 POSIX 腳本在時限內以 exit 124 結束，背景程序、子 shell 與讀 stdin 的程序都不留下")
     func stuckPosixScriptEndsWithinLimit() async throws {

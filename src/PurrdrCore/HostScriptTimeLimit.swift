@@ -25,18 +25,15 @@ enum HostScriptTimeLimit {
         posix(script, seconds: "$((\(readSeconds) + $\(transferSizeParameter) / \(uploadBytesPerSecond)))")
     }
 
-    /// 在 POSIX 腳本開頭加上時限。`seconds` 是 shell 算式(可用腳本的位置參數)。
-    ///
-    /// macOS 沒有 `timeout`:背景的 shell 每秒確認腳本還在，到時限就停住腳本的整棵程序樹(`ps` 的 pid／ppid)、
-    /// 送 TERM(腳本以 124 結束，自己的 trap 照常清暫存檔),1 秒後 KILL 剩下的。不依賴程序群組：
-    /// sshd 以外(Tailscale SSH、測試)啟動時，腳本不一定是群組的 leader。背景 shell 的 stdio 接 `/dev/null`,不佔住 channel。
-    /// 結尾的 `exit $?` 讓 bash 不把最後一個指令 exec 掉(否則 trap 跟著消失，逾時變成被 TERM 結束)。
+    /// 在 POSIX 腳本開頭加上時限(`seconds` 是 shell 算式，可用位置參數)。macOS 沒有 `timeout`:背景 shell 每秒確認，
+    /// 到時限以 `ps` 的 pid／ppid 停住整棵程序樹、TERM(trap 讓腳本 exit 124)、1 秒後 KILL;不依賴程序群組(腳本不一定是 leader)。
+    /// 結尾 `exit $?` 防 bash 把最後一個指令 exec 掉而失去 trap。
     static func posix(_ script: String, seconds: String) -> String {
         """
         purrdr_tree() {
         ps -A -o pid= -o ppid= 2>/dev/null | awk -v r="$1" -v s="$2" '{ c[$2] = c[$2] " " $1 } END { q = r; while (q != "") { n = split(q, a, " "); q = ""; for (i = 1; i <= n; i++) if (a[i] != s) { printf "%s ", a[i]; q = q " " c[a[i]] } } }'
         }
-        purrdr_limit() {
+        \(posixMarker)() {
         n=0
         while [ "$n" -lt "$2" ]; do kill -0 "$1" 2>/dev/null || exit 0; sleep 1; n=$((n + 1)); done
         s=$(exec sh -c 'echo "$PPID"')
@@ -50,7 +47,7 @@ enum HostScriptTimeLimit {
         kill -KILL $t 2>/dev/null
         }
         trap 'exit \(exitCode)' TERM
-        purrdr_limit "$$" "\(seconds)" < /dev/null > /dev/null 2>&1 &
+        \(posixMarker) "$$" "\(seconds)" < /dev/null > /dev/null 2>&1 &
         \(script)
         exit $?
         """
