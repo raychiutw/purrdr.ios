@@ -49,6 +49,8 @@ final class TestSSHServer: Sendable {
         case dropConnection
         /// 用本機 `/bin/sh -c` 真的執行(接上 stdin／stdout／stderr)。
         case runLocally
+        /// 收下 exec 請求卻永遠不回覆(want-reply 沒有回應):模擬開 channel 卡住。
+        case neverReply
     }
 
     /// 接受哪種登入。
@@ -390,8 +392,10 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
                 write(Data("pty$ ".utf8), type: .channel, context: context)
                 return
             }
+            let response = self.behavior(command)
+            if case .neverReply = response { return }
             reply(request.wantReply, context: context)
-            run(behavior(command), command: command, context: context)
+            run(response, command: command, context: context)
         case let request as SSHChannelRequestEvent.PseudoTerminalRequest:
             mode = .pty
             let record = TestSSHServer.PTYRecord(term: request.term, columns: request.terminalCharacterWidth, rows: request.terminalRowHeight)
@@ -468,6 +472,8 @@ private final class ServerSessionHandler: ChannelDuplexHandler {
         case .runLocally:
             mode = .process
             startProcess(command, channel: context.channel)
+        case .neverReply:
+            break
         }
     }
 

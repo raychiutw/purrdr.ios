@@ -411,6 +411,8 @@ public final class HostsModel {
         defer { networkPath = signature }
         guard let previous = networkPath, previous != signature else { return nil }
         let dropped = Array(channels.values) + [demoChannel]
+        // 診斷(#133):實機斷線時分辨是不是網路切換丟掉了連線。
+        diagnostics.error("Network path changed (\(previous) → \(signature)): dropping \(channels.count) host connection(s)")
         let agentList = agentList
         return Task {
             for channel in dropped { await channel.disconnect() }
@@ -427,14 +429,18 @@ public final class HostsModel {
         guard let since = backgroundSince else { return }
         backgroundSince = nil
         guard date.timeIntervalSince(since) > Double(WakeProbe.backgroundThreshold.components.seconds) else { return }
-        let probed = Array(channels.values)
-        let allAlive = await withTaskGroup(of: Bool.self) { group in
-            for channel in probed { group.addTask { await WakeProbe(channel: channel).run() } }
-            var allAlive = true
-            for await alive in group { allAlive = allAlive && alive }
-            return allAlive
+        let probed = channels
+        let dead = await withTaskGroup(of: (UUID, Bool).self) { group in
+            for (id, channel) in probed { group.addTask { (id, await WakeProbe(channel: channel).run()) } }
+            var dead: [UUID] = []
+            for await (id, alive) in group where !alive { dead.append(id) }
+            return dead
         }
-        if !allAlive { agentList.retryNow() }
+        guard !dead.isEmpty else { return }
+        // 診斷(#133):喚醒探測失敗會丟棄那台主機的連線。
+        let backgroundSeconds = Int(date.timeIntervalSince(since))
+        for id in dead { diagnostics.error("Wake probe failed after \(backgroundSeconds)s in background: dropped the connection to host \(id)") }
+        agentList.retryNow()
     }
 
     private var networkPath: String?

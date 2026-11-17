@@ -221,16 +221,57 @@ struct ConversationModelTests {
         await first.model.poll()
 
         let second = try Self.setup(transcript: nil, cache: cache)
-        await second.host.bridge.expect(Self.bridge, reply: FakeReply(stderr: Data("ssh: connect to host timed out".utf8), exitCode: 255))
+        // 連續兩次失敗(第一次靜默重試，R-B11)才算連不上。
+        for _ in 0..<2 {
+            await second.host.bridge.expect(Self.bridge, reply: FakeReply(stderr: Data("ssh: connect to host timed out".utf8), exitCode: 255))
+        }
         await second.model.poll()
 
         #expect(second.model.isOffline)
         #expect(second.model.items.count == Self.fixtureItemCount)
 
         let other = try Self.setup(transcript: nil, knownSessionID: "00000000-0000-0000-0000-0000000000bb", cache: cache)
-        await other.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255))
+        for _ in 0..<2 { await other.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255)) }
         await other.model.poll()
         #expect(other.model.items.isEmpty)
+    }
+
+    /// R-B11、F5.3 第 6 點、#133:一次失敗多半是連線剛被丟棄(keepalive 逾時、網路切換),
+    /// 立刻靜默重試一次(重試在新連線上撥號);連續第二次失敗才顯示「連線中斷」。snapshot 是唯讀，重試不違反 §7.3。
+    @Test("連線中斷：snapshot 第一次失敗靜默重試，重試成功就不顯示橫幅")
+    func firstSnapshotFailureRetriesSilently() async throws {
+        let setup = try Self.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.host.bridge.expect(Self.bridge, reply: Self.noSuggestionScreen)
+        await setup.model.poll()
+        #expect(setup.model.banner == nil)
+
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.host.bridge.expect(Self.bridge, reply: Self.noSuggestionScreen)
+        await setup.model.poll()
+
+        #expect(setup.model.banner == nil)
+        #expect(!setup.model.isOffline)
+        #expect(setup.model.items.count == Self.fixtureItemCount)
+        #expect(await setup.host.bridge.unmetExpectations.isEmpty)
+    }
+
+    @Test("連線中斷：snapshot 連續第二次失敗才顯示橫幅")
+    func secondConsecutiveSnapshotFailureShowsBanner() async throws {
+        let setup = try Self.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
+        await setup.host.bridge.expect(Self.bridge, reply: Self.noSuggestionScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        await setup.model.poll()
+
+        #expect(setup.model.banner == .offline)
+        #expect(setup.model.isOffline)
+        #expect(setup.model.items.count == Self.fixtureItemCount, "斷線期間保留畫面上的內容")
+        #expect(await setup.host.bridge.unmetExpectations.isEmpty)
     }
 
     /// F5.3 第 1 點：列表傳來的 session 與快取相同 → 立刻顯示快取，之後從游標續讀。

@@ -117,7 +117,10 @@ struct ConversationHeaderTests {
     func headerOffline() async throws {
         let setup = try Self.setup()
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
-        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        // 連續兩次失敗(第一次靜默重試，R-B11)才算連不上。
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
         await setup.model.poll()
         await setup.model.poll()
 
