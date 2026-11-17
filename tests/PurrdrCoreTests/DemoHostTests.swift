@@ -145,6 +145,32 @@ struct DemoHostTests {
         #expect(window.end == after.size)
     }
 
+    /// #130:大量輸出情境，ledger 的 agent 一次寫出超過 64 KiB;即時追蹤以分段追趕接著讀，開啟時的追蹤照舊回報落後太多。
+    @Test("大量輸出：定位後 agent 一次寫出超過 64 KiB,分段追趕讀得到全部的行")
+    func largeOutputIsReadByCatchUp() async throws {
+        let host = DemoHost(scenario: .largeOutput(after: .zero))
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+
+        guard case .tooFarBehind = try await reader.tail(path: before.path, from: before.size) else {
+            Issue.record("開啟時的追蹤應回報落後太多")
+            return
+        }
+        guard case .appended(let chunk) = try await reader.catchUp(path: before.path, from: before.size) else {
+            Issue.record("分段追趕應讀到新的行")
+            return
+        }
+        #expect(chunk.end - chunk.start > 64 << 10)
+        #expect(chunk.lines.count > 300)
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        guard case .agentText(let text) = items.last else {
+            Issue.record("最後一則應是 agent 的收尾文字")
+            return
+        }
+        #expect(text.markdown == "I read all 160 export logs; every row exported cleanly.")
+        #expect(try await reader.catchUp(path: before.path, from: chunk.end) == .unchanged)
+    }
+
     @Test("圖片：Demo 收下上傳(stdin 到 EOF)回傳上傳資料夾的路徑;送出帶路徑的 prompt 後對話紀錄像 Claude 一樣記成圖片")
     func uploadAndImagePrompt() async throws {
         let host = DemoHost()

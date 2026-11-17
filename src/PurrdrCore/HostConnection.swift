@@ -32,6 +32,8 @@ public enum TranscriptRequest: Sendable, Equatable {
     case window(path: String, end: Int, lines: Int, chunkBytes: Int)
     /// 游標之後新增的完整行。
     case tail(path: String, from: Int, limit: Int)
+    /// 從游標讀最多 `limit` bytes 的完整行，即使後面還有(即時追蹤的分段追趕，#130)。
+    case catchUp(path: String, from: Int, limit: Int)
     /// 列表預覽：每個聊天對話紀錄的檔尾。
     case previews(marker: String, requests: [PreviewRequest])
     /// 呼叫 `callID` 啟動的 subagent 的 meta。

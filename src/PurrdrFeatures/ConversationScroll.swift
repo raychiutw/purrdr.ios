@@ -35,6 +35,34 @@ public struct ConversationScroll: Equatable, Sendable {
     }
 }
 
+/// 內容被重建或大量增加時的捲動調整(#130)。
+public enum ConversationScrollAdjustment: Equatable, Sendable {
+    case none
+    /// 把這則訊息放回可見範圍頂端。
+    case anchor(id: String)
+    /// 切回跟隨並捲到底。
+    case bottom
+}
+
+extension ConversationScroll {
+    /// 內容從 `old` 變成 `new`(列表項目的 id)時的調整。`visible` 是變更前畫面上看得到的項目(由上而下)。
+    ///
+    /// 跟隨中交給「捲到底」。閱讀中：只在後面接上或前面加上舊頁時不動(原本的內容原封不動，位置不跳);
+    /// 內容被重建時，把畫面上第一個仍存在的訊息放回頂端;都不在了就捲到底，不停在內容之外。
+    public func adjustment(from old: [String], to new: [String], visible: [String]) -> ConversationScrollAdjustment {
+        guard !following, !old.isEmpty, !Self.contains(new, run: old) else { return .none }
+        let remaining = Set(new)
+        if let anchor = visible.first(where: remaining.contains) { return .anchor(id: anchor) }
+        return .bottom
+    }
+
+    /// `run` 原封不動、連續地出現在 `items` 裡。
+    private static func contains(_ items: [String], run: [String]) -> Bool {
+        guard let start = items.firstIndex(of: run[0]), items.count - start >= run.count else { return false }
+        return items[start..<(start + run.count)].elementsEqual(run)
+    }
+}
+
 /// 對話捲動的量測值，取自 SwiftUI `ScrollGeometry`。
 ///
 /// `containerHeight` 是 `containerSize.height`,**已扣掉** content insets(導覽列、輸入列);捲到底時
@@ -57,6 +85,11 @@ public struct ConversationScrollMetrics: Equatable, Sendable {
     /// 可見範圍底緣到內容底緣的距離;內容短到不用捲時是負的。
     public var distanceFromBottom: Double {
         contentHeight - containerHeight - topInset - contentOffsetY
+    }
+
+    /// 可見範圍停在內容之外：內容比畫面高，可見範圍底緣卻超過內容底緣一個門檻以上(例如內容突然縮短)。
+    public var isBeyondContent: Bool {
+        contentHeight > containerHeight && distanceFromBottom < -ConversationScroll.threshold
     }
 
     /// 可見範圍頂緣到內容頂緣的距離。

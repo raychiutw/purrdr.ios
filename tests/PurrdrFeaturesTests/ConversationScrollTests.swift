@@ -100,4 +100,50 @@ struct ConversationScrollTests {
         #expect(scroll.autoScrollsOnNewContent)
         #expect(scroll.showsJumpToLatest == false)
     }
+
+    // MARK: - 內容被重建或大量增加(#130)
+
+    static func reading() -> ConversationScroll {
+        var scroll = ConversationScroll()
+        scroll.userScrolled(distanceFromBottom: 900)
+        return scroll
+    }
+
+    @Test("跟隨中：內容怎麼變都交給「捲到底」,不另外調整")
+    func followingNeedsNoAdjustment() {
+        #expect(ConversationScroll().adjustment(from: ["a", "b"], to: ["x", "y"], visible: ["b"]) == .none)
+    }
+
+    @Test("閱讀中：只在後面接上(或前面加上舊頁)時不調整，捲動位置不跳")
+    func appendingOrPrependingNeedsNoAdjustment() {
+        let scroll = Self.reading()
+        #expect(scroll.adjustment(from: ["a", "b", "c"], to: ["a", "b", "c", "d", "e"], visible: ["a", "b"]) == .none)
+        #expect(scroll.adjustment(from: ["a", "b", "c"], to: ["o", "a", "b", "c"], visible: ["a", "b"]) == .none)
+        #expect(scroll.adjustment(from: ["a", "b", "c"], to: ["a", "b", "c"], visible: ["a"]) == .none)
+    }
+
+    @Test("閱讀中：內容被重建時，錨定畫面上第一個仍存在的訊息")
+    func rebuildAnchorsFirstVisibleMessageThatStillExists() {
+        let scroll = Self.reading()
+        #expect(scroll.adjustment(from: ["a", "b", "c", "d"], to: ["c", "d", "e"], visible: ["b", "c", "d"]) == .anchor(id: "c"))
+        #expect(scroll.adjustment(from: ["a", "b", "c"], to: ["x", "b", "c"], visible: ["b", "c"]) == .anchor(id: "b"))
+    }
+
+    @Test("閱讀中：畫面上的訊息都不在了就捲到底，不停在內容之外")
+    func rebuildWithoutVisibleMessagesGoesToBottom() {
+        let scroll = Self.reading()
+        #expect(scroll.adjustment(from: ["a", "b", "c"], to: ["x", "y"], visible: ["a", "b"]) == .bottom)
+        #expect(scroll.adjustment(from: ["a", "b", "c"], to: ["x", "y"], visible: []) == .bottom)
+    }
+
+    @Test("內容之外：內容比畫面高、可見範圍底緣超過內容底緣一個門檻以上")
+    func beyondContent() {
+        #expect(Self.measured(offsetY: 56).isBeyondContent == false)
+        #expect(Self.measured(offsetY: 56 + 48).isBeyondContent == false)
+        #expect(Self.measured(offsetY: 56 + 49).isBeyondContent)
+        // 內容高從 3000 縮成 844,捲動位置還留在原處。
+        #expect(Self.measured(offsetY: 2000).isBeyondContent)
+        // 短到不用捲的對話不算。
+        #expect(Self.measured(offsetY: -116, contentHeight: 500).isBeyondContent == false)
+    }
 }
