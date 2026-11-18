@@ -25,6 +25,11 @@ final class ConversationUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
+    /// 送出的訊息：還沒確認的回音，或對話紀錄已確認的使用者泡泡(追蹤可能立刻讀到，#165)。
+    private func sentMessage(_ text: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    }
+
     /// 點開 Agent 看到對話：使用者泡泡、工具串摘要、已載入 skill、agent 的 markdown 回覆。
     @MainActor
     func testOpeningAgentShowsConversation() {
@@ -97,7 +102,7 @@ final class ConversationUITests: XCTestCase {
         send.tap()
 
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
-        XCTAssertTrue(app.staticTexts["Add a header row too?"].waitForExistence(timeout: 5), "沒有回音")
+        XCTAssertTrue(sentMessage("Add a header row too?", in: app).waitForExistence(timeout: 5), "沒有回音")
         // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
         let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
@@ -229,7 +234,7 @@ final class ConversationUITests: XCTestCase {
         send.tap()
 
         XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "送出後沒有回到對話")
-        XCTAssertTrue(app.staticTexts["Sent from the big editor"].waitForExistence(timeout: 5), "沒有回音")
+        XCTAssertTrue(sentMessage("Sent from the big editor", in: app).waitForExistence(timeout: 5), "沒有回音")
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
     }
 
@@ -334,8 +339,7 @@ final class ConversationUITests: XCTestCase {
         text.tap()
         text.typeText("Check the logs once more")
         element("composer.send", in: app).tap()
-        let echo = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Check the logs once more'")).firstMatch
-        XCTAssertTrue(echo.waitForExistence(timeout: 5), "沒有回音")
+        XCTAssertTrue(sentMessage("Check the logs once more", in: app).waitForExistence(timeout: 5), "沒有回音")
         // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);等兩次輪詢與捲動穩定。
         Thread.sleep(forTimeInterval: 10)
         let shot = XCTAttachment(screenshot: app.screenshot())
