@@ -25,7 +25,8 @@ struct HTTPSAgentListLiveTests {
         let model = Self.model(for: service)
         let live = Task { await model.run() }
         defer { live.cancel() }
-        try await waitUntil { service.openStreams.count == 1 }
+        // 等訂閱開始時的對帳讀完：還在讀時改了主機的狀態，第一條連線就會讀到 blocked,看不出重連有沒有對帳。
+        try await waitUntil { await MainActor.run { model.updates.isSubscribed } }
         #expect(Self.status(of: "w1:p6", in: model) == .idle)
 
         service.update { $0.agentsReply = .statuses(["w1:p6": "blocked"]) }
