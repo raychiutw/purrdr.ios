@@ -81,6 +81,11 @@ extension ConversationScroll {
         return now.timeIntervalSince(rebuiltAt) <= Self.rebuildSettleTime
     }
 
+    /// `returnsToContent` 成立、畫面捲回內容時呼叫：切回跟隨。
+    public mutating func returnedToContent(_ metrics: ConversationScrollMetrics) {
+        jumpToLatest()
+    }
+
     /// 重建：原有的列(不算回音)沒有原封不動、連續地留在新的列裡(後面接上、前面加上舊頁都不是)。
     static func isRebuild(from old: [String], to new: [String]) -> Bool {
         let old = old.filter { !$0.hasPrefix(ConversationEntry.echoIDPrefix) }
