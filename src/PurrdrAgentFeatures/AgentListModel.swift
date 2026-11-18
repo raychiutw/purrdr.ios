@@ -130,19 +130,10 @@ public final class AgentListModel {
         pendingNamedPanes.formUnion(namedPanes)
     }
 
-    /// 定期更新時看到的對話紀錄大小(pane id → bytes)。
-    @ObservationIgnored private var workingTranscriptSizes: [String: Int] = [:]
-
-    /// 時間到(沒有新快照):工作中的 Agent 狀態事件不會來。先問大小(便宜),對話紀錄變了的才讀預覽(檔尾最多 48 KB)。
+    /// 時間到(沒有新快照):工作中的 Agent 狀態事件不會來，合併成一個請求帶已知版本重讀，沒變主機只回 unchanged(#205)。
     private func refreshWorkingPreviews() async {
-        guard let transcripts, let snapshot else { return }
-        var grown: Set<String> = []
-        for agent in snapshot.agents where agent.status == .working {
-            guard let target = agent.transcriptTarget, let file = try? await transcripts.locate(target) else { continue }
-            if workingTranscriptSizes[agent.paneID] != file.size { grown.insert(agent.paneID) }
-            workingTranscriptSizes[agent.paneID] = file.size
-        }
-        await refreshPreviews(namedPanes: grown)
+        guard let snapshot else { return }
+        await refreshPreviews(namedPanes: Set(snapshot.agents.filter { $0.status == .working }.map(\.paneID)))
     }
 
     /// 工作中、狀態沒變的 Agent 預覽多久更新一次(列表可見時;狀態事件不會來)。
@@ -155,6 +146,8 @@ public final class AgentListModel {
     private var previewSessions: [String: String] = [:]
     /// 各 pane 讀預覽時的 Agent 狀態;狀態變了才重讀。
     private var previewStatuses: [String: AgentStatus] = [:]
+    /// 各 pane 上次讀到的對話紀錄版本(下次讀預覽時帶回)。
+    @ObservationIgnored private var previewVersions: [String: String] = [:]
     /// 已經成功讀過一次全部的預覽。
     private var hasReadAllPreviews = false
 
@@ -171,8 +164,13 @@ public final class AgentListModel {
         let statuses = Dictionary(agents.map { ($0.paneID, $0.status) }, uniquingKeysWith: { first, _ in first })
         previewSessions = previewSessions.filter { sessions[$0.key] == $0.value }
         previews = previews.filter { previewSessions[$0.key] != nil }
+        previewVersions = previewVersions.filter { previewSessions[$0.key] != nil }
         let requests = agents.compactMap { agent in
-            agent.transcriptTarget.map { PreviewRequest(key: agent.paneID, target: $0) }
+            agent.transcriptTarget.map { target in
+                var request = PreviewRequest(key: agent.paneID, target: target)
+                request.knownVersion = previewVersions[agent.paneID]
+                return request
+            }
         }
         guard !requests.isEmpty else { return }
         guard hasReadAllPreviews else {
@@ -186,14 +184,17 @@ public final class AgentListModel {
         await readPreviews(stale, using: transcripts, sessions: sessions, statuses: statuses)
     }
 
-    /// 讀一批預覽;成功時記下讀取時的 session 與狀態(沒有可讀訊息的也算讀過)。
+    /// 讀一批預覽;成功時記下讀取時的 session、狀態與版本(沒有可讀訊息的也算讀過;沒變或新內容沒有可讀訊息時保留預覽)。
     @discardableResult
     private func readPreviews(
         _ requests: [PreviewRequest], using transcripts: TranscriptReader, sessions: [String: String], statuses: [String: AgentStatus]
     ) async -> Bool {
-        guard let fresh = try? await transcripts.previews(of: requests) else { return false }
+        guard let readings = try? await transcripts.previewReadings(of: requests) else { return false }
         for request in requests {
-            previews[request.key] = fresh[request.key] ?? previews[request.key]
+            if let reading = readings[request.key] {
+                previews[request.key] = reading.preview ?? previews[request.key]
+                previewVersions[request.key] = reading.version
+            }
             previewSessions[request.key] = sessions[request.key]
             previewStatuses[request.key] = statuses[request.key]
         }

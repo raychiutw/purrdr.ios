@@ -274,12 +274,15 @@ public enum TranscriptCommand {
         package var type: String
         package var value: String
         package var extra: String
+        /// 上次讀到的版本;沒有時是空字串。
+        package var knownVersion: String
 
-        package init(key: String, type: String, value: String, extra: String = "") {
+        package init(key: String, type: String, value: String, extra: String = "", knownVersion: String = "") {
             self.key = key
             self.type = type
             self.value = value
             self.extra = extra
+            self.knownVersion = knownVersion
         }
 
         /// id 或路徑不安全時為 `nil`(不進 shell,R-I12)。
@@ -302,14 +305,17 @@ public enum TranscriptCommand {
                 guard TranscriptReader.isValidPath(path) else { return nil }
                 self.init(key: request.key, type: header ? "pipath" : "path", value: path)
             }
+            knownVersion = request.knownVersion ?? ""
         }
     }
 
-    /// 列表預覽：每個請求印一行「分隔標記 key」,再印剝除圖片後的檔尾 48,000 bytes(§4.7);Pi／OMP 先印
-    /// 「分隔標記! key」與檔案前兩行(header 檢查)。每個請求在 subshell 裡定位，一個檔不存在或有歧義不讓整批失敗。
-    /// 參數：標記，接著每個請求四個(key、定位方式、id 或路徑、Claude 的資料夾名)。
+    /// 列表預覽：每個請求印一行「分隔標記 key」;找得到可讀的檔再印「分隔標記@ key 範圍 版本」(版本是「修改時間秒數-大小 錨點」,
+    /// 錨點同追蹤腳本：結尾前 64 bytes 的 `cksum`),接著依範圍印內容：`unchanged` 不印;`appended` 印已知版本之後附加的部分
+    /// (已知位置前的錨點相同、前一個 byte 是換行、附加不超過 48,000 bytes);`whole` 印剝除圖片後的檔尾 48,000 bytes,
+    /// Pi／OMP、Codex 先印「分隔標記! key」與檔案前兩行(header 檢查)。每個請求在 subshell 裡定位，一個檔不存在或有歧義不讓整批失敗。
+    /// 參數：標記，接著每個請求五個(key、定位方式、id 或路徑、Claude 的資料夾名、已知版本或空字串)。
     package static func previews(marker: String, entries: [PreviewEntry]) -> String {
-        command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra] })
+        command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra, $0.knownVersion] })
     }
 
     /// 列表預覽每個請求最多讀的檔尾 bytes(與 `previewsScript` 的 `tail -c` 相同;估算期限用)。
@@ -318,13 +324,14 @@ public enum TranscriptCommand {
     package static let previewsScript = #"""
         m=$1
         shift
-        while [ $# -ge 4 ]; do
+        while [ $# -ge 5 ]; do
         printf '%s %s\n' "$m" "$1"
         (
         y=$1
         t=$2
         i=$3
         p=$4
+        known_version=$5
         case $t in
         claude)
         @CLAUDE@
@@ -346,6 +353,38 @@ public enum TranscriptCommand {
         ;;
         esac
         if [ -r "$f" ]; then
+        purrdr_anchor() {
+        if [ "$1" -le 0 ]; then anchor=0; return; fi
+        anchor_start=$(($1 - 64))
+        if [ "$anchor_start" -lt 0 ]; then anchor_start=0; fi
+        anchor=$(tail -c +$((anchor_start + 1)) "$f" | head -c $(($1 - anchor_start)) | cksum)
+        anchor=${anchor%% *}
+        }
+        size=$(wc -c < "$f")
+        size=$((size + 0))
+        purrdr_anchor "$size"
+        version="$(date -r "$f" +%s 2>/dev/null)-$size $anchor"
+        range=whole
+        if [ -n "$known_version" ]; then
+        known_size=${known_version%% *}
+        known_size=${known_size##*-}
+        case $known_size in
+        ''|*[!0-9]*) known_size=-1 ;;
+        esac
+        if [ "$known_version" = "$version" ]; then
+        range=unchanged
+        elif [ "$known_size" -ge 0 ] && [ "$known_size" -lt "$size" ] && [ $((size - known_size)) -le 48000 ]; then
+        purrdr_anchor "$known_size"
+        if [ "$known_version" = "${known_version% *} $anchor" ] && { [ "$known_size" -eq 0 ] || [ "$(tail -c +"$known_size" "$f" | head -c 1 | wc -l)" -eq 1 ]; }; then range=appended; fi
+        fi
+        fi
+        printf '%s@ %s %s %s\n' "$m" "$y" "$range" "$version"
+        case $range in
+        appended)
+        tail -c +$((known_size + 1)) "$f" | head -c $((size - known_size)) | @STRIP@
+        printf '\n'
+        ;;
+        whole)
         case $t in
         pi|pipath|codex)
         printf '%s! %s\n' "$m" "$y"
@@ -355,9 +394,11 @@ public enum TranscriptCommand {
         esac
         tail -c 48000 "$f" | @STRIP@
         printf '\n'
+        ;;
+        esac
         fi
         )
-        shift 4
+        shift 5
         done
         """#
             .replacingOccurrences(of: "@CLAUDE@", with: resolver(for: .claude(sessionID: "", cwd: "")))

@@ -312,7 +312,7 @@ public struct TranscriptReader: Sendable {
 public struct PreviewRequest: Sendable, Equatable {
     public var key: String
     public var target: TranscriptTarget
-    /// 上次讀到的對話紀錄版本(`PreviewReading.version`)。
+    /// 上次讀到的對話紀錄版本(`PreviewReading.version`):沒變主機只回 unchanged,有附加只回附加的部分(#205)。
     public var knownVersion: String?
 
     public init(key: String, target: TranscriptTarget) {
@@ -330,13 +330,18 @@ public struct PreviewRequest: Sendable, Equatable {
 public struct PreviewReading: Sendable, Equatable {
     /// 這次讀到的範圍。
     public enum Change: String, Sendable, Equatable {
+        /// 與已知版本相同，沒有傳內容。
         case unchanged
+        /// 只傳已知版本之後附加的部分。
         case appended
+        /// 傳整段檔尾(沒有已知版本、換檔或不能接著讀)。
         case whole
     }
 
+    /// 主機回報的對話紀錄版本，下次當 `PreviewRequest.knownVersion` 帶回;主機沒回報時為 `nil`。
     public var version: String?
     public var change: Change
+    /// 讀到的內容裡最後一則可讀訊息;沒變或新內容沒有可讀訊息時為 `nil`(沿用上次的預覽)。
     public var preview: MessagePreview?
 
     public init(version: String?, change: Change, preview: MessagePreview?) {
@@ -347,24 +352,30 @@ public struct PreviewReading: Sendable, Equatable {
 }
 
 extension TranscriptReader {
-    /// TDD 紅燈骨架：還沒帶已知版本。
+    /// 列表預覽(行為規格 §4.7、R-L01):一次往返讀所有聊天的對話紀錄;帶已知版本的沒變只回 unchanged、有附加只回附加的部分(#205)。
+    /// session id 或路徑不安全的請求略過。回傳 key → 讀取結果;沒有檔案、有歧義或 header 不符(Pi／OMP、Codex)的聊天不在結果裡。
     public func previewReadings(of requests: [PreviewRequest]) async throws -> [String: PreviewReading] {
-        try await previews(of: requests).mapValues { PreviewReading(version: nil, change: .whole, preview: $0) }
-    }
-
-    /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 或路徑不安全的請求略過。
-    /// 回傳 key → 最後一則可讀訊息;沒有檔案、有歧義、header 不符(Pi／OMP)或沒有可讀訊息的聊天不在結果裡。
-    public func previews(of requests: [PreviewRequest]) async throws -> [String: MessagePreview] {
         guard requests.contains(where: { TranscriptCommand.PreviewEntry($0) != nil }) else { return [:] }
         let marker = marker()
         let output = try await run(.previews(marker: marker, requests: requests))
         var bodies: [String: [String]] = [:]
         var headers: [String: [String]] = [:]
+        var ranges: [String: (change: PreviewReading.Change, version: String)] = [:]
         var current: (key: String, isHeader: Bool)?
         let bodyPrefix = marker + " "
         let headerPrefix = marker + "! "
+        let rangePrefix = marker + "@ "
         for line in String(decoding: output.stdout, as: UTF8.self).split(separator: "\n") {
-            if line.hasPrefix(headerPrefix) {
+            if line.hasPrefix(rangePrefix) {
+                let fields = line.dropFirst(rangePrefix.count).split(separator: " ", maxSplits: 2).map(String.init)
+                guard fields.count == 3, let change = PreviewReading.Change(rawValue: fields[1]) else {
+                    current = nil
+                    continue
+                }
+                ranges[fields[0]] = (change, fields[2])
+                current = (fields[0], false)
+                bodies[fields[0]] = []
+            } else if line.hasPrefix(headerPrefix) {
                 let key = String(line.dropFirst(headerPrefix.count))
                 current = (key, true)
                 headers[key] = []
@@ -376,20 +387,31 @@ extension TranscriptReader {
                 if current.isHeader { headers[current.key, default: []].append(String(line)) } else { bodies[current.key, default: []].append(String(line)) }
             }
         }
-        var previews: [String: MessagePreview] = [:]
+        var readings: [String: PreviewReading] = [:]
         for request in requests {
             guard let lines = bodies[request.key] else { continue }
-            if request.target.format == .piJournal {
-                let expectedID: String? = if case .piJournal(let id) = request.target.location { id } else { nil }
-                guard PiJournalParser.headerMatches(headers[request.key] ?? [], expectedID: expectedID) else { continue }
-            }
-            if case .codex(let id) = request.target.location {
-                guard let header = headers[request.key]?.first, CodexTranscriptParser.headerMatches(header, expectedID: id) else { continue }
+            let range = ranges[request.key]
+            let change = range?.change ?? .whole
+            // 附加與沒變沿用上次整段讀取時的 header 檢查(錨點相同才算同一個檔)。
+            if change == .whole {
+                if request.target.format == .piJournal {
+                    let expectedID: String? = if case .piJournal(let id) = request.target.location { id } else { nil }
+                    guard PiJournalParser.headerMatches(headers[request.key] ?? [], expectedID: expectedID) else { continue }
+                }
+                if case .codex(let id) = request.target.location {
+                    guard let header = headers[request.key]?.first, CodexTranscriptParser.headerMatches(header, expectedID: id) else { continue }
+                }
             }
             // 檔尾的第一行多半被切在中間，解析時自然略過。
-            previews[request.key] = Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
+            let preview = change == .unchanged ? nil : Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
+            readings[request.key] = PreviewReading(version: range?.version, change: change, preview: preview)
         }
-        return previews
+        return readings
+    }
+
+    /// 列表預覽(不帶已知版本時是整段檔尾):回傳 key → 最後一則可讀訊息;沒有可讀訊息的聊天不在結果裡。
+    public func previews(of requests: [PreviewRequest]) async throws -> [String: MessagePreview] {
+        try await previewReadings(of: requests).compactMapValues(\.preview)
     }
 }
 
