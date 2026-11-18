@@ -5,7 +5,7 @@
 「游標 版本 錨點 路徑」,回應照 `SSHTranscriptFollower.takeReply` 的格式解析。
 
 kind:
-  cases   回應種類：附加(剝圖片、未完成的行不送)、沒變、變短、同長以上的新檔、檔案不在。
+  cases   回應種類：附加(剝圖片、未完成的行不送)、沒變、同時間同長的新檔、變短、同長以上的新檔、檔案不在。
   stress  N 條通道(各自一條 ssh 連線、一個檔)並行 R 輪：每輪隨機附加 0／1 KiB／200 KiB,每 25 輪附加 2 MiB;
           最後追上，收到的行要與寫入的完全相同。結束方式 `--end close`(送 EOF)或 `drop`(直接結束本機 ssh,斷 TCP),
           3 秒後程序樹(以 Git Bash 的 `/proc/$$/winpid` 為根)不留任何程序。
@@ -276,6 +276,15 @@ def run_cases(source):
         stripped = follower.received[-1:] == ['{"n":2,"image":""}'] and follower.cursor == 8 + len(image) + 1
         steps.append(("沒變", follower.poll(path)))
         cursor, stamp, anchor = follower.cursor, follower.stamp, follower.anchor
+        # 同一時間換成同長的新檔：版本(修改時間 ticks-大小)相同，只有錨點看得出來。
+        before = os.stat(path)
+        with open(path, "rb") as file:
+            same_length = file.read().replace(b"A", b"B")
+        with open(path, "wb") as file:
+            file.write(same_length)
+        os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
+        steps.append(("同時間同長的新檔", follower.poll(path)))
+        follower.cursor, follower.stamp, follower.anchor = cursor, stamp, anchor
         with open(path, "wb") as file:
             file.write(b"x\n")
         steps.append(("變短", follower.poll(path)))
@@ -284,7 +293,7 @@ def run_cases(source):
         follower.cursor, follower.stamp, follower.anchor = cursor, stamp, anchor
         steps.append(("同長以上的新檔", follower.poll(path)))
         steps.append(("檔案不在", follower.poll(path + ".missing")))
-        expected = ["appended", "appended", "unchanged", "replaced 2", f"replaced {cursor + 2}", "error 3"]
+        expected = ["appended", "appended", "unchanged", f"replaced {before.st_size}", "replaced 2", f"replaced {cursor + 2}", "error 3"]
         got = [reply for _, reply in steps]
         green = got == expected and stripped
         return green, " · ".join(f"{name} {reply}" for name, reply in steps) + ("" if stripped else ";圖片字串沒剝掉或游標不對")
