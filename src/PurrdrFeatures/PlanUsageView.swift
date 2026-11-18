@@ -41,7 +41,7 @@ public struct PlanUsageView: View {
         .navigationTitle("Plan Usage")
         .refreshable { await model.refresh() }
         .toolbar { options }
-        .alert("Show Claude Usage?", isPresented: confirming) {
+        .alert("Show Claude Plan Usage?", isPresented: confirming) {
             Button("Change Settings") { Task { await model.confirm() } }
             Button("Cancel", role: .cancel) { model.cancelConsent() }
         } message: {
@@ -75,7 +75,7 @@ public struct PlanUsageView: View {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(rows) { row in
                         PlanUsageRingView(row: row, display: model.display)
-                            .accessibilityIdentifier(row.period == .fiveHour ? "planUsage.period.fiveHour" : "planUsage.period.week")
+                            .accessibilityIdentifier(row.period.accessibilityIdentifier)
                     }
                 }
                 .padding(.vertical, 8)
@@ -144,9 +144,9 @@ public struct PlanUsageView: View {
                 case (.claudeCode, nil):
                     Text("Claude Code reports these numbers while it runs on this host.")
                 case (.codex, let asOf?):
-                    Text("As of \(asOf, format: .dateTime.hour().minute()). Codex reports these numbers for the ChatGPT account signed in on this host.")
+                    Text("As of \(asOf, format: .dateTime.hour().minute()). Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
                 case (.codex, nil):
-                    Text("Codex reports these numbers for the ChatGPT account signed in on this host.")
+                    Text("Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
                 }
             }
             .foregroundStyle(.secondaryText)
@@ -162,7 +162,7 @@ public struct PlanUsageView: View {
                     Text("Show Used").tag(PlanUsageModel.Display.used)
                 }
                 if model.canTurnOff {
-                    Button("Turn Off Claude Usage", systemImage: "arrow.uturn.backward", role: .destructive) {
+                    Button("Turn Off Claude Plan Usage", systemImage: "arrow.uturn.backward", role: .destructive) {
                         Task { await model.turnOff() }
                     }
                 }
@@ -217,6 +217,23 @@ extension PlanUsageFailure {
             String(localized: "Codex couldn’t get plan usage: \(message)")
         case .connection(let message):
             message
+        }
+    }
+}
+
+extension PlanUsage.Period.Kind {
+    /// 用量週期的名稱(畫面與 VoiceOver 共用)。
+    var name: LocalizedStringResource {
+        switch self {
+        case .fiveHour: "5 Hours"
+        case .week: "Weekly"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .fiveHour: "planUsage.period.fiveHour"
+        case .week: "planUsage.period.week"
         }
     }
 }
@@ -303,7 +320,7 @@ struct PlanUsageRingView: View {
                 }
             }
             .frame(width: diameter, height: diameter)
-            Text(title)
+            Text(row.period.name)
                 .font(.subheadline.weight(.semibold))
                 .multilineTextAlignment(.center)
             if let resetsAt = row.resetsAt {
@@ -318,19 +335,9 @@ struct PlanUsageRingView: View {
         .accessibilityLabel(Text(verbatim: accessibilityText))
     }
 
-    private var title: LocalizedStringKey {
-        switch row.period {
-        case .fiveHour: "5 Hours"
-        case .week: "Weekly"
-        }
-    }
-
     /// VoiceOver:名稱、比例、重置時間。
     private var accessibilityText: String {
-        let name = switch row.period {
-        case .fiveHour: String(localized: "5 Hours")
-        case .week: String(localized: "Weekly")
-        }
+        let name = String(localized: row.period.name)
         let amount = display == .remaining ? String(localized: "\(row.percent)% left") : String(localized: "\(row.percent)% used")
         guard let resetsAt = row.resetsAt else { return "\(name), \(amount)" }
         return "\(name), \(amount), " + String(localized: "Resets \(resetsAt.formatted(Self.resetFormat(resetsAt)))")
@@ -338,6 +345,6 @@ struct PlanUsageRingView: View {
 
     /// 一天內只顯示時間，否則加上星期。時間依裝置地區與 12/24 小時制。
     static func resetFormat(_ date: Date, now: Date = Date()) -> Date.FormatStyle {
-        date.timeIntervalSince(now) < 24 * 3600 ? .dateTime.hour().minute() : .dateTime.weekday(.abbreviated).hour().minute()
+        date.timeIntervalSince(now) < PlanUsage.Period.day ? .dateTime.hour().minute() : .dateTime.weekday(.abbreviated).hour().minute()
     }
 }

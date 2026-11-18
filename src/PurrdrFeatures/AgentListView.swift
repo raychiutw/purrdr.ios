@@ -325,7 +325,7 @@ public struct AgentListView: View {
         }
     }
 
-    /// 某台主機讀不到(Claude 用量只在選取中主機讀得到時顯示)。
+    /// 某台主機讀不到(Claude 方案用量只在選取中主機讀得到時顯示)。
     private func list(failedFor host: HostSelection) -> Bool {
         if case .failed? = model.list(for: host)?.phase { return true }
         return false

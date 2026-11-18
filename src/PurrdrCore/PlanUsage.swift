@@ -15,6 +15,12 @@ public struct PlanUsage: Equatable, Sendable {
             self.usedPercentage = usedPercentage
             self.resetsAt = resetsAt
         }
+
+        /// 一天的長度;短於一天的用量週期算 5 小時。
+        public static let day: TimeInterval = 24 * 60 * 60
+
+        /// 比例夾在 0～100。
+        public static func clamped(_ percentage: Double) -> Double { min(max(percentage, 0), 100) }
     }
 
     public var periods: [Period]

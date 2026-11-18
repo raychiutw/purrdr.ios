@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrCore
 
-/// Claude 用量的主機端(行為規格 F18,ADR-0002 的寫入例外)。
+/// Claude 方案用量的主機端(行為規格 F18,ADR-0002 的寫入例外)。
 ///
 /// Claude Code 只把 `rate_limits` 交給 status line 指令，所以經使用者同意後，把 `~/.claude/settings.json`
 /// 的 `statusLine.command` 換成 `~/.purrdr/claude-usage/statusline.sh`:它把輸入存成 `usage.json`,
@@ -129,7 +129,7 @@ public struct ClaudePlanUsageHost: Sendable {
     /// 包裝腳本。輸入有 `rate_limits` 才存(session 剛開始時沒有，不蓋掉上次的用量)。
     static let wrapperScript = """
         #!/bin/sh
-        # Purrdr 的 Claude 用量包裝：由 Purrdr app 安裝，在 app 關閉「Claude 用量」就會還原。
+        # Purrdr 的 Claude 方案用量包裝：由 Purrdr app 安裝，在 app 關閉「Claude 方案用量」就會還原。
         # 把 Claude Code 交給 status line 的輸入存成 usage.json,再原樣交給原本的 status line。
         dir="$HOME/.purrdr/claude-usage"
         input=$(cat)

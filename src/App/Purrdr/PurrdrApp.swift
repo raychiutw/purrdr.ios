@@ -82,7 +82,7 @@ struct PurrdrApp: App {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
                 secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
-            // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
+            // 主機寫入的同意(Claude 方案用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,

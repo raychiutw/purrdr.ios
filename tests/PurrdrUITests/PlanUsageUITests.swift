@@ -69,7 +69,7 @@ final class PlanUsageUITests: XCTestCase {
                        "沒切換成已用比例:\(fiveHour.label)")
 
         element("planUsage.menu", in: app).tap()
-        app.buttons["Turn Off Claude Usage"].tap()
+        app.buttons["Turn Off Claude Plan Usage"].tap()
         XCTAssertTrue(app.buttons["planUsage.consent"].waitForExistence(timeout: 10), "關閉後沒有回到請使用者同意")
     }
 

@@ -885,7 +885,7 @@
         }
       }
     },
-    "As of %@. Codex reports these numbers for the ChatGPT account signed in on this host." : {
+    "As of %@. Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1637,7 +1637,7 @@
         }
       }
     },
-    "Codex reports these numbers for the ChatGPT account signed in on this host." : {
+    "Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -5531,13 +5531,13 @@
         }
       }
     },
-    "Show Claude Usage?" : {
+    "Show Claude Plan Usage?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要顯示 Claude 用量嗎？"
+            "value" : "要顯示 Claude 方案用量嗎？"
           }
         }
       }
@@ -7478,13 +7478,13 @@
         }
       }
     },
-    "Turn Off Claude Usage" : {
+    "Turn Off Claude Plan Usage" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "關閉 Claude 用量"
+            "value" : "關閉 Claude 方案用量"
           }
         }
       }

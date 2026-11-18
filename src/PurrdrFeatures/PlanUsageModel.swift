@@ -225,9 +225,9 @@ public final class PlanUsageModel {
         self.store = store
         self.now = now
         self.sleep = sleep
-        let saved = store.load()
-        host = saved.map(\.host).flatMap { saved in hosts.contains { $0.id == saved } ? saved : nil } ?? fallback
-        agent = saved?.agent ?? .claudeCode
+        let savedSelection = store.load()
+        host = savedSelection.map(\.host).flatMap { savedHost in hosts.contains { $0.id == savedHost } ? savedHost : nil } ?? fallback
+        agent = savedSelection?.agent ?? .claudeCode
     }
 
     /// 要顯示的用量週期(已過重置時間的不顯示)。
@@ -285,15 +285,11 @@ public final class PlanUsageModel {
     /// 使用者要顯示 Claude 的方案用量：先檢查主機(設定能不能安全修改、以哪個使用者),再請使用者確認。
     public func requestConsent() async {
         guard state == .needsConsent, let hostWrite = source(host, agent)?.hostWrite else { return }
-        let selection = (host, agent)
         message = nil
         state = .checking
-        do {
-            let user = try await hostWrite.inspect()
-            guard selection == (host, agent) else { return }
+        await whileSelected(hostWrite.inspect) { user in
             state = .confirming(user: user)
-        } catch {
-            guard selection == (host, agent) else { return }
+        } failure: { error in
             state = .needsConsent
             message = Self.describe(error)
         }
@@ -306,15 +302,11 @@ public final class PlanUsageModel {
     /// 使用者確認：安裝(重新讀取設定，以最新內容為準)並記住同意，再查一次。
     public func confirm() async {
         guard case .confirming = state, let hostWrite = source(host, agent)?.hostWrite else { return }
-        let selection = (host, agent)
         state = .installing
-        do {
-            try await hostWrite.install()
-            guard selection == (host, agent) else { return }
+        await whileSelected(hostWrite.install) {
             state = .loading
             await refresh()
-        } catch {
-            guard selection == (host, agent) else { return }
+        } failure: { error in
             state = .needsConsent
             message = Self.describe(error)
         }
@@ -323,21 +315,35 @@ public final class PlanUsageModel {
     /// 關閉這台主機的 Claude 方案用量：還原主機設定、撤銷同意。還原失敗時維持原狀並說明。
     public func turnOff() async {
         guard canTurnOff, let hostWrite = source(host, agent)?.hostWrite else { return }
-        let selection = (host, agent)
         let previous = state
         // 只停進行中的查詢：定期重整在還原期間會略過，之後重新同意仍照常。
         query?.cancel()
         query = nil
         state = .turningOff
-        do {
-            try await hostWrite.restore()
-            guard selection == (host, agent) else { return }
+        await whileSelected(hostWrite.restore) {
             message = nil
             state = .needsConsent
-        } catch {
-            guard selection == (host, agent) else { return }
+        } failure: { error in
             state = previous
             message = Self.describe(error)
+        }
+    }
+
+    /// 執行主機寫入;等待期間改選了主機或 Agent 時，結果不再套用。
+    private func whileSelected<Value>(
+        _ operation: @Sendable () async throws -> Value, success: (Value) async -> Void, failure: (any Error) -> Void
+    ) async {
+        let selection = PlanUsageSelection(host: host, agent: agent)
+        let outcome: Result<Value, any Error>
+        do {
+            outcome = .success(try await operation())
+        } catch {
+            outcome = .failure(error)
+        }
+        guard selection == PlanUsageSelection(host: host, agent: agent) else { return }
+        switch outcome {
+        case .success(let value): await success(value)
+        case .failure(let error): failure(error)
         }
     }
 
@@ -459,7 +465,7 @@ public enum PlanUsagePresentation {
     public static func rows(for usage: PlanUsage, showing display: PlanUsageModel.Display, now: Date) -> [PlanUsageRow] {
         usage.periods.compactMap { period in
             guard period.resetsAt.map({ $0 > now }) ?? true else { return nil }
-            let used = min(max(period.usedPercentage, 0), 100)
+            let used = PlanUsage.Period.clamped(period.usedPercentage)
             let remaining = 100 - used
             let shown = display == .remaining ? remaining : used
             return PlanUsageRow(
@@ -476,7 +482,12 @@ public enum PlanUsagePresentation {
         now.timeIntervalSince(usage.capturedAt) > staleAfter ? usage.capturedAt : nil
     }
 
+    /// 剩餘超過這個比例算充足。
+    static let ampleAbove: Double = 40
+    /// 剩餘超過這個比例(且不算充足)算偏低，其餘算將用完。
+    static let lowAbove: Double = 15
+
     static func level(remaining: Double) -> PlanUsageLevel {
-        remaining > 40 ? .ample : remaining > 15 ? .low : .depleted
+        remaining > ampleAbove ? .ample : remaining > lowAbove ? .low : .depleted
     }
 }

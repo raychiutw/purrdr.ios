@@ -10,7 +10,7 @@ import PurrdrSSH
 ///
 /// 目前內容：三個 Agent(「需要你」、工作中、已完成各一)、兩個 Claude Code agent 的對話紀錄(`DemoTranscripts`;
 /// 送出 prompt 後接上使用者那一行與固定回覆，「需要你」的 agent 回 `agent_blocked`)、接受按鍵(中斷)、
-/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell、記憶體裡的家目錄(主機檔案讀寫;Claude 用量裝上後回範例用量)。
+/// 接受事件訂閱(不送事件)與在場回報、回顯的 shell、記憶體裡的家目錄(主機檔案讀寫;Claude 方案用量裝上後回範例用量)。
 /// 完整的情境在 Demo 模式那張票補齊。
 public actor DemoHost: HostChannel {
     /// Demo 主機的情境(UI 測試以啟動旗標切換)。
@@ -44,7 +44,7 @@ public actor DemoHost: HostChannel {
     /// 「需要你」情境的進度。
     private var answers = DemoAnswers()
 
-    /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 用量的同意與還原)。
+    /// 記憶體裡的家目錄(主機檔案讀寫，例如 Claude 方案用量的同意與還原)。
     private var files = DemoFiles()
 
     /// 檔案瀏覽的資料夾(上傳只在記憶體)。

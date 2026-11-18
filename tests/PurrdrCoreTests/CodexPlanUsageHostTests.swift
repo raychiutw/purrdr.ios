@@ -143,9 +143,9 @@ struct CodexPlanUsageHostTests {
     func windowsHost() async throws {
         let script = """
             $ProgressPreference='SilentlyContinue'
-            $c=Get-Command 'codex' -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
-            if(-not $c){[Console]::Error.Write("codex: command not found`n");exit 127}
-            & $c.Source 'app-server'
+            $codexCommand=Get-Command 'codex' -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
+            if(-not $codexCommand){[Console]::Error.Write("codex: command not found`n");exit 127}
+            & $codexCommand.Source 'app-server'
             exit $LASTEXITCODE
             """
         let host = await Self.appServer(answering: Self.singleBucket, command: PowerShell.encodedCommand(script))

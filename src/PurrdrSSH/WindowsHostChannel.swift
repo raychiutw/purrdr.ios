@@ -189,9 +189,9 @@ enum WindowsCommand {
     /// `codex app-server`:PATH 上找 `codex.exe`／`codex.cmd`(找不到 exit 127),stdin／stdout 直接接到通道(同 herdr bridge)。
     static let codexAppServer = """
         $ProgressPreference='SilentlyContinue'
-        $c=Get-Command 'codex' -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
-        if(-not $c){[Console]::Error.Write("codex: command not found`n");exit 127}
-        & $c.Source 'app-server'
+        $codexCommand=Get-Command 'codex' -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
+        if(-not $codexCommand){[Console]::Error.Write("codex: command not found`n");exit 127}
+        & $codexCommand.Source 'app-server'
         exit $LASTEXITCODE
         """
 

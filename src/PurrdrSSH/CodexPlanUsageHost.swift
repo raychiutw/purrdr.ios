@@ -53,7 +53,7 @@ public struct CodexPlanUsageHost: Sendable {
     static func line(_ message: [String: Any]) -> Data {
         // 內容都是程式裡的固定值，序列化不會失敗。
         var data = (try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
-        data.append(0x0A)
+        data.append(JSONLines.separator)
         return data
     }
 
@@ -65,17 +65,14 @@ public struct CodexPlanUsageHost: Sendable {
         }
         var periods: [PlanUsage.Period] = []
         for (key, slotKind) in [("primary", PlanUsage.Period.Kind.fiveHour), ("secondary", .week)] {
-            guard let window = snapshot[key] as? [String: Any], let used = (window["usedPercent"] as? NSNumber)?.doubleValue else { continue }
-            let kind = (window["windowDurationMins"] as? NSNumber).map { $0.intValue < Self.dayMinutes ? .fiveHour : .week } ?? slotKind
+            guard let period = snapshot[key] as? [String: Any], let used = (period["usedPercent"] as? NSNumber)?.doubleValue else { continue }
+            let kind = (period["windowDurationMins"] as? NSNumber).map { $0.doubleValue * 60 < PlanUsage.Period.day ? .fiveHour : .week } ?? slotKind
             guard !periods.contains(where: { $0.kind == kind }) else { continue }
-            let resetsAt = (window["resetsAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
-            periods.append(PlanUsage.Period(kind: kind, usedPercentage: min(max(used, 0), 100), resetsAt: resetsAt))
+            let resetsAt = (period["resetsAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+            periods.append(PlanUsage.Period(kind: kind, usedPercentage: PlanUsage.Period.clamped(used), resetsAt: resetsAt))
         }
         return PlanUsage(periods: periods.sorted { $0.kind == .fiveHour && $1.kind == .week }, capturedAt: capturedAt)
     }
-
-    /// 短於一天的用量週期算 5 小時，其餘算每週。
-    static let dayMinutes = 24 * 60
 }
 
 /// app-server 的 stdout:一行一則 JSON,通知與其他回應略過，只取指定 `id` 的回應。
@@ -105,9 +102,7 @@ private struct AppServerResponses {
 
     mutating func result(for id: Int) async throws -> [String: Any] {
         while true {
-            while let newline = buffer.firstIndex(of: 0x0A) {
-                let line = buffer[buffer.startIndex..<newline]
-                buffer.removeSubrange(buffer.startIndex...newline)
+            while let line = JSONLines.takeLine(from: &buffer) {
                 guard let message = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
                       (message["id"] as? NSNumber)?.intValue == id else { continue }
                 if let error = message["error"] as? [String: Any] {
