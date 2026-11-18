@@ -77,7 +77,7 @@ struct PurrdrApp: App {
                 swipeHint: InMemorySwipeHintStore(),
                 listMode: Self.uiTestingListMode(arguments),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
-                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
+                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.ssh?.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
