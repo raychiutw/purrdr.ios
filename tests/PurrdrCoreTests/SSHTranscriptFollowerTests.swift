@@ -298,9 +298,9 @@ struct SSHTranscriptFollowerTests {
 
     @Test("主機腳本：閒置時限到了以 exit 124 結束，不留下程序")
     func scriptIdleLimit() async throws {
-        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 2, totalSeconds: 60))
+        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 2, totalSeconds: 60).replacingOccurrences(of: "LC_ALL=C sh -c ", with: "LC_ALL=C sh -x -c "))
 
-        #expect(result.output.exitCode == 124)
+        #expect(result.output.exitCode == 124, "DIAG \(String(decoding: result.output.stderr, as: UTF8.self).suffix(3000))")
         #expect(result.elapsed < .seconds(20))
         #expect(result.leftover.isEmpty, "\(result.leftover)")
     }
