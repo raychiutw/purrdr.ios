@@ -77,17 +77,20 @@ public struct TerminalComposition: Sendable, Equatable {
         markedText = ""
     }
 
-    /// 按鍵列的一顆鍵。
+    /// 按鍵列的一顆鍵：先放棄組字(不送出)再送該鍵。
     public mutating func pressKeyBarKey(_ key: TerminalKey) -> [TerminalInputSend] {
-        []
+        cancel()
+        return [.key(key, modifiers: [])]
     }
 
-    /// 貼上。
+    /// 貼上：先放棄組字(不送出)再送貼上內容。
     public mutating func paste(_ text: String) -> [TerminalInputSend] {
-        []
+        cancel()
+        return text.isEmpty ? [] : [.paste(text)]
     }
 
     /// 實體鍵盤按鍵(`modifiers` 是按著的實體修飾鍵)。組字中一律交給輸入法。
+    /// `scrollsPageLocally`:遠端沒開 alternate screen 與 application cursor 時，Page Up／Down 在本機捲一頁(同 SwiftTerm)。
     public func handle(
         _ key: TerminalHardwareKey, modifiers: TerminalModifiers, scrollsPageLocally: Bool = false
     ) -> TerminalHardwareKeyHandling {
@@ -110,8 +113,12 @@ public struct TerminalComposition: Sendable, Equatable {
         case .right: terminalKey = .right
         case .home: terminalKey = .home
         case .end: terminalKey = .end
-        case .pageUp: terminalKey = .pageUp
-        case .pageDown: terminalKey = .pageDown
+        case .pageUp:
+            guard !scrollsPageLocally else { return .scrollPage(.up) }
+            terminalKey = .pageUp
+        case .pageDown:
+            guard !scrollsPageLocally else { return .scrollPage(.down) }
+            terminalKey = .pageDown
         case .function(let number): terminalKey = .function(number)
         }
         return .send(.key(terminalKey, modifiers: modifiers))
