@@ -248,7 +248,9 @@ public final class PlanUsageModel {
         guard canTurnOff, let hostWrite = source(host, agent)?.hostWrite else { return }
         let selection = (host, agent)
         let previous = state
-        stop()
+        // 只停進行中的查詢：定期重整在還原期間會略過，之後重新同意仍照常。
+        query?.cancel()
+        query = nil
         state = .turningOff
         do {
             try await hostWrite.restore()
