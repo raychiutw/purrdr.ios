@@ -12,7 +12,7 @@ public struct SSHTimeouts: Sendable, Equatable {
     public var handshake: TimeAmount
     /// 開 channel 與等 exec／pty-req 的回覆。
     public var channelOpen: TimeAmount
-    /// 連線閒置時多久送一次 keepalive(`nil` 不送)。iOS 沒有 TCP 層的提早發現，半開連線靠它在使用者動作前就被丟棄。
+    /// 連線閒置時多久送一次 keepalive(`nil` 不送);這段時間內主機傳過資料就跳過。iOS 沒有 TCP 層的提早發現，半開連線靠它在使用者動作前就被丟棄。
     public var keepaliveInterval: TimeAmount?
     /// keepalive 送出後等主機回應的期限;到了視為半開連線，整條丟棄(下一個指令重撥)。
     public var keepaliveReply: TimeAmount
@@ -241,6 +241,7 @@ final class SSHConnection: Sendable {
     ) async throws -> (SSHConnection, checked: Bool) {
         let eventLoop = group.next()
         let dropReason = DropReasonBox()
+        let activity = InboundActivityBox()
         let authenticated = eventLoop.makePromise(of: Bool.self)
         let bootstrap = ClientBootstrap(group: eventLoop)
             .connectTimeout(timeouts.connect)
@@ -249,6 +250,7 @@ final class SSHConnection: Sendable {
                     let configuration = SSHClientConfiguration(
                         userAuthDelegate: CredentialAuthentication(username: endpoint.username, credential: credential),
                         serverAuthDelegate: HostKeyVerifier(pin: hostKeyPin))
+                    try channel.pipeline.syncOperations.addHandler(InboundActivityHandler(activity: activity))
                     try channel.pipeline.syncOperations.addHandler(
                         NIOSSHHandler(role: .client(configuration), allocator: channel.allocator, inboundChildChannelInitializer: nil))
                     try channel.pipeline.syncOperations.addHandler(
@@ -272,7 +274,8 @@ final class SSHConnection: Sendable {
             }
             if let interval = timeouts.keepaliveInterval {
                 startKeepalive(
-                    on: channel, every: interval, replyWithin: timeouts.keepaliveReply, scheduler: scheduler, dropReason: dropReason)
+                    on: channel, every: interval, replyWithin: timeouts.keepaliveReply, scheduler: scheduler, dropReason: dropReason,
+                    activity: activity)
             }
             // 診斷(#133):登入完成到連線結束的壽命與原因。原因由關閉的一方先記下;都沒記 = 對端關閉。
             diagnostics?(.connected(dial: dial))
@@ -339,18 +342,24 @@ final class SSHConnection: Sendable {
     /// swift-nio-ssh 沒有公開送任意 global request 的 API,所以送一個「取消不存在的轉送」
     /// (`cancel-tcpip-forward`,位址是 `.invalid` 網域、埠 0):主機回成功或失敗都證明連線活著，
     /// 而且不會影響任何東西。期限內沒有任何回應 = 半開連線 → 關掉整條連線，下一個指令重新撥號;
-    /// 進行中的指令以 `connectionLost` 結束(不重送)。
+    /// 進行中的指令以 `connectionLost` 結束(不重送)。這一輪間隔內主機傳過任何資料就已證明連線活著，跳過不送。
     private static func startKeepalive(
         on channel: any Channel, every interval: TimeAmount, replyWithin limit: TimeAmount, scheduler: any SSHDeadlineScheduler,
-        dropReason: DropReasonBox
+        dropReason: DropReasonBox, activity: InboundActivityBox
     ) {
         let eventLoop = channel.eventLoop
         let nextRound = NIOLoopBoundBox.makeEmptyBox(valueType: SSHScheduledDeadline.self, eventLoop: eventLoop)
         // 上一輪有結果後才排下一輪，間隔從那時算起(與 scheduleRepeatedAsyncTask 相同)。
         @Sendable func scheduleRound() {
             guard channel.isActive else { return }
+            // 從這裡起算：上一輪 keepalive 自己的回應不算流量。
+            activity.reset()
             nextRound.value = scheduler.schedule(in: interval, on: eventLoop) {
                 guard channel.isActive, let handler = try? channel.pipeline.syncOperations.handler(type: NIOSSHHandler.self) else {
+                    return
+                }
+                if activity.receivedData {
+                    scheduleRound()
                     return
                 }
                 let reply = eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
@@ -402,7 +411,40 @@ final class DropReasonBox: @unchecked Sendable {
     }
 }
 
+/// 上次 `reset()` 之後主機是否傳來過資料(keepalive 據此判斷連線最近有沒有活著的證據)。
+final class InboundActivityBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var received = false
+
+    var receivedData: Bool { lock.withLock { received } }
+
+    func record() {
+        lock.withLock { received = true }
+    }
+
+    func reset() {
+        lock.withLock { received = false }
+    }
+}
+
 // MARK: - NIO handlers
+
+/// 把主機傳來的任何資料記到 `InboundActivityBox`。
+private final class InboundActivityHandler: ChannelInboundHandler {
+    typealias InboundIn = ByteBuffer
+    typealias InboundOut = ByteBuffer
+
+    private let activity: InboundActivityBox
+
+    init(activity: InboundActivityBox) {
+        self.activity = activity
+    }
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        activity.record()
+        context.fireChannelRead(data)
+    }
+}
 
 /// 依憑證登入，每種方式只試一次(OpenSSH 會懲罰重複失敗的登入，行為規格 §7.3)。
 ///
