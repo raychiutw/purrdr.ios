@@ -44,6 +44,37 @@ extension PlanUsageSource {
     }
 }
 
+/// 方案用量畫面上次選的主機與 Agent。
+public struct PlanUsageSelection: Equatable, Sendable {
+    public var host: HostSelection
+    public var agent: PlanUsageAgent
+
+    public init(host: HostSelection, agent: PlanUsageAgent) {
+        self.host = host
+        self.agent = agent
+    }
+}
+
+/// 上次選擇的本機存放處。
+@MainActor
+public protocol PlanUsageSelectionStore: AnyObject {
+    func load() -> PlanUsageSelection?
+    func save(_ selection: PlanUsageSelection)
+}
+
+/// 只在記憶體：測試與 UI 測試用。
+@MainActor
+public final class InMemoryPlanUsageSelectionStore: PlanUsageSelectionStore {
+    private var selection: PlanUsageSelection?
+
+    public init(_ selection: PlanUsageSelection? = nil) {
+        self.selection = selection
+    }
+
+    public func load() -> PlanUsageSelection? { selection }
+    public func save(_ selection: PlanUsageSelection) { self.selection = selection }
+}
+
 /// 方案用量畫面的 model(#176、#177)。
 @MainActor
 @Observable
@@ -70,7 +101,8 @@ public final class PlanUsageModel {
     ///   - sleep: 定期重整的等待;測試注入假的。
     ///   - source: 某台主機某種 Agent 的來源;`nil` 表示這種連線方式不支援。
     public init(
-        hosts: [PlanUsageHostOption], fallback: HostSelection, now: @escaping () -> Date = Date.init,
+        hosts: [PlanUsageHostOption], fallback: HostSelection, store: any PlanUsageSelectionStore,
+        now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
         source: @escaping (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     ) {

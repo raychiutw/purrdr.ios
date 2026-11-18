@@ -33,14 +33,16 @@ struct PlanUsageModelTests {
         consent.grant(ClaudeUsageHost.feature.id, host: selection.storedValue)
     }
 
+    static let bothHosts = [PlanUsageHostOption(id: mac, name: "Mac"), PlanUsageHostOption(id: linux, name: "Linux")]
+
     func model(
+        hosts: [PlanUsageHostOption] = Self.bothHosts, store: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep
     ) -> PlanUsageModel {
         let channel = channel ?? host
         let consent = consent
         return PlanUsageModel(
-            hosts: [PlanUsageHostOption(id: Self.mac, name: "Mac"), PlanUsageHostOption(id: Self.linux, name: "Linux")],
-            fallback: Self.mac, now: { Self.now }, sleep: sleep
+            hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep
         ) { selection, _ in
             .claude(channel: channel, cost: cost, hostID: selection.storedValue, consent: consent)
         }
@@ -78,6 +80,20 @@ struct PlanUsageModelTests {
         model.select(agent: .claudeCode)
         await model.untilIdle()
         #expect(host.commands.count == 2)
+    }
+
+    @Test("記住上次選的主機與 Agent;那台主機被刪除時退回選取中主機")
+    func remembersSelection() async throws {
+        let store = InMemoryPlanUsageSelectionStore()
+        let first = model(store: store)
+        first.select(host: Self.linux)
+
+        let reopened = model(store: store)
+        #expect(reopened.host == Self.linux)
+        #expect(reopened.agent == .claudeCode)
+
+        let linuxDeleted = model(hosts: [PlanUsageHostOption(id: Self.mac, name: "Mac")], store: store)
+        #expect(linuxDeleted.host == Self.mac)
     }
 
     @Test("下拉重新整理：再查一次，拿到最新數字")
