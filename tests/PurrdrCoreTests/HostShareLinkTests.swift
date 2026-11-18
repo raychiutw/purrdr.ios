@@ -68,6 +68,42 @@ struct HostShareLinkTests {
 
         components.queryItems = [URLQueryItem(name: "d", value: Self.encode(["v": 1, "name": " ", "host": "h", "port": 22, "user": "u"]))]
         #expect(throws: HostShareLinkError.malformed) { try HostShareLink.decode(components.url!) }
+
+        // HTTPS 主機沒有主機服務位址，或位址不合法。
+        components.queryItems = [URLQueryItem(
+            name: "d", value: Self.encode(["v": 1, "name": "x", "host": "h", "port": 443, "user": "", "method": "https"]))]
+        #expect(throws: HostShareLinkError.malformed) { try HostShareLink.decode(components.url!) }
+        components.queryItems = [URLQueryItem(
+            name: "d",
+            value: Self.encode(["v": 1, "name": "x", "host": "h", "port": 443, "user": "", "method": "https", "url": "http://h.ts.net"]))]
+        #expect(throws: HostShareLinkError.malformed) { try HostShareLink.decode(components.url!) }
+    }
+
+    static let httpsAddress = HostServiceAddress("studio.tail1234.ts.net")!
+
+    @Test("HTTPS 主機匯出再匯入：名稱、連線方式與主機服務位址都還原")
+    func httpsRoundTrip() throws {
+        let https = HostConfiguration(name: "Studio", hostService: Self.httpsAddress)
+
+        let shared = try HostShareLink.decode(HostShareLink.url(for: https))
+
+        #expect(shared.name == "Studio")
+        #expect(shared.connectionMethod == .https)
+        #expect(shared.hostService == Self.httpsAddress)
+        #expect(shared.hostKeyPin == nil)
+    }
+
+    @Test("HTTPS 主機的匯出內容只有白名單欄位，不含裝置權杖或配對碼")
+    func httpsExportContainsNoDeviceToken() throws {
+        let url = HostShareLink.url(for: HostConfiguration(name: "Studio", hostService: Self.httpsAddress))
+        let object = try #require(try JSONSerialization.jsonObject(with: Self.payload(of: url)) as? [String: Any])
+
+        #expect(Set(object.keys) == ["v", "name", "host", "port", "user", "method", "url"])
+        #expect(object["url"] as? String == "https://studio.tail1234.ts.net")
+        let text = String(decoding: try Self.payload(of: url), as: UTF8.self).lowercased()
+        for word in ["token", "code", "secret", "bearer"] {
+            #expect(!text.contains(word), "分享內容出現了 \(word)")
+        }
     }
 
     @Test("連結夠短，可以放進 QR code(低於 version 40 的 2953 bytes 很多)")

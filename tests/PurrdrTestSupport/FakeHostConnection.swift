@@ -58,8 +58,43 @@ public actor FakeHostConnection: HostConnection {
         throw FakeHostConnectionError.unsupported
     }
 
+    /// 開過的 Pane 終端機，依開啟順序。
+    public private(set) var paneTerminalOpenings: [PaneTerminalOpening] = []
+    /// app 對 Pane 終端機送出的輸入(不含 release),依送出順序。
+    public private(set) var paneTerminalInputs: [TerminalInput] = []
+    private var paneTerminalExpectations: [(fixture: String, readOnly: Bool)] = []
+
+    /// 下一次開 Pane 終端機時，回放 `session-control/<fixture>` 的 frame(不送 `terminal.closed`,保持開著);
+    /// `readOnly` 是唯讀裝置(主機服務以 observe 接上)。release 時以 detached 結束。
+    public func expectPaneTerminal(replaying fixture: String, readOnly: Bool = false) {
+        paneTerminalExpectations.append((fixture, readOnly))
+    }
+
     public func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-        throw FakeHostConnectionError.unsupported
+        paneTerminalOpenings.append(PaneTerminalOpening(target: target, columns: columns, rows: rows, takeover: takeover))
+        guard !paneTerminalExpectations.isEmpty else { throw FakeHostConnectionError.unsupported }
+        let expectation = paneTerminalExpectations.removeFirst()
+        let (events, continuation) = AsyncStream<PaneTerminalEvent>.makeStream()
+        for line in Fixtures.sessionControlLines(expectation.fixture) {
+            guard let frame = Self.frame(line) else { continue }
+            continuation.yield(.frame(frame))
+        }
+        let transport = FakePaneTerminalTransport(onSend: { input in await self.record(input) }, onRelease: {
+            continuation.yield(.closed(.detached))
+            continuation.finish()
+        })
+        return PaneTerminalConnection(events: events, transport: transport, isViewOnly: expectation.readOnly)
+    }
+
+    private func record(_ input: TerminalInput) {
+        paneTerminalInputs.append(input)
+    }
+
+    private static func frame(_ line: Data) -> TerminalFrame? {
+        guard let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any], object["type"] as? String == "terminal.frame",
+              let seq = object["seq"] as? Int, let width = object["width"] as? Int, let height = object["height"] as? Int,
+              let base64 = object["bytes"] as? String, let bytes = Data(base64Encoded: base64) else { return nil }
+        return TerminalFrame(seq: UInt64(seq), columns: width, rows: height, full: object["full"] as? Bool ?? false, bytes: bytes)
     }
 
     public func disconnect() async {
@@ -82,6 +117,34 @@ public actor FakeHostConnection: HostConnection {
 
 public enum FakeHostConnectionError: Error, Equatable {
     case unexpectedRequest(String)
-    /// 這個假連線還沒有對話紀錄與 Pane 終端機。
+    /// 這個假連線還沒有對話紀錄;Pane 終端機沒有預期(`expectPaneTerminal`)。
     case unsupported
+}
+
+/// 一次開 Pane 終端機的參數。
+public struct PaneTerminalOpening: Sendable, Equatable {
+    public var target: String
+    public var columns: Int
+    public var rows: Int
+    public var takeover: Bool
+
+    public init(target: String, columns: Int, rows: Int, takeover: Bool) {
+        self.target = target
+        self.columns = columns
+        self.rows = rows
+        self.takeover = takeover
+    }
+}
+
+private struct FakePaneTerminalTransport: PaneTerminalTransport {
+    let onSend: @Sendable (TerminalInput) async -> Void
+    let onRelease: @Sendable () -> Void
+
+    func send(_ input: TerminalInput) async throws {
+        await onSend(input)
+    }
+
+    func release() async {
+        onRelease()
+    }
 }

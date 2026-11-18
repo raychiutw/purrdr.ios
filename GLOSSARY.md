@@ -12,14 +12,14 @@ _避免_:電腦、伺服器、機器、Device、Computer
 
 **連線方式**:
 app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。
-_避免_:Transport、Auth mode
+_避免_:Transport、Auth mode(例外：網路傳輸層的型別沿用 `*Transport`,如 `URLSessionHostServiceTransport`、`PaneTerminalTransport`、`BackendTransport`,指收送位元組的那一層，不是連線方式)
 
 **選取中主機**:
 新聊天開在它上面、套用它的主題、它的錯誤佔滿畫面的那台主機。存在本機，重新啟動後選回同一台。不影響列表上看得到哪些主機：所有主機的 Agent 一律合併在同一個 Agent 列表。
 _避免_:目前主機、Active host
 
 **主機分享連結**:
-把一台主機的連線設定(名稱、位址、埠、使用者名稱、連線方式、herdr 路徑與 session、host key 指紋)編成 `purrdr://host?d=…` 的連結;QR code 的內容就是它。永不含私鑰、密碼或 passphrase。匯入後仍要通過連線測試才儲存。
+把一台主機的連線設定(名稱、位址、埠、使用者名稱、連線方式、herdr 路徑與 session、host key 指紋;HTTPS 主機是名稱與 HTTPS 位址)編成 `purrdr://host?d=…` 的連結;QR code 的內容就是它。永不含私鑰、密碼、passphrase 或裝置權杖。匯入後仍要通過連線測試才儲存(HTTPS 主機要先在這支裝置連線配對)。
 _避免_:匯出檔、Config QR、邀請連結
 
 **Demo 主機**(Demo host):
@@ -37,6 +37,10 @@ _避免_:Daemon、Agent、Server、主機外掛(主機外掛是推播用的另�
 **連線配對**:
 讓一支裝置可以用 HTTPS 連上某台主機的授權流程：主機顯示 QR code,裝置掃描後取得裝置權杖。
 _避免_:推播配對(那是推播用的)、Login、Register
+
+**配對碼**(Pairing code):
+主機配對指令產生、隨 QR code 顯示的一次性短碼(例如 `K7QM-2XPA`),幾分鐘內有效、用過即作廢;app 用它換裝置權杖。
+_避免_:PIN、OTP、密碼
 
 **裝置權杖**(Device token):
 連線配對後，主機服務發給某支裝置的憑證;每台主機一組，存在該裝置的 Keychain,可撤銷、可設成唯讀，永不同步。
