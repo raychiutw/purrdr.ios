@@ -72,10 +72,62 @@ package enum HostFileScript {
         """
 
     /// 讀取共用：暫存檔、開頭兩行，與讀一個檔案的 `readone <路徑> <序號> <已知版本>`。
-    private static let readPrelude = prelude + """
+    private static let readPrelude = readFunctions + """
+        printf 'purrdr-files 1%suser %s%s' "$nl" "$(id -un)" "$nl"
+
+        """
+
+    /// 長駐的條件式讀取(#203,比照 `TranscriptCommand.follow`):一條 exec 通道服務主題、註記、用量的讀取，
+    /// 閒置 `idleSeconds` 或總長 `totalSeconds` 到了以 exit 124 結束。
+    ///
+    /// 每個請求一行「路徑 已知版本 [路徑 已知版本…]」(`followRequest`),回應同 `readIfChanged` 的輸出，最後一行 `end`。
+    package static func follow(
+        idleSeconds: Int = HostScriptTimeLimit.followIdleSeconds, totalSeconds: Int = HostScriptTimeLimit.followTotalSeconds
+    ) -> String {
+        ([followInvocation] + [idleSeconds, totalSeconds].map { PosixShell.quote(String($0)) }).joined(separator: " ")
+    }
+
+    /// `follow` 參數之前的部分(Windows 方言以它認出這支腳本)。
+    package static let followInvocation = (["/bin/sh", "-c", PosixShell.quote(HostScriptTimeLimit.posix(followScript, seconds: "$2")), "purrdr"])
+        .joined(separator: " ")
+
+    /// 閒置時限：每收到一個請求就換一個新的 `purrdr_limit`(總長的那個由 `HostScriptTimeLimit.posix` 起)。
+    package static let followScript = readFunctions
+
+    /// 長駐讀取的請求行：每個路徑接著已知版本(沒有是 `-`)。路徑與版本都不含空白(`HostPath.validate`、主機輸出的版本)。
+    package static func followRequest(_ paths: [HostPath], known: [HostPath: HostFileVersion]) -> Data {
+        Data((paths.flatMap { [$0.relative, known[$0]?.checksum ?? unknownVersion] }.joined(separator: " ") + "\n").utf8)
+    }
+
+    /// 從長駐讀取的緩衝取出一則完整回應(`end` 那行之前的部分，格式同 `readIfChanged` 的輸出);還不完整回傳 `nil`。
+    /// 檔案內容以宣告的長度跳過，內容裡的 `end` 行不會被誤認。
+    package static func takeFollowReply(from buffer: inout Data) throws -> Data? {
+        var offset = buffer.startIndex
+        while let newline = buffer[offset...].firstIndex(of: 0x0A) {
+            let line = String(decoding: buffer[offset..<newline], as: UTF8.self)
+            let next = buffer.index(after: newline)
+            if line == "end" {
+                let reply = Data(buffer[buffer.startIndex..<offset])
+                buffer.removeSubrange(..<next)
+                return reply
+            }
+            let fields = line.split(separator: " ")
+            if fields.first == "file" {
+                guard fields.count == 4, let size = Int(fields[3]), size >= 0 else { throw HostFilesError.malformedOutput }
+                // 內容與它後面的換行。
+                guard buffer.distance(from: next, to: buffer.endIndex) >= size + 1 else { return nil }
+                offset = buffer.index(next, offsetBy: size + 1)
+            } else {
+                offset = next
+            }
+        }
+        return nil
+    }
+
+    /// 讀取的共用函式：暫存檔與讀一個檔案的 `readone <路徑> <序號> <已知版本>`。
+    private static let readFunctions = prelude + """
         tmp=$(mktemp "${TMPDIR:-/tmp}/purrdr.XXXXXX") || exit 70
         trap 'rm -f "$tmp"' EXIT
-        printf 'purrdr-files 1%suser %s%s' "$nl" "$(id -un)" "$nl"
         readone() {
           p=$(resolve "$HOME/$1")
           if [ -f "$p" ]; then

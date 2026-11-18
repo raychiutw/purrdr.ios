@@ -195,6 +195,14 @@ enum WindowsCommand {
         return nil
     }
 
+    /// `HostFileScript.follow` → PowerShell 版長駐讀取(#203)。參數：閒置與總長秒數。
+    static func hostFileFollow(_ command: String) -> String? {
+        let prefix = HostFileScript.followInvocation
+        guard command.hasPrefix(prefix + " "), let arguments = PosixShell.unquote(String(command.dropFirst(prefix.count))),
+              arguments.count == 2 else { return nil }
+        return WindowsScripts.hostFiles(WindowsScripts.hostFileFollow, arguments: arguments)
+    }
+
     static let hostFileScripts: [(posix: String, windows: String)] = [
         (HostFileScript.read, WindowsScripts.hostFileRead),
         (HostFileScript.readIfChanged, WindowsScripts.hostFileReadIfChanged),

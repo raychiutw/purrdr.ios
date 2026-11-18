@@ -62,11 +62,11 @@ public struct PlanUsageHostWrite: Sendable {
 }
 
 extension PlanUsageSource {
-    /// Claude Code:讀包裝腳本存下的 `usage.json`(零 token)。
+    /// Claude Code:讀包裝腳本存下的 `usage.json`(零 token)。`files` 是這台主機共用的長駐讀取(#203)。
     public static func claude(
-        channel: any HostChannel, cost: PlanUsageQueryCost, hostID: String, consent: any HostWriteConsentStore
+        channel: any HostChannel, files: HostFiles? = nil, cost: PlanUsageQueryCost, hostID: String, consent: any HostWriteConsentStore
     ) -> PlanUsageSource {
-        let host = ClaudePlanUsageHost(channel: channel)
+        let host = ClaudePlanUsageHost(channel: channel, files: files)
         let feature = ClaudePlanUsageHost.feature.id
         let hostWrite = PlanUsageHostWrite(
             isGranted: { consent.isGranted(feature, host: hostID) },

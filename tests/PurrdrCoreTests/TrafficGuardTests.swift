@@ -105,8 +105,10 @@ struct TrafficGuardTests {
             knownSessionID: nil, cache: InMemoryConversationCache(), updates: updates, sleep: clock.sleep)
         let consent = InMemoryHostWriteConsentStore()
         for feature in [HostThemeHost.feature.id, YouShouldKnowFeature.id] { consent.grant(feature, host: "mac") }
-        let theme = HostThemeModel(host: HostThemeHost(channel: host), hostID: "mac", consent: consent, sleep: clock.sleep)
-        let notes = YouShouldKnowModel(host: YouShouldKnowHost(channel: host), hostID: "mac", consent: consent, sleep: clock.sleep)
+        // 主題與註記共用每台主機一條長駐讀取(#203,同 `HostMember`)。
+        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let theme = HostThemeModel(host: HostThemeHost(channel: host, files: files), hostID: "mac", consent: consent, sleep: clock.sleep)
+        let notes = YouShouldKnowModel(host: YouShouldKnowHost(channel: host, files: files), hostID: "mac", consent: consent, sleep: clock.sleep)
         // 列表、聊天、主題各一個視窗;註記由列表與聊天輸入列共用。
         let viewers = [
             Task { await list.liveUpdates.attach() }, Task { await chat.run(sleep: clock.sleep) }, Task { await theme.liveUpdates.attach() },
@@ -144,12 +146,14 @@ struct TrafficGuardTests {
         let exchanges = await host.exchanges
         let followRounds = await host.followRounds
         let pushedEvents = await host.pushedEvents
+        let hostFileRounds = await host.hostFileRounds
         let counts = Dictionary(grouping: exchanges, by: \.kind).mapValues(\.count)
         var bytesByKind = Dictionary(grouping: exchanges, by: \.kind).mapValues { group in
             group.reduce(0) { $0 + $1.sent + $1.received + Self.sshChannelOverhead }
         }
         bytesByKind["transcript.follow", default: 0] += followRounds * Self.sshFollowRoundOverhead
         bytesByKind["events.subscribe", default: 0] += pushedEvents * Self.sshEventOverhead
+        bytesByKind["hostFiles.follow", default: 0] += hostFileRounds.values.reduce(0) { $0 + $1.count } * Self.sshFollowRoundOverhead
         // 聊天畫面整小時可見：快速偵測斷線的間隔。
         let keepalives = Self.keepalives(
             inbound: await host.inboundTimes, interval: .nanoseconds(SSHTimeouts().quickKeepaliveInterval.nanoseconds), over: Self.hour)
@@ -158,6 +162,8 @@ struct TrafficGuardTests {
         Self.report(
             "SSH", counts: counts.merging(["transcript.follow 輪": followRounds, "事件": pushedEvents, "keepalive": keepalives]) { $1 },
             bytes: bytesByKind)
+        // 長駐讀取每種的輪數與位元組(請求行 + 回應，不含每輪開銷;已算在 hostFiles.follow 裡)。
+        print(hostFileRounds.sorted { $0.key < $1.key }.map { "  \($0.key) 輪: \($0.value.count) 次，\($0.value.bytes) B" }.joined(separator: "\n"))
 
         #expect(counts["session.snapshot", default: 0] <= Self.sshCaps.snapshots, "快照")
         #expect(counts["events.subscribe", default: 0] <= 2)
@@ -167,8 +173,11 @@ struct TrafficGuardTests {
         #expect(followRounds <= Self.sshCaps.followRounds, "追蹤輪數")
         #expect(counts["transcript.previews", default: 0] <= Self.sshCaps.previews, "預覽")
         #expect(counts["transcript.catchUp", default: 0] + counts["transcript.tail", default: 0] <= 2, "尾端由追蹤送來，不另外輪詢")
-        #expect(counts["hostFiles.theme", default: 0] <= Self.sshCaps.theme, "主題")
-        #expect(counts["hostFiles.notes", default: 0] + counts["hostFiles.notes.locate", default: 0] <= Self.sshCaps.notes, "註記")
+        #expect(counts["hostFiles.theme", default: 0] + counts["hostFiles.notes", default: 0] == 0, "主題與註記不再每次開一次性通道")
+        #expect(counts["hostFiles.follow", default: 0] <= Self.sshCaps.hostFileChannels, "主機檔案：長駐通道")
+        #expect(hostFileRounds["hostFiles.theme"]?.count ?? 0 <= Self.sshCaps.theme, "主題")
+        #expect((hostFileRounds["hostFiles.notes"]?.count ?? 0) + counts["hostFiles.notes.locate", default: 0] <= Self.sshCaps.notes, "註記")
+        #expect(bytesByKind["hostFiles.follow", default: 0] <= Self.sshCaps.hostFileBytes, "主機檔案位元組")
         #expect(keepalives <= Self.sshCaps.keepalives, "keepalive")
         #expect(counts["transcript.locate", default: 0] <= Self.sshCaps.locates, "定位：開聊天 1 + 定期更新預覽前問大小")
         #expect(bytes <= Self.sshHourBudget)
@@ -186,10 +195,14 @@ struct TrafficGuardTests {
         followRounds: 1_800,
         // 實測 80:第一次全部 1 + 狀態變了的 Agent(23 個事件)+ 一直工作中的 Agent 每 30 秒。
         previews: 105,
-        // 實測 361:每 10 秒 360。
+        // 實測 361:每 10 秒 360(長駐通道上的請求數)。
         theme: 470,
-        // 實測 362:每 10 秒 360(列表與輸入列共用一份)+ 每 10 分鐘重新定位。
+        // 實測 362:每 10 秒 360(列表與輸入列共用一份)+ 每 10 分鐘重新定位(一次性指令)。
         notes: 480,
+        // 主題與註記共用的長駐讀取通道(#203);腳本用真實時間，模擬的一小時跑不到時限，實測 1。
+        hostFileChannels: 3,
+        // 長駐讀取的位元組(通道 + 每輪開銷)。改回一次性讀取時約 2 MB。
+        hostFileBytes: 200_000,
         // 實測 0:聊天畫面可見(5 秒一輪),追蹤每 2～4 秒一輪的回應讓每一輪都跳過;上限留 10 次給閒置的空檔。
         keepalives: 10,
         // 實測 224:定期更新預覽前先問工作中 Agent 的對話紀錄大小(每 30 秒，約 2 個)。

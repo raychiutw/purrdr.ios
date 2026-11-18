@@ -24,6 +24,10 @@ actor MeteredSSHHost: HostChannel {
     private(set) var followRounds = 0
     /// 推給事件訂閱的事件行數。
     private(set) var pushedEvents = 0
+    /// 主機檔案長駐通道上各種讀取(`hostFiles.theme` 等)的請求數與兩個方向的位元組(#203)。
+    private(set) var hostFileRounds: [String: (count: Int, bytes: Int)] = [:]
+    /// 長駐讀取還沒回應的請求種類(依序)。
+    private var pendingHostFileKinds: [String] = []
     /// 各 pane 目前的 Agent 狀態(快照回應依它改)。
     private var statuses: [String: String]
     /// 快照裡另外加的 Agent(pane id → Claude session id),以 `w1:pB` 為樣本。
@@ -49,10 +53,10 @@ actor MeteredSSHHost: HostChannel {
     }
 
     /// 還在跑的一次性指令與還沒回應的追蹤請求。
-    var inFlight: Int { runningCommands + pendingFollowReplies }
+    var inFlight: Int { runningCommands + pendingFollowReplies + pendingHostFileKinds.count }
 
     /// 有任何動靜就會變的數字(判斷被測物是否還在動)。
-    var activity: Int { exchanges.count + followRounds + exchanges.reduce(0) { $0 + $1.received } }
+    var activity: Int { exchanges.count + followRounds + hostFileRounds.values.reduce(0) { $0 + $1.count } + exchanges.reduce(0) { $0 + $1.received } }
 
     func count(_ kind: String) -> Int { exchanges.filter { $0.kind == kind }.count }
 
@@ -80,7 +84,7 @@ actor MeteredSSHHost: HostChannel {
         if command.hasSuffix(" remote-api-bridge") {
             return BridgeSession(output: output, continuation: continuation, host: self, exchange: index)
         }
-        let isFollow = exchanges[index].kind == "transcript.follow"
+        let isFollow = ["transcript.follow", "hostFiles.follow"].contains(exchanges[index].kind)
         let inner = try await shell.execute(command)
         if !isFollow { runningCommands += 1 }
         Task {
@@ -153,6 +157,16 @@ actor MeteredSSHHost: HostChannel {
     fileprivate func sent(_ data: Data, exchange index: Int, isFollow: Bool) {
         exchanges[index].sent += data.count
         guard isFollow else { return }
+        if exchanges[index].kind == "hostFiles.follow" {
+            for line in data.split(separator: 0x0A) {
+                let paths = String(decoding: line, as: UTF8.self).split(separator: " ").enumerated().filter { $0.offset.isMultiple(of: 2) }.map { HostPath(String($0.element)) }
+                let kind = Self.hostFileKind(paths)
+                hostFileRounds[kind, default: (0, 0)].count += 1
+                hostFileRounds[kind, default: (0, 0)].bytes += line.count + 1
+                pendingHostFileKinds.append(kind)
+            }
+            return
+        }
         let lines = data.filter { $0 == 0x0A }.count
         followRounds += lines
         pendingFollowReplies += lines
@@ -171,9 +185,19 @@ actor MeteredSSHHost: HostChannel {
         }
     }
 
-    /// 追蹤腳本的每則回應以 `TranscriptFollowProtocol.endsReply` 的一行結束(紀錄行以數字開頭)。
+    /// 追蹤腳本的每則回應以 `TranscriptFollowProtocol.endsReply` 的一行結束(紀錄行以數字開頭);
+    /// 主機檔案的每則回應以 `HostFileScript.takeFollowReply` 切出。
     private func countFollowReplies(in data: Data, exchange index: Int) {
         var buffer = followBuffers[index, default: Data()] + data
+        if exchanges[index].kind == "hostFiles.follow" {
+            while !pendingHostFileKinds.isEmpty {
+                let before = buffer.count
+                guard (try? HostFileScript.takeFollowReply(from: &buffer)) != nil else { break }
+                hostFileRounds[pendingHostFileKinds.removeFirst(), default: (0, 0)].bytes += before - buffer.count
+            }
+            followBuffers[index] = buffer
+            return
+        }
         while let newline = buffer.firstIndex(of: 0x0A) {
             let line = String(decoding: buffer[buffer.startIndex..<newline], as: UTF8.self)
             buffer.removeSubrange(...newline)
@@ -185,22 +209,29 @@ actor MeteredSSHHost: HostChannel {
     }
 
     private func ended(exchange index: Int, isFollow: Bool) {
-        if isFollow {
+        if exchanges[index].kind == "hostFiles.follow" {
+            pendingHostFileKinds = []
+        } else if isFollow {
             pendingFollowReplies = 0
         } else {
             runningCommands -= 1
         }
     }
 
+    private static func hostFileKind(_ paths: [HostPath]) -> String {
+        if paths.contains(HostThemeHost.configPath) { return "hostFiles.theme" }
+        if paths.contains(ClaudePlanUsageHost.usagePath) { return "hostFiles.usage" }
+        return "hostFiles.notes"
+    }
+
     private static func kind(of command: String) -> String {
         if command.hasSuffix(" remote-api-bridge") { return "herdr" }
         if command.hasPrefix(TranscriptCommand.followInvocation) { return "transcript.follow" }
+        if command.hasPrefix(HostFileScript.followInvocation) { return "hostFiles.follow" }
         if let request = HostFileRequest(command: command) {
             switch request {
             case .readIfChanged(let paths, _), .read(let paths):
-                if paths.contains(HostThemeHost.configPath) { return "hostFiles.theme" }
-                if paths.contains(ClaudePlanUsageHost.usagePath) { return "hostFiles.usage" }
-                return "hostFiles.notes"
+                return hostFileKind(paths)
             case .newest: return "hostFiles.notes.locate"
             case .apply: return "hostFiles.apply"
             }

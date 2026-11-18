@@ -363,9 +363,34 @@ enum WindowsScripts {
         $o.Flush()
         """#
 
+    /// 長駐的條件式讀取(#203,輸出同 `HostFileScript.followScript`):stub 讀完腳本後，從同一個 reader(`$s`,原始 handle,#77)
+    /// 繼續讀請求行「路徑 已知版本 …」,每則回應以 `end` 結束。每個請求把時限延到閒置秒數後(不超過總長)。
+    /// 參數(`$a`):閒置秒數、總長秒數。
+    static let hostFileFollow = hostFileReadFunctions + #"""
+        $purrdrEnd=[DateTime]::UtcNow.AddSeconds([int]$a[1])
+        function PIdle{$idleUntil=[DateTime]::UtcNow.AddSeconds([int]$a[0]);if($idleUntil -gt $purrdrEnd){$idleUntil=$purrdrEnd};$purrdrLimit.At=$idleUntil}
+        PIdle
+        while(($request=$s.ReadLine()) -ne $null){
+        PIdle
+        $fields=@($request.Split([char]' ',[StringSplitOptions]::RemoveEmptyEntries))
+        PHeader
+        for($i=0;$i+1 -lt $fields.Count;$i+=2){try{PReadOne $fields[$i] ($i/2) $fields[$i+1]}catch{PWrite "unreadable $($i/2)`n"}}
+        PWrite "end`n"
+        $o.Flush()
+        }
+        $o.Flush()
+        exit 0
+        """#
+
     /// 讀取共用：開頭三行，與讀一個檔案的 `PReadOne <路徑> <序號> <已知版本>`。
-    private static let hostFileReadPrelude = #"""
-        PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"
+    private static let hostFileReadPrelude = hostFileReadFunctions + #"""
+        PHeader
+
+        """#
+
+    /// 讀取的共用函式：開頭三行 `PHeader` 與 `PReadOne`。
+    private static let hostFileReadFunctions = #"""
+        function PHeader{PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"}
         function PReadOne([string]$r,[int]$i,[string]$k){
         $p=PResolve (PPath $r)
         if([IO.File]::Exists($p)){
