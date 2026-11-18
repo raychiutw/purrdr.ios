@@ -6,6 +6,8 @@ public enum TerminalInputSend: Sendable, Equatable {
     case bytes(Data)
     /// 經 `TerminalSessionModel.press(_:adding:)` 送出的按鍵(帶實體鍵盤按著的修飾鍵)。
     case key(TerminalKey, modifiers: TerminalModifiers)
+    /// 經 `TerminalSessionModel.paste(_:bracketed:)` 送出的貼上內容。
+    case paste(String)
 }
 
 /// 實體鍵盤的一顆鍵(與 UIKit 無關的描述;字元鍵是不含修飾的字元)。
@@ -32,6 +34,8 @@ public enum TerminalHardwareKeyHandling: Sendable, Equatable {
     /// 交給系統文字輸入(輸入法、`insertText`、`deleteBackward`)。
     case system
     case send(TerminalInputSend)
+    /// 在本機捲一頁(同單指滑動的捲動),不送遠端。
+    case scrollPage(TerminalInput.ScrollDirection)
 }
 
 /// 終端機輸入法的組字狀態：決定哪些輸入要送到遠端(組字期間一律不送)。
@@ -73,8 +77,23 @@ public struct TerminalComposition: Sendable, Equatable {
         markedText = ""
     }
 
+    /// 按鍵列的一顆鍵：先放棄組字(不送出)再送該鍵。
+    public mutating func pressKeyBarKey(_ key: TerminalKey) -> [TerminalInputSend] {
+        cancel()
+        return [.key(key, modifiers: [])]
+    }
+
+    /// 貼上：先放棄組字(不送出)再送貼上內容。
+    public mutating func paste(_ text: String) -> [TerminalInputSend] {
+        cancel()
+        return text.isEmpty ? [] : [.paste(text)]
+    }
+
     /// 實體鍵盤按鍵(`modifiers` 是按著的實體修飾鍵)。組字中一律交給輸入法。
-    public func handle(_ key: TerminalHardwareKey, modifiers: TerminalModifiers) -> TerminalHardwareKeyHandling {
+    /// `scrollsPageLocally`:遠端沒開 alternate screen 與 application cursor 時，Page Up／Down 在本機捲一頁(同 SwiftTerm)。
+    public func handle(
+        _ key: TerminalHardwareKey, modifiers: TerminalModifiers, scrollsPageLocally: Bool = false
+    ) -> TerminalHardwareKeyHandling {
         guard !isComposing else { return .system }
         let terminalKey: TerminalKey
         switch key {
@@ -94,8 +113,12 @@ public struct TerminalComposition: Sendable, Equatable {
         case .right: terminalKey = .right
         case .home: terminalKey = .home
         case .end: terminalKey = .end
-        case .pageUp: terminalKey = .pageUp
-        case .pageDown: terminalKey = .pageDown
+        case .pageUp:
+            guard !scrollsPageLocally else { return .scrollPage(.up) }
+            terminalKey = .pageUp
+        case .pageDown:
+            guard !scrollsPageLocally else { return .scrollPage(.down) }
+            terminalKey = .pageDown
         case .function(let number): terminalKey = .function(number)
         }
         return .send(.key(terminalKey, modifiers: modifiers))
