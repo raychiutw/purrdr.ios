@@ -217,19 +217,30 @@ pub fn window(path: &Path, end: u64, lines: usize) -> Result<Chunk, TranscriptFa
     }
 }
 
-/// 游標之後的狀態(與 SSH 的追蹤腳本相同的判斷)。
+/// 游標之後的狀態(與 SSH 的追蹤腳本相同的判斷，另外比對游標前的內容)。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tail {
-    /// 游標之後新增的完整行(可能沒有)。
-    Lines { size: u64, chunk: Chunk },
+    /// 游標之後新增的完整行(可能沒有);`anchor` 是新游標之前的內容，下次讀時比對。
+    Lines { size: u64, chunk: Chunk, anchor: Vec<u8> },
     /// 檔案比游標小：被換掉了。
     Shrank { size: u64 },
+    /// 游標前的內容變了：被換成同長或更長的新檔。
+    Replaced { size: u64 },
     /// 落後超過上限：改讀視窗，不逐行重播(R-B08)。
     TooFarBehind { size: u64 },
 }
 
-/// 讀游標之後新增的完整行。
-pub fn tail(path: &Path, from: u64, limit: u64) -> Result<Tail, TranscriptFailure> {
+/// 比對換檔用的游標前內容長度。
+const ANCHOR_BYTES: u64 = 64;
+
+/// 游標前最多 `ANCHOR_BYTES` 的內容(開始追蹤時取，之後由 `tail` 接續)。
+pub fn anchor(path: &Path, cursor: u64) -> Result<Vec<u8>, TranscriptFailure> {
+    let mut file = File::open(path).map_err(|_| TranscriptFailure::Unreadable)?;
+    read_range(&mut file, cursor.saturating_sub(ANCHOR_BYTES), cursor)
+}
+
+/// 讀游標之後新增的完整行;游標前的內容與 `anchor` 不同時是換了檔。
+pub fn tail(path: &Path, from: u64, limit: u64, anchor: &[u8]) -> Result<Tail, TranscriptFailure> {
     let size = probe(path)?;
     if size < from {
         return Ok(Tail::Shrank { size });
@@ -237,16 +248,23 @@ pub fn tail(path: &Path, from: u64, limit: u64) -> Result<Tail, TranscriptFailur
     if size - from > limit {
         return Ok(Tail::TooFarBehind { size });
     }
+    let anchor_start = from.saturating_sub(anchor.len() as u64);
     let mut file = File::open(path).map_err(|_| TranscriptFailure::Unreadable)?;
-    let bytes = read_range(&mut file, from, size)?;
-    let complete = bytes.iter().rposition(|byte| *byte == b'\n').map_or(0, |index| index + 1);
+    let bytes = read_range(&mut file, anchor_start, size)?;
+    let Some(added) = bytes.strip_prefix(anchor) else {
+        return Ok(Tail::Replaced { size });
+    };
+    let complete = added.iter().rposition(|byte| *byte == b'\n').map_or(0, |index| index + 1);
+    let consumed = anchor.len() + complete;
+    let next_anchor = bytes[consumed.saturating_sub(ANCHOR_BYTES as usize)..consumed].to_vec();
     Ok(Tail::Lines {
         size,
         chunk: Chunk {
             start: from,
             end: from + complete as u64,
-            records: records(&bytes[..complete]),
+            records: records(&added[..complete]),
         },
+        anchor: next_anchor,
     })
 }
 

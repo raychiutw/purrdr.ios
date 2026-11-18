@@ -6290,6 +6290,17 @@
         }
       }
     },
+    "The host didn’t answer. Make sure it’s awake and connected to Tailscale." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機沒有回應。請確認主機沒有睡眠，並且連上 Tailscale。"
+          }
+        }
+      }
+    },
     "The host didn’t let this user sign in. Edit the host to check the user name and how Purrdr signs in." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6664,6 +6675,17 @@
         }
       }
     },
+    "This device isn’t connected to your tailnet. Turn on Tailscale on this device, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台裝置沒有連上你的 tailnet。請在這台裝置開啟 Tailscale,然後再試一次。"
+          }
+        }
+      }
+    },
     "This device isn’t paired with this host. Edit the host and pair again with a new pairing code." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6759,6 +6781,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機的 herdr 是 %@,Purrdr 需要 %@ 以上。Purrdr 會以 %@@%@ 更新 herdr。"
+          }
+        }
+      }
+    },
+    "This host has herdr %@. Purrdr needs %@ or later. Update herdr on that computer, then test the connection again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的 herdr 是 %@,Purrdr 需要 %@ 以上。請在那台電腦上更新 herdr,然後再測試連線。"
           }
         }
       }

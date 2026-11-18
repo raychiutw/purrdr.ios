@@ -330,7 +330,7 @@ private enum Wire {
             case .https: "https"
             }
             hostKeyFingerprint = host.hostKeyPin?.stored
-            hostServiceAddress = host.connectionMethod == .https ? host.hostService?.description : nil
+            hostServiceAddress = host.hostService?.description
             modifiedAt = host.modifiedAt.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         }
 
@@ -357,12 +357,12 @@ private enum Wire {
             default: throw BackendError.invalidResponse
             }
             let hostService = hostServiceAddress.flatMap(HostServiceAddress.init)
-            if method == .https, hostService == nil { throw BackendError.invalidResponse }
+            if method.usesHostService, hostService == nil { throw BackendError.invalidResponse }
             guard let id = UUID(uuidString: id), let modifiedAt = Wire.date(modifiedAt) else { throw BackendError.invalidResponse }
             return SyncedHost(
                 id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
                 hostKeyPin: hostKeyFingerprint.flatMap(HostKeyFingerprint.init(stored:)),
-                hostService: method == .https ? hostService : nil, modifiedAt: modifiedAt)
+                hostService: hostService, modifiedAt: modifiedAt)
         }
     }
 

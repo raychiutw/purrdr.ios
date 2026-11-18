@@ -228,13 +228,10 @@ impl ClientConnection {
             Ok(message) => message,
             Err(decoding_error) => return Some(error(request_id, ErrorCode::InvalidMessage, &decoding_error.to_string())),
         };
-        let terminal_input = matches!(
-            message,
-            ClientMessage::PaneTerminalInput(_) | ClientMessage::PaneTerminalResize(_) | ClientMessage::PaneTerminalScroll(_)
-        );
         if message.is_write() {
-            // 稽核只記操作種類與目標 Pane,不記按鍵或 prompt 內容;Pane 終端機只在開啟時記一筆。
-            if !terminal_input {
+            // 稽核只記操作種類與目標 Pane,不記按鍵或 prompt 內容;串流上的輸入(沒有請求識別碼，例如 Pane 終端機的按鍵)
+            // 不逐則記，Pane 終端機只在開啟時記一筆。
+            if request_id.is_some() {
                 self.audit.record(
                     AuditEvent::Write {
                         device_id: device.device_id.clone(),

@@ -197,6 +197,26 @@ struct HTTPSHostConnectionTests {
         #expect(!service.log.messages.contains { $0.contains("wait") })
     }
 
+    @Test(
+        "herdr 請求是否寫入類照協定的 x-write 判斷(UI 測試替身與主機服務用同一個來源)",
+        arguments: [
+            (#"{"id":"1","method":"agent.prompt","params":{"target":"w1:p1","text":"hi"}}"#, true),
+            (#"{"id":"1","method":"pane.send_text","params":{"pane_id":"w1:p1","text":"hi"}}"#, true),
+            (#"{"id":"1","method":"pane.send_keys","params":{"pane_id":"w1:p1","keys":["Enter"]}}"#, true),
+            (#"{"id":"1","method":"session.snapshot","params":{}}"#, false),
+            (#"{"id":"1","method":"ping"}"#, false),
+        ])
+    func writeRequestsFollowSchema(request: String, isWrite: Bool) throws {
+        #expect(try HTTPSHostConnection.isWriteRequest(Data(request.utf8)) == isWrite)
+    }
+
+    @Test("不支援的 herdr 請求問不出是否寫入類：錯誤種類是 unsupported")
+    func unsupportedRequestHasNoWriteKind() {
+        #expect(throws: HostServiceError.unsupported("agent.wait")) {
+            try HTTPSHostConnection.isWriteRequest(Data(#"{"id":"1","method":"agent.wait","params":{}}"#.utf8))
+        }
+    }
+
     // MARK: - 送 prompt、文字與按鍵(#60)
 
     private static func lastMessage(_ service: FakeHostService) throws -> [String: Any] {

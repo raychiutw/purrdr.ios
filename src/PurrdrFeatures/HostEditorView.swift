@@ -23,7 +23,7 @@ struct HostEditorView: View {
         Form {
             Section {
                 field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name")
-                if model.connectionMethod == .https {
+                if model.connectionMethod.usesHostService {
                     field("Address", text: $model.address, prompt: "my-mac.tailnet.ts.net", identifier: "address")
                         .addressKeyboard()
                     field(
@@ -71,7 +71,7 @@ struct HostEditorView: View {
             }
 
             // HTTPS 的 herdr session 由主機服務決定。
-            if model.connectionMethod != .https {
+            if !model.connectionMethod.usesHostService {
                 Section {
                     field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath")
                     field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")
@@ -115,10 +115,10 @@ struct HostEditorView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
-                    if model.hasChanges { confirmingDiscard = true } else { onCancel() }
+                    if model.hasChanges { confirmingDiscard = true } else { cancel() }
                 }
                 .confirmationDialog("Discard your changes to this host?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
-                    Button("Discard Changes", role: .destructive) { onCancel() }
+                    Button("Discard Changes", role: .destructive) { cancel() }
                     Button("Keep Editing", role: .cancel) {}
                 }
             }
@@ -147,13 +147,27 @@ struct HostEditorView: View {
             }
         }
         .alert("Update herdr?", isPresented: presenting(\.isOutdated)) {
-            Button("Update") { Task { await model.updateHerdr() } }
-            Button("Cancel", role: .cancel) { model.dismissPrompt() }
+            if model.canUpdateHerdr {
+                Button("Update") { Task { await model.updateHerdr() } }
+                Button("Cancel", role: .cancel) { model.dismissPrompt() }
+            } else {
+                Button("OK", role: .cancel) { model.dismissPrompt() }
+            }
         } message: {
             if case .needsUpdate(let version) = model.phase {
-                Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will update herdr as \(model.username)@\(model.address).")
+                if model.canUpdateHerdr {
+                    Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will update herdr as \(model.username)@\(model.address).")
+                } else {
+                    Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Update herdr on that computer, then test the connection again.")
+                }
             }
         }
+    }
+
+    /// 取消：配對拿到但沒存下的權杖請主機撤銷。
+    private func cancel() {
+        model.discardUnsavedPairing()
+        onCancel()
     }
 
     // MARK: - OpenSSH 登入
@@ -283,6 +297,21 @@ struct HostEditorView: View {
         }
     }
 
+    /// 連線測試成功的結果列(SSH 與 HTTPS 共用)。
+    private func connectedRow(_ title: Text, summary: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                title
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+            }
+        } icon: {
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        }
+        .accessibilityIdentifier("hostEditor.result")
+    }
+
     @ViewBuilder
     private var testStatus: some View {
         switch model.phase {
@@ -305,29 +334,11 @@ struct HostEditorView: View {
                 .accessibilityIdentifier("hostEditor.test")
             switch model.phase {
             case .tested(let report):
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Connected · herdr \(report.herdrVersion.description) · \(report.operatingSystem.displayName)")
-                        Text(report.summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondaryText)
-                    }
-                } icon: {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                }
-                .accessibilityIdentifier("hostEditor.result")
+                connectedRow(
+                    Text("Connected · herdr \(report.herdrVersion.description) · \(report.operatingSystem.displayName)"),
+                    summary: report.summary)
             case .connected(let check):
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Connected · herdr \(check.herdrVersion)")
-                        Text(check.summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondaryText)
-                    }
-                } icon: {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                }
-                .accessibilityIdentifier("hostEditor.result")
+                connectedRow(Text("Connected · herdr \(check.herdrVersion)"), summary: check.summary)
             case .failed(let message):
                 Label {
                     Text(message)

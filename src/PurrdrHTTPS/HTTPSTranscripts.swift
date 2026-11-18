@@ -53,7 +53,7 @@ extension HTTPSHostConnection {
     /// 重新連線、主機結束追蹤之後)開始新的追蹤。
     private func tail(path: String, from cursor: Int, limit: Int) async throws -> Data {
         if var follow = transcriptFollows.removeValue(forKey: path) {
-            if await follow.session.isOpen, let pushed = await follow.session.takeStreamMessages(follow.streamID) {
+            if await follow.session.isOpen, let pushed = await follow.session.takeBufferedMessages(follow.streamID) {
                 follow.apply(pushed)
                 if follow.ended != nil || follow.canAnswer(from: cursor) {
                     return try await answer(follow, path: path, cursor: cursor)
@@ -62,9 +62,8 @@ extension HTTPSHostConnection {
             await stopFollowing(follow)
         }
         let session = try await liveSession()
-        nextTranscriptStream += 1
-        let streamID = "t\(nextTranscriptStream)"
-        await session.openStream(streamID)
+        let streamID = await session.makeStreamID()
+        await session.openBufferedStream(streamID)
         let reply: HostServiceProtocol.ServerMessage
         do {
             reply = try await send(on: session) {
@@ -80,7 +79,7 @@ extension HTTPSHostConnection {
         }
         var follow = TranscriptFollow(session: session, streamID: streamID, cursor: cursor)
         follow.apply(size: result.size, start: result.start, records: result.records, ended: result.ended)
-        if let pushed = await session.takeStreamMessages(streamID) { follow.apply(pushed) }
+        if let pushed = await session.takeBufferedMessages(streamID) { follow.apply(pushed) }
         return try await answer(follow, path: path, cursor: cursor)
     }
 
@@ -100,6 +99,7 @@ extension HTTPSHostConnection {
         switch ended {
         case .absent: throw TranscriptReadError.absent
         case .unreadable: throw TranscriptReadError.unreadable
+        case .replaced: throw TranscriptReadError.replaced(size: follow.size)
         case .shrank, .tooFarBehind: return output
         }
     }

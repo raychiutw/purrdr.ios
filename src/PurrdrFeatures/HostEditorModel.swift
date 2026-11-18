@@ -85,8 +85,11 @@ public final class HostEditorModel {
     /// 是否是編輯既有主機。
     public var isEditing: Bool { existing != nil }
 
+    /// herdr 過舊時能不能由 Purrdr 更新(SSH 才能;HTTPS 請使用者在主機上更新)。
+    public var canUpdateHerdr: Bool { !connectionMethod.usesHostService }
+
     /// HTTPS 主機要輸入配對碼：新主機，或這支裝置還沒有它的裝置權杖(例如主機同步帶來的)。
-    public var needsPairingCode: Bool { connectionMethod == .https && !hasStoredDeviceToken }
+    public var needsPairingCode: Bool { connectionMethod.usesHostService && !hasStoredDeviceToken }
 
     private let store: any HostStore
     private let existing: HostConfiguration?
@@ -95,7 +98,7 @@ public final class HostEditorModel {
     /// 編輯的 HTTPS 主機在這支裝置已有裝置權杖。
     private let hasStoredDeviceToken: Bool
     /// 這次編輯中配對拿到的權杖(配對碼只能用一次，再測沿用)。
-    private var paired: (address: HostServiceAddress, code: String, device: PairedDevice)?
+    private var pairing: Pairing?
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     /// 最近一次檢查的私鑰輸入與結果。
     private var checked: (input: HostSecret, result: KeyCheck)?
@@ -114,8 +117,7 @@ public final class HostEditorModel {
         self.credentials = credentials
         self.hostService = hostService
         self.makeChannel = makeChannel
-        hasStoredDeviceToken = editing.map { $0.connectionMethod == .https && (try? hostService.tokens.deviceToken(for: $0.id)) != nil }
-            ?? false
+        hasStoredDeviceToken = editing.map { $0.hostService != nil && (try? hostService.tokens.deviceToken(for: $0.id)) != nil } ?? false
         if let editing {
             name = editing.name
             address = editing.hostService?.description ?? editing.endpoint.host
@@ -239,8 +241,8 @@ public final class HostEditorModel {
         phase = .testing
         let result: Result<HostServiceCheck, any Error>
         do {
-            let (token, readOnly) = try await deviceToken(for: draft, address: address)
-            let connection = hostService.makeConnection(address) { token }
+            let testToken = try await deviceToken(for: draft, address: address)
+            let connection = hostService.makeConnection(address) { testToken.deviceToken }
             let snapshot: HostSnapshot
             do {
                 snapshot = try await HerdrClient(connection: connection).snapshot()
@@ -249,7 +251,10 @@ public final class HostEditorModel {
                 await connection.disconnect()
                 throw error
             }
-            result = .success(HostServiceCheck(herdrVersion: snapshot.version, agentCount: snapshot.agents.count, readOnly: readOnly))
+            // 與 SSH 的連線測試相同的最低版本;主機服務不代為更新，請使用者在主機上更新。
+            if let version = HerdrVersion(snapshot.version), version < .minimumSupported { throw HostProbeError.herdrOutdated(version) }
+            result = .success(HostServiceCheck(
+                herdrVersion: snapshot.version, agentCount: snapshot.agents.count, readOnly: testToken.readOnly))
         } catch {
             result = .failure(error)
         }
@@ -258,24 +263,34 @@ public final class HostEditorModel {
         case .success(let check):
             tested = (draft, nil)
             phase = .connected(check)
+        case .failure(HostProbeError.herdrOutdated(let version)):
+            phase = .needsUpdate(version)
         case .failure(let error):
             phase = .failed(HostErrorText.message(for: error, connection: .https))
         }
     }
 
-    /// 測試用的權杖：這次的配對碼換得的，或已存主機的。
-    private func deviceToken(for draft: Draft, address: HostServiceAddress) async throws -> (String, Bool?) {
+    /// 測試用的權杖：這次的配對碼換得的，或已存主機的。換了位址或配對碼重新配對時，前一次拿到的權杖請主機撤銷。
+    private func deviceToken(for draft: Draft, address: HostServiceAddress) async throws -> TestToken {
         guard let code = draft.pairingCode else {
             guard let existing, let token = try hostService.tokens.deviceToken(for: existing.id) else { throw HostServiceError.notPaired }
-            return (token, nil)
+            return TestToken(deviceToken: token, readOnly: nil)
         }
-        if let paired, paired.address == address, paired.code == code { return (paired.device.deviceToken, paired.device.readOnly) }
+        if let pairing, pairing.address == address, pairing.code == code {
+            return TestToken(deviceToken: pairing.device.deviceToken, readOnly: pairing.device.readOnly)
+        }
         let device = try await hostService.pairing.pair(address: address, pairingCode: code, deviceName: hostService.deviceName)
-        paired = (address, code, device)
-        return (device.deviceToken, device.readOnly)
+        discardUnsavedPairing()
+        pairing = Pairing(address: address, code: code, device: device)
+        return TestToken(deviceToken: device.deviceToken, readOnly: device.readOnly)
     }
 
-    public func discardUnsavedPairing() {}
+    /// 配對拿到的權杖沒存下來(取消、離開編輯器):請主機撤銷，主機不留沒用的權杖。
+    public func discardUnsavedPairing() {
+        guard let pairing, !pairing.isSaved else { return }
+        self.pairing = nil
+        hostService.revokeWithoutWaiting(pairing.device.deviceToken, at: pairing.address)
+    }
 
     /// 檢查貼上的私鑰(格式、種類、有沒有 passphrase)。在背景做，不卡住打字。
     public func checkKey() async {
@@ -337,7 +352,7 @@ public final class HostEditorModel {
     /// 使用者確認後在主機上更新 herdr(macOS／Linux 是 `herdr update --handoff`),再重新測試。
     /// Windows 的伺服器不會交接到新版：先請使用者在主機上重啟伺服器，不馬上重測(重測只會再看到舊版)。
     public func updateHerdr() async {
-        guard let draft, case .needsUpdate = phase else { return }
+        guard let draft, case .needsUpdate = phase, canUpdateHerdr else { return }
         phase = .updating
         let channel = makeChannel(draft.endpoint, pin(for: draft), credential(for: draft))
         let outcome: HerdrUpdateOutcome
@@ -397,7 +412,7 @@ public final class HostEditorModel {
     /// HTTPS 主機：新配對的權杖先寫(寫不進 Keychain 就什麼都不存),再存主機設定;SSH 的祕密不再需要，刪掉。
     private func saveHostService(_ draft: Draft, address: HostServiceAddress) -> HostConfiguration? {
         let host = HostConfiguration(id: existing?.id ?? UUID(), name: draft.name, hostService: address)
-        let newToken = draft.pairingCode == nil ? nil : paired?.device.deviceToken
+        let newToken = draft.pairingCode == nil ? nil : pairing?.device.deviceToken
         let previousToken = try? hostService.tokens.deviceToken(for: host.id)
         do {
             if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
@@ -413,15 +428,30 @@ public final class HostEditorModel {
             phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
             return nil
         }
-        // 重新配對換了權杖：舊的請主機撤銷(失敗也不影響，舊權杖可在主機上撤銷)。
+        if newToken != nil { pairing?.isSaved = true }
+        // 重新配對換了權杖：舊的請主機撤銷。
         if let newToken, let previousToken, previousToken != newToken, let previousAddress = existing?.hostService {
-            let pairing = hostService.pairing
-            Task { try? await pairing.revoke(address: previousAddress, deviceToken: previousToken) }
+            hostService.revokeWithoutWaiting(previousToken, at: previousAddress)
         }
         return host
     }
 
     // MARK: - 內部
+
+    /// 這次編輯中以配對碼換得的權杖。
+    private struct Pairing {
+        var address: HostServiceAddress
+        var code: String
+        var device: PairedDevice
+        /// 已存成主機的權杖(不再撤銷)。
+        var isSaved = false
+    }
+
+    /// 連線測試用的權杖;用存著的權杖時不知道是否唯讀(`nil`)。
+    private struct TestToken {
+        var deviceToken: String
+        var readOnly: Bool?
+    }
 
     private struct Draft: Equatable {
         var name: String
@@ -491,7 +521,7 @@ public final class HostEditorModel {
     }
 
     private var draft: Draft? {
-        if connectionMethod == .https { return hostServiceDraft }
+        if connectionMethod.usesHostService { return hostServiceDraft }
         let name = name.trimmingCharacters(in: .whitespaces)
         let address = address.trimmingCharacters(in: .whitespaces)
         let username = username.trimmingCharacters(in: .whitespaces)

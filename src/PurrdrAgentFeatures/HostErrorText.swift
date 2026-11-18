@@ -100,10 +100,12 @@ package enum HostErrorText {
             String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .unsupported:
             String(localized: "This isn’t available over HTTPS yet.")
-        case .hostNotFound, .notOnTailnet:
+        case .hostNotFound:
             String(localized: "Couldn’t find this host name. Check the address and that this device is on your tailnet.")
+        case .notOnTailnet:
+            String(localized: "This device isn’t connected to your tailnet. Turn on Tailscale on this device, then try again.")
         case .unreachable:
-            String(localized: "Couldn’t reach this host. Make sure both devices are on your tailnet.")
+            String(localized: "The host didn’t answer. Make sure it’s awake and connected to Tailscale.")
         case .hostServiceNotRunning:
             String(localized: "The host is reachable, but the Purrdr host service isn’t running. Start it on the host, then try again.")
         case .connectionLost:

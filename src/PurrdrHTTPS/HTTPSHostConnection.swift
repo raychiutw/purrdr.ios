@@ -16,14 +16,17 @@ public actor HTTPSHostConnection: HostConnection {
     private let heartbeat: HostServiceHeartbeat
     private let sleep: Sleep
     private var session: HostServiceSession?
-    private var nextStreamNumber = 0
     private var welcome: HostServiceProtocol.Welcome?
     private var connecting: Task<HostServiceSession, any Error>?
-    /// 被拒的權杖與原因。
-    private var rejection: (deviceToken: String, error: HostServiceError)?
+    private var rejection: RejectedToken?
     /// 追蹤中的對話紀錄(路徑 → 追蹤)。見 `HTTPSTranscripts.swift`。
     var transcriptFollows: [String: TranscriptFollow] = [:]
-    var nextTranscriptStream = 0
+
+    /// 被拒的權杖與原因(同一個權杖不再撥號)。
+    private struct RejectedToken {
+        var deviceToken: String
+        var error: HostServiceError
+    }
 
     /// - Parameters:
     ///   - deviceToken: 撥號時才讀(Keychain);`nil` 表示還沒配對。
@@ -51,62 +54,24 @@ public actor HTTPSHostConnection: HostConnection {
 
     // MARK: - herdr 單次請求
 
-    /// 支援 `session.snapshot`(主機服務的 `agents.list`)、`ping`(握手的 herdr 資訊)、`pane.send_keys`、`pane.send_text`、`agent.prompt`。
-    /// 期限到丟 `HerdrError.deadlineExceeded`(含撥號與握手)。
+    /// 支援的 method 見 `HerdrOperation`;期限到丟 `HerdrError.deadlineExceeded`(含撥號與握手)。
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-        let herdr = try HerdrRequestLine(request)
+        let line = try HerdrRequestLine(request)
+        let operation = try HerdrOperation(line)
         return try await withDeadline(deadline) {
-            switch herdr.method {
-            case "session.snapshot":
-                return try await self.snapshot(id: herdr.id)
-            case "ping":
-                return try await self.ping(id: herdr.id)
-            case "pane.send_keys":
-                return try await self.sendKeys(id: herdr.id, params: herdr.params)
-            case "pane.send_text":
-                return try await self.sendText(id: herdr.id, params: herdr.params)
-            case "agent.prompt":
-                return try await self.prompt(id: herdr.id, params: herdr.params)
-            default:
-                throw HostServiceError.unsupported(herdr.method)
+            let welcome = try await self.hostServiceInfo()
+            switch operation {
+            case .ping:
+                return try HerdrResponseLine.ping(id: line.id, herdr: welcome.herdr)
+            case .request(let make, let response):
+                return try response(line.id, try await self.send(make), welcome)
             }
         }
     }
 
-    private func snapshot(id: String?) async throws -> Data {
-        let welcome = try await hostServiceInfo()
-        let reply = try await send { .agentsList(.init(requestId: $0)) }
-        guard case .agentsListResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
-        return try HerdrResponseLine.snapshot(id: id, version: welcome.herdr.version, result: result)
-    }
-
-    private func ping(id: String?) async throws -> Data {
-        let welcome = try await hostServiceInfo()
-        return try HerdrResponseLine.ping(id: id, herdr: welcome.herdr)
-    }
-
-    private func sendKeys(id: String?, params: Data) async throws -> Data {
-        let keys = try JSONDecoder().decode(SendKeysParams.self, from: params)
-        let reply = try await send { .paneSendKeys(.init(requestId: $0, paneId: keys.paneID, keys: keys.keys)) }
-        guard case .paneSendKeysResult = reply else { throw HostServiceError.unexpectedResponse }
-        return try HerdrResponseLine.ok(id: id)
-    }
-
-    private func sendText(id: String?, params: Data) async throws -> Data {
-        let text = try JSONDecoder().decode(SendTextParams.self, from: params)
-        let reply = try await send { .paneSendText(.init(requestId: $0, paneId: text.paneID, text: text.text)) }
-        guard case .paneSendTextResult = reply else { throw HostServiceError.unexpectedResponse }
-        return try HerdrResponseLine.ok(id: id)
-    }
-
-    private func prompt(id: String?, params: Data) async throws -> Data {
-        let prompt = try JSONDecoder().decode(PromptParams.self, from: params)
-        let wait = prompt.wait.map { wait in
-            HostServiceProtocol.PromptWait(until: wait.until.compactMap(HostServiceProtocol.AgentStatus.init(rawValue:)), timeoutMs: wait.timeoutMs)
-        }
-        let reply = try await send { .agentPrompt(.init(requestId: $0, paneId: prompt.target, text: prompt.text, wait: wait)) }
-        guard case .agentPromptResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
-        return try HerdrResponseLine.prompted(id: id, delivery: result.delivery)
+    /// 這個 herdr 請求換成的主機服務訊息是否是寫入類(schema 的 `x-write`);不支援的 method 丟 `unsupported`。
+    public static func isWriteRequest(_ request: Data) throws -> Bool {
+        try HerdrOperation(HerdrRequestLine(request)).isWrite
     }
 
     /// 握手時主機服務回報的唯讀。
@@ -120,19 +85,20 @@ public actor HTTPSHostConnection: HostConnection {
     /// 主機端結束串流(`events_lost` 是 `HerdrError.herdr`)或連線結束(含心跳逾時)時串流跟著結束，上層據此重連對帳。
     /// 呼叫端不再讀時通知主機服務關掉那條串流，連線留給其他操作。
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
-        let herdr = try HerdrRequestLine(request)
-        guard herdr.method == "events.subscribe" else { throw HostServiceError.unsupported(herdr.method) }
-        let subscriptions = try JSONDecoder().decode(SubscribeParams.self, from: herdr.params).subscriptions.map {
+        let line = try HerdrRequestLine(request)
+        guard line.method == "events.subscribe" else { throw HostServiceError.unsupported(line.method) }
+        let subscriptions = try JSONDecoder().decode(SubscribeParams.self, from: line.params).subscriptions.map {
             HostServiceProtocol.EventSubscription(event: $0.type, paneId: $0.paneID)
         }
-        let (session, streamID, messages) = try await withDeadline(HostCommandDeadline.standard) {
+        let subscribed = try await withDeadline(HostCommandDeadline.standard) {
             try await self.subscribeEvents(subscriptions)
         }
+        let (session, streamID) = (subscribed.session, subscribed.streamID)
         let (lines, continuation) = AsyncThrowingStream<Data, any Error>.makeStream()
-        continuation.yield(try HerdrResponseLine.subscriptionStarted(id: herdr.id))
+        continuation.yield(try HerdrResponseLine.subscriptionStarted(id: line.id))
         let forwarding = Task {
             do {
-                for try await message in messages {
+                for try await message in subscribed.messages {
                     switch message {
                     case .subscribedEvent(let event):
                         continuation.yield(try HerdrResponseLine.event(name: event.event, paneID: event.paneId))
@@ -157,26 +123,30 @@ public actor HTTPSHostConnection: HostConnection {
         return lines
     }
 
-    private func subscribeEvents(
-        _ subscriptions: [HostServiceProtocol.EventSubscription]
-    ) async throws -> (HostServiceSession, String, AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>) {
+    /// 主機接受的事件串流。
+    private struct EventSubscription: Sendable {
+        var session: HostServiceSession
+        var streamID: String
+        var messages: HostServiceSession.Messages
+    }
+
+    private func subscribeEvents(_ subscriptions: [HostServiceProtocol.EventSubscription]) async throws -> EventSubscription {
         let session = try await liveSession()
-        nextStreamNumber += 1
-        let streamID = "s\(nextStreamNumber)"
-        let messages = await session.openEventStream(streamID)
+        let streamID = await session.makeStreamID()
+        let messages = await session.openStream(streamID)
         do {
             let reply = try await send(on: session) { .eventsSubscribe(.init(requestId: $0, streamId: streamID, subscriptions: subscriptions)) }
             guard case .eventsSubscribeResult = reply else { throw HostServiceError.unexpectedResponse }
         } catch {
-            _ = await session.closeEventStream(streamID)
+            await session.closeStream(streamID)
             throw error
         }
-        return (session, streamID, messages)
+        return EventSubscription(session: session, streamID: streamID, messages: messages)
     }
 
     /// 呼叫端不再讀：串流還開著就請主機服務關掉(主機端已結束或連線已斷就不必)。
     private func unsubscribeEvents(_ streamID: String, on session: HostServiceSession) async {
-        guard await session.closeEventStream(streamID) else { return }
+        guard await session.closeStream(streamID) else { return }
         _ = try? await session.request { .eventsUnsubscribe(.init(requestId: $0, streamId: streamID)) }
     }
 
@@ -198,34 +168,41 @@ public actor HTTPSHostConnection: HostConnection {
     /// 主機服務以子行程執行 `herdr terminal session control`(唯讀裝置是 observe)並轉接畫面更新(#61、ADR-0005)。
     /// 與 Agent 列表共用同一條 WSS;WSS 斷線時以 `.disconnected` 結束。開啟有期限(含撥號與握手)。
     public func openPaneTerminal(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> PaneTerminalConnection {
-        let (session, opened) = try await withDeadline(HostCommandDeadline.standard) {
+        let opened = try await withDeadline(HostCommandDeadline.standard) {
             try await self.openTerminalStream(target: target, columns: columns, rows: rows, takeover: takeover)
         }
         let (events, continuation) = AsyncStream<PaneTerminalEvent>.makeStream()
         let relay = Task {
-            for await message in opened.messages {
-                guard let event = PaneTerminalStreamEvent.make(message) else { continue }
-                continuation.yield(event)
-                if case .frame = event { continue }
-                continuation.finish()
-                return
-            }
-            // 沒有 pane.terminal.closed 就結束:WSS 斷了，可以重新連線。
+            do {
+                for try await message in opened.messages {
+                    guard let event = PaneTerminalStreamEvent.make(message) else { continue }
+                    continuation.yield(event)
+                    if case .frame = event { continue }
+                    continuation.finish()
+                    return
+                }
+            } catch {}
+            // 沒有 pane.terminal.closed 就結束(連線結束時串流以錯誤結束):WSS 斷了，可以重新連線。
             continuation.yield(.disconnected)
             continuation.finish()
         }
         continuation.onTermination = { _ in relay.cancel() }
-        let transport = HostServiceTerminalTransport(session: session, streamID: opened.result.streamId)
+        let transport = HostServiceTerminalTransport(session: opened.session, streamID: opened.result.streamId)
         return PaneTerminalConnection(events: events, transport: transport, isViewOnly: opened.result.readOnly)
     }
 
-    private func openTerminalStream(
-        target: String, columns: Int, rows: Int, takeover: Bool
-    ) async throws -> (HostServiceSession, (result: HostServiceProtocol.PaneTerminalOpenResult, messages: AsyncStream<HostServiceProtocol.ServerMessage>)) {
+    /// 主機開好的 Pane 終端機串流。
+    private struct OpenedTerminal: Sendable {
+        var session: HostServiceSession
+        var result: HostServiceProtocol.PaneTerminalOpenResult
+        var messages: HostServiceSession.Messages
+    }
+
+    private func openTerminalStream(target: String, columns: Int, rows: Int, takeover: Bool) async throws -> OpenedTerminal {
         let session = try await liveSession()
-        let opened: (reply: HostServiceProtocol.ServerMessage, messages: AsyncStream<HostServiceProtocol.ServerMessage>)
+        let opened: HostServiceSession.StreamReply
         do {
-            opened = try await session.openLiveStream {
+            opened = try await session.requestStream {
                 .paneTerminalOpen(.init(requestId: $0, target: target, columns: columns, rows: rows, takeover: takeover))
             }
         } catch {
@@ -233,7 +210,7 @@ public actor HTTPSHostConnection: HostConnection {
             throw error
         }
         switch opened.reply {
-        case .paneTerminalOpenResult(let result): return (session, (result, opened.messages))
+        case .paneTerminalOpenResult(let result): return OpenedTerminal(session: session, result: result, messages: opened.messages)
         case .errorMessage(let error): throw Self.error(for: error)
         default: throw HostServiceError.unexpectedResponse
         }
@@ -283,7 +260,7 @@ public actor HTTPSHostConnection: HostConnection {
             session = opened
             return opened
         } catch let error as HostServiceError where error.requiresPairing {
-            rejection = (token, error)
+            rejection = RejectedToken(deviceToken: token, error: error)
             throw error
         }
     }
@@ -322,7 +299,7 @@ public actor HTTPSHostConnection: HostConnection {
     /// 連線結束：權杖被拒就記下(之後同一個權杖不再撥號)。
     private func noteEnding(_ error: any Error, of ended: HostServiceSession) {
         if let rejected = error as? HostServiceError, rejected.requiresPairing {
-            rejection = (ended.deviceToken, rejected)
+            rejection = RejectedToken(deviceToken: ended.deviceToken, error: rejected)
         }
         if session === ended, !(error is CancellationError) { session = nil }
     }
@@ -380,43 +357,6 @@ public actor HTTPSHostConnection: HostConnection {
                 case type
                 case paneID = "pane_id"
             }
-        }
-    }
-
-    private struct SendTextParams: Decodable {
-        var paneID: String
-        var text: String
-
-        enum CodingKeys: String, CodingKey {
-            case paneID = "pane_id"
-            case text
-        }
-    }
-
-    /// herdr `agent.prompt` 的 params(`HerdrClient` 送出的形狀)。
-    private struct PromptParams: Decodable {
-        var target: String
-        var text: String
-        var wait: Wait?
-
-        struct Wait: Decodable {
-            var until: [String]
-            var timeoutMs: Int
-
-            enum CodingKeys: String, CodingKey {
-                case until
-                case timeoutMs = "timeout_ms"
-            }
-        }
-    }
-
-    private struct SendKeysParams: Decodable {
-        var paneID: String
-        var keys: [String]
-
-        enum CodingKeys: String, CodingKey {
-            case paneID = "pane_id"
-            case keys
         }
     }
 }
