@@ -56,6 +56,8 @@ final class FakeHostService: Sendable {
         var revokeAuthorizations: [String?] = []
         /// 收到的 WebSocket ping 數。
         var pings = 0
+        /// 送給 app 的 WebSocket 文字訊息(回應與推送)。
+        var sent: [String] = []
     }
 
     struct Settings: Sendable {
@@ -108,7 +110,7 @@ final class FakeHostService: Sendable {
         for stream in state.withLock({ $0.streams }) {
             var event: [String: Any] = ["type": "events.event", "stream_id": stream.streamID, "event": name]
             event["pane_id"] = paneID
-            _ = stream.socket.writeAndFlush(Self.textFrame(Self.json(event), on: stream.socket))
+            _ = stream.socket.writeAndFlush(textFrame(Self.json(event), on: stream.socket))
         }
     }
 
@@ -123,7 +125,7 @@ final class FakeHostService: Sendable {
             ended["code"] = code
             ended["message"] = message
             ended["herdr_code"] = herdrCode
-            _ = stream.socket.writeAndFlush(Self.textFrame(Self.json(ended), on: stream.socket))
+            _ = stream.socket.writeAndFlush(textFrame(Self.json(ended), on: stream.socket))
         }
     }
 
@@ -134,8 +136,13 @@ final class FakeHostService: Sendable {
         }
     }
 
-    private static func textFrame(_ text: String, on socket: any Channel) -> WebSocketFrame {
-        WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
+    private func textFrame(_ text: String, on socket: any Channel) -> WebSocketFrame {
+        recordSent(text)
+        return WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
+    }
+
+    fileprivate func recordSent(_ text: String) {
+        state.withLock { $0.log.sent.append(text) }
     }
 
     static func start(_ settings: Settings = Settings()) async throws -> FakeHostService {
@@ -190,6 +197,7 @@ final class FakeHostService: Sendable {
     func push(_ text: String) async throws {
         let sockets = state.withLock { $0.sockets }
         for socket in sockets {
+            recordSent(text)
             let frame = WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
             try await socket.writeAndFlush(frame)
         }
@@ -517,6 +525,7 @@ private final class WebSocketHandler: ChannelInboundHandler {
         for item in outgoing {
             switch item {
             case .text(let text):
+                server.recordSent(text)
                 let frame = WebSocketFrame(fin: true, opcode: .text, data: context.channel.allocator.buffer(string: text))
                 context.writeAndFlush(wrapOutboundOut(frame), promise: nil)
             case .close(let code):

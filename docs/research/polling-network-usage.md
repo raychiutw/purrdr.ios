@@ -10,6 +10,7 @@
 >    - 預覽、`pane.read`、在場回報在 HTTPS 尚未支援，不送就不耗流量，但功能也還沒有。
 > 3. herdr 能推送的只有**結構與狀態**(`events.subscribe`、`agent.wait`、`pane.wait_for_output`)。對話紀錄、pane 文字、Claude 用量 herdr 推不了，要靠主機端追檔(HTTPS 主機服務已這樣做；SSH 可用長駐 `tail -f` 式通道，HerdrChat 就是這樣做)。
 > 4. 架構上，輪詢間隔分散寫死在 7 個畫面 model 裡，也沒有任何地方讀 `NWPath.isExpensive`／`isConstrained`。建議收斂成每台主機一個「主機更新來源」:推送、long-poll、輪詢都藏在它後面，並依網路狀態調整頻率(第 6 節)。
+> 5. **實作後(§7)**:SSH POSIX 約 5～12 MB／小時、HTTPS 約 0.1 MB 加新增內容;SSH 剩下最大的是 working 時每 2 秒的 `pane.read`,Windows 是主機檔案讀取每次上傳的 stub 與腳本。流量守門測試(#168)守住請求次數與位元組。
 
 > 標記:**【程式】** 本 repo 檔案與行號(master `0f4fc51`,HTTPS 分支 `origin/integration/https` `3d27565`);**【文件】** 官方文件或規格;**【原始碼】** 第三方官方原始碼固定連結;**【規格】** `docs/research/herdrchat-behavior-spec.md`(下稱「行為規格」，依 ADR-0001 只讀這份，不讀 herdrchat 原始碼);**【估算】** 由程式推算、未實測;**【未查得】** 找不到一手來源。
 
@@ -24,6 +25,8 @@
   - SSH 封包：channel open／confirm、exec request、資料、EOF、exit-status、close,約 10～14 個。
   - 每個封包的加密與 MAC 開銷，加上 TCP/IP 與 Tailscale WireGuard 標頭，約 100～150 bytes。
   - 讀對話紀錄的腳本本身約 0.8～1 KB(`src/PurrdrCore/TranscriptCommand.swift:176-185` 加 `pathPrefix`、`probe`、`stripImages`)。
+  - **實測修正(#159 評估報告 `ssh-transcript-channel-evaluation.md` §4.2)**:SSH 層(含加密與 MAC,不含 TCP/IP 與 WireGuard)POSIX 讀尾端每輪送出 1,792 B(指令 1,660 B)、收到 264 B,扣掉內容後每條通道約 **0.4 KB**。【實測】
+  - **Windows 主機大得多**:經 stdin 的腳本(對話紀錄、主機檔案、預覽)每次都要上傳固定 stub(3,250 B)加腳本本身(讀尾端是 4,363 B),實測讀尾端每輪送出 **7,876 B**(約 **7.6 KB** 是 stub 與腳本)、合計 8,176 B,不是上面估的 1.5 KB。herdr 請求在 Windows 包成 `-EncodedCommand`,每次的位元組數**【未實測】**。
 - **SSH 沒有壓縮**:swift-nio-ssh 只協商 `"none"` 壓縮演算法。【原始碼】[`SSHKeyExchangeStateMachine.swift`(commit d198592)](https://github.com/apple/swift-nio-ssh/blob/d1985926494b624e751b379009dc83f3395fd88a/Sources/NIOSSH/Key%20Exchange/SSHKeyExchangeStateMachine.swift)
 - **WSS 每則訊息的開銷**:WebSocket frame、TLS record、TCP/IP、WireGuard 加起來估約 **100～200 bytes**。WSS 有沒有 permessage-deflate:**【未查得】**(Apple `NWProtocolWebSocket.Options` 沒有相關選項，見 §5.5;主機服務的 tungstenite 設定未查)。
 
@@ -408,7 +411,65 @@ Heeler 支援三種主機：Herdr TUI(就是 Purrdr 連的 herdr)、herdr-core�
 
 ---
 
-## 7. 未查得與未查證清單
+## 7. 實作後(spec #154 完成後，integration/polling,2026-11-18)
+
+spec #154 的票都合併後，各輪詢點的新做法與每小時估算。情境同 §1(1 台主機、10 個 pane／8 個 Agent、開著一個聊天、一半時間 working),再加上列表同時可見(iPad 三欄)與每分鐘約 0.43 個 Agent 狀態事件(§2.1.1 實測，一小時約 26 個)。
+
+位元組一律是 **SSH／TLS 層**(含加密與 MAC,不含 TCP/IP 與 WireGuard),與評估報告 §4.1 的量法相同。加上 TCP/IP 與 WireGuard 時，小封包多的項目(追蹤每輪、在場回報)約再多一倍。【推論】
+
+### 7.1 各輪詢點新舊對照
+
+| # | 輪詢點 | 實作前 | 實作後(PR) | 每次大小 |
+|---|---|---|---|---|
+| S1 快照 | 聊天每 2／4 秒讀整份 `session.snapshot` | 聊天不讀快照，從主機更新來源取得(#163,PR #182);主機更新來源只在連上、訂閱對帳、狀態與結構事件、`events_lost` 時讀，期間的事件合併成一次(#160,PR #171) | 約 13 KB【估算】 |
+| S1 畫面 | working／blocked 每 2 秒讀 `pane.read` | **不變**:working 每 2 秒、blocked 與背景 agent 執行中的例外快速路徑仍每 2 秒;閒置時每段最多 3 次找建議 | 2～8 KB【估算】 |
+| S1 尾端 | 每 2／4 秒開一條通道讀尾端 | 追蹤(#165,PR #184):SSH 一條長駐通道每輪送一行、沒變只回 `unchanged`(#166 PR #193、Windows #167 PR #197);HTTPS 主機服務推送 | POSIX 每輪 248 B、Windows 296 B【實測】;新增 1 KiB 時 1.4～1.5 KB【實測】 |
+| S2 在場回報 | 每 20 秒 | 每 30 秒,ttl 45 秒(#162,PR #169) | 約 0.8 KB(含通道開銷)【估算】 |
+| S3 列表預覽 | 每個事件重讀全部 Agent 的檔尾(每個最多 48 KB) | 第一次讀全部，之後只讀事件指名、狀態變化或沒讀過的 Agent,一次一個(#164,PR #181) | 每個 Agent 最多 48 KB |
+| S6～S8 用量、主題、註記 | 每 5／10 秒回整個檔;註記列表與輸入列各一份;主題與輸入列沒有背景判斷 | 帶已知版本，沒變只回 `unchanged <i>`;註記與主題每台主機一個讀取者;進背景一律停(#161,PR #170) | 回應從 3～6 KB 降到一行;**請求仍要送讀檔腳本** |
+| S9 keepalive | 每 20 秒 | 20 秒內主機傳過任何資料就跳過(#162,PR #169)。聊天開著時追蹤每 2～4 秒就有回應，幾乎不送 | 約 0.3 KB |
+| H1 快照 | 聊天每 2／4 秒讀 `agents.list` | 同 S1,聊天不讀 | 約 2.3 KB(8 個 Agent)【估算】 |
+| H2 尾端 | 推送進緩衝，聊天每 2 秒醒來取 | 推送直接轉成追蹤事件，聊天不再定時醒來(#165,PR #184) | 新增內容約加 15%【程式:流量守門測試】 |
+
+### 7.2 每小時估算
+
+| 項目 | SSH POSIX | SSH Windows | HTTPS |
+|---|---|---|---|
+| 快照(連上與對帳 2 + 事件 26) | 約 0.4 MB | 約 0.4 MB + `-EncodedCommand` 開銷【未實測】 | 約 0.07 MB |
+| 畫面 `pane.read`(working 每 2 秒約 900 次 + 閒置找建議) | 約 2.3～7.6 MB | 同左 + `-EncodedCommand` 開銷【未實測】 | 0(HTTPS 尚未支援) |
+| 尾端追蹤(約 1,360 輪) | 0.34 MB + 新增內容 | 0.40 MB + 每 10 分鐘重開通道 15.7 KB【實測】+ 新增內容 | 只有新增內容 |
+| 在場回報(120 次) | 約 0.1 MB | 約 0.1 MB 以上 | 0(尚未支援) |
+| 列表預覽(第一次 8 個 + 事件 26 個) | 最多約 1.6 MB | 最多約 1.6 MB + 每次 stub 與腳本約 8 KB【估算】 | 0(尚未支援) |
+| 用量、主題、註記(每小時約 1,440 次讀取) | 約 1～2 MB【估算】 | 約 9～12 MB(每次上傳 stub 與腳本約 6～8 KB)【估算】 | 0(尚未支援) |
+| WSS 心跳 | — | — | 約 0.03 MB |
+| **合計(不含新增內容)** | **約 5～12 MB**(不開用量等三項約 4～10 MB) | **約 5～10 MB,開用量等三項再加 9～12 MB** | **約 0.1 MB** |
+| 實作前(§2.1、§3) | 約 34～37 MB,列表可見再加約 10 MB(§2.1.1 依實測修正) | 尾端每輪 8,176 B,單這項就約 11 MB | 約 3～5 MB |
+
+- 新增的對話內容兩種連線方式都另計，每 KiB 約多 0.2 KB 開銷(SSH 實測 1 KiB → 1.4 KB,含請求行)。
+- SSH 剩下最大的一項是 **working 時每 2 秒的 `pane.read`**(即時預覽、背景 agents 窗格、提示判斷)。§4 已說明 herdr 沒有畫面增量，要再降只能拉長間隔或只在畫面可見的區塊需要時讀。【推論】
+- Windows 剩下最大的是**主機檔案讀取**:條件式讀取省了回應，但每次請求仍上傳約 6～8 KB 的 stub 與腳本。改成長駐通道(同 #167 的做法)可以降到每次幾百 bytes。【推論】
+- 與 Heeler 同情境估算的 3～8 MB/小時(§5.2)同量級。
+
+### 7.3 流量守門測試的實測次數【程式:模擬時間】
+
+`tests/PurrdrCoreTests/TrafficGuardTests.swift`(#168)以模擬時間跑本節情境的一小時。用錄製檔(3 個 Agent 的快照 5.3 KB、`pane.read` 0.84 KB、對話紀錄 29 KB),所以位元組比上表小;次數與上表的設計一致。SSH 用 `SSHHostConnection` 經假的 bridge 與本機 shell 實跑對話紀錄腳本，HTTPS 用 `HTTPSHostConnection` 經真的 WebSocket 連假的主機服務。
+
+| 種類 | SSH 次數 | SSH 估算位元組 | HTTPS 次數 | HTTPS 估算位元組 |
+|---|---|---|---|---|
+| 快照(`session.snapshot`／`agents.list`) | 26 | 155 KB | 26 | 17 KB |
+| `pane.read` | 924 | 1,422 KB | 0 | 0 |
+| 在場回報 | 121 | 93 KB | 0 | 0 |
+| 尾端追蹤 | 1 條通道、1,362 輪 | 600 KB(含新增約 180 行) | 1 次開追蹤、180 次推送 | 206 KB |
+| 列表預覽 | 24 | 1,045 KB | 0 | 0 |
+| 定位、視窗、訂閱(含 23 個事件)、握手 | 3 | 39 KB | 4 | 5 KB |
+| 心跳 | — | — | — | 34 KB(估算) |
+| **合計** | | **3.35 MB** | | **0.26 MB** |
+
+測試的上限是 SSH 4.5 MB、HTTPS 0.4 MB,各種類另有次數上限(推算見測試常數的註解)。聊天改回每輪讀快照時，SSH 多約 1,350 次快照(約 8 MB)、HTTPS 多約 1,350 次 `agents.list`(約 0.9 MB),兩個測試都會紅燈(PR #199 附證據)。
+
+---
+
+## 8. 未查得與未查證清單
 
 - 每次請求的位元組數全部是**估算**(由錄製檔大小與 SSH／TLS／WireGuard 封包結構推算)，沒有用實機抓封包量測。建議用 Xcode Network instrument 或主機端 `nettop` 實測一次。
 - herdr 各事件的觸發頻率已在 Windows 主機實測(§2.1.1);macOS／Linux 主機、建立與關閉 pane 時、`pane.updated` 在忙碌主機的頻率還沒實測。`session.snapshot` 大小沒有官方說明(實測 7 個 pane 約 10 KB)。
