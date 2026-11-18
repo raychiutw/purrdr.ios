@@ -259,8 +259,9 @@ public final class ConversationModel {
     public private(set) var prompt: BlockedPrompt?
     /// 已送出、還在等結果的回答(選項全部鎖住)。
     public private(set) var answerInFlight: PromptAnswer?
-    /// 最近一次已送達的回答(畫面清楚顯示選了什麼)。
+    /// 最近一次已送達的回答(畫面清楚顯示選了什麼);對話多了新的一列就收起(#213)。
     public private(set) var lastAnswer: AnsweredPrompt?
+    private var answeredCardAnchor: AnsweredCardAnchor?
     public private(set) var answerNotice: AnswerNotice?
 
     public let paneID: String
@@ -1095,6 +1096,7 @@ public final class ConversationModel {
                     // 勾選只是切換，不是最終的回答。
                 } else {
                     lastAnswer = AnsweredPrompt(question: answerQuestion, choice: Self.choiceText(answer))
+                    answeredCardAnchor = AnsweredCardAnchor(lastEntryID: entries.last?.id)
                 }
                 clearAnswer()
                 haptics.play(.success)
@@ -1251,6 +1253,10 @@ public final class ConversationModel {
         let merged = EchoTimeline.merge(items: items, echoes: echoes)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
+        if let anchor = answeredCardAnchor, !anchor.isShowing(lastEntryID: entries.last?.id) {
+            lastAnswer = nil
+            answeredCardAnchor = nil
+        }
     }
 
     // MARK: - Slash 點選與面板(#45)
