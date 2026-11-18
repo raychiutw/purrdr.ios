@@ -58,6 +58,7 @@ struct HTTPSPaneTerminalTests {
         try await connection.send(bytes: Data([0x15]))
         try await connection.send(.resize(columns: 60, rows: 15))
         try await connection.send(.scroll(.down, lines: 2, column: 3, row: 4))
+        try await connection.send(.scroll(.up, lines: 24, column: 0, row: 0, source: .pageKey))
         await connection.release()
         _ = await Self.collect(connection)
 
@@ -70,6 +71,7 @@ struct HTTPSPaneTerminalTests {
         ])
         #expect(Self.sent(service, "pane.terminal.scroll") == [
             Self.object(#"{"type":"pane.terminal.scroll","stream_id":"\#(streamID)","direction":"down","lines":2,"column":3,"row":4}"#),
+            Self.object(#"{"type":"pane.terminal.scroll","stream_id":"\#(streamID)","direction":"up","lines":24,"column":0,"row":0,"source":"page_key"}"#),
         ])
         #expect(Self.sent(service, "pane.terminal.close") == [
             Self.object(#"{"type":"pane.terminal.close","stream_id":"\#(streamID)"}"#),

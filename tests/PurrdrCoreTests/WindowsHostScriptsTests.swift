@@ -47,6 +47,21 @@ struct WindowsHostScriptsTests {
         #expect(tail == .appended(TranscriptChunk(start: 43, end: 303, lines: lines)))
     }
 
+    /// #130:分段追趕在 Windows 也有同樣輸出格式的 PowerShell 版本，不丟 unsupported、不送 POSIX 腳本。
+    @Test("分段追趕：Windows 經 stdin 送 PowerShell 腳本，參數是路徑、游標、上限;輸出照樣解析")
+    func catchUpOverStdin() async throws {
+        let host = FakeHost()
+        await host.expect(Self.stub, reply: FakeReply(stdout: Fixtures.data("windows/transcript.tail.stdout.txt")))
+
+        let tail = try await TranscriptReader(channel: WindowsHostChannel(host)).catchUp(path: Self.path, from: 43, limit: 1024)
+
+        let lines = [#"{"type":"assistant","n":2,"image":""}"#, #"{"type":"user","n":3}"#]
+        #expect(tail == .appended(TranscriptChunk(start: 43, end: 303, lines: lines)))
+        let stdin = try #require(await host.executions.first?.stdinText)
+        #expect(stdin.contains("\n$a=@('C:\\Users\\demo\\.claude\\projects\\C--work\\abc.jsonl','43','1024')\n"))
+        #expect(!stdin.contains("awk"), "POSIX 腳本不能送到 Windows")
+    }
+
     @Test("Claude 的定位：exit 3(還沒有檔案)照樣是 absent")
     func claudeLocateAbsent() async {
         let host = FakeHost()

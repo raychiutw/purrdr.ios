@@ -37,6 +37,114 @@ struct ComposerRulesTests {
         }
     }
 
+    // MARK: - 長高(#137)
+
+    /// 行高 20、上下內距 22 時 `lines` 行內容的高度。
+    private static func layout(lines: Double, lineHeight: Double = 20, available: Double? = 1000) -> ComposerHeight {
+        ComposerSizing.height(
+            ComposerTextMetrics(contentHeight: lines * lineHeight + 22, lineHeight: lineHeight, verticalInsets: 22), availableHeight: available)
+    }
+
+    @Test("長高到 8 行為止，第 9 行才內捲")
+    func growsUpToEightLines() {
+        #expect(Self.layout(lines: 5) == ComposerHeight(height: 122, scrolls: false))
+        #expect(Self.layout(lines: 8) == ComposerHeight(height: 182, scrolls: false))
+        #expect(Self.layout(lines: 9) == ComposerHeight(height: 182, scrolls: true))
+    }
+
+    @Test("可用高度的 40% 比 8 行矮時，以 40% 為上限")
+    func availableHeightFractionWins() {
+        #expect(Self.layout(lines: 5, available: 300) == ComposerHeight(height: 120, scrolls: true))
+        #expect(Self.layout(lines: 4, available: 300) == ComposerHeight(height: 102, scrolls: false))
+    }
+
+    @Test("iPhone SE 尺寸加 AX 字級：上限是可用高度的 40%,不是 8 行")
+    func smallScreenWithLargeText() {
+        // iPhone SE 鍵盤上方約 380pt;AX5 的 body 行高約 64pt。
+        #expect(Self.layout(lines: 3, lineHeight: 64, available: 380) == ComposerHeight(height: 152, scrolls: true))
+        // 預設字級(行高 22):8 行 198pt 超過 152pt。
+        #expect(Self.layout(lines: 8, lineHeight: 22, available: 380) == ComposerHeight(height: 152, scrolls: true))
+        #expect(Self.layout(lines: 5, lineHeight: 22, available: 380) == ComposerHeight(height: 132, scrolls: false))
+    }
+
+    @Test("最小 44pt:一行的高度與可用高度很小時都不低於 44pt")
+    func neverShorterThanMinimum() {
+        #expect(Self.layout(lines: 1) == ComposerHeight(height: 44, scrolls: false))
+        #expect(Self.layout(lines: 1, available: 50) == ComposerHeight(height: 44, scrolls: false))
+        #expect(Self.layout(lines: 3, available: 50) == ComposerHeight(height: 44, scrolls: true))
+    }
+
+    @Test("內容剛好等於上限時不內捲;不知道可用高度時只看 8 行")
+    func scrollsOnlyWhenExceeding() {
+        let atLimit = ComposerSizing.height(ComposerTextMetrics(contentHeight: 120, lineHeight: 20, verticalInsets: 22), availableHeight: 300)
+        #expect(atLimit == ComposerHeight(height: 120, scrolls: false))
+        #expect(Self.layout(lines: 20, available: nil) == ComposerHeight(height: 182, scrolls: true))
+    }
+
+    // MARK: - 展開鈕(#142)
+
+    /// 行高 20、上下內距 22 時 `lines` 行內容是否顯示展開鈕。
+    private static func showsExpand(lines: Double, isFocused: Bool) -> Bool {
+        ComposerExpansion.showsExpandButton(ComposerTextMetrics(contentHeight: lines * 20 + 22, lineHeight: 20, verticalInsets: 22), isFocused: isFocused)
+    }
+
+    @Test("沒聚焦時超過 2 行才顯示展開鈕")
+    func expandButtonAfterTwoLines() {
+        #expect(!Self.showsExpand(lines: 1, isFocused: false))
+        #expect(!Self.showsExpand(lines: 2, isFocused: false))
+        #expect(Self.showsExpand(lines: 3, isFocused: false))
+        #expect(Self.showsExpand(lines: 12, isFocused: false))
+    }
+
+    @Test("聚焦時一律顯示展開鈕(包含空白輸入框)")
+    func expandButtonWhenFocused() {
+        #expect(Self.showsExpand(lines: 1, isFocused: true))
+        #expect(Self.showsExpand(lines: 2, isFocused: true))
+    }
+
+    @Test("行高量測的小誤差不讓 2 行被算成 3 行")
+    func expandButtonToleratesRounding() {
+        let almostTwoLines = ComposerExpansion.showsExpandButton(
+            ComposerTextMetrics(contentHeight: 2 * 20.4 + 22, lineHeight: 20, verticalInsets: 22), isFocused: false)
+        #expect(!almostTwoLines)
+    }
+
+    // MARK: - 組字中的程式覆寫(#138)
+
+    @Test("沒有組字時，程式改寫草稿立即套用")
+    func overwriteAppliesWhenNotComposing() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("/compact ", current: "/comp", isComposing: false) == "/compact ")
+        #expect(!overwrite.isPending)
+    }
+
+    @Test("組字中延後覆寫;組字結束後把接在後面的文字接到確認的字後面(Discuss in Chat)")
+    func appendIsDeferredUntilCompositionEnds() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("寫到ㄋ\n\n註記", current: "寫到ㄋ", isComposing: true) == nil)
+        #expect(overwrite.isPending)
+        #expect(overwrite.inputChanged("寫到ㄋㄧˇ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("寫到你", isComposing: false) == "寫到你\n\n註記")
+        #expect(!overwrite.isPending)
+        #expect(overwrite.inputChanged("寫到你\n\n註記", isComposing: false) == nil)
+    }
+
+    @Test("組字中延後的整段取代(slash 選單填入),組字結束後照樣套用")
+    func replacementIsDeferredUntilCompositionEnds() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("/compact ", current: "/ㄋ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("/你", isComposing: false) == "/compact ")
+    }
+
+    @Test("組字中多次覆寫：以最後一次為準，接在後面的文字從第一次延後時的內容算起")
+    func latestDeferredOverwriteWins() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("寫到ㄋ\n\nA", current: "寫到ㄋ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("寫到ㄋㄧ", isComposing: true) == nil)
+        #expect(overwrite.request("寫到ㄋ\n\nA\n\nB", current: "寫到ㄋㄧ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("寫到你", isComposing: false) == "寫到你\n\nA\n\nB")
+    }
+
     // MARK: - 草稿(F6.2)
 
     @Test("草稿：離開聊天保留(以 chat key 記);存空字串即刪除")

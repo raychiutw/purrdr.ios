@@ -18,7 +18,9 @@ extension HTTPSHostConnection {
             return try await withDeadline(HostCommandDeadline.maximumRead) {
                 try await self.window(path: path, end: end, lines: lines)
             }
-        case .tail(let path, let cursor, let limit):
+        case .tail(let path, let cursor, let limit), .catchUp(let path, let cursor, let limit):
+            // 主機服務的追蹤沒有「分段接著讀」:落後超過上限就結束、只回大小，`TranscriptReader.catchUp` 會改回報
+            // 落後太多(讀新視窗)。行從推送累積的緩衝回答，不必依上限放寬期限。
             return try await withDeadline(HostCommandDeadline.standard) {
                 try await self.tail(path: path, from: cursor, limit: limit)
             }

@@ -637,20 +637,22 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 捲動(herdr terminal.scroll,source 固定 wheel)。不回應。
+    /// 捲動(herdr terminal.scroll)。source 沒帶時是 wheel。不回應。
     public struct PaneTerminalScroll: Codable, Sendable, Equatable {
         public var streamId: String
         public var direction: TerminalScrollDirection
         public var lines: Int
         public var column: Int
         public var row: Int
+        public var source: TerminalScrollSource?
 
-        public init(streamId: String, direction: TerminalScrollDirection, lines: Int, column: Int, row: Int) {
+        public init(streamId: String, direction: TerminalScrollDirection, lines: Int, column: Int, row: Int, source: TerminalScrollSource? = nil) {
             self.streamId = streamId
             self.direction = direction
             self.lines = lines
             self.column = column
             self.row = row
+            self.source = source
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -659,6 +661,7 @@ extension HostServiceProtocol {
             case lines
             case column
             case row
+            case source
         }
     }
 }
@@ -668,6 +671,14 @@ extension HostServiceProtocol {
     public enum TerminalScrollDirection: String, Codable, Sendable, CaseIterable {
         case up
         case down
+    }
+}
+
+extension HostServiceProtocol {
+    /// 捲動來源:wheel 是滾輪或單指滑動;page_key 是實體鍵盤 Page Up／Down,herdr 依 Pane 狀態捲主機 scrollback 或送 Page 鍵給程式。
+    public enum TerminalScrollSource: String, Codable, Sendable, CaseIterable {
+        case wheel
+        case pageKey = "page_key"
     }
 }
 
