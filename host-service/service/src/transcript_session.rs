@@ -57,13 +57,18 @@ impl TranscriptSession {
         };
         let path = PathBuf::from(&request.path);
         let reading = path.clone();
-        let tail = match blocking(move || transcript::tail(&reading, from, limit)).await {
+        let tail = blocking(move || {
+            let anchor = transcript::anchor(&reading, from)?;
+            transcript::tail(&reading, from, limit, &anchor)
+        })
+        .await;
+        let tail = match tail {
             Ok(tail) => tail,
             Err(failure) => return failure_message(request.request_id, failure),
         };
         let update = StreamUpdate::from_tail(from, tail);
         if update.ended.is_none() {
-            let task = tokio::spawn(track(path, update.cursor, limit, request.stream_id.clone(), self.pushes.clone()));
+            let task = tokio::spawn(track(path, update.cursor, update.anchor, limit, request.stream_id.clone(), self.pushes.clone()));
             self.streams.insert(request.stream_id.clone(), task);
         }
         ServerMessage::TranscriptFollowResult(TranscriptFollowResult {
@@ -141,6 +146,8 @@ struct StreamUpdate {
     records: Vec<Record>,
     /// 下一次從這裡讀。
     cursor: u64,
+    /// 下一次讀時比對的游標前內容。
+    anchor: Vec<u8>,
     ended: Option<TranscriptStreamEnd>,
 }
 
@@ -150,16 +157,19 @@ impl StreamUpdate {
             size,
             records: Vec::new(),
             cursor: from,
+            anchor: Vec::new(),
             ended: Some(reason),
         };
         match tail {
-            Tail::Lines { size, chunk } => StreamUpdate {
+            Tail::Lines { size, chunk, anchor } => StreamUpdate {
                 size,
                 records: chunk.records,
                 cursor: chunk.end,
+                anchor,
                 ended: None,
             },
             Tail::Shrank { size } => ended(size, TranscriptStreamEnd::Shrank),
+            Tail::Replaced { size } => ended(size, TranscriptStreamEnd::Replaced),
             Tail::TooFarBehind { size } => ended(size, TranscriptStreamEnd::TooFarBehind),
         }
     }
@@ -173,18 +183,20 @@ impl StreamUpdate {
             size: 0,
             records: Vec::new(),
             cursor: from,
+            anchor: Vec::new(),
             ended: Some(reason),
         }
     }
 }
 
-/// 定期檢查檔案，有新的完整行就推送;檔案變小、落後太多、讀不到時推送結束原因後停止。
-async fn track(path: PathBuf, mut cursor: u64, limit: u64, stream_id: String, pushes: UnboundedSender<ServerMessage>) {
+/// 定期檢查檔案，有新的完整行就推送;檔案變小、被換掉、落後太多、讀不到時推送結束原因後停止。
+async fn track(path: PathBuf, mut cursor: u64, mut anchor: Vec<u8>, limit: u64, stream_id: String, pushes: UnboundedSender<ServerMessage>) {
     loop {
         tokio::time::sleep(FOLLOW_INTERVAL).await;
         let reading = path.clone();
         let from = cursor;
-        let update = match blocking(move || transcript::tail(&reading, from, limit)).await {
+        let comparing = anchor.clone();
+        let update = match blocking(move || transcript::tail(&reading, from, limit, &comparing)).await {
             Ok(tail) => StreamUpdate::from_tail(from, tail),
             Err(failure) => StreamUpdate::from_failure(from, failure),
         };
@@ -193,6 +205,7 @@ async fn track(path: PathBuf, mut cursor: u64, limit: u64, stream_id: String, pu
         }
         let ended = update.ended.is_some();
         cursor = update.cursor;
+        anchor = update.anchor;
         let message = ServerMessage::TranscriptUpdate(TranscriptUpdate {
             stream_id: stream_id.clone(),
             size: update.size as i64,

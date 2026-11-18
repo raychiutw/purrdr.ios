@@ -25,7 +25,7 @@ public struct SyncedHost: Sendable, Equatable {
         self.endpoint = endpoint
         self.connectionMethod = connectionMethod
         self.hostKeyPin = hostKeyPin
-        self.hostService = hostService
+        self.hostService = connectionMethod.hostService(hostService)
         self.modifiedAt = modifiedAt
     }
 
@@ -155,7 +155,7 @@ extension SyncedHost {
     /// 套用到這支裝置的主機設定：只換同步的欄位;沒有這台主機時建立新的(OpenSSH 預設用這支裝置的金鑰)。
     /// HTTPS 主機的裝置權杖不同步，這支裝置要自己連線配對。
     func applied(to existing: HostConfiguration?) -> HostConfiguration {
-        if existing == nil, connectionMethod == .https, let hostService {
+        if existing == nil, let hostService {
             return HostConfiguration(id: id, name: name, hostService: hostService)
         }
         guard var host = existing else {
@@ -170,7 +170,7 @@ extension SyncedHost {
             host.authentication = connectionMethod == .openSSH ? (host.authentication ?? .deviceKey) : nil
         }
         host.hostKeyPin = hostKeyPin
-        host.hostService = connectionMethod == .https ? hostService : nil
+        host.hostService = hostService
         return host
     }
 }

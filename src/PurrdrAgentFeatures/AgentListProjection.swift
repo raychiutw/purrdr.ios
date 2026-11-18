@@ -11,6 +11,9 @@ package enum AgentListProjection {
         package var host: HostSelection
         /// 非選取中主機的名稱與圖示;選取中主機為 `nil`(列上不標示)。
         package var label: HostLabel?
+        /// 主機名稱與圖示(Spaces 檢視的主機組標題;不分選取中與否)。
+        package var name = ""
+        package var icon = HostIcon.default
         package var snapshot: HostSnapshot?
         /// 以 pane id 為鍵(同一台主機內唯一)。
         package var previews: [String: MessagePreview]
@@ -78,6 +81,11 @@ package enum AgentListProjection {
 
         /// 主機順序(選取中主機在前)→ workspace 順序 → snapshot 內的位置。
         package var order: (Int, Int, Int) { (hostOrder, workspaceOrder, position) }
+
+        /// Spaces 主機組內：需要你 > 工作中 > 其他(完成與閒置同一級),再依 workspace 順序與位置。
+        package var urgencyOrder: (Int, Int, Int) {
+            (min(status.urgencyRank, AgentStatus.done.urgencyRank), workspaceOrder, position)
+        }
     }
 
     /// 不分大小寫的子字串比對：標題、herdr 名稱、session 與終端機標題、agent 種類與顯示名、資料夾、workspace 名稱與 id。
@@ -130,6 +138,15 @@ extension AgentStatus {
         case .unknown: "Unknown"
         }
     }
+
+    /// 急迫度：需要你 > 工作中 > 完成 > 閒置(未知算閒置)。列表排序、狀態條與圖例共用。
+    package static let urgencyOrder: [AgentStatus] = [.blocked, .working, .done, .idle]
+
+    /// 依急迫度歸類的狀態：未知算閒置。
+    package var urgencyStatus: AgentStatus { self == .unknown ? .idle : self }
+
+    /// 在 `urgencyOrder` 的位置(越小越急迫)。
+    package var urgencyRank: Int { Self.urgencyOrder.firstIndex(of: urgencyStatus) ?? Self.urgencyOrder.count }
 
     /// 「需要你」只有 `blocked`;`done`、`idle`、`unknown` 都算閒置。
     package var group: AgentGroup {

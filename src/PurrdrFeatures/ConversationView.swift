@@ -97,7 +97,9 @@ public struct ConversationView: View {
     @ViewBuilder
     private var content: some View {
         if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+            // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             messages
         }
@@ -223,6 +225,7 @@ public struct ConversationView: View {
         switch model.phase {
         case .loading:
             ProgressView("Loading conversation…")
+                .accessibilityIdentifier("conversation.loading")
         case .waitingForSession:
             ContentUnavailableView {
                 Label("Waiting for the Session", systemImage: "hourglass")

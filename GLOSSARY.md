@@ -12,7 +12,7 @@ _避免_:電腦、伺服器、機器、Device、Computer
 
 **連線方式**:
 app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。
-_避免_:Transport、Auth mode
+_避免_:Transport、Auth mode(例外：網路傳輸層的型別沿用 `*Transport`,如 `URLSessionHostServiceTransport`、`PaneTerminalTransport`、`BackendTransport`,指收送位元組的那一層，不是連線方式)
 
 **選取中主機**:
 新聊天開在它上面、套用它的主題、它的錯誤佔滿畫面的那台主機。存在本機，重新啟動後選回同一台。不影響列表上看得到哪些主機：所有主機的 Agent 一律合併在同一個 Agent 列表。
@@ -69,16 +69,16 @@ _避免_:Log、History
 _避免_:Chat list、Inbox、Home
 
 **Spaces 檢視**:
-Agent 列表以 workspace 為單位呈現：只有一個 Agent、沒有其他 Pane 的 workspace 是一列聊天，其餘是一張 workspace 卡片。UI 稱「Spaces」,繁中也保留英文。
+Agent 列表依主機分組、以 workspace 為單位呈現：只有一個 Agent、沒有其他 Pane 的 workspace 是一列聊天，其餘是一個可收合的 workspace 群組。UI 稱「Spaces」,繁中也保留英文。
 _避免_:Workspace 檢視、Grouped view
 
 **Agents 檢視**:
 Agent 列表每個 Agent 一列，不分 workspace。
 _避免_:Flat view、Chats 檢視
 
-**Workspace 卡片**:
-Spaces 檢視裡代表一個 workspace 的項目：有兩個以上的 Agent,或有 Agent 以外的 Pane(終端機)時才出現;依 Tab 分組列出底下的 Agent 與終端機。
-_避免_:Workspace row、Group、Folder
+**Workspace 群組**:
+Spaces 檢視裡代表一個 workspace 的項目：有兩個以上的 Agent,或有 Agent 以外的 Pane(終端機)時才出現。收合時只有一列標頭(名稱、Agent 數、狀態條),展開後列出底下的 Agent 與終端機。
+_避免_:Workspace 卡片、Workspace row、Folder
 
 **已釘選**(Pinned):
 使用者在這支裝置上釘到 Agent 列表最前面的聊天，自成一組、不論 Agent 狀態。只存在這支裝置。

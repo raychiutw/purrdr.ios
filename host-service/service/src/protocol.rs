@@ -395,11 +395,13 @@ pub struct TranscriptUpdate {
     pub ended: Option<TranscriptStreamEnd>,
 }
 
-/// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。
+/// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、replaced 檔案被換成同長或更長的新檔(游標前的內容變了)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TranscriptStreamEnd {
     #[serde(rename = "shrank")]
     Shrank,
+    #[serde(rename = "replaced")]
+    Replaced,
     #[serde(rename = "too_far_behind")]
     TooFarBehind,
     #[serde(rename = "absent")]

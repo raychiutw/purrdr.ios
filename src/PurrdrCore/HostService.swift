@@ -158,9 +158,11 @@ public enum HostServiceError: Error, Equatable, Sendable {
     case readOnlyDevice
     /// HTTPS 連線方式還不提供這個操作(herdr method 或功能名稱)。
     case unsupported(String)
-    /// 找不到這個主機名稱(手機不在 tailnet,或位址打錯)。
+    /// 找不到這個主機名稱(位址打錯)。
     case hostNotFound
-    /// 連不上主機(主機離線或不在 tailnet)。
+    /// 這支裝置不在 tailnet(MagicDNS 名稱查不到，或沒有網路)。
+    case notOnTailnet
+    /// 名稱查得到但主機沒回應(主機離線或睡著)。
     case unreachable
     /// 連得到主機，但主機服務沒在跑(`tailscale serve` 回 502)。
     case hostServiceNotRunning

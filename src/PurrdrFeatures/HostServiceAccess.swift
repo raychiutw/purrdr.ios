@@ -26,6 +26,12 @@ public struct HostServiceAccess {
         self.makeConnection = makeConnection
     }
 
+    /// 不等待地請主機服務撤銷這個權杖(失敗也不影響：主機離線時可在主機上撤銷)。
+    func revokeWithoutWaiting(_ deviceToken: String, at address: HostServiceAddress) {
+        let pairing = pairing
+        Task { try? await pairing.revoke(address: address, deviceToken: deviceToken) }
+    }
+
     /// 已存的 HTTPS 主機的連線。
     @MainActor
     func connection(for host: HostConfiguration, address: HostServiceAddress) -> any HostConnection {
@@ -89,7 +95,7 @@ public struct KeychainDeviceTokenStore: DeviceTokenStore {
 }
 
 /// HTTPS 主機沒有主機通道：只有 SSH 才有的功能(登入 Shell、檔案、推播外掛、主題…)一律以 `unsupported` 失敗，不連網路。
-struct HostServiceOnlyChannel: HostChannel {
+struct UnsupportedHostChannel: HostChannel {
     func execute(_ command: String) async throws -> any ExecSession {
         throw HostServiceError.unsupported("ssh")
     }
@@ -155,8 +161,8 @@ private struct UITestingHostServiceConnection: HostConnection {
     }
 
     func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
-        let method = (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
-        if ["agent.prompt", "pane.send_text", "pane.send_keys"].contains(method), try await isReadOnlyDevice() {
+        // 寫入與否照協定(schema 的 x-write),與主機服務相同。
+        if (try? HTTPSHostConnection.isWriteRequest(request)) == true, try await isReadOnlyDevice() {
             throw HostServiceError.readOnlyDevice
         }
         return try await base.herdrRequest(request, deadline: deadline)

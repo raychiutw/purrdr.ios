@@ -346,6 +346,40 @@ async fn follow_ends_with_shrank_when_the_transcript_is_replaced_by_a_shorter_on
 }
 
 #[tokio::test]
+async fn follow_ends_with_replaced_when_the_transcript_is_replaced_by_one_of_the_same_length() {
+    let fixture = Fixture::recorded_snapshot().await;
+    let transcript = fixture.claude_transcript("{\"n\":1}\n{\"n\":2}\n");
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+    client.request(follow("r2", "s1", &path_text(&transcript), 16, 65536)).await;
+
+    std::fs::write(&transcript, "{\"m\":1}\n{\"m\":2}\n").unwrap();
+    let ended = client.receive().await;
+
+    assert_eq!(
+        ended,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 16, "start": 16, "records": [], "ended": "replaced"})
+    );
+}
+
+#[tokio::test]
+async fn follow_ends_with_replaced_instead_of_pushing_lines_of_a_longer_replacement() {
+    let fixture = Fixture::recorded_snapshot().await;
+    let transcript = fixture.claude_transcript("{\"n\":1}\n{\"n\":2}\n");
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+    client.request(follow("r2", "s1", &path_text(&transcript), 16, 65536)).await;
+
+    std::fs::write(&transcript, "{\"m\":1}\n{\"m\":2}\n{\"m\":3}\n").unwrap();
+    let ended = client.receive().await;
+
+    assert_eq!(
+        ended,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 24, "start": 16, "records": [], "ended": "replaced"})
+    );
+}
+
+#[tokio::test]
 async fn follow_that_starts_too_far_behind_ends_immediately_so_the_app_reads_a_window() {
     let fixture = Fixture::recorded_snapshot().await;
     let transcript = fixture.claude_transcript("{\"n\":1}\n{\"n\":2}\n");

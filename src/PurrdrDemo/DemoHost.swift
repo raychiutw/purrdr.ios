@@ -20,6 +20,10 @@ public actor DemoHost: HostChannel {
         case paneInUse
         /// Tailscale SSH check mode:第一個指令先要求重新驗證(經 `tailscaleCheck` 回報)。
         case tailscaleCheck(completesAfter: Duration?)
+        /// 對話畫面定位對話紀錄的指令不回應(直到關閉):停在對話載入中(#114)。列表預覽、subagent 照常回應。
+        /// 讀取有期限(`HostCommandDeadline.standard`,20 秒):期限到了 client 關閉指令、畫面離開載入中，
+        /// 所以只在進入對話後的這段時間內停在載入中。
+        case transcriptPending
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -72,6 +76,9 @@ public actor DemoHost: HostChannel {
         }
         if let stdout = DemoSlash.respond(to: command) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
+        if scenario == .transcriptPending, DemoTranscripts.isLocate(command) {
+            return DemoPendingSession()
         }
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
@@ -198,7 +205,7 @@ public actor DemoHost: HostChannel {
         return DemoSnapshot.response(to: requestLine, state: &state)
     }
 
-    /// `pane.read`(各 pane 畫面上的提示)與 `pane.send_keys`(回答提示)。其他請求回 `nil`。
+    /// `pane.read`(各 pane 畫面上的提示)、`pane.send_keys` 與 `pane.send_text`(回答提示)。其他請求回 `nil`。
     private func paneResponse(to requestLine: Data) -> (line: Data, keepsOpen: Bool)? {
         let request = (try? JSONSerialization.jsonObject(with: requestLine)) as? [String: Any]
         let id = request?["id"] as? String ?? ""
@@ -206,9 +213,13 @@ public actor DemoHost: HostChannel {
         let paneID = params["pane_id"] as? String ?? ""
         switch request?["method"] as? String {
         case "pane.read":
-            return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID))
+            let ansi = params["format"] as? String == "ansi"
+            return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID, ansi: ansi), ansi: ansi)
         case "pane.send_keys":
             answers.receivedKeys(params["keys"] as? [String] ?? [], paneID: paneID)
+            return DemoSnapshot.ok(id: id)
+        case "pane.send_text":
+            answers.receivedText(params["text"] as? String ?? "", paneID: paneID)
             return DemoSnapshot.ok(id: id)
         default:
             return nil
@@ -525,9 +536,9 @@ enum DemoSnapshot {
     }
 
     /// `pane.read` 的結果(形狀依錄製的 `pane.read.visible.ndjson`)。
-    static func paneRead(id: String, paneID: String, text: String) -> (line: Data, keepsOpen: Bool) {
+    static func paneRead(id: String, paneID: String, text: String, ansi: Bool = false) -> (line: Data, keepsOpen: Bool) {
         let read: [String: Any] = [
-            "pane_id": paneID, "workspace_id": String(paneID.prefix { $0 != ":" }), "source": "visible", "format": "text",
+            "pane_id": paneID, "workspace_id": String(paneID.prefix { $0 != ":" }), "source": "visible", "format": ansi ? "ansi" : "text",
             "text": text, "revision": 0, "truncated": false,
         ]
         return (result(id: id, ["type": "pane_read", "read": read]), false)
@@ -665,6 +676,20 @@ private struct DemoFinishedSession: ExecSession {
     func write(_ data: Data) async throws {}
     func closeStdin() async {}
     func close() async {}
+}
+
+/// 一直不回應、直到關閉才結束的指令。
+private struct DemoPendingSession: ExecSession {
+    let output: AsyncThrowingStream<ExecOutput, any Error>
+    private let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
+
+    init() {
+        (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
+    }
+
+    func write(_ data: Data) async throws {}
+    func closeStdin() async {}
+    func close() async { continuation.finish() }
 }
 
 /// 回顯輸入的 shell。

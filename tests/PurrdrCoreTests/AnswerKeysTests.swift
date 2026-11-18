@@ -59,4 +59,59 @@ struct AnswerKeysTests {
         #expect(AnswerKeys.keys(for: .generic(.two), agentKind: "claude") == ["2", "enter"])
         #expect(AnswerKeys.keys(for: .generic(.escape), agentKind: "claude") == ["esc"])
     }
+
+    // MARK: - 「Type something.」自訂回答(#120)
+
+    static let askQuestion = BlockedPromptParser.parse(screen: PaneScreens.text("claude-ask-question"), agentKind: "claude")
+
+    @Test("Claude 選單最後一個編號選項「Type something.」是自訂回答")
+    func typeSomethingIsRecognized() throws {
+        let prompt = try #require(Self.askQuestion)
+        #expect(prompt.typedAnswerOption(agentKind: "claude") == prompt.options[3])
+    }
+
+    @Test("不是 Claude、多選的「Type something」、不在最後一列的同名選項都不算自訂回答")
+    func typeSomethingOnlyForClaudeLastOption() throws {
+        let prompt = try #require(Self.askQuestion)
+        #expect(prompt.typedAnswerOption(agentKind: "codex") == nil)
+        let multi = try #require(BlockedPromptParser.parse(screen: PaneScreens.text("claude-ask-multiselect"), agentKind: "claude"))
+        #expect(multi.typedAnswerOption(agentKind: "claude") == nil)
+        var moved = prompt
+        moved.options.swapAt(2, 3)
+        #expect(moved.typedAnswerOption(agentKind: "claude") == nil)
+    }
+
+    @Test("「Type something.」不再只送數字(數字只會把那一列變成文字輸入)")
+    func typeSomethingOptionAloneSendsNothing() throws {
+        let option = try #require(Self.askQuestion?.options[3])
+        #expect(AnswerKeys.keys(for: .option(option), agentKind: "claude") == nil)
+    }
+
+    @Test("自訂回答：數字 → 文字(send_text)→ enter")
+    func typedAnswerInputs() throws {
+        let option = try #require(Self.askQuestion?.options[3])
+        #expect(AnswerKeys.inputs(for: .typed(option, text: "綠色 green"), agentKind: "claude") == [
+            .keys(["4"]), .text("綠色 green"), .keys(["enter"]),
+        ])
+    }
+
+    @Test("自訂回答：換行換成空格、去掉頭尾空白(行內輸入的換行會提早送出，剩下的字落到下一題)")
+    func typedAnswerFlattensNewlines() throws {
+        let option = try #require(Self.askQuestion?.options[3])
+        #expect(AnswerKeys.inputs(for: .typed(option, text: " teal\nwith  stripes\r\n"), agentKind: "claude") == [
+            .keys(["4"]), .text("teal with  stripes"), .keys(["enter"]),
+        ])
+    }
+
+    @Test("自訂回答：空白文字不送")
+    func blankTypedAnswerSendsNothing() throws {
+        let option = try #require(Self.askQuestion?.options[3])
+        #expect(AnswerKeys.inputs(for: .typed(option, text: "  \n"), agentKind: "claude") == nil)
+    }
+
+    @Test("一般回答的輸入就是它的按鍵")
+    func plainAnswerInputsAreKeys() {
+        #expect(AnswerKeys.inputs(for: .option(Self.option(2)), agentKind: "claude") == [.keys(["2"])])
+        #expect(AnswerKeys.inputs(for: .option(Self.option(10)), agentKind: "claude") == nil)
+    }
 }

@@ -188,7 +188,7 @@ public final class HostsModel {
     }
 
     /// 選取中主機有沒有登入 Shell 與檔案(HTTPS 連線方式沒有，ADR-0010)。
-    public var selectedHostSupportsShell: Bool { selectedHost?.connectionMethod != .https }
+    public var selectedHostSupportsShell: Bool { selectedHost?.supportsLoginShell ?? true }
 
     /// 選取中主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
     public func loginShell() -> LoginShellModel {
@@ -381,7 +381,8 @@ public final class HostsModel {
         try store.delete(id)
         if let removed {
             if let address = removed.hostService {
-                revokeDeviceToken(deviceToken, at: address)
+                // 主機離線時權杖留在主機上，可在主機上撤銷。
+                if let deviceToken { hostService.revokeWithoutWaiting(deviceToken, at: address) }
             } else {
                 forgetPush(of: removed, secret: secret)
             }
@@ -452,6 +453,8 @@ public final class HostsModel {
         guard let previous = networkPath, previous != signature else { return nil }
         let dropped = Array(channels.values) + [demoChannel]
         let droppedConnections = Array(hostServiceConnections.values)
+        // 診斷(#133):實機斷線時分辨是不是網路切換丟掉了連線。
+        diagnostics.error("Network path changed (\(previous) → \(signature)): dropping \(channels.count) host connection(s)")
         let agentList = agentList
         return Task {
             for channel in dropped { await channel.disconnect() }
@@ -469,14 +472,18 @@ public final class HostsModel {
         guard let since = backgroundSince else { return }
         backgroundSince = nil
         guard date.timeIntervalSince(since) > Double(WakeProbe.backgroundThreshold.components.seconds) else { return }
-        let probed = Array(channels.values)
-        let allAlive = await withTaskGroup(of: Bool.self) { group in
-            for channel in probed { group.addTask { await WakeProbe(channel: channel).run() } }
-            var allAlive = true
-            for await alive in group { allAlive = allAlive && alive }
-            return allAlive
+        let probed = channels
+        let dead = await withTaskGroup(of: (UUID, Bool).self) { group in
+            for (id, channel) in probed { group.addTask { (id, await WakeProbe(channel: channel).run()) } }
+            var dead: [UUID] = []
+            for await (id, alive) in group where !alive { dead.append(id) }
+            return dead
         }
-        if !allAlive { agentList.retryNow() }
+        guard !dead.isEmpty else { return }
+        // 診斷(#133):喚醒探測失敗會丟棄那台主機的連線。
+        let backgroundSeconds = Int(date.timeIntervalSince(since))
+        for id in dead { diagnostics.error("Wake probe failed after \(backgroundSeconds)s in background: dropped the connection to host \(id)") }
+        agentList.retryNow()
     }
 
     private var networkPath: String?
@@ -488,7 +495,7 @@ public final class HostsModel {
     private func refreshPairing() {
         let tokens = hostService.tokens
         unpairedHostIDs = Set(hosts.filter { host in
-            host.connectionMethod == .https && (try? tokens.deviceToken(for: host.id)) == nil
+            host.hostService != nil && (try? tokens.deviceToken(for: host.id)) == nil
         }.map(\.id))
     }
 
@@ -547,7 +554,7 @@ public final class HostsModel {
         }
         if let configuration, let address = configuration.hostService {
             return HostMember(
-                host: host, configuration: configuration, channel: HostServiceOnlyChannel(),
+                host: host, configuration: configuration, channel: UnsupportedHostChannel(),
                 connection: hostServiceConnection(for: configuration, address: address), preferences: preferences.store(for: host),
                 push: nil, consent: hostConsent)
         }
@@ -562,13 +569,6 @@ public final class HostsModel {
         let connection = hostService.connection(for: host, address: address)
         hostServiceConnections[host.id] = connection
         return connection
-    }
-
-    /// 刪除 HTTPS 主機：不等待地請主機服務撤銷這支裝置的權杖(主機離線時留在主機上，可在主機上撤銷)。
-    private func revokeDeviceToken(_ token: String?, at address: HostServiceAddress) {
-        guard let token else { return }
-        let pairing = hostService.pairing
-        Task { try? await pairing.revoke(address: address, deviceToken: token) }
     }
 
     private func channel(for host: HostConfiguration) -> any HostChannel {

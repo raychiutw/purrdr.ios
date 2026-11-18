@@ -41,6 +41,8 @@ public enum TranscriptReadError: Error, Equatable {
     case mismatch
     /// 讀取中檔案變了或回應格式不對：重試。
     case changed
+    /// 檔案被換成同長或更長的新檔(HTTPS 的主機服務比對得出來);`tail` 讀成 `.shrank(size:)`。
+    case replaced(size: Int)
     /// 指令以其他 exit code 結束。
     case failed(exitCode: Int32?)
 }
@@ -166,7 +168,12 @@ public struct TranscriptReader: Sendable {
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
         guard Self.isValidPath(path), cursor >= 0 else { throw TranscriptReadError.invalidReference }
-        let output = try await run(.tail(path: path, from: cursor, limit: limit))
+        let output: Output
+        do {
+            output = try await run(.tail(path: path, from: cursor, limit: limit))
+        } catch TranscriptReadError.replaced(let size) {
+            return .shrank(size: size)
+        }
         guard let newline = output.stdout.firstIndex(of: 0x0A),
               let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
         if size < cursor { return .shrank(size: size) }

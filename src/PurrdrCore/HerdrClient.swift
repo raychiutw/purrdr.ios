@@ -49,8 +49,12 @@ public struct HerdrClient: Sendable {
 
     /// 讀 pane 目前看得到的畫面(`pane.read`,source `visible`,行為規格 §4.8)。Claude 在 alternate screen,
     /// `recent` 會是空的，所以一定用 `visible`。
-    public func readPane(paneID: String, lines: Int = 40) async throws -> String {
-        let result = try await request(method: "pane.read", params: PaneReadParams(paneID: paneID, source: "visible", lines: lines), as: PaneReadResult.self)
+    ///
+    /// `format` 預設 `.text`(不帶 `format`,herdr 去掉 ANSI);`.ansi` 保留 SGR 等跳脫序列，行尾是 `\r\n`
+    /// (#122:建議提示詞只能從 dim 屬性認出來)。
+    public func readPane(paneID: String, lines: Int = 40, format: PaneReadFormat = .text) async throws -> String {
+        let params = PaneReadParams(paneID: paneID, source: "visible", lines: lines, format: format == .ansi ? "ansi" : nil)
+        let result = try await request(method: "pane.read", params: params, as: PaneReadResult.self)
         return result.read.text
     }
 
@@ -167,6 +171,11 @@ public struct HerdrClient: Sendable {
         _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self)
     }
 
+    /// `pane.send_text`:把文字原樣打進 pane(不含 Enter)。用在 Claude 問題卡「Type something.」的自訂回答(#120)。
+    public func sendText(paneID: String, text: String) async throws {
+        _ = try await request(method: "pane.send_text", params: SendTextParams(paneID: paneID, text: text), as: TypedResult.self)
+    }
+
     private static func milliseconds(_ duration: Duration) -> Int {
         Int(duration.components.seconds * 1000 + duration.components.attoseconds / 1_000_000_000_000_000)
     }
@@ -275,6 +284,16 @@ private struct SendKeysParams: Encodable {
     }
 }
 
+private struct SendTextParams: Encodable {
+    var paneID: String
+    var text: String
+
+    enum CodingKeys: String, CodingKey {
+        case paneID = "pane_id"
+        case text
+    }
+}
+
 private struct WorkspaceIDParams: Encodable {
     var workspaceID: String
 
@@ -364,11 +383,14 @@ private struct PaneReadParams: Encodable {
     var paneID: String
     var source: String
     var lines: Int
+    /// `nil` 時不送(herdr 預設 `text`),既有請求的 bytes 不變。
+    var format: String?
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case source
         case lines
+        case format
     }
 }
 

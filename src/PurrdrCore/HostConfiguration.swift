@@ -10,6 +10,14 @@ public struct HostConfiguration: Sendable, Hashable, Codable, Identifiable {
         case openSSH
         /// 經 Tailscale Serve 連到主機服務，用裝置權杖(ADR-0010)。不支援登入 Shell。
         case https
+
+        /// 經主機服務連線(HTTPS):沒有 SSH,所以沒有登入 Shell、檔案與 herdr 更新。
+        public var usesHostService: Bool { self == .https }
+
+        /// 這種連線方式帶的主機服務位址：只有 HTTPS 帶，SSH 一律 `nil`。主機設定、分享與同步都經這裡。
+        public func hostService(_ address: HostServiceAddress?) -> HostServiceAddress? {
+            usesHostService ? address : nil
+        }
     }
 
     /// OpenSSH 主機用什麼登入。祕密(密碼、匯入的私鑰與 passphrase)不在主機設定裡，另存 Keychain。
@@ -48,7 +56,7 @@ public struct HostConfiguration: Sendable, Hashable, Codable, Identifiable {
         self.herdr = herdr
         self.operatingSystem = operatingSystem
         self.hostKeyPin = hostKeyPin
-        self.hostService = connectionMethod == .https ? hostService : nil
+        self.hostService = connectionMethod.hostService(hostService)
     }
 
     /// HTTPS 主機：端點只記主機名稱與埠(顯示用，不登入)。
@@ -57,4 +65,7 @@ public struct HostConfiguration: Sendable, Hashable, Codable, Identifiable {
             id: id, name: name, endpoint: SSHEndpoint(host: hostService.hostName, port: hostService.port, username: ""),
             connectionMethod: .https, hostService: hostService)
     }
+
+    /// 有沒有登入 Shell 與檔案(SSH 才有)。
+    public var supportsLoginShell: Bool { !connectionMethod.usesHostService }
 }

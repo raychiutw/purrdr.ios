@@ -66,6 +66,22 @@ struct HTTPSLiveUpdatesTests {
         #expect(service.log.connections == 1)
     }
 
+    @Test("訂閱結果還沒回來就不讀了：主機可能已開了串流，也通知它關掉")
+    func cancellingBeforeAcknowledgementClosesStreamOnHostService() async throws {
+        let service = try await FakeHostService.start(.init(subscribeReply: .acceptWithoutReply))
+        defer { Task { await service.stop() } }
+        let client = HerdrClient(connection: Self.connection(to: service))
+        let reader = Task {
+            for try await _ in try await client.subscribe([]) {}
+        }
+        defer { reader.cancel() }
+        try await waitUntil { service.openStreams.count == 1 }
+
+        reader.cancel()
+
+        try await waitUntil { service.openStreams.isEmpty }
+    }
+
     @Test("herdr 沒有事件訂閱能力：訂閱以 herdrCapabilityMissing 失敗，Agent 列表照常可讀")
     func capabilityMissingOnlyDisablesEvents() async throws {
         let service = try await FakeHostService.start(.init(subscribeReply: .error(code: "herdr_capability_missing")))

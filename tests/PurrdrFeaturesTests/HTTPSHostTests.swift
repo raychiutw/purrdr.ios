@@ -217,6 +217,72 @@ struct HTTPSHostEditorTests {
         #expect(try tokens.deviceToken(for: synced.id) == "token-paired")
     }
 
+    @Test("herdr 低於 0.9.5:與 SSH 一樣顯示需要更新，不能儲存")
+    func outdatedHerdrNeedsUpdate() async throws {
+        let outdated = FakeHostConnection()
+        let snapshot = String(decoding: Fixtures.data("session.snapshot.ndjson"), as: UTF8.self)
+            .replacingOccurrences(of: #""version":"0.9.5""#, with: #""version":"0.9.4""#)
+        await outdated.expect("session.snapshot", reply: Data(snapshot.utf8))
+        let connections = HostServiceConnections()
+        connections.connections = [outdated]
+        let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(), makeChannel: ChannelFactory().make)
+        Self.fill(model)
+
+        await model.test()
+
+        #expect(model.phase == .needsUpdate(HerdrVersion(major: 0, minor: 9, patch: 4)))
+        #expect(!model.canSave)
+    }
+
+    @Test("配對成功但沒儲存就取消：請主機撤銷剛拿到的權杖，主機不留沒用的權杖")
+    func cancellingAfterPairingRevokesToken() async throws {
+        let http = FakeHostServiceHTTP()
+        let connections = HostServiceConnections()
+        connections.connections = [await HostServiceConnections.healthy()]
+        let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(http: http), makeChannel: ChannelFactory().make)
+        Self.fill(model)
+        await model.test()
+
+        model.discardUnsavedPairing()
+
+        try await waitUntil { http.requests.count == 2 }
+        #expect(http.requests.last == .init(url: Self.address.revokeURL, bearerToken: "token-paired", body: nil))
+    }
+
+    @Test("改了位址再配對一次：前一台主機拿到、沒用到的權杖請它撤銷")
+    func pairingAgainRevokesPreviousToken() async throws {
+        let http = FakeHostServiceHTTP()
+        let connections = HostServiceConnections()
+        connections.connections = [await HostServiceConnections.healthy(), await HostServiceConnections.healthy()]
+        let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(http: http), makeChannel: ChannelFactory().make)
+        Self.fill(model)
+        await model.test()
+
+        model.address = "box.tail1234.ts.net"
+        await model.test()
+
+        let revokeURL = Self.address.revokeURL
+        try await waitUntil { http.requests.contains { $0.url == revokeURL } }
+        #expect(http.requests.filter { $0.url == revokeURL }.map(\.bearerToken) == ["token-paired"])
+    }
+
+    @Test("配對後儲存：權杖在用，取消或離開編輯器都不撤銷")
+    func savedPairingIsKept() async throws {
+        let http = FakeHostServiceHTTP()
+        let connections = HostServiceConnections()
+        connections.connections = [await HostServiceConnections.healthy()]
+        let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(http: http), makeChannel: ChannelFactory().make)
+        Self.fill(model)
+        await model.test()
+        _ = try #require(model.save())
+
+        model.discardUnsavedPairing()
+
+        try await Task.sleep(for: .milliseconds(100))
+        let revokeURL = Self.address.revokeURL
+        #expect(http.requests.allSatisfy { $0.url != revokeURL })
+    }
+
     @Test("編輯已配對的 HTTPS 主機不必輸入配對碼")
     func pairedHostNeedsNoCode() {
         let existing = HostConfiguration(name: "Studio", hostService: Self.address)
@@ -399,6 +465,15 @@ struct HTTPSDeviceTokenRejectionTests {
         for error in [HostServiceError.deviceTokenRevoked, .deviceTokenInvalid, .notPaired] {
             #expect(HostErrorText.message(for: error).contains("pair"), "\(error)")
         }
+    }
+
+    @Test("這支裝置不在 tailnet 時請使用者開 Tailscale;主機離線時請使用者確認主機醒著")
+    func notOnTailnetAndHostOfflineReadDifferently() {
+        let notOnTailnet = HostErrorText.message(for: HostServiceError.notOnTailnet)
+        let hostOffline = HostErrorText.message(for: HostServiceError.unreachable)
+
+        #expect(notOnTailnet == String(localized: "This device isn’t connected to your tailnet. Turn on Tailscale on this device, then try again."))
+        #expect(hostOffline == String(localized: "The host didn’t answer. Make sure it’s awake and connected to Tailscale."))
     }
 
     @Test("協定版本不相容：說明要更新的是主機服務還是 Purrdr;herdr 太舊時說明更新 herdr")

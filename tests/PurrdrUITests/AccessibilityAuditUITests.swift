@@ -23,7 +23,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testAgentListSpaces() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            XCTAssertTrue(app.reveal(element("workspace.card.demo/w3", in: app)))
+            XCTAssertTrue(app.reveal(element("workspace.group.demo/w3", in: app)))
             try audit(app, "Agent 列表(Spaces)", contentSize: size)
             app.terminate()
         }
@@ -36,8 +36,8 @@ final class AccessibilityAuditUITests: XCTestCase {
             XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 15))
             app.buttons["agentList.title"].tap()
             app.buttons["Agents"].firstMatch.tap()
-            // AX5 時導覽列標題由系統縮成 Large Content Viewer 樣式，不以標題判斷：卡片消失就是 Agents 檢視。
-            XCTAssertTrue(element("workspace.card.demo/w3", in: app).waitForNonExistence(timeout: 5), "沒有切到 Agents 檢視")
+            // AX5 時導覽列標題由系統縮成 Large Content Viewer 樣式，不以標題判斷：群組消失就是 Agents 檢視。
+            XCTAssertTrue(element("workspace.group.demo/w3", in: app).waitForNonExistence(timeout: 5), "沒有切到 Agents 檢視")
             XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
             try audit(app, "Agent 列表(Agents)", contentSize: size)
             app.terminate()
@@ -56,9 +56,10 @@ final class AccessibilityAuditUITests: XCTestCase {
             app.terminate()
 
             let again = XCUIApplication.launchUITesting(contentSize: size)
-            let card = element("workspace.card.demo/w3", in: again)
-            XCTAssertTrue(again.reveal(card))
-            card.tap()
+            let group = element("workspace.group.demo/w3", in: again)
+            XCTAssertTrue(again.reveal(group))
+            group.press(forDuration: 1.2)
+            again.buttons["Show Layout"].tap()
             XCTAssertTrue(again.buttons["layout.block.w3:p2"].waitForExistence(timeout: 5))
             try audit(again, "版面圖", contentSize: size)
             again.terminate()

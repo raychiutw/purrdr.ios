@@ -24,7 +24,7 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
         // 預設上限 1 MiB;對話紀錄的視窗(300 行)可能更大。
         task.maximumMessageSize = 64 << 20
         task.resume()
-        return URLSessionWebSocket(task: task)
+        return URLSessionWebSocket(task: task, hostName: url.host())
     }
 
     public func post(_ url: URL, bearerToken: String?, body: Data?) async throws -> HostServiceHTTPResponse {
@@ -40,41 +40,50 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw Self.hostServiceError(error, status: nil)
+            throw Self.hostServiceError(error, status: nil, hostName: url.host())
         }
         guard let http = response as? HTTPURLResponse else { throw HostServiceError.unexpectedResponse }
         if http.statusCode == 502 { throw HostServiceError.hostServiceNotRunning }
         return HostServiceHTTPResponse(status: http.statusCode, body: data)
     }
 
-    /// 連線層錯誤換成使用者看得懂的種類。
-    static func hostServiceError(_ error: any Error, status: Int?) -> HostServiceError {
+    /// 連線層錯誤換成使用者看得懂的種類。MagicDNS 名稱(`*.ts.net`)只在 tailnet 內解析得到，
+    /// 所以查不到名稱是這支裝置不在 tailnet;查得到卻連不上是主機離線。
+    static func hostServiceError(_ error: any Error, status: Int?, hostName: String?) -> HostServiceError {
         if status == 502 { return .hostServiceNotRunning }
         guard let urlError = error as? URLError else { return .connectionLost }
         switch urlError.code {
         case .cannotFindHost, .dnsLookupFailed:
-            return .hostNotFound
-        case .cannotConnectToHost, .timedOut, .notConnectedToInternet, .secureConnectionFailed:
+            return hostName.map(isMagicDNSName) == true ? .notOnTailnet : .hostNotFound
+        case .notConnectedToInternet:
+            return .notOnTailnet
+        case .cannotConnectToHost, .timedOut, .secureConnectionFailed:
             return .unreachable
         default:
             return .connectionLost
         }
+    }
+
+    private static func isMagicDNSName(_ hostName: String) -> Bool {
+        hostName.lowercased().hasSuffix(".ts.net")
     }
 }
 
 /// `URLSessionWebSocketTask` 的包裝。task 本身可跨執行緒使用。
 private final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
     private let task: URLSessionWebSocketTask
+    private let hostName: String?
 
-    init(task: URLSessionWebSocketTask) {
+    init(task: URLSessionWebSocketTask, hostName: String?) {
         self.task = task
+        self.hostName = hostName
     }
 
     func send(_ text: String) async throws {
         do {
             try await task.send(.string(text))
         } catch {
-            throw URLSessionHostServiceTransport.hostServiceError(error, status: status)
+            throw URLSessionHostServiceTransport.hostServiceError(error, status: status, hostName: hostName)
         }
     }
 
@@ -93,7 +102,7 @@ private final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
         } catch {
             let closeCode = task.closeCode.rawValue
             if closeCode != URLSessionWebSocketTask.CloseCode.invalid.rawValue { return .closed(code: closeCode) }
-            throw URLSessionHostServiceTransport.hostServiceError(error, status: status)
+            throw URLSessionHostServiceTransport.hostServiceError(error, status: status, hostName: hostName)
         }
     }
 

@@ -906,9 +906,10 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。
+    /// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、replaced 檔案被換成同長或更長的新檔(游標前的內容變了)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。
     public enum TranscriptStreamEnd: String, Codable, Sendable, CaseIterable {
         case shrank
+        case replaced
         case tooFarBehind = "too_far_behind"
         case absent
         case unreadable

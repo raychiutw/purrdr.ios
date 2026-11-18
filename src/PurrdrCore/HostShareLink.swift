@@ -23,7 +23,7 @@ public struct SharedHost: Sendable, Equatable {
         self.connectionMethod = connectionMethod
         self.herdr = herdr
         self.hostKeyPin = hostKeyPin
-        self.hostService = hostService
+        self.hostService = connectionMethod.hostService(hostService)
     }
 
     public init(_ host: HostConfiguration) {
@@ -56,7 +56,7 @@ public enum HostShareLink {
             v: version, name: host.name, host: host.endpoint.host, port: host.endpoint.port, user: host.endpoint.username,
             method: host.connectionMethod.rawValue, herdr: host.herdr.path == "herdr" ? nil : host.herdr.path,
             session: host.herdr.session, pin: host.hostKeyPin?.stored,
-            url: host.connectionMethod == .https ? host.hostService?.description : nil)
+            url: host.hostService?.description)
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         // 只有字串與整數，編碼不會失敗。

@@ -12,8 +12,8 @@ final class ConversationUITests: XCTestCase {
     }
 
     @MainActor
-    private func open(paneID: String) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting()
+    private func open(paneID: String, flags: [String] = []) -> XCUIApplication {
+        let app = XCUIApplication.launchUITesting(flags: flags)
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
@@ -105,6 +105,29 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(element("conversation.echo", in: app).exists, "對話紀錄確認後回音應消失")
     }
 
+    /// 建議提示詞(#123):ledger 完成時輸入列上方有 Claude Code 的建議;點了只填入輸入框、叫出鍵盤，不送出，
+    /// 對話紀錄沒有新增。輸入框有字時建議不顯示。
+    @MainActor
+    func testSuggestionFillsComposerWithoutSending() {
+        let app = openLedger()
+        let suggestion = element("conversation.suggestion", in: app)
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "沒有建議")
+        XCTAssertEqual(suggestion.label, "Suggestion: Add a test for CSV export with commas in the memo")
+        XCTAssertGreaterThanOrEqual(suggestion.frame.height, 44)
+
+        suggestion.tap()
+
+        XCTAssertEqual(text.value as? String, "Add a test for CSV export with commas in the memo", "輸入框不是建議文字")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(suggestion.waitForNonExistence(timeout: 5), "輸入框有字時建議應收起")
+        XCTAssertTrue(element("composer.send", in: app).isEnabled)
+        XCTAssertFalse(element("conversation.echo", in: app).exists, "點建議不該送出")
+        let sent = app.descendants(matching: .any).matching(identifier: "conversation.user")
+            .matching(NSPredicate(format: "label CONTAINS 'commas in the memo'")).firstMatch
+        XCTAssertFalse(sent.waitForExistence(timeout: 5), "對話紀錄不該新增訊息")
+    }
+
     /// 聚焦時有「收起鍵盤」:收起後草稿還在、沒有送出(#37 故事 36)。
     @MainActor
     func testHideKeyboardKeepsDraft() {
@@ -161,5 +184,39 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(element("composer.notice", in: app).waitForExistence(timeout: 10), "沒有提示先回答")
         XCTAssertEqual(text.value as? String, "Go ahead", "被拒時草稿應放回輸入框")
+    }
+
+    /// 對話載入中(#114):輸入列與載入完成後在同一個位置(畫面底部),轉圈仍在輸入列上方的中段。
+    @MainActor
+    func testComposerStaysAtBottomWhileConversationLoads() {
+        // 基準：同一台模擬器上載入完成後的輸入框位置(不寫死機型幾何)。
+        let loaded = openLedger()
+        XCTAssertTrue(element("conversation.user", in: loaded).waitForExistence(timeout: 10), "對話沒有載入完成")
+        let loadedText = element("composer.text", in: loaded)
+        XCTAssertTrue(loadedText.waitForExistence(timeout: 5), "載入完成後沒有輸入列")
+        let expected = loadedText.frame
+        loaded.terminate()
+
+        // 對話紀錄的讀取有 20 秒期限(HostCommandDeadline.standard),期限到了就離開載入中：下面的等待合計在期限內，
+        // 量完再確認仍在載入中，量到的才是載入中的位置。
+        let app = open(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
+        let loading = element("conversation.loading", in: app)
+        XCTAssertTrue(loading.waitForExistence(timeout: 10), "沒有停在載入中")
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 5), "載入中沒有輸入列")
+        let actual = text.frame
+        let spinner = loading.frame
+        let screen = app.windows.firstMatch.frame
+        XCTAssertTrue(loading.exists, "量測時已離開載入中(超過對話紀錄的讀取期限)")
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-loading"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        XCTAssertEqual(actual.maxY, expected.maxY, accuracy: 1, "載入中的輸入列不在載入完成後的位置(底緣 \(actual.maxY),應為 \(expected.maxY))")
+        XCTAssertLessThan(spinner.maxY, actual.minY, "轉圈不在輸入列上方")
+        XCTAssertGreaterThan(spinner.midY, screen.height * 0.3, "轉圈沒有置中")
+        XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 }
