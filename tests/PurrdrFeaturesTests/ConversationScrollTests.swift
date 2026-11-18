@@ -211,7 +211,7 @@ struct ConversationScrollTests {
         )
     }
 
-    @Test("跟隨中停在底部卻一列都沒顯示：再捲到底一次;同一個內容高度只一次")
+    @Test("跟隨中停在底部卻一列都沒顯示：再捲到底一次;同一個排版只一次")
     func refillsBlankVisibleRangeOncePerContentHeight() {
         var scroll = ConversationScroll()
         let blank = Self.smallViewport()
@@ -219,7 +219,7 @@ struct ConversationScrollTests {
         #expect(!scroll.refillsVisibleRange(blank, visibleRows: 2), "有列在畫面上")
 
         scroll.returnedToContent(blank)
-        #expect(!scroll.refillsVisibleRange(blank, visibleRows: 0), "同一個內容高度不再捲，不與系統來回搶")
+        #expect(!scroll.refillsVisibleRange(blank, visibleRows: 0), "同一個排版不再捲，不與系統來回搶")
         #expect(scroll.refillsVisibleRange(Self.smallViewport(contentHeight: 46879), visibleRows: 0), "內容高度變了再捲一次")
     }
 
@@ -259,7 +259,7 @@ struct ConversationScrollTests {
         #expect(refills == ConversationScroll.maximumRefills)
 
         scroll.visibleRowsChanged(count: 3)
-        #expect(scroll.refillsVisibleRange(layoutA, visibleRows: 0), "有列顯示過，之後又空白就再捲")
+        #expect(scroll.refillsVisibleRange(Self.smallViewport(contentHeight: 29300), visibleRows: 0), "有列顯示過，之後又空白就再捲")
     }
 
     @Test("可見範圍不到一列高(軟體鍵盤＋卡片擠掉)：不再捲，畫不出任何列")

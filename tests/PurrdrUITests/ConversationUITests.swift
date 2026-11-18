@@ -25,6 +25,15 @@ final class ConversationUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
+    /// 點輸入列的「收起鍵盤」,等它消失(輸入框不再聚焦)。
+    @MainActor
+    private func hideKeyboard(in app: XCUIApplication) {
+        let hide = element("composer.hideKeyboard", in: app)
+        XCTAssertTrue(hide.waitForExistence(timeout: 5), "沒有收起鍵盤鈕")
+        hide.tap()
+        XCTAssertTrue(hide.waitForNonExistence(timeout: 5), "鍵盤沒有收起")
+    }
+
     /// 點開 Agent 看到對話：使用者泡泡、工具串摘要、已載入 skill、agent 的 markdown 回覆。
     @MainActor
     func testOpeningAgentShowsConversation() {
@@ -104,6 +113,8 @@ final class ConversationUITests: XCTestCase {
         send.tap()
 
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
+        // 軟體鍵盤＋You should know 卡片會把對話擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
+        hideKeyboard(in: app)
         XCTAssertTrue(app.staticTexts["Add a header row too?"].waitForExistence(timeout: 5), "沒有回音")
         // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
         let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
@@ -169,6 +180,8 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThan(lineHeight, 10, "第 3 行沒有長高")
 
         text.typeText("\n4\n5\n6\n7")
+        // 上限是鍵盤上方可用高度的 40%(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
+        hideKeyboard(in: app)
         let sevenLines = text.frame.height
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "composer-seven-lines"
@@ -400,6 +413,8 @@ final class ConversationUITests: XCTestCase {
         text.tap()
         text.typeText("Check the logs once more")
         element("composer.send", in: app).tap()
+        // 軟體鍵盤＋You should know 卡片會把對話的可見範圍擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
+        hideKeyboard(in: app)
         let echo = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Check the logs once more'")).firstMatch
         XCTAssertTrue(echo.waitForExistence(timeout: 5), "沒有回音")
         // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);等兩次輪詢與捲動穩定。

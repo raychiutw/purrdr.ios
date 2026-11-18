@@ -112,6 +112,13 @@ public struct ConversationView: View {
     // MARK: - 訊息
 
     private var messages: some View {
+        // 捲到最底下那一列用 `ScrollViewProxy`:每次呼叫都會捲;`position` 的值沒變時 SwiftUI 不再捲(#191)。
+        ScrollViewReader { proxy in
+            messageList(proxy)
+        }
+    }
+
+    private func messageList(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 olderRow
@@ -149,6 +156,7 @@ public struct ConversationView: View {
         .scrollPosition($position)
         .onScrollTargetVisibilityChange(idType: String.self) { ids in
             visibleIDs = ids
+            scroll.visibleRowsChanged(count: ids.count)
         }
         .defaultScrollAnchor(.bottom)
         .onScrollPhaseChange { _, phase in
@@ -174,7 +182,7 @@ public struct ConversationView: View {
             if !userIsScrolling,
                scroll.returnsToContent(metrics, at: .now) || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
                 scroll.returnedToContent(metrics)
-                scrollToLastRow()
+                scrollToLastRow(proxy)
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
             if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
@@ -238,7 +246,7 @@ public struct ConversationView: View {
 
     /// 捲到最底下那一列的底部。底部輸入列很高時 `scrollTo(edge: .bottom)` 會多捲一個底部 inset、停在估算高度裡，
     /// 指定列則由 LazyVStack 實際排出那一列(#191)。
-    private func scrollToLastRow() {
+    private func scrollToLastRow(_ proxy: ScrollViewProxy) {
         let lastRowID: String? = if model.showsWorkingIndicator, model.workingSince != nil {
             "working"
         } else if model.panel != nil {
@@ -249,7 +257,7 @@ public struct ConversationView: View {
             model.entries.last?.id
         }
         if let lastRowID {
-            position.scrollTo(id: lastRowID, anchor: .bottom)
+            proxy.scrollTo(lastRowID, anchor: .bottom)
         } else {
             position.scrollTo(edge: .bottom)
         }
