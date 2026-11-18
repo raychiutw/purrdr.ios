@@ -86,10 +86,10 @@ public final class HostEditorModel {
     public var isEditing: Bool { existing != nil }
 
     /// herdr 過舊時能不能由 Purrdr 更新(SSH 才能;HTTPS 請使用者在主機上更新)。
-    public var canUpdateHerdr: Bool { connectionMethod != .https }
+    public var canUpdateHerdr: Bool { !connectionMethod.usesHostService }
 
     /// HTTPS 主機要輸入配對碼：新主機，或這支裝置還沒有它的裝置權杖(例如主機同步帶來的)。
-    public var needsPairingCode: Bool { connectionMethod == .https && !hasStoredDeviceToken }
+    public var needsPairingCode: Bool { connectionMethod.usesHostService && !hasStoredDeviceToken }
 
     private let store: any HostStore
     private let existing: HostConfiguration?
@@ -117,19 +117,20 @@ public final class HostEditorModel {
         self.credentials = credentials
         self.hostService = hostService
         self.makeChannel = makeChannel
-        hasStoredDeviceToken = editing.map { $0.hostService != nil && (try? hostService.tokens.deviceToken(for: $0.id)) != nil } ?? false
+        hasStoredDeviceToken = editing.map {
+            $0.connectionMethod.usesHostService && (try? hostService.tokens.deviceToken(for: $0.id)) != nil
+        } ?? false
         guard let editing else { return }
         name = editing.name
         connectionMethod = editing.connectionMethod
-        switch editing.connection {
-        case .tailscaleSSH(let settings), .openSSH(let settings, _):
+        if let settings = editing.ssh {
             address = settings.endpoint.host
             port = String(settings.endpoint.port)
             username = settings.endpoint.username
             herdrPath = settings.herdr.path == "herdr" ? "" : settings.herdr.path
             herdrSession = settings.herdr.session ?? ""
             authentication = editing.authentication ?? .deviceKey
-        case .https(let hostServiceAddress):
+        } else if let hostServiceAddress = editing.hostService {
             address = hostServiceAddress.description
         }
     }
@@ -385,13 +386,10 @@ public final class HostEditorModel {
     public func save() -> HostConfiguration? {
         guard canSave, let tested else { return nil }
         let id = existing?.id ?? UUID()
-        let ssh: SSHDraft
-        switch tested.draft.connection {
-        case .https(let address, let pairingCode):
+        if case .https(let address, let pairingCode) = tested.draft.connection {
             return saveHostService(HostConfiguration(id: id, name: tested.draft.name, hostService: address), pairingCode: pairingCode)
-        case .ssh(let sshDraft):
-            ssh = sshDraft
         }
+        guard case .ssh(let ssh) = tested.draft.connection else { return nil }
         let host = HostConfiguration(id: id, name: tested.draft.name, connection: ssh.connection, operatingSystem: tested.operatingSystem)
         let wroteSecret: Bool
         do {
@@ -470,14 +468,12 @@ public final class HostEditorModel {
 
             /// 與已存主機的設定相同(不看 host key pin 與祕密)。
             func sameSettings(as saved: HostConfiguration.Connection) -> Bool {
-                switch (self, saved) {
-                case (.ssh(let ssh), .tailscaleSSH(let settings)), (.ssh(let ssh), .openSSH(let settings, _)):
-                    ssh.settings.endpoint == settings.endpoint && ssh.settings.herdr == settings.herdr
+                switch self {
+                case .ssh(let ssh):
+                    ssh.settings.endpoint == saved.ssh?.endpoint && ssh.settings.herdr == saved.ssh?.herdr
                         && ssh.authentication == saved.authentication
-                case (.https(let address, _), .https(let savedAddress)):
-                    address == savedAddress
-                default:
-                    false
+                case .https(let address, _):
+                    address == saved.hostService
                 }
             }
         }
@@ -537,7 +533,7 @@ public final class HostEditorModel {
     }
 
     private var draft: Draft? {
-        if connectionMethod == .https { return hostServiceDraft }
+        if connectionMethod.usesHostService { return hostServiceDraft }
         let name = name.trimmingCharacters(in: .whitespaces)
         let address = address.trimmingCharacters(in: .whitespaces)
         let username = username.trimmingCharacters(in: .whitespaces)

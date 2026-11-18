@@ -10,6 +10,9 @@ public struct HostConfiguration: Sendable, Hashable, Identifiable {
         case openSSH
         /// 經 Tailscale Serve 連到主機服務，用裝置權杖(ADR-0010)。不支援登入 Shell。
         case https
+
+        /// 經主機服務連線(沒有 SSH 端點、herdr 設定與 host key pin)。只有種類、還沒有完整主機設定的地方(編輯器畫面、wire)用。
+        public var usesHostService: Bool { self == .https }
     }
 
     /// OpenSSH 主機用什麼登入。祕密(密碼、匯入的私鑰與 passphrase)不在主機設定裡，另存 Keychain。
@@ -102,7 +105,9 @@ public struct HostConfiguration: Sendable, Hashable, Identifiable {
     public var connectionMethod: ConnectionMethod { connection.method }
     /// SSH 連線方式的欄位;HTTPS 為 `nil`。
     public var ssh: SSHSettings? { connection.ssh }
+    /// OpenSSH 的登入方式;其他連線方式為 `nil`。
     public var authentication: OpenSSHAuthentication? { connection.authentication }
+    /// HTTPS 的主機服務位址;SSH 為 `nil`。
     public var hostService: HostServiceAddress? { connection.hostService }
 
     /// 有沒有登入 Shell 與檔案(SSH 才有)。
@@ -164,29 +169,23 @@ extension HostConfiguration: Codable {
         try container.encodeIfPresent(operatingSystem, forKey: .operatingSystem)
         var nested = container.nestedContainer(keyedBy: ConnectionKeys.self, forKey: .connection)
         try nested.encode(connection.method, forKey: .method)
-        switch connection {
-        case .tailscaleSSH(let settings), .openSSH(let settings, _):
+        if let settings = connection.ssh {
             try nested.encode(settings.endpoint, forKey: .endpoint)
             try nested.encode(settings.herdr, forKey: .herdr)
             try nested.encodeIfPresent(settings.hostKeyPin, forKey: .hostKeyPin)
-            try nested.encodeIfPresent(connection.authentication, forKey: .authentication)
-        case .https(let address):
-            try nested.encode(address, forKey: .hostService)
         }
+        try nested.encodeIfPresent(connection.authentication, forKey: .authentication)
+        try nested.encodeIfPresent(connection.hostService, forKey: .hostService)
         try encodeLegacyFields(into: &container)
     }
 
     /// 0.36 的攤平欄位(舊版 app 的 `endpoint`、`herdr` 是必填):HTTPS 的端點是主機服務的主機名稱與埠。
     private func encodeLegacyFields(into container: inout KeyedEncodingContainer<CodingKeys>) throws {
-        let settings = switch connection {
-        case .tailscaleSSH(let settings), .openSSH(let settings, _): settings
-        case .https(let address): SSHSettings(endpoint: SSHEndpoint(host: address.hostName, port: address.port, username: ""))
-        }
-        try container.encode(settings.endpoint, forKey: .endpoint)
+        try container.encodeIfPresent(connection.ssh?.endpoint ?? connection.hostService?.legacyEndpoint, forKey: .endpoint)
         try container.encode(connection.method, forKey: .connectionMethod)
         try container.encodeIfPresent(connection.authentication, forKey: .authentication)
-        try container.encode(settings.herdr, forKey: .herdr)
-        try container.encodeIfPresent(settings.hostKeyPin, forKey: .hostKeyPin)
+        try container.encode(connection.ssh?.herdr ?? HerdrInstallation(), forKey: .herdr)
+        try container.encodeIfPresent(connection.ssh?.hostKeyPin, forKey: .hostKeyPin)
         try container.encodeIfPresent(connection.hostService, forKey: .hostService)
     }
 }

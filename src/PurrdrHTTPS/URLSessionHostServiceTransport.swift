@@ -65,22 +65,6 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
         }
     }
 
-    /// 等系統以 completion handler 回報完成(`nil` 是成功)。
-    /// 連線中斷時 URLSession 可能回呼不只一次(例如 pong 與 connection abort):只採用第一次。
-    static func completion(_ start: (@escaping @Sendable ((any Error)?) -> Void) -> Void) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            let waiting = FirstCompletion(continuation)
-            start { error in
-                guard let first = waiting.take() else { return }
-                if let error {
-                    first.resume(throwing: error)
-                } else {
-                    first.resume()
-                }
-            }
-        }
-    }
-
     private static func isMagicDNSName(_ hostName: String) -> Bool {
         hostName.lowercased().hasSuffix(".ts.net")
     }
@@ -100,7 +84,7 @@ private final class FirstCompletion: Sendable {
 }
 
 /// `URLSessionWebSocketTask` 的包裝。task 本身可跨執行緒使用。
-private final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
+final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
     private let task: URLSessionWebSocketTask
     private let hostName: String?
 
@@ -138,7 +122,23 @@ private final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
 
     func sendPing() async throws {
         // 連線關閉時 URLSession 也會以錯誤呼叫 handler,不會一直等。
-        try await URLSessionHostServiceTransport.completion { task.sendPing(pongReceiveHandler: $0) }
+        try await Self.completion { task.sendPing(pongReceiveHandler: $0) }
+    }
+
+    /// 等系統以 completion handler 回報完成(`nil` 是成功)。
+    /// 連線中斷時 URLSession 可能回呼不只一次(例如 pong 與 connection abort):只採用第一次。
+    static func completion(_ start: (@escaping @Sendable ((any Error)?) -> Void) -> Void) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            let waiting = FirstCompletion(continuation)
+            start { error in
+                guard let first = waiting.take() else { return }
+                if let error {
+                    first.resume(throwing: error)
+                } else {
+                    first.resume()
+                }
+            }
+        }
     }
 
     func close() async {
