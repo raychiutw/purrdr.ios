@@ -88,4 +88,25 @@ final class PlanUsageUITests: XCTestCase {
         XCTAssertTrue(consent.waitForExistence(timeout: 5))
         XCTAssertFalse(element("planUsage.period.fiveHour", in: app).exists)
     }
+
+    /// Demo 主機的 Codex 範例：5 小時已用 24%、每週已用 47%。不需要同意。
+    @MainActor
+    func testCodexShowsPeriodsWithoutConsent() {
+        let app = XCUIApplication.launchUITesting()
+        openPlanUsage(app)
+        let agent = element("planUsage.agent", in: app)
+        XCTAssertTrue(agent.waitForExistence(timeout: 5), "沒有 Agent 選單")
+        agent.tap()
+        let codex = app.buttons["Codex"]
+        XCTAssertTrue(codex.waitForExistence(timeout: 5), "Agent 選單沒有 Codex")
+        codex.tap()
+
+        let fiveHour = element("planUsage.period.fiveHour", in: app)
+        XCTAssertTrue(fiveHour.waitForExistence(timeout: 10), "沒有 5 小時用量週期")
+        XCTAssertTrue(fiveHour.label.contains("76% left"), "5 小時不是 Codex 的範例:\(fiveHour.label)")
+        XCTAssertTrue(element("planUsage.period.week", in: app).label.contains("53% left"), "每週不是 Codex 的範例")
+        XCTAssertFalse(app.buttons["planUsage.consent"].exists, "Codex 不該要求同意")
+        let note = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Codex reports")).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5), "說明不是 Codex 的")
+    }
 }
