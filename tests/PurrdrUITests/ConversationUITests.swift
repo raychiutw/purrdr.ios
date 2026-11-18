@@ -72,11 +72,12 @@ final class ConversationUITests: XCTestCase {
         let app = openLedger()
         let summary = app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
-        // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：往回捲一點。
+        // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
         let window = app.windows.firstMatch
-        for _ in 0..<3 where !summary.isHittable {
-            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
-                .press(forDuration: 0.1, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))
+        let navigationBottom = app.navigationBars.firstMatch.frame.maxY
+        for _ in 0..<6 where !summary.isHittable || summary.frame.minY < navigationBottom + 8 {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+                .press(forDuration: 0.1, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.26)))
         }
 
         summary.tap()
