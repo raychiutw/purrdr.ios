@@ -25,7 +25,7 @@
   - SSH 封包：channel open／confirm、exec request、資料、EOF、exit-status、close,約 10～14 個。
   - 每個封包的加密與 MAC 開銷，加上 TCP/IP 與 Tailscale WireGuard 標頭，約 100～150 bytes。
   - 讀對話紀錄的腳本本身約 0.8～1 KB(`src/PurrdrCore/TranscriptCommand.swift:176-185` 加 `pathPrefix`、`probe`、`stripImages`)。
-  - **實測修正(#159 評估報告 `ssh-transcript-channel-evaluation.md` §4.2)**:SSH 層(含加密與 MAC,不含 TCP/IP 與 WireGuard)POSIX 讀尾端每輪送出 1,792 B(指令 1,660 B)、收到 264 B,扣掉內容後每條通道約 **0.4 KB**。【實測】
+  - **實測修正(SSH 對話紀錄通道技術評估的實測，見 §7.0)**:SSH 層(含加密與 MAC,不含 TCP/IP 與 WireGuard)POSIX 讀尾端每輪送出 1,792 B(指令 1,660 B)、收到 264 B,扣掉內容後每條通道約 **0.4 KB**。【實測】
   - **Windows 主機大得多**:經 stdin 的腳本(對話紀錄、主機檔案、預覽)每次都要上傳固定 stub(3,250 B)加腳本本身(讀尾端是 4,363 B),實測讀尾端每輪送出 **7,876 B**(約 **7.6 KB** 是 stub 與腳本)、合計 8,176 B,不是上面估的 1.5 KB。herdr 請求在 Windows 包成 `-EncodedCommand`,每次的位元組數**【未實測】**。
 - **SSH 沒有壓縮**:swift-nio-ssh 只協商 `"none"` 壓縮演算法。【原始碼】[`SSHKeyExchangeStateMachine.swift`(commit d198592)](https://github.com/apple/swift-nio-ssh/blob/d1985926494b624e751b379009dc83f3395fd88a/Sources/NIOSSH/Key%20Exchange/SSHKeyExchangeStateMachine.swift)
 - **WSS 每則訊息的開銷**:WebSocket frame、TLS record、TCP/IP、WireGuard 加起來估約 **100～200 bytes**。WSS 有沒有 permessage-deflate:**【未查得】**(Apple `NWProtocolWebSocket.Options` 沒有相關選項，見 §5.5;主機服務的 tungstenite 設定未查)。
@@ -415,7 +415,15 @@ Heeler 支援三種主機：Herdr TUI(就是 Purrdr 連的 herdr)、herdr-core�
 
 spec #154 的票都合併後，各輪詢點的新做法與每小時估算。情境同 §1(1 台主機、10 個 pane／8 個 Agent、開著一個聊天、一半時間 working),再加上列表同時可見(iPad 三欄)與每分鐘約 0.43 個 Agent 狀態事件(§2.1.1 實測，一小時約 26 個)。
 
-位元組一律是 **SSH／TLS 層**(含加密與 MAC,不含 TCP/IP 與 WireGuard),與評估報告 §4.1 的量法相同。加上 TCP/IP 與 WireGuard 時，小封包多的項目(追蹤每輪、在場回報)約再多一倍。【推論】
+位元組一律是 **SSH／TLS 層**(含加密與 MAC,不含 TCP/IP 與 WireGuard),與技術評估(§7.0)的量法相同。加上 TCP/IP 與 WireGuard 時，小封包多的項目(追蹤每輪、在場回報)約再多一倍。【推論】
+
+### 7.0 SSH 對話紀錄通道技術評估(摘要)
+
+spec #154 的票(#159～#168)引用的 `docs/research/ssh-transcript-channel-evaluation.md` 從沒有進 repo,完整報告(含它的 §4 量測方法與 §7)已找不到;本文件原本引用它的兩處(§1 的「實測修正」、本節的量法)改指這裡。以下只轉錄 [#154 的留言(2026-11-18)](https://github.com/raychiutw/purrdr.ios/issues/154#issuecomment-6968571128)中的結論，不補寫報告沒留下的內容:
+
+> SSH 對話紀錄通道技術評估完成：建議 **方案 B**——每台主機保留一條 exec 通道跑有自我時限(閒置＋總長)的小腳本，有變才回新增內容。SFTP(自寫、Citadel、libssh2)都不採用：不能在主機剝圖片、Windows 上 sftp-server 開著讀取會擋住換檔、Citadel 與現用 swift-nio-ssh 版本衝突且有出口合規問題、libssh2 需 OpenSSL。實測沒變時每輪 88 B(Windows 現狀 8,176 B)。Windows PowerShell 必須沿用 repo 既有的原始 handle 讀 stdin(#77)。
+
+§1 引用的 POSIX 讀尾端每輪 1,792 B／264 B 也出自這份評估的實測，留言沒有附原始紀錄。方案 B 的實作見 #166(POSIX)、#167(Windows),腳本是 `TranscriptCommand.follow` 與 `WindowsScripts.follow`。
 
 ### 7.1 各輪詢點新舊對照
 
