@@ -68,6 +68,9 @@ public actor DemoHost: HostChannel {
                 return await self.respond(to: line)
             }
         }
+        if command == CodexUsageHost.command {
+            return DemoCodexAppServer()
+        }
         if let upload = ImageUploadCommand.parse(command) {
             return DemoImageUploadSession(name: upload.name, size: upload.size)
         }
