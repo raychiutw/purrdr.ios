@@ -115,7 +115,7 @@ public struct PlanUsageRow: Equatable, Sendable, Identifiable {
     public var fraction: Double
     public var resetsAt: Date?
     /// 圓環顏色的分級(依剩餘比例)。
-    public var level: PlanUsageLevel = .ample
+    public var level: PlanUsageLevel
 
     public var id: PlanUsage.Period.Kind { period }
 }
@@ -126,13 +126,26 @@ public enum PlanUsageLevel: Equatable, Sendable { case ample, low, depleted }
 /// 方案用量的顯示規則。
 public enum PlanUsagePresentation {
     public static func rows(for usage: PlanUsage, showing display: PlanUsageModel.Display, now: Date) -> [PlanUsageRow] {
-        usage.periods.map { period in
-            let used = period.usedPercentage
-            let shown = display == .remaining ? 100 - used : used
-            return PlanUsageRow(period: period.kind, percent: Int(shown.rounded()), fraction: shown / 100, resetsAt: period.resetsAt)
+        usage.periods.compactMap { period in
+            guard period.resetsAt.map({ $0 > now }) ?? true else { return nil }
+            let used = min(max(period.usedPercentage, 0), 100)
+            let remaining = 100 - used
+            let shown = display == .remaining ? remaining : used
+            return PlanUsageRow(
+                period: period.kind, percent: Int(shown.rounded()), fraction: shown / 100, resetsAt: period.resetsAt,
+                level: level(remaining: remaining))
         }
     }
 
+    /// 超過這麼久沒有新的擷取，就註明「截至」。
+    static let staleAfter: TimeInterval = 10 * 60
+
     /// 擷取超過 10 分鐘時的擷取時間(畫面註明「截至」)。
-    public static func asOf(_ usage: PlanUsage, now: Date) -> Date? { nil }
+    public static func asOf(_ usage: PlanUsage, now: Date) -> Date? {
+        now.timeIntervalSince(usage.capturedAt) > staleAfter ? usage.capturedAt : nil
+    }
+
+    static func level(remaining: Double) -> PlanUsageLevel {
+        remaining > 40 ? .ample : remaining > 15 ? .low : .depleted
+    }
 }
