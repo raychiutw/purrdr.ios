@@ -294,9 +294,9 @@ struct ConversationModelTests {
         #expect(second.model.items.count == Self.fixtureItemCount)
     }
 
-    /// F5.13、R-H22:可見時每 20 秒回報一次;seq 以時鐘起算且單調遞增。
-    @Test("在場回報：每 20 秒送 pane.report_metadata,seq 以時鐘起算且單調遞增")
-    func presenceIsReportedEvery20Seconds() async throws {
+    /// F5.13、R-H22、#162:可見時每 30 秒回報一次(ttl 45 秒內);seq 以時鐘起算且單調遞增。
+    @Test("在場回報：每 30 秒送 pane.report_metadata,seq 以時鐘起算且單調遞增")
+    func presenceIsReportedEvery30Seconds() async throws {
         let setup = try Self.setup()
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot())
         await setup.model.poll()
@@ -309,7 +309,7 @@ struct ConversationModelTests {
         try await waitUntil { await sleeper.durations.count == 2 }
 
         let requests = await setup.host.bridge.executions.dropFirst().map(\.stdinText)
-        #expect(await sleeper.durations == [.seconds(20), .seconds(20)])
+        #expect(await sleeper.durations == [.seconds(30), .seconds(30)])
         #expect(requests.count == 2)
         let now = UInt64(setup.clock.now.timeIntervalSince1970 * 1000)
         #expect(requests.first?.contains(#""seq":\#(now),"#) == true)

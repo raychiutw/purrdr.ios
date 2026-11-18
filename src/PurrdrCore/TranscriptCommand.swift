@@ -198,6 +198,71 @@ public enum TranscriptCommand {
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
 
+    /// 長駐追蹤腳本(#166,協定見 `TranscriptFollowProtocol`):一條 exec 通道服務所有追蹤中的路徑，閒置 `idleSeconds` 或總長 `totalSeconds` 到了以 exit 124 結束。
+    ///
+    /// 每個請求一行「游標 版本 錨點 路徑」(版本、錨點不知道時是 `-`),回應一則：`unchanged`、`error <exit code>`、
+    /// `replaced <大小>`(變短或游標前 64 bytes 的 `cksum` 不符;版本相同也比對，同一秒換成同長的新檔才看得出來),或 `appended <大小> <版本>` 接著分段接著讀(#130)的行
+    /// (格式同 `catchUp`;落後超過 `limit` 時這次讀到 `backlogLimit`),最後 `end <新游標> <錨點>`。版本是「修改時間秒數-大小」。
+    package static func follow(
+        limit: Int = TranscriptFollowProtocol.limit, backlogLimit: Int = TranscriptFollowProtocol.backlogLimit,
+        idleSeconds: Int = HostScriptTimeLimit.followIdleSeconds, totalSeconds: Int = HostScriptTimeLimit.followTotalSeconds
+    ) -> String {
+        ([followInvocation] + [limit, backlogLimit, idleSeconds, totalSeconds].map { PosixShell.quote(String($0)) }).joined(separator: " ")
+    }
+
+    /// `follow` 參數之前的部分(Windows 方言以它認出追蹤腳本)。
+    package static let followInvocation = prefix + PosixShell.quote(HostScriptTimeLimit.posix(followScript, seconds: "$4")) + " sh"
+
+    /// 閒置時限：每收到一個請求就換一個新的 `purrdr_limit`(總長的那個由 `HostScriptTimeLimit.posix` 起)。
+    /// HUP 也以 124 結束：CI 上閒置時限曾以 1 結束(推測是停住程序樹時孤兒程序群組收到的 HUP)。
+    package static let followScript = #"""
+        trap 'exit 124' HUP
+        purrdr_anchor() {
+        if [ "$2" -le 0 ]; then anchor=0; return; fi
+        anchor_start=$(($2 - 64))
+        if [ "$anchor_start" -lt 0 ]; then anchor_start=0; fi
+        anchor=$(tail -c +$((anchor_start + 1)) "$1" | head -c $(($2 - anchor_start)) | cksum)
+        anchor=${anchor%% *}
+        }
+        purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
+        idle_limit=$!
+        while IFS= read -r request; do
+        kill "$idle_limit" 2>/dev/null
+        purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
+        idle_limit=$!
+        cursor=${request%% *}
+        request=${request#* }
+        known_stamp=${request%% *}
+        request=${request#* }
+        known_anchor=${request%% *}
+        file=${request#* }
+        if [ ! -e "$file" ]; then printf 'error 3\n'; continue; fi
+        if [ ! -r "$file" ]; then printf 'error 5\n'; continue; fi
+        size=$(wc -c < "$file")
+        size=$((size + 0))
+        stamp=$(date -r "$file" +%s 2>/dev/null)-$size
+        if [ "$size" -lt "$cursor" ]; then printf 'replaced %s\n' "$size"; continue; fi
+        if [ "$known_anchor" != - ]; then
+        purrdr_anchor "$file" "$cursor"
+        if [ "$anchor" != "$known_anchor" ]; then printf 'replaced %s\n' "$size"; continue; fi
+        fi
+        if [ "$stamp" = "$known_stamp" ]; then printf 'unchanged\n'; continue; fi
+        limit=$1
+        if [ $((size - cursor)) -gt "$1" ]; then limit=$2; fi
+        end=$cursor
+        if [ "$size" -gt "$cursor" ]; then
+        end=$(tail -c +$((cursor + 1)) "$file" | head -c $((size - cursor)) | awk -v total=$((size - cursor)) -v limit="$limit" '{ next_end = taken + length($0) + 1; if (next_end > total || (next_end > limit && NR > 1)) exit; taken = next_end } END { print taken + 0 }')
+        end=$((cursor + end))
+        fi
+        purrdr_anchor "$file" "$end"
+        printf 'appended %s %s\n' "$size" "$stamp"
+        if [ "$end" -gt "$cursor" ]; then
+        tail -c +$((cursor + 1)) "$file" | head -c $((end - cursor)) | ANNOTATE | awk -v limit="$limit" '{ tab = index($0, "\t"); if (length($0) - tab > limit) $0 = substr($0, 1, tab + limit); print }'
+        fi
+        printf 'end %s %s\n' "$end" "$anchor"
+        done
+        """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
+
     /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
         previews(marker: marker, entries: requests.map { PreviewEntry(key: $0.key, type: "claude", value: $0.sessionID, extra: $0.projectFolder) })

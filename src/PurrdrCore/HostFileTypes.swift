@@ -43,12 +43,16 @@ public struct HostFileRead: Equatable, Sendable {
     public var home: String?
     /// 回報這份結果的腳本是哪種作業系統的:Windows 版(`WindowsScripts`)是 `.windows`;POSIX 版分不出 macOS／Linux,是 `nil`。
     public var operatingSystem: HostOperatingSystem?
+    /// 條件式讀取時，版本與已知版本相同、沒回傳內容的檔案(不在 `files` 裡)。
+    public var unchanged: Set<HostPath>
 
-    public init(user: String, files: [HostPath: HostFileState], home: String? = nil, operatingSystem: HostOperatingSystem? = nil) {
+    public init(user: String, files: [HostPath: HostFileState], home: String? = nil, operatingSystem: HostOperatingSystem? = nil,
+                unchanged: Set<HostPath> = []) {
         self.user = user
         self.files = files
         self.home = home
         self.operatingSystem = operatingSystem
+        self.unchanged = unchanged
     }
 
     /// 主機是 Windows。
@@ -56,6 +60,14 @@ public struct HostFileRead: Equatable, Sendable {
 
     public subscript(path: HostPath) -> HostFileState? { files[path] }
 }
+
+/// 條件式讀取的結果：檔案與已知版本相同，或變了(新的值與版本;不是一般檔案時版本是 `nil`)。
+public enum HostFileUpdate<Value: Sendable>: Sendable {
+    case unchanged
+    case changed(Value, version: HostFileVersion?)
+}
+
+extension HostFileUpdate: Equatable where Value: Equatable {}
 
 /// 寫入前對檔案目前版本的預期。
 public enum HostFileExpectation: Equatable, Sendable {

@@ -1,6 +1,7 @@
 import Foundation
 import PurrdrCore
 import PurrdrSSH
+import PurrdrTestSupport
 import Testing
 
 /// 對真實主機的整合測試，以環境變數開啟(預設不跑;CI 不跑)。只執行唯讀指令。
@@ -63,6 +64,72 @@ struct RealHostIntegrationTests {
         #expect(server.snapshot.connections == 1, "連線沒有重用")
         await channel.disconnect()
         await server.stop()
+    }
+
+    /// 只在自建的 `~/purrdr-166-it-<uuid>` 裡讀寫，結束時刪掉。
+    @Test("經 Tailscale SSH:長駐追蹤腳本讀到新增;斷線與停止追蹤後主機上都沒有留下追蹤腳本(#166)",
+          .enabled(if: environment["PURRDR_REAL_HOST"] != nil))
+    func transcriptFollowerLeavesNoProcess() async throws {
+        let endpoint = try #require(Self.endpoint(Self.environment["PURRDR_REAL_HOST"] ?? ""))
+        let pin = try #require(await Self.presentedFingerprint(endpoint))
+        let folder = "purrdr-166-it-\(UUID().uuidString)"
+        let helper = SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+        let home = try await Self.run("printf '%s' \"$HOME\"", on: helper)
+        let path = "\(home)/\(folder)/session.jsonl"
+        _ = try await Self.run("mkdir -p ~/\(folder) && printf '%s\\n' '{\"n\":1}' > ~/\(folder)/session.jsonl", on: helper)
+
+        // 呼叫端不再讀：關閉通道，腳本讀到 EOF 結束。
+        let stopping = SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+        let stoppingPace = TranscriptFollowPace(interval: .seconds(3600))
+        var stoppingEvents: AsyncThrowingStream<TranscriptFollowEvent, any Error>.AsyncIterator? =
+            await SSHHostConnection(channel: stopping).followTranscript(path: path, from: 8, pace: stoppingPace).makeAsyncIterator()
+        _ = try await Self.run("printf '%s\\n' '{\"n\":2}' >> ~/\(folder)/session.jsonl", on: helper)
+        stoppingPace.wake()
+        #expect(try await stoppingEvents?.next() == .appended(TranscriptChunk(start: 8, end: 16, lines: [#"{"n":2}"#])))
+        let whileFollowing = try await Self.followerProcesses(on: helper)
+        stoppingEvents = nil
+        try await Task.sleep(for: .seconds(3))
+        let afterStop = try await Self.followerProcesses(on: helper)
+        await stopping.disconnect()
+
+        // 斷線(像 app 被殺)時 sshd 關掉通道，腳本同樣結束。
+        let dropping = SSHHostChannel(endpoint: endpoint, hostKeyPin: pin)
+        let droppingPace = TranscriptFollowPace(interval: .seconds(3600))
+        var droppingEvents = await SSHHostConnection(channel: dropping).followTranscript(path: path, from: 16, pace: droppingPace).makeAsyncIterator()
+        _ = try await Self.run("printf '%s\\n' '{\"n\":3}' >> ~/\(folder)/session.jsonl", on: helper)
+        droppingPace.wake()
+        #expect(try await droppingEvents.next() == .appended(TranscriptChunk(start: 16, end: 24, lines: [#"{"n":3}"#])))
+        await dropping.disconnect()
+        try await Task.sleep(for: .seconds(3))
+        let afterDisconnect = try await Self.followerProcesses(on: helper)
+
+        _ = try await Self.run("rm -rf ~/\(folder)", on: helper)
+        await helper.disconnect()
+        #expect(whileFollowing != "", "追蹤中主機上應有腳本(確認檢查方式有效)")
+        #expect(afterStop == "", "停止追蹤後還有追蹤腳本:\(afterStop)")
+        #expect(afterDisconnect == "", "斷線後還有追蹤腳本:\(afterDisconnect)")
+    }
+
+    /// 主機上的追蹤腳本(`purrdr_anchor` 是它獨有的函式名;pattern 寫成 `[r]` 不比對到 grep 自己)。
+    static func followerProcesses(on channel: SSHHostChannel) async throws -> String {
+        try await run("ps -A -ww -o pid=,command= | grep 'purrdr_ancho[r]' || true", on: channel)
+    }
+
+    static func run(_ command: String, on channel: SSHHostChannel) async throws -> String {
+        let session = try await channel.execute(command)
+        await session.closeStdin()
+        let output = try await session.collectOutput()
+        return output.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// 第一次連線(沒有 pin)時主機出示的指紋(TOFU)。
+    static func presentedFingerprint(_ endpoint: SSHEndpoint) async throws -> HostKeyFingerprint? {
+        do {
+            _ = try await SSHHostChannel(endpoint: endpoint, hostKeyPin: nil).execute("true")
+        } catch SSHConnectionError.hostKeyUnverified(let fingerprint) {
+            return fingerprint
+        }
+        return nil
     }
 
     static func endpoint(_ text: String) -> SSHEndpoint? {

@@ -43,8 +43,36 @@ public actor FakeHostConnection: HostConnection {
     public var unmetExpectations: [String] { expectations.map(\.method) }
 
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
+        let method = Self.method(of: request)
         let reply = try consume(request)
+        if let index = heldMethods.firstIndex(of: method) {
+            heldMethods.remove(at: index)
+            await withCheckedContinuation { held.append($0) }
+        }
         return reply.firstIndex(of: 0x0A).map { reply[reply.startIndex..<$0] } ?? reply
+    }
+
+    private var heldMethods: [String] = []
+    private var held: [CheckedContinuation<Void, Never>] = []
+
+    /// 下一個 `method` 請求先不回應，等 `releaseHeld()`(模擬讀取進行中)。
+    public func hold(_ method: String) {
+        heldMethods.append(method)
+    }
+
+    /// 正被擋著、還沒回應的請求數。
+    public var heldCount: Int { held.count }
+
+    /// 回應所有被擋著的請求。
+    public func releaseHeld() {
+        let waiting = held
+        held = []
+        for continuation in waiting { continuation.resume() }
+    }
+
+    /// 主機那端結束第 `index` 條 Agent 事件串流(斷線)。
+    public func finish(subscription index: Int) {
+        subscriptions[index].finish()
     }
 
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
@@ -63,8 +91,62 @@ public actor FakeHostConnection: HostConnection {
         for line in event.split(separator: 0x0A) { subscriptions[index].yield(Data(line)) }
     }
 
+    /// app 送出的對話紀錄讀取，依送出順序。
+    public private(set) var transcriptRequests: [TranscriptRequest] = []
+    private var transcriptAnswer: (@Sendable (TranscriptRequest) throws -> Data)?
+
+    /// 之後的對話紀錄讀取以 `answer` 回應(格式同主機腳本的輸出)。沒設定時一律 `unsupported`。
+    public func answerTranscripts(_ answer: @escaping @Sendable (TranscriptRequest) throws -> Data) {
+        transcriptAnswer = answer
+    }
+
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        throw FakeHostConnectionError.unsupported
+        transcriptRequests.append(request)
+        if holdsTranscripts { await withCheckedContinuation { heldTranscripts.append($0) } }
+        guard let transcriptAnswer else { throw FakeHostConnectionError.unsupported }
+        return try transcriptAnswer(request)
+    }
+
+    private var holdsTranscripts = false
+    private var heldTranscripts: [CheckedContinuation<Void, Never>] = []
+
+    /// 之後的對話紀錄讀取先停住，直到 `releaseTranscripts()`(模擬很慢的讀取)。
+    public func holdTranscripts() {
+        holdsTranscripts = true
+    }
+
+    /// 放行停住的對話紀錄讀取，之後不再停。
+    public func releaseTranscripts() {
+        holdsTranscripts = false
+        let waiting = heldTranscripts
+        heldTranscripts = []
+        for continuation in waiting { continuation.resume() }
+    }
+
+    /// 開過的對話紀錄追蹤(路徑與游標),依開啟順序。追蹤像 HTTPS 一樣由這裡推送：用 `send(_:toFollow:)`。
+    public private(set) var transcriptFollowOpenings: [TranscriptFollowOpening] = []
+    /// 每個追蹤是否已結束(app 不再讀或主機結束),依開啟順序。
+    public private(set) var transcriptFollowsClosed: [Bool] = []
+    private var transcriptFollows: [AsyncThrowingStream<TranscriptFollowEvent, any Error>.Continuation] = []
+
+    public func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
+        let (events, continuation) = AsyncThrowingStream<TranscriptFollowEvent, any Error>.makeStream()
+        let index = transcriptFollows.count
+        transcriptFollowOpenings.append(TranscriptFollowOpening(path: path, cursor: cursor))
+        transcriptFollows.append(continuation)
+        transcriptFollowsClosed.append(false)
+        continuation.onTermination = { _ in Task { await self.closeTranscriptFollow(index) } }
+        return events
+    }
+
+    /// 對第 `index` 個追蹤(從 0 起算)推送一則事件;`.replaced` 之後追蹤結束(同主機連線的約定)。
+    public func send(_ event: TranscriptFollowEvent, toFollow index: Int) {
+        transcriptFollows[index].yield(event)
+        if case .replaced = event { transcriptFollows[index].finish() }
+    }
+
+    private func closeTranscriptFollow(_ index: Int) {
+        transcriptFollowsClosed[index] = true
     }
 
     /// 開過的 Pane 終端機，依開啟順序。
@@ -110,8 +192,22 @@ public actor FakeHostConnection: HostConnection {
         disconnectCount += 1
     }
 
+    /// 目前要求快速偵測斷線的次數(開始加一、結束減一)。
+    public private(set) var quickDetectionRequests = 0
+    public func beginQuickDisconnectDetection() async {
+        quickDetectionRequests += 1
+    }
+
+    public func endQuickDisconnectDetection() async {
+        quickDetectionRequests -= 1
+    }
+
+    private static func method(of request: Data) -> String {
+        (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
+    }
+
     private func consume(_ request: Data) throws -> Data {
-        let method = (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
+        let method = Self.method(of: request)
         requests.append(String(decoding: request, as: UTF8.self))
         guard let index = expectations.firstIndex(where: { $0.method == method }) else {
             throw FakeHostConnectionError.unexpectedRequest(method)
@@ -128,6 +224,17 @@ public enum FakeHostConnectionError: Error, Equatable {
     case unexpectedRequest(String)
     /// 這個假連線還沒有對話紀錄;Pane 終端機沒有預期(`expectPaneTerminal`)。
     case unsupported
+}
+
+/// 一次開對話紀錄追蹤的參數。
+public struct TranscriptFollowOpening: Sendable, Equatable {
+    public var path: String
+    public var cursor: Int
+
+    public init(path: String, cursor: Int) {
+        self.path = path
+        self.cursor = cursor
+    }
 }
 
 /// 一次開 Pane 終端機的參數。

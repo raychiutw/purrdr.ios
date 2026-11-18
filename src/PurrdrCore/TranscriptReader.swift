@@ -165,6 +165,14 @@ public struct TranscriptReader: Sendable {
         await connection.stopFollowingTranscript(path: path)
     }
 
+    /// 追蹤 `path` 的尾端(見 `HostConnection.followTranscript`)。路徑不安全時串流立刻以 `.invalidReference` 結束。
+    public func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
+        guard Self.isValidPath(path), cursor >= 0 else {
+            return AsyncThrowingStream { $0.finish(throwing: TranscriptReadError.invalidReference) }
+        }
+        return await connection.followTranscript(path: path, from: cursor, pace: pace)
+    }
+
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
         try await tailReportingSize(path: path, from: cursor, limit: limit).tail
@@ -265,7 +273,7 @@ public struct TranscriptReader: Sendable {
     }
 
     /// 「原始 byte 長度 TAB 行」的紀錄。回傳行與原始 byte 總數(含換行)。
-    static func records(_ data: Data.SubSequence) throws -> (lines: [String], bytes: Int) {
+    package static func records(_ data: Data.SubSequence) throws -> (lines: [String], bytes: Int) {
         var lines: [String] = []
         var bytes = 0
         for record in data.split(separator: 0x0A, omittingEmptySubsequences: true) {

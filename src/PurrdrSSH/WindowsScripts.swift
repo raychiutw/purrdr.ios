@@ -35,12 +35,16 @@ enum WindowsScripts {
     /// - `PStrip`:剝除圖片(與 POSIX 的 `sed` 相同的兩個規則，逐行套用)。
     /// - `PLines`:把 `$b[$i..$t)` 裡**完整**的行(以 `\n` 結尾)印成「原始 byte 長度 TAB 剝除後的行」。
     /// - `PRead`:從 `$s` 讀 `$n` bytes(檔案較短時讀到結尾)。
+    /// - `PChunk`:分段追趕(#130)印出 `$p` 之後累計不超過 `$m` 的完整行，回傳新游標。
+    /// - `PAnchor`:`$e` 之前 64 bytes 的 SHA-256 前 8 bytes(換檔判斷，追蹤用)。
     /// - `PFail`:丟出帶 exit code 的錯誤，由呼叫處決定要結束還是略過(列表預覽一個失敗不影響其他)。
     static let transcriptFunctions = #"""
         function PStrip([string]$s){$s=[regex]::Replace($s,'"[A-Za-z0-9+/=]{128,}"','""');[regex]::Replace($s,'"data:[^"]*;base64,[^"]*"','""')}
         function PLines([byte[]]$b,[int]$i,[int]$t){while($i -lt $t){$j=[Array]::IndexOf($b,[byte]10,$i,$t-$i);if($j -lt 0){break};PWrite ("$($j-$i)`t"+(PStrip $u.GetString($b,$i,$j-$i))+"`n");$i=$j+1}}
         function POpen([string]$f){[IO.File]::Open($f,'Open','Read','ReadWrite,Delete')}
         function PRead($h,[long]$s,[long]$n){$b=New-Object byte[] $n;[void]$h.Seek($s,'Begin');$t=0;while($t -lt $n){$r=$h.Read($b,$t,$n-$t);if($r -le 0){break};$t+=$r};if($t -lt $n){$c=New-Object byte[] $t;[Array]::Copy($b,$c,$t);$b=$c};,$b}
+        function PChunk($h,[long]$p,[long]$z,[long]$m){$r=$z-$p;$n=[Math]::Min($r,$m);while($true){$b=PRead $h $p $n;$j=[Array]::LastIndexOf($b,[byte]10);if($j -ge 0 -or $n -ge $r){break};$n=[Math]::Min($r,$n*2)};if($n -gt $m){$j=[Array]::IndexOf($b,[byte]10);if($j -ge 0){$c=$u.GetBytes((PStrip $u.GetString($b,0,$j)));PWrite "$j`t";$o.Write($c,0,[int][Math]::Min($c.Length,$m));PWrite "`n";return $p+$j+1}}elseif($j -ge 0){PLines $b 0 ($j+1);return $p+$j+1};$p}
+        function PAnchor($h,[long]$e){if($e -le 0){return '0'};$x=[Math]::Max([long]0,$e-64);$b=PRead $h $x ($e-$x);-join ([Security.Cryptography.SHA256]::Create().ComputeHash($b)[0..7]|%{$_.ToString('x2')})}
         function PFail([int]$c){throw "purrdr-exit:$c"}
         function PCode($e){if("$($e.Exception.Message)" -match '^purrdr-exit:(\d+)$'){[int]$Matches[1]}else{1}}
         function PProbe([string]$f){$d=[IO.Path]::GetDirectoryName($f);if(-not [IO.Directory]::Exists($d)){PFail 3};if(-not [IO.File]::Exists($f)){try{[void][IO.Directory]::GetFileSystemEntries($d)}catch{PFail 4};PFail 3};try{$h=POpen $f;$z=$h.Length;$h.Close()}catch{PFail 5};$z}
@@ -120,8 +124,38 @@ enum WindowsScripts {
         $f=$a[0];$p=[long]$a[1];$m=[long]$a[2]
         $z=PProbe $f
         PWrite "$z`n"
-        if($z -gt $p){$h=POpen $f;$r=$z-$p;$n=[Math]::Min($r,$m);while($true){$b=PRead $h $p $n;$j=[Array]::LastIndexOf($b,[byte]10);if($j -ge 0 -or $n -ge $r){break};$n=[Math]::Min($r,$n*2)};$h.Close();if($n -gt $m){$j=[Array]::IndexOf($b,[byte]10);if($j -ge 0){$c=$u.GetBytes((PStrip $u.GetString($b,0,$j)));PWrite "$j`t";$o.Write($c,0,[int][Math]::Min($c.Length,$m));PWrite "`n"}}elseif($j -ge 0){PLines $b 0 ($j+1)}}
+        if($z -gt $p){$h=POpen $f;[void](PChunk $h $p $z $m);$h.Close()}
         }
+        """#
+
+    /// 長駐追蹤(#167,輸出同 `TranscriptCommand.followScript`):stub 讀完腳本後，從同一個 reader(`$s`,原始 handle,#77)
+    /// 繼續讀請求行「游標 版本 錨點 路徑」。版本是「修改時間 ticks-大小」。每個請求把時限延到閒置秒數後(不超過總長)。
+    /// 參數(`$a`):上限、追趕上限、閒置秒數、總長秒數。`$s`、`$o` 由 stub 的開頭提供(所有腳本共用的短名)。
+    static let follow = #"""
+        $purrdrEnd=[DateTime]::UtcNow.AddSeconds([int]$a[3])
+        function PIdle{$idleUntil=[DateTime]::UtcNow.AddSeconds([int]$a[2]);if($idleUntil -gt $purrdrEnd){$idleUntil=$purrdrEnd};$purrdrLimit.At=$idleUntil}
+        PIdle
+        while(($request=$s.ReadLine()) -ne $null){
+        PIdle
+        $handle=$null
+        try{
+        $fields=$request.Split([char]' ',4);$cursor=[long]$fields[0];$knownStamp=$fields[1];$knownAnchor=$fields[2];$file=$fields[3]
+        if(-not [IO.File]::Exists($file)){PWrite "error 3`n"}
+        else{
+        try{$handle=POpen $file}catch{}
+        if(-not $handle){PWrite "error 5`n"}
+        else{
+        $size=$handle.Length;$stamp="$([IO.File]::GetLastWriteTimeUtc($file).Ticks)-$size"
+        if($size -lt $cursor -or ($knownAnchor -cne '-' -and (PAnchor $handle $cursor) -cne $knownAnchor)){PWrite "replaced $size`n"}
+        elseif($stamp -ceq $knownStamp){PWrite "unchanged`n"}
+        else{$limit=[long]$a[0];if(($size-$cursor) -gt $limit){$limit=[long]$a[1]};PWrite "appended $size $stamp`n";$end=$cursor;if($size -gt $cursor){$end=PChunk $handle $cursor $size $limit};PWrite "end $end $(PAnchor $handle $end)`n"}
+        }
+        }
+        }catch{PWrite "error 5`n"}finally{if($handle){$handle.Close()}}
+        $o.Flush()
+        }
+        $o.Flush()
+        exit 0
         """#
 
     /// 列表預覽：每個請求「標記 key」,再印剝除圖片後的檔尾 48,000 bytes;Pi／OMP、Codex 先印「標記! key」與前兩行。
@@ -318,20 +352,34 @@ enum WindowsScripts {
     }
 
     /// `HostFileScript.read`:輸出多一行 `home <家目錄>`(`/` 分隔),讓 client 知道是 Windows 與家目錄在哪。
-    static let hostFileRead = #"""
+    static let hostFileRead = hostFileReadPrelude + #"""
+        for($i=0;$i -lt $a.Count;$i++){PReadOne $a[$i] $i '-'}
+        $o.Flush()
+        """#
+
+    /// `HostFileScript.readIfChanged`:參數每兩個一組(路徑、已知版本;沒有是 `-`),版本相同只印 `unchanged <i>`。
+    static let hostFileReadIfChanged = hostFileReadPrelude + #"""
+        for($i=0;$i+1 -lt $a.Count;$i+=2){PReadOne $a[$i] ($i/2) $a[$i+1]}
+        $o.Flush()
+        """#
+
+    /// 讀取共用：開頭三行，與讀一個檔案的 `PReadOne <路徑> <序號> <已知版本>`。
+    private static let hostFileReadPrelude = #"""
         PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"
-        for($i=0;$i -lt $a.Count;$i++){
-        $p=PResolve (PPath $a[$i])
+        function PReadOne([string]$r,[int]$i,[string]$k){
+        $p=PResolve (PPath $r)
         if([IO.File]::Exists($p)){
-        try{$h=POpen $p}catch{PWrite "unreadable $i`n";continue}
-        if($h.Length -gt 1048576){$h.Close();PWrite "toolarge $i`n";continue}
-        try{$b=PRead $h 0 $h.Length}catch{$h.Close();PWrite "unreadable $i`n";continue};$h.Close()
-        PWrite "file $i $(PHashOf $b) $($b.Length)`n";$o.Write($b,0,$b.Length);PWrite "`n"
+        try{$h=POpen $p}catch{PWrite "unreadable $i`n";return}
+        if($h.Length -gt 1048576){$h.Close();PWrite "toolarge $i`n";return}
+        try{$b=PRead $h 0 $h.Length}catch{$h.Close();PWrite "unreadable $i`n";return};$h.Close()
+        $v=PHashOf $b
+        if($v -ceq $k){PWrite "unchanged $i`n";return}
+        PWrite "file $i $v $($b.Length)`n";$o.Write($b,0,$b.Length);PWrite "`n"
         }elseif([IO.Directory]::Exists($p)){PWrite "other $i`n"}
         elseif([IO.Directory]::Exists([IO.Path]::GetDirectoryName($p))){PWrite "missing $i`n"}
         else{PWrite "nodir $i`n"}
         }
-        $o.Flush()
+
         """#
 
     /// `HostFileScript.apply`:先檢查全部(不符 → `changed <路徑>` exit 3;資料夾不存在 → `nodir <路徑>` exit 4),

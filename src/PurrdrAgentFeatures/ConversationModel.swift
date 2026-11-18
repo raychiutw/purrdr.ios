@@ -70,8 +70,9 @@ public final class ConversationModel {
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
     public private(set) var agentsPaneReadAt: Date?
 
-    /// 輪詢間隔：agent 工作中、等你回答，或背景 agents 窗格有執行中的列時 2 秒，否則 4 秒
-    /// (herdr 在背景 agent 執行時回報 idle,commit 0a3b0d7)。
+    /// 輪詢間隔：agent 工作中、等你回答，或背景 agents 窗格有執行中的列時 2 秒，否則 4 秒。
+    /// 例外快速路徑(#163):herdr 在背景 agent 執行時回報 idle(commit 0a3b0d7)、多題問答期間一直 blocked,
+    /// 都沒有狀態事件，靠這個 2 秒讀畫面確認。
     public var pollInterval: Duration {
         let paneRunning = agentsPane?.rows.contains { $0.state == .running } ?? false
         return agentStatus == .working || agentStatus == .blocked || paneRunning ? .seconds(2) : .seconds(4)
@@ -290,6 +291,27 @@ public final class ConversationModel {
     /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
     @ObservationIgnored private var screenThisPoll: String?
     private let sleep: Sleep
+    /// 這台主機的主機更新來源(#163);沒有時自己讀快照。
+    private let updates: HostUpdates?
+    /// `run()` 期間下一次輪詢的等待(間隔到或被叫醒)。
+    @ObservationIgnored private var pollDue: WakeSignal?
+    /// `run()` 期間對話紀錄追蹤的節奏(內部輪詢的連線方式用);不在 `run()` 裡時沒有，`poll()` 自己讀尾端。
+    @ObservationIgnored private var followPace: TranscriptFollowPace?
+    /// 追蹤中的對話紀錄(#165):有它時新內容由追蹤送來，輪詢不讀尾端。
+    @ObservationIgnored private var following: ActiveTranscriptFollow?
+
+    /// 一個進行中的對話紀錄追蹤。`id` 讓結束的追蹤只清掉自己(不清後來開的)。
+    private struct ActiveTranscriptFollow {
+        let path: String
+        let id: UUID
+        let task: Task<Void, Never>
+
+        init(path: String, start: (UUID) -> Task<Void, Never>) {
+            self.path = path
+            id = UUID()
+            task = start(id)
+        }
+    }
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -330,8 +352,10 @@ public final class ConversationModel {
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
+        updates: HostUpdates? = nil,
         sleep: @escaping Sleep = Sleeping.task
     ) {
+        self.updates = updates
         self.images = images
         self.client = client
         self.transcripts = transcripts
@@ -360,7 +384,9 @@ public final class ConversationModel {
     private func slashCatalog() async -> SlashCatalog? {
         var agent = currentAgent
         if agent == nil {
-            agent = (try? await client.snapshot())?.agents.first { $0.paneID == paneID }
+            var snapshot = liveSnapshot
+            if snapshot == nil { snapshot = try? await client.snapshot() }
+            agent = snapshot?.agents.first { $0.paneID == paneID }
         }
         guard let agent else { return nil }
         switch AgentSlashMenu(agentKind: agent.kind) {
@@ -403,35 +429,67 @@ public final class ConversationModel {
     // MARK: - 輪詢
 
     /// 畫面可見且 app 在前景時執行，直到所在的 task 被取消。agent 工作中或等你回答時每 2 秒，否則每 4 秒
-    /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 20 秒回報在場。
+    /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 30 秒回報在場。
+    /// 有主機更新來源時一起保持它的即時更新，這個 Agent 在快照裡變了就立刻再輪詢一次，不等間隔(#163)。
+    /// 期間連線快速偵測斷線(最壞約 15 秒顯示離線)。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
+        followPace = TranscriptFollowPace(interval: pollInterval, sleep: sleep)
+        let pollDue = WakeSignal(sleep: sleep)
+        self.pollDue = pollDue
+        // 不讀快照時靠 keepalive／心跳發現離線：畫面可見期間縮短到最壞約 15 秒。
+        await client.beginQuickDisconnectDetection()
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
-            group.addTask {
-                while !Task.isCancelled {
-                    await self.poll()
-                    let interval = await MainActor.run { self.pollInterval }
-                    do {
-                        try await sleep(interval)
-                    } catch {
-                        return
-                    }
+            if let updates {
+                group.addTask { await updates.liveUpdates.attach() }
+                group.addTask { await self.wakeOnChanges(from: updates) }
+            }
+            while !Task.isCancelled {
+                await poll()
+                do {
+                    // 輪詢期間被叫醒就不等。
+                    try await pollDue.wait(atMost: pollInterval)
+                } catch {
+                    break
                 }
             }
+            group.cancelAll()
         }
+        stopFollowingUpdates()
+        followPace = nil
+        self.pollDue = nil
+        await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if let path = file?.path { await transcripts.stopFollowing(path: path) }
     }
 
-    /// 一次輪詢:snapshot → 綁定 session → 讀對話紀錄。
+    /// 這個 Agent 在主機更新來源的快照裡變了(狀態事件觸發的重讀):叫醒輪詢。
+    private func wakeOnChanges(from updates: HostUpdates) async {
+        for await agent in updates.changes(for: paneID) where agent != currentAgent {
+            pollDue?.wake()
+            followPace?.wake()
+        }
+    }
+
+    /// 主機更新來源在訂閱事件時用它的快照;還沒連上、斷線或沒有事件訂閱時是 `nil`,改自己讀(#163)。
+    private var liveSnapshot: HostSnapshot? {
+        guard let updates, updates.isSubscribed else { return nil }
+        return updates.snapshot
+    }
+
+    /// 一次輪詢：快照(主機更新來源的，或自己讀)→ 綁定 session → 讀對話紀錄。
     public func poll() async {
         let snapshot: HostSnapshot
-        do {
-            snapshot = try await snapshotRetryingOnce()
-        } catch {
-            await showOffline()
-            return
+        if let liveSnapshot {
+            snapshot = liveSnapshot
+        } else {
+            do {
+                snapshot = try await snapshotRetryingOnce()
+            } catch {
+                await showOffline()
+                return
+            }
         }
         isOffline = false
         if banner == .offline { banner = nil }
@@ -473,6 +531,7 @@ public final class ConversationModel {
             boundSessionID = target.sessionKey
         }
         format = target.format
+        followPace?.interval = pollInterval
         await read(target)
     }
 
@@ -508,7 +567,9 @@ public final class ConversationModel {
     private func read(_ target: TranscriptTarget) async {
         let generation = generation
         do {
-            if let file {
+            if let file, following?.path == file.path {
+                // 新內容由追蹤送來(#165),不讀尾端。
+            } else if let file {
                 // 已追上：落後多少都從游標分段接著讀，不改讀新視窗取代已顯示與往上翻的訊息(#130、R-B09)。
                 // 還沒追上(剛從快取恢復、畫面重新可見):落後太多不逐段重播積壓，讀新視窗(R-B08)。
                 let read = try await transcripts.follow(path: file.path, file.follow)
@@ -530,33 +591,85 @@ public final class ConversationModel {
             }
             banner = nil
             phase = .ready
-        } catch TranscriptReadError.absent {
+            startFollowingUpdates()
+        } catch {
+            showReadFailure(error, generation: generation)
+        }
+        if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
+    }
+
+    /// 已追上主機且在 `run()` 裡：開始追蹤目前的對話紀錄，之後的新內容由追蹤送來(#165)。
+    private func startFollowingUpdates() {
+        guard let followPace, let file, file.follow.isLive, following?.path != file.path else { return }
+        following?.task.cancel()
+        let path = file.path
+        let cursor = file.follow.cursor
+        let generation = generation
+        let started = ActiveTranscriptFollow(path: path) { id in
+            Task { await self.applyUpdates(path: path, from: cursor, pace: followPace, generation: generation, id: id) }
+        }
+        following = started
+    }
+
+    private func stopFollowingUpdates() {
+        following?.task.cancel()
+        following = nil
+    }
+
+    /// 套用追蹤事件：新增接在後面;接不上時重讀視窗並從新游標再追蹤。追蹤以錯誤結束時回到輪詢讀一次再開始。
+    private func applyUpdates(path: String, from cursor: Int, pace: TranscriptFollowPace, generation: Int, id: UUID) async {
+        var isReplaced = false
+        do {
+            isReplaced = try await TranscriptFollowUpdates.apply(
+                await transcripts.followTranscript(path: path, from: cursor, pace: pace),
+                isCurrent: { generation == self.generation && file?.path == path },
+                appended: { chunk in
+                    file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
+                    append(chunk)
+                },
+                replaced: { size in try await openWindow(path: path, size: size, generation: generation) },
+                afterEach: {
+                    if banner == .readFailed { banner = nil }
+                    await saveCache()
+                })
+        } catch is CancellationError {
+        } catch {
+            showReadFailure(error, generation: generation)
+        }
+        guard following?.id == id else { return }
+        following = nil
+        if isReplaced, !Task.isCancelled { startFollowingUpdates() }
+    }
+
+    /// 讀對話紀錄失敗時的畫面狀態。
+    private func showReadFailure(_ error: any Error, generation: Int) {
+        switch error {
+        case TranscriptReadError.absent:
             // 新 session 在第一個 prompt 前可能還沒有檔案：可用的空聊天，下次輪詢再找(R-I09)。
             guard generation == self.generation else { return }
             file = nil
             banner = nil
             phase = .ready
-        } catch TranscriptReadError.unreadable {
+        case TranscriptReadError.unreadable:
             banner = .unreadable
             phase = .ready
-        } catch TranscriptReadError.ambiguous {
+        case TranscriptReadError.ambiguous:
             // 不開任何檔、不依新舊猜;下次輪詢重新定位(使用者可能已刪掉多餘的檔)。
             guard generation == self.generation else { return }
             file = nil
             banner = .ambiguous
             phase = .ready
-        } catch TranscriptReadError.compressed {
+        case TranscriptReadError.compressed:
             // 只有 `.zst`:不是「還沒有檔案」,也不在手機上解壓;下次輪詢重新定位(Codex 可能又寫了新的 rollout)。
             guard generation == self.generation else { return }
             file = nil
             banner = .compressed
             phase = .ready
-        } catch {
+        default:
             // 保留畫面上的內容，下次輪詢重試;永不退回從 byte 0 追蹤。
             banner = .readFailed
             if items.isEmpty { phase = .ready }
         }
-        if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
     }
 
     /// 讀最後 `openLines` 行並**取代**目前的訊息。
@@ -653,7 +766,7 @@ public final class ConversationModel {
 
     // MARK: - 在場回報
 
-    /// 每 20 秒回報一次「手機正在看」(F5.13),直到所在的 task 被取消。純裝飾，失敗不影響任何事。
+    /// 每 30 秒回報一次「手機正在看」(F5.13,ttl 45 秒),直到所在的 task 被取消。純裝飾，失敗不影響任何事。
     public func reportPresence(sleep: @escaping Sleep) async {
         while !Task.isCancelled {
             let nowMillis = UInt64(max(0, clock.now().timeIntervalSince1970 * 1000))
@@ -663,7 +776,7 @@ public final class ConversationModel {
             let model = metadata.model.map(TranscriptMetadata.displayName(ofModel:))
             try? await client.reportPresence(paneID: paneID, model: model, seq: seq)
             do {
-                try await sleep(.seconds(20))
+                try await sleep(.seconds(30))
             } catch {
                 return
             }
@@ -1342,6 +1455,7 @@ public final class ConversationModel {
     // MARK: - 內部
 
     private func unbind() {
+        stopFollowingUpdates()
         if let path = file?.path {
             let transcripts = transcripts
             Task { await transcripts.stopFollowing(path: path) }

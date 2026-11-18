@@ -12,7 +12,7 @@ import PurrdrSSH
 /// 或檢查「主機上的檔案真的被改成什麼、還原後是否與安裝前完全相同」(`DirectorySnapshot`)。
 ///
 /// 安全：指令只拿到這個家目錄當 `HOME`;主機寫入的測試一律用 `temporary()`,絕不碰執行測試的人真正的家目錄。
-/// stdin 預設是空的(`/dev/null`);`feedsStdin: true` 時 `write` 的 bytes 會進到指令的 stdin
+/// stdout 邊到邊送出。stdin 預設是空的(`/dev/null`);`feedsStdin: true` 時 `write` 的 bytes 會進到指令的 stdin
 /// (圖片上傳走 exec 的 stdin,ADR-0003),`closeStdin()` 送 EOF,`close()` 模擬連線中斷(stdin 結束、不再讀輸出)。
 public struct LocalShellHost: HostChannel {
     public let home: URL
@@ -89,10 +89,14 @@ public struct LocalShellHost: HostChannel {
                 err.data = stderr.fileHandleForReading.readDataToEndOfFile()
                 group.leave()
             }
-            let out = stdout.fileHandleForReading.readDataToEndOfFile()
+            // stdout 邊到邊送：長駐腳本(對話紀錄追蹤)一問一答，不能等到結束。
+            while true {
+                let chunk = stdout.fileHandleForReading.availableData
+                if chunk.isEmpty { break }
+                continuation.yield(.stdout(chunk))
+            }
             group.wait()
             process.waitUntilExit()
-            if !out.isEmpty { continuation.yield(.stdout(out)) }
             if !err.data.isEmpty { continuation.yield(.stderr(err.data)) }
             continuation.yield(.exit(code: process.terminationStatus))
             continuation.finish()

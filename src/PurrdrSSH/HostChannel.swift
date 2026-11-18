@@ -17,10 +17,18 @@ public protocol HostChannel: Sendable {
 
     /// 關掉底層連線(編輯／刪除主機、信任新 key、連線測試結束時)。下一個指令會重新連線。
     func disconnect() async
+
+    /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
+    func beginQuickDisconnectDetection() async
+
+    /// 結束一次 `beginQuickDisconnectDetection()`。
+    func endQuickDisconnectDetection() async
 }
 
 extension HostChannel {
     public func disconnect() async {}
+    public func beginQuickDisconnectDetection() async {}
+    public func endQuickDisconnectDetection() async {}
 }
 
 /// 一次指令執行收齊的輸出。

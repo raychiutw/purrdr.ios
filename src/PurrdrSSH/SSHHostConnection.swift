@@ -9,15 +9,32 @@ public struct SSHHostConnection: HostConnection {
     private let herdr: HerdrInstallation
     /// 期限計時用(測試注入)。
     private let sleep: Sleep
+    /// 對話紀錄追蹤的長駐通道(#166);這個連線的複本共用。
+    private let follower: SSHTranscriptFollower
 
-    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(), sleep: @escaping Sleep = Sleeping.task) {
+    /// - Parameter followDiagnostics: 對話紀錄追蹤退回輪詢時的原因(交給系統紀錄)。
+    public init(
+        channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(), sleep: @escaping Sleep = Sleeping.task,
+        followDiagnostics: (@Sendable (String) -> Void)? = nil
+    ) {
         self.channel = channel
         self.herdr = herdr
         self.sleep = sleep
+        follower = SSHTranscriptFollower(channel: channel, sleep: sleep, diagnostics: followDiagnostics)
     }
 
     public func disconnect() async {
+        await follower.close()
         await channel.disconnect()
+    }
+
+    /// keepalive 改用短間隔(聊天畫面可見時)。
+    public func beginQuickDisconnectDetection() async {
+        await channel.beginQuickDisconnectDetection()
+    }
+
+    public func endQuickDisconnectDetection() async {
+        await channel.endQuickDisconnectDetection()
     }
 
     // MARK: - herdr 單次請求
@@ -112,6 +129,56 @@ public struct SSHHostConnection: HostConnection {
         }
         if let error = TranscriptReadError(exitStatus: result.exitStatus) { throw error }
         return result.stdout
+    }
+
+    /// 追蹤對話紀錄尾端：照 `pace` 經長駐通道問主機，沒變不送事件(#166)。主機跑不了追蹤腳本時退回分段接著讀的輪詢。
+    public func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
+        let (events, continuation) = AsyncThrowingStream<TranscriptFollowEvent, any Error>.makeStream()
+        let following = Task { [follower] in
+            await follower.started()
+            do {
+                try await Self.follow(path: path, from: cursor, pace: pace, follower: follower, connection: self, into: continuation)
+                continuation.finish()
+            } catch is CancellationError {
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+            await follower.stopped()
+        }
+        continuation.onTermination = { _ in following.cancel() }
+        return events
+    }
+
+    private static func follow(
+        path: String, from cursor: Int, pace: TranscriptFollowPace, follower: SSHTranscriptFollower, connection: SSHHostConnection,
+        into continuation: AsyncThrowingStream<TranscriptFollowEvent, any Error>.Continuation
+    ) async throws {
+        var position = SSHTranscriptFollower.Position(cursor: cursor)
+        while true {
+            try await pace.wait()
+            switch try await follower.poll(path: path, from: position) {
+            case .unsupported:
+                pace.wake()
+                for try await event in TranscriptPolling.follow(connection: connection, path: path, from: position.cursor, pace: pace) {
+                    continuation.yield(event)
+                }
+                return
+            case .reply(.unchanged):
+                continue
+            case .reply(.read(_, let stamp, let lines, let end, let anchor)):
+                guard end >= position.cursor else { throw TranscriptReadError.changed }
+                if !lines.isEmpty {
+                    continuation.yield(.appended(TranscriptChunk(start: position.cursor, end: end, lines: lines)))
+                }
+                position = SSHTranscriptFollower.Position(cursor: end, stamp: stamp, anchor: anchor)
+            case .reply(.replaced(let size)):
+                continuation.yield(.replaced(size: size))
+                return
+            case .reply(.failed(let exitCode)):
+                throw TranscriptReadError(exitStatus: exitCode) ?? .changed
+            }
+        }
     }
 
     // MARK: - Pane 終端機

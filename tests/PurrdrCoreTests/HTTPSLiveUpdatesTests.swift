@@ -118,6 +118,27 @@ struct HTTPSLiveUpdatesTests {
         #expect(read == StreamRead(events: [.subscriptionStarted], ending: .failed(String(describing: HostServiceError.connectionLost))))
     }
 
+    @Test("快速偵測斷線(聊天畫面可見):心跳立刻改用短間隔，不等一般間隔")
+    func quickDetectionUsesShortHeartbeat() async throws {
+        let service = try await FakeHostService.start(.init(answersPings: false))
+        defer { Task { await service.stop() } }
+        let connection = HTTPSHostConnection(
+            address: service.address, deviceToken: { "token-ok" }, appVersion: "9.9.9",
+            heartbeat: HostServiceHeartbeat(interval: .seconds(3600), timeout: .milliseconds(300)),
+            quickHeartbeat: Self.shortHeartbeat)
+        let events = try await HerdrClient(connection: connection).subscribe([])
+
+        await connection.beginQuickDisconnectDetection()
+        let read = await Self.read(events)
+
+        #expect(read == StreamRead(events: [.subscriptionStarted], ending: .failed(String(describing: HostServiceError.connectionLost))))
+    }
+
+    @Test("心跳的快速偵測：最壞 15 秒(間隔加逾時)")
+    func quickHeartbeatWorstCase() {
+        #expect(HostServiceHeartbeat.quick.interval + HostServiceHeartbeat.quick.timeout <= .seconds(15))
+    }
+
     // MARK: - 輔助
 
     private static func object(_ text: String) -> [String: Any]? {

@@ -169,6 +169,24 @@ public enum SnapshotEdit {
         }
     }
 
+    /// 複製 `pane_id` 為 `template` 的 agent 與 pane,換成新的 pane id 與 Claude session id(多 Agent 的情境)。
+    public static func addAgent(copying template: String, as paneID: String, sessionID: String, in response: inout [String: Any]) {
+        editSnapshot(&response) { snapshot in
+            for key in ["agents", "panes"] {
+                guard var items = snapshot[key] as? [[String: Any]], var copy = items.first(where: { $0["pane_id"] as? String == template }) else {
+                    continue
+                }
+                copy["pane_id"] = paneID
+                if var session = copy["agent_session"] as? [String: Any] {
+                    session["value"] = sessionID
+                    copy["agent_session"] = session
+                }
+                items.append(copy)
+                snapshot[key] = items
+            }
+        }
+    }
+
     /// 移除 `pane_id` 為 `paneID` 的 agent 與 pane(例如 pane 在主機上被關掉)。
     public static func removeAgent(_ paneID: String, in response: inout [String: Any]) {
         editSnapshot(&response) { snapshot in

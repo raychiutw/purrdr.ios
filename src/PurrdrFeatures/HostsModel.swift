@@ -258,7 +258,8 @@ public final class HostsModel {
                 return self.name(of: route.host)
             },
             // Windows 主機也能上傳(#68:`ImageUploader` 經 `WindowsHostChannel` 送 PowerShell 版)。
-            images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore))
+            images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore),
+            updates: member.list.updates)
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
@@ -719,7 +720,8 @@ final class HostMember {
         self.host = host
         self.channel = channel
         let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
-        let connection = connection ?? SSHHostConnection(channel: channel, herdr: herdr)
+        let connection = connection ?? SSHHostConnection(
+            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))
         client = HerdrClient(connection: connection)
         transcripts = TranscriptReader(connection: connection)
         terminals = PaneTerminalClient(connection: connection)

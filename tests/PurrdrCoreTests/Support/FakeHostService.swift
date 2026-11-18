@@ -56,6 +56,8 @@ final class FakeHostService: Sendable {
         var revokeAuthorizations: [String?] = []
         /// 收到的 WebSocket ping 數。
         var pings = 0
+        /// 送給 app 的 WebSocket 文字訊息(回應與推送)。
+        var sent: [String] = []
     }
 
     struct Settings: Sendable {
@@ -110,7 +112,7 @@ final class FakeHostService: Sendable {
         for stream in state.withLock({ $0.streams }) {
             var event: [String: Any] = ["type": "events.event", "stream_id": stream.streamID, "event": name]
             event["pane_id"] = paneID
-            _ = stream.socket.writeAndFlush(Self.textFrame(Self.json(event), on: stream.socket))
+            _ = stream.socket.writeAndFlush(textFrame(Self.json(event), on: stream.socket))
         }
     }
 
@@ -125,7 +127,7 @@ final class FakeHostService: Sendable {
             ended["code"] = code
             ended["message"] = message
             ended["herdr_code"] = herdrCode
-            _ = stream.socket.writeAndFlush(Self.textFrame(Self.json(ended), on: stream.socket))
+            _ = stream.socket.writeAndFlush(textFrame(Self.json(ended), on: stream.socket))
         }
     }
 
@@ -136,8 +138,13 @@ final class FakeHostService: Sendable {
         }
     }
 
-    private static func textFrame(_ text: String, on socket: any Channel) -> WebSocketFrame {
-        WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
+    private func textFrame(_ text: String, on socket: any Channel) -> WebSocketFrame {
+        recordSent(text)
+        return WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
+    }
+
+    fileprivate func recordSent(_ text: String) {
+        state.withLock { $0.log.sent.append(text) }
     }
 
     static func start(_ settings: Settings = Settings()) async throws -> FakeHostService {
@@ -192,6 +199,7 @@ final class FakeHostService: Sendable {
     func push(_ text: String) async throws {
         let sockets = state.withLock { $0.sockets }
         for socket in sockets {
+            recordSent(text)
             let frame = WebSocketFrame(fin: true, opcode: .text, data: socket.allocator.buffer(string: text))
             try await socket.writeAndFlush(frame)
         }
@@ -407,12 +415,25 @@ final class FakeHostService: Sendable {
         return json(object)
     }
 
-    /// Agent 列表範例，換掉指定 Pane 的狀態。
+    /// Agent 列表範例，換掉指定 Pane 的狀態;範例沒有的 Pane 以第一個 Agent 為樣本加上(session id 依序編號)。
     private static func agents(requestID: String?, statuses: [String: String]) -> String {
         let data = (try? Data(contentsOf: examplesDirectory.appending(path: "server.agents-list-result.json"))) ?? Data()
         var object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         object["request_id"] = requestID
-        object["agents"] = (object["agents"] as? [[String: Any]] ?? []).map { agent in
+        var agents = object["agents"] as? [[String: Any]] ?? []
+        let known = Set(agents.compactMap { $0["pane_id"] as? String })
+        if let template = agents.first {
+            for (index, paneID) in statuses.keys.filter({ !known.contains($0) }).sorted().enumerated() {
+                var agent = template
+                agent["pane_id"] = paneID
+                if var session = agent["session"] as? [String: Any] {
+                    session["value"] = String(format: "00000000-0000-0000-0000-%012d", 100 + index)
+                    agent["session"] = session
+                }
+                agents.append(agent)
+            }
+        }
+        object["agents"] = agents.map { agent in
             var agent = agent
             if let paneID = agent["pane_id"] as? String, let status = statuses[paneID] { agent["status"] = status }
             return agent
@@ -521,6 +542,7 @@ private final class WebSocketHandler: ChannelInboundHandler {
         for item in outgoing {
             switch item {
             case .text(let text):
+                server.recordSent(text)
                 let frame = WebSocketFrame(fin: true, opcode: .text, data: context.channel.allocator.buffer(string: text))
                 context.writeAndFlush(wrapOutboundOut(frame), promise: nil)
             case .close(let code):

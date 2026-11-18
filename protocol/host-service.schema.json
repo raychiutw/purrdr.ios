@@ -498,7 +498,7 @@
       "properties": {
         "type": { "const": "events.event" },
         "stream_id": { "type": "string" },
-        "event": { "type": "string", "description": "herdr 事件的 wire 名稱，例如 pane_agent_status_changed。" },
+        "event": { "type": "string", "description": "herdr 事件的 wire 名稱，例如 pane.agent_status_changed、workspace_closed。" },
         "pane_id": { "type": "string", "description": "事件指名 Pane 時才有。" }
       },
       "required": ["type", "stream_id", "event"]

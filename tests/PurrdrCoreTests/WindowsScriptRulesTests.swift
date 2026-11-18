@@ -10,7 +10,7 @@ struct WindowsScriptRulesTests {
     @Test("腳本裡的 PowerShell 函式都以 P 開頭、名稱夠長：alias 優先於函式，`rd` 會變成 Remove-Item、`ls` 會變成 Get-ChildItem")
     func functionNamesAvoidAliases() throws {
         let scripts = [
-            WindowsScripts.prelude, WindowsScripts.transcriptFunctions, WindowsScripts.receive, WindowsScripts.imageUpload,
+            WindowsScripts.prelude, WindowsScripts.transcriptFunctions, WindowsScripts.follow, WindowsScripts.receive, WindowsScripts.imageUpload,
             WindowsScripts.folderUpload, WindowsScripts.folderList, WindowsScripts.newChatFolders,
             WindowsScripts.hostFileFunctions, WindowsScripts.hostFileRead, WindowsScripts.hostFileApply, WindowsScripts.hostFileNewest,
             WindowsScripts.pushPairings, WindowsScripts.slashFunctions, WindowsScripts.slashDiscover,
@@ -19,6 +19,14 @@ struct WindowsScriptRulesTests {
         #expect(names.count >= 28)
         for name in names {
             #expect(name.hasPrefix("P") && name.count >= 5, "\(name) 可能撞到內建 alias")
+        }
+    }
+
+    @Test("追蹤腳本的 POSIX 版與 Windows 版都照 TranscriptFollowProtocol 的關鍵字回應")
+    func followScriptsUseProtocolKeywords() {
+        for keyword in TranscriptFollowProtocol.Keyword.allCases.map(\.rawValue) {
+            #expect(TranscriptCommand.followScript.contains("printf '\(keyword)"), "POSIX 版沒有 \(keyword)")
+            #expect(WindowsScripts.follow.contains("PWrite \"\(keyword)"), "Windows 版沒有 \(keyword)")
         }
     }
 

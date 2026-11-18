@@ -14,6 +14,10 @@ public actor HTTPSHostConnection: HostConnection {
     private let transport: any WebSocketConnecting
     private let appVersion: String?
     private let heartbeat: HostServiceHeartbeat
+    private let quickHeartbeat: HostServiceHeartbeat
+    /// 要求快速偵測斷線的次數(聊天畫面可見)。
+    private var quickDetectionRequests = 0
+    private var currentHeartbeat: HostServiceHeartbeat { quickDetectionRequests > 0 ? quickHeartbeat : heartbeat }
     private let sleep: Sleep
     private var session: HostServiceSession?
     private var welcome: HostServiceProtocol.Welcome?
@@ -21,6 +25,8 @@ public actor HTTPSHostConnection: HostConnection {
     private var rejection: RejectedToken?
     /// 追蹤中的對話紀錄(路徑 → 追蹤)。見 `HTTPSTranscripts.swift`。
     var transcriptFollows: [String: TranscriptFollow] = [:]
+    /// 追蹤串流(`followTranscript`,路徑 → 串流)。同一個路徑只有一個。
+    var transcriptStreams: [String: TranscriptStream] = [:]
 
     /// 被拒的權杖與原因(同一個權杖不再撥號)。
     private struct RejectedToken {
@@ -31,17 +37,19 @@ public actor HTTPSHostConnection: HostConnection {
     /// - Parameters:
     ///   - deviceToken: 撥號時才讀(Keychain);`nil` 表示還沒配對。
     ///   - heartbeat: WSS 心跳的間隔與逾時(測試用短的)。
+    ///   - quickHeartbeat: 快速偵測斷線(聊天畫面可見)時的心跳。
     ///   - sleep: 期限與心跳計時用(測試注入)。
     public init(
         address: HostServiceAddress, deviceToken: @escaping @Sendable () throws -> String?,
         transport: any WebSocketConnecting = URLSessionHostServiceTransport(), appVersion: String? = nil,
-        heartbeat: HostServiceHeartbeat = .standard, sleep: @escaping Sleep = Sleeping.task
+        heartbeat: HostServiceHeartbeat = .standard, quickHeartbeat: HostServiceHeartbeat = .quick, sleep: @escaping Sleep = Sleeping.task
     ) {
         self.address = address
         self.deviceToken = deviceToken
         self.transport = transport
         self.appVersion = appVersion
         self.heartbeat = heartbeat
+        self.quickHeartbeat = quickHeartbeat
         self.sleep = sleep
     }
 
@@ -167,6 +175,7 @@ public actor HTTPSHostConnection: HostConnection {
 
     /// 請主機服務停止追蹤這個對話紀錄。
     public func stopFollowingTranscript(path: String) async {
+        transcriptStreams.removeValue(forKey: path)?.continuation.finish()
         guard let follow = transcriptFollows.removeValue(forKey: path) else { return }
         await stopFollowing(follow)
     }
@@ -259,6 +268,17 @@ public actor HTTPSHostConnection: HostConnection {
         return reply
     }
 
+    /// 心跳改用短間隔(聊天畫面可見時)。
+    public func beginQuickDisconnectDetection() async {
+        quickDetectionRequests += 1
+        await session?.setHeartbeat(currentHeartbeat)
+    }
+
+    public func endQuickDisconnectDetection() async {
+        quickDetectionRequests = max(0, quickDetectionRequests - 1)
+        await session?.setHeartbeat(currentHeartbeat)
+    }
+
     func liveSession() async throws -> HostServiceSession {
         if let session, await session.isOpen { return session }
         if let connecting { return try await connecting.value }
@@ -270,6 +290,8 @@ public actor HTTPSHostConnection: HostConnection {
         do {
             let opened = try await opening.value
             session = opened
+            // 撥號期間開始或結束了快速偵測。
+            await opened.setHeartbeat(currentHeartbeat)
             return opened
         } catch let error as HostServiceError where error.requiresPairing {
             rejection = RejectedToken(deviceToken: token, error: error)
@@ -280,7 +302,7 @@ public actor HTTPSHostConnection: HostConnection {
     /// 撥號並握手。握手有自己的期限，卡住的主機服務不會讓之後的操作一直等。
     private func open(deviceToken token: String) async throws -> HostServiceSession {
         let socket = try await transport.connect(to: address.webSocketURL, bearerToken: token)
-        let opened = HostServiceSession(socket: socket, deviceToken: token, heartbeat: heartbeat, sleep: sleep)
+        let opened = HostServiceSession(socket: socket, deviceToken: token, heartbeat: currentHeartbeat, sleep: sleep)
         await opened.start()
         let appVersion = appVersion
         let reply: HostServiceProtocol.ServerMessage

@@ -1,5 +1,6 @@
 #if os(macOS)
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -91,6 +92,41 @@ struct HostThemeModelTests {
         _ = try host.write(Data("[theme]\nname = \"nord\"\n".utf8), to: ".config/herdr/config.toml")
         await model.refresh()
         #expect(model.theme?.name == "nord")
+    }
+
+    @Test("config 沒變：之後的讀取帶已知版本(主機只回 unchanged),主題照舊")
+    func laterReadsCarryKnownVersion() async throws {
+        consent.grant(HostThemeHost.feature.id, host: "mac")
+        let model = model()
+        await model.refresh()
+        await model.refresh()
+
+        let request = try #require(host.commands.last.flatMap(HostFileRequest.init(command:)))
+        guard case .readIfChanged(_, let known) = request else {
+            Issue.record("第二次讀沒帶已知版本:\(request)")
+            return
+        }
+        #expect(known[HostThemeHost.configPath] != nil)
+        #expect(model.theme?.name == "dracula")
+    }
+
+    @Test("多個視窗同時套用同一台主機的主題：只有一個讀取迴圈")
+    func windowsShareOneReader() async throws {
+        consent.grant(HostThemeHost.feature.id, host: "mac")
+        let sleeper = RecordingSleeper()
+        let model = HostThemeModel(host: HostThemeHost(channel: host), hostID: "mac", consent: consent, sleep: sleeper.sleep)
+
+        let first = Task { await model.liveUpdates.attach() }
+        let second = Task { await model.liveUpdates.attach() }
+        for _ in 0..<2000 where await sleeper.requested.isEmpty || model.liveUpdates.viewers < 2 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(await sleeper.requested == [.seconds(10)])
+        #expect(host.commands.count == 1)
+        first.cancel()
+        second.cancel()
     }
 }
 #endif

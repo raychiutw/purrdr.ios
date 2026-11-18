@@ -232,10 +232,10 @@ public actor FakeHost: HostChannel {
         open[execution]?.yield(.stdout(stdout))
     }
 
-    /// 結束第 `execution` 次執行(例如主機那端的串流斷了)。
-    public func finish(execution: Int, exitCode: Int32 = 0) {
+    /// 結束第 `execution` 次執行(例如主機那端的串流斷了)。`exitCode` 是 `nil` 時沒有結束狀態就結束。
+    public func finish(execution: Int, exitCode: Int32? = 0) {
         open.removeValue(forKey: execution).map {
-            $0.yield(.exit(code: exitCode))
+            if let exitCode { $0.yield(.exit(code: exitCode)) }
             $0.finish()
         }
     }

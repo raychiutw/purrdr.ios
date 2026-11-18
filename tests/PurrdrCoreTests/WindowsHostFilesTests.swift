@@ -30,6 +30,23 @@ struct WindowsHostFilesTests {
         #expect(!stdin.contains("cksum"), "POSIX 腳本不能送到 Windows")
     }
 
+    @Test("條件式讀取(Windows):路徑與已知版本成對經 stdin 送出(沒有已知版本是 -),主機回 unchanged 的檔案不帶內容")
+    func conditionalReadOverStdin() async throws {
+        let host = FakeHost()
+        let output = "purrdr-files 1\nuser demo\nhome C:/Users/demo\nunchanged 0\nfile 1 cd:2 2\nhi\n"
+        await host.expect(Self.stub, reply: FakeReply(stdout: Data(output.utf8)))
+
+        let read = try await HostFiles(channel: WindowsHostChannel(host)).read(
+            [".config/herdr/config.toml", ".purrdr/claude-usage/usage.json"],
+            knownVersions: [".config/herdr/config.toml": HostFileVersion(checksum: "ab:1")])
+
+        let stdin = try #require(await host.executions.first?.stdinText)
+        #expect(try Self.arguments(inScript: stdin) == [".config/herdr/config.toml", "ab:1", ".purrdr/claude-usage/usage.json", "-"])
+        #expect(stdin.contains("PWrite \"unchanged $i"), "要送 Windows 的條件式讀取腳本")
+        #expect(read.unchanged == [".config/herdr/config.toml"])
+        #expect(read[".purrdr/claude-usage/usage.json"] == .file(Data("hi".utf8), version: HostFileVersion(checksum: "cd:2")))
+    }
+
     /// Windows 讀檔的輸出(格式同 `HostFileScript.read`,多一行 home)。
     static func readOutput(_ files: [HostFileState]) -> Data {
         var output = HostFileRequest.readOutput(user: "demo", files: files)

@@ -62,6 +62,26 @@ struct WindowsHostScriptsTests {
         #expect(!stdin.contains("awk"), "POSIX 腳本不能送到 Windows")
     }
 
+    /// #167:長駐追蹤腳本沿用 stub;讀請求行一律用 stub 以原始 handle 開的 reader(#77:`[Console]::In` 多輪後會卡住)。
+    @Test("追蹤腳本：Windows 經 stdin 送 PowerShell 版、不送 EOF;參數是上限、追趕上限、閒置與總長秒數;請求行用原始 handle 讀")
+    func followOverStdin() async throws {
+        let host = FakeHost()
+        await host.expect(Self.stub, reply: FakeReply(keepsOpen: true))
+
+        let session = try? await WindowsHostChannel(host).execute(TranscriptCommand.follow(limit: 1024, backlogLimit: 4096, idleSeconds: 5, totalSeconds: 9))
+
+        let execution = try #require(await host.executions.first)
+        #expect(!execution.closedStdin)
+        let script = execution.stdinText
+        #expect(script.contains("\n$a=@('1024','4096','5','9')\n"))
+        #expect(script.hasSuffix("\n#purrdr-end-of-script\n"))
+        #expect(!script.contains("awk"), "POSIX 腳本不能送到 Windows")
+        #expect(script.contains("$s.ReadLine()"), "沿用 stub 以原始 handle 開的 reader")
+        #expect(!script.contains("[Console]::In") && !script.contains("OpenStandardInput"))
+        #expect(script.contains("$purrdrLimit.At="), "每個請求把時限往後延")
+        await session?.close()
+    }
+
     @Test("Claude 的定位：exit 3(還沒有檔案)照樣是 absent")
     func claudeLocateAbsent() async {
         let host = FakeHost()
