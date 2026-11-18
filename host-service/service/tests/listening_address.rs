@@ -68,6 +68,51 @@ fn port_defaults_and_can_be_configured() {
 }
 
 #[test]
+fn state_directory_defaults_to_purrdr_folder_in_home_and_can_be_configured() {
+    let windows_environment = SocketEnvironment {
+        app_data: Some(r"C:\Users\demo\AppData\Roaming".into()),
+        user_profile: Some(r"C:\Users\demo".into()),
+        ..SocketEnvironment::default()
+    };
+
+    let unix = HostServiceConfig::from_arguments(&[], Platform::Unix, &environment()).unwrap();
+    let windows = HostServiceConfig::from_arguments(&[], Platform::Windows, &windows_environment).unwrap();
+    let configured = HostServiceConfig::from_arguments(&arguments("--state-dir /tmp/purrdr-test"), Platform::Unix, &environment()).unwrap();
+
+    assert_eq!(unix.state_directory, std::path::Path::new("/Users/demo/.purrdr/host-service"));
+    assert_eq!(
+        windows.state_directory,
+        std::path::Path::new(r"C:\Users\demo").join(".purrdr").join("host-service")
+    );
+    assert_eq!(configured.state_directory, std::path::Path::new("/tmp/purrdr-test"));
+}
+
+#[test]
+fn transcripts_are_read_from_the_users_home_and_agent_config_variables() {
+    let unix_environment = SocketEnvironment {
+        claude_config_dir: Some("/Users/demo/claude-config".into()),
+        codex_home: Some("/Users/demo/codex".into()),
+        ..environment()
+    };
+    let windows_environment = SocketEnvironment {
+        app_data: Some(r"C:\Users\demo\AppData\Roaming".into()),
+        user_profile: Some(r"C:\Users\demo".into()),
+        ..SocketEnvironment::default()
+    };
+
+    let unix = HostServiceConfig::from_arguments(&[], Platform::Unix, &unix_environment).unwrap().transcripts;
+    let windows = HostServiceConfig::from_arguments(&[], Platform::Windows, &windows_environment)
+        .unwrap()
+        .transcripts;
+
+    assert_eq!(unix.home.as_deref(), Some(std::path::Path::new("/Users/demo")));
+    assert_eq!(unix.claude_config_dir.as_deref(), Some(std::path::Path::new("/Users/demo/claude-config")));
+    assert_eq!(unix.codex_home.as_deref(), Some(std::path::Path::new("/Users/demo/codex")));
+    assert_eq!(windows.home.as_deref(), Some(std::path::Path::new(r"C:\Users\demo")));
+    assert_eq!(windows.claude_config_dir, None);
+}
+
+#[test]
 fn herdr_session_can_be_selected() {
     let config = HostServiceConfig::from_arguments(&arguments("--session work"), Platform::Unix, &environment()).unwrap();
 

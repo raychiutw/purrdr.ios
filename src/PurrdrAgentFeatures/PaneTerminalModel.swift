@@ -70,9 +70,10 @@ public final class PaneTerminalModel: TerminalSessionModel {
         }
     }
 
-    /// 橫幅說明。已連線時沒有。
+    /// 橫幅說明。已連線時沒有(唯讀裝置說明只能看)。
     public var bannerText: String? {
         switch status {
+        case .connected where isViewOnly: String(localized: "This device is paired read-only. You can watch this pane but not type.")
         case .waitingForSize, .connecting, .connected: nil
         case .disconnected: String(localized: "Reconnect to pick up where this pane is now.")
         case .inUse: String(localized: "Someone else is controlling this pane. Take over to use it here.")
@@ -85,8 +86,10 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public var canReconnect: Bool { status == .disconnected }
     /// 只有被拒或被接管時才提供接管——首次開啟與重新連線都不自動搶(行為規格 §6.3)。
     public var canTakeOver: Bool { status == .inUse || status == .takenOver }
-    /// 按鍵列與貼上是否可用。
-    public var isInteractive: Bool { status == .connected }
+    /// 按鍵列與貼上是否可用。唯讀裝置只能看。
+    public var isInteractive: Bool { status == .connected && !isViewOnly }
+    /// 這條連線是唯讀裝置的(HTTPS 以 observe 接上)。
+    public private(set) var isViewOnly = false
     /// 本機 scrollback 是空的(herdr 每次都重畫整個 viewport):滑動送 `terminal.scroll`。
     public var usesRemoteScroll: Bool { true }
 
@@ -120,7 +123,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
     }
 
     private func sendResizeIfNeeded() {
-        guard let size, status == .connected, sentSize.map({ $0 != size }) ?? true else { return }
+        guard let size, isInteractive, sentSize.map({ $0 != size }) ?? true else { return }
         sentSize = size
         outbox?.yield(.input(.resize(columns: size.columns, rows: size.rows)))
     }
@@ -171,6 +174,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
                 self?.finish(.disconnected, generation: generation)
                 return
             }
+            if let self, self.generation == generation { self.isViewOnly = connection.isViewOnly }
             // 輸入依序寫出:同一條連線只有這一個寫入者。
             let writer = Task {
                 for await message in outgoing {

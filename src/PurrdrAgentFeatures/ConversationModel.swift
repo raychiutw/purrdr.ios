@@ -151,6 +151,8 @@ public final class ConversationModel {
     /// 輸入 `/` 時的 slash 選單(#15)。
     public let slash: SlashMenuModel
     public private(set) var isSending = false
+    /// 這支裝置配對成唯讀(HTTPS):不能送 prompt、回答或中斷。
+    public private(set) var isReadOnly = false
 
     // MARK: 圖片(F7)
 
@@ -392,6 +394,8 @@ public final class ConversationModel {
                 }
             }
         }
+        // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
+        if let path = file?.path { await transcripts.stopFollowing(path: path) }
     }
 
     /// 一次輪詢:snapshot → 綁定 session → 讀對話紀錄。
@@ -405,6 +409,8 @@ public final class ConversationModel {
         }
         isOffline = false
         if banner == .offline { banner = nil }
+        // 送出時被拒過就維持唯讀。
+        if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
         guard let agent = currentAgent else {
             clearSuggestion()
@@ -618,10 +624,10 @@ public final class ConversationModel {
 
     // MARK: - 送出
 
-    /// 可送 = 修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
+    /// 可送 = 不是唯讀裝置、修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     /// 自訂回答時改看回答在途與否，而且不能只送圖片(#120)。
     public var canSend: Bool {
-        guard hasTarget else { return false }
+        guard hasTarget, !isReadOnly else { return false }
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if typedAnswer != nil { return answerInFlight == nil && hasText }
         return !isSending && (hasText || !attachments.isEmpty)
@@ -634,7 +640,7 @@ public final class ConversationModel {
     }
 
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
-    public var canStop: Bool { agentStatus == .working && !isStopping }
+    public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly }
 
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
@@ -745,7 +751,7 @@ public final class ConversationModel {
 
     /// 這個回答現在能不能送:沒有回答在途、提示還在，且有按鍵可送(編號 10 以上不行,R-Q04)。
     public func canAnswer(_ answer: PromptAnswer) -> Bool {
-        guard answerInFlight == nil, let prompt, inputs(for: answer) != nil else { return false }
+        guard !isReadOnly, answerInFlight == nil, let prompt, inputs(for: answer) != nil else { return false }
         switch answer {
         case .option(let option): return prompt.options.contains(option)
         case .continueMultiSelect: return prompt.isMultiSelect
@@ -777,6 +783,12 @@ public final class ConversationModel {
         } catch {
             guard answerInFlight == answer else { return }
             clearAnswer()
+            if error as? HostServiceError == .readOnlyDevice {
+                // 卡片改顯示唯讀說明，不另外提示。
+                isReadOnly = true
+                haptics.play(.error)
+                return
+            }
             answerNotice = .sendFailed
             haptics.play(.error)
             return
@@ -1010,6 +1022,9 @@ public final class ConversationModel {
             nothingSent = .needsAnswer
         case .rejected(let message):
             nothingSent = .rejected(message)
+        case .readOnlyDevice:
+            isReadOnly = true
+            nothingSent = .readOnlyDevice
         }
         notice = nothingSent
         if isRetry {
@@ -1023,7 +1038,7 @@ public final class ConversationModel {
     /// 什麼都沒送出的提示(草稿放回)。
     private static func nothingSent(_ notice: SendNotice?) -> Bool {
         switch notice {
-        case .needsAnswer?, .rejected?: true
+        case .needsAnswer?, .rejected?, .readOnlyDevice?: true
         default: false
         }
     }
@@ -1277,6 +1292,10 @@ public final class ConversationModel {
     // MARK: - 內部
 
     private func unbind() {
+        if let path = file?.path {
+            let transcripts = transcripts
+            Task { await transcripts.stopFollowing(path: path) }
+        }
         generation += 1
         workflowModels = [:]
         boundSessionID = nil
@@ -1340,4 +1359,6 @@ public enum SendNotice: Sendable, Equatable {
     case panelKeysFailed
     /// agent 在等你回答，所以沒有送出中斷(F6.7)。
     case interruptRefusedNeedsAnswer
+    /// 這支裝置配對成唯讀，什麼都沒送出。
+    case readOnlyDevice
 }
