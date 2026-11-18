@@ -7,7 +7,7 @@ import Testing
 struct HostSyncJournalTests {
     static let studio = HostConfiguration(
         id: UUID(uuidString: "6F1C2A4E-3B7D-4C8E-9A10-2B3C4D5E6F70")!, name: "Studio Mac",
-        endpoint: SSHEndpoint(host: "studio-mac", username: "ray"), connectionMethod: .openSSH, authentication: .password,
+        endpoint: SSHEndpoint(host: "studio-mac", username: "ray"), openSSH: .password,
         herdr: HerdrInstallation(path: "/opt/herdr", session: "work"), operatingSystem: .macOS,
         hostKeyPin: HostKeyFingerprint(stored: "nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8"))
     static let t1 = Date(timeIntervalSince1970: 1_793_000_000)
@@ -71,7 +71,7 @@ struct HostSyncJournalTests {
         #expect(https.connectionMethod == .https)
         #expect(https.hostService == address)
         #expect(https.authentication == nil)
-        #expect(https.hostKeyPin == nil)
+        #expect(https.ssh == nil)
 
         let backToSSH = Self.remote(at: Self.t3)
         let second = journal.reconcile(hosts: [https], sent: [], snapshot: HostSyncSnapshot(hosts: [backToSSH], deletedHostIDs: []))
@@ -115,10 +115,11 @@ struct HostSyncJournalTests {
 
         let outcome = journal.reconcile(hosts: [Self.studio], sent: sent, snapshot: HostSyncSnapshot(hosts: [newer], deletedHostIDs: []))
 
-        var expected = Self.studio
+        var expected = Self.studio.editingSSH {
+            $0.endpoint = newer.endpoint
+            $0.hostKeyPin = newer.hostKeyPin
+        }
         expected.name = "Renamed on iPad"
-        expected.endpoint = newer.endpoint
-        expected.hostKeyPin = newer.hostKeyPin
         #expect(outcome == HostSyncOutcome(saves: [expected]))
         #expect(journal.pendingChanges(hosts: [expected], now: Self.t3).isEmpty, "採用後台的版本後不再上傳")
     }
@@ -134,7 +135,7 @@ struct HostSyncJournalTests {
 
         #expect(outcome.saves == [
             HostConfiguration(
-                id: remote.id, name: "Linux box", endpoint: remote.endpoint, connectionMethod: .openSSH, authentication: .deviceKey)
+                id: remote.id, name: "Linux box", endpoint: remote.endpoint, openSSH: .deviceKey)
         ])
         #expect(journal.pendingChanges(hosts: outcome.saves, now: Self.t3).isEmpty)
     }

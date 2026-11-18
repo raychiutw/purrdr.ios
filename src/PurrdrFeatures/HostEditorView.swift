@@ -23,7 +23,7 @@ struct HostEditorView: View {
         Form {
             Section {
                 field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name")
-                if model.connectionMethod.usesHostService {
+                if model.connectionMethod == .https {
                     field("Address", text: $model.address, prompt: "my-mac.tailnet.ts.net", identifier: "address")
                         .addressKeyboard()
                     field(
@@ -71,7 +71,7 @@ struct HostEditorView: View {
             }
 
             // HTTPS 的 herdr session 由主機服務決定。
-            if !model.connectionMethod.usesHostService {
+            if model.connectionMethod != .https {
                 Section {
                     field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath")
                     field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")

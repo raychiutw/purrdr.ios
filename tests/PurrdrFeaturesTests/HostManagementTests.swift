@@ -58,7 +58,7 @@ struct HostManagementTests {
         model.select(.host(Self.studio.id))
         model.select(.host(Self.linux.id))
 
-        #expect(factory.endpoints == [Self.linux.endpoint, Self.studio.endpoint])
+        #expect(factory.endpoints == [Self.linux, Self.studio].compactMap(\.ssh?.endpoint))
     }
 
     @Test("重新命名：只改名稱並存回，選取與連線不變")
@@ -70,7 +70,7 @@ struct HostManagementTests {
         try model.rename(Self.studio.id, to: "  Office Mac  ")
 
         #expect(store.hosts.map(\.name) == ["Office Mac"])
-        #expect(store.hosts.first?.hostKeyPin == Self.studio.hostKeyPin)
+        #expect(store.hosts.first?.ssh?.hostKeyPin == Self.studio.ssh?.hostKeyPin)
         #expect(model.rows.map(\.title) == ["Office Mac"])
         #expect(model.selection == .host(Self.studio.id))
         #expect(factory.endpoints.count == 1, "改名稱不該重建連線")
@@ -149,12 +149,11 @@ struct HostManagementTests {
         let (model, store) = Self.model(hosts: [Self.studio], channels: factory)
         model.load()
 
-        var edited = Self.studio
-        edited.endpoint.port = 2200
+        let edited = Self.studio.editingSSH { $0.endpoint.port = 2200 }
         store.hosts = [edited]
         model.didSave(edited)
 
-        #expect(factory.endpoints.last == edited.endpoint)
+        #expect(factory.endpoints.last == edited.ssh?.endpoint)
         try await waitUntil { await old.disconnectCount == 1 }
     }
 
@@ -172,7 +171,7 @@ struct HostManagementTests {
         #expect(editor.herdrSession == "work")
         #expect(editor.isEditing == false)
         #expect(editor.canSave == false)
-        #expect(editor.hostKeyFingerprint == Self.studio.hostKeyPin)
+        #expect(editor.hostKeyFingerprint == Self.studio.ssh?.hostKeyPin)
     }
 
     @Test("匯入 OpenSSH 主機的分享連結：連線方式帶入 OpenSSH,不是預設的 Tailscale SSH")
