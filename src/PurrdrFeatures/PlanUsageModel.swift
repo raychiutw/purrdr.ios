@@ -88,17 +88,20 @@ public final class PlanUsageModel {
         return PlanUsagePresentation.rows(for: usage, showing: display, now: now())
     }
 
+    /// 不耗 token 也不耗傳輸的來源，畫面開著時重整的間隔。
+    static let automaticRefreshInterval: Duration = .seconds(5)
+
     private var query: Task<Void, Never>?
+    private var automaticRefresh: Task<Void, Never>?
 
     /// 畫面出現：依目前的選擇查一次。
     public func appeared() {
-        startQuery()
+        restart()
     }
 
     /// 離開畫面：取消進行中的查詢，不再連線。
     public func disappeared() {
-        query?.cancel()
-        query = nil
+        stop()
     }
 
     /// 改選主機：新的查詢取代進行中的。
@@ -116,9 +119,24 @@ public final class PlanUsageModel {
     }
 
     private func restart() {
-        query?.cancel()
+        stop()
         state = .loading
         startQuery()
+        guard source(host, agent)?.cost.refreshesAutomatically == true else { return }
+        let sleep = sleep
+        automaticRefresh = Task { [weak self] in
+            while !Task.isCancelled {
+                do { try await sleep(Self.automaticRefreshInterval) } catch { return }
+                await self?.refresh()
+            }
+        }
+    }
+
+    private func stop() {
+        query?.cancel()
+        query = nil
+        automaticRefresh?.cancel()
+        automaticRefresh = nil
     }
 
     /// 下拉重新整理：查詢進行中時等它，不另外送出。
