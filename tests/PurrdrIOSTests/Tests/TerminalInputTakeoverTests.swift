@@ -109,8 +109,9 @@ struct TerminalInputTakeoverTests {
         defer { window.isHidden = true }
 
         screen.terminalView.feed(text: "hello")
-        screen.cursorMayHaveMoved()
         try await Task.sleep(for: .milliseconds(100))
+        // 正式畫面由 SwiftTerm 的 rangeChanged(notifyUpdateChanges)呼叫。
+        screen.terminalDisplayDidUpdate()
 
         let caret = screen.terminalView.convert(screen.terminalView.caretFrame, to: screen)
         #expect(caret.minX > 0)

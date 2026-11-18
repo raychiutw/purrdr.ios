@@ -452,10 +452,9 @@ struct TerminalScreen: UIViewRepresentable {
         }
         context.coordinator.install(on: view)
         handle.screen = screen
-        model.attach { [weak screen] bytes in
-            screen?.terminalView.feed(byteArray: ArraySlice(bytes))
-            screen?.cursorMayHaveMoved()
-        }
+        // 畫面更新(含游標移動)後由 `rangeChanged` 通知，把輸入元件移到游標格子。
+        view.notifyUpdateChanges = true
+        model.attach { [weak view] bytes in view?.feed(byteArray: ArraySlice(bytes)) }
         return screen
     }
 
@@ -582,7 +581,9 @@ struct TerminalScreen: UIViewRepresentable {
         nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         nonisolated func scrolled(source: TerminalView, position: Double) {}
         nonisolated func bell(source: TerminalView) {}
-        nonisolated func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
+        nonisolated func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
+            MainActor.assumeIsolated { (source.superview as? TerminalScreenContainer)?.terminalDisplayDidUpdate() }
+        }
     }
 }
 
@@ -613,7 +614,12 @@ final class TerminalScreenContainer: UIView {
         placeTextInput()
     }
 
-    /// 輸出或字級改變後，等 SwiftTerm 畫完再把輸入元件移到游標格子。
+    /// SwiftTerm 更新畫面(游標已移到新位置)後呼叫。
+    func terminalDisplayDidUpdate() {
+        placeTextInput()
+    }
+
+    /// 字級改變後，等 SwiftTerm 重新排版再把輸入元件移到游標格子。
     func cursorMayHaveMoved() {
         guard !isCursorUpdateQueued else { return }
         isCursorUpdateQueued = true
