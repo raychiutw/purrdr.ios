@@ -37,7 +37,7 @@ public struct CodexUsageHost: Sendable {
     /// 一則 JSON-RPC 訊息(app-server 的 stdio 是一行一則，不帶 `jsonrpc` 欄位)。
     static func line(_ message: [String: Any]) -> Data {
         // 內容都是程式裡的固定值，序列化不會失敗。
-        var data = (try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys])) ?? Data()
+        var data = (try? JSONSerialization.data(withJSONObject: message, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
         data.append(0x0A)
         return data
     }
