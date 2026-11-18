@@ -2,6 +2,7 @@ import Foundation
 import PurrdrCore
 import PurrdrDemo
 import PurrdrSSH
+import PurrdrTestSupport
 import Testing
 
 /// Demo 主機的主機主題與「You should know」註記(#23;行為規格 F21:Demo 演不出來的功能先加 Demo 情境)。
@@ -11,7 +12,7 @@ struct DemoThemeAndNotesTests {
     func demoTheme() async throws {
         let demo = DemoHost()
         let theme = HostThemeHost(channel: demo)
-        #expect(try await theme.readTheme().name == "tokyo-night")
+        #expect(try await theme.readTheme(ifChangedFrom: nil).requireChanged().name == "tokyo-night")
         #expect(try await theme.inspect() == HostThemeInspection(user: "demo", isInstalled: false))
         try await theme.install()
         #expect(try await theme.inspect().isInstalled)
@@ -24,14 +25,14 @@ struct DemoThemeAndNotesTests {
         let demo = DemoHost()
         let ysk = YouShouldKnowHost(channel: demo)
         let path = try #require(try await ysk.locate())
-        let store = try #require(try await ysk.read(path))
+        let store = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged())
         let note = try #require(store.note(forSession: "d3m0d3m0-0000-4000-8000-000000000001"))
         #expect(note.canLearnMore)
         #expect(store.notes.count == 1)
 
         try await ysk.perform(.knewIt, on: note, at: path)
-        #expect(try await ysk.read(path)?.notes.isEmpty == true)
+        #expect(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.notes.isEmpty == true)
         try await ysk.restore()
-        #expect(try await ysk.read(path)?.notes.count == 1)
+        #expect(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.notes.count == 1)
     }
 }

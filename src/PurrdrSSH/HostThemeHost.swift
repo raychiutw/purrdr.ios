@@ -55,13 +55,8 @@ public struct HostThemeHost: Sendable {
         try await write.restore { _, current, _ in current }
     }
 
-    /// 讀主機 herdr 的主題。沒有 `config.toml`(或沒有 `~/.config/herdr`)= herdr 預設主題。
-    public func readTheme() async throws -> HostTheme {
-        guard case .changed(let theme, _) = try await readTheme(ifChangedFrom: nil) else { throw HostFilesError.malformedOutput }
-        return theme
-    }
-
-    /// 條件式讀主題：`config.toml` 與 `known` 版本相同時是 `.unchanged`。
+    /// 條件式讀主題(沒有已知版本時一定讀):`config.toml` 與 `known` 版本相同時是 `.unchanged`。
+    /// 沒有 `config.toml`(或沒有 `~/.config/herdr`)= herdr 預設主題。
     public func readTheme(ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<HostTheme> {
         // 兩個位置帶同一個已知版本：作業系統要讀完才知道，不是這台的那個位置不存在，回 missing 也很小。
         let paths = [Self.configPath, Self.windowsConfigPath]
