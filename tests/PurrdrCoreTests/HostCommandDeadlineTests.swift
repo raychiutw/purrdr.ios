@@ -35,6 +35,21 @@ struct HostCommandDeadlineTests {
         ) { host, sleep in
             _ = try await TranscriptReader(channel: host, sleep: sleep).tail(path: transcriptPath, from: 100)
         },
+        // #130:超大單行在主機端截短，傳輸量不超過這次的上限，期限依上限估算(一般的小增量不給大段讀取的期限)。
+        StuckCommand(
+            testDescription: "讀對話紀錄：分段追趕(20 秒加上 256 KiB 的傳輸時間)",
+            command: TranscriptCommand.catchUp(path: transcriptPath, from: 100, limit: 256 << 10),
+            deadline: .milliseconds(28_192)
+        ) { host, sleep in
+            _ = try await TranscriptReader(channel: host, sleep: sleep).catchUp(path: transcriptPath, from: 100)
+        },
+        StuckCommand(
+            testDescription: "讀對話紀錄：分段追趕、落後很多時的大段讀取(20 秒加上 1 MiB 的傳輸時間)",
+            command: TranscriptCommand.catchUp(path: transcriptPath, from: 100, limit: 1 << 20),
+            deadline: .milliseconds(52_768)
+        ) { host, sleep in
+            _ = try await TranscriptReader(channel: host, sleep: sleep).catchUp(path: transcriptPath, from: 100, limit: 1 << 20)
+        },
         StuckCommand(
             testDescription: "讀對話紀錄：視窗(4 MiB 區塊估算要 151 秒，封頂 100 秒，比主機腳本的自我時限 120 秒短)",
             command: TranscriptCommand.window(path: transcriptPath, end: 5000, lines: 200, chunkBytes: 4 << 20),

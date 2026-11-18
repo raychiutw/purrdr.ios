@@ -246,6 +246,8 @@ public final class ConversationModel {
     public private(set) var echoes: [PromptEcho] = []
     /// 畫面上的列：對話紀錄的項目，加上依時間併入的回音。
     public private(set) var entries: [ConversationEntry] = []
+    /// 列表結構(列的 id 與順序)每變一次遞增。畫面觀察它，不必每次 body 都配置整個 id 陣列(#130)。
+    public private(set) var entriesRevision = 0
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
     public private(set) var isStopping = false
@@ -293,9 +295,19 @@ public final class ConversationModel {
     private var boundSessionID: String?
     /// 對話紀錄的格式，依 Agent 種類(每次輪詢由 snapshot 更新;還沒輪詢前的快取還原不需要解析)。
     private var format: TranscriptFormat = .claude
-    private var file: (path: String, cursor: Int, windowStart: Int)?
+    /// 對話紀錄的路徑、即時追蹤的游標，以及開啟視窗的 byte 起點(往上翻的錨點)。
+    /// `follow.isLive`:這次可見期間已經追上主機，之後落後再多也從游標分段接著讀(#130);還沒追上(剛從快取恢復、
+    /// 畫面重新可見)時落後太多改讀新視窗(F5.3 第 3 點、R-B08)。
+    private var file: (path: String, follow: TranscriptFollow, windowStart: Int)?
     /// 開啟視窗與之後追蹤到的訊息(會寫入快取)。
     private var recent: [TranscriptMessage] = []
+    /// `recent` 由哪幾段讀取組成(每段的 byte 起點與訊息數，依序、加總等於 `recent.count`)。修剪與寫快取都以整段為單位，
+    /// 視窗起點因此是某一段的開頭，往上翻接得上、不缺訊息(#130)。
+    private var segments: [(start: Int, count: Int)] = []
+    /// 畫面跟隨尾端(由畫面告知)。只有跟隨中才修剪最舊的訊息：讀者正在看的不會被拿掉。
+    @ObservationIgnored public var isFollowingLatest = true
+    /// 跟隨尾端時記憶體裡最多保留的訊息數(含往上翻的舊頁;與快取的上限相同)。超過時整段修剪最舊的，可以往上翻回來。
+    public static let followingMessageLimit = CachedConversation.maxMessages
     /// 往上翻載入的舊訊息(不寫入快取)。
     private var olderMessages: [TranscriptMessage] = []
     private var waitingSince: Date?
@@ -367,13 +379,21 @@ public final class ConversationModel {
 
     // MARK: - 開啟
 
+    /// 畫面變成可見(開啟聊天、回到前景;`run()` 一開始):當作重新開啟。已在追蹤時，離開期間落後太多就讀新視窗，
+    /// 不逐段重播積壓(R-B08、F5.3 第 3 點);畫面還空著時先顯示快取。
+    public func reopen() async {
+        file?.follow.reopen()
+        await restoreFromCache()
+    }
+
     /// 列表傳來的 session 與快取相同時，立刻顯示快取並從游標續讀(F5.3 第 1 點)。
     public func restoreFromCache() async {
         guard let knownSessionID, items.isEmpty, let cached = await cache.load(chatKey: chatKey),
               cached.matches(sessionID: knownSessionID) else { return }
         boundSessionID = knownSessionID
-        file = (cached.path, cached.cursor, cached.windowStart)
+        file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
         recent = cached.messages
+        segments = [(cached.windowStart, cached.messages.count)]
         metadata = cached.metadata
         older = cached.windowStart > 0 ? .available : .reachedStart
         phase = .ready
@@ -385,7 +405,7 @@ public final class ConversationModel {
     /// 畫面可見且 app 在前景時執行，直到所在的 task 被取消。agent 工作中或等你回答時每 2 秒，否則每 4 秒
     /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 20 秒回報在場。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
-        await restoreFromCache()
+        await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
             group.addTask {
@@ -489,14 +509,18 @@ public final class ConversationModel {
         let generation = generation
         do {
             if let file {
-                switch try await transcripts.tail(path: file.path, from: file.cursor) {
+                // 已追上：落後多少都從游標分段接著讀，不改讀新視窗取代已顯示與往上翻的訊息(#130、R-B09)。
+                // 還沒追上(剛從快取恢復、畫面重新可見):落後太多不逐段重播積壓，讀新視窗(R-B08)。
+                let read = try await transcripts.follow(path: file.path, file.follow)
+                guard generation == self.generation else { return }
+                switch read.tail {
                 case .unchanged:
-                    break
+                    self.file?.follow = read.next
                 case .appended(let chunk):
-                    guard generation == self.generation else { return }
+                    self.file?.follow = read.next
                     append(chunk)
                 case .tooFarBehind(let size), .shrank(let size):
-                    // 落後太多不逐行重播積壓;檔案被換掉就重讀(R-B08)。
+                    // 還沒追上時落後太多，或檔案被換掉(變小,真正的斷層):重讀視窗並重建列表。
                     try await openWindow(path: file.path, size: size, generation: generation)
                 }
             } else {
@@ -540,8 +564,9 @@ public final class ConversationModel {
         // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。
         let chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines)
         guard generation == self.generation else { return }
-        file = (path, chunk.end, chunk.start)
+        file = (path, TranscriptFollow(cursor: chunk.end, isLive: true), chunk.start)
         recent = parse(chunk.lines)
+        segments = [(chunk.start, recent.count)]
         olderMessages = []
         metadata = format.latestMetadata(in: chunk.lines)
         older = chunk.start > 0 ? .available : .reachedStart
@@ -549,11 +574,27 @@ public final class ConversationModel {
     }
 
     private func append(_ chunk: TranscriptChunk) {
-        file?.cursor = chunk.end
         let known = Set(recent.map(\.id))
-        recent += parse(chunk.lines).filter { !known.contains($0.id) }
+        let added = parse(chunk.lines).filter { !known.contains($0.id) }
+        recent += added
+        if !added.isEmpty { segments.append((chunk.start, added.count)) }
         for line in chunk.lines { format.updateMetadata(&metadata, with: line) }
+        trimIfFollowing()
         rebuild()
+    }
+
+    /// 跟隨尾端時訊息超過上限：丟掉往上翻的舊頁，再整段丟掉最舊的(至少留最後一段),視窗起點移到留下的第一段開頭，
+    /// 之後往上翻可以讀回來(#130)。
+    private func trimIfFollowing() {
+        guard isFollowingLatest, olderMessages.count + recent.count > Self.followingMessageLimit, let first = segments.first else { return }
+        olderMessages = []
+        var start = first.start
+        while recent.count > Self.followingMessageLimit, segments.count > 1 {
+            recent.removeFirst(segments.removeFirst().count)
+            start = segments[0].start
+        }
+        file?.windowStart = start
+        older = start > 0 ? .available : .reachedStart
     }
 
     // MARK: - 往上翻
@@ -603,6 +644,7 @@ public final class ConversationModel {
         updateWorkingSince()
         if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID) {
             recent = cached.messages
+            segments = [(cached.windowStart, cached.messages.count)]
             metadata = cached.metadata
             rebuild()
         }
@@ -1088,7 +1130,9 @@ public final class ConversationModel {
             echoes = remaining
             notice = nil
         }
-        entries = EchoTimeline.merge(items: items, echoes: echoes)
+        let merged = EchoTimeline.merge(items: items, echoes: echoes)
+        if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
+        entries = merged
     }
 
     // MARK: - Slash 點選與面板(#45)
@@ -1307,6 +1351,7 @@ public final class ConversationModel {
         boundSessionID = nil
         file = nil
         recent = []
+        segments = []
         olderMessages = []
         metadata = TranscriptMetadata()
         older = .reachedStart
@@ -1319,10 +1364,26 @@ public final class ConversationModel {
         for case .workflow(let card) in items { workflowModels[card.id]?.update(card: card) }
     }
 
+    /// 寫入快取：最多 `CachedConversation.maxMessages` 則(R-B13),以整段為單位從尾端取，視窗起點是取到的第一段開頭，
+    /// 從快取恢復後往上翻接得上;往上翻的舊頁不寫入(F5.2)。最後一段本身就超過上限時只存它的最後幾則(往上翻會缺這段的前面)。
     private func saveCache() async {
         guard let boundSessionID, let file else { return }
+        var count = 0
+        var first = segments.count
+        while first > 0, count + segments[first - 1].count <= CachedConversation.maxMessages {
+            first -= 1
+            count += segments[first].count
+        }
+        if first == segments.count, let last = segments.last {
+            first = segments.count - 1
+            count = last.count
+        }
+        let windowStart = first < segments.count ? segments[first].start : file.windowStart
         await cache.save(
-            CachedConversation(sessionID: boundSessionID, messages: recent, metadata: metadata, path: file.path, cursor: file.cursor, windowStart: file.windowStart),
+            CachedConversation(
+                sessionID: boundSessionID, messages: Array(recent.suffix(count)), metadata: metadata, path: file.path,
+                cursor: file.follow.cursor, windowStart: windowStart
+            ),
             chatKey: chatKey
         )
     }

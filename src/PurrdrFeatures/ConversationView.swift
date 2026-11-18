@@ -19,6 +19,10 @@ public struct ConversationView: View {
     @State private var position = ScrollPosition(edge: .bottom)
     @State private var userIsScrolling = false    /// 使用者在這個列表至少拖動過一次之後才自動翻頁(F5.4:使用者還沒捲之前不可自動翻頁)。
     @State private var userHasDragged = false
+    /// 畫面上看得到的列(內容被重建時的錨點,#130)。
+    @State private var visibleIDs: [String] = []
+    /// 上次看到的列 id(`model.entriesRevision` 改變時與新的比較，#130)。
+    @State private var entryIDs: [String] = []
     /// 全螢幕檢視中的泡泡圖片(#37 故事 35)。
     @State private var viewerImage: ViewerImage?
     /// 新訊息與狀態變化的 VoiceOver 公告(有節流，#35)。
@@ -140,8 +144,12 @@ public struct ConversationView: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
+            .scrollTargetLayout()
         }
         .scrollPosition($position)
+        .onScrollTargetVisibilityChange(idType: String.self) { ids in
+            visibleIDs = ids
+        }
         .defaultScrollAnchor(.bottom)
         .onScrollPhaseChange { _, phase in
             userIsScrolling = phase == .interacting || phase == .tracking || phase == .decelerating
@@ -161,9 +169,35 @@ public struct ConversationView: View {
             } else {
                 scroll.layoutChanged(distanceFromBottom: metrics.distanceFromBottom)
             }
+            // 內容剛被重建、停在內容之外(內容突然縮短)就切回跟隨並捲到底，不留空白;一般排版變化不介入(#130)。
+            if !userIsScrolling, scroll.returnsToContent(metrics, at: .now) {
+                scroll.jumpToLatest()
+                position.scrollTo(edge: .bottom)
+            }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
             if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
                 Task { await model.loadOlder() }
+            }
+        }
+        .onAppear { entryIDs = model.entries.map(\.id) }
+        // 只有跟隨尾端時 model 才修剪最舊的訊息(#130)。
+        .onChange(of: scroll.autoScrollsOnNewContent, initial: true) { model.isFollowingLatest = scroll.autoScrollsOnNewContent }
+        .onChange(of: model.entriesRevision) {
+            let old = entryIDs
+            let new = model.entries.map(\.id)
+            entryIDs = new
+            scroll.contentChanged(from: old, to: new, at: .now)
+            // 閱讀中內容被重建：錨定畫面上第一個仍存在的訊息;都不在就捲到底(#130)。
+            let order = Dictionary(old.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+            let visible = visibleIDs.filter { order[$0] != nil }.sorted { order[$0, default: 0] < order[$1, default: 0] }
+            switch scroll.adjustment(from: old, to: new, visible: visible) {
+            case .none:
+                break
+            case .anchor(let id):
+                position.scrollTo(id: id, anchor: .top)
+            case .bottom:
+                scroll.jumpToLatest()
+                position.scrollTo(edge: .bottom)
             }
         }
         .onChange(of: model.entries.last?.id) {

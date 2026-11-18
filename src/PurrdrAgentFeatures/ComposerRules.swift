@@ -282,10 +282,13 @@ public enum ConversationEntry: Sendable, Equatable, Identifiable {
     case item(ConversationItem)
     case echo(PromptEcho)
 
+    /// 回音列的 id 前綴(捲動調整以它分辨回音，#130)。
+    public static let echoIDPrefix = "echo:"
+
     public var id: String {
         switch self {
         case .item(let item): item.id
-        case .echo(let echo): "echo:\(echo.id)"
+        case .echo(let echo): Self.echoIDPrefix + echo.id
         }
     }
 }
