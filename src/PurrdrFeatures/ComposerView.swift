@@ -10,7 +10,7 @@ public enum ComposerSettings {
 /// 輸入列(行為規格 F6.1;HIG 20.6)。
 ///
 /// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
-/// - 多行，長到 4 行後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
+/// - 多行，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
 /// - 停止與強制結束在標題列(#44,`ConversationView`)。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
@@ -19,6 +19,8 @@ struct ComposerBar: View {
     @Bindable var model: ConversationModel
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
     @State private var isFocused = false
+    /// 鍵盤上方可用高度(輸入框量到後回報;變了要重新量輸入框高度)。
+    @State private var availableHeight: CGFloat?
 
     var body: some View {
         VStack(spacing: 8) {
@@ -74,7 +76,8 @@ struct ComposerBar: View {
 
     private var editor: some View {
         ComposerTextEditor(
-            text: $model.draft, isFocused: $isFocused, placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
+            text: $model.draft, isFocused: $isFocused, availableHeight: $availableHeight,
+            placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
             slashKey: { model.slash.handle($0) },
             tabKey: acceptSuggestion,
             onComposingChange: { model.isComposingDraft = $0 },
@@ -376,6 +379,8 @@ import UIKit
 struct ComposerTextEditor: UIViewRepresentable {
     @Binding var text: String
     @Binding var isFocused: Bool
+    /// 鍵盤上方可用高度，由輸入框回報;只用來讓 SwiftUI 在它變了時重新量高度。
+    var availableHeight: Binding<CGFloat?> = .constant(nil)
     /// 輸入框的提示，也當朗讀標籤。
     var placeholder: String
     var returnSends: Bool
@@ -391,8 +396,6 @@ struct ComposerTextEditor: UIViewRepresentable {
     var onPasteImages: () -> Void
     var onSend: () -> Void
 
-    /// 長到 4 行後內捲(F6.1)。
-    static let maxLines: CGFloat = 4
     static let insets = UIEdgeInsets(top: 11, left: 8, bottom: 11, right: 8)
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -409,6 +412,11 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.accessibilityIdentifier = "composer.text"
         view.accessibilityLabel = placeholder
         view.text = text
+        let availableHeight = availableHeight
+        view.onAvailableHeightChange = { height in
+            // 可能在排版中回報：等這次更新結束再寫狀態。
+            DispatchQueue.main.async { availableHeight.wrappedValue = height }
+        }
         return view
     }
 
@@ -450,7 +458,7 @@ struct ComposerTextEditor: UIViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: KeyHandlingTextView, context: Context) -> CGSize? {
         let width = proposal.width ?? 240
         let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
-        return CGSize(width: width, height: min(fitting, uiView.maxHeight))
+        return CGSize(width: width, height: uiView.sizing(contentHeight: fitting).height)
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -519,12 +527,53 @@ final class KeyHandlingTextView: UITextView {
     /// 草稿或游標變了，下次排版要重新判斷內捲並跟上游標。
     private var needsCaretFollow = false
     private var measuredSize = CGSize.zero
+    /// 鍵盤的最後位置(螢幕座標);收起時在螢幕外。
+    private var keyboardFrameInScreen: CGRect?
+    private var observesKeyboard = false
+    /// 鍵盤上方可用高度：視窗安全區域內、鍵盤以上;iPad 分割畫面依當下視窗。
+    private(set) var availableHeight: CGFloat?
+    var onAvailableHeightChange: ((CGFloat?) -> Void)?
 
-    /// 4 行加上下內距(F6.1)。
-    var maxHeight: CGFloat {
+    /// 依目前字級與可用高度，內容高 `contentHeight` 時輸入框的高度與是否內捲(#137)。
+    func sizing(contentHeight: CGFloat) -> ComposerHeight {
         let lineHeight = (font ?? .preferredFont(forTextStyle: .body)).lineHeight
-        let insets = ComposerTextEditor.insets
-        return ceil(lineHeight * ComposerTextEditor.maxLines + insets.top + insets.bottom)
+        return ComposerSizing.height(
+            contentHeight: contentHeight, lineHeight: lineHeight,
+            verticalInsets: textContainerInset.top + textContainerInset.bottom, availableHeight: availableHeight.map(Double.init))
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil, !observesKeyboard {
+            observesKeyboard = true
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(keyboardWillChangeFrame(_:)),
+                name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        }
+        updateAvailableHeight()
+    }
+
+    @objc private func keyboardWillChangeFrame(_ notification: Notification) {
+        keyboardFrameInScreen = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+        updateAvailableHeight()
+    }
+
+    private func updateAvailableHeight() {
+        let measured = measureAvailableHeight()
+        guard measured != availableHeight else { return }
+        availableHeight = measured
+        contentDidChange()
+        onAvailableHeightChange?(measured)
+    }
+
+    private func measureAvailableHeight() -> CGFloat? {
+        guard let window, let screen = window.windowScene?.screen else { return nil }
+        var bottom = window.bounds.maxY - window.safeAreaInsets.bottom
+        if let keyboardFrameInScreen {
+            let overlap = window.convert(keyboardFrameInScreen, from: screen.coordinateSpace).intersection(window.bounds)
+            if !overlap.isNull, overlap.height > 0 { bottom = min(bottom, overlap.minY) }
+        }
+        return max(0, bottom - window.safeAreaInsets.top)
     }
 
     /// 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3)。
@@ -544,12 +593,13 @@ final class KeyHandlingTextView: UITextView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        updateAvailableHeight()
         // 使用者自己捲動時也會排版：只在內容、游標或大小變了才動捲動位置，不把人拉回游標。
         guard needsCaretFollow || bounds.size != measuredSize, bounds.width > 0 else { return }
         needsCaretFollow = false
         measuredSize = bounds.size
         let contentHeight = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
-        let scrolls = contentHeight > maxHeight
+        let scrolls = sizing(contentHeight: contentHeight).scrolls
         if isScrollEnabled != scrolls { isScrollEnabled = scrolls }
         if scrolls { scrollCaretIntoView(contentHeight: contentHeight) }
     }
@@ -650,6 +700,7 @@ final class KeyHandlingTextView: UITextView {
 struct ComposerTextEditor: View {
     @Binding var text: String
     @Binding var isFocused: Bool
+    var availableHeight: Binding<CGFloat?> = .constant(nil)
     var placeholder: String
     var returnSends: Bool
     var canSend: Bool
@@ -663,7 +714,7 @@ struct ComposerTextEditor: View {
 
     var body: some View {
         TextField("", text: $text, axis: .vertical)
-            .lineLimit(1...4)
+            .lineLimit(1...Int(ComposerSizing.maxLines))
             .textFieldStyle(.plain)
             .padding(.horizontal, 13)
             .padding(.vertical, 11)
