@@ -12,6 +12,14 @@ final class PlanUsageUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
+    /// 元素自己與裡面所有元素的 label 與 value(選單列的目前選項可能在子元素上)。
+    @MainActor
+    private func texts(of element: XCUIElement) -> String {
+        ([element] + element.descendants(matching: .any).allElementsBoundByIndex)
+            .flatMap { [$0.label, ($0.value as? String) ?? ""] }
+            .joined(separator: " ")
+    }
+
     @MainActor
     private func openPlanUsage(_ app: XCUIApplication) {
         XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
@@ -31,9 +39,9 @@ final class PlanUsageUITests: XCTestCase {
 
         let host = element("planUsage.host", in: app)
         XCTAssertTrue(host.waitForExistence(timeout: 5), "沒有主機選單")
-        XCTAssertTrue("\(host.label) \(host.value ?? "")".contains("Demo"), "主機選單不是 Demo:\(host.label)")
+        XCTAssertTrue(texts(of: host).contains("Demo"), "主機選單不是 Demo:\(texts(of: host))")
         let agent = element("planUsage.agent", in: app)
-        XCTAssertTrue("\(agent.label) \(agent.value ?? "")".contains("Claude Code"), "Agent 選單不是 Claude Code:\(agent.label)")
+        XCTAssertTrue(texts(of: agent).contains("Claude Code"), "Agent 選單不是 Claude Code:\(texts(of: agent))")
 
         let consent = app.buttons["planUsage.consent"]
         XCTAssertTrue(consent.waitForExistence(timeout: 10), "沒有請使用者同意")
