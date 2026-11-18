@@ -308,6 +308,7 @@ final class TerminalTextRange: UITextRange {
 
 extension TerminalHardwareKey {
     /// 實體鍵盤的 UIKey;修飾鍵本身與不認得的鍵回傳 `nil`(交給系統)。
+    @MainActor
     init?(_ key: UIKey) {
         switch key.keyCode {
         case .keyboardEscape: self = .escape
