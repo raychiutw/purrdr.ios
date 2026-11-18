@@ -91,11 +91,25 @@ public final class PlanUsageModel {
         startQuery()
     }
 
-    /// 改選主機。
-    public func select(host: HostSelection) {}
+    /// 改選主機：新的查詢取代進行中的。
+    public func select(host: HostSelection) {
+        guard host != self.host else { return }
+        self.host = host
+        restart()
+    }
 
     /// 改選 Agent。
-    public func select(agent: PlanUsageAgent) {}
+    public func select(agent: PlanUsageAgent) {
+        guard agent != self.agent else { return }
+        self.agent = agent
+        restart()
+    }
+
+    private func restart() {
+        query?.cancel()
+        state = .loading
+        startQuery()
+    }
 
     /// 等進行中的查詢結束。
     public func untilIdle() async {
@@ -106,7 +120,7 @@ public final class PlanUsageModel {
         guard let source = source(host, agent) else { return }
         query = Task { [weak self] in
             let usage = try? await source.read()
-            guard let self, let usage else { return }
+            guard let self, !Task.isCancelled, let usage else { return }
             state = .loaded(usage)
         }
     }
