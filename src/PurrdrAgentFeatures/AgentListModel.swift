@@ -16,6 +16,7 @@ public final class AgentListModel {
     /// 這台主機的主機更新來源。
     public let updates: HostUpdates
     private let transcripts: TranscriptReader?
+    private let sleep: Sleep
 
     /// 所在的主機(列的身分)。
     public let host: HostSelection
@@ -25,14 +26,15 @@ public final class AgentListModel {
         client: HerdrClient, transcripts: TranscriptReader? = nil, host: HostSelection = .demo,
         sleep: @escaping Sleep = Sleeping.task
     ) {
-        self.init(updates: HostUpdates(client: client, sleep: sleep), transcripts: transcripts, host: host)
+        self.init(updates: HostUpdates(client: client, sleep: sleep), transcripts: transcripts, host: host, sleep: sleep)
     }
 
-    public init(updates: HostUpdates, transcripts: TranscriptReader? = nil, host: HostSelection = .demo) {
+    /// - Parameter sleep: 預覽定期更新的等待;測試注入假的。
+    public init(updates: HostUpdates, transcripts: TranscriptReader? = nil, host: HostSelection = .demo, sleep: @escaping Sleep = Sleeping.task) {
         self.updates = updates
         self.transcripts = transcripts
         self.host = host
-        updates.afterSnapshot = { [weak self] namedPanes in await self?.refreshPreviews(namedPanes: namedPanes) }
+        self.sleep = sleep
     }
 
     public var phase: Phase { updates.phase }
@@ -40,8 +42,8 @@ public final class AgentListModel {
     /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
     public var snapshot: HostSnapshot? { updates.snapshot }
 
-    /// 即時更新，由所有顯示這份列表的視窗共用(#31)。
-    public var liveUpdates: SharedRun { updates.liveUpdates }
+    /// 即時更新與預覽，由所有顯示這份列表的視窗共用(#31)。
+    @ObservationIgnored public private(set) lazy var liveUpdates = SharedRun { [weak self] in await self?.run() }
 
     /// 即時更新要不要訂閱版面事件(#40:只有 Spaces 檢視要)。
     public var subscribesToLayout: Bool {
@@ -73,8 +75,61 @@ public final class AgentListModel {
     /// 讀一次主機的 snapshot。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
     public func load() async { await updates.load() }
 
-    /// 即時更新，直到所在的 task 被取消。只在畫面可見、app 在前景時執行。
-    public func run() async { await updates.run() }
+    /// 即時更新(與聊天畫面共用主機更新來源)並跟著快照更新預覽，直到所在的 task 被取消。只在畫面可見、app 在前景時執行。
+    /// 預覽在快照讀取之外讀(慢的預覽不延後下一份快照);讀取期間到的快照併成讀完後的下一次。
+    public func run() async {
+        let updates = updates
+        guard transcripts != nil else {
+            await updates.liveUpdates.attach()
+            return
+        }
+        let previewsDue = WakeSignal(sleep: sleep)
+        let snapshotReads = updates.snapshotReads()
+        // 聊天畫面已經讓主機更新來源讀到快照：不等下一份。
+        if updates.snapshot != nil {
+            hasPendingSnapshot = true
+            previewsDue.wake()
+        }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await updates.liveUpdates.attach() }
+            group.addTask {
+                for await namedPanes in snapshotReads {
+                    await self.noteSnapshotRead(namedPanes: namedPanes)
+                    previewsDue.wake()
+                }
+            }
+            while !Task.isCancelled {
+                do {
+                    try await previewsDue.wait(atMost: Self.workingPreviewInterval)
+                } catch {
+                    break
+                }
+                // 時間到(沒有新快照):工作中的 Agent 狀態事件不會來，照時間更新它們的預覽。
+                let namedPanes = hasPendingSnapshot ? pendingNamedPanes : workingPanes
+                hasPendingSnapshot = false
+                pendingNamedPanes = []
+                await refreshPreviews(namedPanes: namedPanes)
+            }
+            group.cancelAll()
+        }
+    }
+
+    /// 讀到快照後還沒更新預覽。
+    @ObservationIgnored private var hasPendingSnapshot = false
+    /// 還沒更新預覽的快照讀取裡，事件指名的 pane。
+    @ObservationIgnored private var pendingNamedPanes: Set<String> = []
+
+    private func noteSnapshotRead(namedPanes: Set<String>) {
+        hasPendingSnapshot = true
+        pendingNamedPanes.formUnion(namedPanes)
+    }
+
+    private var workingPanes: Set<String> {
+        Set((snapshot?.agents ?? []).filter { $0.status == .working }.map(\.paneID))
+    }
+
+    /// 工作中、狀態沒變的 Agent 預覽多久更新一次(列表可見時;狀態事件不會來)。
+    package static let workingPreviewInterval: Duration = .seconds(30)
 
     /// 使用者按「重試」或網路恢復：正在退避就立刻重連。
     public func retryNow() { updates.retryNow() }
@@ -87,7 +142,7 @@ public final class AgentListModel {
     private var hasReadAllPreviews = false
 
     /// 讀對話紀錄檔尾更新預覽與時間(行為規格 §4.7):第一次以一次往返讀全部可讀 agent;之後只讀狀態變了、
-    /// 事件指名或還沒讀過這個 session 的 Agent,一次一個(#164)。
+    /// 事件指名或還沒讀過這個 session 的 Agent,合併成一次往返(#164)。
     /// 預覽帶讀取時的 session:pane 離開或 session 改變(herdr 回收 pane 給新聊天)就丟(R-I04)。讀取失敗保留現有預覽。
     private func refreshPreviews(namedPanes: Set<String>) async {
         guard let transcripts, let snapshot else { return }
@@ -110,9 +165,8 @@ public final class AgentListModel {
         let stale = requests.filter { request in
             namedPanes.contains(request.key) || previewSessions[request.key] == nil || previewStatuses[request.key] != statuses[request.key]
         }
-        for request in stale {
-            await readPreviews([request], using: transcripts, sessions: sessions, statuses: statuses)
-        }
+        guard !stale.isEmpty else { return }
+        await readPreviews(stale, using: transcripts, sessions: sessions, statuses: statuses)
     }
 
     /// 讀一批預覽;成功時記下讀取時的 session 與狀態(沒有可讀訊息的也算讀過)。

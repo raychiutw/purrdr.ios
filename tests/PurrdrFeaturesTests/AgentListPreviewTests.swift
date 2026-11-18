@@ -29,7 +29,7 @@ struct AgentListPreviewTests {
 
     /// 開始即時更新：讀快照、訂閱、訂閱開始時對帳，三個 bridge 執行都完成後回傳。
     static func start(_ host: RoutingHost) async throws -> (AgentListModel, Task<Void, Never>) {
-        let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), sleep: Sleeper().sleep)
+        let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), sleep: RecordingSleeper().sleep)
         let task = Task { await model.run() }
         try await waitUntil { await host.bridge.executions.count == 3 }
         try await waitUntil { await host.bridge.executions[2].closed }
@@ -121,7 +121,7 @@ struct AgentListPreviewTests {
         await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
         await connection.holdTranscripts()
         let model = AgentListModel(
-            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), sleep: Sleeper().sleep)
+            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), sleep: RecordingSleeper().sleep)
         let task = Task { await model.run() }
         defer {
             task.cancel()
@@ -136,7 +136,7 @@ struct AgentListPreviewTests {
     @Test("Spaces 檢視的版面事件：只重讀快照，不讀預覽")
     func layoutEventReadsNoPreviews() async throws {
         let host = try await Self.makeHost(thenSnapshots: [Self.snapshot])
-        let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), sleep: Sleeper().sleep)
+        let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), sleep: RecordingSleeper().sleep)
         model.subscribesToLayout = true
         let task = Task { await model.run() }
         defer { task.cancel() }

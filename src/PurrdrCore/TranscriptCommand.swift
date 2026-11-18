@@ -201,7 +201,7 @@ public enum TranscriptCommand {
     /// 長駐追蹤腳本(#166):一條 exec 通道服務所有追蹤中的路徑，閒置 `idleSeconds` 或總長 `totalSeconds` 到了以 exit 124 結束。
     ///
     /// 每個請求一行「游標 版本 錨點 路徑」(版本、錨點不知道時是 `-`),回應一則：`unchanged`、`error <exit code>`、
-    /// `replaced <大小>`(變短或游標前 64 bytes 的 `cksum` 不符),或 `appended <大小> <版本>` 接著分段接著讀(#130)的行
+    /// `replaced <大小>`(變短或游標前 64 bytes 的 `cksum` 不符;版本相同也比對，同一秒換成同長的新檔才看得出來),或 `appended <大小> <版本>` 接著分段接著讀(#130)的行
     /// (格式同 `catchUp`;落後超過 `limit` 時這次讀到 `backlogLimit`),最後 `end <新游標> <錨點>`。版本是「修改時間秒數-大小」。
     package static func follow(
         limit: Int = TranscriptReader.catchUpLimit, backlogLimit: Int = TranscriptReader.catchUpBacklogLimit,
@@ -241,12 +241,12 @@ public enum TranscriptCommand {
         z=$(wc -c < "$f")
         z=$((z + 0))
         s=$(date -r "$f" +%s 2>/dev/null)-$z
-        if [ "$s" = "$t" ]; then printf 'unchanged\n'; continue; fi
         if [ "$z" -lt "$c" ]; then printf 'replaced %s\n' "$z"; continue; fi
         if [ "$h" != - ]; then
         purrdr_anchor "$f" "$c"
         if [ "$k" != "$h" ]; then printf 'replaced %s\n' "$z"; continue; fi
         fi
+        if [ "$s" = "$t" ]; then printf 'unchanged\n'; continue; fi
         m=$1
         if [ $((z - c)) -gt "$1" ]; then m=$2; fi
         e=$c

@@ -47,8 +47,16 @@ public final class HostUpdates {
 
     @ObservationIgnored private var paneWatchers: [UUID: PaneWatcher] = [:]
 
-    /// 每次讀到快照後、這次讀取結束前執行(Agent 列表在這裡更新預覽);參數是觸發這次讀取的事件指名的 pane。
-    @ObservationIgnored var afterSnapshot: (@MainActor (_ namedPanes: Set<String>) async -> Void)?
+    /// 每讀到一份快照給一次：觸發這次讀取的事件指名的 pane(Agent 列表據此更新預覽)。不等收的一方，快照讀取不被拖慢。
+    public func snapshotReads() -> AsyncStream<Set<String>> {
+        let (stream, continuation) = AsyncStream<Set<String>>.makeStream()
+        let id = UUID()
+        snapshotReaders[id] = continuation
+        continuation.onTermination = { [weak self] _ in Task { @MainActor [weak self] in self?.snapshotReaders[id] = nil } }
+        return stream
+    }
+
+    @ObservationIgnored private var snapshotReaders: [UUID: AsyncStream<Set<String>>.Continuation] = [:]
 
     private let client: HerdrClient
     private let sleep: Sleep
@@ -56,7 +64,7 @@ public final class HostUpdates {
     private var checkCancelWaiter: CheckedContinuation<Void, Never>?
     private var retryRequested = false
     private var retryWaiter: CheckedContinuation<Void, Never>?
-    /// 快照讀取進行中(含讀完後的 `afterSnapshot`)。
+    /// 快照讀取進行中。
     @ObservationIgnored private var isReading = false
     /// 還沒讀快照處理的事件指名的 pane。
     @ObservationIgnored private var pendingNamedPanes: Set<String> = []
@@ -192,7 +200,7 @@ public final class HostUpdates {
         snapshot = fresh
         phase = .loaded
         for id in paneWatchers.keys { paneWatchers[id]?.publish(from: fresh) }
-        await afterSnapshot?(namedPanes)
+        for reader in snapshotReaders.values { reader.yield(namedPanes) }
     }
 
     /// 把訂閱的事件併成「要重讀」的觸發：最多暫存一個，讀取期間的事件都併進它。

@@ -27,7 +27,9 @@ actor HostServiceSession {
     private let outgoing: AsyncStream<String>
     private let outgoingQueue: AsyncStream<String>.Continuation
     private var beating: Task<Void, Never>?
-    private let heartbeat: HostServiceHeartbeat
+    private var heartbeat: HostServiceHeartbeat
+    /// 心跳之間的等待;換心跳節奏時叫醒(立刻 ping 一次，之後照新間隔)。
+    private let heartbeatSignal: WakeSignal
     private let sleep: Sleep
 
     typealias Messages = AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>
@@ -48,6 +50,7 @@ actor HostServiceSession {
         self.deviceToken = deviceToken
         self.heartbeat = heartbeat
         self.sleep = sleep
+        heartbeatSignal = WakeSignal(sleep: sleep)
         (outgoing, outgoingQueue) = AsyncStream<String>.makeStream()
     }
 
@@ -191,11 +194,18 @@ actor HostServiceSession {
 
     // MARK: - 內部
 
+    /// 換心跳的間隔與逾時(快速偵測斷線時較短):立刻 ping 一次，之後照新的間隔。
+    func setHeartbeat(_ heartbeat: HostServiceHeartbeat) {
+        guard heartbeat != self.heartbeat else { return }
+        self.heartbeat = heartbeat
+        heartbeatSignal.wake()
+    }
+
     /// 每 `interval` 送一次 ping;`timeout` 內沒有 pong 就當作斷線(網路換了路徑、主機睡著)。
     private func beat() async {
         while ending == nil {
             do {
-                try await sleep(heartbeat.interval)
+                try await heartbeatSignal.wait(atMost: heartbeat.interval)
             } catch {
                 return
             }

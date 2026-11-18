@@ -418,8 +418,11 @@ public final class ConversationModel {
     /// 畫面可見且 app 在前景時執行，直到所在的 task 被取消。agent 工作中或等你回答時每 2 秒，否則每 4 秒
     /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 30 秒回報在場。
     /// 有主機更新來源時一起保持它的即時更新，這個 Agent 在快照裡變了就立刻再輪詢一次，不等間隔(#163)。
+    /// 期間連線快速偵測斷線(最壞約 15 秒顯示離線)。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
         followPace = TranscriptFollowPace(interval: pollInterval, sleep: sleep)
+        // 不讀快照時靠 keepalive／心跳發現離線：畫面可見期間縮短到最壞約 15 秒。
+        await client.beginQuickDisconnectDetection()
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
@@ -439,6 +442,7 @@ public final class ConversationModel {
         }
         stopFollowingUpdates()
         followPace = nil
+        await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if let path = file?.path { await transcripts.stopFollowing(path: path) }
     }

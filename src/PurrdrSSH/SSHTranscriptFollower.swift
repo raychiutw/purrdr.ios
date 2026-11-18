@@ -1,10 +1,13 @@
 import Foundation
 import PurrdrCore
+#if canImport(os)
+import os
+#endif
 
 /// SSH 的對話紀錄追蹤(#166):每台主機一條長駐 exec 通道跑 `TranscriptCommand.follow`,所有追蹤中的路徑共用、一次一個請求。
 ///
-/// 通道結束(自我時限、背景被殺)時游標留在各追蹤裡，下一個請求重開通道。主機跑不了腳本(Demo 主機;Windows 認不得的指令)
-/// 就回報 `unsupported`,由呼叫端退回分段接著讀的輪詢。
+/// 通道結束(自我時限、背景被殺)時游標留在各追蹤裡，下一個請求重開通道;沒回應就結束的依次數退避再重開。
+/// 只有明確訊號(還沒回應就 exit 127 找不到指令;Windows 方言認不得)才回報 `unsupported`,由呼叫端退回分段接著讀的輪詢。
 actor SSHTranscriptFollower {
     /// 一個追蹤的位置：游標、主機上次回報的版本與游標前一段的錨點(不知道時是 `-`)。
     struct Position: Sendable, Equatable {
@@ -38,6 +41,8 @@ actor SSHTranscriptFollower {
     private let sleep: Sleep
 
     private var isUnsupported = false
+    /// 連續幾條通道沒回應就結束(不含自我時限);重開前依此退避。
+    private var consecutiveFailures = 0
     private var session: (any ExecSession)?
     private var reader: Task<Void, Never>?
     /// 每開一條通道加一;舊通道晚到的輸出不理。
@@ -85,13 +90,14 @@ actor SSHTranscriptFollower {
                 return .reply(Self.dropsStampIfCapped(try await send(request, on: try await openSession()), from: position.cursor))
             } catch let ended as ChannelEnded {
                 closeSession()
-                if !ended.hadReplied, ended.exitCode != Int32(HostScriptTimeLimit.exitCode) {
-                    isUnsupported = true
+                if !ended.hadReplied, ended.exitCode != Int32(HostScriptTimeLimit.exitCode) { consecutiveFailures += 1 }
+                if !ended.hadReplied, ended.exitCode == Self.commandNotFoundExitCode {
+                    fallBack(because: "exit \(Self.commandNotFoundExitCode) before any reply")
                     return .unsupported
                 }
                 if attempt == 1 { throw TranscriptReadError.failed(exitCode: ended.exitCode) }
             } catch WindowsCommandError.unsupported {
-                isUnsupported = true
+                fallBack(because: "Windows dialect can’t run the follow script")
                 return .unsupported
             } catch {
                 closeSession()
@@ -99,6 +105,22 @@ actor SSHTranscriptFollower {
             }
         }
         throw TranscriptReadError.changed
+    }
+
+    /// sh 找不到指令的 exit code(Demo 主機也回它)。
+    static let commandNotFoundExitCode: Int32 = 127
+
+    /// 重開通道前的退避：1 秒起倍增、上限 30 秒。
+    static func reopenBackoff(afterFailures failures: Int) -> Duration {
+        .seconds(min(30, 1 << min(failures - 1, 5)))
+    }
+
+    /// 之後一律退回輪詢，並記下原因。
+    private func fallBack(because reason: String) {
+        isUnsupported = true
+        #if canImport(os)
+        Logger(subsystem: "com.raychiu.purrdr", category: "transcript-follow").notice("follow script unsupported, polling instead: \(reason, privacy: .public)")
+        #endif
     }
 
     // MARK: - 一次一個請求
@@ -124,6 +146,7 @@ actor SSHTranscriptFollower {
 
     private func openSession() async throws -> any ExecSession {
         if let session { return session }
+        if consecutiveFailures > 0 { try await sleep(Self.reopenBackoff(afterFailures: consecutiveFailures)) }
         let opened = try await channel.execute(command)
         generation += 1
         let current = generation
@@ -237,6 +260,7 @@ actor SSHTranscriptFollower {
             return
         }
         hasReplied = true
+        consecutiveFailures = 0
         self.waiting = nil
         waiting.resume(returning: reply)
     }

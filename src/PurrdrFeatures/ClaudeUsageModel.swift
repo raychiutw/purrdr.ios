@@ -30,8 +30,8 @@ public final class ClaudeUsageModel {
     /// 前景、可見時讀用量的間隔(行為規格 §12:約 5 秒)。
     static let pollInterval: Duration = .seconds(5)
 
-    /// 定期讀取：列表的每個視窗都 `attach()`。
-    public var liveUpdates: SharedRun { SharedRun { [weak self] in await self?.run() } }
+    /// 定期讀取：列表的每個視窗都 `attach()`,同一台主機只跑一份(#161)。
+    @ObservationIgnored public private(set) lazy var liveUpdates = SharedRun { [weak self] in await self?.run() }
 
     private let host: ClaudeUsageHost
     private let hostID: String

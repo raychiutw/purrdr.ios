@@ -32,7 +32,7 @@ public struct ClaudeUsageFooter: View {
         }
         .task(id: scenePhase == .active && model.state == .on) {
             guard scenePhase == .active, model.state == .on else { return }
-            await model.run()
+            await model.liveUpdates.attach()
         }
     }
 

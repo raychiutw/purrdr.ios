@@ -146,8 +146,8 @@ enum WindowsScripts {
         if(-not $h){PWrite "error 5`n"}
         else{
         $z=$h.Length;$v="$([IO.File]::GetLastWriteTimeUtc($f).Ticks)-$z"
-        if($v -ceq $t){PWrite "unchanged`n"}
-        elseif($z -lt $c -or ($k -cne '-' -and (PAnchor $h $c) -cne $k)){PWrite "replaced $z`n"}
+        if($z -lt $c -or ($k -cne '-' -and (PAnchor $h $c) -cne $k)){PWrite "replaced $z`n"}
+        elseif($v -ceq $t){PWrite "unchanged`n"}
         else{$m=[long]$a[0];if(($z-$c) -gt $m){$m=[long]$a[1]};PWrite "appended $z $v`n";$e=$c;if($z -gt $c){$e=PChunk $h $c $z $m};PWrite "end $e $(PAnchor $h $e)`n"}
         }
         }

@@ -30,6 +30,14 @@ public actor OperatingSystemDetectingChannel: HostChannel {
         await base.disconnect()
     }
 
+    public func beginQuickDisconnectDetection() async {
+        await base.beginQuickDisconnectDetection()
+    }
+
+    public func endQuickDisconnectDetection() async {
+        await base.endQuickDisconnectDetection()
+    }
+
     /// 偵測過就用結果;同時有好幾個指令時只偵測一次。
     private func channel() async throws -> any HostChannel {
         if let resolved { return resolved }

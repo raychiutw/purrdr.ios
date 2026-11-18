@@ -24,6 +24,15 @@ public struct SSHHostConnection: HostConnection {
         await channel.disconnect()
     }
 
+    /// keepalive 改用短間隔(聊天畫面可見時)。
+    public func beginQuickDisconnectDetection() async {
+        await channel.beginQuickDisconnectDetection()
+    }
+
+    public func endQuickDisconnectDetection() async {
+        await channel.endQuickDisconnectDetection()
+    }
+
     // MARK: - herdr 單次請求
 
     /// 開一個 bridge、寫一行請求、**不送 EOF**,讀到第一行回應後關閉通道(行為規格 §3.3)。
