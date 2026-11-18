@@ -380,19 +380,83 @@ async fn follow_ends_with_replaced_instead_of_pushing_lines_of_a_longer_replacem
 }
 
 #[tokio::test]
-async fn follow_that_starts_too_far_behind_ends_immediately_so_the_app_reads_a_window() {
+async fn follow_that_starts_far_behind_sends_from_the_cursor_in_chunks_within_the_limit() {
+    // #173:與 SSH 的分段接著讀(#130)相同：落後超過 limit 不結束追蹤，每次送不超過 limit 的完整行，接著送下一段。
     let fixture = Fixture::recorded_snapshot().await;
-    let transcript = fixture.claude_transcript("{\"n\":1}\n{\"n\":2}\n");
+    let transcript = fixture.claude_transcript("{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n");
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+
+    let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 16)).await;
+    let next_chunk = client.receive().await;
+
+    assert_eq!(
+        started,
+        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 24, "start": 0,
+               "records": [{"length": 7, "text": "{\"n\":1}"}, {"length": 7, "text": "{\"n\":2}"}]})
+    );
+    assert_eq!(
+        next_chunk,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 24, "start": 16, "records": [{"length": 7, "text": "{\"n\":3}"}]})
+    );
+}
+
+#[tokio::test]
+async fn follow_sends_a_line_longer_than_the_limit_truncated_and_moves_past_it() {
+    // 第一行就超過 limit:只送那一行，剝除圖片後的內容截短到 limit bytes,長度照原始長度(游標照樣前進，不卡住)。
+    let fixture = Fixture::recorded_snapshot().await;
+    let transcript = fixture.claude_transcript("{\"long\":\"abcdefghijklmnopqrstuvwxyz\"}\n{\"n\":2}\n");
     let mut client = fixture.client().await;
     client.request(locate("r1", "id", CLAUDE_SESSION)).await;
 
     let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 10)).await;
+    let next_chunk = client.receive().await;
 
     assert_eq!(
         started,
-        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 16, "start": 0, "records": [],
-               "ended": "too_far_behind"})
+        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 46, "start": 0,
+               "records": [{"length": 37, "text": "{\"long\":\"a"}]})
     );
+    assert_eq!(
+        next_chunk,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 46, "start": 38, "records": [{"length": 7, "text": "{\"n\":2}"}]})
+    );
+}
+
+#[tokio::test]
+async fn follow_waits_for_a_long_line_to_finish_before_sending_it_truncated() {
+    let fixture = Fixture::recorded_snapshot().await;
+    let transcript = fixture.claude_transcript("{\"long\":\"abcdefghijklmnopqrstuvwxyz");
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+
+    let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 10)).await;
+    append(&transcript, "\"}\n");
+    let finished = client.receive().await;
+
+    assert_eq!(
+        started,
+        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 35, "start": 0, "records": []})
+    );
+    assert_eq!(
+        finished,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 38, "start": 0, "records": [{"length": 37, "text": "{\"long\":\"a"}]})
+    );
+}
+
+#[tokio::test]
+async fn follow_truncates_a_long_line_after_stripping_images() {
+    // 與 SSH 腳本相同：先剝除圖片再截短(原始 217 bytes 超過上限，剝除後 17 bytes 不必截)。
+    let fixture = Fixture::recorded_snapshot().await;
+    let image = "A".repeat(200);
+    let transcript = fixture.claude_transcript(&format!("{{\"i\":\"{image}\",\"t\":\"ok\"}}\n"));
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+
+    let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 20)).await;
+
+    assert_eq!(started["records"], json!([{"length": 217, "text": "{\"i\":\"\",\"t\":\"ok\"}"}]));
+    assert_eq!(started.get("ended"), None);
 }
 
 #[tokio::test]

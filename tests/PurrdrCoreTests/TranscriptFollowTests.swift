@@ -105,6 +105,38 @@ struct TranscriptFollowTests {
         #expect(afterReplaced == nil)
     }
 
+    @Test("HTTPS:落後很多時主機分段送出(#173),每段都接成 appended,超大單行照原始長度前進，不取代畫面")
+    func httpsAppendsEachCatchUpChunk() async throws {
+        let service = try await Self.followingService()
+        defer { Task { await service.stop() } }
+        var events = await Self.connection(to: service).followTranscript(path: Self.httpsPath, from: 100, pace: Self.manualPace()).makeAsyncIterator()
+        let streamID = try await Self.streamID(of: service)
+
+        // 第一段：一行 300000 bytes 的超大單行，主機截短後送出;第二段從它的結尾(100 + 300000 + 1)接著。
+        try await service.push(#"{"type":"transcript.update","stream_id":"\#(streamID)","size":900000,"start":100,"records":[{"length":300000,"text":"{\"type\":\"user\""}]}"#)
+        try await service.push(#"{"type":"transcript.update","stream_id":"\#(streamID)","size":900000,"start":300101,"records":[{"length":7,"text":"{\"n\":3}"}]}"#)
+        let first = try await events.next()
+        let second = try await events.next()
+
+        #expect(first == .appended(TranscriptChunk(start: 100, end: 300101, lines: [#"{"type":"user""#])))
+        #expect(second == .appended(TranscriptChunk(start: 300101, end: 300109, lines: [#"{"n":3}"#])))
+    }
+
+    @Test("HTTPS:#173 之前的主機服務落後太多以 too_far_behind 結束：送 replaced,由呼叫端讀新視窗")
+    func httpsTreatsLegacyTooFarBehindAsReplaced() async throws {
+        let service = try await Self.followingService()
+        defer { Task { await service.stop() } }
+        var events = await Self.connection(to: service).followTranscript(path: Self.httpsPath, from: 100, pace: Self.manualPace()).makeAsyncIterator()
+        let streamID = try await Self.streamID(of: service)
+
+        try await service.push(#"{"type":"transcript.update","stream_id":"\#(streamID)","size":900000,"start":100,"records":[],"ended":"too_far_behind"}"#)
+        let event = try await events.next()
+        let afterEnded = try await events.next()
+
+        #expect(event == .replaced(size: 900000))
+        #expect(afterEnded == nil)
+    }
+
     @Test("HTTPS:停止追蹤這個路徑：串流結束，請主機服務停止推送")
     func httpsStopFollowingEndsStreamAndUnfollows() async throws {
         let service = try await Self.followingService()
