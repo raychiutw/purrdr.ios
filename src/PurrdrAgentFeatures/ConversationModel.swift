@@ -377,7 +377,7 @@ public final class ConversationModel {
     // MARK: - 輪詢
 
     /// 畫面可見且 app 在前景時執行，直到所在的 task 被取消。agent 工作中或等你回答時每 2 秒，否則每 4 秒
-    /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 20 秒回報在場。
+    /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 30 秒回報在場。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
         await restoreFromCache()
         await withTaskGroup(of: Void.self) { group in
@@ -605,7 +605,7 @@ public final class ConversationModel {
 
     // MARK: - 在場回報
 
-    /// 每 20 秒回報一次「手機正在看」(F5.13),直到所在的 task 被取消。純裝飾，失敗不影響任何事。
+    /// 每 30 秒回報一次「手機正在看」(F5.13,ttl 45 秒),直到所在的 task 被取消。純裝飾，失敗不影響任何事。
     public func reportPresence(sleep: @escaping Sleep) async {
         while !Task.isCancelled {
             let nowMillis = UInt64(max(0, clock.now().timeIntervalSince1970 * 1000))
@@ -615,7 +615,7 @@ public final class ConversationModel {
             let model = metadata.model.map(TranscriptMetadata.displayName(ofModel:))
             try? await client.reportPresence(paneID: paneID, model: model, seq: seq)
             do {
-                try await sleep(.seconds(20))
+                try await sleep(.seconds(30))
             } catch {
                 return
             }

@@ -127,6 +127,31 @@ struct SSHHostChannelTests {
         await server.stop()
     }
 
+    @Test("一個間隔內主機有傳資料就跳過 keepalive;之後安靜一個間隔才送", .timeLimit(.minutes(1)))
+    func keepaliveSkippedAfterRecentTraffic() async throws {
+        let server = try await TestSSHServer.start(keepalive: .reject) { _ in .reply(stdout: "ok") }
+        let clock = ManualSSHClock()
+        let channel = SSHHostChannel(
+            endpoint: server.endpoint, hostKeyPin: server.fingerprint,
+            timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .seconds(30)), scheduler: clock)
+
+        _ = try await collect(channel.execute("first"))
+        await clock.advance(by: .milliseconds(100))
+        // 同一條連線上訊息有序：這個指令回來時，若剛才送了 keepalive,主機一定已經收到。
+        _ = try await collect(channel.execute("probe"))
+        #expect(server.snapshot.keepalives == 0, "間隔內有主機回應，仍送了 keepalive")
+
+        await clock.advance(by: .milliseconds(100))
+        await clock.advance(by: .milliseconds(100))
+        try await eventually { server.snapshot.keepalives == 1 }
+        _ = try await collect(channel.execute("after"))
+
+        #expect(server.snapshot.keepalives == 1)
+        #expect(server.snapshot.connections == 1)
+        await channel.disconnect()
+        await server.stop()
+    }
+
     @Test("主機不回 keepalive(半開連線):期限到就丟棄連線，下一個指令重新撥號、不重送", .timeLimit(.minutes(1)))
     func unansweredKeepaliveDropsConnection() async throws {
         // 機器忙：第一個指令的回應比 keepalive 間隔加回應期限還慢。
@@ -139,7 +164,8 @@ struct SSHHostChannelTests {
             timeouts: SSHTimeouts(keepaliveInterval: .milliseconds(100), keepaliveReply: .milliseconds(200)), scheduler: clock)
 
         _ = try await collect(channel.execute("first"))
-        // 期限由手動時鐘推進：第一個指令再慢，keepalive 也要等這裡才送出、才到期。
+        // 期限由手動時鐘推進：第一個間隔有 first 的回應(跳過),下一個安靜的間隔才送出 keepalive。
+        await clock.advance(by: .milliseconds(100))
         await clock.advance(by: .milliseconds(100))
         try await eventually { server.snapshot.keepalives == 1 }
         await clock.advance(by: .milliseconds(200))
