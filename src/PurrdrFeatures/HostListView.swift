@@ -29,6 +29,18 @@ public struct HostListView: View {
                             .foregroundStyle(.secondaryText)
                     }
                 }
+                let updates = model.rows.filter { $0.hostServiceUpdate != nil }
+                if !updates.isEmpty {
+                    // 主機服務有新版本(#198):放在最上面，點進去看更新指令。
+                    Section {
+                        ForEach(updates) { row in
+                            NavigationLink(value: HostRoute.hostServiceUpdate(row.id)) {
+                                Label("Update the Host Service on \(row.title)", systemImage: "arrow.up.circle")
+                            }
+                            .accessibilityIdentifier("hosts.update.\(row.id.uuidString)")
+                        }
+                    }
+                }
                 if !model.rows.isEmpty {
                     Section {
                         ForEach(model.rows) { row in
@@ -57,6 +69,7 @@ public struct HostListView: View {
                 }
             }
             .accessibilityIdentifier("sheet.hosts")
+            .task { await model.checkHostServiceVersions() }
             .navigationTitle("Hosts")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -102,7 +115,7 @@ public struct HostListView: View {
         } label: {
             HostRowView(
                 title: row.title, subtitle: row.subtitle, session: row.session, isSelected: row.isSelected, icon: row.icon,
-                needsPairing: row.needsPairing)
+                needsPairing: row.needsPairing, hostServiceUpdate: row.hostServiceUpdate)
         }
         .accessibilityIdentifier("hosts.row.\(row.id.uuidString)")
         .accessibilityHint(row.needsPairing ? Text("Opens pairing for this host.") : Text(verbatim: ""))
@@ -127,6 +140,9 @@ public struct HostListView: View {
             }
             Button("Rename…", systemImage: "character.cursor.ibeam") { renaming = HostRenaming(id: row.id, name: row.title) }
             Button("Share…", systemImage: "qrcode") { path.append(.share(row.id)) }
+            if row.hostServiceUpdate != nil {
+                Button("Update Host Service…", systemImage: "arrow.up.circle") { path.append(.hostServiceUpdate(row.id)) }
+            }
             // 主機圖示(#37 故事 5):只存在這支裝置，讓多台主機的列一眼分得出來。
             Picker(selection: iconBinding(row.id)) {
                 ForEach(HostIcon.allCases, id: \.self) { icon in
@@ -149,6 +165,13 @@ public struct HostListView: View {
                     saved(host)
                 } onCancel: {
                     path.removeLast()
+                }
+            case .hostServiceUpdate(let id):
+                if let row = model.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate {
+                    HostServiceUpdateView(hostName: row.title, version: version) {
+                        model.dismissHostServiceUpdate(for: id)
+                        path.removeLast()
+                    }
                 }
             case .share(let id):
                 if let host = model.hosts.first(where: { $0.id == id }), let link = model.shareLink(for: id) {
@@ -230,6 +253,7 @@ enum HostRoute: Hashable {
     case add
     case edit(UUID)
     case share(UUID)
+    case hostServiceUpdate(UUID)
     case importLink(URL)
 
     var hostID: UUID? {
@@ -246,6 +270,8 @@ struct HostRowView: View {
     let icon: HostIcon
     /// 還沒配對的 HTTPS 主機(主機同步或分享連結帶來的):標示要先配對。
     var needsPairing = false
+    /// 主機服務可更新到的版本(#198)。
+    var hostServiceUpdate: String?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -275,6 +301,12 @@ struct HostRowView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.secondaryText)
                         .accessibilityIdentifier("hosts.row.needsPairing")
+                }
+                if let hostServiceUpdate {
+                    Label("Host Service \(hostServiceUpdate) Available", systemImage: "arrow.up.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.secondaryText)
+                        .accessibilityIdentifier("hosts.row.hostServiceUpdate")
                 }
             }
             Spacer(minLength: 8)

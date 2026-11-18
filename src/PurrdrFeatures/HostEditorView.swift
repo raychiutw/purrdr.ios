@@ -60,7 +60,11 @@ struct HostEditorView: View {
                     case .openSSH:
                         Text("Purrdr signs in to the host’s own SSH server with a key or password.")
                     case .https:
-                        Text("On the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. Login Shell and Files aren’t available over HTTPS.")
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Install the Purrdr host service on the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. Login Shell and Files aren’t available over HTTPS.")
+                            Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
+                                .accessibilityIdentifier("hostEditor.hostServiceGuide")
+                        }
                     }
                 }
                 .foregroundStyle(.secondaryText)

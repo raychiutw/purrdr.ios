@@ -252,6 +252,8 @@ public enum PurrdrLinks {
     public static let appStoreID = "6835416115"
     /// 支援頁(常見問題與聯絡方式)。
     public static let support = URL(string: "https://raychiutw.github.io/purrdr/support/")!
+    /// 主機服務(HTTPS 連線方式)的安裝、配對、更新與解除安裝說明(#198)。
+    public static let hostServiceGuide = URL(string: "https://raychiutw.github.io/purrdr/host-service/")!
 }
 
 // MARK: - 方案列
