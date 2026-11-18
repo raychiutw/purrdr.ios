@@ -15,12 +15,16 @@ public enum ComposerSettings {
 /// - 停止與強制結束在標題列(#44,`ConversationView`)。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
 ///   這時不能附圖。打過字之後清空輸入框也會取消(#127,`ConversationModel`)。
+/// - 內容超過 2 行或聚焦時有「展開」鈕(`ComposerExpansion`,#142),打開 `ExpandedComposer`。
 struct ComposerBar: View {
     @Bindable var model: ConversationModel
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
     @State private var isFocused = false
     /// 鍵盤上方可用高度(輸入框量到後回報;變了要重新量輸入框高度)。
     @State private var availableHeight: CGFloat?
+    /// 輸入框回報的「展開」鈕顯示條件。
+    @State private var showsExpandButton = false
+    @State private var isExpanded = false
 
     var body: some View {
         VStack(spacing: 8) {
@@ -57,7 +61,7 @@ struct ComposerBar: View {
                     if isFocused {
                         hideKeyboardButton
                     }
-                    sendButton
+                    ComposerSendButton(model: model, identifier: "composer.send", action: send)
                 }
             }
         }
@@ -70,6 +74,12 @@ struct ComposerBar: View {
         .onDisappear { model.cancelTypedAnswer() }
         // 對話可見時自己讀註記(列表被蓋住時它的輪詢會停)。
         .task { await model.youShouldKnow?.run() }
+        // 用 sheet 而非 fullScreenCover:後者會讓底下的對話 onDisappear(取消自訂回答、停掉輪詢)。
+        .sheet(isPresented: $isExpanded) {
+            ExpandedComposer(model: model, placeholder: placeholder, returnSends: returnSends) {
+                isExpanded = false
+            }
+        }
     }
 
     // MARK: - 輸入框
@@ -77,20 +87,12 @@ struct ComposerBar: View {
     private var editor: some View {
         ComposerTextEditor(
             text: $model.draft, isFocused: $isFocused, availableHeight: $availableHeight,
-            placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
+            showsExpandButton: $showsExpandButton, placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
             slashKey: { model.slash.handle($0) },
             tabKey: acceptSuggestion,
             onComposingChange: { model.isComposingDraft = $0 },
-            pasteAction: { [model] in
-                ComposerPaste.action(
-                    hasImages: model.canAttachImages && ImageSources.pasteboardHasImages,
-                    hasStrings: ImageSources.pasteboardHasStrings, remainingSlots: model.remainingImageSlots)
-            },
-            onPasteImages: { [model] in
-                // Command-V 貼上剪貼簿裡的圖片(只有圖片、沒有文字時,F6.3)。
-                let images = ImageSources.pasteboardImages()
-                Task { await model.addImages(images) }
-            }
+            pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
+            onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) }
         ) {
             send()
         }
@@ -122,6 +124,31 @@ struct ComposerBar: View {
                 .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
                 .allowsHitTesting(false)
         }
+        .overlay(alignment: .topTrailing) {
+            if showsExpandButton {
+                expandButton
+            }
+        }
+    }
+
+    private var expandButton: some View {
+        Button {
+            // 打開前就交出焦點：不然 sheet 收回時 UIKit 把焦點還給輸入列、叫出鍵盤。
+            #if canImport(UIKit)
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            #endif
+            isFocused = false
+            isExpanded = true
+        } label: {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.footnote.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondaryText)
+        .accessibilityLabel(Text("Expand"))
+        .accessibilityIdentifier("composer.expand")
     }
 
     /// 輸入框的提示(也是朗讀標籤)。
@@ -139,27 +166,6 @@ struct ComposerBar: View {
     }
 
     // MARK: - 按鈕
-
-    private var sendButton: some View {
-        Button(action: send) {
-            Group {
-                if model.isSending {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Image(systemName: "arrow.up")
-                        .fontWeight(.semibold)
-                }
-            }
-            .frame(width: 30, height: 30)
-        }
-        .filledGlassProminentButtonStyle()
-        .buttonBorderShape(.circle)
-        .frame(minWidth: 44, minHeight: 44)
-        .disabled(!model.canSend)
-        .accessibilityLabel(model.isSending ? Text("Sending") : Text("Send"))
-        .accessibilityIdentifier("composer.send")
-    }
 
     private var hideKeyboardButton: some View {
         Button {
@@ -185,6 +191,34 @@ struct ComposerBar: View {
         guard model.acceptSuggestion() else { return false }
         isFocused = true
         return true
+    }
+}
+
+/// 送出鈕：唯一 tinted 主要動作(44pt),送出中顯示轉圈。輸入列與展開畫面共用。
+struct ComposerSendButton: View {
+    let model: ConversationModel
+    let identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if model.isSending {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "arrow.up")
+                        .fontWeight(.semibold)
+                }
+            }
+            .frame(width: 30, height: 30)
+        }
+        .filledGlassProminentButtonStyle()
+        .buttonBorderShape(.circle)
+        .frame(minWidth: 44, minHeight: 44)
+        .disabled(!model.canSend)
+        .accessibilityLabel(model.isSending ? Text("Sending") : Text("Send"))
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -381,6 +415,11 @@ struct ComposerTextEditor: UIViewRepresentable {
     @Binding var isFocused: Bool
     /// 鍵盤上方可用高度，由輸入框回報;只用來讓 SwiftUI 在它變了時重新量高度。
     var availableHeight: Binding<CGFloat?> = .constant(nil)
+    /// 「展開」鈕要不要顯示，由輸入框回報(#142);顯示時右側留位置給它。
+    var showsExpandButton: Binding<Bool> = .constant(false)
+    /// 展開畫面(#142):填滿給它的空間、一律可捲動，不套用長高規則。
+    var isExpanded = false
+    var identifier = "composer.text"
     /// 輸入框的提示，也當朗讀標籤。
     var placeholder: String
     var returnSends: Bool
@@ -397,6 +436,8 @@ struct ComposerTextEditor: UIViewRepresentable {
     var onSend: () -> Void
 
     static let insets = UIEdgeInsets(top: 11, left: 8, bottom: 11, right: 8)
+    /// 顯示「展開」鈕時右側內距(鈕疊在輸入框右上角)。
+    static let expandButtonInset: CGFloat = 40
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -406,16 +447,22 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.font = .preferredFont(forTextStyle: .body)
         view.adjustsFontForContentSizeCategory = true
         view.backgroundColor = .clear
-        view.isScrollEnabled = false
+        view.fillsAvailableSpace = isExpanded
+        view.focusesWhenAttached = isExpanded
+        view.isScrollEnabled = isExpanded
         view.textContainerInset = Self.insets
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        view.accessibilityIdentifier = "composer.text"
+        view.accessibilityIdentifier = identifier
         view.accessibilityLabel = placeholder
         view.text = text
+        // 可能在排版中回報：等這次更新結束再寫狀態。
         let availableHeight = availableHeight
         view.onAvailableHeightChange = { height in
-            // 可能在排版中回報：等這次更新結束再寫狀態。
             DispatchQueue.main.async { availableHeight.wrappedValue = height }
+        }
+        let showsExpandButton = showsExpandButton
+        view.onShowsExpandChange = { shows in
+            DispatchQueue.main.async { showsExpandButton.wrappedValue = shows }
         }
         return view
     }
@@ -431,6 +478,11 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.tabKey = tabKey
         view.pasteAction = pasteAction
         view.onPasteImages = onPasteImages
+        let trailingInset = showsExpandButton.wrappedValue ? Self.expandButtonInset : Self.insets.right
+        if !isExpanded, view.textContainerInset.right != trailingInset {
+            view.textContainerInset.right = trailingInset
+            view.contentDidChange()
+        }
         // 程式改寫草稿：組字中延後到組字結束，不打斷正在組的字(#138)。
         if view.text != text,
            let applied = context.coordinator.overwrite.request(text, current: view.text, isComposing: view.markedTextRange != nil) {
@@ -457,6 +509,7 @@ struct ComposerTextEditor: UIViewRepresentable {
     /// SwiftUI 也會以 0 與無限寬度探問理想大小，拿探問的結果切換內捲會把捲動位置歸零(#94)。
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: KeyHandlingTextView, context: Context) -> CGSize? {
         let width = proposal.width ?? 240
+        if isExpanded { return CGSize(width: width, height: proposal.height ?? 240) }
         let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
         return CGSize(width: width, height: uiView.sizing(contentHeight: fitting).height)
     }
@@ -507,10 +560,12 @@ struct ComposerTextEditor: UIViewRepresentable {
         // 收起鍵盤是在 updateUIView 裡 resign,這時 binding 已經是 false:只在值不同時才寫，避免在畫面更新中改狀態。
         func textViewDidBeginEditing(_ textView: UITextView) {
             if !parent.isFocused { parent.isFocused = true }
+            (textView as? KeyHandlingTextView)?.contentDidChange()
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
             if parent.isFocused { parent.isFocused = false }
+            (textView as? KeyHandlingTextView)?.contentDidChange()
         }
     }
 }
@@ -533,6 +588,12 @@ final class KeyHandlingTextView: UITextView {
     /// 鍵盤上方可用高度：視窗安全區域內、鍵盤以上;iPad 分割畫面依當下視窗。
     private(set) var availableHeight: CGFloat?
     var onAvailableHeightChange: ((CGFloat?) -> Void)?
+    /// 展開畫面：填滿空間、由 UIKit 自己捲動，不套用長高規則與展開鈕。
+    var fillsAvailableSpace = false
+    /// 放進視窗後取得焦點一次(展開畫面打開時鍵盤不收起)。
+    var focusesWhenAttached = false
+    var onShowsExpandChange: ((Bool) -> Void)?
+    private var reportedShowsExpand: Bool?
 
     /// 依目前字級與可用高度，內容高 `contentHeight` 時輸入框的高度與是否內捲(#137)。
     func sizing(contentHeight: CGFloat) -> ComposerHeight {
@@ -551,6 +612,10 @@ final class KeyHandlingTextView: UITextView {
                 name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
         }
         updateAvailableHeight()
+        if window != nil, focusesWhenAttached {
+            focusesWhenAttached = false
+            DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() }
+        }
     }
 
     @objc private func keyboardWillChangeFrame(_ notification: Notification) {
@@ -593,15 +658,27 @@ final class KeyHandlingTextView: UITextView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        guard !fillsAvailableSpace else { return }
         updateAvailableHeight()
         // 使用者自己捲動時也會排版：只在內容、游標或大小變了才動捲動位置，不把人拉回游標。
         guard needsCaretFollow || bounds.size != measuredSize, bounds.width > 0 else { return }
         needsCaretFollow = false
         measuredSize = bounds.size
         let contentHeight = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
+        reportShowsExpand(contentHeight: contentHeight)
         let scrolls = sizing(contentHeight: contentHeight).scrolls
         if isScrollEnabled != scrolls { isScrollEnabled = scrolls }
         if scrolls { scrollCaretIntoView(contentHeight: contentHeight) }
+    }
+
+    private func reportShowsExpand(contentHeight: CGFloat) {
+        let lineHeight = (font ?? .preferredFont(forTextStyle: .body)).lineHeight
+        let shows = ComposerExpansion.showsExpandButton(
+            contentHeight: contentHeight, lineHeight: lineHeight,
+            verticalInsets: textContainerInset.top + textContainerInset.bottom, isFocused: isFirstResponder)
+        guard shows != reportedShowsExpand else { return }
+        reportedShowsExpand = shows
+        onShowsExpandChange?(shows)
     }
 
     /// 讓捲動位置包含游標(組字中是組字尾端)。直接設 `contentOffset`:`scrollRangeToVisible` 在剛開啟內捲時不會動，
@@ -701,6 +778,9 @@ struct ComposerTextEditor: View {
     @Binding var text: String
     @Binding var isFocused: Bool
     var availableHeight: Binding<CGFloat?> = .constant(nil)
+    var showsExpandButton: Binding<Bool> = .constant(false)
+    var isExpanded = false
+    var identifier = "composer.text"
     var placeholder: String
     var returnSends: Bool
     var canSend: Bool
@@ -720,8 +800,11 @@ struct ComposerTextEditor: View {
             .padding(.vertical, 11)
             .focused($focused)
             .onChange(of: focused) { isFocused = focused }
-            .onChange(of: isFocused) { focused = isFocused }
-            .accessibilityIdentifier("composer.text")
+            .onChange(of: isFocused) {
+                focused = isFocused
+                if !isExpanded { showsExpandButton.wrappedValue = isFocused }
+            }
+            .accessibilityIdentifier(identifier)
     }
 }
 #endif
