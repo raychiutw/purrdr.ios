@@ -8,8 +8,8 @@ import Testing
 @MainActor
 @Suite("You should know 註記的定期讀取")
 struct YouShouldKnowPollingTests {
-    static let storePath: HostPath = ".claude/plugins/store/cc-plugin-you-should-know_builtin-0123456789ab.json"
-    static let store = """
+    nonisolated static let storePath: HostPath = ".claude/plugins/store/cc-plugin-you-should-know_builtin-0123456789ab.json"
+    nonisolated static let store = """
         {"sessions":[{"id":"1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed","view":{"kind":"offer","line":"Tests run in parallel","shownAt":1}}],"known":[]}
         """
 
