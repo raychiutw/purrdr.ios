@@ -170,6 +170,70 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
     }
 
+    /// 展開編輯(#142):聚焦時才有展開鈕;展開後是同一份草稿，收回保留在展開畫面打的字;
+    /// 沒聚焦、超過 2 行時仍有展開鈕。
+    @MainActor
+    func testExpandedEditorKeepsDraftWhenCollapsed() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        let expand = element("composer.expand", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertFalse(expand.exists, "沒聚焦、空白時不該有展開鈕")
+
+        text.tap()
+        XCTAssertTrue(expand.waitForExistence(timeout: 5), "聚焦時沒有展開鈕")
+        XCTAssertEqual(expand.label, "Expand")
+        XCTAssertGreaterThanOrEqual(expand.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(expand.frame.height, 44)
+        text.typeText("1\n2\n3")
+        expand.tap()
+
+        let expanded = element("composer.expanded.text", in: app)
+        XCTAssertTrue(expanded.waitForExistence(timeout: 5), "沒有開出展開畫面")
+        XCTAssertEqual(expanded.value as? String, "1\n2\n3", "展開畫面不是同一份草稿")
+        XCTAssertGreaterThan(expanded.frame.height, text.frame.height, "展開畫面的輸入框沒有比輸入列大")
+        expanded.tap()
+        expanded.typeText("\n4")
+        element("composer.expanded.done", in: app).tap()
+
+        XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "「完成」沒有收回")
+        XCTAssertEqual(text.value as? String, "1\n2\n3\n4", "收回後草稿不見了")
+        XCTAssertFalse(element("conversation.echo", in: app).exists, "收回不該送出")
+        if app.keyboards.firstMatch.exists { element("composer.hideKeyboard", in: app).tap() }
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(expand.exists, "沒聚焦、4 行時應有展開鈕")
+    }
+
+    /// 在展開畫面送出(#142):回到對話、輸入列清空、有回音;鍵盤出現時送出與完成鈕在鍵盤上方。
+    @MainActor
+    func testSendingFromExpandedEditorReturnsToConversation() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        element("composer.expand", in: app).tap()
+
+        let expanded = element("composer.expanded.text", in: app)
+        XCTAssertTrue(expanded.waitForExistence(timeout: 5), "沒有開出展開畫面")
+        expanded.tap()
+        expanded.typeText("Sent from the big editor")
+        let send = element("composer.expanded.send", in: app)
+        let done = element("composer.expanded.done", in: app)
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.waitForExistence(timeout: 5) {
+            XCTAssertLessThanOrEqual(send.frame.maxY, keyboard.frame.minY + 1, "送出鈕被鍵盤擋住")
+            XCTAssertLessThanOrEqual(done.frame.maxY, keyboard.frame.minY + 1, "完成鈕被鍵盤擋住")
+        }
+        XCTAssertTrue(send.isHittable)
+        XCTAssertTrue(done.isHittable)
+        XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+        send.tap()
+
+        XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "送出後沒有回到對話")
+        XCTAssertTrue(app.staticTexts["Sent from the big editor"].waitForExistence(timeout: 5), "沒有回音")
+        XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
+    }
+
     /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {

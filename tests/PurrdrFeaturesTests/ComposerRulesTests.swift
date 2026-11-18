@@ -80,6 +80,33 @@ struct ComposerRulesTests {
         #expect(Self.layout(lines: 20, available: nil) == ComposerHeight(height: 182, scrolls: true))
     }
 
+    // MARK: - 展開鈕(#142)
+
+    /// 行高 20、上下內距 22 時 `lines` 行內容是否顯示展開鈕。
+    private static func showsExpand(lines: Double, isFocused: Bool) -> Bool {
+        ComposerExpansion.showsExpandButton(contentHeight: lines * 20 + 22, lineHeight: 20, verticalInsets: 22, isFocused: isFocused)
+    }
+
+    @Test("沒聚焦時超過 2 行才顯示展開鈕")
+    func expandButtonAfterTwoLines() {
+        #expect(!Self.showsExpand(lines: 1, isFocused: false))
+        #expect(!Self.showsExpand(lines: 2, isFocused: false))
+        #expect(Self.showsExpand(lines: 3, isFocused: false))
+        #expect(Self.showsExpand(lines: 12, isFocused: false))
+    }
+
+    @Test("聚焦時一律顯示展開鈕(包含空白輸入框)")
+    func expandButtonWhenFocused() {
+        #expect(Self.showsExpand(lines: 1, isFocused: true))
+        #expect(Self.showsExpand(lines: 2, isFocused: true))
+    }
+
+    @Test("行高量測的小誤差不讓 2 行被算成 3 行")
+    func expandButtonToleratesRounding() {
+        let almostTwoLines = ComposerExpansion.showsExpandButton(contentHeight: 2 * 20.4 + 22, lineHeight: 20, verticalInsets: 22, isFocused: false)
+        #expect(!almostTwoLines)
+    }
+
     // MARK: - 組字中的程式覆寫(#138)
 
     @Test("沒有組字時，程式改寫草稿立即套用")
