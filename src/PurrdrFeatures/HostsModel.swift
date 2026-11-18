@@ -194,16 +194,23 @@ public final class HostsModel {
 
     /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機不支援。
     private func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
-        switch (host, agent) {
-        case (.demo, .claudeCode):
-            return .claude(channel: demoChannel, cost: .free, hostID: Self.demoID, consent: demoConsent)
-        case (.host(let id), .claudeCode):
+        let channel: any HostChannel
+        let cost: PlanUsageQueryCost
+        let hostID: String
+        switch host {
+        case .demo:
+            (channel, cost, hostID) = (demoChannel, .free, Self.demoID)
+        case .host(let id):
             guard let configuration = hosts.first(where: { $0.id == id }), !configuration.connectionMethod.usesHostService else {
                 return nil
             }
-            return .claude(channel: member(for: host).channel, cost: .transfer, hostID: id.uuidString, consent: hostConsent)
-        case (_, .codex):
-            return nil
+            (channel, cost, hostID) = (member(for: host).channel, .transfer, id.uuidString)
+        }
+        switch agent {
+        case .claudeCode:
+            return .claude(channel: channel, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent)
+        case .codex:
+            return .codex(channel: channel, cost: cost)
         }
     }
 
