@@ -99,7 +99,7 @@ final class PaneTerminalUITests: XCTestCase {
         waitForScreen(screen, toContain: "ls^[x")
     }
 
-    /// 注音軟體鍵盤組字(#140):浮層出現在游標格子、念得出組字文字，確認前不送，選字後才出現在命令列。
+    /// 注音組字(#140):浮層出現在游標格子、念得出組字文字，確認前不送;放棄組字後浮層消失。
     @MainActor
     func testZhuyinCompositionShowsOverlayAtCursor() {
         let app = XCUIApplication.launchUITesting(flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
@@ -108,10 +108,9 @@ final class PaneTerminalUITests: XCTestCase {
         let input = app.descendants(matching: .any)["terminal.input"].firstMatch
         XCTAssertTrue(input.waitForExistence(timeout: 5), "沒有終端機輸入元件")
 
-        for key in ["ㄋ", "ㄧ", "ˇ"] {
-            let button = app.keys[key].firstMatch
-            XCTAssertTrue(button.waitForExistence(timeout: 5), "鍵盤沒有「\(key)」鍵")
-            button.tap()
+        // 模擬器接著實體鍵盤，軟體鍵盤在畫面外;以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
+        for key in ["s", "u", "3"] {
+            app.typeKey(key, modifierFlags: [])
         }
 
         let overlay = app.descendants(matching: .any)["terminal.composition"].firstMatch
@@ -121,11 +120,11 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertEqual(overlay.frame.minY, input.frame.minY, accuracy: 1, "浮層要在游標那一列")
         XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "確認前不能送出注音")
 
-        let candidate = app.collectionViews.cells.containing(.staticText, identifier: "你").firstMatch
-        XCTAssertTrue(candidate.waitForExistence(timeout: 5), "沒有「你」這個候選字")
-        candidate.tap()
-        waitForScreen(screen, toContain: "demo@purrdr ledger % 你")
-        XCTAssertFalse(overlay.exists, "選字後浮層要消失")
+        // 模擬器的注音輸入法不會出候選字，改用按鍵列結束組字：先放棄組字(浮層消失)再送 Esc。
+        app.buttons["terminal.key.esc"].firstMatch.tap()
+        XCTAssertTrue(overlay.waitForNonExistence(timeout: 5), "放棄組字後浮層要消失")
+        waitForScreen(screen, toContain: "demo@purrdr ledger % ^[")
+        XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "放棄的注音不能送出")
     }
 
     @MainActor
