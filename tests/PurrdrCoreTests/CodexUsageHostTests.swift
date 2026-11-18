@@ -165,8 +165,7 @@ private struct ExitedBeforeWriteChannel: HostChannel {
 
     func execute(_ command: String) async throws -> any ExecSession {
         let (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
-        continuation.yield(.stderr(Data("sh: codex: command not found
-".utf8)))
+        continuation.yield(.stderr(Data("sh: codex: command not found\n".utf8)))
         continuation.yield(.exit(code: exitCode))
         continuation.finish()
         return Session(output: output)
