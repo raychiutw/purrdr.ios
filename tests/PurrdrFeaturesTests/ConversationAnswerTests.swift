@@ -237,10 +237,31 @@ struct ConversationAnswerTests {
         let replyLine = ConversationModelTests.fixtureLines[19]
             .replacingOccurrences(of: "00000000-0000-4000-8000-00000000001f", with: "00000000-0000-4000-8000-0000000000fa")
         try setup.host.shell.append(Data((replyLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        setup.clock.advance(by: AnsweredCardAnchor.minimumShowing)
         await Self.expectPoll(setup, status: "working", screen: nil)
         await setup.model.poll()
 
         #expect(setup.model.lastAnswer == nil)
+    }
+
+    /// #213 review:Agent 回答後幾秒內寫出工具步驟，卡片曾在判定送達的同一輪就收起，看不到「你選了」。
+    @Test("已回答卡片：寫得快，判定送達那一輪對話紀錄已有新的工具步驟，卡片仍留著")
+    func answeredCardStaysWhenStepsFollowQuickly() async throws {
+        let setup = try Self.setup()
+        await Self.expectPoll(setup, screen: "claude-ask-review")
+        await setup.model.poll()
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        let cancel = try #require(setup.model.prompt?.options.first { $0.label == "Cancel" })
+        await setup.model.answer(.option(cancel))
+
+        let toolLine = ConversationModelTests.fixtureLines[20]
+            .replacingOccurrences(of: "00000000-0000-4000-8000-000000000020", with: "00000000-0000-4000-8000-0000000000fb")
+        try setup.host.shell.append(Data((toolLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        setup.clock.advance(by: 1)
+        await Self.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+
+        #expect(setup.model.lastAnswer == AnsweredPrompt(question: "Ready to submit your answers?", choice: "Cancel"))
     }
 
     @Test("被取代：畫面上換成另一個提示(下一題)→ 解鎖，新問題不繼承鎖")

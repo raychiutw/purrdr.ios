@@ -1096,7 +1096,7 @@ public final class ConversationModel {
                     // 勾選只是切換，不是最終的回答。
                 } else {
                     lastAnswer = AnsweredPrompt(question: answerQuestion, choice: Self.choiceText(answer))
-                    answeredCardAnchor = AnsweredCardAnchor(lastEntryID: entries.last?.id)
+                    answeredCardAnchor = AnsweredCardAnchor(lastEntryID: entries.last?.id, sentAt: clock.now())
                 }
                 clearAnswer()
                 haptics.play(.success)
@@ -1253,9 +1253,20 @@ public final class ConversationModel {
         let merged = EchoTimeline.merge(items: items, echoes: echoes)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
-        if let anchor = answeredCardAnchor, !anchor.isShowing(lastEntryID: entries.last?.id) {
+        if let anchor = answeredCardAnchor, !anchor.isShowing(rows: answeredCardRows, at: clock.now()) {
             lastAnswer = nil
             answeredCardAnchor = nil
+        }
+    }
+
+    /// 已回答卡片去留規則看的對話列。
+    private var answeredCardRows: [AnsweredCardAnchor.Row] {
+        entries.map { entry in
+            let showsText = switch entry {
+            case .item(.agentText), .item(.user), .item(.shell), .echo: true
+            case .item: false
+            }
+            return AnsweredCardAnchor.Row(id: entry.id, showsText: showsText)
         }
     }
 
