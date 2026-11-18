@@ -58,6 +58,18 @@ struct HTTPSHostConnectionRaceTests {
         #expect(socket.sentTypes == ["hello", "events.subscribe", "events.unsubscribe"])
     }
 
+    #if os(macOS) || os(Linux)
+    @Test("連線中斷時系統把 ping 的完成回呼兩次：只採用第一次，app 不當掉")
+    func pingCompletionCalledTwiceDoesNotCrash() async {
+        await #expect(processExitsWith: .success) {
+            try? await URLSessionHostServiceTransport.completion { completed in
+                completed(nil)
+                completed(URLError(.networkConnectionLost))
+            }
+        }
+    }
+    #endif
+
     private static let address = HostServiceAddress("http://127.0.0.1:1")!
 }
 

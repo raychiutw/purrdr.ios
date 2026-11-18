@@ -64,6 +64,19 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
         }
     }
 
+    /// 等系統以 completion handler 回報完成(`nil` 是成功)。
+    static func completion(_ start: (@escaping @Sendable ((any Error)?) -> Void) -> Void) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+            start { error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
     private static func isMagicDNSName(_ hostName: String) -> Bool {
         hostName.lowercased().hasSuffix(".ts.net")
     }
@@ -107,16 +120,8 @@ private final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
     }
 
     func sendPing() async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            // 連線關閉時 URLSession 也會以錯誤呼叫 handler,不會一直等。
-            task.sendPing { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
-        }
+        // 連線關閉時 URLSession 也會以錯誤呼叫 handler,不會一直等。
+        try await URLSessionHostServiceTransport.completion { task.sendPing(pongReceiveHandler: $0) }
     }
 
     func close() async {
