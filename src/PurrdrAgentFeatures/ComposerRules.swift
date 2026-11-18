@@ -72,6 +72,21 @@ public enum ComposerSizing {
     }
 }
 
+// MARK: - 展開編輯
+
+/// 「展開」鈕(#142):內容超過 2 行或聚焦時顯示，打開全螢幕編輯。
+public enum ComposerExpansion {
+    /// - Parameters:
+    ///   - contentHeight: 內容全部攤開的高度(含上下內距)。
+    ///   - verticalInsets: 上下內距合計。
+    public static func showsExpandButton(contentHeight: Double, lineHeight: Double, verticalInsets: Double, isFocused: Bool) -> Bool {
+        if isFocused { return true }
+        guard lineHeight > 0 else { return false }
+        // 四捨五入：量到的高度可能比行高的整數倍多一點點。
+        return ((contentHeight - verticalInsets) / lineHeight).rounded() > 2
+    }
+}
+
 // MARK: - 組字
 
 /// 程式對輸入框的整段覆寫(slash 選單填入、Discuss in Chat):組字中延後到組字結束(#138)。

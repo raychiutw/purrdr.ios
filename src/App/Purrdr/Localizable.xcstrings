@@ -2550,6 +2550,17 @@
         }
       }
     },
+    "Expand" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開"
+          }
+        }
+      }
+    },
     "Expanded" : {
       "extractionState" : "manual",
       "localizations" : {
