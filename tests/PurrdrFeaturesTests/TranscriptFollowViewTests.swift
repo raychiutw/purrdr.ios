@@ -10,11 +10,11 @@ import Testing
 @Suite("畫面等對話紀錄追蹤")
 struct TranscriptFollowViewTests {
     static let paneID = "w1:p6"
-    static let sessionID = "00000000-0000-0000-0000-000000000001"
-    static let path = "/Users/demo/.claude/projects/-Users-demo-Projects-garden-journal/\(sessionID).jsonl"
-    static let lines = Fixtures.transcriptLines()
+    nonisolated static let sessionID = "00000000-0000-0000-0000-000000000001"
+    nonisolated static let path = "/Users/demo/.claude/projects/-Users-demo-Projects-garden-journal/\(sessionID).jsonl"
+    nonisolated static let lines = Fixtures.transcriptLines()
     /// 視窗讀到的整個 fixture 的 byte 數(含每行換行)。
-    static let size = lines.reduce(0) { $0 + $1.utf8.count + 1 }
+    nonisolated static let size = lines.reduce(0) { $0 + $1.utf8.count + 1 }
 
     /// 定位回報 `path`;視窗(與探測大小的尾端讀取)回整個 fixture。
     static func answering(_ connection: FakeHostConnection) async {
