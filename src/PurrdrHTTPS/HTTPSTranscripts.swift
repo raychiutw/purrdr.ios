@@ -115,6 +115,65 @@ extension HTTPSHostConnection {
         Task { _ = try? await session.request { .transcriptUnfollow(.init(requestId: $0, streamId: streamID)) } }
     }
 
+    // MARK: - 追蹤串流
+
+    /// 追蹤尾端(#165):主機服務推送的 `transcript.update` 直接轉成事件，不看 `pace`。同一個路徑先前的追蹤
+    /// (一次性讀取開的或另一個串流)請主機停止。呼叫端不再讀或 `stopFollowingTranscript(path:)` 時送 `transcript.unfollow`。
+    public func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
+        let (events, continuation) = AsyncThrowingStream<TranscriptFollowEvent, any Error>.makeStream()
+        if let follow = transcriptFollows.removeValue(forKey: path) { await stopFollowing(follow) }
+        transcriptStreams.removeValue(forKey: path)?.continuation.finish()
+        let stream = TranscriptStream(continuation: continuation)
+        transcriptStreams[path] = stream
+        let forwarding = Task { await self.forwardTranscript(path: path, from: cursor, to: continuation) }
+        continuation.onTermination = { _ in
+            forwarding.cancel()
+            Task { await self.forgetTranscriptStream(stream, path: path) }
+        }
+        return events
+    }
+
+    private func forwardTranscript(
+        path: String, from cursor: Int, to continuation: AsyncThrowingStream<TranscriptFollowEvent, any Error>.Continuation
+    ) async {
+        var opened: (session: HostServiceSession, streamID: String)?
+        do {
+            let session = try await liveSession()
+            let streamID = await session.makeStreamID()
+            let messages = await session.openStream(streamID)
+            opened = (session, streamID)
+            // 主機服務的追蹤沒有「分段接著讀」:落後超過上限就以 tooFarBehind 結束(#173 補上)。
+            let reply = try await withDeadline(HostCommandDeadline.standard) {
+                try await self.send(on: session) {
+                    .transcriptFollow(.init(requestId: $0, streamId: streamID, path: path, from: cursor, limit: TranscriptReader.catchUpLimit))
+                }
+            }
+            guard case .transcriptFollowResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+            var pushed = PushedTranscript(position: cursor)
+            var isEnded = try pushed.forward(size: result.size, start: result.start, records: result.records, ended: result.ended, to: continuation)
+            if !isEnded {
+                for try await case .transcriptUpdate(let update) in messages {
+                    isEnded = try pushed.forward(size: update.size, start: update.start, records: update.records, ended: update.ended, to: continuation)
+                    if isEnded { break }
+                }
+            }
+            continuation.finish()
+        } catch is CancellationError {
+            continuation.finish()
+        } catch {
+            continuation.finish(throwing: error)
+        }
+        // 主機還在推就請它停止(主機已結束或連線已斷時串流已不在登記表)。不等回應：呼叫端可能正被取消。
+        if let opened, await opened.session.closeStream(opened.streamID) {
+            let (session, streamID) = opened
+            Task { _ = try? await session.request { .transcriptUnfollow(.init(requestId: $0, streamId: streamID)) } }
+        }
+    }
+
+    private func forgetTranscriptStream(_ stream: TranscriptStream, path: String) {
+        if transcriptStreams[path]?.id == stream.id { transcriptStreams[path] = nil }
+    }
+
     static func recordLines(_ records: [HostServiceProtocol.TranscriptRecord]) -> Data {
         Data(records.map { "\($0.length)\t\($0.text)\n" }.joined().utf8)
     }
@@ -182,5 +241,42 @@ struct TranscriptFollow {
         bufferedBytes -= dropped.reduce(0) { $0 + $1.record.text.utf8.count }
         records.removeFirst(dropped.count)
         bufferStart = cursor
+    }
+}
+
+/// 一個追蹤串流(`HTTPSHostConnection.followTranscript`)。
+struct TranscriptStream: Sendable {
+    let id = UUID()
+    let continuation: AsyncThrowingStream<TranscriptFollowEvent, any Error>.Continuation
+}
+
+/// 追蹤串流收到的推送換成事件：新增的完整行從 `position` 接著。
+struct PushedTranscript {
+    var position: Int
+
+    /// 送出這則推送的事件;回傳追蹤是否結束。檔案不在或讀不了丟 `TranscriptReadError`。
+    mutating func forward(
+        size: Int, start: Int, records: [HostServiceProtocol.TranscriptRecord], ended: HostServiceProtocol.TranscriptStreamEnd?,
+        to continuation: AsyncThrowingStream<TranscriptFollowEvent, any Error>.Continuation
+    ) throws -> Bool {
+        switch ended {
+        case .absent: throw TranscriptReadError.absent
+        case .unreadable: throw TranscriptReadError.unreadable
+        default: break
+        }
+        guard start == position else {
+            // 不相連(不該發生):接不上，讓呼叫端重讀視窗。
+            continuation.yield(.replaced(size: size))
+            return true
+        }
+        if !records.isEmpty {
+            let end = position + records.reduce(0) { $0 + $1.length + 1 }
+            continuation.yield(.appended(TranscriptChunk(start: position, end: end, lines: records.map(\.text))))
+            position = end
+        }
+        guard ended != nil else { return false }
+        // 換檔、變短，或落後太多(主機服務不能分段接著讀，#173):重讀視窗。
+        continuation.yield(.replaced(size: size))
+        return true
     }
 }

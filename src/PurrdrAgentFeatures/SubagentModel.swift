@@ -5,7 +5,7 @@ import PurrdrCore
 /// Subagent 畫面(唯讀)的 model(行為規格 F10「Subagent 畫面」)。
 ///
 /// - 依呼叫 id 在 meta 中找檔案，**絕不用最新檔**(`TranscriptReader.locateSubagent`,R-W02);執行中找不到每 2 秒再找。
-/// - 找到後以視窗(300 行)開啟，之後從游標追蹤;結束後再讀一次就停止。
+/// - 找到後以視窗(300 行)開啟，之後等主機連線的追蹤事件(#165,不自己定時讀尾端);結束後再讀一次就停止。
 /// - 結束偵測：執行中每 3 秒在父對話紀錄找指名此呼叫／agent 的行，用和卡片相同的規則判斷(R-W04:父聊天被蓋住時
 ///   停止輪詢，卡片學不到結束)。
 /// - 內容如主對話，但 subagent 的行都是 sidechain,一律顯示。
@@ -42,6 +42,8 @@ public final class SubagentModel {
     private var endChecksum: String?
     /// 結束後做過最後一次補讀。
     private var finishedReading = false
+    /// 追蹤中(#165);結束時停止。
+    @ObservationIgnored private var following: Task<Bool, Never>?
 
     /// Subagent 卡的畫面。卡片沒有呼叫 id 時不該建立(箭頭停用)。
     public init(transcripts: TranscriptReader, parentTranscript: String, card: SubagentCard, openLines: Int = 300) {
@@ -68,14 +70,22 @@ public final class SubagentModel {
         file?.follow.reopen()
     }
 
-    /// 畫面可見時執行，直到所在的 task 被取消。
+    /// 畫面可見時執行，直到所在的 task 被取消。還沒找到檔案(或追蹤出錯)時每 2 秒讀一次;追上之後等追蹤事件，
+    /// 結束時停止追蹤並補讀最後一次。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
         reopen()
+        let pace = TranscriptFollowPace(interval: .seconds(2), sleep: sleep)
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
+                var isReopened = false
                 while !Task.isCancelled {
-                    await self.poll()
-                    if await MainActor.run(body: { self.finishedReading }) { return }
+                    if !isReopened {
+                        await self.poll()
+                        if await MainActor.run(body: { self.finishedReading }) { return }
+                    }
+                    isReopened = await self.followWhileRunning(pace: pace)
+                    let isRunning = await MainActor.run { self.status == .running }
+                    if isReopened || !isRunning { continue }
                     do { try await sleep(.seconds(2)) } catch { return }
                 }
             }
@@ -100,9 +110,7 @@ public final class SubagentModel {
                     self.file?.follow = read.next
                 case .appended(let chunk):
                     self.file?.follow = read.next
-                    let known = Set(messages.map(\.id))
-                    messages += chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)).filter { !known.contains($0.id) }
-                    rebuild()
+                    append(chunk)
                 case .tooFarBehind, .shrank:
                     try await open(path: file.path)
                 }
@@ -125,6 +133,40 @@ public final class SubagentModel {
         if ended { finishedReading = true }
     }
 
+    /// 已追上且還在執行時追蹤，直到 subagent 結束(`checkEnd` 停止追蹤)、接不上或追蹤結束。
+    /// 回傳是否因接不上而重讀了視窗(呼叫端直接從新游標再追蹤)。
+    private func followWhileRunning(pace: TranscriptFollowPace) async -> Bool {
+        guard status == .running, let file, file.follow.isLive else { return false }
+        let task = Task { await self.applyUpdates(path: file.path, from: file.follow.cursor, pace: pace) }
+        following = task
+        defer { following = nil }
+        return await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+    }
+
+    private func applyUpdates(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> Bool {
+        do {
+            for try await event in await transcripts.followTranscript(path: path, from: cursor, pace: pace) {
+                switch event {
+                case .appended(let chunk):
+                    file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
+                    append(chunk)
+                case .replaced:
+                    try await open(path: path)
+                    return true
+                }
+            }
+        } catch {
+            // 回到 `run` 輪詢讀一次再追蹤。
+        }
+        return false
+    }
+
+    private func append(_ chunk: TranscriptChunk) {
+        let known = Set(messages.map(\.id))
+        messages += chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)).filter { !known.contains($0.id) }
+        rebuild()
+    }
+
     private func open(path: String) async throws {
         let size = try await transcripts.size(path: path)
         let chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines)
@@ -144,6 +186,7 @@ public final class SubagentModel {
         for case .subagent(let card) in items where card.callID == callID {
             status = card.status
         }
+        if status != .running { following?.cancel() }
     }
 
     private func rebuild() {

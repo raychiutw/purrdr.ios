@@ -165,6 +165,14 @@ public struct TranscriptReader: Sendable {
         await connection.stopFollowingTranscript(path: path)
     }
 
+    /// 追蹤 `path` 的尾端(見 `HostConnection.followTranscript`)。路徑不安全時串流立刻以 `.invalidReference` 結束。
+    public func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
+        guard Self.isValidPath(path), cursor >= 0 else {
+            return AsyncThrowingStream { $0.finish(throwing: TranscriptReadError.invalidReference) }
+        }
+        return await connection.followTranscript(path: path, from: cursor, pace: pace)
+    }
+
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
         try await tailReportingSize(path: path, from: cursor, limit: limit).tail
