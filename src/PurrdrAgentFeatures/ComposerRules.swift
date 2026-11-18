@@ -62,7 +62,13 @@ public enum ComposerSizing {
     ///   - verticalInsets: 上下內距合計。
     ///   - availableHeight: 鍵盤上方可用高度;不知道時只看行數。
     public static func height(contentHeight: Double, lineHeight: Double, verticalInsets: Double, availableHeight: Double?) -> ComposerHeight {
-        ComposerHeight(height: 0, scrolls: false)
+        var limit = (lineHeight * maxLines + verticalInsets).rounded(.up)
+        if let availableHeight {
+            // 取整點:0.4 不是精確的二進位小數，乘出來可能多一點點。
+            limit = min(limit, (availableHeight * availableFraction).rounded())
+        }
+        limit = max(limit, minHeight)
+        return ComposerHeight(height: max(minHeight, min(contentHeight, limit)), scrolls: contentHeight > limit)
     }
 }
 
