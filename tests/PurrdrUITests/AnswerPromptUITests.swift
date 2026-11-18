@@ -89,6 +89,36 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(answered.label.contains("Submit answers"), "沒有寫出最後的選擇:\(answered.label)")
     }
 
+    /// 「Type something.」(#120):點了以後輸入框取得焦點、提示改成打回答;送出後進到下一題並寫出打的字。
+    /// 取消回到一般輸入，問題卡還在。
+    @MainActor
+    func testTypeSomethingAnswersWithComposer() {
+        let app = open(paneID: "w1:p1")
+        send("ask me", in: app)
+        XCTAssertTrue(app.staticTexts["Which color should the chart use?"].waitForExistence(timeout: 15), "沒有第一題")
+
+        let typeSomething = element("prompt.option.4", in: app)
+        XCTAssertTrue(typeSomething.isEnabled, "「Type something.」應可點")
+        typeSomething.tap()
+        let banner = element("composer.typedAnswer", in: app)
+        XCTAssertTrue(banner.waitForExistence(timeout: 5), "沒有顯示正在打自訂回答")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "輸入框應取得焦點")
+        XCTAssertEqual(element("composer.text", in: app).label, "Type your answer", "提示應改成打回答")
+
+        element("composer.typedAnswer.cancel", in: app).tap()
+        XCTAssertTrue(banner.waitForNonExistence(timeout: 5), "取消後應回到一般輸入")
+        XCTAssertTrue(app.staticTexts["Which color should the chart use?"].exists, "取消不應回答問題")
+
+        typeSomething.tap()
+        XCTAssertTrue(banner.waitForExistence(timeout: 5))
+        element("composer.text", in: app).typeText("Forest green")
+        element("composer.send", in: app).tap()
+
+        XCTAssertTrue(app.staticTexts["How large should the chart be?"].waitForExistence(timeout: 10), "自訂回答後應進到第二題")
+        let answered = element("prompt.answered", in: app)
+        XCTAssertTrue(answered.label.contains("Forest green"), "沒有寫出打的回答:\(answered.label)")
+    }
+
     /// 「trust」:資料夾信任(agent 仍回報閒置)。送出被拒後顯示提示;「Yes」不是預設選項，點了送方向鍵而不是單按 Enter。
     @MainActor
     func testFolderTrustPrompt() {

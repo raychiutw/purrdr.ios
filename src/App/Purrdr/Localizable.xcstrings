@@ -115,17 +115,6 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
-    "%@, %lld working" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@,%lld 個工作中"
-          }
-        }
-      }
-    },
     "%@: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -291,13 +280,13 @@
         }
       }
     },
-    "%lld tabs" : {
+    "%lld terminals" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 個 Tab"
+            "value" : "%lld 個終端機"
           }
         }
       }
@@ -461,24 +450,13 @@
         }
       }
     },
-    "1 pane" : {
+    "1 terminal" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1 個 Pane"
-          }
-        }
-      }
-    },
-    "1 tab" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 個 Tab"
+            "value" : "1 個終端機"
           }
         }
       }
@@ -1017,6 +995,17 @@
         }
       }
     },
+    "Cancel Custom Answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消自訂回答"
+          }
+        }
+      }
+    },
     "Can’t Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1545,6 +1534,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 要在你送出第一則訊息後才會回報 session,回報後訊息就會出現在這裡。"
+          }
+        }
+      }
+    },
+    "Collapsed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收合"
           }
         }
       }
@@ -2557,6 +2557,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 Workspace 裡的每個 Tab、Pane 與程序都會停止。對話紀錄仍留在主機上，但 Agent 會停止執行。"
+          }
+        }
+      }
+    },
+    "Expanded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已展開"
           }
         }
       }
@@ -4618,6 +4629,17 @@
         }
       }
     },
+    "Puts the suggestion in the message box without sending it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把建議放進輸入框，不會送出。"
+          }
+        }
+      }
+    },
     "QR code for %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5443,17 +5465,6 @@
         }
       }
     },
-    "Shows the layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示版面"
-          }
-        }
-      }
-    },
     "Shows the result" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5740,6 +5751,17 @@
         }
       }
     },
+    "Suggestion: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議：%@"
+          }
+        }
+      }
+    },
     "Support" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5912,6 +5934,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終端機"
+          }
+        }
+      }
+    },
+    "Terminals %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端機 %lld"
           }
         }
       }
@@ -7269,6 +7302,28 @@
         }
       }
     },
+    "Type your answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入你的回答"
+          }
+        }
+      }
+    },
+    "Type your answer in the message field." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在下方訊息框輸入你的回答。"
+          }
+        }
+      }
+    },
     "Unavailable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7786,17 +7841,6 @@
         }
       }
     },
-    "Workspace Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workspace 版面"
-          }
-        }
-      }
-    },
     "Workspace name" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7900,6 +7944,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的 Purrdr Plus 訂閱已在這個會員啟用。"
+          }
+        }
+      }
+    },
+    "Your answer will be sent to the agent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出的內容會當成回答交給 Agent。"
           }
         }
       }

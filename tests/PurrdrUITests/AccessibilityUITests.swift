@@ -19,7 +19,7 @@ final class AccessibilityUITests: XCTestCase {
         continueAfterFailure = true
         let app = XCUIApplication.launchUITesting()
         let codex = element("agent.row.demo/w3:p1", in: app)
-        XCTAssertTrue(app.reveal(codex), "notes 卡片下沒有 Codex 列")
+        XCTAssertTrue(app.reveal(codex), "notes 群組下沒有 Codex 列")
         // iPhone 17 預設字級：標題折成兩行 + 副標 + 預覽約 112pt;上下堆疊(狀態、時間各佔一行)約 132pt;
         // 狀態標題被擠成一字一行時約 188pt。
         XCTAssertLessThan(codex.frame.height, 125, "Codex 列太高:\(codex.frame)")

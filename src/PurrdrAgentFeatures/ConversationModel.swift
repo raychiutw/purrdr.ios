@@ -124,6 +124,12 @@ public final class ConversationModel {
     /// 輸入框的文字。改動即存進 `DraftStore`(離開聊天保留)。
     public var draft = "" {
         didSet {
+            // 自訂回答的文字不是草稿，也不開 slash 選單(#120)。
+            guard typedAnswer == nil else {
+                slash.update(draft: "")
+                typedAnswerDraftChanged()
+                return
+            }
             drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
             slash.update(draft: draft)
         }
@@ -396,7 +402,7 @@ public final class ConversationModel {
     public func poll() async {
         let snapshot: HostSnapshot
         do {
-            snapshot = try await client.snapshot()
+            snapshot = try await snapshotRetryingOnce()
         } catch {
             await showOffline()
             return
@@ -407,6 +413,7 @@ public final class ConversationModel {
         if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
         guard let agent = currentAgent else {
+            clearSuggestion()
             unbind()
             phase = .agentGone
             agentStatus = nil
@@ -416,7 +423,9 @@ public final class ConversationModel {
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         screenThisPoll = nil
         await refreshPrompt(agent)
+        let suggestionRead = await readSuggestion(agent)
         await refreshPanel(agent)
+        applySuggestion(suggestionRead, agent: agent)
         await refreshLivePreview()
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
@@ -564,9 +573,26 @@ public final class ConversationModel {
 
     // MARK: - 離線
 
+    /// 讀 snapshot;失敗就立刻靜默重試一次，連續第二次失敗才往外丟(R-B11、F5.3 第 6 點、#133)。
+    ///
+    /// 第一次失敗多半是連線剛被丟棄(keepalive 逾時、網路切換、喚醒探測):重試在新連線上撥號，使用者不會看到「連線中斷」。
+    /// snapshot 是唯讀請求，重送不違反「連線層失敗不重送」(行為規格 §7.3 針對的是寫入)。
+    private func snapshotRetryingOnce() async throws -> HostSnapshot {
+        do {
+            return try await client.snapshot()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            try Task.checkCancellation()
+            return try await client.snapshot()
+        }
+    }
+
     /// 連不上主機：畫面空著時，唯讀顯示同一 session 的快取(只在快取屬於列表看到的 session 時,R-B16)。
     private func showOffline() async {
         isOffline = true
+        // 看不到主機畫面，建議可能已過時;恢復連線後重讀(#123)。
+        clearSuggestion()
         banner = .offline
         updateWorkingSince()
         if items.isEmpty, let knownSessionID, let cached = await cache.load(chatKey: chatKey), cached.matches(sessionID: knownSessionID) {
@@ -598,14 +624,18 @@ public final class ConversationModel {
 
     // MARK: - 送出
 
-    /// 可送 = 修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
+    /// 可送 = 不是唯讀裝置、修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
+    /// 自訂回答時改看回答在途與否，而且不能只送圖片(#120)。
     public var canSend: Bool {
-        !isReadOnly && !isSending && (!draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !attachments.isEmpty) && hasTarget
+        guard hasTarget, !isReadOnly else { return false }
+        let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if typedAnswer != nil { return answerInFlight == nil && hasText }
+        return !isSending && (hasText || !attachments.isEmpty)
     }
 
     /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
     public var isShellMode: Bool {
-        guard let kind = currentAgent?.kind else { return false }
+        guard typedAnswer == nil, let kind = currentAgent?.kind else { return false }
         return PromptDelivery.isShellCommand(draft, kind: kind)
     }
 
@@ -623,6 +653,10 @@ public final class ConversationModel {
     /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
     public func send() async {
         guard canSend else { return }
+        if let typedAnswer {
+            await sendTypedAnswer(typedAnswer)
+            return
+        }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         isSending = true
         updateWorkingSince()
@@ -632,6 +666,8 @@ public final class ConversationModel {
         }
         notice = nil
         draft = ""
+        // 送出後舊建議已不適用;下次完成時重讀(herdr 可能來不及回報工作中,#123)。
+        clearSuggestion()
         let sentImages = attachments
         let echo = PromptEcho(
             id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs,
@@ -715,12 +751,13 @@ public final class ConversationModel {
 
     /// 這個回答現在能不能送:沒有回答在途、提示還在，且有按鍵可送(編號 10 以上不行,R-Q04)。
     public func canAnswer(_ answer: PromptAnswer) -> Bool {
-        guard !isReadOnly, answerInFlight == nil, let prompt, keys(for: answer) != nil else { return false }
+        guard !isReadOnly, answerInFlight == nil, let prompt, inputs(for: answer) != nil else { return false }
         switch answer {
         case .option(let option): return prompt.options.contains(option)
         case .continueMultiSelect: return prompt.isMultiSelect
         case .closePicker: return prompt.kind == .filePicker
         case .generic: return prompt.kind == .unrecognized
+        case .typed(let option, _): return prompt.typedAnswerOption(agentKind: answerAgentKind) == option
         }
     }
 
@@ -729,7 +766,7 @@ public final class ConversationModel {
     /// 送出前就鎖住所有選項(兩次快速點擊在重繪前就會到);之後每次輪詢判定：提示不見了或換成別的 → 已送達;
     /// 同一個提示超過期限 → 逾時、解鎖並提示可能沒送到;按鍵送不出去 → 立刻解鎖並顯示錯誤(R-Q05)。
     public func answer(_ answer: PromptAnswer) async {
-        guard canAnswer(answer), let prompt, let keys = keys(for: answer) else { return }
+        guard canAnswer(answer), let prompt, let inputs = inputs(for: answer) else { return }
         answerInFlight = answer
         answerSignature = prompt.signature
         answerQuestion = prompt.question
@@ -737,7 +774,12 @@ public final class ConversationModel {
         answerNotice = nil
         haptics.play(.selection)
         do {
-            try await client.sendKeys(paneID: paneID, keys: keys)
+            for input in inputs {
+                switch input {
+                case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys)
+                case .text(let text): try await client.sendText(paneID: paneID, text: text)
+                }
+            }
         } catch {
             guard answerInFlight == answer else { return }
             clearAnswer()
@@ -766,9 +808,85 @@ public final class ConversationModel {
 
     public func dismissAnswerNotice() { answerNotice = nil }
 
-    private func keys(for answer: PromptAnswer) -> [String]? {
-        AnswerKeys.keys(for: answer, agentKind: currentAgent?.kind ?? "")
+    // MARK: 自訂回答(Type something,#120)
+
+    /// 正在用輸入框打自訂答案的「Type something.」選項;`nil` = 一般輸入。
+    public private(set) var typedAnswer: PromptOption?
+    /// 進入自訂回答前的草稿(結束後放回)。
+    private var draftBeforeTypedAnswer = ""
+    /// 這次自訂回答打過字了沒有。剛進入時輸入框本來就空，打過字之後再清空才算取消(#127)。
+    private var typedAnswerHasText = false
+
+    /// 這個選項是不是要用輸入框打字回答的「Type something.」。
+    public func isTypedAnswerOption(_ option: PromptOption) -> Bool {
+        prompt?.typedAnswerOption(agentKind: answerAgentKind) == option
     }
+
+    /// 這個「Type something.」現在能不能點(進入自訂回答):沒有回答在途、它是這張問題卡的自訂回答選項。
+    /// 已經在自訂回答時也可點(不做事),所以不看 `typedAnswer`。
+    public func canBeginTypedAnswer(_ option: PromptOption) -> Bool {
+        answerInFlight == nil && isTypedAnswerOption(option)
+    }
+
+    /// 這個選項的回答是否正在送出(點選的編號，或以它送出的自訂回答)。
+    public func isAnswering(_ option: PromptOption) -> Bool {
+        switch answerInFlight {
+        case .option(let answered)?, .typed(let answered, _)?: answered == option
+        default: false
+        }
+    }
+
+    /// 點「Type something.」:不送任何按鍵(Claude 收到數字只會把那一列變成文字輸入),改由輸入框打字;
+    /// 原本的草稿先收起來，結束時放回。
+    public func beginTypedAnswer(_ option: PromptOption) {
+        guard canBeginTypedAnswer(option), typedAnswer == nil else { return }
+        typedAnswer = option
+        typedAnswerHasText = false
+        draftBeforeTypedAnswer = draft
+        draft = ""
+    }
+
+    /// 取消自訂回答，回到一般輸入(什麼都沒送過，不必還原 pane)。
+    public func cancelTypedAnswer() {
+        guard typedAnswer != nil else { return }
+        endTypedAnswer()
+    }
+
+    /// 自訂回答時輸入框改了：打過字之後清空 = 取消，回到一般輸入(#127)。
+    private func typedAnswerDraftChanged() {
+        if !draft.isEmpty {
+            typedAnswerHasText = true
+        } else if typedAnswerHasText {
+            endTypedAnswer()
+        }
+    }
+
+    private func endTypedAnswer() {
+        typedAnswer = nil
+        typedAnswerHasText = false
+        draft = draftBeforeTypedAnswer
+        draftBeforeTypedAnswer = ""
+    }
+
+    /// 送出自訂回答：數字 → 文字 → enter(`AnswerKeys.inputs`)。送不出去就回到自訂回答、保留打的字。
+    private func sendTypedAnswer(_ option: PromptOption) async {
+        let text = draft
+        let answer = PromptAnswer.typed(option, text: text)
+        guard canAnswer(answer) else { return }
+        endTypedAnswer()
+        await self.answer(answer)
+        if answerNotice == .sendFailed, isTypedAnswerOption(option) {
+            beginTypedAnswer(option)
+            draft = text
+        }
+    }
+
+    private func inputs(for answer: PromptAnswer) -> [AnswerInput]? {
+        AnswerKeys.inputs(for: answer, agentKind: answerAgentKind)
+    }
+
+    /// 回答規則用的 agent 種類(還不知道 agent 時是空字串，走一般規則)。
+    private var answerAgentKind: String { agentKind ?? "" }
 
     /// 回答期限:max(12 秒, 3 × 輪詢間隔)(blocked 時每 2 秒輪詢;慢輪詢下好答案曾被判逾時,R-Q05)。
     private static let answerDeadline: TimeInterval = max(12, 3 * 2)
@@ -819,6 +937,8 @@ public final class ConversationModel {
             }
         }
         if next?.signature != prompt?.signature || (next == nil) != (prompt == nil) { prompt = next }
+        // 提示換了或不見了(例如在終端機回答掉):自訂回答跟著結束。
+        if let typedAnswer, !isTypedAnswerOption(typedAnswer) { endTypedAnswer() }
     }
 
     private func checkAnswerDeadline() {
@@ -845,6 +965,7 @@ public final class ConversationModel {
         case .generic(.one): "1"
         case .generic(.two): "2"
         case .generic(.escape): String(localized: "Esc")
+        case .typed(_, let text): text
         }
     }
 
@@ -1042,6 +1163,77 @@ public final class ConversationModel {
         guard let screen = screenThisPoll else { return }
         let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
         if next != panel { panel = next }
+    }
+
+    // MARK: - 建議提示詞(#121、#123)
+
+    /// 輸入列上方要顯示的 Claude Code 建議提示詞;沒有建議、或輸入框已有文字時為 `nil`
+    /// (不蓋掉使用者打的字，#121 故事 4)。
+    public var suggestion: String? { draft.isEmpty ? detectedSuggestion : nil }
+
+    /// 接受建議：只把文字填入輸入框，**不送任何 herdr 請求**(同 slash 選定,#83)。
+    /// 沒有顯示中的建議(例如輸入框已有字)時什麼都不做並回傳 `false`(硬體鍵盤的 Tab 照常交給系統)。
+    @discardableResult
+    public func acceptSuggestion() -> Bool {
+        guard let suggestion else { return false }
+        draft = suggestion
+        return true
+    }
+
+    /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
+    private var detectedSuggestion: String?
+    /// 這段完成期間還能讀幾次畫面找建議。Claude Code 回完之後才另外產生建議，第一次讀常常還沒有，
+    /// 所以沒讀到時之後的輪詢再讀，讀到就停;次數有上限(指令預算 R-F01)。離開完成、送出、離線時重來。
+    @ObservationIgnored private var suggestionReadsLeft = ConversationModel.suggestionReadLimit
+    /// 每次清掉建議就加一:在途的讀取回來時若已不同，結果作廢(期間送出過，舊建議不適用)。
+    @ObservationIgnored private var suggestionEpoch = 0
+
+    /// 同一段完成期間最多讀幾次畫面找建議。
+    static let suggestionReadLimit = 3
+
+    /// 一次讀畫面認出的建議(可能沒有)與讀取開始時的 epoch。
+    private struct SuggestionRead {
+        var suggestion: String?
+        var epoch: Int
+    }
+
+    /// Claude Code 在等下一步(完成或閒置——閒置是 herdr 把完成標成看過，#121 故事 5;沒有提示)。
+    private func awaitsNextPrompt(_ agent: Agent) -> Bool {
+        agent.kind == "claude" && (agentStatus == .done || agentStatus == .idle) && prompt == nil
+    }
+
+    /// 在等下一步、這段期間還能讀時，讀含 ANSI 的畫面找建議(#121)。在面板判定之前讀，讀到的畫面去掉 ANSI 後
+    /// 給這次輪詢的面板、背景 agents 窗格共用(R-F02);這次輪詢已讀過純文字畫面(分不出灰色建議)就留到下次。
+    /// 讀取期間建議被清掉(送出)時結果作廢，畫面也不共用。
+    private func readSuggestion(_ agent: Agent) async -> SuggestionRead? {
+        guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, screenThisPoll == nil else { return nil }
+        let epoch = suggestionEpoch
+        suggestionReadsLeft -= 1
+        guard let screen = try? await client.readPane(paneID: paneID, format: .ansi), epoch == suggestionEpoch else { return nil }
+        screenThisPoll = Self.plainText(ansi: screen)
+        return SuggestionRead(suggestion: PromptSuggestion.detect(screen: screen), epoch: epoch)
+    }
+
+    /// 面板判定之後才決定：不在等下一步、或面板開著就拿掉;這次有讀到就換上(讀到建議後這段期間不再讀)。
+    private func applySuggestion(_ read: SuggestionRead?, agent: Agent) {
+        guard awaitsNextPrompt(agent), panel == nil else {
+            clearSuggestion()
+            return
+        }
+        guard let read, read.epoch == suggestionEpoch else { return }
+        detectedSuggestion = read.suggestion
+        if read.suggestion != nil { suggestionReadsLeft = 0 }
+    }
+
+    private func clearSuggestion() {
+        detectedSuggestion = nil
+        suggestionReadsLeft = Self.suggestionReadLimit
+        suggestionEpoch += 1
+    }
+
+    /// 去掉跳脫序列與 `\r`:`.ansi` 畫面只差在跳脫序列與行尾，其他解析器吃的是純文字。
+    static func plainText(ansi screen: String) -> String {
+        ANSIText.strip(screen).replacingOccurrences(of: "\r", with: "")
     }
 
     // MARK: - 標題列(#44)

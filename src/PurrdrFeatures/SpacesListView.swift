@@ -2,7 +2,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// Spaces 檢視的 section(#40):單一 agent 的 workspace 是聊天列，其他是 workspace 卡片，下方內縮列出 Agent 與終端機列。
+/// Spaces 檢視的 section(#103):已釘選組與每台主機一組。單一 agent 的 workspace 是聊天列，其他是可收合的群組。
 ///
 /// 終端機列跟 Agent 列一樣以 `ChatRoute`(主機 + pane id)導覽:pane 不是 agent 時開的是 Pane 終端機，
 /// 所以 iPad 的 split view 選取與 iPhone 的推入都不用另外處理。
@@ -10,7 +10,7 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
     let sections: [SpacesSection]
     let model: MergedAgentListModel
     let presentation: WorkspacePresentation
-    /// 跟 Agents 檢視同一種列(同樣的滑動、選單、已讀與釘選)。
+    /// 跟 Agents 檢視同樣的滑動、選單、已讀與釘選;列的版面是 `SpacesAgentRowView`。
     @ViewBuilder let agentRow: (AgentRow) -> AgentRowContent
 
     var body: some View {
@@ -20,22 +20,21 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
                     switch item {
                     case .chat(let row):
                         agentRow(row)
-                    case .card(let card):
-                        WorkspaceCardHeader(card: card) { showLayout(card) }
-                        ForEach(card.groups) { group in
-                            if let title = group.title {
-                                TabGroupTitle(title: title)
-                            }
+                    case .group(let group):
+                        WorkspaceGroupHeader(group: group) { model.toggleExpanded(group) }
+                            .workspaceGroupActions(
+                                WorkspaceTarget(workspaceID: group.workspaceID, label: group.label, snapshot: model.snapshot(for: group.host)),
+                                host: group.host, snapshot: model.snapshot(for: group.host), presentation: presentation)
+                        if group.isExpanded {
                             ForEach(group.rows) { row in
                                 switch row {
                                 case .agent(let row):
-                                    agentRow(row).cardRail()
+                                    agentRow(row)
                                 case .terminal(let row):
                                     NavigationLink(value: row.route) {
                                         TerminalRowView(row: row)
                                     }
                                     .accessibilityIdentifier("terminal.row.\(row.id)")
-                                    .cardRail()
                                     .selectionFill(for: row.route)
                                 }
                             }
@@ -43,83 +42,338 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
                     }
                 }
             } header: {
-                // 數量是這組顯示的項目數(卡片或列),跟 Agents 檢視一樣數畫面上的項目。
-                AgentSectionHeader(group: section.group, count: section.count)
+                switch section.kind {
+                case .pinned: AgentSectionHeader(group: .pinned, count: section.items.count)
+                case .host(let host): SpacesHostHeader(host: host)
+                }
             }
         }
     }
+}
 
-    /// 點卡片本身或版面圖按鈕：開版面圖。顯示開啟當下的 snapshot,不即時更新(行為規格 F4)。
-    private func showLayout(_ card: WorkspaceCard) {
-        let layout = model.snapshot(for: card.host).flatMap { SpacesLayout(snapshot: $0, workspaceID: card.workspaceID) }
-        presentation.host = card.host
-        presentation.sheet = .layout(workspaceLabel: card.label, layout: layout)
+extension AgentStatus {
+    /// 狀態條與圖例的顏色;閒置用低飽和的 `idleSegment`(#103)。
+    var segmentColor: AnyShapeStyle {
+        switch self {
+        case .idle, .unknown: AnyShapeStyle(AccessibleColors.idleSegment.color)
+        default: color
+        }
     }
 }
 
-/// Workspace 卡片本身：標題、統計行、工作中狀態與版面圖按鈕。點了開版面圖，不是開聊天(#37 故事 11)。
-private struct WorkspaceCardHeader: View {
-    let card: WorkspaceCard
-    let showLayout: () -> Void
+extension SpacesStatusCounts {
+    /// 數量不為 0 的狀態，依需要你 > 工作中 > 完成 > 閒置。
+    var nonZero: [(status: AgentStatus, count: Int)] {
+        AgentStatus.urgencyOrder.map { ($0, count(of: $0)) }.filter { $0.1 > 0 }
+    }
+
+    /// VoiceOver 用:「Needs You 1」「Working 2」。
+    var spokenText: [String] {
+        nonZero.map { "\(String(localized: $0.status.title)) \($0.count)" }
+    }
+}
+
+/// 圖例「● 需要你 1  ● 工作中 2」:狀態同時有符號、文字與顏色;項目放不下時換行。
+struct StatusLegend: View {
+    let counts: SpacesStatusCounts
+    /// 圖例前的文字(已釘選組的主機名)。
+    var leading: String?
+    /// 圖例後的文字(終端機數)。
+    var trailing: String?
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Button(action: showLayout) {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "square.stack.3d.up")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 24)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: title)
+        FlowLayout(spacing: 10, lineSpacing: 2) {
+            if let leading {
+                Text(verbatim: leading)
+            }
+            ForEach(counts.nonZero, id: \.status) { entry in
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Image(systemName: entry.status.symbol)
+                        .foregroundStyle(entry.status.segmentColor)
+                    Text(entry.status.title)
+                    Text(entry.count, format: .number)
+                        .monospacedDigit()
+                }
+            }
+            if let trailing {
+                Text(verbatim: trailing)
+            }
+        }
+    }
+}
+
+/// 依寬度換行的水平排列：一行放不下就換到下一行，單一項目比一行寬時由它自己換行。
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let frames = arrange(subviews, width: proposal.width ?? .infinity)
+        let width = frames.map(\.maxX).max() ?? 0
+        let height = frames.map(\.maxY).max() ?? 0
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = arrange(subviews, width: bounds.width)
+        for (subview, frame) in zip(subviews, frames) {
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(width: frame.width, height: frame.height))
+        }
+    }
+
+    private func arrange(_ subviews: Subviews, width maxWidth: CGFloat) -> [CGRect] {
+        var frames: [CGRect] = []
+        var origin = CGPoint.zero
+        var lineHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            if origin.x > 0, origin.x + size.width > maxWidth {
+                origin = CGPoint(x: 0, y: origin.y + lineHeight + lineSpacing)
+                lineHeight = 0
+            }
+            frames.append(CGRect(origin: origin, size: size))
+            origin.x += size.width + spacing
+            lineHeight = max(lineHeight, size.height)
+        }
+        return frames
+    }
+}
+
+/// 主機組標題：主機圖示、主機名與各狀態的 Agent 數量(#103 故事 2–3、36)。
+private struct SpacesHostHeader: View {
+    let host: SpacesHost
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+        layout {
+            Label {
+                Text(verbatim: host.name)
+                    .font(.title3.bold())
+                    .foregroundStyle(.primary)
+            } icon: {
+                Image(systemName: host.icon.symbol)
+                    .foregroundStyle(.secondary)
+            }
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
+            StatusLegend(counts: host.counts)
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+        }
+        .textCase(nil)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: ([host.name] + host.counts.spokenText).joined(separator: ", ")))
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("spaces.host.\(host.host.storedValue)")
+    }
+}
+
+/// 群組的收合標頭(H2 狀態條):workspace 圖示、名稱 + Agent 數膠囊、狀態條與圖例。整列是一個按鈕，點了展開或收合。
+private struct WorkspaceGroupHeader: View {
+    let group: WorkspaceGroup
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 36, height: 36)
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1.5))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(verbatim: group.label)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
-                        Text(verbatim: card.summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondaryText)
-                        if card.status == .working || card.status == .blocked {
-                            StatusLabel(status: card.status)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if group.agentCount > 0 {
+                            Text(group.agentCount, format: .number)
+                                .font(.footnote.weight(.semibold))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondaryText)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(.fill.tertiary))
                         }
                     }
-                    Spacer(minLength: 0)
+                    if !group.statusBar.isEmpty {
+                        StatusBarView(segments: group.statusBar)
+                    }
+                    StatusLegend(counts: group.counts, leading: group.hostName, trailing: legendTrailing)
+                        .font(.footnote)
+                        .foregroundStyle(.secondaryText)
                 }
-                .contentShape(.rect)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(group.isExpanded ? 90 : 0))
+                    .frame(minHeight: 36)
+                    .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
-            .accessibilityHint(Text("Shows the layout"))
-            .accessibilityIdentifier("workspace.card.\(card.id)")
-
-            // 版面圖按鈕(田字格);觸控目標 44×44 pt。
-            // frame 放在 label 裡:放在 Button 外面時，可點範圍與 accessibility frame 仍只有圖示大小(#35 audit)。
-            Button(action: showLayout) {
-                Label("Workspace Layout", systemImage: "square.grid.2x2")
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("workspace.layout.\(card.id)")
+            .contentShape(.rect)
         }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: spokenLabel))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("workspace.group.\(group.id)")
     }
 
-    /// 非選取中主機：標題以主機名開頭(行為規格 F2.1)。
-    private var title: String {
-        card.hostLabel.map { "\($0.name) · \(card.label)" } ?? card.label
+    /// 圖例最後：有終端機時「終端機 N」;只有終端機時「N 個終端機」。
+    private var legendTrailing: String? {
+        guard group.terminalCount > 0 else { return nil }
+        return group.agentCount > 0 ? String(localized: "Terminals \(group.terminalCount)") : terminalPhrase
+    }
+
+    private var terminalPhrase: String {
+        group.terminalCount == 1 ? String(localized: "1 terminal") : String(localized: "\(group.terminalCount) terminals")
+    }
+
+    /// 「notes, 1 agent, 1 terminal, Working 1, Expanded」。
+    private var spokenLabel: String {
+        var parts = [group.label]
+        if let hostName = group.hostName { parts.append(hostName) }
+        if group.agentCount > 0 {
+            parts.append(group.agentCount == 1 ? String(localized: "1 agent") : String(localized: "\(group.agentCount) agents"))
+        }
+        if group.terminalCount > 0 { parts.append(terminalPhrase) }
+        parts += group.counts.spokenText
+        parts.append(group.isExpanded ? String(localized: "Expanded") : String(localized: "Collapsed"))
+        return parts.joined(separator: ", ")
     }
 }
 
-/// 卡片裡 tab 不只一個時的 tab 名稱。
-private struct TabGroupTitle: View {
-    let title: String
+/// 分段色條：每段寬度與權重成正比，段間 2pt。對 VoiceOver 隱藏(數量在圖例與 label)。
+private struct StatusBarView: View {
+    let segments: [StatusSegment]
+    private static let spacing: CGFloat = 2
 
     var body: some View {
-        Text(verbatim: title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondaryText)
-            .accessibilityAddTraits(.isHeader)
-            .cardRail()
+        GeometryReader { proxy in
+            let total = CGFloat(segments.map(\.weight).reduce(0, +))
+            let available = max(proxy.size.width - Self.spacing * CGFloat(segments.count - 1), 0)
+            HStack(spacing: Self.spacing) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                    Capsule()
+                        .fill(segment.status.segmentColor)
+                        .frame(width: total > 0 ? available * CGFloat(segment.weight) / total : 0)
+                }
+            }
+        }
+        .frame(height: 6)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Spaces 檢視的 Agent 列(#103):左側 Agent 種類頭像;標題、預覽各最多兩行;第三行狀態與說明(種類或 workspace 名稱)。
+struct SpacesAgentRowView: View {
+    let row: AgentRow
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 選取中(紅底，`selectionFill(for:)`):次要色改選取列文字色(同 `AgentRowView`)。
+    @Environment(\.backgroundProminence) private var backgroundProminence
+
+    private var secondary: AnyShapeStyle {
+        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
+    }
+
+    /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
+    private func lines(_ limit: Int) -> Int? {
+        dynamicTypeSize.isAccessibilitySize ? nil : limit
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            AgentKindAvatar(kind: AgentKind(rawKind: row.kind))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(row.title)
+                        .font(row.status == .blocked ? .body.weight(.semibold) : .body)
+                        .lineLimit(lines(2))
+                    if row.isPinned {
+                        Image(systemName: "pin.fill")
+                            .imageScale(.small)
+                            .foregroundStyle(secondary)
+                            .accessibilityLabel(Text("Pinned"))
+                    }
+                    if row.isMuted {
+                        Image(systemName: "bell.slash.fill")
+                            .imageScale(.small)
+                            .foregroundStyle(secondary)
+                            .accessibilityLabel(Text("Muted"))
+                    }
+                    Spacer(minLength: 8)
+                    if let time = row.time {
+                        Text(time.text())
+                            .font(.footnote)
+                            .foregroundStyle(secondary)
+                            .fixedSize()
+                    }
+                }
+                preview
+                    .font(.subheadline)
+                    .lineLimit(lines(2))
+                detail
+                    .font(.subheadline)
+                    .padding(.top, 2)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(row.isUnread ? Text("Unread") : Text(verbatim: ""))
+    }
+
+    @ViewBuilder
+    private var preview: some View {
+        switch row.preview {
+        case .needsInput:
+            Text("Waiting for your input")
+                .foregroundStyle(backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.tint))
+        case .message(let text, let fromYou):
+            Text(fromYou ? "You: \(text)" : "\(text)")
+                .foregroundStyle(secondary)
+        case .none:
+            EmptyView()
+        }
+    }
+
+    /// 狀態(符號 + 文字 + 顏色)· 種類或 workspace 名稱;已釘選組的列有主機圖示。
+    private var detail: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            StatusLabel(status: row.status)
+                .fixedSize()
+            if !row.subtitle.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    if let label = row.hostLabel {
+                        Image(systemName: label.icon.symbol)
+                            .accessibilityHidden(true)
+                    }
+                    Text(row.subtitle)
+                        .lineLimit(lines(1))
+                }
+                .foregroundStyle(secondary)
+            }
+        }
+    }
+}
+
+/// Agent 種類頭像：36pt 圓角方塊，白色字母。種類名稱在列的文字裡，對 VoiceOver 隱藏。
+struct AgentKindAvatar: View {
+    let kind: AgentKind
+
+    var body: some View {
+        let style = AgentKindAvatarStyle(kind: kind)
+        Text(verbatim: style.letter)
+            .font(.subheadline.bold())
+            .foregroundStyle(.white)
+            // 方塊固定大小，字母跟著放大會超出方塊。
+            .dynamicTypeSize(...DynamicTypeSize.xLarge)
+            .frame(width: 36, height: 36)
+            .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
+            .accessibilityHidden(true)
     }
 }
 
@@ -151,20 +405,6 @@ struct TerminalRowView: View {
             }
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-private extension View {
-    /// 卡片下方的列：內縮，左側一條「軌道」表示屬於上面的卡片。
-    func cardRail() -> some View {
-        padding(.leading, 20)
-            .overlay(alignment: .leading) {
-                Capsule()
-                    .fill(.quaternary)
-                    .frame(width: 3)
-                    .padding(.vertical, -4)
-                    .accessibilityHidden(true)
-            }
     }
 }
 

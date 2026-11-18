@@ -33,6 +33,34 @@ public enum PromptAnswer: Sendable, Equatable, Hashable {
     case closePicker
     /// 沒解析到選項時的通用鈕。
     case generic(GenericAnswer)
+    /// Claude 選單的「Type something.」加上使用者打的文字(#120)。
+    case typed(PromptOption, text: String)
+}
+
+/// 回答時依序送給 pane 的一段輸入。
+public enum AnswerInput: Sendable, Equatable {
+    /// `pane.send_keys`。
+    case keys([String])
+    /// `pane.send_text`(原樣打字，不含 Enter)。
+    case text(String)
+}
+
+extension BlockedPrompt {
+    /// Claude 選單最後一個編號選項「Type something.」(AskUserQuestion 的自訂回答,#120);沒有為 `nil`。
+    ///
+    /// 它的數字不是回答：Claude 收到後把那一列變成行內文字輸入，之後的按鍵都被當成文字。多選的勾選列「Type something」不算。
+    public func typedAnswerOption(agentKind: String) -> PromptOption? {
+        guard kind == .menu, let last = options.last(where: { $0.number != nil }), last == options.last,
+              last.opensTextEntry(agentKind: agentKind) else { return nil }
+        return last
+    }
+}
+
+extension PromptOption {
+    /// Claude 的「Type something.」列(不是勾選列)。
+    func opensTextEntry(agentKind: String) -> Bool {
+        agentKind == "claude" && checked == nil && keys == nil && label == "Type something."
+    }
 }
 
 /// 沒解析到選項時的通用鈕(行為規格 F8)。
@@ -50,6 +78,8 @@ public enum AnswerKeys {
         switch answer {
         case .option(let option):
             if let keys = option.keys { return keys }
+            // 只送數字會把那一列變成文字輸入，不是回答(#120):改走 `.typed`。
+            if option.opensTextEntry(agentKind: agentKind) { return nil }
             // 只有 1–9 能用一個按鍵輸入:「10」會先選 1,接著的「0」(與 Enter)又送出一個雜訊 turn(R-Q04)。
             guard let number = option.number, (1...9).contains(number) else { return nil }
             let digit = String(number)
@@ -68,7 +98,23 @@ public enum AnswerKeys {
             return ["2", "enter"]
         case .generic(.escape):
             return ["esc"]
+        case .typed:
+            return nil
         }
+    }
+
+    /// `answer` 要依序送的輸入;`nil` = 不能從手機回答。
+    ///
+    /// 自訂回答(#120):選項的數字(進入文字輸入)→ `send_text` 文字 → `enter`(真實主機驗證過的序列)。
+    public static func inputs(for answer: PromptAnswer, agentKind: String) -> [AnswerInput]? {
+        guard case .typed(let option, let text) = answer else {
+            return keys(for: answer, agentKind: agentKind).map { [.keys($0)] }
+        }
+        // 行內輸入裡的換行等於 Enter:會用半段文字回答，剩下的字落到下一題。
+        let line = text.split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        guard option.opensTextEntry(agentKind: agentKind), let number = option.number, (1...9).contains(number),
+              !line.isEmpty else { return nil }
+        return [.keys([String(number)]), .text(line), .keys(["enter"])]
     }
 
     /// 數字本身就是回答的 agent(R-Q03):多一個 Enter 會回答下一題(Claude)或落進輸入框(Antigravity)。

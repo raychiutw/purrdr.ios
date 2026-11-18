@@ -90,8 +90,11 @@ struct ConversationHeaderTests {
     @Test("標題列:/effort、/model 改過之後下一次輪詢立刻反映")
     func headerFollowsModelAndEffortCommands() async throws {
         let setup = try Self.setup()
+        // 閒置的 Claude Code:每次輪詢都讀一次含 ANSI 的畫面找建議提示詞(#123),這裡沒有建議。
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
+        await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.noSuggestionScreen)
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
+        await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.noSuggestionScreen)
         await setup.model.poll()
 
         // 以 fixture 第 4 行(使用者行)為底，換成兩則本地指令輸出。
@@ -114,7 +117,10 @@ struct ConversationHeaderTests {
     func headerOffline() async throws {
         let setup = try Self.setup()
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
-        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        // 連續兩次失敗(第一次靜默重試，R-B11)才算連不上。
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
         await setup.model.poll()
         await setup.model.poll()
 
