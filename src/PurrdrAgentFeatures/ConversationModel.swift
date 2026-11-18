@@ -1429,16 +1429,32 @@ public final class ConversationModel {
 
     /// 指示出現的時間(經過時間從這裡起算)。
     public private(set) var workingSince: Date?
-    /// 從 pane 可見畫面擷取到的散文(只在 working 時);沒有真正的散文為 `nil`。
-    public private(set) var livePreview: String?
+    /// 從 pane 可見畫面擷取到的散文(只在 working 時);沒有真正的散文，或已寫進對話紀錄的最後一則回覆時為 `nil`(#208)。
+    public var livePreview: String? {
+        guard let screenPreview else { return nil }
+        guard let reply = latestReplyText else { return screenPreview }
+        return LivePreview.isWritten(screenPreview, in: reply) ? nil : screenPreview
+    }
+
+    /// 這次輪詢從畫面擷取到的散文，尚未與對話紀錄去重。
+    private var screenPreview: String?
+
+    /// 對話紀錄裡最後一則 agent 回覆的文字。
+    private var latestReplyText: String? {
+        recent.reversed().lazy
+            .filter { $0.role == .assistant && !$0.isSidechain }
+            .map { $0.parts.compactMap { part in if case .text(let text) = part { text } else { nil } } }
+            .first { !$0.isEmpty }?
+            .joined(separator: "\n")
+    }
 
     /// working 時讀 pane 可見畫面擷取即時預覽(與背景 agents 窗格共用同一次讀取)。
     private func refreshLivePreview() async {
         if agentStatus == .working, prompt == nil {
             if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
-            livePreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
+            screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
         } else {
-            livePreview = nil
+            screenPreview = nil
         }
         updateWorkingSince()
     }
@@ -1446,7 +1462,7 @@ public final class ConversationModel {
     private func updateWorkingSince() {
         if !showsWorkingIndicator {
             workingSince = nil
-            livePreview = nil
+            screenPreview = nil
         } else if workingSince == nil {
             workingSince = clock.now()
         }
