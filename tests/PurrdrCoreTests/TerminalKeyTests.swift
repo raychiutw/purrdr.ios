@@ -57,4 +57,45 @@ struct TerminalKeyTests {
         #expect(Self.bytes(.character("x"), [.control, .alt]) == [0x1B, 0x18])
         #expect(Self.bytes(.character("b"), .alt) == [0x1B, 0x62])
     }
+
+    @Test("實體鍵盤：Page Up／Down、Delete、F1–F12(xterm 編碼)")
+    func hardwareOnlyKeys() {
+        #expect(Self.bytes(.pageUp) == Array("\u{1B}[5~".utf8))
+        #expect(Self.bytes(.pageDown) == Array("\u{1B}[6~".utf8))
+        #expect(Self.bytes(.deleteForward) == Array("\u{1B}[3~".utf8))
+        #expect(Self.bytes(.function(.f1)) == Array("\u{1B}OP".utf8))
+        #expect(Self.bytes(.function(.f4)) == Array("\u{1B}OS".utf8))
+        #expect(Self.bytes(.function(.f5)) == Array("\u{1B}[15~".utf8))
+        #expect(Self.bytes(.function(.f10)) == Array("\u{1B}[21~".utf8))
+        #expect(Self.bytes(.function(.f11)) == Array("\u{1B}[23~".utf8))
+        #expect(Self.bytes(.function(.f12)) == Array("\u{1B}[24~".utf8))
+    }
+
+    @Test("實體鍵盤的修飾參數含 Shift(1 + Shift 1 + Alt 2 + Ctrl 4);Shift-Tab 是 CSI Z")
+    func shiftModifiedKeys() {
+        #expect(Self.bytes(.up, .shift) == Array("\u{1B}[1;2A".utf8))
+        #expect(Self.bytes(.left, [.shift, .control]) == Array("\u{1B}[1;6D".utf8))
+        #expect(Self.bytes(.pageUp, .control) == Array("\u{1B}[5;5~".utf8))
+        #expect(Self.bytes(.function(.f2), .shift) == Array("\u{1B}[1;2Q".utf8))
+        #expect(Self.bytes(.function(.f5), .alt) == Array("\u{1B}[15;3~".utf8))
+        #expect(Self.bytes(.tab, .shift) == Array("\u{1B}[Z".utf8))
+        #expect(Self.bytes(.escape, .shift) == [0x1B])
+        #expect(Self.bytes(.character("A"), .shift) == [0x41])
+    }
+
+    @Test("遠端開了 application cursor 模式(DECCKM):方向鍵、Home／End 送 SS3(ESC O x),帶修飾時仍是 CSI")
+    func applicationCursorKeys() {
+        func bytes(_ key: TerminalKey, _ modifiers: TerminalModifiers = []) -> [UInt8] {
+            Array(key.bytes(modifiers: modifiers, applicationCursor: true))
+        }
+        #expect(bytes(.up) == Array("\u{1B}OA".utf8))
+        #expect(bytes(.down) == Array("\u{1B}OB".utf8))
+        #expect(bytes(.right) == Array("\u{1B}OC".utf8))
+        #expect(bytes(.left) == Array("\u{1B}OD".utf8))
+        #expect(bytes(.home) == Array("\u{1B}OH".utf8))
+        #expect(bytes(.end) == Array("\u{1B}OF".utf8))
+        #expect(bytes(.up, .control) == Array("\u{1B}[1;5A".utf8))
+        #expect(bytes(.pageUp) == Array("\u{1B}[5~".utf8))
+        #expect(bytes(.character("a")) == [0x61])
+    }
 }

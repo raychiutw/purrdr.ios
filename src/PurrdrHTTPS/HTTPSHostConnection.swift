@@ -190,8 +190,12 @@ public actor HTTPSHostConnection: HostConnection {
             continuation.yield(.disconnected)
             continuation.finish()
         }
-        continuation.onTermination = { _ in relay.cancel() }
         let transport = HostServiceTerminalTransport(session: opened.session, streamID: opened.result.streamId)
+        continuation.onTermination = { termination in
+            relay.cancel()
+            // 呼叫端不再讀：請主機結束 terminal 子行程，不留到 WSS 斷線。
+            if case .cancelled = termination { Task { await transport.release() } }
+        }
         return PaneTerminalConnection(events: events, transport: transport, isViewOnly: opened.result.readOnly)
     }
 
@@ -206,9 +210,9 @@ public actor HTTPSHostConnection: HostConnection {
         let session = try await liveSession()
         let opened: HostServiceSession.StreamReply
         do {
-            opened = try await session.requestStream {
-                .paneTerminalOpen(.init(requestId: $0, target: target, columns: columns, rows: rows, takeover: takeover))
-            }
+            opened = try await session.requestStream(
+                { .paneTerminalOpen(.init(requestId: $0, target: target, columns: columns, rows: rows, takeover: takeover)) },
+                closing: { .paneTerminalClose(.init(streamId: $0)) })
         } catch {
             noteEnding(error, of: session)
             throw error
@@ -272,8 +276,8 @@ public actor HTTPSHostConnection: HostConnection {
     /// 撥號並握手。握手有自己的期限，卡住的主機服務不會讓之後的操作一直等。
     private func open(deviceToken token: String) async throws -> HostServiceSession {
         let socket = try await transport.connect(to: address.webSocketURL, bearerToken: token)
-        let opened = HostServiceSession(socket: socket, deviceToken: token)
-        await opened.start(heartbeat: heartbeat, sleep: sleep)
+        let opened = HostServiceSession(socket: socket, deviceToken: token, heartbeat: heartbeat, sleep: sleep)
+        await opened.start()
         let appVersion = appVersion
         let reply: HostServiceProtocol.ServerMessage
         do {
@@ -347,9 +351,9 @@ public actor HTTPSHostConnection: HostConnection {
                 try? await sleep(deadline)
                 return .timerEnded
             }
-            defer { group.cancelAll() }
-            if case .finished(let result) = await group.next() { return result }
+            let first = await group.next()
             group.cancelAll()
+            if case .finished(let result) = first { return result }
             while let race = await group.next() {
                 if case .finished(.success(let value)) = race { return .success(value) }
             }
@@ -393,9 +397,11 @@ struct HostServiceTerminalTransport: PaneTerminalTransport {
             message = .paneTerminalInput(.init(streamId: streamID, bytes: data.base64EncodedString()))
         case .resize(let columns, let rows):
             message = .paneTerminalResize(.init(streamId: streamID, columns: columns, rows: rows))
-        case .scroll(let direction, let lines, let column, let row):
+        case .scroll(let direction, let lines, let column, let row, let source):
+            // wheel 不帶 source(協定預設),舊版主機服務收到的訊息不變。
             message = .paneTerminalScroll(.init(
-                streamId: streamID, direction: direction == .up ? .up : .down, lines: lines, column: column, row: row))
+                streamId: streamID, direction: direction == .up ? .up : .down, lines: lines, column: column, row: row,
+                source: source == .pageKey ? .pageKey : nil))
         case .release:
             return await release()
         }

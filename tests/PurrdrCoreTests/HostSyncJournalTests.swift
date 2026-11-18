@@ -81,6 +81,25 @@ struct HostSyncJournalTests {
         #expect(ssh.authentication == .deviceKey)
     }
 
+    @Test("標成 HTTPS 卻沒有主機服務位址的同步資料：不套用(不改成別的連線方式、不改名)，下次同步再處理")
+    func httpsWithoutAddressIsNotApplied() throws {
+        var journal = HostSyncJournal()
+        let missingAddress = { (id: UUID) in
+            SyncedHost(
+                id: id, name: "Renamed", endpoint: SSHEndpoint(host: "studio.tail1234.ts.net", port: 443, username: ""),
+                connectionMethod: .https, hostKeyPin: nil, hostService: nil, modifiedAt: Self.t2)
+        }
+        let added = missingAddress(UUID())
+        let changed = missingAddress(Self.studio.id)
+
+        let outcome = journal.reconcile(
+            hosts: [Self.studio], sent: [], snapshot: HostSyncSnapshot(hosts: [added, changed], deletedHostIDs: []))
+
+        #expect(outcome == HostSyncOutcome())
+        #expect(journal.synced[added.id] == nil)
+        #expect(journal.synced[changed.id] == nil)
+    }
+
     @Test("後台確認之後就不再上傳")
     func confirmedHostIsNotPending() {
         var journal = HostSyncJournal()

@@ -93,9 +93,10 @@ impl PaneTerminal {
             .await;
     }
 
-    pub async fn scroll(&mut self, direction: &str, lines: i64, column: i64, row: i64) {
+    /// `source` 是 herdr 的 wheel／page_key(page_key 由 herdr 依 Pane 狀態捲 scrollback 或送 Page 鍵)。
+    pub async fn scroll(&mut self, direction: &str, lines: i64, column: i64, row: i64, source: &str) {
         self.write(json!({
-            "type": "terminal.scroll", "direction": direction, "lines": lines, "source": "wheel",
+            "type": "terminal.scroll", "direction": direction, "lines": lines, "source": source,
             "column": column, "row": row, "modifiers": 0,
         }))
         .await;

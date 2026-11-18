@@ -112,6 +112,18 @@ enum WindowsScripts {
         }
         """#
 
+    /// 分段追趕(#130):印目前大小;比游標大時，再印游標之後累計不超過上限的完整行(即使後面還有)。
+    /// 上限內沒有完整行(第一行就超過上限)時，區塊加倍直到找到第一個換行，只印那一行，剝除圖片後的內容截短到上限
+    /// (與 POSIX 相同：原始長度照實印，游標照樣前進，傳輸量不超過上限)。參數：路徑、游標、上限。
+    static let catchUp = #"""
+        PRunBlock {
+        $f=$a[0];$p=[long]$a[1];$m=[long]$a[2]
+        $z=PProbe $f
+        PWrite "$z`n"
+        if($z -gt $p){$h=POpen $f;$r=$z-$p;$n=[Math]::Min($r,$m);while($true){$b=PRead $h $p $n;$j=[Array]::LastIndexOf($b,[byte]10);if($j -ge 0 -or $n -ge $r){break};$n=[Math]::Min($r,$n*2)};$h.Close();if($n -gt $m){$j=[Array]::IndexOf($b,[byte]10);if($j -ge 0){$c=$u.GetBytes((PStrip $u.GetString($b,0,$j)));PWrite "$j`t";$o.Write($c,0,[int][Math]::Min($c.Length,$m));PWrite "`n"}}elseif($j -ge 0){PLines $b 0 ($j+1)}}
+        }
+        """#
+
     /// 列表預覽：每個請求「標記 key」,再印剝除圖片後的檔尾 48,000 bytes;Pi／OMP、Codex 先印「標記! key」與前兩行。
     /// 每個請求各自 try:一個檔不在或有歧義不影響其他。參數：標記，接著每個請求四個(key、種類、id 或路徑、資料夾名)。
     static let previews = #"""

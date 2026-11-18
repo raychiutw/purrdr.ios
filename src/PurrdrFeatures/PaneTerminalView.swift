@@ -28,8 +28,8 @@ public typealias PaneTerminalView = TerminalSessionView
 /// 終端機畫面(DESIGN.md「終端機」):全螢幕深色、標題下有狀態點與文字、底部是單一玻璃容器的按鍵列。
 /// Pane 終端機(`PaneTerminalModel`)與登入 Shell(`LoginShellModel`)共用。
 ///
-/// 終端機模擬器(SwiftTerm)只負責畫面;鍵盤輸入、按鍵列、貼上、滑動都經過 model
-/// (Pane 終端機變成 herdr 的訊息，登入 Shell 直接寫進 PTY)。
+/// 終端機模擬器(SwiftTerm)只負責畫面;鍵盤輸入由 Purrdr 的輸入元件接管(#136),
+/// 輸入、按鍵列、貼上、滑動都經過 model(Pane 終端機變成 herdr 的訊息，登入 Shell 直接寫進 PTY)。
 public struct TerminalSessionView: View {
     let model: any TerminalSessionModel
     @Environment(\.scenePhase) private var scenePhase
@@ -265,7 +265,7 @@ struct TerminalKeyBar: View {
         ScrollView(.horizontal) {
             HStack(spacing: 0) {
                 ForEach(Self.keys) { key in
-                    BarKeyButton(key: key, model: model)
+                    BarKeyButton(key: key, model: model, screen: screen)
                 }
             }
         }
@@ -301,6 +301,7 @@ struct BarKey: Identifiable {
 struct BarKeyButton: View {
     let key: BarKey
     let model: any TerminalSessionModel
+    let screen: TerminalScreenHandle
 
     private var isLocked: Bool { key.modifier.map(model.modifiers.contains) ?? false }
 
@@ -309,7 +310,7 @@ struct BarKeyButton: View {
             if let modifier = key.modifier {
                 model.toggle(modifier)
             } else if let terminalKey = key.key {
-                model.press(terminalKey)
+                screen.pressKeyBarKey(terminalKey)
             }
         } label: {
             Group {
@@ -343,7 +344,7 @@ struct PasteKey: View {
 
     var body: some View {
         Button {
-            if let text = UIPasteboard.general.string { model.paste(text, bracketed: screen.bracketedPasteMode) }
+            if let text = UIPasteboard.general.string { screen.paste(text) }
         } label: {
             Image(systemName: "doc.on.clipboard")
                 .font(.body)
@@ -383,26 +384,31 @@ struct KeyboardToggle: View {
 @MainActor
 @Observable
 final class TerminalScreenHandle {
-    fileprivate weak var view: PurrdrTerminalView?
+    fileprivate weak var screen: TerminalScreenContainer?
     private(set) var isKeyboardVisible = false
 
     func focus() {
-        guard let view, !view.isFirstResponder else { return }
-        _ = view.becomeFirstResponder()
+        guard let input = screen?.textInput, !input.isFirstResponder else { return }
+        _ = input.becomeFirstResponder()
     }
 
     func toggleKeyboard() {
-        guard let view else { return }
-        if view.isFirstResponder {
-            _ = view.resignFirstResponder()
+        guard let input = screen?.textInput else { return }
+        if input.isFirstResponder {
+            _ = input.resignFirstResponder()
         } else {
-            _ = view.becomeFirstResponder()
+            _ = input.becomeFirstResponder()
         }
     }
 
-    /// 程式是否開了 bracketed paste 模式(登入 Shell 用;Pane 終端機看不到 Pane 的模式)。
-    var bracketedPasteMode: Bool {
-        view?.getTerminal().bracketedPasteMode ?? false
+    /// 按鍵列的鍵經輸入元件送出(組字中先放棄組字)。
+    func pressKeyBarKey(_ key: TerminalKey) {
+        screen?.textInput.pressKeyBarKey(key)
+    }
+
+    /// 貼上經輸入元件送出(組字中先放棄組字)。
+    func paste(_ text: String) {
+        screen?.textInput.paste(text: text)
     }
 
     fileprivate func focusChanged(_ focused: Bool) {
@@ -422,26 +428,59 @@ struct TerminalScreen: UIViewRepresentable {
         Coordinator(model: model)
     }
 
-    func makeUIView(context: Context) -> PurrdrTerminalView {
-        let view = PurrdrTerminalView(frame: .zero, font: Self.font(model.fontSize, bold: legibilityWeight == .bold))
+    func makeUIView(context: Context) -> TerminalScreenContainer {
+        let screen = TerminalScreenContainer(
+            terminalView: PurrdrTerminalView(frame: .zero, font: Self.font(model.fontSize, bold: legibilityWeight == .bold))
+        )
+        let view = screen.terminalView
         view.terminalDelegate = context.coordinator
         // 按鍵列由 SwiftUI 畫(玻璃容器);SwiftTerm 自帶的 accessory 關掉。
         view.inputAccessoryView = nil
         Self.apply(theme, to: view)
         context.coordinator.appliedTheme = theme
-        view.keyboardAppearance = .dark
         // Pane 終端機的本機 scrollback 是空的(herdr 每次都重畫整個 viewport):滑動改送 terminal.scroll。
         // 登入 Shell 的 scrollback 在本機，由模擬器自己捲。
         view.isScrollEnabled = !model.usesRemoteScroll
         view.accessibilityIdentifier = "terminal.screen"
-        view.onFocusChange = { [weak handle] in handle?.focusChanged($0) }
+        screen.textInput.onFocusChange = { [weak handle, weak view] focused in
+            view?.getTerminal().setTerminalFocus(focused)
+            view?.setNeedsDisplay()
+            handle?.focusChanged(focused)
+        }
+        screen.textInput.onSend = { [model, weak view] input in
+            switch input {
+            case .bytes(let bytes): model.type(bytes)
+            case .key(let key, let modifiers, let applicationCursor): model.press(key, adding: modifiers, applicationCursor: applicationCursor)
+            case .paste(let text): model.paste(text, bracketed: view?.bracketedPasteMode ?? false)
+            }
+        }
+        // herdr 的串流不轉送終端機模式：Pane 終端機看不到，只有登入 Shell 讀模擬器。
+        screen.textInput.programModes = { [model, weak view] in
+            guard model.seesProgramModes, let view else { return .hiddenByHerdr }
+            return view.visibleProgramModes
+        }
+        screen.textInput.onScrollPageLocally = { [weak view] direction in
+            guard let view else { return }
+            let rows = view.getTerminal().rows
+            if direction == .up {
+                view.scrollUp(lines: rows)
+            } else {
+                view.scrollDown(lines: rows)
+            }
+        }
+        screen.textInput.onSendPageKeyToHerdr = { [model, weak view] direction in
+            model.scrollPage(direction, rows: view?.getTerminal().rows ?? 1)
+        }
         context.coordinator.install(on: view)
-        handle.view = view
+        handle.screen = screen
+        // 畫面更新(含游標移動)後由 `rangeChanged` 通知，把輸入元件移到游標格子。
+        view.notifyUpdateChanges = true
         model.attach { [weak view] bytes in view?.feed(byteArray: ArraySlice(bytes)) }
-        return view
+        return screen
     }
 
-    func updateUIView(_ view: PurrdrTerminalView, context: Context) {
+    func updateUIView(_ screen: TerminalScreenContainer, context: Context) {
+        let view = screen.terminalView
         if context.coordinator.appliedTheme != theme {
             Self.apply(theme, to: view)
             context.coordinator.appliedTheme = theme
@@ -449,6 +488,7 @@ struct TerminalScreen: UIViewRepresentable {
         let font = Self.font(model.fontSize, bold: legibilityWeight == .bold)
         if view.font.pointSize != font.pointSize || view.font.fontName != font.fontName {
             view.font = font
+            screen.cursorMayHaveMoved()
         }
     }
 
@@ -456,11 +496,13 @@ struct TerminalScreen: UIViewRepresentable {
     static func apply(_ theme: TerminalTheme?, to view: PurrdrTerminalView) {
         if let theme {
             view.installColors(theme.swiftTermColors)
+            view.installedPalette = theme.swiftTermColors
             view.nativeBackgroundColor = UIColor(theme.background)
             view.nativeForegroundColor = UIColor(theme.foreground)
             view.caretColor = theme.cursor.map(UIColor.init) ?? .systemGray
         } else {
             view.installColors(SwiftTerm.Color.defaultInstalledColors)
+            view.installedPalette = SwiftTerm.Color.defaultInstalledColors
             view.nativeBackgroundColor = .black
             view.nativeForegroundColor = UIColor(white: 0.92, alpha: 1)
             view.caretColor = .systemGray
@@ -562,24 +604,148 @@ struct TerminalScreen: UIViewRepresentable {
         nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
         nonisolated func scrolled(source: TerminalView, position: Double) {}
         nonisolated func bell(source: TerminalView) {}
-        nonisolated func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
+        nonisolated func rangeChanged(source: TerminalView, startY: Int, endY: Int) {
+            MainActor.assumeIsolated { (source.superview as? TerminalScreenContainer)?.terminalDisplayDidUpdate() }
+        }
     }
 }
 
-/// SwiftTerm 的終端機視圖，加上焦點回報與給 VoiceOver(與 UI 測試)讀的畫面文字。
-final class PurrdrTerminalView: TerminalView {
-    var onFocusChange: ((Bool) -> Void)?
+/// 終端機畫面與疊在游標格子上的輸入元件、組字浮層。
+final class TerminalScreenContainer: UIView {
+    let terminalView: PurrdrTerminalView
+    let textInput = TerminalTextInputView(frame: .zero)
+    let compositionOverlay = TerminalCompositionOverlay(frame: .zero)
+    private var isCursorUpdateQueued = false
 
-    override func becomeFirstResponder() -> Bool {
-        let became = super.becomeFirstResponder()
-        if became { onFocusChange?(true) }
-        return became
+    init(terminalView: PurrdrTerminalView) {
+        self.terminalView = terminalView
+        super.init(frame: .zero)
+        terminalView.frame = bounds
+        terminalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(terminalView)
+        addSubview(compositionOverlay)
+        addSubview(textInput)
+        textInput.editActionTarget = terminalView
+        textInput.onCompositionChange = { [weak self] in self?.updateCompositionOverlay() }
+        terminalView.textInput = textInput
     }
 
-    override func resignFirstResponder() -> Bool {
-        let resigned = super.resignFirstResponder()
-        if resigned { onFocusChange?(false) }
-        return resigned
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        placeTextInput()
+    }
+
+    /// SwiftTerm 更新畫面(游標已移到新位置)後呼叫。
+    func terminalDisplayDidUpdate() {
+        placeTextInput()
+    }
+
+    /// 字級改變後，等 SwiftTerm 重新排版再把輸入元件移到游標格子。
+    func cursorMayHaveMoved() {
+        guard !isCursorUpdateQueued else { return }
+        isCursorUpdateQueued = true
+        DispatchQueue.main.async { [weak self] in
+            self?.isCursorUpdateQueued = false
+            self?.placeTextInput()
+        }
+    }
+
+    private func placeTextInput() {
+        let caret = terminalView.caretFrame
+        guard caret.width > 0, caret.height > 0 else { return }
+        // 游標在寬字元上時 caret 是兩格寬;輸入元件只佔一格。
+        let cellWidth = caret.width / CGFloat(terminalView.cursorCellColumns)
+        var cell = terminalView.convert(caret, to: self)
+        cell.size.width = cellWidth
+        textInput.frame = cell
+        textInput.cellWidth = cellWidth
+        textInput.screenWidth = terminalView.frame.maxX
+        updateCompositionOverlay()
+    }
+
+    private func updateCompositionOverlay() {
+        let box = textInput.compositionLayout.overlay
+        let colors = terminalView.cursorCellColors
+        compositionOverlay.show(
+            textInput.composition.markedText,
+            selectedRange: textInput.markedSelection,
+            frame: CGRect(x: box.x, y: box.y, width: box.width, height: box.height),
+            font: terminalView.font,
+            cellWidth: textInput.cellWidth,
+            textColor: colors.foreground,
+            backgroundColor: colors.background
+        )
+    }
+}
+
+/// SwiftTerm 的終端機視圖，加上給 VoiceOver(與 UI 測試)讀的畫面文字。
+/// 鍵盤焦點在 `TerminalTextInputView`;它自己不當 first responder,但點畫面、游標樣式照「聚焦」處理。
+final class PurrdrTerminalView: TerminalView {
+    weak var textInput: TerminalTextInputView?
+    /// 目前套用的 16 色(組字浮層取游標格子的顏色用)。
+    var installedPalette = SwiftTerm.Color.defaultInstalledColors
+
+    /// 程式是否開了 bracketed paste 模式(登入 Shell 用;Pane 終端機看不到 Pane 的模式)。
+    var bracketedPasteMode: Bool { getTerminal().bracketedPasteMode }
+
+    /// 模擬器看到的遠端程式模式(登入 Shell 直接接 PTY 才準)。
+    var visibleProgramModes: TerminalProgramModes {
+        let terminal = getTerminal()
+        return .visible(applicationCursor: terminal.applicationCursor, alternateScreen: terminal.isCurrentBufferAlternate)
+    }
+
+    /// 游標所在字元佔的格數(寬字元 2)。
+    var cursorCellColumns: Int {
+        let terminal = getTerminal()
+        let cursor = terminal.getCursorLocation()
+        return max(1, Int(terminal.getCharData(col: cursor.x, row: cursor.y)?.width ?? 1))
+    }
+
+    /// 游標格子的文字色與背景色(反白時對調)。
+    var cursorCellColors: (foreground: UIColor, background: UIColor) {
+        let terminal = getTerminal()
+        let cursor = terminal.getCursorLocation()
+        guard let attribute = terminal.getCharData(col: cursor.x, row: cursor.y)?.attribute else {
+            return (nativeForegroundColor, nativeBackgroundColor)
+        }
+        let foreground = color(attribute.fg, isForeground: true)
+        let background = color(attribute.bg, isForeground: false)
+        return attribute.style.contains(.inverse) ? (background, foreground) : (foreground, background)
+    }
+
+    private func color(_ color: SwiftTerm.Attribute.Color, isForeground: Bool) -> UIColor {
+        switch color {
+        case .defaultColor:
+            return isForeground ? nativeForegroundColor : nativeBackgroundColor
+        case .defaultInvertedColor:
+            return isForeground ? nativeBackgroundColor : nativeForegroundColor
+        case .trueColor(let red, let green, let blue):
+            return UIColor(red: CGFloat(red) / 255, green: CGFloat(green) / 255, blue: CGFloat(blue) / 255, alpha: 1)
+        case .ansi256(let code):
+            if Int(code) < installedPalette.count {
+                let entry = installedPalette[Int(code)]
+                return UIColor(red: CGFloat(entry.red) / 65535, green: CGFloat(entry.green) / 65535, blue: CGFloat(entry.blue) / 65535, alpha: 1)
+            }
+            guard let rgb = XtermPalette.color(code) else { return nativeForegroundColor }
+            return UIColor(red: CGFloat(rgb.red) / 255, green: CGFloat(rgb.green) / 255, blue: CGFloat(rgb.blue) / 255, alpha: 1)
+        }
+    }
+
+    override var canBecomeFirstResponder: Bool { false }
+
+    /// SwiftTerm 點畫面時要焦點：交給輸入元件。
+    override func becomeFirstResponder() -> Bool {
+        textInput?.becomeFirstResponder() ?? false
+    }
+
+    /// SwiftTerm 依這個決定點畫面的行為(連結、滑鼠回報)與游標樣式。
+    override var isFirstResponder: Bool {
+        textInput?.isFirstResponder ?? false
     }
 
     /// 目前畫面上的文字(去掉行尾空白)。

@@ -58,11 +58,65 @@ struct HTTPSHostConnectionRaceTests {
         #expect(socket.sentTypes == ["hello", "events.subscribe", "events.unsubscribe"])
     }
 
+    @Test("Pane 終端機開啟途中取消：請主機關掉可能已開的終端機")
+    func cancelledOpenClosesHostTerminal() async throws {
+        let socket = ScriptedSocket(silent: ["pane.terminal.open"])
+        let client = PaneTerminalClient(connection: HTTPSHostConnection(address: Self.address, deviceToken: { "token-ok" }, transport: socket))
+        let opening = Task { try await client.control(target: "w1:p1", columns: 40, rows: 12) }
+        await socket.started("pane.terminal.open").wait()
+
+        opening.cancel()
+
+        await #expect(throws: CancellationError.self) { try await opening.value }
+        try await waitUntil { socket.sent.contains { $0.type == "pane.terminal.close" } }
+        let open = try #require(socket.sent.first { $0.type == "pane.terminal.open" })
+        #expect(socket.sent.first { $0.type == "pane.terminal.close" }?.streamID == open.requestID)
+    }
+
+    @Test("呼叫端不再讀 Pane 終端機的畫面：請主機關掉終端機")
+    func abandonedTerminalClosesHostTerminal() async throws {
+        let socket = ScriptedSocket()
+        let client = PaneTerminalClient(connection: HTTPSHostConnection(address: Self.address, deviceToken: { "token-ok" }, transport: socket))
+        let terminal = try await client.control(target: "w1:p1", columns: 40, rows: 12)
+        let reading = Task { for await _ in terminal.events {} }
+
+        reading.cancel()
+
+        try await waitUntil { socket.sent.contains { $0.type == "pane.terminal.close" } }
+        let open = try #require(socket.sent.first { $0.type == "pane.terminal.open" })
+        #expect(socket.sent.first { $0.type == "pane.terminal.close" }?.streamID == open.requestID)
+    }
+
+    @Test("送出卡住超過心跳逾時：連線以 connectionLost 結束，不等到操作期限")
+    func stalledSendEndsConnection() async throws {
+        let socket = ScriptedSocket(stalled: ["agents.list"])
+        let client = HerdrClient(connection: HTTPSHostConnection(
+            address: Self.address, deviceToken: { "token-ok" }, transport: socket,
+            heartbeat: HostServiceHeartbeat(interval: .seconds(3600), timeout: .milliseconds(200))))
+
+        await #expect(throws: HostServiceError.connectionLost) { try await client.snapshot() }
+    }
+
+    @Test("終端機輸入與請求經同一個寫入者：依呼叫順序送到主機")
+    func terminalInputKeepsOrderWithRequests() async throws {
+        let socket = ScriptedSocket(slow: ["pane.terminal.input"])
+        let connection = HTTPSHostConnection(address: Self.address, deviceToken: { "token-ok" }, transport: socket)
+        let terminal = try await PaneTerminalClient(connection: connection).control(target: "w1:p1", columns: 40, rows: 12)
+        let typing = Task { try await terminal.send(bytes: Data([0x61])) }
+        await socket.started("pane.terminal.input").wait()
+
+        _ = try await HerdrClient(connection: connection).snapshot()
+        try await typing.value
+
+        try await waitUntil { socket.sent.contains { $0.type == "pane.terminal.input" } }
+        #expect(socket.sent.map(\.type) == ["hello", "pane.terminal.open", "pane.terminal.input", "agents.list"])
+    }
+
     #if os(macOS) || os(Linux)
     @Test("連線中斷時系統把 ping 的完成回呼兩次：只採用第一次，app 不當掉")
     func pingCompletionCalledTwiceDoesNotCrash() async {
         await #expect(processExitsWith: .success) {
-            try? await URLSessionHostServiceTransport.completion { completed in
+            try? await URLSessionWebSocket.completion { completed in
                 completed(nil)
                 completed(URLError(.networkConnectionLost))
             }
@@ -110,6 +164,81 @@ private final class RecordingSocket: WebSocketConnecting, WebSocketSession {
     func sendPing() async throws {}
 
     func close() async {}
+}
+
+/// 照協定回應的腳本化主機服務：`silent` 的訊息不回應，`stalled` 的送出卡到連線關閉，`slow` 的送出晚 200 毫秒才完成。
+private final class ScriptedSocket: WebSocketConnecting, WebSocketSession {
+    struct Sent: Sendable {
+        var type: String
+        var requestID: String?
+        var streamID: String?
+    }
+
+    private let silent: Set<String>
+    private let stalled: Set<String>
+    private let slow: Set<String>
+    private let latches = Mutex<[String: Latch]>([:])
+    private let recorded = Mutex<[Sent]>([])
+    private let replies = Mailbox()
+    private let closed = Latch()
+
+    init(silent: Set<String> = [], stalled: Set<String> = [], slow: Set<String> = []) {
+        self.silent = silent
+        self.stalled = stalled
+        self.slow = slow
+    }
+
+    var sent: [Sent] { recorded.withLock { $0 } }
+
+    /// 開始送出這種訊息時打開的門。
+    func started(_ type: String) -> Latch {
+        latches.withLock { latches in
+            if let latch = latches[type] { return latch }
+            let latch = Latch()
+            latches[type] = latch
+            return latch
+        }
+    }
+
+    func connect(to url: URL, bearerToken: String) async throws -> any WebSocketSession { self }
+
+    func send(_ text: String) async throws {
+        let message = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] ?? [:]
+        let sent = Sent(type: message["type"] as? String ?? "", requestID: message["request_id"] as? String, streamID: message["stream_id"] as? String)
+        await started(sent.type).open()
+        if stalled.contains(sent.type) {
+            await closed.wait()
+            throw HostServiceError.connectionLost
+        }
+        if slow.contains(sent.type) { try await Task.sleep(for: .milliseconds(200)) }
+        recorded.withLock { $0.append(sent) }
+        guard !silent.contains(sent.type), let requestID = sent.requestID else { return }
+        switch sent.type {
+        case "hello":
+            let welcome = try String(contentsOf: FakeHostService.examplesDirectory.appending(path: "server.welcome.json"), encoding: .utf8)
+            await replies.put(welcome.replacingOccurrences(of: #""request_id":"r1""#, with: #""request_id":"\#(requestID)""#))
+        case "agents.list":
+            let agents = try String(contentsOf: FakeHostService.examplesDirectory.appending(path: "server.agents-list-result.json"), encoding: .utf8)
+            let object = try JSONSerialization.jsonObject(with: Data(agents.utf8)) as? [String: Any] ?? [:]
+            var replaced = object
+            replaced["request_id"] = requestID
+            await replies.put(String(decoding: try JSONSerialization.data(withJSONObject: replaced), as: UTF8.self))
+        case "pane.terminal.open":
+            await replies.put(#"{"type":"pane.terminal.open.result","request_id":"\#(requestID)","stream_id":"\#(requestID)","read_only":false}"#)
+        default:
+            break
+        }
+    }
+
+    func receive() async throws -> WebSocketMessage {
+        .text(await replies.take())
+    }
+
+    func sendPing() async throws {}
+
+    func close() async {
+        await closed.open()
+    }
 }
 
 /// 一次性的門：`wait` 不理會取消，`open` 之後全部放行。

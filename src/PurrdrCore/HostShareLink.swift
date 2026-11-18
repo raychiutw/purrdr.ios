@@ -23,7 +23,7 @@ public struct SharedHost: Sendable, Equatable {
         self.connectionMethod = connectionMethod
         self.herdr = herdr
         self.hostKeyPin = hostKeyPin
-        self.hostService = connectionMethod == .https ? hostService : nil
+        self.hostService = connectionMethod.usesHostService ? hostService : nil
     }
 
     public init(_ host: HostConfiguration) {
@@ -40,7 +40,7 @@ public struct SharedHost: Sendable, Equatable {
     /// HTTPS 主機：端點只是主機服務的主機名稱與埠(wire v1 必填，沒有使用者名稱)。
     public init(name: String, hostService: HostServiceAddress) {
         self.init(
-            name: name, endpoint: SSHEndpoint(host: hostService.hostName, port: hostService.port, username: ""),
+            name: name, endpoint: hostService.legacyEndpoint,
             connectionMethod: .https, hostService: hostService)
     }
 }

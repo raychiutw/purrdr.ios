@@ -243,11 +243,8 @@ public final class HostsModel {
 
     public var rows: [HostRow] {
         hosts.map { host in
-            let subtitle = switch host.connection {
-            case .tailscaleSSH(let settings), .openSSH(let settings, _):
-                "\(settings.endpoint.username)@\(settings.endpoint.host):\(settings.endpoint.port)"
-            case .https(let address): address.description
-            }
+            let subtitle = host.ssh.map { "\($0.endpoint.username)@\($0.endpoint.host):\($0.endpoint.port)" }
+                ?? host.hostService?.description ?? ""
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
                 isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id))
@@ -381,14 +378,11 @@ public final class HostsModel {
         try credentials.secrets.setSecret(nil, for: id)
         try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        if let removed {
-            switch removed.connection {
-            case .https(let address):
-                // 主機離線時權杖留在主機上，可在主機上撤銷。
-                if let deviceToken { hostService.revokeWithoutWaiting(deviceToken, at: address) }
-            case .tailscaleSSH(let settings), .openSSH(let settings, _):
-                forgetPush(of: removed, settings: settings, secret: secret)
-            }
+        if let removed, let settings = removed.ssh {
+            forgetPush(of: removed, settings: settings, secret: secret)
+        } else if let address = removed?.hostService, let deviceToken {
+            // 主機離線時權杖留在主機上，可在主機上撤銷。
+            hostService.revokeWithoutWaiting(deviceToken, at: address)
         }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
@@ -498,7 +492,7 @@ public final class HostsModel {
     private func refreshPairing() {
         let tokens = hostService.tokens
         unpairedHostIDs = Set(hosts.filter { host in
-            host.hostService != nil && (try? tokens.deviceToken(for: host.id)) == nil
+            host.connectionMethod.usesHostService && (try? tokens.deviceToken(for: host.id)) == nil
         }.map(\.id))
     }
 

@@ -36,7 +36,8 @@ public final class SubagentModel {
     private let transcripts: TranscriptReader
     private let source: Source
     private let openLines: Int
-    private var file: (path: String, cursor: Int)?
+    /// 對話紀錄的路徑與即時追蹤的游標(`TranscriptFollow`:追上之後分段接著讀，重新可見時落後太多讀新視窗)。
+    private var file: (path: String, follow: TranscriptFollow)?
     private var messages: [TranscriptMessage] = []
     private var endChecksum: String?
     /// 結束後做過最後一次補讀。
@@ -62,8 +63,14 @@ public final class SubagentModel {
         self.openLines = openLines
     }
 
+    /// 畫面變成可見(`run()` 一開始):當作重新開啟。離開期間落後太多就讀新視窗，不逐段重播積壓(R-B08)。
+    public func reopen() {
+        file?.follow.reopen()
+    }
+
     /// 畫面可見時執行，直到所在的 task 被取消。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
+        reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask {
                 while !Task.isCancelled {
@@ -86,11 +93,13 @@ public final class SubagentModel {
         let ended = status != .running
         do {
             if let file {
-                switch try await transcripts.tail(path: file.path, from: file.cursor) {
+                // 已追上：落後多少都從游標分段接著讀，不改讀新視窗取代已顯示的訊息(#130);重新可見時落後太多讀新視窗。
+                let read = try await transcripts.follow(path: file.path, file.follow)
+                switch read.tail {
                 case .unchanged:
-                    break
+                    self.file?.follow = read.next
                 case .appended(let chunk):
-                    self.file?.cursor = chunk.end
+                    self.file?.follow = read.next
                     let known = Set(messages.map(\.id))
                     messages += chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)).filter { !known.contains($0.id) }
                     rebuild()
@@ -119,7 +128,7 @@ public final class SubagentModel {
     private func open(path: String) async throws {
         let size = try await transcripts.size(path: path)
         let chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines)
-        file = (path, chunk.end)
+        file = (path, TranscriptFollow(cursor: chunk.end, isLive: true))
         var seen = Set<String>()
         messages = chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)).filter { seen.insert($0.id).inserted }
         rebuild()

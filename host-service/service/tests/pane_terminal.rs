@@ -278,6 +278,24 @@ async fn resize_and_scroll_reach_herdr_in_its_wire_format() {
     );
 }
 
+async fn page_key_scroll_reaches_herdr_as_page_key() {
+    let harness = Harness::start().await;
+    let mut client = harness.client().await;
+    client.request(open("t1", "02-resize")).await;
+
+    client
+        .send(json!({"type": "pane.terminal.scroll", "stream_id": "t1", "direction": "up", "lines": 24, "column": 0, "row": 0, "source": "page_key"}))
+        .await;
+    client.send(json!({"type": "pane.terminal.close", "stream_id": "t1"})).await;
+    harness.herdr_cli.wait_for("exit").await;
+
+    // herdr 依 Pane 狀態決定：一般 shell 捲主機 scrollback,程式開了 alternate screen 等就送 Page 鍵。
+    assert_eq!(
+        harness.herdr_cli.stdin(),
+        [json!({"type": "terminal.scroll", "direction": "up", "lines": 24, "source": "page_key", "column": 0, "row": 0, "modifiers": 0})]
+    );
+}
+
 async fn takeover_is_passed_to_herdr() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
@@ -479,6 +497,9 @@ fn tests() -> Vec<TestCase> {
         }),
         ("resize_and_scroll_reach_herdr_in_its_wire_format", || {
             Box::pin(resize_and_scroll_reach_herdr_in_its_wire_format())
+        }),
+        ("page_key_scroll_reaches_herdr_as_page_key", || {
+            Box::pin(page_key_scroll_reaches_herdr_as_page_key())
         }),
         ("takeover_is_passed_to_herdr", || Box::pin(takeover_is_passed_to_herdr())),
         ("herdr_close_reason_is_relayed_verbatim", || Box::pin(herdr_close_reason_is_relayed_verbatim())),

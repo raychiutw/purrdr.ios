@@ -25,7 +25,7 @@ public struct SyncedHost: Sendable, Equatable {
         self.endpoint = endpoint
         self.connectionMethod = connectionMethod
         self.hostKeyPin = hostKeyPin
-        self.hostService = connectionMethod == .https ? hostService : nil
+        self.hostService = connectionMethod.usesHostService ? hostService : nil
         self.modifiedAt = modifiedAt
     }
 
@@ -38,7 +38,7 @@ public struct SyncedHost: Sendable, Equatable {
                 hostKeyPin: settings.hostKeyPin, modifiedAt: modifiedAt)
         case .https(let address):
             self.init(
-                id: host.id, name: host.name, endpoint: SSHEndpoint(host: address.hostName, port: address.port, username: ""),
+                id: host.id, name: host.name, endpoint: address.legacyEndpoint,
                 connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: modifiedAt)
         }
     }
@@ -141,14 +141,11 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
             if deleted.contains(remote.id) { continue }
             // 同步途中又修改的(或這次沒送出、但有還沒上傳的修改)不蓋掉。
             if let mine = modified[remote.id], mine != synced[remote.id], mine != sentModifiedAt[remote.id] { continue }
+            // 不完整的同步資料不套用、也不記成已同步，下次同步再處理。
+            guard let merged = remote.applied(to: local[remote.id]) else { continue }
             modified[remote.id] = remote.modifiedAt
             synced[remote.id] = remote.modifiedAt
-            if let existing = local[remote.id] {
-                let merged = remote.applied(to: existing)
-                if merged != existing { outcome.saves.append(merged) }
-            } else {
-                outcome.saves.append(remote.applied(to: nil))
-            }
+            if merged != local[remote.id] { outcome.saves.append(merged) }
         }
         return outcome
     }
@@ -161,8 +158,8 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
 
 extension SyncedHost {
     /// 套用到這支裝置的主機設定：只換同步的欄位;沒有這台主機時建立新的(OpenSSH 預設用這支裝置的金鑰)。
-    /// HTTPS 主機的裝置權杖不同步，這支裝置要自己連線配對。
-    func applied(to existing: HostConfiguration?) -> HostConfiguration {
+    /// HTTPS 主機的裝置權杖不同步，這支裝置要自己連線配對。標成 HTTPS 卻沒有位址時是 `nil`(無法套用)。
+    func applied(to existing: HostConfiguration?) -> HostConfiguration? {
         var host = existing ?? HostConfiguration(id: id, name: name, connection: .tailscaleSSH(.init(endpoint: endpoint)))
         host.name = name
         let herdr = host.ssh?.herdr ?? HerdrInstallation()
@@ -173,8 +170,8 @@ extension SyncedHost {
         case .openSSH:
             host.connection = .openSSH(settings, authentication: host.authentication ?? .deviceKey)
         case .https:
-            // init 保證 HTTPS 一定有位址。
-            if let hostService { host.connection = .https(hostService) }
+            guard let hostService else { return nil }
+            host.connection = .https(hostService)
         }
         return host
     }

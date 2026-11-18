@@ -357,7 +357,7 @@ private enum Wire {
             default: throw BackendError.invalidResponse
             }
             let hostService = hostServiceAddress.flatMap(HostServiceAddress.init)
-            if method == .https, hostService == nil { throw BackendError.invalidResponse }
+            if method.usesHostService, hostService == nil { throw BackendError.invalidResponse }
             guard let id = UUID(uuidString: id), let modifiedAt = Wire.date(modifiedAt) else { throw BackendError.invalidResponse }
             return SyncedHost(
                 id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
