@@ -40,6 +40,8 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     var notice: String? { get set }
     /// 單指垂直滑動交給遠端(`scroll`);`false` 時終端機模擬器自己捲 scrollback。
     var usesRemoteScroll: Bool { get }
+    /// 終端機模擬器看得到遠端程式的模式(登入 Shell 的 PTY);Pane 終端機經 herdr,看不到。
+    var seesProgramModes: Bool { get }
 
     /// 接上終端機模擬器。之前暫存的輸出依序補畫。
     func attach(_ renderer: @escaping (Data) -> Void)
@@ -51,18 +53,30 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     func hangUp()
     /// 終端機模擬器送出的鍵盤輸入。
     func type(_ data: Data)
-    /// 按鍵列的一顆鍵。
-    func press(_ key: TerminalKey)
+    /// 一顆鍵(按鍵列或實體鍵盤);`modifiers` 是實體鍵盤按著的修飾鍵，與黏著修飾鍵合併。
+    func press(_ key: TerminalKey, adding modifiers: TerminalModifiers, applicationCursor: Bool)
     func toggle(_ modifier: TerminalModifiers)
     /// 貼上;`bracketed` 是模擬器目前的 bracketed paste 模式(Pane 終端機一律包標記，由 herdr 決定)。
     func paste(_ text: String, bracketed: Bool)
     func scroll(_ direction: TerminalInput.ScrollDirection, rows: Int, column: Int, row: Int)
+    /// 實體鍵盤的 Page Up／Down 交給遠端決定(Pane 終端機);登入 Shell 在本機捲，不經 model。
+    func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int)
     func setFontSize(_ size: Double)
 }
 
 extension TerminalSessionModel {
     /// 按鍵列與貼上是否可用。
     public var isInteractive: Bool { status == .connected }
+
+    /// 按鍵列的一顆鍵。
+    public func press(_ key: TerminalKey) {
+        press(key, adding: [])
+    }
+
+    /// 一顆鍵，方向鍵用 CSI 形式。
+    public func press(_ key: TerminalKey, adding modifiers: TerminalModifiers) {
+        press(key, adding: modifiers, applicationCursor: false)
+    }
 
     public func adjustFontSize(by delta: Double) {
         setFontSize(fontSize + delta)

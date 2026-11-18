@@ -52,6 +52,25 @@ struct ConversationSlashTests {
         #expect(!model.slash.isVisible)
     }
 
+    @Test("組字中不拿暫時文字(/ㄋ)篩選 slash 選單;組字結束後依確認的文字篩選(#138)")
+    func slashMenuIgnoresComposingText() async throws {
+        let (host, model) = try Self.setup()
+        await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        await model.poll()
+        model.draft = "/"
+        await model.slash.load()
+
+        model.isComposingDraft = true
+        model.draft = "/ㄋ"
+        #expect(model.slash.isVisible)
+        #expect(model.slash.ranked == nil)
+        model.draft = "/compac"
+        #expect(model.slash.ranked == nil)
+
+        model.isComposingDraft = false
+        #expect(model.slash.highlighted == "compact")
+    }
+
     @Test("Grok 用固定清單;Pi 沒有選單")
     func otherAgents() async throws {
         let (grokHost, grok) = try Self.setup()
