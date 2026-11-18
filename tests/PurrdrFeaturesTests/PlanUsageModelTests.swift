@@ -133,7 +133,7 @@ struct PlanUsageModelTests {
 
         model.appeared()
         await model.untilIdle()
-        #expect(model.state == .failed("The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."))
+        #expect(model.state == .failed(.connection("The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet.")))
 
         await gate.connect()
         await model.refresh()
@@ -297,8 +297,8 @@ struct PlanUsageModelTests {
         #expect(host.commands.isEmpty)
     }
 
-    @Test("Codex 的錯誤各有說明：找不到 codex、未登入、逾時、回應無法解析、查詢失敗")
-    func codexErrorsAreExplained() async throws {
+    @Test("Codex 的錯誤各有原因：找不到 codex、未登入、逾時、回應無法解析、查詢失敗(帶 app-server 的說明)")
+    func codexErrorsHaveReasons() async throws {
         let notFound = FakeHost()
         await notFound.expect(CodexUsageHost.command, reply: FakeReply(exitCode: 127))
         let signedOut = await FakeCodexAppServer.host(
@@ -308,12 +308,12 @@ struct PlanUsageModelTests {
         let failing = await FakeCodexAppServer.host(
             answering: #"{"id":1,"error":{"code":-32603,"message":"failed to fetch codex rate limits: timeout"}}"#)
         let immediately: Sleep = { _ in }
-        let cases: [(any HostChannel, Sleep, String)] = [
-            (notFound, Sleeping.task, "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH."),
-            (signedOut, Sleeping.task, "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first."),
-            (silent, immediately, "Codex didn’t answer in time."),
-            (unreadable, Sleeping.task, "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help."),
-            (failing, Sleeping.task, "Codex couldn’t get plan usage: failed to fetch codex rate limits: timeout"),
+        let cases: [(any HostChannel, Sleep, PlanUsageFailure)] = [
+            (notFound, Sleeping.task, .codexNotFound),
+            (signedOut, Sleeping.task, .codexNotSignedIn),
+            (silent, immediately, .codexTimedOut),
+            (unreadable, Sleeping.task, .codexUnreadableResponse),
+            (failing, Sleeping.task, .codexRequestFailed("failed to fetch codex rate limits: timeout")),
         ]
         for (channel, sleep, expected) in cases {
             let model = model(codex: channel, codexSleep: sleep)

@@ -147,6 +147,23 @@ public final class UserDefaultsPlanUsageSelectionStore: PlanUsageSelectionStore 
     }
 }
 
+/// 查不到方案用量的原因;說明文字由畫面翻譯。
+public enum PlanUsageFailure: Equatable, Sendable {
+    case codexNotFound
+    case codexNotSignedIn
+    case codexUnreadableResponse
+    /// app-server 沒有在主機指令期限內回應。
+    case codexTimedOut
+    /// app-server 回報查詢失敗(帶它的說明)。
+    case codexRequestFailed(String)
+    /// 主機連線的錯誤(已是 `HostErrorText` 的說明)。
+    case connection(String)
+
+    init(_ error: any Error, agent: PlanUsageAgent) {
+        self = .connection(HostErrorText.message(for: error))
+    }
+}
+
 /// 方案用量畫面的 model(#176、#177)。
 @MainActor
 @Observable
@@ -159,7 +176,7 @@ public final class PlanUsageModel {
         /// 這種連線方式(HTTPS)不支援方案用量。
         case unsupportedConnection
         /// 查詢失敗(例如連不上主機)。
-        case failed(String)
+        case failed(PlanUsageFailure)
         /// 要先同意修改主機設定(Claude)。
         case needsConsent
         /// 同意前檢查主機中。
@@ -424,7 +441,7 @@ public final class PlanUsageModel {
             switch outcome {
             case .success(let usage?): state = .loaded(usage)
             case .success(nil): state = .noData
-            case .failure(let error): state = .failed(Self.describeReadFailure(error, agent: agent))
+            case .failure(let error): state = .failed(PlanUsageFailure(error, agent: agent))
             }
         }
     }

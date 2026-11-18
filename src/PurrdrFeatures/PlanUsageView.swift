@@ -101,8 +101,9 @@ public struct PlanUsageView: View {
             PlanUsageMessage(
                 systemImage: "nosign", title: "Plan usage isn’t available for this connection method",
                 detail: "\(hostName) connects over HTTPS. Choose an SSH host to check plan usage.")
-        case .failed(let reason):
-            PlanUsageMessage(systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(reason) Pull down to try again.")
+        case .failed(let failure):
+            PlanUsageMessage(
+                systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(failure.text) Pull down to try again.")
         }
         if let message = model.message {
             Label(message, systemImage: "exclamationmark.triangle")
@@ -197,6 +198,26 @@ public struct PlanUsageView: View {
             ~/.purrdr/claude-usage/statusline.sh, which saves the usage and then runs your current status line. \
             Turning this off restores your original settings.
             """)
+    }
+}
+
+extension PlanUsageFailure {
+    /// 畫面上的說明。
+    var text: String {
+        switch self {
+        case .codexNotFound:
+            String(localized: "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH.")
+        case .codexNotSignedIn:
+            String(localized: "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first.")
+        case .codexUnreadableResponse:
+            String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help.")
+        case .codexTimedOut:
+            String(localized: "Codex didn’t answer in time.")
+        case .codexRequestFailed(let message):
+            String(localized: "Codex couldn’t get plan usage: \(message)")
+        case .connection(let message):
+            message
+        }
     }
 }
 
