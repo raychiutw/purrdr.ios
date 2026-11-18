@@ -475,11 +475,13 @@ struct TerminalScreen: UIViewRepresentable {
     static func apply(_ theme: TerminalTheme?, to view: PurrdrTerminalView) {
         if let theme {
             view.installColors(theme.swiftTermColors)
+            view.installedPalette = theme.swiftTermColors
             view.nativeBackgroundColor = UIColor(theme.background)
             view.nativeForegroundColor = UIColor(theme.foreground)
             view.caretColor = theme.cursor.map(UIColor.init) ?? .systemGray
         } else {
             view.installColors(SwiftTerm.Color.defaultInstalledColors)
+            view.installedPalette = SwiftTerm.Color.defaultInstalledColors
             view.nativeBackgroundColor = .black
             view.nativeForegroundColor = UIColor(white: 0.92, alpha: 1)
             view.caretColor = .systemGray
@@ -587,10 +589,11 @@ struct TerminalScreen: UIViewRepresentable {
     }
 }
 
-/// 終端機畫面與疊在游標格子上的輸入元件。
+/// 終端機畫面與疊在游標格子上的輸入元件、組字浮層。
 final class TerminalScreenContainer: UIView {
     let terminalView: PurrdrTerminalView
     let textInput = TerminalTextInputView(frame: .zero)
+    let compositionOverlay = TerminalCompositionOverlay(frame: .zero)
     private var isCursorUpdateQueued = false
 
     init(terminalView: PurrdrTerminalView) {
@@ -599,8 +602,10 @@ final class TerminalScreenContainer: UIView {
         terminalView.frame = bounds
         terminalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(terminalView)
+        addSubview(compositionOverlay)
         addSubview(textInput)
         textInput.editActionTarget = terminalView
+        textInput.onCompositionChange = { [weak self] in self?.updateCompositionOverlay() }
         terminalView.textInput = textInput
     }
 
@@ -632,7 +637,28 @@ final class TerminalScreenContainer: UIView {
     private func placeTextInput() {
         let caret = terminalView.caretFrame
         guard caret.width > 0, caret.height > 0 else { return }
-        textInput.frame = terminalView.convert(caret, to: self)
+        // 游標在寬字元上時 caret 是兩格寬;輸入元件只佔一格。
+        let cellWidth = caret.width / CGFloat(terminalView.cursorCellColumns)
+        var cell = terminalView.convert(caret, to: self)
+        cell.size.width = cellWidth
+        textInput.frame = cell
+        textInput.cellWidth = cellWidth
+        textInput.screenWidth = terminalView.frame.maxX
+        updateCompositionOverlay()
+    }
+
+    private func updateCompositionOverlay() {
+        let layout = textInput.compositionLayout.overlay
+        let colors = terminalView.cursorCellColors
+        compositionOverlay.show(
+            textInput.composition.markedText,
+            selectedRange: textInput.markedSelection,
+            frame: CGRect(x: layout.x, y: layout.y, width: layout.width, height: layout.height),
+            font: terminalView.font,
+            cellWidth: textInput.cellWidth,
+            textColor: colors.foreground,
+            backgroundColor: colors.background
+        )
     }
 }
 
@@ -640,6 +666,45 @@ final class TerminalScreenContainer: UIView {
 /// 鍵盤焦點在 `TerminalTextInputView`;它自己不當 first responder,但點畫面、游標樣式照「聚焦」處理。
 final class PurrdrTerminalView: TerminalView {
     weak var textInput: TerminalTextInputView?
+    /// 目前套用的 16 色(組字浮層取游標格子的顏色用)。
+    var installedPalette = SwiftTerm.Color.defaultInstalledColors
+
+    /// 游標所在字元佔的格數(寬字元 2)。
+    var cursorCellColumns: Int {
+        let terminal = getTerminal()
+        let cursor = terminal.getCursorLocation()
+        return max(1, Int(terminal.getCharData(col: cursor.x, row: cursor.y)?.width ?? 1))
+    }
+
+    /// 游標格子的文字色與背景色(反白時對調)。
+    var cursorCellColors: (foreground: UIColor, background: UIColor) {
+        let terminal = getTerminal()
+        let cursor = terminal.getCursorLocation()
+        guard let attribute = terminal.getCharData(col: cursor.x, row: cursor.y)?.attribute else {
+            return (nativeForegroundColor, nativeBackgroundColor)
+        }
+        let foreground = color(attribute.fg, isForeground: true)
+        let background = color(attribute.bg, isForeground: false)
+        return attribute.style.contains(.inverse) ? (background, foreground) : (foreground, background)
+    }
+
+    private func color(_ color: SwiftTerm.Attribute.Color, isForeground: Bool) -> UIColor {
+        switch color {
+        case .defaultColor:
+            return isForeground ? nativeForegroundColor : nativeBackgroundColor
+        case .defaultInvertedColor:
+            return isForeground ? nativeBackgroundColor : nativeForegroundColor
+        case .trueColor(let red, let green, let blue):
+            return UIColor(red: CGFloat(red) / 255, green: CGFloat(green) / 255, blue: CGFloat(blue) / 255, alpha: 1)
+        case .ansi256(let code):
+            if Int(code) < installedPalette.count {
+                let entry = installedPalette[Int(code)]
+                return UIColor(red: CGFloat(entry.red) / 65535, green: CGFloat(entry.green) / 65535, blue: CGFloat(entry.blue) / 65535, alpha: 1)
+            }
+            guard let rgb = TerminalCompositionLayout.xterm256(code) else { return nativeForegroundColor }
+            return UIColor(red: CGFloat(rgb.red) / 255, green: CGFloat(rgb.green) / 255, blue: CGFloat(rgb.blue) / 255, alpha: 1)
+        }
+    }
 
     override var canBecomeFirstResponder: Bool { false }
 

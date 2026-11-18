@@ -10,12 +10,19 @@ final class TerminalTextInputView: UIView, UITextInput {
     /// 貼上(Command-V、編輯選單)。
     var onPaste: (() -> Void)?
     var onFocusChange: ((Bool) -> Void)?
+    /// 組字文字或其中的選取改變(更新組字浮層)。
+    var onCompositionChange: (() -> Void)?
+    /// 終端機一格的寬度與畫面寬度(父視圖座標),給組字浮層與選字窗定位。
+    var cellWidth: CGFloat = 8
+    var screenWidth: CGFloat = 0
     /// 複製、全選等編輯動作交給終端機畫面(選取在它那邊)。
     weak var editActionTarget: UIResponder?
 
     private(set) var composition = TerminalComposition()
     /// 組字文字裡輸入法指定的選取範圍(UTF-16)。
-    private var markedSelection = NSRange(location: 0, length: 0)
+    private(set) var markedSelection = NSRange(location: 0, length: 0) {
+        didSet { onCompositionChange?() }
+    }
     private var keyRepeat: Timer?
 
     override init(frame: CGRect) {
@@ -269,11 +276,28 @@ final class TerminalTextInputView: UIView, UITextInput {
 
     func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {}
 
-    /// 輸入元件本身就放在游標格子上。
-    func firstRect(for range: UITextRange) -> CGRect { bounds }
+    /// 組字浮層的版面(父視圖座標);輸入元件本身放在游標格子上。
+    var compositionLayout: TerminalCompositionLayout {
+        TerminalCompositionLayout(
+            markedText: composition.markedText,
+            cursor: .init(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height),
+            cellWidth: cellWidth,
+            screenWidth: screenWidth
+        )
+    }
+
+    /// 選字窗對齊組字段;沒有組字時是游標格子。
+    func firstRect(for range: UITextRange) -> CGRect {
+        let range = (range as? TerminalTextRange)?.range ?? NSRange(location: 0, length: 0)
+        return localRect(compositionLayout.rect(utf16Location: range.location, length: range.length))
+    }
 
     func caretRect(for position: UITextPosition) -> CGRect {
-        CGRect(x: 0, y: 0, width: 2, height: bounds.height)
+        localRect(compositionLayout.caret(utf16Offset: (position as? TerminalTextPosition)?.offset ?? 0))
+    }
+
+    private func localRect(_ box: TerminalCompositionLayout.Box) -> CGRect {
+        CGRect(x: box.x - frame.minX, y: box.y - frame.minY, width: box.width, height: box.height)
     }
 
     func selectionRects(for range: UITextRange) -> [UITextSelectionRect] { [] }
