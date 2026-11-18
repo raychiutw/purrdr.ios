@@ -331,22 +331,31 @@ public actor HTTPSHostConnection: HostConnection {
     }
 
     /// 期限到丟 `HerdrError.deadlineExceeded`;外層取消丟 `CancellationError`。
+    /// 操作在期限到或取消之後仍拿到結果時回傳結果：主機可能已為它開了串流，交給呼叫端收尾而不是丟掉。
     func withDeadline<Value: Sendable>(
         _ deadline: Duration, _ operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
-        try await withThrowingTaskGroup(of: Value?.self) { group in
-            group.addTask { try await operation() }
+        let outcome = await withTaskGroup(of: DeadlineRace<Value>.self) { group -> Result<Value, any Error> in
+            group.addTask {
+                do {
+                    return .finished(.success(try await operation()))
+                } catch {
+                    return .finished(.failure(error))
+                }
+            }
             group.addTask { [sleep] in
-                try await sleep(deadline)
-                return nil
+                try? await sleep(deadline)
+                return .timerEnded
             }
             defer { group.cancelAll() }
-            guard let first = try await group.next(), let value = first else {
-                try Task.checkCancellation()
-                throw HerdrError.deadlineExceeded
+            if case .finished(let result) = await group.next() { return result }
+            group.cancelAll()
+            while let race = await group.next() {
+                if case .finished(.success(let value)) = race { return .success(value) }
             }
-            return value
+            return .failure(Task.isCancelled ? CancellationError() : HerdrError.deadlineExceeded)
         }
+        return try outcome.get()
     }
 
     /// herdr `events.subscribe` 的 params。
@@ -363,6 +372,13 @@ public actor HTTPSHostConnection: HostConnection {
             }
         }
     }
+}
+
+/// `withDeadline` 裡先結束的一方。
+private enum DeadlineRace<Value: Sendable>: Sendable {
+    case finished(Result<Value, any Error>)
+    /// 期限到或外層取消。
+    case timerEnded
 }
 
 /// Pane 終端機的輸入以主機服務協定送出;不等回應(主機服務不回應輸入)。
