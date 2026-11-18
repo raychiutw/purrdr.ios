@@ -43,6 +43,8 @@ struct SSHConnectionDiagnosticsTests {
             diagnostics: events.observer)
 
         _ = try await collect(channel.execute("first"))
+        // 第一個間隔有 first 的回應(跳過),下一個安靜的間隔才送。
+        await clock.advance(by: .milliseconds(100))
         await clock.advance(by: .milliseconds(100))
         try await eventually { server.snapshot.keepalives == 1 }
         await clock.advance(by: .milliseconds(200))
