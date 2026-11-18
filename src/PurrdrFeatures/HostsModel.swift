@@ -202,6 +202,8 @@ public final class HostsModel {
                 return nil
             }
             return .claude(channel: member(for: host).channel, cost: .transfer, hostID: id.uuidString, consent: hostConsent)
+        case (_, .codex):
+            return nil
         }
     }
 

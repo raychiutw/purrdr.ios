@@ -209,6 +209,7 @@ extension PlanUsageAgent {
     var name: String {
         switch self {
         case .claudeCode: "Claude Code"
+        case .codex: "Codex"
         }
     }
 }

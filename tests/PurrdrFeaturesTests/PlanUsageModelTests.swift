@@ -223,6 +223,69 @@ struct PlanUsageModelTests {
         #expect(await stays(host.commands.count == 2))
     }
 
+    // MARK: - Codex(#178)
+
+    static let codexRateLimits = #"""
+        {"id":1,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":23,"windowDurationMins":300,"resetsAt":1738425600},"secondary":{"usedPercent":41,"windowDurationMins":10080,"resetsAt":1738857600}}}}
+        """#
+
+    /// Claude 讀本機 `/bin/sh` 主機(未同意);Codex 讀 `codex` 通道。
+    func model(codex: any HostChannel, codexSleep: @escaping Sleep = Sleeping.task) -> PlanUsageModel {
+        let claudeChannel = host
+        let consent = consent
+        return PlanUsageModel(hosts: Self.bothHosts, fallback: Self.mac, store: InMemoryPlanUsageSelectionStore(), now: { Self.now }) { selection, agent in
+            switch agent {
+            case .claudeCode: .claude(channel: claudeChannel, cost: .transfer, hostID: selection.storedValue, consent: consent)
+            case .codex: .codex(channel: codex, cost: .transfer, sleep: codexSleep)
+            }
+        }
+    }
+
+    @Test("切到 Codex:不要求同意、不寫主機，查一次就顯示 5 小時與每週;查詢需要傳輸")
+    func codexNeedsNoConsent() async throws {
+        let codex = await FakeCodexAppServer.host(answering: Self.codexRateLimits)
+        let model = model(codex: codex)
+        model.appeared()
+        await model.untilIdle()
+        #expect(model.state == .needsConsent)
+
+        model.select(agent: .codex)
+        await model.untilIdle()
+
+        #expect(model.rows.map(\.period) == [.fiveHour, .week])
+        #expect(model.rows.map(\.percent) == [77, 59])
+        #expect(model.cost == .transfer)
+        #expect(!model.canTurnOff)
+        #expect(await codex.executions.map(\.command) == [CodexUsageHost.command])
+        #expect(host.commands.isEmpty)
+    }
+
+    @Test("Codex 的錯誤各有說明：找不到 codex、未登入、逾時、回應無法解析、查詢失敗")
+    func codexErrorsAreExplained() async throws {
+        let notFound = FakeHost()
+        await notFound.expect(CodexUsageHost.command, reply: FakeReply(exitCode: 127))
+        let signedOut = await FakeCodexAppServer.host(
+            answering: #"{"id":1,"error":{"code":-32600,"message":"codex account authentication required to read rate limits"}}"#)
+        let silent = await FakeCodexAppServer.host(answering: nil)
+        let unreadable = await FakeCodexAppServer.host(answering: #"{"id":1,"result":{}}"#)
+        let failing = await FakeCodexAppServer.host(
+            answering: #"{"id":1,"error":{"code":-32603,"message":"failed to fetch codex rate limits: timeout"}}"#)
+        let immediately: Sleep = { _ in }
+        let cases: [(any HostChannel, Sleep, String)] = [
+            (notFound, Sleeping.task, "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH."),
+            (signedOut, Sleeping.task, "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first."),
+            (silent, immediately, "Codex didn’t answer in time."),
+            (unreadable, Sleeping.task, "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help."),
+            (failing, Sleeping.task, "Codex couldn’t get plan usage: failed to fetch codex rate limits: timeout"),
+        ]
+        for (channel, sleep, expected) in cases {
+            let model = model(codex: channel, codexSleep: sleep)
+            model.select(agent: .codex)
+            await model.untilIdle()
+            #expect(model.state == .failed(expected))
+        }
+    }
+
     // MARK: - Claude 的同意、確認、關閉並還原(每台主機各自同意)
 
     @Test("Claude 還沒同意：顯示需要同意，不碰主機")

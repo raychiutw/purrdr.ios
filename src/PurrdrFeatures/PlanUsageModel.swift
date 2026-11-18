@@ -7,6 +7,7 @@ import PurrdrSSH
 /// 方案用量畫面可以查的 Agent 種類。
 public enum PlanUsageAgent: String, CaseIterable, Sendable {
     case claudeCode
+    case codex
 }
 
 /// 方案用量畫面的主機選項。
@@ -79,6 +80,13 @@ extension PlanUsageSource {
                 consent.revoke(feature, host: hostID)
             })
         return PlanUsageSource(cost: cost, hostWrite: hostWrite) { try await host.readUsage()?.planUsage }
+    }
+}
+
+extension PlanUsageSource {
+    /// Codex:執行一次 `codex app-server` 查詢(不寫主機、不需同意)。
+    public static func codex(channel: any HostChannel, cost: PlanUsageQueryCost, sleep: @escaping Sleep = Sleeping.task) -> PlanUsageSource {
+        PlanUsageSource(cost: cost) { nil }
     }
 }
 

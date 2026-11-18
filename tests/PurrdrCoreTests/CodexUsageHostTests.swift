@@ -8,27 +8,14 @@ import Testing
 @Suite("Codex 方案用量(主機)")
 struct CodexUsageHostTests {
     static let now = Date(timeIntervalSince1970: 1_738_400_000)
-    static let initializeResponse = #"{"id":0,"result":{"userAgent":"codex_cli_rs/0.80.0"}}"#
 
     /// 一個 bucket,5 小時與每週都有。
     static let singleBucket = #"""
         {"id":1,"result":{"ordinaryUsageAllowed":true,"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":23,"windowDurationMins":300,"resetsAt":1738425600},"secondary":{"usedPercent":41,"windowDurationMins":10080,"resetsAt":1738857600},"credits":null,"planType":"plus"},"rateLimitsByLimitId":null}}
         """#
 
-    /// 假的 app-server:收到 `initialize` 那一行就回 `initialize` 的回應，收到讀取請求後回 `rateLimits`。
-    static func appServer(
-        answering rateLimits: String?, initialize: String = initializeResponse, command: String = CodexUsageHost.command
-    ) async -> FakeHost {
-        let host = FakeHost()
-        await host.expect(
-            command, reply: FakeReply(stdout: Data((initialize + "\n").utf8), trigger: .afterStdinLine, keepsOpen: true))
-        if let rateLimits {
-            Task {
-                guard await host.waitForStdin(ofExecution: 0, until: { $0.stdinText.contains("account/rateLimits/read") }) else { return }
-                await host.send(stdout: Data((rateLimits + "\n").utf8), toExecution: 0)
-            }
-        }
-        return host
+    static func appServer(answering rateLimits: String?, command: String = CodexUsageHost.command) async -> FakeHost {
+        await FakeCodexAppServer.host(answering: rateLimits, command: command)
     }
 
     static func methods(in stdin: String) -> [String] {
