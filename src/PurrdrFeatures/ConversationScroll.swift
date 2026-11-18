@@ -83,6 +83,11 @@ extension ConversationScroll {
         return now.timeIntervalSince(rebuiltAt) <= Self.rebuildSettleTime
     }
 
+    /// 跟隨中停在內容裡，可見範圍卻一列都沒顯示時要不要再捲到底(#191)。
+    public func refillsVisibleRange(_ metrics: ConversationScrollMetrics, visibleRows: Int) -> Bool {
+        false
+    }
+
     /// `returnsToContent` 成立、畫面捲回內容時呼叫：切回跟隨，記下這次的內容高度。
     public mutating func returnedToContent(_ metrics: ConversationScrollMetrics) {
         jumpToLatest()

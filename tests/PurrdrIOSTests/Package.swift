@@ -18,6 +18,9 @@ let package = Package(
             dependencies: [
                 .product(name: "PurrdrFeatures", package: "Purrdr"),
                 .product(name: "PurrdrCore", package: "Purrdr"),
+                .product(name: "PurrdrAgentFeatures", package: "Purrdr"),
+                .product(name: "PurrdrSSH", package: "Purrdr"),
+                .product(name: "PurrdrDemo", package: "Purrdr"),
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
             ],
             path: "Tests"
