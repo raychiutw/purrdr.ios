@@ -103,6 +103,32 @@ struct TerminalInputTakeoverTests {
         #expect(recorder.sends.isEmpty)
     }
 
+    @Test("組字中按按鍵列：組字放棄、只送該鍵，系統隨後的結束組字也不送(#141)")
+    func keyBarWhileComposingSendsOnlyTheKey() async throws {
+        let (window, screen, recorder) = try await mount()
+        defer { window.isHidden = true }
+
+        screen.textInput.setMarkedText("ㄋㄧˇ", selectedRange: NSRange(location: 3, length: 0))
+        screen.textInput.pressKeyBarKey(.escape)
+        screen.textInput.unmarkText()
+
+        #expect(screen.textInput.markedTextRange == nil)
+        #expect(recorder.sends == [.key(.escape, modifiers: [])])
+    }
+
+    @Test("組字中貼上：組字放棄、只送貼上內容(#141)")
+    func pasteWhileComposingSendsOnlyPastedText() async throws {
+        let (window, screen, recorder) = try await mount()
+        defer { window.isHidden = true }
+
+        screen.textInput.setMarkedText("ㄏㄠ", selectedRange: NSRange(location: 2, length: 0))
+        screen.textInput.paste(text: "git status")
+        screen.textInput.unmarkText()
+
+        #expect(screen.textInput.markedTextRange == nil)
+        #expect(recorder.sends == [.paste("git status")])
+    }
+
     @Test("輸入元件跟著遠端游標格子")
     func inputViewSitsOnCursorCell() async throws {
         let (window, screen, _) = try await mount()

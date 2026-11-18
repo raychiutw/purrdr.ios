@@ -265,7 +265,7 @@ struct TerminalKeyBar: View {
         ScrollView(.horizontal) {
             HStack(spacing: 0) {
                 ForEach(Self.keys) { key in
-                    BarKeyButton(key: key, model: model)
+                    BarKeyButton(key: key, model: model, screen: screen)
                 }
             }
         }
@@ -301,6 +301,7 @@ struct BarKey: Identifiable {
 struct BarKeyButton: View {
     let key: BarKey
     let model: any TerminalSessionModel
+    let screen: TerminalScreenHandle
 
     private var isLocked: Bool { key.modifier.map(model.modifiers.contains) ?? false }
 
@@ -309,7 +310,7 @@ struct BarKeyButton: View {
             if let modifier = key.modifier {
                 model.toggle(modifier)
             } else if let terminalKey = key.key {
-                model.press(terminalKey)
+                screen.pressKeyBarKey(terminalKey)
             }
         } label: {
             Group {
@@ -343,7 +344,7 @@ struct PasteKey: View {
 
     var body: some View {
         Button {
-            if let text = UIPasteboard.general.string { model.paste(text, bracketed: screen.bracketedPasteMode) }
+            if let text = UIPasteboard.general.string { screen.paste(text) }
         } label: {
             Image(systemName: "doc.on.clipboard")
                 .font(.body)
@@ -400,6 +401,16 @@ final class TerminalScreenHandle {
         }
     }
 
+    /// 按鍵列的鍵經輸入元件送出(組字中先放棄組字)。
+    func pressKeyBarKey(_ key: TerminalKey) {
+        screen?.textInput.pressKeyBarKey(key)
+    }
+
+    /// 貼上經輸入元件送出(組字中先放棄組字)。
+    func paste(_ text: String) {
+        screen?.textInput.paste(text: text)
+    }
+
     /// 程式是否開了 bracketed paste 模式(登入 Shell 用;Pane 終端機看不到 Pane 的模式)。
     var bracketedPasteMode: Bool {
         screen?.terminalView.getTerminal().bracketedPasteMode ?? false
@@ -441,14 +452,28 @@ struct TerminalScreen: UIViewRepresentable {
             view?.setNeedsDisplay()
             handle?.focusChanged(focused)
         }
-        screen.textInput.onSend = { [model] input in
+        screen.textInput.onSend = { [model, weak handle] input in
             switch input {
             case .bytes(let bytes): model.type(bytes)
             case .key(let key, let modifiers): model.press(key, adding: modifiers)
+            case .paste(let text): model.paste(text, bracketed: handle?.bracketedPasteMode ?? false)
             }
         }
-        screen.textInput.onPaste = { [model, weak handle] in
-            if let text = UIPasteboard.general.string { model.paste(text, bracketed: handle?.bracketedPasteMode ?? false) }
+        screen.textInput.scrollsPageLocally = { [weak view] in
+            guard let terminal = view?.getTerminal() else { return false }
+            return !terminal.applicationCursor && !terminal.isCurrentBufferAlternate
+        }
+        screen.textInput.onScrollPage = { [model, weak view] direction in
+            guard let view else { return }
+            let rows = view.getTerminal().rows
+            if model.usesRemoteScroll {
+                // Pane 終端機的 scrollback 在 herdr,與單指滑動一樣交給它捲。
+                model.scroll(direction, rows: rows, column: view.getTerminal().cols / 2, row: rows / 2)
+            } else if direction == .up {
+                view.scrollUp(lines: rows)
+            } else {
+                view.scrollDown(lines: rows)
+            }
         }
         context.coordinator.install(on: view)
         handle.screen = screen

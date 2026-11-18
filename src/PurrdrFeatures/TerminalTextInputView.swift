@@ -7,8 +7,10 @@ import UIKit
 final class TerminalTextInputView: UIView, UITextInput {
     /// 要送到遠端的輸入。
     var onSend: ((TerminalInputSend) -> Void)?
-    /// 貼上(Command-V、編輯選單)。
-    var onPaste: (() -> Void)?
+    /// Page Up／Down 在本機捲一頁。
+    var onScrollPage: ((TerminalInput.ScrollDirection) -> Void)?
+    /// 遠端沒開 alternate screen 與 application cursor(Page Up／Down 改成本機捲動)。
+    var scrollsPageLocally: () -> Bool = { false }
     var onFocusChange: ((Bool) -> Void)?
     /// 組字文字或其中的選取改變(更新組字浮層)。
     var onCompositionChange: (() -> Void)?
@@ -66,13 +68,29 @@ final class TerminalTextInputView: UIView, UITextInput {
 
     /// Purrdr 自己結束組字：放棄組字文字並通知系統文字已變，不送出。
     func cancelComposition() {
-        guard composition.isComposing else { return }
+        changeComposition { $0.cancel() }
+    }
+
+    /// 按鍵列的鍵：組字中先放棄組字再送。
+    func pressKeyBarKey(_ key: TerminalKey) {
+        send(changeComposition { $0.pressKeyBarKey(key) })
+    }
+
+    /// 貼上(按鍵列、Command-V、編輯選單):組字中先放棄組字再送。
+    func paste(text: String) {
+        send(changeComposition { $0.paste(text) })
+    }
+
+    /// 改組字狀態;組字文字因此被清掉時通知系統，輸入法才不會留著舊的組字。
+    private func changeComposition<Result>(_ change: (inout TerminalComposition) -> Result) -> Result {
+        guard composition.isComposing else { return change(&composition) }
         inputDelegate?.selectionWillChange(self)
         inputDelegate?.textWillChange(self)
-        composition.cancel()
-        markedSelection = NSRange(location: 0, length: 0)
+        let result = change(&composition)
+        markedSelection = NSRange(location: markedLength, length: 0)
         inputDelegate?.textDidChange(self)
         inputDelegate?.selectionDidChange(self)
+        return result
     }
 
     private func send(_ sends: [TerminalInputSend]) {
@@ -82,7 +100,7 @@ final class TerminalTextInputView: UIView, UITextInput {
     // MARK: - 編輯動作
 
     override func paste(_ sender: Any?) {
-        onPaste?()
+        if let text = UIPasteboard.general.string { paste(text: text) }
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
@@ -102,14 +120,20 @@ final class TerminalTextInputView: UIView, UITextInput {
         var unhandled = Set<UIPress>()
         for press in presses {
             guard let key = press.key, !key.modifierFlags.contains(.command),
-                  let hardwareKey = TerminalHardwareKey(key),
-                  case .send(let input) = composition.handle(hardwareKey, modifiers: TerminalModifiers(key.modifierFlags))
+                  let hardwareKey = TerminalHardwareKey(key)
             else {
                 unhandled.insert(press)
                 continue
             }
-            onSend?(input)
-            startKeyRepeat(input)
+            switch composition.handle(hardwareKey, modifiers: TerminalModifiers(key.modifierFlags), scrollsPageLocally: scrollsPageLocally()) {
+            case .system:
+                unhandled.insert(press)
+            case .send(let input):
+                onSend?(input)
+                startKeyRepeat(input)
+            case .scrollPage(let direction):
+                onScrollPage?(direction)
+            }
         }
         if !unhandled.isEmpty {
             super.pressesBegan(unhandled, with: event)
