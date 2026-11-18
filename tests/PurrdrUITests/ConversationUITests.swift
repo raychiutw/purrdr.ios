@@ -72,6 +72,13 @@ final class ConversationUITests: XCTestCase {
         let app = openLedger()
         let summary = app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
+        let window = app.windows.firstMatch
+        let navigationBottom = app.navigationBars.firstMatch.frame.maxY
+        for _ in 0..<6 where !summary.isHittable || summary.frame.minY < navigationBottom + 8 {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+                .press(forDuration: 0.1, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.26)))
+        }
 
         summary.tap()
 
@@ -148,6 +155,178 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(element("conversation.echo", in: app).exists, "收起鍵盤不該送出")
     }
 
+    /// 多行草稿時輸入框長高超過舊的 4 行上限(#137):7 行全部攤開、不內捲。
+    @MainActor
+    func testComposerGrowsBeyondFourLines() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeText("1\n2")
+        let twoLines = text.frame.height
+        text.typeText("\n3")
+        let lineHeight = text.frame.height - twoLines
+        XCTAssertGreaterThan(lineHeight, 10, "第 3 行沒有長高")
+
+        text.typeText("\n4\n5\n6\n7")
+        let sevenLines = text.frame.height
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "composer-seven-lines"
+        shot.lifetime = .keepAlways
+        add(shot)
+        XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
+    }
+
+    /// 上下版面(#187):整寬輸入框在上、按鈕列在下;閒置時就有兩行高，按鈕 ≥ 44pt。
+    @MainActor
+    func testComposerStacksFullWidthEditorAboveButtons() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        let send = element("composer.send", in: app)
+        let addImage = element("composer.addImage", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertTrue(addImage.exists, "沒有加入圖片鈕")
+        attachScreenshot(of: app, named: "composer-idle")
+
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(text.frame.width, window.width - 64, "輸入框沒有整寬(\(text.frame.width) / \(window.width))")
+        XCTAssertGreaterThanOrEqual(text.frame.height, 60, "閒置時不到兩行高(\(text.frame.height)pt)")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
+        XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "加入圖片鈕要在輸入框下方")
+        XCTAssertLessThan(addImage.frame.maxX, send.frame.minX, "加入圖片在左、送出在右")
+        XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(addImage.frame.height, 44)
+
+        text.tap()
+        let hide = element("composer.hideKeyboard", in: app)
+        XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
+        XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
+        XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
+        text.typeText("Line one\nLine two\nLine three\nLine four")
+        attachScreenshot(of: app, named: "composer-multiline")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "多行時送出鈕仍在輸入框下方")
+    }
+
+    /// 注音組字(#187):組字文字跟一般文字一樣換行，輸入框跟著長高;按鈕列留在下方。
+    @MainActor
+    func testZhuyinCompositionWrapsAndGrowsComposer() {
+        let app = open(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        let idleHeight = text.frame.height
+
+        // 模擬器接著實體鍵盤：以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
+        for _ in 0..<24 {
+            for key in ["s", "u", "3"] {
+                app.typeKey(key, modifierFlags: [])
+            }
+        }
+        attachScreenshot(of: app, named: "composer-composing")
+        XCTAssertTrue((text.value as? String)?.contains("ㄋ") == true, "沒有在組字(\(String(describing: text.value)))")
+        XCTAssertGreaterThan(text.frame.height, idleHeight + 30, "組字換行後沒有長高(\(idleHeight) → \(text.frame.height))")
+        XCTAssertGreaterThanOrEqual(element("composer.send", in: app).frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
+    }
+
+    @MainActor
+    private func attachScreenshot(of app: XCUIApplication, named name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
+    /// 展開編輯(#142):聚焦時才有展開鈕;展開後是同一份草稿，收回保留在展開畫面打的字;
+    /// 沒聚焦、超過 2 行時仍有展開鈕。
+    @MainActor
+    func testExpandedEditorKeepsDraftWhenCollapsed() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        let expand = element("composer.expand", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertFalse(expand.exists, "沒聚焦、空白時不該有展開鈕")
+
+        text.tap()
+        XCTAssertTrue(expand.waitForExistence(timeout: 5), "聚焦時沒有展開鈕")
+        XCTAssertEqual(expand.label, "Expand")
+        XCTAssertGreaterThanOrEqual(expand.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(expand.frame.height, 44)
+        text.typeText("1\n2\n3")
+        expand.tap()
+
+        let expanded = element("composer.expanded.text", in: app)
+        XCTAssertTrue(expanded.waitForExistence(timeout: 5), "沒有開出展開畫面")
+        XCTAssertEqual(expanded.value as? String, "1\n2\n3", "展開畫面不是同一份草稿")
+        XCTAssertGreaterThan(expanded.frame.height, text.frame.height, "展開畫面的輸入框沒有比輸入列大")
+        expanded.tap()
+        expanded.typeText("\n4")
+        element("composer.expanded.done", in: app).tap()
+
+        XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "「完成」沒有收回")
+        XCTAssertEqual(text.value as? String, "1\n2\n3\n4", "收回後草稿不見了")
+        XCTAssertFalse(element("conversation.echo", in: app).exists, "收回不該送出")
+        XCTAssertFalse(element("composer.hideKeyboard", in: app).exists, "收回後輸入列不該聚焦")
+        XCTAssertTrue(expand.exists, "沒聚焦、4 行時應有展開鈕")
+    }
+
+    /// 在展開畫面送出(#142):回到對話、輸入列清空、有回音;鍵盤出現時送出與完成鈕在鍵盤上方。
+    @MainActor
+    func testSendingFromExpandedEditorReturnsToConversation() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        element("composer.expand", in: app).tap()
+
+        let expanded = element("composer.expanded.text", in: app)
+        XCTAssertTrue(expanded.waitForExistence(timeout: 5), "沒有開出展開畫面")
+        expanded.tap()
+        expanded.typeText("Sent from the big editor")
+        let send = element("composer.expanded.send", in: app)
+        let done = element("composer.expanded.done", in: app)
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.waitForExistence(timeout: 5) {
+            XCTAssertLessThanOrEqual(send.frame.maxY, keyboard.frame.minY + 1, "送出鈕被鍵盤擋住")
+            XCTAssertLessThanOrEqual(done.frame.maxY, keyboard.frame.minY + 1, "完成鈕被鍵盤擋住")
+        }
+        XCTAssertTrue(send.isHittable)
+        XCTAssertTrue(done.isHittable)
+        XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+        send.tap()
+
+        XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "送出後沒有回到對話")
+        XCTAssertTrue(app.staticTexts["Sent from the big editor"].waitForExistence(timeout: 5), "沒有回音")
+        XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
+    }
+
+    /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
+    @MainActor
+    func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
+        let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        // AX5 時 ledger 在閒置組很下面，捲不到：從註記清單的「Go to Chat」進去(同無障礙稽核)。
+        let summary = app.buttons["youShouldKnow.summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        summary.tap()
+        element("youShouldKnow.go.demo/w1:p1", in: app).tap()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeText("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
+        // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
+        let window = app.windows.firstMatch.frame
+        let keyboard = app.keyboards.firstMatch
+        let visibleBottom = keyboard.exists ? min(keyboard.frame.minY, window.maxY) : window.maxY
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "composer-ax5-ten-lines"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // 可用高度從狀態列下緣算，比可見範圍小;以可見範圍當上界只會放寬。
+        let height = text.frame.height
+        XCTAssertLessThanOrEqual(height, visibleBottom * 0.4 + 1, "輸入框 \(height)pt 超過可見範圍(\(visibleBottom)pt)的 40%")
+        XCTAssertGreaterThan(height, 44 * 2, "AX 字級下多行沒有長高(\(height)pt)")
+    }
+
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
     @MainActor
     func testJumpToLatestOnlyWhenAwayFromBottom() {
@@ -170,6 +349,70 @@ final class ConversationUITests: XCTestCase {
         jump.tap()
         XCTAssertTrue(jump.waitForNonExistence(timeout: 5), "點了回到最新後應隱藏")
         XCTAssertTrue(element("prompt.option.3", in: app).isHittable, "回到底部後最後一個選項應可點")
+    }
+
+    /// #130:往上翻看舊訊息時 agent 一次寫出超過 64 KiB(`-demoLargeOutput`:開啟 8 秒後寫出 321 行):
+    /// 畫面不空白，正在看的舊訊息還在原處，新訊息接在後面。
+    @MainActor
+    func testLargeOutputWhileReadingKeepsMessages() {
+        let app = open(paneID: "w1:p1", flags: ["-demoLargeOutput"])
+        let first = app.staticTexts["Tidy up the CSV export: dates first, and escape commas in notes."]
+        XCTAssertTrue(first.waitForExistence(timeout: 10), "對話沒有載入完成")
+        let list = app.scrollViews.firstMatch
+        let jump = element("conversation.jumpToLatest", in: app)
+        for _ in 0..<4 { list.swipeDown() }
+        XCTAssertTrue(element("conversation.beginning", in: app).waitForExistence(timeout: 5), "沒有翻到對話開頭")
+        XCTAssertTrue(jump.waitForExistence(timeout: 5), "往上翻後應是閱讀中")
+
+        // 開啟後 8 秒寫出;已完成的 agent 每 4 秒輪詢一次。等寫出之後的兩次輪詢。
+        Thread.sleep(forTimeInterval: 18)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-large-output-while-reading"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        XCTAssertTrue(first.exists && first.isHittable, "正在看的舊訊息不見了(畫面被取代或停在內容之外)")
+        XCTAssertTrue(element("conversation.beginning", in: app).exists, "對話開頭不見了(改讀了新視窗)")
+        XCTAssertTrue(jump.exists, "應仍在閱讀中")
+        jump.tap()
+        let summary = app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'")).firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 5), "新訊息沒有接在後面")
+    }
+
+    /// 畫面上看得到(可點)的訊息列：使用者泡泡、agent 文字、工具串、回音。
+    @MainActor
+    private func visibleMessageRows(in app: XCUIApplication) -> Int {
+        let rows = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier IN %@", ["conversation.user", "conversation.agent", "conversation.toolRun", "conversation.echo"]))
+        return rows.allElementsBoundByIndex.filter(\.isHittable).count
+    }
+
+    /// #130(使用者回報最常見的情況):長對話中送出 prompt 後，agent 立刻一次寫出超過 64 KiB
+    /// (`-demoLargeOutputOnPrompt`)。送出時切回跟隨並捲到底，畫面不可變成一片空白，最新的訊息在畫面上。
+    @MainActor
+    func testSendingThenLargeOutputKeepsMessagesVisible() {
+        let app = open(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
+        XCTAssertTrue(element("conversation.agent", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+
+        text.tap()
+        text.typeText("Check the logs once more")
+        element("composer.send", in: app).tap()
+        let echo = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Check the logs once more'")).firstMatch
+        XCTAssertTrue(echo.waitForExistence(timeout: 5), "沒有回音")
+        // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);等兩次輪詢與捲動穩定。
+        Thread.sleep(forTimeInterval: 10)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-large-output-after-send"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        XCTAssertGreaterThan(visibleMessageRows(in: app), 0, "送出後畫面上沒有任何訊息列(空白)")
+        let summaries = app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'"))
+        XCTAssertTrue(summaries.allElementsBoundByIndex.contains(where: \.isHittable), "跟隨中最新的訊息應在畫面上")
     }
 
     /// 「需要你」的 agent 拒收：草稿放回輸入框，提示先回答。
@@ -216,7 +459,8 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertEqual(actual.maxY, expected.maxY, accuracy: 1, "載入中的輸入列不在載入完成後的位置(底緣 \(actual.maxY),應為 \(expected.maxY))")
         XCTAssertLessThan(spinner.maxY, actual.minY, "轉圈不在輸入列上方")
-        XCTAssertGreaterThan(spinner.midY, screen.height * 0.3, "轉圈沒有置中")
+        // 輸入列是上下版面(#187)、比單行高，上方內容區的中心跟著往上。
+        XCTAssertGreaterThan(spinner.midY, screen.height * 0.2, "轉圈沒有置中")
         XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 }

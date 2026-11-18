@@ -275,11 +275,11 @@ public final class HostsModel {
 
     public var rows: [HostRow] {
         hosts.map { host in
-            HostRow(
-                id: host.id, title: host.name,
-                subtitle: host.hostService?.description ?? "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
-                session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id),
-                needsPairing: unpairedHostIDs.contains(host.id))
+            let subtitle = host.ssh.map { "\($0.endpoint.username)@\($0.endpoint.host):\($0.endpoint.port)" }
+                ?? host.hostService?.description ?? ""
+            return HostRow(
+                id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
+                isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id))
         }
     }
 
@@ -385,8 +385,7 @@ public final class HostsModel {
         for host in outcome.saves {
             let previous = hosts.first { $0.id == host.id }
             try store.save(host)
-            if let previous, previous.endpoint != host.endpoint || previous.connectionMethod != host.connectionMethod
-                || previous.authentication != host.authentication || previous.hostKeyPin != host.hostKeyPin {
+            if let previous, previous.connection != host.connection {
                 dropChannel(of: host.id)
                 members[.host(host.id)] = nil
                 reselect = reselect || selection == .host(host.id)
@@ -408,13 +407,11 @@ public final class HostsModel {
         try credentials.secrets.setSecret(nil, for: id)
         try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        if let removed {
-            if let address = removed.hostService {
-                // 主機離線時權杖留在主機上，可在主機上撤銷。
-                if let deviceToken { hostService.revokeWithoutWaiting(deviceToken, at: address) }
-            } else {
-                forgetPush(of: removed, secret: secret)
-            }
+        if let removed, let settings = removed.ssh {
+            forgetPush(of: removed, settings: settings, secret: secret)
+        } else if let address = removed?.hostService, let deviceToken {
+            // 主機離線時權杖留在主機上，可在主機上撤銷。
+            hostService.revokeWithoutWaiting(deviceToken, at: address)
         }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
@@ -524,7 +521,7 @@ public final class HostsModel {
     private func refreshPairing() {
         let tokens = hostService.tokens
         unpairedHostIDs = Set(hosts.filter { host in
-            host.hostService != nil && (try? tokens.deviceToken(for: host.id)) == nil
+            host.connectionMethod.usesHostService && (try? tokens.deviceToken(for: host.id)) == nil
         }.map(\.id))
     }
 
@@ -581,16 +578,22 @@ public final class HostsModel {
         case .demo: nil
         case .host(let id): hosts.first { $0.id == id }
         }
-        if let configuration, let address = configuration.hostService {
+        guard let configuration else {
+            return HostMember(
+                host: host, configuration: nil, channel: demoChannel, preferences: preferences.store(for: host), push: pushService,
+                consent: demoConsent)
+        }
+        switch configuration.connection {
+        case .https(let address):
             return HostMember(
                 host: host, configuration: configuration, channel: UnsupportedHostChannel(),
                 connection: hostServiceConnection(for: configuration, address: address), preferences: preferences.store(for: host),
                 push: nil, consent: hostConsent)
+        case .tailscaleSSH(let settings), .openSSH(let settings, _):
+            return HostMember(
+                host: host, configuration: configuration, channel: channel(for: configuration, settings: settings),
+                preferences: preferences.store(for: host), push: pushService, consent: hostConsent)
         }
-        return HostMember(
-            host: host, configuration: configuration, channel: configuration.map(channel(for:)) ?? demoChannel,
-            preferences: preferences.store(for: host), push: pushService,
-            consent: configuration == nil ? demoConsent : hostConsent)
     }
 
     private func hostServiceConnection(for host: HostConfiguration, address: HostServiceAddress) -> any HostConnection {
@@ -600,11 +603,11 @@ public final class HostsModel {
         return connection
     }
 
-    private func channel(for host: HostConfiguration) -> any HostChannel {
+    private func channel(for host: HostConfiguration, settings: HostConfiguration.SSHSettings) -> any HostChannel {
         if let channel = channels[host.id] { return channel }
         // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。作業系統未知(主機同步帶來的新主機)時先偵測，
         // 不對可能是 Windows 的主機送 POSIX 指令。
-        let base = makeChannel(host.endpoint, host.hostKeyPin, credentials.provider(for: host))
+        let base = makeChannel(settings.endpoint, settings.hostKeyPin, credentials.provider(for: host))
         let id = host.id
         let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { [weak self] operatingSystem in
             await self?.recordOperatingSystem(operatingSystem, for: id)
@@ -626,11 +629,12 @@ public final class HostsModel {
     }
 
     /// 推播配對：另開一條不放進 `channels` 的連線刪掉主機上的配對(刪除主機會關閉它原本的連線)。
-    private func forgetPush(of host: HostConfiguration, secret: HostSecret?) {
+    private func forgetPush(of host: HostConfiguration, settings: HostConfiguration.SSHSettings, secret: HostSecret?) {
         guard let pushService else { return }
         let provider = credentials.provider(
             method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
-        pushService.forget(hostID: host.id.uuidString, channel: makeChannel(host.endpoint, host.hostKeyPin, provider), herdr: host.herdr)
+        pushService.forget(
+            hostID: host.id.uuidString, channel: makeChannel(settings.endpoint, settings.hostKeyPin, provider), herdr: settings.herdr)
     }
 
     private func dropChannel(of id: UUID) {
@@ -673,7 +677,7 @@ final class HostMember {
     ) {
         self.host = host
         self.channel = channel
-        let herdr = configuration?.herdr ?? HerdrInstallation()
+        let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
         let connection = connection ?? SSHHostConnection(channel: channel, herdr: herdr)
         client = HerdrClient(connection: connection)
         transcripts = TranscriptReader(connection: connection)

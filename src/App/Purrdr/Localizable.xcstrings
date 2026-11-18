@@ -1681,6 +1681,17 @@
         }
       }
     },
+    "Composing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "組字中"
+          }
+        }
+      }
+    },
     "Confirm" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2678,6 +2689,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個 Workspace 裡的每個 Tab、Pane 與程序都會停止。對話紀錄仍留在主機上，但 Agent 會停止執行。"
+          }
+        }
+      }
+    },
+    "Expand" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開"
           }
         }
       }
@@ -6110,6 +6132,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終端機"
+          }
+        }
+      }
+    },
+    "Terminal Input" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端機輸入"
           }
         }
       }

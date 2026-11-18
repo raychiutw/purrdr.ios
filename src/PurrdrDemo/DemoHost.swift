@@ -24,6 +24,12 @@ public actor DemoHost: HostChannel {
         /// 讀取有期限(`HostCommandDeadline.standard`,20 秒):期限到了 client 關閉指令、畫面離開載入中，
         /// 所以只在進入對話後的這段時間內停在載入中。
         case transcriptPending
+        /// 大量輸出(#130):對話畫面第一次定位 ledger 的對話紀錄後 `after` 秒，那個 agent 一次寫出超過 64 KiB
+        /// (`DemoTranscripts.largeOutput`)。給使用者先往上翻，再看畫面上的訊息是否還在。
+        case largeOutput(after: Duration)
+        /// 送出後大量輸出(#130):ledger 一開始就是長對話(150 輪文字訊息);每次對它送出 prompt,回覆之後
+        /// agent 立刻再一次寫出超過 64 KiB。
+        case largeOutputOnPrompt
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -37,6 +43,9 @@ public actor DemoHost: HostChannel {
     /// 送出 prompt 後各 session 接上的對話紀錄行(只在記憶體)。
     private var appended: [String: [String]] = [:]
     private var prompts = 0
+    /// 大量輸出情境：寫出的時間(第一次定位 ledger 後才定)與是否已寫出。
+    private var largeOutputAt: ContinuousClock.Instant?
+    private var largeOutputWritten = false
 
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
@@ -58,6 +67,9 @@ public actor DemoHost: HostChannel {
     public init(scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil) {
         self.scenario = scenario
         self.tailscaleCheck = tailscaleCheck
+        if scenario == .largeOutputOnPrompt {
+            appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
+        }
     }
 
     public func execute(_ command: String) async throws -> any ExecSession {
@@ -83,6 +95,7 @@ public actor DemoHost: HostChannel {
         if scenario == .transcriptPending, DemoTranscripts.isLocate(command) {
             return DemoPendingSession()
         }
+        writeLargeOutputIfDue(command)
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
@@ -174,11 +187,28 @@ public actor DemoHost: HostChannel {
                let session = DemoTranscripts.sessions.first(where: { $0.paneID == target }) {
                 prompts += 1
                 appended[session.sessionID, default: []] += DemoTranscripts.reply(to: text, number: prompts, at: Date())
+                if scenario == .largeOutputOnPrompt, session.sessionID == DemoTranscripts.ledger.sessionID {
+                    appended[session.sessionID, default: []] += DemoTranscripts.largeOutput(run: prompts, at: Date().addingTimeInterval(3))
+                }
             }
             return DemoSnapshot.prompted(id: id, paneID: target)
         default:
             return DemoSnapshot.error(id: id, code: "agent_not_found", message: "agent not found: \(target)")
         }
+    }
+
+    /// 大量輸出情境：第一次定位 ledger 時定下寫出的時間;時間到了，下一個對話紀錄指令之前接上大量的行。
+    private func writeLargeOutputIfDue(_ command: String) {
+        guard case .largeOutput(let delay) = scenario, !largeOutputWritten else { return }
+        let ledger = DemoTranscripts.ledger
+        if largeOutputAt == nil,
+           command == TranscriptCommand.locate(sessionID: ledger.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: ledger.cwd)) {
+            largeOutputAt = .now + delay
+            return
+        }
+        guard let due = largeOutputAt, ContinuousClock.now >= due else { return }
+        largeOutputWritten = true
+        appended[ledger.sessionID, default: []] += DemoTranscripts.largeOutput(at: Date())
     }
 
     /// 「桌機正在操作」的情境下，Pane 被別人佔著，直到有人接管。

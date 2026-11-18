@@ -32,7 +32,7 @@ struct HostsModelTests {
         let store = MemoryHostStore()
         store.hosts = [Self.studio]
         let real = FakeHost()
-        await real.expect(HerdrCommand.bridge(Self.studio.herdr), reply: .recorded("session.snapshot.ndjson"))
+        await real.expect(HerdrCommand.bridge(HerdrInstallation(session: "work")), reply: .recorded("session.snapshot.ndjson"))
         let factory = ChannelFactory(real)
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: factory.make)
 
@@ -40,7 +40,7 @@ struct HostsModelTests {
         await model.agentList.load()
 
         #expect(model.selection == .host(Self.studio.id))
-        #expect(factory.endpoints == [Self.studio.endpoint])
+        #expect(factory.endpoints == [Self.studio].compactMap(\.ssh?.endpoint))
         #expect(factory.pins == [Self.pin])
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
     }
@@ -94,7 +94,7 @@ struct HostsModelTests {
         store.hosts = [synced]
         let real = FakeHost()
         await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Linux\n".utf8)))
-        await real.expect(HerdrCommand.bridge(Self.studio.herdr), reply: .recorded("session.snapshot.ndjson"))
+        await real.expect(HerdrCommand.bridge(HerdrInstallation(session: "work")), reply: .recorded("session.snapshot.ndjson"))
         let log = RecordingDiagnosticLog()
         let model = HostsModel(store: store, demoChannel: FakeHost(), diagnostics: log.log, makeChannel: ChannelFactory(real).make)
         model.load()
@@ -116,7 +116,7 @@ struct HostsModelTests {
         store.hosts = [synced]
         let real = FakeHost()
         await real.expect(HerdrCommand.operatingSystem, reply: FakeReply(stdout: Data("Linux\n".utf8)))
-        await real.expect(HerdrCommand.bridge(Self.studio.herdr), reply: .recorded("session.snapshot.ndjson"))
+        await real.expect(HerdrCommand.bridge(HerdrInstallation(session: "work")), reply: .recorded("session.snapshot.ndjson"))
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
 
         model.load()
@@ -214,7 +214,7 @@ struct HostsModelTests {
         let store = MemoryHostStore()
         store.hosts = [Self.studio]
         let real = FakeHost()
-        let bridge = HerdrCommand.bridge(Self.studio.herdr)
+        let bridge = HerdrCommand.bridge(HerdrInstallation(session: "work"))
         await real.expect(NewChatFolders.command(for: "~/ledger"), reply: FakeReply(stdout: NewChatFolders.output(path: "/Users/demo/ledger", folders: [])))
         let created = #"{"id":"purrdr:workspace.create","result":{"type":"workspace_created","workspace":{"workspace_id":"w4","number":4,"label":"ledger","focused":false,"pane_count":1,"tab_count":1,"active_tab_id":"w4:t1","agent_status":"unknown"},"root_pane":{"pane_id":"w4:p1","terminal_id":"t","workspace_id":"w4","tab_id":"w4:t1","focused":false,"agent_status":"unknown","revision":0}}}"#
         await real.expect(bridge, reply: FakeReply(stdout: Data(created.utf8) + [0x0A], trigger: .afterStdinLine))
@@ -236,11 +236,12 @@ struct HostsModelTests {
     @Test("主機清單依名稱排序，每列顯示名稱、user@host:port,設了具名 session 就附註(#37 故事 24)")
     func rowsShowEndpointAndSession() {
         let store = MemoryHostStore()
-        var plain = Self.studio
+        var plain = Self.studio.editingSSH {
+            $0.endpoint = SSHEndpoint(host: "100.64.0.9", port: 2222, username: "ops")
+            $0.herdr = HerdrInstallation()
+        }
         plain.id = UUID()
         plain.name = "Linux box"
-        plain.endpoint = SSHEndpoint(host: "100.64.0.9", port: 2222, username: "ops")
-        plain.herdr = HerdrInstallation()
         store.hosts = [Self.studio, plain]
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
 

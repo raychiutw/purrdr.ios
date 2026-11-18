@@ -184,6 +184,20 @@ public enum TranscriptCommand {
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
 
+    /// 分段追趕(#130):印出目前大小;比游標大時，再印游標之後的完整行，累計原始 byte 數不超過 `limit`
+    /// (即使後面還有，留給下一次從新游標接著讀)。第一行就超過 `limit` 時只印那一行，剝除圖片後的內容截短到
+    /// `limit` bytes(原始長度照實印，游標照樣前進;傳輸量不超過上限，期限也依上限估算)。參數：路徑、游標、上限。
+    public static func catchUp(path: String, from cursor: Int, limit: Int) -> String {
+        command(catchUpScript, arguments: [path, String(cursor), String(limit)])
+    }
+
+    package static let catchUpScript = #"f=$1"# + "\n" + probe + "\n" + #"""
+        printf '%s\n' "$z"
+        if [ "$z" -gt "$2" ]; then
+        tail -c +$(($2 + 1)) "$f" | head -c $((z - $2)) | awk -v t=$((z - $2)) -v m="$3" '{ p = q + length($0) + 1; if (p > t || (p > m && NR > 1)) exit; print; q = p }' | ANNOTATE | awk -v m="$3" '{ i = index($0, "\t"); if (length($0) - i > m) $0 = substr($0, 1, i + m); print }'
+        fi
+        """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
+
     /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
         previews(marker: marker, entries: requests.map { PreviewEntry(key: $0.key, type: "claude", value: $0.sessionID, extra: $0.projectFolder) })

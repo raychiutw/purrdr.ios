@@ -117,6 +117,24 @@ _避免_:Scene、分頁(Tab 是 herdr 的層級)
 直接在主機上開的一般 shell,背後沒有 herdr Pane。
 _避免_:Raw SSH、Console
 
+**輸入元件**(Terminal input view):
+Pane 終端機與登入 Shell 接收鍵盤輸入的 Purrdr 元件，放在遠端游標格子上;鍵盤焦點在它身上，不在終端機模擬器。組字期間不送任何東西，確認的文字與按鍵才送到遠端。
+_避免_:隱藏輸入框、Key catcher、SwiftTerm 輸入
+
+## 輸入
+
+**組字**(Composition):
+用輸入法(注音、拼音、日文等)打字時，選字確認前的暫時文字與其狀態。確認(選字、按 Return)才變成真正的輸入;系統結束組字時，組字文字不含注音與聲調就當確認的文字送出(注音點候選字),含注音就放棄;Purrdr 自己結束組字時一律放棄，不送出。
+_避免_:預編輯、Preedit、Marked text(UIKit 的實作名稱，只在程式碼對應 UIKit API 時用)
+
+**組字浮層**(Composition overlay):
+終端機畫面上，把組字文字畫在遠端游標格子的那一層;確認或放棄組字後消失。
+_避免_:預覽框、IME 浮窗、Inline preedit
+
+**展開編輯**(Expanded composer):
+從聊天輸入列打開的大編輯畫面(large sheet),編輯同一份草稿;畫面本身稱「展開畫面」。
+_避免_:全螢幕編輯、Fullscreen editor、大輸入框
+
 ## 推播
 
 **Purrdr 後台**(Backend):

@@ -4,35 +4,42 @@ import Testing
 import UIKit
 @testable import PurrdrFeatures
 
-/// 輸入框超過 4 行內捲後，捲動位置一律包含游標(#88 第 4 項)。以真正的 `ComposerTextEditor` 放進視窗驗證。
+/// 輸入框超過長高上限(8 行，#137)內捲後，捲動位置一律包含游標(#88 第 4 項)。以真正的 `ComposerTextEditor` 放進視窗驗證。
 @Suite(.serialized)
 @MainActor
 struct ComposerScrollTests {
-    /// 跟輸入列一樣放在兩側有按鈕的 HStack 裡:SwiftUI 會以 0 與無限寬度探問理想大小。
+    /// 跟輸入列一樣的上下版面(#187):整寬輸入框在上、按鈕列在下。
     private struct Host: View {
         @State var text = ""
         @State var isFocused = true
 
         var body: some View {
-            HStack(alignment: .bottom, spacing: 8) {
-                Color.clear.frame(width: 44, height: 44)
+            VStack(spacing: 0) {
                 ComposerTextEditor(
-                    text: $text, isFocused: $isFocused, returnSends: false, canSend: true,
-                    slashKey: { _ in false }, pasteAction: { .system }, onPasteImages: {}, onSend: {}
+                    text: $text, isFocused: $isFocused,
+                    options: ComposerEditorOptions(
+                        placeholder: "Message", returnSends: false, canSend: true,
+                        slashKey: { _ in false }, pasteAction: { .system }, onPasteImages: {}, onSend: {}
+                    )
                 )
                 .frame(minHeight: 44)
-                Color.clear.frame(width: 44, height: 44)
+                .padding(.horizontal, 4)
+                HStack(spacing: 8) {
+                    Color.clear.frame(width: 44, height: 44)
+                    Spacer(minLength: 0)
+                    Color.clear.frame(width: 44, height: 44)
+                }
             }
             .padding(.horizontal)
             .frame(width: 390)
         }
     }
 
-    /// 超過 4 行的草稿(寬 280pt 約 10 行)。
-    private static let longDraft = String(repeating: "這是一段很長的文字用來把輸入框撐到四行以上", count: 6)
+    /// 超過 8 行上限的草稿(寬約 350pt 也超過 8 行)。
+    private static let longDraft = String(repeating: "這是一段很長的文字用來把輸入框撐到四行以上", count: 12)
 
-    @Test("逐字輸入超過 4 行：捲動位置包含游標")
-    func typingBeyondFourLinesKeepsCaretVisible() async throws {
+    @Test("逐字輸入超過上限：捲動位置包含游標")
+    func typingBeyondLimitKeepsCaretVisible() async throws {
         let (window, textView) = try await mount()
         defer { window.isHidden = true }
         for character in Self.longDraft {
@@ -46,7 +53,7 @@ struct ComposerScrollTests {
     }
 
     @Test("內捲後組字：捲動位置包含組字尾端的游標")
-    func composingBeyondFourLinesKeepsCaretVisible() async throws {
+    func composingBeyondLimitKeepsCaretVisible() async throws {
         let (window, textView) = try await mount()
         defer { window.isHidden = true }
         for character in Self.longDraft {
@@ -73,8 +80,8 @@ struct ComposerScrollTests {
         expectCaretVisible(in: textView)
     }
 
-    @Test("刪字縮回 4 行以內：關掉內捲並顯示全部文字")
-    func deletingBackWithinFourLinesShowsAllText() async throws {
+    @Test("刪字縮回上限以內：關掉內捲並顯示全部文字")
+    func deletingBackWithinLimitShowsAllText() async throws {
         let (window, textView) = try await mount()
         defer { window.isHidden = true }
         textView.insertText(Self.longDraft)

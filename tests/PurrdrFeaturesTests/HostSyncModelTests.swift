@@ -18,7 +18,7 @@ struct HostSyncModelTests {
 
     static let studio = HostConfiguration(
         id: UUID(uuidString: "6F1C2A4E-3B7D-4C8E-9A10-2B3C4D5E6F70")!, name: "Studio Mac",
-        endpoint: SSHEndpoint(host: "studio-mac", username: "ray"), connectionMethod: .openSSH, authentication: .password,
+        endpoint: SSHEndpoint(host: "studio-mac", username: "ray"), openSSH: .password,
         herdr: HerdrInstallation(path: "/opt/herdr/bin/herdr", session: "secret-project"), operatingSystem: .macOS,
         hostKeyPin: HostKeyFingerprint(stored: "nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8"))
 
@@ -146,8 +146,8 @@ struct HostSyncModelTests {
     func uploadContainsNoSecrets() async throws {
         try subscribe()
         let linux = HostConfiguration(
-            name: "Linux box", endpoint: SSHEndpoint(host: "100.64.0.9", port: 2222, username: "ops"), connectionMethod: .openSSH,
-            authentication: .importedKey, herdr: HerdrInstallation(session: "ops-session"))
+            name: "Linux box", endpoint: SSHEndpoint(host: "100.64.0.9", port: 2222, username: "ops"),
+            openSSH: .importedKey, herdr: HerdrInstallation(session: "ops-session"))
         try secrets.setSecret(.password("hunter2-password"), for: Self.studio.id)
         try secrets.setSecret(.privateKey("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjE\n-----END OPENSSH PRIVATE KEY-----", passphrase: "pass-phrase-9"), for: linux.id)
         backend.on("POST", Self.path, .json(200, Self.snapshot()))
@@ -260,8 +260,8 @@ struct HostSyncModelTests {
         await sync.setEnabled(true)
 
         #expect(hosts.hosts.map(\.id) == [Self.studio.id])
-        #expect(hosts.hosts.first?.endpoint == Self.studio.endpoint)
-        #expect(hosts.hosts.first?.hostKeyPin == Self.studio.hostKeyPin)
+        #expect(hosts.hosts.first?.ssh?.endpoint == Self.studio.ssh?.endpoint)
+        #expect(hosts.hosts.first?.ssh?.hostKeyPin == Self.studio.ssh?.hostKeyPin)
         #expect(hosts.hosts.first?.authentication == .deviceKey, "祕密不同步：OpenSSH 先用這支裝置的金鑰")
     }
 

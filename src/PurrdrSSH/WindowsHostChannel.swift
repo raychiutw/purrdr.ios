@@ -137,6 +137,7 @@ enum WindowsCommand {
             (TranscriptCommand.claudeLocateScript, WindowsScripts.claudeLocate),
             (TranscriptCommand.windowScript, WindowsScripts.window),
             (TranscriptCommand.tailScript, WindowsScripts.tail),
+            (TranscriptCommand.catchUpScript, WindowsScripts.catchUp),
             (TranscriptCommand.previewsScript, WindowsScripts.previews),
             (TranscriptCommand.findSubagentScript, WindowsScripts.findSubagent),
             (TranscriptCommand.readWorkflowScript, WindowsScripts.readWorkflow),

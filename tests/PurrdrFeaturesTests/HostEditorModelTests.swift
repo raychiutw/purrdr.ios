@@ -97,8 +97,8 @@ struct HostEditorModelTests {
 
         let saved = try #require(model.save())
         #expect(store.hosts == [saved])
-        #expect(saved.hostKeyPin == Self.fingerprint)
-        #expect(saved.herdr == HerdrInstallation(session: "work"))
+        #expect(saved.ssh?.hostKeyPin == Self.fingerprint)
+        #expect(saved.ssh?.herdr == HerdrInstallation(session: "work"))
         #expect(saved.operatingSystem == .macOS)
         #expect(saved.name == "Studio")
     }
@@ -148,7 +148,7 @@ struct HostEditorModelTests {
 
         await model.trustPresentedHostKey()
         #expect(factory.pins == [Self.fingerprint, Self.otherFingerprint])
-        #expect(model.save()?.hostKeyPin == Self.otherFingerprint)
+        #expect(model.save()?.ssh?.hostKeyPin == Self.otherFingerprint)
     }
 
     @Test("herdr 低於 0.9.5:提示版本，使用者確認後才執行 herdr update,再重新測試")

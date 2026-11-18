@@ -131,6 +131,8 @@ extension View {
 /// 輸入框上方的縮圖：64pt 方塊，可移除(上傳中停用)。
 struct AttachmentStrip: View {
     let model: ConversationModel
+    /// accessibility identifier 的前綴(展開畫面用 `composer.expanded`)。
+    var identifierPrefix = "composer"
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -144,7 +146,7 @@ struct AttachmentStrip: View {
         }
         .scrollIndicators(.hidden)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("composer.attachments")
+        .accessibilityIdentifier("\(identifierPrefix).attachments")
     }
 
     private func thumbnail(_ attachment: ComposerAttachment, index: Int) -> some View {
@@ -168,7 +170,7 @@ struct AttachmentStrip: View {
             }
             .accessibilityElement()
             .accessibilityLabel(Text("Attached image \(index + 1)"))
-            .accessibilityIdentifier("composer.attachment.\(index)")
+            .accessibilityIdentifier("\(identifierPrefix).attachment.\(index)")
 
             Button {
                 model.removeAttachment(attachment.id)
@@ -184,7 +186,7 @@ struct AttachmentStrip: View {
             .offset(x: 14, y: -14)
             .disabled(model.isSending)
             .accessibilityLabel(Text("Remove Image \(index + 1)"))
-            .accessibilityIdentifier("composer.attachment.remove.\(index)")
+            .accessibilityIdentifier("\(identifierPrefix).attachment.remove.\(index)")
         }
         .padding(.top, 8)
         .padding(.trailing, 8)
@@ -199,6 +201,9 @@ struct AttachmentStrip: View {
 /// 長按：完整選單(相簿、拍照、貼上圖片)。
 struct AddImageButton: View {
     let model: ConversationModel
+    var identifier = "composer.addImage"
+    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
+    var isInCard = false
     @State private var showsLibrary = false
     @State private var showsCamera = false
     @State private var asksSource = false
@@ -223,12 +228,12 @@ struct AddImageButton: View {
             case .showLimit: model.noteImageLimit()
             }
         }
-        .buttonStyle(.glass)
+        .composerSecondaryButtonStyle(isInCard: isInCard)
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
         .disabled(model.isSending)
         .accessibilityLabel(Text("Add Image"))
-        .accessibilityIdentifier("composer.addImage")
+        .accessibilityIdentifier(identifier)
         .photosPicker(
             isPresented: $showsLibrary, selection: $selection, maxSelectionCount: max(1, model.remainingImageSlots),
             selectionBehavior: .ordered, matching: .images, preferredItemEncoding: .current
@@ -277,6 +282,20 @@ struct AddImageButton: View {
             let images = ImageSources.pasteboardImages()
             Task { await model.addImages(images) }
         }
+    }
+}
+
+/// 輸入框的貼上：剪貼簿只有圖片時加成附件(F6.3)。輸入列與展開畫面共用。
+enum ComposerPasteHandler {
+    @MainActor static func action(for model: ConversationModel) -> ComposerPaste.Action {
+        ComposerPaste.action(
+            hasImages: model.canAttachImages && ImageSources.pasteboardHasImages,
+            hasStrings: ImageSources.pasteboardHasStrings, remainingSlots: model.remainingImageSlots)
+    }
+
+    @MainActor static func attachPasteboardImages(to model: ConversationModel) {
+        let images = ImageSources.pasteboardImages()
+        Task { await model.addImages(images) }
     }
 }
 

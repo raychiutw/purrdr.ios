@@ -77,7 +77,7 @@ struct PurrdrApp: App {
                 swipeHint: InMemorySwipeHintStore(),
                 listMode: Self.uiTestingListMode(arguments),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
-                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
+                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.ssh?.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
@@ -185,13 +185,15 @@ struct PurrdrApp: App {
     }
 
     /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成);
-    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止)。
+    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話 8 秒後、或每次送出 prompt 後 agent 一次寫出大量輸出(#130)。
     /// 情境只能選一個：旗標互斥，同時帶多個時只採用下面順序中的第一個。
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
         if arguments.contains("-demoTailscaleCheck") { return .tailscaleCheck(completesAfter: nil) }
         if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: .seconds(3)) }
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
+        if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(8)) }
+        if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
         return .standard
     }
 

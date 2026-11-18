@@ -34,7 +34,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
-        .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.11.0"),
+        // 0.14.1 起修正 CVE-2026-43798(GHSA-998x-vgvp-xwpc)。
+        .package(url: "https://github.com/apple/swift-nio-ssh.git", from: "0.14.1"),
         .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
         // 終端機模擬器(MIT)。固定最新穩定版 1.19.0(1.20 是 prerelease;1.99.x 是 2.0 前的破壞性系列，暫不採用):
         // - 1.12 起帶 Metal shader:Xcode 27 要先裝 Metal Toolchain(`xcodebuild -downloadComponent MetalToolchain`);

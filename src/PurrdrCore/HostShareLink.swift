@@ -23,13 +23,25 @@ public struct SharedHost: Sendable, Equatable {
         self.connectionMethod = connectionMethod
         self.herdr = herdr
         self.hostKeyPin = hostKeyPin
-        self.hostService = connectionMethod.hostService(hostService)
+        self.hostService = connectionMethod.usesHostService ? hostService : nil
     }
 
     public init(_ host: HostConfiguration) {
+        switch host.connection {
+        case .tailscaleSSH(let settings), .openSSH(let settings, _):
+            self.init(
+                name: host.name, endpoint: settings.endpoint, connectionMethod: host.connectionMethod, herdr: settings.herdr,
+                hostKeyPin: settings.hostKeyPin)
+        case .https(let address):
+            self.init(name: host.name, hostService: address)
+        }
+    }
+
+    /// HTTPS 主機：端點只是主機服務的主機名稱與埠(wire v1 必填，沒有使用者名稱)。
+    public init(name: String, hostService: HostServiceAddress) {
         self.init(
-            name: host.name, endpoint: host.endpoint, connectionMethod: host.connectionMethod, herdr: host.herdr,
-            hostKeyPin: host.hostKeyPin, hostService: host.hostService)
+            name: name, endpoint: hostService.legacyEndpoint,
+            connectionMethod: .https, hostService: hostService)
     }
 }
 
@@ -82,8 +94,7 @@ public enum HostShareLink {
         if wire.method == HostConfiguration.ConnectionMethod.https.rawValue {
             // HTTPS 主機：端點由主機服務位址決定(沒有使用者名稱)。
             guard !name.isEmpty, let address = wire.url.flatMap(HostServiceAddress.init) else { throw HostShareLinkError.malformed }
-            let https = HostConfiguration(name: name, hostService: address)
-            return SharedHost(name: name, endpoint: https.endpoint, connectionMethod: .https, hostService: address)
+            return SharedHost(name: name, hostService: address)
         }
         guard !name.isEmpty, !host.isEmpty, !user.isEmpty, (1...65_535).contains(wire.port) else { throw HostShareLinkError.malformed }
         let method: HostConfiguration.ConnectionMethod
