@@ -86,10 +86,10 @@ public final class HostEditorModel {
     public var isEditing: Bool { existing != nil }
 
     /// herdr 過舊時能不能由 Purrdr 更新(SSH 才能;HTTPS 請使用者在主機上更新)。
-    public var canUpdateHerdr: Bool { !connectionMethod.usesHostService }
+    public var canUpdateHerdr: Bool { connectionMethod != .https }
 
     /// HTTPS 主機要輸入配對碼：新主機，或這支裝置還沒有它的裝置權杖(例如主機同步帶來的)。
-    public var needsPairingCode: Bool { connectionMethod.usesHostService && !hasStoredDeviceToken }
+    public var needsPairingCode: Bool { connectionMethod == .https && !hasStoredDeviceToken }
 
     private let store: any HostStore
     private let existing: HostConfiguration?
@@ -118,15 +118,19 @@ public final class HostEditorModel {
         self.hostService = hostService
         self.makeChannel = makeChannel
         hasStoredDeviceToken = editing.map { $0.hostService != nil && (try? hostService.tokens.deviceToken(for: $0.id)) != nil } ?? false
-        if let editing {
-            name = editing.name
-            address = editing.hostService?.description ?? editing.endpoint.host
-            port = String(editing.endpoint.port)
-            username = editing.endpoint.username
-            herdrPath = editing.herdr.path == "herdr" ? "" : editing.herdr.path
-            herdrSession = editing.herdr.session ?? ""
-            connectionMethod = editing.connectionMethod
+        guard let editing else { return }
+        name = editing.name
+        connectionMethod = editing.connectionMethod
+        switch editing.connection {
+        case .tailscaleSSH(let settings), .openSSH(let settings, _):
+            address = settings.endpoint.host
+            port = String(settings.endpoint.port)
+            username = settings.endpoint.username
+            herdrPath = settings.herdr.path == "herdr" ? "" : settings.herdr.path
+            herdrSession = settings.herdr.session ?? ""
             authentication = editing.authentication ?? .deviceKey
+        case .https(let hostServiceAddress):
+            address = hostServiceAddress.description
         }
     }
 
@@ -180,8 +184,8 @@ public final class HostEditorModel {
         guard let existing else {
             return secretsEntered || !(name.isEmpty && address.isEmpty && username.isEmpty && herdrPath.isEmpty && herdrSession.isEmpty)
         }
-        return secretsEntered || draft?.endpoint != existing.endpoint || draft?.name != existing.name || draft?.herdr != existing.herdr
-            || connectionMethod != existing.connectionMethod || selectedAuthentication != existing.authentication
+        guard let draft else { return true }
+        return secretsEntered || draft.name != existing.name || !draft.connection.sameSettings(as: existing.connection)
     }
 
     /// 匯入私鑰的檢查結果(只看目前的內容)。
@@ -197,22 +201,24 @@ public final class HostEditorModel {
     }
 
     /// 目前信任的指紋(已存或剛確認)。顯示用。
-    public var hostKeyFingerprint: HostKeyFingerprint? { draft.flatMap(pin(for:)) }
+    public var hostKeyFingerprint: HostKeyFingerprint? {
+        guard case .ssh(let ssh) = draft?.connection else { return nil }
+        return ssh.settings.hostKeyPin
+    }
 
     // MARK: - 動作
 
     /// 連線測試：主機 OS、herdr 版本、snapshot、agent 整合。
     public func test() async {
         guard let draft else { return }
-        if let address = draft.hostService { return await testHostService(draft, address: address) }
+        guard case .ssh(let ssh) = draft.connection else { return await testHostService(draft) }
         attempt += 1
         let current = attempt
         phase = .testing
-        let pin = pin(for: draft)
-        let channel = makeChannel(draft.endpoint, pin, credential(for: draft))
+        let channel = makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential(for: ssh))
         let result: Result<HostProbeReport, any Error>
         do {
-            result = .success(try await HostProbe(channel: channel, herdr: draft.herdr).run())
+            result = .success(try await HostProbe(channel: channel, herdr: ssh.settings.herdr).run())
         } catch {
             result = .failure(error)
         }
@@ -221,7 +227,7 @@ public final class HostEditorModel {
         guard current == attempt else { return }
         switch result {
         case .success(let report):
-            tested = (Draft(draft, pin: pin), report.operatingSystem)
+            tested = (draft, report.operatingSystem)
             phase = .tested(report)
         case .failure(SSHConnectionError.hostKeyUnverified(let presented)):
             phase = .confirmHostKey(presented)
@@ -230,18 +236,19 @@ public final class HostEditorModel {
         case .failure(HostProbeError.herdrOutdated(let version)):
             phase = .needsUpdate(version)
         case .failure(let error):
-            phase = .failed(HostErrorText.message(for: error, connection: draft.connectionMethod, authentication: draft.authentication))
+            phase = .failed(HostErrorText.message(for: error, connection: ssh.method, authentication: ssh.authentication))
         }
     }
 
     /// HTTPS 主機：有配對碼就先配對換權杖(同一個配對碼只換一次),沒有就用存著的權杖;再連上主機服務讀一次 Agent 列表。
-    private func testHostService(_ draft: Draft, address: HostServiceAddress) async {
+    private func testHostService(_ draft: Draft) async {
+        guard case .https(let address, let pairingCode) = draft.connection else { return }
         attempt += 1
         let current = attempt
         phase = .testing
         let result: Result<HostServiceCheck, any Error>
         do {
-            let testToken = try await deviceToken(for: draft, address: address)
+            let testToken = try await deviceToken(address: address, pairingCode: pairingCode)
             let connection = hostService.makeConnection(address) { testToken.deviceToken }
             let snapshot: HostSnapshot
             do {
@@ -271,8 +278,8 @@ public final class HostEditorModel {
     }
 
     /// 測試用的權杖：這次的配對碼換得的，或已存主機的。換了位址或配對碼重新配對時，前一次拿到的權杖請主機撤銷。
-    private func deviceToken(for draft: Draft, address: HostServiceAddress) async throws -> TestToken {
-        guard let code = draft.pairingCode else {
+    private func deviceToken(address: HostServiceAddress, pairingCode: String?) async throws -> TestToken {
+        guard let code = pairingCode else {
             guard let existing, let token = try hostService.tokens.deviceToken(for: existing.id) else { throw HostServiceError.notPaired }
             return TestToken(deviceToken: token, readOnly: nil)
         }
@@ -334,13 +341,13 @@ public final class HostEditorModel {
 
     /// 信任主機剛剛出示的那一把 key,再重新測試。永遠不清空 pin 然後信任下一個回應者(行為規格 §8.2)。
     public func trustPresentedHostKey() async {
-        guard let draft else { return }
+        guard case .ssh(let ssh) = draft?.connection else { return }
         let presented: HostKeyFingerprint
         switch phase {
         case .confirmHostKey(let fingerprint), .hostKeyChanged(let fingerprint, _): presented = fingerprint
         default: return
         }
-        accepted = (presented, draft.endpoint)
+        accepted = (presented, ssh.settings.endpoint)
         await test()
     }
 
@@ -352,16 +359,16 @@ public final class HostEditorModel {
     /// 使用者確認後在主機上更新 herdr(macOS／Linux 是 `herdr update --handoff`),再重新測試。
     /// Windows 的伺服器不會交接到新版：先請使用者在主機上重啟伺服器，不馬上重測(重測只會再看到舊版)。
     public func updateHerdr() async {
-        guard let draft, case .needsUpdate = phase, canUpdateHerdr else { return }
+        guard case .ssh(let ssh) = draft?.connection, case .needsUpdate = phase else { return }
         phase = .updating
-        let channel = makeChannel(draft.endpoint, pin(for: draft), credential(for: draft))
+        let channel = makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential(for: ssh))
         let outcome: HerdrUpdateOutcome
         do {
-            outcome = try await HostProbe(channel: channel, herdr: draft.herdr).updateHerdr()
+            outcome = try await HostProbe(channel: channel, herdr: ssh.settings.herdr).updateHerdr()
             await channel.disconnect()
         } catch {
             await channel.disconnect()
-            phase = .failed(HostErrorText.message(for: error, connection: draft.connectionMethod, authentication: draft.authentication))
+            phase = .failed(HostErrorText.message(for: error, connection: ssh.method, authentication: ssh.authentication))
             return
         }
         guard outcome == .handedOff else {
@@ -377,19 +384,22 @@ public final class HostEditorModel {
     @discardableResult
     public func save() -> HostConfiguration? {
         guard canSave, let tested else { return nil }
-        let draft = tested.draft
-        if let address = draft.hostService { return saveHostService(draft, address: address) }
-        let host = HostConfiguration(
-            id: existing?.id ?? UUID(), name: draft.name, endpoint: draft.endpoint, connectionMethod: draft.connectionMethod,
-            authentication: draft.authentication, herdr: draft.herdr, operatingSystem: tested.operatingSystem,
-            hostKeyPin: draft.pin)
+        let id = existing?.id ?? UUID()
+        let ssh: SSHDraft
+        switch tested.draft.connection {
+        case .https(let address, let pairingCode):
+            return saveHostService(HostConfiguration(id: id, name: tested.draft.name, hostService: address), pairingCode: pairingCode)
+        case .ssh(let sshDraft):
+            ssh = sshDraft
+        }
+        let host = HostConfiguration(id: id, name: tested.draft.name, connection: ssh.connection, operatingSystem: tested.operatingSystem)
         let wroteSecret: Bool
         do {
-            if let secret = draft.secret {
+            if let secret = ssh.secret {
                 try credentials.secrets.setSecret(secret, for: host.id)
                 wroteSecret = true
             } else {
-                if existing != nil, draft.authentication == nil || draft.authentication == .deviceKey {
+                if existing != nil, ssh.authentication == nil || ssh.authentication == .deviceKey {
                     try credentials.secrets.setSecret(nil, for: host.id)
                 }
                 wroteSecret = false
@@ -410,9 +420,8 @@ public final class HostEditorModel {
     }
 
     /// HTTPS 主機：新配對的權杖先寫(寫不進 Keychain 就什麼都不存),再存主機設定;SSH 的祕密不再需要，刪掉。
-    private func saveHostService(_ draft: Draft, address: HostServiceAddress) -> HostConfiguration? {
-        let host = HostConfiguration(id: existing?.id ?? UUID(), name: draft.name, hostService: address)
-        let newToken = draft.pairingCode == nil ? nil : pairing?.device.deviceToken
+    private func saveHostService(_ host: HostConfiguration, pairingCode: String?) -> HostConfiguration? {
+        let newToken = pairingCode == nil ? nil : pairing?.device.deviceToken
         let previousToken = try? hostService.tokens.deviceToken(for: host.id)
         do {
             if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
@@ -454,33 +463,41 @@ public final class HostEditorModel {
     }
 
     private struct Draft: Equatable {
+        enum Connection: Equatable {
+            case ssh(SSHDraft)
+            /// 配對碼 `nil` = 沿用存著的權杖。
+            case https(HostServiceAddress, pairingCode: String?)
+
+            /// 與已存主機的設定相同(不看 host key pin 與祕密)。
+            func sameSettings(as saved: HostConfiguration.Connection) -> Bool {
+                switch (self, saved) {
+                case (.ssh(let ssh), .tailscaleSSH(let settings)), (.ssh(let ssh), .openSSH(let settings, _)):
+                    ssh.settings.endpoint == settings.endpoint && ssh.settings.herdr == settings.herdr
+                        && ssh.authentication == saved.authentication
+                case (.https(let address, _), .https(let savedAddress)):
+                    address == savedAddress
+                default:
+                    false
+                }
+            }
+        }
+
         var name: String
-        var endpoint: SSHEndpoint
-        var herdr: HerdrInstallation
-        var connectionMethod: HostConfiguration.ConnectionMethod
+        var connection: Connection
+    }
+
+    /// SSH 主機的草稿：pin 是這次編輯中信任的指紋。
+    private struct SSHDraft: Equatable {
+        var settings: HostConfiguration.SSHSettings
+        /// OpenSSH 的登入方式;Tailscale SSH 為 `nil`。
         var authentication: HostConfiguration.OpenSSHAuthentication?
         /// 這次輸入的祕密;`nil` = 不需要或沿用已存的。
         var secret: HostSecret?
-        var pin: HostKeyFingerprint?
-        /// HTTPS 主機的主機服務位址與配對碼(`nil` = 沿用存著的權杖)。
-        var hostService: HostServiceAddress?
-        var pairingCode: String?
 
-        init(_ draft: Draft, pin: HostKeyFingerprint?) {
-            self = draft
-            self.pin = pin
-        }
+        var method: HostConfiguration.ConnectionMethod { authentication == nil ? .tailscaleSSH : .openSSH }
 
-        init(
-            name: String, endpoint: SSHEndpoint, herdr: HerdrInstallation, connectionMethod: HostConfiguration.ConnectionMethod,
-            authentication: HostConfiguration.OpenSSHAuthentication?, secret: HostSecret?
-        ) {
-            self.name = name
-            self.endpoint = endpoint
-            self.herdr = herdr
-            self.connectionMethod = connectionMethod
-            self.authentication = authentication
-            self.secret = secret
+        var connection: HostConfiguration.Connection {
+            authentication.map { .openSSH(settings, authentication: $0) } ?? .tailscaleSSH(settings)
         }
     }
 
@@ -514,24 +531,22 @@ public final class HostEditorModel {
         }
     }
 
-    private func credential(for draft: Draft) -> SSHCredentialProvider {
+    private func credential(for ssh: SSHDraft) -> SSHCredentialProvider {
         credentials.provider(
-            method: draft.connectionMethod, authentication: draft.authentication,
-            hostID: draft.secret == nil ? existing?.id : nil, entered: draft.secret)
+            method: ssh.method, authentication: ssh.authentication, hostID: ssh.secret == nil ? existing?.id : nil, entered: ssh.secret)
     }
 
     private var draft: Draft? {
-        if connectionMethod.usesHostService { return hostServiceDraft }
+        if connectionMethod == .https { return hostServiceDraft }
         let name = name.trimmingCharacters(in: .whitespaces)
         let address = address.trimmingCharacters(in: .whitespaces)
         let username = username.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, !address.isEmpty, !username.isEmpty, hasUsableSecret,
               let port = Int(port.trimmingCharacters(in: .whitespaces)), (1...65_535).contains(port) else { return nil }
-        let base = Draft(
-            name: name, endpoint: SSHEndpoint(host: address, port: port, username: username),
-            herdr: HerdrInstallation(path: herdrPath, session: herdrSession), connectionMethod: connectionMethod,
-            authentication: selectedAuthentication, secret: enteredSecret)
-        return Draft(base, pin: pin(for: base))
+        let endpoint = SSHEndpoint(host: address, port: port, username: username)
+        let settings = HostConfiguration.SSHSettings(
+            endpoint: endpoint, herdr: HerdrInstallation(path: herdrPath, session: herdrSession), hostKeyPin: pin(for: endpoint))
+        return Draft(name: name, connection: .ssh(SSHDraft(settings: settings, authentication: selectedAuthentication, secret: enteredSecret)))
     }
 
     /// HTTPS 主機：名稱、https 位址，以及配對碼(已存的 HTTPS 主機可以不填，沿用存著的權杖)。
@@ -540,18 +555,13 @@ public final class HostEditorModel {
         let code = pairingCode.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, let address = HostServiceAddress(address) else { return nil }
         guard !code.isEmpty || !needsPairingCode else { return nil }
-        let host = HostConfiguration(name: name, hostService: address)
-        var draft = Draft(
-            name: name, endpoint: host.endpoint, herdr: HerdrInstallation(), connectionMethod: .https, authentication: nil, secret: nil)
-        draft.hostService = address
-        draft.pairingCode = code.isEmpty ? nil : code
-        return draft
+        return Draft(name: name, connection: .https(address, pairingCode: code.isEmpty ? nil : code))
     }
 
     /// 只有主機或埠改變(或新主機)才重設 pin;改名稱、使用者、herdr 設定不重設(行為規格 §8.2)。
-    private func pin(for draft: Draft) -> HostKeyFingerprint? {
-        if let accepted, Self.sameMachine(accepted.endpoint, draft.endpoint) { return accepted.fingerprint }
-        if let existing, Self.sameMachine(existing.endpoint, draft.endpoint) { return existing.hostKeyPin }
+    private func pin(for endpoint: SSHEndpoint) -> HostKeyFingerprint? {
+        if let accepted, Self.sameMachine(accepted.endpoint, endpoint) { return accepted.fingerprint }
+        if let saved = existing?.ssh, Self.sameMachine(saved.endpoint, endpoint) { return saved.hostKeyPin }
         return nil
     }
 

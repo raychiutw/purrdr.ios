@@ -136,7 +136,7 @@ struct KeychainHostStoreTests {
                 herdr: HerdrInstallation(session: "work"), operatingSystem: .macOS, hostKeyPin: pin),
             HostConfiguration(
                 id: Self.boxID, name: "Linux box", endpoint: SSHEndpoint(host: "100.64.0.9", port: 2222, username: "ops"),
-                connectionMethod: .openSSH, authentication: .password, herdr: HerdrInstallation(path: "/opt/herdr"),
+                openSSH: .password, herdr: HerdrInstallation(path: "/opt/herdr"),
                 operatingSystem: .linux),
             HostConfiguration(id: Self.httpsID, name: "Studio HTTPS", hostService: try #require(HostServiceAddress("studio.tail1234.ts.net"))),
         ])
@@ -175,7 +175,7 @@ struct KeychainHostStoreTests {
         #expect(hosts == [
             HostConfiguration(
                 id: Self.boxID, name: "Linux box", endpoint: SSHEndpoint(host: "10.0.0.5", port: 2200, username: "admin"),
-                connectionMethod: .openSSH, authentication: .importedKey),
+                openSSH: .importedKey),
         ])
     }
 
