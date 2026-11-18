@@ -30,3 +30,8 @@ workspace = true
 [[test]]
 name = "pane_terminal"
 harness = false
+
+# 壓縮檔裡假的主機服務是這支測試執行檔本身，所以不用 libtest。
+[[test]]
+name = "install_script"
+harness = false

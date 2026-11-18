@@ -96,7 +96,7 @@ struct WindowsHostFilesTests {
         await host.expect(Self.stub, reply: FakeReply(stdout: Self.readOutput([.file(settings, version: HostFileVersion(checksum: "aa:1")), .missing])))
         await host.expect(Self.stub, reply: FakeReply())
 
-        try await ClaudeUsageHost(channel: WindowsHostChannel(host)).install()
+        try await ClaudePlanUsageHost(channel: WindowsHostChannel(host)).install()
 
         let stdin = try #require(await host.executions.last?.stdinText)
         let puts = try Self.puts(inScript: stdin)
@@ -165,7 +165,7 @@ struct WindowsHostFilesTests {
         ])))
         await host.expect(Self.stub, reply: FakeReply())
 
-        try await ClaudeUsageHost(channel: WindowsHostChannel(host)).restore()
+        try await ClaudePlanUsageHost(channel: WindowsHostChannel(host)).restore()
 
         let stdin = try #require(await host.executions.last?.stdinText)
         let written = try #require(try Self.puts(inScript: stdin)[".claude/settings.json"])

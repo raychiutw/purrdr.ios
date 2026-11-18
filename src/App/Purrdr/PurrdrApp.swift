@@ -69,8 +69,11 @@ struct PurrdrApp: App {
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: InMemoryHostSelectionStore(arguments.contains("-selectDemo") ? .demo : nil),
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials,
-                // HTTPS 主機：配對不連網路，連線是 Demo 主機。
-                hostService: .uiTesting(channel: demo), push: push, tailscaleCheck: tailscaleCheck,
+                // HTTPS 主機：配對不連網路，連線是 Demo 主機。`-demoOutdatedHostService`:主機服務是舊版(更新提示,#198)。
+                hostService: .uiTesting(
+                    channel: demo,
+                    hostServiceVersion: arguments.contains("-demoOutdatedHostService") ? "0.0.1" : HostServiceUpdates.latestKnownVersion),
+                push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
                 // 滑動提示每次啟動都顯示(只在記憶體)。
@@ -82,15 +85,17 @@ struct PurrdrApp: App {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
                 secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
-            // 主機寫入的同意(Claude 用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
+            // 主機寫入的同意(Claude 方案用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
-                selectionStore: UserDefaultsHostSelectionStore(), hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
+                selectionStore: UserDefaultsHostSelectionStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
+                hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
                 // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。
                 hostService: .system(
                     deviceName: UIDevice.current.model,
                     appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
+                hostServiceUpdates: HostServiceUpdates(store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
                 listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in

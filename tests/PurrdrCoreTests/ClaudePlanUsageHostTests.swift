@@ -7,7 +7,7 @@ import Testing
 /// Claude 用量的主機端(行為規格 F18):包裝 `~/.claude/settings.json` 的 status line,關閉時還原。
 /// 在本機用真的 `/bin/sh` 跑，家目錄是暫存資料夾。
 @Suite("Claude 用量(主機)")
-struct ClaudeUsageHostTests {
+struct ClaudePlanUsageHostTests {
     static let originalSettings = """
         {
           "model": "opus",
@@ -25,11 +25,11 @@ struct ClaudeUsageHostTests {
     static let statusLineInput = #"{"session_id":"s1","model":{"display_name":"Opus"},"rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1738425600},"seven_day":{"used_percentage":41.2,"resets_at":1738857600}}}"#
 
     let host: LocalShellHost
-    let usage: ClaudeUsageHost
+    let usage: ClaudePlanUsageHost
 
     init() throws {
         host = try LocalShellHost.temporary()
-        usage = ClaudeUsageHost(channel: host)
+        usage = ClaudePlanUsageHost(channel: host)
     }
 
     func write(_ text: String, to path: String, mode: Int = 0o644) throws {
@@ -82,7 +82,7 @@ struct ClaudeUsageHostTests {
 
         let settings = try settings()
         let statusLine = settings["statusLine"] as? [String: Any]
-        #expect(statusLine?["command"] as? String == ClaudeUsageHost.wrapperCommand)
+        #expect(statusLine?["command"] as? String == ClaudePlanUsageHost.wrapperCommand)
         #expect(statusLine?["type"] as? String == "command")
         #expect(statusLine?["padding"] as? Int == 1)
         #expect(settings["model"] as? String == "opus")
@@ -99,7 +99,7 @@ struct ClaudeUsageHostTests {
 
         #expect(output == "original status line\n")
         #expect(try String(contentsOf: host.url("seen.json"), encoding: .utf8) == Self.statusLineInput + "\n")
-        let read = try #require(try await usage.readUsage())
+        let read = try #require(try await usage.readPlanUsage())
         #expect(read.fiveHour == .init(usedPercentage: 23.5, resetsAt: Date(timeIntervalSince1970: 1_738_425_600)))
         #expect(read.week == .init(usedPercentage: 41.2, resetsAt: Date(timeIntervalSince1970: 1_738_857_600)))
         #expect(abs(read.capturedAt.timeIntervalSinceNow) < 60)
@@ -113,13 +113,13 @@ struct ClaudeUsageHostTests {
 
         _ = try await runStatusLine(input: #"{"session_id":"s2"}"#)
 
-        #expect(try await usage.readUsage()?.fiveHour?.usedPercentage == 23.5)
+        #expect(try await usage.readPlanUsage()?.fiveHour?.usedPercentage == 23.5)
     }
 
     @Test("沒裝過時讀不到用量")
     func noUsageBeforeInstall() async throws {
         try setUpClaudeHome()
-        #expect(try await usage.readUsage() == nil)
+        #expect(try await usage.readPlanUsage() == nil)
     }
 
     @Test("原本沒有 settings.json:安裝時建立，包裝腳本不輸出任何字;還原時刪除")
@@ -129,7 +129,7 @@ struct ClaudeUsageHostTests {
 
         try await usage.install()
         #expect(try await runStatusLine(input: Self.statusLineInput) == "")
-        #expect(try await usage.readUsage() != nil)
+        #expect(try await usage.readPlanUsage() != nil)
         try await usage.restore()
 
         #expect(try DirectorySnapshot(of: host.home) == before)
@@ -144,7 +144,7 @@ struct ClaudeUsageHostTests {
 
         try await usage.install()
         #expect(try FileManager.default.destinationOfSymbolicLink(atPath: host.url(".claude/settings.json").path) == "../dotfiles/claude-settings.json")
-        #expect((try settings("dotfiles/claude-settings.json")["statusLine"] as? [String: Any])?["command"] as? String == ClaudeUsageHost.wrapperCommand)
+        #expect((try settings("dotfiles/claude-settings.json")["statusLine"] as? [String: Any])?["command"] as? String == ClaudePlanUsageHost.wrapperCommand)
         try await usage.restore()
 
         #expect(try DirectorySnapshot(of: host.home) == before)
@@ -195,7 +195,7 @@ struct ClaudeUsageHostTests {
 
     @Test("設定已指向包裝腳本卻沒有安裝紀錄：不把包裝腳本當成原本的 status line")
     func wrapperWithoutJournalIsNotOriginal() async throws {
-        try write(#"{"statusLine":{"type":"command","command":"\#(ClaudeUsageHost.wrapperCommand)"}}"#, to: ".claude/settings.json")
+        try write(#"{"statusLine":{"type":"command","command":"\#(ClaudePlanUsageHost.wrapperCommand)"}}"#, to: ".claude/settings.json")
 
         try await usage.install()
 

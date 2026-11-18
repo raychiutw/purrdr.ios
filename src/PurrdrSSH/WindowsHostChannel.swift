@@ -101,6 +101,7 @@ enum WindowsCommand {
             invocation.keepsStdinOpen = true
             return invocation
         }
+        if command == CodexPlanUsageHost.command { return try inline(codexAppServer) }
         if let script = transcript(command) { return viaStdin(script) }
         if let script = hostFiles(command) { return viaStdin(script) }
         if let upload = ImageUploadCommand.parse(command) {
@@ -207,6 +208,17 @@ enum WindowsCommand {
         guard command.count <= commandLimit else { throw WindowsCommandError.commandTooLong }
         return WindowsInvocation(command: command)
     }
+
+    // MARK: - Codex
+
+    /// `codex app-server`:PATH 上找 `codex.exe`／`codex.cmd`(找不到 exit 127),stdin／stdout 直接接到通道(同 herdr bridge)。
+    static let codexAppServer = """
+        $ProgressPreference='SilentlyContinue'
+        $codexCommand=Get-Command 'codex' -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
+        if(-not $codexCommand){[Console]::Error.Write("codex: command not found`n");exit 127}
+        & $codexCommand.Source 'app-server'
+        exit $LASTEXITCODE
+        """
 
     // MARK: - herdr
 

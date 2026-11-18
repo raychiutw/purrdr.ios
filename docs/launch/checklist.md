@@ -47,6 +47,16 @@
 | 3.3 | app 的 `BackendConfiguration.baseURL`、`googleClientID` 換成真值(`src/App/Purrdr/BackendConfiguration.swift`) | 主 session | ⬜ |
 | 3.4 | 發佈主機外掛公開 repo `raychiutw/purrdr-host-plugin`(本 repo 的 `host-plugin/`) | 主 session | ⬜ |
 
+## 3A. 主機服務發行(#198)
+
+| # | 步驟 | 誰做 | 狀態 |
+|---|---|---|---|
+| 3A.1 | Account Holder 在 Apple Developer 建立 **Developer ID Application** 憑證，匯出 `.p12`(含私鑰) | 主 session | ⬜ |
+| 3A.2 | GitHub environment `testflight` 加 secret `DEVELOPER_ID_P12`(`base64 -i cert.p12` 的內容)、`DEVELOPER_ID_P12_PASSWORD`;公證沿用 `ASC_KEY_ID`／`ASC_ISSUER_ID`／`ASC_PRIVATE_KEY` | 主 session | ⬜ |
+| 3A.3 | 第一次發行：`gh workflow run host-service-release.yml --ref master`(之後遞增 `host-service/service/Cargo.toml` 的 version 並合併就自動發行);確認 Release `host-service-v<版本>` 有 5 個壓縮檔、`SHA256SUMS`、`install.sh`、`install.ps1`,且標為 Latest | 主 session | ⬜ |
+| 3A.4 | 驗收：乾淨的 macOS(從瀏覽器下載壓縮檔，有 quarantine,直接執行不被 Gatekeeper 擋;`codesign -dv --verbose=4`、`spctl -a -vv -t install` 的結果記下來)、Linux、Windows 各跑一次一行安裝 → `pair` → app 掃 QR 連上;再跑一次一行安裝確認是更新、配對保留 | 主 session | ⬜ |
+| 3A.5 | 網站加上 `host-service/` 頁(見 4.5) | 主 session | ⬜ |
+
 ## 4. 網站(`raychiutw.github.io/purrdr/`)
 
 | # | 步驟 | 誰做 | 狀態 |
@@ -54,7 +64,7 @@
 | 4.1 | 網頁草稿 `docs/site/purrdr/`(首頁、`privacy/`、`support/`、`style.css`),純靜態、無外部資源 | 本 repo | ✅ |
 | 4.2 | 把 `REPLACE_ME@example.com`(隱私權政策、支援頁、`review-notes.md`)換成正式聯絡信箱 | 主 session | ✅ lean.lean@gmail.com |
 | 4.3 | 複製到 `raychiutw/raychiutw.github.io` 的 `purrdr/` 資料夾並發佈;確認 `https://raychiutw.github.io/purrdr/privacy/` 與 `/support/` 打得開(app 的 `PurrdrLinks` 已指向這兩個網址) | 主 session | ✅ 已上線 https://raychiutw.github.io/purrdr/ |
-| 4.5 | 本 repo 的 `docs/site/purrdr/` 改過後要再同步到網站(2026-11-16:支援頁改成不支援有 passphrase 的私鑰;`style.css` 已與網站上 Prettier 格式化的版本一致) | 主 session | ⬜ |
+| 4.5 | 本 repo 的 `docs/site/purrdr/` 改過後要再同步到網站(2026-11-16:支援頁改成不支援有 passphrase 的私鑰;`style.css` 已與網站上 Prettier 格式化的版本一致;2026-11-18:新增 `host-service/` 主機服務安裝說明，app 的 `PurrdrLinks.hostServiceGuide` 指向它) | 主 session | ⬜ |
 | 4.4 | 隱私權政策的生效日期改成實際發佈日 | 主 session | ⬜ |
 
 ## 5. 送審

@@ -199,7 +199,7 @@ actor MeteredSSHHost: HostChannel {
             switch request {
             case .readIfChanged(let paths, _), .read(let paths):
                 if paths.contains(HostThemeHost.configPath) { return "hostFiles.theme" }
-                if paths.contains(ClaudeUsageHost.usagePath) { return "hostFiles.usage" }
+                if paths.contains(ClaudePlanUsageHost.usagePath) { return "hostFiles.usage" }
                 return "hostFiles.notes"
             case .newest: return "hostFiles.notes.locate"
             case .apply: return "hostFiles.apply"

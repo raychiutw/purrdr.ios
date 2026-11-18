@@ -12,6 +12,7 @@ struct PurrdrLinksTests {
     func websitePages() {
         #expect(PurrdrLinks.privacyPolicy.absoluteString == "https://raychiutw.github.io/purrdr/privacy/")
         #expect(PurrdrLinks.support.absoluteString == "https://raychiutw.github.io/purrdr/support/")
+        #expect(PurrdrLinks.hostServiceGuide.absoluteString == "https://raychiutw.github.io/purrdr/host-service/")
     }
 
     @Test("使用條款是 Apple 標準 EULA")
@@ -21,7 +22,7 @@ struct PurrdrLinksTests {
 
     @Test("沒有佔位網址")
     func noPlaceholders() {
-        for url in [PurrdrLinks.privacyPolicy, PurrdrLinks.support, PurrdrLinks.termsOfUse] {
+        for url in [PurrdrLinks.privacyPolicy, PurrdrLinks.support, PurrdrLinks.termsOfUse, PurrdrLinks.hostServiceGuide] {
             #expect(url.scheme == "https", "\(url)")
             #expect(!(url.host() ?? "").hasSuffix(".invalid"), "\(url)")
             #expect(!url.absoluteString.uppercased().contains("REPLACE"), "\(url)")

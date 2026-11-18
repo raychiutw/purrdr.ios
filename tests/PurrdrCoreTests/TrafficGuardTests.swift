@@ -10,7 +10,7 @@ import Testing
 #if os(macOS)
 
 /// 流量回歸守門(#168,spec #154):以模擬時間跑一小時，主機有 8 個 Agent,Agent 列表與聊天同時可見(iPad 三欄),
-/// 聊天的 Agent 閒置與工作中各半;SSH 另開主題、註記、Claude 用量。斷言每台主機送出的請求種類、次數與估算位元組在上限內。
+/// 聊天的 Agent 閒置與工作中各半;SSH 另開主題與註記(Claude 方案用量只在它的畫面讀，#177,不在這個情境)。斷言每台主機送出的請求種類、次數與估算位元組在上限內。
 ///
 /// 上限是本機實測值(macOS)約 1.3 倍再取整，推算寫在各斷言旁;回歸(例如聊天畫面改回每輪讀快照)會讓請求數與位元組超出上限。
 @MainActor
@@ -68,12 +68,9 @@ struct TrafficGuardTests {
         "w1:pB": ".claude/projects/-Users-demo-Projects-recipe-box/00000000-0000-0000-0000-000000000003.jsonl",
     ].merging(extraAgents.mapValues { ".claude/projects/-Users-demo-Projects-recipe-box/\($0).jsonl" }) { first, _ in first }
 
-    /// 主題、Claude 用量、註記的主機檔案(都已同意)。
+    /// 主題、註記的主機檔案(都已同意)。
     static func writeHostFiles(to shell: LocalShellHost) throws {
         _ = try shell.write(Data("[theme]\nname = \"dracula\"\n".utf8), to: HostThemeHost.configPath.relative)
-        _ = try shell.write(
-            Data(#"{"captured_at":1738399900,"status_line_input":{"rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1738425600}}}}"#.utf8),
-            to: ClaudeUsageHost.usagePath.relative)
         _ = try shell.write(
             Data(#"{"sessions":[{"id":"1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed","view":{"kind":"offer","line":"Tests run in parallel","shownAt":1}}],"known":[]}"#.utf8),
             to: YouShouldKnowHost.storeDirectory.relative + "/cc-plugin-you-should-know_builtin-0123456789ab.json")
@@ -107,14 +104,13 @@ struct TrafficGuardTests {
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.chatPane,
             knownSessionID: nil, cache: InMemoryConversationCache(), updates: updates, sleep: clock.sleep)
         let consent = InMemoryHostWriteConsentStore()
-        for feature in [HostThemeHost.feature.id, ClaudeUsageHost.feature.id, YouShouldKnowFeature.id] { consent.grant(feature, host: "mac") }
+        for feature in [HostThemeHost.feature.id, YouShouldKnowFeature.id] { consent.grant(feature, host: "mac") }
         let theme = HostThemeModel(host: HostThemeHost(channel: host), hostID: "mac", consent: consent, sleep: clock.sleep)
-        let usage = ClaudeUsageModel(host: ClaudeUsageHost(channel: host), hostID: "mac", consent: consent, sleep: clock.sleep)
         let notes = YouShouldKnowModel(host: YouShouldKnowHost(channel: host), hostID: "mac", consent: consent, sleep: clock.sleep)
         // 列表、聊天、主題各一個視窗;註記由列表與聊天輸入列共用。
         let viewers = [
             Task { await list.liveUpdates.attach() }, Task { await chat.run(sleep: clock.sleep) }, Task { await theme.liveUpdates.attach() },
-            Task { await usage.liveUpdates.attach() }, Task { await notes.liveUpdates.attach() }, Task { await notes.liveUpdates.attach() },
+            Task { await notes.liveUpdates.attach() }, Task { await notes.liveUpdates.attach() },
         ]
         defer { viewers.forEach { $0.cancel() } }
         let settle = {
@@ -172,7 +168,6 @@ struct TrafficGuardTests {
         #expect(counts["transcript.previews", default: 0] <= Self.sshCaps.previews, "預覽")
         #expect(counts["transcript.catchUp", default: 0] + counts["transcript.tail", default: 0] <= 2, "尾端由追蹤送來，不另外輪詢")
         #expect(counts["hostFiles.theme", default: 0] <= Self.sshCaps.theme, "主題")
-        #expect(counts["hostFiles.usage", default: 0] <= Self.sshCaps.usage, "用量")
         #expect(counts["hostFiles.notes", default: 0] + counts["hostFiles.notes.locate", default: 0] <= Self.sshCaps.notes, "註記")
         #expect(keepalives <= Self.sshCaps.keepalives, "keepalive")
         #expect(counts["transcript.locate", default: 0] <= Self.sshCaps.locates, "定位：開聊天 1 + 定期更新預覽前問大小")
@@ -193,8 +188,6 @@ struct TrafficGuardTests {
         previews: 105,
         // 實測 361:每 10 秒 360。
         theme: 470,
-        // 實測 721:每 5 秒 720。
-        usage: 940,
         // 實測 362:每 10 秒 360(列表與輸入列共用一份)+ 每 10 分鐘重新定位。
         notes: 480,
         // 實測 0:聊天畫面可見(5 秒一輪),追蹤每 2～4 秒一輪的回應讓每一輪都跳過;上限留 10 次給閒置的空檔。
@@ -203,10 +196,10 @@ struct TrafficGuardTests {
         locates: 300
     )
 
-    /// SSH 一小時的位元組上限：本機實測 11,143,856 B 約 1.3 倍再取整。
-    /// 大宗是畫面(900 × 1.54 KB)、預覽(檔尾最多 48 KB)、用量／主題／註記(條件式讀取，沒變只回 unchanged,每次仍有 exec 通道開銷)。
+    /// SSH 一小時的位元組上限：本機實測 9,070,943 B 約 1.3 倍再取整。
+    /// 大宗是畫面(900 × 1.54 KB)、預覽(檔尾最多 48 KB)、主題／註記(條件式讀取，沒變只回 unchanged,每次仍有 exec 通道開銷)。
     /// 聊天改回每輪讀快照會多約 1,350 × 6 KB ≈ 8 MB。
-    static let sshHourBudget = 14_500_000
+    static let sshHourBudget = 11_800_000
 
     // MARK: - HTTPS
 
