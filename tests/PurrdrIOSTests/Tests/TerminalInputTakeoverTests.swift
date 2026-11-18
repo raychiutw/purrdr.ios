@@ -78,7 +78,7 @@ struct TerminalInputTakeoverTests {
         let (window, screen, recorder) = try await mount()
         defer { window.isHidden = true }
 
-        screen.textInput.setMarkedText("ㄋㄧ", selectedRange: NSRange(location: 2, length: 0))
+        screen.textInput.setMarkedText("你好", selectedRange: NSRange(location: 2, length: 0))
         _ = screen.textInput.resignFirstResponder()
         screen.textInput.unmarkText()
 
@@ -86,8 +86,29 @@ struct TerminalInputTakeoverTests {
         #expect(recorder.sends.isEmpty)
     }
 
-    @Test("組字中系統結束組字：組字文字放棄、浮層消失，什麼都不送", arguments: [["ni hao"], ["にほん", "日本"], ["你ㄏㄠˇ"]])
-    func systemUnmarkDiscardsComposition(markedTexts: [String]) async throws {
+    @Test("注音點候選字(候選字設成組字文字後系統結束組字):送出選好的字、浮層消失", arguments: [
+        (["ㄏㄠˇ", "好"], "好"),
+        (["ㄋㄧˇ", "你", "你ㄏㄠˇ", "你好"], "你好"),
+        (["ni hao"], "ni hao"),
+        (["にほん", "日本"], "日本"),
+    ])
+    func systemUnmarkCommitsCandidate(markedTexts: [String], committed: String) async throws {
+        let (window, screen, recorder) = try await mount()
+        defer { window.isHidden = true }
+
+        for text in markedTexts {
+            screen.textInput.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+        }
+        #expect(!screen.compositionOverlay.isHidden)
+        screen.textInput.unmarkText()
+
+        #expect(screen.textInput.markedTextRange == nil)
+        #expect(screen.compositionOverlay.isHidden)
+        #expect(recorder.sends == [.bytes(Data(committed.utf8))])
+    }
+
+    @Test("組字中系統結束組字、組字文字還有注音：整段放棄、浮層消失，什麼都不送", arguments: [["ㄏㄠˇ"], ["你ㄏㄠˇ"]])
+    func systemUnmarkDiscardsZhuyin(markedTexts: [String]) async throws {
         let (window, screen, recorder) = try await mount()
         defer { window.isHidden = true }
 
@@ -124,7 +145,7 @@ struct TerminalInputTakeoverTests {
         let (window, screen, recorder) = try await mount()
         defer { window.isHidden = true }
 
-        screen.textInput.setMarkedText("ㄋㄧˇ", selectedRange: NSRange(location: 3, length: 0))
+        screen.textInput.setMarkedText("你好", selectedRange: NSRange(location: 2, length: 0))
         screen.textInput.pressKeyBarKey(.escape)
         screen.textInput.unmarkText()
 
@@ -137,7 +158,7 @@ struct TerminalInputTakeoverTests {
         let (window, screen, recorder) = try await mount()
         defer { window.isHidden = true }
 
-        screen.textInput.setMarkedText("ㄏㄠ", selectedRange: NSRange(location: 2, length: 0))
+        screen.textInput.setMarkedText("好", selectedRange: NSRange(location: 1, length: 0))
         screen.textInput.paste(text: "git status")
         screen.textInput.unmarkText()
 
