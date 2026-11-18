@@ -29,6 +29,21 @@ struct HostScriptTimeLimitTests {
         }
     }
 
+    @Test("長駐但自帶時限的腳本(對話紀錄追蹤，#166／#167):POSIX 與 Windows 都帶時限，閒置與總長由參數帶入")
+    func longLivedScriptsCarryTimeLimit() throws {
+        let follow = TranscriptCommand.follow(idleSeconds: 7, totalSeconds: 90)
+        // 追蹤腳本本身也呼叫 `purrdr_limit`(閒置時限),所以要看到函式的定義(總長時限由 `HostScriptTimeLimit.posix` 包上)。
+        #expect(follow.contains(HostScriptTimeLimit.posixMarker + "() {"), "追蹤腳本沒有包上 HostScriptTimeLimit.posix")
+        #expect(follow.hasPrefix(TranscriptCommand.followInvocation))
+        #expect(PosixShell.unquote(String(follow.dropFirst(TranscriptCommand.followInvocation.count)))?.suffix(2) == ["7", "90"])
+
+        let windows = try WindowsCommand.translate(follow)
+        #expect(windows.keepsStdinOpen)
+        let script = String(decoding: try #require(windows.stdinScript), as: UTF8.self)
+        #expect(script.contains("$purrdrLimit.At"), "Windows 追蹤腳本要自己延長／收緊時限")
+        #expect(try #require(PowerShell.script(inEncodedCommand: windows.command)).contains("$purrdrLimit"))
+    }
+
     @Test("Windows 的 stdin stub 與上傳腳本都帶時限且仍在 cmd 命令列上限內;herdr bridge 不帶(實跑見 scripts/windows-upload-repro.py --kind limit)")
     func windowsOneShotScriptsCarryTimeLimit() throws {
         let uploadName = try #require(UploadFileName("a-1.jpg"))
