@@ -82,8 +82,45 @@ public actor FakeHostConnection: HostConnection {
         for line in event.split(separator: 0x0A) { subscriptions[index].yield(Data(line)) }
     }
 
+    /// app 送出的對話紀錄讀取，依送出順序。
+    public private(set) var transcriptRequests: [TranscriptRequest] = []
+    private var transcriptAnswer: (@Sendable (TranscriptRequest) throws -> Data)?
+
+    /// 之後的對話紀錄讀取以 `answer` 回應(格式同主機腳本的輸出)。沒設定時一律 `unsupported`。
+    public func answerTranscripts(_ answer: @escaping @Sendable (TranscriptRequest) throws -> Data) {
+        transcriptAnswer = answer
+    }
+
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
-        throw FakeHostConnectionError.unsupported
+        transcriptRequests.append(request)
+        guard let transcriptAnswer else { throw FakeHostConnectionError.unsupported }
+        return try transcriptAnswer(request)
+    }
+
+    /// 開過的對話紀錄追蹤(路徑與游標),依開啟順序。追蹤像 HTTPS 一樣由這裡推送：用 `send(_:toFollow:)`。
+    public private(set) var transcriptFollowOpenings: [TranscriptFollowOpening] = []
+    /// 每個追蹤是否已結束(app 不再讀或主機結束),依開啟順序。
+    public private(set) var transcriptFollowsClosed: [Bool] = []
+    private var transcriptFollows: [AsyncThrowingStream<TranscriptFollowEvent, any Error>.Continuation] = []
+
+    public func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
+        let (events, continuation) = AsyncThrowingStream<TranscriptFollowEvent, any Error>.makeStream()
+        let index = transcriptFollows.count
+        transcriptFollowOpenings.append(TranscriptFollowOpening(path: path, cursor: cursor))
+        transcriptFollows.append(continuation)
+        transcriptFollowsClosed.append(false)
+        continuation.onTermination = { _ in Task { await self.closeTranscriptFollow(index) } }
+        return events
+    }
+
+    /// 對第 `index` 個追蹤(從 0 起算)推送一則事件;`.replaced` 之後追蹤結束(同主機連線的約定)。
+    public func send(_ event: TranscriptFollowEvent, toFollow index: Int) {
+        transcriptFollows[index].yield(event)
+        if case .replaced = event { transcriptFollows[index].finish() }
+    }
+
+    private func closeTranscriptFollow(_ index: Int) {
+        transcriptFollowsClosed[index] = true
     }
 
     /// 開過的 Pane 終端機，依開啟順序。
@@ -151,6 +188,17 @@ public enum FakeHostConnectionError: Error, Equatable {
     case unexpectedRequest(String)
     /// 這個假連線還沒有對話紀錄;Pane 終端機沒有預期(`expectPaneTerminal`)。
     case unsupported
+}
+
+/// 一次開對話紀錄追蹤的參數。
+public struct TranscriptFollowOpening: Sendable, Equatable {
+    public var path: String
+    public var cursor: Int
+
+    public init(path: String, cursor: Int) {
+        self.path = path
+        self.cursor = cursor
+    }
 }
 
 /// 一次開 Pane 終端機的參數。

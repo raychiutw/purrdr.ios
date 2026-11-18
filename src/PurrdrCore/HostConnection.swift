@@ -15,6 +15,10 @@ public protocol HostConnection: Sendable {
     /// 對話紀錄：讀一次，回傳主機的原始輸出(格式見 `TranscriptReader`)。主機回報的失敗丟 `TranscriptReadError`。
     func readTranscript(_ request: TranscriptRequest) async throws -> Data
 
+    /// 追蹤對話紀錄尾端：從 `cursor` 起有新增的完整行就送 `.appended`;接不上時送 `.replaced` 並結束。
+    /// 多久看一次由連線方式決定(推送的直接轉;內部輪詢的照 `pace`)。呼叫端停止讀取或 `stopFollowingTranscript(path:)` 時結束。
+    func followTranscript(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> AsyncThrowingStream<TranscriptFollowEvent, any Error>
+
     /// 不再追蹤 `path` 的尾端(對話關閉或換了 session)。主機推送尾端的連線方式(HTTPS)據此請主機停止追蹤;
     /// 每次都向主機讀的連線方式不用做事(預設實作)。之後再讀這個路徑會重新開始追蹤。
     func stopFollowingTranscript(path: String) async
