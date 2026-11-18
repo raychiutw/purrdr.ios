@@ -160,6 +160,8 @@ public enum HostServiceError: Error, Equatable, Sendable {
     case unsupported(String)
     /// 找不到這個主機名稱(手機不在 tailnet,或位址打錯)。
     case hostNotFound
+    /// 這支裝置不在 tailnet。
+    case notOnTailnet
     /// 連不上主機(主機離線或不在 tailnet)。
     case unreachable
     /// 連得到主機，但主機服務沒在跑(`tailscale serve` 回 502)。

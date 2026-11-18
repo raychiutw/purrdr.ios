@@ -48,7 +48,7 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
     }
 
     /// 連線層錯誤換成使用者看得懂的種類。
-    static func hostServiceError(_ error: any Error, status: Int?) -> HostServiceError {
+    static func hostServiceError(_ error: any Error, status: Int?, hostName: String? = nil) -> HostServiceError {
         if status == 502 { return .hostServiceNotRunning }
         guard let urlError = error as? URLError else { return .connectionLost }
         switch urlError.code {

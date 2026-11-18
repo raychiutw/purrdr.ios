@@ -150,6 +150,27 @@ struct HTTPSTranscriptTests {
         #expect(follows.last?["stream_id"] as? String != streamID)
     }
 
+    @Test("對話紀錄被換成同長或更長的新檔：主機推送 replaced 後讀到 shrank(新檔大小),由上層重讀視窗")
+    func replacedByLongerFileReadsAsShrank() async throws {
+        let service = try await Self.start([
+            "transcript.follow": #"{"type":"transcript.follow.result","size":100,"start":100,"records":[]}"#,
+        ])
+        defer { Task { await service.stop() } }
+        let reader = Self.reader(for: service).0
+        _ = try await reader.tail(path: Self.path, from: 100)
+        let streamID = try #require(service.messages(ofType: "transcript.follow").first?["stream_id"] as? String)
+
+        try await service.push(#"{"type":"transcript.update","stream_id":"\#(streamID)","size":140,"start":100,"records":[],"ended":"replaced"}"#)
+        var replaced = TranscriptTail.unchanged
+        let arrived = try await Self.eventually {
+            replaced = try await reader.tail(path: Self.path, from: 100)
+            return replaced != .unchanged
+        }
+
+        #expect(arrived)
+        #expect(replaced == .shrank(size: 140))
+    }
+
     @Test("落後太多：主機一開始就結束追蹤，讀到 tooFarBehind")
     func tooFarBehind() async throws {
         let service = try await Self.start([

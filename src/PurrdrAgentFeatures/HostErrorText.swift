@@ -100,7 +100,7 @@ package enum HostErrorText {
             String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .unsupported:
             String(localized: "This isn’t available over HTTPS yet.")
-        case .hostNotFound:
+        case .hostNotFound, .notOnTailnet:
             String(localized: "Couldn’t find this host name. Check the address and that this device is on your tailnet.")
         case .unreachable:
             String(localized: "Couldn’t reach this host. Make sure both devices are on your tailnet.")

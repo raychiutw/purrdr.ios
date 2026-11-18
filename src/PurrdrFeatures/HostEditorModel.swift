@@ -275,6 +275,8 @@ public final class HostEditorModel {
         return (device.deviceToken, device.readOnly)
     }
 
+    public func discardUnsavedPairing() {}
+
     /// 檢查貼上的私鑰(格式、種類、有沒有 passphrase)。在背景做，不卡住打字。
     public func checkKey() async {
         guard authentication == .importedKey, let entered = enteredSecret, case .privateKey(let text, _) = entered,
