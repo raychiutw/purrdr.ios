@@ -90,7 +90,14 @@ extension ConversationScroll {
             && metrics.layout != returnedAtLayout
     }
 
-    /// `returnsToContent` 成立、畫面捲回內容時呼叫：切回跟隨，記下這次的內容高度。
+    /// 再捲一次的次數上限(有列顯示過、使用者自己捲過就重新計算)。
+    public static let maximumRefills = 3
+
+    /// 畫面上看得到的列數改變時呼叫。
+    public mutating func visibleRowsChanged(count: Int) {
+    }
+
+    /// `returnsToContent` 或 `refillsVisibleRange` 成立、畫面捲回內容時呼叫：切回跟隨，記下這次的排版。
     public mutating func returnedToContent(_ metrics: ConversationScrollMetrics) {
         jumpToLatest()
         returnedAtLayout = metrics.layout
