@@ -73,6 +73,21 @@ struct SSHTranscriptFollowerTests {
         #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.hasSuffix("\n16 1700000000-16 4242 \(Self.path)\n") })
     }
 
+    @Test("落後超過一次讀的量(新游標小於大小):下一輪不帶版本，主機接著送剩下的，不回 unchanged")
+    func partialReadOmitsStamp() async throws {
+        let host = await Self.followingHost()
+        let pace = Self.manualPace()
+        var events = await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace).makeAsyncIterator()
+
+        pace.wake()
+        #expect(await host.waitForStdin(ofExecution: 0) { !$0.stdin.isEmpty })
+        await host.send(stdout: Self.appendedReply(size: 2_000_000, stamp: "1700000000-2000000", lines: [Self.secondLine], end: 16, anchor: "4242"), toExecution: 0)
+        _ = try await events.next()
+        pace.wake()
+
+        #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.hasSuffix("\n16 - 4242 \(Self.path)\n") })
+    }
+
     @Test("檔案被換掉:送 replaced(新檔大小),追蹤結束")
     func replacedEndsFollowing() async throws {
         let host = await Self.followingHost()
