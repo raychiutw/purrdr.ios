@@ -34,8 +34,36 @@ public actor FakeHostConnection: HostConnection {
     public var unmetExpectations: [String] { expectations.map(\.method) }
 
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
+        let method = Self.method(of: request)
         let reply = try consume(request)
+        if let index = heldMethods.firstIndex(of: method) {
+            heldMethods.remove(at: index)
+            await withCheckedContinuation { held.append($0) }
+        }
         return reply.firstIndex(of: 0x0A).map { reply[reply.startIndex..<$0] } ?? reply
+    }
+
+    private var heldMethods: [String] = []
+    private var held: [CheckedContinuation<Void, Never>] = []
+
+    /// 下一個 `method` 請求先不回應，等 `releaseHeld()`(模擬讀取進行中)。
+    public func hold(_ method: String) {
+        heldMethods.append(method)
+    }
+
+    /// 正被擋著、還沒回應的請求數。
+    public var heldCount: Int { held.count }
+
+    /// 回應所有被擋著的請求。
+    public func releaseHeld() {
+        let waiting = held
+        held = []
+        for continuation in waiting { continuation.resume() }
+    }
+
+    /// 主機那端結束第 `index` 條 Agent 事件串流(斷線)。
+    public func finish(subscription index: Int) {
+        subscriptions[index].finish()
     }
 
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
@@ -101,8 +129,12 @@ public actor FakeHostConnection: HostConnection {
         disconnectCount += 1
     }
 
+    private static func method(of request: Data) -> String {
+        (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
+    }
+
     private func consume(_ request: Data) throws -> Data {
-        let method = (try? JSONSerialization.jsonObject(with: request) as? [String: Any])?["method"] as? String ?? ""
+        let method = Self.method(of: request)
         requests.append(String(decoding: request, as: UTF8.self))
         guard let index = expectations.firstIndex(where: { $0.method == method }) else {
             throw FakeHostConnectionError.unexpectedRequest(method)

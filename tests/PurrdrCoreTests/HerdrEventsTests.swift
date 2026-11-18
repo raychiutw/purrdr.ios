@@ -7,11 +7,8 @@ import Testing
 struct HerdrEventsTests {
     static let bridge = HerdrCommand.bridge()
 
-    /// herdr 0.9.5 事件行的形狀(`herdr api schema --json` 的 EventEnvelope:`{event, data}`,事件名用底線)。
-    /// 錄製期間主機上沒有發生狀態改變，所以依 schema 寫成;只用來觸發重讀，內容不影響結果。
-    static let statusChangedLine = Data(
-        #"{"event":"pane_agent_status_changed","data":{"type":"pane_agent_status_changed","pane_id":"w1:pB","workspace_id":"w1","agent":"claude","agent_status":"idle"}}"#.utf8
-    ) + [0x0A]
+    /// 真實主機錄到的狀態事件形狀(#159):事件名是 `pane.agent_status_changed`(點),`data` 沒有 `type`。
+    static let statusChangedLine = Fixtures.data("event.pane-agent-status-changed.ndjson")
 
     @Test("訂閱：對 bridge 送一行訂閱請求、不送 EOF;先收到 subscription_started,之後是事件")
     func subscribeSendsRequestAndYieldsEvents() async throws {
@@ -28,7 +25,7 @@ struct HerdrEventsTests {
         let second = try await iterator.next()
 
         #expect(first == .subscriptionStarted)
-        #expect(second == .event(name: "pane_agent_status_changed", paneID: "w1:pB"))
+        #expect(second == .event(name: "pane.agent_status_changed", paneID: "w1:pB"))
         let execution = try #require(await host.executions.first)
         #expect(execution.stdinText == #"{"id":"purrdr:events.subscribe","method":"events.subscribe","params":{"subscriptions":[{"pane_id":"w1:p6","type":"pane.agent_status_changed"},{"type":"workspace.created"}]}}"# + "\n")
         #expect(execution.closedStdin == false)
