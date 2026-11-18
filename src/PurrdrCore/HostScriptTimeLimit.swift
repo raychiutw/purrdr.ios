@@ -10,6 +10,10 @@ package enum HostScriptTimeLimit {
     package static let stdinScriptSeconds = 30
     /// 上傳的時限：`readSeconds` 加上以這個速度(bytes/秒)估算的傳輸時間(app 端以 32 KiB/s 估算)。
     package static let uploadBytesPerSecond = 16_000
+    /// 長駐追蹤腳本(#166)多久沒收到請求就結束(秒)。
+    package static let followIdleSeconds = 60
+    /// 長駐追蹤腳本(#166)最長跑多久(秒);到了 app 保留游標重開。
+    package static let followTotalSeconds = 600
     /// 逾時的 exit code(同 GNU `timeout`)。
     package static let exitCode = 124
     /// 帶時限的 POSIX 腳本都有這個函式名稱(守門測試用)。

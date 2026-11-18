@@ -198,6 +198,14 @@ public enum TranscriptCommand {
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
 
+    /// 長駐追蹤腳本(#166):一條 exec 通道服務所有追蹤中的路徑，閒置 `idleSeconds` 或總長 `totalSeconds` 到了以 exit 124 結束。
+    package static func follow(
+        limit: Int = TranscriptReader.catchUpLimit, backlogLimit: Int = TranscriptReader.catchUpBacklogLimit,
+        idleSeconds: Int = HostScriptTimeLimit.followIdleSeconds, totalSeconds: Int = HostScriptTimeLimit.followTotalSeconds
+    ) -> String {
+        "purrdr-follow"
+    }
+
     /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
         previews(marker: marker, entries: requests.map { PreviewEntry(key: $0.key, type: "claude", value: $0.sessionID, extra: $0.projectFolder) })
