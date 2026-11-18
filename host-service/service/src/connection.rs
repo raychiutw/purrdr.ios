@@ -21,7 +21,8 @@ use crate::pane_terminal::{self, PaneTerminal};
 use crate::protocol::{
     Agent, AgentPrompt, AgentPromptResult, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, EventsEnded, EventsSubscribe,
     EventsSubscribeResult, EventsUnsubscribeResult, HerdrServer, PROTOCOL_VERSION, PaneSendKeys, PaneSendKeysResult, PaneSendText, PaneSendTextResult,
-    PaneTerminalOpen, PaneTerminalOpenResult, ServerMessage, SubscribedEvent, TerminalScrollDirection, TerminalScrollSource, TranscriptLocate, Welcome, Workspace,
+    PaneTerminalOpen, PaneTerminalOpenResult, ServerMessage, SubscribedEvent, TerminalScrollDirection, TerminalScrollSource, TranscriptLocate, Welcome,
+    Workspace,
 };
 use crate::transcript::AgentSessionInfo;
 use crate::transcript_session::TranscriptSession;
