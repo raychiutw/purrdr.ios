@@ -148,6 +148,56 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(element("conversation.echo", in: app).exists, "收起鍵盤不該送出")
     }
 
+    /// 多行草稿時輸入框長高超過舊的 4 行上限(#137):7 行全部攤開、不內捲。
+    @MainActor
+    func testComposerGrowsBeyondFourLines() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeText("1\n2")
+        let twoLines = text.frame.height
+        text.typeText("\n3")
+        let lineHeight = text.frame.height - twoLines
+        XCTAssertGreaterThan(lineHeight, 10, "第 3 行沒有長高")
+
+        text.typeText("\n4\n5\n6\n7")
+        let sevenLines = text.frame.height
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "composer-seven-lines"
+        shot.lifetime = .keepAlways
+        add(shot)
+        XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
+    }
+
+    /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
+    @MainActor
+    func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
+        let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        // AX5 時 ledger 在閒置組很下面，捲不到：從註記清單的「Go to Chat」進去(同無障礙稽核)。
+        let summary = app.buttons["youShouldKnow.summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        summary.tap()
+        element("youShouldKnow.go.demo/w1:p1", in: app).tap()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeText("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
+        // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
+        let window = app.windows.firstMatch.frame
+        let keyboard = app.keyboards.firstMatch
+        let visibleBottom = keyboard.exists ? min(keyboard.frame.minY, window.maxY) : window.maxY
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "composer-ax5-ten-lines"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // 可用高度從狀態列下緣算，比可見範圍小;以可見範圍當上界只會放寬。
+        let height = text.frame.height
+        XCTAssertLessThanOrEqual(height, visibleBottom * 0.4 + 1, "輸入框 \(height)pt 超過可見範圍(\(visibleBottom)pt)的 40%")
+        XCTAssertGreaterThan(height, 44 * 2, "AX 字級下多行沒有長高(\(height)pt)")
+    }
+
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
     @MainActor
     func testJumpToLatestOnlyWhenAwayFromBottom() {

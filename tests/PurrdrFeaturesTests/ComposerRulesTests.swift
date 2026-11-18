@@ -37,6 +37,49 @@ struct ComposerRulesTests {
         }
     }
 
+    // MARK: - 長高(#137)
+
+    /// 行高 20、上下內距 22 時 `lines` 行內容的高度。
+    private static func layout(lines: Double, lineHeight: Double = 20, available: Double? = 1000) -> ComposerHeight {
+        ComposerSizing.height(contentHeight: lines * lineHeight + 22, lineHeight: lineHeight, verticalInsets: 22, availableHeight: available)
+    }
+
+    @Test("長高到 8 行為止，第 9 行才內捲")
+    func growsUpToEightLines() {
+        #expect(Self.layout(lines: 5) == ComposerHeight(height: 122, scrolls: false))
+        #expect(Self.layout(lines: 8) == ComposerHeight(height: 182, scrolls: false))
+        #expect(Self.layout(lines: 9) == ComposerHeight(height: 182, scrolls: true))
+    }
+
+    @Test("可用高度的 40% 比 8 行矮時，以 40% 為上限")
+    func availableHeightFractionWins() {
+        #expect(Self.layout(lines: 5, available: 300) == ComposerHeight(height: 120, scrolls: true))
+        #expect(Self.layout(lines: 4, available: 300) == ComposerHeight(height: 102, scrolls: false))
+    }
+
+    @Test("iPhone SE 尺寸加 AX 字級：上限是可用高度的 40%,不是 8 行")
+    func smallScreenWithLargeText() {
+        // iPhone SE 鍵盤上方約 380pt;AX5 的 body 行高約 64pt。
+        #expect(Self.layout(lines: 3, lineHeight: 64, available: 380) == ComposerHeight(height: 152, scrolls: true))
+        // 預設字級(行高 22):8 行 198pt 超過 152pt。
+        #expect(Self.layout(lines: 8, lineHeight: 22, available: 380) == ComposerHeight(height: 152, scrolls: true))
+        #expect(Self.layout(lines: 5, lineHeight: 22, available: 380) == ComposerHeight(height: 132, scrolls: false))
+    }
+
+    @Test("最小 44pt:一行的高度與可用高度很小時都不低於 44pt")
+    func neverShorterThanMinimum() {
+        #expect(Self.layout(lines: 1) == ComposerHeight(height: 44, scrolls: false))
+        #expect(Self.layout(lines: 1, available: 50) == ComposerHeight(height: 44, scrolls: false))
+        #expect(Self.layout(lines: 3, available: 50) == ComposerHeight(height: 44, scrolls: true))
+    }
+
+    @Test("內容剛好等於上限時不內捲;不知道可用高度時只看 8 行")
+    func scrollsOnlyWhenExceeding() {
+        let atLimit = ComposerSizing.height(contentHeight: 120, lineHeight: 20, verticalInsets: 22, availableHeight: 300)
+        #expect(atLimit == ComposerHeight(height: 120, scrolls: false))
+        #expect(Self.layout(lines: 20, available: nil) == ComposerHeight(height: 182, scrolls: true))
+    }
+
     // MARK: - 組字中的程式覆寫(#138)
 
     @Test("沒有組字時，程式改寫草稿立即套用")
