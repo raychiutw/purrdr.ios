@@ -95,6 +95,22 @@ struct LivePreviewTests {
         #expect(LivePreview.extract(screen: screen) == nil)
     }
 
+    /// #214:真實畫面(Windows 主機 Claude Code,2026-11-19)。spinner 消失的空檔錨點落在輸入框，
+    /// 輸入框上方右對齊的更新提示(首字大寫)曾被當成散文接在預覽後面。
+    @Test("Claude Code 的更新提示(✔ Update installed · Restart to update)不算散文")
+    func updateNoticeIsChrome() {
+        let screen = """
+            ● 這兩張會併進這一批，跟 #203、#204、#205、#208、#210 一起，最後開一個 PR 到 master，CI 只跑一次。
+                                                                                                                            ✔ Update installed · Restart to update
+            \(Self.separator)
+            ❯
+            \(Self.separator)
+              purrdr.ios | integration/batch-3
+              ⏵⏵ bypass permissions on · 2 shells · ⧉ 2 · ← 4 agents · ↓ to manage
+            """
+        #expect(LivePreview.extract(screen: screen) == "這兩張會併進這一批，跟 #203、#204、#205、#208、#210 一起，最後開一個 PR 到 master，CI 只跑一次。")
+    }
+
     @Test("閒置畫面(沒有錨點只有輸入框)上方的舊回覆也照規則取;空畫面 → 不顯示")
     func emptyScreen() {
         #expect(LivePreview.extract(screen: "") == nil)

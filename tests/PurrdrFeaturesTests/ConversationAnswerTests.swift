@@ -220,6 +220,29 @@ struct ConversationAnswerTests {
         #expect(setup.haptics.played == [.selection, .success])
     }
 
+    /// #213:「你選了：Cancel」曾在 Agent 輸出很多新內容後仍釘在對話底部。
+    @Test("已回答卡片：Agent 繼續工作、對話紀錄多了新回覆後收起")
+    func answeredCardHidesAfterAgentWritesMore() async throws {
+        let setup = try Self.setup()
+        await Self.expectPoll(setup, screen: "claude-ask-review")
+        await setup.model.poll()
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        let cancel = try #require(setup.model.prompt?.options.first { $0.label == "Cancel" })
+        await setup.model.answer(.option(cancel))
+
+        await Self.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+        #expect(setup.model.lastAnswer == AnsweredPrompt(question: "Ready to submit your answers?", choice: "Cancel"))
+
+        let replyLine = ConversationModelTests.fixtureLines[19]
+            .replacingOccurrences(of: "00000000-0000-4000-8000-00000000001f", with: "00000000-0000-4000-8000-0000000000fa")
+        try setup.host.shell.append(Data((replyLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        await Self.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+
+        #expect(setup.model.lastAnswer == nil)
+    }
+
     @Test("被取代：畫面上換成另一個提示(下一題)→ 解鎖，新問題不繼承鎖")
     func supersededByNextQuestion() async throws {
         let setup = try Self.setup()
