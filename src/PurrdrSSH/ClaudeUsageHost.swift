@@ -86,8 +86,16 @@ public struct ClaudeUsageHost: Sendable {
 
     /// 讀包裝腳本最後存下的用量;還沒有(沒安裝、Claude Code 還沒回報)時是 `nil`。
     public func readUsage() async throws -> ClaudeUsage? {
-        let read = try await files.read([Self.usagePath])
-        return read[Self.usagePath]?.contents.flatMap(ClaudeUsage.init(usageFile:))
+        guard case .changed(let usage, _) = try await readUsage(ifChangedFrom: nil) else { throw HostFilesError.malformedOutput }
+        return usage
+    }
+
+    /// 條件式讀用量：`usage.json` 與 `known` 版本相同時是 `.unchanged`。
+    public func readUsage(ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<ClaudeUsage?> {
+        let read = try await files.read([Self.usagePath], knownVersions: known.map { [Self.usagePath: $0] } ?? [:])
+        guard let state = read[Self.usagePath] else { return .unchanged }
+        guard case .file(let data, let version) = state else { return .changed(nil, version: nil) }
+        return .changed(ClaudeUsage(usageFile: data), version: version)
     }
 
     // MARK: - 設定檔

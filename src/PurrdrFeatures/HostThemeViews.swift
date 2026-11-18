@@ -29,7 +29,7 @@ extension View {
     func selectedHostTheme(_ hosts: HostsModel) -> some View {
         let model = hosts.hostTheme
         return hostTheme(model.theme)
-            .task(id: ObjectIdentifier(model)) { await model.run() }
+            .modifier(HostThemePolling(model: model))
     }
 
     /// 放白字的填色(使用者泡泡、送出鈕):有主機主題時用主題的填色，沒有主題或白字對比不足就用紅底角色。
@@ -46,6 +46,24 @@ private struct HostThemeModifier: ViewModifier {
         content
             .tint(theme?.app(ThemeAppearance(scheme)).tint.map(Color.init))
             .environment(\.hostTheme, theme)
+    }
+}
+
+/// 前景時讀主機主題;多個視窗共用同一個讀取迴圈(`HostThemeModel.liveUpdates`)。
+private struct HostThemePolling: ViewModifier {
+    let model: HostThemeModel
+    @Environment(\.scenePhase) private var scenePhase
+
+    private struct Key: Equatable {
+        var active: Bool
+        var model: ObjectIdentifier
+    }
+
+    func body(content: Content) -> some View {
+        content.task(id: Key(active: scenePhase == .active, model: ObjectIdentifier(model))) {
+            guard scenePhase == .active else { return }
+            await model.liveUpdates.attach()
+        }
     }
 }
 

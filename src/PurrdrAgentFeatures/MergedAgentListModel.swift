@@ -217,11 +217,11 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// 每台主機各自輪詢註記，直到所在的 task 被取消。
+    /// 每台主機各自輪詢註記，直到所在的 task 被取消。與聊天輸入列共用同一個讀取迴圈(`YouShouldKnowModel.liveUpdates`)。
     public func runNotes() async {
         let models = sources.compactMap(\.notes)
         await withTaskGroup(of: Void.self) { group in
-            for model in models { group.addTask { await model.run() } }
+            for model in models { group.addTask { await model.liveUpdates.attach() } }
         }
     }
 

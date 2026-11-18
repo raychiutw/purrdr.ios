@@ -25,6 +25,12 @@ struct ComposerBar: View {
     /// 輸入框回報的「展開」鈕顯示條件。
     @State private var showsExpandButton = false
     @State private var isExpanded = false
+    @Environment(\.scenePhase) private var scenePhase
+
+    private struct NotesKey: Equatable {
+        var active: Bool
+        var notes: ObjectIdentifier?
+    }
 
     var body: some View {
         if model.isReadOnly {
@@ -82,8 +88,11 @@ struct ComposerBar: View {
             if option != nil { isFocused = true }
         }
         .onDisappear { model.cancelTypedAnswer() }
-        // 對話可見時自己讀註記(列表被蓋住時它的輪詢會停)。
-        .task { await model.youShouldKnow?.run() }
+        // 對話可見且在前景時讀註記;與列表共用同一個讀取迴圈(列表被蓋住時它不再看)。
+        .task(id: NotesKey(active: scenePhase == .active, notes: model.youShouldKnow.map(ObjectIdentifier.init))) {
+            guard scenePhase == .active else { return }
+            await model.youShouldKnow?.liveUpdates.attach()
+        }
         // 用 sheet 而非 fullScreenCover:後者會讓底下的對話 onDisappear(取消自訂回答、停掉輪詢)。
         .sheet(isPresented: $isExpanded) {
             ExpandedComposer(model: model, placeholder: placeholder, returnSends: returnSends) {

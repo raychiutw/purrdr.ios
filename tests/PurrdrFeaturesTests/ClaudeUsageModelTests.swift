@@ -98,6 +98,27 @@ struct ClaudeUsageModelTests {
         #expect(second.usage?.week?.usedPercentage == 41.2)
     }
 
+    @Test("用量檔沒變：之後的讀取帶已知版本(主機只回 unchanged),用量照舊;變了換新")
+    func laterReadsCarryKnownVersion() async throws {
+        consent.grant(ClaudeUsageHost.feature.id, host: "mac")
+        try claudeReportsUsage()
+        let model = model()
+        await model.refresh()
+        await model.refresh()
+
+        let request = try #require(host.commands.last.flatMap(HostFileRequest.init(command:)))
+        guard case .readIfChanged(_, let known) = request else {
+            Issue.record("第二次讀沒帶已知版本:\(request)")
+            return
+        }
+        #expect(known[ClaudeUsageHost.usagePath] != nil)
+        #expect(model.usage?.week?.usedPercentage == 41.2)
+
+        try claudeReportsUsage(week: 55)
+        await model.refresh()
+        #expect(model.usage?.week?.usedPercentage == 55)
+    }
+
     @Test("同意是每台主機各自的")
     func consentIsPerHost() async throws {
         let mac = model(hostID: "mac")
