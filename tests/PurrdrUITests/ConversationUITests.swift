@@ -439,6 +439,33 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(summaries.allElementsBoundByIndex.contains(where: \.isHittable), "跟隨中最新的訊息應在畫面上")
     }
 
+    /// #210:送出後 agent 工作中、還沒回覆(`-demoWorkingAfterPrompt`,工作 15 秒)。送出的訊息與工作中指示在畫面上，
+    /// 不可被一整片空白推到畫面外。
+    @MainActor
+    func testSendingWhileAgentWorksKeepsSentMessageVisible() {
+        let app = open(paneID: "w1:p1", flags: ["-demoWorkingAfterPrompt"])
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
+        XCTAssertTrue(element("conversation.agent", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+
+        text.tap()
+        text.typeText("Add a header row too?")
+        element("composer.send", in: app).tap()
+        hideKeyboard(in: app)
+        XCTAssertTrue(element("conversation.working", in: app).waitForExistence(timeout: 5), "沒有工作中指示")
+        // 等追蹤接上使用者那一行、即時預覽出現，捲動穩定;回覆在 15 秒後才來。
+        Thread.sleep(forTimeInterval: 5)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-working-after-send"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        XCTAssertTrue(sentMessage("Add a header row too?", in: app).isHittable, "送出的訊息應在畫面上")
+        XCTAssertTrue(element("conversation.working", in: app).isHittable, "工作中指示應在畫面上")
+        XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch.exists, "回覆不該這麼早到")
+    }
+
     /// 「需要你」的 agent 拒收：草稿放回輸入框，提示先回答。
     @MainActor
     func testBlockedAgentKeepsDraftAndExplains() {
