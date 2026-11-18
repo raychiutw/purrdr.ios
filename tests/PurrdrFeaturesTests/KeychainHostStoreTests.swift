@@ -33,7 +33,9 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
             return (errSecSuccess, data as NSData)
         }
         guard !items.isEmpty else { return (errSecItemNotFound, nil) }
-        let all = items.sorted { $0.key < $1.key }.map { [kSecValueData as String: $0.value] as NSDictionary }
+        let all = items.sorted { $0.key < $1.key }.map {
+            [kSecValueData as String: $0.value, kSecAttrAccount as String: $0.key] as NSDictionary
+        }
         return (errSecSuccess, all as NSArray)
     }
 
@@ -87,4 +89,141 @@ struct KeychainHostStoreTests {
 
         #expect(throws: KeychainError.self) { try store.save(Self.host) }
     }
+    // MARK: - 儲存格式遷移(#149)
+
+    static let studioID = UUID(uuidString: "6F1C2A4E-3B7D-4C8E-9A10-2B3C4D5E6F70")!
+    static let boxID = UUID(uuidString: "7A2B3C4D-5E6F-4071-8A9B-0C1D2E3F4A5B")!
+    static let httpsID = UUID(uuidString: "1D2E3F40-5A6B-4C7D-8E9F-0A1B2C3D4E5F")!
+    static let pinText = "COBpO4JIzmE5SXJiDiFEv8QW0IgLEE4H3vB2W6wHLww"
+
+    /// 0.36 以前的 app 寫進 Keychain 的內容(所有欄位攤平在主機設定上)。
+    static let legacyItems: [String: String] = [
+        studioID.uuidString: """
+        {"id":"\(studioID.uuidString)","name":"Studio","endpoint":{"host":"studio-mac","port":22,"username":"demo"},\
+        "connectionMethod":"tailscaleSSH","herdr":{"path":"herdr","session":"work"},"operatingSystem":"macOS",\
+        "hostKeyPin":"\(pinText)"}
+        """,
+        boxID.uuidString: """
+        {"id":"\(boxID.uuidString)","name":"Linux box","endpoint":{"host":"100.64.0.9","port":2222,"username":"ops"},\
+        "connectionMethod":"openSSH","authentication":"password","herdr":{"path":"/opt/herdr"},"operatingSystem":"linux"}
+        """,
+        httpsID.uuidString: """
+        {"id":"\(httpsID.uuidString)","name":"Studio HTTPS",\
+        "endpoint":{"host":"studio.tail1234.ts.net","port":443,"username":""},"connectionMethod":"https",\
+        "herdr":{"path":"herdr"},"hostService":"https://studio.tail1234.ts.net"}
+        """,
+    ]
+
+    static func keychain(with items: [String: String]) -> FakeKeychain {
+        let keychain = FakeKeychain()
+        keychain.items = items.mapValues { Data($0.utf8) }
+        return keychain
+    }
+
+    static func storedObject(_ keychain: FakeKeychain, _ id: UUID) throws -> [String: Any] {
+        let data = try #require(keychain.items[id.uuidString])
+        return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    @Test("舊版存的 Tailscale SSH、OpenSSH 與 HTTPS 主機讀得回來")
+    func loadsLegacyHosts() throws {
+        let store = KeychainHostStore(keychain: Self.keychain(with: Self.legacyItems))
+
+        let hosts = try store.loadHosts()
+
+        let pin = try #require(HostKeyFingerprint(stored: Self.pinText))
+        #expect(Set(hosts) == [
+            HostConfiguration(
+                id: Self.studioID, name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"),
+                herdr: HerdrInstallation(session: "work"), operatingSystem: .macOS, hostKeyPin: pin),
+            HostConfiguration(
+                id: Self.boxID, name: "Linux box", endpoint: SSHEndpoint(host: "100.64.0.9", port: 2222, username: "ops"),
+                openSSH: .password, herdr: HerdrInstallation(path: "/opt/herdr"),
+                operatingSystem: .linux),
+            HostConfiguration(id: Self.httpsID, name: "Studio HTTPS", hostService: try #require(HostServiceAddress("studio.tail1234.ts.net"))),
+        ])
+    }
+
+    @Test("存回新格式：連線方式帶自己的欄位，HTTPS 主機只有主機服務位址")
+    func savesConnectionInNewFormat() throws {
+        let keychain = Self.keychain(with: Self.legacyItems)
+        let store = KeychainHostStore(keychain: keychain)
+
+        for host in try store.loadHosts() { try store.save(host) }
+
+        let https = try #require(try Self.storedObject(keychain, Self.httpsID)["connection"] as? [String: String])
+        #expect(https == ["method": "https", "hostService": "https://studio.tail1234.ts.net"])
+        let box = try #require(try Self.storedObject(keychain, Self.boxID)["connection"] as? [String: Any])
+        #expect(Set(box.keys) == ["method", "endpoint", "herdr", "authentication"])
+        #expect(box["method"] as? String == "openSSH")
+        #expect(box["authentication"] as? String == "password")
+        let studio = try #require(try Self.storedObject(keychain, Self.studioID)["connection"] as? [String: Any])
+        #expect(Set(studio.keys) == ["method", "endpoint", "herdr", "hostKeyPin"])
+        #expect(studio["hostKeyPin"] as? String == Self.pinText)
+    }
+
+    @Test("新格式的連線方式優先於留給舊版 app 的欄位")
+    func newFormatWinsOverLegacyFields() throws {
+        let item = """
+        {"id":"\(Self.boxID.uuidString)","name":"Linux box",\
+        "connection":{"method":"openSSH","endpoint":{"host":"10.0.0.5","port":2200,"username":"admin"},\
+        "herdr":{"path":"herdr"},"authentication":"importedKey"},\
+        "endpoint":{"host":"100.64.0.9","port":22,"username":"ops"},"connectionMethod":"tailscaleSSH","herdr":{"path":"herdr"}}
+        """
+        let store = KeychainHostStore(keychain: Self.keychain(with: [Self.boxID.uuidString: item]))
+
+        let hosts = try store.loadHosts()
+
+        #expect(hosts == [
+            HostConfiguration(
+                id: Self.boxID, name: "Linux box", endpoint: SSHEndpoint(host: "10.0.0.5", port: 2200, username: "admin"),
+                openSSH: .importedKey),
+        ])
+    }
+
+    @Test("新格式仍寫出舊欄位，舊版 app(0.36)讀得懂新存的主機")
+    func olderAppReadsNewFormat() throws {
+        let keychain = Self.keychain(with: Self.legacyItems)
+        let store = KeychainHostStore(keychain: keychain)
+        let expected = try Self.legacyItems.mapValues { try JSONDecoder().decode(LegacyHostRecord.self, from: Data($0.utf8)) }
+
+        for host in try store.loadHosts() { try store.save(host) }
+
+        let reread = try keychain.items.mapValues { try JSONDecoder().decode(LegacyHostRecord.self, from: $0) }
+        #expect(reread == expected)
+    }
+
+    @Test("讀不懂的主機不靜默略過：其他主機照常讀出，記入診斷紀錄，項目留在 Keychain")
+    func unreadableHostIsLogged() throws {
+        let missingAddress = """
+        {"id":"\(Self.httpsID.uuidString)","name":"Studio HTTPS",\
+        "endpoint":{"host":"studio.tail1234.ts.net","port":443,"username":""},"connectionMethod":"https","herdr":{"path":"herdr"}}
+        """
+        let keychain = Self.keychain(with: [
+            Self.httpsID.uuidString: missingAddress, Self.studioID.uuidString: try #require(Self.legacyItems[Self.studioID.uuidString]),
+        ])
+        let log = RecordingDiagnosticLog()
+        let store = KeychainHostStore(keychain: keychain, diagnostics: log.log)
+
+        let hosts = try store.loadHosts()
+
+        #expect(hosts.map(\.id) == [Self.studioID])
+        #expect(log.messages.count == 1)
+        #expect(log.messages.first?.contains(Self.httpsID.uuidString) == true)
+        #expect(keychain.items[Self.httpsID.uuidString] != nil)
+    }
 }
+
+/// 0.36 的主機設定(合成的 Codable):模擬舊版 app 讀 Keychain。
+private struct LegacyHostRecord: Decodable, Equatable {
+    var id: UUID
+    var name: String
+    var endpoint: SSHEndpoint
+    var connectionMethod: String
+    var authentication: String?
+    var herdr: HerdrInstallation
+    var operatingSystem: String?
+    var hostKeyPin: String?
+    var hostService: String?
+}
+
