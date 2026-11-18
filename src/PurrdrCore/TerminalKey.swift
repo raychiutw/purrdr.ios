@@ -2,7 +2,7 @@ import Foundation
 
 /// 終端機按鍵列上的一顆鍵(或軟體鍵盤打出的一個字元)。
 ///
-/// App 看不到遠端程式的終端機模式(herdr 的串流不轉送 DECCKM),所以方向鍵固定送 CSI 形式(`ESC [ A`)。
+/// 方向鍵與 Home／End 依遠端的 application cursor 模式(DECCKM)送 SS3(`ESC O A`)或 CSI(`ESC [ A`)。
 public enum TerminalKey: Sendable, Equatable {
     case escape
     case tab
@@ -19,7 +19,7 @@ public enum TerminalKey: Sendable, Equatable {
     case function(Int)
     case character(Character)
 
-    /// 依修飾鍵編碼成要送給主機的 bytes(行為規格 §6.4;實體鍵盤才有的鍵用 xterm 編碼)。
+    /// 依修飾鍵與 application cursor 模式編碼成要送給主機的 bytes(行為規格 §6.4;實體鍵盤才有的鍵用 xterm 編碼)。
     public func bytes(modifiers: TerminalModifiers = [], applicationCursor: Bool = false) -> Data {
         let escape: UInt8 = 0x1B
         let altPrefix = modifiers.contains(.alt) ? Data([escape]) : Data()
@@ -33,7 +33,7 @@ public enum TerminalKey: Sendable, Equatable {
             return altPrefix + (modifiers.contains(.shift) ? Data("\u{1B}[Z".utf8) : Data([0x09]))
         case .up, .down, .left, .right, .home, .end:
             let final = cursorFinal
-            guard parameter > 1 else { return Data([escape, UInt8(ascii: "["), final]) }
+            guard parameter > 1 else { return Data([escape, UInt8(ascii: applicationCursor ? "O" : "["), final]) }
             return Data("\u{1B}[1;\(parameter)".utf8) + [final]
         case .pageUp, .pageDown, .deleteForward:
             let number = self == .pageUp ? 5 : (self == .pageDown ? 6 : 3)

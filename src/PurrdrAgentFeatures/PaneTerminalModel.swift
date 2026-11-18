@@ -89,6 +89,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public var isInteractive: Bool { status == .connected }
     /// 本機 scrollback 是空的(herdr 每次都重畫整個 viewport):滑動送 `terminal.scroll`。
     public var usesRemoteScroll: Bool { true }
+    public var seesProgramModes: Bool { false }
 
     // MARK: - 畫面
 
@@ -258,7 +259,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
     /// 按鍵列的一顆鍵。帶著鎖定中的修飾鍵編碼，送出後放開修飾鍵。
     public func press(_ key: TerminalKey, adding extraModifiers: TerminalModifiers, applicationCursor: Bool) {
         guard isInteractive else { return }
-        outbox?.yield(.bytes(key.bytes(modifiers: modifiers.union(extraModifiers))))
+        outbox?.yield(.bytes(key.bytes(modifiers: modifiers.union(extraModifiers), applicationCursor: applicationCursor)))
         modifiers = []
     }
 
@@ -290,7 +291,11 @@ public final class PaneTerminalModel: TerminalSessionModel {
         }
     }
 
-    public func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int) {}
+    /// 實體鍵盤 Page Up／Down:一則 `page_key` 捲動，herdr 依 Pane 狀態捲主機 scrollback `rows` 列或送 Page 鍵給程式。
+    public func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int) {
+        guard isInteractive, rows > 0 else { return }
+        outbox?.yield(.input(.scroll(direction, lines: rows, column: 0, row: 0, source: .pageKey)))
+    }
 
     // MARK: - 字級
 

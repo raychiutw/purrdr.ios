@@ -459,21 +459,22 @@ struct TerminalScreen: UIViewRepresentable {
             case .paste(let text): model.paste(text, bracketed: handle?.bracketedPasteMode ?? false)
             }
         }
-        screen.textInput.scrollsPageLocally = { [weak view] in
-            guard let terminal = view?.getTerminal() else { return false }
-            return !terminal.applicationCursor && !terminal.isCurrentBufferAlternate
+        // herdr 的串流不轉送終端機模式：Pane 終端機看不到，只有登入 Shell 讀模擬器。
+        screen.textInput.programModes = { [model, weak view] in
+            guard model.seesProgramModes, let view else { return .hiddenByHerdr }
+            return view.visibleProgramModes
         }
-        screen.textInput.onScrollPage = { [model, weak view] direction in
+        screen.textInput.onScrollPageLocally = { [weak view] direction in
             guard let view else { return }
             let rows = view.getTerminal().rows
-            if model.usesRemoteScroll {
-                // Pane 終端機的 scrollback 在 herdr,與單指滑動一樣交給它捲。
-                model.scroll(direction, rows: rows, column: view.getTerminal().cols / 2, row: rows / 2)
-            } else if direction == .up {
+            if direction == .up {
                 view.scrollUp(lines: rows)
             } else {
                 view.scrollDown(lines: rows)
             }
+        }
+        screen.textInput.onSendPageKeyToHerdr = { [model, weak view] direction in
+            model.scrollPage(direction, rows: view?.getTerminal().rows ?? 1)
         }
         context.coordinator.install(on: view)
         handle.screen = screen
@@ -693,6 +694,12 @@ final class PurrdrTerminalView: TerminalView {
     weak var textInput: TerminalTextInputView?
     /// 目前套用的 16 色(組字浮層取游標格子的顏色用)。
     var installedPalette = SwiftTerm.Color.defaultInstalledColors
+
+    /// 模擬器看到的遠端程式模式(登入 Shell 直接接 PTY 才準)。
+    var visibleProgramModes: TerminalProgramModes {
+        let terminal = getTerminal()
+        return .visible(applicationCursor: terminal.applicationCursor, alternateScreen: terminal.isCurrentBufferAlternate)
+    }
 
     /// 游標所在字元佔的格數(寬字元 2)。
     var cursorCellColumns: Int {

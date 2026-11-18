@@ -38,6 +38,8 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     var notice: String? { get set }
     /// 單指垂直滑動交給遠端(`scroll`);`false` 時終端機模擬器自己捲 scrollback。
     var usesRemoteScroll: Bool { get }
+    /// 終端機模擬器看得到遠端程式的模式(登入 Shell 的 PTY);Pane 終端機經 herdr,看不到。
+    var seesProgramModes: Bool { get }
 
     /// 接上終端機模擬器。之前暫存的輸出依序補畫。
     func attach(_ renderer: @escaping (Data) -> Void)

@@ -27,6 +27,7 @@ public final class LoginShellModel: TerminalSessionModel {
     public var notice: String?
     public let title: String
     public var usesRemoteScroll: Bool { false }
+    public var seesProgramModes: Bool { true }
 
     private let channel: any HostChannel
     private let resizeDebounce: Duration
@@ -221,7 +222,7 @@ public final class LoginShellModel: TerminalSessionModel {
 
     public func press(_ key: TerminalKey, adding extraModifiers: TerminalModifiers, applicationCursor: Bool) {
         guard isInteractive else { return }
-        outbox?.yield(.bytes(key.bytes(modifiers: modifiers.union(extraModifiers))))
+        outbox?.yield(.bytes(key.bytes(modifiers: modifiers.union(extraModifiers), applicationCursor: applicationCursor)))
         modifiers = []
     }
 
@@ -243,6 +244,7 @@ public final class LoginShellModel: TerminalSessionModel {
     /// 登入 Shell 的滑動由模擬器自己捲 scrollback,不經 model。
     public func scroll(_ direction: TerminalInput.ScrollDirection, rows: Int, column: Int, row: Int) {}
 
+    /// 登入 Shell 的 Page 鍵捲動由模擬器在本機做，不經 model。
     public func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int) {}
 
     // MARK: - 字級

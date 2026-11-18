@@ -174,13 +174,21 @@ public enum TerminalInput: Sendable, Equatable {
     case resize(columns: Int, rows: Int)
     /// 捲動。主機依 pane 狀態決定捲主機端 scrollback、送滾輪事件或方向鍵;
     /// 程式自己處理滾輪時 `lines` 會被忽略，所以每滑過一列送一則 `lines: 1`。
-    case scroll(ScrollDirection, lines: Int = 1, column: Int, row: Int)
+    case scroll(ScrollDirection, lines: Int = 1, column: Int, row: Int, source: ScrollSource = .wheel)
     /// 放開 controller。
     case release
 
     public enum ScrollDirection: String, Sendable {
         case up
         case down
+    }
+
+    /// 捲動的來源(herdr 依此與 Pane 狀態決定怎麼處理)。
+    public enum ScrollSource: String, Sendable {
+        /// 滾輪或單指滑動。
+        case wheel
+        /// 實體鍵盤 Page Up／Down:一般 shell 捲主機 scrollback `lines` 列，否則送 `ESC[5~`／`ESC[6~` 給程式。
+        case pageKey = "page_key"
     }
 
     /// 單則輸入的上限。herdr 的硬上限是 1 MiB(超過直接斷線);這裡留很大的餘裕。
@@ -202,8 +210,8 @@ public enum TerminalInput: Sendable, Equatable {
             json = #"{"type":"terminal.input","bytes":"\#(data.base64EncodedString())"}"#
         case .resize(let columns, let rows):
             json = #"{"type":"terminal.resize","cols":\#(columns),"rows":\#(rows),"cell_width_px":0,"cell_height_px":0}"#
-        case .scroll(let direction, let lines, let column, let row):
-            json = #"{"type":"terminal.scroll","direction":"\#(direction.rawValue)","lines":\#(lines),"source":"wheel","column":\#(column),"row":\#(row),"modifiers":0}"#
+        case .scroll(let direction, let lines, let column, let row, let source):
+            json = #"{"type":"terminal.scroll","direction":"\#(direction.rawValue)","lines":\#(lines),"source":"\#(source.rawValue)","column":\#(column),"row":\#(row),"modifiers":0}"#
         case .release:
             json = #"{"type":"terminal.release"}"#
         }

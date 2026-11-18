@@ -7,10 +7,12 @@ import UIKit
 final class TerminalTextInputView: UIView, UITextInput {
     /// 要送到遠端的輸入。
     var onSend: ((TerminalInputSend) -> Void)?
-    /// Page Up／Down 在本機捲一頁。
-    var onScrollPage: ((TerminalInput.ScrollDirection) -> Void)?
-    /// 遠端沒開 alternate screen 與 application cursor(Page Up／Down 改成本機捲動)。
-    var scrollsPageLocally: () -> Bool = { false }
+    /// Page Up／Down 在本機捲一頁(登入 Shell 的一般畫面)。
+    var onScrollPageLocally: ((TerminalInput.ScrollDirection) -> Void)?
+    /// Page Up／Down 交給 herdr 決定(Pane 終端機)。
+    var onSendPageKeyToHerdr: ((TerminalInput.ScrollDirection) -> Void)?
+    /// 遠端程式目前的終端機模式(決定方向鍵編碼與 Page 鍵去向)。
+    var programModes: () -> TerminalProgramModes = { .hiddenByHerdr }
     var onFocusChange: ((Bool) -> Void)?
     /// 組字文字或其中的選取改變(更新組字浮層)。
     var onCompositionChange: (() -> Void)?
@@ -73,7 +75,8 @@ final class TerminalTextInputView: UIView, UITextInput {
 
     /// 按鍵列的鍵：組字中先放棄組字再送。
     func pressKeyBarKey(_ key: TerminalKey) {
-        send(changeComposition { $0.pressKeyBarKey(key) })
+        let modes = programModes()
+        send(changeComposition { $0.pressKeyBarKey(key, modes: modes) })
     }
 
     /// 貼上(按鍵列、Command-V、編輯選單):組字中先放棄組字再送。
@@ -125,14 +128,16 @@ final class TerminalTextInputView: UIView, UITextInput {
                 unhandled.insert(press)
                 continue
             }
-            switch composition.handle(hardwareKey, modifiers: TerminalModifiers(key.modifierFlags), scrollsPageLocally: scrollsPageLocally()) {
+            switch composition.handle(hardwareKey, modifiers: TerminalModifiers(key.modifierFlags), modes: programModes()) {
             case .system:
                 unhandled.insert(press)
             case .send(let input):
                 onSend?(input)
                 startKeyRepeat(input)
-            case .scrollPage(let direction), .sendPageKeyToHerdr(let direction):
-                onScrollPage?(direction)
+            case .scrollPage(let direction):
+                onScrollPageLocally?(direction)
+            case .sendPageKeyToHerdr(let direction):
+                onSendPageKeyToHerdr?(direction)
             }
         }
         if !unhandled.isEmpty {

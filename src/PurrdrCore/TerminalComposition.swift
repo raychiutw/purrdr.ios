@@ -75,11 +75,10 @@ public struct TerminalComposition: Sendable, Equatable {
         return []
     }
 
-    /// 系統要求結束組字：送出輸入法最後給的組字文字(常是已選好的字),但不送注音符號與聲調本身。
+    /// 系統要求結束組字：放棄組字文字，不送出(字元範圍分不出已選好的字與還在拼的音)。
     public mutating func unmarkText() -> [TerminalInputSend] {
-        let confirmed = String(String.UnicodeScalarView(markedText.unicodeScalars.filter { !Self.isZhuyin($0) }))
-        markedText = ""
-        return Self.sendable(confirmed)
+        cancel()
+        return []
     }
 
     /// Purrdr 自己結束組字(切換焦點等):放棄組字文字，不送出。
@@ -88,9 +87,9 @@ public struct TerminalComposition: Sendable, Equatable {
     }
 
     /// 按鍵列的一顆鍵：先放棄組字(不送出)再送該鍵。
-    public mutating func pressKeyBarKey(_ key: TerminalKey, modes: TerminalProgramModes = .hiddenByHerdr) -> [TerminalInputSend] {
+    public mutating func pressKeyBarKey(_ key: TerminalKey, modes: TerminalProgramModes) -> [TerminalInputSend] {
         cancel()
-        return [.key(key, modifiers: [])]
+        return [.key(key, modifiers: [], applicationCursor: modes.applicationCursor)]
     }
 
     /// 貼上：先放棄組字(不送出)再送貼上內容。
@@ -100,18 +99,8 @@ public struct TerminalComposition: Sendable, Equatable {
     }
 
     /// 實體鍵盤按鍵(`modifiers` 是按著的實體修飾鍵)。組字中一律交給輸入法。
-    /// `scrollsPageLocally`:遠端沒開 alternate screen 與 application cursor 時，Page Up／Down 在本機捲一頁(同 SwiftTerm)。
     public func handle(
         _ key: TerminalHardwareKey, modifiers: TerminalModifiers, modes: TerminalProgramModes
-    ) -> TerminalHardwareKeyHandling {
-        if case .visible(false, false) = modes {
-            return handle(key, modifiers: modifiers, scrollsPageLocally: true)
-        }
-        return handle(key, modifiers: modifiers, scrollsPageLocally: false)
-    }
-
-    public func handle(
-        _ key: TerminalHardwareKey, modifiers: TerminalModifiers, scrollsPageLocally: Bool = false
     ) -> TerminalHardwareKeyHandling {
         guard !isComposing else { return .system }
         let terminalKey: TerminalKey
@@ -133,14 +122,14 @@ public struct TerminalComposition: Sendable, Equatable {
         case .home: terminalKey = .home
         case .end: terminalKey = .end
         case .pageUp:
-            guard !scrollsPageLocally else { return .scrollPage(.up) }
+            if let handling = modes.pageKeyHandling(.up) { return handling }
             terminalKey = .pageUp
         case .pageDown:
-            guard !scrollsPageLocally else { return .scrollPage(.down) }
+            if let handling = modes.pageKeyHandling(.down) { return handling }
             terminalKey = .pageDown
         case .function(let number): terminalKey = .function(number)
         }
-        return .send(.key(terminalKey, modifiers: modifiers))
+        return .send(.key(terminalKey, modifiers: modifiers, applicationCursor: modes.applicationCursor))
     }
 
     private static func sendable(_ text: String) -> [TerminalInputSend] {
@@ -148,12 +137,23 @@ public struct TerminalComposition: Sendable, Equatable {
         let terminalText = text.replacingOccurrences(of: "\r\n", with: "\r").replacingOccurrences(of: "\n", with: "\r")
         return [.bytes(Data(terminalText.utf8))]
     }
+}
 
-    /// 注音符號(含擴充)與注音聲調。
-    private static func isZhuyin(_ scalar: Unicode.Scalar) -> Bool {
-        switch scalar.value {
-        case 0x3100...0x312F, 0x31A0...0x31BF, 0x02C7, 0x02CA, 0x02CB, 0x02D9: true
-        default: false
+extension TerminalProgramModes {
+    /// 方向鍵與 Home／End 要不要用 SS3;看不到模式時一律 CSI。
+    var applicationCursor: Bool {
+        switch self {
+        case .visible(let applicationCursor, _): applicationCursor
+        case .hiddenByHerdr: false
+        }
+    }
+
+    /// Page Up／Down 不直接送 `CSI 5~` 時的去向：看不到模式交給 herdr,一般畫面本機捲一頁。
+    func pageKeyHandling(_ direction: TerminalInput.ScrollDirection) -> TerminalHardwareKeyHandling? {
+        switch self {
+        case .hiddenByHerdr: .sendPageKeyToHerdr(direction)
+        case .visible(false, false): .scrollPage(direction)
+        case .visible: nil
         }
     }
 }
