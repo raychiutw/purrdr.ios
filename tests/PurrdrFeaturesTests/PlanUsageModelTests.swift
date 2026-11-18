@@ -94,6 +94,49 @@ struct PlanUsageModelTests {
         #expect(host.commands.count == 2)
         #expect(model.rows.first?.percent == 50)
     }
+
+    @Test("查詢進行中連按下拉：只送出一個查詢")
+    func repeatedPullsShareOneQuery() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let gated = GatedChannel(base: host)
+        let model = model(channel: gated)
+        model.appeared()
+        #expect(await gated.waitUntilWaiting())
+
+        async let first: Void = model.refresh()
+        async let second: Void = model.refresh()
+        await gated.open()
+        _ = await (first, second)
+
+        #expect(host.commands.count == 1)
+        #expect(model.rows.count == 2)
+    }
+
+    @Test("離開畫面：進行中的查詢被取消，結果不再顯示")
+    func disappearingCancelsQuery() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let gated = GatedChannel(base: host)
+        let model = model(channel: gated)
+        model.appeared()
+        #expect(await gated.waitUntilWaiting())
+
+        model.disappeared()
+        await gated.open()
+        await host.waitUntilFinished()
+
+        #expect(await stays(model.state == .loading))
+    }
+
+    /// 在一小段時間內條件一直成立(斷言「不會發生」用)。
+    func stays(_ condition: @autoclosure @MainActor () -> Bool) async -> Bool {
+        for _ in 0..<20 {
+            guard condition() else { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return condition()
+    }
 }
 #endif
 
