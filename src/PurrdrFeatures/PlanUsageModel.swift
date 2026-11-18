@@ -122,6 +122,17 @@ public final class InMemoryPlanUsageSelectionStore: PlanUsageSelectionStore {
     public func save(_ selection: PlanUsageSelection) { self.selection = selection }
 }
 
+/// 存在 `UserDefaults`(只在這支裝置)。
+@MainActor
+public final class UserDefaultsPlanUsageSelectionStore: PlanUsageSelectionStore {
+    public static let defaultKey = "planUsageSelection"
+
+    public init(defaults: UserDefaults = .standard, key: String = defaultKey) {}
+
+    public func load() -> PlanUsageSelection? { nil }
+    public func save(_ selection: PlanUsageSelection) {}
+}
+
 /// 方案用量畫面的 model(#176、#177)。
 @MainActor
 @Observable
