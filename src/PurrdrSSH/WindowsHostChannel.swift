@@ -86,6 +86,7 @@ enum WindowsCommand {
         // 喚醒探測只看通道活不活，exit code 不重要:不必付 PowerShell 的啟動成本(0.6–2.5 s,§7.5 的期限是 3 秒)。
         if command == WakeProbe.command { return WindowsInvocation(command: command) }
         if let script = herdr(command) { return try inline(script) }
+        if command == CodexUsageHost.command { return try inline(codexAppServer) }
         if let script = transcript(command) { return viaStdin(script) }
         if let script = hostFiles(command) { return viaStdin(script) }
         if let upload = ImageUploadCommand.parse(command) {
@@ -182,6 +183,17 @@ enum WindowsCommand {
         guard command.count <= commandLimit else { throw WindowsCommandError.commandTooLong }
         return WindowsInvocation(command: command)
     }
+
+    // MARK: - Codex
+
+    /// `codex app-server`:PATH 上找 `codex.exe`／`codex.cmd`(找不到 exit 127),stdin／stdout 直接接到通道(同 herdr bridge)。
+    static let codexAppServer = """
+        $ProgressPreference='SilentlyContinue'
+        $c=Get-Command 'codex' -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
+        if(-not $c){[Console]::Error.Write("codex: command not found`n");exit 127}
+        & $c.Source 'app-server'
+        exit $LASTEXITCODE
+        """
 
     // MARK: - herdr
 
