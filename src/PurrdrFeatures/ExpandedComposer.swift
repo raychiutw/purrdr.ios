@@ -24,14 +24,17 @@ struct ExpandedComposer: View {
 
     private var editor: some View {
         ComposerTextEditor(
-            text: $model.draft, isFocused: $isFocused, isExpanded: true, identifier: "composer.expanded.text",
-            placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
-            // slash 選單只在輸入列顯示：這裡不攔截它的按鍵。
-            slashKey: { _ in false },
-            onComposingChange: { model.isComposingDraft = $0 },
-            pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
-            onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) },
-            onSend: send
+            text: $model.draft, isFocused: $isFocused,
+            options: ComposerEditorOptions(
+                isExpanded: true, identifier: "composer.expanded.text",
+                placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
+                // slash 選單只在輸入列顯示：這裡不攔截它的按鍵。
+                slashKey: { _ in false },
+                onComposingChange: { model.isComposingDraft = $0 },
+                pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
+                onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) },
+                onSend: send
+            )
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .topLeading) {

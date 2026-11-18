@@ -51,18 +51,31 @@ public struct ComposerHeight: Sendable, Equatable {
     }
 }
 
+/// 輸入框內容的量測。
+public struct ComposerTextMetrics: Sendable, Equatable {
+    /// 內容全部攤開的高度(含上下內距)。
+    public var contentHeight: Double
+    public var lineHeight: Double
+    /// 上下內距合計。
+    public var verticalInsets: Double
+
+    public init(contentHeight: Double, lineHeight: Double, verticalInsets: Double) {
+        self.contentHeight = contentHeight
+        self.lineHeight = lineHeight
+        self.verticalInsets = verticalInsets
+    }
+}
+
 /// 輸入框長高規則(#137,偏離 F6.1 的 4 行):最多 8 行且不超過鍵盤上方可用高度的 40%(取小),最小 44pt,超過才內捲。
 public enum ComposerSizing {
     public static let maxLines = 8.0
     public static let availableFraction = 0.4
     public static let minHeight = 44.0
 
-    /// - Parameters:
-    ///   - contentHeight: 內容全部攤開的高度(含上下內距)。
-    ///   - verticalInsets: 上下內距合計。
-    ///   - availableHeight: 鍵盤上方可用高度;不知道時只看行數。
-    public static func height(contentHeight: Double, lineHeight: Double, verticalInsets: Double, availableHeight: Double?) -> ComposerHeight {
-        var limit = (lineHeight * maxLines + verticalInsets).rounded(.up)
+    /// `availableHeight` 是鍵盤上方可用高度;不知道時只看行數。
+    public static func height(_ metrics: ComposerTextMetrics, availableHeight: Double?) -> ComposerHeight {
+        let contentHeight = metrics.contentHeight
+        var limit = (metrics.lineHeight * maxLines + metrics.verticalInsets).rounded(.up)
         if let availableHeight {
             // 取整點:0.4 不是精確的二進位小數，乘出來可能多一點點。
             limit = min(limit, (availableHeight * availableFraction).rounded())
@@ -74,16 +87,13 @@ public enum ComposerSizing {
 
 // MARK: - 展開編輯
 
-/// 「展開」鈕(#142):內容超過 2 行或聚焦時顯示，打開全螢幕編輯。
+/// 「展開」鈕(#142):內容超過 2 行或聚焦時顯示，打開展開編輯(large sheet)。
 public enum ComposerExpansion {
-    /// - Parameters:
-    ///   - contentHeight: 內容全部攤開的高度(含上下內距)。
-    ///   - verticalInsets: 上下內距合計。
-    public static func showsExpandButton(contentHeight: Double, lineHeight: Double, verticalInsets: Double, isFocused: Bool) -> Bool {
+    public static func showsExpandButton(_ metrics: ComposerTextMetrics, isFocused: Bool) -> Bool {
         if isFocused { return true }
-        guard lineHeight > 0 else { return false }
+        guard metrics.lineHeight > 0 else { return false }
         // 四捨五入：量到的高度可能比行高的整數倍多一點點。
-        return ((contentHeight - verticalInsets) / lineHeight).rounded() > 2
+        return ((metrics.contentHeight - metrics.verticalInsets) / metrics.lineHeight).rounded() > 2
     }
 }
 

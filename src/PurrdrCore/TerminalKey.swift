@@ -2,7 +2,7 @@ import Foundation
 
 /// 終端機按鍵列上的一顆鍵(或軟體鍵盤打出的一個字元)。
 ///
-/// App 看不到遠端程式的終端機模式(herdr 的串流不轉送 DECCKM),所以方向鍵固定送 CSI 形式(`ESC [ A`)。
+/// 方向鍵與 Home／End 依遠端的 application cursor 模式(DECCKM)送 SS3(`ESC O A`)或 CSI(`ESC [ A`)。
 public enum TerminalKey: Sendable, Equatable {
     case escape
     case tab
@@ -15,12 +15,12 @@ public enum TerminalKey: Sendable, Equatable {
     case pageUp
     case pageDown
     case deleteForward
-    /// F1–F12(實體鍵盤);其他編號不送。
-    case function(Int)
+    /// F1–F12(實體鍵盤)。
+    case function(TerminalFunctionKey)
     case character(Character)
 
-    /// 依修飾鍵編碼成要送給主機的 bytes(行為規格 §6.4;實體鍵盤才有的鍵用 xterm 編碼)。
-    public func bytes(modifiers: TerminalModifiers = []) -> Data {
+    /// 依修飾鍵與 application cursor 模式編碼成要送給主機的 bytes(行為規格 §6.4;實體鍵盤才有的鍵用 xterm 編碼)。
+    public func bytes(modifiers: TerminalModifiers = [], applicationCursor: Bool = false) -> Data {
         let escape: UInt8 = 0x1B
         let altPrefix = modifiers.contains(.alt) ? Data([escape]) : Data()
         // 修飾參數 = 1 + Shift(1) + Alt(2) + Ctrl(4)
@@ -33,22 +33,16 @@ public enum TerminalKey: Sendable, Equatable {
             return altPrefix + (modifiers.contains(.shift) ? Data("\u{1B}[Z".utf8) : Data([0x09]))
         case .up, .down, .left, .right, .home, .end:
             let final = cursorFinal
-            guard parameter > 1 else { return Data([escape, UInt8(ascii: "["), final]) }
+            guard parameter > 1 else { return Data([escape, UInt8(ascii: applicationCursor ? "O" : "["), final]) }
             return Data("\u{1B}[1;\(parameter)".utf8) + [final]
-        case .pageUp, .pageDown, .deleteForward:
-            let number = self == .pageUp ? 5 : (self == .pageDown ? 6 : 3)
-            return Self.tilde(number, parameter: parameter)
-        case .function(let number):
-            switch number {
-            case 1...4:
-                let final = UInt8(ascii: "P") + UInt8(number - 1)
-                guard parameter > 1 else { return Data([escape, UInt8(ascii: "O"), final]) }
-                return Data("\u{1B}[1;\(parameter)".utf8) + [final]
-            case 5...12:
-                return Self.tilde([15, 17, 18, 19, 20, 21, 23, 24][number - 5], parameter: parameter)
-            default:
-                return Data()
-            }
+        case .pageUp:
+            return Self.tilde(5, parameter: parameter)
+        case .pageDown:
+            return Self.tilde(6, parameter: parameter)
+        case .deleteForward:
+            return Self.tilde(3, parameter: parameter)
+        case .function(let functionKey):
+            return functionKey.bytes(parameter: parameter)
         case .character(let character):
             let utf8 = Data(String(character).utf8)
             guard modifiers.contains(.control), let control = Self.control(character) else { return altPrefix + utf8 }
@@ -57,7 +51,7 @@ public enum TerminalKey: Sendable, Equatable {
     }
 
     /// `CSI <number> ~`,有修飾時 `CSI <number>;<parameter> ~`。
-    private static func tilde(_ number: Int, parameter: Int) -> Data {
+    fileprivate static func tilde(_ number: Int, parameter: Int) -> Data {
         Data((parameter > 1 ? "\u{1B}[\(number);\(parameter)~" : "\u{1B}[\(number)~").utf8)
     }
 
@@ -93,6 +87,29 @@ public enum TerminalKey: Sendable, Equatable {
     }
 }
 
+/// 功能鍵 F1–F12。
+public enum TerminalFunctionKey: Int, Sendable, CaseIterable {
+    case f1 = 1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12
+
+    /// F1–F4 是 SS3 `P`–`S`(帶修飾時 `CSI 1;<參數>`),F5–F12 是 `CSI <n> ~`。
+    fileprivate func bytes(parameter: Int) -> Data {
+        switch self {
+        case .f1, .f2, .f3, .f4:
+            let final = UInt8(ascii: "P") + UInt8(rawValue - 1)
+            guard parameter > 1 else { return Data([0x1B, UInt8(ascii: "O"), final]) }
+            return Data("\u{1B}[1;\(parameter)".utf8) + [final]
+        case .f5: return TerminalKey.tilde(15, parameter: parameter)
+        case .f6: return TerminalKey.tilde(17, parameter: parameter)
+        case .f7: return TerminalKey.tilde(18, parameter: parameter)
+        case .f8: return TerminalKey.tilde(19, parameter: parameter)
+        case .f9: return TerminalKey.tilde(20, parameter: parameter)
+        case .f10: return TerminalKey.tilde(21, parameter: parameter)
+        case .f11: return TerminalKey.tilde(23, parameter: parameter)
+        case .f12: return TerminalKey.tilde(24, parameter: parameter)
+        }
+    }
+}
+
 /// 黏著修飾鍵。
 public struct TerminalModifiers: OptionSet, Sendable, Hashable {
     public let rawValue: Int
@@ -102,4 +119,10 @@ public struct TerminalModifiers: OptionSet, Sendable, Hashable {
     public static let alt = TerminalModifiers(rawValue: 1 << 1)
     /// 只有實體鍵盤會帶(游標類鍵、功能鍵、Shift-Tab)。
     public static let shift = TerminalModifiers(rawValue: 1 << 2)
+
+    /// 以這組黏著修飾鍵加上實體修飾鍵編碼一顆鍵，並放開黏著修飾鍵(Pane 終端機與登入 Shell 共用)。
+    public mutating func release(encoding key: TerminalKey, adding extra: TerminalModifiers, applicationCursor: Bool) -> Data {
+        defer { self = [] }
+        return key.bytes(modifiers: union(extra), applicationCursor: applicationCursor)
+    }
 }

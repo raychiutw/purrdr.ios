@@ -1,17 +1,17 @@
 import Foundation
 import Testing
 
-/// 可攜核心(PurrdrCore、PurrdrSSH、PurrdrDemo,ADR-0006)只能 import Foundation 與 swift-nio／swift-nio-ssh／swift-crypto 系列。
+/// 可攜核心(PurrdrCore、PurrdrSSH、PurrdrHTTPS、PurrdrDemo,ADR-0006)只能 import Foundation 與 swift-nio／swift-nio-ssh／swift-crypto 系列。
 ///
 /// 真正的守門是 CI 用 Swift SDK for Android 編譯可攜核心;這個測試讓本機的 `swift test` 先擋一次,
 /// 不必等 CI 才發現有人在核心 import 了 SwiftUI、Security 或 os。
 @Suite("可攜核心")
 struct PortableCoreImportTests {
-    static let portableTargets = ["src/PurrdrCore", "src/PurrdrSSH", "src/PurrdrDemo"]
+    static let portableTargets = ["src/PurrdrCore", "src/PurrdrSSH", "src/PurrdrHTTPS", "src/PurrdrDemo"]
     static let allowedModules: Set<String> = [
         "Foundation", "FoundationEssentials", "FoundationNetworking", "Dispatch", "Synchronization",
         "NIO", "NIOCore", "NIOPosix", "NIOSSH", "NIOConcurrencyHelpers", "NIOFoundationCompat", "Crypto",
-        "PurrdrCore", "PurrdrSSH", "PurrdrDemo",
+        "PurrdrCore", "PurrdrSSH", "PurrdrHTTPS", "PurrdrDemo",
     ]
 
     @Test("可攜核心不 import 任何 Apple 專屬 framework")

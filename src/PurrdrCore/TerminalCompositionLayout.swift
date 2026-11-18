@@ -15,18 +15,6 @@ public struct TerminalCompositionLayout: Sendable, Equatable {
         }
     }
 
-    public struct RGB: Sendable, Equatable {
-        public var red: UInt8
-        public var green: UInt8
-        public var blue: UInt8
-
-        public init(red: UInt8, green: UInt8, blue: UInt8) {
-            self.red = red
-            self.green = green
-            self.blue = blue
-        }
-    }
-
     /// 浮層的位置與大小。
     public let overlay: Box
     private let markedText: String
@@ -73,14 +61,16 @@ public struct TerminalCompositionLayout: Sendable, Equatable {
     }
 
     /// 一個字元的格數：東亞寬字元與 emoji 兩格，只有組合記號的字元零格，其他一格。
+    /// 變體選擇符同 SwiftTerm:emoji 基底帶 VS15 一格、帶 VS16 兩格，其他基底不受影響。
     static func columns(of character: Character) -> Int {
         let scalars = character.unicodeScalars
         guard let first = scalars.first else { return 0 }
         if scalars.allSatisfy(isZeroWidth) { return 0 }
-        if isWide(first.value) || first.properties.isEmojiPresentation || scalars.contains("\u{FE0F}") {
-            return 2
+        if first.properties.isEmoji, !isWide(first.value) {
+            if scalars.contains("\u{FE0E}") { return 1 }
+            if scalars.contains("\u{FE0F}") { return 2 }
         }
-        return 1
+        return isWide(first.value) || first.properties.isEmojiPresentation ? 2 : 1
     }
 
     private static func isZeroWidth(_ scalar: Unicode.Scalar) -> Bool {
@@ -99,21 +89,6 @@ public struct TerminalCompositionLayout: Sendable, Equatable {
             true
         default:
             false
-        }
-    }
-
-    /// xterm 256 色的 16–255;0–15 由主題決定，回傳 `nil`。
-    public static func xterm256(_ code: UInt8) -> RGB? {
-        switch code {
-        case 0..<16:
-            return nil
-        case 16..<232:
-            let index = Int(code) - 16
-            let levels: [UInt8] = [0, 95, 135, 175, 215, 255]
-            return RGB(red: levels[index / 36], green: levels[(index / 6) % 6], blue: levels[index % 6])
-        default:
-            let gray = UInt8(8 + (Int(code) - 232) * 10)
-            return RGB(red: gray, green: gray, blue: gray)
         }
     }
 }

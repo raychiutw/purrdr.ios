@@ -1,0 +1,1 @@
+{"type":"events.subscribe","request_id":"r3","stream_id":"s1","subscriptions":[{"event":"pane.agent_status_changed","pane_id":"w1:p6"},{"event":"workspace.created"}]}

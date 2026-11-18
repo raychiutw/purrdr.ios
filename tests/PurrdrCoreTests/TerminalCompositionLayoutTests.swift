@@ -26,6 +26,32 @@ struct TerminalCompositionLayoutTests {
         #expect(TerminalCompositionLayout.columns(of: "") == 0)
     }
 
+    @Test("欄寬：emoji 組合序列(ZWJ、膚色、國旗、keycap)佔兩格", arguments: [
+        "👨\u{200D}👩\u{200D}👧", "👍🏽", "🇹🇼", "1\u{FE0F}\u{20E3}", "❤\u{FE0F}", "⌚",
+    ])
+    func emojiSequencesAreTwoColumns(text: String) {
+        #expect(TerminalCompositionLayout.columns(of: text) == 2)
+    }
+
+    @Test("欄寬：變體選擇符同 SwiftTerm——VS15(文字樣式)一格，VS16 只讓 emoji 基底變兩格", arguments: [
+        ("⌚\u{FE0E}", 1),
+        ("☺\u{FE0E}", 1),
+        ("☺", 1),
+        ("a\u{FE0F}", 1),
+        ("中\u{FE0E}", 2),
+    ])
+    func variationSelectors(text: String, columns: Int) {
+        #expect(TerminalCompositionLayout.columns(of: text) == columns)
+    }
+
+    @Test("欄寬：全形標點兩格，半形片假名與一般標點一格", arguments: [
+        ("，", 2), ("。", 2), ("、", 2), ("「", 2), ("」", 2), ("！", 2), ("？", 2), ("：", 2), ("（", 2), ("～", 2),
+        ("ｱ", 1), ("—", 1), ("…", 1), (",", 1),
+    ])
+    func fullwidthPunctuation(text: String, columns: Int) {
+        #expect(TerminalCompositionLayout.columns(of: text) == columns)
+    }
+
     @Test("浮層從游標格子開始，寬度是組字文字的格數")
     func overlayStartsAtCursorCell() {
         #expect(Self.layout("ㄋㄧˇ").overlay == Box(x: 80, y: 51, width: 40, height: 17))
@@ -82,17 +108,5 @@ struct TerminalCompositionLayoutTests {
         let shifted = Self.layout("你好", cursor: nearEdge)
         #expect(shifted.rect(utf16Location: 1, length: 1) == Box(x: 624, y: 51, width: 16, height: 17))
         #expect(shifted.caret(utf16Offset: 2) == Box(x: 640, y: 51, width: 2, height: 17))
-    }
-
-    @Test("xterm 256 色：16–231 是 6×6×6 色塊、232–255 是灰階")
-    func xtermPalette() {
-        #expect(TerminalCompositionLayout.xterm256(16) == TerminalCompositionLayout.RGB(red: 0, green: 0, blue: 0))
-        #expect(TerminalCompositionLayout.xterm256(21) == TerminalCompositionLayout.RGB(red: 0, green: 0, blue: 255))
-        #expect(TerminalCompositionLayout.xterm256(196) == TerminalCompositionLayout.RGB(red: 255, green: 0, blue: 0))
-        #expect(TerminalCompositionLayout.xterm256(110) == TerminalCompositionLayout.RGB(red: 135, green: 175, blue: 215))
-        #expect(TerminalCompositionLayout.xterm256(232) == TerminalCompositionLayout.RGB(red: 8, green: 8, blue: 8))
-        #expect(TerminalCompositionLayout.xterm256(255) == TerminalCompositionLayout.RGB(red: 238, green: 238, blue: 238))
-        // 0–15 由主題決定，這裡不給。
-        #expect(TerminalCompositionLayout.xterm256(15) == nil)
     }
 }

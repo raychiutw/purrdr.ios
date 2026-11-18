@@ -41,7 +41,8 @@ struct ComposerRulesTests {
 
     /// 行高 20、上下內距 22 時 `lines` 行內容的高度。
     private static func layout(lines: Double, lineHeight: Double = 20, available: Double? = 1000) -> ComposerHeight {
-        ComposerSizing.height(contentHeight: lines * lineHeight + 22, lineHeight: lineHeight, verticalInsets: 22, availableHeight: available)
+        ComposerSizing.height(
+            ComposerTextMetrics(contentHeight: lines * lineHeight + 22, lineHeight: lineHeight, verticalInsets: 22), availableHeight: available)
     }
 
     @Test("長高到 8 行為止，第 9 行才內捲")
@@ -75,7 +76,7 @@ struct ComposerRulesTests {
 
     @Test("內容剛好等於上限時不內捲;不知道可用高度時只看 8 行")
     func scrollsOnlyWhenExceeding() {
-        let atLimit = ComposerSizing.height(contentHeight: 120, lineHeight: 20, verticalInsets: 22, availableHeight: 300)
+        let atLimit = ComposerSizing.height(ComposerTextMetrics(contentHeight: 120, lineHeight: 20, verticalInsets: 22), availableHeight: 300)
         #expect(atLimit == ComposerHeight(height: 120, scrolls: false))
         #expect(Self.layout(lines: 20, available: nil) == ComposerHeight(height: 182, scrolls: true))
     }
@@ -84,7 +85,7 @@ struct ComposerRulesTests {
 
     /// 行高 20、上下內距 22 時 `lines` 行內容是否顯示展開鈕。
     private static func showsExpand(lines: Double, isFocused: Bool) -> Bool {
-        ComposerExpansion.showsExpandButton(contentHeight: lines * 20 + 22, lineHeight: 20, verticalInsets: 22, isFocused: isFocused)
+        ComposerExpansion.showsExpandButton(ComposerTextMetrics(contentHeight: lines * 20 + 22, lineHeight: 20, verticalInsets: 22), isFocused: isFocused)
     }
 
     @Test("沒聚焦時超過 2 行才顯示展開鈕")
@@ -103,7 +104,8 @@ struct ComposerRulesTests {
 
     @Test("行高量測的小誤差不讓 2 行被算成 3 行")
     func expandButtonToleratesRounding() {
-        let almostTwoLines = ComposerExpansion.showsExpandButton(contentHeight: 2 * 20.4 + 22, lineHeight: 20, verticalInsets: 22, isFocused: false)
+        let almostTwoLines = ComposerExpansion.showsExpandButton(
+            ComposerTextMetrics(contentHeight: 2 * 20.4 + 22, lineHeight: 20, verticalInsets: 22), isFocused: false)
         #expect(!almostTwoLines)
     }
 

@@ -2,14 +2,28 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://purrdr.app/protocol/host-service.schema.json",
   "title": "Purrdr 主機服務協定",
-  "description": "app 與主機服務之間 WSS 上的 JSON 訊息(ADR-0010)。這份檔案是唯一定義:Rust 與 Swift 型別都由它產生(host-service/codegen)。解碼端一律忽略未知欄位。",
+  "description": "app 與主機服務之間的 JSON 訊息(ADR-0010):WSS 上的訊息，以及連線配對與撤銷的 HTTPS 請求本文。這份檔案是唯一定義:Rust 與 Swift 型別都由它產生(host-service/codegen)。解碼端一律忽略未知欄位。WSS 與 POST /v1/revoke 都以 Authorization: Bearer <裝置權杖> 認證。",
   "x-protocol-version": 1,
   "$defs": {
     "ClientMessage": {
-      "description": "app 送給主機服務的訊息，以 type 區分。",
+      "description": "app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。",
       "oneOf": [
         { "$ref": "#/$defs/Hello" },
-        { "$ref": "#/$defs/AgentsList" }
+        { "$ref": "#/$defs/AgentsList" },
+        { "$ref": "#/$defs/PaneSendKeys" },
+        { "$ref": "#/$defs/TranscriptLocate" },
+        { "$ref": "#/$defs/TranscriptWindow" },
+        { "$ref": "#/$defs/TranscriptFollow" },
+        { "$ref": "#/$defs/TranscriptUnfollow" },
+        { "$ref": "#/$defs/PaneSendText" },
+        { "$ref": "#/$defs/AgentPrompt" },
+        { "$ref": "#/$defs/EventsSubscribe" },
+        { "$ref": "#/$defs/EventsUnsubscribe" },
+        { "$ref": "#/$defs/PaneTerminalOpen" },
+        { "$ref": "#/$defs/PaneTerminalInput" },
+        { "$ref": "#/$defs/PaneTerminalResize" },
+        { "$ref": "#/$defs/PaneTerminalScroll" },
+        { "$ref": "#/$defs/PaneTerminalClose" }
       ]
     },
     "ServerMessage": {
@@ -17,6 +31,21 @@
       "oneOf": [
         { "$ref": "#/$defs/Welcome" },
         { "$ref": "#/$defs/AgentsListResult" },
+        { "$ref": "#/$defs/PaneSendKeysResult" },
+        { "$ref": "#/$defs/TranscriptLocateResult" },
+        { "$ref": "#/$defs/TranscriptWindowResult" },
+        { "$ref": "#/$defs/TranscriptFollowResult" },
+        { "$ref": "#/$defs/TranscriptUpdate" },
+        { "$ref": "#/$defs/TranscriptUnfollowResult" },
+        { "$ref": "#/$defs/PaneSendTextResult" },
+        { "$ref": "#/$defs/AgentPromptResult" },
+        { "$ref": "#/$defs/EventsSubscribeResult" },
+        { "$ref": "#/$defs/SubscribedEvent" },
+        { "$ref": "#/$defs/EventsEnded" },
+        { "$ref": "#/$defs/EventsUnsubscribeResult" },
+        { "$ref": "#/$defs/PaneTerminalOpenResult" },
+        { "$ref": "#/$defs/PaneTerminalFrame" },
+        { "$ref": "#/$defs/PaneTerminalClosed" },
         { "$ref": "#/$defs/ErrorMessage" }
       ]
     },
@@ -32,16 +61,17 @@
       "required": ["type", "request_id", "protocol_version"]
     },
     "Welcome": {
-      "description": "握手成功：主機服務的協定版本、版本，以及 herdr 伺服器 ping 回報的版本與能力。",
+      "description": "握手成功：主機服務的協定版本、版本，herdr 伺服器 ping 回報的版本與能力，以及這支裝置是否唯讀。",
       "type": "object",
       "properties": {
         "type": { "const": "welcome" },
         "request_id": { "type": "string" },
         "protocol_version": { "type": "integer", "minimum": 1 },
         "host_service_version": { "type": "string" },
-        "herdr": { "$ref": "#/$defs/HerdrServer" }
+        "herdr": { "$ref": "#/$defs/HerdrServer" },
+        "read_only": { "type": "boolean", "description": "這支裝置配對成唯讀：寫入類操作會被拒絕(read_only_device),app 停用輸入。" }
       },
-      "required": ["type", "request_id", "protocol_version", "host_service_version", "herdr"]
+      "required": ["type", "request_id", "protocol_version", "host_service_version", "herdr", "read_only"]
     },
     "HerdrServer": {
       "description": "herdr 伺服器(不是 CLI)的版本與能力。",
@@ -116,8 +146,415 @@
       },
       "required": ["source", "agent", "kind", "value"]
     },
+    "PaneSendKeys": {
+      "description": "對 Pane 送出按鍵(herdr pane.send_keys)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.send_keys" },
+        "request_id": { "type": "string" },
+        "pane_id": { "type": "string" },
+        "keys": { "type": "array", "items": { "type": "string" }, "description": "herdr 鍵名，例如 enter、esc、ctrl+c。" }
+      },
+      "required": ["type", "request_id", "pane_id", "keys"]
+    },
+    "PaneSendKeysResult": {
+      "description": "按鍵已送到 Pane。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.send_keys.result" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "PaneTerminalOpen": {
+      "description": "開 Pane 終端機(ADR-0005):主機服務以子行程執行 herdr terminal session control;唯讀裝置改用 observe(只能看)。串流識別碼就是這個請求的 request_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.open" },
+        "request_id": { "type": "string" },
+        "target": { "type": "string", "description": "pane id 或 terminal id。" },
+        "columns": { "type": "integer", "minimum": 1 },
+        "rows": { "type": "integer", "minimum": 1 },
+        "takeover": { "type": "boolean", "description": "接管別人正在操作的 Pane(唯讀裝置忽略)。" }
+      },
+      "required": ["type", "request_id", "target", "columns", "rows"]
+    },
+    "PaneTerminalOpenResult": {
+      "description": "Pane 終端機已開啟;畫面更新接著以 pane.terminal.frame 送出，結束時送 pane.terminal.closed。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.open.result" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string", "description": "等於開啟請求的 request_id。" },
+        "read_only": { "type": "boolean", "description": "唯讀裝置以 observe 接上：只能看，輸入會被拒絕。" }
+      },
+      "required": ["type", "request_id", "stream_id", "read_only"]
+    },
+    "PaneTerminalFrame": {
+      "description": "一次畫面更新:herdr terminal.frame 原樣轉接。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.frame" },
+        "stream_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 1, "description": "每條連線從 1 起算。" },
+        "width": { "type": "integer" },
+        "height": { "type": "integer" },
+        "full": { "type": "boolean", "description": "true 是完整重繪。" },
+        "bytes": { "type": "string", "description": "ANSI 畫面 bytes 的標準 base64。" }
+      },
+      "required": ["type", "stream_id", "seq", "width", "height", "full", "bytes"]
+    },
+    "PaneTerminalClosed": {
+      "description": "Pane 終端機結束，之後這個串流不再有訊息。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.closed" },
+        "stream_id": { "type": "string" },
+        "ending": { "$ref": "#/$defs/PaneTerminalEnding" },
+        "reason": { "type": "string", "description": "ending 是 closed 時,herdr terminal.closed 的原文。" },
+        "exit_code": { "type": "integer", "description": "ending 是 failed 時,herdr 的 exit code。" },
+        "message": { "type": "string", "description": "ending 是 failed 時,herdr 的 stderr(給開發者看)。" }
+      },
+      "required": ["type", "stream_id", "ending"]
+    },
+    "PaneTerminalEnding": {
+      "description": "closed:herdr 送了 terminal.closed;disconnected:沒有 terminal.closed 就斷了(可重新連線);failed:herdr 沒跑起來。",
+      "type": "string",
+      "enum": ["closed", "disconnected", "failed"]
+    },
+    "PaneTerminalInput": {
+      "description": "Pane 終端機的鍵盤輸入(herdr terminal.input)。不回應;稽核只在開啟時記一筆，不記內容。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.terminal.input" },
+        "stream_id": { "type": "string" },
+        "bytes": { "type": "string", "description": "輸入 bytes 的標準 base64,每則不超過 64 KiB。" }
+      },
+      "required": ["type", "stream_id", "bytes"]
+    },
+    "PaneTerminalResize": {
+      "description": "改變 viewport 格數(herdr terminal.resize)。不回應。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.terminal.resize" },
+        "stream_id": { "type": "string" },
+        "columns": { "type": "integer", "minimum": 1 },
+        "rows": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["type", "stream_id", "columns", "rows"]
+    },
+    "PaneTerminalScroll": {
+      "description": "捲動(herdr terminal.scroll)。source 沒帶時是 wheel。不回應。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.terminal.scroll" },
+        "stream_id": { "type": "string" },
+        "direction": { "$ref": "#/$defs/TerminalScrollDirection" },
+        "lines": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 0 },
+        "row": { "type": "integer", "minimum": 0 },
+        "source": { "$ref": "#/$defs/TerminalScrollSource" }
+      },
+      "required": ["type", "stream_id", "direction", "lines", "column", "row"]
+    },
+    "TerminalScrollDirection": {
+      "description": "捲動方向。",
+      "type": "string",
+      "enum": ["up", "down"]
+    },
+    "TerminalScrollSource": {
+      "description": "捲動來源:wheel 是滾輪或單指滑動;page_key 是實體鍵盤 Page Up／Down,herdr 依 Pane 狀態捲主機 scrollback 或送 Page 鍵給程式。",
+      "type": "string",
+      "enum": ["wheel", "page_key"]
+    },
+    "PaneTerminalClose": {
+      "description": "關閉 Pane 終端機:control 關閉 stdin(等同 release),observe 結束子行程。不回應。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.terminal.close" },
+        "stream_id": { "type": "string" }
+      },
+      "required": ["type", "stream_id"]
+    },
+    "TranscriptLocate": {
+      "description": "定位對話紀錄(#59)。session 必須是 herdr snapshot 目前某個 Agent 的 agent_session;格式與 cwd 由主機服務從 snapshot 取得，app 不能指定路徑。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.locate" },
+        "request_id": { "type": "string" },
+        "session": { "$ref": "#/$defs/SessionReference" },
+        "header": { "type": "boolean", "description": "是否一併回傳檔案前兩行(Codex、Pi／OMP 的 header 檢查)。" }
+      },
+      "required": ["type", "request_id", "session", "header"]
+    },
+    "SessionReference": {
+      "description": "herdr agent_session 的 kind 與 value。",
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "description": "id 或 path。" },
+        "value": { "type": "string" }
+      },
+      "required": ["kind", "value"]
+    },
+    "TranscriptLocateResult": {
+      "description": "對話紀錄的路徑與大小(byte)。之後這條連線才能以這個路徑讀視窗與追蹤。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.locate.result" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 },
+        "header": { "type": "array", "items": { "type": "string" }, "description": "請求 header 時，檔案前兩行(原樣)。" }
+      },
+      "required": ["type", "request_id", "path", "size"]
+    },
+    "TranscriptWindow": {
+      "description": "讀以 end 為終點的最後 lines 行完整的行(開啟與往上翻頁)。path 必須是這條連線定位過的。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.window" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string" },
+        "end": { "type": "integer", "minimum": 0 },
+        "lines": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["type", "request_id", "path", "end", "lines"]
+    },
+    "TranscriptWindowResult": {
+      "description": "視窗的 byte 範圍與範圍內的行。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.window.result" },
+        "request_id": { "type": "string" },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 0 },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/TranscriptRecord" } }
+      },
+      "required": ["type", "request_id", "start", "end", "records"]
+    },
+    "TranscriptRecord": {
+      "description": "對話紀錄的一行：原始 byte 長度(不含換行)與剝除圖片後的內容(行為規格 R-B04、R-B06)。",
+      "type": "object",
+      "properties": {
+        "length": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string" }
+      },
+      "required": ["length", "text"]
+    },
+    "TranscriptFollow": {
+      "description": "開始追蹤對話紀錄尾端：從 from 起，主機服務把新增的完整行以 transcript.update 推送，直到 transcript.unfollow、追蹤結束或連線關閉。stream_id 由 app 指定，同一條連線內不可重複。path 必須是這條連線定位過的。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.follow" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string" },
+        "path": { "type": "string" },
+        "from": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1, "description": "一次落後超過這麼多 byte 就結束追蹤(too_far_behind),由 app 改讀視窗。" }
+      },
+      "required": ["type", "request_id", "stream_id", "path", "from", "limit"]
+    },
+    "TranscriptFollowResult": {
+      "description": "追蹤開始，帶目前的大小與 from 之後已有的完整行;ended 有值時主機服務沒有開始追蹤。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.follow.result" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 },
+        "start": { "type": "integer", "minimum": 0, "description": "records 第一行的位置(byte)。" },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/TranscriptRecord" } },
+        "ended": { "$ref": "#/$defs/TranscriptStreamEnd" }
+      },
+      "required": ["type", "request_id", "stream_id", "size", "start", "records"]
+    },
+    "TranscriptUpdate": {
+      "description": "追蹤中的對話紀錄有了新的完整行，或追蹤結束(ended)。主機服務主動推送，沒有 request_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.update" },
+        "stream_id": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 },
+        "start": { "type": "integer", "minimum": 0, "description": "records 第一行的位置(byte)。" },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/TranscriptRecord" } },
+        "ended": { "$ref": "#/$defs/TranscriptStreamEnd" }
+      },
+      "required": ["type", "stream_id", "size", "start", "records"]
+    },
+    "TranscriptStreamEnd": {
+      "description": "主機服務停止追蹤的原因:shrank 檔案變小(換新)、replaced 檔案被換成同長或更長的新檔(游標前的內容變了)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。",
+      "type": "string",
+      "enum": ["shrank", "replaced", "too_far_behind", "absent", "unreadable"]
+    },
+    "TranscriptUnfollow": {
+      "description": "停止追蹤(對話關閉)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.unfollow" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "stream_id"]
+    },
+    "TranscriptUnfollowResult": {
+      "description": "已停止追蹤;之後不再推送這個 stream_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.unfollow.result" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "PaneSendText": {
+      "description": "對 Pane 送出文字(herdr pane.send_text),不補 Enter。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "pane.send_text" },
+        "request_id": { "type": "string" },
+        "pane_id": { "type": "string" },
+        "text": { "type": "string" }
+      },
+      "required": ["type", "request_id", "pane_id", "text"]
+    },
+    "PaneSendTextResult": {
+      "description": "文字已送到 Pane。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "pane.send_text.result" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "AgentPrompt": {
+      "description": "對 Agent 送出 prompt(herdr agent.prompt,target 是 pane_id)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "agent.prompt" },
+        "request_id": { "type": "string" },
+        "pane_id": { "type": "string" },
+        "text": { "type": "string" },
+        "wait": { "$ref": "#/$defs/PromptWait" }
+      },
+      "required": ["type", "request_id", "pane_id", "text"]
+    },
+    "PromptWait": {
+      "description": "herdr agent.prompt 的 wait:等 Agent 進入其中一個狀態;主機服務等 herdr 的時間隨 timeout_ms 延長。",
+      "type": "object",
+      "properties": {
+        "until": { "type": "array", "items": { "$ref": "#/$defs/AgentStatus" } },
+        "timeout_ms": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["until", "timeout_ms"]
+    },
+    "AgentPromptResult": {
+      "description": "herdr 收下 prompt。等待逾時、Agent 在等回答等情況以 herdr_error 回報(herdr_code 如 timeout、agent_blocked)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "agent.prompt.result" },
+        "request_id": { "type": "string" },
+        "delivery": { "type": "string", "description": "herdr 回報的送達方式(例如 written_to_pty);沒有時省略。" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "EventsSubscribe": {
+      "description": "開一條 Agent 事件串流(herdr events.subscribe)。herdr 接受後回 events.subscribe.result,之後以 events.event 推送，直到 events.ended 或 events.unsubscribe。事件只是「該重讀了」的訊號，對帳用 agents.list。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.subscribe" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string", "description": "串流識別碼(app 自訂，同一條連線內不可重複);這條串流的訊息都帶它。" },
+        "subscriptions": { "type": "array", "items": { "$ref": "#/$defs/EventSubscription" } }
+      },
+      "required": ["type", "request_id", "stream_id", "subscriptions"]
+    },
+    "EventSubscription": {
+      "description": "一筆 herdr 事件訂閱。herdr 不認得的事件或不存在的 Pane 會讓整個訂閱被拒(herdr_error)。",
+      "type": "object",
+      "properties": {
+        "event": { "type": "string", "description": "herdr 的訂閱型別，例如 pane.agent_status_changed、workspace.created。" },
+        "pane_id": { "type": "string", "description": "pane.agent_status_changed 必填;其他型別不帶。" }
+      },
+      "required": ["event"]
+    },
+    "EventsSubscribeResult": {
+      "description": "herdr 接受了訂閱。此後的變化才會推送;之前的要靠 agents.list 對帳。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.subscribe.result" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "stream_id"]
+    },
+    "SubscribedEvent": {
+      "description": "herdr 推送的一個事件(沒有 request_id)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.event" },
+        "stream_id": { "type": "string" },
+        "event": { "type": "string", "description": "herdr 事件的 wire 名稱，例如 pane_agent_status_changed。" },
+        "pane_id": { "type": "string", "description": "事件指名 Pane 時才有。" }
+      },
+      "required": ["type", "stream_id", "event"]
+    },
+    "EventsEnded": {
+      "description": "事件串流在主機端結束(沒有 request_id)。有 code 表示失敗;herdr 的 events_lost 是 code herdr_error 加 herdr_code events_lost,app 重新訂閱並對帳。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.ended" },
+        "stream_id": { "type": "string" },
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string", "description": "給開發者看的說明。" },
+        "herdr_code": { "type": "string", "description": "code 是 herdr_error 時，herdr 原本的錯誤碼。" }
+      },
+      "required": ["type", "stream_id"]
+    },
+    "EventsUnsubscribe": {
+      "description": "關閉一條事件串流，主機服務關掉對應的 herdr 訂閱。不認得的串流識別碼也回成功。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.unsubscribe" },
+        "request_id": { "type": "string" },
+        "stream_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "stream_id"]
+    },
+    "EventsUnsubscribeResult": {
+      "description": "事件串流已關閉，之後不再有這條串流的訊息。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "events.unsubscribe.result" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "PairRequest": {
+      "description": "POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。",
+      "type": "object",
+      "properties": {
+        "pairing_code": { "type": "string", "description": "大小寫與連字號不拘，例如 K7QM-2XPA。" },
+        "device_name": { "type": "string", "description": "顯示在主機裝置列表的名稱。" }
+      },
+      "required": ["pairing_code", "device_name"]
+    },
+    "PairResponse": {
+      "description": "配對成功。device_token 只在這裡出現一次，主機只存雜湊。",
+      "type": "object",
+      "properties": {
+        "device_id": { "type": "string" },
+        "device_token": { "type": "string" },
+        "read_only": { "type": "boolean", "description": "唯讀裝置的寫入類操作會被拒絕(read_only_device)。" }
+      },
+      "required": ["device_id", "device_token", "read_only"]
+    },
     "ErrorMessage": {
-      "description": "請求失敗。訊息本身無法解析時沒有 request_id。",
+      "description": "請求失敗(WSS 訊息，也是配對與撤銷 HTTPS 請求失敗時的本文)。訊息本身無法解析時沒有 request_id。",
       "type": "object",
       "properties": {
         "type": { "const": "error" },
@@ -134,7 +571,7 @@
       "required": ["type", "code", "message"]
     },
     "ErrorCode": {
-      "description": "錯誤種類。",
+      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。",
       "type": "string",
       "enum": [
         "invalid_message",
@@ -142,7 +579,19 @@
         "protocol_version_unsupported",
         "herdr_unavailable",
         "herdr_capability_missing",
-        "herdr_error"
+        "herdr_error",
+        "device_token_invalid",
+        "device_token_revoked",
+        "read_only_device",
+        "pairing_code_invalid",
+        "pairing_code_expired",
+        "transcript_not_allowed",
+        "transcript_unsupported",
+        "transcript_absent",
+        "transcript_unreadable",
+        "transcript_ambiguous",
+        "transcript_compressed",
+        "internal_error"
       ]
     }
   }

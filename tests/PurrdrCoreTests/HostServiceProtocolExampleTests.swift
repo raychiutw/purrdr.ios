@@ -84,6 +84,36 @@ struct HostServiceProtocolExampleTests {
         #expect(encoded == ["type": "hello", "request_id": "r1", "protocol_version": 1] as NSDictionary)
     }
 
+    @Test("只有 schema 標 x-write 的訊息是寫入類操作")
+    func onlyWriteMessagesAreMarkedAsWrite() throws {
+        func decoded(_ name: String) throws -> HostServiceProtocol.ClientMessage {
+            try JSONDecoder().decode(HostServiceProtocol.ClientMessage.self, from: Self.example(name))
+        }
+
+        #expect(try decoded("client.pane-send-keys.json").isWrite)
+        #expect(try decoded("client.pane-send-text.json").isWrite)
+        #expect(try decoded("client.agent-prompt.json").isWrite)
+        #expect(try !decoded("client.hello.json").isWrite)
+        #expect(try !decoded("client.agents-list.json").isWrite)
+    }
+
+    @Test("配對請求與回應的本文編解碼後不變")
+    func pairingBodiesRoundTrip() throws {
+        let request = try Self.example("http/pair-request.json")
+        let response = try Self.example("http/pair-response.json")
+        let failure = try Self.example("http/error.pairing-code-expired.json")
+
+        let decodedRequest = try JSONDecoder().decode(HostServiceProtocol.PairRequest.self, from: request)
+        let decodedResponse = try JSONDecoder().decode(HostServiceProtocol.PairResponse.self, from: response)
+        let decodedFailure = try JSONDecoder().decode(HostServiceProtocol.ServerMessage.self, from: failure)
+
+        #expect(decodedRequest.pairingCode == "K7QM-2XPA")
+        #expect(decodedResponse.readOnly == false)
+        #expect(decodedFailure == .errorMessage(.init(requestId: nil, code: .pairingCodeExpired, message: "pairing code expired")))
+        #expect(try Self.jsonObject(JSONEncoder().encode(decodedRequest)) == Self.jsonObject(request))
+        #expect(try Self.jsonObject(JSONEncoder().encode(decodedResponse)) == Self.jsonObject(response))
+    }
+
     @Test("未知的訊息種類解碼失敗")
     func unknownMessageTypeFailsToDecode() {
         let data = Data(#"{"type":"exec","request_id":"r1","command":"ls"}"#.utf8)

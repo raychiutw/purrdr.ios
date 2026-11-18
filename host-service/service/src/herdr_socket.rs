@@ -25,6 +25,12 @@ pub struct SocketEnvironment {
     pub socket_path: Option<String>,
     /// `HERDR_SESSION`。
     pub session: Option<String>,
+    /// `USERPROFILE`(Windows 的主機服務資料夾在 `%USERPROFILE%\.purrdr\host-service`)。
+    pub user_profile: Option<String>,
+    /// `CLAUDE_CONFIG_DIR`(對話紀錄位置，#59)。
+    pub claude_config_dir: Option<String>,
+    /// `CODEX_HOME`(對話紀錄位置，#59)。
+    pub codex_home: Option<String>,
 }
 
 impl SocketEnvironment {
@@ -36,6 +42,9 @@ impl SocketEnvironment {
             app_data: variable("APPDATA"),
             socket_path: variable("HERDR_SOCKET_PATH"),
             session: variable("HERDR_SESSION"),
+            user_profile: variable("USERPROFILE"),
+            claude_config_dir: variable("CLAUDE_CONFIG_DIR"),
+            codex_home: variable("CODEX_HOME"),
         }
     }
 }

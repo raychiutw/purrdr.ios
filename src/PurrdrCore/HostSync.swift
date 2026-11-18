@@ -2,7 +2,7 @@ import Foundation
 
 /// 主機同步(GLOSSARY「主機同步」、ADR-0007)的一台主機：只有會在會員各裝置間同步的欄位。
 ///
-/// 刻意是獨立的型別，不直接編碼 `HostConfiguration`:私鑰、密碼、登入方式、herdr 設定、作業系統都留在這支裝置，
+/// 刻意是獨立的型別，不直接編碼 `HostConfiguration`:私鑰、密碼、裝置權杖、登入方式、herdr 設定、作業系統都留在這支裝置，
 /// 主機設定之後加欄位也不會跟著上傳。
 public struct SyncedHost: Sendable, Equatable {
     public var id: UUID
@@ -11,25 +11,28 @@ public struct SyncedHost: Sendable, Equatable {
     public var endpoint: SSHEndpoint
     public var connectionMethod: HostConfiguration.ConnectionMethod
     public var hostKeyPin: HostKeyFingerprint?
+    /// HTTPS 主機的主機服務位址(裝置權杖永不同步)。
+    public var hostService: HostServiceAddress?
     /// 修改這台主機的時間(最後修改者勝)。
     public var modifiedAt: Date
 
     public init(
         id: UUID, name: String, endpoint: SSHEndpoint, connectionMethod: HostConfiguration.ConnectionMethod,
-        hostKeyPin: HostKeyFingerprint?, modifiedAt: Date
+        hostKeyPin: HostKeyFingerprint?, hostService: HostServiceAddress? = nil, modifiedAt: Date
     ) {
         self.id = id
         self.name = name
         self.endpoint = endpoint
         self.connectionMethod = connectionMethod
         self.hostKeyPin = hostKeyPin
+        self.hostService = connectionMethod.hostService(hostService)
         self.modifiedAt = modifiedAt
     }
 
     public init(_ host: HostConfiguration, modifiedAt: Date) {
         self.init(
             id: host.id, name: host.name, endpoint: host.endpoint, connectionMethod: host.connectionMethod,
-            hostKeyPin: host.hostKeyPin, modifiedAt: modifiedAt)
+            hostKeyPin: host.hostKeyPin, hostService: host.hostService, modifiedAt: modifiedAt)
     }
 }
 
@@ -150,7 +153,11 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
 
 extension SyncedHost {
     /// 套用到這支裝置的主機設定：只換同步的欄位;沒有這台主機時建立新的(OpenSSH 預設用這支裝置的金鑰)。
+    /// HTTPS 主機的裝置權杖不同步，這支裝置要自己連線配對。
     func applied(to existing: HostConfiguration?) -> HostConfiguration {
+        if existing == nil, let hostService {
+            return HostConfiguration(id: id, name: name, hostService: hostService)
+        }
         guard var host = existing else {
             return HostConfiguration(
                 id: id, name: name, endpoint: endpoint, connectionMethod: connectionMethod,
@@ -163,6 +170,7 @@ extension SyncedHost {
             host.authentication = connectionMethod == .openSSH ? (host.authentication ?? .deviceKey) : nil
         }
         host.hostKeyPin = hostKeyPin
+        host.hostService = hostService
         return host
     }
 }

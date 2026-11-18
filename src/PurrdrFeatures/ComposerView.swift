@@ -27,6 +27,16 @@ struct ComposerBar: View {
     @State private var isExpanded = false
 
     var body: some View {
+        if model.isReadOnly {
+            ReadOnlyComposerNotice()
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+        } else {
+            composer
+        }
+    }
+
+    private var composer: some View {
         VStack(spacing: 8) {
             if model.slash.isVisible {
                 SlashMenuView(menu: model.slash)
@@ -86,16 +96,17 @@ struct ComposerBar: View {
 
     private var editor: some View {
         ComposerTextEditor(
-            text: $model.draft, isFocused: $isFocused, availableHeight: $availableHeight,
-            showsExpandButton: $showsExpandButton, placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
-            slashKey: { model.slash.handle($0) },
-            tabKey: acceptSuggestion,
-            onComposingChange: { model.isComposingDraft = $0 },
-            pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
-            onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) }
-        ) {
-            send()
-        }
+            text: $model.draft, isFocused: $isFocused, availableHeight: $availableHeight, showsExpandButton: $showsExpandButton,
+            options: ComposerEditorOptions(
+                placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
+                slashKey: { model.slash.handle($0) },
+                tabKey: acceptSuggestion,
+                onComposingChange: { model.isComposingDraft = $0 },
+                pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
+                onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) },
+                onSend: send
+            )
+        )
         .overlay(alignment: .topLeading) {
             if let hint = model.slashArgumentHint {
                 // 點選需要參數的 slash 指令後，游標後淡淡顯示要填什麼(#45)。草稿本身透明，只為了把提示排在它後面。
@@ -238,6 +249,21 @@ struct ShellModeHint: View {
     }
 }
 
+/// 唯讀裝置(#60):輸入列換成說明，沒有輸入框與送出鈕。
+struct ReadOnlyComposerNotice: View {
+    var body: some View {
+        Label("This device is paired read-only, so it can’t send anything to this host.", systemImage: "lock")
+            .font(.footnote)
+            .foregroundStyle(.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("composer.readOnly")
+    }
+}
+
 /// 自訂回答的說明(#120):在回答哪一題，送出就是回答;✕ 取消自訂回答、回到一般輸入(什麼都還沒送出)。整個 Label 用 `secondaryText`(DESIGN.md)。
 struct TypedAnswerBanner: View {
     let question: String?
@@ -320,6 +346,7 @@ extension SendNotice {
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
+        case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
@@ -331,6 +358,7 @@ extension SendNotice {
         switch self {
         case .needsAnswer, .interruptRefusedNeedsAnswer: "exclamationmark.circle"
         case .agentGone, .superseded: "xmark.bubble"
+        case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
         case .rejected, .noResponse, .interruptFailed, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
         case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
@@ -406,17 +434,8 @@ extension EchoFailure {
 
 // MARK: - 文字輸入
 
-#if canImport(UIKit)
-import UIKit
-
-/// 多行輸入框(UITextView):需要看到輸入法組字狀態(`markedTextRange`)與硬體鍵盤的 Return,SwiftUI 的 TextField 拿不到。
-struct ComposerTextEditor: UIViewRepresentable {
-    @Binding var text: String
-    @Binding var isFocused: Bool
-    /// 鍵盤上方可用高度，由輸入框回報;只用來讓 SwiftUI 在它變了時重新量高度。
-    var availableHeight: Binding<CGFloat?> = .constant(nil)
-    /// 「展開」鈕要不要顯示，由輸入框回報(#142);顯示時右側留位置給它。
-    var showsExpandButton: Binding<Bool> = .constant(false)
+/// 輸入框的設定與回呼(`ComposerTextEditor` 的 UIKit 版與 macOS 替代版共用)。
+struct ComposerEditorOptions {
     /// 展開畫面(#142):填滿給它的空間、一律可捲動，不套用長高規則。
     var isExpanded = false
     var identifier = "composer.text"
@@ -434,6 +453,20 @@ struct ComposerTextEditor: UIViewRepresentable {
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
     var onSend: () -> Void
+}
+
+#if canImport(UIKit)
+import UIKit
+
+/// 多行輸入框(UITextView):需要看到輸入法組字狀態(`markedTextRange`)與硬體鍵盤的 Return,SwiftUI 的 TextField 拿不到。
+struct ComposerTextEditor: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    /// 鍵盤上方可用高度，由輸入框回報;只用來讓 SwiftUI 在它變了時重新量高度。
+    var availableHeight: Binding<CGFloat?> = .constant(nil)
+    /// 「展開」鈕要不要顯示，由輸入框回報(#142);顯示時右側留位置給它。
+    var showsExpandButton: Binding<Bool> = .constant(false)
+    var options: ComposerEditorOptions
 
     static let insets = UIEdgeInsets(top: 11, left: 8, bottom: 11, right: 8)
     /// 顯示「展開」鈕時右側內距(鈕疊在輸入框右上角)。
@@ -447,13 +480,13 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.font = .preferredFont(forTextStyle: .body)
         view.adjustsFontForContentSizeCategory = true
         view.backgroundColor = .clear
-        view.fillsAvailableSpace = isExpanded
-        view.focusesWhenAttached = isExpanded
-        view.isScrollEnabled = isExpanded
+        view.fillsAvailableSpace = options.isExpanded
+        view.focusesWhenAttached = options.isExpanded
+        view.isScrollEnabled = options.isExpanded
         view.textContainerInset = Self.insets
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        view.accessibilityIdentifier = identifier
-        view.accessibilityLabel = placeholder
+        view.accessibilityIdentifier = options.identifier
+        view.accessibilityLabel = options.placeholder
         view.text = text
         // 可能在排版中回報：等這次更新結束再寫狀態。
         let availableHeight = availableHeight
@@ -469,17 +502,17 @@ struct ComposerTextEditor: UIViewRepresentable {
 
     func updateUIView(_ view: KeyHandlingTextView, context: Context) {
         context.coordinator.parent = self
-        view.accessibilityLabel = placeholder
+        view.accessibilityLabel = options.placeholder
         view.returnAction = { modifiers, isComposing in
-            ComposerKeys.actionForReturn(modifiers: modifiers, returnSends: returnSends, canSend: canSend, isComposing: isComposing)
+            ComposerKeys.actionForReturn(modifiers: modifiers, returnSends: options.returnSends, canSend: options.canSend, isComposing: isComposing)
         }
-        view.onSend = onSend
-        view.slashKey = slashKey
-        view.tabKey = tabKey
-        view.pasteAction = pasteAction
-        view.onPasteImages = onPasteImages
+        view.onSend = options.onSend
+        view.slashKey = options.slashKey
+        view.tabKey = options.tabKey
+        view.pasteAction = options.pasteAction
+        view.onPasteImages = options.onPasteImages
         let trailingInset = showsExpandButton.wrappedValue ? Self.expandButtonInset : Self.insets.right
-        if !isExpanded, view.textContainerInset.right != trailingInset {
+        if !options.isExpanded, view.textContainerInset.right != trailingInset {
             view.textContainerInset.right = trailingInset
             view.contentDidChange()
         }
@@ -509,7 +542,7 @@ struct ComposerTextEditor: UIViewRepresentable {
     /// SwiftUI 也會以 0 與無限寬度探問理想大小，拿探問的結果切換內捲會把捲動位置歸零(#94)。
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: KeyHandlingTextView, context: Context) -> CGSize? {
         let width = proposal.width ?? 240
-        if isExpanded { return CGSize(width: width, height: proposal.height ?? 240) }
+        if options.isExpanded { return CGSize(width: width, height: proposal.height ?? 240) }
         let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
         return CGSize(width: width, height: uiView.sizing(contentHeight: fitting).height)
     }
@@ -554,7 +587,7 @@ struct ComposerTextEditor: UIViewRepresentable {
         private func reportComposing(_ isComposing: Bool) {
             guard reportedComposing != isComposing else { return }
             reportedComposing = isComposing
-            parent.onComposingChange(isComposing)
+            parent.options.onComposingChange(isComposing)
         }
 
         // 收起鍵盤是在 updateUIView 裡 resign,這時 binding 已經是 false:只在值不同時才寫，避免在畫面更新中改狀態。
@@ -597,10 +630,14 @@ final class KeyHandlingTextView: UITextView {
 
     /// 依目前字級與可用高度，內容高 `contentHeight` 時輸入框的高度與是否內捲(#137)。
     func sizing(contentHeight: CGFloat) -> ComposerHeight {
-        let lineHeight = (font ?? .preferredFont(forTextStyle: .body)).lineHeight
-        return ComposerSizing.height(
-            contentHeight: contentHeight, lineHeight: lineHeight,
-            verticalInsets: textContainerInset.top + textContainerInset.bottom, availableHeight: availableHeight.map(Double.init))
+        ComposerSizing.height(metrics(contentHeight: contentHeight), availableHeight: availableHeight.map(Double.init))
+    }
+
+    /// 目前字級與內距下，內容高 `contentHeight` 的量測。
+    private func metrics(contentHeight: CGFloat) -> ComposerTextMetrics {
+        ComposerTextMetrics(
+            contentHeight: contentHeight, lineHeight: (font ?? .preferredFont(forTextStyle: .body)).lineHeight,
+            verticalInsets: textContainerInset.top + textContainerInset.bottom)
     }
 
     override func didMoveToWindow() {
@@ -672,10 +709,7 @@ final class KeyHandlingTextView: UITextView {
     }
 
     private func reportShowsExpand(contentHeight: CGFloat) {
-        let lineHeight = (font ?? .preferredFont(forTextStyle: .body)).lineHeight
-        let shows = ComposerExpansion.showsExpandButton(
-            contentHeight: contentHeight, lineHeight: lineHeight,
-            verticalInsets: textContainerInset.top + textContainerInset.bottom, isFocused: isFirstResponder)
+        let shows = ComposerExpansion.showsExpandButton(metrics(contentHeight: contentHeight), isFocused: isFirstResponder)
         guard shows != reportedShowsExpand else { return }
         reportedShowsExpand = shows
         onShowsExpandChange?(shows)
@@ -779,17 +813,7 @@ struct ComposerTextEditor: View {
     @Binding var isFocused: Bool
     var availableHeight: Binding<CGFloat?> = .constant(nil)
     var showsExpandButton: Binding<Bool> = .constant(false)
-    var isExpanded = false
-    var identifier = "composer.text"
-    var placeholder: String
-    var returnSends: Bool
-    var canSend: Bool
-    var slashKey: (SlashMenuModel.Key) -> Bool
-    var tabKey: () -> Bool = { false }
-    var onComposingChange: (Bool) -> Void = { _ in }
-    var pasteAction: () -> ComposerPaste.Action
-    var onPasteImages: () -> Void
-    var onSend: () -> Void
+    var options: ComposerEditorOptions
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -802,9 +826,9 @@ struct ComposerTextEditor: View {
             .onChange(of: focused) { isFocused = focused }
             .onChange(of: isFocused) {
                 focused = isFocused
-                if !isExpanded { showsExpandButton.wrappedValue = isFocused }
+                if !options.isExpanded { showsExpandButton.wrappedValue = isFocused }
             }
-            .accessibilityIdentifier(identifier)
+            .accessibilityIdentifier(options.identifier)
     }
 }
 #endif

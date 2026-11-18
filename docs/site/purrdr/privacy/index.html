@@ -91,7 +91,7 @@
     <p>Agent 需要你時，主機外掛只送出 <strong>workspace 名稱、狀態與 pane id</strong>。後台據此組成通知(標題是 workspace 名稱，內文固定是「An agent needs you.」)交給 Apple Push Notification service(APNs)送到你的裝置。這些內容只在轉送當下處理，<strong>後台不保存</strong>;對話內容不會經過後台或 APNs。關閉推播或刪除主機時，App 會撤銷配對並移除主機上的配對檔。</p>
 
     <h2>6. 主機同步(Purrdr Plus)</h2>
-    <p>開啟主機同步後，後台保存你每台主機的：名稱、位址與埠、使用者名稱、連線方式(Tailscale SSH／OpenSSH)、host key 指紋與修改時間;刪除的主機只留 ID 與刪除時間，避免其他裝置把它同步回來。</p>
+    <p>開啟主機同步後，後台保存你每台主機的：名稱、位址與埠、使用者名稱、連線方式(Tailscale SSH／OpenSSH／HTTPS)、host key 指紋、HTTPS 主機的位址與修改時間(HTTPS 主機的裝置權杖永不上傳);刪除的主機只留 ID 與刪除時間，避免其他裝置把它同步回來。</p>
     <ul>
       <li><strong>不上傳</strong>:私鑰、密碼、passphrase、登入方式、herdr 路徑與 session、作業系統。後台只接受上面列的欄位，多一個欄位整個請求都會被拒絕。</li>
       <li>傳輸使用 HTTPS(TLS),資料庫由 Cloudflare 靜態加密;<strong>不是端對端加密</strong>,後台可以讀取這些欄位(用來合併不同裝置的修改)。</li>
@@ -206,7 +206,7 @@
     <p>When an agent needs you, the host plugin sends only the <strong>workspace name, the status, and the pane ID</strong>. Our backend builds the notification (the title is the workspace name; the text is always “An agent needs you.”) and hands it to the Apple Push Notification service (APNs) for delivery. This is processed only while it’s being relayed and <strong>is not stored</strong>; conversation content never goes through our backend or APNs. When you turn notifications off or remove the host, the app revokes the pairing and removes the pairing file from the host.</p>
 
     <h2>6. Host sync (Purrdr Plus)</h2>
-    <p>With host sync on, our backend keeps, for each host: its name, address and port, user name, connection method (Tailscale SSH or OpenSSH), host key fingerprint, and when it was modified. For a deleted host it keeps only the ID and deletion time, so other devices don’t sync it back.</p>
+    <p>With host sync on, our backend keeps, for each host: its name, address and port, user name, connection method (Tailscale SSH, OpenSSH, or HTTPS), host key fingerprint, the HTTPS address of an HTTPS host, and when it was modified. An HTTPS host’s device token is never uploaded. For a deleted host it keeps only the ID and deletion time, so other devices don’t sync it back.</p>
     <ul>
       <li><strong>Never uploaded</strong>: private keys, passwords, passphrases, the sign-in method, herdr path and session, and operating system. The backend accepts only the fields listed above and rejects the whole request if anything else is included.</li>
       <li>Data travels over HTTPS (TLS) and the database is encrypted at rest by Cloudflare. It is <strong>not end-to-end encrypted</strong>: the backend can read these fields (it needs to, to merge changes from different devices).</li>
