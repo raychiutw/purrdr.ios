@@ -146,10 +146,15 @@ public struct PlanUsageView: View {
     private var footnote: some View {
         if case .loaded(let usage) = model.state, !model.rows.isEmpty {
             Group {
-                if let asOf = PlanUsagePresentation.asOf(usage, now: .now) {
+                switch (model.agent, PlanUsagePresentation.asOf(usage, now: .now)) {
+                case (.claudeCode, let asOf?):
                     Text("As of \(asOf, format: .dateTime.hour().minute()), when Claude Code last reported on this host.")
-                } else {
+                case (.claudeCode, nil):
                     Text("Claude Code reports these numbers while it runs on this host.")
+                case (.codex, let asOf?):
+                    Text("As of \(asOf, format: .dateTime.hour().minute()). Codex reports these numbers for the ChatGPT account signed in on this host.")
+                case (.codex, nil):
+                    Text("Codex reports these numbers for the ChatGPT account signed in on this host.")
                 }
             }
             .foregroundStyle(.secondaryText)
