@@ -197,11 +197,19 @@ actor StepSleeper {
         let id = nextID
         nextID += 1
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                if Task.isCancelled { continuation.resume(throwing: CancellationError()) } else { waiting[id] = continuation }
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                register(continuation, id: id)
             }
         } onCancel: {
             Task { await self.cancel(id) }
+        }
+    }
+
+    private func register(_ continuation: CheckedContinuation<Void, any Error>, id: Int) {
+        if Task.isCancelled {
+            continuation.resume(throwing: CancellationError())
+        } else {
+            waiting[id] = continuation
         }
     }
 
