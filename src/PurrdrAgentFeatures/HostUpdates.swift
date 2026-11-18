@@ -28,6 +28,14 @@ public final class HostUpdates {
     /// 即時更新停著，等使用者按「再試一次」(取消了 Tailscale 重新驗證)。
     public var isWaitingForRetry: Bool { checkCancelWaiter != nil }
 
+    /// 快照讀取進行中又有事件到達：讀完後會再讀一次(期間的事件都併成這一次)。
+    package private(set) var hasQueuedResync = false
+
+    /// 一個 Agent 的變化：先給目前的值，之後快照裡它有變才再給;不在快照裡是 `nil`。
+    public func changes(for paneID: String) -> AsyncStream<Agent?> {
+        AsyncStream { $0.finish() }
+    }
+
     /// 每次讀到快照後、這次讀取結束前執行(Agent 列表在這裡更新預覽);期間到達的事件一樣合併。
     @ObservationIgnored var afterSnapshot: (@MainActor () async -> Void)?
 
