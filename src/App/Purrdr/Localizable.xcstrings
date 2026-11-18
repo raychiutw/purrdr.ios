@@ -885,6 +885,17 @@
         }
       }
     },
+    "As of %@. Codex reports these numbers for the ChatGPT account signed in on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截至 %@。這些數字是 Codex 回報的，屬於這台主機登入的 ChatGPT 帳號。"
+          }
+        }
+      }
+    },
     "Ask Every Time" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1560,6 +1571,28 @@
         }
       }
     },
+    "Codex couldn’t get plan usage: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 查不到方案用量：%@"
+          }
+        }
+      }
+    },
+    "Codex didn’t answer in time." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 沒有及時回應。"
+          }
+        }
+      }
+    },
     "Codex has its file picker open. Close it here, or choose a file in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1567,6 +1600,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 開著檔案選擇器。可以在這裡關閉，或在終端機選擇檔案。"
+          }
+        }
+      }
+    },
+    "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的 Codex 沒有以 ChatGPT 登入。請先在主機上執行 codex login。"
           }
         }
       }
@@ -1589,6 +1633,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 要在你送出第一則訊息後才會回報 session,回報後訊息就會出現在這裡。"
+          }
+        }
+      }
+    },
+    "Codex reports these numbers for the ChatGPT account signed in on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些數字是 Codex 回報的，屬於這台主機登入的 ChatGPT 帳號。"
           }
         }
       }
@@ -4662,6 +4717,17 @@
         }
       }
     },
+    "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 看不懂 Codex 的回應。更新主機上的 Codex 或許有幫助。"
+          }
+        }
+      }
+    },
     "Purrdr reads the theme in ~/.config/herdr/config.toml and adds a reference file at ~/.purrdr/theme/README.md as %@. It never changes your herdr settings. Turning this off removes the file." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6891,6 +6957,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機要求你重新登入 Tailscale。登入後 Purrdr 會自動繼續。"
+          }
+        }
+      }
+    },
+    "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機找不到 Codex。請在主機上安裝 Codex,或確認它在 PATH 裡。"
           }
         }
       }
