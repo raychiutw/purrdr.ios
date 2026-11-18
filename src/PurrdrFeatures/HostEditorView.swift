@@ -158,7 +158,7 @@ struct HostEditorView: View {
                 if model.canUpdateHerdr {
                     Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will update herdr as \(model.username)@\(model.address).")
                 } else {
-                    Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Update herdr on that computer, then test the connection again.")
+                    Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Update herdr on the host, then test the connection again.")
                 }
             }
         }

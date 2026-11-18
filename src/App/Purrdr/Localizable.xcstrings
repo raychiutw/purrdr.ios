@@ -6785,13 +6785,13 @@
         }
       }
     },
-    "This host has herdr %@. Purrdr needs %@ or later. Update herdr on that computer, then test the connection again." : {
+    "This host has herdr %@. Purrdr needs %@ or later. Update herdr on the host, then test the connection again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台主機的 herdr 是 %@,Purrdr 需要 %@ 以上。請在那台電腦上更新 herdr,然後再測試連線。"
+            "value" : "這台主機的 herdr 是 %@,Purrdr 需要 %@ 以上。請在主機上更新 herdr,然後再測試連線。"
           }
         }
       }
