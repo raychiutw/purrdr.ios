@@ -350,6 +350,26 @@ struct PlanUsageModelTests {
         #expect(await stays(model.state == .confirming(user: NSUserName())))
     }
 
+    @Test("不耗 token 與傳輸的來源：關閉後再同意，畫面開著時照樣定期重整")
+    func freeSourceKeepsRefreshingAfterTurningOffAndOn() async throws {
+        let sleeper = StepSleeper()
+        let model = model(cost: .free, sleep: sleeper.sleep)
+        model.appeared()
+        await model.requestConsent()
+        await model.confirm()
+        await model.turnOff()
+        await model.requestConsent()
+        await model.confirm()
+        let reads = host.commands.count
+
+        try claudeReportsUsage()
+        try await waitUntil { await sleeper.waitingCount == 1 }
+        await sleeper.step()
+
+        try await waitUntil { await MainActor.run { model.rows.count == 2 } }
+        #expect(host.commands.count == reads + 1)
+    }
+
     /// 在一小段時間內條件一直成立(斷言「不會發生」用)。
     func stays(_ condition: @autoclosure @MainActor () -> Bool) async -> Bool {
         for _ in 0..<20 {
