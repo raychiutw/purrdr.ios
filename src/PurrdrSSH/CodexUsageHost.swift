@@ -29,9 +29,10 @@ public struct CodexUsageHost: Sendable {
         let capturedAt = now()
         return try await channel.runOnce(Self.command, deadline: HostCommandDeadline.standard, sleep: sleep) { session in
             var responses = AppServerResponses(session.output)
-            try await session.write(Self.line(["method": "initialize", "id": 0, "params": Self.initializeParams]))
+            try await responses.send(Self.line(["method": "initialize", "id": 0, "params": Self.initializeParams]), to: session)
             _ = try await responses.result(for: 0)
-            try await session.write(Self.line(["method": "initialized"]) + Self.line(["method": "account/rateLimits/read", "id": 1]))
+            try await responses.send(
+                Self.line(["method": "initialized"]) + Self.line(["method": "account/rateLimits/read", "id": 1]), to: session)
             return try Self.planUsage(from: try await responses.result(for: 1), capturedAt: capturedAt)
         }
     }
@@ -75,6 +76,21 @@ private struct AppServerResponses {
 
     init(_ output: AsyncThrowingStream<ExecOutput, any Error>) {
         events = output.makeAsyncIterator()
+    }
+
+    /// 寫入失敗時，若 app-server 已因找不到 codex 結束(127),以 `codexNotFound` 取代通道錯誤。
+    mutating func send(_ data: Data, to session: any ExecSession) async throws {
+        do {
+            try await session.write(data)
+        } catch {
+            while let event = try? await events.next() {
+                if case .exit(let code, _) = event {
+                    if code == 127 { throw CodexUsageError.codexNotFound }
+                    break
+                }
+            }
+            throw error
+        }
     }
 
     mutating func result(for id: Int) async throws -> [String: Any] {
