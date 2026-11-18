@@ -12,11 +12,15 @@ public struct SSHHostConnection: HostConnection {
     /// 對話紀錄追蹤的長駐通道(#166);這個連線的複本共用。
     private let follower: SSHTranscriptFollower
 
-    public init(channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(), sleep: @escaping Sleep = Sleeping.task) {
+    /// - Parameter followDiagnostics: 對話紀錄追蹤退回輪詢時的原因(交給系統紀錄)。
+    public init(
+        channel: any HostChannel, herdr: HerdrInstallation = HerdrInstallation(), sleep: @escaping Sleep = Sleeping.task,
+        followDiagnostics: (@Sendable (String) -> Void)? = nil
+    ) {
         self.channel = channel
         self.herdr = herdr
         self.sleep = sleep
-        follower = SSHTranscriptFollower(channel: channel, sleep: sleep)
+        follower = SSHTranscriptFollower(channel: channel, sleep: sleep, diagnostics: followDiagnostics)
     }
 
     public func disconnect() async {

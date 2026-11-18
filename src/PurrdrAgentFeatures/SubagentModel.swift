@@ -145,20 +145,18 @@ public final class SubagentModel {
 
     private func applyUpdates(path: String, from cursor: Int, pace: TranscriptFollowPace) async -> Bool {
         do {
-            for try await event in await transcripts.followTranscript(path: path, from: cursor, pace: pace) {
-                switch event {
-                case .appended(let chunk):
+            return try await TranscriptFollowUpdates.apply(
+                await transcripts.followTranscript(path: path, from: cursor, pace: pace),
+                isCurrent: { true },
+                appended: { chunk in
                     file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
                     append(chunk)
-                case .replaced:
-                    try await open(path: path)
-                    return true
-                }
-            }
+                },
+                replaced: { _ in try await open(path: path) })
         } catch {
             // 回到 `run` 輪詢讀一次再追蹤。
+            return false
         }
-        return false
     }
 
     private func append(_ chunk: TranscriptChunk) {

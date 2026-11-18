@@ -18,8 +18,10 @@ kind:
 全部綠 exit 0。只結束本次啟動的程序樹裡的程序(以 pid 與建立時間確認)。
 """
 import argparse
+import glob
 import importlib.util
 import os
+import re
 import queue
 import random
 import shutil
@@ -34,8 +36,21 @@ _spec = importlib.util.spec_from_file_location("upload_repro", os.path.join(HERE
 repro = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(repro)
 
-# `TranscriptReader.catchUpLimit`、`catchUpBacklogLimit`;時限照 `HostScriptTimeLimit.followIdleSeconds`／`followTotalSeconds`。
-LIMIT, BACKLOG = 65_536, 1_048_576
+
+
+def swift_limit(name):
+    """`TranscriptFollowProtocol.limit`／`backlogLimit` 的來源(`TranscriptReader.<name>`,形如 `256 << 10`);抽不到就結束。"""
+    found = glob.glob(os.path.join(repro.REPO, "src", "*", "TranscriptReader.swift"))
+    source = open(found[0], encoding="utf-8").read() if len(found) == 1 else ""
+    match = re.search(r"static let " + name + r" = ([0-9_]+)(?: << ([0-9]+))?$", source, re.M)
+    if not match:
+        sys.exit(f"TranscriptReader.swift 找不到 `static let {name} = <整數>[ << <整數>]`:寫法改了，請更新本腳本")
+    return int(match.group(1).replace("_", "")) << int(match.group(2) or 0)
+
+
+# 協定常數照 Swift 的 `TranscriptFollowProtocol`(上限從 `TranscriptReader.swift` 讀，回應關鍵字見 `Keyword`);
+# 時限照 `HostScriptTimeLimit.followIdleSeconds`／`followTotalSeconds`。
+LIMIT, BACKLOG = swift_limit("catchUpLimit"), swift_limit("catchUpBacklogLimit")
 REPLY_TIMEOUT = 20
 
 

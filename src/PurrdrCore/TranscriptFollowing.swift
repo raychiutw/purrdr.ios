@@ -11,78 +11,28 @@ public enum TranscriptFollowEvent: Sendable, Equatable {
 
 /// 追蹤的節奏：兩次讀取之間等多久，以及立刻再讀一次。只有內部輪詢的連線方式(SSH)用;推送的(HTTPS)不看。
 public final class TranscriptFollowPace: Sendable {
-    private struct State {
-        var interval: Duration
-        var isWakePending = false
-        var waiters: [UInt64: CheckedContinuation<Void, Never>] = [:]
-        var nextWaiterID: UInt64 = 0
-    }
-
-    private let state: Mutex<State>
-    private let sleep: Sleep
+    private let currentInterval: Mutex<Duration>
+    private let signal: WakeSignal
 
     public init(interval: Duration, sleep: @escaping Sleep = Sleeping.task) {
-        state = Mutex(State(interval: interval))
-        self.sleep = sleep
+        currentInterval = Mutex(interval)
+        signal = WakeSignal(sleep: sleep)
     }
 
     /// 兩次讀取之間的間隔;改了從下一次等待起生效。
     public var interval: Duration {
-        get { state.withLock { $0.interval } }
-        set { state.withLock { $0.interval = newValue } }
+        get { currentInterval.withLock { $0 } }
+        set { currentInterval.withLock { $0 = newValue } }
     }
 
     /// 立刻再讀一次(例如 Agent 狀態變了)。沒有人在等時，下一次等待直接結束。
     public func wake() {
-        let waiters = state.withLock { state -> [CheckedContinuation<Void, Never>] in
-            guard !state.waiters.isEmpty else {
-                state.isWakePending = true
-                return []
-            }
-            let waiting = Array(state.waiters.values)
-            state.waiters = [:]
-            return waiting
-        }
-        for waiter in waiters { waiter.resume() }
+        signal.wake()
     }
 
     /// 等到下一次讀取：間隔到，或被叫醒。取消或 `sleep` 失敗時丟出。
     public func wait() async throws {
-        let hasPendingWake = state.withLock { state in
-            defer { state.isWakePending = false }
-            return state.isWakePending
-        }
-        if hasPendingWake { return }
-        let interval = self.interval
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await self.sleep(interval) }
-            group.addTask { await self.waitForWake() }
-            defer { group.cancelAll() }
-            try await group.next()
-        }
-        try Task.checkCancellation()
-    }
-
-    private func waitForWake() async {
-        let waiterID = state.withLock { state in
-            defer { state.nextWaiterID += 1 }
-            return state.nextWaiterID
-        }
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                let resumesNow = state.withLock { state in
-                    if Task.isCancelled || state.isWakePending {
-                        state.isWakePending = false
-                        return true
-                    }
-                    state.waiters[waiterID] = continuation
-                    return false
-                }
-                if resumesNow { continuation.resume() }
-            }
-        } onCancel: {
-            state.withLock { $0.waiters.removeValue(forKey: waiterID) }?.resume()
-        }
+        try await signal.wait(atMost: interval)
     }
 }
 

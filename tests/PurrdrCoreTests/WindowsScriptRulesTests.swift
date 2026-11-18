@@ -22,6 +22,14 @@ struct WindowsScriptRulesTests {
         }
     }
 
+    @Test("追蹤腳本的 POSIX 版與 Windows 版都照 TranscriptFollowProtocol 的關鍵字回應")
+    func followScriptsUseProtocolKeywords() {
+        for keyword in TranscriptFollowProtocol.Keyword.allCases.map(\.rawValue) {
+            #expect(TranscriptCommand.followScript.contains("printf '\(keyword)"), "POSIX 版沒有 \(keyword)")
+            #expect(WindowsScripts.follow.contains("PWrite \"\(keyword)"), "Windows 版沒有 \(keyword)")
+        }
+    }
+
     @Test("同一個指令只送一次 EOF:stdin 腳本已送過 EOF,呼叫端再送一次不往下傳(實測第二次 EOF 會讓輸出提早斷掉)")
     func endOfInputOnlyOnce() async throws {
         let host = CountingHost()

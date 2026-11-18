@@ -72,8 +72,11 @@ public final class AgentListModel {
     /// 即時更新停著，等使用者按「再試一次」(取消了 Tailscale 重新驗證)。
     public var isWaitingForRetry: Bool { updates.isWaitingForRetry }
 
-    /// 讀一次主機的 snapshot。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
-    public func load() async { await updates.load() }
+    /// 讀一次主機的 snapshot 並更新預覽。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
+    public func load() async {
+        await updates.load()
+        await refreshPreviews(namedPanes: [])
+    }
 
     /// 即時更新(與聊天畫面共用主機更新來源)並跟著快照更新預覽，直到所在的 task 被取消。只在畫面可見、app 在前景時執行。
     /// 預覽在快照讀取之外讀(慢的預覽不延後下一份快照);讀取期間到的快照併成讀完後的下一次。
@@ -104,11 +107,14 @@ public final class AgentListModel {
                 } catch {
                     break
                 }
-                // 時間到(沒有新快照):工作中的 Agent 狀態事件不會來，照時間更新它們的預覽。
-                let namedPanes = hasPendingSnapshot ? pendingNamedPanes : workingPanes
-                hasPendingSnapshot = false
-                pendingNamedPanes = []
-                await refreshPreviews(namedPanes: namedPanes)
+                if hasPendingSnapshot {
+                    let namedPanes = pendingNamedPanes
+                    hasPendingSnapshot = false
+                    pendingNamedPanes = []
+                    await refreshPreviews(namedPanes: namedPanes)
+                } else {
+                    await refreshWorkingPreviews()
+                }
             }
             group.cancelAll()
         }
@@ -124,8 +130,19 @@ public final class AgentListModel {
         pendingNamedPanes.formUnion(namedPanes)
     }
 
-    private var workingPanes: Set<String> {
-        Set((snapshot?.agents ?? []).filter { $0.status == .working }.map(\.paneID))
+    /// 定期更新時看到的對話紀錄大小(pane id → bytes)。
+    @ObservationIgnored private var workingTranscriptSizes: [String: Int] = [:]
+
+    /// 時間到(沒有新快照):工作中的 Agent 狀態事件不會來。先問大小(便宜),對話紀錄變了的才讀預覽(檔尾最多 48 KB)。
+    private func refreshWorkingPreviews() async {
+        guard let transcripts, let snapshot else { return }
+        var grown: Set<String> = []
+        for agent in snapshot.agents where agent.status == .working {
+            guard let target = agent.transcriptTarget, let file = try? await transcripts.locate(target) else { continue }
+            if workingTranscriptSizes[agent.paneID] != file.size { grown.insert(agent.paneID) }
+            workingTranscriptSizes[agent.paneID] = file.size
+        }
+        await refreshPreviews(namedPanes: grown)
     }
 
     /// 工作中、狀態沒變的 Agent 預覽多久更新一次(列表可見時;狀態事件不會來)。

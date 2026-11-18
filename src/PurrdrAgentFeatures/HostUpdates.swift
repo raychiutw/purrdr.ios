@@ -26,7 +26,7 @@ public final class HostUpdates {
     }
 
     /// 即時更新停著，等使用者按「再試一次」(取消了 Tailscale 重新驗證)。
-    public var isWaitingForRetry: Bool { checkCancelWaiter != nil }
+    public private(set) var isWaitingForRetry = false
 
     /// 事件訂閱開著、而且訂閱開始後已經對帳過：`snapshot` 會隨事件更新，畫面不必自己讀快照(#163)。
     public private(set) var isSubscribed = false
@@ -61,9 +61,10 @@ public final class HostUpdates {
     private let client: HerdrClient
     private let sleep: Sleep
     @ObservationIgnored private var endSubscription: (() -> Void)?
-    private var checkCancelWaiter: CheckedContinuation<Void, Never>?
-    private var retryRequested = false
-    private var retryWaiter: CheckedContinuation<Void, Never>?
+    /// 等使用者按「再試一次」(`load()` 叫醒)。
+    private let userRetry = WakeSignal()
+    /// 退避等待;「重試」或網路恢復時叫醒(沒在退避時留給下一次，直接跳過)。
+    private let retryDue: WakeSignal
     /// 快照讀取進行中。
     @ObservationIgnored private var isReading = false
     /// 還沒讀快照處理的事件指名的 pane。
@@ -75,14 +76,15 @@ public final class HostUpdates {
     public init(client: HerdrClient, sleep: @escaping Sleep = Sleeping.task) {
         self.client = client
         self.sleep = sleep
+        retryDue = WakeSignal(sleep: sleep)
     }
 
     /// 讀一次快照。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
     public func load() async {
-        if let checkCancelWaiter {
-            self.checkCancelWaiter = nil
+        if isWaitingForRetry {
+            isWaitingForRetry = false
             phase = .loading
-            checkCancelWaiter.resume()
+            userRetry.wake()
             return
         }
         do {
@@ -175,12 +177,7 @@ public final class HostUpdates {
 
     /// 使用者按「重試」或網路恢復：正在退避就立刻重連;正在連就讓下一次退避直接跳過。
     public func retryNow() {
-        if let waiter = retryWaiter {
-            retryWaiter = nil
-            waiter.resume()
-        } else {
-            retryRequested = true
-        }
+        retryDue.wake()
     }
 
     /// 沒有事件訂閱可用時重讀的間隔。
@@ -227,56 +224,14 @@ public final class HostUpdates {
 
     /// 退避等待：時間到，或有人要求立刻重試。
     private func backoff(_ duration: Duration) async throws {
-        if retryRequested {
-            retryRequested = false
-            return
-        }
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { [sleep] in try await sleep(duration) }
-            group.addTask { await self.waitForRetry() }
-            try await group.next()
-            group.cancelAll()
-        }
+        try await retryDue.wait(atMost: duration)
     }
 
     /// 等使用者按「再試一次」(`load()`);所在的 task 被取消時也結束。
     private func waitForUserRetry() async {
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                if Task.isCancelled {
-                    continuation.resume()
-                } else {
-                    checkCancelWaiter = continuation
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in self.resumeCheckCancelWaiter() }
-        }
-    }
-
-    private func resumeCheckCancelWaiter() {
-        let waiter = checkCancelWaiter
-        checkCancelWaiter = nil
-        waiter?.resume()
-    }
-
-    private func waitForRetry() async {
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                if Task.isCancelled {
-                    continuation.resume()
-                } else {
-                    retryWaiter = continuation
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in self.cancelRetryWait() }
-        }
-    }
-
-    private func cancelRetryWait() {
-        retryWaiter?.resume()
-        retryWaiter = nil
+        isWaitingForRetry = true
+        defer { isWaitingForRetry = false }
+        try? await userRetry.wait(atMost: nil)
     }
 
     private func fail(with error: any Error) {

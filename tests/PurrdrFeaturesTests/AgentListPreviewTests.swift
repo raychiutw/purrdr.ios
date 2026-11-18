@@ -12,7 +12,7 @@ struct AgentListPreviewTests {
     static let bridge = HerdrCommand.bridge()
     static let started = FakeReply.recorded("events.subscribe.started.ndjson", keepsOpen: true)
     static let snapshot = FakeReply.recorded("session.snapshot.ndjson")
-    static let panes = ["w1:p6", "w1:pA", "w1:pB"]
+    nonisolated static let panes = ["w1:p6", "w1:pA", "w1:pB"]
 
     static func paneEvent(_ paneID: String) -> Data {
         Data(#"{"event":"pane.agent_status_changed","data":{"agent":"claude","agent_status":"working","pane_id":"\#(paneID)","workspace_id":"w1"}}"#.utf8) + [0x0A]
@@ -23,7 +23,7 @@ struct AgentListPreviewTests {
     static let workspaceEvent = Data(#"{"event":"workspace_updated","data":{"workspace_id":"w1"}}"#.utf8) + [0x0A]
 
     /// 指令裡讀到的 pane(依 fixture 的 pane id)。
-    static func panes(in command: String) -> [String] {
+    nonisolated static func panes(in command: String) -> [String] {
         panes.filter { command.contains($0) }
     }
 
@@ -142,18 +142,23 @@ struct AgentListPreviewTests {
         defer { task.cancel() }
         try await waitUntil { await host.bridge.executions.count == 3 }
         try await waitUntil { await host.bridge.executions[2].closed }
+        try await waitUntil { await MainActor.run { !model.previews.isEmpty } }
+        let readsBefore = await host.shellCommands.count
 
         await host.bridge.send(stdout: Self.layoutUpdatedEvent, toExecution: 1)
 
         try await waitUntil { await host.bridge.consumedAll(executions: 4) }
         try await Task.sleep(for: .milliseconds(200))
-        #expect(await host.shellCommands.count == 1)
+        #expect(await host.shellCommands.count == readsBefore)
         #expect(await host.bridge.executions[1].stdinText.contains(#""type":"layout.updated""#))
     }
 
-    @Test("列表可見時，一直在工作、狀態沒變的 Agent 每 30 秒更新一次預覽(閒置的不讀)")
+    @Test("列表可見時，一直在工作、狀態沒變的 Agent 每 30 秒更新一次預覽(閒置的不讀;對話紀錄沒變的只問大小)")
     func workingAgentsRefreshEvery30Seconds() async throws {
         let host = try await Self.makeHost(thenSnapshots: [])
+        let shell = await host.shell
+        try shell.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects/00000000-0000-0000-0000-000000000002.jsonl")
+        try shell.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects-recipe-box/00000000-0000-0000-0000-000000000003.jsonl")
         let clock = SimulatedClock()
         let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), sleep: clock.sleep)
         let task = Task { await model.run() }
@@ -165,9 +170,17 @@ struct AgentListPreviewTests {
         try await waitUntil { await clock.nextDeadline != nil }
         await clock.advance(to: .seconds(30))
 
-        try await waitUntil { await host.shellCommands.count >= 2 }
-        let commands = await host.shellCommands
-        #expect(commands.count == 2)
-        #expect(Self.panes(in: commands[1]) == ["w1:pA", "w1:pB"])
+        try await waitUntil { await host.shellCommands.filter { !Self.panes(in: $0).isEmpty }.count >= 2 }
+        var previewReads = await host.shellCommands.filter { !Self.panes(in: $0).isEmpty }
+        #expect(previewReads.count == 2)
+        #expect(Self.panes(in: previewReads[1]) == ["w1:pA", "w1:pB"])
+
+        try await waitUntil { await clock.nextDeadline == .seconds(60) }
+        let commandsBefore = await host.shellCommands.count
+        await clock.advance(to: .seconds(60))
+        try await waitUntil { await host.shellCommands.count >= commandsBefore + 2 }
+        try await Task.sleep(for: .milliseconds(200))
+        previewReads = await host.shellCommands.filter { !Self.panes(in: $0).isEmpty }
+        #expect(previewReads.count == 2, "對話紀錄沒變：只問大小，不再讀預覽")
     }
 }

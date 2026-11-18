@@ -650,7 +650,8 @@ final class HostMember {
         self.host = host
         self.channel = channel
         let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
-        let connection = connection ?? SSHHostConnection(channel: channel, herdr: herdr)
+        let connection = connection ?? SSHHostConnection(
+            channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))
         client = HerdrClient(connection: connection)
         transcripts = TranscriptReader(connection: connection)
         terminals = PaneTerminalClient(connection: connection)
