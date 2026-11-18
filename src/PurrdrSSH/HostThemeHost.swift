@@ -57,21 +57,25 @@ public struct HostThemeHost: Sendable {
 
     /// 讀主機 herdr 的主題。沒有 `config.toml`(或沒有 `~/.config/herdr`)= herdr 預設主題。
     public func readTheme() async throws -> HostTheme {
-        let read = try await files.read([Self.configPath, Self.windowsConfigPath])
-        let path = read.isWindows ? Self.windowsConfigPath : Self.configPath
-        switch read[path] ?? .missing {
-        case .missing, .missingDirectory:
-            return HostTheme(config: HerdrThemeConfig(toml: nil))
-        case .file(let data, _):
-            return HostTheme(config: HerdrThemeConfig(toml: String(decoding: data, as: UTF8.self)))
-        case .notRegularFile, .unreadable, .tooLarge:
-            throw HostWriteError.unusableFile(path)
-        }
+        guard case .changed(let theme, _) = try await readTheme(ifChangedFrom: nil) else { throw HostFilesError.malformedOutput }
+        return theme
     }
 
     /// 條件式讀主題：`config.toml` 與 `known` 版本相同時是 `.unchanged`。
     public func readTheme(ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<HostTheme> {
-        .changed(try await readTheme(), version: nil)
+        // 兩個位置帶同一個已知版本：作業系統要讀完才知道，不是這台的那個位置不存在，回 missing 也很小。
+        let paths = [Self.configPath, Self.windowsConfigPath]
+        let read = try await files.read(paths, knownVersions: known.map { version in Dictionary(uniqueKeysWithValues: paths.map { ($0, version) }) } ?? [:])
+        let path = read.isWindows ? Self.windowsConfigPath : Self.configPath
+        if read.unchanged.contains(path) { return .unchanged }
+        switch read[path] ?? .missing {
+        case .missing, .missingDirectory:
+            return .changed(HostTheme(config: HerdrThemeConfig(toml: nil)), version: nil)
+        case .file(let data, let version):
+            return .changed(HostTheme(config: HerdrThemeConfig(toml: String(decoding: data, as: UTF8.self))), version: version)
+        case .notRegularFile, .unreadable, .tooLarge:
+            throw HostWriteError.unusableFile(path)
+        }
     }
 
     /// 主題參考檔(英文，給主機上的人與 agent 看)。

@@ -172,6 +172,7 @@ enum WindowsCommand {
 
     static let hostFileScripts: [(posix: String, windows: String)] = [
         (HostFileScript.read, WindowsScripts.hostFileRead),
+        (HostFileScript.readIfChanged, WindowsScripts.hostFileReadIfChanged),
         (HostFileScript.apply, WindowsScripts.hostFileApply),
         (HostFileScript.newest, WindowsScripts.hostFileNewest),
         (PushHost.otherPairingsScript, WindowsScripts.pushPairings),

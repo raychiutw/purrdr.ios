@@ -36,19 +36,23 @@ public struct YouShouldKnowHost: YouShouldKnowHosting {
 
     /// 讀 store。檔案不見了是 `nil`;不是 JSON 物件丟 `YouShouldKnowError.invalidStore`。
     public func read(_ path: HostPath) async throws -> YouShouldKnowStore? {
-        switch try await files.read([path])[path] ?? .missing {
+        guard case .changed(let store, _) = try await read(path, ifChangedFrom: nil) else { throw HostFilesError.malformedOutput }
+        return store
+    }
+
+    /// 條件式讀 store:與 `known` 版本相同時是 `.unchanged`;檔案不見時是 `.changed(nil, …)`。
+    public func read(_ path: HostPath, ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<YouShouldKnowStore?> {
+        let read = try await files.read([path], knownVersions: known.map { [path: $0] } ?? [:])
+        if read.unchanged.contains(path) { return .unchanged }
+        switch read[path] ?? .missing {
         case .missing, .missingDirectory:
-            return nil
-        case .file(let data, _):
+            return .changed(nil, version: nil)
+        case .file(let data, let version):
             guard let store = YouShouldKnowStore(data: data) else { throw YouShouldKnowError.invalidStore }
-            return store
+            return .changed(store, version: version)
         case .notRegularFile, .unreadable, .tooLarge:
             throw HostWriteError.unusableFile(path)
         }
-    }
-
-    public func read(_ path: HostPath, ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<YouShouldKnowStore?> {
-        .changed(try await read(path), version: nil)
     }
 
     /// 同意畫面要說明「以哪個使用者」修改。

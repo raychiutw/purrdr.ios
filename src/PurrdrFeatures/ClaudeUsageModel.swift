@@ -35,6 +35,8 @@ public final class ClaudeUsageModel {
     private let now: () -> Date
     private let sleep: Sleep
     private var feature: String { ClaudeUsageHost.feature.id }
+    /// 上次讀到的 `usage.json` 版本(下次讀取沒變就不傳內容)。
+    @ObservationIgnored private var usageVersion: HostFileVersion?
 
     /// - Parameters:
     ///   - hostID: 同意以主機為單位記住。
@@ -99,6 +101,7 @@ public final class ClaudeUsageModel {
             try await host.restore()
             consent.revoke(feature, host: hostID)
             usage = nil
+            usageVersion = nil
             message = nil
             state = .off
         } catch {
@@ -111,7 +114,10 @@ public final class ClaudeUsageModel {
     public func refresh() async {
         guard state == .on else { return }
         do {
-            usage = try await host.readUsage()
+            if case .changed(let usage, let version) = try await host.readUsage(ifChangedFrom: usageVersion) {
+                self.usage = usage
+                usageVersion = version
+            }
         } catch {
             // 用量只是提示：暫時讀不到不打擾使用者，下次再讀。
         }

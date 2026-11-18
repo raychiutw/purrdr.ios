@@ -306,20 +306,34 @@ enum WindowsScripts {
     }
 
     /// `HostFileScript.read`:輸出多一行 `home <家目錄>`(`/` 分隔),讓 client 知道是 Windows 與家目錄在哪。
-    static let hostFileRead = #"""
+    static let hostFileRead = hostFileReadPrelude + #"""
+        for($i=0;$i -lt $a.Count;$i++){PReadOne $a[$i] $i '-'}
+        $o.Flush()
+        """#
+
+    /// `HostFileScript.readIfChanged`:參數每兩個一組(路徑、已知版本;沒有是 `-`),版本相同只印 `unchanged <i>`。
+    static let hostFileReadIfChanged = hostFileReadPrelude + #"""
+        for($i=0;$i+1 -lt $a.Count;$i+=2){PReadOne $a[$i] ($i/2) $a[$i+1]}
+        $o.Flush()
+        """#
+
+    /// 讀取共用：開頭三行，與讀一個檔案的 `PReadOne <路徑> <序號> <已知版本>`。
+    private static let hostFileReadPrelude = #"""
         PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"
-        for($i=0;$i -lt $a.Count;$i++){
-        $p=PResolve (PPath $a[$i])
+        function PReadOne([string]$r,[int]$i,[string]$k){
+        $p=PResolve (PPath $r)
         if([IO.File]::Exists($p)){
-        try{$h=POpen $p}catch{PWrite "unreadable $i`n";continue}
-        if($h.Length -gt 1048576){$h.Close();PWrite "toolarge $i`n";continue}
-        try{$b=PRead $h 0 $h.Length}catch{$h.Close();PWrite "unreadable $i`n";continue};$h.Close()
-        PWrite "file $i $(PHashOf $b) $($b.Length)`n";$o.Write($b,0,$b.Length);PWrite "`n"
+        try{$h=POpen $p}catch{PWrite "unreadable $i`n";return}
+        if($h.Length -gt 1048576){$h.Close();PWrite "toolarge $i`n";return}
+        try{$b=PRead $h 0 $h.Length}catch{$h.Close();PWrite "unreadable $i`n";return};$h.Close()
+        $v=PHashOf $b
+        if($v -ceq $k){PWrite "unchanged $i`n";return}
+        PWrite "file $i $v $($b.Length)`n";$o.Write($b,0,$b.Length);PWrite "`n"
         }elseif([IO.Directory]::Exists($p)){PWrite "other $i`n"}
         elseif([IO.Directory]::Exists([IO.Path]::GetDirectoryName($p))){PWrite "missing $i`n"}
         else{PWrite "nodir $i`n"}
         }
-        $o.Flush()
+
         """#
 
     /// `HostFileScript.apply`:先檢查全部(不符 → `changed <路徑>` exit 3;資料夾不存在 → `nodir <路徑>` exit 4),

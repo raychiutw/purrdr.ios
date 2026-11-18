@@ -23,6 +23,14 @@ public enum HostFileRequest: Equatable, Sendable {
             self = .read(arguments.map { HostPath($0) })
             return
         }
+        if let arguments = Self.arguments(of: command, script: HostFileScript.readIfChanged) {
+            guard arguments.count % 2 == 0 else { return nil }
+            let pairs = stride(from: 0, to: arguments.count, by: 2).map { (HostPath(arguments[$0]), arguments[$0 + 1]) }
+            var known: [HostPath: HostFileVersion] = [:]
+            for (path, version) in pairs where version != HostFileScript.unknownVersion { known[path] = HostFileVersion(checksum: version) }
+            self = .readIfChanged(pairs.map(\.0), known: known)
+            return
+        }
         if let arguments = Self.arguments(of: command, script: HostFileScript.newest) {
             guard arguments.count == 3 else { return nil }
             self = .newest(directory: HostPath(arguments[0]), prefix: arguments[1], suffix: arguments[2])
@@ -65,19 +73,29 @@ public enum HostFileRequest: Equatable, Sendable {
 
     /// 讀取指令的輸出(與主機腳本相同的格式),`files` 依請求的順序。
     public static func readOutput(user: String, files: [HostFileState]) -> Data {
-        var output = Data("purrdr-files 1\nuser \(user)\n".utf8)
-        for (index, state) in files.enumerated() {
-            switch state {
-            case .missing: output += Data("missing \(index)\n".utf8)
-            case .missingDirectory: output += Data("nodir \(index)\n".utf8)
-            case .notRegularFile: output += Data("other \(index)\n".utf8)
-            case .unreadable: output += Data("unreadable \(index)\n".utf8)
-            case .tooLarge: output += Data("toolarge \(index)\n".utf8)
-            case .file(let data, let version):
-                output += Data("file \(index) \(version.checksum) \(data.count)\n".utf8) + data + Data("\n".utf8)
-            }
+        files.enumerated().reduce(header(user: user)) { $0 + entry($1.element, index: $1.offset) }
+    }
+
+    /// 條件式讀取的輸出：`files` 依請求的順序，版本與 `known` 相同的印 `unchanged`。
+    public static func readIfChangedOutput(user: String, paths: [HostPath], files: [HostFileState], known: [HostPath: HostFileVersion]) -> Data {
+        zip(paths, files).enumerated().reduce(header(user: user)) { output, item in
+            let (path, state) = item.element
+            if case .file(_, let version) = state, known[path] == version { return output + Data("unchanged \(item.offset)\n".utf8) }
+            return output + entry(state, index: item.offset)
         }
-        return output
+    }
+
+    private static func header(user: String) -> Data { Data("purrdr-files 1\nuser \(user)\n".utf8) }
+
+    private static func entry(_ state: HostFileState, index: Int) -> Data {
+        switch state {
+        case .missing: Data("missing \(index)\n".utf8)
+        case .missingDirectory: Data("nodir \(index)\n".utf8)
+        case .notRegularFile: Data("other \(index)\n".utf8)
+        case .unreadable: Data("unreadable \(index)\n".utf8)
+        case .tooLarge: Data("toolarge \(index)\n".utf8)
+        case .file(let data, let version): Data("file \(index) \(version.checksum) \(data.count)\n".utf8) + data + Data("\n".utf8)
+        }
     }
 
     /// 找最新檔案的輸出;`nil` 是沒有。

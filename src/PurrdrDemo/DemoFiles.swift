@@ -48,8 +48,8 @@ struct DemoFiles {
         switch request {
         case .read(let paths):
             return (HostFileRequest.readOutput(user: Self.user, files: paths.map { state(of: $0, now: now) }), 0)
-        case .readIfChanged(let paths, _):
-            return (HostFileRequest.readOutput(user: Self.user, files: paths.map { state(of: $0, now: now) }), 0)
+        case .readIfChanged(let paths, let known):
+            return (HostFileRequest.readIfChangedOutput(user: Self.user, paths: paths, files: paths.map { state(of: $0, now: now) }, known: known), 0)
         case .apply(let changes):
             var made: Set<String> = []
             for change in changes {

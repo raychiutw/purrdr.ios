@@ -22,8 +22,6 @@ struct YouShouldKnowPollingTests {
 
         func locate() async throws -> HostPath? { YouShouldKnowPollingTests.storePath }
 
-        func read(_ path: HostPath) async throws -> YouShouldKnowStore? { YouShouldKnowStore(data: Data(YouShouldKnowPollingTests.store.utf8)) }
-
         func read(_ path: HostPath, ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<YouShouldKnowStore?> {
             knownVersions.append(known)
             if known == version { return .unchanged }

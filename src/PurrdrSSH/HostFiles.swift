@@ -21,8 +21,14 @@ public struct HostFiles: Sendable {
     }
 
     /// 條件式讀取：`knownVersions` 裡版本沒變的檔案只回報在 `HostFileRead.unchanged`,不傳內容。
+    /// 沒有任何已知版本時就是一般的 `read`。
     public func read(_ paths: [HostPath], knownVersions: [HostPath: HostFileVersion]) async throws -> HostFileRead {
-        try await read(paths)
+        guard !knownVersions.isEmpty else { return try await read(paths) }
+        try paths.forEach { try $0.validate() }
+        let arguments = paths.flatMap { [$0.relative, knownVersions[$0]?.checksum ?? HostFileScript.unknownVersion] }
+        let result = try await run(HostFileScript.readIfChanged, arguments: arguments)
+        guard result.exitCode == 0 else { throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText) }
+        return try HostFileScript.parseRead(result.stdout, paths: paths)
     }
 
     /// 一次往返找 `directory` 裡檔名以 `prefix` 開頭、`suffix` 結尾、最新(修改時間)的可讀一般檔案;沒有是 `nil`。

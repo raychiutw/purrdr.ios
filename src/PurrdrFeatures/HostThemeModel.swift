@@ -28,8 +28,10 @@ public final class HostThemeModel {
 
     static let pollInterval: Duration = .seconds(10)
 
-    /// 定期讀取：每個套用主題的視窗都 `attach()`。
-    public var liveUpdates: SharedRun { SharedRun { [weak self] in await self?.run() } }
+    /// 定期讀取：每個套用主題的視窗都 `attach()`,只跑一份。
+    @ObservationIgnored public private(set) lazy var liveUpdates = SharedRun { [weak self] in await self?.run() }
+    /// 上次讀到的 `config.toml` 版本(下次讀取沒變就不傳內容)。
+    @ObservationIgnored private var configVersion: HostFileVersion?
 
     private let host: HostThemeHost
     private let hostID: String
@@ -85,6 +87,7 @@ public final class HostThemeModel {
             try await host.restore()
             consent.revoke(feature, host: hostID)
             theme = nil
+            configVersion = nil
             message = nil
             state = .off
         } catch {
@@ -96,7 +99,9 @@ public final class HostThemeModel {
     /// 讀一次主機的主題(只在已同意時)。讀取失敗保留目前的主題(行為規格 F16)。
     public func refresh() async {
         guard state == .on else { return }
-        if let theme = try? await host.readTheme() { self.theme = theme }
+        guard case .changed(let theme, let version)? = try? await host.readTheme(ifChangedFrom: configVersion) else { return }
+        self.theme = theme
+        configVersion = version
     }
 
     /// 已同意時約每 10 秒讀一次，直到所在的 task 被取消。
