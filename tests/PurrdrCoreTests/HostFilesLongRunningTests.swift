@@ -126,7 +126,7 @@ struct HostFilesLongRunningTests {
 
         for round in 1...2 {
             let reading = Self.reading(files, [Self.theme], known: known)
-            try #require(await host.waitForStdin(ofExecution: 0) { $0.stdinText.components(separatedBy: "\n.config/herdr/config.toml ab:5\n").count == round + 1 })
+            try #require(await host.waitForStdin(ofExecution: 0) { $0.stdinText.components(separatedBy: ".config/herdr/config.toml ab:5\n").count == round + 1 })
             await host.send(stdout: windowsReply, toExecution: 0)
             let read = try await reading.value
             #expect(read.unchanged == [Self.theme])
