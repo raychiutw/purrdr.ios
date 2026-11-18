@@ -131,11 +131,15 @@ public final class ConversationModel {
                 return
             }
             drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
-            slash.update(draft: draft)
+            if !isComposingDraft { slash.update(draft: draft) }
         }
     }
     /// 輸入框正在組字(有 marked text)。組字中不拿暫時文字篩選 slash 選單(#138)。
-    public var isComposingDraft = false
+    public var isComposingDraft = false {
+        didSet {
+            if oldValue, !isComposingDraft, typedAnswer == nil { slash.update(draft: draft) }
+        }
+    }
     /// 選取中主機的「You should know」註記(#23);由 `HostsModel` 接上，沒有時不顯示。
     public var youShouldKnow: YouShouldKnowModel?
 
