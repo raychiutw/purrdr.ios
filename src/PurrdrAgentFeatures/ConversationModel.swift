@@ -72,7 +72,7 @@ public final class ConversationModel {
 
     /// 輪詢間隔：agent 工作中、等你回答，或背景 agents 窗格有執行中的列時 2 秒，否則 4 秒。
     /// 例外快速路徑(#163):herdr 在背景 agent 執行時回報 idle(commit 0a3b0d7)、多題問答期間一直 blocked,
-    /// 都沒有狀態事件，靠這個 2 秒讀畫面確認。
+    /// 都沒有狀態事件，靠這個 2 秒讀畫面確認。工作中讀畫面另有節奏，約每 6 秒一次(#204,`WorkingScreenReads`)。
     public var pollInterval: Duration {
         let paneRunning = agentsPane?.rows.contains { $0.state == .running } ?? false
         return agentStatus == .working || agentStatus == .blocked || paneRunning ? .seconds(2) : .seconds(4)
@@ -290,6 +290,10 @@ public final class ConversationModel {
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
     @ObservationIgnored private var screenThisPoll: String?
+    /// 工作中讀畫面的節奏(#204)。
+    @ObservationIgnored private var workingScreenReads = WorkingScreenReads()
+    /// 這次輪詢若在工作中，可以讀畫面更新即時預覽與背景 agents 窗格;不行時沿用上次的。
+    @ObservationIgnored private var workingScreenDue = true
     private let sleep: Sleep
     /// 這台主機的主機更新來源(#163);沒有時自己讀快照。
     private let updates: HostUpdates?
@@ -506,6 +510,7 @@ public final class ConversationModel {
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
         screenThisPoll = nil
+        workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
         await refreshPrompt(agent)
         let suggestionRead = await readSuggestion(agent)
         await refreshPanel(agent)
@@ -535,14 +540,14 @@ public final class ConversationModel {
         await read(target)
     }
 
-    /// 背景 agents 窗格的讀取時機(F10、R-W05):工作中每次輪詢讀;問題開著時沿用上次;閒置時只在上次有窗格、
+    /// 背景 agents 窗格的讀取時機(F10、R-W05):工作中約每 6 秒讀(#204);問題開著時沿用上次;閒置時只在上次有窗格、
     /// 或工作中之後的第一次閒置時讀(一輪可能在兩次輪詢之間開始背景 agent 並結束,commit e0d34ce)。
     /// 讀取失敗沿用上次。
     private func readAgentsPaneIfNeeded() async {
         let status = agentStatus
         defer { lastPolledStatus = status }
         let shouldRead = switch status {
-        case .working: true
+        case .working: workingScreenDue
         case .blocked: false
         default: agentsPane != nil || lastPolledStatus == .working
         }
@@ -1448,11 +1453,13 @@ public final class ConversationModel {
             .joined(separator: "\n")
     }
 
-    /// working 時讀 pane 可見畫面擷取即時預覽(與背景 agents 窗格共用同一次讀取)。
+    /// working 時讀 pane 可見畫面擷取即時預覽(與背景 agents 窗格共用同一次讀取);還沒到讀取時間沿用上次的(#204)。
     private func refreshLivePreview() async {
         if agentStatus == .working, prompt == nil {
-            if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
-            screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
+            if workingScreenDue {
+                if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+                screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
+            }
         } else {
             screenPreview = nil
         }

@@ -14,11 +14,21 @@ public actor SimulatedClock {
     /// 取消比登記先到的等待。
     private var cancelledEarly: Set<UUID> = []
 
+    /// 模擬時間的起點(`now` 的 0 秒)。
+    public static let start = Date(timeIntervalSince1970: 1_794_614_400)
+
+    private nonisolated let elapsedMirror = ElapsedMirror()
+
     public init() {}
 
     /// 給被測物注入的 closure。
     public nonisolated var sleep: Sleep {
         { duration in try await self.wait(duration) }
+    }
+
+    /// 模擬時間的現在(`start` + 經過時間),給同步讀時間的被測物(例如 `ConversationClock`)。
+    public nonisolated var now: @Sendable () -> Date {
+        { [elapsedMirror] in Self.start.addingTimeInterval(elapsedMirror.seconds) }
     }
 
     /// 還沒到期的等待中，最早的到期時間。
@@ -27,6 +37,8 @@ public actor SimulatedClock {
     /// 把時間推到 `target`,結束所有到期的等待。
     public func advance(to target: Duration) {
         elapsed = max(elapsed, target)
+        let components = elapsed.components
+        elapsedMirror.seconds = Double(components.seconds) + Double(components.attoseconds) / 1e18
         let due = waiters.filter { $0.value.deadline <= elapsed }
         for (id, waiter) in due {
             waiters[id] = nil
@@ -57,5 +69,16 @@ public actor SimulatedClock {
             return
         }
         waiter.continuation.resume(throwing: CancellationError())
+    }
+}
+
+/// `SimulatedClock.elapsed` 的同步副本(秒)。
+private final class ElapsedMirror: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedSeconds: TimeInterval = 0
+
+    var seconds: TimeInterval {
+        get { lock.withLock { storedSeconds } }
+        set { lock.withLock { storedSeconds = newValue } }
     }
 }

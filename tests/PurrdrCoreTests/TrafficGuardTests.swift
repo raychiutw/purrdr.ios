@@ -102,7 +102,8 @@ struct TrafficGuardTests {
         let list = AgentListModel(updates: updates, transcripts: TranscriptReader(connection: connection), sleep: clock.sleep)
         let chat = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.chatPane,
-            knownSessionID: nil, cache: InMemoryConversationCache(), updates: updates, sleep: clock.sleep)
+            knownSessionID: nil, cache: InMemoryConversationCache(), clock: ConversationClock(now: clock.now), updates: updates,
+            sleep: clock.sleep)
         let consent = InMemoryHostWriteConsentStore()
         for feature in [HostThemeHost.feature.id, YouShouldKnowFeature.id] { consent.grant(feature, host: "mac") }
         // 主題與註記共用每台主機一條長駐讀取(#203,同 `HostMember`)。
@@ -188,8 +189,8 @@ struct TrafficGuardTests {
     static let sshCaps = (
         // 實測 26:連上與訂閱對帳 2 + 每個狀態事件 1(23)。
         snapshots: 35,
-        // 實測 924:聊天的 Agent 工作中每 2 秒 900 + 每段閒置找建議幾次。
-        paneReads: 1_200,
+        // 實測 324(#204 前 924):工作中每 6 秒 300 + 每段閒置找建議幾次。改回工作中每 2 秒讀會到約 924。
+        paneReads: 420,
         // 實測 121:在場回報每 30 秒 120。
         presence: 160,
         // 實測 1,359:工作中每 2 秒 900 + 閒置每 4 秒 450 + 狀態變化叫醒。
@@ -214,10 +215,10 @@ struct TrafficGuardTests {
     /// 沒變的一次主要是指令本身(預覽腳本);改回每 30 秒讀整段檔尾會多約 3 MB。
     static let sshPreviewBytes = 1_550_000
 
-    /// SSH 一小時的位元組上限：估算約 3.8 MB 的 1.3 倍:#205 後實測 5,731,233 B,減去一次性主機檔案約 2.1 MB、加上長駐讀取約 0.16 MB(#203 的實測 157,772 B);整批 CI 印出實測後再收緊。
-    /// 大宗是畫面(900 × 1.54 KB)、預覽;主題／註記走長駐讀取後只剩約 0.16 MB(之前一次性讀取約 2.1 MB)。
-    /// 聊天改回每輪讀快照會多約 1,350 × 6 KB ≈ 8 MB。
-    static let sshHourBudget = 5_000_000
+    /// SSH 一小時的位元組上限：估算約 2.9 MB 的 1.3 倍再取整:#205 後實測 5,731,233 B,減去一次性主機檔案約 2.1 MB、
+    /// 加上長駐讀取約 0.16 MB(#203 實測 157,772 B),再減去工作中少讀的畫面約 0.89 MB(#204:1,421,832 → 535,032 B);
+    /// 整批 CI 印出實測後再收緊。聊天改回每輪讀快照會多約 1,350 × 6 KB ≈ 8 MB。
+    static let sshHourBudget = 4_000_000
 
     // MARK: - HTTPS
 
@@ -252,7 +253,8 @@ struct TrafficGuardTests {
         let list = AgentListModel(updates: updates, transcripts: TranscriptReader(connection: connection))
         let chat = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.chatPane,
-            knownSessionID: nil, cache: InMemoryConversationCache(), updates: updates, sleep: clock.sleep)
+            knownSessionID: nil, cache: InMemoryConversationCache(), clock: ConversationClock(now: clock.now), updates: updates,
+            sleep: clock.sleep)
         let listTask = Task { await list.liveUpdates.attach() }
         let chatTask = Task { await chat.run(sleep: clock.sleep) }
         defer {
