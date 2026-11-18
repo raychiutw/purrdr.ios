@@ -159,8 +159,16 @@ public enum PlanUsageFailure: Equatable, Sendable {
     /// 主機連線的錯誤(已是 `HostErrorText` 的說明)。
     case connection(String)
 
+    /// Codex 自己的錯誤與 app-server 逾時;其他是主機連線的錯誤。
     init(_ error: any Error, agent: PlanUsageAgent) {
-        self = .connection(HostErrorText.message(for: error))
+        self = switch error {
+        case CodexUsageError.codexNotFound: .codexNotFound
+        case CodexUsageError.notSignedIn: .codexNotSignedIn
+        case CodexUsageError.unreadableResponse: .codexUnreadableResponse
+        case CodexUsageError.requestFailed(let message): .codexRequestFailed(message)
+        case HostCommandError.deadlineExceeded where agent == .codex: .codexTimedOut
+        default: .connection(HostErrorText.message(for: error))
+        }
     }
 }
 
@@ -345,24 +353,6 @@ public final class PlanUsageModel {
             String(localized: "Purrdr can’t safely change ~/.claude/settings.json on this host.")
         default:
             String(localized: "Couldn’t update the host: \(error.localizedDescription)")
-        }
-    }
-
-    /// 查詢失敗的說明：Codex 自己的錯誤與 app-server 逾時;其他是主機連線的錯誤。
-    static func describeReadFailure(_ error: any Error, agent: PlanUsageAgent) -> String {
-        switch error {
-        case CodexUsageError.codexNotFound:
-            String(localized: "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH.")
-        case CodexUsageError.notSignedIn:
-            String(localized: "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first.")
-        case CodexUsageError.unreadableResponse:
-            String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help.")
-        case CodexUsageError.requestFailed(let message):
-            String(localized: "Codex couldn’t get plan usage: \(message)")
-        case HostCommandError.deadlineExceeded where agent == .codex:
-            String(localized: "Codex didn’t answer in time.")
-        default:
-            HostErrorText.message(for: error)
         }
     }
 
