@@ -356,4 +356,80 @@ struct TranscriptPreviewTests {
         #expect(previews.isEmpty)
         #expect(await host.executions.isEmpty)
     }
+
+    static let path = ".claude/projects/-Users-demo-Projects-ledger/\(TranscriptReaderTests.sessionID).jsonl"
+    static let newReply = Data(
+        #"{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"新的回覆"}]},"uuid":"00000000-0000-4000-8000-0000000000aa","timestamp":"2026-11-14T00:03:00.000Z"}"#.utf8) + [0x0A]
+
+    static func request(knownVersion: String?) -> PreviewRequest {
+        var request = PreviewRequest(key: "w1:p1", sessionID: TranscriptReaderTests.sessionID, cwd: "/Users/demo/Projects/ledger")
+        request.knownVersion = knownVersion
+        return request
+    }
+
+    /// 讀一次(沒有已知版本)、回傳主機回報的版本。
+    static func firstReading(_ reader: TranscriptReader) async throws -> PreviewReading {
+        let reading = try #require(try await reader.previewReadings(of: [request(knownVersion: nil)])["w1:p1"])
+        #expect(reading.change == .whole)
+        #expect(reading.preview?.text.hasPrefix("CSV 匯出整理好了 ✅") == true)
+        return reading
+    }
+
+    @Test("帶已知版本、對話紀錄沒變：主機只回 unchanged,不傳檔尾")
+    func knownVersionUnchangedSendsNothing() async throws {
+        let host = try LocalShellHost.temporary()
+        try host.write(Fixtures.transcript(), to: Self.path)
+        let reader = TranscriptReader(channel: host, marker: { "MARK-1234" })
+        let first = try await Self.firstReading(reader)
+
+        let again = try #require(try await reader.previewReadings(of: [Self.request(knownVersion: first.version)])["w1:p1"])
+
+        #expect(again.change == .unchanged)
+        #expect(again.preview == nil)
+        #expect(again.version == first.version)
+    }
+
+    @Test("帶已知版本、對話紀錄有附加：只回附加的部分，預覽是新的最後一則")
+    func knownVersionAppendedSendsOnlyNewBytes() async throws {
+        let host = try LocalShellHost.temporary()
+        try host.write(Fixtures.transcript(), to: Self.path)
+        let reader = TranscriptReader(channel: host, marker: { "MARK-1234" })
+        let first = try await Self.firstReading(reader)
+        try host.append(Self.newReply, to: Self.path)
+
+        let again = try #require(try await reader.previewReadings(of: [Self.request(knownVersion: first.version)])["w1:p1"])
+
+        #expect(again.change == .appended)
+        #expect(again.preview?.text == "新的回覆")
+        #expect(again.version != first.version)
+    }
+
+    @Test("帶已知版本、換成另一個檔(已知位置之前的內容不同):整段重讀")
+    func knownVersionReplacedReadsWhole() async throws {
+        let host = try LocalShellHost.temporary()
+        try host.write(Fixtures.transcript(), to: Self.path)
+        let reader = TranscriptReader(channel: host, marker: { "MARK-1234" })
+        let first = try await Self.firstReading(reader)
+        try host.write(Self.newReply + Fixtures.transcript() + Self.newReply, to: Self.path)
+
+        let again = try #require(try await reader.previewReadings(of: [Self.request(knownVersion: first.version)])["w1:p1"])
+
+        #expect(again.change == .whole)
+        #expect(again.preview?.text == "新的回覆")
+    }
+
+    @Test("上次讀到的結尾是寫到一半的行：整段重讀(不從行中間接著讀)")
+    func knownVersionEndingMidLineReadsWhole() async throws {
+        let host = try LocalShellHost.temporary()
+        let half = Self.newReply.prefix(40)
+        try host.write(Fixtures.transcript() + half, to: Self.path)
+        let reader = TranscriptReader(channel: host, marker: { "MARK-1234" })
+        let first = try await Self.firstReading(reader)
+        try host.append(Self.newReply.dropFirst(40), to: Self.path)
+
+        let again = try #require(try await reader.previewReadings(of: [Self.request(knownVersion: first.version)])["w1:p1"])
+
+        #expect(again.change == .whole)
+        #expect(again.preview?.text == "新的回覆")
+    }
 }

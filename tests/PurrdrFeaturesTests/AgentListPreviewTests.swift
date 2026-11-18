@@ -20,6 +20,9 @@ struct AgentListPreviewTests {
 
     static let layoutUpdatedEvent = Data(#"{"event":"layout_updated","data":{"workspace_id":"w1","tab_id":"w1:t1"}}"#.utf8) + [0x0A]
 
+    static let newReply = Data(
+        #"{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"新的回覆"}]},"uuid":"00000000-0000-4000-8000-0000000000aa","timestamp":"2026-11-14T00:03:00.000Z"}"#.utf8) + [0x0A]
+
     static let workspaceEvent = Data(#"{"event":"workspace_updated","data":{"workspace_id":"w1"}}"#.utf8) + [0x0A]
 
     /// 指令裡讀到的 pane(依 fixture 的 pane id)。
@@ -153,11 +156,12 @@ struct AgentListPreviewTests {
         #expect(await host.bridge.executions[1].stdinText.contains(#""type":"layout.updated""#))
     }
 
-    @Test("列表可見時，一直在工作、狀態沒變的 Agent 每 30 秒更新一次預覽(閒置的不讀;對話紀錄沒變的只問大小)")
+    @Test("列表可見時，一直在工作、狀態沒變的 Agent 每 30 秒合併成一個預覽請求(帶已知版本:沒變只回 unchanged,不另外問大小)")
     func workingAgentsRefreshEvery30Seconds() async throws {
         let host = try await Self.makeHost(thenSnapshots: [])
         let shell = await host.shell
-        try shell.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects/00000000-0000-0000-0000-000000000002.jsonl")
+        let pAPath = ".claude/projects/-Users-demo-Projects/00000000-0000-0000-0000-000000000002.jsonl"
+        try shell.write(Fixtures.transcript(), to: pAPath)
         try shell.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects-recipe-box/00000000-0000-0000-0000-000000000003.jsonl")
         let clock = SimulatedClock()
         let model = AgentListModel(client: HerdrClient(channel: host), transcripts: TranscriptReader(channel: host), sleep: clock.sleep)
@@ -166,21 +170,23 @@ struct AgentListPreviewTests {
         try await waitUntil { await host.bridge.executions.count == 3 }
         try await waitUntil { await host.bridge.executions[2].closed }
         try await waitUntil { await host.shellCommands.count == 1 }
+        try await waitUntil { await MainActor.run { model.previews["w1:pA"] != nil } }
+        let previewBefore = model.previews["w1:pA"]
 
         try await waitUntil { await clock.nextDeadline != nil }
         await clock.advance(to: .seconds(30))
 
-        try await waitUntil { await host.shellCommands.filter { !Self.panes(in: $0).isEmpty }.count >= 2 }
-        var previewReads = await host.shellCommands.filter { !Self.panes(in: $0).isEmpty }
-        #expect(previewReads.count == 2)
-        #expect(Self.panes(in: previewReads[1]) == ["w1:pA", "w1:pB"])
-
+        try await waitUntil { await host.shellCommands.count >= 2 }
         try await waitUntil { await clock.nextDeadline == .seconds(60) }
-        let commandsBefore = await host.shellCommands.count
+        var commands = await host.shellCommands
+        #expect(commands.count == 2, "不另外問對話紀錄大小")
+        #expect(Self.panes(in: commands[1]) == ["w1:pA", "w1:pB"])
+        #expect(model.previews["w1:pA"] == previewBefore, "沒變：保留預覽")
+
+        try shell.append(Self.newReply, to: pAPath)
         await clock.advance(to: .seconds(60))
-        try await waitUntil { await host.shellCommands.count >= commandsBefore + 2 }
-        try await Task.sleep(for: .milliseconds(200))
-        previewReads = await host.shellCommands.filter { !Self.panes(in: $0).isEmpty }
-        #expect(previewReads.count == 2, "對話紀錄沒變：只問大小，不再讀預覽")
+        try await waitUntil { await MainActor.run { model.previews["w1:pA"]?.text == "新的回覆" } }
+        commands = await host.shellCommands
+        #expect(commands.count == 3)
     }
 }

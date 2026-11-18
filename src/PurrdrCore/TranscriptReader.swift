@@ -312,6 +312,8 @@ public struct TranscriptReader: Sendable {
 public struct PreviewRequest: Sendable, Equatable {
     public var key: String
     public var target: TranscriptTarget
+    /// 上次讀到的對話紀錄版本(`PreviewReading.version`)。
+    public var knownVersion: String?
 
     public init(key: String, target: TranscriptTarget) {
         self.key = key
@@ -324,7 +326,32 @@ public struct PreviewRequest: Sendable, Equatable {
     }
 }
 
+/// 一個聊天的預覽讀取結果。
+public struct PreviewReading: Sendable, Equatable {
+    /// 這次讀到的範圍。
+    public enum Change: String, Sendable, Equatable {
+        case unchanged
+        case appended
+        case whole
+    }
+
+    public var version: String?
+    public var change: Change
+    public var preview: MessagePreview?
+
+    public init(version: String?, change: Change, preview: MessagePreview?) {
+        self.version = version
+        self.change = change
+        self.preview = preview
+    }
+}
+
 extension TranscriptReader {
+    /// TDD 紅燈骨架：還沒帶已知版本。
+    public func previewReadings(of requests: [PreviewRequest]) async throws -> [String: PreviewReading] {
+        try await previews(of: requests).mapValues { PreviewReading(version: nil, change: .whole, preview: $0) }
+    }
+
     /// 列表預覽：一次往返讀所有聊天對話紀錄的檔尾(行為規格 §4.7、R-L01)。session id 或路徑不安全的請求略過。
     /// 回傳 key → 最後一則可讀訊息;沒有檔案、有歧義、header 不符(Pi／OMP)或沒有可讀訊息的聊天不在結果裡。
     public func previews(of requests: [PreviewRequest]) async throws -> [String: MessagePreview] {

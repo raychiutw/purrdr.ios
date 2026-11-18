@@ -166,11 +166,12 @@ struct TrafficGuardTests {
         #expect(counts["transcript.follow", default: 0] <= 3, "追蹤：一條長駐通道")
         #expect(followRounds <= Self.sshCaps.followRounds, "追蹤輪數")
         #expect(counts["transcript.previews", default: 0] <= Self.sshCaps.previews, "預覽")
+        #expect(bytesByKind["transcript.previews", default: 0] <= Self.sshPreviewBytes, "預覽位元組：帶已知版本，沒變不傳檔尾")
         #expect(counts["transcript.catchUp", default: 0] + counts["transcript.tail", default: 0] <= 2, "尾端由追蹤送來，不另外輪詢")
         #expect(counts["hostFiles.theme", default: 0] <= Self.sshCaps.theme, "主題")
         #expect(counts["hostFiles.notes", default: 0] + counts["hostFiles.notes.locate", default: 0] <= Self.sshCaps.notes, "註記")
         #expect(keepalives <= Self.sshCaps.keepalives, "keepalive")
-        #expect(counts["transcript.locate", default: 0] <= Self.sshCaps.locates, "定位：開聊天 1 + 定期更新預覽前問大小")
+        #expect(counts["transcript.locate", default: 0] <= Self.sshCaps.locates, "定位：只有開聊天 1(定期更新預覽不另外問大小)")
         #expect(bytes <= Self.sshHourBudget)
     }
 
@@ -184,22 +185,26 @@ struct TrafficGuardTests {
         presence: 160,
         // 實測 1,359:工作中每 2 秒 900 + 閒置每 4 秒 450 + 狀態變化叫醒。
         followRounds: 1_800,
-        // 實測 80:第一次全部 1 + 狀態變了的 Agent(23 個事件)+ 一直工作中的 Agent 每 30 秒。
-        previews: 105,
+        // 實測 139:第一次全部 1 + 狀態變了的 Agent(23 個事件)+ 有工作中的 Agent 時每 30 秒一次(帶已知版本，沒變只回 unchanged)。
+        previews: 180,
         // 實測 361:每 10 秒 360。
         theme: 470,
         // 實測 362:每 10 秒 360(列表與輸入列共用一份)+ 每 10 分鐘重新定位。
         notes: 480,
         // 實測 0:聊天畫面可見(5 秒一輪),追蹤每 2～4 秒一輪的回應讓每一輪都跳過;上限留 10 次給閒置的空檔。
         keepalives: 10,
-        // 實測 224:定期更新預覽前先問工作中 Agent 的對話紀錄大小(每 30 秒，約 2 個)。
-        locates: 300
+        // 實測 1:開聊天定位一次;定期更新預覽改帶已知版本(#205),不再先問大小。
+        locates: 5
     )
 
-    /// SSH 一小時的位元組上限：本機實測 9,070,943 B 約 1.3 倍再取整。
-    /// 大宗是畫面(900 × 1.54 KB)、預覽(檔尾最多 48 KB)、主題／註記(條件式讀取，沒變只回 unchanged,每次仍有 exec 通道開銷)。
+    /// SSH 一小時的預覽位元組上限：本機實測 1,191,753 B(#205 前 4,013,784 B)約 1.3 倍。
+    /// 沒變的一次主要是指令本身(預覽腳本);改回每 30 秒讀整段檔尾會多約 3 MB。
+    static let sshPreviewBytes = 1_550_000
+
+    /// SSH 一小時的位元組上限：本機實測 5,731,233 B(#205 前 9,032,459 B)約 1.3 倍再取整。
+    /// 大宗是畫面(900 × 1.54 KB)、預覽、主題／註記(條件式讀取，沒變只回 unchanged,每次仍有 exec 通道開銷)。
     /// 聊天改回每輪讀快照會多約 1,350 × 6 KB ≈ 8 MB。
-    static let sshHourBudget = 11_800_000
+    static let sshHourBudget = 7_500_000
 
     // MARK: - HTTPS
 
