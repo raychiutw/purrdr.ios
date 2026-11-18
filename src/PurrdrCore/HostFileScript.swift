@@ -92,7 +92,28 @@ package enum HostFileScript {
         .joined(separator: " ")
 
     /// 閒置時限：每收到一個請求就換一個新的 `purrdr_limit`(總長的那個由 `HostScriptTimeLimit.posix` 起)。
-    package static let followScript = readFunctions
+    package static let followScript = readFunctions + """
+        trap 'exit 124' HUP
+        idle=$1
+        user=$(id -un)
+        purrdr_limit "$$" "$idle" < /dev/null > /dev/null 2>&1 &
+        idle_limit=$!
+        set -f
+        while IFS= read -r request; do
+          kill "$idle_limit" 2>/dev/null
+          purrdr_limit "$$" "$idle" < /dev/null > /dev/null 2>&1 &
+          idle_limit=$!
+          set -- $request
+          printf 'purrdr-files 1%suser %s%s' "$nl" "$user" "$nl"
+          i=0
+          while [ "$#" -ge 2 ]; do
+            readone "$1" "$i" "$2"
+            shift 2
+            i=$((i + 1))
+          done
+          printf 'end%s' "$nl"
+        done
+        """
 
     /// 長駐讀取的請求行：每個路徑接著已知版本(沒有是 `-`)。路徑與版本都不含空白(`HostPath.validate`、主機輸出的版本)。
     package static func followRequest(_ paths: [HostPath], known: [HostPath: HostFileVersion]) -> Data {

@@ -91,7 +91,7 @@ public struct ClaudePlanUsageHost: Sendable {
     /// 帶上次的版本條件式讀取，沒變時用上次的結果。
     public func readPlanUsage() async throws -> ClaudeUsage? {
         let previous = await lastRead.value
-        let read = try await files.read([Self.usagePath])
+        let read = try await files.read([Self.usagePath], knownVersions: previous.map { [Self.usagePath: $0.version] } ?? [:])
         if let previous, read.unchanged.contains(Self.usagePath) { return previous.usage }
         let state = read[Self.usagePath]
         let usage = state?.contents.flatMap(ClaudeUsage.init(usageFile:))

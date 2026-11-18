@@ -20,7 +20,11 @@ public struct HostFiles: Sendable {
     ) {
         self.channel = channel
         self.sleep = sleep
-        longRunning = nil
+        longRunning = readsOverLongRunningChannel
+            ? LongRunningScriptChannel(
+                name: "host files", channel: channel, command: HostFileScript.follow(), deadline: HostCommandDeadline.standard, sleep: sleep,
+                closesWhenUnused: false, diagnostics: diagnostics, takeReply: { try HostFileScript.takeFollowReply(from: &$0) })
+            : nil
     }
 
     /// 一次往返讀取 `paths`(跟隨 symlink)。每個檔案最多 1 MiB。
