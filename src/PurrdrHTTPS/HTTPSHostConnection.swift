@@ -139,6 +139,10 @@ public actor HTTPSHostConnection: HostConnection {
             guard case .eventsSubscribeResult = reply else { throw HostServiceError.unexpectedResponse }
         } catch {
             await session.closeStream(streamID)
+            // 取消時請求可能已送達、主機已開了串流：不等待地請它關掉。
+            if error is CancellationError {
+                Task { _ = try? await session.request { .eventsUnsubscribe(.init(requestId: $0, streamId: streamID)) } }
+            }
             throw error
         }
         return EventSubscription(session: session, streamID: streamID, messages: messages)
