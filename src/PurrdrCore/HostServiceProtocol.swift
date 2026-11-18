@@ -1110,7 +1110,7 @@ extension HostServiceProtocol {
     /// herdr 推送的一個事件(沒有 request_id)。
     public struct SubscribedEvent: Codable, Sendable, Equatable {
         public var streamId: String
-        /// herdr 事件的 wire 名稱，例如 pane_agent_status_changed。
+        /// herdr 事件的 wire 名稱，例如 pane.agent_status_changed、workspace_closed。
         public var event: String
         /// 事件指名 Pane 時才有。
         public var paneId: String?

@@ -493,7 +493,7 @@ pub struct EventsSubscribeResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubscribedEvent {
     pub stream_id: String,
-    /// herdr 事件的 wire 名稱，例如 pane_agent_status_changed。
+    /// herdr 事件的 wire 名稱，例如 pane.agent_status_changed、workspace_closed。
     pub event: String,
     /// 事件指名 Pane 時才有。
     #[serde(default, skip_serializing_if = "Option::is_none")]
