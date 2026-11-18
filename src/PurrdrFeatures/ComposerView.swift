@@ -664,6 +664,7 @@ final class KeyHandlingTextView: UITextView {
 struct ComposerTextEditor: View {
     @Binding var text: String
     @Binding var isFocused: Bool
+    var availableHeight: Binding<CGFloat?> = .constant(nil)
     var placeholder: String
     var returnSends: Bool
     var canSend: Bool
@@ -676,7 +677,7 @@ struct ComposerTextEditor: View {
 
     var body: some View {
         TextField("", text: $text, axis: .vertical)
-            .lineLimit(1...4)
+            .lineLimit(1...Int(ComposerSizing.maxLines))
             .textFieldStyle(.plain)
             .padding(.horizontal, 13)
             .padding(.vertical, 11)
