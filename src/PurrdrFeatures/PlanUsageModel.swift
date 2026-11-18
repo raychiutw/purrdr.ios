@@ -195,12 +195,24 @@ public final class PlanUsageModel {
     }
 
     private func startQuery() {
-        guard let source = source(host, agent) else { return }
+        guard let source = source(host, agent) else {
+            state = .unsupportedConnection
+            return
+        }
         query = Task { [weak self] in
-            let usage = try? await source.read()
+            let outcome: Result<PlanUsage?, any Error>
+            do {
+                outcome = .success(try await source.read())
+            } catch {
+                outcome = .failure(error)
+            }
             guard let self, !Task.isCancelled else { return }
             query = nil
-            if let usage { state = .loaded(usage) }
+            switch outcome {
+            case .success(let usage?): state = .loaded(usage)
+            case .success(nil): state = .noData
+            case .failure(let error): state = .failed(HostErrorText.message(for: error))
+            }
         }
     }
 }
