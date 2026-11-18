@@ -66,9 +66,12 @@ public struct ComposerTextMetrics: Sendable, Equatable {
     }
 }
 
-/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):最多 8 行且不超過鍵盤上方可用高度的 40%(取小),最小 44pt,超過才內捲。
+/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):預設兩行高(#187),最多 8 行且不超過鍵盤上方可用高度的 40%(取小),
+/// 最小 44pt,超過才內捲。
 public enum ComposerSizing {
     public static let maxLines = 8.0
+    /// 空白時也留的行數(上下版面的整寬輸入框，#187)。
+    public static let defaultLines = 2.0
     public static let availableFraction = 0.4
     public static let minHeight = 44.0
 
@@ -81,7 +84,9 @@ public enum ComposerSizing {
             limit = min(limit, (availableHeight * availableFraction).rounded())
         }
         limit = max(limit, minHeight)
-        return ComposerHeight(height: max(minHeight, min(contentHeight, limit)), scrolls: contentHeight > limit)
+        let defaultHeight = (metrics.lineHeight * defaultLines + metrics.verticalInsets).rounded(.up)
+        let floor = min(max(minHeight, defaultHeight), limit)
+        return ComposerHeight(height: max(floor, min(contentHeight, limit)), scrolls: contentHeight > limit)
     }
 }
 
