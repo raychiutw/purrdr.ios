@@ -64,10 +64,12 @@ public struct TerminalComposition: Sendable, Equatable {
         return []
     }
 
-    /// 系統要求結束組字：放棄組字文字，不送出(字元範圍分不出已選好的字與還在拼的音)。
+    /// 系統要求結束組字(注音點候選字是先把候選字設成組字文字再結束組字):
+    /// 不含注音與聲調就當確認的文字送出;還有注音就整段放棄，中途被打斷寧可少送也不送出注音。
     public mutating func unmarkText() -> [TerminalRemoteInput] {
+        let text = markedText
         cancel()
-        return []
+        return text.unicodeScalars.contains(where: \.isZhuyinOrTone) ? [] : Self.sendable(text)
     }
 
     /// Purrdr 自己結束組字(切換焦點等):放棄組字文字，不送出。
@@ -136,4 +138,18 @@ extension TerminalProgramModes {
         case .visible: nil
         }
     }
+}
+
+extension Unicode.Scalar {
+    /// 注音符號(含擴充)。
+    var isZhuyin: Bool {
+        (0x3100...0x312F).contains(value) || (0x31A0...0x31BF).contains(value)
+    }
+
+    /// 注音的聲調符號(ˉˊˇˋ˙)。
+    var isZhuyinTone: Bool {
+        [0x02C9, 0x02CA, 0x02C7, 0x02CB, 0x02D9].contains(value)
+    }
+
+    var isZhuyinOrTone: Bool { isZhuyin || isZhuyinTone }
 }
