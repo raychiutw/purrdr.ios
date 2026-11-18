@@ -261,8 +261,9 @@ struct HTTPSHostEditorTests {
         model.address = "box.tail1234.ts.net"
         await model.test()
 
-        try await waitUntil { http.requests.contains { $0.url == Self.address.revokeURL } }
-        #expect(http.requests.filter { $0.url == Self.address.revokeURL }.map(\.bearerToken) == ["token-paired"])
+        let revokeURL = Self.address.revokeURL
+        try await waitUntil { http.requests.contains { $0.url == revokeURL } }
+        #expect(http.requests.filter { $0.url == revokeURL }.map(\.bearerToken) == ["token-paired"])
     }
 
     @Test("配對後儲存：權杖在用，取消或離開編輯器都不撤銷")
@@ -278,7 +279,8 @@ struct HTTPSHostEditorTests {
         model.discardUnsavedPairing()
 
         try await Task.sleep(for: .milliseconds(100))
-        #expect(http.requests.allSatisfy { $0.url != Self.address.revokeURL })
+        let revokeURL = Self.address.revokeURL
+        #expect(http.requests.allSatisfy { $0.url != revokeURL })
     }
 
     @Test("編輯已配對的 HTTPS 主機不必輸入配對碼")
