@@ -891,7 +891,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "截至 %@。這些數字是 Codex 回報的，屬於這台主機登入的 ChatGPT 帳號。"
+            "value" : "截至 %@。這些數字是 Codex 回報的，屬於這台主機上 Codex 登入的 ChatGPT 方案。"
           }
         }
       }
@@ -1643,7 +1643,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這些數字是 Codex 回報的，屬於這台主機登入的 ChatGPT 帳號。"
+            "value" : "這些數字是 Codex 回報的，屬於這台主機上 Codex 登入的 ChatGPT 方案。"
           }
         }
       }
