@@ -497,8 +497,9 @@ public final class ConversationModel {
 
     /// 主機更新來源在訂閱事件時用它的快照;還沒連上、斷線或沒有事件訂閱時是 `nil`,改自己讀(#163)。
     private var liveSnapshot: HostSnapshot? {
-        guard let updates, updates.isSubscribed else { return nil }
-        return updates.snapshot
+        // 暫時(#168 破壞驗證):聊天改回每輪自己讀快照。
+        _ = updates
+        return nil
     }
 
     /// 一次輪詢：快照(主機更新來源的，或自己讀)→ 綁定 session → 讀對話紀錄。
