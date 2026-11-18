@@ -92,6 +92,16 @@ _避免_:New、Unseen、Badge
 有「需要你」或未讀 Agent 的 workspace 數。
 _避免_:Badge count、Notifications
 
+## 方案用量
+
+**方案用量**(Plan usage):
+某種 Agent 的服務方案(例如 Claude 的 Pro／Max)在一個用量週期內已用掉的比例與重置時間。屬於服務方案，不屬於主機：主機只是讀取它的地方，同一個方案在不同主機讀到的是同一份。只在使用者打開方案用量畫面或手動重新整理時查詢，查詢不啟動 Agent、不花 token。
+_避免_:用量(單獨使用時，會與 context 用量、token 數混淆)、額度、Usage
+
+**用量週期**:
+服務方案計算方案用量的時間範圍，例如 5 小時、每週;各有自己的重置時間。
+_避免_:視窗(那是 iPad 的 app 視窗)、Window
+
 ## 視窗
 
 **視窗**(Window):
