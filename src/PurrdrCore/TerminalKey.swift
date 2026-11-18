@@ -12,6 +12,11 @@ public enum TerminalKey: Sendable, Equatable {
     case right
     case home
     case end
+    case pageUp
+    case pageDown
+    case deleteForward
+    /// F1–F12(實體鍵盤);其他編號不送。
+    case function(Int)
     case character(Character)
 
     /// 依修飾鍵編碼成要送給主機的 bytes(行為規格 §6.4)。
@@ -29,6 +34,8 @@ public enum TerminalKey: Sendable, Equatable {
             // 修飾參數 = 1 + Alt(2) + Ctrl(4)
             let parameter = 1 + (modifiers.contains(.alt) ? 2 : 0) + (modifiers.contains(.control) ? 4 : 0)
             return Data("\u{1B}[1;\(parameter)".utf8) + [final]
+        case .pageUp, .pageDown, .deleteForward, .function:
+            return Data()
         case .character(let character):
             let utf8 = Data(String(character).utf8)
             guard modifiers.contains(.control), let control = Self.control(character) else { return altPrefix + utf8 }
@@ -75,4 +82,6 @@ public struct TerminalModifiers: OptionSet, Sendable, Hashable {
 
     public static let control = TerminalModifiers(rawValue: 1 << 0)
     public static let alt = TerminalModifiers(rawValue: 1 << 1)
+    /// 只有實體鍵盤會帶(游標類鍵、功能鍵、Shift-Tab)。
+    public static let shift = TerminalModifiers(rawValue: 1 << 2)
 }
