@@ -171,7 +171,7 @@ public struct ConversationView: View {
             }
             // 內容剛被重建、停在內容之外(內容突然縮短)就切回跟隨並捲到底，不留空白;一般排版變化不介入(#130)。
             if !userIsScrolling, scroll.returnsToContent(metrics, at: .now) {
-                scroll.jumpToLatest()
+                scroll.returnedToContent(metrics)
                 position.scrollTo(edge: .bottom)
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
