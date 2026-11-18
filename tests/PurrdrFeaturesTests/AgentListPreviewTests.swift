@@ -34,7 +34,7 @@ struct AgentListPreviewTests {
         return (model, task)
     }
 
-    static func host(thenSnapshots replies: [FakeReply]) async throws -> RoutingHost {
+    static func makeHost(thenSnapshots replies: [FakeReply]) async throws -> RoutingHost {
         let shell = try LocalShellHost.temporary()
         try shell.write(Fixtures.transcript(), to: ".claude/projects/-Users-demo-Projects-garden-journal/00000000-0000-0000-0000-000000000001.jsonl")
         let host = RoutingHost(shell: shell)
@@ -49,7 +49,7 @@ struct AgentListPreviewTests {
 
     @Test("第一次讀到快照：一次往返讀全部 Agent;訂閱開始的對帳沒有變化就不讀")
     func firstSnapshotReadsAllThenResyncReadsNothing() async throws {
-        let host = try await host(thenSnapshots: [Self.snapshot])
+        let host = try await Self.makeHost(thenSnapshots: [Self.snapshot])
         let (model, task) = try await Self.start(host)
         defer { task.cancel() }
 
@@ -65,7 +65,7 @@ struct AgentListPreviewTests {
 
     @Test("事件指名的 pane:只讀那一個 Agent")
     func namedPaneReadsOnlyThatAgent() async throws {
-        let host = try await host(thenSnapshots: [Self.snapshot])
+        let host = try await Self.makeHost(thenSnapshots: [Self.snapshot])
         let (_, task) = try await Self.start(host)
         defer { task.cancel() }
 
@@ -79,7 +79,7 @@ struct AgentListPreviewTests {
 
     @Test("事件沒指名 pane、快照也沒變：不讀預覽")
     func unchangedSnapshotReadsNothing() async throws {
-        let host = try await host(thenSnapshots: [Self.snapshot, Self.snapshot])
+        let host = try await Self.makeHost(thenSnapshots: [Self.snapshot, Self.snapshot])
         let (_, task) = try await Self.start(host)
         defer { task.cancel() }
 
@@ -98,7 +98,7 @@ struct AgentListPreviewTests {
             SnapshotEdit.agent("w1:p6", in: &$0) { $0["agent_status"] = "working" }
             SnapshotEdit.agent("w1:pB", in: &$0) { $0["agent_status"] = "blocked" }
         }
-        let host = try await host(thenSnapshots: [changed])
+        let host = try await Self.makeHost(thenSnapshots: [changed])
         let (_, task) = try await Self.start(host)
         defer { task.cancel() }
 
