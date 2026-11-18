@@ -93,6 +93,7 @@ public final class PlanUsageModel {
     public let hosts: [PlanUsageHostOption]
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
+    private let store: any PlanUsageSelectionStore
     private let now: () -> Date
     private let sleep: Sleep
 
@@ -108,10 +109,12 @@ public final class PlanUsageModel {
     ) {
         self.hosts = hosts
         self.source = source
+        self.store = store
         self.now = now
         self.sleep = sleep
-        host = fallback
-        agent = .claudeCode
+        let saved = store.load()
+        host = saved.map(\.host).flatMap { saved in hosts.contains { $0.id == saved } ? saved : nil } ?? fallback
+        agent = saved?.agent ?? .claudeCode
     }
 
     /// 要顯示的用量週期(已過重置時間的不顯示)。
@@ -140,6 +143,7 @@ public final class PlanUsageModel {
     public func select(host: HostSelection) {
         guard host != self.host else { return }
         self.host = host
+        store.save(PlanUsageSelection(host: host, agent: agent))
         restart()
     }
 
@@ -147,6 +151,7 @@ public final class PlanUsageModel {
     public func select(agent: PlanUsageAgent) {
         guard agent != self.agent else { return }
         self.agent = agent
+        store.save(PlanUsageSelection(host: host, agent: agent))
         restart()
     }
 
