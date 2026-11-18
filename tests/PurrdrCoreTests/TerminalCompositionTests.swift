@@ -185,4 +185,100 @@ struct TerminalCompositionTests {
 
         #expect(composition.handle(key, modifiers: modifiers) == .system)
     }
+
+    @Test("組字中其他實體鍵(方向鍵、Tab、Page、功能鍵、Ctrl／Alt 組合)也都交給輸入法，不送遠端", arguments: [
+        (TerminalHardwareKey.up, TerminalModifiers()),
+        (.down, []),
+        (.right, .shift),
+        (.tab, []),
+        (.pageUp, []),
+        (.pageDown, []),
+        (.home, []),
+        (.deleteForward, []),
+        (.function(5), []),
+        (.character("d"), .control),
+        (.character("b"), .alt),
+        (.returnKey, .alt),
+    ] as [(TerminalHardwareKey, TerminalModifiers)])
+    func moreKeysWhileComposingGoToInputMethod(key: TerminalHardwareKey, modifiers: TerminalModifiers) {
+        var composition = TerminalComposition()
+        composition.setMarkedText("ㄏㄠ")
+
+        #expect(composition.handle(key, modifiers: modifiers) == .system)
+        #expect(composition.handle(key, modifiers: modifiers, scrollsPageLocally: true) == .system)
+    }
+
+    // MARK: - 按鍵列與貼上(#141)
+
+    @Test("組字中按按鍵列：放棄組字(不送出)，只送該鍵", arguments: [
+        TerminalKey.escape, .tab, .up, .home, .character("/"), .character("~"),
+    ])
+    func keyBarWhileComposingDropsMarkedText(key: TerminalKey) {
+        var composition = TerminalComposition()
+        composition.setMarkedText("ㄋㄧˇ")
+
+        #expect(composition.pressKeyBarKey(key) == [.key(key, modifiers: [])])
+        #expect(!composition.isComposing)
+        #expect(composition.markedText == "")
+        // 系統隨後結束組字也不會把注音送出。
+        #expect(composition.unmarkText() == [])
+    }
+
+    @Test("沒有組字時按按鍵列：照常送該鍵")
+    func keyBarWithoutComposition() {
+        var composition = TerminalComposition()
+
+        #expect(composition.pressKeyBarKey(.escape) == [.key(.escape, modifiers: [])])
+        #expect(composition.insertText("a") == Self.text("a"))
+    }
+
+    @Test("組字中貼上：放棄組字(不送出)，只送貼上內容")
+    func pasteWhileComposingDropsMarkedText() {
+        var composition = TerminalComposition()
+        composition.setMarkedText("你ㄏㄠˇ")
+
+        #expect(composition.paste("git status") == [.paste("git status")])
+        #expect(!composition.isComposing)
+        #expect(composition.unmarkText() == [])
+    }
+
+    @Test("沒有組字時貼上照常送出;剪貼簿是空的就什麼都不送，但組字一樣放棄")
+    func pasteWithoutCompositionAndEmptyPaste() {
+        var composition = TerminalComposition()
+        #expect(composition.paste("ls -la\n") == [.paste("ls -la\n")])
+
+        composition.setMarkedText("ㄋㄧ")
+        #expect(composition.paste("") == [])
+        #expect(!composition.isComposing)
+    }
+
+    // MARK: - Page Up／Down
+
+    @Test("一般畫面(遠端沒開 alternate screen 或 application cursor)Page Up／Down 在本機捲一頁，不送遠端", arguments: [
+        (TerminalHardwareKey.pageUp, TerminalModifiers(), TerminalInput.ScrollDirection.up),
+        (.pageDown, [], .down),
+        (.pageUp, .shift, .up),
+    ] as [(TerminalHardwareKey, TerminalModifiers, TerminalInput.ScrollDirection)])
+    func pageKeysScrollLocallyOnNormalScreen(key: TerminalHardwareKey, modifiers: TerminalModifiers,
+                                             expected: TerminalInput.ScrollDirection) {
+        let composition = TerminalComposition()
+
+        #expect(composition.handle(key, modifiers: modifiers, scrollsPageLocally: true) == .scrollPage(expected))
+    }
+
+    @Test("遠端程式要 Page 鍵(alternate screen、application cursor)時照常送出")
+    func pageKeysSentWhenRemoteWantsThem() {
+        let composition = TerminalComposition()
+
+        #expect(composition.handle(.pageUp, modifiers: [], scrollsPageLocally: false) == .send(.key(.pageUp, modifiers: [])))
+        #expect(composition.handle(.pageDown, modifiers: [], scrollsPageLocally: false) == .send(.key(.pageDown, modifiers: [])))
+    }
+
+    @Test("Page 鍵本機捲動只影響 Page 鍵，其他特殊鍵照常送出")
+    func localPageScrollDoesNotAffectOtherKeys() {
+        let composition = TerminalComposition()
+
+        #expect(composition.handle(.up, modifiers: [], scrollsPageLocally: true) == .send(.key(.up, modifiers: [])))
+        #expect(composition.handle(.end, modifiers: [], scrollsPageLocally: true) == .send(.key(.end, modifiers: [])))
+    }
 }

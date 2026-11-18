@@ -6,6 +6,8 @@ public enum TerminalInputSend: Sendable, Equatable {
     case bytes(Data)
     /// 經 `TerminalSessionModel.press(_:adding:)` 送出的按鍵(帶實體鍵盤按著的修飾鍵)。
     case key(TerminalKey, modifiers: TerminalModifiers)
+    /// 經 `TerminalSessionModel.paste(_:bracketed:)` 送出的貼上內容。
+    case paste(String)
 }
 
 /// 實體鍵盤的一顆鍵(與 UIKit 無關的描述;字元鍵是不含修飾的字元)。
@@ -32,6 +34,8 @@ public enum TerminalHardwareKeyHandling: Sendable, Equatable {
     /// 交給系統文字輸入(輸入法、`insertText`、`deleteBackward`)。
     case system
     case send(TerminalInputSend)
+    /// 在本機捲一頁(同單指滑動的捲動),不送遠端。
+    case scrollPage(TerminalInput.ScrollDirection)
 }
 
 /// 終端機輸入法的組字狀態：決定哪些輸入要送到遠端(組字期間一律不送)。
@@ -73,8 +77,20 @@ public struct TerminalComposition: Sendable, Equatable {
         markedText = ""
     }
 
+    /// 按鍵列的一顆鍵。
+    public mutating func pressKeyBarKey(_ key: TerminalKey) -> [TerminalInputSend] {
+        []
+    }
+
+    /// 貼上。
+    public mutating func paste(_ text: String) -> [TerminalInputSend] {
+        []
+    }
+
     /// 實體鍵盤按鍵(`modifiers` 是按著的實體修飾鍵)。組字中一律交給輸入法。
-    public func handle(_ key: TerminalHardwareKey, modifiers: TerminalModifiers) -> TerminalHardwareKeyHandling {
+    public func handle(
+        _ key: TerminalHardwareKey, modifiers: TerminalModifiers, scrollsPageLocally: Bool = false
+    ) -> TerminalHardwareKeyHandling {
         guard !isComposing else { return .system }
         let terminalKey: TerminalKey
         switch key {
