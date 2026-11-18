@@ -290,6 +290,8 @@ public final class ConversationModel {
     /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
     @ObservationIgnored private var screenThisPoll: String?
     private let sleep: Sleep
+    /// 這台主機的主機更新來源(#163)。
+    private let updates: HostUpdates?
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -330,8 +332,10 @@ public final class ConversationModel {
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
+        updates: HostUpdates? = nil,
         sleep: @escaping Sleep = Sleeping.task
     ) {
+        self.updates = updates
         self.images = images
         self.client = client
         self.transcripts = transcripts
