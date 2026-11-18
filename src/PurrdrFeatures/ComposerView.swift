@@ -77,6 +77,7 @@ struct ComposerBar: View {
             text: $model.draft, isFocused: $isFocused, placeholder: placeholder, returnSends: returnSends, canSend: model.canSend,
             slashKey: { model.slash.handle($0) },
             tabKey: acceptSuggestion,
+            onComposingChange: { model.isComposingDraft = $0 },
             pasteAction: { [model] in
                 ComposerPaste.action(
                     hasImages: model.canAttachImages && ImageSources.pasteboardHasImages,
@@ -383,6 +384,8 @@ struct ComposerTextEditor: UIViewRepresentable {
     var slashKey: (SlashMenuModel.Key) -> Bool
     /// slash 選單沒處理的硬體鍵盤 Tab(接受建議提示詞，#123;回傳 true 表示已處理，否則交給系統)。
     var tabKey: () -> Bool = { false }
+    /// 組字狀態(有 marked text)改變時呼叫(#138)。
+    var onComposingChange: (Bool) -> Void = { _ in }
     /// 貼上(Command-V 或編輯選單)時要當圖片附件還是交給系統。
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
@@ -420,13 +423,10 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.tabKey = tabKey
         view.pasteAction = pasteAction
         view.onPasteImages = onPasteImages
-        if view.text != text {
-            // 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3)。
-            let fromEnd = (view.text as NSString).length - view.selectedRange.location - view.selectedRange.length
-            view.text = text
-            let location = max(0, (text as NSString).length - max(0, fromEnd))
-            view.selectedRange = NSRange(location: location, length: 0)
-            view.contentDidChange()
+        // 程式改寫草稿：組字中延後到組字結束，不打斷正在組的字(#138)。
+        if view.text != text,
+           let applied = context.coordinator.overwrite.request(text, current: view.text, isComposing: view.markedTextRange != nil) {
+            view.replaceText(with: applied)
         }
         if isFocused, !view.isFirstResponder, view.window != nil {
             // 程式要求聚焦(點「Type something.」#120、接受建議後叫出鍵盤 #123):等這次畫面更新結束再取得焦點。
@@ -455,18 +455,45 @@ struct ComposerTextEditor: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: ComposerTextEditor
+        /// 組字中延後的程式覆寫。
+        var overwrite = ComposerOverwrite()
+        private var reportedComposing = false
 
         init(parent: ComposerTextEditor) {
             self.parent = parent
         }
 
         func textViewDidChange(_ textView: UITextView) {
-            parent.text = textView.text
+            syncDraft(from: textView)
             (textView as? KeyHandlingTextView)?.contentDidChange()
         }
 
         func textViewDidChangeSelection(_ textView: UITextView) {
+            // 取消組字時文字可能沒變，只有選取範圍變。
+            if textView.markedTextRange == nil, overwrite.isPending || reportedComposing { syncDraft(from: textView) }
             (textView as? KeyHandlingTextView)?.contentDidChange()
+        }
+
+        /// 把輸入框文字寫回草稿。組字開始先標記再寫、結束先寫再取消標記，slash 選單只看到確認的文字。
+        private func syncDraft(from textView: UITextView) {
+            let isComposing = textView.markedTextRange != nil
+            if let resolved = overwrite.inputChanged(textView.text, isComposing: isComposing) {
+                (textView as? KeyHandlingTextView)?.replaceText(with: resolved)
+                parent.text = resolved
+                reportComposing(false)
+                return
+            }
+            // 有延後的覆寫時草稿維持程式要的內容，組字結束再合併。
+            guard !overwrite.isPending else { return }
+            if isComposing { reportComposing(true) }
+            parent.text = textView.text
+            if !isComposing { reportComposing(false) }
+        }
+
+        private func reportComposing(_ isComposing: Bool) {
+            guard reportedComposing != isComposing else { return }
+            reportedComposing = isComposing
+            parent.onComposingChange(isComposing)
         }
 
         // 收起鍵盤是在 updateUIView 裡 resign,這時 binding 已經是 false:只在值不同時才寫，避免在畫面更新中改狀態。
@@ -498,6 +525,15 @@ final class KeyHandlingTextView: UITextView {
         let lineHeight = (font ?? .preferredFont(forTextStyle: .body)).lineHeight
         let insets = ComposerTextEditor.insets
         return ceil(lineHeight * ComposerTextEditor.maxLines + insets.top + insets.bottom)
+    }
+
+    /// 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3)。
+    func replaceText(with newText: String) {
+        let fromEnd = (text as NSString).length - selectedRange.location - selectedRange.length
+        text = newText
+        let location = max(0, (newText as NSString).length - max(0, fromEnd))
+        selectedRange = NSRange(location: location, length: 0)
+        contentDidChange()
     }
 
     /// 打字、組字、程式改寫草稿或移動游標後呼叫。
@@ -619,6 +655,7 @@ struct ComposerTextEditor: View {
     var canSend: Bool
     var slashKey: (SlashMenuModel.Key) -> Bool
     var tabKey: () -> Bool = { false }
+    var onComposingChange: (Bool) -> Void = { _ in }
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
     var onSend: () -> Void
