@@ -336,6 +336,20 @@ struct PlanUsageModelTests {
         #expect(try String(contentsOf: host.url(".claude/settings.json"), encoding: .utf8) == #"{"model":"sonnet"}"#)
     }
 
+    @Test("等使用者確認時，自動重整與下拉都不打斷確認")
+    func refreshDoesNotInterruptConsent() async throws {
+        let sleeper = StepSleeper()
+        let model = model(cost: .free, sleep: sleeper.sleep)
+        model.appeared()
+        await model.requestConsent()
+
+        try await waitUntil { await sleeper.waitingCount == 1 }
+        await sleeper.step()
+        await model.refresh()
+
+        #expect(await stays(model.state == .confirming(user: NSUserName())))
+    }
+
     /// 在一小段時間內條件一直成立(斷言「不會發生」用)。
     func stays(_ condition: @autoclosure @MainActor () -> Bool) async -> Bool {
         for _ in 0..<20 {
