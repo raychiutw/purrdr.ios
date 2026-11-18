@@ -49,4 +49,39 @@ struct CodexUsageHostTests {
         #expect(Self.methods(in: execution.stdinText) == ["initialize", "initialized", "account/rateLimits/read"])
         #expect(await host.waitUntilClosed(execution: 0))
     }
+
+    static func read(_ rateLimits: String) async throws -> PlanUsage {
+        try await CodexUsageHost(channel: await appServer(answering: rateLimits), now: { now }).readUsage()
+    }
+
+    @Test("只有每週(主要 bucket 是 10080 分鐘):依用量週期長度對應，只顯示每週")
+    func weeklyOnly() async throws {
+        let usage = try await Self.read(#"""
+            {"id":1,"result":{"rateLimits":{"limitId":"codex","primary":{"usedPercent":30,"windowDurationMins":10080,"resetsAt":1738857600},"secondary":null}}}
+            """#)
+
+        #expect(usage.periods == [.init(kind: .week, usedPercentage: 30, resetsAt: Date(timeIntervalSince1970: 1_738_857_600))])
+    }
+
+    @Test("多 bucket:用 Codex 本身的那個(`rateLimitsByLimitId.codex`),不用其他 bucket")
+    func multipleBuckets() async throws {
+        let usage = try await Self.read(#"""
+            {"id":1,"result":{"rateLimits":{"limitId":"codex_other","primary":{"usedPercent":90,"windowDurationMins":300,"resetsAt":1738425600},"secondary":null},"rateLimitsByLimitId":{"codex_other":{"limitId":"codex_other","primary":{"usedPercent":90,"windowDurationMins":300,"resetsAt":1738425600},"secondary":null},"codex":{"limitId":"codex","primary":{"usedPercent":12,"windowDurationMins":300,"resetsAt":1738425600},"secondary":{"usedPercent":55,"windowDurationMins":10080,"resetsAt":1738857600}}}}}
+            """#)
+
+        #expect(usage.periods.map(\.kind) == [.fiveHour, .week])
+        #expect(usage.periods.map(\.usedPercentage) == [12, 55])
+    }
+
+    @Test("超過 100%(Codex 會回報超過)夾在 0～100;缺 resetsAt 時沒有重置時間")
+    func clampsAndMissingReset() async throws {
+        let usage = try await Self.read(#"""
+            {"id":1,"result":{"rateLimits":{"primary":{"usedPercent":130,"windowDurationMins":300},"secondary":{"usedPercent":-5,"windowDurationMins":10080,"resetsAt":null}}}}
+            """#)
+
+        #expect(usage.periods == [
+            .init(kind: .fiveHour, usedPercentage: 100, resetsAt: nil),
+            .init(kind: .week, usedPercentage: 0, resetsAt: nil),
+        ])
+    }
 }
