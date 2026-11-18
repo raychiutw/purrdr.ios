@@ -149,7 +149,7 @@ actor HostServiceSession {
         let text = try Self.encode(make(requestID))
         let closing = try close.map { try Self.encode($0(requestID)) }
         if let stream { streams[requestID] = .delivering(stream) }
-        let reply = try await withTaskCancellationHandler {
+        let reply: HostServiceProtocol.ServerMessage = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 guard !Task.isCancelled else { return continuation.resume(throwing: CancellationError()) }
                 pending[requestID] = continuation
