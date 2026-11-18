@@ -29,7 +29,7 @@ public struct TopNavigationView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
-    /// 從「⋯」選單推進來的主機工具(登入 Shell、檔案瀏覽)。
+    /// 從「⋯」選單推進來的主機工具(登入 Shell、檔案瀏覽、方案用量)。
     @State private var hostTool: HostTool?
 
     public init(
@@ -167,6 +167,8 @@ public struct TopNavigationView: View {
                         #endif
                     case .files(let model):
                         FolderBrowserView(model: model)
+                    case .planUsage(let model):
+                        PlanUsageView(model: model)
                     }
                 }
                 #if os(iOS)
@@ -189,7 +191,7 @@ public struct TopNavigationView: View {
         if supportsMultipleWindows {
             open = { kind, row in openInNewWindow(kind, row) }
         }
-        return AgentListView(model: hosts.agentList, usage: hosts.claudeUsage, window: navigation, openInNewWindow: open) { route, sessionID in
+        return AgentListView(model: hosts.agentList, window: navigation, openInNewWindow: open) { route, sessionID in
             hosts.conversation(route, sessionID: sessionID)
         } terminal: { route, title in
             hosts.terminal(route, title: title)
@@ -225,6 +227,9 @@ public struct TopNavigationView: View {
                     .accessibilityIdentifier("menu.settings")
                 Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
                     .accessibilityIdentifier("menu.hosts")
+                // 方案用量(#177):獨立畫面，選主機與 Agent 後查詢。
+                Button("Plan Usage", systemImage: "gauge.with.dots.needle.33percent") { hostTool = .planUsage(hosts.planUsage()) }
+                    .accessibilityIdentifier("menu.planUsage")
                 // 選取中主機的登入 Shell 與檔案(行為規格 F13;iPad 上也是推疊)。
                 // 不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
                 // HTTPS 主機沒有登入 Shell 與檔案(ADR-0010)。
@@ -263,15 +268,17 @@ extension TopNavigationView {
     #endif
 }
 
-/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始)。
+/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始、方案用量重新查一次)。
 enum HostTool: Hashable {
     case loginShell(LoginShellModel)
     case files(FolderBrowserModel)
+    case planUsage(PlanUsageModel)
 
     private var object: AnyObject {
         switch self {
         case .loginShell(let model): model
         case .files(let model): model
+        case .planUsage(let model): model
         }
     }
 

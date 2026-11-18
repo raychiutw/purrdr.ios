@@ -316,24 +316,65 @@ struct HostsModelTests {
             "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."))
     }
 
-    @Test("Claude 用量跟著選取中主機：Demo 用 Demo 的同意紀錄，真主機以主機 id 用另一份同意紀錄")
-    func claudeUsageFollowsSelectedHost() {
+    static let httpsStudio = HostConfiguration(
+        id: UUID(uuidString: "1D2E3F40-5A6B-4C7D-8E9F-0A1B2C3D4E5F")!, name: "Studio HTTPS",
+        hostService: HostServiceAddress("studio.tail1234.ts.net")!)
+
+    @Test("方案用量畫面：主機選單列出 Demo 與所有已存主機，預設選取中主機，記住上次選擇")
+    func planUsageListsAllHosts() {
         let store = MemoryHostStore()
-        store.hosts = [Self.studio]
-        let demoConsent = InMemoryHostWriteConsentStore()
-        let hostConsent = InMemoryHostWriteConsentStore()
-        hostConsent.grant(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString)
-        let model = HostsModel(store: store, demoChannel: FakeHost(), demoConsent: demoConsent, hostConsent: hostConsent,
-                               makeChannel: ChannelFactory(FakeHost()).make)
-
+        store.hosts = [Self.studio, Self.httpsStudio]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
         model.load()
-        #expect(model.claudeUsage.state == .on)
 
-        model.select(.demo)
-        #expect(model.claudeUsage.state == .off)
-        demoConsent.grant(ClaudeUsageHost.feature.id, host: "demo")
-        model.select(.demo)
-        #expect(model.claudeUsage.state == .on)
+        let usage = model.planUsage()
+        #expect(usage.hosts.map(\.id) == [.demo, .host(Self.studio.id), .host(Self.httpsStudio.id)])
+        #expect(usage.hosts.map(\.name) == ["Demo", "Studio", "Studio HTTPS"])
+        #expect(usage.host == model.selection)
+
+        usage.select(host: .demo)
+        usage.disappeared()
+        #expect(model.planUsage().host == .demo)
+    }
+
+    @Test("方案用量的查詢成本：Demo 主機不耗 token 與傳輸，SSH 主機需要傳輸;HTTPS 主機不支援、不連線")
+    func planUsageCostFollowsConnection() async {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio, Self.httpsStudio]
+        let real = FakeHost()
+        let hostConsent = InMemoryHostWriteConsentStore()
+        hostConsent.grant(ClaudePlanUsageHost.feature.id, host: Self.httpsStudio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(real).make)
+        model.load()
+        let usage = model.planUsage()
+        usage.appeared()
+
+        #expect(usage.cost == .transfer)
+        usage.select(host: .demo)
+        #expect(usage.cost == .free)
+        usage.select(host: .host(Self.httpsStudio.id))
+        await usage.untilIdle()
+        #expect(usage.cost == nil)
+        #expect(usage.state == .unsupportedConnection)
+        usage.disappeared()
+        #expect(await real.executions.isEmpty)
+    }
+
+    @Test("Codex 的方案用量：SSH 主機經主機通道(需要傳輸)、Demo 主機不耗 token 與傳輸;HTTPS 主機不支援")
+    func codexPlanUsageFollowsConnection() async {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio, Self.httpsStudio]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+        let usage = model.planUsage()
+        usage.select(agent: .codex)
+
+        #expect(usage.cost == .transfer)
+        usage.select(host: .demo)
+        #expect(usage.cost == .free)
+        usage.select(host: .host(Self.httpsStudio.id))
+        #expect(usage.cost == nil)
+        usage.disappeared()
     }
 
     @Test("移除主機：從儲存刪除、清除該主機的所有主機寫入同意，選取改回其他主機或 Demo")
@@ -344,9 +385,9 @@ struct HostsModelTests {
         other.name = "Zeta"
         store.hosts = [Self.studio, other]
         let hostConsent = InMemoryHostWriteConsentStore()
-        hostConsent.grant(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString)
+        hostConsent.grant(ClaudePlanUsageHost.feature.id, host: Self.studio.id.uuidString)
         hostConsent.grant("theme", host: Self.studio.id.uuidString)
-        hostConsent.grant(ClaudeUsageHost.feature.id, host: other.id.uuidString)
+        hostConsent.grant(ClaudePlanUsageHost.feature.id, host: other.id.uuidString)
         let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
         model.load()
 
@@ -355,9 +396,9 @@ struct HostsModelTests {
         #expect(store.hosts.map(\.id) == [other.id])
         #expect(model.rows.map(\.id) == [other.id])
         #expect(model.selection == .host(other.id))
-        #expect(!hostConsent.isGranted(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString))
+        #expect(!hostConsent.isGranted(ClaudePlanUsageHost.feature.id, host: Self.studio.id.uuidString))
         #expect(!hostConsent.isGranted("theme", host: Self.studio.id.uuidString))
-        #expect(hostConsent.isGranted(ClaudeUsageHost.feature.id, host: other.id.uuidString))
+        #expect(hostConsent.isGranted(ClaudePlanUsageHost.feature.id, host: other.id.uuidString))
 
         try await model.delete(other.id)
         #expect(model.selection == .demo)

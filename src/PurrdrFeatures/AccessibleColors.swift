@@ -153,3 +153,36 @@ struct AgentKindAvatarStyle {
         palette = ContrastPalette(light: normal, dark: normal, lightHighContrast: highContrast, darkHighContrast: highContrast)
     }
 }
+
+extension AccessibleColors {
+    /// 方案用量圓環的顏色(#177):依剩餘比例分三級。
+    /// 非文字圖形，對列背景(白、#1C1C1E、#2C2C2E)≥ 3:1,高對比 ≥ 4.5:1。
+    static func planUsage(_ level: PlanUsageLevel) -> ContrastPalette {
+        switch level {
+        case .ample: planUsageAmple
+        case .low: planUsageLow
+        case .depleted: planUsageDepleted
+        }
+    }
+
+    static let planUsageAmple = ContrastPalette(
+        light: ThemeColor(red: 0x24, green: 0x8A, blue: 0x3D),             // 白底 4.4:1
+        dark: ThemeColor(red: 0x30, green: 0xD1, blue: 0x58),              // #1C1C1E 8.4:1、#2C2C2E 6.9:1
+        lightHighContrast: ThemeColor(red: 0x1E, green: 0x7A, blue: 0x35), // 白底 5.4:1
+        darkHighContrast: ThemeColor(red: 0x5F, green: 0xE0, blue: 0x7E)   // #2C2C2E 8.3:1
+    )
+
+    static let planUsageLow = ContrastPalette(
+        light: ThemeColor(red: 0xC2, green: 0x5E, blue: 0x00),             // 白底 4.3:1
+        dark: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x0A),              // #1C1C1E 8.3:1、#2C2C2E 6.8:1
+        lightHighContrast: ThemeColor(red: 0x9A, green: 0x4A, blue: 0x00), // 白底 6.3:1
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xB3, blue: 0x40)   // #2C2C2E 7.8:1
+    )
+
+    static let planUsageDepleted = ContrastPalette(
+        light: ThemeColor(red: 0xD7, green: 0x00, blue: 0x15),             // 白底 5.4:1
+        dark: ThemeColor(red: 0xFF, green: 0x69, blue: 0x61),              // #1C1C1E 6.0:1、#2C2C2E 4.9:1
+        lightHighContrast: ThemeColor(red: 0xA5, green: 0x00, blue: 0x11), // 白底 8.1:1
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x97)   // #2C2C2E 7.1:1
+    )
+}

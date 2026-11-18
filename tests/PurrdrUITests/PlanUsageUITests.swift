@@ -1,0 +1,112 @@
+import XCTest
+
+/// 方案用量畫面(#177):從頂部選單打開 → 選 Demo 主機與 Claude Code → 同意 → 兩個用量週期 → 切換已用 → 關閉還原。
+/// Demo 主機用範例資料(5 小時已用 38%、每週已用 61%)。Agent 列表不再顯示方案用量。
+final class PlanUsageUITests: XCTestCase {
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
+    @MainActor
+    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)[identifier].firstMatch
+    }
+
+    /// 元素自己與裡面所有元素的 label 與 value(選單列的目前選項可能在子元素上)。
+    @MainActor
+    private func texts(of element: XCUIElement) -> String {
+        ([element] + element.descendants(matching: .any).allElementsBoundByIndex)
+            .flatMap { [$0.label, ($0.value as? String) ?? ""] }
+            .joined(separator: " ")
+    }
+
+    @MainActor
+    private func openPlanUsage(_ app: XCUIApplication) {
+        XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
+        app.buttons["toolbar.more"].tap()
+        let item = app.buttons["menu.planUsage"]
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "頂部選單沒有「方案用量」")
+        item.tap()
+    }
+
+    @MainActor
+    func testConsentShowsPeriodsAndTurnOffRestores() {
+        let app = XCUIApplication.launchUITesting()
+        XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
+        for _ in 0..<3 { app.swipeUp() }
+        XCTAssertFalse(app.buttons["claudeUsage.show"].exists, "Agent 列表還有方案用量")
+        openPlanUsage(app)
+
+        let host = element("planUsage.host", in: app)
+        XCTAssertTrue(host.waitForExistence(timeout: 5), "沒有主機選單")
+        XCTAssertTrue(texts(of: host).contains("Demo"), "主機選單不是 Demo:\(texts(of: host))")
+        let agent = element("planUsage.agent", in: app)
+        XCTAssertTrue(texts(of: agent).contains("Claude Code"), "Agent 選單不是 Claude Code:\(texts(of: agent))")
+
+        let consent = app.buttons["planUsage.consent"]
+        XCTAssertTrue(consent.waitForExistence(timeout: 10), "沒有請使用者同意")
+        consent.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
+        let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        XCTAssertTrue(message.contains("settings.json"), "沒說明會改什麼:\(message)")
+        XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
+        alert.buttons["Change Settings"].tap()
+
+        let fiveHour = element("planUsage.period.fiveHour", in: app)
+        XCTAssertTrue(fiveHour.waitForExistence(timeout: 10), "沒有 5 小時用量週期")
+        XCTAssertTrue(fiveHour.label.contains("62% left"), "5 小時不是剩餘比例:\(fiveHour.label)")
+        XCTAssertTrue(fiveHour.label.contains("Resets"), "5 小時沒有重置時間:\(fiveHour.label)")
+        let week = element("planUsage.period.week", in: app)
+        XCTAssertTrue(week.label.contains("39% left"), "每週不是剩餘比例:\(week.label)")
+
+        element("planUsage.menu", in: app).tap()
+        let showUsed = app.buttons["Show Used"]
+        XCTAssertTrue(showUsed.waitForExistence(timeout: 5), "選單沒有「Show Used」")
+        showUsed.tap()
+        let used = NSPredicate(format: "label CONTAINS %@", "38% used")
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: used, evaluatedWith: fiveHour)], timeout: 5), .completed,
+                       "沒切換成已用比例:\(fiveHour.label)")
+
+        element("planUsage.menu", in: app).tap()
+        app.buttons["Turn Off Claude Plan Usage"].tap()
+        XCTAssertTrue(app.buttons["planUsage.consent"].waitForExistence(timeout: 10), "關閉後沒有回到請使用者同意")
+    }
+
+    @MainActor
+    func testCancelConsentChangesNothing() {
+        let app = XCUIApplication.launchUITesting()
+        openPlanUsage(app)
+        let consent = app.buttons["planUsage.consent"]
+        XCTAssertTrue(consent.waitForExistence(timeout: 10))
+        consent.tap()
+
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Cancel"].tap()
+
+        XCTAssertTrue(consent.waitForExistence(timeout: 5))
+        XCTAssertFalse(element("planUsage.period.fiveHour", in: app).exists)
+    }
+
+    /// Demo 主機的 Codex 範例：5 小時已用 24%、每週已用 47%。不需要同意。
+    @MainActor
+    func testCodexShowsPeriodsWithoutConsent() {
+        let app = XCUIApplication.launchUITesting()
+        openPlanUsage(app)
+        let agent = element("planUsage.agent", in: app)
+        XCTAssertTrue(agent.waitForExistence(timeout: 5), "沒有 Agent 選單")
+        agent.tap()
+        let codex = app.buttons["Codex"]
+        XCTAssertTrue(codex.waitForExistence(timeout: 5), "Agent 選單沒有 Codex")
+        codex.tap()
+
+        let fiveHour = element("planUsage.period.fiveHour", in: app)
+        XCTAssertTrue(fiveHour.waitForExistence(timeout: 10), "沒有 5 小時用量週期")
+        XCTAssertTrue(fiveHour.label.contains("76% left"), "5 小時不是 Codex 的範例:\(fiveHour.label)")
+        XCTAssertTrue(element("planUsage.period.week", in: app).label.contains("53% left"), "每週不是 Codex 的範例")
+        XCTAssertFalse(app.buttons["planUsage.consent"].exists, "Codex 不該要求同意")
+        let note = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Codex reports")).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5), "說明不是 Codex 的")
+    }
+}

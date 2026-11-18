@@ -4,7 +4,7 @@ import PurrdrSSH
 
 /// Demo 主機的家目錄：記憶體裡的假檔案，回應主機檔案的讀寫指令(`HostFileRequest`)。
 ///
-/// 一開始有 `~/.claude/settings.json`(範例的 status line 設定)、herdr 的 `config.toml`(主題)與「You should know」的 store。Claude 用量的包裝腳本裝上之後，
+/// 一開始有 `~/.claude/settings.json`(範例的 status line 設定)、herdr 的 `config.toml`(主題)與「You should know」的 store。Claude 方案用量的包裝腳本裝上之後，
 /// 讀 `usage.json` 會拿到範例用量——就像 Claude Code 已經執行過包裝腳本(行為規格 F21:用量是假資料)。
 struct DemoFiles {
     static let user = "demo"
@@ -67,7 +67,7 @@ struct DemoFiles {
     }
 
     private func state(of path: HostPath, now: Date) -> HostFileState {
-        if path == ClaudeUsageHost.usagePath, files[ClaudeUsageHost.feature.ownFile("statusline.sh").relative] != nil {
+        if path == ClaudePlanUsageHost.usagePath, files[ClaudePlanUsageHost.feature.ownFile("statusline.sh").relative] != nil {
             let data = Self.sampleUsage(now: now)
             return .file(data, version: Self.version(of: data))
         }
