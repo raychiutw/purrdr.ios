@@ -179,6 +179,10 @@ struct WindowsRealHostIntegrationTests {
         ])
         log("預覽:\(previews.mapValues { String(describing: $0) })")
         #expect(previews["c"] != nil)
+        let firstReading = try #require(try await reader.previewReadings(of: [PreviewRequest(key: "c", sessionID: id, cwd: #"C:\work"#)])["c"])
+        var known = PreviewRequest(key: "c", sessionID: id, cwd: #"C:\work"#)
+        known.knownVersion = firstReading.version
+        #expect(try await reader.previewReadings(of: [known])["c"]?.change == .unchanged)
         await temp.remove()
         await ssh.disconnect()
     }
