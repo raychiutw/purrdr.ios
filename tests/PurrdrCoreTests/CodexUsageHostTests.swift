@@ -16,10 +16,12 @@ struct CodexUsageHostTests {
         """#
 
     /// 假的 app-server:收到 `initialize` 那一行就回 `initialize` 的回應，收到讀取請求後回 `rateLimits`。
-    static func appServer(answering rateLimits: String?, initialize: String = initializeResponse) async -> FakeHost {
+    static func appServer(
+        answering rateLimits: String?, initialize: String = initializeResponse, command: String = CodexUsageHost.command
+    ) async -> FakeHost {
         let host = FakeHost()
         await host.expect(
-            CodexUsageHost.command, reply: FakeReply(stdout: Data((initialize + "\n").utf8), trigger: .afterStdinLine, keepsOpen: true))
+            command, reply: FakeReply(stdout: Data((initialize + "\n").utf8), trigger: .afterStdinLine, keepsOpen: true))
         if let rateLimits {
             Task {
                 guard await host.waitForStdin(ofExecution: 0, until: { $0.stdinText.contains("account/rateLimits/read") }) else { return }
@@ -134,5 +136,22 @@ struct CodexUsageHostTests {
             try await CodexUsageHost(channel: host, sleep: { _ in }).readUsage()
         }
         #expect(await host.waitUntilClosed(execution: 0))
+    }
+
+    @Test("Windows 主機：以 PowerShell 找 codex(找不到就 exit 127)後執行 app-server,stdin 原樣轉過去、不送 EOF")
+    func windowsHost() async throws {
+        let script = """
+            $ProgressPreference='SilentlyContinue'
+            $c=Get-Command 'codex' -CommandType Application -ErrorAction SilentlyContinue|Select-Object -First 1
+            if(-not $c){[Console]::Error.Write("codex: command not found`n");exit 127}
+            & $c.Source 'app-server'
+            exit $LASTEXITCODE
+            """
+        let host = await Self.appServer(answering: Self.singleBucket, command: PowerShell.encodedCommand(script))
+
+        let usage = try await CodexUsageHost(channel: WindowsHostChannel(host), now: { Self.now }).readUsage()
+
+        #expect(usage.periods.map(\.kind) == [.fiveHour, .week])
+        #expect(await host.executions.first?.closedStdin == false)
     }
 }
