@@ -84,4 +84,55 @@ struct CodexUsageHostTests {
             .init(kind: .week, usedPercentage: 0, resetsAt: nil),
         ])
     }
+
+    // MARK: - 錯誤
+
+    @Test("主機找不到 codex(sh 回 127):codexNotFound")
+    func codexNotFound() async throws {
+        let host = FakeHost()
+        await host.expect(CodexUsageHost.command, reply: FakeReply(stderr: Data("sh: codex: command not found\n".utf8), exitCode: 127))
+
+        await #expect(throws: CodexUsageError.codexNotFound) {
+            try await CodexUsageHost(channel: host).readUsage()
+        }
+    }
+
+    @Test("Codex 沒登入(或用 API key 登入，沒有方案用量):notSignedIn")
+    func notSignedIn() async throws {
+        for message in ["codex account authentication required to read rate limits", "chatgpt authentication required to read rate limits"] {
+            await #expect(throws: CodexUsageError.notSignedIn) {
+                try await Self.read(#"{"id":1,"error":{"code":-32600,"message":"\#(message)"}}"#)
+            }
+        }
+    }
+
+    @Test("app-server 查詢失敗(例如連不到 OpenAI):帶 app-server 的說明")
+    func requestFailed() async throws {
+        await #expect(throws: CodexUsageError.requestFailed("failed to fetch codex rate limits: timeout")) {
+            try await Self.read(#"{"id":1,"error":{"code":-32603,"message":"failed to fetch codex rate limits: timeout"}}"#)
+        }
+    }
+
+    @Test("回應無法解析(沒有 rateLimits、或還沒回應就結束):unreadableResponse")
+    func unreadableResponse() async throws {
+        await #expect(throws: CodexUsageError.unreadableResponse) {
+            try await Self.read(#"{"id":1,"result":{"accountId":"a"}}"#)
+        }
+        let host = FakeHost()
+        await host.expect(CodexUsageHost.command, reply: FakeReply(stdout: Data("not json\n".utf8), trigger: .afterStdinLine))
+        await #expect(throws: CodexUsageError.unreadableResponse) {
+            try await CodexUsageHost(channel: host).readUsage()
+        }
+    }
+
+    @Test("app-server 一直不回應：沿用主機指令期限，逾時丟 deadlineExceeded 並關閉通道")
+    func deadline() async throws {
+        let host = FakeHost()
+        await host.expect(CodexUsageHost.command, reply: FakeReply(trigger: .afterStdinLine, keepsOpen: true))
+
+        await #expect(throws: HostCommandError.deadlineExceeded) {
+            try await CodexUsageHost(channel: host, sleep: { _ in }).readUsage()
+        }
+        #expect(await host.waitUntilClosed(execution: 0))
+    }
 }

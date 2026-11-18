@@ -3,6 +3,10 @@ import PurrdrCore
 
 /// 查不到 Codex 方案用量的原因。
 public enum CodexUsageError: Error, Equatable {
+    case codexNotFound
+    case notSignedIn
+    /// app-server 回報查詢失敗(帶它的說明)。
+    case requestFailed(String)
     case unreadableResponse
 }
 
