@@ -38,6 +38,8 @@ final class FakeHostService: Sendable {
     enum SubscribeReply: Sendable {
         /// 接受，之後用 `pushEvent` 推事件。
         case accept
+        /// 接受但不回應結果(結果還在路上時呼叫端放棄)。
+        case acceptWithoutReply
         case error(code: String, message: String = "failed", herdrCode: String? = nil)
     }
 
@@ -262,6 +264,9 @@ final class FakeHostService: Sendable {
             case .accept:
                 state.withLock { $0.streams.append(EventStream(socket: socket, streamID: streamID)) }
                 return [.text(Self.json(["type": "events.subscribe.result", "request_id": requestID as Any, "stream_id": streamID]))]
+            case .acceptWithoutReply:
+                state.withLock { $0.streams.append(EventStream(socket: socket, streamID: streamID)) }
+                return []
             case .error(let code, let text, let herdrCode):
                 return [.text(Self.error(requestID, code, message: text, herdrCode: herdrCode))]
             }
