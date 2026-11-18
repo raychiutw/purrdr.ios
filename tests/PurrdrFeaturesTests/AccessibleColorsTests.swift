@@ -240,6 +240,6 @@ struct PlanUsageColorsTests {
         let palettes = [PlanUsageLevel.ample, .low, .depleted].map { AccessibleColors.planUsage($0) }
         #expect(palettes[0].light.green > palettes[0].light.red, "充足不是綠色")
         #expect(palettes[1].light.red > palettes[1].light.green && palettes[1].light.green > palettes[1].light.blue, "偏低不是橘色")
-        #expect(palettes[2].light.red > palettes[2].light.green * 2, "將用完不是紅色")
+        #expect(Int(palettes[2].light.red) > Int(palettes[2].light.green) * 2, "將用完不是紅色")
     }
 }
