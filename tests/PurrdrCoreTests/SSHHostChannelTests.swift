@@ -179,6 +179,45 @@ struct SSHHostChannelTests {
         await server.stop()
     }
 
+    @Test("快速偵測斷線(聊天畫面可見):改用短間隔，半開連線最壞 15 秒丟棄;結束後回到一般間隔", .timeLimit(.minutes(1)))
+    func quickDetectionDropsHalfOpenConnectionWithin15Seconds() async throws {
+        let server = try await TestSSHServer.start(keepalive: .ignore) { _ in .reply(stdout: "ok") }
+        let clock = ManualSSHClock()
+        let channel = SSHHostChannel(
+            endpoint: server.endpoint, hostKeyPin: server.fingerprint,
+            timeouts: SSHTimeouts(
+                keepaliveInterval: .seconds(20), keepaliveReply: .seconds(15), quickKeepaliveInterval: .seconds(5),
+                quickKeepaliveReply: .seconds(5)),
+            scheduler: clock)
+
+        // 一般間隔的這一輪已經排好(20 秒後);開始快速偵測要改排成短間隔。
+        _ = try await collect(channel.execute("first"))
+        await channel.beginQuickDisconnectDetection()
+        // 最壞情況：剛收到資料(first 的回應)連線就斷了。這一輪看到資料跳過，下一輪送出，期限到丟棄:5 + 5 + 5 秒。
+        await clock.advance(by: .seconds(5))
+        await clock.advance(by: .seconds(5))
+        try await eventually { server.snapshot.keepalives == 1 }
+        await clock.advance(by: .seconds(5))
+        try await eventually { server.snapshot.disconnections == 1 }
+
+        await channel.endQuickDisconnectDetection()
+        _ = try await collect(channel.execute("second"))
+        await clock.advance(by: .seconds(5))
+        await clock.advance(by: .seconds(5))
+        _ = try await collect(channel.execute("probe"))
+        #expect(server.snapshot.keepalives == 1, "快速偵測結束後仍用短間隔")
+        await channel.disconnect()
+        await server.stop()
+    }
+
+    @Test("預設的快速偵測：最壞 15 秒(跳過一輪 + 送出那一輪 + 回應期限);一般間隔維持 20 秒")
+    func defaultQuickDetectionWorstCase() {
+        let timeouts = SSHTimeouts()
+        let worst = timeouts.quickKeepaliveInterval.nanoseconds * 2 + timeouts.quickKeepaliveReply.nanoseconds
+        #expect(worst <= TimeAmount.seconds(15).nanoseconds)
+        #expect(timeouts.keepaliveInterval == .seconds(20))
+    }
+
     @Test("連不上(拒絕連線)回報白話的原因，不是函式庫的錯誤字串")
     func connectionRefused() async throws {
         // 埠 1 不在臨時埠範圍：停掉的伺服器釋出的臨時埠可能被同時跑的其他測試拿去開伺服器，埠 1 不會。

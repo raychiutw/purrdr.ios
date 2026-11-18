@@ -23,11 +23,11 @@ public struct EventSubscription: Sendable, Equatable, Hashable {
         .init(.paneAgentDetected), .init(.paneExited),
     ]
 
-    /// 版面事件(#40):tab 與 pane 的建立／關閉、tab 改名與移動、workspace 移動與排序。只有 Spaces 檢視訂閱。
-    /// 不訂 `layout.updated`:桌機拖動調整大小每一步都送一個，拿來觸發快照會一直重讀(#159)。
+    /// 版面事件(#40):tab 與 pane 的建立／關閉、tab 改名與移動、版面更新、workspace 移動與排序。只有 Spaces 檢視訂閱。
+    /// `layout.updated` 在拖動調整大小時每一步都送(#159),靠主機更新來源的 single-flight 合併成少數幾次快照，不讀預覽。
     public static let layout: [EventSubscription] = [
         .init(.tabCreated), .init(.tabClosed), .init(.tabRenamed), .init(.tabMoved), .init(.paneCreated), .init(.paneClosed),
-        .init(.workspaceMoved), .init(.workspaceReordered),
+        .init(.layoutUpdated), .init(.workspaceMoved), .init(.workspaceReordered),
     ]
 
     /// herdr protocol 22 可訂閱的事件型別(實測 `herdr api schema --json`)。目前只列用得到的。
@@ -47,6 +47,7 @@ public struct EventSubscription: Sendable, Equatable, Hashable {
         case tabMoved = "tab.moved"
         case paneCreated = "pane.created"
         case paneClosed = "pane.closed"
+        case layoutUpdated = "layout.updated"
     }
 }
 

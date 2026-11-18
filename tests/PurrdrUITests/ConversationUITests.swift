@@ -120,6 +120,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
         // 軟體鍵盤＋You should know 卡片會把對話擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
         hideKeyboard(in: app)
+        XCTAssertTrue(sentMessage("Add a header row too?", in: app).waitForExistence(timeout: 5), "沒有回音")
         // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
         let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch

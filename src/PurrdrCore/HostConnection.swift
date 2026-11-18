@@ -34,6 +34,17 @@ public protocol HostConnection: Sendable {
 
     /// 主機上 Purrdr 主機服務的版本(畫面據此提示更新，#198);沒有主機服務的連線方式(SSH)是 `nil`。
     func hostServiceVersion() async throws -> String?
+
+    /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
+    func beginQuickDisconnectDetection() async
+
+    /// 結束一次 `beginQuickDisconnectDetection()`。
+    func endQuickDisconnectDetection() async
+}
+
+extension HostConnection {
+    public func beginQuickDisconnectDetection() async {}
+    public func endQuickDisconnectDetection() async {}
 }
 
 extension HostConnection {

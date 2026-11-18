@@ -45,6 +45,14 @@ public struct WindowsHostChannel: HostChannel {
     public func disconnect() async {
         await base.disconnect()
     }
+
+    public func beginQuickDisconnectDetection() async {
+        await base.beginQuickDisconnectDetection()
+    }
+
+    public func endQuickDisconnectDetection() async {
+        await base.endQuickDisconnectDetection()
+    }
 }
 
 /// 只送一次 EOF:stdin 腳本由通道自己送完 EOF,呼叫端(例如 `HostFolders`)之後再送一次時不再往下傳。

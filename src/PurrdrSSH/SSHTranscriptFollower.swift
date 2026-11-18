@@ -3,14 +3,14 @@ import PurrdrCore
 
 /// SSH 的對話紀錄追蹤(#166):每台主機一條長駐 exec 通道跑 `TranscriptCommand.follow`,所有追蹤中的路徑共用、一次一個請求。
 ///
-/// 通道結束(自我時限、背景被殺)時游標留在各追蹤裡，下一個請求重開通道。主機跑不了腳本(Demo 主機;Windows 認不得的指令)
-/// 就回報 `unsupported`,由呼叫端退回分段接著讀的輪詢。
+/// 通道結束(自我時限、背景被殺)時游標留在各追蹤裡，下一個請求重開通道;沒回應就結束的依次數退避再重開。
+/// 只有明確訊號(還沒回應就 exit 127 找不到指令或 exit 0 stdin 已結束;Windows 方言認不得)才回報 `unsupported`,由呼叫端退回分段接著讀的輪詢。
 actor SSHTranscriptFollower {
     /// 一個追蹤的位置：游標、主機上次回報的版本與游標前一段的錨點(不知道時是 `-`)。
     struct Position: Sendable, Equatable {
         var cursor: Int
-        var stamp = "-"
-        var anchor = "-"
+        var stamp = TranscriptFollowProtocol.unknown
+        var anchor = TranscriptFollowProtocol.unknown
     }
 
     enum Reply: Sendable, Equatable {
@@ -36,8 +36,12 @@ actor SSHTranscriptFollower {
     private let command: String
     private let deadline: Duration
     private let sleep: Sleep
+    /// 退回輪詢時記下原因(app 交給系統紀錄;可攜核心不 import os)。
+    private let diagnostics: (@Sendable (String) -> Void)?
 
     private var isUnsupported = false
+    /// 連續幾條通道沒回應就結束(不含自我時限);重開前依此退避。
+    private var consecutiveFailures = 0
     private var session: (any ExecSession)?
     private var reader: Task<Void, Never>?
     /// 每開一條通道加一;舊通道晚到的輸出不理。
@@ -48,13 +52,18 @@ actor SSHTranscriptFollower {
     /// 目前這條通道已經結束(還沒有人等回應時)。
     private var endedError: (any Error)?
     private var isBusy = false
-    private var queue: [CheckedContinuation<Void, Never>] = []
+    /// 等著輪到自己送請求的呼叫端(一次一個請求)。
+    private var requestWaiters: [CheckedContinuation<Void, Never>] = []
     private var followers = 0
 
-    init(channel: any HostChannel, command: String = TranscriptCommand.follow(), sleep: @escaping Sleep) {
+    init(
+        channel: any HostChannel, command: String = TranscriptCommand.follow(), sleep: @escaping Sleep,
+        diagnostics: (@Sendable (String) -> Void)? = nil
+    ) {
+        self.diagnostics = diagnostics
         self.channel = channel
         self.command = command
-        deadline = HostCommandDeadline.transfer(bytes: TranscriptReader.catchUpBacklogLimit)
+        deadline = HostCommandDeadline.transfer(bytes: TranscriptFollowProtocol.backlogLimit)
         self.sleep = sleep
     }
 
@@ -85,13 +94,14 @@ actor SSHTranscriptFollower {
                 return .reply(Self.dropsStampIfCapped(try await send(request, on: try await openSession()), from: position.cursor))
             } catch let ended as ChannelEnded {
                 closeSession()
-                if !ended.hadReplied, ended.exitCode != Int32(HostScriptTimeLimit.exitCode) {
-                    isUnsupported = true
+                if !ended.hadReplied, ended.exitCode != Int32(HostScriptTimeLimit.exitCode) { consecutiveFailures += 1 }
+                if !ended.hadReplied, let exitCode = ended.exitCode, Self.unsupportedExitCodes.contains(exitCode) {
+                    fallBack(because: "exit \(exitCode) before any reply")
                     return .unsupported
                 }
                 if attempt == 1 { throw TranscriptReadError.failed(exitCode: ended.exitCode) }
             } catch WindowsCommandError.unsupported {
-                isUnsupported = true
+                fallBack(because: "Windows dialect can’t run the follow script")
                 return .unsupported
             } catch {
                 closeSession()
@@ -101,6 +111,21 @@ actor SSHTranscriptFollower {
         throw TranscriptReadError.changed
     }
 
+    /// 還沒回應就以這些結束 = 這台主機跑不了長駐追蹤：127 是 sh 找不到指令(Demo 主機也回它);0 是腳本一開始就讀到
+    /// stdin 結束(通道送不了請求，只有這種情況腳本會正常結束)。
+    static let unsupportedExitCodes: Set<Int32> = [127, 0]
+
+    /// 重開通道前的退避：1 秒起倍增、上限 30 秒。
+    static func reopenBackoff(afterFailures failures: Int) -> Duration {
+        .seconds(min(30, 1 << min(failures - 1, 5)))
+    }
+
+    /// 之後一律退回輪詢，並記下原因。
+    private func fallBack(because reason: String) {
+        isUnsupported = true
+        diagnostics?("follow script unsupported, polling instead: \(reason)")
+    }
+
     // MARK: - 一次一個請求
 
     private func acquire() async {
@@ -108,15 +133,15 @@ actor SSHTranscriptFollower {
             isBusy = true
             return
         }
-        await withCheckedContinuation { queue.append($0) }
+        await withCheckedContinuation { requestWaiters.append($0) }
     }
 
     private func release() {
-        if queue.isEmpty {
+        if requestWaiters.isEmpty {
             isBusy = false
             if followers <= 0 { closeSession() }
         } else {
-            queue.removeFirst().resume()
+            requestWaiters.removeFirst().resume()
         }
     }
 
@@ -124,6 +149,7 @@ actor SSHTranscriptFollower {
 
     private func openSession() async throws -> any ExecSession {
         if let session { return session }
+        if consecutiveFailures > 0 { try await sleep(Self.reopenBackoff(afterFailures: consecutiveFailures)) }
         let opened = try await channel.execute(command)
         generation += 1
         let current = generation
@@ -237,17 +263,18 @@ actor SSHTranscriptFollower {
             return
         }
         hasReplied = true
+        consecutiveFailures = 0
         self.waiting = nil
         waiting.resume(returning: reply)
     }
 
-    // MARK: - 回應格式(`TranscriptCommand.follow`)
+    // MARK: - 回應格式(`TranscriptFollowProtocol`)
 
     /// 落後超過一次讀的上限時，主機可能只讀了一部分：不留版本，否則下一輪只拿到 `unchanged`,剩下的要等檔案再變才送。
     /// 沒超過時剩下的只是還沒寫完的行，留著版本(沒變只回 `unchanged`)。
     static func dropsStampIfCapped(_ reply: Reply, from cursor: Int) -> Reply {
-        guard case .read(let size, _, let lines, let end, let anchor) = reply, size - cursor > TranscriptReader.catchUpBacklogLimit else { return reply }
-        return .read(size: size, stamp: "-", lines: lines, end: end, anchor: anchor)
+        guard case .read(let size, _, let lines, let end, let anchor) = reply, size - cursor > TranscriptFollowProtocol.backlogLimit else { return reply }
+        return .read(size: size, stamp: TranscriptFollowProtocol.unknown, lines: lines, end: end, anchor: anchor)
     }
 
     /// 從 `buffer` 取出一則完整的回應;還不完整回傳 `nil`。格式不對丟 `TranscriptReadError.changed`。
@@ -255,23 +282,24 @@ actor SSHTranscriptFollower {
         guard let newline = buffer.firstIndex(of: 0x0A) else { return nil }
         let words = String(decoding: buffer[buffer.startIndex..<newline], as: UTF8.self).split(separator: " ").map(String.init)
         let afterHeader = buffer.index(after: newline)
-        switch (words.first, words.count) {
-        case ("unchanged", 1):
+        switch (words.first.flatMap(TranscriptFollowProtocol.Keyword.init(rawValue:)), words.count) {
+        case (.unchanged, 1):
             buffer.removeSubrange(..<afterHeader)
             return .unchanged
-        case ("replaced", 2):
+        case (.replaced, 2):
             guard let size = Int(words[1]) else { throw TranscriptReadError.changed }
             buffer.removeSubrange(..<afterHeader)
             return .replaced(size: size)
-        case ("error", 2):
+        case (.error, 2):
             guard let code = Int32(words[1]) else { throw TranscriptReadError.changed }
             buffer.removeSubrange(..<afterHeader)
             return .failed(exitCode: code)
-        case ("appended", 3):
+        case (.appended, 3):
             // 每行紀錄以數字開頭，所以「end 」開頭的只會是結尾那行。
+            let trailerPrefix = Data((TranscriptFollowProtocol.Keyword.end.rawValue + " ").utf8)
             var lineStart = afterHeader
             while let lineEnd = buffer[lineStart...].firstIndex(of: 0x0A) {
-                guard buffer[lineStart..<lineEnd].starts(with: Data("end ".utf8)) else {
+                guard buffer[lineStart..<lineEnd].starts(with: trailerPrefix) else {
                     lineStart = buffer.index(after: lineEnd)
                     continue
                 }

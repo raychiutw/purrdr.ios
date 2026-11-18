@@ -415,12 +415,25 @@ final class FakeHostService: Sendable {
         return json(object)
     }
 
-    /// Agent 列表範例，換掉指定 Pane 的狀態。
+    /// Agent 列表範例，換掉指定 Pane 的狀態;範例沒有的 Pane 以第一個 Agent 為樣本加上(session id 依序編號)。
     private static func agents(requestID: String?, statuses: [String: String]) -> String {
         let data = (try? Data(contentsOf: examplesDirectory.appending(path: "server.agents-list-result.json"))) ?? Data()
         var object = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
         object["request_id"] = requestID
-        object["agents"] = (object["agents"] as? [[String: Any]] ?? []).map { agent in
+        var agents = object["agents"] as? [[String: Any]] ?? []
+        let known = Set(agents.compactMap { $0["pane_id"] as? String })
+        if let template = agents.first {
+            for (index, paneID) in statuses.keys.filter({ !known.contains($0) }).sorted().enumerated() {
+                var agent = template
+                agent["pane_id"] = paneID
+                if var session = agent["session"] as? [String: Any] {
+                    session["value"] = String(format: "00000000-0000-0000-0000-%012d", 100 + index)
+                    agent["session"] = session
+                }
+                agents.append(agent)
+            }
+        }
+        object["agents"] = agents.map { agent in
             var agent = agent
             if let paneID = agent["pane_id"] as? String, let status = statuses[paneID] { agent["status"] = status }
             return agent

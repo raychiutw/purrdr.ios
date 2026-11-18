@@ -130,28 +130,28 @@ enum WindowsScripts {
 
     /// 長駐追蹤(#167,輸出同 `TranscriptCommand.followScript`):stub 讀完腳本後，從同一個 reader(`$s`,原始 handle,#77)
     /// 繼續讀請求行「游標 版本 錨點 路徑」。版本是「修改時間 ticks-大小」。每個請求把時限延到閒置秒數後(不超過總長)。
-    /// 參數：上限、追趕上限、閒置秒數、總長秒數。
+    /// 參數(`$a`):上限、追趕上限、閒置秒數、總長秒數。`$s`、`$o` 由 stub 的開頭提供(所有腳本共用的短名)。
     static let follow = #"""
         $purrdrEnd=[DateTime]::UtcNow.AddSeconds([int]$a[3])
-        function PIdle{$x=[DateTime]::UtcNow.AddSeconds([int]$a[2]);if($x -gt $purrdrEnd){$x=$purrdrEnd};$purrdrLimit.At=$x}
+        function PIdle{$idleUntil=[DateTime]::UtcNow.AddSeconds([int]$a[2]);if($idleUntil -gt $purrdrEnd){$idleUntil=$purrdrEnd};$purrdrLimit.At=$idleUntil}
         PIdle
-        while(($q=$s.ReadLine()) -ne $null){
+        while(($request=$s.ReadLine()) -ne $null){
         PIdle
-        $h=$null
+        $handle=$null
         try{
-        $w=$q.Split([char]' ',4);$c=[long]$w[0];$t=$w[1];$k=$w[2];$f=$w[3]
-        if(-not [IO.File]::Exists($f)){PWrite "error 3`n"}
+        $fields=$request.Split([char]' ',4);$cursor=[long]$fields[0];$knownStamp=$fields[1];$knownAnchor=$fields[2];$file=$fields[3]
+        if(-not [IO.File]::Exists($file)){PWrite "error 3`n"}
         else{
-        try{$h=POpen $f}catch{}
-        if(-not $h){PWrite "error 5`n"}
+        try{$handle=POpen $file}catch{}
+        if(-not $handle){PWrite "error 5`n"}
         else{
-        $z=$h.Length;$v="$([IO.File]::GetLastWriteTimeUtc($f).Ticks)-$z"
-        if($v -ceq $t){PWrite "unchanged`n"}
-        elseif($z -lt $c -or ($k -cne '-' -and (PAnchor $h $c) -cne $k)){PWrite "replaced $z`n"}
-        else{$m=[long]$a[0];if(($z-$c) -gt $m){$m=[long]$a[1]};PWrite "appended $z $v`n";$e=$c;if($z -gt $c){$e=PChunk $h $c $z $m};PWrite "end $e $(PAnchor $h $e)`n"}
+        $size=$handle.Length;$stamp="$([IO.File]::GetLastWriteTimeUtc($file).Ticks)-$size"
+        if($size -lt $cursor -or ($knownAnchor -cne '-' -and (PAnchor $handle $cursor) -cne $knownAnchor)){PWrite "replaced $size`n"}
+        elseif($stamp -ceq $knownStamp){PWrite "unchanged`n"}
+        else{$limit=[long]$a[0];if(($size-$cursor) -gt $limit){$limit=[long]$a[1]};PWrite "appended $size $stamp`n";$end=$cursor;if($size -gt $cursor){$end=PChunk $handle $cursor $size $limit};PWrite "end $end $(PAnchor $handle $end)`n"}
         }
         }
-        }catch{PWrite "error 5`n"}finally{if($h){$h.Close()}}
+        }catch{PWrite "error 5`n"}finally{if($handle){$handle.Close()}}
         $o.Flush()
         }
         $o.Flush()

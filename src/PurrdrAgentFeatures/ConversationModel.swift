@@ -293,12 +293,25 @@ public final class ConversationModel {
     private let sleep: Sleep
     /// 這台主機的主機更新來源(#163);沒有時自己讀快照。
     private let updates: HostUpdates?
-    @ObservationIgnored private var wakeWaiter: CheckedContinuation<Void, Never>?
-    @ObservationIgnored private var pendingWake = false
+    /// `run()` 期間下一次輪詢的等待(間隔到或被叫醒)。
+    @ObservationIgnored private var pollDue: WakeSignal?
     /// `run()` 期間對話紀錄追蹤的節奏(內部輪詢的連線方式用);不在 `run()` 裡時沒有，`poll()` 自己讀尾端。
     @ObservationIgnored private var followPace: TranscriptFollowPace?
     /// 追蹤中的對話紀錄(#165):有它時新內容由追蹤送來，輪詢不讀尾端。
-    @ObservationIgnored private var following: (path: String, id: UUID, task: Task<Void, Never>)?
+    @ObservationIgnored private var following: ActiveTranscriptFollow?
+
+    /// 一個進行中的對話紀錄追蹤。`id` 讓結束的追蹤只清掉自己(不清後來開的)。
+    private struct ActiveTranscriptFollow {
+        let path: String
+        let id: UUID
+        let task: Task<Void, Never>
+
+        init(path: String, start: (UUID) -> Task<Void, Never>) {
+            self.path = path
+            id = UUID()
+            task = start(id)
+        }
+    }
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -418,8 +431,13 @@ public final class ConversationModel {
     /// 畫面可見且 app 在前景時執行，直到所在的 task 被取消。agent 工作中或等你回答時每 2 秒，否則每 4 秒
     /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 30 秒回報在場。
     /// 有主機更新來源時一起保持它的即時更新，這個 Agent 在快照裡變了就立刻再輪詢一次，不等間隔(#163)。
+    /// 期間連線快速偵測斷線(最壞約 15 秒顯示離線)。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
         followPace = TranscriptFollowPace(interval: pollInterval, sleep: sleep)
+        let pollDue = WakeSignal(sleep: sleep)
+        self.pollDue = pollDue
+        // 不讀快照時靠 keepalive／心跳發現離線：畫面可見期間縮短到最壞約 15 秒。
+        await client.beginQuickDisconnectDetection()
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
@@ -430,7 +448,8 @@ public final class ConversationModel {
             while !Task.isCancelled {
                 await poll()
                 do {
-                    try await waitForNextPoll(sleep: sleep)
+                    // 輪詢期間被叫醒就不等。
+                    try await pollDue.wait(atMost: pollInterval)
                 } catch {
                     break
                 }
@@ -439,6 +458,8 @@ public final class ConversationModel {
         }
         stopFollowingUpdates()
         followPace = nil
+        self.pollDue = nil
+        await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if let path = file?.path { await transcripts.stopFollowing(path: path) }
     }
@@ -446,53 +467,9 @@ public final class ConversationModel {
     /// 這個 Agent 在主機更新來源的快照裡變了(狀態事件觸發的重讀):叫醒輪詢。
     private func wakeOnChanges(from updates: HostUpdates) async {
         for await agent in updates.changes(for: paneID) where agent != currentAgent {
-            wakeUp()
+            pollDue?.wake()
             followPace?.wake()
         }
-    }
-
-    private func wakeUp() {
-        if let wakeWaiter {
-            self.wakeWaiter = nil
-            wakeWaiter.resume()
-        } else {
-            pendingWake = true
-        }
-    }
-
-    /// 等到下一次輪詢：間隔到，或被叫醒(輪詢期間被叫醒就不等)。
-    private func waitForNextPoll(sleep: @escaping Sleep) async throws {
-        if pendingWake {
-            pendingWake = false
-            return
-        }
-        let interval = pollInterval
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await sleep(interval) }
-            group.addTask { await self.waitForWake() }
-            try await group.next()
-            group.cancelAll()
-        }
-    }
-
-    private func waitForWake() async {
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                if Task.isCancelled || pendingWake {
-                    pendingWake = false
-                    continuation.resume()
-                } else {
-                    wakeWaiter = continuation
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in self.cancelWakeWait() }
-        }
-    }
-
-    private func cancelWakeWait() {
-        wakeWaiter?.resume()
-        wakeWaiter = nil
     }
 
     /// 主機更新來源在訂閱事件時用它的快照;還沒連上、斷線或沒有事件訂閱時是 `nil`,改自己讀(#163)。
@@ -625,12 +602,13 @@ public final class ConversationModel {
     private func startFollowingUpdates() {
         guard let followPace, let file, file.follow.isLive, following?.path != file.path else { return }
         following?.task.cancel()
-        let id = UUID()
         let path = file.path
         let cursor = file.follow.cursor
         let generation = generation
-        let task = Task { await self.applyUpdates(path: path, from: cursor, pace: followPace, generation: generation, id: id) }
-        following = (path, id, task)
+        let started = ActiveTranscriptFollow(path: path) { id in
+            Task { await self.applyUpdates(path: path, from: cursor, pace: followPace, generation: generation, id: id) }
+        }
+        following = started
     }
 
     private func stopFollowingUpdates() {
@@ -642,20 +620,18 @@ public final class ConversationModel {
     private func applyUpdates(path: String, from cursor: Int, pace: TranscriptFollowPace, generation: Int, id: UUID) async {
         var isReplaced = false
         do {
-            for try await event in await transcripts.followTranscript(path: path, from: cursor, pace: pace) {
-                guard generation == self.generation, file?.path == path else { break }
-                switch event {
-                case .appended(let chunk):
+            isReplaced = try await TranscriptFollowUpdates.apply(
+                await transcripts.followTranscript(path: path, from: cursor, pace: pace),
+                isCurrent: { generation == self.generation && file?.path == path },
+                appended: { chunk in
                     file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
                     append(chunk)
-                case .replaced(let size):
-                    try await openWindow(path: path, size: size, generation: generation)
-                    isReplaced = true
-                }
-                guard generation == self.generation else { break }
-                if banner == .readFailed { banner = nil }
-                await saveCache()
-            }
+                },
+                replaced: { size in try await openWindow(path: path, size: size, generation: generation) },
+                afterEach: {
+                    if banner == .readFailed { banner = nil }
+                    await saveCache()
+                })
         } catch is CancellationError {
         } catch {
             showReadFailure(error, generation: generation)

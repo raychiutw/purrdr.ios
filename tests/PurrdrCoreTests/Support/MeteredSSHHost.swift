@@ -26,14 +26,26 @@ actor MeteredSSHHost: HostChannel {
     private(set) var pushedEvents = 0
     /// 各 pane 目前的 Agent 狀態(快照回應依它改)。
     private var statuses: [String: String]
+    /// 快照裡另外加的 Agent(pane id → Claude session id),以 `w1:pB` 為樣本。
+    private let extraAgents: [String: String]
+    /// 收到主機資料的模擬時間(keepalive 估算用:間隔內有資料就跳過)。
+    private(set) var inboundTimes: [Duration] = []
+    private let clock: SimulatedClock?
     private var subscriptions: [(exchange: Int, continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation)] = []
     private var runningCommands = 0
     private var pendingFollowReplies = 0
     private var followBuffers: [Int: Data] = [:]
 
-    init(shell: LocalShellHost, statuses: [String: String]) {
+    init(shell: LocalShellHost, statuses: [String: String], extraAgents: [String: String] = [:], clock: SimulatedClock? = nil) {
         self.shell = shell
         self.statuses = statuses
+        self.extraAgents = extraAgents
+        self.clock = clock
+    }
+
+    private func noteInbound() async {
+        guard let clock else { return }
+        inboundTimes.append(await clock.elapsed)
     }
 
     /// 還在跑的一次性指令與還沒回應的追蹤請求。
@@ -51,6 +63,7 @@ actor MeteredSSHHost: HostChannel {
     /// 對每條開著的事件訂閱推一個 Agent 狀態事件(與 #159 錄到的形狀相同：事件名用點)。
     func pushStatusChanged(_ paneID: String, status: String) {
         let line = Data(#"{"event":"pane.agent_status_changed","data":{"agent":"claude","agent_status":"\#(status)","pane_id":"\#(paneID)","workspace_id":"w1"}}"#.utf8) + [0x0A]
+        if !subscriptions.isEmpty { Task { await noteInbound() } }
         for subscription in subscriptions {
             exchanges[subscription.exchange].received += line.count
             pushedEvents += 1
@@ -107,6 +120,7 @@ actor MeteredSSHHost: HostChannel {
         default: Fixtures.data("error.invalid-request.ndjson")
         }
         exchanges[index].received += reply.count
+        Task { await noteInbound() }
         continuation.yield(.stdout(reply))
         if method == "events.subscribe" {
             subscriptions.append((index, continuation))
@@ -123,7 +137,11 @@ actor MeteredSSHHost: HostChannel {
 
     private func snapshot() -> Data {
         let statuses = statuses
+        let extraAgents = extraAgents
         return Fixtures.modifiedLine("session.snapshot.ndjson") { response in
+            for (paneID, sessionID) in extraAgents.sorted(by: { $0.key < $1.key }) {
+                SnapshotEdit.addAgent(copying: "w1:pB", as: paneID, sessionID: sessionID, in: &response)
+            }
             for (paneID, status) in statuses {
                 SnapshotEdit.agent(paneID, in: &response) { $0["agent_status"] = status }
             }
@@ -143,6 +161,7 @@ actor MeteredSSHHost: HostChannel {
     private func received(_ event: ExecOutput, exchange index: Int, isFollow: Bool) {
         switch event {
         case .stdout(let data):
+            Task { await noteInbound() }
             exchanges[index].received += data.count
             if isFollow { countFollowReplies(in: data, exchange: index) }
         case .stderr(let data):
@@ -152,13 +171,13 @@ actor MeteredSSHHost: HostChannel {
         }
     }
 
-    /// 追蹤腳本的每則回應以 `unchanged`、`replaced`、`error` 或 `end` 開頭的一行結束(紀錄行以數字開頭)。
+    /// 追蹤腳本的每則回應以 `TranscriptFollowProtocol.endsReply` 的一行結束(紀錄行以數字開頭)。
     private func countFollowReplies(in data: Data, exchange index: Int) {
         var buffer = followBuffers[index, default: Data()] + data
         while let newline = buffer.firstIndex(of: 0x0A) {
             let line = String(decoding: buffer[buffer.startIndex..<newline], as: UTF8.self)
             buffer.removeSubrange(...newline)
-            if line == "unchanged" || ["replaced ", "error ", "end "].contains(where: line.hasPrefix) {
+            if TranscriptFollowProtocol.endsReply(line) {
                 pendingFollowReplies = max(0, pendingFollowReplies - 1)
             }
         }
@@ -176,6 +195,16 @@ actor MeteredSSHHost: HostChannel {
     private static func kind(of command: String) -> String {
         if command.hasSuffix(" remote-api-bridge") { return "herdr" }
         if command.hasPrefix(TranscriptCommand.followInvocation) { return "transcript.follow" }
+        if let request = HostFileRequest(command: command) {
+            switch request {
+            case .readIfChanged(let paths, _), .read(let paths):
+                if paths.contains(HostThemeHost.configPath) { return "hostFiles.theme" }
+                if paths.contains(ClaudePlanUsageHost.usagePath) { return "hostFiles.usage" }
+                return "hostFiles.notes"
+            case .newest: return "hostFiles.notes.locate"
+            case .apply: return "hostFiles.apply"
+            }
+        }
         let scripts: [(String, String)] = [
             ("transcript.previews", TranscriptCommand.previewsScript),
             ("transcript.window", TranscriptCommand.windowScript),

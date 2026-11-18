@@ -67,6 +67,24 @@ struct ConversationHostUpdatesTests {
         #expect(model.agentStatus == AgentStatus(rawValue: status))
     }
 
+    @Test("聊天畫面可見期間要求連線快速偵測斷線(不讀快照時靠 keepalive／心跳發現離線);離開後結束")
+    func visibleChatRequestsQuickDisconnectDetection() async throws {
+        let connection = FakeHostConnection()
+        let (updates, updatesTask) = try await Self.liveUpdates(connection, initial: "idle")
+        defer { updatesTask.cancel() }
+        let model = Self.conversation(connection, updates: updates)
+        let ticks = TickSleeper()
+
+        let chat = Task { await model.run(sleep: ticks.sleep) }
+        try await waitUntil { await ticks.intervals.count >= 2 }
+        let duringRun = await connection.quickDetectionRequests
+        chat.cancel()
+        await chat.value
+
+        #expect(duringRun == 1)
+        #expect(await connection.quickDetectionRequests == 0)
+    }
+
     @Test("需要你：狀態事件一到，聊天畫面立刻更新，不等下一輪")
     func statusEventUpdatesConversationWithoutWaiting() async throws {
         let connection = FakeHostConnection()

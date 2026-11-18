@@ -15,6 +15,12 @@ public struct DiagnosticLog: Sendable {
         record(message)
     }
 
+    /// 一般層級的系統紀錄(不是錯誤，例如對話紀錄追蹤退回輪詢的原因)。
+    public static func systemNotice(category: String) -> @Sendable (String) -> Void {
+        let logger = Logger(subsystem: "com.raychiu.purrdr", category: category)
+        return { message in logger.notice("\(message, privacy: .public)") }
+    }
+
     /// 系統紀錄(`os.Logger`,subsystem 是 bundle id)。
     public static func system(category: String) -> DiagnosticLog {
         let logger = Logger(subsystem: "com.raychiu.purrdr", category: category)

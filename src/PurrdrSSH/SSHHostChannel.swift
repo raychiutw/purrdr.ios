@@ -16,6 +16,10 @@ public struct SSHTimeouts: Sendable, Equatable {
     public var keepaliveInterval: TimeAmount?
     /// keepalive 送出後等主機回應的期限;到了視為半開連線，整條丟棄(下一個指令重撥)。
     public var keepaliveReply: TimeAmount
+    /// 快速偵測斷線(聊天畫面可見)時的 keepalive 間隔與回應期限。最壞偵測時間是兩個間隔加回應期限
+    /// (剛收到資料就斷：這一輪跳過，下一輪才送),預設 15 秒;一般間隔是 55 秒。
+    public var quickKeepaliveInterval: TimeAmount
+    public var quickKeepaliveReply: TimeAmount
     /// Tailscale SSH check mode:收到驗證網址後，等使用者驗證的上限(取代 `handshake`)。
     /// tailscaled 自己最多等約 30 分鐘(`delegateFetchTimeout`),這裡取相同值。
     public var tailscaleCheck: TimeAmount
@@ -23,8 +27,11 @@ public struct SSHTimeouts: Sendable, Equatable {
     public init(
         connect: TimeAmount = .seconds(10), handshake: TimeAmount = .seconds(15), channelOpen: TimeAmount = .seconds(20),
         keepaliveInterval: TimeAmount? = .seconds(20), keepaliveReply: TimeAmount = .seconds(15),
+        quickKeepaliveInterval: TimeAmount = .seconds(5), quickKeepaliveReply: TimeAmount = .seconds(5),
         tailscaleCheck: TimeAmount = .minutes(30)
     ) {
+        self.quickKeepaliveInterval = quickKeepaliveInterval
+        self.quickKeepaliveReply = quickKeepaliveReply
         self.connect = connect
         self.handshake = handshake
         self.channelOpen = channelOpen
@@ -58,6 +65,9 @@ public actor SSHHostChannel: HostChannel {
     private var dialCount = 0
     /// 使用者取消了這次撥號的 check mode 等待(讓等待中的指令拿到 `.tailscaleCheckCancelled`)。
     private var checkCancelled = false
+    /// 要求快速偵測斷線的次數(聊天畫面可見)。
+    private var quickDetectionRequests = 0
+    private let keepaliveCadence = KeepaliveCadence()
 
     /// - Parameters:
     ///   - credential: 登入用的憑證，第一次撥號時才取得(Tailscale SSH 是 `none`)。
@@ -101,6 +111,18 @@ public actor SSHHostChannel: HostChannel {
         }
     }
 
+    /// 開始快速偵測斷線：keepalive 改用短間隔，目前排好的一輪立刻改排。
+    public func beginQuickDisconnectDetection() async {
+        quickDetectionRequests += 1
+        if quickDetectionRequests == 1 { await keepaliveCadence.setQuick(true) }
+    }
+
+    /// 結束一次快速偵測;都結束了回到一般間隔。
+    public func endQuickDisconnectDetection() async {
+        quickDetectionRequests = max(0, quickDetectionRequests - 1)
+        if quickDetectionRequests == 0 { await keepaliveCadence.setQuick(false) }
+    }
+
     /// 關掉連線(編輯／刪除主機、信任新 key、app 結束時)。進行中的撥號(含等待 check mode 驗證)一併取消。
     public func disconnect() async {
         dial?.task.cancel()
@@ -129,7 +151,7 @@ public actor SSHHostChannel: HostChannel {
         let id = dialCount
         checkCancelled = false
         let cancel: @Sendable () async -> Void = { [weak self] in await self?.cancelTailscaleCheck() }
-        let task = Task { [endpoint, hostKeyPin, timeouts, group, credential, tailscaleCheck, scheduler, diagnostics] in
+        let task = Task { [endpoint, hostKeyPin, timeouts, group, credential, tailscaleCheck, scheduler, diagnostics, keepaliveCadence] in
             // 讀不到憑證(祕密不在、金鑰壞了)就不撥號。
             let user = try await credential()
             let prompt: @Sendable (URL) -> Void = { url in tailscaleCheck?(TailscaleCheckPrompt(url: url, cancel: cancel)) }
@@ -139,7 +161,7 @@ public actor SSHHostChannel: HostChannel {
                 do {
                     let (connection, checked) = try await SSHConnection.connect(
                         to: endpoint, credential: user, hostKeyPin: hostKeyPin, timeouts: timeouts, group: group,
-                        scheduler: scheduler, dial: id, diagnostics: diagnostics, onCheck: prompt)
+                        scheduler: scheduler, cadence: keepaliveCadence, dial: id, diagnostics: diagnostics, onCheck: prompt)
                     prompted = prompted || checked
                     return connection
                 } catch let interrupted as CheckInterrupted {
@@ -236,8 +258,8 @@ final class SSHConnection: Sendable {
     /// 取消(Task cancellation)會關掉連線。
     static func connect(
         to endpoint: SSHEndpoint, credential: SSHUserCredential, hostKeyPin: HostKeyFingerprint?, timeouts: SSHTimeouts,
-        group: any EventLoopGroup, scheduler: any SSHDeadlineScheduler, dial: Int, diagnostics: SSHConnectionDiagnostics?,
-        onCheck: @escaping @Sendable (URL) -> Void
+        group: any EventLoopGroup, scheduler: any SSHDeadlineScheduler, cadence: KeepaliveCadence, dial: Int,
+        diagnostics: SSHConnectionDiagnostics?, onCheck: @escaping @Sendable (URL) -> Void
     ) async throws -> (SSHConnection, checked: Bool) {
         let eventLoop = group.next()
         let dropReason = DropReasonBox()
@@ -273,9 +295,10 @@ final class SSHConnection: Sendable {
                 channel.close(promise: nil)
             }
             if let interval = timeouts.keepaliveInterval {
-                startKeepalive(
-                    on: channel, every: interval, replyWithin: timeouts.keepaliveReply, scheduler: scheduler, dropReason: dropReason,
-                    activity: activity)
+                let rounds = KeepaliveRounds(
+                    normal: (interval, timeouts.keepaliveReply), quick: (timeouts.quickKeepaliveInterval, timeouts.quickKeepaliveReply),
+                    cadence: cadence)
+                startKeepalive(on: channel, rounds: rounds, scheduler: scheduler, dropReason: dropReason, activity: activity)
             }
             // 診斷(#133):登入完成到連線結束的壽命與原因。原因由關閉的一方先記下;都沒記 = 對端關閉。
             diagnostics?(.connected(dial: dial))
@@ -343,39 +366,49 @@ final class SSHConnection: Sendable {
     /// (`cancel-tcpip-forward`,位址是 `.invalid` 網域、埠 0):主機回成功或失敗都證明連線活著，
     /// 而且不會影響任何東西。期限內沒有任何回應 = 半開連線 → 關掉整條連線，下一個指令重新撥號;
     /// 進行中的指令以 `connectionLost` 結束(不重送)。這一輪間隔內主機傳過任何資料就已證明連線活著，跳過不送。
+    /// 間隔依 `rounds` 目前的節奏(快速偵測斷線時較短);節奏改變時，還在等的那一輪立刻改排。
     private static func startKeepalive(
-        on channel: any Channel, every interval: TimeAmount, replyWithin limit: TimeAmount, scheduler: any SSHDeadlineScheduler,
-        dropReason: DropReasonBox, activity: InboundActivityBox
+        on channel: any Channel, rounds: KeepaliveRounds, scheduler: any SSHDeadlineScheduler, dropReason: DropReasonBox,
+        activity: InboundActivityBox
     ) {
         let eventLoop = channel.eventLoop
         let nextRound = NIOLoopBoundBox.makeEmptyBox(valueType: SSHScheduledDeadline.self, eventLoop: eventLoop)
         // 上一輪有結果後才排下一輪，間隔從那時算起(與 scheduleRepeatedAsyncTask 相同)。
-        @Sendable func scheduleRound() {
+        @Sendable func scheduleRound(resettingActivity: Bool) {
             guard channel.isActive else { return }
             // 從這裡起算：上一輪 keepalive 自己的回應不算流量。
-            activity.reset()
-            nextRound.value = scheduler.schedule(in: interval, on: eventLoop) {
+            if resettingActivity { activity.reset() }
+            nextRound.value = scheduler.schedule(in: rounds.current.interval, on: eventLoop) {
+                nextRound.value = nil
                 guard channel.isActive, let handler = try? channel.pipeline.syncOperations.handler(type: NIOSSHHandler.self) else {
                     return
                 }
                 if activity.receivedData {
-                    scheduleRound()
+                    scheduleRound(resettingActivity: true)
                     return
                 }
                 let reply = eventLoop.makePromise(of: GlobalRequest.TCPForwardingResponse?.self)
                 // 關閉連線時未回應的請求會失敗，這一輪也就跟著結束。
-                let deadline = scheduler.schedule(in: limit, on: eventLoop) {
+                let deadline = scheduler.schedule(in: rounds.current.reply, on: eventLoop) {
                     dropReason.record(.keepaliveTimeout)
                     channel.close(promise: nil)
                 }
                 reply.futureResult.whenComplete { _ in
                     deadline.cancel()
-                    scheduleRound()
+                    scheduleRound(resettingActivity: true)
                 }
                 handler.sendTCPForwardingRequest(.cancel(host: "purrdr-keepalive.invalid", port: 0), promise: reply)
             }
         }
-        eventLoop.execute { scheduleRound() }
+        rounds.cadence.onChange {
+            try? await eventLoop.submit {
+                // 正在等回應的一輪不動;還在等間隔的一輪照新的節奏重排(保留這段時間收到資料的紀錄)。
+                guard let pending = nextRound.value else { return }
+                pending.cancel()
+                scheduleRound(resettingActivity: false)
+            }.get()
+        }
+        eventLoop.execute { scheduleRound(resettingActivity: true) }
         channel.closeFuture.whenComplete { _ in nextRound.value?.cancel() }
     }
 
@@ -408,6 +441,38 @@ final class DropReasonBox: @unchecked Sendable {
 
     func record(_ reason: SSHDropReason) {
         lock.withLock { if stored == nil { stored = reason } }
+    }
+}
+
+/// keepalive 的兩種節奏：一般與快速偵測斷線。
+struct KeepaliveRounds: Sendable {
+    var normal: (interval: TimeAmount, reply: TimeAmount)
+    var quick: (interval: TimeAmount, reply: TimeAmount)
+    let cadence: KeepaliveCadence
+
+    var current: (interval: TimeAmount, reply: TimeAmount) { cadence.isQuick ? quick : normal }
+}
+
+/// 目前要不要快速偵測斷線(主機通道設定，連線的 keepalive 讀取並在改變時重排)。
+final class KeepaliveCadence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var quick = false
+    private var changeHandler: (@Sendable () async -> Void)?
+
+    var isQuick: Bool { lock.withLock { quick } }
+
+    /// 改變時要做的事(目前的連線重排 keepalive);新連線取代舊的。
+    func onChange(_ handler: @escaping @Sendable () async -> Void) {
+        lock.withLock { changeHandler = handler }
+    }
+
+    func setQuick(_ isQuick: Bool) async {
+        let handler = lock.withLock { () -> (@Sendable () async -> Void)? in
+            guard quick != isQuick else { return nil }
+            quick = isQuick
+            return changeHandler
+        }
+        await handler?()
     }
 }
 
