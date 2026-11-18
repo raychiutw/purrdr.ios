@@ -193,6 +193,9 @@ public final class PlanUsageModel {
         stop()
     }
 
+    /// 目前選擇的查詢成本;這種連線方式不支援時是 `nil`。
+    public var cost: PlanUsageQueryCost? { nil }
+
     /// 目前的來源已同意修改主機設定，可以關閉並還原。
     public var canTurnOff: Bool {
         guard let hostWrite = source(host, agent)?.hostWrite else { return false }

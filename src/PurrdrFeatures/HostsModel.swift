@@ -182,6 +182,11 @@ public final class HostsModel {
     /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
 
+    /// 方案用量畫面的 model(#177):打開畫面時建立。
+    public func planUsage() -> PlanUsageModel {
+        PlanUsageModel(hosts: [], fallback: selection, store: InMemoryPlanUsageSelectionStore()) { _, _ in nil }
+    }
+
     /// 某台主機上某個 Pane 的終端機 model(標題)。
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
         PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
