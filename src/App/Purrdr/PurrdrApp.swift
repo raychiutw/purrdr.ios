@@ -69,8 +69,11 @@ struct PurrdrApp: App {
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: InMemoryHostSelectionStore(arguments.contains("-selectDemo") ? .demo : nil),
                 hostConsent: InMemoryHostWriteConsentStore(), credentials: credentials,
-                // HTTPS 主機：配對不連網路，連線是 Demo 主機。
-                hostService: .uiTesting(channel: demo), push: push, tailscaleCheck: tailscaleCheck,
+                // HTTPS 主機：配對不連網路，連線是 Demo 主機。`-demoOutdatedHostService`:主機服務是舊版(更新提示,#198)。
+                hostService: .uiTesting(
+                    channel: demo,
+                    hostServiceVersion: arguments.contains("-demoOutdatedHostService") ? "0.0.1" : HostServiceUpdates.latestKnownVersion),
+                push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
                 // 滑動提示每次啟動都顯示(只在記憶體)。
@@ -92,6 +95,7 @@ struct PurrdrApp: App {
                 hostService: .system(
                     deviceName: UIDevice.current.model,
                     appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
+                hostServiceUpdates: HostServiceUpdates(store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
                 listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in

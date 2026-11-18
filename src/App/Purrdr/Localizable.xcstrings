@@ -2550,6 +2550,17 @@
         }
       }
     },
+    "Don’t Remind Me About This Version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個版本不再提醒"
+          }
+        }
+      }
+    },
     "Down Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3056,6 +3067,28 @@
         }
       }
     },
+    "Host Service %@ Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務 %@ 可更新"
+          }
+        }
+      }
+    },
+    "Host Service Guide" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務說明"
+          }
+        }
+      }
+    },
     "Host Sync" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3096,6 +3129,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機"
+          }
+        }
+      }
+    },
+    "How to Install the Host Service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如何安裝主機服務"
           }
         }
       }
@@ -3261,6 +3305,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要安裝 Purrdr 主機外掛嗎?"
+          }
+        }
+      }
+    },
+    "Install the Purrdr host service on the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主機上安裝 Purrdr 主機服務並執行 purrdr-host-service pair,再用「相機」App 掃描它顯示的 QR code,或輸入它顯示的位址與配對碼。HTTPS 不提供登入 Shell 與檔案。"
           }
         }
       }
@@ -4145,17 +4200,6 @@
         }
       }
     },
-    "On the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在主機上執行 purrdr-host-service pair,再用「相機」App 掃描它顯示的 QR code,或輸入它顯示的位址與配對碼。HTTPS 不支援登入 Shell 與檔案。"
-          }
-        }
-      }
-    },
     "Online" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4746,6 +4790,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 看不懂 Codex 的回應。更新主機上的 Codex 或許有幫助。"
+          }
+        }
+      }
+    },
+    "Purrdr host service %@ is available for %@. Run this on the host to update it. Paired devices stay paired." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$@ 有新版的 Purrdr 主機服務 %1$@。在主機上執行下面的指令即可更新，已配對的裝置不受影響。"
           }
         }
       }
@@ -7676,6 +7731,28 @@
         }
       }
     },
+    "Update Host Service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新主機服務"
+          }
+        }
+      }
+    },
+    "Update Host Service…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新主機服務…"
+          }
+        }
+      }
+    },
     "Update Notes on This Host?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7694,6 +7771,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要更新 herdr 嗎?"
+          }
+        }
+      }
+    },
+    "Update the Host Service on %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 %@ 的主機服務"
           }
         }
       }
@@ -8024,6 +8112,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Windows"
+          }
+        }
+      }
+    },
+    "Windows (PowerShell)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows(PowerShell)"
           }
         }
       }

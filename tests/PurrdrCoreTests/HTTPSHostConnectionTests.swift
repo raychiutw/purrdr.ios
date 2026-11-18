@@ -310,6 +310,14 @@ struct HTTPSHostConnectionTests {
         #expect(try await HerdrClient(connection: Self.connection(to: service)).isReadOnlyDevice() == false)
     }
 
+    @Test("連線回報主機服務的版本(welcome 的 host_service_version,#198)")
+    func reportsHostServiceVersion() async throws {
+        let service = try await FakeHostService.start(.init(hostServiceVersion: "0.0.9"))
+        defer { Task { await service.stop() } }
+
+        #expect(try await Self.connection(to: service).hostServiceVersion() == "0.0.9")
+    }
+
     @Test("Agent 事件串流：先回 ack,連線斷了以 connectionLost 結束(上層據此重連對帳)")
     func eventStreamEndsWithConnection() async throws {
         let service = try await FakeHostService.start()

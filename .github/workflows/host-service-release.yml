@@ -1,0 +1,281 @@
+name: 主機服務 Release
+
+# 主機服務(host-service/,#198)的三平台執行檔發行到 GitHub Release `host-service-v<版本>`,
+# 一行安裝腳本(host-service/install/)從 `releases/latest/download/` 下載。
+#
+# 合併進 master 且**主機服務版本號有變**(host-service/service/Cargo.toml 的 version)才發行，同 TestFlight 的做法;
+# 也可手動觸發(gh workflow run host-service-release.yml --ref master),但同一個版本的 Release 已存在時失敗(不覆蓋)。
+# PR 的 CI 已跑過三平台 cargo test,這裡不重測。
+#
+# macOS 執行檔以 Developer ID 簽章(hardened runtime)並公證。需要的設定(GitHub → Settings → Environments → testflight,
+# Apple 的憑證都放這個 environment,部署分支限定 master):
+#   變數 APPLE_TEAM_ID              Apple Developer Team ID
+#   secret DEVELOPER_ID_P12          Developer ID Application 憑證與私鑰匯出的 .p12,base64(`base64 -i cert.p12`)
+#   secret DEVELOPER_ID_P12_PASSWORD 匯出 .p12 時設的密碼
+#   secret ASC_KEY_ID／ASC_ISSUER_ID／ASC_PRIVATE_KEY  與 TestFlight 同一把 App Store Connect API key(公證用)
+# Windows 執行檔不簽章(安裝說明交代 SmartScreen)。
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'host-service/service/Cargo.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: host-service-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: 確認主機服務版本號有變
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.version.outputs.release }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 2
+
+      - id: version
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          current="$(scripts/host-service-version.sh HEAD)"
+          echo "version=$current" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "手動觸發：發行 $current"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # merge commit 的第一個 parent 是合併前的 master。
+          previous="$(scripts/host-service-version.sh HEAD^1)"
+          if [ "$current" = "$previous" ]; then
+            echo "主機服務版本號沒變($current),不發行"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "主機服務版本號 $previous → $current,發行"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: 建置(${{ matrix.target }})
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: macos-26, target: aarch64-apple-darwin }
+          - { os: macos-26, target: x86_64-apple-darwin }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-musl }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl }
+          - { os: windows-2025, target: x86_64-pc-windows-msvc }
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 安裝 Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+          rustup default stable
+
+      - name: 安裝 musl
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: cargo build --release
+        working-directory: host-service
+        run: cargo build --release --locked -p purrdr-host-service --target ${{ matrix.target }}
+
+      - name: 確認版本
+        working-directory: host-service
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          # 交叉編譯的(x86_64 macOS 在 arm64 runner 上以 Rosetta)也能執行。
+          extension=""; [ "$RUNNER_OS" = "Windows" ] && extension=".exe"
+          output="$("target/$TARGET/release/purrdr-host-service$extension" --version | tr -d '\r')"
+          [ "$output" = "purrdr-host-service $VERSION" ] || { echo "版本不符:$output"; exit 1; }
+
+      - name: 打包
+        working-directory: host-service
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p ../dist
+          release="target/$TARGET/release"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            pwsh -NoProfile -Command "Compress-Archive -Path '$release/purrdr-host-service.exe','$release/purrdr-host-service-background.exe' -DestinationPath '../dist/purrdr-host-service-$TARGET.zip'"
+          else
+            tar -czf "../dist/purrdr-host-service-$TARGET.tar.gz" -C "$release" purrdr-host-service
+          fi
+          ls -l ../dist
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: host-service-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  # macOS:Developer ID 簽章(hardened runtime)+ 公證，重新打包。單一執行檔不能 staple,
+  # Gatekeeper 第一次執行時線上查公證票。
+  notarize:
+    name: macOS 簽章與公證
+    needs: [version, build]
+    runs-on: macos-26
+    timeout-minutes: 45
+    environment: testflight
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      DEVELOPER_ID_P12: ${{ secrets.DEVELOPER_ID_P12 }}
+      DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: host-service-*-apple-darwin
+          path: dist
+          merge-multiple: true
+
+      - name: 匯入 Developer ID 憑證
+        run: |
+          set -euo pipefail
+          : "${APPLE_TEAM_ID:?testflight environment 缺少變數 APPLE_TEAM_ID}"
+          : "${DEVELOPER_ID_P12:?testflight environment 缺少 secret DEVELOPER_ID_P12}"
+          : "${DEVELOPER_ID_P12_PASSWORD:?testflight environment 缺少 secret DEVELOPER_ID_P12_PASSWORD}"
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          printf '%s' "$DEVELOPER_ID_P12" | base64 --decode > "$RUNNER_TEMP/developer-id.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" > /dev/null
+          # 保留原本的 keychain 清單(每個一個參數)。
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/developer-id.p12"
+          identity="$(security find-identity -v -p codesigning "$keychain" | grep "Developer ID Application" | grep "($APPLE_TEAM_ID)" | head -1 | awk '{ print $2 }')"
+          [ -n "$identity" ] || { echo "keychain 裡沒有 Team $APPLE_TEAM_ID 的 Developer ID Application 憑證"; exit 1; }
+          echo "SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "SIGNING_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+      - name: 簽章、公證、重新打包
+        run: |
+          set -euo pipefail
+          : "${ASC_KEY_ID:?testflight environment 缺少 secret ASC_KEY_ID}"
+          : "${ASC_ISSUER_ID:?testflight environment 缺少 secret ASC_ISSUER_ID}"
+          : "${ASC_PRIVATE_KEY:?testflight environment 缺少 secret ASC_PRIVATE_KEY}"
+          key_path="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$key_path"
+          for archive in dist/*.tar.gz; do
+            work="$RUNNER_TEMP/$(basename "$archive" .tar.gz)"
+            mkdir -p "$work"
+            tar -xzf "$archive" -C "$work"
+            binary="$work/purrdr-host-service"
+            codesign --force --options runtime --timestamp --keychain "$SIGNING_KEYCHAIN" \
+              --identifier com.raychiu.purrdr.host-service --sign "$SIGNING_IDENTITY" "$binary"
+            codesign --verify --strict --verbose=2 "$binary"
+            codesign -dv --verbose=4 "$binary" 2>&1 | grep -E "Authority|TeamIdentifier|Runtime|Timestamp"
+            ditto -c -k "$binary" "$work.zip"
+            result="$(xcrun notarytool submit "$work.zip" --key "$key_path" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" \
+              --wait --timeout 30m --output-format json)"
+            echo "$result"
+            status="$(printf '%s' "$result" | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["status"])')"
+            if [ "$status" != "Accepted" ]; then
+              id="$(printf '%s' "$result" | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')"
+              xcrun notarytool log "$id" --key "$key_path" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" || true
+              echo "公證沒有通過:$status"
+              exit 1
+            fi
+            tar -czf "$archive" -C "$work" purrdr-host-service
+          done
+          rm "$key_path"
+
+      - name: 清掉 keychain
+        if: always()
+        run: |
+          [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" || true
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: host-service-macos-notarized
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: 發行 GitHub Release
+    needs: [version, build, notarize]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: host-service-*-linux-musl
+          path: dist
+          merge-multiple: true
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: host-service-x86_64-pc-windows-msvc
+          path: dist
+
+      # 公證過的 macOS 壓縮檔(取代 build 產出的未簽章版)。
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: host-service-macos-notarized
+          path: dist
+
+      - name: 建立 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="host-service-v$VERSION"
+          cp host-service/install/install.sh host-service/install/install.ps1 dist/
+          (cd dist && sha256sum purrdr-host-service-* > SHA256SUMS && cat SHA256SUMS)
+          expected=6   # 5 個壓縮檔 + SHA256SUMS(安裝腳本另計)
+          [ "$(find dist -maxdepth 1 \( -name 'purrdr-host-service-*' -o -name SHA256SUMS \) | wc -l)" -eq "$expected" ] || { ls -l dist; echo "檔案數不對"; exit 1; }
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag 已存在，不覆蓋;要重發請先遞增 host-service/service/Cargo.toml 的 version"
+            exit 1
+          fi
+          notes="$(cat <<EOF
+          Purrdr 主機服務 $VERSION。
+
+          **macOS／Linux**
+          \`\`\`
+          curl -fsSL https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.sh | sh
+          \`\`\`
+
+          **Windows**(PowerShell)
+          \`\`\`
+          irm https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/install.ps1 | iex
+          \`\`\`
+
+          安裝說明:https://raychiutw.github.io/purrdr/host-service/
+          EOF
+          )"
+          gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "主機服務 $VERSION" --notes "$notes" --latest

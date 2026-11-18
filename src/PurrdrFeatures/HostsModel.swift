@@ -15,10 +15,12 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var icon: HostIcon
     /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
     public var needsPairing: Bool
+    /// HTTPS 主機的主機服務比這版 app 已知的最新版舊：可更新到的版本(#198)。
+    public var hostServiceUpdate: String?
 
     public init(
         id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
-        needsPairing: Bool = false
+        needsPairing: Bool = false, hostServiceUpdate: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -27,6 +29,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
         self.isSelected = isSelected
         self.icon = icon
         self.needsPairing = needsPairing
+        self.hostServiceUpdate = hostServiceUpdate
     }
 }
 
@@ -106,6 +109,12 @@ public final class HostsModel {
     private var channels: [UUID: any HostChannel] = [:]
     /// 這支裝置還沒有裝置權杖的 HTTPS 主機(主機清單標示要配對)。
     private var unpairedHostIDs: Set<UUID> = []
+    /// 主機服務的更新提示(#198)。
+    private let hostServiceUpdates: HostServiceUpdates
+    /// HTTPS 主機回報的主機服務版本(`checkHostServiceVersions` 讀到的)。
+    private var hostServiceVersions: [UUID: String] = [:]
+    /// 使用者關閉了更新提示的版本(從 `hostServiceUpdates` 的存放處讀出，observable)。
+    private var dismissedHostServiceUpdates: [UUID: String] = [:]
     /// 已建立的 HTTPS 主機連線(以主機 id)。
     private var hostServiceConnections: [UUID: any HostConnection] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
@@ -141,6 +150,7 @@ public final class HostsModel {
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
         hostService: HostServiceAccess = HostServiceAccess(),
+        hostServiceUpdates: HostServiceUpdates = HostServiceUpdates(store: InMemoryHostServiceUpdateStore()),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
@@ -157,6 +167,8 @@ public final class HostsModel {
         self.makeChannel = makeChannel
         self.credentials = credentials
         self.hostService = hostService
+        self.hostServiceUpdates = hostServiceUpdates
+        dismissedHostServiceUpdates = hostServiceUpdates.store.dismissedVersions()
         self.conversationCache = conversationCache
         self.preferences = preferences
         self.hostIcons = hostIcons
@@ -279,8 +291,34 @@ public final class HostsModel {
                 ?? host.hostService?.description ?? ""
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
-                isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id))
+                isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id),
+                hostServiceUpdate: hostServiceUpdate(for: host.id))
         }
+    }
+
+    /// 讀每台已配對 HTTPS 主機的主機服務版本(主機清單出現時;已連線的主機不多花一個請求)。連不上的略過。
+    public func checkHostServiceVersions() async {
+        let targets = hosts.compactMap { host -> (UUID, any HostConnection)? in
+            guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id) else { return nil }
+            return (host.id, hostServiceConnection(for: host, address: address))
+        }
+        for (id, connection) in targets {
+            if let version = try? await connection.hostServiceVersion() { hostServiceVersions[id] = version }
+        }
+    }
+
+    /// 不再提示這台主機更新到目前提示的版本(app 知道更新的版本時再提示)。
+    public func dismissHostServiceUpdate(for id: UUID) {
+        guard let offered = hostServiceUpdate(for: id) else { return }
+        dismissedHostServiceUpdates[id] = offered
+        hostServiceUpdates.store.setDismissedVersion(offered, for: id)
+    }
+
+    private func hostServiceUpdate(for id: UUID) -> String? {
+        guard let installed = hostServiceVersions[id], let offered = hostServiceUpdates.offeredVersion(installed: installed),
+            dismissedHostServiceUpdates[id] != offered
+        else { return nil }
+        return offered
     }
 
     /// 列表上的主機 id:已存主機，加上 Demo 出現時的示範主機(#34)。新視窗以它判斷主機還在不在。
@@ -420,6 +458,9 @@ public final class HostsModel {
         members[.host(id)] = nil
         preferences.removeAll(for: .host(id))
         hostIcons.setIcon(nil, for: id)
+        hostServiceVersions[id] = nil
+        dismissedHostServiceUpdates[id] = nil
+        hostServiceUpdates.store.setDismissedVersion(nil, for: id)
         if selection == .host(id) { select(validSelection(nil)) } else { rebuildMembers() }
         await conversationCache.removeAll(chatKeyPrefix: HostScopedConversationCache.prefix(scope: HostSelection.host(id).storedValue))
         await channel?.disconnect()
