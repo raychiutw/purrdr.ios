@@ -39,7 +39,8 @@ extension PlanUsageSource {
     public static func claude(
         channel: any HostChannel, cost: PlanUsageQueryCost, hostID: String, consent: any HostWriteConsentStore
     ) -> PlanUsageSource {
-        PlanUsageSource(cost: cost) { nil }
+        let host = ClaudeUsageHost(channel: channel)
+        return PlanUsageSource(cost: cost) { try await host.readUsage()?.planUsage }
     }
 }
 
@@ -83,11 +84,26 @@ public final class PlanUsageModel {
         return PlanUsagePresentation.rows(for: usage, showing: display, now: now())
     }
 
+    private var query: Task<Void, Never>?
+
     /// 畫面出現：依目前的選擇查一次。
-    public func appeared() {}
+    public func appeared() {
+        startQuery()
+    }
 
     /// 等進行中的查詢結束。
-    public func untilIdle() async {}
+    public func untilIdle() async {
+        await query?.value
+    }
+
+    private func startQuery() {
+        guard let source = source(host, agent) else { return }
+        query = Task { [weak self] in
+            let usage = try? await source.read()
+            guard let self, let usage else { return }
+            state = .loaded(usage)
+        }
+    }
 }
 
 /// 一個用量週期的顯示內容。
@@ -105,6 +121,10 @@ public struct PlanUsageRow: Equatable, Sendable, Identifiable {
 /// 方案用量的顯示規則。
 public enum PlanUsagePresentation {
     public static func rows(for usage: PlanUsage, showing display: PlanUsageModel.Display, now: Date) -> [PlanUsageRow] {
-        []
+        usage.periods.map { period in
+            let used = period.usedPercentage
+            let shown = display == .remaining ? 100 - used : used
+            return PlanUsageRow(period: period.kind, percent: Int(shown.rounded()), fraction: shown / 100, resetsAt: period.resetsAt)
+        }
     }
 }
