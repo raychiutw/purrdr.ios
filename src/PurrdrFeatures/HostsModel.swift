@@ -58,7 +58,7 @@ public enum HostManagementError: Error, Equatable {
 ///
 /// - 所有主機的 Agent 合併在同一個列表(`agentList`):每台主機各自一條主機通道、各自的 herdr client、
 ///   列表、列操作、草稿與推播開關(`HostMember`);一台連不上不影響其他台。
-/// - 選取中主機只決定新聊天開在哪裡、列表排序與哪些列標示主機名、套用誰的主題(#23)、Claude 用量與推播設定讀哪台;
+/// - 選取中主機只決定新聊天開在哪裡、列表排序與哪些列標示主機名、套用誰的主題(#23)、推播設定讀哪台、方案用量畫面預設查哪台;
 ///   切換不關閉、不重建任何連線。
 /// - Demo 主機只在沒有已存主機、或使用者選了它時出現在列表。
 /// - 選取存在本機(`HostSelectionStore`),重新啟動後選回同一台;存的主機已刪除時選第一台，沒有主機就選 Demo 主機。
@@ -73,8 +73,6 @@ public final class HostsModel {
     }
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
-    /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
-    public private(set) var claudeUsage: ClaudeUsageModel
     /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
     public private(set) var codexLauncher: CodexLauncherModel
     /// 讀不到已存主機時的說明。
@@ -168,7 +166,6 @@ public final class HostsModel {
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
-        claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         rebuildMembers()
     }
@@ -323,7 +320,7 @@ public final class HostsModel {
         select(validSelection(selectionStore.load()))
     }
 
-    /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、Claude 用量與推播設定讀哪台;
+    /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、推播設定讀哪台;
     /// 不關閉、不重建任何連線(#39)。
     public func select(_ selection: HostSelection) {
         let host: HostConfiguration?
@@ -336,9 +333,6 @@ public final class HostsModel {
         self.selection = selection
         selectionStore.save(selection)
         rebuildMembers()
-        claudeUsage = ClaudeUsageModel(
-            host: ClaudeUsageHost(channel: member(for: selection).channel), hostID: host?.id.uuidString ?? Self.demoID,
-            consent: host == nil ? demoConsent : hostConsent)
         codexLauncher = CodexLauncherModel(
             host: CodexLauncherHost(channel: member(for: selection).channel), hostID: host?.id.uuidString ?? Self.demoID,
             consent: host == nil ? demoConsent : hostConsent)

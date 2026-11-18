@@ -1,0 +1,325 @@
+import PurrdrAgentFeatures
+import PurrdrCore
+import SwiftUI
+
+/// 方案用量畫面(#177、DESIGN.md「方案用量」)。
+///
+/// 上方兩列選「主機」「Agent」,下面以兩個圓環顯示 5 小時與每週用量週期(中央是剩餘或已用比例)。
+/// 錯誤與同意狀態取代圓環。只在畫面出現、改選、下拉時查詢;不耗 token 與傳輸的來源才在畫面開著時自動重整。
+public struct PlanUsageView: View {
+    @Bindable var model: PlanUsageModel
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isVisible = false
+
+    public init(model: PlanUsageModel) {
+        self.model = model
+    }
+
+    public var body: some View {
+        List {
+            Section {
+                Picker("Host", selection: hostSelection) {
+                    ForEach(model.hosts) { option in
+                        Label(option.name, systemImage: option.icon.symbol).tag(option.id)
+                    }
+                }
+                .accessibilityIdentifier("planUsage.host")
+                Picker("Agent", selection: agentSelection) {
+                    ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
+                        Text(verbatim: agent.name).tag(agent)
+                    }
+                }
+                .accessibilityIdentifier("planUsage.agent")
+            } footer: {
+                costNote
+            }
+            Section {
+                content
+            } footer: {
+                footnote
+            }
+        }
+        .navigationTitle("Plan Usage")
+        .refreshable { await model.refresh() }
+        .toolbar { options }
+        .alert("Show Claude Usage?", isPresented: confirming) {
+            Button("Change Settings") { Task { await model.confirm() } }
+            Button("Cancel", role: .cancel) { model.cancelConsent() }
+        } message: {
+            Text(consentMessage)
+        }
+        .onAppear {
+            isVisible = true
+            model.appeared()
+        }
+        .onDisappear {
+            isVisible = false
+            model.disappeared()
+        }
+        // 進背景不再連線;回到前景算是畫面再出現一次。
+        .onChange(of: scenePhase) { _, phase in
+            guard isVisible else { return }
+            switch phase {
+            case .active: model.appeared()
+            case .background: model.disappeared()
+            default: break
+            }
+        }
+    }
+
+    private var hostName: String {
+        model.hosts.first { $0.id == model.host }?.name ?? ""
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch model.state {
+        case .loading:
+            PlanUsageMessage(systemImage: nil, title: "Checking \(hostName)…", detail: nil)
+        case .loaded:
+            let rows = model.rows
+            if rows.isEmpty {
+                noData
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(rows) { row in
+                        PlanUsageRingView(row: row, display: model.display)
+                            .accessibilityIdentifier(row.period == .fiveHour ? "planUsage.period.fiveHour" : "planUsage.period.week")
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+        case .noData:
+            noData
+        case .needsConsent, .confirming:
+            PlanUsageMessage(
+                systemImage: "lock", title: "Show Claude plan usage on this host?",
+                detail: "Purrdr changes the Claude Code status line on \(hostName) so it saves plan usage. You can turn it off and restore the original anytime."
+            ) {
+                Button("Check and Show") { Task { await model.requestConsent() } }
+                    .filledProminentButtonStyle()
+                    .accessibilityIdentifier("planUsage.consent")
+            }
+        case .checking:
+            PlanUsageMessage(systemImage: nil, title: "Checking the host…", detail: nil)
+        case .installing:
+            PlanUsageMessage(systemImage: nil, title: "Changing the host’s Claude settings…", detail: nil)
+        case .turningOff:
+            PlanUsageMessage(systemImage: nil, title: "Restoring the host’s Claude settings…", detail: nil)
+        case .unsupportedConnection:
+            PlanUsageMessage(
+                systemImage: "nosign", title: "Plan usage isn’t available for this connection method",
+                detail: "\(hostName) connects over HTTPS. Choose an SSH host to check plan usage.")
+        case .failed(let reason):
+            PlanUsageMessage(systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(reason) Pull down to try again.")
+        }
+        if let message = model.message {
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+                .accessibilityIdentifier("planUsage.message")
+        }
+    }
+
+    private var noData: some View {
+        PlanUsageMessage(
+            systemImage: "hourglass", title: "Claude Code hasn’t reported plan usage yet",
+            detail: "Use Claude Code once on \(hostName), then pull down to refresh.")
+    }
+
+    /// 查詢方式(DESIGN.md:選單與圓環之間標出)。
+    @ViewBuilder
+    private var costNote: some View {
+        if let cost = model.cost {
+            Group {
+                if cost.refreshesAutomatically {
+                    Label("Uses no tokens or data · Refreshes automatically while open", systemImage: "arrow.clockwise")
+                } else {
+                    Label("Uses data, not tokens · Pull down to check again", systemImage: "hand.draw")
+                }
+            }
+            .foregroundStyle(.secondaryText)
+        }
+    }
+
+    @ViewBuilder
+    private var footnote: some View {
+        if case .loaded(let usage) = model.state, !model.rows.isEmpty {
+            Group {
+                if let asOf = PlanUsagePresentation.asOf(usage, now: .now) {
+                    Text("As of \(asOf, format: .dateTime.hour().minute()), when Claude Code last reported on this host.")
+                } else {
+                    Text("Claude Code reports these numbers while it runs on this host.")
+                }
+            }
+            .foregroundStyle(.secondaryText)
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var options: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                Picker("Show", selection: $model.display) {
+                    Text("Show Remaining").tag(PlanUsageModel.Display.remaining)
+                    Text("Show Used").tag(PlanUsageModel.Display.used)
+                }
+                if model.canTurnOff {
+                    Button("Turn Off Claude Usage", systemImage: "arrow.uturn.backward", role: .destructive) {
+                        Task { await model.turnOff() }
+                    }
+                }
+            } label: {
+                Label("Plan Usage Options", systemImage: "ellipsis")
+            }
+            .accessibilityIdentifier("planUsage.menu")
+        }
+    }
+
+    private var hostSelection: Binding<HostSelection> {
+        Binding { model.host } set: { model.select(host: $0) }
+    }
+
+    private var agentSelection: Binding<PlanUsageAgent> {
+        Binding { model.agent } set: { model.select(agent: $0) }
+    }
+
+    private var confirming: Binding<Bool> {
+        Binding {
+            if case .confirming = model.state { return true }
+            return false
+        } set: { _ in
+            // alert 關閉時 SwiftUI 會先設 false 再執行按鈕;狀態交給按鈕處理，否則「確認」會先被當成取消。
+        }
+    }
+
+    private var consentMessage: String {
+        guard case .confirming(let user) = model.state else { return "" }
+        return String(localized: """
+            Claude Code shares plan usage only with its status line. To show it here, Purrdr will change \
+            ~/.claude/settings.json on this host as the user “\(user)”: the status line command becomes \
+            ~/.purrdr/claude-usage/statusline.sh, which saves the usage and then runs your current status line. \
+            Turning this off restores your original settings.
+            """)
+    }
+}
+
+extension PlanUsageAgent {
+    /// 產品名稱，不翻譯。
+    var name: String {
+        switch self {
+        case .claudeCode: "Claude Code"
+        }
+    }
+}
+
+/// 取代圓環的置中說明(查詢中、需要同意、錯誤)。`systemImage` 為 `nil` 時是載入中。
+private struct PlanUsageMessage<Actions: View>: View {
+    let systemImage: String?
+    let title: LocalizedStringKey
+    let detail: LocalizedStringKey?
+    @ViewBuilder var actions: Actions
+
+    init(systemImage: String?, title: LocalizedStringKey, detail: LocalizedStringKey?, @ViewBuilder actions: () -> Actions) {
+        self.systemImage = systemImage
+        self.title = title
+        self.detail = detail
+        self.actions = actions()
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.title)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityHidden(true)
+            } else {
+                ProgressView()
+            }
+            Text(title)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            if let detail {
+                Text(detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+            actions
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+    }
+}
+
+extension PlanUsageMessage where Actions == EmptyView {
+    init(systemImage: String?, title: LocalizedStringKey, detail: LocalizedStringKey?) {
+        self.init(systemImage: systemImage, title: title, detail: detail) { EmptyView() }
+    }
+}
+
+/// 一個用量週期的圓環：中央是剩餘或已用比例，下方是用量週期名稱與重置時間;顏色依剩餘比例分三級。
+struct PlanUsageRingView: View {
+    let row: PlanUsageRow
+    let display: PlanUsageModel.Display
+    @ScaledMetric(relativeTo: .title2) private var diameter: CGFloat = 104
+    @ScaledMetric(relativeTo: .title2) private var lineWidth: CGFloat = 11
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .stroke(.fill.tertiary, lineWidth: lineWidth)
+                Circle()
+                    .trim(from: 0, to: row.fraction)
+                    .stroke(AccessibleColors.planUsage(row.level).color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                VStack(spacing: 0) {
+                    Text(verbatim: "\(row.percent)%")
+                        .font(.title2.bold().monospacedDigit())
+                    Text(display == .remaining ? "left" : "used")
+                        .font(.caption)
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+            .frame(width: diameter, height: diameter)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.center)
+            if let resetsAt = row.resetsAt {
+                Text("Resets \(resetsAt, format: Self.resetFormat(resetsAt))")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: accessibilityText))
+    }
+
+    private var title: LocalizedStringKey {
+        switch row.period {
+        case .fiveHour: "5 Hours"
+        case .week: "Weekly"
+        }
+    }
+
+    /// VoiceOver:名稱、比例、重置時間。
+    private var accessibilityText: String {
+        let name = switch row.period {
+        case .fiveHour: String(localized: "5 Hours")
+        case .week: String(localized: "Weekly")
+        }
+        let amount = display == .remaining ? String(localized: "\(row.percent)% left") : String(localized: "\(row.percent)% used")
+        guard let resetsAt = row.resetsAt else { return "\(name), \(amount)" }
+        return "\(name), \(amount), " + String(localized: "Resets \(resetsAt.formatted(Self.resetFormat(resetsAt)))")
+    }
+
+    /// 一天內只顯示時間，否則加上星期。時間依裝置地區與 12/24 小時制。
+    static func resetFormat(_ date: Date, now: Date = Date()) -> Date.FormatStyle {
+        date.timeIntervalSince(now) < 24 * 3600 ? .dateTime.hour().minute() : .dateTime.weekday(.abbreviated).hour().minute()
+    }
+}

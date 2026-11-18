@@ -17,8 +17,6 @@ public struct AgentListView: View {
     private let makeConversation: @MainActor (ChatRoute, String?) -> ConversationModel
     /// 建立某台主機上某個 Pane 的終端機 model(標題)。由 composition root 提供。
     private let makeTerminal: (@MainActor (ChatRoute, String) -> PaneTerminalModel)?
-    /// 選取中主機的 Claude 用量，畫在列表最下方;讀取失敗時不顯示(行為規格 F2.9、F18)。
-    private let usage: ClaudeUsageModel?
     /// 所在視窗的導覽狀態(#31)。有的話：列是 split view 的選取(對話顯示在對話欄)、套用側欄的 workspace 篩選;
     /// 沒有的話列表自己推入對話。
     private let window: TopNavigationModel?
@@ -32,7 +30,7 @@ public struct AgentListView: View {
     @State private var largeTitleHeight: CGFloat = 52
 
     public init(
-        model: MergedAgentListModel, usage: ClaudeUsageModel? = nil, window: TopNavigationModel? = nil,
+        model: MergedAgentListModel, window: TopNavigationModel? = nil,
         openInNewWindow: ((_ kind: PaneWindow.Kind, _ row: AgentRow) -> Void)? = nil,
         conversation: @escaping @MainActor (_ route: ChatRoute, _ sessionID: String?) -> ConversationModel,
         terminal: (@MainActor (_ route: ChatRoute, _ title: String) -> PaneTerminalModel)? = nil
@@ -40,7 +38,6 @@ public struct AgentListView: View {
         self.model = model
         self.makeConversation = conversation
         self.makeTerminal = terminal
-        self.usage = usage
         self.window = window
         self.openInNewWindow = openInNewWindow
     }
@@ -285,9 +282,6 @@ public struct AgentListView: View {
             } header: {
                 Text("Connection Lost")
             }
-        }
-        if let usage, list(failedFor: model.selected) == false {
-            Section { ClaudeUsageFooter(model: usage) }
         }
         if model.showsSwipeHint, !(model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty) {
             // 第一次用滑動面板的動作之前，列表底部提示有哪些滑動動作(行為規格 F2.7)。
