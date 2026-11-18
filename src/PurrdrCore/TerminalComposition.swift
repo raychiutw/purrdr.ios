@@ -44,21 +44,74 @@ public struct TerminalComposition: Sendable, Equatable {
     public var isComposing: Bool { !markedText.isEmpty }
 
     /// 輸入法更新組字文字;空字串代表組字結束(不送出)。
-    public mutating func setMarkedText(_ text: String) {}
+    public mutating func setMarkedText(_ text: String) {
+        markedText = text
+    }
 
-    /// 確認文字(選字、英文字母、Return)。
-    public mutating func insertText(_ text: String) -> [TerminalInputSend] { [] }
+    /// 確認文字(選字、英文字母、Return):取代組字文字，只送確認的文字。換行一律送 CR。
+    public mutating func insertText(_ text: String) -> [TerminalInputSend] {
+        markedText = ""
+        return Self.sendable(text)
+    }
 
-    public mutating func deleteBackward() -> [TerminalInputSend] { [] }
+    /// 組字中只刪組字文字的最後一個字;沒有組字時送 DEL。
+    public mutating func deleteBackward() -> [TerminalInputSend] {
+        guard isComposing else { return [.bytes(Data([0x7F]))] }
+        markedText.removeLast()
+        return []
+    }
 
-    /// 系統要求結束組字。
-    public mutating func unmarkText() -> [TerminalInputSend] { [] }
+    /// 系統要求結束組字：送出輸入法最後給的組字文字(常是已選好的字),但不送注音符號與聲調本身。
+    public mutating func unmarkText() -> [TerminalInputSend] {
+        let confirmed = String(String.UnicodeScalarView(markedText.unicodeScalars.filter { !Self.isZhuyin($0) }))
+        markedText = ""
+        return Self.sendable(confirmed)
+    }
 
     /// Purrdr 自己結束組字(切換焦點等):放棄組字文字，不送出。
-    public mutating func cancel() {}
+    public mutating func cancel() {
+        markedText = ""
+    }
 
-    /// 實體鍵盤按鍵(`modifiers` 是按著的實體修飾鍵)。
+    /// 實體鍵盤按鍵(`modifiers` 是按著的實體修飾鍵)。組字中一律交給輸入法。
     public func handle(_ key: TerminalHardwareKey, modifiers: TerminalModifiers) -> TerminalHardwareKeyHandling {
-        .system
+        guard !isComposing else { return .system }
+        let terminalKey: TerminalKey
+        switch key {
+        case .character(let character):
+            guard !modifiers.isDisjoint(with: [.control, .alt]) else { return .system }
+            terminalKey = .character(character)
+        case .returnKey:
+            return modifiers.contains(.alt) ? .send(.bytes(Data([0x1B, 0x0D]))) : .system
+        case .deleteBackward:
+            return modifiers.contains(.alt) ? .send(.bytes(Data([0x1B, 0x7F]))) : .system
+        case .escape: terminalKey = .escape
+        case .tab: terminalKey = .tab
+        case .deleteForward: terminalKey = .deleteForward
+        case .up: terminalKey = .up
+        case .down: terminalKey = .down
+        case .left: terminalKey = .left
+        case .right: terminalKey = .right
+        case .home: terminalKey = .home
+        case .end: terminalKey = .end
+        case .pageUp: terminalKey = .pageUp
+        case .pageDown: terminalKey = .pageDown
+        case .function(let number): terminalKey = .function(number)
+        }
+        return .send(.key(terminalKey, modifiers: modifiers))
+    }
+
+    private static func sendable(_ text: String) -> [TerminalInputSend] {
+        guard !text.isEmpty else { return [] }
+        let terminalText = text.replacingOccurrences(of: "\r\n", with: "\r").replacingOccurrences(of: "\n", with: "\r")
+        return [.bytes(Data(terminalText.utf8))]
+    }
+
+    /// 注音符號(含擴充)與注音聲調。
+    private static func isZhuyin(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3100...0x312F, 0x31A0...0x31BF, 0x02C7, 0x02CA, 0x02CB, 0x02D9: true
+        default: false
+        }
     }
 }

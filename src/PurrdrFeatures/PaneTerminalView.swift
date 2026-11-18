@@ -28,8 +28,8 @@ public typealias PaneTerminalView = TerminalSessionView
 /// 終端機畫面(DESIGN.md「終端機」):全螢幕深色、標題下有狀態點與文字、底部是單一玻璃容器的按鍵列。
 /// Pane 終端機(`PaneTerminalModel`)與登入 Shell(`LoginShellModel`)共用。
 ///
-/// 終端機模擬器(SwiftTerm)只負責畫面;鍵盤輸入、按鍵列、貼上、滑動都經過 model
-/// (Pane 終端機變成 herdr 的訊息，登入 Shell 直接寫進 PTY)。
+/// 終端機模擬器(SwiftTerm)只負責畫面;鍵盤輸入由 Purrdr 的輸入元件接管(#136),
+/// 輸入、按鍵列、貼上、滑動都經過 model(Pane 終端機變成 herdr 的訊息，登入 Shell 直接寫進 PTY)。
 public struct TerminalSessionView: View {
     let model: any TerminalSessionModel
     @Environment(\.scenePhase) private var scenePhase
@@ -383,26 +383,26 @@ struct KeyboardToggle: View {
 @MainActor
 @Observable
 final class TerminalScreenHandle {
-    fileprivate weak var view: PurrdrTerminalView?
+    fileprivate weak var screen: TerminalScreenContainer?
     private(set) var isKeyboardVisible = false
 
     func focus() {
-        guard let view, !view.isFirstResponder else { return }
-        _ = view.becomeFirstResponder()
+        guard let input = screen?.textInput, !input.isFirstResponder else { return }
+        _ = input.becomeFirstResponder()
     }
 
     func toggleKeyboard() {
-        guard let view else { return }
-        if view.isFirstResponder {
-            _ = view.resignFirstResponder()
+        guard let input = screen?.textInput else { return }
+        if input.isFirstResponder {
+            _ = input.resignFirstResponder()
         } else {
-            _ = view.becomeFirstResponder()
+            _ = input.becomeFirstResponder()
         }
     }
 
     /// 程式是否開了 bracketed paste 模式(登入 Shell 用;Pane 終端機看不到 Pane 的模式)。
     var bracketedPasteMode: Bool {
-        view?.getTerminal().bracketedPasteMode ?? false
+        screen?.terminalView.getTerminal().bracketedPasteMode ?? false
     }
 
     fileprivate func focusChanged(_ focused: Bool) {
@@ -422,26 +422,45 @@ struct TerminalScreen: UIViewRepresentable {
         Coordinator(model: model)
     }
 
-    func makeUIView(context: Context) -> PurrdrTerminalView {
-        let view = PurrdrTerminalView(frame: .zero, font: Self.font(model.fontSize, bold: legibilityWeight == .bold))
+    func makeUIView(context: Context) -> TerminalScreenContainer {
+        let screen = TerminalScreenContainer(
+            terminalView: PurrdrTerminalView(frame: .zero, font: Self.font(model.fontSize, bold: legibilityWeight == .bold))
+        )
+        let view = screen.terminalView
         view.terminalDelegate = context.coordinator
         // 按鍵列由 SwiftUI 畫(玻璃容器);SwiftTerm 自帶的 accessory 關掉。
         view.inputAccessoryView = nil
         Self.apply(theme, to: view)
         context.coordinator.appliedTheme = theme
-        view.keyboardAppearance = .dark
         // Pane 終端機的本機 scrollback 是空的(herdr 每次都重畫整個 viewport):滑動改送 terminal.scroll。
         // 登入 Shell 的 scrollback 在本機，由模擬器自己捲。
         view.isScrollEnabled = !model.usesRemoteScroll
         view.accessibilityIdentifier = "terminal.screen"
-        view.onFocusChange = { [weak handle] in handle?.focusChanged($0) }
+        screen.textInput.onFocusChange = { [weak handle, weak view] focused in
+            view?.getTerminal().setTerminalFocus(focused)
+            view?.setNeedsDisplay()
+            handle?.focusChanged(focused)
+        }
+        screen.textInput.onSend = { [model] input in
+            switch input {
+            case .bytes(let bytes): model.type(bytes)
+            case .key(let key, let modifiers): model.press(key, adding: modifiers)
+            }
+        }
+        screen.textInput.onPaste = { [model, weak handle] in
+            if let text = UIPasteboard.general.string { model.paste(text, bracketed: handle?.bracketedPasteMode ?? false) }
+        }
         context.coordinator.install(on: view)
-        handle.view = view
-        model.attach { [weak view] bytes in view?.feed(byteArray: ArraySlice(bytes)) }
-        return view
+        handle.screen = screen
+        model.attach { [weak screen] bytes in
+            screen?.terminalView.feed(byteArray: ArraySlice(bytes))
+            screen?.cursorMayHaveMoved()
+        }
+        return screen
     }
 
-    func updateUIView(_ view: PurrdrTerminalView, context: Context) {
+    func updateUIView(_ screen: TerminalScreenContainer, context: Context) {
+        let view = screen.terminalView
         if context.coordinator.appliedTheme != theme {
             Self.apply(theme, to: view)
             context.coordinator.appliedTheme = theme
@@ -449,6 +468,7 @@ struct TerminalScreen: UIViewRepresentable {
         let font = Self.font(model.fontSize, bold: legibilityWeight == .bold)
         if view.font.pointSize != font.pointSize || view.font.fontName != font.fontName {
             view.font = font
+            screen.cursorMayHaveMoved()
         }
     }
 
@@ -566,20 +586,65 @@ struct TerminalScreen: UIViewRepresentable {
     }
 }
 
-/// SwiftTerm 的終端機視圖，加上焦點回報與給 VoiceOver(與 UI 測試)讀的畫面文字。
-final class PurrdrTerminalView: TerminalView {
-    var onFocusChange: ((Bool) -> Void)?
+/// 終端機畫面與疊在游標格子上的輸入元件。
+final class TerminalScreenContainer: UIView {
+    let terminalView: PurrdrTerminalView
+    let textInput = TerminalTextInputView(frame: .zero)
+    private var isCursorUpdateQueued = false
 
-    override func becomeFirstResponder() -> Bool {
-        let became = super.becomeFirstResponder()
-        if became { onFocusChange?(true) }
-        return became
+    init(terminalView: PurrdrTerminalView) {
+        self.terminalView = terminalView
+        super.init(frame: .zero)
+        terminalView.frame = bounds
+        terminalView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(terminalView)
+        addSubview(textInput)
+        textInput.editActionTarget = terminalView
+        terminalView.textInput = textInput
     }
 
-    override func resignFirstResponder() -> Bool {
-        let resigned = super.resignFirstResponder()
-        if resigned { onFocusChange?(false) }
-        return resigned
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        placeTextInput()
+    }
+
+    /// 輸出或字級改變後，等 SwiftTerm 畫完再把輸入元件移到游標格子。
+    func cursorMayHaveMoved() {
+        guard !isCursorUpdateQueued else { return }
+        isCursorUpdateQueued = true
+        DispatchQueue.main.async { [weak self] in
+            self?.isCursorUpdateQueued = false
+            self?.placeTextInput()
+        }
+    }
+
+    private func placeTextInput() {
+        let caret = terminalView.caretFrame
+        guard caret.width > 0, caret.height > 0 else { return }
+        textInput.frame = terminalView.convert(caret, to: self)
+    }
+}
+
+/// SwiftTerm 的終端機視圖，加上給 VoiceOver(與 UI 測試)讀的畫面文字。
+/// 鍵盤焦點在 `TerminalTextInputView`;它自己不當 first responder,但點畫面、游標樣式照「聚焦」處理。
+final class PurrdrTerminalView: TerminalView {
+    weak var textInput: TerminalTextInputView?
+
+    override var canBecomeFirstResponder: Bool { false }
+
+    /// SwiftTerm 點畫面時要焦點：交給輸入元件。
+    override func becomeFirstResponder() -> Bool {
+        textInput?.becomeFirstResponder() ?? false
+    }
+
+    /// SwiftTerm 依這個決定點畫面的行為(連結、滑鼠回報)與游標樣式。
+    override var isFirstResponder: Bool {
+        textInput?.isFirstResponder ?? false
     }
 
     /// 目前畫面上的文字(去掉行尾空白)。

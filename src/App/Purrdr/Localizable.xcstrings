@@ -5828,6 +5828,17 @@
         }
       }
     },
+    "Terminal Input" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端機輸入"
+          }
+        }
+      }
+    },
     "Terminals %lld" : {
       "extractionState" : "manual",
       "localizations" : {
