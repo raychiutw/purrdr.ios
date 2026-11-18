@@ -12,8 +12,8 @@ final class ConversationUITests: XCTestCase {
     }
 
     @MainActor
-    private func open(paneID: String, flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting(flags: flags, contentSize: contentSize)
+    private func open(paneID: String, flags: [String] = []) -> XCUIApplication {
+        let app = XCUIApplication.launchUITesting(flags: flags)
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
@@ -173,7 +173,12 @@ final class ConversationUITests: XCTestCase {
     /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
-        let app = open(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        // AX5 時 ledger 在閒置組很下面，捲不到：從註記清單的「Go to Chat」進去(同無障礙稽核)。
+        let summary = app.buttons["youShouldKnow.summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        summary.tap()
+        element("youShouldKnow.go.demo/w1:p1", in: app).tap()
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         text.tap()

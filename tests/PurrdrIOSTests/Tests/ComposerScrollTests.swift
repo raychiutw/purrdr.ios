@@ -17,7 +17,7 @@ struct ComposerScrollTests {
             HStack(alignment: .bottom, spacing: 8) {
                 Color.clear.frame(width: 44, height: 44)
                 ComposerTextEditor(
-                    text: $text, isFocused: $isFocused, returnSends: false, canSend: true,
+                    text: $text, isFocused: $isFocused, placeholder: "Message", returnSends: false, canSend: true,
                     slashKey: { _ in false }, pasteAction: { .system }, onPasteImages: {}, onSend: {}
                 )
                 .frame(minHeight: 44)
