@@ -42,16 +42,25 @@ public struct CodexUsageHost: Sendable {
         return data
     }
 
+    /// 多 bucket 時用 Codex 本身的(`codex`);主要／次要依用量週期長度對應到 5 小時與每週，比例夾在 0～100。
     static func planUsage(from result: [String: Any], capturedAt: Date) throws -> PlanUsage {
-        guard let snapshot = result["rateLimits"] as? [String: Any] else { throw CodexUsageError.unreadableResponse }
-        let slots: [(String, PlanUsage.Period.Kind)] = [("primary", .fiveHour), ("secondary", .week)]
-        let periods = slots.compactMap { key, kind -> PlanUsage.Period? in
-            guard let window = snapshot[key] as? [String: Any], let used = (window["usedPercent"] as? NSNumber)?.doubleValue else { return nil }
-            let resetsAt = (window["resetsAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
-            return PlanUsage.Period(kind: kind, usedPercentage: used, resetsAt: resetsAt)
+        let buckets = result["rateLimitsByLimitId"] as? [String: Any]
+        guard let snapshot = (buckets?["codex"] ?? result["rateLimits"]) as? [String: Any] else {
+            throw CodexUsageError.unreadableResponse
         }
-        return PlanUsage(periods: periods, capturedAt: capturedAt)
+        var periods: [PlanUsage.Period] = []
+        for (key, slotKind) in [("primary", PlanUsage.Period.Kind.fiveHour), ("secondary", .week)] {
+            guard let window = snapshot[key] as? [String: Any], let used = (window["usedPercent"] as? NSNumber)?.doubleValue else { continue }
+            let kind = (window["windowDurationMins"] as? NSNumber).map { $0.intValue < Self.dayMinutes ? .fiveHour : .week } ?? slotKind
+            guard !periods.contains(where: { $0.kind == kind }) else { continue }
+            let resetsAt = (window["resetsAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+            periods.append(PlanUsage.Period(kind: kind, usedPercentage: min(max(used, 0), 100), resetsAt: resetsAt))
+        }
+        return PlanUsage(periods: periods.sorted { $0.kind == .fiveHour && $1.kind == .week }, capturedAt: capturedAt)
     }
+
+    /// 短於一天的用量週期算 5 小時，其餘算每週。
+    static let dayMinutes = 24 * 60
 }
 
 /// app-server 的 stdout:一行一則 JSON,通知與其他回應略過，只取指定 `id` 的回應。
