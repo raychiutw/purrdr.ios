@@ -512,7 +512,7 @@ final class KeyHandlingTextView: UITextView {
         let lineHeight = (font ?? .preferredFont(forTextStyle: .body)).lineHeight
         return ComposerSizing.height(
             contentHeight: contentHeight, lineHeight: lineHeight,
-            verticalInsets: textContainerInset.top + textContainerInset.bottom, availableHeight: availableHeight)
+            verticalInsets: textContainerInset.top + textContainerInset.bottom, availableHeight: availableHeight.map(Double.init))
     }
 
     override func didMoveToWindow() {

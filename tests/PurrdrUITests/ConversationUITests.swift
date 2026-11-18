@@ -12,8 +12,8 @@ final class ConversationUITests: XCTestCase {
     }
 
     @MainActor
-    private func open(paneID: String, flags: [String] = []) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting(flags: flags)
+    private func open(paneID: String, flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
+        let app = XCUIApplication.launchUITesting(flags: flags, contentSize: contentSize)
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
@@ -168,6 +168,29 @@ final class ConversationUITests: XCTestCase {
         shot.lifetime = .keepAlways
         add(shot)
         XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
+    }
+
+    /// AX 字級下長高不超過鍵盤上方可用高度的 40%,超過的在框內捲動(#137)。
+    @MainActor
+    func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
+        let app = open(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeText("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
+        // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
+        let window = app.windows.firstMatch.frame
+        let keyboard = app.keyboards.firstMatch
+        let visibleBottom = keyboard.exists ? min(keyboard.frame.minY, window.maxY) : window.maxY
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "composer-ax5-ten-lines"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // 可用高度從狀態列下緣算，比可見範圍小;以可見範圍當上界只會放寬。
+        let height = text.frame.height
+        XCTAssertLessThanOrEqual(height, visibleBottom * 0.4 + 1, "輸入框 \(height)pt 超過可見範圍(\(visibleBottom)pt)的 40%")
+        XCTAssertGreaterThan(height, 44 * 2, "AX 字級下多行沒有長高(\(height)pt)")
     }
 
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
