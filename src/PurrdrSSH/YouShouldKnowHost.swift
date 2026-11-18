@@ -34,13 +34,8 @@ public struct YouShouldKnowHost: YouShouldKnowHosting {
         try await files.newest(in: Self.storeDirectory, prefix: Self.storePrefix, suffix: Self.storeSuffix)
     }
 
-    /// 讀 store。檔案不見了是 `nil`;不是 JSON 物件丟 `YouShouldKnowError.invalidStore`。
-    public func read(_ path: HostPath) async throws -> YouShouldKnowStore? {
-        guard case .changed(let store, _) = try await read(path, ifChangedFrom: nil) else { throw HostFilesError.malformedOutput }
-        return store
-    }
-
-    /// 條件式讀 store:與 `known` 版本相同時是 `.unchanged`;檔案不見時是 `.changed(nil, …)`。
+    /// 條件式讀 store(沒有已知版本時一定讀):與 `known` 版本相同時是 `.unchanged`;檔案不見時是 `.changed(nil, …)`;
+    /// 不是 JSON 物件丟 `YouShouldKnowError.invalidStore`。
     public func read(_ path: HostPath, ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<YouShouldKnowStore?> {
         let read = try await files.read([path], knownVersions: known.map { [path: $0] } ?? [:])
         if read.unchanged.contains(path) { return .unchanged }

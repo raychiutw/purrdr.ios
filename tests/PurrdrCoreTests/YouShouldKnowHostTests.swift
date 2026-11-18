@@ -46,7 +46,7 @@ struct YouShouldKnowHostTests {
     @Test("讀 store 的註記")
     func readsNotes() async throws {
         _ = try host.write(Data(Self.sample.utf8), to: Self.storePath)
-        let store = try #require(try await ysk.read(HostPath(Self.storePath)))
+        let store = try #require(try await ysk.read(HostPath(Self.storePath), ifChangedFrom: nil).requireChanged())
         #expect(store.notes.count == 2)
     }
 
@@ -54,12 +54,12 @@ struct YouShouldKnowHostTests {
     func knewItWritesBack() async throws {
         _ = try host.write(Data(Self.sample.utf8), to: Self.storePath)
         let path = HostPath(Self.storePath)
-        let note = try #require(try await ysk.read(path)?.note(forSession: YouShouldKnowStoreTests.sessionA))
+        let note = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.note(forSession: YouShouldKnowStoreTests.sessionA))
         try await ysk.perform(.knewIt, on: note, at: path)
         let object = try storeObject()
         #expect(object["known"] as? [String] == ["Tabs are not spaces", note.line])
         #expect(object["futureKey"] != nil)
-        #expect(try await ysk.read(path)?.note(forSession: note.sessionID) == nil)
+        #expect(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.note(forSession: note.sessionID) == nil)
     }
 
     @Test("plugin 沒再改過：關閉後整個家目錄與第一次寫回前完全相同")
@@ -67,9 +67,9 @@ struct YouShouldKnowHostTests {
         _ = try host.write(Data(Self.sample.utf8), to: Self.storePath)
         let before = try DirectorySnapshot(of: host.home)
         let path = HostPath(Self.storePath)
-        let store = try #require(try await ysk.read(path))
+        let store = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged())
         try await ysk.perform(.dismiss, on: try #require(store.note(forSession: YouShouldKnowStoreTests.sessionA)), at: path)
-        let again = try #require(try await ysk.read(path))
+        let again = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged())
         try await ysk.perform(.knewIt, on: try #require(again.note(forSession: YouShouldKnowStoreTests.sessionB)), at: path)
         #expect(try DirectorySnapshot(of: host.home) != before)
 
@@ -81,7 +81,7 @@ struct YouShouldKnowHostTests {
     func restoreMergesWhenPluginChangedStore() async throws {
         _ = try host.write(Data(Self.sample.utf8), to: Self.storePath)
         let path = HostPath(Self.storePath)
-        let note = try #require(try await ysk.read(path)?.note(forSession: YouShouldKnowStoreTests.sessionB))
+        let note = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.note(forSession: YouShouldKnowStoreTests.sessionB))
         try await ysk.perform(.knewIt, on: note, at: path)
         var object = try storeObject()
         object["known"] = (object["known"] as? [String] ?? []) + ["Plugin learned this"]
@@ -105,7 +105,7 @@ struct YouShouldKnowHostTests {
         }
         let ysk = YouShouldKnowHost(channel: racing)
         let path = HostPath(Self.storePath)
-        let note = try #require(try await ysk.read(path)?.note(forSession: YouShouldKnowStoreTests.sessionA))
+        let note = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.note(forSession: YouShouldKnowStoreTests.sessionA))
         try await ysk.perform(.knewIt, on: note, at: path)
         let object = try storeObject()
         #expect(object["seen"] as? [String] == ["a", "b", "c"])
@@ -122,7 +122,7 @@ struct YouShouldKnowHostTests {
         }
         let ysk = YouShouldKnowHost(channel: racing)
         let path = HostPath(Self.storePath)
-        let note = try #require(try await ysk.read(path)?.note(forSession: YouShouldKnowStoreTests.sessionA))
+        let note = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.note(forSession: YouShouldKnowStoreTests.sessionA))
         await #expect(throws: HostFilesError.changedSinceRead(path)) { try await ysk.perform(.knewIt, on: note, at: path) }
     }
 }

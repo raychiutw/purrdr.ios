@@ -120,7 +120,7 @@ struct WindowsHostFilesTests {
             .file(Data("[theme]\nname = \"dracula\"\n".utf8), version: HostFileVersion(checksum: "bb:2")),
         ])))
 
-        let theme = try await HostThemeHost(channel: WindowsHostChannel(host)).readTheme()
+        let theme = try await HostThemeHost(channel: WindowsHostChannel(host)).readTheme(ifChangedFrom: nil).requireChanged()
 
         #expect(theme.name == "dracula")
         let stdin = try #require(await host.executions.first?.stdinText)
@@ -136,7 +136,7 @@ struct WindowsHostFilesTests {
                 .file(Data("[theme]\nname = \"nord\"\n".utf8), version: HostFileVersion(checksum: "1:2")), .missingDirectory,
             ])))
 
-        #expect(try await HostThemeHost(channel: host).readTheme().name == "nord")
+        #expect(try await HostThemeHost(channel: host).readTheme(ifChangedFrom: nil).requireChanged().name == "nord")
     }
 
     @Test("Codex 啟動器(Windows 做不到):檢查與安裝都丟 unsupported,不把 sh 啟動器寫到 Windows")

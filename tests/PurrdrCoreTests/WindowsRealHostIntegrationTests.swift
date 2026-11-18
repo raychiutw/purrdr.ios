@@ -423,7 +423,7 @@ struct WindowsRealHostIntegrationTests {
 
         log("主題…")
         let themeHost = HostThemeHost(channel: channel)
-        #expect(try await themeHost.readTheme().name == "dracula")
+        #expect(try await themeHost.readTheme(ifChangedFrom: nil).requireChanged().name == "dracula")
         try await themeHost.install()
         #expect(try await themeHost.inspect().isInstalled)
 
@@ -431,7 +431,7 @@ struct WindowsRealHostIntegrationTests {
         let ysk = YouShouldKnowHost(channel: channel)
         let path = try #require(try await ysk.locate())
         #expect(path == HostPath(store))
-        let note = try #require(try await ysk.read(path)?.note(forSession: YouShouldKnowStoreTests.sessionA))
+        let note = try #require(try await ysk.read(path, ifChangedFrom: nil).requireChanged()?.note(forSession: YouShouldKnowStoreTests.sessionA))
         try await ysk.perform(.knewIt, on: note, at: path)
         let written = try #require(try await HostFiles(channel: channel).read([path])[path]?.contents)
         let known = YouShouldKnowHost.known(in: written)
