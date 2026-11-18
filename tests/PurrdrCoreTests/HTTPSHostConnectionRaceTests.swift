@@ -42,7 +42,62 @@ struct HTTPSHostConnectionRaceTests {
         #expect(try await caller.value == "stream-s1")
     }
 
+    @Test("訂閱剛送出就取消：關掉串流的請求排在訂閱之後送到主機，主機不會留著串流")
+    func unsubscribeFollowsSubscribeOnTheWire() async throws {
+        let socket = RecordingSocket()
+        let client = HerdrClient(connection: HTTPSHostConnection(address: Self.address, deviceToken: { "token-ok" }, transport: socket))
+        _ = try await client.ping()
+        let reader = Task {
+            for try await _ in try await client.subscribe([]) {}
+        }
+        await socket.subscribeStarted.wait()
+
+        reader.cancel()
+
+        try await waitUntil { socket.sentTypes.contains("events.unsubscribe") }
+        #expect(socket.sentTypes == ["hello", "events.subscribe", "events.unsubscribe"])
+    }
+
     private static let address = HostServiceAddress("http://127.0.0.1:1")!
+}
+
+/// 記下送到主機的訊息種類;回應握手與關掉串流。`events.subscribe` 晚一點才真的送出(排程忙)、不回應。
+private final class RecordingSocket: WebSocketConnecting, WebSocketSession {
+    let subscribeStarted = Latch()
+    private let sent = Mutex<[String]>([])
+    private let replies = Mailbox()
+
+    var sentTypes: [String] { sent.withLock { $0 } }
+
+    func connect(to url: URL, bearerToken: String) async throws -> any WebSocketSession { self }
+
+    func send(_ text: String) async throws {
+        let message = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] ?? [:]
+        let type = message["type"] as? String ?? ""
+        let requestID = message["request_id"] as? String ?? ""
+        if type == "events.subscribe" {
+            await subscribeStarted.open()
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        sent.withLock { $0.append(type) }
+        switch type {
+        case "hello":
+            let welcome = try String(contentsOf: FakeHostService.examplesDirectory.appending(path: "server.welcome.json"), encoding: .utf8)
+            await replies.put(welcome.replacingOccurrences(of: #""request_id":"r1""#, with: #""request_id":"\#(requestID)""#))
+        case "events.unsubscribe":
+            await replies.put(#"{"type":"events.unsubscribe.result","request_id":"\#(requestID)"}"#)
+        default:
+            break
+        }
+    }
+
+    func receive() async throws -> WebSocketMessage {
+        .text(await replies.take())
+    }
+
+    func sendPing() async throws {}
+
+    func close() async {}
 }
 
 /// 一次性的門：`wait` 不理會取消，`open` 之後全部放行。
@@ -59,6 +114,25 @@ private actor Latch {
         isOpen = true
         waiting.forEach { $0.resume() }
         waiting = []
+    }
+}
+
+/// 依序交出回應;沒有時等下一個。
+private actor Mailbox {
+    private var queued: [String] = []
+    private var waiting: [CheckedContinuation<String, Never>] = []
+
+    func put(_ text: String) {
+        if waiting.isEmpty {
+            queued.append(text)
+        } else {
+            waiting.removeFirst().resume(returning: text)
+        }
+    }
+
+    func take() async -> String {
+        if !queued.isEmpty { return queued.removeFirst() }
+        return await withCheckedContinuation { waiting.append($0) }
     }
 }
 
