@@ -27,7 +27,8 @@ derived="${2:-}"
 if [ -z "$derived" ]; then
     derived="$root/.derivedData/strings"
     xcodebuild build -scheme Purrdr-Package -destination 'generic/platform=iOS Simulator' \
-        -derivedDataPath "$derived" -skipPackagePluginValidation SWIFT_EMIT_LOC_STRINGS=YES -quiet
+        -derivedDataPath "$derived" -skipPackagePluginValidation SWIFT_EMIT_LOC_STRINGS=YES -quiet \
+        -clonedSourcePackagesDirPath "$HOME/Library/Caches/purrdr-spm"
 fi
 
 exec python3 -I "$root/scripts/strings.py" "$mode" "$root/src/App/Purrdr/Localizable.xcstrings" "$derived"

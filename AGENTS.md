@@ -21,14 +21,17 @@ swift test --filter PurrdrCoreTests                             # 單一 test ta
 xcodebuild test -project src/App/Purrdr.xcodeproj -scheme Purrdr \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   -derivedDataPath .derivedData -parallel-testing-enabled NO -disable-concurrent-destination-testing \
-  -skipPackagePluginValidation \
+  -skipPackagePluginValidation -collect-test-diagnostics never \
+  -clonedSourcePackagesDirPath ~/Library/Caches/purrdr-spm \
   -only-testing:PurrdrUITests/AgentListUITests                  # UI 測試：本機跑，只跑有修改到的類別(CI 不做)。模擬器固定一台「iPhone 17」,不要另外建立或讓 Xcode clone
 (cd tests/PurrdrIOSTests && xcodebuild test -scheme PurrdrIOSTests-Package \
   -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../../.derivedData/ios \
-  -skipPackagePluginValidation)                                  # iOS 專用測試(UIKit 行為：輸入框內捲):本機跑，CI 不跑
+  -skipPackagePluginValidation -collect-test-diagnostics never \
+  -clonedSourcePackagesDirPath ~/Library/Caches/purrdr-spm)                                  # iOS 專用測試(UIKit 行為：輸入框內捲):本機跑，CI 不跑
 rm -rf .derivedData/package/Package.xcresult && xcodebuild build -scheme Purrdr-Package \
   -destination 'generic/platform=iOS Simulator' -derivedDataPath .derivedData/package \
   -resultBundlePath .derivedData/package/Package.xcresult -skipPackagePluginValidation \
+  -clonedSourcePackagesDirPath ~/Library/Caches/purrdr-spm \
   && xcrun xcresulttool get build-results --path .derivedData/package/Package.xcresult | jq .warningCount  # 以 iOS 編譯 package,warning 要是 0
 scripts/record-herdr-fixture.sh <檔名> <method> [params] [ssh 目的地]  # 從真實主機錄 herdr 回應，見 tests/PurrdrTestSupport/Fixtures/README.md
 scripts/strings.sh sync                                          # 把畫面新字串加進 String Catalog(之後補繁中);check 只檢查(CI 也跑)
@@ -38,6 +41,11 @@ PURRDR_WINDOWS_HOST=user@host PURRDR_WINDOWS_KEY=<私鑰> \
 PURRDR_REPRO_HOST=user@host PURRDR_REPRO_KEY=<私鑰> PURRDR_REPRO_HOST_KEY=<主機公鑰檔> \
   scripts/host-poll-repro/run.sh [次數]                          # 以可攜核心連真主機、模擬 app 並行輪詢(容器編譯);任一步失敗或取消後仍不返回就 RED
 ```
+
+xcodebuild 的兩個加速參數(本機，CI 不需要):
+- `-collect-test-diagnostics never`:測試失敗或 runner 被終止時，xcodebuild 預設會跑 `simctl diagnose --timeout=600` 收集模擬器診斷，可能停住最多 10 分鐘(CPU 0%,看起來像卡住)。要診斷時另外手動收。
+- `-clonedSourcePackagesDirPath ~/Library/Caches/purrdr-spm`:各 worktree(子代理)共用同一份 SwiftPM 遠端套件(swift-nio、SwiftTerm…),不必每個 worktree 重新下載、各占一份磁碟。編譯產物(`-derivedDataPath`)仍各自一份，同時建置時共用會互相干擾。新 worktree 第一次建置仍要從頭編譯(約數分鐘),之後增量;用完的 worktree 記得移除，`.derivedData`／`.build` 一個約 1～3 GB。
+- UI 測試多個 worktree 同時跑時以 `lockf /tmp/purrdr-uitest.lock xcodebuild test …` 排隊(只有一台模擬器)。修 UI 時先 `-only-testing:<類別>/<測試名>` 跑單一測試，最後再跑整個類別一次;runner 在連上前被 signal kill 是本機間歇的環境問題，重跑即可。
 
 warning 當 error 有三道:`Package.swift` 的 `treatAllWarnings`(只對 macOS,也就是 `swift test`)、app 專案的 `SWIFT_TREAT_WARNINGS_AS_ERRORS`,以及上面的 package iOS 編譯(Xcode 建置 app 時會把 package 的 warning 壓掉，所以不能省)。package iOS 編譯不能加 `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`:命令列的設定會套到 SwiftTerm、swift-nio 等遠端 package,跟 Xcode 給它們的 `-suppress-warnings` 衝突，所以改數 result bundle 的 warning。
 
