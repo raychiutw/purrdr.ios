@@ -127,6 +127,7 @@ public final class PlanUsageModel {
         automaticRefresh = Task { [weak self] in
             while !Task.isCancelled {
                 do { try await sleep(Self.automaticRefreshInterval) } catch { return }
+                guard !Task.isCancelled else { return }
                 await self?.refresh()
             }
         }
