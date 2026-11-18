@@ -133,6 +133,10 @@ struct ComposerBar: View {
 
     private var expandButton: some View {
         Button {
+            // 打開前就交出焦點：不然 sheet 收回時 UIKit 把焦點還給輸入列、叫出鍵盤。
+            #if canImport(UIKit)
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            #endif
             isFocused = false
             isExpanded = true
         } label: {
