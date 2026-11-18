@@ -207,32 +207,36 @@ public struct ConversationView: View {
                 position.scrollTo(id: id, anchor: .top)
             case .bottom:
                 scroll.jumpToLatest()
-                position.scrollTo(edge: .bottom)
+                scrollToLastRow(proxy)
             }
         }
+        // 跟隨尾端一律捲到最底下那一列:`scrollTo(edge: .bottom)` 會多捲一個底部 inset,停在內容外成一片空白(#191、#210)。
         .onChange(of: model.entries.last?.id) {
-            if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
         }
         .onChange(of: model.livePreview) {
-            if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
+        }
+        .onChange(of: model.showsWorkingIndicator) {
+            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
         }
         .onChange(of: model.prompt?.signature) {
-            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) } }
+            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
         }
         .onChange(of: model.panel == nil) {
-            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) } }
+            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
         }
         .onChange(of: model.echoes.count) { old, new in
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
             guard new > old else { return }
             scroll.jumpToLatest()
-            withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) }
+            withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
         }
         .overlay(alignment: .bottomTrailing) {
             if scroll.showsJumpToLatest {
                 Button {
                     scroll.jumpToLatest()
-                    withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) }
+                    withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
