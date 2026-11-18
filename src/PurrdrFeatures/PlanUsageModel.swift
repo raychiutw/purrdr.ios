@@ -88,6 +88,14 @@ public final class PlanUsageModel {
         case unsupportedConnection
         /// 查詢失敗(例如連不上主機)。
         case failed(String)
+        /// 要先同意修改主機設定(Claude)。
+        case needsConsent
+        /// 同意前檢查主機中。
+        case checking
+        /// 等使用者確認：會以 `user` 修改主機上的設定。
+        case confirming(user: String)
+        case installing
+        case turningOff
     }
 
     public enum Display: Equatable { case remaining, used }
@@ -96,6 +104,8 @@ public final class PlanUsageModel {
     public private(set) var host: HostSelection
     public private(set) var agent: PlanUsageAgent
     public var display: Display = .remaining
+    /// 同意或關閉失敗的說明。
+    public private(set) var message: String?
     public let hosts: [PlanUsageHostOption]
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
@@ -144,6 +154,17 @@ public final class PlanUsageModel {
     public func disappeared() {
         stop()
     }
+
+    /// 使用者要顯示 Claude 的方案用量：先檢查主機。
+    public func requestConsent() async {}
+
+    public func cancelConsent() {}
+
+    /// 使用者確認：安裝並記住同意，再查一次。
+    public func confirm() async {}
+
+    /// 關閉這台主機的 Claude 方案用量並還原主機設定。
+    public func turnOff() async {}
 
     /// 改選主機：新的查詢取代進行中的。
     public func select(host: HostSelection) {

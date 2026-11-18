@@ -223,6 +223,119 @@ struct PlanUsageModelTests {
         #expect(await stays(host.commands.count == 2))
     }
 
+    // MARK: - Claude 的同意、確認、關閉並還原(每台主機各自同意)
+
+    @Test("Claude 還沒同意：顯示需要同意，不碰主機")
+    func needsConsentBeforeReading() async throws {
+        let model = model()
+
+        model.appeared()
+        await model.untilIdle()
+
+        #expect(model.state == .needsConsent)
+        #expect(host.commands.isEmpty)
+    }
+
+    @Test("要求顯示：先檢查主機，再請使用者確認(說明以哪個使用者修改);確認前主機不變")
+    func asksForConsentWithUser() async throws {
+        let model = model()
+        model.appeared()
+        let before = try DirectorySnapshot(of: host.home)
+
+        await model.requestConsent()
+
+        #expect(model.state == .confirming(user: NSUserName()))
+        #expect(try DirectorySnapshot(of: host.home) == before)
+        #expect(!consent.isGranted(ClaudeUsageHost.feature.id, host: Self.mac.storedValue))
+    }
+
+    @Test("取消確認：回到需要同意，主機不變")
+    func cancelConsent() async throws {
+        let model = model()
+        model.appeared()
+        await model.requestConsent()
+
+        model.cancelConsent()
+
+        #expect(model.state == .needsConsent)
+        #expect(!FileManager.default.fileExists(atPath: host.url(".purrdr").path))
+    }
+
+    @Test("確認：安裝包裝腳本、記住同意後查一次;Claude Code 回報後下拉就有數字")
+    func confirmInstallsAndQueries() async throws {
+        let model = model()
+        model.appeared()
+        await model.requestConsent()
+
+        await model.confirm()
+
+        #expect(model.state == .noData)
+        #expect(consent.isGranted(ClaudeUsageHost.feature.id, host: Self.mac.storedValue))
+        #expect(try String(contentsOf: host.url(".claude/settings.json"), encoding: .utf8).contains(ClaudeUsageHost.wrapperCommand))
+
+        try claudeReportsUsage()
+        await model.refresh()
+        #expect(model.rows.map(\.period) == [.fiveHour, .week])
+    }
+
+    @Test("同意是每台主機各自的")
+    func consentIsPerHost() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let model = model()
+        model.appeared()
+        await model.untilIdle()
+
+        model.select(host: Self.linux)
+        await model.untilIdle()
+
+        #expect(model.state == .needsConsent)
+    }
+
+    @Test("關閉：還原主機設定(與安裝前完全相同)、撤銷同意")
+    func turnOffRestoresHost() async throws {
+        let before = try DirectorySnapshot(of: host.home)
+        let model = model()
+        model.appeared()
+        await model.requestConsent()
+        await model.confirm()
+        try claudeReportsUsage()
+        await model.refresh()
+
+        await model.turnOff()
+
+        #expect(model.state == .needsConsent)
+        #expect(!consent.isGranted(ClaudeUsageHost.feature.id, host: Self.mac.storedValue))
+        #expect(try DirectorySnapshot(of: host.home) == before)
+    }
+
+    @Test("settings.json 不是合法 JSON:說明原因，不詢問、不修改")
+    func explainsInvalidSettings() async throws {
+        try host.write(Data("{ \"model\": \"opus\", }".utf8), to: ".claude/settings.json")
+        let before = try DirectorySnapshot(of: host.home)
+        let model = model()
+        model.appeared()
+
+        await model.requestConsent()
+
+        #expect(model.state == .needsConsent)
+        #expect(model.message?.contains("isn’t valid JSON") == true)
+        #expect(try DirectorySnapshot(of: host.home) == before)
+    }
+
+    @Test("檢查後、確認前 settings.json 被改了：安裝時重新讀取，以最新內容為準")
+    func installRereadsSettings() async throws {
+        let model = model()
+        model.appeared()
+        await model.requestConsent()
+        try host.write(Data(#"{"model":"sonnet"}"#.utf8), to: ".claude/settings.json")
+
+        await model.confirm()
+        await model.turnOff()
+
+        #expect(try String(contentsOf: host.url(".claude/settings.json"), encoding: .utf8) == #"{"model":"sonnet"}"#)
+    }
+
     /// 在一小段時間內條件一直成立(斷言「不會發生」用)。
     func stays(_ condition: @autoclosure @MainActor () -> Bool) async -> Bool {
         for _ in 0..<20 {
