@@ -35,14 +35,15 @@ struct HostSyncModelTests {
     }
 
     func makeModels(
-        hosts: [HostConfiguration] = [studio], channels: Int = 4, now: @escaping @MainActor () -> Date = { Self.now }
+        hosts: [HostConfiguration] = [studio], channels: Int = 4, deviceTokens: any DeviceTokenStore = InMemoryDeviceTokenStore(),
+        now: @escaping @MainActor () -> Date = { Self.now }
     ) -> (HostSyncModel, HostsModel) {
         hostStore.hosts = hosts
         let factory = ChannelFactory()
         factory.hosts = (0..<channels).map { _ in FakeHost() }
         let hostsModel = HostsModel(
             store: hostStore, demoChannel: FakeHost(), credentials: HostCredentials(secrets: secrets, deviceKey: EphemeralDeviceKey()),
-            makeChannel: factory.make)
+            hostService: HostServiceAccess(tokens: deviceTokens), makeChannel: factory.make)
         hostsModel.load()
         let session = MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens)
         let plus = SubscriptionModel(session: session, store: FakePlusStore())
@@ -155,7 +156,7 @@ struct HostSyncModelTests {
         await sync.setEnabled(true)
 
         let request = try #require(backend.requests(to: Self.path).first)
-        #expect(Set(request.json?.keys.map { $0 } ?? []) == ["changes"])
+        #expect(Set(request.json?.keys.map { $0 } ?? []) == ["changes", "connectionMethods"])
         let changes = sentChanges()
         #expect(changes.count == 2)
         for change in changes {
@@ -165,6 +166,71 @@ struct HostSyncModelTests {
         for secret in ["hunter2-password", "OPENSSH PRIVATE KEY", "b3BlbnNzaC1rZXktdjE", "pass-phrase-9", "secret-project", "ops-session", "/opt/herdr"] {
             #expect(!body.contains(secret), "不可上傳 \(secret)")
         }
+    }
+
+    // MARK: - HTTPS 主機(#63)
+
+    static let httpsStudio = HostConfiguration(
+        id: UUID(uuidString: "1D2E3F40-5A6B-4C7D-8E9F-0A1B2C3D4E5F")!, name: "Studio HTTPS",
+        hostService: HostServiceAddress("studio.tail1234.ts.net")!)
+
+    static func remoteHTTPSStudio() -> String {
+        #"""
+        {"id": "1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f", "name": "Studio HTTPS", "address": "studio.tail1234.ts.net", "port": 443,
+         "username": "", "connectionMethod": "https", "hostKeyFingerprint": null,
+         "hostServiceAddress": "https://studio.tail1234.ts.net", "modifiedAt": "2026-11-15T08:00:00.000Z"}
+        """#
+    }
+
+    @Test("HTTPS 主機上傳名稱、連線方式與主機服務位址;裝置權杖永不上傳。請求說明這支 app 看得懂 HTTPS")
+    func uploadsHTTPSHostWithoutDeviceToken() async throws {
+        try subscribe()
+        let deviceTokens = InMemoryDeviceTokenStore(tokens: [Self.httpsStudio.id: "purrdr-device-token-secret"])
+        backend.on("POST", Self.path, .json(200, Self.snapshot(hosts: [Self.remoteHTTPSStudio()])))
+        let (sync, hosts) = makeModels(hosts: [Self.httpsStudio], deviceTokens: deviceTokens)
+
+        await sync.setEnabled(true)
+
+        let request = try #require(backend.requests(to: Self.path).first)
+        #expect(request.json?["connectionMethods"] as? [String] == ["tailscale_ssh", "openssh", "https"])
+        let change = try #require(sentChanges().first)
+        #expect(Set(change.keys) == [
+            "id", "name", "address", "port", "username", "connectionMethod", "hostKeyFingerprint", "hostServiceAddress", "modifiedAt",
+        ])
+        #expect(change["connectionMethod"] as? String == "https")
+        #expect(change["hostServiceAddress"] as? String == "https://studio.tail1234.ts.net")
+        #expect(change["address"] as? String == "studio.tail1234.ts.net")
+        #expect(change["port"] as? Int == 443)
+        #expect(change["username"] as? String == "")
+        #expect(change["hostKeyFingerprint"] is NSNull)
+        #expect(!String(decoding: request.body, as: UTF8.self).contains("purrdr-device-token-secret"), "裝置權杖不可上傳")
+        #expect(hosts.hosts == [Self.httpsStudio])
+        #expect(try deviceTokens.deviceToken(for: Self.httpsStudio.id) == "purrdr-device-token-secret")
+    }
+
+    @Test("SSH 主機的上傳內容不多出主機服務位址")
+    func sshUploadHasNoHostServiceAddress() async throws {
+        try subscribe()
+        backend.on("POST", Self.path, .json(200, Self.snapshot(hosts: [Self.remoteStudio()])))
+        let (sync, _) = makeModels()
+
+        await sync.setEnabled(true)
+
+        #expect(sentChanges().first?["hostServiceAddress"] == nil)
+    }
+
+    @Test("別台裝置新增的 HTTPS 主機：出現在這支裝置但沒有權杖，主機清單標示要配對")
+    func remoteHTTPSHostNeedsPairing() async throws {
+        try subscribe()
+        backend.on("POST", Self.path, .json(200, Self.snapshot(hosts: [Self.remoteHTTPSStudio()])))
+        let deviceTokens = InMemoryDeviceTokenStore()
+        let (sync, hosts) = makeModels(hosts: [], deviceTokens: deviceTokens)
+
+        await sync.setEnabled(true)
+
+        #expect(hosts.hosts == [Self.httpsStudio])
+        #expect(try deviceTokens.deviceToken(for: Self.httpsStudio.id) == nil)
+        #expect(hosts.rows.first?.needsPairing == true)
     }
 
     // MARK: - 衝突與刪除

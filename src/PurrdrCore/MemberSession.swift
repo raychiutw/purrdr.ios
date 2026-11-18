@@ -277,9 +277,11 @@ private enum Wire {
 
     struct HostSyncRequest: Encodable {
         var changes: [HostChange]
+        /// 這支 app 看得懂的連線方式;沒帶的舊版 app 後台不回 HTTPS 主機。
+        var connectionMethods = ["tailscale_ssh", "openssh", "https"]
     }
 
-    /// 送出的一筆變更。欄位白名單(後台也只收這些):私鑰、密碼、登入方式、herdr 設定不在這裡。
+    /// 送出的一筆變更。欄位白名單(後台也只收這些):私鑰、密碼、裝置權杖、登入方式、herdr 設定不在這裡。
     enum HostChange: Encodable {
         case upsert(HostBody)
         case delete(Deletion)
@@ -312,6 +314,8 @@ private enum Wire {
         var username: String
         var connectionMethod: String
         var hostKeyFingerprint: String?
+        /// 只有 HTTPS 主機有。
+        var hostServiceAddress: String?
         var modifiedAt: String
 
         init(_ host: SyncedHost) {
@@ -320,8 +324,13 @@ private enum Wire {
             address = host.endpoint.host
             port = host.endpoint.port
             username = host.endpoint.username
-            connectionMethod = host.connectionMethod == .openSSH ? "openssh" : "tailscale_ssh"
+            connectionMethod = switch host.connectionMethod {
+            case .openSSH: "openssh"
+            case .tailscaleSSH: "tailscale_ssh"
+            case .https: "https"
+            }
             hostKeyFingerprint = host.hostKeyPin?.stored
+            hostServiceAddress = host.hostService?.description
             modifiedAt = host.modifiedAt.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         }
 
@@ -335,6 +344,7 @@ private enum Wire {
             try container.encode(username, forKey: .username)
             try container.encode(connectionMethod, forKey: .connectionMethod)
             try container.encode(hostKeyFingerprint, forKey: .hostKeyFingerprint)
+            try container.encodeIfPresent(hostServiceAddress, forKey: .hostServiceAddress)
             try container.encode(modifiedAt, forKey: .modifiedAt)
         }
 
@@ -343,12 +353,16 @@ private enum Wire {
             switch connectionMethod {
             case "openssh": method = .openSSH
             case "tailscale_ssh": method = .tailscaleSSH
+            case "https": method = .https
             default: throw BackendError.invalidResponse
             }
+            let hostService = hostServiceAddress.flatMap(HostServiceAddress.init)
+            if method.usesHostService, hostService == nil { throw BackendError.invalidResponse }
             guard let id = UUID(uuidString: id), let modifiedAt = Wire.date(modifiedAt) else { throw BackendError.invalidResponse }
             return SyncedHost(
                 id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
-                hostKeyPin: hostKeyFingerprint.flatMap(HostKeyFingerprint.init(stored:)), modifiedAt: modifiedAt)
+                hostKeyPin: hostKeyFingerprint.flatMap(HostKeyFingerprint.init(stored:)),
+                hostService: hostService, modifiedAt: modifiedAt)
         }
     }
 

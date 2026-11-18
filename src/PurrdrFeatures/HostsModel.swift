@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrHTTPS
 import PurrdrSSH
 
 public struct HostRow: Identifiable, Equatable, Sendable {
@@ -12,14 +13,20 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var isSelected: Bool
     /// 使用者替主機選的圖示(只存本機);沒選過是預設圖示。
     public var icon: HostIcon
+    /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
+    public var needsPairing: Bool
 
-    public init(id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default) {
+    public init(
+        id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
+        needsPairing: Bool = false
+    ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.session = session
         self.isSelected = isSelected
         self.icon = icon
+        self.needsPairing = needsPairing
     }
 }
 
@@ -88,6 +95,8 @@ public final class HostsModel {
     private let demoCompanions: [DemoCompanionHost]
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     private let credentials: HostCredentials
+    /// HTTPS 主機的裝置權杖、連線配對與主機連線(ADR-0010)。
+    private let hostService: HostServiceAccess
     private let conversationCache: any ConversationCache
     private let preferences: any HostChatPreferencesStore
     private let hostIcons: any HostIconStore
@@ -95,6 +104,10 @@ public final class HostsModel {
     private var icons: [UUID: HostIcon] = [:]
     /// 已建立的主機通道(以主機 id)。
     private var channels: [UUID: any HostChannel] = [:]
+    /// 這支裝置還沒有裝置權杖的 HTTPS 主機(主機清單標示要配對)。
+    private var unpairedHostIDs: Set<UUID> = []
+    /// 已建立的 HTTPS 主機連線(以主機 id)。
+    private var hostServiceConnections: [UUID: any HostConnection] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
     private var members: [HostSelection: HostMember] = [:]
     /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
@@ -126,6 +139,7 @@ public final class HostsModel {
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
+        hostService: HostServiceAccess = HostServiceAccess(),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
@@ -140,6 +154,7 @@ public final class HostsModel {
         self.demoCompanions = demoCompanions
         self.makeChannel = makeChannel
         self.credentials = credentials
+        self.hostService = hostService
         self.conversationCache = conversationCache
         self.preferences = preferences
         self.hostIcons = hostIcons
@@ -171,6 +186,9 @@ public final class HostsModel {
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
         PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
     }
+
+    /// 選取中主機有沒有登入 Shell 與檔案(HTTPS 連線方式沒有，ADR-0010)。
+    public var selectedHostSupportsShell: Bool { selectedHost?.supportsLoginShell ?? true }
 
     /// 選取中主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
     public func loginShell() -> LoginShellModel {
@@ -227,8 +245,9 @@ public final class HostsModel {
         hosts.map { host in
             HostRow(
                 id: host.id, title: host.name,
-                subtitle: "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
-                session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id))
+                subtitle: host.hostService?.description ?? "\(host.endpoint.username)@\(host.endpoint.host):\(host.endpoint.port)",
+                session: host.herdr.session, isSelected: selection == .host(host.id), icon: icon(for: host.id),
+                needsPairing: unpairedHostIDs.contains(host.id))
         }
     }
 
@@ -270,6 +289,7 @@ public final class HostsModel {
     public func load() {
         do {
             hosts = try sortedHosts()
+            refreshPairing()
             loadError = nil
         } catch {
             loadError = String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)")
@@ -302,6 +322,7 @@ public final class HostsModel {
     public func didSave(_ host: HostConfiguration) {
         changeRecorder?.hostSaved(host.id)
         hosts = (try? sortedHosts()) ?? hosts
+        refreshPairing()
         dropChannel(of: host.id)
         members[.host(host.id)] = nil
         select(.host(host.id))
@@ -346,6 +367,7 @@ public final class HostsModel {
         for id in outcome.deletions {
             try await remove(id)
         }
+        refreshPairing()
         if reselect { select(validSelection(selection)) } else { rebuildMembers() }
     }
 
@@ -353,18 +375,29 @@ public final class HostsModel {
         let removed = hosts.first { $0.id == id }
         // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
         let secret = try? credentials.secrets.secret(for: id)
+        let deviceToken = try? hostService.tokens.deviceToken(for: id)
         try credentials.secrets.setSecret(nil, for: id)
+        try hostService.tokens.setDeviceToken(nil, for: id)
         try store.delete(id)
-        if let removed { forgetPush(of: removed, secret: secret) }
+        if let removed {
+            if let address = removed.hostService {
+                // 主機離線時權杖留在主機上，可在主機上撤銷。
+                if let deviceToken { hostService.revokeWithoutWaiting(deviceToken, at: address) }
+            } else {
+                forgetPush(of: removed, secret: secret)
+            }
+        }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
         let channel = channels.removeValue(forKey: id)
+        let connection = hostServiceConnections.removeValue(forKey: id)
         members[.host(id)] = nil
         preferences.removeAll(for: .host(id))
         hostIcons.setIcon(nil, for: id)
         if selection == .host(id) { select(validSelection(nil)) } else { rebuildMembers() }
         await conversationCache.removeAll(chatKeyPrefix: HostScopedConversationCache.prefix(scope: HostSelection.host(id).storedValue))
         await channel?.disconnect()
+        await connection?.disconnect()
     }
 
     /// 主機的分享連結(QR code 內容)。不含任何祕密。
@@ -393,12 +426,20 @@ public final class HostsModel {
 
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。
     public func makeEditor(editing: HostConfiguration? = nil) -> HostEditorModel {
-        HostEditorModel(store: store, editing: editing, credentials: credentials, makeChannel: makeChannel)
+        HostEditorModel(store: store, editing: editing, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
     }
 
-    /// 從主機分享連結匯入：帶入欄位的新增主機編輯器。連結不合法時丟 `HostShareLinkError`。
+    /// 從主機分享連結或主機配對指令的 QR code(`purrdr://pair?…`)新增主機：帶入欄位的編輯器。
+    /// 連結不合法時丟 `HostShareLinkError` 或 `HostServicePairingLinkError`。
     public func makeImportEditor(_ url: URL) throws -> HostEditorModel {
-        HostEditorModel(store: store, importing: try HostShareLink.decode(url), credentials: credentials, makeChannel: makeChannel)
+        if HostServicePairingLink.isPairingLink(url) {
+            return HostEditorModel(
+                store: store, pairing: try HostServicePairingLink(url: url), credentials: credentials, hostService: hostService,
+                makeChannel: makeChannel)
+        }
+        return HostEditorModel(
+            store: store, importing: try HostShareLink.decode(url), credentials: credentials, hostService: hostService,
+            makeChannel: makeChannel)
     }
 
     // MARK: - 連線韌性(行為規格 §7.4、§7.5)
@@ -411,9 +452,13 @@ public final class HostsModel {
         defer { networkPath = signature }
         guard let previous = networkPath, previous != signature else { return nil }
         let dropped = Array(channels.values) + [demoChannel]
+        let droppedConnections = Array(hostServiceConnections.values)
+        // 診斷(#133):實機斷線時分辨是不是網路切換丟掉了連線。
+        diagnostics.error("Network path changed (\(previous) → \(signature)): dropping \(channels.count) host connection(s)")
         let agentList = agentList
         return Task {
             for channel in dropped { await channel.disconnect() }
+            for connection in droppedConnections { await connection.disconnect() }
             agentList.retryNow()
         }
     }
@@ -427,20 +472,32 @@ public final class HostsModel {
         guard let since = backgroundSince else { return }
         backgroundSince = nil
         guard date.timeIntervalSince(since) > Double(WakeProbe.backgroundThreshold.components.seconds) else { return }
-        let probed = Array(channels.values)
-        let allAlive = await withTaskGroup(of: Bool.self) { group in
-            for channel in probed { group.addTask { await WakeProbe(channel: channel).run() } }
-            var allAlive = true
-            for await alive in group { allAlive = allAlive && alive }
-            return allAlive
+        let probed = channels
+        let dead = await withTaskGroup(of: (UUID, Bool).self) { group in
+            for (id, channel) in probed { group.addTask { (id, await WakeProbe(channel: channel).run()) } }
+            var dead: [UUID] = []
+            for await (id, alive) in group where !alive { dead.append(id) }
+            return dead
         }
-        if !allAlive { agentList.retryNow() }
+        guard !dead.isEmpty else { return }
+        // 診斷(#133):喚醒探測失敗會丟棄那台主機的連線。
+        let backgroundSeconds = Int(date.timeIntervalSince(since))
+        for id in dead { diagnostics.error("Wake probe failed after \(backgroundSeconds)s in background: dropped the connection to host \(id)") }
+        agentList.retryNow()
     }
 
     private var networkPath: String?
     private var backgroundSince: Date?
 
     // MARK: - 內部
+
+    /// 重算哪些 HTTPS 主機在這支裝置沒有裝置權杖(讀 Keychain,所以不在每次畫列表時做)。
+    private func refreshPairing() {
+        let tokens = hostService.tokens
+        unpairedHostIDs = Set(hosts.filter { host in
+            host.hostService != nil && (try? tokens.deviceToken(for: host.id)) == nil
+        }.map(\.id))
+    }
 
     private func sortedHosts() throws -> [HostConfiguration] {
         try store.loadHosts().sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
@@ -495,10 +552,23 @@ public final class HostsModel {
         case .demo: nil
         case .host(let id): hosts.first { $0.id == id }
         }
+        if let configuration, let address = configuration.hostService {
+            return HostMember(
+                host: host, configuration: configuration, channel: UnsupportedHostChannel(),
+                connection: hostServiceConnection(for: configuration, address: address), preferences: preferences.store(for: host),
+                push: nil, consent: hostConsent)
+        }
         return HostMember(
             host: host, configuration: configuration, channel: configuration.map(channel(for:)) ?? demoChannel,
             preferences: preferences.store(for: host), push: pushService,
             consent: configuration == nil ? demoConsent : hostConsent)
+    }
+
+    private func hostServiceConnection(for host: HostConfiguration, address: HostServiceAddress) -> any HostConnection {
+        if let connection = hostServiceConnections[host.id] { return connection }
+        let connection = hostService.connection(for: host, address: address)
+        hostServiceConnections[host.id] = connection
+        return connection
     }
 
     private func channel(for host: HostConfiguration) -> any HostChannel {
@@ -535,8 +605,13 @@ public final class HostsModel {
     }
 
     private func dropChannel(of id: UUID) {
-        guard let channel = channels.removeValue(forKey: id) else { return }
-        Task { await channel.disconnect() }
+        let channel = channels.removeValue(forKey: id)
+        let connection = hostServiceConnections.removeValue(forKey: id)
+        guard channel != nil || connection != nil else { return }
+        Task {
+            await channel?.disconnect()
+            await connection?.disconnect()
+        }
     }
 }
 
@@ -562,14 +637,15 @@ final class HostMember {
     /// 這台主機有沒有 `gzip`(檔案上傳的 gzip 傳輸，#76)。
     let gzipAvailability = HostGzipAvailability()
 
+    /// - Parameter connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
     init(
-        host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, preferences: any ChatPreferencesStore,
-        push pushService: PushService?, consent: any HostWriteConsentStore
+        host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
+        preferences: any ChatPreferencesStore, push pushService: PushService?, consent: any HostWriteConsentStore
     ) {
         self.host = host
         self.channel = channel
         let herdr = configuration?.herdr ?? HerdrInstallation()
-        let connection = SSHHostConnection(channel: channel, herdr: herdr)
+        let connection = connection ?? SSHHostConnection(channel: channel, herdr: herdr)
         client = HerdrClient(connection: connection)
         transcripts = TranscriptReader(connection: connection)
         terminals = PaneTerminalClient(connection: connection)

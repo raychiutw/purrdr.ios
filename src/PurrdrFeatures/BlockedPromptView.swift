@@ -45,7 +45,16 @@ struct BlockedPromptView: View {
             if let details = prompt.details {
                 PromptDetailsView(details: details)
             }
-            choices(prompt)
+            if model.isReadOnly {
+                // 唯讀裝置(#60):不顯示選項，說明到主機或可寫入的裝置回答。
+                Label("This device is paired read-only. Answer on the host or from a device that can send.", systemImage: "lock")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("prompt.readOnly")
+            } else {
+                choices(prompt)
+            }
             if let notice = model.answerNotice {
                 HStack(alignment: .firstTextBaseline) {
                     Label(notice.text, systemImage: "exclamationmark.triangle")
@@ -130,7 +139,7 @@ struct BlockedPromptView: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                if model.answerInFlight == answer || isTypedAnswerInFlight(option) {
+                if model.isAnswering(option) {
                     ProgressView()
                 } else if typesAnswer {
                     Image(systemName: model.typedAnswer == option ? "keyboard.fill" : "keyboard")
@@ -140,15 +149,10 @@ struct BlockedPromptView: View {
             .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
         }
         .optionStyle(prominent: PromptOptionStyle.isRecommended(option))
-        .disabled(typesAnswer ? model.answerInFlight != nil : !model.canAnswer(answer))
+        .disabled(typesAnswer ? !model.canBeginTypedAnswer(option) : !model.canAnswer(answer))
         .accessibilityLabel(optionAccessibilityLabel(option))
         .accessibilityHint(optionHint(option, typesAnswer: typesAnswer))
         .accessibilityIdentifier("prompt.option.\(option.id)")
-    }
-
-    private func isTypedAnswerInFlight(_ option: PromptOption) -> Bool {
-        if case .typed(let typed, _)? = model.answerInFlight { return typed == option }
-        return false
     }
 
     private func optionHint(_ option: PromptOption, typesAnswer: Bool) -> Text {

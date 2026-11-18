@@ -92,15 +92,27 @@ public struct HostListView: View {
 
     private func hostRow(_ row: HostRow) -> some View {
         Button {
-            model.select(.host(row.id))
-            dismiss()
+            // 還沒配對的 HTTPS 主機連不上：點它直接去配對。
+            if row.needsPairing {
+                path.append(.edit(row.id))
+            } else {
+                model.select(.host(row.id))
+                dismiss()
+            }
         } label: {
-            HostRowView(title: row.title, subtitle: row.subtitle, session: row.session, isSelected: row.isSelected, icon: row.icon)
+            HostRowView(
+                title: row.title, subtitle: row.subtitle, session: row.session, isSelected: row.isSelected, icon: row.icon,
+                needsPairing: row.needsPairing)
         }
         .accessibilityIdentifier("hosts.row.\(row.id.uuidString)")
+        .accessibilityHint(row.needsPairing ? Text("Opens pairing for this host.") : Text(verbatim: ""))
         // context menu 頂端的動作與滑動動作一致;刪除放最後並標 destructive(HIG 20.3)。
         .swipeActions(edge: .leading) {
-            Button("Edit", systemImage: "pencil") { path.append(.edit(row.id)) }
+            if row.needsPairing {
+                Button("Pair", systemImage: "link") { path.append(.edit(row.id)) }
+            } else {
+                Button("Edit", systemImage: "pencil") { path.append(.edit(row.id)) }
+            }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button("Delete", systemImage: "trash", role: .destructive) { delete(row.id) }
@@ -108,7 +120,11 @@ public struct HostListView: View {
             Button("Share", systemImage: "qrcode") { path.append(.share(row.id)) }
         }
         .contextMenu {
-            Button("Edit", systemImage: "pencil") { path.append(.edit(row.id)) }
+            if row.needsPairing {
+                Button("Pair…", systemImage: "link") { path.append(.edit(row.id)) }
+            } else {
+                Button("Edit", systemImage: "pencil") { path.append(.edit(row.id)) }
+            }
             Button("Rename…", systemImage: "character.cursor.ibeam") { renaming = HostRenaming(id: row.id, name: row.title) }
             Button("Share…", systemImage: "qrcode") { path.append(.share(row.id)) }
             // 主機圖示(#37 故事 5):只存在這支裝置，讓多台主機的列一眼分得出來。
@@ -228,6 +244,8 @@ struct HostRowView: View {
     let session: String?
     let isSelected: Bool
     let icon: HostIcon
+    /// 還沒配對的 HTTPS 主機(主機同步或分享連結帶來的):標示要先配對。
+    var needsPairing = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -250,6 +268,13 @@ struct HostRowView: View {
                     Text("Session: \(session)")
                         .font(.subheadline)
                         .foregroundStyle(Color.secondaryText)
+                }
+                if needsPairing {
+                    // 狀態用文字加圖示，不只靠顏色(HIG 20)。
+                    Label("Not Paired on This Device", systemImage: "link.badge.plus")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.secondaryText)
+                        .accessibilityIdentifier("hosts.row.needsPairing")
                 }
             }
             Spacer(minLength: 8)

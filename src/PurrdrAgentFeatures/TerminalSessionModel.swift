@@ -31,6 +31,8 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     var bannerText: String? { get }
     var canReconnect: Bool { get }
     var canTakeOver: Bool { get }
+    /// 按鍵列與貼上是否可用(唯讀裝置的 Pane 終端機只能看)。
+    var isInteractive: Bool { get }
     /// 鎖定中的黏著修飾鍵。
     var modifiers: TerminalModifiers { get }
     var fontSize: Double { get }
