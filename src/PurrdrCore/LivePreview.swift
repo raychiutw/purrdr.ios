@@ -42,6 +42,20 @@ public enum LivePreview {
         return text.count >= minimumLength ? text : nil
     }
 
+    /// 預覽是否已是 `reply` 的一部分(#208)。畫面會換行、全形標點可能變半形，所以忽略空白、相容字元與 markdown 記號比對。
+    public static func isWritten(_ preview: String, in reply: String) -> Bool {
+        let needle = comparable(preview)
+        return !needle.isEmpty && comparable(reply).contains(needle)
+    }
+
+    private static let ignoredInComparison = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "*_`#>~|"))
+
+    private static func comparable(_ text: String) -> String {
+        String(String.UnicodeScalarView(
+            text.precomposedStringWithCompatibilityMapping.unicodeScalars.filter { !ignoredInComparison.contains($0) }
+        ))
+    }
+
     // MARK: - 清理
 
     private static let borders = CharacterSet(charactersIn: "│┃|╭╮╰╯─┌┐└┘├┤ \t")
