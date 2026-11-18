@@ -86,6 +86,20 @@ struct CodexUsageHostTests {
         }
     }
 
+    @Test("主機找不到 codex,且 app 寫 stdin 前通道已結束(寫入失敗):仍是 codexNotFound,不是通道錯誤")
+    func codexNotFoundBeforeWrite() async throws {
+        await #expect(throws: CodexUsageError.codexNotFound) {
+            try await CodexUsageHost(channel: ExitedBeforeWriteChannel(exitCode: 127)).readUsage()
+        }
+    }
+
+    @Test("寫 stdin 前通道已結束、但不是 127:照原本的寫入錯誤")
+    func otherExitBeforeWriteKeepsChannelError() async throws {
+        await #expect(throws: ExitedBeforeWriteChannel.ChannelClosed.self) {
+            try await CodexUsageHost(channel: ExitedBeforeWriteChannel(exitCode: 1)).readUsage()
+        }
+    }
+
     @Test("Codex 沒登入(或用 API key 登入，沒有方案用量):notSignedIn")
     func notSignedIn() async throws {
         for message in ["codex account authentication required to read rate limits", "chatgpt authentication required to read rate limits"] {
@@ -140,5 +154,30 @@ struct CodexUsageHostTests {
 
         #expect(usage.periods.map(\.kind) == [.fiveHour, .week])
         #expect(await host.executions.first?.closedStdin == false)
+    }
+}
+
+/// 指令一開始就以 `exitCode` 結束的通道：之後寫 stdin 會失敗(像 SSH 通道已關閉)。
+private struct ExitedBeforeWriteChannel: HostChannel {
+    struct ChannelClosed: Error {}
+
+    let exitCode: Int32
+
+    func execute(_ command: String) async throws -> any ExecSession {
+        let (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
+        continuation.yield(.stderr(Data("sh: codex: command not found
+".utf8)))
+        continuation.yield(.exit(code: exitCode))
+        continuation.finish()
+        return Session(output: output)
+    }
+
+    func openPTY(_ request: PTYRequest) async throws -> any PTYSession { throw ChannelClosed() }
+
+    struct Session: ExecSession {
+        let output: AsyncThrowingStream<ExecOutput, any Error>
+        func write(_ data: Data) async throws { throw ChannelClosed() }
+        func closeStdin() async {}
+        func close() async {}
     }
 }
