@@ -4,8 +4,8 @@ import Foundation
 public enum TerminalInputSend: Sendable, Equatable {
     /// 照原樣送出的位元組(確認的文字、退格)。
     case bytes(Data)
-    /// 經 `TerminalSessionModel.press(_:adding:)` 送出的按鍵(帶實體鍵盤按著的修飾鍵)。
-    case key(TerminalKey, modifiers: TerminalModifiers)
+    /// 經 `TerminalSessionModel.press(_:adding:applicationCursor:)` 送出的按鍵(帶實體鍵盤按著的修飾鍵)。
+    case key(TerminalKey, modifiers: TerminalModifiers, applicationCursor: Bool = false)
     /// 經 `TerminalSessionModel.paste(_:bracketed:)` 送出的貼上內容。
     case paste(String)
 }
@@ -36,6 +36,16 @@ public enum TerminalHardwareKeyHandling: Sendable, Equatable {
     case send(TerminalInputSend)
     /// 在本機捲一頁(同單指滑動的捲動),不送遠端。
     case scrollPage(TerminalInput.ScrollDirection)
+    /// Page 鍵交給 herdr 依 Pane 狀態決定(捲主機 scrollback 或送給程式)。
+    case sendPageKeyToHerdr(TerminalInput.ScrollDirection)
+}
+
+/// 遠端程式開的終端機模式，以及 App 看不看得到。
+public enum TerminalProgramModes: Sendable, Equatable {
+    /// 模擬器直接接 PTY(登入 Shell),看得到模式。
+    case visible(applicationCursor: Bool, alternateScreen: Bool)
+    /// herdr 的串流不轉送模式(Pane 終端機)。
+    case hiddenByHerdr
 }
 
 /// 終端機輸入法的組字狀態：決定哪些輸入要送到遠端(組字期間一律不送)。
@@ -78,7 +88,7 @@ public struct TerminalComposition: Sendable, Equatable {
     }
 
     /// 按鍵列的一顆鍵：先放棄組字(不送出)再送該鍵。
-    public mutating func pressKeyBarKey(_ key: TerminalKey) -> [TerminalInputSend] {
+    public mutating func pressKeyBarKey(_ key: TerminalKey, modes: TerminalProgramModes = .hiddenByHerdr) -> [TerminalInputSend] {
         cancel()
         return [.key(key, modifiers: [])]
     }
@@ -91,6 +101,15 @@ public struct TerminalComposition: Sendable, Equatable {
 
     /// 實體鍵盤按鍵(`modifiers` 是按著的實體修飾鍵)。組字中一律交給輸入法。
     /// `scrollsPageLocally`:遠端沒開 alternate screen 與 application cursor 時，Page Up／Down 在本機捲一頁(同 SwiftTerm)。
+    public func handle(
+        _ key: TerminalHardwareKey, modifiers: TerminalModifiers, modes: TerminalProgramModes
+    ) -> TerminalHardwareKeyHandling {
+        if case .visible(false, false) = modes {
+            return handle(key, modifiers: modifiers, scrollsPageLocally: true)
+        }
+        return handle(key, modifiers: modifiers, scrollsPageLocally: false)
+    }
+
     public func handle(
         _ key: TerminalHardwareKey, modifiers: TerminalModifiers, scrollsPageLocally: Bool = false
     ) -> TerminalHardwareKeyHandling {

@@ -50,11 +50,13 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     /// 終端機模擬器送出的鍵盤輸入。
     func type(_ data: Data)
     /// 一顆鍵(按鍵列或實體鍵盤);`modifiers` 是實體鍵盤按著的修飾鍵，與黏著修飾鍵合併。
-    func press(_ key: TerminalKey, adding modifiers: TerminalModifiers)
+    func press(_ key: TerminalKey, adding modifiers: TerminalModifiers, applicationCursor: Bool)
     func toggle(_ modifier: TerminalModifiers)
     /// 貼上;`bracketed` 是模擬器目前的 bracketed paste 模式(Pane 終端機一律包標記，由 herdr 決定)。
     func paste(_ text: String, bracketed: Bool)
     func scroll(_ direction: TerminalInput.ScrollDirection, rows: Int, column: Int, row: Int)
+    /// 實體鍵盤的 Page Up／Down 交給遠端決定(Pane 終端機);登入 Shell 在本機捲，不經 model。
+    func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int)
     func setFontSize(_ size: Double)
 }
 
@@ -65,6 +67,11 @@ extension TerminalSessionModel {
     /// 按鍵列的一顆鍵。
     public func press(_ key: TerminalKey) {
         press(key, adding: [])
+    }
+
+    /// 一顆鍵，方向鍵用 CSI 形式。
+    public func press(_ key: TerminalKey, adding modifiers: TerminalModifiers) {
+        press(key, adding: modifiers, applicationCursor: false)
     }
 
     public func adjustFontSize(by delta: Double) {

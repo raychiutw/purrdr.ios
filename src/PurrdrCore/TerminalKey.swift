@@ -20,7 +20,7 @@ public enum TerminalKey: Sendable, Equatable {
     case character(Character)
 
     /// 依修飾鍵編碼成要送給主機的 bytes(行為規格 §6.4;實體鍵盤才有的鍵用 xterm 編碼)。
-    public func bytes(modifiers: TerminalModifiers = []) -> Data {
+    public func bytes(modifiers: TerminalModifiers = [], applicationCursor: Bool = false) -> Data {
         let escape: UInt8 = 0x1B
         let altPrefix = modifiers.contains(.alt) ? Data([escape]) : Data()
         // 修飾參數 = 1 + Shift(1) + Alt(2) + Ctrl(4)

@@ -63,28 +63,20 @@ struct TerminalCompositionTests {
         #expect(composition.insertText("a") == Self.text("a"))
     }
 
-    @Test("系統在組字中結束組字：送出輸入法最後給的文字(已選好的字)")
-    func systemUnmarkCommitsConvertedText() {
+    @Test("系統發起的結束組字一律放棄組字文字、不送出(拼音、日文假名、注音都一樣)", arguments: [
+        ["ni hao"],
+        ["にほん"],
+        ["にほん", "日本"],
+        ["你ㄏㄠˇ"],
+        ["ㄅㄆㄇㄈˊˋ˙ㆠ"],
+    ])
+    func systemUnmarkDiscardsMarkedText(markedTexts: [String]) {
         var composition = TerminalComposition()
-        composition.setMarkedText("にほん")
-        composition.setMarkedText("日本")
+        markedTexts.forEach { composition.setMarkedText($0) }
 
-        #expect(composition.unmarkText() == Self.text("日本"))
-        #expect(!composition.isComposing)
-    }
-
-    @Test("系統在組字中結束組字：注音符號與聲調本身不送，只送已轉好的字")
-    func systemUnmarkDropsZhuyinSymbols() {
-        var composition = TerminalComposition()
-        composition.setMarkedText("ㄋㄧˇ")
         #expect(composition.unmarkText() == [])
         #expect(!composition.isComposing)
-
-        composition.setMarkedText("你ㄏㄠˇ")
-        #expect(composition.unmarkText() == Self.text("你"))
-
-        composition.setMarkedText("ㄅㄆㄇㄈˊˋ˙ㆠ")
-        #expect(composition.unmarkText() == [])
+        #expect(composition.markedText == "")
     }
 
     @Test("沒有組字時：英文逐字送出、刪除送 DEL、Return 送 CR")
@@ -272,6 +264,53 @@ struct TerminalCompositionTests {
 
         #expect(composition.handle(.pageUp, modifiers: [], scrollsPageLocally: false) == .send(.key(.pageUp, modifiers: [])))
         #expect(composition.handle(.pageDown, modifiers: [], scrollsPageLocally: false) == .send(.key(.pageDown, modifiers: [])))
+    }
+
+    @Test("Pane 終端機(herdr 不轉送模式):Page 鍵一律交給 herdr 依 Pane 狀態決定", arguments: [
+        (TerminalHardwareKey.pageUp, TerminalModifiers(), TerminalInput.ScrollDirection.up),
+        (.pageDown, [], .down),
+        (.pageUp, .shift, .up),
+    ] as [(TerminalHardwareKey, TerminalModifiers, TerminalInput.ScrollDirection)])
+    func pageKeysGoToHerdrOnPaneTerminal(key: TerminalHardwareKey, modifiers: TerminalModifiers,
+                                         expected: TerminalInput.ScrollDirection) {
+        let composition = TerminalComposition()
+
+        #expect(composition.handle(key, modifiers: modifiers, modes: .hiddenByHerdr) == .sendPageKeyToHerdr(expected))
+    }
+
+    @Test("登入 Shell 依模擬器看到的模式：一般畫面本機捲一頁，alternate screen 或 application cursor 送遠端")
+    func pageKeysOnLoginShellFollowVisibleModes() {
+        let composition = TerminalComposition()
+
+        #expect(composition.handle(.pageUp, modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: false))
+            == .scrollPage(.up))
+        #expect(composition.handle(.pageDown, modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: true))
+            == .send(.key(.pageDown, modifiers: [])))
+        #expect(composition.handle(.pageUp, modifiers: [], modes: .visible(applicationCursor: true, alternateScreen: false))
+            == .send(.key(.pageUp, modifiers: [], applicationCursor: true)))
+    }
+
+    @Test("方向鍵、Home／End 帶著遠端的 application cursor 模式;Pane 終端機看不到模式，一律 CSI", arguments: [
+        (TerminalHardwareKey.up, TerminalKey.up), (.down, .down), (.left, .left), (.right, .right), (.home, .home), (.end, .end),
+    ] as [(TerminalHardwareKey, TerminalKey)])
+    func cursorKeysCarryApplicationCursorMode(key: TerminalHardwareKey, terminalKey: TerminalKey) {
+        let composition = TerminalComposition()
+
+        #expect(composition.handle(key, modifiers: [], modes: .visible(applicationCursor: true, alternateScreen: true))
+            == .send(.key(terminalKey, modifiers: [], applicationCursor: true)))
+        #expect(composition.handle(key, modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: true))
+            == .send(.key(terminalKey, modifiers: [], applicationCursor: false)))
+        #expect(composition.handle(key, modifiers: [], modes: .hiddenByHerdr)
+            == .send(.key(terminalKey, modifiers: [], applicationCursor: false)))
+    }
+
+    @Test("按鍵列的方向鍵也帶著 application cursor 模式")
+    func keyBarCursorKeysCarryApplicationCursorMode() {
+        var composition = TerminalComposition()
+
+        #expect(composition.pressKeyBarKey(.up, modes: .visible(applicationCursor: true, alternateScreen: false))
+            == [.key(.up, modifiers: [], applicationCursor: true)])
+        #expect(composition.pressKeyBarKey(.home, modes: .hiddenByHerdr) == [.key(.home, modifiers: [], applicationCursor: false)])
     }
 
     @Test("Page 鍵本機捲動只影響 Page 鍵，其他特殊鍵照常送出")

@@ -86,6 +86,22 @@ struct TerminalInputTakeoverTests {
         #expect(recorder.sends.isEmpty)
     }
 
+    @Test("組字中系統結束組字：組字文字放棄、浮層消失，什麼都不送", arguments: [["ni hao"], ["にほん", "日本"], ["你ㄏㄠˇ"]])
+    func systemUnmarkDiscardsComposition(markedTexts: [String]) async throws {
+        let (window, screen, recorder) = try await mount()
+        defer { window.isHidden = true }
+
+        for text in markedTexts {
+            screen.textInput.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+        }
+        #expect(!screen.compositionOverlay.isHidden)
+        screen.textInput.unmarkText()
+
+        #expect(screen.textInput.markedTextRange == nil)
+        #expect(screen.compositionOverlay.isHidden)
+        #expect(recorder.sends.isEmpty)
+    }
+
     @Test("組字中換字型、點畫面：組字留著、什麼都不送")
     func fontChangeAndTapKeepComposition() async throws {
         let (window, screen, recorder) = try await mount()

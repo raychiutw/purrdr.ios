@@ -114,6 +114,19 @@ struct LoginShellModelTests {
         #expect(model.modifiers.isEmpty)
     }
 
+    @Test("shell 開了 application cursor 模式時方向鍵寫 SS3(ESC O A)")
+    func applicationCursorKeysUseSS3() async throws {
+        let host = FakeHost()
+        let (model, _) = await Self.connected(host)
+
+        model.press(.up, adding: [], applicationCursor: true)
+        model.press(.home, adding: [], applicationCursor: false)
+        let expected = Data("\u{1B}OA\u{1B}[H".utf8)
+        await Self.eventually(host) { ($0.first?.input.count ?? 0) >= expected.count }
+
+        #expect(await host.ptys.first?.input == expected)
+    }
+
     @Test("貼上：只有 shell 開了 bracketed paste 模式時才包標記")
     func pastesWithBracketsOnlyWhenRequested() async throws {
         let host = FakeHost()

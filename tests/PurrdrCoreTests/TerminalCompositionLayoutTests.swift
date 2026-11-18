@@ -26,6 +26,32 @@ struct TerminalCompositionLayoutTests {
         #expect(TerminalCompositionLayout.columns(of: "") == 0)
     }
 
+    @Test("欄寬：emoji 組合序列(ZWJ、膚色、國旗、keycap)佔兩格", arguments: [
+        "👨\u{200D}👩\u{200D}👧", "👍🏽", "🇹🇼", "1\u{FE0F}\u{20E3}", "❤\u{FE0F}", "⌚",
+    ])
+    func emojiSequencesAreTwoColumns(text: String) {
+        #expect(TerminalCompositionLayout.columns(of: text) == 2)
+    }
+
+    @Test("欄寬：變體選擇符同 SwiftTerm——VS15(文字樣式)一格，VS16 只讓 emoji 基底變兩格", arguments: [
+        ("⌚\u{FE0E}", 1),
+        ("☺\u{FE0E}", 1),
+        ("☺", 1),
+        ("a\u{FE0F}", 1),
+        ("中\u{FE0E}", 2),
+    ])
+    func variationSelectors(text: String, columns: Int) {
+        #expect(TerminalCompositionLayout.columns(of: text) == columns)
+    }
+
+    @Test("欄寬：全形標點兩格，半形片假名與一般標點一格", arguments: [
+        ("，", 2), ("。", 2), ("、", 2), ("「", 2), ("」", 2), ("！", 2), ("？", 2), ("：", 2), ("（", 2), ("～", 2),
+        ("ｱ", 1), ("—", 1), ("…", 1), (",", 1),
+    ])
+    func fullwidthPunctuation(text: String, columns: Int) {
+        #expect(TerminalCompositionLayout.columns(of: text) == columns)
+    }
+
     @Test("浮層從游標格子開始，寬度是組字文字的格數")
     func overlayStartsAtCursorCell() {
         #expect(Self.layout("ㄋㄧˇ").overlay == Box(x: 80, y: 51, width: 40, height: 17))

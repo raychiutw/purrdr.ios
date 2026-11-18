@@ -131,7 +131,7 @@ final class TerminalTextInputView: UIView, UITextInput {
             case .send(let input):
                 onSend?(input)
                 startKeyRepeat(input)
-            case .scrollPage(let direction):
+            case .scrollPage(let direction), .sendPageKeyToHerdr(let direction):
                 onScrollPage?(direction)
             }
         }

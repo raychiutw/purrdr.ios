@@ -455,7 +455,7 @@ struct TerminalScreen: UIViewRepresentable {
         screen.textInput.onSend = { [model, weak handle] input in
             switch input {
             case .bytes(let bytes): model.type(bytes)
-            case .key(let key, let modifiers): model.press(key, adding: modifiers)
+            case .key(let key, let modifiers, let applicationCursor): model.press(key, adding: modifiers, applicationCursor: applicationCursor)
             case .paste(let text): model.paste(text, bracketed: handle?.bracketedPasteMode ?? false)
             }
         }

@@ -83,4 +83,20 @@ struct TerminalKeyTests {
         #expect(Self.bytes(.escape, .shift) == [0x1B])
         #expect(Self.bytes(.character("A"), .shift) == [0x41])
     }
+
+    @Test("遠端開了 application cursor 模式(DECCKM):方向鍵、Home／End 送 SS3(ESC O x),帶修飾時仍是 CSI")
+    func applicationCursorKeys() {
+        func bytes(_ key: TerminalKey, _ modifiers: TerminalModifiers = []) -> [UInt8] {
+            Array(key.bytes(modifiers: modifiers, applicationCursor: true))
+        }
+        #expect(bytes(.up) == Array("\u{1B}OA".utf8))
+        #expect(bytes(.down) == Array("\u{1B}OB".utf8))
+        #expect(bytes(.right) == Array("\u{1B}OC".utf8))
+        #expect(bytes(.left) == Array("\u{1B}OD".utf8))
+        #expect(bytes(.home) == Array("\u{1B}OH".utf8))
+        #expect(bytes(.end) == Array("\u{1B}OF".utf8))
+        #expect(bytes(.up, .control) == Array("\u{1B}[1;5A".utf8))
+        #expect(bytes(.pageUp) == Array("\u{1B}[5~".utf8))
+        #expect(bytes(.character("a")) == [0x61])
+    }
 }

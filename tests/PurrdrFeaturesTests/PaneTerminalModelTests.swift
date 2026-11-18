@@ -389,6 +389,22 @@ struct PaneTerminalModelTests {
         })
     }
 
+    @Test("實體鍵盤 Page Up／Down 送一則 source:page_key 的 terminal.scroll(herdr 依 Pane 狀態捲主機 scrollback 或送 Page 鍵)")
+    func pageKeySendsPageKeyScroll() async {
+        let host = FakeHost()
+        let model = await Self.connected(host)
+
+        model.scrollPage(.up, rows: 12)
+        model.scrollPage(.down, rows: 12)
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.components(separatedBy: "page_key").count > 2 }
+
+        let scrolls = await Self.sentLines(host).filter { $0["type"] as? String == "terminal.scroll" }
+        #expect(scrolls == [
+            ["type": "terminal.scroll", "direction": "up", "lines": 12, "source": "page_key", "column": 0, "row": 0, "modifiers": 0],
+            ["type": "terminal.scroll", "direction": "down", "lines": 12, "source": "page_key", "column": 0, "row": 0, "modifiers": 0],
+        ])
+    }
+
     @Test("沒有開著的連線時，按鍵與貼上不送(也不會丟錯)")
     func inputWithoutConnectionIsDropped() async {
         let host = FakeHost()
