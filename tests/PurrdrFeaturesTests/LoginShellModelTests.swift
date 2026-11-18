@@ -100,6 +100,20 @@ struct LoginShellModelTests {
         #expect(model.modifiers.isEmpty)
     }
 
+    @Test("實體鍵盤的修飾鍵與黏著修飾鍵合併寫進 PTY")
+    func hardwareModifiersMergeWithSticky() async throws {
+        let host = FakeHost()
+        let (model, _) = await Self.connected(host)
+
+        model.toggle(.alt)
+        model.press(.function(5), adding: .control)
+        let expected = Data("\u{1B}[15;7~".utf8)
+        await Self.eventually(host) { $0.first?.input == expected }
+
+        #expect(await host.ptys.first?.input == expected)
+        #expect(model.modifiers.isEmpty)
+    }
+
     @Test("貼上：只有 shell 開了 bracketed paste 模式時才包標記")
     func pastesWithBracketsOnlyWhenRequested() async throws {
         let host = FakeHost()

@@ -256,9 +256,9 @@ public final class PaneTerminalModel: TerminalSessionModel {
     }
 
     /// 按鍵列的一顆鍵。帶著鎖定中的修飾鍵編碼，送出後放開修飾鍵。
-    public func press(_ key: TerminalKey) {
+    public func press(_ key: TerminalKey, adding extraModifiers: TerminalModifiers) {
         guard isInteractive else { return }
-        outbox?.yield(.bytes(key.bytes(modifiers: modifiers)))
+        outbox?.yield(.bytes(key.bytes(modifiers: modifiers.union(extraModifiers))))
         modifiers = []
     }
 

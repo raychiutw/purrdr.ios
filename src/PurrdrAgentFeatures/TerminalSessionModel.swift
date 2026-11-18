@@ -49,8 +49,8 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     func hangUp()
     /// 終端機模擬器送出的鍵盤輸入。
     func type(_ data: Data)
-    /// 按鍵列的一顆鍵。
-    func press(_ key: TerminalKey)
+    /// 一顆鍵(按鍵列或實體鍵盤);`modifiers` 是實體鍵盤按著的修飾鍵，與黏著修飾鍵合併。
+    func press(_ key: TerminalKey, adding modifiers: TerminalModifiers)
     func toggle(_ modifier: TerminalModifiers)
     /// 貼上;`bracketed` 是模擬器目前的 bracketed paste 模式(Pane 終端機一律包標記，由 herdr 決定)。
     func paste(_ text: String, bracketed: Bool)
@@ -61,6 +61,11 @@ public protocol TerminalSessionModel: AnyObject, Observable {
 extension TerminalSessionModel {
     /// 按鍵列與貼上是否可用。
     public var isInteractive: Bool { status == .connected }
+
+    /// 按鍵列的一顆鍵。
+    public func press(_ key: TerminalKey) {
+        press(key, adding: [])
+    }
 
     public func adjustFontSize(by delta: Double) {
         setFontSize(fontSize + delta)
