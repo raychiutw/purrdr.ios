@@ -179,6 +179,27 @@ struct SSHTranscriptFollowerTests {
         #expect(try await next.value == .appended(TranscriptChunk(start: 8, end: 16, lines: [Self.secondLine])))
     }
 
+    @Test("通道沒回應就結束(沒有結束狀態、一般失敗):不是不支援，重開追蹤通道再問，不退回輪詢", arguments: [nil, 1] as [Int32?])
+    func transientEndReopensFollowChannel(exitCode: Int32?) async throws {
+        let host = await Self.followingHost(channels: 2)
+        let pace = Self.manualPace()
+        let next = Self.nextEvent(await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace))
+        defer { next.cancel() }
+
+        pace.wake()
+        try #require(await host.waitForStdin(ofExecution: 0) { !$0.stdin.isEmpty })
+        await host.finish(execution: 0, exitCode: exitCode)
+
+        #expect(await host.waitForExecutions(2) == 2)
+        #expect(await host.executions.map(\.command) == [TranscriptCommand.follow(), TranscriptCommand.follow()])
+        try #require(await host.waitForStdin(ofExecution: 1) { $0.stdinText == "8 - - \(Self.path)\n" })
+        await host.send(stdout: Data("unchanged\n".utf8), toExecution: 1)
+        pace.wake()
+        try #require(await host.waitForStdin(ofExecution: 1) { $0.stdinText.components(separatedBy: "\n").count == 3 })
+        await host.send(stdout: Self.appendedReply(size: 16, stamp: "1700000000-16", lines: [Self.secondLine], end: 16, anchor: "4242"), toExecution: 1)
+        #expect(try await next.value == .appended(TranscriptChunk(start: 8, end: 16, lines: [Self.secondLine])))
+    }
+
     @Test("Windows 主機(#167):一條 PowerShell 長駐通道,stdin 先送腳本與結束標記、不送 EOF,接著同一個 stdin 送請求行")
     func windowsHostFollowsOverStdin() async throws {
         let host = FakeHost()
@@ -267,6 +288,23 @@ struct SSHTranscriptFollowerTests {
 
         try follow.host.write(Self.line(#"{"m":1}"#) + Self.line(#"{"m":2}"#), to: Self.relativePath)
         try Self.touchLater(follow.url)
+        follow.pace.wake()
+
+        #expect(try await events.next() == .replaced(size: 16))
+    }
+
+    @Test("主機腳本：同一秒換成同長的新檔(版本相同、錨點不同)也送 replaced", .timeLimit(.minutes(1)))
+    func scriptReportsSameSecondSameLengthReplacement() async throws {
+        let follow = try await Self.localFollow()
+        var events = follow.events.makeAsyncIterator()
+        try follow.host.append(Self.line(Self.secondLine), to: Self.relativePath)
+        follow.pace.wake()
+        _ = try await events.next()
+        let modified = try #require(
+            try FileManager.default.attributesOfItem(atPath: follow.url.path(percentEncoded: false))[.modificationDate] as? Date)
+
+        try follow.host.write(Self.line(#"{"m":1}"#) + Self.line(#"{"m":2}"#), to: Self.relativePath)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: follow.url.path(percentEncoded: false))
         follow.pace.wake()
 
         #expect(try await events.next() == .replaced(size: 16))

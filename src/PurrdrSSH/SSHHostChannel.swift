@@ -16,6 +16,9 @@ public struct SSHTimeouts: Sendable, Equatable {
     public var keepaliveInterval: TimeAmount?
     /// keepalive 送出後等主機回應的期限;到了視為半開連線，整條丟棄(下一個指令重撥)。
     public var keepaliveReply: TimeAmount
+    /// 快速偵測斷線(聊天畫面可見)時的 keepalive 間隔與回應期限。
+    public var quickKeepaliveInterval: TimeAmount
+    public var quickKeepaliveReply: TimeAmount
     /// Tailscale SSH check mode:收到驗證網址後，等使用者驗證的上限(取代 `handshake`)。
     /// tailscaled 自己最多等約 30 分鐘(`delegateFetchTimeout`),這裡取相同值。
     public var tailscaleCheck: TimeAmount
@@ -23,8 +26,11 @@ public struct SSHTimeouts: Sendable, Equatable {
     public init(
         connect: TimeAmount = .seconds(10), handshake: TimeAmount = .seconds(15), channelOpen: TimeAmount = .seconds(20),
         keepaliveInterval: TimeAmount? = .seconds(20), keepaliveReply: TimeAmount = .seconds(15),
+        quickKeepaliveInterval: TimeAmount = .seconds(20), quickKeepaliveReply: TimeAmount = .seconds(15),
         tailscaleCheck: TimeAmount = .minutes(30)
     ) {
+        self.quickKeepaliveInterval = quickKeepaliveInterval
+        self.quickKeepaliveReply = quickKeepaliveReply
         self.connect = connect
         self.handshake = handshake
         self.channelOpen = channelOpen

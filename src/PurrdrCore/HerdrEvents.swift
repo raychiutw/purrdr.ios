@@ -47,6 +47,7 @@ public struct EventSubscription: Sendable, Equatable, Hashable {
         case tabMoved = "tab.moved"
         case paneCreated = "pane.created"
         case paneClosed = "pane.closed"
+        case layoutUpdated = "layout.updated"
     }
 }
 

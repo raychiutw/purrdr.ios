@@ -37,7 +37,7 @@ public actor HTTPSHostConnection: HostConnection {
     public init(
         address: HostServiceAddress, deviceToken: @escaping @Sendable () throws -> String?,
         transport: any WebSocketConnecting = URLSessionHostServiceTransport(), appVersion: String? = nil,
-        heartbeat: HostServiceHeartbeat = .standard, sleep: @escaping Sleep = Sleeping.task
+        heartbeat: HostServiceHeartbeat = .standard, quickHeartbeat: HostServiceHeartbeat = .quick, sleep: @escaping Sleep = Sleeping.task
     ) {
         self.address = address
         self.deviceToken = deviceToken

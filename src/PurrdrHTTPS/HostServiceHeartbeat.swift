@@ -10,4 +10,7 @@ public struct HostServiceHeartbeat: Sendable, Equatable {
 
     /// 主機服務 45 秒沒收到任何東西就斷線，所以 app 每 15 秒 ping 一次。
     public static let standard = HostServiceHeartbeat(interval: .seconds(15), timeout: .seconds(10))
+
+    /// 快速偵測斷線(聊天畫面可見)時的心跳。
+    public static let quick = standard
 }

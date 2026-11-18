@@ -93,8 +93,25 @@ public actor FakeHostConnection: HostConnection {
 
     public func readTranscript(_ request: TranscriptRequest) async throws -> Data {
         transcriptRequests.append(request)
+        if holdsTranscripts { await withCheckedContinuation { heldTranscripts.append($0) } }
         guard let transcriptAnswer else { throw FakeHostConnectionError.unsupported }
         return try transcriptAnswer(request)
+    }
+
+    private var holdsTranscripts = false
+    private var heldTranscripts: [CheckedContinuation<Void, Never>] = []
+
+    /// 之後的對話紀錄讀取先停住，直到 `releaseTranscripts()`(模擬很慢的讀取)。
+    public func holdTranscripts() {
+        holdsTranscripts = true
+    }
+
+    /// 放行停住的對話紀錄讀取，之後不再停。
+    public func releaseTranscripts() {
+        holdsTranscripts = false
+        let waiting = heldTranscripts
+        heldTranscripts = []
+        for continuation in waiting { continuation.resume() }
     }
 
     /// 開過的對話紀錄追蹤(路徑與游標),依開啟順序。追蹤像 HTTPS 一樣由這裡推送：用 `send(_:toFollow:)`。
@@ -164,6 +181,16 @@ public actor FakeHostConnection: HostConnection {
 
     public func disconnect() async {
         disconnectCount += 1
+    }
+
+    /// 目前要求快速偵測斷線的次數(開始加一、結束減一)。
+    public private(set) var quickDetectionRequests = 0
+    public func beginQuickDisconnectDetection() async {
+        quickDetectionRequests += 1
+    }
+
+    public func endQuickDisconnectDetection() async {
+        quickDetectionRequests -= 1
     }
 
     private static func method(of request: Data) -> String {

@@ -16,6 +16,16 @@ public struct HerdrClient: Sendable {
         try await connection.isReadOnlyDevice()
     }
 
+    /// 開始快速偵測斷線(聊天畫面可見時)。
+    public func beginQuickDisconnectDetection() async {
+        await connection.beginQuickDisconnectDetection()
+    }
+
+    /// 結束一次 `beginQuickDisconnectDetection()`。
+    public func endQuickDisconnectDetection() async {
+        await connection.endQuickDisconnectDetection()
+    }
+
     /// 讀主機目前的全量狀態(`session.snapshot`)。
     public func snapshot() async throws -> HostSnapshot {
         let result = try await request(method: "session.snapshot", as: SnapshotResult.self)

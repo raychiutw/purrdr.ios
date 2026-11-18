@@ -1,5 +1,6 @@
 #if os(macOS)
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -117,6 +118,28 @@ struct ClaudeUsageModelTests {
         try claudeReportsUsage(week: 55)
         await model.refresh()
         #expect(model.usage?.week?.usedPercentage == 55)
+    }
+
+    @Test("多個視窗同時顯示同一台主機的用量：只有一個讀取迴圈")
+    func windowsShareOneReader() async throws {
+        consent.grant(ClaudeUsageHost.feature.id, host: "mac")
+        try claudeReportsUsage()
+        let sleeper = RecordingSleeper()
+        let model = model(sleep: sleeper.sleep)
+
+        let first = Task { await model.liveUpdates.attach() }
+        let second = Task { await model.liveUpdates.attach() }
+        defer {
+            first.cancel()
+            second.cancel()
+        }
+        for _ in 0..<2000 where await sleeper.requested.isEmpty {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(await sleeper.requested == [.seconds(5)])
+        #expect(host.commands.count == 1)
     }
 
     @Test("同意是每台主機各自的")

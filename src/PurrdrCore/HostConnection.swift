@@ -31,6 +31,17 @@ public protocol HostConnection: Sendable {
 
     /// 這支裝置是否配對成唯讀(寫入類操作會被拒絕)。
     func isReadOnlyDevice() async throws -> Bool
+
+    /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
+    func beginQuickDisconnectDetection() async
+
+    /// 結束一次 `beginQuickDisconnectDetection()`。
+    func endQuickDisconnectDetection() async
+}
+
+extension HostConnection {
+    public func beginQuickDisconnectDetection() async {}
+    public func endQuickDisconnectDetection() async {}
 }
 
 extension HostConnection {
