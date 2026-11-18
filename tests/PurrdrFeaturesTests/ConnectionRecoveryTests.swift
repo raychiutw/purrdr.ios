@@ -16,7 +16,7 @@ struct ConnectionRecoveryTests {
         let host = FakeHost()
         await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
         await host.expect(Self.bridge, reply: FakeReply(exitCode: 255))  // 訂閱在 ack 前就斷了
-        await host.expect(Self.bridge, reply: FakeReply(exitCode: 255))  // 退避後重讀也失敗
+        await host.expect(Self.bridge, reply: FakeReply(exitCode: 255))  // 退避後重新訂閱也失敗(手上有快照，不先讀)
         let sleeper = Sleeper(blockAfter: 2)
         let model = AgentListModel(client: HerdrClient(channel: host), sleep: sleeper.sleep)
         let task = Task { await model.run() }
@@ -28,12 +28,11 @@ struct ConnectionRecoveryTests {
         }
         #expect(model.sections.flatMap(\.rows).count == 3, "中斷時列表被清空")
 
-        await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
         await host.expect(Self.bridge, reply: .recorded("events.subscribe.started.ndjson", keepsOpen: true))
         await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
         model.retryNow()
 
-        try await waitUntil { await host.consumedAll(executions: 6) }
+        try await waitUntil { await host.consumedAll(executions: 5) }
         try await waitUntil { await MainActor.run { model.phase == .loaded } }
         #expect(await sleeper.durations.count == 2)
     }

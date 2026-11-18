@@ -96,8 +96,12 @@ public final class HostUpdates {
 
     /// 即時更新，直到所在的 task 被取消(行為規格 §3.7)。
     ///
-    /// - 先讀快照得知有哪些 Agent pane,再訂閱每個 pane 的狀態改變與全主機事件。
-    /// - 事件不重播，所以訂閱開始(ack)時重讀一次對帳;之後事件只當「重讀」的觸發。
+    /// - 以手上快照的 Agent pane 訂閱每個 pane 的狀態改變與全主機事件;還沒有任何快照(第一次連上)時才先讀一次得知 pane
+    ///   (herdr 的狀態事件必須指名 pane,沒有萬用字元)。
+    /// - 每次(重)訂閱只在訂閱開始(ack)時讀一次快照對帳：事件不重播，ack 之前發生的只能靠這次讀到，ack 之後的由事件觸發，
+    ///   所以 ack 是唯一既不漏又只讀一次的時點(訂閱前先讀，讀完到 ack 之間的變化會漏，還是得在 ack 再讀)。
+    ///   重連時手上的 pane 可能已經不在、新的 Agent 也還沒訂閱：前者 herdr 以 `pane_not_found` 拒絕訂閱，就讀快照換成現有的
+    ///   pane 立刻重訂;後者有 `pane.agent_detected`,ack 的對帳也會看到 pane 集合變了而重訂。
     /// - 同時只跑一個快照讀取，期間到達的事件合併成讀完後的「再一次」(不用固定延遲去抖)。
     /// - `events_lost`:立刻重新訂閱並重讀。
     /// - Agent pane 的集合變了，或換了檢視(`subscribesToLayout`):關掉舊的、用新清單重新訂閱。
@@ -106,9 +110,10 @@ public final class HostUpdates {
     /// - 使用者取消了 Tailscale 重新驗證或權杖失效：不自動重試，等「再試一次」。
     public func run() async {
         var failures = 0
-        var needsSnapshot = true
+        var needsSnapshot = snapshot == nil
         while !Task.isCancelled {
             var resubscribeNow = false
+            let readBeforeSubscribing = needsSnapshot
             do {
                 if needsSnapshot { try await refresh() }
                 needsSnapshot = false
@@ -142,6 +147,9 @@ public final class HostUpdates {
                 }
                 resubscribeNow = Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout
             } catch HerdrError.herdr(code: "events_lost", _) {
+                resubscribeNow = true
+            } catch HerdrError.herdr(code: "pane_not_found", _) where !subscriptionStarted && !readBeforeSubscribing {
+                // 手上快照的 pane 已經不在：讀快照換成現有的 pane 再訂閱。剛讀過還這樣就照一般失敗退避。
                 needsSnapshot = true
                 resubscribeNow = true
             } catch let error as HostServiceError where error.requiresPairing {
@@ -149,24 +157,23 @@ public final class HostUpdates {
                 await waitForUserRetry()
                 if Task.isCancelled { return }
                 failures = 0
-                needsSnapshot = true
+                needsSnapshot = snapshot == nil
                 continue
             } catch SSHConnectionError.tailscaleCheckCancelled {
                 fail(with: SSHConnectionError.tailscaleCheckCancelled)
                 await waitForUserRetry()
                 if Task.isCancelled { return }
                 failures = 0
-                needsSnapshot = true
+                needsSnapshot = snapshot == nil
                 continue
             } catch {
                 if Task.isCancelled { return }
                 fail(with: error)
-                needsSnapshot = true
             }
             if Task.isCancelled { return }
             guard !resubscribeNow else { continue }
             failures += 1
-            needsSnapshot = true
+            needsSnapshot = snapshot == nil
             do {
                 try await backoff(Self.backoff(afterFailures: failures))
             } catch {

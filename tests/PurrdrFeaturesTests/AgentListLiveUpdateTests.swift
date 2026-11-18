@@ -129,11 +129,11 @@ struct AgentListLiveUpdateTests {
         #expect(await host.unmetExpectations.isEmpty)
     }
 
-    @Test("events_lost:關掉舊訂閱、立刻重新訂閱並重讀，不等退避")
+    @Test("events_lost:關掉舊訂閱、立刻重新訂閱，訂閱開始時重讀一次，不等退避")
     func eventsLostResubscribesAndRereads() async throws {
         let host = FakeHost()
+        await host.expect(Self.bridge, reply: Self.snapshot)
         for _ in 0..<2 {
-            await host.expect(Self.bridge, reply: Self.snapshot)
             await host.expect(Self.bridge, reply: Self.started)
             await host.expect(Self.bridge, reply: Self.snapshot)
         }
@@ -146,9 +146,10 @@ struct AgentListLiveUpdateTests {
             $0["error"] = ["code": "events_lost", "message": "event subscription fell behind retained history; resubscribe and resync with session.snapshot"]
         }, toExecution: 1)
 
-        try await waitUntil { await host.consumedAll(executions: 6) }
+        try await waitUntil { await host.consumedAll(executions: 5) }
         #expect(await host.executions[1].closed)
-        #expect(await host.executions[4].stdinText.contains("events.subscribe"))
+        #expect(await host.executions[3].stdinText.contains("events.subscribe"))
+        #expect(await host.executions[4].stdinText.contains("session.snapshot"))
         #expect(await sleeper.durations.isEmpty)
     }
 
@@ -202,8 +203,9 @@ struct AgentListLiveUpdateTests {
     @Test("訂閱在開始前就結束算失敗：退避 1 秒起倍增、上限 30 秒")
     func failedSubscriptionBacksOff() async throws {
         let host = FakeHost()
+        // 第一次連上先讀快照;之後手上有快照，重試只重新訂閱。
+        await host.expect(Self.bridge, reply: Self.snapshot)
         for _ in 0..<7 {
-            await host.expect(Self.bridge, reply: Self.snapshot)
             await host.expect(Self.bridge, reply: FakeReply(exitCode: 1, trigger: .afterStdinLine))
         }
         let sleeper = Sleeper(blockAfter: 7)
@@ -220,16 +222,15 @@ struct AgentListLiveUpdateTests {
         let host = FakeHost()
         await host.expect(Self.bridge, reply: Self.snapshot)
         await host.expect(Self.bridge, reply: FakeReply(exitCode: 1, trigger: .afterStdinLine))
-        await host.expect(Self.bridge, reply: Self.snapshot)
         await host.expect(Self.bridge, reply: Self.started)
         await host.expect(Self.bridge, reply: Self.snapshot)
         let sleeper = Sleeper(blockAfter: 2)
         let (_, task) = Self.start(host, sleeper: sleeper)
         defer { task.cancel() }
-        try await waitUntil { await host.executions.count == 5 }
-        try await waitUntil { await host.executions[4].closed }
+        try await waitUntil { await host.executions.count == 4 }
+        try await waitUntil { await host.executions[3].closed }
 
-        await host.finish(execution: 3)
+        await host.finish(execution: 2)
 
         try await waitUntil { await sleeper.durations.count == 2 }
         #expect(await sleeper.durations == [.seconds(1), .seconds(1)])

@@ -136,14 +136,19 @@ struct HostUpdatesTests {
         #expect(await connection.requests.count == 5)
     }
 
-    @Test("events_lost:立刻重新訂閱並重讀快照對帳，不退避")
+    /// 第一次連上之後的(重)訂閱：以手上快照的 pane 訂閱，訂閱開始時讀一次快照對帳，不先讀。
+    static func expectResubscription(_ connection: FakeHostConnection) async {
+        await connection.expect("events.subscribe", reply: Self.started)
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+    }
+
+    @Test("events_lost:立刻重新訂閱，訂閱開始時讀一次快照對帳，不退避")
     func eventsLostResyncs() async throws {
         let connection = FakeHostConnection()
-        for _ in 0..<2 {
-            await connection.expect("session.snapshot", reply: Self.snapshot)
-            await connection.expect("events.subscribe", reply: Self.started)
-            await connection.expect("session.snapshot", reply: Self.snapshot)
-        }
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect("events.subscribe", reply: Self.started)
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await Self.expectResubscription(connection)
         let sleeper = RecordingSleeper { _ in true }
         let (_, task) = Self.start(connection, sleep: sleeper.sleep)
         defer { task.cancel() }
@@ -151,20 +156,21 @@ struct HostUpdatesTests {
 
         await connection.send(event: Self.eventsLost, toSubscription: 0)
 
-        try await waitUntil { await connection.requests.count == 6 }
+        try await waitUntil { await connection.requests.count == 5 }
+        try await Self.settle()
         #expect(await connection.subscriptionsClosed.first == true)
         #expect(await Self.methods(connection).suffix(3) == ["session.snapshot", "events.subscribe", "session.snapshot"])
+        #expect(await connection.requests.count == 5, "重新訂閱前多讀了快照")
         #expect(await sleeper.requested.isEmpty)
     }
 
-    @Test("斷線後退避 1 秒再重連，重連後讀快照對帳")
+    @Test("斷線後退避 1 秒再重連，重連只在訂閱開始時讀一次快照對帳")
     func reconnectAfterDropResyncs() async throws {
         let connection = FakeHostConnection()
-        for _ in 0..<2 {
-            await connection.expect("session.snapshot", reply: Self.snapshot)
-            await connection.expect("events.subscribe", reply: Self.started)
-            await connection.expect("session.snapshot", reply: Self.snapshot)
-        }
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect("events.subscribe", reply: Self.started)
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await Self.expectResubscription(connection)
         let sleeper = RecordingSleeper { _ in true }
         let (_, task) = Self.start(connection, sleep: sleeper.sleep)
         defer { task.cancel() }
@@ -172,9 +178,35 @@ struct HostUpdatesTests {
 
         await connection.finish(subscription: 0)
 
-        try await waitUntil { await connection.requests.count == 6 }
+        try await waitUntil { await connection.requests.count == 5 }
+        try await Self.settle()
         #expect(await sleeper.requested == [.seconds(1)])
         #expect(await Self.methods(connection).suffix(3) == ["session.snapshot", "events.subscribe", "session.snapshot"])
+        #expect(await connection.requests.count == 5, "重連前多讀了快照")
+    }
+
+    @Test("重連時手上的 pane 已經關掉(herdr 回 pane_not_found):讀快照換成現有的 pane 再訂閱，不退避")
+    func staleOnReconnectReadsSnapshotThenResubscribes() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect("events.subscribe", reply: Self.started)
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect("events.subscribe", reply: Fixtures.data("error.pane-not-found.ndjson"))
+        let withoutB = Fixtures.modifiedLine("session.snapshot.ndjson") { SnapshotEdit.removeAgent("w1:pB", in: &$0) }
+        await connection.expect("session.snapshot", reply: withoutB)
+        await connection.expect("events.subscribe", reply: Self.started)
+        await connection.expect("session.snapshot", reply: withoutB)
+        let sleeper = RecordingSleeper { _ in true }
+        let (_, task) = Self.start(connection, sleep: sleeper.sleep)
+        defer { task.cancel() }
+        try await waitUntil { await connection.requests.count == 3 }
+
+        await connection.finish(subscription: 0)
+
+        try await waitUntil { await connection.requests.count == 7 }
+        #expect(await Self.methods(connection).suffix(4) == ["events.subscribe", "session.snapshot", "events.subscribe", "session.snapshot"])
+        #expect(!(await connection.requests[5]).contains(#""pane_id":"w1:pB""#))
+        #expect(await sleeper.requested == [.seconds(1)])
     }
 
     @Test("連不上時退避 1 秒起倍增、上限 30 秒")
