@@ -47,10 +47,16 @@ extension KeychainError: LocalizedError {
 public final class KeychainHostStore: HostStore {
     private let keychain: any KeychainAPI
     private let service: String
+    private let diagnostics: DiagnosticLog
 
-    public init(keychain: any KeychainAPI = SystemKeychain(), service: String = "com.raychiu.purrdr.host") {
+    /// - Parameter diagnostics: 讀不懂的項目記在這裡(不給使用者看)。
+    public init(
+        keychain: any KeychainAPI = SystemKeychain(), service: String = "com.raychiu.purrdr.host",
+        diagnostics: DiagnosticLog = .system(category: "hosts")
+    ) {
         self.keychain = keychain
         self.service = service
+        self.diagnostics = diagnostics
     }
 
     public func loadHosts() throws -> [HostConfiguration] {

@@ -33,7 +33,9 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
             return (errSecSuccess, data as NSData)
         }
         guard !items.isEmpty else { return (errSecItemNotFound, nil) }
-        let all = items.sorted { $0.key < $1.key }.map { [kSecValueData as String: $0.value] as NSDictionary }
+        let all = items.sorted { $0.key < $1.key }.map {
+            [kSecValueData as String: $0.value, kSecAttrAccount as String: $0.key] as NSDictionary
+        }
         return (errSecSuccess, all as NSArray)
     }
 
@@ -189,6 +191,26 @@ struct KeychainHostStoreTests {
 
         let reread = try keychain.items.mapValues { try JSONDecoder().decode(LegacyHostRecord.self, from: $0) }
         #expect(reread == expected)
+    }
+
+    @Test("讀不懂的主機不靜默略過：其他主機照常讀出，記入診斷紀錄，項目留在 Keychain")
+    func unreadableHostIsLogged() throws {
+        let missingAddress = """
+        {"id":"\(Self.httpsID.uuidString)","name":"Studio HTTPS",\
+        "endpoint":{"host":"studio.tail1234.ts.net","port":443,"username":""},"connectionMethod":"https","herdr":{"path":"herdr"}}
+        """
+        let keychain = Self.keychain(with: [
+            Self.httpsID.uuidString: missingAddress, Self.studioID.uuidString: try #require(Self.legacyItems[Self.studioID.uuidString]),
+        ])
+        let log = RecordingDiagnosticLog()
+        let store = KeychainHostStore(keychain: keychain, diagnostics: log.log)
+
+        let hosts = try store.loadHosts()
+
+        #expect(hosts.map(\.id) == [Self.studioID])
+        #expect(log.messages.count == 1)
+        #expect(log.messages.first?.contains(Self.httpsID.uuidString) == true)
+        #expect(keychain.items[Self.httpsID.uuidString] != nil)
     }
 }
 
