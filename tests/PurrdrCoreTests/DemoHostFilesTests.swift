@@ -69,3 +69,15 @@ struct DemoCodexLauncherTests {
         #expect(try await files.read(paths) == before)
     }
 }
+
+/// Demo 主機也回答 `codex app-server`(#178),所以 Codex 的方案用量在 Demo 走正式程式路徑。
+@Suite("Demo 主機：Codex 方案用量")
+struct DemoCodexUsageTests {
+    @Test("讀到範例的 5 小時與每週用量週期，重置時間在未來")
+    func sampleUsage() async throws {
+        let usage = try await CodexUsageHost(channel: DemoHost()).readUsage()
+
+        #expect(usage.periods.map(\.kind) == [.fiveHour, .week])
+        #expect(usage.periods.allSatisfy { ($0.resetsAt ?? .distantPast) > Date() })
+    }
+}
