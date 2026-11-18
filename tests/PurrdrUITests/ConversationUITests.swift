@@ -105,8 +105,11 @@ final class ConversationUITests: XCTestCase {
         // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
         let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
-        // 追蹤可能立刻讀到對話紀錄(#165):回音已確認、泡泡在對話裡(鍵盤與卡片之下不一定在畫面上),回覆也已接上。
-        XCTAssertTrue(sentMessage("Add a header row too?", in: app).waitForExistence(timeout: 5) || reply.exists, "沒有回音")
+        // 追蹤可能立刻讀到對話紀錄(#165):回音很快被確認，泡泡在對話裡(鍵盤與卡片之下不一定排版出來),所以回覆接上也算。
+        let echoOrReply = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS %@ OR (identifier == 'conversation.agent' AND label CONTAINS 'This is the demo host')",
+            "Add a header row too?")).firstMatch
+        XCTAssertTrue(echoOrReply.waitForExistence(timeout: 5), "沒有回音")
         XCTAssertTrue(reply.waitForExistence(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
         XCTAssertFalse(element("conversation.echo", in: app).exists, "對話紀錄確認後回音應消失")
     }
