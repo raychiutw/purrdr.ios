@@ -295,6 +295,10 @@ public final class ConversationModel {
     private let updates: HostUpdates?
     @ObservationIgnored private var wakeWaiter: CheckedContinuation<Void, Never>?
     @ObservationIgnored private var pendingWake = false
+    /// `run()` 期間對話紀錄追蹤的節奏(內部輪詢的連線方式用);不在 `run()` 裡時沒有，`poll()` 自己讀尾端。
+    @ObservationIgnored private var followPace: TranscriptFollowPace?
+    /// 追蹤中的對話紀錄(#165):有它時新內容由追蹤送來，輪詢不讀尾端。
+    @ObservationIgnored private var following: (path: String, id: UUID, task: Task<Void, Never>)?
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -415,6 +419,7 @@ public final class ConversationModel {
     /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 30 秒回報在場。
     /// 有主機更新來源時一起保持它的即時更新，這個 Agent 在快照裡變了就立刻再輪詢一次，不等間隔(#163)。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
+        followPace = TranscriptFollowPace(interval: pollInterval, sleep: sleep)
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
@@ -432,6 +437,8 @@ public final class ConversationModel {
             }
             group.cancelAll()
         }
+        stopFollowingUpdates()
+        followPace = nil
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if let path = file?.path { await transcripts.stopFollowing(path: path) }
     }
@@ -440,6 +447,7 @@ public final class ConversationModel {
     private func wakeOnChanges(from updates: HostUpdates) async {
         for await agent in updates.changes(for: paneID) where agent != currentAgent {
             wakeUp()
+            followPace?.wake()
         }
     }
 
@@ -546,6 +554,7 @@ public final class ConversationModel {
             boundSessionID = target.sessionKey
         }
         format = target.format
+        followPace?.interval = pollInterval
         await read(target)
     }
 
@@ -581,7 +590,9 @@ public final class ConversationModel {
     private func read(_ target: TranscriptTarget) async {
         let generation = generation
         do {
-            if let file {
+            if let file, following?.path == file.path {
+                // 新內容由追蹤送來(#165),不讀尾端。
+            } else if let file {
                 // 已追上：落後多少都從游標分段接著讀，不改讀新視窗取代已顯示與往上翻的訊息(#130、R-B09)。
                 // 還沒追上(剛從快取恢復、畫面重新可見):落後太多不逐段重播積壓，讀新視窗(R-B08)。
                 let read = try await transcripts.follow(path: file.path, file.follow)
@@ -603,33 +614,86 @@ public final class ConversationModel {
             }
             banner = nil
             phase = .ready
-        } catch TranscriptReadError.absent {
+            startFollowingUpdates()
+        } catch {
+            showReadFailure(error, generation: generation)
+        }
+        if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
+    }
+
+    /// 已追上主機且在 `run()` 裡：開始追蹤目前的對話紀錄，之後的新內容由追蹤送來(#165)。
+    private func startFollowingUpdates() {
+        guard let followPace, let file, file.follow.isLive, following?.path != file.path else { return }
+        following?.task.cancel()
+        let id = UUID()
+        let path = file.path
+        let cursor = file.follow.cursor
+        let generation = generation
+        let task = Task { await self.applyUpdates(path: path, from: cursor, pace: followPace, generation: generation, id: id) }
+        following = (path, id, task)
+    }
+
+    private func stopFollowingUpdates() {
+        following?.task.cancel()
+        following = nil
+    }
+
+    /// 套用追蹤事件：新增接在後面;接不上時重讀視窗並從新游標再追蹤。追蹤以錯誤結束時回到輪詢讀一次再開始。
+    private func applyUpdates(path: String, from cursor: Int, pace: TranscriptFollowPace, generation: Int, id: UUID) async {
+        var isReplaced = false
+        do {
+            for try await event in await transcripts.followTranscript(path: path, from: cursor, pace: pace) {
+                guard generation == self.generation, file?.path == path else { break }
+                switch event {
+                case .appended(let chunk):
+                    file?.follow = TranscriptFollow(cursor: chunk.end, isLive: true)
+                    append(chunk)
+                case .replaced(let size):
+                    try await openWindow(path: path, size: size, generation: generation)
+                    isReplaced = true
+                }
+                guard generation == self.generation else { break }
+                if banner == .readFailed { banner = nil }
+                await saveCache()
+            }
+        } catch is CancellationError {
+        } catch {
+            showReadFailure(error, generation: generation)
+        }
+        guard following?.id == id else { return }
+        following = nil
+        if isReplaced, !Task.isCancelled { startFollowingUpdates() }
+    }
+
+    /// 讀對話紀錄失敗時的畫面狀態。
+    private func showReadFailure(_ error: any Error, generation: Int) {
+        switch error {
+        case TranscriptReadError.absent:
             // 新 session 在第一個 prompt 前可能還沒有檔案：可用的空聊天，下次輪詢再找(R-I09)。
             guard generation == self.generation else { return }
             file = nil
             banner = nil
             phase = .ready
-        } catch TranscriptReadError.unreadable {
+        case TranscriptReadError.unreadable:
             banner = .unreadable
             phase = .ready
-        } catch TranscriptReadError.ambiguous {
+        case TranscriptReadError.ambiguous:
             // 不開任何檔、不依新舊猜;下次輪詢重新定位(使用者可能已刪掉多餘的檔)。
             guard generation == self.generation else { return }
             file = nil
             banner = .ambiguous
             phase = .ready
-        } catch TranscriptReadError.compressed {
+        case TranscriptReadError.compressed:
             // 只有 `.zst`:不是「還沒有檔案」,也不在手機上解壓;下次輪詢重新定位(Codex 可能又寫了新的 rollout)。
             guard generation == self.generation else { return }
             file = nil
             banner = .compressed
             phase = .ready
-        } catch {
+        default:
             // 保留畫面上的內容，下次輪詢重試;永不退回從 byte 0 追蹤。
             banner = .readFailed
             if items.isEmpty { phase = .ready }
         }
-        if generation == self.generation, boundSessionID == target.sessionKey { await saveCache() }
     }
 
     /// 讀最後 `openLines` 行並**取代**目前的訊息。
@@ -1415,6 +1479,7 @@ public final class ConversationModel {
     // MARK: - 內部
 
     private func unbind() {
+        stopFollowingUpdates()
         if let path = file?.path {
             let transcripts = transcripts
             Task { await transcripts.stopFollowing(path: path) }

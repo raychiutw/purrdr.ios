@@ -21,6 +21,8 @@ public actor HTTPSHostConnection: HostConnection {
     private var rejection: RejectedToken?
     /// 追蹤中的對話紀錄(路徑 → 追蹤)。見 `HTTPSTranscripts.swift`。
     var transcriptFollows: [String: TranscriptFollow] = [:]
+    /// 追蹤串流(`followTranscript`,路徑 → 串流)。同一個路徑只有一個。
+    var transcriptStreams: [String: TranscriptStream] = [:]
 
     /// 被拒的權杖與原因(同一個權杖不再撥號)。
     private struct RejectedToken {
@@ -163,6 +165,7 @@ public actor HTTPSHostConnection: HostConnection {
 
     /// 請主機服務停止追蹤這個對話紀錄。
     public func stopFollowingTranscript(path: String) async {
+        transcriptStreams.removeValue(forKey: path)?.continuation.finish()
         guard let follow = transcriptFollows.removeValue(forKey: path) else { return }
         await stopFollowing(follow)
     }

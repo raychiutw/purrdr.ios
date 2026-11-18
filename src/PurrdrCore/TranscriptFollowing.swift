@@ -100,7 +100,32 @@ enum TranscriptPolling {
         connection: any HostConnection, path: String, from cursor: Int, pace: TranscriptFollowPace
     ) -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
         let (events, continuation) = AsyncThrowingStream<TranscriptFollowEvent, any Error>.makeStream()
-        continuation.finish()
+        let polling = Task {
+            let reader = TranscriptReader(connection: connection)
+            var follow = TranscriptFollow(cursor: cursor, isLive: true)
+            do {
+                while true {
+                    try await pace.wait()
+                    let read = try await reader.follow(path: path, follow)
+                    follow = read.next
+                    switch read.tail {
+                    case .unchanged:
+                        continue
+                    case .appended(let chunk):
+                        continuation.yield(.appended(chunk))
+                    case .tooFarBehind(let size), .shrank(let size):
+                        continuation.yield(.replaced(size: size))
+                        continuation.finish()
+                        return
+                    }
+                }
+            } catch is CancellationError {
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in polling.cancel() }
         return events
     }
 }
