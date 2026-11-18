@@ -34,13 +34,13 @@ struct PlanUsageModelTests {
     }
 
     func model(
-        channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer
+        channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep
     ) -> PlanUsageModel {
         let channel = channel ?? host
         let consent = consent
         return PlanUsageModel(
             hosts: [PlanUsageHostOption(id: Self.mac, name: "Mac"), PlanUsageHostOption(id: Self.linux, name: "Linux")],
-            fallback: Self.mac, now: { Self.now }
+            fallback: Self.mac, now: { Self.now }, sleep: sleep
         ) { selection, _ in
             .claude(channel: channel, cost: cost, hostID: selection.storedValue, consent: consent)
         }
@@ -129,6 +129,40 @@ struct PlanUsageModelTests {
         #expect(await stays(model.state == .loading))
     }
 
+    @Test("需要傳輸的來源：畫面開著也不定時重整")
+    func transferSourcesNeverPoll() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let sleeper = StepSleeper()
+        let model = model(cost: .transfer, sleep: sleeper.sleep)
+
+        model.appeared()
+        await model.untilIdle()
+
+        #expect(await stays(host.commands.count == 1))
+        #expect(await sleeper.requested.isEmpty)
+    }
+
+    @Test("不耗 token 也不耗傳輸的來源(Demo):畫面開著時定期重整，離開畫面就停")
+    func freeSourcesRefreshWhileVisible() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let sleeper = StepSleeper()
+        let model = model(cost: .free, sleep: sleeper.sleep)
+        model.appeared()
+        await model.untilIdle()
+
+        try claudeReportsUsage(fiveHour: 50)
+        try await waitUntil { await sleeper.waitingCount == 1 }
+        await sleeper.step()
+        try await waitUntil { await MainActor.run { model.rows.first?.percent == 50 } }
+        #expect(host.commands.count == 2)
+
+        model.disappeared()
+        await sleeper.step()
+        #expect(await stays(host.commands.count == 2))
+    }
+
     /// 在一小段時間內條件一直成立(斷言「不會發生」用)。
     func stays(_ condition: @autoclosure @MainActor () -> Bool) async -> Bool {
         for _ in 0..<20 {
@@ -136,6 +170,43 @@ struct PlanUsageModelTests {
             try? await Task.sleep(for: .milliseconds(10))
         }
         return condition()
+    }
+}
+
+/// 每次等待都卡住，直到 `step()`(時間到)或所在的 task 被取消。
+actor StepSleeper {
+    private(set) var requested: [Duration] = []
+    private var waiting: [Int: CheckedContinuation<Void, any Error>] = [:]
+    private var nextID = 0
+
+    var waitingCount: Int { waiting.count }
+
+    nonisolated var sleep: Sleep {
+        { duration in try await self.wait(duration) }
+    }
+
+    /// 時間到：目前在等的全部醒來。
+    func step() {
+        let resumed = waiting
+        waiting = [:]
+        resumed.values.forEach { $0.resume() }
+    }
+
+    private func wait(_ duration: Duration) async throws {
+        requested.append(duration)
+        let id = nextID
+        nextID += 1
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                if Task.isCancelled { continuation.resume(throwing: CancellationError()) } else { waiting[id] = continuation }
+            }
+        } onCancel: {
+            Task { await self.cancel(id) }
+        }
+    }
+
+    private func cancel(_ id: Int) {
+        waiting.removeValue(forKey: id)?.resume(throwing: CancellationError())
     }
 }
 #endif

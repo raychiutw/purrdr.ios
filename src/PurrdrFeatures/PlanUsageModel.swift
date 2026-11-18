@@ -63,17 +63,21 @@ public final class PlanUsageModel {
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     private let now: () -> Date
+    private let sleep: Sleep
 
     /// - Parameters:
     ///   - fallback: 沒有上次選擇(或那台主機已刪除)時選的主機。
+    ///   - sleep: 定期重整的等待;測試注入假的。
     ///   - source: 某台主機某種 Agent 的來源;`nil` 表示這種連線方式不支援。
     public init(
         hosts: [PlanUsageHostOption], fallback: HostSelection, now: @escaping () -> Date = Date.init,
+        sleep: @escaping Sleep = Sleeping.task,
         source: @escaping (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     ) {
         self.hosts = hosts
         self.source = source
         self.now = now
+        self.sleep = sleep
         host = fallback
         agent = .claudeCode
     }
