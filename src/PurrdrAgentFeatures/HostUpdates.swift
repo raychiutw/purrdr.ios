@@ -31,10 +31,18 @@ public final class HostUpdates {
     /// 快照讀取進行中又有事件到達：讀完後會再讀一次(期間的事件都併成這一次)。
     package private(set) var hasQueuedResync = false
 
-    /// 一個 Agent 的變化：先給目前的值，之後快照裡它有變才再給;不在快照裡是 `nil`。
+    /// 一個 Agent 的變化：先給目前的值(還沒讀到快照時等第一份),之後快照裡它有變才再給;不在快照裡是 `nil`。
     public func changes(for paneID: String) -> AsyncStream<Agent?> {
-        AsyncStream { $0.finish() }
+        let (stream, continuation) = AsyncStream<Agent?>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let id = UUID()
+        let watcher = PaneWatcher(paneID: paneID, continuation: continuation)
+        paneWatchers[id] = watcher
+        if let snapshot { paneWatchers[id]?.publish(from: snapshot) }
+        continuation.onTermination = { [weak self] _ in Task { @MainActor [weak self] in self?.paneWatchers[id] = nil } }
+        return stream
     }
+
+    @ObservationIgnored private var paneWatchers: [UUID: PaneWatcher] = [:]
 
     /// 每次讀到快照後、這次讀取結束前執行(Agent 列表在這裡更新預覽);期間到達的事件一樣合併。
     @ObservationIgnored var afterSnapshot: (@MainActor () async -> Void)?
@@ -45,6 +53,10 @@ public final class HostUpdates {
     private var checkCancelWaiter: CheckedContinuation<Void, Never>?
     private var retryRequested = false
     private var retryWaiter: CheckedContinuation<Void, Never>?
+    /// 快照讀取進行中(含讀完後的 `afterSnapshot`)。
+    @ObservationIgnored private var isReading = false
+    /// 這一輪訂閱收到 ack 了(退避歸零)。
+    @ObservationIgnored private var subscriptionStarted = false
 
     /// - Parameter sleep: 退避用的等待;測試注入假的。
     public init(client: HerdrClient, sleep: @escaping Sleep = Sleeping.task) {
@@ -71,6 +83,7 @@ public final class HostUpdates {
     ///
     /// - 先讀快照得知有哪些 Agent pane,再訂閱每個 pane 的狀態改變與全主機事件。
     /// - 事件不重播，所以訂閱開始(ack)時重讀一次對帳;之後事件只當「重讀」的觸發。
+    /// - 同時只跑一個快照讀取，期間到達的事件合併成讀完後的「再一次」(不用固定延遲去抖)。
     /// - `events_lost`:立刻重新訂閱並重讀。
     /// - Agent pane 的集合變了，或換了檢視(`subscribesToLayout`):關掉舊的、用新清單重新訂閱。
     /// - herdr 沒有事件訂閱(`herdrCapabilityMissing`):不算失敗，每 30 秒重讀。
@@ -95,11 +108,12 @@ public final class HostUpdates {
                     needsSnapshot = true
                     continue
                 }
-                let events = interruptible(subscription)
+                subscriptionStarted = false
+                let triggers = coalesced(subscription)
                 defer { endSubscription?(); endSubscription = nil }
-                for try await event in events {
-                    if case .event = event { try await sleep(Self.debounce) }
-                    if event == .subscriptionStarted { failures = 0 }
+                for try await _ in triggers {
+                    if subscriptionStarted { failures = 0 }
+                    hasQueuedResync = false
                     try await refresh()
                     if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
@@ -148,9 +162,6 @@ public final class HostUpdates {
         }
     }
 
-    /// 事件去抖。
-    package static let debounce: Duration = .milliseconds(250)
-
     /// 沒有事件訂閱可用時重讀的間隔。
     package static let pollingInterval: Duration = .seconds(30)
 
@@ -162,17 +173,26 @@ public final class HostUpdates {
     private var agentPaneIDs: [String] { snapshot?.agents.map(\.paneID) ?? [] }
 
     private func refresh() async throws {
-        snapshot = try await client.snapshot()
+        isReading = true
+        defer { isReading = false }
+        let fresh = try await client.snapshot()
+        snapshot = fresh
         phase = .loaded
+        for id in paneWatchers.keys { paneWatchers[id]?.publish(from: fresh) }
         await afterSnapshot?()
     }
 
-    /// 轉送訂閱串流，並讓 `endSubscription` 能從外面結束它(結束時取消轉送，關掉底層的訂閱通道)。
-    private func interruptible(_ events: AsyncThrowingStream<HerdrEvent, any Error>) -> AsyncThrowingStream<HerdrEvent, any Error> {
-        let (stream, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
-        let forward = Task {
+    /// 把訂閱的事件併成「要重讀」的觸發：最多暫存一個，讀取期間的事件都併進它。
+    /// `endSubscription` 能從外面結束它(結束時取消轉送，關掉底層的訂閱通道)。
+    private func coalesced(_ events: AsyncThrowingStream<HerdrEvent, any Error>) -> AsyncThrowingStream<Void, any Error> {
+        let (stream, continuation) = AsyncThrowingStream<Void, any Error>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let forward = Task { @MainActor [weak self] in
             do {
-                for try await event in events { continuation.yield(event) }
+                for try await event in events {
+                    if event == .subscriptionStarted { self?.subscriptionStarted = true }
+                    if self?.isReading == true { self?.hasQueuedResync = true }
+                    continuation.yield()
+                }
                 continuation.finish()
             } catch {
                 continuation.finish(throwing: error)
@@ -247,5 +267,24 @@ public final class HostUpdates {
         default:
             phase = .failed(String(localized: "Couldn’t read this host’s herdr status."))
         }
+    }
+}
+
+/// 一個 `changes(for:)` 的訂閱者：只在它看的 Agent 改變時給值。
+private struct PaneWatcher {
+    let paneID: String
+    let continuation: AsyncStream<Agent?>.Continuation
+    private var last: Agent??
+
+    init(paneID: String, continuation: AsyncStream<Agent?>.Continuation) {
+        self.paneID = paneID
+        self.continuation = continuation
+    }
+
+    mutating func publish(from snapshot: HostSnapshot) {
+        let agent = snapshot.agents.first { $0.paneID == paneID }
+        guard last != .some(agent) else { return }
+        last = .some(agent)
+        continuation.yield(agent)
     }
 }
