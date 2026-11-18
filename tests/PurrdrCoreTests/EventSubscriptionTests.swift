@@ -22,7 +22,7 @@ struct EventSubscriptionTests {
     @Test("版面事件與全主機事件分開：只有 Spaces 檢視訂閱版面事件(行為規格 §3.7,#40)")
     func layoutEventsAreSeparateFromHostWide() {
         let layout: Set<EventSubscription.EventType> = [
-            .tabCreated, .tabClosed, .tabRenamed, .tabMoved, .paneCreated, .paneClosed, .layoutUpdated, .workspaceMoved, .workspaceReordered,
+            .tabCreated, .tabClosed, .tabRenamed, .tabMoved, .paneCreated, .paneClosed, .workspaceMoved, .workspaceReordered,
         ]
         #expect(Set(EventSubscription.layout.map(\.type)) == layout)
         #expect(Set(EventSubscription.hostWide.map(\.type)).isDisjoint(with: layout))

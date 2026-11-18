@@ -11,10 +11,18 @@ struct HostUpdatesTests {
     static let snapshot = Fixtures.data("session.snapshot.ndjson")
     static let started = Fixtures.data("events.subscribe.started.ndjson")
 
+    /// 真實主機錄到的狀態事件形狀(#159),只換 pane 與狀態。
     static func statusChanged(_ paneID: String = "w1:pB", status: String = "idle") -> Data {
-        Data(
-            #"{"event":"pane_agent_status_changed","data":{"type":"pane_agent_status_changed","pane_id":"\#(paneID)","workspace_id":"w1","agent":"claude","agent_status":"\#(status)"}}"#.utf8)
+        Fixtures.modifiedLine("event.pane-agent-status-changed.ndjson") { line in
+            var data = line["data"] as? [String: Any] ?? [:]
+            data["pane_id"] = paneID
+            data["agent_status"] = status
+            line["data"] = data
+        }
     }
+
+    /// 全主機事件(非狀態事件的名稱用底線，#159)。
+    static let workspaceUpdated = Data(#"{"event":"workspace_updated","data":{"type":"workspace_updated","workspace_id":"w1"}}"#.utf8)
 
     static let eventsLost = Fixtures.modifiedLine("error.pane-not-found.ndjson") {
         $0["error"] = ["code": "events_lost", "message": "event subscription fell behind retained history; resubscribe and resync with session.snapshot"]
@@ -104,6 +112,28 @@ struct HostUpdatesTests {
         try await Self.settle()
         #expect(await Self.methods(connection) == ["session.snapshot", "events.subscribe"] + Array(repeating: "session.snapshot", count: 3))
         #expect(updates.hasQueuedResync == false)
+    }
+
+    @Test("workspace.updated 短時間大量到達：讀取期間的全部只觸發一次快照")
+    func workspaceUpdatedBurstTriggersOneRead() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Self.snapshot)
+        await connection.expect("events.subscribe", reply: Self.started)
+        await Self.expectSnapshots(connection, count: 30)
+        let (updates, task) = Self.start(connection)
+        defer { task.cancel() }
+        try await waitUntil { await connection.requests.count == 3 }
+
+        await connection.hold("session.snapshot")
+        await connection.send(event: Self.workspaceUpdated, toSubscription: 0)
+        try await waitUntil { await connection.heldCount == 1 }
+        for _ in 0..<20 { await connection.send(event: Self.workspaceUpdated, toSubscription: 0) }
+        try await waitUntil { await MainActor.run { updates.hasQueuedResync } }
+        await connection.releaseHeld()
+
+        try await waitUntil { await connection.requests.count == 5 }
+        try await Self.settle()
+        #expect(await connection.requests.count == 5)
     }
 
     @Test("events_lost:立刻重新訂閱並重讀快照對帳，不退避")
