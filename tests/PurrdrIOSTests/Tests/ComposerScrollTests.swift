@@ -8,14 +8,13 @@ import UIKit
 @Suite(.serialized)
 @MainActor
 struct ComposerScrollTests {
-    /// 跟輸入列一樣放在兩側有按鈕的 HStack 裡:SwiftUI 會以 0 與無限寬度探問理想大小。
+    /// 跟輸入列一樣的上下版面(#187):整寬輸入框在上、按鈕列在下。
     private struct Host: View {
         @State var text = ""
         @State var isFocused = true
 
         var body: some View {
-            HStack(alignment: .bottom, spacing: 8) {
-                Color.clear.frame(width: 44, height: 44)
+            VStack(spacing: 0) {
                 ComposerTextEditor(
                     text: $text, isFocused: $isFocused,
                     options: ComposerEditorOptions(
@@ -24,15 +23,20 @@ struct ComposerScrollTests {
                     )
                 )
                 .frame(minHeight: 44)
-                Color.clear.frame(width: 44, height: 44)
+                .padding(.horizontal, 4)
+                HStack(spacing: 8) {
+                    Color.clear.frame(width: 44, height: 44)
+                    Spacer(minLength: 0)
+                    Color.clear.frame(width: 44, height: 44)
+                }
             }
             .padding(.horizontal)
             .frame(width: 390)
         }
     }
 
-    /// 超過 8 行上限的草稿(寬 280pt 約 15 行)。
-    private static let longDraft = String(repeating: "這是一段很長的文字用來把輸入框撐到四行以上", count: 9)
+    /// 超過 8 行上限的草稿(寬約 350pt 也超過 8 行)。
+    private static let longDraft = String(repeating: "這是一段很長的文字用來把輸入框撐到四行以上", count: 12)
 
     @Test("逐字輸入超過上限：捲動位置包含游標")
     func typingBeyondLimitKeepsCaretVisible() async throws {

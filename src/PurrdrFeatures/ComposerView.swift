@@ -10,7 +10,8 @@ public enum ComposerSettings {
 /// 輸入列(行為規格 F6.1;HIG 20.6)。
 ///
 /// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
-/// - 多行，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
+/// - 上下版面(#187):一張玻璃卡片，整寬輸入框在上，按鈕列(加入圖片｜收起鍵盤、送出)在下。
+/// - 多行，預設兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
 /// - 停止與強制結束在標題列(#44,`ConversationView`)。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
@@ -62,16 +63,20 @@ struct ComposerBar: View {
             if let suggestion = model.suggestion {
                 PromptSuggestionView(suggestion: suggestion) { acceptSuggestion() }
             }
-            GlassEffectContainer(spacing: 8) {
-                HStack(alignment: .bottom, spacing: 8) {
-                    if model.canAttachImages && model.typedAnswer == nil {
-                        AddImageButton(model: model)
-                    }
+            // 上下版面(#187):一張玻璃卡片，整寬輸入框在上、按鈕列在下;卡片內的按鈕不再疊玻璃。
+            GlassEffectContainer {
+                VStack(spacing: 0) {
                     editor
-                    if isFocused {
-                        hideKeyboardButton
-                    }
-                    ComposerSendButton(model: model, identifier: "composer.send", action: send)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 4)
+                    buttonRow
+                }
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                .overlay {
+                    // 聚焦時邊框 tint(F6.1)。
+                    RoundedRectangle(cornerRadius: Self.cardCornerRadius)
+                        .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
+                        .allowsHitTesting(false)
                 }
             }
         }
@@ -128,13 +133,6 @@ struct ComposerBar: View {
             }
         }
         .frame(minHeight: 44)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22))
-        .overlay {
-            // 聚焦時邊框 tint(F6.1)。
-            RoundedRectangle(cornerRadius: 22)
-                .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
-                .allowsHitTesting(false)
-        }
         .overlay(alignment: .topTrailing) {
             if showsExpandButton {
                 expandButton
@@ -178,6 +176,24 @@ struct ComposerBar: View {
 
     // MARK: - 按鈕
 
+    private static let cardCornerRadius: CGFloat = 24
+
+    /// 卡片下半的按鈕列：左加入圖片，右收起鍵盤(聚焦時)與送出。
+    private var buttonRow: some View {
+        HStack(spacing: 8) {
+            if model.canAttachImages && model.typedAnswer == nil {
+                AddImageButton(model: model, isInCard: true)
+            }
+            Spacer(minLength: 0)
+            if isFocused {
+                hideKeyboardButton
+            }
+            ComposerSendButton(model: model, identifier: "composer.send", isInCard: true, action: send)
+        }
+        .padding(.horizontal, 6)
+        .padding(.bottom, 6)
+    }
+
     private var hideKeyboardButton: some View {
         Button {
             isFocused = false
@@ -185,7 +201,7 @@ struct ComposerBar: View {
             Image(systemName: "keyboard.chevron.compact.down")
                 .frame(width: 30, height: 30)
         }
-        .buttonStyle(.glass)
+        .composerSecondaryButtonStyle(isInCard: true)
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
         .accessibilityLabel(Text("Hide Keyboard"))
@@ -209,10 +225,12 @@ struct ComposerBar: View {
 struct ComposerSendButton: View {
     let model: ConversationModel
     let identifier: String
+    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
+    var isInCard = false
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        styled(Button(action: action) {
             Group {
                 if model.isSending {
                     ProgressView()
@@ -223,13 +241,33 @@ struct ComposerSendButton: View {
                 }
             }
             .frame(width: 30, height: 30)
-        }
-        .filledGlassProminentButtonStyle()
+        })
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
         .disabled(!model.canSend)
         .accessibilityLabel(model.isSending ? Text("Sending") : Text("Send"))
         .accessibilityIdentifier(identifier)
+    }
+
+    @ViewBuilder
+    private func styled(_ button: some View) -> some View {
+        if isInCard {
+            button.filledProminentButtonStyle()
+        } else {
+            button.filledGlassProminentButtonStyle()
+        }
+    }
+}
+
+extension View {
+    /// 輸入列次要圓鈕(加入圖片、收起鍵盤):卡片內用中性色的 bordered(紅色只給送出),卡片外用玻璃(#187)。
+    @ViewBuilder
+    func composerSecondaryButtonStyle(isInCard: Bool) -> some View {
+        if isInCard {
+            buttonStyle(.bordered).tint(.primary)
+        } else {
+            buttonStyle(.glass)
+        }
     }
 }
 
@@ -544,7 +582,12 @@ struct ComposerTextEditor: UIViewRepresentable {
         let width = proposal.width ?? 240
         if options.isExpanded { return CGSize(width: width, height: proposal.height ?? 240) }
         let fitting = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
-        return CGSize(width: width, height: uiView.sizing(contentHeight: fitting).height)
+        var height = uiView.sizing(contentHeight: fitting).height
+        // 卡片上方的元素與鍵盤擠掉空間時讓出高度(不壓到按鈕列，#187);框內捲動由 layoutSubviews 依實際高度決定。
+        if let proposed = proposal.height, proposed < height {
+            height = max(proposed, ComposerSizing.minHeight)
+        }
+        return CGSize(width: width, height: height)
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -703,7 +746,7 @@ final class KeyHandlingTextView: UITextView {
         measuredSize = bounds.size
         let contentHeight = sizeThatFits(CGSize(width: bounds.width, height: .greatestFiniteMagnitude)).height
         reportShowsExpand(contentHeight: contentHeight)
-        let scrolls = sizing(contentHeight: contentHeight).scrolls
+        let scrolls = sizing(contentHeight: contentHeight).scrolls || contentHeight > bounds.height + 0.5
         if isScrollEnabled != scrolls { isScrollEnabled = scrolls }
         if scrolls { scrollCaretIntoView(contentHeight: contentHeight) }
     }
@@ -818,7 +861,7 @@ struct ComposerTextEditor: View {
 
     var body: some View {
         TextField("", text: $text, axis: .vertical)
-            .lineLimit(1...Int(ComposerSizing.maxLines))
+            .lineLimit(Int(ComposerSizing.defaultLines)...Int(ComposerSizing.maxLines))
             .textFieldStyle(.plain)
             .padding(.horizontal, 13)
             .padding(.vertical, 11)

@@ -72,6 +72,12 @@ final class ConversationUITests: XCTestCase {
         let app = openLedger()
         let summary = app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：往回捲一點。
+        let window = app.windows.firstMatch
+        for _ in 0..<3 where !summary.isHittable {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                .press(forDuration: 0.1, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)))
+        }
 
         summary.tap()
 
@@ -452,7 +458,8 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertEqual(actual.maxY, expected.maxY, accuracy: 1, "載入中的輸入列不在載入完成後的位置(底緣 \(actual.maxY),應為 \(expected.maxY))")
         XCTAssertLessThan(spinner.maxY, actual.minY, "轉圈不在輸入列上方")
-        XCTAssertGreaterThan(spinner.midY, screen.height * 0.3, "轉圈沒有置中")
+        // 輸入列是上下版面(#187)、比單行高，上方內容區的中心跟著往上。
+        XCTAssertGreaterThan(spinner.midY, screen.height * 0.2, "轉圈沒有置中")
         XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 }
