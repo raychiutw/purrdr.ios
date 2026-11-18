@@ -32,7 +32,7 @@ public final class AgentListModel {
         self.updates = updates
         self.transcripts = transcripts
         self.host = host
-        updates.afterSnapshot = { [weak self] in await self?.refreshPreviews() }
+        updates.afterSnapshot = { [weak self] namedPanes in await self?.refreshPreviews(namedPanes: namedPanes) }
     }
 
     public var phase: Phase { updates.phase }
@@ -79,26 +79,54 @@ public final class AgentListModel {
     /// 使用者按「重試」或網路恢復：正在退避就立刻重連。
     public func retryNow() { updates.retryNow() }
 
-    /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04)。
+    /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04);有值代表這個 session 讀過(即使沒有可讀訊息)。
     private var previewSessions: [String: String] = [:]
+    /// 各 pane 讀預覽時的 Agent 狀態;狀態變了才重讀。
+    private var previewStatuses: [String: AgentStatus] = [:]
+    /// 已經成功讀過一次全部的預覽。
+    private var hasReadAllPreviews = false
 
-    /// 以一次往返讀所有可讀 agent(Claude、Grok、agy、Pi／OMP)對話紀錄的檔尾，更新預覽與時間(行為規格 §4.7)。
+    /// 讀對話紀錄檔尾更新預覽與時間(行為規格 §4.7):第一次以一次往返讀全部可讀 agent;之後只讀狀態變了、
+    /// 事件指名或還沒讀過這個 session 的 Agent,一次一個(#164)。
     /// 預覽帶讀取時的 session:pane 離開或 session 改變(herdr 回收 pane 給新聊天)就丟(R-I04)。讀取失敗保留現有預覽。
-    private func refreshPreviews() async {
+    private func refreshPreviews(namedPanes: Set<String>) async {
         guard let transcripts, let snapshot else { return }
+        let agents = snapshot.agents.filter { $0.transcriptTarget != nil }
         let sessions = Dictionary(
-            snapshot.agents.compactMap { agent in agent.transcriptTarget.map { (agent.paneID, $0.sessionKey) } },
+            agents.compactMap { agent in agent.transcriptTarget.map { (agent.paneID, $0.sessionKey) } },
             uniquingKeysWith: { first, _ in first }
         )
-        previews = previews.filter { sessions[$0.key] != nil && previewSessions[$0.key] == sessions[$0.key] }
-        let requests = snapshot.agents.compactMap { agent in
+        let statuses = Dictionary(agents.map { ($0.paneID, $0.status) }, uniquingKeysWith: { first, _ in first })
+        previewSessions = previewSessions.filter { sessions[$0.key] == $0.value }
+        previews = previews.filter { previewSessions[$0.key] != nil }
+        let requests = agents.compactMap { agent in
             agent.transcriptTarget.map { PreviewRequest(key: agent.paneID, target: $0) }
         }
-        guard !requests.isEmpty, let fresh = try? await transcripts.previews(of: requests) else { return }
-        for (paneID, preview) in fresh {
-            previews[paneID] = preview
-            previewSessions[paneID] = sessions[paneID]
+        guard !requests.isEmpty else { return }
+        guard hasReadAllPreviews else {
+            hasReadAllPreviews = await readPreviews(requests, using: transcripts, sessions: sessions, statuses: statuses)
+            return
         }
+        let stale = requests.filter { request in
+            namedPanes.contains(request.key) || previewSessions[request.key] == nil || previewStatuses[request.key] != statuses[request.key]
+        }
+        for request in stale {
+            await readPreviews([request], using: transcripts, sessions: sessions, statuses: statuses)
+        }
+    }
+
+    /// 讀一批預覽;成功時記下讀取時的 session 與狀態(沒有可讀訊息的也算讀過)。
+    @discardableResult
+    private func readPreviews(
+        _ requests: [PreviewRequest], using transcripts: TranscriptReader, sessions: [String: String], statuses: [String: AgentStatus]
+    ) async -> Bool {
+        guard let fresh = try? await transcripts.previews(of: requests) else { return false }
+        for request in requests {
+            previews[request.key] = fresh[request.key] ?? previews[request.key]
+            previewSessions[request.key] = sessions[request.key]
+            previewStatuses[request.key] = statuses[request.key]
+        }
+        return true
     }
 }
 

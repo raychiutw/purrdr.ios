@@ -44,8 +44,8 @@ public final class HostUpdates {
 
     @ObservationIgnored private var paneWatchers: [UUID: PaneWatcher] = [:]
 
-    /// 每次讀到快照後、這次讀取結束前執行(Agent 列表在這裡更新預覽);期間到達的事件一樣合併。
-    @ObservationIgnored var afterSnapshot: (@MainActor () async -> Void)?
+    /// 每次讀到快照後、這次讀取結束前執行(Agent 列表在這裡更新預覽);參數是觸發這次讀取的事件指名的 pane。
+    @ObservationIgnored var afterSnapshot: (@MainActor (_ namedPanes: Set<String>) async -> Void)?
 
     private let client: HerdrClient
     private let sleep: Sleep
@@ -55,6 +55,8 @@ public final class HostUpdates {
     private var retryWaiter: CheckedContinuation<Void, Never>?
     /// 快照讀取進行中(含讀完後的 `afterSnapshot`)。
     @ObservationIgnored private var isReading = false
+    /// 還沒讀快照處理的事件指名的 pane。
+    @ObservationIgnored private var pendingNamedPanes: Set<String> = []
     /// 這一輪訂閱收到 ack 了(退避歸零)。
     @ObservationIgnored private var subscriptionStarted = false
 
@@ -109,12 +111,15 @@ public final class HostUpdates {
                     continue
                 }
                 subscriptionStarted = false
+                pendingNamedPanes = []
                 let triggers = coalesced(subscription)
                 defer { endSubscription?(); endSubscription = nil }
                 for try await _ in triggers {
                     if subscriptionStarted { failures = 0 }
                     hasQueuedResync = false
-                    try await refresh()
+                    let namedPanes = pendingNamedPanes
+                    pendingNamedPanes = []
+                    try await refresh(namedPanes: namedPanes)
                     if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
                 resubscribeNow = Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout
@@ -172,14 +177,14 @@ public final class HostUpdates {
 
     private var agentPaneIDs: [String] { snapshot?.agents.map(\.paneID) ?? [] }
 
-    private func refresh() async throws {
+    private func refresh(namedPanes: Set<String> = []) async throws {
         isReading = true
         defer { isReading = false }
         let fresh = try await client.snapshot()
         snapshot = fresh
         phase = .loaded
         for id in paneWatchers.keys { paneWatchers[id]?.publish(from: fresh) }
-        await afterSnapshot?()
+        await afterSnapshot?(namedPanes)
     }
 
     /// 把訂閱的事件併成「要重讀」的觸發：最多暫存一個，讀取期間的事件都併進它。
@@ -190,6 +195,7 @@ public final class HostUpdates {
             do {
                 for try await event in events {
                     if event == .subscriptionStarted { self?.subscriptionStarted = true }
+                    if case .event(_, let paneID?) = event { self?.pendingNamedPanes.insert(paneID) }
                     if self?.isReading == true { self?.hasQueuedResync = true }
                     continuation.yield()
                 }
