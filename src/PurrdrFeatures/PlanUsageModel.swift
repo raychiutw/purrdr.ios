@@ -111,8 +111,11 @@ public final class PlanUsageModel {
         startQuery()
     }
 
-    /// 下拉重新整理。
-    public func refresh() async {}
+    /// 下拉重新整理：查詢進行中時等它，不另外送出。
+    public func refresh() async {
+        if query == nil { startQuery() }
+        await untilIdle()
+    }
 
     /// 等進行中的查詢結束。
     public func untilIdle() async {
@@ -123,8 +126,9 @@ public final class PlanUsageModel {
         guard let source = source(host, agent) else { return }
         query = Task { [weak self] in
             let usage = try? await source.read()
-            guard let self, !Task.isCancelled, let usage else { return }
-            state = .loaded(usage)
+            guard let self, !Task.isCancelled else { return }
+            query = nil
+            if let usage { state = .loaded(usage) }
         }
     }
 }
