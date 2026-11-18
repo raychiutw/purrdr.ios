@@ -249,6 +249,7 @@ struct ConversationHeaderTests {
             .replacingOccurrences(of: "收到，備註的換行也一起處理。", with: reply)
             .replacingOccurrences(of: "00000000-0000-4000-8000-00000000001f", with: "00000000-0000-4000-8000-0000000000f9")
         try setup.shell.append(Data((replyLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        setup.clock.advance(by: 6)
         await Self.expectWorkingPoll(setup, screen: screen)
         await setup.model.poll()
 
