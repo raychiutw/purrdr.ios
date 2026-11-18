@@ -71,6 +71,7 @@ public struct CodexUsageHost: Sendable {
 private struct AppServerResponses {
     private var events: AsyncThrowingStream<ExecOutput, any Error>.AsyncIterator
     private var buffer = Data()
+    private var exitCode: Int32?
 
     init(_ output: AsyncThrowingStream<ExecOutput, any Error>) {
         events = output.makeAsyncIterator()
@@ -83,14 +84,23 @@ private struct AppServerResponses {
                 buffer.removeSubrange(buffer.startIndex...newline)
                 guard let message = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
                       (message["id"] as? NSNumber)?.intValue == id else { continue }
+                if let error = message["error"] as? [String: Any] {
+                    throw Self.failure(error["message"] as? String ?? "")
+                }
                 guard let result = message["result"] as? [String: Any] else { throw CodexUsageError.unreadableResponse }
                 return result
             }
             switch try await events.next() {
             case .stdout(let data)?: buffer.append(data)
-            case .stderr?, .exit?: continue
-            case nil: throw CodexUsageError.unreadableResponse
+            case .stderr?: continue
+            case .exit(let code, _)?: exitCode = exitCode ?? code
+            case nil: throw exitCode == 127 ? CodexUsageError.codexNotFound : CodexUsageError.unreadableResponse
             }
         }
+    }
+
+    /// 沒登入時 app-server 回「… authentication required to read rate limits」(用 API key 登入也沒有方案用量)。
+    static func failure(_ message: String) -> CodexUsageError {
+        message.contains("authentication required") ? .notSignedIn : .requestFailed(message)
     }
 }
