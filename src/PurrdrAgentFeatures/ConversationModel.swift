@@ -70,8 +70,9 @@ public final class ConversationModel {
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
     public private(set) var agentsPaneReadAt: Date?
 
-    /// 輪詢間隔：agent 工作中、等你回答，或背景 agents 窗格有執行中的列時 2 秒，否則 4 秒
-    /// (herdr 在背景 agent 執行時回報 idle,commit 0a3b0d7)。
+    /// 輪詢間隔：agent 工作中、等你回答，或背景 agents 窗格有執行中的列時 2 秒，否則 4 秒。
+    /// 例外快速路徑(#163):herdr 在背景 agent 執行時回報 idle(commit 0a3b0d7)、多題問答期間一直 blocked,
+    /// 都沒有狀態事件，靠這個 2 秒讀畫面確認。
     public var pollInterval: Duration {
         let paneRunning = agentsPane?.rows.contains { $0.state == .running } ?? false
         return agentStatus == .working || agentStatus == .blocked || paneRunning ? .seconds(2) : .seconds(4)
@@ -290,8 +291,10 @@ public final class ConversationModel {
     /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
     @ObservationIgnored private var screenThisPoll: String?
     private let sleep: Sleep
-    /// 這台主機的主機更新來源(#163)。
+    /// 這台主機的主機更新來源(#163);沒有時自己讀快照。
     private let updates: HostUpdates?
+    @ObservationIgnored private var wakeWaiter: CheckedContinuation<Void, Never>?
+    @ObservationIgnored private var pendingWake = false
 
     /// 目前綁定的 session(herdr 回報的 id 或路徑)與讀取狀態。
     private var boundSessionID: String?
@@ -364,7 +367,9 @@ public final class ConversationModel {
     private func slashCatalog() async -> SlashCatalog? {
         var agent = currentAgent
         if agent == nil {
-            agent = (try? await client.snapshot())?.agents.first { $0.paneID == paneID }
+            var snapshot = liveSnapshot
+            if snapshot == nil { snapshot = try? await client.snapshot() }
+            agent = snapshot?.agents.first { $0.paneID == paneID }
         }
         guard let agent else { return nil }
         switch AgentSlashMenu(agentKind: agent.kind) {
@@ -408,34 +413,98 @@ public final class ConversationModel {
 
     /// 畫面可見且 app 在前景時執行，直到所在的 task 被取消。agent 工作中或等你回答時每 2 秒，否則每 4 秒
     /// (指令預算：工作中每分鐘 ≤60 個主機指令、閒置 ≤30,R-F01);同時每 30 秒回報在場。
+    /// 有主機更新來源時一起保持它的即時更新，這個 Agent 在快照裡變了就立刻再輪詢一次，不等間隔(#163)。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
-            group.addTask {
-                while !Task.isCancelled {
-                    await self.poll()
-                    let interval = await MainActor.run { self.pollInterval }
-                    do {
-                        try await sleep(interval)
-                    } catch {
-                        return
-                    }
+            if let updates {
+                group.addTask { await updates.liveUpdates.attach() }
+                group.addTask { await self.wakeOnChanges(from: updates) }
+            }
+            while !Task.isCancelled {
+                await poll()
+                do {
+                    try await waitForNextPoll(sleep: sleep)
+                } catch {
+                    break
                 }
             }
+            group.cancelAll()
         }
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if let path = file?.path { await transcripts.stopFollowing(path: path) }
     }
 
-    /// 一次輪詢:snapshot → 綁定 session → 讀對話紀錄。
+    /// 這個 Agent 在主機更新來源的快照裡變了(狀態事件觸發的重讀):叫醒輪詢。
+    private func wakeOnChanges(from updates: HostUpdates) async {
+        for await agent in updates.changes(for: paneID) where agent != currentAgent {
+            wakeUp()
+        }
+    }
+
+    private func wakeUp() {
+        if let wakeWaiter {
+            self.wakeWaiter = nil
+            wakeWaiter.resume()
+        } else {
+            pendingWake = true
+        }
+    }
+
+    /// 等到下一次輪詢：間隔到，或被叫醒(輪詢期間被叫醒就不等)。
+    private func waitForNextPoll(sleep: @escaping Sleep) async throws {
+        if pendingWake {
+            pendingWake = false
+            return
+        }
+        let interval = pollInterval
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await sleep(interval) }
+            group.addTask { await self.waitForWake() }
+            try await group.next()
+            group.cancelAll()
+        }
+    }
+
+    private func waitForWake() async {
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                if Task.isCancelled || pendingWake {
+                    pendingWake = false
+                    continuation.resume()
+                } else {
+                    wakeWaiter = continuation
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.cancelWakeWait() }
+        }
+    }
+
+    private func cancelWakeWait() {
+        wakeWaiter?.resume()
+        wakeWaiter = nil
+    }
+
+    /// 主機更新來源在訂閱事件時用它的快照;還沒連上、斷線或沒有事件訂閱時是 `nil`,改自己讀(#163)。
+    private var liveSnapshot: HostSnapshot? {
+        guard let updates, updates.isSubscribed else { return nil }
+        return updates.snapshot
+    }
+
+    /// 一次輪詢：快照(主機更新來源的，或自己讀)→ 綁定 session → 讀對話紀錄。
     public func poll() async {
         let snapshot: HostSnapshot
-        do {
-            snapshot = try await snapshotRetryingOnce()
-        } catch {
-            await showOffline()
-            return
+        if let liveSnapshot {
+            snapshot = liveSnapshot
+        } else {
+            do {
+                snapshot = try await snapshotRetryingOnce()
+            } catch {
+                await showOffline()
+                return
+            }
         }
         isOffline = false
         if banner == .offline { banner = nil }

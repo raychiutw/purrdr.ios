@@ -28,6 +28,9 @@ public final class HostUpdates {
     /// 即時更新停著，等使用者按「再試一次」(取消了 Tailscale 重新驗證)。
     public var isWaitingForRetry: Bool { checkCancelWaiter != nil }
 
+    /// 事件訂閱開著、而且訂閱開始後已經對帳過：`snapshot` 會隨事件更新，畫面不必自己讀快照(#163)。
+    public private(set) var isSubscribed = false
+
     /// 快照讀取進行中又有事件到達：讀完後會再讀一次(期間的事件都併成這一次)。
     package private(set) var hasQueuedResync = false
 
@@ -110,11 +113,16 @@ public final class HostUpdates {
                 }
                 subscriptionStarted = false
                 let triggers = coalesced(subscription)
-                defer { endSubscription?(); endSubscription = nil }
+                defer {
+                    endSubscription?()
+                    endSubscription = nil
+                    isSubscribed = false
+                }
                 for try await _ in triggers {
                     if subscriptionStarted { failures = 0 }
                     hasQueuedResync = false
                     try await refresh()
+                    if subscriptionStarted { isSubscribed = true }
                     if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
                 }
                 resubscribeNow = Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout
