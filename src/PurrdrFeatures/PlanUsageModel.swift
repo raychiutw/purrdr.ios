@@ -316,8 +316,12 @@ public final class PlanUsageModel {
         automaticRefresh = nil
     }
 
-    /// 下拉重新整理：查詢進行中時等它，不另外送出。
+    /// 下拉重新整理：查詢進行中時等它，不另外送出;同意、確認、安裝、還原中不查。
     public func refresh() async {
+        switch state {
+        case .checking, .confirming, .installing, .turningOff: return
+        default: break
+        }
         if query == nil { startQuery() }
         await untilIdle()
     }
