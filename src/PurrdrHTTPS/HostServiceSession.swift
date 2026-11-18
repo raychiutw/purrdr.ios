@@ -20,7 +20,11 @@ actor HostServiceSession {
     private var nextRequestNumber = 0
     private var nextStreamNumber = 0
     private var reader: Task<Void, Never>?
+    /// 待送的訊息，由同一個寫入者依呼叫順序送出(例如關掉串流不會比開串流先到主機)。
+    private let outgoing: AsyncStream<String>
+    private let outgoingQueue: AsyncStream<String>.Continuation
     private var heartbeat: Task<Void, Never>?
+    private var sleep: Sleep = Sleeping.task
 
     typealias Messages = AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>
 
@@ -35,12 +39,15 @@ actor HostServiceSession {
     init(socket: any WebSocketSession, deviceToken: String) {
         self.socket = socket
         self.deviceToken = deviceToken
+        (outgoing, outgoingQueue) = AsyncStream<String>.makeStream()
     }
 
     var isOpen: Bool { ending == nil }
 
     func start(heartbeat settings: HostServiceHeartbeat, sleep: @escaping Sleep) {
+        self.sleep = sleep
         reader = Task { await self.readUntilClosed() }
+        Task { await self.writeInOrder() }
         heartbeat = Task { await self.beat(settings, sleep: sleep) }
     }
 
@@ -132,7 +139,7 @@ actor HostServiceSession {
             try await withCheckedThrowingContinuation { continuation in
                 guard !Task.isCancelled else { return continuation.resume(throwing: CancellationError()) }
                 pending[requestID] = continuation
-                Task { await self.send(text, for: requestID) }
+                outgoingQueue.yield(text)
             }
         } onCancel: {
             Task { await self.abandon(requestID) }
@@ -197,12 +204,38 @@ actor HostServiceSession {
         return answered
     }
 
-    private func send(_ text: String, for requestID: String) async {
-        do {
-            try await socket.send(text)
-        } catch {
-            end(with: error as? HostServiceError ?? .connectionLost)
+    private func writeInOrder() async {
+        for await text in outgoing {
+            do {
+                try await socket.send(text)
+            } catch {
+                // 主機關閉前送的原因(例如權杖被拒)可能還沒讀到：讀取端先結束就以它的原因為準。
+                await waitForReader(within: Self.sendFailureGrace)
+                end(with: error as? HostServiceError ?? .connectionLost)
+                return
+            }
         }
+    }
+
+    /// 送出失敗後等讀取端讀完已到的訊息的上限。
+    static let sendFailureGrace: Duration = .seconds(1)
+
+    /// 等讀取端結束(連線結束)或 `limit` 到，先到的為準。
+    private func waitForReader(within limit: Duration) async {
+        let (outcomes, continuation) = AsyncStream<Void>.makeStream()
+        let readerEnded = Task { [reader] in
+            await reader?.value
+            continuation.yield()
+        }
+        let timer = Task { [sleep] in
+            try? await sleep(limit)
+            continuation.yield()
+        }
+        var iterator = outcomes.makeAsyncIterator()
+        _ = await iterator.next()
+        readerEnded.cancel()
+        timer.cancel()
+        continuation.finish()
     }
 
     private func abandon(_ requestID: String) {
@@ -270,6 +303,7 @@ actor HostServiceSession {
         guard ending == nil else { return }
         ending = error
         heartbeat?.cancel()
+        outgoingQueue.finish()
         let requests = pending
         pending = [:]
         for continuation in requests.values { continuation.resume(throwing: error) }
