@@ -212,7 +212,9 @@ public enum TranscriptCommand {
     }
 
     /// 閒置時限：每收到一個請求就換一個新的 `purrdr_limit`(總長的那個由 `HostScriptTimeLimit.posix` 起)。
+    /// HUP 也以 124 結束：CI 上閒置時限曾以 1 結束(推測是停住程序樹時孤兒程序群組收到的 HUP)。
     package static let followScript = #"""
+        trap 'exit 124' HUP
         purrdr_anchor() {
         if [ "$2" -le 0 ]; then k=0; return; fi
         a=$(($2 - 64))

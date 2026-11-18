@@ -264,22 +264,15 @@ struct SSHTranscriptFollowerTests {
     }
 
     /// 測試在指令後面多帶一個獨特參數，事後以 `ps` 確認沒有任何程序還帶著它。
-    static func run(follow command: String, sendingEvery interval: Duration? = nil) async throws -> (output: CollectedOutput, elapsed: Duration, leftover: [String]) {
+    /// `sendsRequests` 時由 shell 每 0.5 秒送一個請求(不靠測試程序的排程;腳本結束後寫入失敗，迴圈跟著結束)。
+    static func run(follow command: String, sendsRequests: Bool = false) async throws -> (output: CollectedOutput, elapsed: Duration, leftover: [String]) {
         let marker = "purrdr-test-\(UUID().uuidString)"
-        let host = try LocalShellHost.temporary(feedsStdin: true)
+        let host = try LocalShellHost.temporary(feedsStdin: !sendsRequests)
+        let requests = #"(while printf '%s\n' '0 - - /nonexistent/a.jsonl'; do sleep 0.5; done) | "#
         let started = ContinuousClock.now
-        let session = try await host.execute(command + " " + marker)
-        let sender = Task {
-            guard let interval else { return }
-            while !Task.isCancelled {
-                try? await session.write(Data("0 - - /nonexistent/a.jsonl\n".utf8))
-                try? await Task.sleep(for: interval)
-            }
-        }
-        defer { sender.cancel() }
+        let session = try await host.execute((sendsRequests ? requests : "") + command + " " + marker)
         let output = try await session.collectOutput()
         let elapsed = ContinuousClock.now - started
-        sender.cancel()
         try await Task.sleep(for: .seconds(2))
         return (output, elapsed, processes(containing: marker))
     }
@@ -300,19 +293,19 @@ struct SSHTranscriptFollowerTests {
     func scriptIdleLimit() async throws {
         let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 2, totalSeconds: 60))
 
-        #expect(result.output.exitCode == 124, "DIAG \(String(decoding: result.output.stderr, as: UTF8.self).suffix(3000))")
+        #expect(result.output.exitCode == 124, "stderr: \(String(decoding: result.output.stderr, as: UTF8.self))")
         #expect(result.elapsed < .seconds(20))
         #expect(result.leftover.isEmpty, "\(result.leftover)")
     }
 
     @Test("主機腳本：一直有請求也在總長時限到了以 exit 124 結束，不留下程序")
     func scriptTotalLimit() async throws {
-        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 3, totalSeconds: 5).replacingOccurrences(of: "LC_ALL=C sh -c ", with: "LC_ALL=C sh -x -c "), sendingEvery: .milliseconds(500))
+        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 3, totalSeconds: 5), sendsRequests: true)
 
-        #expect(result.output.exitCode == 124)
+        #expect(result.output.exitCode == 124, "stderr: \(String(decoding: result.output.stderr, as: UTF8.self))")
         #expect(result.elapsed >= .seconds(4))
         #expect(result.elapsed < .seconds(25))
-        #expect(result.output.stdoutText.contains("error 3\n"), "請求照常回應 DIAG out=\(result.output.stdoutText.suffix(1500)) err=\(String(decoding: result.output.stderr, as: UTF8.self).suffix(3000))")
+        #expect(result.output.stdoutText.contains("error 3\n"), "請求照常回應")
         #expect(result.leftover.isEmpty, "\(result.leftover)")
     }
     #endif
