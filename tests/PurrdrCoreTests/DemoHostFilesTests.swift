@@ -9,20 +9,20 @@ import Testing
 struct DemoHostFilesTests {
     @Test("同意前檢查：使用者是 demo,尚未安裝")
     func inspectReportsDemoUser() async throws {
-        let inspection = try await ClaudeUsageHost(channel: DemoHost()).inspect()
+        let inspection = try await ClaudePlanUsageHost(channel: DemoHost()).inspect()
         #expect(inspection == ClaudeUsageInspection(user: "demo", isInstalled: false))
     }
 
     @Test("安裝後讀到範例用量;還原後 settings.json 與安裝前完全相同")
     func installShowsSampleUsageAndRestores() async throws {
         let demo = DemoHost()
-        let usage = ClaudeUsageHost(channel: demo)
+        let usage = ClaudePlanUsageHost(channel: demo)
         let files = HostFiles(channel: demo)
-        let before = try await files.read([ClaudeUsageHost.settingsPath, ".purrdr/claude-usage/journal.json"])
-        #expect(try await usage.readUsage() == nil)
+        let before = try await files.read([ClaudePlanUsageHost.settingsPath, ".purrdr/claude-usage/journal.json"])
+        #expect(try await usage.readPlanUsage() == nil)
 
         try await usage.install()
-        let sample = try #require(try await usage.readUsage())
+        let sample = try #require(try await usage.readPlanUsage())
         #expect(sample.fiveHour != nil && sample.week != nil)
         #expect(abs(sample.capturedAt.timeIntervalSinceNow) < 5 * 60)
         #expect((sample.fiveHour?.resetsAt ?? .distantPast) > Date())
@@ -30,19 +30,19 @@ struct DemoHostFilesTests {
 
         try await usage.restore()
 
-        #expect(try await files.read([ClaudeUsageHost.settingsPath, ".purrdr/claude-usage/journal.json"]) == before)
-        #expect(try await usage.readUsage() == nil)
+        #expect(try await files.read([ClaudePlanUsageHost.settingsPath, ".purrdr/claude-usage/journal.json"]) == before)
+        #expect(try await usage.readPlanUsage() == nil)
     }
 
     @Test("讀取後被改過：Demo 也拒絕寫入")
     func demoRejectsStaleWrites() async throws {
         let files = HostFiles(channel: DemoHost())
-        let read = try await files.read([ClaudeUsageHost.settingsPath])
-        guard case .file(_, let version)? = read[ClaudeUsageHost.settingsPath] else { Issue.record("Demo 沒有 settings.json"); return }
-        try await files.apply([.write(ClaudeUsageHost.settingsPath, Data("{}".utf8), expecting: .version(version))])
+        let read = try await files.read([ClaudePlanUsageHost.settingsPath])
+        guard case .file(_, let version)? = read[ClaudePlanUsageHost.settingsPath] else { Issue.record("Demo 沒有 settings.json"); return }
+        try await files.apply([.write(ClaudePlanUsageHost.settingsPath, Data("{}".utf8), expecting: .version(version))])
 
-        await #expect(throws: HostFilesError.changedSinceRead(ClaudeUsageHost.settingsPath)) {
-            try await files.apply([.write(ClaudeUsageHost.settingsPath, Data("{}".utf8), expecting: .version(version))])
+        await #expect(throws: HostFilesError.changedSinceRead(ClaudePlanUsageHost.settingsPath)) {
+            try await files.apply([.write(ClaudePlanUsageHost.settingsPath, Data("{}".utf8), expecting: .version(version))])
         }
     }
 }
@@ -72,10 +72,10 @@ struct DemoCodexLauncherTests {
 
 /// Demo 主機也回答 `codex app-server`(#178),所以 Codex 的方案用量在 Demo 走正式程式路徑。
 @Suite("Demo 主機：Codex 方案用量")
-struct DemoCodexUsageTests {
+struct DemoCodexPlanUsageTests {
     @Test("讀到範例的 5 小時與每週用量週期，重置時間在未來")
     func sampleUsage() async throws {
-        let usage = try await CodexUsageHost(channel: DemoHost()).readUsage()
+        let usage = try await CodexPlanUsageHost(channel: DemoHost()).readPlanUsage()
 
         #expect(usage.periods.map(\.kind) == [.fiveHour, .week])
         #expect(usage.periods.allSatisfy { ($0.resetsAt ?? .distantPast) > Date() })

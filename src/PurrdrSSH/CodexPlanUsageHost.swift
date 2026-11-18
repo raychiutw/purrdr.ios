@@ -2,7 +2,7 @@ import Foundation
 import PurrdrCore
 
 /// 查不到 Codex 方案用量的原因。
-public enum CodexUsageError: Error, Equatable {
+public enum CodexPlanUsageError: Error, Equatable {
     case codexNotFound
     case notSignedIn
     /// app-server 回報查詢失敗(帶它的說明)。
@@ -10,8 +10,18 @@ public enum CodexUsageError: Error, Equatable {
     case unreadableResponse
 }
 
+extension CodexPlanUsageError {
+    /// 沒登入 ChatGPT(或用 API key 登入)時錯誤訊息含這段(openai/codex `account_processor.rs`)。
+    static let notSignedInMessageFragment = "authentication required"
+
+    /// app-server 回報的查詢錯誤。
+    init(appServerMessage message: String) {
+        self = message.contains(Self.notSignedInMessageFragment) ? .notSignedIn : .requestFailed(message)
+    }
+}
+
 /// Codex 的方案用量(#178):執行一次 `codex app-server`,讀 `account/rateLimits/read`。
-public struct CodexUsageHost: Sendable {
+public struct CodexPlanUsageHost: Sendable {
     public static let command = "\(HerdrCommand.pathPrefix) codex app-server"
 
     private let channel: any HostChannel
@@ -25,7 +35,7 @@ public struct CodexUsageHost: Sendable {
     }
 
     /// 查一次：`initialize` → `initialized` → `account/rateLimits/read`,讀到回應就關閉通道(子程序跟著結束)。
-    public func readUsage() async throws -> PlanUsage {
+    public func readPlanUsage() async throws -> PlanUsage {
         let capturedAt = now()
         return try await channel.runOnce(Self.command, deadline: HostCommandDeadline.standard, sleep: sleep) { session in
             var responses = AppServerResponses(session.output)
@@ -51,7 +61,7 @@ public struct CodexUsageHost: Sendable {
     static func planUsage(from result: [String: Any], capturedAt: Date) throws -> PlanUsage {
         let buckets = result["rateLimitsByLimitId"] as? [String: Any]
         guard let snapshot = (buckets?["codex"] ?? result["rateLimits"]) as? [String: Any] else {
-            throw CodexUsageError.unreadableResponse
+            throw CodexPlanUsageError.unreadableResponse
         }
         var periods: [PlanUsage.Period] = []
         for (key, slotKind) in [("primary", PlanUsage.Period.Kind.fiveHour), ("secondary", .week)] {
@@ -85,7 +95,7 @@ private struct AppServerResponses {
         } catch {
             while let event = try? await events.next() {
                 if case .exit(let code, _) = event {
-                    if code == 127 { throw CodexUsageError.codexNotFound }
+                    if code == 127 { throw CodexPlanUsageError.codexNotFound }
                     break
                 }
             }
@@ -101,22 +111,17 @@ private struct AppServerResponses {
                 guard let message = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
                       (message["id"] as? NSNumber)?.intValue == id else { continue }
                 if let error = message["error"] as? [String: Any] {
-                    throw Self.failure(error["message"] as? String ?? "")
+                    throw CodexPlanUsageError(appServerMessage: error["message"] as? String ?? "")
                 }
-                guard let result = message["result"] as? [String: Any] else { throw CodexUsageError.unreadableResponse }
+                guard let result = message["result"] as? [String: Any] else { throw CodexPlanUsageError.unreadableResponse }
                 return result
             }
             switch try await events.next() {
             case .stdout(let data)?: buffer.append(data)
             case .stderr?: continue
             case .exit(let code, _)?: exitCode = exitCode ?? code
-            case nil: throw exitCode == 127 ? CodexUsageError.codexNotFound : CodexUsageError.unreadableResponse
+            case nil: throw exitCode == 127 ? CodexPlanUsageError.codexNotFound : CodexPlanUsageError.unreadableResponse
             }
         }
-    }
-
-    /// 沒登入時 app-server 回「… authentication required to read rate limits」(用 API key 登入也沒有方案用量)。
-    static func failure(_ message: String) -> CodexUsageError {
-        message.contains("authentication required") ? .notSignedIn : .requestFailed(message)
     }
 }

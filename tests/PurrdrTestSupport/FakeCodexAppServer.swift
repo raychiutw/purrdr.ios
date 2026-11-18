@@ -8,7 +8,7 @@ public enum FakeCodexAppServer {
     public static let initializeResponse = #"{"id":0,"result":{"userAgent":"codex_cli_rs/0.80.0"}}"#
 
     public static func host(
-        answering rateLimits: String?, initialize: String = initializeResponse, command: String = CodexUsageHost.command
+        answering rateLimits: String?, initialize: String = initializeResponse, command: String = CodexPlanUsageHost.command
     ) async -> FakeHost {
         let host = FakeHost()
         await host.expect(

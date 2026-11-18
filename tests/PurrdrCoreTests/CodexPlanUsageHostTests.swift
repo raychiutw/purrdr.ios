@@ -6,7 +6,7 @@ import Testing
 /// Codex 的方案用量(#178):經主機通道執行 `codex app-server`,`initialize` 後呼叫 `account/rateLimits/read`。
 /// 回應依 openai/codex `app-server-protocol` v2 的型別(camelCase、`usedPercent` 整數、`resetsAt` Unix 秒)手寫。
 @Suite("Codex 方案用量(主機)")
-struct CodexUsageHostTests {
+struct CodexPlanUsageHostTests {
     static let now = Date(timeIntervalSince1970: 1_738_400_000)
 
     /// 一個 bucket,5 小時與每週都有。
@@ -14,7 +14,7 @@ struct CodexUsageHostTests {
         {"id":1,"result":{"ordinaryUsageAllowed":true,"rateLimits":{"limitId":"codex","limitName":null,"primary":{"usedPercent":23,"windowDurationMins":300,"resetsAt":1738425600},"secondary":{"usedPercent":41,"windowDurationMins":10080,"resetsAt":1738857600},"credits":null,"planType":"plus"},"rateLimitsByLimitId":null}}
         """#
 
-    static func appServer(answering rateLimits: String?, command: String = CodexUsageHost.command) async -> FakeHost {
+    static func appServer(answering rateLimits: String?, command: String = CodexPlanUsageHost.command) async -> FakeHost {
         await FakeCodexAppServer.host(answering: rateLimits, command: command)
     }
 
@@ -28,7 +28,7 @@ struct CodexUsageHostTests {
     func singleBucket() async throws {
         let host = await Self.appServer(answering: Self.singleBucket)
 
-        let usage = try await CodexUsageHost(channel: host, now: { Self.now }).readUsage()
+        let usage = try await CodexPlanUsageHost(channel: host, now: { Self.now }).readPlanUsage()
 
         #expect(usage == PlanUsage(periods: [
             .init(kind: .fiveHour, usedPercentage: 23, resetsAt: Date(timeIntervalSince1970: 1_738_425_600)),
@@ -40,7 +40,7 @@ struct CodexUsageHostTests {
     }
 
     static func read(_ rateLimits: String) async throws -> PlanUsage {
-        try await CodexUsageHost(channel: await appServer(answering: rateLimits), now: { now }).readUsage()
+        try await CodexPlanUsageHost(channel: await appServer(answering: rateLimits), now: { now }).readPlanUsage()
     }
 
     @Test("只有每週(主要 bucket 是 10080 分鐘):依用量週期長度對應，只顯示每週")
@@ -79,31 +79,31 @@ struct CodexUsageHostTests {
     @Test("主機找不到 codex(sh 回 127):codexNotFound")
     func codexNotFound() async throws {
         let host = FakeHost()
-        await host.expect(CodexUsageHost.command, reply: FakeReply(stderr: Data("sh: codex: command not found\n".utf8), exitCode: 127))
+        await host.expect(CodexPlanUsageHost.command, reply: FakeReply(stderr: Data("sh: codex: command not found\n".utf8), exitCode: 127))
 
-        await #expect(throws: CodexUsageError.codexNotFound) {
-            try await CodexUsageHost(channel: host).readUsage()
+        await #expect(throws: CodexPlanUsageError.codexNotFound) {
+            try await CodexPlanUsageHost(channel: host).readPlanUsage()
         }
     }
 
     @Test("主機找不到 codex,且 app 寫 stdin 前通道已結束(寫入失敗):仍是 codexNotFound,不是通道錯誤")
     func codexNotFoundBeforeWrite() async throws {
-        await #expect(throws: CodexUsageError.codexNotFound) {
-            try await CodexUsageHost(channel: ExitedBeforeWriteChannel(exitCode: 127)).readUsage()
+        await #expect(throws: CodexPlanUsageError.codexNotFound) {
+            try await CodexPlanUsageHost(channel: ExitedBeforeWriteChannel(exitCode: 127)).readPlanUsage()
         }
     }
 
     @Test("寫 stdin 前通道已結束、但不是 127:照原本的寫入錯誤")
     func otherExitBeforeWriteKeepsChannelError() async throws {
         await #expect(throws: ExitedBeforeWriteChannel.ChannelClosed.self) {
-            try await CodexUsageHost(channel: ExitedBeforeWriteChannel(exitCode: 1)).readUsage()
+            try await CodexPlanUsageHost(channel: ExitedBeforeWriteChannel(exitCode: 1)).readPlanUsage()
         }
     }
 
-    @Test("Codex 沒登入(或用 API key 登入，沒有方案用量):notSignedIn")
+    @Test("Codex 沒登入(或用 API key 登入):錯誤訊息含 authentication required 時是 notSignedIn(依 openai/codex account_processor.rs)")
     func notSignedIn() async throws {
         for message in ["codex account authentication required to read rate limits", "chatgpt authentication required to read rate limits"] {
-            await #expect(throws: CodexUsageError.notSignedIn) {
+            await #expect(throws: CodexPlanUsageError.notSignedIn) {
                 try await Self.read(#"{"id":1,"error":{"code":-32600,"message":"\#(message)"}}"#)
             }
         }
@@ -111,30 +111,30 @@ struct CodexUsageHostTests {
 
     @Test("app-server 查詢失敗(例如連不到 OpenAI):帶 app-server 的說明")
     func requestFailed() async throws {
-        await #expect(throws: CodexUsageError.requestFailed("failed to fetch codex rate limits: timeout")) {
+        await #expect(throws: CodexPlanUsageError.requestFailed("failed to fetch codex rate limits: timeout")) {
             try await Self.read(#"{"id":1,"error":{"code":-32603,"message":"failed to fetch codex rate limits: timeout"}}"#)
         }
     }
 
     @Test("回應無法解析(沒有 rateLimits、或還沒回應就結束):unreadableResponse")
     func unreadableResponse() async throws {
-        await #expect(throws: CodexUsageError.unreadableResponse) {
+        await #expect(throws: CodexPlanUsageError.unreadableResponse) {
             try await Self.read(#"{"id":1,"result":{"accountId":"a"}}"#)
         }
         let host = FakeHost()
-        await host.expect(CodexUsageHost.command, reply: FakeReply(stdout: Data("not json\n".utf8), trigger: .afterStdinLine))
-        await #expect(throws: CodexUsageError.unreadableResponse) {
-            try await CodexUsageHost(channel: host).readUsage()
+        await host.expect(CodexPlanUsageHost.command, reply: FakeReply(stdout: Data("not json\n".utf8), trigger: .afterStdinLine))
+        await #expect(throws: CodexPlanUsageError.unreadableResponse) {
+            try await CodexPlanUsageHost(channel: host).readPlanUsage()
         }
     }
 
     @Test("app-server 一直不回應：沿用主機指令期限，逾時丟 deadlineExceeded 並關閉通道")
     func deadline() async throws {
         let host = FakeHost()
-        await host.expect(CodexUsageHost.command, reply: FakeReply(trigger: .afterStdinLine, keepsOpen: true))
+        await host.expect(CodexPlanUsageHost.command, reply: FakeReply(trigger: .afterStdinLine, keepsOpen: true))
 
         await #expect(throws: HostCommandError.deadlineExceeded) {
-            try await CodexUsageHost(channel: host, sleep: { _ in }).readUsage()
+            try await CodexPlanUsageHost(channel: host, sleep: { _ in }).readPlanUsage()
         }
         #expect(await host.waitUntilClosed(execution: 0))
     }
@@ -150,7 +150,7 @@ struct CodexUsageHostTests {
             """
         let host = await Self.appServer(answering: Self.singleBucket, command: PowerShell.encodedCommand(script))
 
-        let usage = try await CodexUsageHost(channel: WindowsHostChannel(host), now: { Self.now }).readUsage()
+        let usage = try await CodexPlanUsageHost(channel: WindowsHostChannel(host), now: { Self.now }).readPlanUsage()
 
         #expect(usage.periods.map(\.kind) == [.fiveHour, .week])
         #expect(await host.executions.first?.closedStdin == false)

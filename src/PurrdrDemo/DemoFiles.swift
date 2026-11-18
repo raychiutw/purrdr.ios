@@ -67,7 +67,7 @@ struct DemoFiles {
     }
 
     private func state(of path: HostPath, now: Date) -> HostFileState {
-        if path == ClaudeUsageHost.usagePath, files[ClaudeUsageHost.feature.ownFile("statusline.sh").relative] != nil {
+        if path == ClaudePlanUsageHost.usagePath, files[ClaudePlanUsageHost.feature.ownFile("statusline.sh").relative] != nil {
             let data = Self.sampleUsage(now: now)
             return .file(data, version: Self.version(of: data))
         }

@@ -342,7 +342,7 @@ struct HostsModelTests {
         store.hosts = [Self.studio, Self.httpsStudio]
         let real = FakeHost()
         let hostConsent = InMemoryHostWriteConsentStore()
-        hostConsent.grant(ClaudeUsageHost.feature.id, host: Self.httpsStudio.id.uuidString)
+        hostConsent.grant(ClaudePlanUsageHost.feature.id, host: Self.httpsStudio.id.uuidString)
         let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(real).make)
         model.load()
         let usage = model.planUsage()
@@ -384,9 +384,9 @@ struct HostsModelTests {
         other.name = "Zeta"
         store.hosts = [Self.studio, other]
         let hostConsent = InMemoryHostWriteConsentStore()
-        hostConsent.grant(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString)
+        hostConsent.grant(ClaudePlanUsageHost.feature.id, host: Self.studio.id.uuidString)
         hostConsent.grant("theme", host: Self.studio.id.uuidString)
-        hostConsent.grant(ClaudeUsageHost.feature.id, host: other.id.uuidString)
+        hostConsent.grant(ClaudePlanUsageHost.feature.id, host: other.id.uuidString)
         let model = HostsModel(store: store, demoChannel: FakeHost(), hostConsent: hostConsent, makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
         model.load()
 
@@ -395,9 +395,9 @@ struct HostsModelTests {
         #expect(store.hosts.map(\.id) == [other.id])
         #expect(model.rows.map(\.id) == [other.id])
         #expect(model.selection == .host(other.id))
-        #expect(!hostConsent.isGranted(ClaudeUsageHost.feature.id, host: Self.studio.id.uuidString))
+        #expect(!hostConsent.isGranted(ClaudePlanUsageHost.feature.id, host: Self.studio.id.uuidString))
         #expect(!hostConsent.isGranted("theme", host: Self.studio.id.uuidString))
-        #expect(hostConsent.isGranted(ClaudeUsageHost.feature.id, host: other.id.uuidString))
+        #expect(hostConsent.isGranted(ClaudePlanUsageHost.feature.id, host: other.id.uuidString))
 
         try await model.delete(other.id)
         #expect(model.selection == .demo)

@@ -31,7 +31,7 @@ struct PlanUsageModelTests {
     }
 
     func grantClaudeUsage(on selection: HostSelection = Self.mac) {
-        consent.grant(ClaudeUsageHost.feature.id, host: selection.storedValue)
+        consent.grant(ClaudePlanUsageHost.feature.id, host: selection.storedValue)
     }
 
     static let bothHosts = [PlanUsageHostOption(id: mac, name: "Mac"), PlanUsageHostOption(id: linux, name: "Linux")]
@@ -293,14 +293,14 @@ struct PlanUsageModelTests {
         #expect(model.rows.map(\.percent) == [77, 59])
         #expect(model.cost == .transfer)
         #expect(!model.canTurnOff)
-        #expect(await codex.executions.map(\.command) == [CodexUsageHost.command])
+        #expect(await codex.executions.map(\.command) == [CodexPlanUsageHost.command])
         #expect(host.commands.isEmpty)
     }
 
     @Test("Codex 的錯誤各有原因：找不到 codex、未登入、逾時、回應無法解析、查詢失敗(帶 app-server 的說明)")
     func codexErrorsHaveReasons() async throws {
         let notFound = FakeHost()
-        await notFound.expect(CodexUsageHost.command, reply: FakeReply(exitCode: 127))
+        await notFound.expect(CodexPlanUsageHost.command, reply: FakeReply(exitCode: 127))
         let signedOut = await FakeCodexAppServer.host(
             answering: #"{"id":1,"error":{"code":-32600,"message":"codex account authentication required to read rate limits"}}"#)
         let silent = await FakeCodexAppServer.host(answering: nil)
@@ -346,7 +346,7 @@ struct PlanUsageModelTests {
 
         #expect(model.state == .confirming(user: NSUserName()))
         #expect(try DirectorySnapshot(of: host.home) == before)
-        #expect(!consent.isGranted(ClaudeUsageHost.feature.id, host: Self.mac.storedValue))
+        #expect(!consent.isGranted(ClaudePlanUsageHost.feature.id, host: Self.mac.storedValue))
     }
 
     @Test("取消確認：回到需要同意，主機不變")
@@ -370,8 +370,8 @@ struct PlanUsageModelTests {
         await model.confirm()
 
         #expect(model.state == .noData)
-        #expect(consent.isGranted(ClaudeUsageHost.feature.id, host: Self.mac.storedValue))
-        #expect(try String(contentsOf: host.url(".claude/settings.json"), encoding: .utf8).contains(ClaudeUsageHost.wrapperCommand))
+        #expect(consent.isGranted(ClaudePlanUsageHost.feature.id, host: Self.mac.storedValue))
+        #expect(try String(contentsOf: host.url(".claude/settings.json"), encoding: .utf8).contains(ClaudePlanUsageHost.wrapperCommand))
 
         try claudeReportsUsage()
         await model.refresh()
@@ -405,7 +405,7 @@ struct PlanUsageModelTests {
         await model.turnOff()
 
         #expect(model.state == .needsConsent)
-        #expect(!consent.isGranted(ClaudeUsageHost.feature.id, host: Self.mac.storedValue))
+        #expect(!consent.isGranted(ClaudePlanUsageHost.feature.id, host: Self.mac.storedValue))
         #expect(try DirectorySnapshot(of: host.home) == before)
     }
 

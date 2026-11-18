@@ -12,7 +12,7 @@ import PurrdrCore
 /// (Claude Code 文件 statusline「Windows configuration」),所以包裝改成 PowerShell 腳本 `statusline.ps1`,指令寫成
 /// 兩種 shell 都能跑的 `powershell.exe … -File '<家目錄>/.purrdr/claude-usage/statusline.ps1'`(正斜線、單引號;
 /// `-ExecutionPolicy Bypass` 只對這個程序有效，不改主機設定)。原本的指令以 Git Bash 執行(找不到時用 PowerShell)。
-public struct ClaudeUsageHost: Sendable {
+public struct ClaudePlanUsageHost: Sendable {
     public static let settingsPath: HostPath = ".claude/settings.json"
     public static let feature = HostWriteFeature(id: "claude-usage", userFiles: [settingsPath])
     public static let usagePath = feature.ownFile("usage.json")
@@ -85,7 +85,7 @@ public struct ClaudeUsageHost: Sendable {
     }
 
     /// 讀包裝腳本最後存下的用量;還沒有(沒安裝、Claude Code 還沒回報)時是 `nil`。
-    public func readUsage() async throws -> ClaudeUsage? {
+    public func readPlanUsage() async throws -> ClaudeUsage? {
         let read = try await files.read([Self.usagePath])
         return read[Self.usagePath]?.contents.flatMap(ClaudeUsage.init(usageFile:))
     }
@@ -151,7 +151,7 @@ public struct ClaudeUsageHost: Sendable {
         """
 }
 
-extension ClaudeUsageHost {
+extension ClaudePlanUsageHost {
     /// Windows 的包裝腳本(PowerShell 5.1)。與 `wrapperScript` 相同的行為：輸入有 `rate_limits` 才存 `usage.json`
     /// (暫存檔再換上),再把同一份輸入交給原本的 status line,它的輸出直接接到 Claude Code(子程序繼承 stdout)。
     ///

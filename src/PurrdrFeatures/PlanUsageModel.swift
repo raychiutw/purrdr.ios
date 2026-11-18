@@ -66,8 +66,8 @@ extension PlanUsageSource {
     public static func claude(
         channel: any HostChannel, cost: PlanUsageQueryCost, hostID: String, consent: any HostWriteConsentStore
     ) -> PlanUsageSource {
-        let host = ClaudeUsageHost(channel: channel)
-        let feature = ClaudeUsageHost.feature.id
+        let host = ClaudePlanUsageHost(channel: channel)
+        let feature = ClaudePlanUsageHost.feature.id
         let hostWrite = PlanUsageHostWrite(
             isGranted: { consent.isGranted(feature, host: hostID) },
             inspect: { try await host.inspect().user },
@@ -79,15 +79,15 @@ extension PlanUsageSource {
                 try await host.restore()
                 consent.revoke(feature, host: hostID)
             })
-        return PlanUsageSource(cost: cost, hostWrite: hostWrite) { try await host.readUsage()?.planUsage }
+        return PlanUsageSource(cost: cost, hostWrite: hostWrite) { try await host.readPlanUsage()?.planUsage }
     }
 }
 
 extension PlanUsageSource {
     /// Codex:執行一次 `codex app-server` 查詢(不寫主機、不需同意)。
     public static func codex(channel: any HostChannel, cost: PlanUsageQueryCost, sleep: @escaping Sleep = Sleeping.task) -> PlanUsageSource {
-        let host = CodexUsageHost(channel: channel, sleep: sleep)
-        return PlanUsageSource(cost: cost) { try await host.readUsage() }
+        let host = CodexPlanUsageHost(channel: channel, sleep: sleep)
+        return PlanUsageSource(cost: cost) { try await host.readPlanUsage() }
     }
 }
 
@@ -162,10 +162,10 @@ public enum PlanUsageFailure: Equatable, Sendable {
     /// Codex 自己的錯誤與 app-server 逾時;其他是主機連線的錯誤。
     init(_ error: any Error, agent: PlanUsageAgent) {
         self = switch error {
-        case CodexUsageError.codexNotFound: .codexNotFound
-        case CodexUsageError.notSignedIn: .codexNotSignedIn
-        case CodexUsageError.unreadableResponse: .codexUnreadableResponse
-        case CodexUsageError.requestFailed(let message): .codexRequestFailed(message)
+        case CodexPlanUsageError.codexNotFound: .codexNotFound
+        case CodexPlanUsageError.notSignedIn: .codexNotSignedIn
+        case CodexPlanUsageError.unreadableResponse: .codexUnreadableResponse
+        case CodexPlanUsageError.requestFailed(let message): .codexRequestFailed(message)
         case HostCommandError.deadlineExceeded where agent == .codex: .codexTimedOut
         default: .connection(HostErrorText.message(for: error))
         }

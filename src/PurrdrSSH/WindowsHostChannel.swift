@@ -86,7 +86,7 @@ enum WindowsCommand {
         // 喚醒探測只看通道活不活，exit code 不重要:不必付 PowerShell 的啟動成本(0.6–2.5 s,§7.5 的期限是 3 秒)。
         if command == WakeProbe.command { return WindowsInvocation(command: command) }
         if let script = herdr(command) { return try inline(script) }
-        if command == CodexUsageHost.command { return try inline(codexAppServer) }
+        if command == CodexPlanUsageHost.command { return try inline(codexAppServer) }
         if let script = transcript(command) { return viaStdin(script) }
         if let script = hostFiles(command) { return viaStdin(script) }
         if let upload = ImageUploadCommand.parse(command) {
