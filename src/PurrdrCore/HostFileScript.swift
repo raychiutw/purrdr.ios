@@ -14,6 +14,8 @@ package enum HostFileScript {
     package static let maximumCommandLength = 126 * 1024
     /// 單一檔案的讀取上限。
     package static let maximumFileSize = 1024 * 1024
+    /// 條件式讀取時「沒有已知版本」的參數(不會等於任何版本)。
+    package static let unknownVersion = "-"
 
     package static func command(_ script: String, arguments: [String]) -> String {
         (["/bin/sh", "-c", PosixShell.quote(HostScriptTimeLimit.posixRead(script)), "purrdr"] + arguments.map(PosixShell.quote)).joined(separator: " ")
@@ -51,35 +53,57 @@ package enum HostFileScript {
     /// 讀取：參數是相對於家目錄的路徑。輸出
     /// `purrdr-files 1` / `user <名稱>` /(只有 Windows 版:`home <家目錄>`)/ 每個檔案一筆：`missing <i>`、`nodir <i>`、`other <i>`、
     /// `unreadable <i>`、`toolarge <i>`,或 `file <i> <版本> <bytes>` 接著原始內容再一個換行。
-    package static let read = prelude + """
+    package static let read = readPrelude + """
+        i=0
+        for rel in "$@"; do
+          readone "$rel" "$i" -
+          i=$((i + 1))
+        done
+        """
+
+    /// 條件式讀取：參數每兩個一組(路徑、已知版本;沒有是 `-`)。輸出同 `read`,但版本與已知版本相同時只印 `unchanged <i>`。
+    package static let readIfChanged = readPrelude + """
+        i=0
+        while [ "$#" -ge 2 ]; do
+          readone "$1" "$i" "$2"
+          shift 2
+          i=$((i + 1))
+        done
+        """
+
+    /// 讀取共用：暫存檔、開頭兩行，與讀一個檔案的 `readone <路徑> <序號> <已知版本>`。
+    private static let readPrelude = prelude + """
         tmp=$(mktemp "${TMPDIR:-/tmp}/purrdr.XXXXXX") || exit 70
         trap 'rm -f "$tmp"' EXIT
         printf 'purrdr-files 1%suser %s%s' "$nl" "$(id -un)" "$nl"
-        i=0
-        for rel in "$@"; do
-          p=$(resolve "$HOME/$rel")
+        readone() {
+          p=$(resolve "$HOME/$1")
           if [ -f "$p" ]; then
             if [ ! -r "$p" ]; then
-              printf 'unreadable %s%s' "$i" "$nl"
+              printf 'unreadable %s%s' "$2" "$nl"
             elif [ "$(($(wc -c < "$p")))" -gt \(maximumFileSize) ]; then
-              printf 'toolarge %s%s' "$i" "$nl"
+              printf 'toolarge %s%s' "$2" "$nl"
             elif cat "$p" > "$tmp"; then
-              size=$(($(wc -c < "$tmp")))
-              printf 'file %s %s %s%s' "$i" "$(checksum "$tmp")" "$size" "$nl"
-              cat "$tmp"
-              printf '%s' "$nl"
+              version=$(checksum "$tmp")
+              if [ "$version" = "$3" ]; then
+                printf 'unchanged %s%s' "$2" "$nl"
+              else
+                printf 'file %s %s %s%s' "$2" "$version" "$(($(wc -c < "$tmp")))" "$nl"
+                cat "$tmp"
+                printf '%s' "$nl"
+              fi
             else
-              printf 'unreadable %s%s' "$i" "$nl"
+              printf 'unreadable %s%s' "$2" "$nl"
             fi
           elif [ -e "$p" ]; then
-            printf 'other %s%s' "$i" "$nl"
+            printf 'other %s%s' "$2" "$nl"
           elif [ -d "$(dirname "$p")" ]; then
-            printf 'missing %s%s' "$i" "$nl"
+            printf 'missing %s%s' "$2" "$nl"
           else
-            printf 'nodir %s%s' "$i" "$nl"
+            printf 'nodir %s%s' "$2" "$nl"
           fi
-          i=$((i + 1))
-        done
+        }
+
         """
 
     /// 套用變更：參數每五個一組(`put`／`del`／`rmtree`／`mkdir`／`rmdir`、路徑、`any`／`missing`／版本、base64、是否可執行)。
@@ -195,9 +219,10 @@ package enum HostFileScript {
             throw HostFilesError.malformedOutput
         }
         var files: [HostPath: HostFileState] = [:]
+        var unchanged: Set<HostPath> = []
         var home: String?
         while let line = reader.line() {
-            if home == nil, files.isEmpty, line.hasPrefix("home ") {
+            if home == nil, files.isEmpty, unchanged.isEmpty, line.hasPrefix("home ") {
                 home = String(line.dropFirst("home ".count))
                 continue
             }
@@ -209,6 +234,7 @@ package enum HostFileScript {
             case "other": files[paths[index]] = .notRegularFile
             case "unreadable": files[paths[index]] = .unreadable
             case "toolarge": files[paths[index]] = .tooLarge
+            case "unchanged": unchanged.insert(paths[index])
             case "file":
                 guard fields.count == 4, let size = Int(fields[3]), let contents = reader.bytes(size), reader.line() == "" else {
                     throw HostFilesError.malformedOutput
@@ -218,10 +244,11 @@ package enum HostFileScript {
                 throw HostFilesError.malformedOutput
             }
         }
-        guard files.count == paths.count else { throw HostFilesError.malformedOutput }
+        guard files.count + unchanged.count == paths.count else { throw HostFilesError.malformedOutput }
         // `home` 行只有 Windows 版的讀腳本輸出(`WindowsScripts`)。
         return HostFileRead(
-            user: String(userLine.dropFirst("user ".count)), files: files, home: home, operatingSystem: home == nil ? nil : .windows)
+            user: String(userLine.dropFirst("user ".count)), files: files, home: home, operatingSystem: home == nil ? nil : .windows,
+            unchanged: unchanged)
     }
 }
 

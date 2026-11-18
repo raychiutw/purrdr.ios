@@ -312,6 +312,15 @@ struct WindowsRealHostIntegrationTests {
         #expect(read[".claude/nope.json"] == .missing)
         #expect(read[".nodir/x.json"] == .missingDirectory)
         #expect(read[".claude"] == .notRegularFile)
+        if case .file(_, let version)? = read[settings] {
+            let conditional = try await files.read([settings, ".claude/nope.json"], knownVersions: [settings: version])
+            #expect(conditional.unchanged == [settings])
+            #expect(conditional[".claude/nope.json"] == .missing)
+            let stale = try await files.read([settings], knownVersions: [settings: HostFileVersion(checksum: "stale:1")])
+            #expect(stale[settings]?.contents == original)
+        } else {
+            Issue.record("讀不到 settings")
+        }
         #expect(try await files.newest(in: ".claude/plugins/store", prefix: "cc-plugin-you-should-know_", suffix: ".json") != nil)
         #expect(try await files.newest(in: ".claude/nope", prefix: "a", suffix: ".json") == nil)
 

@@ -27,6 +27,9 @@ public final class YouShouldKnowModel {
     public private(set) var isWorking = false
 
     package static let pollInterval: Duration = .seconds(10)
+
+    /// 定期讀取：列表與聊天輸入列都 `attach()`,同一台主機只跑一份。
+    @ObservationIgnored public private(set) lazy var liveUpdates = SharedRun { [weak self] in await self?.run() }
     package static let relocateInterval: TimeInterval = 10 * 60
 
     private let host: any YouShouldKnowHosting
@@ -35,6 +38,8 @@ public final class YouShouldKnowModel {
     private let sleep: Sleep
     private var storePath: HostPath?
     private var locatedAt: Date?
+    /// 上次讀到的 store 版本(下次讀取沒變就不傳內容)。
+    private var storeVersion: HostFileVersion?
 
     public init(host: any YouShouldKnowHosting, hostID: String, consent: any HostWriteConsentStore,
                 sleep: @escaping Sleep = Sleeping.task) {
@@ -54,14 +59,21 @@ public final class YouShouldKnowModel {
     public func refresh() async {
         do {
             if storePath == nil || locatedAt.map({ Date().timeIntervalSince($0) > Self.relocateInterval }) ?? true {
-                storePath = try await host.locate()
+                let located = try await host.locate()
+                if located != storePath { storeVersion = nil }
+                storePath = located
                 locatedAt = Date()
             }
             guard let path = storePath else { notes = []; return }
-            if let store = try await host.read(path) {
+            switch try await host.read(path, ifChangedFrom: storeVersion) {
+            case .unchanged:
+                break
+            case .changed(let store?, let version):
                 notes = store.notes
-            } else {
+                storeVersion = version
+            case .changed(nil, _):
                 storePath = nil
+                storeVersion = nil
                 notes = []
             }
         } catch {
