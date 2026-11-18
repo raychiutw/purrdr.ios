@@ -90,6 +90,8 @@ public final class HostsModel {
 
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
+    /// 方案用量畫面上次選的主機與 Agent。
+    private let planUsageSelection: any PlanUsageSelectionStore
     private let demoChannel: any HostChannel
     /// Demo 的示範主機(#34)。
     private let demoCompanions: [DemoCompanionHost]
@@ -137,6 +139,7 @@ public final class HostsModel {
         preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),
         hostIcons: any HostIconStore = InMemoryHostIconStore(),
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
+        planUsageSelection: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
         hostService: HostServiceAccess = HostServiceAccess(),
@@ -150,6 +153,7 @@ public final class HostsModel {
         self.store = store
         agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
         self.selectionStore = selectionStore
+        self.planUsageSelection = planUsageSelection
         self.demoChannel = demoChannel
         self.demoCompanions = demoCompanions
         self.makeChannel = makeChannel
@@ -182,9 +186,26 @@ public final class HostsModel {
     /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
 
-    /// 方案用量畫面的 model(#177):打開畫面時建立。
+    /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
     public func planUsage() -> PlanUsageModel {
-        PlanUsageModel(hosts: [], fallback: selection, store: InMemoryPlanUsageSelectionStore()) { _, _ in nil }
+        let options = [PlanUsageHostOption(id: .demo, name: name(of: .demo))]
+            + hosts.map { PlanUsageHostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
+        return PlanUsageModel(hosts: options, fallback: selection, store: planUsageSelection) { [weak self] host, agent in
+            self?.planUsageSource(host, agent)
+        }
+    }
+
+    /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機不支援。
+    private func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
+        switch (host, agent) {
+        case (.demo, .claudeCode):
+            return .claude(channel: demoChannel, cost: .free, hostID: Self.demoID, consent: demoConsent)
+        case (.host(let id), .claudeCode):
+            guard let configuration = hosts.first(where: { $0.id == id }), !configuration.connectionMethod.usesHostService else {
+                return nil
+            }
+            return .claude(channel: member(for: host).channel, cost: .transfer, hostID: id.uuidString, consent: hostConsent)
+        }
     }
 
     /// 某台主機上某個 Pane 的終端機 model(標題)。
