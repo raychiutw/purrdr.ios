@@ -99,6 +99,34 @@ final class PaneTerminalUITests: XCTestCase {
         waitForScreen(screen, toContain: "ls^[x")
     }
 
+    /// 注音組字(#140):浮層出現在游標格子、念得出組字文字，確認前不送;放棄組字後浮層消失。
+    @MainActor
+    func testZhuyinCompositionShowsOverlayAtCursor() {
+        let app = XCUIApplication.launchUITesting(flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
+        let screen = openTerminal(app)
+        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        let input = app.descendants(matching: .any)["terminal.input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 5), "沒有終端機輸入元件")
+
+        // 模擬器接著實體鍵盤，軟體鍵盤在畫面外;以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
+        for key in ["s", "u", "3"] {
+            app.typeKey(key, modifierFlags: [])
+        }
+
+        let overlay = app.descendants(matching: .any)["terminal.composition"].firstMatch
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "組字時沒有浮層")
+        XCTAssertEqual(overlay.value as? String, "ㄋㄧˇ")
+        XCTAssertEqual(overlay.frame.minX, input.frame.minX, accuracy: 1, "浮層要從游標格子開始")
+        XCTAssertEqual(overlay.frame.minY, input.frame.minY, accuracy: 1, "浮層要在游標那一列")
+        XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "確認前不能送出注音")
+
+        // 模擬器的注音輸入法不會出候選字，改用按鍵列結束組字：先放棄組字(浮層消失)再送 Esc。
+        app.buttons["terminal.key.esc"].firstMatch.tap()
+        XCTAssertTrue(overlay.waitForNonExistence(timeout: 5), "放棄組字後浮層要消失")
+        waitForScreen(screen, toContain: "demo@purrdr ledger % ^[")
+        XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "放棄的注音不能送出")
+    }
+
     @MainActor
     func testStickyControlIsShownWithoutColorAndSendsControlC() {
         let app = XCUIApplication.launchUITesting()
