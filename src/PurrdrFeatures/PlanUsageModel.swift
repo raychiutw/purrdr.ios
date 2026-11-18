@@ -127,10 +127,24 @@ public final class InMemoryPlanUsageSelectionStore: PlanUsageSelectionStore {
 public final class UserDefaultsPlanUsageSelectionStore: PlanUsageSelectionStore {
     public static let defaultKey = "planUsageSelection"
 
-    public init(defaults: UserDefaults = .standard, key: String = defaultKey) {}
+    private let defaults: UserDefaults
+    private let key: String
 
-    public func load() -> PlanUsageSelection? { nil }
-    public func save(_ selection: PlanUsageSelection) {}
+    public init(defaults: UserDefaults = .standard, key: String = defaultKey) {
+        self.defaults = defaults
+        self.key = key
+    }
+
+    public func load() -> PlanUsageSelection? {
+        guard let stored = defaults.dictionary(forKey: key) as? [String: String],
+              let host = stored["host"].flatMap(HostSelection.init(storedValue:)),
+              let agent = stored["agent"].flatMap(PlanUsageAgent.init(rawValue:)) else { return nil }
+        return PlanUsageSelection(host: host, agent: agent)
+    }
+
+    public func save(_ selection: PlanUsageSelection) {
+        defaults.set(["host": selection.host.storedValue, "agent": selection.agent.rawValue], forKey: key)
+    }
 }
 
 /// 方案用量畫面的 model(#176、#177)。
