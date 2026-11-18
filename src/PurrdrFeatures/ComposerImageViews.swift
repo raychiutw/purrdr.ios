@@ -202,6 +202,8 @@ struct AttachmentStrip: View {
 struct AddImageButton: View {
     let model: ConversationModel
     var identifier = "composer.addImage"
+    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
+    var isInCard = false
     @State private var showsLibrary = false
     @State private var showsCamera = false
     @State private var asksSource = false
@@ -226,7 +228,7 @@ struct AddImageButton: View {
             case .showLimit: model.noteImageLimit()
             }
         }
-        .buttonStyle(.glass)
+        .composerSecondaryButtonStyle(isInCard: isInCard)
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
         .disabled(model.isSending)

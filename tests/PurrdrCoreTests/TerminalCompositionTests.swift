@@ -56,10 +56,10 @@ struct TerminalCompositionTests {
         #expect(composition.unmarkText() == [])
     }
 
-    @Test("Purrdr 自己結束組字(切換焦點、點畫面、換字型)放棄組字文字，之後系統的結束組字也不送")
-    func cancelDropsMarkedText() {
+    @Test("Purrdr 自己結束組字(切換焦點、點畫面、換字型)放棄組字文字(已選好的字也不送),之後系統的結束組字也不送", arguments: ["ㄋㄧˇ", "你好", "ni"])
+    func cancelDropsMarkedText(markedText: String) {
         var composition = TerminalComposition()
-        composition.setMarkedText("ㄋㄧˇ")
+        composition.setMarkedText(markedText)
 
         composition.cancel()
 
@@ -68,14 +68,30 @@ struct TerminalCompositionTests {
         #expect(composition.insertText("a") == Self.text("a"))
     }
 
-    @Test("系統發起的結束組字一律放棄組字文字、不送出(拼音、日文假名、注音都一樣)", arguments: [
-        ["ni hao"],
-        ["にほん"],
-        ["にほん", "日本"],
+    @Test("系統發起的結束組字：組字文字不含注音與聲調就當確認的文字送出(注音點候選字、拼音、日文假名)", arguments: [
+        (["ㄏㄠˇ", "好"], "好"),
+        (["ㄋㄧˇ", "你", "你ㄏ", "你ㄏㄠˇ", "你好"], "你好"),
+        (["ni hao"], "ni hao"),
+        (["にほん"], "にほん"),
+        (["にほん", "日本"], "日本"),
+    ])
+    func systemUnmarkCommitsMarkedTextWithoutZhuyin(markedTexts: [String], committed: String) {
+        var composition = TerminalComposition()
+        markedTexts.forEach { composition.setMarkedText($0) }
+
+        #expect(composition.unmarkText() == Self.text(committed))
+        #expect(!composition.isComposing)
+        #expect(composition.markedText == "")
+    }
+
+    @Test("系統發起的結束組字：組字文字含注音或聲調就全部放棄、不送出(打到一半被打斷寧可少送)", arguments: [
+        ["ㄏㄠˇ"],
+        ["ㄏ"],
         ["你ㄏㄠˇ"],
+        ["你好ˇ"],
         ["ㄅㄆㄇㄈˊˋ˙ㆠ"],
     ])
-    func systemUnmarkDiscardsMarkedText(markedTexts: [String]) {
+    func systemUnmarkDiscardsMarkedTextWithZhuyin(markedTexts: [String]) {
         var composition = TerminalComposition()
         markedTexts.forEach { composition.setMarkedText($0) }
 
@@ -213,12 +229,12 @@ struct TerminalCompositionTests {
     ])
     func keyBarWhileComposingDropsMarkedText(key: TerminalKey) {
         var composition = TerminalComposition()
-        composition.setMarkedText("ㄋㄧˇ")
+        composition.setMarkedText("你好")
 
         #expect(composition.pressKeyBarKey(key, modes: .hiddenByHerdr) == [.key(key, modifiers: [])])
         #expect(!composition.isComposing)
         #expect(composition.markedText == "")
-        // 系統隨後結束組字也不會把注音送出。
+        // 系統隨後結束組字也不會把組字文字送出。
         #expect(composition.unmarkText() == [])
     }
 

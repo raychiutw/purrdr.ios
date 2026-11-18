@@ -31,11 +31,16 @@ public protocol HostConnection: Sendable {
 
     /// 這支裝置是否配對成唯讀(寫入類操作會被拒絕)。
     func isReadOnlyDevice() async throws -> Bool
+
+    /// 主機上 Purrdr 主機服務的版本(畫面據此提示更新，#198);沒有主機服務的連線方式(SSH)是 `nil`。
+    func hostServiceVersion() async throws -> String?
 }
 
 extension HostConnection {
     /// SSH 等沒有裝置權限的連線方式一律可寫入。
     public func isReadOnlyDevice() async throws -> Bool { false }
+
+    public func hostServiceVersion() async throws -> String? { nil }
 }
 
 extension HostConnection {

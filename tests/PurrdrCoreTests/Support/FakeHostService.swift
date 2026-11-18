@@ -80,6 +80,8 @@ final class FakeHostService: Sendable {
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
         var promptHerdrError: String?
+        /// `welcome` 回報的主機服務版本;`nil` 是範例的值。
+        var hostServiceVersion: String?
     }
 
     let port: Int
@@ -258,7 +260,9 @@ final class FakeHostService: Sendable {
                 ]))]
             }
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) ?? false
-            return [.text(Self.example("server.welcome.json", requestID: requestID, changing: ["read_only": readOnly]))]
+            var changing: [String: Any] = ["read_only": readOnly]
+            if let version = settings.hostServiceVersion { changing["host_service_version"] = version }
+            return [.text(Self.example("server.welcome.json", requestID: requestID, changing: changing))]
         case "agents.list":
             switch settings.agentsReply {
             case .example: return [.text(Self.example("server.agents-list-result.json", requestID: requestID))]

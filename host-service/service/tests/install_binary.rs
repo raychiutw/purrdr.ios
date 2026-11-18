@@ -56,3 +56,20 @@ fn invalid_install_arguments_exit_with_usage_error() {
 fn windows_background_executable_is_built_alongside() {
     assert!(std::path::Path::new(env!("CARGO_BIN_EXE_purrdr-host-service-background")).is_file());
 }
+
+/// 一行安裝腳本與 app 的更新提示都靠它認版本(#198)。
+#[test]
+fn version_flag_prints_version_without_touching_home() {
+    let home = TempDirectory::new("binary-version");
+
+    for flag in ["--version", "-V"] {
+        let output = run(&home, &[flag]);
+
+        assert!(output.status.success(), "{output:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("purrdr-host-service {}\n", env!("CARGO_PKG_VERSION"))
+        );
+    }
+    assert_eq!(std::fs::read_dir(&home.0).unwrap().count(), 0);
+}

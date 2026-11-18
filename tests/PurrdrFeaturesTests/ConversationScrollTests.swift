@@ -181,4 +181,92 @@ struct ConversationScrollTests {
         scroll.userScrolled(distanceFromBottom: 900)
         #expect(!scroll.returnsToContent(beyond, at: now.addingTimeInterval(0.5)), "使用者自己捲過就不再介入")
     }
+
+    // iPhone 17 實測(#185,唯讀裝置的「需要你」對話):內容只比可見範圍高 6pt,捲到底(−110.3)後系統又把位置
+    // 推回內容之外(−10.6,差一個底部 inset),兩邊來回搶，主執行緒滿載。
+    static func barelyTaller(offsetY: Double, contentHeight: Double = 664) -> ConversationScrollMetrics {
+        ConversationScrollMetrics(
+            contentHeight: contentHeight, containerHeight: 658.33, contentOffsetY: offsetY, topInset: 116, bottomInset: 99.75
+        )
+    }
+
+    @Test("內容高度沒變時，捲回內容後又被推回內容之外：不再搶著捲到底")
+    func returningToContentDoesNotFightTheSystemAtTheSameContentHeight() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var scroll = ConversationScroll()
+        let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
+        #expect(scroll.returnsToContent(pushedBeyond, at: now))
+        scroll.returnedToContent(pushedBeyond)
+        #expect(!scroll.returnsToContent(Self.barelyTaller(offsetY: -110.33), at: now))
+
+        #expect(!scroll.returnsToContent(pushedBeyond, at: now), "同一個內容高度只捲回一次")
+        #expect(scroll.returnsToContent(Self.barelyTaller(offsetY: 600, contentHeight: 1200), at: now), "內容高度變了照樣捲回")
+    }
+
+    // iPhone 17 實測(#191,ledger 長對話、You should know 卡片＋建議列):可見範圍 254pt、位置在底部(距底 0),
+    // LazyVStack 卻一列都沒長出來，之後沒有任何排版變化，畫面一直空白。
+    static func smallViewport(contentHeight: Double = 48845) -> ConversationScrollMetrics {
+        ConversationScrollMetrics(
+            contentHeight: contentHeight, containerHeight: 254, contentOffsetY: contentHeight - 254 - 116, topInset: 116, bottomInset: 504
+        )
+    }
+
+    @Test("跟隨中停在底部卻一列都沒顯示：再捲到底一次;同一個排版只一次")
+    func refillsBlankVisibleRangeOncePerContentHeight() {
+        var scroll = ConversationScroll()
+        let blank = Self.smallViewport()
+        #expect(scroll.refillsVisibleRange(blank, visibleRows: 0))
+        #expect(!scroll.refillsVisibleRange(blank, visibleRows: 2), "有列在畫面上")
+
+        scroll.returnedToContent(blank)
+        #expect(!scroll.refillsVisibleRange(blank, visibleRows: 0), "同一個排版不再捲，不與系統來回搶")
+        #expect(scroll.refillsVisibleRange(Self.smallViewport(contentHeight: 46879), visibleRows: 0), "內容高度變了再捲一次")
+    }
+
+    @Test("一列都沒顯示但不該介入：閱讀中、可見範圍沒有高度、內容比畫面矮")
+    func blankVisibleRangeLeftAloneWhenNotFollowing() {
+        let blank = Self.smallViewport()
+        #expect(!Self.reading().refillsVisibleRange(blank, visibleRows: 0), "閱讀中不把讀者拉走")
+        let collapsed = ConversationScrollMetrics(
+            contentHeight: 48845, containerHeight: 0, contentOffsetY: 48729, topInset: 116, bottomInset: 758
+        )
+        #expect(!ConversationScroll().refillsVisibleRange(collapsed, visibleRows: 0), "可見範圍被擠到沒有高度")
+        #expect(!ConversationScroll().refillsVisibleRange(Self.measured(offsetY: -116, contentHeight: 300), visibleRows: 0), "內容不用捲")
+    }
+
+    @Test("捲回內容後 inset 變了(輸入列、卡片排好)又停在內容之外：照樣捲回")
+    func returnsAgainWhenInsetsChangeAtTheSameContentHeight() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#191):第一次排版還沒有 inset 時就捲過一次，排好 inset 後 `scrollTo(edge: .bottom)` 多捲一個底部 inset。
+        let beforeInsets = ConversationScrollMetrics(contentHeight: 41209, containerHeight: 174, contentOffsetY: 41035, topInset: 0, bottomInset: 0)
+        scroll.returnedToContent(beforeInsets)
+        let pushedBeyond = ConversationScrollMetrics(contentHeight: 41209, containerHeight: 174, contentOffsetY: 41389, topInset: 116, bottomInset: 470)
+        #expect(scroll.returnsToContent(pushedBeyond, at: now))
+    }
+
+    @Test("一直沒有列長出來(兩種排版來回跳)：再捲有次數上限，不與系統來回搶;有列顯示過就重新計算")
+    func refillingIsBoundedWhenRowsNeverAppear() {
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#191,軟體鍵盤叫出):內容高在兩個值之間來回跳，每次都一列沒有。
+        let layoutA = Self.smallViewport(contentHeight: 29099)
+        let layoutB = Self.smallViewport(contentHeight: 29141)
+        var refills = 0
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() where scroll.refillsVisibleRange(metrics, visibleRows: 0) {
+            scroll.returnedToContent(metrics)
+            refills += 1
+        }
+        #expect(refills == ConversationScroll.maximumRefills)
+
+        scroll.visibleRowsChanged(count: 3)
+        #expect(scroll.refillsVisibleRange(Self.smallViewport(contentHeight: 29300), visibleRows: 0), "有列顯示過，之後又空白就再捲")
+    }
+
+    @Test("可見範圍不到一列高(軟體鍵盤＋卡片擠掉)：不再捲，畫不出任何列")
+    func noRefillBelowOneRow() {
+        let squeezed = ConversationScrollMetrics(contentHeight: 29099, containerHeight: 6, contentOffsetY: 28869, topInset: 116, bottomInset: 752)
+        #expect(!ConversationScroll().refillsVisibleRange(squeezed, visibleRows: 0))
+        let squeezedBeyond = ConversationScrollMetrics(contentHeight: 29390, containerHeight: 6, contentOffsetY: 29653, topInset: 116, bottomInset: 752)
+        #expect(!ConversationScroll().returnsToContent(squeezedBeyond, at: Date(timeIntervalSince1970: 1_000)), "停在內容之外也不捲")
+    }
 }

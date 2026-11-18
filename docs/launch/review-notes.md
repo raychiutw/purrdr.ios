@@ -10,7 +10,7 @@ App Store Connect → 版本 → App 審查資訊 →「備註」(上限 4,000 �
 ## 貼到 App Store Connect 的備註(English)
 
 ```
-Purrdr is a client for herdr, an open-source tool that runs AI coding agents (such as Claude Code and Codex) on the user's own computer. The app connects directly to that computer over SSH (Tailscale SSH or OpenSSH) to read agent conversations, answer agent questions, and open a terminal. It needs the user's own computer running herdr, so we built a Demo host into the app for review. The Demo host is simulated entirely inside the app: it connects to nothing, and the same Demo ships in the release build.
+Purrdr is a client for herdr, an open-source tool that runs AI coding agents (such as Claude Code and Codex) on the user's own computer. The app connects directly to that computer over SSH (Tailscale SSH or OpenSSH), or over HTTPS inside the user's Tailscale network through the free, open-source Purrdr host service the user installs on that computer (https://raychiutw.github.io/purrdr/host-service/), to read agent conversations, answer agent questions, and open a terminal. It needs the user's own computer running herdr, so we built a Demo host into the app for review. The Demo host is simulated entirely inside the app: it connects to nothing, and the same Demo ships in the release build.
 
 HOW TO OPEN THE DEMO
 On first launch a Welcome screen appears. Tap "Try the Demo". (If you dismissed it: ⋯ > Settings > Show Welcome, or pick "Demo" in the host menu at the top of the list.) With no hosts added, the Demo host is selected automatically.
@@ -28,7 +28,7 @@ WHAT YOU CAN TRY ON THE DEMO HOST
 Things the Demo host cannot do, by design: start new chats or create workspaces (it shows "The Demo host can't start new chats. Add your own host to try this."), and send notifications.
 
 WHY A REAL HOST IS NEEDED
-Everything except the Demo talks to the user's own computer over SSH; there is no Purrdr server in that path. Conversations and terminal sessions never pass through our servers, so we cannot provide a shared test computer.
+Everything except the Demo talks to the user's own computer over SSH or the host service's HTTPS address in the user's tailnet; there is no Purrdr server in that path. Conversations and terminal sessions never pass through our servers, so we cannot provide a shared test computer.
 
 PURRDR PLUS (AUTO-RENEWABLE SUBSCRIPTION)
 Purrdr Plus adds notifications when an agent needs you and host-list sync between devices. Chat, the terminal, and the Demo are free and never require an account or subscription.

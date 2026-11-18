@@ -1,4 +1,5 @@
 #if canImport(UIKit)
+import os
 import PurrdrCore
 import UIKit
 
@@ -28,6 +29,8 @@ final class TerminalTextInputView: UIView, UITextInput {
         didSet { onCompositionChange?() }
     }
     private var keyRepeat: Timer?
+    /// 輸入法診斷紀錄：Console 篩 subsystem com.raychiu.purrdr、category ime;只記字元類別與長度。
+    private static let imeLog = Logger(subsystem: "com.raychiu.purrdr", category: "ime")
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -53,13 +56,18 @@ final class TerminalTextInputView: UIView, UITextInput {
 
     override func becomeFirstResponder() -> Bool {
         let became = super.becomeFirstResponder()
-        if became { onFocusChange?(true) }
+        if became {
+            trace(.becomeFirstResponder, markedBefore: composition.markedText)
+            onFocusChange?(true)
+        }
         return became
     }
 
     /// 離開焦點前先放棄組字，系統隨後的結束組字就不會把注音送出。
     override func resignFirstResponder() -> Bool {
-        cancelComposition()
+        let markedBefore = composition.markedText
+        changeComposition { $0.cancel() }
+        trace(.resignFirstResponder, markedBefore: markedBefore)
         let resigned = super.resignFirstResponder()
         if resigned {
             stopKeyRepeat()
@@ -70,18 +78,26 @@ final class TerminalTextInputView: UIView, UITextInput {
 
     /// Purrdr 自己結束組字：放棄組字文字並通知系統文字已變，不送出。
     func cancelComposition() {
+        let markedBefore = composition.markedText
         changeComposition { $0.cancel() }
+        trace(.cancelComposition, markedBefore: markedBefore)
     }
 
     /// 按鍵列的鍵：組字中先放棄組字再送。
     func pressKeyBarKey(_ key: TerminalKey) {
         let modes = programModes()
-        send(changeComposition { $0.pressKeyBarKey(key, modes: modes) })
+        let markedBefore = composition.markedText
+        let sends = changeComposition { $0.pressKeyBarKey(key, modes: modes) }
+        trace(.keyBarKey, markedBefore: markedBefore, sent: sends)
+        send(sends)
     }
 
     /// 貼上(按鍵列、Command-V、編輯選單):組字中先放棄組字再送。
     func paste(text: String) {
-        send(changeComposition { $0.paste(text) })
+        let markedBefore = composition.markedText
+        let sends = changeComposition { $0.paste(text) }
+        trace(.paste, markedBefore: markedBefore, sent: sends)
+        send(sends)
     }
 
     /// 改組字狀態;組字文字因此被清掉時通知系統，輸入法才不會留著舊的組字。
@@ -98,6 +114,18 @@ final class TerminalTextInputView: UIView, UITextInput {
 
     private func send(_ sends: [TerminalRemoteInput]) {
         sends.forEach { onSend?($0) }
+    }
+
+    /// 記一行輸入診斷(public:只有字元類別與長度，沒有原文)。
+    private func trace(
+        _ call: TerminalInputCall, text: String? = nil, selectedRange: NSRange? = nil,
+        markedBefore: String, sent: [TerminalRemoteInput] = []
+    ) {
+        let line = TerminalInputTrace.line(
+            call, text: text, selectedRange: selectedRange ?? markedSelection,
+            markedBefore: markedBefore, markedAfter: composition.markedText, sent: sent
+        )
+        Self.imeLog.notice("\(line, privacy: .public)")
     }
 
     // MARK: - 編輯動作
@@ -176,13 +204,19 @@ final class TerminalTextInputView: UIView, UITextInput {
     var hasText: Bool { true }
 
     func insertText(_ text: String) {
-        send(composition.insertText(text))
+        let markedBefore = composition.markedText
+        let sends = composition.insertText(text)
         markedSelection = NSRange(location: 0, length: 0)
+        trace(.insertText, text: text, markedBefore: markedBefore, sent: sends)
+        send(sends)
     }
 
     func deleteBackward() {
-        send(composition.deleteBackward())
+        let markedBefore = composition.markedText
+        let sends = composition.deleteBackward()
         markedSelection = NSRange(location: markedLength, length: 0)
+        trace(.deleteBackward, markedBefore: markedBefore, sent: sends)
+        send(sends)
     }
 
     // MARK: - 輸入特性(終端機不要自動修正)
@@ -204,6 +238,8 @@ final class TerminalTextInputView: UIView, UITextInput {
     private var markedLength: Int { composition.markedText.utf16.count }
 
     func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
+        let markedBefore = composition.markedText
+        defer { trace(.setMarkedText, text: markedText ?? "", selectedRange: selectedRange, markedBefore: markedBefore) }
         composition.setMarkedText(markedText ?? "")
         let length = markedLength
         let location = min(max(selectedRange.location, 0), length)
@@ -211,8 +247,11 @@ final class TerminalTextInputView: UIView, UITextInput {
     }
 
     func unmarkText() {
-        send(composition.unmarkText())
+        let markedBefore = composition.markedText
+        let sends = composition.unmarkText()
         markedSelection = NSRange(location: 0, length: 0)
+        trace(.unmarkText, markedBefore: markedBefore, sent: sends)
+        send(sends)
     }
 
     var markedTextRange: UITextRange? {
@@ -241,6 +280,7 @@ final class TerminalTextInputView: UIView, UITextInput {
 
     /// 系統直接換掉文件的一段:組字中改組字文字，否則當成確認的文字送出。
     func replace(_ range: UITextRange, withText text: String) {
+        trace(.replace, text: text, selectedRange: (range as? TerminalTextRange)?.range, markedBefore: composition.markedText)
         guard composition.isComposing, let range = (range as? TerminalTextRange)?.range else {
             insertText(text)
             return

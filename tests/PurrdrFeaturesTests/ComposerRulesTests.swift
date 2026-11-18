@@ -67,11 +67,24 @@ struct ComposerRulesTests {
         #expect(Self.layout(lines: 5, lineHeight: 22, available: 380) == ComposerHeight(height: 132, scrolls: false))
     }
 
-    @Test("最小 44pt:一行的高度與可用高度很小時都不低於 44pt")
+    @Test("預設高度是兩行(#187):空白或一行時也留兩行的空間")
+    func defaultsToTwoLines() {
+        #expect(Self.layout(lines: 0) == ComposerHeight(height: 62, scrolls: false))
+        #expect(Self.layout(lines: 1) == ComposerHeight(height: 62, scrolls: false))
+        #expect(Self.layout(lines: 2) == ComposerHeight(height: 62, scrolls: false))
+        #expect(Self.layout(lines: 3) == ComposerHeight(height: 82, scrolls: false))
+        // 行高有小數時無條件進位(2 × 20.3 + 22 = 62.6)。
+        #expect(Self.layout(lines: 1, lineHeight: 20.3) == ComposerHeight(height: 63, scrolls: false))
+    }
+
+    @Test("兩行的預設高度不超過長高上限;上限再小也不低於 44pt")
     func neverShorterThanMinimum() {
-        #expect(Self.layout(lines: 1) == ComposerHeight(height: 44, scrolls: false))
+        // 40% 上限 56pt 比兩行(62pt)矮：以上限為準。
+        #expect(Self.layout(lines: 1, available: 140) == ComposerHeight(height: 56, scrolls: false))
         #expect(Self.layout(lines: 1, available: 50) == ComposerHeight(height: 44, scrolls: false))
         #expect(Self.layout(lines: 3, available: 50) == ComposerHeight(height: 44, scrolls: true))
+        // 行高很小時兩行不到 44pt,仍是 44pt。
+        #expect(Self.layout(lines: 1, lineHeight: 8) == ComposerHeight(height: 44, scrolls: false))
     }
 
     @Test("內容剛好等於上限時不內捲;不知道可用高度時只看 8 行")

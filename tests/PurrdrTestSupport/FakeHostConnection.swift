@@ -22,7 +22,16 @@ public actor FakeHostConnection: HostConnection {
     private var expectations: [(method: String, reply: Data)] = []
     private var subscriptions: [AsyncThrowingStream<Data, any Error>.Continuation] = []
 
+    /// `hostServiceVersion()` 回報的版本(#198);`nil` 像 SSH 一樣沒有主機服務。
+    private var reportedHostServiceVersion: String?
+
     public init() {}
+
+    public func setHostServiceVersion(_ version: String?) {
+        reportedHostServiceVersion = version
+    }
+
+    public func hostServiceVersion() async throws -> String? { reportedHostServiceVersion }
 
     /// 預期 app 會送出 `method` 的請求，以 `reply`(錄製的回應)回應。同一 method 可預期多次，依序消耗。
     /// `events.subscribe` 的回應送完後串流保持開著，之後用 `send(event:toSubscription:)` 推事件。

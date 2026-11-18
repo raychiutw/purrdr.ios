@@ -81,6 +81,10 @@ public actor HTTPSHostConnection: HostConnection {
         try await hostServiceInfo().readOnly
     }
 
+    public func hostServiceVersion() async throws -> String? {
+        try await hostServiceInfo().hostServiceVersion
+    }
+
     // MARK: - Agent 事件串流
 
     /// `events.subscribe` → 主機服務的事件串流(herdr 接受後才回 ack)。事件換成 herdr 的事件行;

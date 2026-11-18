@@ -67,6 +67,41 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["composer.send"].firstMatch.exists, "唯讀裝置不應該有送出鈕")
     }
 
+    /// 主機服務比 app 已知的舊(`-demoOutdatedHostService`,#198):主機清單標示可更新，點進去有兩種作業系統的更新指令;
+    /// 選「這個版本不再提醒」後標示消失。
+    @MainActor
+    func testOutdatedHostServiceOffersUpdate() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoOutdatedHostService"])
+        openAddHost(app)
+        chooseHTTPS(app)
+        fill(app, code: "K7QM-2XPA")
+        let test = app.buttons["hostEditor.test"]
+        XCTAssertTrue(test.exists || scrollTo(test, in: app))
+        test.tap()
+        let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch
+        XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
+        app.buttons["hostEditor.save"].tap()
+
+        app.buttons["toolbar.more"].tap()
+        app.buttons["menu.hosts"].tap()
+        let update = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "hosts.update.")).firstMatch
+        XCTAssertTrue(update.waitForExistence(timeout: 10), "主機清單沒有更新提示")
+        XCTAssertTrue(app.descendants(matching: .any)["hosts.row.hostServiceUpdate"].firstMatch.exists, "主機列沒有標示可更新")
+        update.tap()
+
+        let posix = app.staticTexts["hostServiceUpdate.command.posix"]
+        XCTAssertTrue(posix.waitForExistence(timeout: 5), "沒有 macOS／Linux 的更新指令")
+        XCTAssertTrue(posix.label.contains("install.sh | sh"), posix.label)
+        XCTAssertTrue(app.staticTexts["hostServiceUpdate.command.windows"].label.contains("install.ps1 | iex"))
+        let dismiss = app.buttons["hostServiceUpdate.dismiss"]
+        XCTAssertTrue(dismiss.exists || scrollTo(dismiss, in: app))
+        dismiss.tap()
+
+        XCTAssertTrue(app.buttons["hosts.add"].waitForExistence(timeout: 5), "沒有回到主機清單")
+        XCTAssertFalse(update.exists, "關閉後仍有更新提示")
+        XCTAssertFalse(app.descendants(matching: .any)["hosts.row.hostServiceUpdate"].firstMatch.exists, "關閉後主機列仍標示可更新")
+    }
+
     /// 配對碼過期：說明原因，不能儲存。
     @MainActor
     func testExpiredPairingCodeIsExplained() {
