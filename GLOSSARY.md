@@ -19,7 +19,7 @@ _避免_:Transport、Auth mode
 _避免_:目前主機、Active host
 
 **主機分享連結**:
-把一台主機的連線設定(名稱、位址、埠、使用者名稱、連線方式、herdr 路徑與 session、host key 指紋)編成 `purrdr://host?d=…` 的連結;QR code 的內容就是它。永不含私鑰、密碼或 passphrase。匯入後仍要通過連線測試才儲存。
+把一台主機的連線設定(名稱、位址、埠、使用者名稱、連線方式、herdr 路徑與 session、host key 指紋;HTTPS 主機是名稱與 HTTPS 位址)編成 `purrdr://host?d=…` 的連結;QR code 的內容就是它。永不含私鑰、密碼、passphrase 或裝置權杖。匯入後仍要通過連線測試才儲存(HTTPS 主機要先在這支裝置連線配對)。
 _避免_:匯出檔、Config QR、邀請連結
 
 **Demo 主機**(Demo host):

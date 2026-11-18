@@ -30,13 +30,55 @@ struct HostSyncJournalTests {
         #expect(changes == [.upsert(Self.remote(at: Self.t1))])
     }
 
-    @Test("HTTPS 主機還不上傳(主機同步支援 HTTPS 前，避免被當成 Tailscale SSH 主機)")
-    func httpsHostIsNotPending() throws {
+    @Test("HTTPS 主機上傳名稱、連線方式與主機服務位址")
+    func httpsHostIsPendingWithAddress() throws {
         var journal = HostSyncJournal()
-        let https = HostConfiguration(name: "Studio Mac", hostService: try #require(HostServiceAddress("studio.tail1234.ts.net")))
+        let address = try #require(HostServiceAddress("studio.tail1234.ts.net"))
+        let https = HostConfiguration(name: "Studio Mac", hostService: address)
         journal.recordSave(https.id, at: Self.t1)
 
-        #expect(journal.pendingChanges(hosts: [https], now: Self.t3).isEmpty)
+        let changes = journal.pendingChanges(hosts: [https], now: Self.t3)
+
+        #expect(changes == [.upsert(SyncedHost(
+            id: https.id, name: "Studio Mac", endpoint: SSHEndpoint(host: "studio.tail1234.ts.net", port: 443, username: ""),
+            connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: Self.t1))])
+    }
+
+    @Test("別台裝置新增的 HTTPS 主機：存成有主機服務位址的 HTTPS 主機(權杖要在這支裝置重新配對)")
+    func remoteHTTPSHostIsAdded() throws {
+        var journal = HostSyncJournal()
+        let address = try #require(HostServiceAddress("studio.tail1234.ts.net"))
+        let remote = SyncedHost(
+            id: UUID(), name: "Studio", endpoint: SSHEndpoint(host: "studio.tail1234.ts.net", port: 443, username: ""),
+            connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: Self.t1)
+
+        let outcome = journal.reconcile(hosts: [], sent: [], snapshot: HostSyncSnapshot(hosts: [remote], deletedHostIDs: []))
+
+        #expect(outcome.saves == [HostConfiguration(id: remote.id, name: "Studio", hostService: address)])
+    }
+
+    @Test("別台裝置把 SSH 主機改成 HTTPS:換成主機服務位址，SSH 登入方式清掉;改回 SSH 時位址清掉")
+    func connectionMethodSwitchesBetweenSSHAndHTTPS() throws {
+        var journal = HostSyncJournal()
+        let address = try #require(HostServiceAddress("studio.tail1234.ts.net"))
+        let toHTTPS = SyncedHost(
+            id: Self.studio.id, name: "Studio Mac", endpoint: SSHEndpoint(host: "studio.tail1234.ts.net", port: 443, username: ""),
+            connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: Self.t2)
+
+        let outcome = journal.reconcile(hosts: [Self.studio], sent: [], snapshot: HostSyncSnapshot(hosts: [toHTTPS], deletedHostIDs: []))
+        let https = try #require(outcome.saves.first)
+
+        #expect(https.connectionMethod == .https)
+        #expect(https.hostService == address)
+        #expect(https.authentication == nil)
+        #expect(https.hostKeyPin == nil)
+
+        let backToSSH = Self.remote(at: Self.t3)
+        let second = journal.reconcile(hosts: [https], sent: [], snapshot: HostSyncSnapshot(hosts: [backToSSH], deletedHostIDs: []))
+        let ssh = try #require(second.saves.first)
+        #expect(ssh.connectionMethod == .openSSH)
+        #expect(ssh.hostService == nil)
+        #expect(ssh.authentication == .deviceKey)
     }
 
     @Test("後台確認之後就不再上傳")

@@ -85,10 +85,15 @@ public final class HostEditorModel {
     /// 是否是編輯既有主機。
     public var isEditing: Bool { existing != nil }
 
+    /// HTTPS 主機要輸入配對碼：新主機，或這支裝置還沒有它的裝置權杖(例如主機同步帶來的)。
+    public var needsPairingCode: Bool { connectionMethod == .https && !hasStoredDeviceToken }
+
     private let store: any HostStore
     private let existing: HostConfiguration?
     private let credentials: HostCredentials
     private let hostService: HostServiceAccess
+    /// 編輯的 HTTPS 主機在這支裝置已有裝置權杖。
+    private let hasStoredDeviceToken: Bool
     /// 這次編輯中配對拿到的權杖(配對碼只能用一次，再測沿用)。
     private var paired: (address: HostServiceAddress, code: String, device: PairedDevice)?
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
@@ -109,6 +114,8 @@ public final class HostEditorModel {
         self.credentials = credentials
         self.hostService = hostService
         self.makeChannel = makeChannel
+        hasStoredDeviceToken = editing.map { $0.connectionMethod == .https && (try? hostService.tokens.deviceToken(for: $0.id)) != nil }
+            ?? false
         if let editing {
             name = editing.name
             address = editing.hostService?.description ?? editing.endpoint.host
@@ -130,7 +137,7 @@ public final class HostEditorModel {
     ) {
         self.init(store: store, editing: nil, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
         name = shared.name
-        address = shared.endpoint.host
+        address = shared.hostService?.description ?? shared.endpoint.host
         port = String(shared.endpoint.port)
         username = shared.endpoint.username
         herdrPath = shared.herdr.path == "herdr" ? "" : shared.herdr.path
@@ -500,7 +507,7 @@ public final class HostEditorModel {
         let name = name.trimmingCharacters(in: .whitespaces)
         let code = pairingCode.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, let address = HostServiceAddress(address) else { return nil }
-        guard !code.isEmpty || existing?.connectionMethod == .https else { return nil }
+        guard !code.isEmpty || !needsPairingCode else { return nil }
         let host = HostConfiguration(name: name, hostService: address)
         var draft = Draft(
             name: name, endpoint: host.endpoint, herdr: HerdrInstallation(), connectionMethod: .https, authentication: nil, secret: nil)

@@ -178,6 +178,56 @@ struct HTTPSHostEditorTests {
         #expect(editor.pairingCode == "K7QM-2XPA")
         #expect(editor.name == "studio")
     }
+
+    @Test("主機分享連結匯入 HTTPS 主機：帶入名稱與位址，要輸入這支裝置的配對碼才能測試")
+    func importsHTTPSShareLink() throws {
+        let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        let link = HostShareLink.url(for: HostConfiguration(name: "Studio", hostService: Self.address))
+
+        let editor = try model.makeImportEditor(link)
+
+        #expect(editor.connectionMethod == .https)
+        #expect(editor.name == "Studio")
+        #expect(editor.address == "https://studio.tail1234.ts.net")
+        #expect(editor.pairingCode.isEmpty)
+        #expect(editor.needsPairingCode)
+        #expect(!editor.canTest)
+        editor.pairingCode = "K7QM-2XPA"
+        #expect(editor.canTest)
+    }
+
+    @Test("編輯沒有權杖的 HTTPS 主機(同步來的):要輸入配對碼才能測試，配對後存下權杖")
+    func pairsSyncedHost() async throws {
+        let synced = HostConfiguration(name: "Studio", hostService: Self.address)
+        let tokens = InMemoryDeviceTokenStore()
+        let http = FakeHostServiceHTTP()
+        let connections = HostServiceConnections()
+        connections.connections = [await HostServiceConnections.healthy()]
+        let model = HostEditorModel(
+            store: MemoryHostStore(), editing: synced, hostService: connections.access(tokens: tokens, http: http),
+            makeChannel: ChannelFactory().make)
+
+        #expect(model.needsPairingCode)
+        #expect(!model.canTest)
+        model.pairingCode = "K7QM-2XPA"
+        await model.test()
+        let saved = try #require(model.save())
+
+        #expect(saved.id == synced.id)
+        #expect(try tokens.deviceToken(for: synced.id) == "token-paired")
+    }
+
+    @Test("編輯已配對的 HTTPS 主機不必輸入配對碼")
+    func pairedHostNeedsNoCode() {
+        let existing = HostConfiguration(name: "Studio", hostService: Self.address)
+        let model = HostEditorModel(
+            store: MemoryHostStore(), editing: existing,
+            hostService: HostServiceConnections().access(tokens: InMemoryDeviceTokenStore(tokens: [existing.id: "token-saved"])),
+            makeChannel: ChannelFactory().make)
+
+        #expect(!model.needsPairingCode)
+        #expect(model.canTest)
+    }
 }
 
 @MainActor
@@ -207,6 +257,70 @@ struct HTTPSHostsModelTests {
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
         #expect(model.rows.first?.subtitle == "https://studio.tail1234.ts.net")
         #expect(!model.selectedHostSupportsShell)
+    }
+
+    @Test("主機清單：沒有裝置權杖的 HTTPS 主機標示要配對;已配對的與 SSH 主機不標示")
+    func rowsShowUnpairedHosts() {
+        let unpaired = HostConfiguration(name: "Synced", hostService: Self.address)
+        let paired = HostConfiguration(name: "Paired", hostService: HostServiceAddress("box.tail1234.ts.net")!)
+        let ssh = HostConfiguration(name: "SSH", endpoint: SSHEndpoint(host: "studio-mac", username: "ray"))
+        let store = MemoryHostStore()
+        store.hosts = [unpaired, paired, ssh]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(),
+            hostService: HostServiceConnections().access(tokens: InMemoryDeviceTokenStore(tokens: [paired.id: "token-saved"])),
+            makeChannel: ChannelFactory().make)
+
+        model.load()
+
+        let needsPairing = Dictionary(uniqueKeysWithValues: model.rows.map { ($0.title, $0.needsPairing) })
+        #expect(needsPairing == ["Synced": true, "Paired": false, "SSH": false])
+    }
+
+    @Test("配對完儲存後，主機清單不再標示要配對")
+    func pairingClearsUnpairedRow() async throws {
+        let synced = HostConfiguration(name: "Studio", hostService: Self.address)
+        let store = MemoryHostStore()
+        store.hosts = [synced]
+        let tokens = InMemoryDeviceTokenStore()
+        let connections = HostServiceConnections()
+        // 第一條給列表上那台主機的連線，第二條給編輯器的連線測試。
+        connections.connections = [await HostServiceConnections.healthy(), await HostServiceConnections.healthy()]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens), makeChannel: ChannelFactory().make)
+        model.load()
+        #expect(model.rows.first?.needsPairing == true)
+
+        let editor = model.makeEditor(editing: synced)
+        editor.pairingCode = "K7QM-2XPA"
+        await editor.test()
+        let saved = try #require(editor.save())
+        model.didSave(saved)
+
+        #expect(model.rows.first?.needsPairing == false)
+    }
+
+    @Test("HTTPS 主機的分享連結只帶名稱與位址，不含這支裝置的裝置權杖")
+    func shareLinkHasNoDeviceToken() throws {
+        let host = HostConfiguration(name: "Studio", hostService: Self.address)
+        let store = MemoryHostStore()
+        store.hosts = [host]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(),
+            hostService: HostServiceConnections().access(tokens: InMemoryDeviceTokenStore(tokens: [host.id: "purrdr-device-token-secret"])),
+            makeChannel: ChannelFactory().make)
+        model.load()
+
+        let link = try #require(model.shareLink(for: host.id))
+        let payload = try #require(URLComponents(url: link, resolvingAgainstBaseURL: false)?.queryItems?.first?.value)
+        var base64 = payload.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        base64 += String(repeating: "=", count: (4 - base64.count % 4) % 4)
+        let json = String(decoding: try #require(Data(base64Encoded: base64)), as: UTF8.self)
+
+        #expect(!json.contains("purrdr-device-token-secret"))
+        #expect(!link.absoluteString.contains("purrdr-device-token-secret"))
+        let shared = try HostShareLink.decode(link)
+        #expect(shared.hostService == Self.address)
     }
 
     @Test("刪除 HTTPS 主機：請主機服務撤銷這支裝置的權杖，並刪掉這支裝置存的權杖")

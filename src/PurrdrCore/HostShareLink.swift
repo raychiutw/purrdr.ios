@@ -4,28 +4,32 @@ import Foundation
 ///
 /// 刻意是獨立的型別，不直接編碼 `HostConfiguration`:主機設定之後加入密碼、私鑰、passphrase 時，
 /// 分享內容不會跟著多出祕密。host key 指紋是公開資訊，一起分享(GLOSSARY「主機同步」同樣帶指紋)。
+/// HTTPS 主機只帶主機服務位址，裝置權杖永不分享，匯入的裝置要自己連線配對。
 public struct SharedHost: Sendable, Equatable {
     public var name: String
     public var endpoint: SSHEndpoint
     public var connectionMethod: HostConfiguration.ConnectionMethod
     public var herdr: HerdrInstallation
     public var hostKeyPin: HostKeyFingerprint?
+    /// HTTPS 主機的主機服務位址(裝置權杖不分享)。
+    public var hostService: HostServiceAddress?
 
     public init(
         name: String, endpoint: SSHEndpoint, connectionMethod: HostConfiguration.ConnectionMethod = .tailscaleSSH,
-        herdr: HerdrInstallation = HerdrInstallation(), hostKeyPin: HostKeyFingerprint? = nil
+        herdr: HerdrInstallation = HerdrInstallation(), hostKeyPin: HostKeyFingerprint? = nil, hostService: HostServiceAddress? = nil
     ) {
         self.name = name
         self.endpoint = endpoint
         self.connectionMethod = connectionMethod
         self.herdr = herdr
         self.hostKeyPin = hostKeyPin
+        self.hostService = hostService
     }
 
     public init(_ host: HostConfiguration) {
         self.init(
             name: host.name, endpoint: host.endpoint, connectionMethod: host.connectionMethod, herdr: host.herdr,
-            hostKeyPin: host.hostKeyPin)
+            hostKeyPin: host.hostKeyPin, hostService: host.hostService)
     }
 }
 
@@ -51,7 +55,8 @@ public enum HostShareLink {
         let wire = Wire(
             v: version, name: host.name, host: host.endpoint.host, port: host.endpoint.port, user: host.endpoint.username,
             method: host.connectionMethod.rawValue, herdr: host.herdr.path == "herdr" ? nil : host.herdr.path,
-            session: host.herdr.session, pin: host.hostKeyPin?.stored)
+            session: host.herdr.session, pin: host.hostKeyPin?.stored,
+            url: host.connectionMethod == .https ? host.hostService?.description : nil)
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
         // 只有字串與整數，編碼不會失敗。
@@ -74,11 +79,16 @@ public enum HostShareLink {
         let name = wire.name.trimmingCharacters(in: .whitespaces)
         let host = wire.host.trimmingCharacters(in: .whitespaces)
         let user = wire.user.trimmingCharacters(in: .whitespaces)
+        if wire.method == HostConfiguration.ConnectionMethod.https.rawValue {
+            // HTTPS 主機：端點由主機服務位址決定(沒有使用者名稱)。
+            guard !name.isEmpty, let address = wire.url.flatMap(HostServiceAddress.init) else { throw HostShareLinkError.malformed }
+            let https = HostConfiguration(name: name, hostService: address)
+            return SharedHost(name: name, endpoint: https.endpoint, connectionMethod: .https, hostService: address)
+        }
         guard !name.isEmpty, !host.isEmpty, !user.isEmpty, (1...65_535).contains(wire.port) else { throw HostShareLinkError.malformed }
         let method: HostConfiguration.ConnectionMethod
         if let raw = wire.method {
-            // HTTPS 主機的匯出匯入還沒支援(#63)。
-            guard let known = HostConfiguration.ConnectionMethod(rawValue: raw), known != .https else { throw HostShareLinkError.malformed }
+            guard let known = HostConfiguration.ConnectionMethod(rawValue: raw) else { throw HostShareLinkError.malformed }
             method = known
         } else {
             method = .tailscaleSSH
@@ -106,6 +116,8 @@ public enum HostShareLink {
         var herdr: String?
         var session: String?
         var pin: String?
+        /// HTTPS 主機的主機服務位址。
+        var url: String?
     }
 
     private static func base64URL(_ data: Data) -> String {

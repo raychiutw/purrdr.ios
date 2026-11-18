@@ -98,6 +98,39 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertEqual(app.textFields["hostEditor.pairingCode"].value as? String, "K7QM-2XPA")
     }
 
+    /// 主機同步帶來、這支裝置還沒配對的 HTTPS 主機：主機清單標示要配對，點它開配對;配對儲存後標示消失。
+    @MainActor
+    func testUnpairedHTTPSHostOpensPairing() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedUnpairedHTTPSHost"])
+        let more = app.buttons["toolbar.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
+        app.buttons["menu.hosts"].tap()
+
+        let row = app.buttons["hosts.row.5EED0000-0000-4000-8000-000000000003"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("Not Paired on This Device"), "沒有標示要配對：\(row.label)")
+        row.tap()
+
+        let code = app.textFields["hostEditor.pairingCode"]
+        XCTAssertTrue(code.waitForExistence(timeout: 5), "沒有開配對")
+        XCTAssertEqual(app.textFields["hostEditor.address"].value as? String, "https://studio.tail1234.ts.net")
+        let test = app.buttons["hostEditor.test"]
+        XCTAssertTrue(test.exists || scrollTo(test, in: app))
+        XCTAssertFalse(test.isEnabled, "沒有配對碼不能測試")
+        code.tap()
+        code.typeText("K7QM-2XPA")
+        test.tap()
+        let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch
+        XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
+        app.buttons["hostEditor.save"].tap()
+
+        more.tap()
+        app.buttons["menu.hosts"].tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertFalse(row.label.contains("Not Paired on This Device"), "配對後不應該再標示")
+    }
+
     @MainActor
     private func openAddHost(_ app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]
