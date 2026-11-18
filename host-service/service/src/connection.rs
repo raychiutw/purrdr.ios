@@ -21,7 +21,7 @@ use crate::pane_terminal::{self, PaneTerminal};
 use crate::protocol::{
     Agent, AgentPrompt, AgentPromptResult, AgentSession, AgentStatus, AgentsListResult, ClientMessage, ErrorCode, ErrorMessage, EventsEnded, EventsSubscribe,
     EventsSubscribeResult, EventsUnsubscribeResult, HerdrServer, PROTOCOL_VERSION, PaneSendKeys, PaneSendKeysResult, PaneSendText, PaneSendTextResult,
-    PaneTerminalOpen, PaneTerminalOpenResult, ServerMessage, SubscribedEvent, TerminalScrollDirection, TranscriptLocate, Welcome, Workspace,
+    PaneTerminalOpen, PaneTerminalOpenResult, ServerMessage, SubscribedEvent, TerminalScrollDirection, TerminalScrollSource, TranscriptLocate, Welcome, Workspace,
 };
 use crate::transcript::AgentSessionInfo;
 use crate::transcript_session::TranscriptSession;
@@ -285,8 +285,12 @@ impl ClientConnection {
                     TerminalScrollDirection::Up => "up",
                     TerminalScrollDirection::Down => "down",
                 };
+                let source = match scroll.source {
+                    Some(TerminalScrollSource::PageKey) => "page_key",
+                    Some(TerminalScrollSource::Wheel) | None => "wheel",
+                };
                 self.terminal(&scroll.stream_id)?
-                    .scroll(direction, scroll.lines, scroll.column, scroll.row)
+                    .scroll(direction, scroll.lines, scroll.column, scroll.row, source)
                     .await;
                 return None;
             }
