@@ -95,8 +95,8 @@ extension HostConnection {
 }
 
 /// `followTranscript` 的預設實作：在內部以既有的分段接著讀輪詢。
-enum TranscriptPolling {
-    static func follow(
+package enum TranscriptPolling {
+    package static func follow(
         connection: any HostConnection, path: String, from cursor: Int, pace: TranscriptFollowPace
     ) -> AsyncThrowingStream<TranscriptFollowEvent, any Error> {
         let (events, continuation) = AsyncThrowingStream<TranscriptFollowEvent, any Error>.makeStream()

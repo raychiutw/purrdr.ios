@@ -273,7 +273,7 @@ public struct TranscriptReader: Sendable {
     }
 
     /// 「原始 byte 長度 TAB 行」的紀錄。回傳行與原始 byte 總數(含換行)。
-    static func records(_ data: Data.SubSequence) throws -> (lines: [String], bytes: Int) {
+    package static func records(_ data: Data.SubSequence) throws -> (lines: [String], bytes: Int) {
         var lines: [String] = []
         var bytes = 0
         for record in data.split(separator: 0x0A, omittingEmptySubsequences: true) {
