@@ -38,6 +38,26 @@ public enum ComposerKeys {
     }
 }
 
+// MARK: - 組字
+
+/// 程式對輸入框的整段覆寫(slash 選單填入、Discuss in Chat):組字中延後到組字結束(#138)。
+public struct ComposerOverwrite: Sendable, Equatable {
+    public init() {}
+
+    /// 是否有延後中的覆寫。
+    public var isPending: Bool { false }
+
+    /// 程式要把輸入框改成 `text`(輸入框目前是 `current`)。回傳現在要寫進輸入框的文字;組字中回傳 `nil`(延後)。
+    public mutating func request(_ text: String, current: String, isComposing: Bool) -> String? {
+        text
+    }
+
+    /// 輸入框內容變了。組字剛結束且有延後的覆寫時，回傳要套用的文字。
+    public mutating func inputChanged(_ text: String, isComposing: Bool) -> String? {
+        nil
+    }
+}
+
 // MARK: - 圖片
 
 /// 剪貼簿圖片的規則(行為規格 F6.3、F7;#37 故事 33–34)。只看剪貼簿的**類型**,不讀內容(讀內容會跳「允許貼上」)。
