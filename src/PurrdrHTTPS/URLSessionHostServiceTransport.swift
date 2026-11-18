@@ -3,6 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import PurrdrCore
+import Synchronization
 
 /// 以 `URLSession` 連主機服務:TLS 由系統處理，信任系統的公共 CA(Tailscale 代申請的 Let's Encrypt 憑證),不做 pinning。
 ///
@@ -69,8 +70,21 @@ public struct URLSessionHostServiceTransport: WebSocketConnecting, HostServiceHT
     }
 }
 
+/// 只交出一次的 continuation(之後的回呼拿到 `nil`)。
+private final class FirstCompletion: Sendable {
+    private let continuation: Mutex<CheckedContinuation<Void, any Error>?>
+
+    init(_ continuation: CheckedContinuation<Void, any Error>) {
+        self.continuation = Mutex(continuation)
+    }
+
+    func take() -> CheckedContinuation<Void, any Error>? {
+        continuation.withLock { $0.take() }
+    }
+}
+
 /// `URLSessionWebSocketTask` 的包裝。task 本身可跨執行緒使用。
-private final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
+final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
     private let task: URLSessionWebSocketTask
     private let hostName: String?
 
@@ -107,13 +121,21 @@ private final class URLSessionWebSocket: WebSocketSession, @unchecked Sendable {
     }
 
     func sendPing() async throws {
+        // 連線關閉時 URLSession 也會以錯誤呼叫 handler,不會一直等。
+        try await Self.completion { task.sendPing(pongReceiveHandler: $0) }
+    }
+
+    /// 等系統以 completion handler 回報完成(`nil` 是成功)。
+    /// 連線中斷時 URLSession 可能回呼不只一次(例如 pong 與 connection abort):只採用第一次。
+    static func completion(_ start: (@escaping @Sendable ((any Error)?) -> Void) -> Void) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            // 連線關閉時 URLSession 也會以錯誤呼叫 handler,不會一直等。
-            task.sendPing { error in
+            let waiting = FirstCompletion(continuation)
+            start { error in
+                guard let first = waiting.take() else { return }
                 if let error {
-                    continuation.resume(throwing: error)
+                    first.resume(throwing: error)
                 } else {
-                    continuation.resume()
+                    first.resume()
                 }
             }
         }

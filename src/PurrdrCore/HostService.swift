@@ -32,6 +32,9 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
     /// 埠;沒寫時是 scheme 的預設埠。
     public var port: Int { url.port ?? (url.scheme == "http" ? 80 : 443) }
 
+    /// 舊格式(0.36)、分享與同步 wire 必填的端點欄位：主機名稱與埠，沒有使用者名稱。
+    public var legacyEndpoint: SSHEndpoint { SSHEndpoint(host: hostName, port: port, username: "") }
+
     /// WSS 連線的網址(`/v1/ws`);`http` 位址用 `ws`。
     public var webSocketURL: URL {
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!

@@ -13,6 +13,8 @@ actor HostServiceSession {
     let deviceToken: String
     private let socket: any WebSocketSession
     private var pending: [String: CheckedContinuation<HostServiceProtocol.ServerMessage, any Error>] = [:]
+    /// 等待回應的開串流請求被放棄時要送的關閉訊息(請求識別碼 → 訊息):請求可能已到主機、主機已開了串流。
+    private var closingOnAbandon: [String: String] = [:]
     private var closeWaiters: [UUID: CheckedContinuation<any Error, Never>] = [:]
     /// 開著的串流(串流識別碼 → 收訊息的方式)。
     private var streams: [String: OpenStream] = [:]
@@ -20,7 +22,13 @@ actor HostServiceSession {
     private var nextRequestNumber = 0
     private var nextStreamNumber = 0
     private var reader: Task<Void, Never>?
-    private var heartbeat: Task<Void, Never>?
+    private var writer: Task<Void, Never>?
+    /// 待送的訊息(請求與串流上的輸入),由同一個寫入者依呼叫順序送出(例如關掉串流不會比開串流先到主機)。
+    private let outgoing: AsyncStream<String>
+    private let outgoingQueue: AsyncStream<String>.Continuation
+    private var beating: Task<Void, Never>?
+    private let heartbeat: HostServiceHeartbeat
+    private let sleep: Sleep
 
     typealias Messages = AsyncThrowingStream<HostServiceProtocol.ServerMessage, any Error>
 
@@ -32,16 +40,23 @@ actor HostServiceSession {
         case buffering([HostServiceProtocol.ServerMessage])
     }
 
-    init(socket: any WebSocketSession, deviceToken: String) {
+    /// - Parameters:
+    ///   - heartbeat: 心跳的間隔與逾時;送出卡住超過逾時也當作斷線。
+    ///   - sleep: 心跳與送出的計時(測試注入)。
+    init(socket: any WebSocketSession, deviceToken: String, heartbeat: HostServiceHeartbeat, sleep: @escaping Sleep) {
         self.socket = socket
         self.deviceToken = deviceToken
+        self.heartbeat = heartbeat
+        self.sleep = sleep
+        (outgoing, outgoingQueue) = AsyncStream<String>.makeStream()
     }
 
     var isOpen: Bool { ending == nil }
 
-    func start(heartbeat settings: HostServiceHeartbeat, sleep: @escaping Sleep) {
+    func start() {
         reader = Task { await self.readUntilClosed() }
-        heartbeat = Task { await self.beat(settings, sleep: sleep) }
+        writer = Task { await self.writeInOrder() }
+        beating = Task { await self.beat() }
     }
 
     /// 配發 app 指定的串流識別碼(這條連線內不重複)。
@@ -84,15 +99,26 @@ actor HostServiceSession {
 
     /// 送出一個請求(`make` 拿到請求識別碼),等同一個識別碼的回應。外層取消時丟 `CancellationError`。
     func request(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> HostServiceProtocol.ServerMessage {
-        try await request(make, stream: nil)
+        try await request(make, stream: nil, closing: nil).reply
     }
 
     /// 送出開啟串流的請求，串流識別碼是這個請求識別碼(Pane 終端機)。回應之後帶這個串流識別碼的訊息依序交給
     /// `messages`;主機端結束串流或連線結束時 `messages` 結束。開啟失敗時 `messages` 不會有訊息。
-    func requestStream(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> StreamReply {
+    /// 送出後被取消時以 `close` 請主機關掉串流(主機可能已開了)。
+    func requestStream(
+        _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage,
+        closing close: @escaping @Sendable (String) -> HostServiceProtocol.ClientMessage
+    ) async throws -> StreamReply {
         let (messages, continuation) = Messages.makeStream()
-        let reply = try await request(make, stream: continuation)
-        if case .errorMessage(let error) = reply, let requestID = error.requestId { closeStream(requestID) }
+        let (requestID, reply) = try await request(make, stream: continuation, closing: close)
+        if case .errorMessage = reply {
+            closeStream(requestID)
+        } else if Task.isCancelled {
+            // 回應與取消同時到：主機已開了串流，呼叫端卻不會用。
+            closeStream(requestID)
+            outgoingQueue.yield(try Self.encode(close(requestID)))
+            throw CancellationError()
+        }
         return StreamReply(reply: reply, messages: messages)
     }
 
@@ -102,41 +128,42 @@ actor HostServiceSession {
         var messages: Messages
     }
 
-    /// 送出沒有回應的訊息(串流上的輸入)。連線已結束時丟結束原因。
-    func post(_ message: HostServiceProtocol.ClientMessage) async throws {
+    /// 送出沒有回應的訊息(串流上的輸入),與請求排在同一個佇列。連線已結束時丟結束原因;送出失敗時連線結束。
+    func post(_ message: HostServiceProtocol.ClientMessage) throws {
         if let ending { throw ending }
-        let text = try String(decoding: JSONEncoder().encode(message), as: UTF8.self)
-        do {
-            try await socket.send(text)
-        } catch {
-            let failure = error as? HostServiceError ?? .connectionLost
-            end(with: failure)
-            throw failure
-        }
+        outgoingQueue.yield(try Self.encode(message))
     }
 
     /// 串流先登記再送出請求：回應之後立刻到的串流訊息不會漏掉。
     private func request(
         _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage,
-        stream: Messages.Continuation?
-    ) async throws -> HostServiceProtocol.ServerMessage {
+        stream: Messages.Continuation?,
+        closing close: (@Sendable (String) -> HostServiceProtocol.ClientMessage)?
+    ) async throws -> (requestID: String, reply: HostServiceProtocol.ServerMessage) {
         if let ending {
             stream?.finish(throwing: ending)
             throw ending
         }
         nextRequestNumber += 1
         let requestID = "r\(nextRequestNumber)"
-        let text = try String(decoding: JSONEncoder().encode(make(requestID)), as: UTF8.self)
+        let text = try Self.encode(make(requestID))
+        let closing = try close.map { try Self.encode($0(requestID)) }
         if let stream { streams[requestID] = .delivering(stream) }
-        return try await withTaskCancellationHandler {
+        let reply: HostServiceProtocol.ServerMessage = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 guard !Task.isCancelled else { return continuation.resume(throwing: CancellationError()) }
                 pending[requestID] = continuation
-                Task { await self.send(text, for: requestID) }
+                closingOnAbandon[requestID] = closing
+                outgoingQueue.yield(text)
             }
         } onCancel: {
             Task { await self.abandon(requestID) }
         }
+        return (requestID, reply)
+    }
+
+    private static func encode(_ message: HostServiceProtocol.ClientMessage) throws -> String {
+        try String(decoding: JSONEncoder().encode(message), as: UTF8.self)
     }
 
     /// 等到連線結束，回傳結束原因。外層取消時回 `CancellationError`。
@@ -165,15 +192,16 @@ actor HostServiceSession {
     // MARK: - 內部
 
     /// 每 `interval` 送一次 ping;`timeout` 內沒有 pong 就當作斷線(網路換了路徑、主機睡著)。
-    private func beat(_ settings: HostServiceHeartbeat, sleep: @escaping Sleep) async {
+    private func beat() async {
         while ending == nil {
             do {
-                try await sleep(settings.interval)
+                try await sleep(heartbeat.interval)
             } catch {
                 return
             }
             guard ending == nil else { return }
-            guard await Self.pong(from: socket, within: settings.timeout, sleep: sleep) else {
+            let pong = await Self.outcome(of: { [socket] in try await socket.sendPing() }, within: heartbeat.timeout, sleep: sleep)
+            guard case .success = pong else {
                 end(with: HostServiceError.connectionLost)
                 await socket.close()
                 return
@@ -181,33 +209,78 @@ actor HostServiceSession {
         }
     }
 
-    /// ping 與計時賽跑;不等輸的一方結束(卡住的 ping 在連線關閉時才返回)。
-    private static func pong(from socket: any WebSocketSession, within timeout: Duration, sleep: @escaping Sleep) async -> Bool {
-        let (outcomes, continuation) = AsyncStream<Bool>.makeStream()
-        let ping = Task { continuation.yield((try? await socket.sendPing()) != nil) }
+    /// `work` 與計時賽跑，逾時回 `nil`;不等輸的一方結束(卡住的收送在連線關閉時才返回)。
+    private static func outcome(
+        of work: @escaping @Sendable () async throws -> Void, within timeout: Duration, sleep: @escaping Sleep
+    ) async -> Result<Void, any Error>? {
+        let (outcomes, continuation) = AsyncStream<Result<Void, any Error>?>.makeStream()
+        let working = Task {
+            do {
+                try await work()
+                continuation.yield(.success(()))
+            } catch {
+                continuation.yield(.failure(error))
+            }
+        }
         let timer = Task {
             try? await sleep(timeout)
-            continuation.yield(false)
+            continuation.yield(nil)
         }
         var iterator = outcomes.makeAsyncIterator()
-        let answered = await iterator.next() ?? false
-        ping.cancel()
+        let first = await iterator.next() ?? nil
+        working.cancel()
         timer.cancel()
         continuation.finish()
-        return answered
+        return first
     }
 
-    private func send(_ text: String, for requestID: String) async {
-        do {
-            try await socket.send(text)
-        } catch {
-            end(with: error as? HostServiceError ?? .connectionLost)
+    /// 送出卡住超過心跳逾時就當作斷線：等待中的請求以 `connectionLost` 結束，不必等到各自的期限。
+    private func writeInOrder() async {
+        for await text in outgoing {
+            switch await Self.outcome(of: { [socket] in try await socket.send(text) }, within: heartbeat.timeout, sleep: sleep) {
+            case .success:
+                continue
+            case .failure(let error):
+                // 主機關閉前送的原因(例如權杖被拒)可能還沒讀到：讀取端先結束就以它的原因為準。
+                await waitForReader(within: Self.sendFailureGrace)
+                end(with: error as? HostServiceError ?? .connectionLost)
+                return
+            case nil:
+                end(with: HostServiceError.connectionLost)
+                await socket.close()
+                return
+            }
         }
     }
 
+    /// 送出失敗後等讀取端讀完已到的訊息的上限。
+    static let sendFailureGrace: Duration = .seconds(1)
+
+    /// 等讀取端結束(連線結束)或 `limit` 到，先到的為準。
+    private func waitForReader(within limit: Duration) async {
+        let (outcomes, continuation) = AsyncStream<Void>.makeStream()
+        let readerEnded = Task { [reader] in
+            await reader?.value
+            continuation.yield()
+        }
+        let timer = Task { [sleep] in
+            try? await sleep(limit)
+            continuation.yield()
+        }
+        var iterator = outcomes.makeAsyncIterator()
+        _ = await iterator.next()
+        readerEnded.cancel()
+        timer.cancel()
+        continuation.finish()
+    }
+
+    /// 請求被取消：還沒有回應時，開串流的請求另送關閉訊息。
     private func abandon(_ requestID: String) {
-        pending.removeValue(forKey: requestID)?.resume(throwing: CancellationError())
+        let closing = closingOnAbandon.removeValue(forKey: requestID)
         closeStream(requestID)
+        guard let continuation = pending.removeValue(forKey: requestID) else { return }
+        continuation.resume(throwing: CancellationError())
+        if let closing { outgoingQueue.yield(closing) }
     }
 
     private func stopWaiting(_ waiterID: UUID) {
@@ -248,7 +321,10 @@ actor HostServiceSession {
             // 權杖無效或已撤銷：主機服務接著會以 4401 關閉。
             if let rejection = HostServiceError(tokenRejection: error.code) { end(with: rejection) }
         default:
-            if let requestID = message.requestID { pending.removeValue(forKey: requestID)?.resume(returning: message) }
+            if let requestID = message.requestID {
+                closingOnAbandon[requestID] = nil
+                pending.removeValue(forKey: requestID)?.resume(returning: message)
+            }
         }
     }
 
@@ -269,9 +345,12 @@ actor HostServiceSession {
     private func end(with error: any Error) {
         guard ending == nil else { return }
         ending = error
-        heartbeat?.cancel()
+        beating?.cancel()
+        writer?.cancel()
+        outgoingQueue.finish()
         let requests = pending
         pending = [:]
+        closingOnAbandon = [:]
         for continuation in requests.values { continuation.resume(throwing: error) }
         let openStreams = streams
         streams = [:]

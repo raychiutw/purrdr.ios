@@ -47,10 +47,16 @@ extension KeychainError: LocalizedError {
 public final class KeychainHostStore: HostStore {
     private let keychain: any KeychainAPI
     private let service: String
+    private let diagnostics: DiagnosticLog
 
-    public init(keychain: any KeychainAPI = SystemKeychain(), service: String = "com.raychiu.purrdr.host") {
+    /// - Parameter diagnostics: 讀不懂的項目記在這裡(不給使用者看)。
+    public init(
+        keychain: any KeychainAPI = SystemKeychain(), service: String = "com.raychiu.purrdr.host",
+        diagnostics: DiagnosticLog = .system(category: "hosts")
+    ) {
         self.keychain = keychain
         self.service = service
+        self.diagnostics = diagnostics
     }
 
     public func loadHosts() throws -> [HostConfiguration] {
@@ -63,9 +69,16 @@ public final class KeychainHostStore: HostStore {
         guard status == errSecSuccess else { throw KeychainError(status: status) }
         let items = result as? [[String: Any]] ?? []
         let decoder = JSONDecoder()
-        // 讀不懂的項目(之後版本的格式)略過，不讓整個主機清單讀不出來。
+        // 讀不懂的項目(之後版本的格式、缺欄位的舊資料)不讓整個清單讀不出來：記下來，項目留著給之後的版本讀。
         return items.compactMap { item in
-            (item[kSecValueData as String] as? Data).flatMap { try? decoder.decode(HostConfiguration.self, from: $0) }
+            guard let data = item[kSecValueData as String] as? Data else { return nil }
+            do {
+                return try decoder.decode(HostConfiguration.self, from: data)
+            } catch {
+                let account = item[kSecAttrAccount as String] as? String ?? "unknown"
+                diagnostics.error("Couldn’t read the saved host \(account); it isn’t shown: \(error)")
+                return nil
+            }
         }
     }
 
