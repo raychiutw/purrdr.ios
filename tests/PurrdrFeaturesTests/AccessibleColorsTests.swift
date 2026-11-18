@@ -209,3 +209,37 @@ struct SpacesColorsTests {
         }
     }
 }
+
+/// 方案用量圓環的三級顏色(#177)。
+@Suite("方案用量的配色")
+struct PlanUsageColorsTests {
+    static let white = ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
+    static let darkCards = [ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E), ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)]
+
+    /// 非文字圖形(WCAG 1.4.11):對圓環所在的列背景 ≥ 3:1,高對比 ≥ 4.5:1。淺色列 #FFFFFF;深色列 #1C1C1E、#2C2C2E。
+    @Test("圓環的充足、偏低、將用完三級：對列背景 ≥ 3:1,高對比 ≥ 4.5:1")
+    func levelContrast() {
+        for level in [PlanUsageLevel.ample, .low, .depleted] {
+            let palette = AccessibleColors.planUsage(level)
+            let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
+                ("淺色", palette.light, [Self.white], 3), ("深色", palette.dark, Self.darkCards, 3),
+                ("淺色高對比", palette.lightHighContrast, [Self.white], 4.5),
+                ("深色高對比", palette.darkHighContrast, Self.darkCards, 4.5),
+            ]
+            for (name, color, backgrounds, minimum) in cases {
+                for background in backgrounds {
+                    let ratio = color.contrastRatio(with: background)
+                    #expect(ratio >= minimum, "\(level) \(name) \(color) 對 \(background) 只有 \(ratio)")
+                }
+            }
+        }
+    }
+
+    @Test("三級的顏色彼此不同(綠、橘、紅)")
+    func levelsAreDistinct() {
+        let palettes = [PlanUsageLevel.ample, .low, .depleted].map { AccessibleColors.planUsage($0) }
+        #expect(palettes[0].light.green > palettes[0].light.red, "充足不是綠色")
+        #expect(palettes[1].light.red > palettes[1].light.green && palettes[1].light.green > palettes[1].light.blue, "偏低不是橘色")
+        #expect(palettes[2].light.red > palettes[2].light.green * 2, "將用完不是紅色")
+    }
+}

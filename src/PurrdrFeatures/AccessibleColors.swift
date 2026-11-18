@@ -153,3 +153,11 @@ struct AgentKindAvatarStyle {
         palette = ContrastPalette(light: normal, dark: normal, lightHighContrast: highContrast, darkHighContrast: highContrast)
     }
 }
+
+extension AccessibleColors {
+    /// 方案用量圓環的顏色(#177):依剩餘比例分三級。
+    static func planUsage(_ level: PlanUsageLevel) -> ContrastPalette {
+        let white = ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
+        return ContrastPalette(light: white, dark: white, lightHighContrast: white, darkHighContrast: white)
+    }
+}
