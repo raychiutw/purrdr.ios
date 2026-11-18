@@ -198,17 +198,81 @@ struct TranscriptReaderTests {
         #expect(collected.count == lines.count)
     }
 
-    /// 單行比上限大(大的工具結果):以完整行前進，不切斷、不卡住。
-    @Test("分段追趕：第一行就超過上限時整行讀出，不切斷")
-    func catchUpReadsOversizedLineWhole() async throws {
-        let big = #"{"type":"assistant","text":""# + String(repeating: "很長的輸出 ", count: 400) + #""}"#
+    /// 單行比上限大(大的工具結果):以完整行前進，不卡在同一個游標(#130 review 5)。剝除圖片後仍超過上限的行
+    /// 在主機端截短到上限(傳輸量與期限都以上限為準),游標照原始長度前進;截短的行解析不出來，畫面略過。
+    @Test("分段追趕：第一行就超過上限時截短到上限，游標照原始長度前進，下一次讀下一行")
+    func catchUpTruncatesOversizedLine() async throws {
+        let big = #"{"type":"assistant","text":""# + String(repeating: "long output ", count: 400) + #""}"#
         let next = Self.fixtureLines[6]
         let (host, path) = try Self.host(with: Data((big + "\n" + next + "\n").utf8))
+        let reader = TranscriptReader(channel: host)
 
-        let tail = try await TranscriptReader(channel: host).catchUp(path: path, from: 0, limit: 1024)
+        guard case .appended(let chunk) = try await reader.catchUp(path: path, from: 0, limit: 1024) else {
+            Issue.record("應該讀到截短的第一行")
+            return
+        }
 
         #expect(big.utf8.count > 1024)
-        #expect(tail == .appended(TranscriptChunk(start: 0, end: big.utf8.count + 1, lines: [big])))
+        #expect(chunk.start == 0 && chunk.end == big.utf8.count + 1)
+        #expect(chunk.lines.count == 1)
+        #expect(chunk.lines[0].utf8.count == 1024)
+        #expect(big.utf8.starts(with: chunk.lines[0].utf8))
+        #expect(try await reader.catchUp(path: path, from: chunk.end, limit: 1024) == .appended(TranscriptChunk(start: chunk.end, end: big.utf8.count + 1 + next.utf8.count + 1, lines: [next])))
+    }
+
+    /// 以 fixture 第 6 行(使用者打的字)為底，換掉 uuid 與內容的大行(約 `bytes` bytes)。
+    static func bigLine(_ index: Int, bytes: Int) -> String {
+        fixtureLines[6]
+            .replacingOccurrences(of: "00000000-0000-4000-8000-000000000008", with: String(format: "00000000-0000-4000-8000-0000000c%04x", index))
+            .replacingOccurrences(of: "幫我把 CSV 匯出整理一下 🧾", with: String(repeating: "word ", count: bytes / 5))
+    }
+
+    /// #130 review 1、3、10:即時追蹤的讀法。還沒追上(剛開啟或重新可見)時落後超過 64 KiB 不逐段重播(R-B08);
+    /// 追上之後落後多少都從游標分段接著讀，落後很多時下一次讀大一點(1 MiB),一個指令就追得上高速輸出。
+    @Test("追蹤：還沒追上時落後太多回報 tooFarBehind;追上之後分段接著讀，落後很多時下一次讀 1 MiB")
+    func followReadsInGrowingSegmentsOnceLive() async throws {
+        let lines = (1...150).map { Self.bigLine($0, bytes: 10_000) }
+        let data = Data(lines.map { $0 + "\n" }.joined().utf8)
+        let (host, path) = try Self.host(with: data)
+        let reader = TranscriptReader(channel: host)
+
+        let reopened = try await reader.follow(path: path, TranscriptFollow(cursor: 0, isLive: false))
+        #expect(reopened.tail == .tooFarBehind(size: data.count))
+
+        let first = try await reader.follow(path: path, TranscriptFollow(cursor: 0, isLive: true))
+        guard case .appended(let chunk) = first.tail else {
+            Issue.record("應該讀到第一段")
+            return
+        }
+        #expect(chunk.end <= 256 << 10)
+        #expect(first.next.cursor == chunk.end && first.next.isLive)
+        #expect(first.next.limit == 1 << 20)
+
+        let second = try await reader.follow(path: path, first.next)
+        guard case .appended(let more) = second.tail else {
+            Issue.record("應該讀到第二段")
+            return
+        }
+        #expect(more.end - more.start > 256 << 10 && more.end - more.start <= 1 << 20)
+        #expect(second.next.cursor == more.end)
+    }
+
+    /// #130 review 10:還沒追上時，檔案長大但只有未完成的行不算追上(之後落後太多仍讀新視窗);游標等於大小才算。
+    @Test("追蹤：還沒追上時只有未完成的行不算追上，游標等於檔案大小才算")
+    func followBecomesLiveOnlyWhenCaughtUp() async throws {
+        let (host, path) = try Self.host()
+        let reader = TranscriptReader(channel: host)
+
+        let idle = try await reader.follow(path: path, TranscriptFollow(cursor: Self.fixture.count, isLive: false))
+        #expect(idle.tail == .unchanged && idle.next.isLive)
+
+        try host.append(Data(#"{"type":"user","mess"#.utf8), to: Self.relativePath)
+        let partial = try await reader.follow(path: path, TranscriptFollow(cursor: Self.fixture.count, isLive: false))
+        #expect(partial.tail == .unchanged && !partial.next.isLive)
+
+        var live = idle.next
+        live.reopen()
+        #expect(!live.isLive && live.limit == 256 << 10)
     }
 
     @Test("分段追趕：沒有新的完整行是 unchanged,檔案變小是 shrank")

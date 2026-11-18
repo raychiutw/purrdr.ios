@@ -160,36 +160,75 @@ public struct TranscriptReader: Sendable {
 
     /// 讀游標之後新增的完整行。
     public func tail(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> TranscriptTail {
+        try await tailReportingSize(path: path, from: cursor, limit: limit).tail
+    }
+
+    /// 同 `tail`,另外回報主機上的檔案大小。
+    func tailReportingSize(path: String, from cursor: Int, limit: Int = 64 << 10) async throws -> (tail: TranscriptTail, size: Int) {
         guard Self.isValidPath(path), cursor >= 0 else { throw TranscriptReadError.invalidReference }
         let output = try await run(.tail(path: path, from: cursor, limit: limit))
         guard let newline = output.stdout.firstIndex(of: 0x0A),
               let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
-        if size < cursor { return .shrank(size: size) }
-        if size - cursor > limit { return .tooFarBehind(size: size) }
+        if size < cursor { return (.shrank(size: size), size) }
+        if size - cursor > limit { return (.tooFarBehind(size: size), size) }
         let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
-        guard !records.lines.isEmpty else { return .unchanged }
-        return .appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines))
+        guard !records.lines.isEmpty else { return (.unchanged, size) }
+        return (.appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines)), size)
     }
 
     /// 即時追蹤的單次上限(#130)。
     ///
-    /// 256 KiB:是開啟時「落後太多」門檻(64 KiB)的 4 倍，本機量到的 2 秒寫入量多半一次讀完;以讀取期限的
-    /// 32 KiB/s 估算約 8 秒傳完，遠低於讀取期限;每次輪詢仍只有一個主機指令(R-F01 的指令預算不變),
-    /// 工作中每 2 秒一次，行動網路下每分鐘最多約 7.5 MiB(剝圖後)。
+    /// 256 KiB:是開啟時「落後太多」門檻(64 KiB)的 4 倍，本機量到的 2 秒寫入量多半一次讀完。主機端把超大單行截短到
+    /// 上限，所以傳輸量不超過上限，期限是 20 秒加上 256 KiB 以 32 KiB/s 估算的 8 秒(約 28 秒)。
     public static let catchUpLimit = 256 << 10
 
+    /// 上次讀完後主機上還有超過 `catchUpLimit` 沒讀(Agent 高速輸出)時，下一次的上限(#130 review 3)。
+    ///
+    /// 1 MiB:每次輪詢仍只有一個對話紀錄指令(R-F01 的指令預算不變),工作中每 2 秒一次就是每分鐘最多約 30 MiB,
+    /// 遠快於 Agent 寫對話紀錄的速度，一兩次輪詢就追上;期限 20 秒加上 32 秒(約 53 秒),只有真的落後時才用這麼長的期限。
+    /// Heeler 每次輪詢最多 2 MiB(經 SFTP 分成多個各有期限的讀取);我們一個 shell 指令只有一個期限，取一半。
+    public static let catchUpBacklogLimit = 1 << 20
+
     /// 分段追趕：從游標讀最多 `limit` bytes 的完整行，即使後面還有(畫面已有內容時的即時追蹤，#130)。
-    /// 不回報 `tooFarBehind`:落後多少都從游標接著讀，下一次從新游標繼續;單行超過 `limit` 時整行讀出。
+    /// 不回報 `tooFarBehind`:落後多少都從游標接著讀，下一次從新游標繼續。第一行就超過 `limit` 時，主機把它
+    /// (剝除圖片後)截短到 `limit` bytes 送出，游標照原始長度前進：絕不卡在同一個游標;截短的行解析不出來，畫面略過。
     public func catchUp(path: String, from cursor: Int, limit: Int = catchUpLimit) async throws -> TranscriptTail {
+        try await catchUpReportingSize(path: path, from: cursor, limit: limit).tail
+    }
+
+    /// 同 `catchUp`,另外回報主機上的檔案大小。
+    func catchUpReportingSize(path: String, from cursor: Int, limit: Int) async throws -> (tail: TranscriptTail, size: Int) {
         guard Self.isValidPath(path), cursor >= 0, limit > 0 else { throw TranscriptReadError.invalidReference }
         let output = try await run(.catchUp(path: path, from: cursor, limit: limit))
         guard let newline = output.stdout.firstIndex(of: 0x0A),
               let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
-        if size < cursor { return .shrank(size: size) }
+        if size < cursor { return (.shrank(size: size), size) }
         let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
-        guard !records.lines.isEmpty else { return .unchanged }
+        guard !records.lines.isEmpty else { return (.unchanged, size) }
         guard cursor + records.bytes <= size else { throw TranscriptReadError.changed }
-        return .appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines))
+        return (.appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines)), size)
+    }
+
+    /// 即時追蹤讀一次(#130、F5.3 第 3 點、R-B08)。
+    ///
+    /// 還沒追上(`isLive == false`:剛從快取恢復、或畫面重新可見)時，落後超過 64 KiB 回報 `tooFarBehind`,由呼叫端讀新視窗，
+    /// 不逐段重播積壓;追上之後落後多少都分段接著讀(`catchUp`),上次讀完還落後很多時這次讀大一點(`catchUpBacklogLimit`)。
+    /// 回傳這次的結果與下一次要用的狀態;`tooFarBehind`／`shrank` 時狀態不變(呼叫端改讀視窗)。
+    public func follow(path: String, _ state: TranscriptFollow) async throws -> (tail: TranscriptTail, next: TranscriptFollow) {
+        let read = state.isLive
+            ? try await catchUpReportingSize(path: path, from: state.cursor, limit: state.limit)
+            : try await tailReportingSize(path: path, from: state.cursor)
+        var next = state
+        switch read.tail {
+        case .appended(let chunk):
+            next = TranscriptFollow(cursor: chunk.end, isLive: true, backlog: read.size - chunk.end)
+        case .unchanged:
+            // 只有未完成的行(還在寫)不算追上：之後一次寫很多時，重新開啟的畫面仍讀新視窗。
+            next = TranscriptFollow(cursor: state.cursor, isLive: state.isLive || read.size == state.cursor, backlog: read.size - state.cursor)
+        case .tooFarBehind, .shrank:
+            break
+        }
+        return (read.tail, next)
     }
 
     // MARK: - 輸出
@@ -337,5 +376,38 @@ extension TranscriptReader {
         let checksum = String(decoding: output.stdout[..<newline], as: UTF8.self)
         if checksum == knownChecksum { return (checksum, nil) }
         return (checksum, try Self.records(output.stdout[output.stdout.index(after: newline)...]).lines)
+    }
+}
+
+
+/// 即時追蹤的游標與讀法(#130)。由 `TranscriptReader.follow(path:_:)` 讀一次、得到下一次的狀態。
+public struct TranscriptFollow: Sendable, Equatable {
+    /// 已消化的 byte 數(主機上檔案的 UTF-8 byte offset)。
+    public private(set) var cursor: Int
+    /// 這次可見期間已經追上主機(讀到資料，或游標等於檔案大小)。之後落後多少都分段接著讀。
+    public private(set) var isLive: Bool
+    /// 上次讀完後主機上還沒讀的 bytes。
+    private var backlog: Int
+
+    /// 開啟視窗後(`isLive: true`)或從快取恢復(`isLive: false`)的游標。
+    public init(cursor: Int, isLive: Bool) {
+        self.init(cursor: cursor, isLive: isLive, backlog: 0)
+    }
+
+    init(cursor: Int, isLive: Bool, backlog: Int) {
+        self.cursor = cursor
+        self.isLive = isLive
+        self.backlog = max(0, backlog)
+    }
+
+    /// 畫面重新可見(回前景、重新開啟):當作重新開啟，落後太多時讀新視窗(R-B08)。
+    public mutating func reopen() {
+        isLive = false
+        backlog = 0
+    }
+
+    /// 下一次分段追趕的上限。
+    public var limit: Int {
+        backlog > TranscriptReader.catchUpLimit ? TranscriptReader.catchUpBacklogLimit : TranscriptReader.catchUpLimit
     }
 }

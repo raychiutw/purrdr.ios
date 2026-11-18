@@ -185,19 +185,16 @@ public enum TranscriptCommand {
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
 
     /// 分段追趕(#130):印出目前大小;比游標大時，再印游標之後的完整行，累計原始 byte 數不超過 `limit`
-    /// (即使後面還有，留給下一次從新游標接著讀)。第一行就超過 `limit` 時整行印出：以完整行前進，不切斷。
-    /// 參數：路徑、游標、上限。
+    /// (即使後面還有，留給下一次從新游標接著讀)。第一行就超過 `limit` 時只印那一行，剝除圖片後的內容截短到
+    /// `limit` bytes(原始長度照實印，游標照樣前進;傳輸量不超過上限，期限也依上限估算)。參數：路徑、游標、上限。
     public static func catchUp(path: String, from cursor: Int, limit: Int) -> String {
         command(catchUpScript, arguments: [path, String(cursor), String(limit)])
     }
 
-    /// 超過單次上限的單行整行送出;讀取期限以這個大小估算(本機實測的對話紀錄單行最大約 1.3 MB,含剝除前的圖片)。
-    package static let oversizedLineBytes = 2 << 20
-
     package static let catchUpScript = #"f=$1"# + "\n" + probe + "\n" + #"""
         printf '%s\n' "$z"
         if [ "$z" -gt "$2" ]; then
-        tail -c +$(($2 + 1)) "$f" | head -c $((z - $2)) | awk -v t=$((z - $2)) -v m="$3" '{ p = q + length($0) + 1; if (p > t || (p > m && NR > 1)) exit; print; q = p }' | ANNOTATE
+        tail -c +$(($2 + 1)) "$f" | head -c $((z - $2)) | awk -v t=$((z - $2)) -v m="$3" '{ p = q + length($0) + 1; if (p > t || (p > m && NR > 1)) exit; print; q = p }' | ANNOTATE | awk -v m="$3" '{ i = index($0, "\t"); if (length($0) - i > m) $0 = substr($0, 1, i + m); print }'
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
 
