@@ -333,6 +333,20 @@ struct PaneTerminalModelTests {
         #expect(await Self.sentInput(host) == [0x03] + Array("\u{1B}[1;5A".utf8) + [0x2F])
     }
 
+    @Test("實體鍵盤的修飾鍵與黏著修飾鍵合併送出，送出後放開黏著鍵")
+    func hardwareModifiersMergeWithSticky() async {
+        let host = FakeHost()
+        let model = await Self.connected(host)
+
+        model.press(.up, adding: .shift)
+        model.toggle(.control)
+        model.press(.left, adding: .alt)
+        #expect(model.modifiers.isEmpty)
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.split(separator: "\n").count >= 2 }
+
+        #expect(await Self.sentInput(host) == Array("\u{1B}[1;2A\u{1B}[1;7D".utf8))
+    }
+
     @Test("貼上一律包 bracketed paste 標記，一則送出")
     func pasteIsBracketed() async {
         let host = FakeHost()

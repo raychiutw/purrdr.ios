@@ -219,9 +219,9 @@ public final class LoginShellModel: TerminalSessionModel {
         outbox?.yield(.bytes(data))
     }
 
-    public func press(_ key: TerminalKey) {
+    public func press(_ key: TerminalKey, adding extraModifiers: TerminalModifiers) {
         guard isInteractive else { return }
-        outbox?.yield(.bytes(key.bytes(modifiers: modifiers)))
+        outbox?.yield(.bytes(key.bytes(modifiers: modifiers.union(extraModifiers))))
         modifiers = []
     }
 

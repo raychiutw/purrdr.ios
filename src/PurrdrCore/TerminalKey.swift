@@ -12,28 +12,53 @@ public enum TerminalKey: Sendable, Equatable {
     case right
     case home
     case end
+    case pageUp
+    case pageDown
+    case deleteForward
+    /// F1–F12(實體鍵盤);其他編號不送。
+    case function(Int)
     case character(Character)
 
-    /// 依修飾鍵編碼成要送給主機的 bytes(行為規格 §6.4)。
+    /// 依修飾鍵編碼成要送給主機的 bytes(行為規格 §6.4;實體鍵盤才有的鍵用 xterm 編碼)。
     public func bytes(modifiers: TerminalModifiers = []) -> Data {
         let escape: UInt8 = 0x1B
         let altPrefix = modifiers.contains(.alt) ? Data([escape]) : Data()
+        // 修飾參數 = 1 + Shift(1) + Alt(2) + Ctrl(4)
+        let parameter = 1 + (modifiers.contains(.shift) ? 1 : 0) + (modifiers.contains(.alt) ? 2 : 0)
+            + (modifiers.contains(.control) ? 4 : 0)
         switch self {
         case .escape:
             return altPrefix + [escape]
         case .tab:
-            return altPrefix + [0x09]
+            return altPrefix + (modifiers.contains(.shift) ? Data("\u{1B}[Z".utf8) : Data([0x09]))
         case .up, .down, .left, .right, .home, .end:
             let final = cursorFinal
-            guard !modifiers.isEmpty else { return Data([escape, UInt8(ascii: "["), final]) }
-            // 修飾參數 = 1 + Alt(2) + Ctrl(4)
-            let parameter = 1 + (modifiers.contains(.alt) ? 2 : 0) + (modifiers.contains(.control) ? 4 : 0)
+            guard parameter > 1 else { return Data([escape, UInt8(ascii: "["), final]) }
             return Data("\u{1B}[1;\(parameter)".utf8) + [final]
+        case .pageUp, .pageDown, .deleteForward:
+            let number = self == .pageUp ? 5 : (self == .pageDown ? 6 : 3)
+            return Self.tilde(number, parameter: parameter)
+        case .function(let number):
+            switch number {
+            case 1...4:
+                let final = UInt8(ascii: "P") + UInt8(number - 1)
+                guard parameter > 1 else { return Data([escape, UInt8(ascii: "O"), final]) }
+                return Data("\u{1B}[1;\(parameter)".utf8) + [final]
+            case 5...12:
+                return Self.tilde([15, 17, 18, 19, 20, 21, 23, 24][number - 5], parameter: parameter)
+            default:
+                return Data()
+            }
         case .character(let character):
             let utf8 = Data(String(character).utf8)
             guard modifiers.contains(.control), let control = Self.control(character) else { return altPrefix + utf8 }
             return altPrefix + [control]
         }
+    }
+
+    /// `CSI <number> ~`,有修飾時 `CSI <number>;<parameter> ~`。
+    private static func tilde(_ number: Int, parameter: Int) -> Data {
+        Data((parameter > 1 ? "\u{1B}[\(number);\(parameter)~" : "\u{1B}[\(number)~").utf8)
     }
 
     private var cursorFinal: UInt8 {
@@ -75,4 +100,6 @@ public struct TerminalModifiers: OptionSet, Sendable, Hashable {
 
     public static let control = TerminalModifiers(rawValue: 1 << 0)
     public static let alt = TerminalModifiers(rawValue: 1 << 1)
+    /// 只有實體鍵盤會帶(游標類鍵、功能鍵、Shift-Tab)。
+    public static let shift = TerminalModifiers(rawValue: 1 << 2)
 }

@@ -73,6 +73,32 @@ final class PaneTerminalUITests: XCTestCase {
         }
     }
 
+    /// 鍵盤輸入由 Purrdr 的輸入元件接管(#136):它是焦點，打字、按鍵列、收起與叫出鍵盤照常。
+    @MainActor
+    func testKeyboardInputIsTakenOverByTerminalInput() {
+        let app = XCUIApplication.launchUITesting()
+        let screen = openTerminal(app)
+        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+
+        let input = app.descendants(matching: .any)["terminal.input"].firstMatch
+        XCTAssertTrue(input.waitForExistence(timeout: 5), "沒有終端機輸入元件")
+        XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, true, "輸入元件要是焦點")
+
+        app.typeText("ls")
+        waitForScreen(screen, toContain: "demo@purrdr ledger % ls")
+        app.buttons["terminal.key.esc"].firstMatch.tap()
+        waitForScreen(screen, toContain: "ls^[")
+
+        let keyboard = app.buttons["terminal.key.keyboard"].firstMatch
+        keyboard.tap()
+        XCTAssertEqual(keyboard.label, "Show Keyboard")
+        XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, false, "收起鍵盤後輸入元件不是焦點")
+        keyboard.tap()
+        XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, true, "叫出鍵盤後輸入元件回到焦點")
+        app.typeText("x")
+        waitForScreen(screen, toContain: "ls^[x")
+    }
+
     @MainActor
     func testStickyControlIsShownWithoutColorAndSendsControlC() {
         let app = XCUIApplication.launchUITesting()
