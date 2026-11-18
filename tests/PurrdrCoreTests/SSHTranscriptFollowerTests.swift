@@ -30,6 +30,7 @@ struct SSHTranscriptFollowerTests {
         Data((["appended \(size) \(stamp)"] + lines.map { "\($0.utf8.count)\t\($0)" } + ["end \(end) \(anchor)"]).map { $0 + "\n" }.joined().utf8)
     }
 
+    /// 在背景等下一則事件(拿到後串流就放掉，追蹤隨之結束)。
     static func nextEvent(_ stream: AsyncThrowingStream<TranscriptFollowEvent, any Error>) -> Task<TranscriptFollowEvent?, any Error> {
         Task {
             var events = stream.makeAsyncIterator()
@@ -60,12 +61,12 @@ struct SSHTranscriptFollowerTests {
     func appendedThenContinuesFromNewCursor() async throws {
         let host = await Self.followingHost()
         let pace = Self.manualPace()
-        let next = Self.nextEvent(await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace))
+        var events = await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace).makeAsyncIterator()
 
         pace.wake()
         #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText == "8 - - \(Self.path)\n" })
         await host.send(stdout: Self.appendedReply(size: 16, stamp: "1700000000-16", lines: [Self.secondLine], end: 16, anchor: "4242"), toExecution: 0)
-        let event = try await next.value
+        let event = try await events.next()
         pace.wake()
 
         #expect(event == .appended(TranscriptChunk(start: 8, end: 16, lines: [Self.secondLine])))
@@ -94,12 +95,12 @@ struct SSHTranscriptFollowerTests {
     func reopensChannelKeepingCursor() async throws {
         let host = await Self.followingHost(channels: 2)
         let pace = Self.manualPace()
-        let next = Self.nextEvent(await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace))
+        var events = await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace).makeAsyncIterator()
 
         pace.wake()
         #expect(await host.waitForStdin(ofExecution: 0) { !$0.stdin.isEmpty })
         await host.send(stdout: Self.appendedReply(size: 16, stamp: "1700000000-16", lines: [Self.secondLine], end: 16, anchor: "4242"), toExecution: 0)
-        _ = try await next.value
+        _ = try await events.next()
         await host.finish(execution: 0, exitCode: 124)
         pace.wake()
 
@@ -154,7 +155,7 @@ struct SSHTranscriptFollowerTests {
         await host.expect(TranscriptCommand.follow(), reply: FakeReply(stderr: Data("sh: not found\n".utf8), exitCode: 127))
         await host.expect(
             TranscriptCommand.catchUp(path: Self.path, from: 8, limit: TranscriptReader.catchUpLimit),
-            reply: FakeReply(stdout: Data("16\n8\t\(Self.secondLine)\n".utf8)))
+            reply: FakeReply(stdout: Data("16\n7\t\(Self.secondLine)\n".utf8)))
         let pace = Self.manualPace()
         let next = Self.nextEvent(await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace))
 
