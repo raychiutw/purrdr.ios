@@ -227,6 +227,12 @@ public final class PlanUsageModel {
         stop()
     }
 
+    /// app 進背景。
+    public func enteredBackground() {}
+
+    /// app 回到前景(也包括拉下控制中心後回來)。
+    public func becameActive() {}
+
     /// 目前選擇的查詢成本;這種連線方式不支援時是 `nil`。
     public var cost: PlanUsageQueryCost? { source(host, agent)?.cost }
 

@@ -189,6 +189,43 @@ struct PlanUsageModelTests {
         #expect(await stays(model.state == .loading))
     }
 
+    @Test("回到前景：只有從背景回來才再查一次;拉下控制中心(inactive → active)不查")
+    func returningFromBackgroundQueriesAgain() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let model = model()
+        model.appeared()
+        await model.untilIdle()
+
+        model.becameActive()
+        await model.untilIdle()
+        #expect(host.commands.count == 1)
+
+        model.enteredBackground()
+        model.becameActive()
+        await model.untilIdle()
+        #expect(host.commands.count == 2)
+    }
+
+    @Test("進背景：進行中的查詢被取消;畫面不在時回到前景不查")
+    func backgroundStopsQueryAndHiddenScreenStaysIdle() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let gated = GatedChannel(base: host)
+        let model = model(channel: gated)
+        model.appeared()
+        #expect(await gated.waitUntilWaiting())
+
+        model.enteredBackground()
+        await gated.open()
+        await host.waitUntilFinished()
+        #expect(await stays(model.state == .loading))
+
+        model.disappeared()
+        model.becameActive()
+        #expect(await stays(host.commands.count == 1))
+    }
+
     @Test("需要傳輸的來源：畫面開著也不定時重整")
     func transferSourcesNeverPoll() async throws {
         grantClaudeUsage()
