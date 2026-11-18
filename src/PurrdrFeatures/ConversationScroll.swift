@@ -13,6 +13,8 @@ public struct ConversationScroll: Equatable, Sendable {
     private var distanceFromBottom = 0.0
     /// 內容最近一次被重建的時間(#130):之後短時間內停在內容之外才捲到底。
     private var rebuiltAt: Date?
+    /// 上次捲回內容時的內容高度(#185):高度沒變又被推回內容之外就不再捲，不與系統來回搶。
+    private var returnedAtContentHeight: Double?
 
     /// 內容重建後這段時間內，停在內容之外就切回跟隨並捲到底(LazyVStack 重新估算高度要幾個畫面才定下來)。
     public static let rebuildSettleTime: TimeInterval = 1
@@ -75,10 +77,16 @@ extension ConversationScroll {
     /// 可見範圍會落在內容之外);閱讀中只在內容剛被重建後(`rebuildSettleTime` 內、使用者之後沒有自己捲過),
     /// 一般排版變化(估算高度變小、reflow、鍵盤)不介入，閱讀中的讀者不被拉走。
     public func returnsToContent(_ metrics: ConversationScrollMetrics, at now: Date) -> Bool {
-        guard metrics.isBeyondContent else { return false }
+        guard metrics.isBeyondContent, metrics.contentHeight != returnedAtContentHeight else { return false }
         if following { return true }
         guard let rebuiltAt else { return false }
         return now.timeIntervalSince(rebuiltAt) <= Self.rebuildSettleTime
+    }
+
+    /// `returnsToContent` 成立、畫面捲回內容時呼叫：切回跟隨，記下這次的內容高度。
+    public mutating func returnedToContent(_ metrics: ConversationScrollMetrics) {
+        jumpToLatest()
+        returnedAtContentHeight = metrics.contentHeight
     }
 
     /// 重建：原有的列(不算回音)沒有原封不動、連續地留在新的列裡(後面接上、前面加上舊頁都不是)。

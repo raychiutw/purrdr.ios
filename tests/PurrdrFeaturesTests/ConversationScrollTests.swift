@@ -181,4 +181,25 @@ struct ConversationScrollTests {
         scroll.userScrolled(distanceFromBottom: 900)
         #expect(!scroll.returnsToContent(beyond, at: now.addingTimeInterval(0.5)), "使用者自己捲過就不再介入")
     }
+
+    // iPhone 17 實測(#185,唯讀裝置的「需要你」對話):內容只比可見範圍高 6pt,捲到底(−110.3)後系統又把位置
+    // 推回內容之外(−10.6,差一個底部 inset),兩邊來回搶，主執行緒滿載。
+    static func barelyTaller(offsetY: Double, contentHeight: Double = 664) -> ConversationScrollMetrics {
+        ConversationScrollMetrics(
+            contentHeight: contentHeight, containerHeight: 658.33, contentOffsetY: offsetY, topInset: 116, bottomInset: 99.75
+        )
+    }
+
+    @Test("內容高度沒變時，捲回內容後又被推回內容之外：不再搶著捲到底")
+    func returningToContentDoesNotFightTheSystemAtTheSameContentHeight() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var scroll = ConversationScroll()
+        let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
+        #expect(scroll.returnsToContent(pushedBeyond, at: now))
+        scroll.returnedToContent(pushedBeyond)
+        #expect(!scroll.returnsToContent(Self.barelyTaller(offsetY: -110.33), at: now))
+
+        #expect(!scroll.returnsToContent(pushedBeyond, at: now), "同一個內容高度只捲回一次")
+        #expect(scroll.returnsToContent(Self.barelyTaller(offsetY: 600, contentHeight: 1200), at: now), "內容高度變了照樣捲回")
+    }
 }
