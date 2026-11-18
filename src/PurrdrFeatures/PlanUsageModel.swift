@@ -25,12 +25,38 @@ public struct PlanUsageHostOption: Identifiable, Equatable, Sendable {
 /// 一台主機上一種 Agent 的方案用量來源。
 public struct PlanUsageSource: Sendable {
     public var cost: PlanUsageQueryCost
+    /// 要先經同意修改主機設定才讀得到(Claude);`nil` 時不需要。
+    public var hostWrite: PlanUsageHostWrite?
     /// 查一次;Agent 還沒回報過時是 `nil`。
     public var read: @Sendable () async throws -> PlanUsage?
 
-    public init(cost: PlanUsageQueryCost, read: @escaping @Sendable () async throws -> PlanUsage?) {
+    public init(
+        cost: PlanUsageQueryCost, hostWrite: PlanUsageHostWrite? = nil, read: @escaping @Sendable () async throws -> PlanUsage?
+    ) {
         self.cost = cost
+        self.hostWrite = hostWrite
         self.read = read
+    }
+}
+
+/// 經同意修改主機設定(ADR-0002):同意以主機為單位記住，關閉時完整還原。
+public struct PlanUsageHostWrite: Sendable {
+    public var isGranted: @Sendable () -> Bool
+    /// 同意前的檢查;回傳會以哪個主機使用者修改。
+    public var inspect: @Sendable () async throws -> String
+    /// 安裝並記住同意。
+    public var install: @Sendable () async throws -> Void
+    /// 還原並撤銷同意。
+    public var restore: @Sendable () async throws -> Void
+
+    public init(
+        isGranted: @escaping @Sendable () -> Bool, inspect: @escaping @Sendable () async throws -> String,
+        install: @escaping @Sendable () async throws -> Void, restore: @escaping @Sendable () async throws -> Void
+    ) {
+        self.isGranted = isGranted
+        self.inspect = inspect
+        self.install = install
+        self.restore = restore
     }
 }
 
@@ -40,7 +66,19 @@ extension PlanUsageSource {
         channel: any HostChannel, cost: PlanUsageQueryCost, hostID: String, consent: any HostWriteConsentStore
     ) -> PlanUsageSource {
         let host = ClaudeUsageHost(channel: channel)
-        return PlanUsageSource(cost: cost) { try await host.readUsage()?.planUsage }
+        let feature = ClaudeUsageHost.feature.id
+        let hostWrite = PlanUsageHostWrite(
+            isGranted: { consent.isGranted(feature, host: hostID) },
+            inspect: { try await host.inspect().user },
+            install: {
+                try await host.install()
+                consent.grant(feature, host: hostID)
+            },
+            restore: {
+                try await host.restore()
+                consent.revoke(feature, host: hostID)
+            })
+        return PlanUsageSource(cost: cost, hostWrite: hostWrite) { try await host.readUsage()?.planUsage }
     }
 }
 
@@ -155,16 +193,86 @@ public final class PlanUsageModel {
         stop()
     }
 
-    /// 使用者要顯示 Claude 的方案用量：先檢查主機。
-    public func requestConsent() async {}
+    /// 目前的來源已同意修改主機設定，可以關閉並還原。
+    public var canTurnOff: Bool {
+        guard let hostWrite = source(host, agent)?.hostWrite else { return false }
+        switch state {
+        case .loading, .loaded, .noData, .failed: return hostWrite.isGranted()
+        default: return false
+        }
+    }
 
-    public func cancelConsent() {}
+    /// 使用者要顯示 Claude 的方案用量：先檢查主機(設定能不能安全修改、以哪個使用者),再請使用者確認。
+    public func requestConsent() async {
+        guard state == .needsConsent, let hostWrite = source(host, agent)?.hostWrite else { return }
+        let selection = (host, agent)
+        message = nil
+        state = .checking
+        do {
+            let user = try await hostWrite.inspect()
+            guard selection == (host, agent) else { return }
+            state = .confirming(user: user)
+        } catch {
+            guard selection == (host, agent) else { return }
+            state = .needsConsent
+            message = Self.describe(error)
+        }
+    }
 
-    /// 使用者確認：安裝並記住同意，再查一次。
-    public func confirm() async {}
+    public func cancelConsent() {
+        if case .confirming = state { state = .needsConsent }
+    }
 
-    /// 關閉這台主機的 Claude 方案用量並還原主機設定。
-    public func turnOff() async {}
+    /// 使用者確認：安裝(重新讀取設定，以最新內容為準)並記住同意，再查一次。
+    public func confirm() async {
+        guard case .confirming = state, let hostWrite = source(host, agent)?.hostWrite else { return }
+        let selection = (host, agent)
+        state = .installing
+        do {
+            try await hostWrite.install()
+            guard selection == (host, agent) else { return }
+            state = .loading
+            await refresh()
+        } catch {
+            guard selection == (host, agent) else { return }
+            state = .needsConsent
+            message = Self.describe(error)
+        }
+    }
+
+    /// 關閉這台主機的 Claude 方案用量：還原主機設定、撤銷同意。還原失敗時維持原狀並說明。
+    public func turnOff() async {
+        guard canTurnOff, let hostWrite = source(host, agent)?.hostWrite else { return }
+        let selection = (host, agent)
+        let previous = state
+        stop()
+        state = .turningOff
+        do {
+            try await hostWrite.restore()
+            guard selection == (host, agent) else { return }
+            message = nil
+            state = .needsConsent
+        } catch {
+            guard selection == (host, agent) else { return }
+            state = previous
+            message = Self.describe(error)
+        }
+    }
+
+    static func describe(_ error: any Error) -> String {
+        switch error {
+        case ClaudeUsageError.settingsNotJSON:
+            String(localized: "~/.claude/settings.json isn’t valid JSON, so Purrdr left it unchanged. Fix the file on the host and try again.")
+        case ClaudeUsageError.claudeNotFound:
+            String(localized: "This host user has no ~/.claude folder. Set up Claude Code on the host first.")
+        case HostFilesError.changedSinceRead:
+            String(localized: "~/.claude/settings.json changed while Purrdr was updating it. Nothing was changed; try again.")
+        case HostWriteError.unusableFile, HostFilesError.tooLarge:
+            String(localized: "Purrdr can’t safely change ~/.claude/settings.json on this host.")
+        default:
+            String(localized: "Couldn’t update the host: \(error.localizedDescription)")
+        }
+    }
 
     /// 改選主機：新的查詢取代進行中的。
     public func select(host: HostSelection) {
@@ -184,6 +292,7 @@ public final class PlanUsageModel {
 
     private func restart() {
         stop()
+        message = nil
         state = .loading
         startQuery()
         guard source(host, agent)?.cost.refreshesAutomatically == true else { return }
@@ -218,6 +327,10 @@ public final class PlanUsageModel {
     private func startQuery() {
         guard let source = source(host, agent) else {
             state = .unsupportedConnection
+            return
+        }
+        if let hostWrite = source.hostWrite, !hostWrite.isGranted() {
+            state = .needsConsent
             return
         }
         query = Task { [weak self] in
