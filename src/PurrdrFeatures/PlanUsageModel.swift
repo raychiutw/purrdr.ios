@@ -86,7 +86,8 @@ extension PlanUsageSource {
 extension PlanUsageSource {
     /// Codex:執行一次 `codex app-server` 查詢(不寫主機、不需同意)。
     public static func codex(channel: any HostChannel, cost: PlanUsageQueryCost, sleep: @escaping Sleep = Sleeping.task) -> PlanUsageSource {
-        PlanUsageSource(cost: cost) { nil }
+        let host = CodexUsageHost(channel: channel, sleep: sleep)
+        return PlanUsageSource(cost: cost) { try await host.readUsage() }
     }
 }
 
@@ -287,6 +288,24 @@ public final class PlanUsageModel {
         }
     }
 
+    /// 查詢失敗的說明：Codex 自己的錯誤與 app-server 逾時;其他是主機連線的錯誤。
+    static func describeReadFailure(_ error: any Error, agent: PlanUsageAgent) -> String {
+        switch error {
+        case CodexUsageError.codexNotFound:
+            String(localized: "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH.")
+        case CodexUsageError.notSignedIn:
+            String(localized: "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first.")
+        case CodexUsageError.unreadableResponse:
+            String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help.")
+        case CodexUsageError.requestFailed(let message):
+            String(localized: "Codex couldn’t get plan usage: \(message)")
+        case HostCommandError.deadlineExceeded where agent == .codex:
+            String(localized: "Codex didn’t answer in time.")
+        default:
+            HostErrorText.message(for: error)
+        }
+    }
+
     /// 改選主機：新的查詢取代進行中的。
     public func select(host: HostSelection) {
         guard host != self.host else { return }
@@ -362,7 +381,7 @@ public final class PlanUsageModel {
             switch outcome {
             case .success(let usage?): state = .loaded(usage)
             case .success(nil): state = .noData
-            case .failure(let error): state = .failed(HostErrorText.message(for: error))
+            case .failure(let error): state = .failed(Self.describeReadFailure(error, agent: agent))
             }
         }
     }
