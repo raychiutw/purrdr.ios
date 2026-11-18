@@ -233,4 +233,15 @@ struct ConversationScrollTests {
         #expect(!ConversationScroll().refillsVisibleRange(collapsed, visibleRows: 0), "可見範圍被擠到沒有高度")
         #expect(!ConversationScroll().refillsVisibleRange(Self.measured(offsetY: -116, contentHeight: 300), visibleRows: 0), "內容不用捲")
     }
+
+    @Test("捲回內容後 inset 變了(輸入列、卡片排好)又停在內容之外：照樣捲回")
+    func returnsAgainWhenInsetsChangeAtTheSameContentHeight() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#191):第一次排版還沒有 inset 時就捲過一次，排好 inset 後 `scrollTo(edge: .bottom)` 多捲一個底部 inset。
+        let beforeInsets = ConversationScrollMetrics(contentHeight: 41209, containerHeight: 174, contentOffsetY: 41035, topInset: 0, bottomInset: 0)
+        scroll.returnedToContent(beforeInsets)
+        let pushedBeyond = ConversationScrollMetrics(contentHeight: 41209, containerHeight: 174, contentOffsetY: 41389, topInset: 116, bottomInset: 470)
+        #expect(scroll.returnsToContent(pushedBeyond, at: now))
+    }
 }
