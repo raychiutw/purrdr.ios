@@ -411,11 +411,6 @@ final class TerminalScreenHandle {
         screen?.textInput.paste(text: text)
     }
 
-    /// 程式是否開了 bracketed paste 模式(登入 Shell 用;Pane 終端機看不到 Pane 的模式)。
-    var bracketedPasteMode: Bool {
-        screen?.terminalView.getTerminal().bracketedPasteMode ?? false
-    }
-
     fileprivate func focusChanged(_ focused: Bool) {
         isKeyboardVisible = focused
     }
@@ -452,11 +447,11 @@ struct TerminalScreen: UIViewRepresentable {
             view?.setNeedsDisplay()
             handle?.focusChanged(focused)
         }
-        screen.textInput.onSend = { [model, weak handle] input in
+        screen.textInput.onSend = { [model, weak view] input in
             switch input {
             case .bytes(let bytes): model.type(bytes)
             case .key(let key, let modifiers, let applicationCursor): model.press(key, adding: modifiers, applicationCursor: applicationCursor)
-            case .paste(let text): model.paste(text, bracketed: handle?.bracketedPasteMode ?? false)
+            case .paste(let text): model.paste(text, bracketed: view?.bracketedPasteMode ?? false)
             }
         }
         // herdr 的串流不轉送終端機模式：Pane 終端機看不到，只有登入 Shell 讀模擬器。
@@ -674,12 +669,12 @@ final class TerminalScreenContainer: UIView {
     }
 
     private func updateCompositionOverlay() {
-        let layout = textInput.compositionLayout.overlay
+        let box = textInput.compositionLayout.overlay
         let colors = terminalView.cursorCellColors
         compositionOverlay.show(
             textInput.composition.markedText,
             selectedRange: textInput.markedSelection,
-            frame: CGRect(x: layout.x, y: layout.y, width: layout.width, height: layout.height),
+            frame: CGRect(x: box.x, y: box.y, width: box.width, height: box.height),
             font: terminalView.font,
             cellWidth: textInput.cellWidth,
             textColor: colors.foreground,
@@ -694,6 +689,9 @@ final class PurrdrTerminalView: TerminalView {
     weak var textInput: TerminalTextInputView?
     /// 目前套用的 16 色(組字浮層取游標格子的顏色用)。
     var installedPalette = SwiftTerm.Color.defaultInstalledColors
+
+    /// 程式是否開了 bracketed paste 模式(登入 Shell 用;Pane 終端機看不到 Pane 的模式)。
+    var bracketedPasteMode: Bool { getTerminal().bracketedPasteMode }
 
     /// 模擬器看到的遠端程式模式(登入 Shell 直接接 PTY 才準)。
     var visibleProgramModes: TerminalProgramModes {
@@ -733,7 +731,7 @@ final class PurrdrTerminalView: TerminalView {
                 let entry = installedPalette[Int(code)]
                 return UIColor(red: CGFloat(entry.red) / 65535, green: CGFloat(entry.green) / 65535, blue: CGFloat(entry.blue) / 65535, alpha: 1)
             }
-            guard let rgb = TerminalCompositionLayout.xterm256(code) else { return nativeForegroundColor }
+            guard let rgb = XtermPalette.color(code) else { return nativeForegroundColor }
             return UIColor(red: CGFloat(rgb.red) / 255, green: CGFloat(rgb.green) / 255, blue: CGFloat(rgb.blue) / 255, alpha: 1)
         }
     }

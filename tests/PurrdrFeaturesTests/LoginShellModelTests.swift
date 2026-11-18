@@ -106,7 +106,7 @@ struct LoginShellModelTests {
         let (model, _) = await Self.connected(host)
 
         model.toggle(.alt)
-        model.press(.function(5), adding: .control)
+        model.press(.function(.f5), adding: .control)
         let expected = Data("\u{1B}[15;7~".utf8)
         await Self.eventually(host) { $0.first?.input == expected }
 

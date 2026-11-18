@@ -109,16 +109,4 @@ struct TerminalCompositionLayoutTests {
         #expect(shifted.rect(utf16Location: 1, length: 1) == Box(x: 624, y: 51, width: 16, height: 17))
         #expect(shifted.caret(utf16Offset: 2) == Box(x: 640, y: 51, width: 2, height: 17))
     }
-
-    @Test("xterm 256 色：16–231 是 6×6×6 色塊、232–255 是灰階")
-    func xtermPalette() {
-        #expect(TerminalCompositionLayout.xterm256(16) == TerminalCompositionLayout.RGB(red: 0, green: 0, blue: 0))
-        #expect(TerminalCompositionLayout.xterm256(21) == TerminalCompositionLayout.RGB(red: 0, green: 0, blue: 255))
-        #expect(TerminalCompositionLayout.xterm256(196) == TerminalCompositionLayout.RGB(red: 255, green: 0, blue: 0))
-        #expect(TerminalCompositionLayout.xterm256(110) == TerminalCompositionLayout.RGB(red: 135, green: 175, blue: 215))
-        #expect(TerminalCompositionLayout.xterm256(232) == TerminalCompositionLayout.RGB(red: 8, green: 8, blue: 8))
-        #expect(TerminalCompositionLayout.xterm256(255) == TerminalCompositionLayout.RGB(red: 238, green: 238, blue: 238))
-        // 0–15 由主題決定，這裡不給。
-        #expect(TerminalCompositionLayout.xterm256(15) == nil)
-    }
 }

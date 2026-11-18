@@ -222,8 +222,7 @@ public final class LoginShellModel: TerminalSessionModel {
 
     public func press(_ key: TerminalKey, adding extraModifiers: TerminalModifiers, applicationCursor: Bool) {
         guard isInteractive else { return }
-        outbox?.yield(.bytes(key.bytes(modifiers: modifiers.union(extraModifiers), applicationCursor: applicationCursor)))
-        modifiers = []
+        outbox?.yield(.bytes(modifiers.release(encoding: key, adding: extraModifiers, applicationCursor: applicationCursor)))
     }
 
     public func toggle(_ modifier: TerminalModifiers) {

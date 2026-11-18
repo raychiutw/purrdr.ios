@@ -6,7 +6,7 @@ import UIKit
 /// 文件內容只有組字中的文字;確認的文字與按鍵經 `onSend` 送出，組字期間不送任何東西。
 final class TerminalTextInputView: UIView, UITextInput {
     /// 要送到遠端的輸入。
-    var onSend: ((TerminalInputSend) -> Void)?
+    var onSend: ((TerminalRemoteInput) -> Void)?
     /// Page Up／Down 在本機捲一頁(登入 Shell 的一般畫面)。
     var onScrollPageLocally: ((TerminalInput.ScrollDirection) -> Void)?
     /// Page Up／Down 交給 herdr 決定(Pane 終端機)。
@@ -96,7 +96,7 @@ final class TerminalTextInputView: UIView, UITextInput {
         return result
     }
 
-    private func send(_ sends: [TerminalInputSend]) {
+    private func send(_ sends: [TerminalRemoteInput]) {
         sends.forEach { onSend?($0) }
     }
 
@@ -156,7 +156,7 @@ final class TerminalTextInputView: UIView, UITextInput {
     }
 
     /// 系統不會替自己處理的按鍵重複送 `pressesBegan`:按住 0.4 秒後每 0.1 秒重送(同 SwiftTerm)。
-    private func startKeyRepeat(_ input: TerminalInputSend) {
+    private func startKeyRepeat(_ input: TerminalRemoteInput) {
         stopKeyRepeat()
         let timer = Timer(fire: Date(timeIntervalSinceNow: 0.4), interval: 0.1, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.onSend?(input) }
@@ -364,10 +364,22 @@ extension TerminalHardwareKey {
     @MainActor
     init?(_ key: UIKey) {
         switch key.keyCode {
-        case .keyboardEscape: self = .escape
-        case .keyboardTab: self = .tab
         case .keyboardReturnOrEnter, .keypadEnter: self = .returnKey
         case .keyboardDeleteOrBackspace: self = .deleteBackward
+        default:
+            guard let terminalKey = TerminalKey(key) else { return nil }
+            self = .key(terminalKey)
+        }
+    }
+}
+
+extension TerminalKey {
+    /// 終端機按鍵對應的 UIKey;字元鍵取不含修飾的字元。
+    @MainActor
+    init?(_ key: UIKey) {
+        switch key.keyCode {
+        case .keyboardEscape: self = .escape
+        case .keyboardTab: self = .tab
         case .keyboardDeleteForward: self = .deleteForward
         case .keyboardUpArrow: self = .up
         case .keyboardDownArrow: self = .down
@@ -377,18 +389,18 @@ extension TerminalHardwareKey {
         case .keyboardEnd: self = .end
         case .keyboardPageUp: self = .pageUp
         case .keyboardPageDown: self = .pageDown
-        case .keyboardF1: self = .function(1)
-        case .keyboardF2: self = .function(2)
-        case .keyboardF3: self = .function(3)
-        case .keyboardF4: self = .function(4)
-        case .keyboardF5: self = .function(5)
-        case .keyboardF6: self = .function(6)
-        case .keyboardF7: self = .function(7)
-        case .keyboardF8: self = .function(8)
-        case .keyboardF9: self = .function(9)
-        case .keyboardF10: self = .function(10)
-        case .keyboardF11: self = .function(11)
-        case .keyboardF12: self = .function(12)
+        case .keyboardF1: self = .function(.f1)
+        case .keyboardF2: self = .function(.f2)
+        case .keyboardF3: self = .function(.f3)
+        case .keyboardF4: self = .function(.f4)
+        case .keyboardF5: self = .function(.f5)
+        case .keyboardF6: self = .function(.f6)
+        case .keyboardF7: self = .function(.f7)
+        case .keyboardF8: self = .function(.f8)
+        case .keyboardF9: self = .function(.f9)
+        case .keyboardF10: self = .function(.f10)
+        case .keyboardF11: self = .function(.f11)
+        case .keyboardF12: self = .function(.f12)
         default:
             guard let character = key.charactersIgnoringModifiers.first, key.charactersIgnoringModifiers.count == 1 else { return nil }
             self = .character(character)

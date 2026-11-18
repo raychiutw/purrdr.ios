@@ -5,11 +5,11 @@ import Testing
 /// 終端機接管鍵盤輸入後的組字規則(#136):組字期間不送任何東西，確認後才送出。
 @Suite("終端機組字狀態")
 struct TerminalCompositionTests {
-    static func text(_ string: String) -> [TerminalInputSend] {
+    static func text(_ string: String) -> [TerminalRemoteInput] {
         [.bytes(Data(string.utf8))]
     }
 
-    static let backspace: [TerminalInputSend] = [.bytes(Data([0x7F]))]
+    static let backspace: [TerminalRemoteInput] = [.bytes(Data([0x7F]))]
 
     /// 登入 Shell:遠端程式開了 alternate screen(less、vim)。
     static let fullScreen = TerminalProgramModes.visible(applicationCursor: false, alternateScreen: true)
@@ -122,34 +122,34 @@ struct TerminalCompositionTests {
     // MARK: - 實體鍵盤
 
     @Test("沒有組字時，特殊鍵帶實體修飾鍵經 press 送出", arguments: [
-        (TerminalHardwareKey.escape, TerminalModifiers(), TerminalKey.escape),
-        (.tab, [], .tab),
-        (.tab, .shift, .tab),
-        (.up, [], .up),
-        (.down, .control, .down),
-        (.left, .alt, .left),
-        (.right, .shift, .right),
-        (.home, [], .home),
-        (.end, [], .end),
-        (.pageUp, [], .pageUp),
-        (.pageDown, .shift, .pageDown),
-        (.deleteForward, [], .deleteForward),
-        (.function(1), [], .function(1)),
-        (.function(12), .control, .function(12)),
-        (.character("c"), .control, .character("c")),
-        (.character("b"), .alt, .character("b")),
-        (.character("x"), [.control, .alt], .character("x")),
-    ] as [(TerminalHardwareKey, TerminalModifiers, TerminalKey)])
-    func specialKeysAreSent(key: TerminalHardwareKey, modifiers: TerminalModifiers, expected: TerminalKey) {
+        (TerminalKey.escape, TerminalModifiers()),
+        (.tab, []),
+        (.tab, .shift),
+        (.up, []),
+        (.down, .control),
+        (.left, .alt),
+        (.right, .shift),
+        (.home, []),
+        (.end, []),
+        (.pageUp, []),
+        (.pageDown, .shift),
+        (.deleteForward, []),
+        (.function(.f1), []),
+        (.function(.f12), .control),
+        (.character("c"), .control),
+        (.character("b"), .alt),
+        (.character("x"), [.control, .alt]),
+    ] as [(TerminalKey, TerminalModifiers)])
+    func specialKeysAreSent(key: TerminalKey, modifiers: TerminalModifiers) {
         let composition = TerminalComposition()
 
-        #expect(composition.handle(key, modifiers: modifiers, modes: Self.fullScreen) == .send(.key(expected, modifiers: modifiers)))
+        #expect(composition.handle(.key(key), modifiers: modifiers, modes: Self.fullScreen) == .send(.key(key, modifiers: modifiers)))
     }
 
     @Test("沒有組字時，一般字元、Return、刪除交給系統文字輸入(輸入法才看得到第一個鍵)", arguments: [
-        (TerminalHardwareKey.character("a"), TerminalModifiers()),
-        (.character("A"), .shift),
-        (.character("ㄅ"), []),
+        (TerminalHardwareKey.key(.character("a")), TerminalModifiers()),
+        (.key(.character("A")), .shift),
+        (.key(.character("ㄅ")), []),
         (.returnKey, []),
         (.returnKey, .shift),
         (.deleteBackward, []),
@@ -169,11 +169,11 @@ struct TerminalCompositionTests {
     }
 
     @Test("組字中所有實體鍵(含 Ctrl-C、Esc、Return、方向鍵)都交給輸入法", arguments: [
-        (TerminalHardwareKey.character("c"), TerminalModifiers.control),
-        (.escape, []),
+        (TerminalHardwareKey.key(.character("c")), TerminalModifiers.control),
+        (.key(.escape), []),
         (.returnKey, []),
-        (.left, []),
-        (.character(" "), []),
+        (.key(.left), []),
+        (.key(.character(" ")), []),
         (.deleteBackward, .alt),
     ] as [(TerminalHardwareKey, TerminalModifiers)])
     func keysWhileComposingGoToInputMethod(key: TerminalHardwareKey, modifiers: TerminalModifiers) {
@@ -184,17 +184,17 @@ struct TerminalCompositionTests {
     }
 
     @Test("組字中其他實體鍵(方向鍵、Tab、Page、功能鍵、Ctrl／Alt 組合)也都交給輸入法，不送遠端", arguments: [
-        (TerminalHardwareKey.up, TerminalModifiers()),
-        (.down, []),
-        (.right, .shift),
-        (.tab, []),
-        (.pageUp, []),
-        (.pageDown, []),
-        (.home, []),
-        (.deleteForward, []),
-        (.function(5), []),
-        (.character("d"), .control),
-        (.character("b"), .alt),
+        (TerminalHardwareKey.key(.up), TerminalModifiers()),
+        (.key(.down), []),
+        (.key(.right), .shift),
+        (.key(.tab), []),
+        (.key(.pageUp), []),
+        (.key(.pageDown), []),
+        (.key(.home), []),
+        (.key(.deleteForward), []),
+        (.key(.function(.f5)), []),
+        (.key(.character("d")), .control),
+        (.key(.character("b")), .alt),
         (.returnKey, .alt),
     ] as [(TerminalHardwareKey, TerminalModifiers)])
     func moreKeysWhileComposingGoToInputMethod(key: TerminalHardwareKey, modifiers: TerminalModifiers) {
@@ -253,9 +253,9 @@ struct TerminalCompositionTests {
     // MARK: - Page Up／Down
 
     @Test("一般畫面(遠端沒開 alternate screen 或 application cursor)Page Up／Down 在本機捲一頁，不送遠端", arguments: [
-        (TerminalHardwareKey.pageUp, TerminalModifiers(), TerminalInput.ScrollDirection.up),
-        (.pageDown, [], .down),
-        (.pageUp, .shift, .up),
+        (TerminalHardwareKey.key(.pageUp), TerminalModifiers(), TerminalInput.ScrollDirection.up),
+        (.key(.pageDown), [], .down),
+        (.key(.pageUp), .shift, .up),
     ] as [(TerminalHardwareKey, TerminalModifiers, TerminalInput.ScrollDirection)])
     func pageKeysScrollLocallyOnNormalScreen(key: TerminalHardwareKey, modifiers: TerminalModifiers,
                                              expected: TerminalInput.ScrollDirection) {
@@ -268,14 +268,14 @@ struct TerminalCompositionTests {
     func pageKeysSentWhenRemoteWantsThem() {
         let composition = TerminalComposition()
 
-        #expect(composition.handle(.pageUp, modifiers: [], modes: Self.fullScreen) == .send(.key(.pageUp, modifiers: [])))
-        #expect(composition.handle(.pageDown, modifiers: [], modes: Self.fullScreen) == .send(.key(.pageDown, modifiers: [])))
+        #expect(composition.handle(.key(.pageUp), modifiers: [], modes: Self.fullScreen) == .send(.key(.pageUp, modifiers: [])))
+        #expect(composition.handle(.key(.pageDown), modifiers: [], modes: Self.fullScreen) == .send(.key(.pageDown, modifiers: [])))
     }
 
     @Test("Pane 終端機(herdr 不轉送模式):Page 鍵一律交給 herdr 依 Pane 狀態決定", arguments: [
-        (TerminalHardwareKey.pageUp, TerminalModifiers(), TerminalInput.ScrollDirection.up),
-        (.pageDown, [], .down),
-        (.pageUp, .shift, .up),
+        (TerminalHardwareKey.key(.pageUp), TerminalModifiers(), TerminalInput.ScrollDirection.up),
+        (.key(.pageDown), [], .down),
+        (.key(.pageUp), .shift, .up),
     ] as [(TerminalHardwareKey, TerminalModifiers, TerminalInput.ScrollDirection)])
     func pageKeysGoToHerdrOnPaneTerminal(key: TerminalHardwareKey, modifiers: TerminalModifiers,
                                          expected: TerminalInput.ScrollDirection) {
@@ -288,25 +288,25 @@ struct TerminalCompositionTests {
     func pageKeysOnLoginShellFollowVisibleModes() {
         let composition = TerminalComposition()
 
-        #expect(composition.handle(.pageUp, modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: false))
+        #expect(composition.handle(.key(.pageUp), modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: false))
             == .scrollPage(.up))
-        #expect(composition.handle(.pageDown, modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: true))
+        #expect(composition.handle(.key(.pageDown), modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: true))
             == .send(.key(.pageDown, modifiers: [])))
-        #expect(composition.handle(.pageUp, modifiers: [], modes: .visible(applicationCursor: true, alternateScreen: false))
+        #expect(composition.handle(.key(.pageUp), modifiers: [], modes: .visible(applicationCursor: true, alternateScreen: false))
             == .send(.key(.pageUp, modifiers: [], applicationCursor: true)))
     }
 
     @Test("方向鍵、Home／End 帶著遠端的 application cursor 模式;Pane 終端機看不到模式，一律 CSI", arguments: [
-        (TerminalHardwareKey.up, TerminalKey.up), (.down, .down), (.left, .left), (.right, .right), (.home, .home), (.end, .end),
-    ] as [(TerminalHardwareKey, TerminalKey)])
-    func cursorKeysCarryApplicationCursorMode(key: TerminalHardwareKey, terminalKey: TerminalKey) {
+        TerminalKey.up, .down, .left, .right, .home, .end,
+    ])
+    func cursorKeysCarryApplicationCursorMode(terminalKey: TerminalKey) {
         let composition = TerminalComposition()
 
-        #expect(composition.handle(key, modifiers: [], modes: .visible(applicationCursor: true, alternateScreen: true))
+        #expect(composition.handle(.key(terminalKey), modifiers: [], modes: .visible(applicationCursor: true, alternateScreen: true))
             == .send(.key(terminalKey, modifiers: [], applicationCursor: true)))
-        #expect(composition.handle(key, modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: true))
+        #expect(composition.handle(.key(terminalKey), modifiers: [], modes: .visible(applicationCursor: false, alternateScreen: true))
             == .send(.key(terminalKey, modifiers: [], applicationCursor: false)))
-        #expect(composition.handle(key, modifiers: [], modes: .hiddenByHerdr)
+        #expect(composition.handle(.key(terminalKey), modifiers: [], modes: .hiddenByHerdr)
             == .send(.key(terminalKey, modifiers: [], applicationCursor: false)))
     }
 
@@ -323,7 +323,7 @@ struct TerminalCompositionTests {
     func localPageScrollDoesNotAffectOtherKeys() {
         let composition = TerminalComposition()
 
-        #expect(composition.handle(.up, modifiers: [], modes: Self.normalScreen) == .send(.key(.up, modifiers: [])))
-        #expect(composition.handle(.end, modifiers: [], modes: Self.normalScreen) == .send(.key(.end, modifiers: [])))
+        #expect(composition.handle(.key(.up), modifiers: [], modes: Self.normalScreen) == .send(.key(.up, modifiers: [])))
+        #expect(composition.handle(.key(.end), modifiers: [], modes: Self.normalScreen) == .send(.key(.end, modifiers: [])))
     }
 }

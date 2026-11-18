@@ -11,7 +11,7 @@ import UIKit
 @MainActor
 struct TerminalInputTakeoverTests {
     private final class Recorder {
-        var sends: [TerminalInputSend] = []
+        var sends: [TerminalRemoteInput] = []
     }
 
     private func mount() async throws -> (UIWindow, TerminalScreenContainer, Recorder) {

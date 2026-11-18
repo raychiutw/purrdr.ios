@@ -1,7 +1,7 @@
 import Foundation
 
-/// 終端機鍵盤輸入要送到遠端的一筆。
-public enum TerminalInputSend: Sendable, Equatable {
+/// 輸入元件要送到遠端的一筆輸入。
+public enum TerminalRemoteInput: Sendable, Equatable {
     /// 照原樣送出的位元組(確認的文字、退格)。
     case bytes(Data)
     /// 經 `TerminalSessionModel.press(_:adding:applicationCursor:)` 送出的按鍵(帶實體鍵盤按著的修飾鍵)。
@@ -10,30 +10,19 @@ public enum TerminalInputSend: Sendable, Equatable {
     case paste(String)
 }
 
-/// 實體鍵盤的一顆鍵(與 UIKit 無關的描述;字元鍵是不含修飾的字元)。
+/// 實體鍵盤的一顆鍵(與 UIKit 無關)。終端機按鍵直接用 `TerminalKey`(字元鍵是不含修飾的字元);
+/// Return 與刪除另列，因為沒有 Alt 時交給系統文字輸入。
 public enum TerminalHardwareKey: Sendable, Equatable {
-    case escape
-    case tab
     case returnKey
     case deleteBackward
-    case deleteForward
-    case up
-    case down
-    case left
-    case right
-    case home
-    case end
-    case pageUp
-    case pageDown
-    case function(Int)
-    case character(Character)
+    case key(TerminalKey)
 }
 
 /// 實體鍵盤按鍵的去向。
 public enum TerminalHardwareKeyHandling: Sendable, Equatable {
     /// 交給系統文字輸入(輸入法、`insertText`、`deleteBackward`)。
     case system
-    case send(TerminalInputSend)
+    case send(TerminalRemoteInput)
     /// 在本機捲一頁(同單指滑動的捲動),不送遠端。
     case scrollPage(TerminalInput.ScrollDirection)
     /// Page 鍵交給 herdr 依 Pane 狀態決定(捲主機 scrollback 或送給程式)。
@@ -63,20 +52,20 @@ public struct TerminalComposition: Sendable, Equatable {
     }
 
     /// 確認文字(選字、英文字母、Return):取代組字文字，只送確認的文字。換行一律送 CR。
-    public mutating func insertText(_ text: String) -> [TerminalInputSend] {
+    public mutating func insertText(_ text: String) -> [TerminalRemoteInput] {
         markedText = ""
         return Self.sendable(text)
     }
 
     /// 組字中只刪組字文字的最後一個字;沒有組字時送 DEL。
-    public mutating func deleteBackward() -> [TerminalInputSend] {
+    public mutating func deleteBackward() -> [TerminalRemoteInput] {
         guard isComposing else { return [.bytes(Data([0x7F]))] }
         markedText.removeLast()
         return []
     }
 
     /// 系統要求結束組字：放棄組字文字，不送出(字元範圍分不出已選好的字與還在拼的音)。
-    public mutating func unmarkText() -> [TerminalInputSend] {
+    public mutating func unmarkText() -> [TerminalRemoteInput] {
         cancel()
         return []
     }
@@ -87,13 +76,13 @@ public struct TerminalComposition: Sendable, Equatable {
     }
 
     /// 按鍵列的一顆鍵：先放棄組字(不送出)再送該鍵。
-    public mutating func pressKeyBarKey(_ key: TerminalKey, modes: TerminalProgramModes) -> [TerminalInputSend] {
+    public mutating func pressKeyBarKey(_ key: TerminalKey, modes: TerminalProgramModes) -> [TerminalRemoteInput] {
         cancel()
         return [.key(key, modifiers: [], applicationCursor: modes.applicationCursor)]
     }
 
     /// 貼上：先放棄組字(不送出)再送貼上內容。
-    public mutating func paste(_ text: String) -> [TerminalInputSend] {
+    public mutating func paste(_ text: String) -> [TerminalRemoteInput] {
         cancel()
         return text.isEmpty ? [] : [.paste(text)]
     }
@@ -103,36 +92,27 @@ public struct TerminalComposition: Sendable, Equatable {
         _ key: TerminalHardwareKey, modifiers: TerminalModifiers, modes: TerminalProgramModes
     ) -> TerminalHardwareKeyHandling {
         guard !isComposing else { return .system }
-        let terminalKey: TerminalKey
         switch key {
-        case .character(let character):
-            guard !modifiers.isDisjoint(with: [.control, .alt]) else { return .system }
-            terminalKey = .character(character)
         case .returnKey:
             return modifiers.contains(.alt) ? .send(.bytes(Data([0x1B, 0x0D]))) : .system
         case .deleteBackward:
             return modifiers.contains(.alt) ? .send(.bytes(Data([0x1B, 0x7F]))) : .system
-        case .escape: terminalKey = .escape
-        case .tab: terminalKey = .tab
-        case .deleteForward: terminalKey = .deleteForward
-        case .up: terminalKey = .up
-        case .down: terminalKey = .down
-        case .left: terminalKey = .left
-        case .right: terminalKey = .right
-        case .home: terminalKey = .home
-        case .end: terminalKey = .end
-        case .pageUp:
-            if let handling = modes.pageKeyHandling(.up) { return handling }
-            terminalKey = .pageUp
-        case .pageDown:
-            if let handling = modes.pageKeyHandling(.down) { return handling }
-            terminalKey = .pageDown
-        case .function(let number): terminalKey = .function(number)
+        case .key(let terminalKey):
+            switch terminalKey {
+            case .character where modifiers.isDisjoint(with: [.control, .alt]):
+                return .system
+            case .pageUp:
+                if let handling = modes.pageKeyHandling(.up) { return handling }
+            case .pageDown:
+                if let handling = modes.pageKeyHandling(.down) { return handling }
+            default:
+                break
+            }
+            return .send(.key(terminalKey, modifiers: modifiers, applicationCursor: modes.applicationCursor))
         }
-        return .send(.key(terminalKey, modifiers: modifiers, applicationCursor: modes.applicationCursor))
     }
 
-    private static func sendable(_ text: String) -> [TerminalInputSend] {
+    private static func sendable(_ text: String) -> [TerminalRemoteInput] {
         guard !text.isEmpty else { return [] }
         let terminalText = text.replacingOccurrences(of: "\r\n", with: "\r").replacingOccurrences(of: "\n", with: "\r")
         return [.bytes(Data(terminalText.utf8))]
