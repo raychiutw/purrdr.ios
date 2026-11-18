@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrCore
 
-/// Claude 用量的主機端(行為規格 F18,ADR-0002 的寫入例外)。
+/// Claude 方案用量的主機端(行為規格 F18,ADR-0002 的寫入例外)。
 ///
 /// Claude Code 只把 `rate_limits` 交給 status line 指令，所以經使用者同意後，把 `~/.claude/settings.json`
 /// 的 `statusLine.command` 換成 `~/.purrdr/claude-usage/statusline.sh`:它把輸入存成 `usage.json`,
@@ -12,7 +12,7 @@ import PurrdrCore
 /// (Claude Code 文件 statusline「Windows configuration」),所以包裝改成 PowerShell 腳本 `statusline.ps1`,指令寫成
 /// 兩種 shell 都能跑的 `powershell.exe … -File '<家目錄>/.purrdr/claude-usage/statusline.ps1'`(正斜線、單引號;
 /// `-ExecutionPolicy Bypass` 只對這個程序有效，不改主機設定)。原本的指令以 Git Bash 執行(找不到時用 PowerShell)。
-public struct ClaudeUsageHost: Sendable {
+public struct ClaudePlanUsageHost: Sendable {
     public static let settingsPath: HostPath = ".claude/settings.json"
     public static let feature = HostWriteFeature(id: "claude-usage", userFiles: [settingsPath])
     public static let usagePath = feature.ownFile("usage.json")
@@ -85,7 +85,7 @@ public struct ClaudeUsageHost: Sendable {
     }
 
     /// 讀包裝腳本最後存下的用量;還沒有(沒安裝、Claude Code 還沒回報)時是 `nil`。
-    public func readUsage() async throws -> ClaudeUsage? {
+    public func readPlanUsage() async throws -> ClaudeUsage? {
         let read = try await files.read([Self.usagePath])
         return read[Self.usagePath]?.contents.flatMap(ClaudeUsage.init(usageFile:))
     }
@@ -129,7 +129,7 @@ public struct ClaudeUsageHost: Sendable {
     /// 包裝腳本。輸入有 `rate_limits` 才存(session 剛開始時沒有，不蓋掉上次的用量)。
     static let wrapperScript = """
         #!/bin/sh
-        # Purrdr 的 Claude 用量包裝：由 Purrdr app 安裝，在 app 關閉「Claude 用量」就會還原。
+        # Purrdr 的 Claude 方案用量包裝：由 Purrdr app 安裝，在 app 關閉「Claude 方案用量」就會還原。
         # 把 Claude Code 交給 status line 的輸入存成 usage.json,再原樣交給原本的 status line。
         dir="$HOME/.purrdr/claude-usage"
         input=$(cat)
@@ -151,7 +151,7 @@ public struct ClaudeUsageHost: Sendable {
         """
 }
 
-extension ClaudeUsageHost {
+extension ClaudePlanUsageHost {
     /// Windows 的包裝腳本(PowerShell 5.1)。與 `wrapperScript` 相同的行為：輸入有 `rate_limits` 才存 `usage.json`
     /// (暫存檔再換上),再把同一份輸入交給原本的 status line,它的輸出直接接到 Claude Code(子程序繼承 stdout)。
     ///

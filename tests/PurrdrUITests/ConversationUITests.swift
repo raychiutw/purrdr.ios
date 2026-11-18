@@ -25,6 +25,15 @@ final class ConversationUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
+    /// 點輸入列的「收起鍵盤」,等它消失(輸入框不再聚焦)。
+    @MainActor
+    private func hideKeyboard(in app: XCUIApplication) {
+        let hide = element("composer.hideKeyboard", in: app)
+        XCTAssertTrue(hide.waitForExistence(timeout: 5), "沒有收起鍵盤鈕")
+        hide.tap()
+        XCTAssertTrue(hide.waitForNonExistence(timeout: 5), "鍵盤沒有收起")
+    }
+
     /// 點開 Agent 看到對話：使用者泡泡、工具串摘要、已載入 skill、agent 的 markdown 回覆。
     @MainActor
     func testOpeningAgentShowsConversation() {
@@ -72,6 +81,13 @@ final class ConversationUITests: XCTestCase {
         let app = openLedger()
         let summary = app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
+        let window = app.windows.firstMatch
+        let navigationBottom = app.navigationBars.firstMatch.frame.maxY
+        for _ in 0..<6 where !summary.isHittable || summary.frame.minY < navigationBottom + 8 {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+                .press(forDuration: 0.1, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.26)))
+        }
 
         summary.tap()
 
@@ -97,6 +113,8 @@ final class ConversationUITests: XCTestCase {
         send.tap()
 
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
+        // 軟體鍵盤＋You should know 卡片會把對話擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
+        hideKeyboard(in: app)
         XCTAssertTrue(app.staticTexts["Add a header row too?"].waitForExistence(timeout: 5), "沒有回音")
         // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
         let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
@@ -162,12 +180,73 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThan(lineHeight, 10, "第 3 行沒有長高")
 
         text.typeText("\n4\n5\n6\n7")
+        // 上限是鍵盤上方可用高度的 40%(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
+        hideKeyboard(in: app)
         let sevenLines = text.frame.height
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "composer-seven-lines"
         shot.lifetime = .keepAlways
         add(shot)
         XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
+    }
+
+    /// 上下版面(#187):整寬輸入框在上、按鈕列在下;閒置時就有兩行高，按鈕 ≥ 44pt。
+    @MainActor
+    func testComposerStacksFullWidthEditorAboveButtons() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        let send = element("composer.send", in: app)
+        let addImage = element("composer.addImage", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertTrue(addImage.exists, "沒有加入圖片鈕")
+        attachScreenshot(of: app, named: "composer-idle")
+
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(text.frame.width, window.width - 64, "輸入框沒有整寬(\(text.frame.width) / \(window.width))")
+        XCTAssertGreaterThanOrEqual(text.frame.height, 60, "閒置時不到兩行高(\(text.frame.height)pt)")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
+        XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "加入圖片鈕要在輸入框下方")
+        XCTAssertLessThan(addImage.frame.maxX, send.frame.minX, "加入圖片在左、送出在右")
+        XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(addImage.frame.height, 44)
+
+        text.tap()
+        let hide = element("composer.hideKeyboard", in: app)
+        XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
+        XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
+        XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
+        text.typeText("Line one\nLine two\nLine three\nLine four")
+        attachScreenshot(of: app, named: "composer-multiline")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "多行時送出鈕仍在輸入框下方")
+    }
+
+    /// 注音組字(#187):組字文字跟一般文字一樣換行，輸入框跟著長高;按鈕列留在下方。
+    @MainActor
+    func testZhuyinCompositionWrapsAndGrowsComposer() {
+        let app = open(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        let idleHeight = text.frame.height
+
+        // 模擬器接著實體鍵盤：以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
+        for _ in 0..<24 {
+            for key in ["s", "u", "3"] {
+                app.typeKey(key, modifierFlags: [])
+            }
+        }
+        attachScreenshot(of: app, named: "composer-composing")
+        XCTAssertTrue((text.value as? String)?.contains("ㄋ") == true, "沒有在組字(\(String(describing: text.value)))")
+        XCTAssertGreaterThan(text.frame.height, idleHeight + 30, "組字換行後沒有長高(\(idleHeight) → \(text.frame.height))")
+        XCTAssertGreaterThanOrEqual(element("composer.send", in: app).frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
+    }
+
+    @MainActor
+    private func attachScreenshot(of app: XCUIApplication, named name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 
     /// 展開編輯(#142):聚焦時才有展開鈕;展開後是同一份草稿，收回保留在展開畫面打的字;
@@ -334,6 +413,8 @@ final class ConversationUITests: XCTestCase {
         text.tap()
         text.typeText("Check the logs once more")
         element("composer.send", in: app).tap()
+        // 軟體鍵盤＋You should know 卡片會把對話的可見範圍擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
+        hideKeyboard(in: app)
         let echo = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Check the logs once more'")).firstMatch
         XCTAssertTrue(echo.waitForExistence(timeout: 5), "沒有回音")
         // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);等兩次輪詢與捲動穩定。
@@ -393,7 +474,8 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertEqual(actual.maxY, expected.maxY, accuracy: 1, "載入中的輸入列不在載入完成後的位置(底緣 \(actual.maxY),應為 \(expected.maxY))")
         XCTAssertLessThan(spinner.maxY, actual.minY, "轉圈不在輸入列上方")
-        XCTAssertGreaterThan(spinner.midY, screen.height * 0.3, "轉圈沒有置中")
+        // 輸入列是上下版面(#187)、比單行高，上方內容區的中心跟著往上。
+        XCTAssertGreaterThan(spinner.midY, screen.height * 0.2, "轉圈沒有置中")
         XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 }

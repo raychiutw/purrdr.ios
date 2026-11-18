@@ -294,7 +294,7 @@ enum WindowsScripts {
         [prelude, arguments(values), body].joined(separator: "\n")
     }
 
-    // MARK: - 主機檔案(主題、You should know、Claude 用量、推播配對;#68)
+    // MARK: - 主機檔案(主題、You should know、Claude 方案用量、推播配對;#68)
 
     /// 與 `HostFileScript` 相同的輸出格式與 exit code。家目錄是 `%USERPROFILE%`,相對路徑的 `/` 換成 `\`。
     ///

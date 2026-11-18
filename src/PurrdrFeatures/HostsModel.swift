@@ -61,7 +61,7 @@ public enum HostManagementError: Error, Equatable {
 ///
 /// - 所有主機的 Agent 合併在同一個列表(`agentList`):每台主機各自一條主機通道、各自的 herdr client、
 ///   列表、列操作、草稿與推播開關(`HostMember`);一台連不上不影響其他台。
-/// - 選取中主機只決定新聊天開在哪裡、列表排序與哪些列標示主機名、套用誰的主題(#23)、Claude 用量與推播設定讀哪台;
+/// - 選取中主機只決定新聊天開在哪裡、列表排序與哪些列標示主機名、套用誰的主題(#23)、推播設定讀哪台、方案用量畫面預設查哪台;
 ///   切換不關閉、不重建任何連線。
 /// - Demo 主機只在沒有已存主機、或使用者選了它時出現在列表。
 /// - 選取存在本機(`HostSelectionStore`),重新啟動後選回同一台;存的主機已刪除時選第一台，沒有主機就選 Demo 主機。
@@ -76,8 +76,6 @@ public final class HostsModel {
     }
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
-    /// 選取中主機的 Claude 用量(列表底部，行為規格 F18)。同意以主機為單位記住。
-    public private(set) var claudeUsage: ClaudeUsageModel
     /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
     public private(set) var codexLauncher: CodexLauncherModel
     /// 讀不到已存主機時的說明。
@@ -93,6 +91,8 @@ public final class HostsModel {
 
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
+    /// 方案用量畫面上次選的主機與 Agent。
+    private let planUsageSelection: any PlanUsageSelectionStore
     private let demoChannel: any HostChannel
     /// Demo 的示範主機(#34)。
     private let demoCompanions: [DemoCompanionHost]
@@ -146,6 +146,7 @@ public final class HostsModel {
         preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),
         hostIcons: any HostIconStore = InMemoryHostIconStore(),
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
+        planUsageSelection: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
         hostService: HostServiceAccess = HostServiceAccess(),
@@ -160,6 +161,7 @@ public final class HostsModel {
         self.store = store
         agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
         self.selectionStore = selectionStore
+        self.planUsageSelection = planUsageSelection
         self.demoChannel = demoChannel
         self.demoCompanions = demoCompanions
         self.makeChannel = makeChannel
@@ -176,7 +178,6 @@ public final class HostsModel {
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
-        claudeUsage = ClaudeUsageModel(host: ClaudeUsageHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         rebuildMembers()
     }
@@ -193,6 +194,37 @@ public final class HostsModel {
     public var hostTheme: HostThemeModel { member(for: selection).hostTheme }
     /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
+
+    /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
+    public func planUsage() -> PlanUsageModel {
+        let options = [PlanUsageHostOption(id: .demo, name: name(of: .demo))]
+            + hosts.map { PlanUsageHostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
+        return PlanUsageModel(hosts: options, fallback: selection, store: planUsageSelection) { [weak self] host, agent in
+            self?.planUsageSource(host, agent)
+        }
+    }
+
+    /// 方案用量的來源：Demo 主機是本機假資料(不耗 token 與傳輸);SSH 主機經主機通道;HTTPS 主機不支援。
+    private func planUsageSource(_ host: HostSelection, _ agent: PlanUsageAgent) -> PlanUsageSource? {
+        let channel: any HostChannel
+        let cost: PlanUsageQueryCost
+        let hostID: String
+        switch host {
+        case .demo:
+            (channel, cost, hostID) = (demoChannel, .free, Self.demoID)
+        case .host(let id):
+            guard let configuration = hosts.first(where: { $0.id == id }), !configuration.connectionMethod.usesHostService else {
+                return nil
+            }
+            (channel, cost, hostID) = (member(for: host).channel, .transfer, id.uuidString)
+        }
+        switch agent {
+        case .claudeCode:
+            return .claude(channel: channel, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent)
+        case .codex:
+            return .codex(channel: channel, cost: cost)
+        }
+    }
 
     /// 某台主機上某個 Pane 的終端機 model(標題)。
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
@@ -335,7 +367,7 @@ public final class HostsModel {
         select(validSelection(selectionStore.load()))
     }
 
-    /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、Claude 用量與推播設定讀哪台;
+    /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、推播設定讀哪台;
     /// 不關閉、不重建任何連線(#39)。
     public func select(_ selection: HostSelection) {
         let host: HostConfiguration?
@@ -348,9 +380,6 @@ public final class HostsModel {
         self.selection = selection
         selectionStore.save(selection)
         rebuildMembers()
-        claudeUsage = ClaudeUsageModel(
-            host: ClaudeUsageHost(channel: member(for: selection).channel), hostID: host?.id.uuidString ?? Self.demoID,
-            consent: host == nil ? demoConsent : hostConsent)
         codexLauncher = CodexLauncherModel(
             host: CodexLauncherHost(channel: member(for: selection).channel), hostID: host?.id.uuidString ?? Self.demoID,
             consent: host == nil ? demoConsent : hostConsent)

@@ -11,6 +11,28 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "%@ Pull down to try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 下拉即可重試。"
+          }
+        }
+      }
+    },
+    "%@ connects over HTTPS. Choose an SSH host to check plan usage." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 用 HTTPS 連線。請改選 SSH 主機查詢方案用量。"
+          }
+        }
+      }
+    },
     "%@ effort" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -510,7 +532,7 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
-    "5h" : {
+    "5 Hours" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -852,13 +874,24 @@
         }
       }
     },
-    "As of %@" : {
+    "As of %@, when Claude Code last reported on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 更新"
+            "value" : "截至 %@,Claude Code 在這台主機最後一次回報的數字。"
+          }
+        }
+      }
+    },
+    "As of %@. Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截至 %@。這些數字是 Codex 回報的，屬於這台主機上 Codex 登入的 ChatGPT 方案。"
           }
         }
       }
@@ -1193,6 +1226,28 @@
         }
       }
     },
+    "Check and Show" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢查並顯示"
+          }
+        }
+      }
+    },
+    "Checking %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在查詢 %@…"
+          }
+        }
+      }
+    },
     "Checking key…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1314,6 +1369,17 @@
         }
       }
     },
+    "Claude Code hasn’t reported plan usage yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 還沒回報方案用量"
+          }
+        }
+      }
+    },
     "Claude Code only plans. It doesn’t edit files or run commands." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1325,6 +1391,17 @@
         }
       }
     },
+    "Claude Code reports these numbers while it runs on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些數字是 Claude Code 在這台主機執行時回報的。"
+          }
+        }
+      }
+    },
     "Claude Code runs commands and edits files without ever asking. Use this only in folders you trust." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1332,6 +1409,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Claude Code 執行指令與編輯檔案都完全不詢問。只在你信任的資料夾使用。"
+          }
+        }
+      }
+    },
+    "Claude Code shares plan usage only with its status line. To show it here, Purrdr will change ~/.claude/settings.json on this host as the user “%@”: the status line command becomes ~/.purrdr/claude-usage/statusline.sh, which saves the usage and then runs your current status line. Turning this off restores your original settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 只把方案用量交給它的 status line。為了在這裡顯示，Purrdr 會以使用者「%@」修改這台主機上的 ~/.claude/settings.json:status line 指令改成 ~/.purrdr/claude-usage/statusline.sh,它先存下方案用量，再執行你原本的 status line。關閉後會還原你原本的設定。"
           }
         }
       }
@@ -1365,28 +1453,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沿用 Claude Code 的設定"
-          }
-        }
-      }
-    },
-    "Claude Usage" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude 用量"
-          }
-        }
-      }
-    },
-    "Claude Usage Options" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude 用量選項"
           }
         }
       }
@@ -1505,6 +1571,28 @@
         }
       }
     },
+    "Codex couldn’t get plan usage: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 查不到方案用量：%@"
+          }
+        }
+      }
+    },
+    "Codex didn’t answer in time." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Codex 沒有及時回應。"
+          }
+        }
+      }
+    },
     "Codex has its file picker open. Close it here, or choose a file in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1512,6 +1600,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 開著檔案選擇器。可以在這裡關閉，或在終端機選擇檔案。"
+          }
+        }
+      }
+    },
+    "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機的 Codex 沒有以 ChatGPT 登入。請先在主機上執行 codex login。"
           }
         }
       }
@@ -1534,6 +1633,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Codex 要在你送出第一則訊息後才會回報 session,回報後訊息就會出現在這裡。"
+          }
+        }
+      }
+    },
+    "Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些數字是 Codex 回報的，屬於這台主機上 Codex 登入的 ChatGPT 方案。"
           }
         }
       }
@@ -1820,6 +1930,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法向 herdr 查詢 plugin。請確認主機上的 herdr 正在執行。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t check %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法查詢 %@"
           }
         }
       }
@@ -4464,6 +4585,39 @@
         }
       }
     },
+    "Plan Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方案用量"
+          }
+        }
+      }
+    },
+    "Plan Usage Options" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方案用量選項"
+          }
+        }
+      }
+    },
+    "Plan usage isn’t available for this connection method" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這種連線方式不支援方案用量"
+          }
+        }
+      }
+    },
     "Port" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4614,6 +4768,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 無法安全地更新這台主機上的註記檔。"
+          }
+        }
+      }
+    },
+    "Purrdr changes the Claude Code status line on %@ so it saves plan usage. You can turn it off and restore the original anytime." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會修改 %@ 上 Claude Code 的 status line,讓它存下方案用量。隨時可以關閉並還原。"
+          }
+        }
+      }
+    },
+    "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 看不懂 Codex 的回應。更新主機上的 Codex 或許有幫助。"
           }
         }
       }
@@ -5432,24 +5608,24 @@
         }
       }
     },
-    "Show Claude Usage" : {
+    "Show Claude Plan Usage?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "顯示 Claude 用量"
+            "value" : "要顯示 Claude 方案用量嗎？"
           }
         }
       }
     },
-    "Show Claude Usage?" : {
+    "Show Claude plan usage on this host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要顯示 Claude 用量嗎？"
+            "value" : "要在這台主機顯示 Claude 的方案用量嗎？"
           }
         }
       }
@@ -6873,6 +7049,17 @@
         }
       }
     },
+    "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機找不到 Codex。請在主機上安裝 Codex,或確認它在 PATH 裡。"
+          }
+        }
+      }
+    },
     "This host doesn’t accept key sign-in over SSH. Check PubkeyAuthentication in the host’s sshd settings." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7379,13 +7566,13 @@
         }
       }
     },
-    "Turn Off Claude Usage" : {
+    "Turn Off Claude Plan Usage" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "關閉 Claude 用量"
+            "value" : "關閉 Claude 方案用量"
           }
         }
       }
@@ -7643,6 +7830,17 @@
         }
       }
     },
+    "Use Claude Code once on %@, then pull down to refresh." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 %@ 用一次 Claude Code,再下拉重新整理。"
+          }
+        }
+      }
+    },
     "Use Host Theme" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7742,6 +7940,28 @@
         }
       }
     },
+    "Uses data, not tokens · Pull down to check again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要傳輸、不耗 token · 下拉才重新查詢"
+          }
+        }
+      }
+    },
+    "Uses no tokens or data · Refreshes automatically while open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不耗 token 與傳輸 · 畫面開著時自動重整"
+          }
+        }
+      }
+    },
     "Using %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7797,17 +8017,6 @@
         }
       }
     },
-    "Waiting for Claude Code to report usage" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "等候 Claude Code 回報用量"
-          }
-        }
-      }
-    },
     "Waiting for sign-in…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7841,13 +8050,13 @@
         }
       }
     },
-    "Week" : {
+    "Weekly" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一週"
+            "value" : "每週"
           }
         }
       }
@@ -8338,6 +8547,17 @@
         }
       }
     },
+    "left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘"
+          }
+        }
+      }
+    },
     "macOS and Linux" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8383,6 +8603,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 登入時使用的使用者"
+          }
+        }
+      }
+    },
+    "used" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用"
           }
         }
       }
