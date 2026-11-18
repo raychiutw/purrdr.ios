@@ -92,7 +92,10 @@ public final class PlanUsageModel {
     }
 
     /// 離開畫面：取消進行中的查詢，不再連線。
-    public func disappeared() {}
+    public func disappeared() {
+        query?.cancel()
+        query = nil
+    }
 
     /// 改選主機：新的查詢取代進行中的。
     public func select(host: HostSelection) {
