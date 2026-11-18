@@ -82,6 +82,12 @@ public final class PlanUsageModel {
     public enum State: Equatable {
         case loading
         case loaded(PlanUsage)
+        /// Agent 還沒回報過方案用量。
+        case noData
+        /// 這種連線方式(HTTPS)不支援方案用量。
+        case unsupportedConnection
+        /// 查詢失敗(例如連不上主機)。
+        case failed(String)
     }
 
     public enum Display: Equatable { case remaining, used }

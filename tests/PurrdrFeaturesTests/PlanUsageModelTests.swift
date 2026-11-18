@@ -3,6 +3,7 @@ import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
+import PurrdrSSH
 import PurrdrTestSupport
 import Testing
 
@@ -37,14 +38,16 @@ struct PlanUsageModelTests {
 
     func model(
         hosts: [PlanUsageHostOption] = Self.bothHosts, store: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
-        channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep
+        channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep,
+        unsupported: Set<HostSelection> = []
     ) -> PlanUsageModel {
         let channel = channel ?? host
         let consent = consent
         return PlanUsageModel(
             hosts: hosts, fallback: Self.mac, store: store, now: { Self.now }, sleep: sleep
         ) { selection, _ in
-            .claude(channel: channel, cost: cost, hostID: selection.storedValue, consent: consent)
+            guard !unsupported.contains(selection) else { return nil }
+            return .claude(channel: channel, cost: cost, hostID: selection.storedValue, consent: consent)
         }
     }
 
@@ -94,6 +97,47 @@ struct PlanUsageModelTests {
 
         let linuxDeleted = model(hosts: [PlanUsageHostOption(id: Self.mac, name: "Mac")], store: store)
         #expect(linuxDeleted.host == Self.mac)
+    }
+
+    @Test("連線方式不支援(HTTPS 主機):直接說明，不連線")
+    func unsupportedConnectionDoesNotConnect() async throws {
+        grantClaudeUsage()
+        let model = model(unsupported: [Self.mac])
+
+        model.appeared()
+        await model.untilIdle()
+
+        #expect(model.state == .unsupportedConnection)
+        #expect(host.commands.isEmpty)
+    }
+
+    @Test("Claude Code 還沒回報過：顯示尚無資料")
+    func noDataBeforeClaudeReports() async throws {
+        grantClaudeUsage()
+        let model = model()
+
+        model.appeared()
+        await model.untilIdle()
+
+        #expect(model.state == .noData)
+    }
+
+    @Test("連不上主機：顯示連線錯誤，下拉可重試")
+    func unreachableHostCanRetry() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let unreachable = FakeHost()
+        await unreachable.failConnection(with: SSHConnectionError.timedOut)
+        let gate = RoutingSwitch(unreachable: unreachable, reachable: host)
+        let model = model(channel: gate)
+
+        model.appeared()
+        await model.untilIdle()
+        #expect(model.state == .failed("The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."))
+
+        await gate.connect()
+        await model.refresh()
+        #expect(model.rows.count == 2)
     }
 
     @Test("下拉重新整理：再查一次，拿到最新數字")
@@ -187,6 +231,30 @@ struct PlanUsageModelTests {
         }
         return condition()
     }
+}
+
+/// 先連不上，`connect()` 之後交給可連線的通道。
+actor RoutingSwitch: HostChannel {
+    let unreachable: any HostChannel
+    let reachable: any HostChannel
+    private var isConnected = false
+
+    init(unreachable: any HostChannel, reachable: any HostChannel) {
+        self.unreachable = unreachable
+        self.reachable = reachable
+    }
+
+    func connect() { isConnected = true }
+
+    func execute(_ command: String) async throws -> any ExecSession {
+        try await (isConnected ? reachable : unreachable).execute(command)
+    }
+
+    func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
+        try await (isConnected ? reachable : unreachable).openPTY(request)
+    }
+
+    func disconnect() async {}
 }
 
 /// 每次等待都卡住，直到 `step()`(時間到)或所在的 task 被取消。
