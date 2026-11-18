@@ -112,6 +112,13 @@ public struct ConversationView: View {
     // MARK: - 訊息
 
     private var messages: some View {
+        // 捲到最底下那一列用 `ScrollViewProxy`:每次呼叫都會捲;`position` 的值沒變時 SwiftUI 不再捲(#191)。
+        ScrollViewReader { proxy in
+            messageList(proxy)
+        }
+    }
+
+    private func messageList(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 olderRow
@@ -149,6 +156,7 @@ public struct ConversationView: View {
         .scrollPosition($position)
         .onScrollTargetVisibilityChange(idType: String.self) { ids in
             visibleIDs = ids
+            scroll.visibleRowsChanged(count: ids.count)
         }
         .defaultScrollAnchor(.bottom)
         .onScrollPhaseChange { _, phase in
@@ -170,9 +178,11 @@ public struct ConversationView: View {
                 scroll.layoutChanged(distanceFromBottom: metrics.distanceFromBottom)
             }
             // 內容剛被重建、停在內容之外(內容突然縮短)就切回跟隨並捲到底，不留空白;一般排版變化不介入(#130)。
-            if !userIsScrolling, scroll.returnsToContent(metrics, at: .now) {
+            // 可見範圍小時 LazyVStack 可能停在底部卻一列都沒長出來(#191),同樣再捲一次。
+            if !userIsScrolling,
+               scroll.returnsToContent(metrics, at: .now) || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
                 scroll.returnedToContent(metrics)
-                position.scrollTo(edge: .bottom)
+                scrollToLastRow(proxy)
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
             if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
@@ -231,6 +241,25 @@ public struct ConversationView: View {
                 .buttonStyle(.glass)
                 .padding()
                 .accessibilityIdentifier("conversation.jumpToLatest")            }
+        }
+    }
+
+    /// 捲到最底下那一列的底部。底部輸入列很高時 `scrollTo(edge: .bottom)` 會多捲一個底部 inset、停在估算高度裡，
+    /// 指定列則由 LazyVStack 實際排出那一列(#191)。
+    private func scrollToLastRow(_ proxy: ScrollViewProxy) {
+        let lastRowID: String? = if model.showsWorkingIndicator, model.workingSince != nil {
+            "working"
+        } else if model.panel != nil {
+            "panel"
+        } else if model.prompt != nil || model.lastAnswer != nil {
+            "prompt"
+        } else {
+            model.entries.last?.id
+        }
+        if let lastRowID {
+            proxy.scrollTo(lastRowID, anchor: .bottom)
+        } else {
+            position.scrollTo(edge: .bottom)
         }
     }
 
