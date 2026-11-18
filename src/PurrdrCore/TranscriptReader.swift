@@ -177,7 +177,7 @@ public struct TranscriptReader: Sendable {
         do {
             output = try await run(.tail(path: path, from: cursor, limit: limit))
         } catch TranscriptReadError.replaced(let size) {
-            return .shrank(size: size)
+            return (.shrank(size: size), size)
         }
         guard let newline = output.stdout.firstIndex(of: 0x0A),
               let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
@@ -211,11 +211,20 @@ public struct TranscriptReader: Sendable {
     /// 同 `catchUp`,另外回報主機上的檔案大小。
     func catchUpReportingSize(path: String, from cursor: Int, limit: Int) async throws -> (tail: TranscriptTail, size: Int) {
         guard Self.isValidPath(path), cursor >= 0, limit > 0 else { throw TranscriptReadError.invalidReference }
-        let output = try await run(.catchUp(path: path, from: cursor, limit: limit))
+        let output: Output
+        do {
+            output = try await run(.catchUp(path: path, from: cursor, limit: limit))
+        } catch TranscriptReadError.replaced(let size) {
+            // 主機服務(HTTPS)回報檔案被換掉：與 SSH 的「變小」同樣是真正的斷層。
+            return (.shrank(size: size), size)
+        }
         guard let newline = output.stdout.firstIndex(of: 0x0A),
               let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
         if size < cursor { return (.shrank(size: size), size) }
         let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
+        // 一行都沒拿到卻落後超過上限：這個連線方式不能分段接著讀(HTTPS 主機服務的追蹤落後太多就結束),
+        // 回報落後太多讓呼叫端讀新視窗，不卡在同一個游標。SSH 的主機腳本會把超大單行截短後送出，不會走到這裡。
+        if records.lines.isEmpty, size - cursor > limit { return (.tooFarBehind(size: size), size) }
         guard !records.lines.isEmpty else { return (.unchanged, size) }
         guard cursor + records.bytes <= size else { throw TranscriptReadError.changed }
         return (.appended(TranscriptChunk(start: cursor, end: cursor + records.bytes, lines: records.lines)), size)

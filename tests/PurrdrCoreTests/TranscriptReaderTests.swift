@@ -198,6 +198,20 @@ struct TranscriptReaderTests {
         #expect(collected.count == lines.count)
     }
 
+    /// 不能分段接著讀的連線方式(HTTPS 主機服務的追蹤落後超過上限就結束、只回大小):一行都沒拿到卻落後超過上限時
+    /// 回報落後太多，讓呼叫端讀新視窗，不卡在同一個游標(合併 #109 與 #130)。只回大小、落後在上限內(還在寫的半行)照舊是沒有變化。
+    @Test("分段追趕：一行都沒拿到卻落後超過上限時回報落後太多;落後在上限內照舊沒有變化")
+    func catchUpWithoutLinesBeyondLimitReportsTooFarBehind() async throws {
+        let path = "/Users/demo/.claude/projects/-Users-demo-ledger/session.jsonl"
+        let host = FakeHost()
+        await host.expect(TranscriptCommand.catchUp(path: path, from: 100, limit: 1024), reply: FakeReply(stdout: Data("5000\n".utf8)))
+        await host.expect(TranscriptCommand.catchUp(path: path, from: 100, limit: 8192), reply: FakeReply(stdout: Data("5000\n".utf8)))
+        let reader = TranscriptReader(channel: host)
+
+        #expect(try await reader.catchUp(path: path, from: 100, limit: 1024) == .tooFarBehind(size: 5000))
+        #expect(try await reader.catchUp(path: path, from: 100, limit: 8192) == .unchanged)
+    }
+
     /// 單行比上限大(大的工具結果):以完整行前進，不卡在同一個游標(#130 review 5)。剝除圖片後仍超過上限的行
     /// 在主機端截短到上限(傳輸量與期限都以上限為準),游標照原始長度前進;截短的行解析不出來，畫面略過。
     @Test("分段追趕：第一行就超過上限時截短到上限，游標照原始長度前進，下一次讀下一行")
