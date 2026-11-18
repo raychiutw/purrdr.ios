@@ -51,6 +51,48 @@ struct HostFilesTests {
         #expect(read["nowhere/file.json"] == .missingDirectory)
     }
 
+    @Test("條件式讀取：已知版本沒變只回 unchanged(不傳內容);沒給已知版本的檔案照常回內容")
+    func conditionalReadSkipsUnchangedFiles() async throws {
+        try write("{\"theme\":1}\n", to: ".config/herdr/config.toml")
+        try write("usage", to: ".purrdr/claude-usage/usage.json")
+        let first = try await files.read([".config/herdr/config.toml"])
+        guard case .file(_, let version)? = first[".config/herdr/config.toml"] else {
+            Issue.record("讀不到 config.toml")
+            return
+        }
+
+        let again = try await files.read(
+            [".config/herdr/config.toml", ".purrdr/claude-usage/usage.json"], knownVersions: [".config/herdr/config.toml": version])
+
+        #expect(again.unchanged == [".config/herdr/config.toml"])
+        #expect(again[".config/herdr/config.toml"] == nil)
+        #expect(again[".purrdr/claude-usage/usage.json"]?.contents == Data("usage".utf8))
+    }
+
+    @Test("條件式讀取：檔案變了回新內容與新版本;檔案不見回 missing")
+    func conditionalReadReturnsChangedFiles() async throws {
+        try write("old", to: "a.json")
+        try write("same", to: "b.json")
+        let first = try await files.read(["a.json", "b.json"])
+        guard case .file(_, let oldVersion)? = first["a.json"], case .file(_, let removedVersion)? = first["b.json"] else {
+            Issue.record("讀不到檔案")
+            return
+        }
+        try write("newer", to: "a.json")
+        try FileManager.default.removeItem(at: host.url("b.json"))
+
+        let again = try await files.read(["a.json", "b.json"], knownVersions: ["a.json": oldVersion, "b.json": removedVersion])
+
+        #expect(again.unchanged.isEmpty)
+        guard case .file(let data, let newVersion)? = again["a.json"] else {
+            Issue.record("a.json 沒回內容")
+            return
+        }
+        #expect(data == Data("newer".utf8))
+        #expect(newVersion != oldVersion)
+        #expect(again["b.json"] == .missing)
+    }
+
     @Test("路徑只接受家目錄底下的安全相對路徑")
     func rejectsUnsafePaths() async throws {
         for path in ["../etc/passwd", "/etc/passwd", "a/../b", "", "a b", "a'b"] {
@@ -62,6 +104,7 @@ struct HostFilesTests {
     @Test("主機腳本不含反斜線(fish 在單引號內仍會處理反斜線)")
     func scriptsHaveNoBackslash() async throws {
         _ = try await files.read([".claude/settings.json"])
+        _ = try await files.read([".claude/settings.json"], knownVersions: [".claude/settings.json": HostFileVersion(checksum: "1:2")])
         try await files.apply([.write(".purrdr/x", Data("a'b\\c".utf8), expecting: .anything)])
         _ = try await files.newest(in: ".claude/plugins/store", prefix: "cc-plugin-you-should-know_", suffix: ".json")
         for command in host.commands {

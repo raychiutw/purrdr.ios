@@ -134,6 +134,8 @@ public protocol YouShouldKnowHosting: Sendable {
     func locate() async throws -> HostPath?
     /// 讀 store;檔案不見時是 `nil`。
     func read(_ path: HostPath) async throws -> YouShouldKnowStore?
+    /// 條件式讀 store:與 `known` 版本相同時是 `.unchanged`;檔案不見時是 `.changed(nil, …)`。
+    func read(_ path: HostPath, ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<YouShouldKnowStore?>
     /// 寫回時用的主機使用者名稱(徵求同意時顯示)。
     func user() async throws -> String
     /// 對註記做動作，寫回 store。

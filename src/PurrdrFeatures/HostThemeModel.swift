@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrSSH
 
@@ -26,6 +27,9 @@ public final class HostThemeModel {
     public private(set) var message: String?
 
     static let pollInterval: Duration = .seconds(10)
+
+    /// 定期讀取：每個套用主題的視窗都 `attach()`。
+    public var liveUpdates: SharedRun { SharedRun { [weak self] in await self?.run() } }
 
     private let host: HostThemeHost
     private let hostID: String

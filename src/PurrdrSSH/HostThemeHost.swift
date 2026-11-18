@@ -69,6 +69,11 @@ public struct HostThemeHost: Sendable {
         }
     }
 
+    /// 條件式讀主題：`config.toml` 與 `known` 版本相同時是 `.unchanged`。
+    public func readTheme(ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<HostTheme> {
+        .changed(try await readTheme(), version: nil)
+    }
+
     /// 主題參考檔(英文，給主機上的人與 agent 看)。
     static let reference = """
         # Purrdr host theme

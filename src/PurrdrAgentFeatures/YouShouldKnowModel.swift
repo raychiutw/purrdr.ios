@@ -27,6 +27,9 @@ public final class YouShouldKnowModel {
     public private(set) var isWorking = false
 
     package static let pollInterval: Duration = .seconds(10)
+
+    /// 定期讀取：列表與聊天輸入列都 `attach()`。
+    public var liveUpdates: SharedRun { SharedRun { [weak self] in await self?.run() } }
     package static let relocateInterval: TimeInterval = 10 * 60
 
     private let host: any YouShouldKnowHosting

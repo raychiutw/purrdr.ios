@@ -47,6 +47,10 @@ public struct YouShouldKnowHost: YouShouldKnowHosting {
         }
     }
 
+    public func read(_ path: HostPath, ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<YouShouldKnowStore?> {
+        .changed(try await read(path), version: nil)
+    }
+
     /// 同意畫面要說明「以哪個使用者」修改。
     public func user() async throws -> String {
         try await files.read([Self.addedKnownPath]).user

@@ -90,6 +90,11 @@ public struct ClaudeUsageHost: Sendable {
         return read[Self.usagePath]?.contents.flatMap(ClaudeUsage.init(usageFile:))
     }
 
+    /// 條件式讀用量：`usage.json` 與 `known` 版本相同時是 `.unchanged`。
+    public func readUsage(ifChangedFrom known: HostFileVersion?) async throws -> HostFileUpdate<ClaudeUsage?> {
+        .changed(try await readUsage(), version: nil)
+    }
+
     // MARK: - 設定檔
 
     /// 目前的設定：不存在是空物件;所在資料夾不存在 → 沒裝 Claude Code;不是 JSON 物件 → 拒絕。

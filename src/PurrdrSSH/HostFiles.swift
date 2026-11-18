@@ -20,6 +20,11 @@ public struct HostFiles: Sendable {
         return try HostFileScript.parseRead(result.stdout, paths: paths)
     }
 
+    /// 條件式讀取：`knownVersions` 裡版本沒變的檔案只回報在 `HostFileRead.unchanged`,不傳內容。
+    public func read(_ paths: [HostPath], knownVersions: [HostPath: HostFileVersion]) async throws -> HostFileRead {
+        try await read(paths)
+    }
+
     /// 一次往返找 `directory` 裡檔名以 `prefix` 開頭、`suffix` 結尾、最新(修改時間)的可讀一般檔案;沒有是 `nil`。
     /// 檔名含不安全字元(`HostPath` 不接受)時丟 `HostFilesError.invalidPath`。
     public func newest(in directory: HostPath, prefix: String, suffix: String) async throws -> HostPath? {

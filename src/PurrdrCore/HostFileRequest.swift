@@ -5,6 +5,8 @@ import Foundation
 /// 只給 Demo 主機用(它不執行 shell,而是對真正 client 送出的精確指令回應，行為規格 F21)。
 public enum HostFileRequest: Equatable, Sendable {
     case read([HostPath])
+    /// 條件式讀取：`known` 裡版本沒變的檔案回 `unchanged`。
+    case readIfChanged([HostPath], known: [HostPath: HostFileVersion])
     case apply([HostFileChange])
     /// 找資料夾裡檔名開頭、結尾符合的最新檔案(`HostFiles.newest`)。
     case newest(directory: HostPath, prefix: String, suffix: String)

@@ -45,6 +45,20 @@ struct DemoHostFilesTests {
             try await files.apply([.write(ClaudeUsageHost.settingsPath, Data("{}".utf8), expecting: .version(version))])
         }
     }
+
+    @Test("條件式讀取:Demo 也在已知版本沒變時回 unchanged,變了回新內容")
+    func demoConditionalRead() async throws {
+        let files = HostFiles(channel: DemoHost())
+        let path = HostThemeHost.configPath
+        guard case .file(_, let version)? = try await files.read([path])[path] else { Issue.record("Demo 沒有 config.toml"); return }
+
+        #expect(try await files.read([path], knownVersions: [path: version]).unchanged == [path])
+        let stale = try await files.read([path], knownVersions: [path: HostFileVersion(checksum: "stale")])
+        #expect(stale.unchanged.isEmpty)
+        guard case .file(let contents, let current)? = stale[path] else { Issue.record("版本對不上卻沒回內容"); return }
+        #expect(!contents.isEmpty)
+        #expect(current == version)
+    }
 }
 
 /// Codex 啟動器在 Demo 也走正式程式路徑(記憶體裡的家目錄沒有 `~/.local`)。
