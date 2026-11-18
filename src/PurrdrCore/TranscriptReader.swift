@@ -230,8 +230,9 @@ public struct TranscriptReader: Sendable {
               let size = Int(String(decoding: output.stdout[..<newline], as: UTF8.self)) else { throw TranscriptReadError.changed }
         if size < cursor { return (.shrank(size: size), size) }
         let records = try Self.records(output.stdout[output.stdout.index(after: newline)...])
-        // 一行都沒拿到卻落後超過上限：這個連線方式不能分段接著讀(HTTPS 主機服務的追蹤落後太多就結束),
-        // 回報落後太多讓呼叫端讀新視窗，不卡在同一個游標。SSH 的主機腳本會把超大單行截短後送出，不會走到這裡。
+        // 一行都沒拿到卻落後超過上限：主機不能分段接著讀(#173 之前的主機服務落後太多就結束追蹤),
+        // 回報落後太多讓呼叫端讀新視窗，不卡在同一個游標。SSH 的主機腳本與 #173 起的主機服務會把超大單行截短後送出，
+        // 只有那一行還沒寫完時會走到這裡。
         if records.lines.isEmpty, size - cursor > limit { return (.tooFarBehind(size: size), size) }
         guard !records.lines.isEmpty else { return (.unchanged, size) }
         guard cursor + records.bytes <= size else { throw TranscriptReadError.changed }
