@@ -79,6 +79,21 @@ struct PlanUsageModelTests {
         await model.untilIdle()
         #expect(host.commands.count == 2)
     }
+
+    @Test("下拉重新整理：再查一次，拿到最新數字")
+    func pullToRefreshQueriesAgain() async throws {
+        grantClaudeUsage()
+        try claudeReportsUsage()
+        let model = model()
+        model.appeared()
+        await model.untilIdle()
+
+        try claudeReportsUsage(fiveHour: 50)
+        await model.refresh()
+
+        #expect(host.commands.count == 2)
+        #expect(model.rows.first?.percent == 50)
+    }
 }
 #endif
 

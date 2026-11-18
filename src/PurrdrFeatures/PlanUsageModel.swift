@@ -111,6 +111,9 @@ public final class PlanUsageModel {
         startQuery()
     }
 
+    /// 下拉重新整理。
+    public func refresh() async {}
+
     /// 等進行中的查詢結束。
     public func untilIdle() async {
         await query?.value
