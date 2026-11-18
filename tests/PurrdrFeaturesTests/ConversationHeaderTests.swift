@@ -228,6 +228,34 @@ struct ConversationHeaderTests {
         #expect(setup.model.livePreview == nil)
     }
 
+    /// #208:畫面上最後一段散文寫進對話紀錄後，撰寫中預覽不再重複顯示它(換行與全形標點不同也算同一段)。
+    @Test("即時預覽：同一段已寫入對話紀錄就不再顯示")
+    func livePreviewHidesTextAlreadyInTranscript() async throws {
+        let setup = try Self.setup()
+        let screen = """
+            ⏺ #173 改了主機服務，但主機服務的 Release 要等 Developer ID 憑證放
+              進 GitHub(上架檢查表 3A),所以這次只發 app 的 TestFlight,主機服務先
+              不發行。
+
+            ✻ Pondering… (2m 32s · esc to interrupt)
+            ❯
+            """
+        await Self.expectWorkingPoll(setup, screen: screen)
+        await setup.model.poll()
+        #expect(setup.model.livePreview?.hasPrefix("#173 改了主機服務") == true)
+
+        let reply = "#173 改了主機服務，但主機服務的 Release 要等 Developer ID 憑證放進 GitHub（上架檢查表 3A），所以這次只發 app 的 TestFlight，主機服務先不發行。"
+        let replyLine = ConversationModelTests.fixtureLines[19]
+            .replacingOccurrences(of: "收到，備註的換行也一起處理。", with: reply)
+            .replacingOccurrences(of: "00000000-0000-4000-8000-00000000001f", with: "00000000-0000-4000-8000-0000000000f9")
+        try setup.shell.append(Data((replyLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        await Self.expectWorkingPoll(setup, screen: screen)
+        await setup.model.poll()
+
+        #expect(setup.model.showsWorkingIndicator)
+        #expect(setup.model.livePreview == nil)
+    }
+
     @Test("經過時間：12s、11m 43s、1h 5m")
     func elapsedText() {
         #expect(WorkingElapsed.text(seconds: 0) == "0s")
