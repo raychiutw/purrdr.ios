@@ -76,8 +76,8 @@ struct HostServicePairingTests {
         #expect(decoded == host)
         #expect(decoded.connectionMethod == .https)
         #expect(decoded.hostService == address)
-        #expect(decoded.endpoint.host == "studio.tail1234.ts.net")
-        #expect(HostConfiguration(name: "Box", endpoint: SSHEndpoint(host: "box", username: "ops"), hostService: address).hostService == nil)
+        #expect(decoded.ssh == nil)
+        #expect(HostConfiguration(name: "Box", endpoint: SSHEndpoint(host: "box", username: "ops")).hostService == nil)
     }
 
     @Test("以配對碼換得裝置權杖")

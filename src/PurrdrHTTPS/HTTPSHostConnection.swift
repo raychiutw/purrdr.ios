@@ -193,8 +193,12 @@ public actor HTTPSHostConnection: HostConnection {
             continuation.yield(.disconnected)
             continuation.finish()
         }
-        continuation.onTermination = { _ in relay.cancel() }
         let transport = HostServiceTerminalTransport(session: opened.session, streamID: opened.result.streamId)
+        continuation.onTermination = { termination in
+            relay.cancel()
+            // 呼叫端不再讀：請主機結束 terminal 子行程，不留到 WSS 斷線。
+            if case .cancelled = termination { Task { await transport.release() } }
+        }
         return PaneTerminalConnection(events: events, transport: transport, isViewOnly: opened.result.readOnly)
     }
 
@@ -209,9 +213,9 @@ public actor HTTPSHostConnection: HostConnection {
         let session = try await liveSession()
         let opened: HostServiceSession.StreamReply
         do {
-            opened = try await session.requestStream {
-                .paneTerminalOpen(.init(requestId: $0, target: target, columns: columns, rows: rows, takeover: takeover))
-            }
+            opened = try await session.requestStream(
+                { .paneTerminalOpen(.init(requestId: $0, target: target, columns: columns, rows: rows, takeover: takeover)) },
+                closing: { .paneTerminalClose(.init(streamId: $0)) })
         } catch {
             noteEnding(error, of: session)
             throw error
@@ -275,8 +279,8 @@ public actor HTTPSHostConnection: HostConnection {
     /// 撥號並握手。握手有自己的期限，卡住的主機服務不會讓之後的操作一直等。
     private func open(deviceToken token: String) async throws -> HostServiceSession {
         let socket = try await transport.connect(to: address.webSocketURL, bearerToken: token)
-        let opened = HostServiceSession(socket: socket, deviceToken: token)
-        await opened.start(heartbeat: heartbeat, sleep: sleep)
+        let opened = HostServiceSession(socket: socket, deviceToken: token, heartbeat: heartbeat, sleep: sleep)
+        await opened.start()
         let appVersion = appVersion
         let reply: HostServiceProtocol.ServerMessage
         do {
@@ -334,22 +338,31 @@ public actor HTTPSHostConnection: HostConnection {
     }
 
     /// 期限到丟 `HerdrError.deadlineExceeded`;外層取消丟 `CancellationError`。
+    /// 操作在期限到或取消之後仍拿到結果時回傳結果：主機可能已為它開了串流，交給呼叫端收尾而不是丟掉。
     func withDeadline<Value: Sendable>(
         _ deadline: Duration, _ operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
-        try await withThrowingTaskGroup(of: Value?.self) { group in
-            group.addTask { try await operation() }
+        let outcome = await withTaskGroup(of: DeadlineRace<Value>.self) { group -> Result<Value, any Error> in
+            group.addTask {
+                do {
+                    return .finished(.success(try await operation()))
+                } catch {
+                    return .finished(.failure(error))
+                }
+            }
             group.addTask { [sleep] in
-                try await sleep(deadline)
-                return nil
+                try? await sleep(deadline)
+                return .timerEnded
             }
-            defer { group.cancelAll() }
-            guard let first = try await group.next(), let value = first else {
-                try Task.checkCancellation()
-                throw HerdrError.deadlineExceeded
+            let first = await group.next()
+            group.cancelAll()
+            if case .finished(let result) = first { return result }
+            while let race = await group.next() {
+                if case .finished(.success(let value)) = race { return .success(value) }
             }
-            return value
+            return .failure(Task.isCancelled ? CancellationError() : HerdrError.deadlineExceeded)
         }
+        return try outcome.get()
     }
 
     /// herdr `events.subscribe` 的 params。
@@ -366,6 +379,13 @@ public actor HTTPSHostConnection: HostConnection {
             }
         }
     }
+}
+
+/// `withDeadline` 裡先結束的一方。
+private enum DeadlineRace<Value: Sendable>: Sendable {
+    case finished(Result<Value, any Error>)
+    /// 期限到或外層取消。
+    case timerEnded
 }
 
 /// Pane 終端機的輸入以主機服務協定送出;不等回應(主機服務不回應輸入)。

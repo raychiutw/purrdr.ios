@@ -14,11 +14,12 @@ final class MultiHostUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
-    /// 一台連不上不影響其他台：連不上的是選取中主機時，其他台的列照常顯示(標示主機名),列表下方「主機名：原因」;
-    /// 用頂部主機鈕換選取中主機後，列不再標示主機名，錯誤行仍在。
+    /// 一台連不上不影響其他台：連不上的是選取中主機時，其他台的列照常顯示(Agents 檢視標示主機名),列表下方「主機名：原因」;
+    /// 用頂部主機鈕換選取中主機後，列不再標示主機名，錯誤行仍在。Spaces 檢視的列不標主機名(#103),主機名在分組標題。
     @MainActor
     func testUnreachableHostKeepsOtherHostsRows() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost"])
+        switchToAgentsView(app)
 
         let row = element("agent.row.\(Self.studio)/w2:p1", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 15), "連不上的主機擋住了其他台的列")
@@ -36,22 +37,24 @@ final class MultiHostUITests: XCTestCase {
         studioItem.tap()
 
         XCTAssertTrue(hostButton.waitForLabel("Selected Host: Studio Mac", timeout: 5), hostButton.label)
-        // 剛才捲到列表下方找錯誤行;Spaces 的卡片較高，最上方的列這時可能在畫面外，捲回頂端。
+        // 剛才捲到列表下方找錯誤行，最上方的列這時可能在畫面外，捲回頂端。
         app.collectionViews.firstMatch.swipeDown()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertFalse(row.label.contains("Studio Mac"), "選取中主機的列不該標示主機名:\(row.label)")
         XCTAssertTrue(error.exists || scrollTo(error, in: app), "換選取中主機後錯誤行不見了")
     }
 
-    /// 正式 Demo 也演出多主機(#34):沒有已存主機時，Demo 主機的列之外還有示範主機「Studio Mac」的列(標示主機名),
+    /// 正式 Demo 也演出多主機(#34):沒有已存主機時，Demo 主機的列之外還有示範主機「Studio Mac」的分組與列,
     /// 列表下方「Build Box: 原因」;主機清單裡沒有示範主機。
     @MainActor
     func testDemoShowsCompanionHosts() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
 
+        let studioHeader = element("spaces.host.DE300000-0000-4000-8000-000000000001", in: app)
+        XCTAssertTrue(app.reveal(studioHeader, timeout: 20), "沒有示範主機 Studio Mac 的分組")
+        XCTAssertTrue(studioHeader.label.hasPrefix("Studio Mac"), studioHeader.label)
         let studioRow = element("agent.row.DE300000-0000-4000-8000-000000000001/w2:p1", in: app)
         XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
-        XCTAssertTrue(studioRow.label.contains("Studio Mac"), studioRow.label)
         let error = element("agentList.error.DE300000-0000-4000-8000-000000000002", in: app)
         XCTAssertTrue(app.reveal(error, timeout: 20), "沒有連不上的示範主機")
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
@@ -73,6 +76,18 @@ final class MultiHostUITests: XCTestCase {
         let header = element("conversation.header", in: app)
         XCTAssertTrue(header.waitForExistence(timeout: 10))
         XCTAssertTrue(header.label.contains("Studio Mac"), "非選取中主機的聊天標題列沒有主機名:\(header.label)")
+    }
+
+    /// 點大標題換成 Agents 檢視(預設是 Spaces)。
+    @MainActor
+    private func switchToAgentsView(_ app: XCUIApplication) {
+        let title = app.buttons["agentList.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        title.tap()
+        let agents = app.buttons["Agents"].firstMatch
+        XCTAssertTrue(agents.waitForExistence(timeout: 5), "點大標題沒有出現檢視選單")
+        agents.tap()
+        XCTAssertTrue(app.navigationBars["Agents"].waitForExistence(timeout: 5), "沒有切到 Agents 檢視")
     }
 
     @MainActor
