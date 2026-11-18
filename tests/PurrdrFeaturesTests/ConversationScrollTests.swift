@@ -1,3 +1,4 @@
+import Foundation
 import PurrdrFeatures
 import Testing
 
@@ -145,5 +146,39 @@ struct ConversationScrollTests {
         #expect(Self.measured(offsetY: 2000).isBeyondContent)
         // 短到不用捲的對話不算。
         #expect(Self.measured(offsetY: -116, contentHeight: 500).isBeyondContent == false)
+    }
+
+    /// #130 review 8:回音被對話紀錄確認(回音換成使用者訊息與回覆)、或送不出被拿掉，都不是重建，不移動讀者的視野。
+    @Test("閱讀中：回音被確認或拿掉不算重建，不調整")
+    func echoConfirmationIsNotARebuild() {
+        let scroll = Self.reading()
+        #expect(scroll.adjustment(from: ["a", "b", "echo:1"], to: ["a", "b", "u1", "r1"], visible: ["a", "b"]) == .none)
+        #expect(scroll.adjustment(from: ["a", "echo:1", "b"], to: ["a", "b", "u1"], visible: ["a"]) == .none)
+        #expect(scroll.adjustment(from: ["a", "b", "echo:1"], to: ["a", "b"], visible: ["a", "b"]) == .none)
+        #expect(scroll.adjustment(from: ["a", "b", "echo:1"], to: ["x", "b", "u1"], visible: ["a", "b"]) == .anchor(id: "b"))
+    }
+
+    /// #130 review 7:閱讀中，停在內容之外才捲到底只在內容剛被重建後短時間內做;一般排版變化(估算高度變小、reflow、
+    /// 鍵盤)不把閱讀中的讀者拉到底。跟隨尾端時一律回到內容(開啟時估算高度收斂，可見範圍會落在內容之外)。
+    @Test("內容之外：跟隨中一律回到內容;閱讀中只有內容剛被重建後才切回跟隨並捲到底")
+    func returnsToContentOnlyRightAfterRebuild() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let beyond = Self.measured(offsetY: 2000)
+        #expect(ConversationScroll().returnsToContent(beyond, at: now), "跟隨中")
+        #expect(!ConversationScroll().returnsToContent(Self.measured(offsetY: 56), at: now))
+        var scroll = Self.reading()
+        #expect(!scroll.returnsToContent(beyond, at: now), "沒有重建：排版變化不拉到底")
+
+        scroll.contentChanged(from: ["a", "b"], to: ["a", "b", "c"], at: now)
+        #expect(!scroll.returnsToContent(beyond, at: now), "後面接上不是重建")
+
+        scroll.contentChanged(from: ["a", "b"], to: ["x", "y"], at: now)
+        #expect(scroll.returnsToContent(beyond, at: now.addingTimeInterval(0.5)))
+        #expect(!scroll.returnsToContent(Self.measured(offsetY: 56), at: now.addingTimeInterval(0.5)), "還在內容裡")
+        #expect(!scroll.returnsToContent(beyond, at: now.addingTimeInterval(3)), "重建之後過了一段時間")
+
+        scroll.contentChanged(from: ["x", "y"], to: ["p"], at: now)
+        scroll.userScrolled(distanceFromBottom: 900)
+        #expect(!scroll.returnsToContent(beyond, at: now.addingTimeInterval(0.5)), "使用者自己捲過就不再介入")
     }
 }

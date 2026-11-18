@@ -78,6 +78,29 @@ struct SubagentModelTests {
         #expect(model.items.count == before.count + 5)
     }
 
+    /// #130 review 2:畫面重新可見(`run()` 開始時 `reopen()`)當作重新開啟：離開期間落後超過 64 KiB 就讀新視窗，
+    /// 不逐段重播積壓(R-B08)。
+    @Test("重新可見：離開期間落後超過 64 KiB,回來後讀新視窗")
+    func reopenFarBehindReadsNewWindow() async throws {
+        let setup = try Self.setup(parentLines: [0, 1, 2])
+        let model = SubagentModel(transcripts: TranscriptReader(channel: setup.shell), parentTranscript: setup.parent, card: Self.card([0, 1, 2]), openLines: 3)
+        await model.poll()
+        let before = model.items.map(\.id)
+
+        let first = String(decoding: Fixtures.subagentFile(Self.agent + ".jsonl"), as: UTF8.self).split(separator: "\n")[0]
+        let added = (1...5).map { number in
+            first.replacingOccurrences(of: "00000000-0000-4000-9000-000000000018", with: "00000000-0000-4000-9000-0000000b000\(number)")
+                .replacingOccurrences(of: "Compare the two CSV libraries we are considering and recommend one.",
+                                      with: "第 \(number) 段" + String(repeating: "很長的輸出", count: 1400))
+        }
+        try setup.shell.append(Data(added.map { $0 + "\n" }.joined().utf8), to: "\(Self.session)/subagents/\(Self.agent).jsonl")
+        model.reopen()
+        await model.poll()
+
+        #expect(model.items.count == 3, "新視窗只有最後 3 行")
+        #expect(Set(model.items.map(\.id)).isDisjoint(with: before))
+    }
+
     @Test("執行中找不到是「啟動中」,之後再找到;結束後找不到是「不在這台主機」")
     func startingThenFound() async throws {
         let running = try Self.setup(parentLines: [0, 1], withSubagent: false)

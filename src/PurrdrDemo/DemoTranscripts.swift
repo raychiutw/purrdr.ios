@@ -48,8 +48,10 @@ enum DemoTranscripts {
                     guard size - cursor <= 64 << 10 else { return Data("\(size)\n".utf8) }
                     return Data("\(size)\n".utf8) + records(Array(session.lines[(index + 1)...]))
                 }
-                if command == TranscriptCommand.catchUp(path: session.path, from: cursor, limit: TranscriptReader.catchUpLimit) {
-                    return Data("\(size)\n".utf8) + records(catchUp(Array(session.lines[(index + 1)...]), limit: TranscriptReader.catchUpLimit))
+                // 分段追趕的上限有兩種(一般、落後很多時)。
+                for limit in [TranscriptReader.catchUpLimit, TranscriptReader.catchUpBacklogLimit]
+                where command == TranscriptCommand.catchUp(path: session.path, from: cursor, limit: limit) {
+                    return Data("\(size)\n".utf8) + records(catchUp(Array(session.lines[(index + 1)...]), limit: limit))
                 }
             }
         }
@@ -75,7 +77,7 @@ enum DemoTranscripts {
         }
     }
 
-    /// 分段追趕：累計不超過 `limit` 的完整行;第一行就超過時只有那一行(與主機腳本相同)。
+    /// 分段追趕：累計不超過 `limit` 的完整行;第一行就超過時只有那一行(與主機腳本相同;Demo 的行都比上限小，不必截短)。
     private static func catchUp(_ lines: [String], limit: Int) -> [String] {
         var total = 0
         var taken: [String] = []
@@ -283,7 +285,9 @@ enum DemoTranscripts {
                 return Data("0 \(size)\n".utf8) + records(file.lines)
             }
             if command == TranscriptCommand.tail(path: file.path, from: size, limit: 64 << 10)
-                || command == TranscriptCommand.catchUp(path: file.path, from: size, limit: TranscriptReader.catchUpLimit) {
+                || [TranscriptReader.catchUpLimit, TranscriptReader.catchUpBacklogLimit].contains(where: {
+                    command == TranscriptCommand.catchUp(path: file.path, from: size, limit: $0)
+                }) {
                 return Data("\(size)\n".utf8)
             }
         }
