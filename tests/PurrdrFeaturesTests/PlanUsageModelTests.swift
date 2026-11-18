@@ -59,6 +59,26 @@ struct PlanUsageModelTests {
         #expect(model.rows.map(\.percent) == [77, 59])
         #expect(host.commands.count == 1)
     }
+
+    @Test("改選主機或 Agent 才重新查詢;選回同一個不查")
+    func changingSelectionQueriesAgain() async throws {
+        grantClaudeUsage()
+        grantClaudeUsage(on: Self.linux)
+        try claudeReportsUsage()
+        let model = model()
+        model.appeared()
+        await model.untilIdle()
+
+        model.select(host: Self.linux)
+        await model.untilIdle()
+        #expect(model.host == Self.linux)
+        #expect(host.commands.count == 2)
+
+        model.select(host: Self.linux)
+        model.select(agent: .claudeCode)
+        await model.untilIdle()
+        #expect(host.commands.count == 2)
+    }
 }
 #endif
 

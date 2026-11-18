@@ -91,6 +91,12 @@ public final class PlanUsageModel {
         startQuery()
     }
 
+    /// 改選主機。
+    public func select(host: HostSelection) {}
+
+    /// 改選 Agent。
+    public func select(agent: PlanUsageAgent) {}
+
     /// 等進行中的查詢結束。
     public func untilIdle() async {
         await query?.value
