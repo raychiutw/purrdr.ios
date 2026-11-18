@@ -170,6 +170,65 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
     }
 
+    /// 上下版面(#187):整寬輸入框在上、按鈕列在下;閒置時就有兩行高，按鈕 ≥ 44pt。
+    @MainActor
+    func testComposerStacksFullWidthEditorAboveButtons() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        let send = element("composer.send", in: app)
+        let addImage = element("composer.addImage", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        XCTAssertTrue(addImage.exists, "沒有加入圖片鈕")
+        attachScreenshot(of: app, named: "composer-idle")
+
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(text.frame.width, window.width - 64, "輸入框沒有整寬(\(text.frame.width) / \(window.width))")
+        XCTAssertGreaterThanOrEqual(text.frame.height, 60, "閒置時不到兩行高(\(text.frame.height)pt)")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
+        XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "加入圖片鈕要在輸入框下方")
+        XCTAssertLessThan(addImage.frame.maxX, send.frame.minX, "加入圖片在左、送出在右")
+        XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+        XCTAssertGreaterThanOrEqual(addImage.frame.height, 44)
+
+        text.tap()
+        let hide = element("composer.hideKeyboard", in: app)
+        XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
+        XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
+        XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
+        text.typeText("Line one\nLine two\nLine three\nLine four")
+        attachScreenshot(of: app, named: "composer-multiline")
+        XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "多行時送出鈕仍在輸入框下方")
+    }
+
+    /// 注音組字(#187):組字文字跟一般文字一樣換行，輸入框跟著長高;按鈕列留在下方。
+    @MainActor
+    func testZhuyinCompositionWrapsAndGrowsComposer() {
+        let app = open(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        let idleHeight = text.frame.height
+
+        // 模擬器接著實體鍵盤：以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
+        for _ in 0..<24 {
+            for key in ["s", "u", "3"] {
+                app.typeKey(key, modifierFlags: [])
+            }
+        }
+        attachScreenshot(of: app, named: "composer-composing")
+        XCTAssertTrue((text.value as? String)?.contains("ㄋ") == true, "沒有在組字(\(String(describing: text.value)))")
+        XCTAssertGreaterThan(text.frame.height, idleHeight + 30, "組字換行後沒有長高(\(idleHeight) → \(text.frame.height))")
+        XCTAssertGreaterThanOrEqual(element("composer.send", in: app).frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
+    }
+
+    @MainActor
+    private func attachScreenshot(of app: XCUIApplication, named name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     /// 展開編輯(#142):聚焦時才有展開鈕;展開後是同一份草稿，收回保留在展開畫面打的字;
     /// 沒聚焦、超過 2 行時仍有展開鈕。
     @MainActor
