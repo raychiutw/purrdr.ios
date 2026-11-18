@@ -37,6 +37,42 @@ struct ComposerRulesTests {
         }
     }
 
+    // MARK: - 組字中的程式覆寫(#138)
+
+    @Test("沒有組字時，程式改寫草稿立即套用")
+    func overwriteAppliesWhenNotComposing() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("/compact ", current: "/comp", isComposing: false) == "/compact ")
+        #expect(!overwrite.isPending)
+    }
+
+    @Test("組字中延後覆寫;組字結束後把接在後面的文字接到確認的字後面(Discuss in Chat)")
+    func appendIsDeferredUntilCompositionEnds() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("寫到ㄋ\n\n註記", current: "寫到ㄋ", isComposing: true) == nil)
+        #expect(overwrite.isPending)
+        #expect(overwrite.inputChanged("寫到ㄋㄧˇ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("寫到你", isComposing: false) == "寫到你\n\n註記")
+        #expect(!overwrite.isPending)
+        #expect(overwrite.inputChanged("寫到你\n\n註記", isComposing: false) == nil)
+    }
+
+    @Test("組字中延後的整段取代(slash 選單填入),組字結束後照樣套用")
+    func replacementIsDeferredUntilCompositionEnds() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("/compact ", current: "/ㄋ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("/你", isComposing: false) == "/compact ")
+    }
+
+    @Test("組字中多次覆寫：以最後一次為準，接在後面的文字從第一次延後時的內容算起")
+    func latestDeferredOverwriteWins() {
+        var overwrite = ComposerOverwrite()
+        #expect(overwrite.request("寫到ㄋ\n\nA", current: "寫到ㄋ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("寫到ㄋㄧ", isComposing: true) == nil)
+        #expect(overwrite.request("寫到ㄋ\n\nA\n\nB", current: "寫到ㄋㄧ", isComposing: true) == nil)
+        #expect(overwrite.inputChanged("寫到你", isComposing: false) == "寫到你\n\nA\n\nB")
+    }
+
     // MARK: - 草稿(F6.2)
 
     @Test("草稿：離開聊天保留(以 chat key 記);存空字串即刪除")
