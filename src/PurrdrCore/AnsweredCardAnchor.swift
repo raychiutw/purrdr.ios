@@ -11,6 +11,6 @@ public struct AnsweredCardAnchor: Sendable, Equatable {
 
     /// 對話目前最後一列是 `lastEntryID` 時，卡片是否還要顯示。
     public func isShowing(lastEntryID current: String?) -> Bool {
-        true
+        current == lastEntryID
     }
 }
