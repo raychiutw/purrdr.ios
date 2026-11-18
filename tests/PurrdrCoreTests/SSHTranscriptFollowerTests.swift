@@ -73,6 +73,21 @@ struct SSHTranscriptFollowerTests {
         #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.hasSuffix("\n16 1700000000-16 4242 \(Self.path)\n") })
     }
 
+    @Test("落後超過追趕上限(主機只讀了一部分):下一輪不帶版本，主機接著送剩下的，不回 unchanged")
+    func partialReadOmitsStamp() async throws {
+        let host = await Self.followingHost()
+        let pace = Self.manualPace()
+        var events = await SSHHostConnection(channel: host).followTranscript(path: Self.path, from: 8, pace: pace).makeAsyncIterator()
+
+        pace.wake()
+        #expect(await host.waitForStdin(ofExecution: 0) { !$0.stdin.isEmpty })
+        await host.send(stdout: Self.appendedReply(size: 2_000_000, stamp: "1700000000-2000000", lines: [Self.secondLine], end: 16, anchor: "4242"), toExecution: 0)
+        _ = try await events.next()
+        pace.wake()
+
+        #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.hasSuffix("\n16 - 4242 \(Self.path)\n") })
+    }
+
     @Test("檔案被換掉:送 replaced(新檔大小),追蹤結束")
     func replacedEndsFollowing() async throws {
         let host = await Self.followingHost()
@@ -164,19 +179,28 @@ struct SSHTranscriptFollowerTests {
         #expect(try await next.value == .appended(TranscriptChunk(start: 8, end: 16, lines: [Self.secondLine])))
     }
 
-    @Test("Windows 主機(#167 之前):維持現狀，以 PowerShell 的分段接著讀輪詢，不送 POSIX 腳本")
-    func windowsHostKeepsPolling() async throws {
+    @Test("Windows 主機(#167):一條 PowerShell 長駐通道,stdin 先送腳本與結束標記、不送 EOF,接著同一個 stdin 送請求行")
+    func windowsHostFollowsOverStdin() async throws {
         let host = FakeHost()
-        await host.expect(WindowsHostScriptsTests.stub, reply: FakeReply(stdout: Fixtures.data("windows/transcript.tail.stdout.txt")))
+        await host.expect(WindowsHostScriptsTests.stub, reply: FakeReply(keepsOpen: true))
         let pace = Self.manualPace()
-        let next = Self.nextEvent(
-            await SSHHostConnection(channel: WindowsHostChannel(host)).followTranscript(path: WindowsHostScriptsTests.path, from: 43, pace: pace))
+        let path = WindowsHostScriptsTests.path
+        let next = Self.nextEvent(await SSHHostConnection(channel: WindowsHostChannel(host)).followTranscript(path: path, from: 43, pace: pace))
+        defer { next.cancel() }
 
         pace.wake()
-
+        try #require(await host.waitForStdin(ofExecution: 0) { $0.stdinText.hasSuffix("\n#purrdr-end-of-script\n43 - - \(path)\n") })
+        await host.send(stdout: Data("unchanged\n".utf8), toExecution: 0)
+        pace.wake()
+        try #require(await host.waitForStdin(ofExecution: 0) { $0.stdinText.components(separatedBy: "\n43 - - ").count == 3 })
         let lines = [#"{"type":"assistant","n":2,"image":""}"#, #"{"type":"user","n":3}"#]
+        await host.send(
+            stdout: Self.appendedReply(size: 303, stamp: "638000000000000000-303", lines: lines, end: 303, anchor: "0a1b2c3d4e5f6071"),
+            toExecution: 0)
+
         #expect(try await next.value == .appended(TranscriptChunk(start: 43, end: 303, lines: lines)))
         #expect(await host.executions.count == 1)
+        #expect(await host.executions.first?.closedStdin == false, "stdin 要留著送請求行")
     }
 
     // MARK: - 主機腳本(本機 /bin/sh 實跑)

@@ -207,9 +207,11 @@ public enum TranscriptCommand {
         limit: Int = TranscriptReader.catchUpLimit, backlogLimit: Int = TranscriptReader.catchUpBacklogLimit,
         idleSeconds: Int = HostScriptTimeLimit.followIdleSeconds, totalSeconds: Int = HostScriptTimeLimit.followTotalSeconds
     ) -> String {
-        ([prefix + PosixShell.quote(HostScriptTimeLimit.posix(followScript, seconds: "$4")), "sh"]
-            + [limit, backlogLimit, idleSeconds, totalSeconds].map { PosixShell.quote(String($0)) }).joined(separator: " ")
+        ([followInvocation] + [limit, backlogLimit, idleSeconds, totalSeconds].map { PosixShell.quote(String($0)) }).joined(separator: " ")
     }
+
+    /// `follow` 參數之前的部分(Windows 方言以它認出追蹤腳本)。
+    package static let followInvocation = prefix + PosixShell.quote(HostScriptTimeLimit.posix(followScript, seconds: "$4")) + " sh"
 
     /// 閒置時限：每收到一個請求就換一個新的 `purrdr_limit`(總長的那個由 `HostScriptTimeLimit.posix` 起)。
     /// HUP 也以 124 結束：CI 上閒置時限曾以 1 結束(推測是停住程序樹時孤兒程序群組收到的 HUP)。

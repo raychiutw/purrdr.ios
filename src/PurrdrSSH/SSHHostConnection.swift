@@ -153,7 +153,7 @@ public struct SSHHostConnection: HostConnection {
                 return
             case .reply(.unchanged):
                 continue
-            case .reply(.read(let stamp, let lines, let end, let anchor)):
+            case .reply(.read(_, let stamp, let lines, let end, let anchor)):
                 guard end >= position.cursor else { throw TranscriptReadError.changed }
                 if !lines.isEmpty {
                     continuation.yield(.appended(TranscriptChunk(start: position.cursor, end: end, lines: lines)))

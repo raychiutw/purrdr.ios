@@ -35,12 +35,16 @@ enum WindowsScripts {
     /// - `PStrip`:剝除圖片(與 POSIX 的 `sed` 相同的兩個規則，逐行套用)。
     /// - `PLines`:把 `$b[$i..$t)` 裡**完整**的行(以 `\n` 結尾)印成「原始 byte 長度 TAB 剝除後的行」。
     /// - `PRead`:從 `$s` 讀 `$n` bytes(檔案較短時讀到結尾)。
+    /// - `PChunk`:分段追趕(#130)印出 `$p` 之後累計不超過 `$m` 的完整行，回傳新游標。
+    /// - `PAnchor`:`$e` 之前 64 bytes 的 SHA-256 前 8 bytes(換檔判斷，追蹤用)。
     /// - `PFail`:丟出帶 exit code 的錯誤，由呼叫處決定要結束還是略過(列表預覽一個失敗不影響其他)。
     static let transcriptFunctions = #"""
         function PStrip([string]$s){$s=[regex]::Replace($s,'"[A-Za-z0-9+/=]{128,}"','""');[regex]::Replace($s,'"data:[^"]*;base64,[^"]*"','""')}
         function PLines([byte[]]$b,[int]$i,[int]$t){while($i -lt $t){$j=[Array]::IndexOf($b,[byte]10,$i,$t-$i);if($j -lt 0){break};PWrite ("$($j-$i)`t"+(PStrip $u.GetString($b,$i,$j-$i))+"`n");$i=$j+1}}
         function POpen([string]$f){[IO.File]::Open($f,'Open','Read','ReadWrite,Delete')}
         function PRead($h,[long]$s,[long]$n){$b=New-Object byte[] $n;[void]$h.Seek($s,'Begin');$t=0;while($t -lt $n){$r=$h.Read($b,$t,$n-$t);if($r -le 0){break};$t+=$r};if($t -lt $n){$c=New-Object byte[] $t;[Array]::Copy($b,$c,$t);$b=$c};,$b}
+        function PChunk($h,[long]$p,[long]$z,[long]$m){$r=$z-$p;$n=[Math]::Min($r,$m);while($true){$b=PRead $h $p $n;$j=[Array]::LastIndexOf($b,[byte]10);if($j -ge 0 -or $n -ge $r){break};$n=[Math]::Min($r,$n*2)};if($n -gt $m){$j=[Array]::IndexOf($b,[byte]10);if($j -ge 0){$c=$u.GetBytes((PStrip $u.GetString($b,0,$j)));PWrite "$j`t";$o.Write($c,0,[int][Math]::Min($c.Length,$m));PWrite "`n";return $p+$j+1}}elseif($j -ge 0){PLines $b 0 ($j+1);return $p+$j+1};$p}
+        function PAnchor($h,[long]$e){if($e -le 0){return '0'};$x=[Math]::Max([long]0,$e-64);$b=PRead $h $x ($e-$x);-join ([Security.Cryptography.SHA256]::Create().ComputeHash($b)[0..7]|%{$_.ToString('x2')})}
         function PFail([int]$c){throw "purrdr-exit:$c"}
         function PCode($e){if("$($e.Exception.Message)" -match '^purrdr-exit:(\d+)$'){[int]$Matches[1]}else{1}}
         function PProbe([string]$f){$d=[IO.Path]::GetDirectoryName($f);if(-not [IO.Directory]::Exists($d)){PFail 3};if(-not [IO.File]::Exists($f)){try{[void][IO.Directory]::GetFileSystemEntries($d)}catch{PFail 4};PFail 3};try{$h=POpen $f;$z=$h.Length;$h.Close()}catch{PFail 5};$z}
@@ -120,8 +124,38 @@ enum WindowsScripts {
         $f=$a[0];$p=[long]$a[1];$m=[long]$a[2]
         $z=PProbe $f
         PWrite "$z`n"
-        if($z -gt $p){$h=POpen $f;$r=$z-$p;$n=[Math]::Min($r,$m);while($true){$b=PRead $h $p $n;$j=[Array]::LastIndexOf($b,[byte]10);if($j -ge 0 -or $n -ge $r){break};$n=[Math]::Min($r,$n*2)};$h.Close();if($n -gt $m){$j=[Array]::IndexOf($b,[byte]10);if($j -ge 0){$c=$u.GetBytes((PStrip $u.GetString($b,0,$j)));PWrite "$j`t";$o.Write($c,0,[int][Math]::Min($c.Length,$m));PWrite "`n"}}elseif($j -ge 0){PLines $b 0 ($j+1)}}
+        if($z -gt $p){$h=POpen $f;[void](PChunk $h $p $z $m);$h.Close()}
         }
+        """#
+
+    /// 長駐追蹤(#167,輸出同 `TranscriptCommand.followScript`):stub 讀完腳本後，從同一個 reader(`$s`,原始 handle,#77)
+    /// 繼續讀請求行「游標 版本 錨點 路徑」。版本是「修改時間 ticks-大小」。每個請求把時限延到閒置秒數後(不超過總長)。
+    /// 參數：上限、追趕上限、閒置秒數、總長秒數。
+    static let follow = #"""
+        $purrdrEnd=[DateTime]::UtcNow.AddSeconds([int]$a[3])
+        function PIdle{$x=[DateTime]::UtcNow.AddSeconds([int]$a[2]);if($x -gt $purrdrEnd){$x=$purrdrEnd};$purrdrLimit.At=$x}
+        PIdle
+        while(($q=$s.ReadLine()) -ne $null){
+        PIdle
+        $h=$null
+        try{
+        $w=$q.Split([char]' ',4);$c=[long]$w[0];$t=$w[1];$k=$w[2];$f=$w[3]
+        if(-not [IO.File]::Exists($f)){PWrite "error 3`n"}
+        else{
+        try{$h=POpen $f}catch{}
+        if(-not $h){PWrite "error 5`n"}
+        else{
+        $z=$h.Length;$v="$([IO.File]::GetLastWriteTimeUtc($f).Ticks)-$z"
+        if($v -ceq $t){PWrite "unchanged`n"}
+        elseif($z -lt $c -or ($k -cne '-' -and (PAnchor $h $c) -cne $k)){PWrite "replaced $z`n"}
+        else{$m=[long]$a[0];if(($z-$c) -gt $m){$m=[long]$a[1]};PWrite "appended $z $v`n";$e=$c;if($z -gt $c){$e=PChunk $h $c $z $m};PWrite "end $e $(PAnchor $h $e)`n"}
+        }
+        }
+        }catch{PWrite "error 5`n"}finally{if($h){$h.Close()}}
+        $o.Flush()
+        }
+        $o.Flush()
+        exit 0
         """#
 
     /// 列表預覽：每個請求「標記 key」,再印剝除圖片後的檔尾 48,000 bytes;Pi／OMP、Codex 先印「標記! key」與前兩行。
