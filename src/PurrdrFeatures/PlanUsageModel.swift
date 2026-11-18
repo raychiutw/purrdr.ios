@@ -217,21 +217,33 @@ public final class PlanUsageModel {
     private var query: Task<Void, Never>?
     private var automaticRefresh: Task<Void, Never>?
 
+    private var isVisible = false
+    private var isInBackground = false
+
     /// 畫面出現：依目前的選擇查一次。
     public func appeared() {
+        isVisible = true
         restart()
     }
 
     /// 離開畫面：取消進行中的查詢，不再連線。
     public func disappeared() {
+        isVisible = false
         stop()
     }
 
-    /// app 進背景。
-    public func enteredBackground() {}
+    /// app 進背景：不再連線。
+    public func enteredBackground() {
+        isInBackground = true
+        if isVisible { stop() }
+    }
 
-    /// app 回到前景(也包括拉下控制中心後回來)。
-    public func becameActive() {}
+    /// app 回到前景：只有從背景回來才算畫面再出現一次(拉下控制中心後回來不算)。
+    public func becameActive() {
+        guard isInBackground else { return }
+        isInBackground = false
+        if isVisible { restart() }
+    }
 
     /// 目前選擇的查詢成本;這種連線方式不支援時是 `nil`。
     public var cost: PlanUsageQueryCost? { source(host, agent)?.cost }

@@ -9,7 +9,6 @@ import SwiftUI
 public struct PlanUsageView: View {
     @Bindable var model: PlanUsageModel
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isVisible = false
 
     public init(model: PlanUsageModel) {
         self.model = model
@@ -48,20 +47,12 @@ public struct PlanUsageView: View {
         } message: {
             Text(consentMessage)
         }
-        .onAppear {
-            isVisible = true
-            model.appeared()
-        }
-        .onDisappear {
-            isVisible = false
-            model.disappeared()
-        }
-        // 進背景不再連線;回到前景算是畫面再出現一次。
+        .onAppear { model.appeared() }
+        .onDisappear { model.disappeared() }
         .onChange(of: scenePhase) { _, phase in
-            guard isVisible else { return }
             switch phase {
-            case .active: model.appeared()
-            case .background: model.disappeared()
+            case .active: model.becameActive()
+            case .background: model.enteredBackground()
             default: break
             }
         }
