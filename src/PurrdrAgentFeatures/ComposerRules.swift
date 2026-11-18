@@ -38,6 +38,103 @@ public enum ComposerKeys {
     }
 }
 
+// MARK: - 長高
+
+/// 輸入框的高度與是否在框內捲動。
+public struct ComposerHeight: Sendable, Equatable {
+    public let height: Double
+    public let scrolls: Bool
+
+    public init(height: Double, scrolls: Bool) {
+        self.height = height
+        self.scrolls = scrolls
+    }
+}
+
+/// 輸入框內容的量測。
+public struct ComposerTextMetrics: Sendable, Equatable {
+    /// 內容全部攤開的高度(含上下內距)。
+    public var contentHeight: Double
+    public var lineHeight: Double
+    /// 上下內距合計。
+    public var verticalInsets: Double
+
+    public init(contentHeight: Double, lineHeight: Double, verticalInsets: Double) {
+        self.contentHeight = contentHeight
+        self.lineHeight = lineHeight
+        self.verticalInsets = verticalInsets
+    }
+}
+
+/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):最多 8 行且不超過鍵盤上方可用高度的 40%(取小),最小 44pt,超過才內捲。
+public enum ComposerSizing {
+    public static let maxLines = 8.0
+    public static let availableFraction = 0.4
+    public static let minHeight = 44.0
+
+    /// `availableHeight` 是鍵盤上方可用高度;不知道時只看行數。
+    public static func height(_ metrics: ComposerTextMetrics, availableHeight: Double?) -> ComposerHeight {
+        let contentHeight = metrics.contentHeight
+        var limit = (metrics.lineHeight * maxLines + metrics.verticalInsets).rounded(.up)
+        if let availableHeight {
+            // 取整點:0.4 不是精確的二進位小數，乘出來可能多一點點。
+            limit = min(limit, (availableHeight * availableFraction).rounded())
+        }
+        limit = max(limit, minHeight)
+        return ComposerHeight(height: max(minHeight, min(contentHeight, limit)), scrolls: contentHeight > limit)
+    }
+}
+
+// MARK: - 展開編輯
+
+/// 「展開」鈕(#142):內容超過 2 行或聚焦時顯示，打開展開編輯(large sheet)。
+public enum ComposerExpansion {
+    public static func showsExpandButton(_ metrics: ComposerTextMetrics, isFocused: Bool) -> Bool {
+        if isFocused { return true }
+        guard metrics.lineHeight > 0 else { return false }
+        // 四捨五入：量到的高度可能比行高的整數倍多一點點。
+        return ((metrics.contentHeight - metrics.verticalInsets) / metrics.lineHeight).rounded() > 2
+    }
+}
+
+// MARK: - 組字
+
+/// 程式對輸入框的整段覆寫(slash 選單填入、Discuss in Chat):組字中延後到組字結束(#138)。
+///
+/// 延後的內容若是接在當時輸入框文字後面，組字結束時改接在確認的文字後面(不帶入注音符號);否則照樣整段取代。
+public struct ComposerOverwrite: Sendable, Equatable {
+    /// 第一次延後時輸入框的文字。
+    private var base: String?
+    /// 最後一次要求的文字。
+    private var target: String?
+
+    public init() {}
+
+    /// 是否有延後中的覆寫。
+    public var isPending: Bool { target != nil }
+
+    /// 程式要把輸入框改成 `text`(輸入框目前是 `current`)。回傳現在要寫進輸入框的文字;組字中回傳 `nil`(延後)。
+    public mutating func request(_ text: String, current: String, isComposing: Bool) -> String? {
+        guard isComposing else {
+            base = nil
+            target = nil
+            return text
+        }
+        if base == nil { base = current }
+        target = text
+        return nil
+    }
+
+    /// 輸入框內容變了。組字剛結束且有延後的覆寫時，回傳要套用的文字。
+    public mutating func inputChanged(_ text: String, isComposing: Bool) -> String? {
+        guard !isComposing, let base, let target else { return nil }
+        self.base = nil
+        self.target = nil
+        guard target.hasPrefix(base) else { return target }
+        return text + target.dropFirst(base.count)
+    }
+}
+
 // MARK: - 圖片
 
 /// 剪貼簿圖片的規則(行為規格 F6.3、F7;#37 故事 33–34)。只看剪貼簿的**類型**,不讀內容(讀內容會跳「允許貼上」)。
@@ -185,10 +282,13 @@ public enum ConversationEntry: Sendable, Equatable, Identifiable {
     case item(ConversationItem)
     case echo(PromptEcho)
 
+    /// 回音列的 id 前綴(捲動調整以它分辨回音，#130)。
+    public static let echoIDPrefix = "echo:"
+
     public var id: String {
         switch self {
         case .item(let item): item.id
-        case .echo(let echo): "echo:\(echo.id)"
+        case .echo(let echo): Self.echoIDPrefix + echo.id
         }
     }
 }

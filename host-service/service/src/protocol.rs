@@ -281,7 +281,7 @@ pub struct PaneTerminalResize {
     pub rows: i64,
 }
 
-/// 捲動(herdr terminal.scroll,source 固定 wheel)。不回應。
+/// 捲動(herdr terminal.scroll)。source 沒帶時是 wheel。不回應。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaneTerminalScroll {
     pub stream_id: String,
@@ -289,6 +289,8 @@ pub struct PaneTerminalScroll {
     pub lines: i64,
     pub column: i64,
     pub row: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<TerminalScrollSource>,
 }
 
 /// 捲動方向。
@@ -298,6 +300,15 @@ pub enum TerminalScrollDirection {
     Up,
     #[serde(rename = "down")]
     Down,
+}
+
+/// 捲動來源:wheel 是滾輪或單指滑動;page_key 是實體鍵盤 Page Up／Down,herdr 依 Pane 狀態捲主機 scrollback 或送 Page 鍵給程式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TerminalScrollSource {
+    #[serde(rename = "wheel")]
+    Wheel,
+    #[serde(rename = "page_key")]
+    PageKey,
 }
 
 /// 關閉 Pane 終端機:control 關閉 stdin(等同 release),observe 結束子行程。不回應。

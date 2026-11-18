@@ -358,6 +358,20 @@ struct PaneTerminalModelTests {
         #expect(await Self.sentInput(host) == [0x03] + Array("\u{1B}[1;5A".utf8) + [0x2F])
     }
 
+    @Test("實體鍵盤的修飾鍵與黏著修飾鍵合併送出，送出後放開黏著鍵")
+    func hardwareModifiersMergeWithSticky() async {
+        let host = FakeHost()
+        let model = await Self.connected(host)
+
+        model.press(.up, adding: .shift)
+        model.toggle(.control)
+        model.press(.left, adding: .alt)
+        #expect(model.modifiers.isEmpty)
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.split(separator: "\n").count >= 2 }
+
+        #expect(await Self.sentInput(host) == Array("\u{1B}[1;2A\u{1B}[1;7D".utf8))
+    }
+
     @Test("貼上一律包 bracketed paste 標記，一則送出")
     func pasteIsBracketed() async {
         let host = FakeHost()
@@ -398,6 +412,22 @@ struct PaneTerminalModelTests {
         #expect(scrolls.allSatisfy {
             $0 == ["type": "terminal.scroll", "direction": "up", "lines": 1, "source": "wheel", "column": 5, "row": 4, "modifiers": 0]
         })
+    }
+
+    @Test("實體鍵盤 Page Up／Down 送一則 source:page_key 的 terminal.scroll(herdr 依 Pane 狀態捲主機 scrollback 或送 Page 鍵)")
+    func pageKeySendsPageKeyScroll() async {
+        let host = FakeHost()
+        let model = await Self.connected(host)
+
+        model.scrollPage(.up, rows: 12)
+        model.scrollPage(.down, rows: 12)
+        _ = await host.waitForStdin(ofExecution: 0, timeout: Self.timeout) { $0.stdinText.components(separatedBy: "page_key").count > 2 }
+
+        let scrolls = await Self.sentLines(host).filter { $0["type"] as? String == "terminal.scroll" }
+        #expect(scrolls == [
+            ["type": "terminal.scroll", "direction": "up", "lines": 12, "source": "page_key", "column": 0, "row": 0, "modifiers": 0],
+            ["type": "terminal.scroll", "direction": "down", "lines": 12, "source": "page_key", "column": 0, "row": 0, "modifiers": 0],
+        ])
     }
 
     @Test("沒有開著的連線時，按鍵與貼上不送(也不會丟錯)")

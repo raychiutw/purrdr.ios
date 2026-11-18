@@ -247,7 +247,7 @@
       "required": ["type", "stream_id", "columns", "rows"]
     },
     "PaneTerminalScroll": {
-      "description": "捲動(herdr terminal.scroll,source 固定 wheel)。不回應。",
+      "description": "捲動(herdr terminal.scroll)。source 沒帶時是 wheel。不回應。",
       "type": "object",
       "x-write": true,
       "properties": {
@@ -256,7 +256,8 @@
         "direction": { "$ref": "#/$defs/TerminalScrollDirection" },
         "lines": { "type": "integer", "minimum": 1 },
         "column": { "type": "integer", "minimum": 0 },
-        "row": { "type": "integer", "minimum": 0 }
+        "row": { "type": "integer", "minimum": 0 },
+        "source": { "$ref": "#/$defs/TerminalScrollSource" }
       },
       "required": ["type", "stream_id", "direction", "lines", "column", "row"]
     },
@@ -264,6 +265,11 @@
       "description": "捲動方向。",
       "type": "string",
       "enum": ["up", "down"]
+    },
+    "TerminalScrollSource": {
+      "description": "捲動來源:wheel 是滾輪或單指滑動;page_key 是實體鍵盤 Page Up／Down,herdr 依 Pane 狀態捲主機 scrollback 或送 Page 鍵給程式。",
+      "type": "string",
+      "enum": ["wheel", "page_key"]
     },
     "PaneTerminalClose": {
       "description": "關閉 Pane 終端機:control 關閉 stdin(等同 release),observe 結束子行程。不回應。",

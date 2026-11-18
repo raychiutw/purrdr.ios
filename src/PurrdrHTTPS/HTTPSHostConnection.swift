@@ -377,9 +377,11 @@ struct HostServiceTerminalTransport: PaneTerminalTransport {
             message = .paneTerminalInput(.init(streamId: streamID, bytes: data.base64EncodedString()))
         case .resize(let columns, let rows):
             message = .paneTerminalResize(.init(streamId: streamID, columns: columns, rows: rows))
-        case .scroll(let direction, let lines, let column, let row):
+        case .scroll(let direction, let lines, let column, let row, let source):
+            // wheel 不帶 source(協定預設),舊版主機服務收到的訊息不變。
             message = .paneTerminalScroll(.init(
-                streamId: streamID, direction: direction == .up ? .up : .down, lines: lines, column: column, row: row))
+                streamId: streamID, direction: direction == .up ? .up : .down, lines: lines, column: column, row: row,
+                source: source == .pageKey ? .pageKey : nil))
         case .release:
             return await release()
         }

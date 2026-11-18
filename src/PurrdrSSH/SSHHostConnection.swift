@@ -143,6 +143,10 @@ struct TranscriptPlan {
         case .tail(let path, let cursor, let limit):
             command = TranscriptCommand.tail(path: path, from: cursor, limit: limit)
             deadline = HostCommandDeadline.transfer(bytes: limit)
+        case .catchUp(let path, let cursor, let limit):
+            command = TranscriptCommand.catchUp(path: path, from: cursor, limit: limit)
+            // 超過上限的單行在主機端截短到上限，所以傳輸量不超過 `limit`(#130)。
+            deadline = HostCommandDeadline.transfer(bytes: limit)
         case .previews(let marker, let requests):
             command = TranscriptCommand.previews(marker: marker, entries: requests.compactMap(TranscriptCommand.PreviewEntry.init))
             deadline = HostCommandDeadline.transfer(bytes: requests.count * TranscriptCommand.previewBytes)
