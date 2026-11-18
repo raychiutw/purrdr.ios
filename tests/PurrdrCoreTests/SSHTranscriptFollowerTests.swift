@@ -298,7 +298,7 @@ struct SSHTranscriptFollowerTests {
 
     @Test("主機腳本：閒置時限到了以 exit 124 結束，不留下程序")
     func scriptIdleLimit() async throws {
-        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 2, totalSeconds: 60).replacingOccurrences(of: "LC_ALL=C sh -c ", with: "LC_ALL=C sh -x -c "))
+        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 2, totalSeconds: 60))
 
         #expect(result.output.exitCode == 124, "DIAG \(String(decoding: result.output.stderr, as: UTF8.self).suffix(3000))")
         #expect(result.elapsed < .seconds(20))
@@ -307,12 +307,12 @@ struct SSHTranscriptFollowerTests {
 
     @Test("主機腳本：一直有請求也在總長時限到了以 exit 124 結束，不留下程序")
     func scriptTotalLimit() async throws {
-        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 3, totalSeconds: 5), sendingEvery: .milliseconds(500))
+        let result = try await Self.run(follow: TranscriptCommand.follow(idleSeconds: 3, totalSeconds: 5).replacingOccurrences(of: "LC_ALL=C sh -c ", with: "LC_ALL=C sh -x -c "), sendingEvery: .milliseconds(500))
 
         #expect(result.output.exitCode == 124)
         #expect(result.elapsed >= .seconds(4))
         #expect(result.elapsed < .seconds(25))
-        #expect(result.output.stdoutText.contains("error 3\n"), "請求照常回應")
+        #expect(result.output.stdoutText.contains("error 3\n"), "請求照常回應 DIAG out=\(result.output.stdoutText.suffix(1500)) err=\(String(decoding: result.output.stderr, as: UTF8.self).suffix(3000))")
         #expect(result.leftover.isEmpty, "\(result.leftover)")
     }
     #endif
