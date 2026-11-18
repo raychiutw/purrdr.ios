@@ -12,7 +12,7 @@ struct WindowsScriptRulesTests {
         let scripts = [
             WindowsScripts.prelude, WindowsScripts.transcriptFunctions, WindowsScripts.follow, WindowsScripts.receive, WindowsScripts.imageUpload,
             WindowsScripts.folderUpload, WindowsScripts.folderList, WindowsScripts.newChatFolders,
-            WindowsScripts.hostFileFunctions, WindowsScripts.hostFileRead, WindowsScripts.hostFileApply, WindowsScripts.hostFileNewest,
+            WindowsScripts.hostFileFunctions, WindowsScripts.hostFileRead, WindowsScripts.hostFileFollow, WindowsScripts.hostFileApply, WindowsScripts.hostFileNewest,
             WindowsScripts.pushPairings, WindowsScripts.slashFunctions, WindowsScripts.slashDiscover,
         ]
         let names = scripts.flatMap { $0.matches(of: /function (\w+)/).map { String($0.output.1) } }
