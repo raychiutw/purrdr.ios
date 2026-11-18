@@ -28,7 +28,7 @@ public struct WindowsHostChannel: HostChannel {
                 await session.close()
                 throw error
             }
-            await session.closeStdin()
+            if !invocation.keepsStdinOpen { await session.closeStdin() }
         }
         return session
     }
@@ -75,6 +75,8 @@ struct WindowsInvocation: Equatable {
     var command: String
     /// 經 stdin 送給 stub 的腳本(UTF-8);`nil` = 腳本已在命令列裡。
     var stdinScript: Data?
+    /// 送完腳本不送 EOF:長駐腳本接著從同一個 stdin 讀請求行。
+    var keepsStdinOpen = false
 }
 
 /// 把 app 的 POSIX 指令換成 PowerShell(行為規格 §11.2)。
@@ -86,6 +88,11 @@ enum WindowsCommand {
         // 喚醒探測只看通道活不活，exit code 不重要:不必付 PowerShell 的啟動成本(0.6–2.5 s,§7.5 的期限是 3 秒)。
         if command == WakeProbe.command { return WindowsInvocation(command: command) }
         if let script = herdr(command) { return try inline(script) }
+        if let script = follow(command) {
+            var invocation = viaStdin(script)
+            invocation.keepsStdinOpen = true
+            return invocation
+        }
         if let script = transcript(command) { return viaStdin(script) }
         if let script = hostFiles(command) { return viaStdin(script) }
         if let upload = ImageUploadCommand.parse(command) {
@@ -119,6 +126,14 @@ enum WindowsCommand {
     }
 
     // MARK: - 對話紀錄
+
+    /// `TranscriptCommand.follow` → PowerShell 版長駐追蹤腳本(#167)。參數：上限、追趕上限、閒置與總長秒數。
+    static func follow(_ command: String) -> String? {
+        let prefix = TranscriptCommand.followInvocation
+        guard command.hasPrefix(prefix + " "), let arguments = PosixShell.unquote(String(command.dropFirst(prefix.count))),
+              arguments.count == 4 else { return nil }
+        return WindowsScripts.transcript(WindowsScripts.follow, arguments: arguments)
+    }
 
     /// `TranscriptCommand` 的腳本 → 同樣輸出格式的 PowerShell 腳本。
     static func transcript(_ command: String) -> String? {

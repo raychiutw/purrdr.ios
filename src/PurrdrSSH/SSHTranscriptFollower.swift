@@ -3,7 +3,7 @@ import PurrdrCore
 
 /// SSH 的對話紀錄追蹤(#166):每台主機一條長駐 exec 通道跑 `TranscriptCommand.follow`,所有追蹤中的路徑共用、一次一個請求。
 ///
-/// 通道結束(自我時限、背景被殺)時游標留在各追蹤裡，下一個請求重開通道。主機跑不了腳本(Windows 在 #167 之前、Demo 主機)
+/// 通道結束(自我時限、背景被殺)時游標留在各追蹤裡，下一個請求重開通道。主機跑不了腳本(Demo 主機;Windows 認不得的指令)
 /// 就回報 `unsupported`,由呼叫端退回分段接著讀的輪詢。
 actor SSHTranscriptFollower {
     /// 一個追蹤的位置：游標、主機上次回報的版本與游標前一段的錨點(不知道時是 `-`)。
@@ -15,8 +15,8 @@ actor SSHTranscriptFollower {
 
     enum Reply: Sendable, Equatable {
         case unchanged
-        /// 版本變了;`lines` 可能是空的(只有還沒寫完的行)。
-        case read(stamp: String, lines: [String], end: Int, anchor: String)
+        /// 版本變了;`lines` 可能是空的(只有還沒寫完的行)。`size` 是主機上的檔案大小。
+        case read(size: Int, stamp: String, lines: [String], end: Int, anchor: String)
         case replaced(size: Int)
         case failed(exitCode: Int32)
     }
@@ -82,7 +82,7 @@ actor SSHTranscriptFollower {
         let request = Data("\(position.cursor) \(position.stamp) \(position.anchor) \(path)\n".utf8)
         for attempt in 0..<2 {
             do {
-                return .reply(try await send(request, on: try await openSession()))
+                return .reply(Self.dropsStampIfCapped(try await send(request, on: try await openSession()), from: position.cursor))
             } catch let ended as ChannelEnded {
                 closeSession()
                 if !ended.hadReplied, ended.exitCode != Int32(HostScriptTimeLimit.exitCode) {
@@ -243,6 +243,13 @@ actor SSHTranscriptFollower {
 
     // MARK: - 回應格式(`TranscriptCommand.follow`)
 
+    /// 落後超過一次讀的上限時，主機可能只讀了一部分：不留版本，否則下一輪只拿到 `unchanged`,剩下的要等檔案再變才送。
+    /// 沒超過時剩下的只是還沒寫完的行，留著版本(沒變只回 `unchanged`)。
+    static func dropsStampIfCapped(_ reply: Reply, from cursor: Int) -> Reply {
+        guard case .read(let size, _, let lines, let end, let anchor) = reply, size - cursor > TranscriptReader.catchUpBacklogLimit else { return reply }
+        return .read(size: size, stamp: "-", lines: lines, end: end, anchor: anchor)
+    }
+
     /// 從 `buffer` 取出一則完整的回應;還不完整回傳 `nil`。格式不對丟 `TranscriptReadError.changed`。
     static func takeReply(from buffer: inout Data) throws -> Reply? {
         guard let newline = buffer.firstIndex(of: 0x0A) else { return nil }
@@ -270,9 +277,10 @@ actor SSHTranscriptFollower {
                 }
                 let trailer = String(decoding: buffer[lineStart..<lineEnd], as: UTF8.self).split(separator: " ").map(String.init)
                 guard trailer.count == 3, let end = Int(trailer[1]) else { throw TranscriptReadError.changed }
+                guard let size = Int(words[1]) else { throw TranscriptReadError.changed }
                 let records = try TranscriptReader.records(buffer[afterHeader..<lineStart])
                 buffer.removeSubrange(..<buffer.index(after: lineEnd))
-                return .read(stamp: words[2], lines: records.lines, end: end, anchor: trailer[2])
+                return .read(size: size, stamp: words[2], lines: records.lines, end: end, anchor: trailer[2])
             }
             return nil
         default:

@@ -73,7 +73,7 @@ struct SSHTranscriptFollowerTests {
         #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.hasSuffix("\n16 1700000000-16 4242 \(Self.path)\n") })
     }
 
-    @Test("落後超過一次讀的量(新游標小於大小):下一輪不帶版本，主機接著送剩下的，不回 unchanged")
+    @Test("落後超過追趕上限(主機只讀了一部分):下一輪不帶版本，主機接著送剩下的，不回 unchanged")
     func partialReadOmitsStamp() async throws {
         let host = await Self.followingHost()
         let pace = Self.manualPace()
