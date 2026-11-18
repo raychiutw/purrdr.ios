@@ -359,6 +359,23 @@ struct HostsModelTests {
         #expect(await real.executions.isEmpty)
     }
 
+    @Test("Codex 的方案用量：SSH 主機經主機通道(需要傳輸)、Demo 主機不耗 token 與傳輸;HTTPS 主機不支援")
+    func codexPlanUsageFollowsConnection() async {
+        let store = MemoryHostStore()
+        store.hosts = [Self.studio, Self.httpsStudio]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+        let usage = model.planUsage()
+        usage.select(agent: .codex)
+
+        #expect(usage.cost == .transfer)
+        usage.select(host: .demo)
+        #expect(usage.cost == .free)
+        usage.select(host: .host(Self.httpsStudio.id))
+        #expect(usage.cost == nil)
+        usage.disappeared()
+    }
+
     @Test("移除主機：從儲存刪除、清除該主機的所有主機寫入同意，選取改回其他主機或 Demo")
     func removingHostRevokesConsent() async throws {
         let store = MemoryHostStore()
