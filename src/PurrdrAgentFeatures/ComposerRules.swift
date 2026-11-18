@@ -80,7 +80,10 @@ public enum ComposerExpansion {
     ///   - contentHeight: 內容全部攤開的高度(含上下內距)。
     ///   - verticalInsets: 上下內距合計。
     public static func showsExpandButton(contentHeight: Double, lineHeight: Double, verticalInsets: Double, isFocused: Bool) -> Bool {
-        false
+        if isFocused { return true }
+        guard lineHeight > 0 else { return false }
+        // 四捨五入：量到的高度可能比行高的整數倍多一點點。
+        return ((contentHeight - verticalInsets) / lineHeight).rounded() > 2
     }
 }
 

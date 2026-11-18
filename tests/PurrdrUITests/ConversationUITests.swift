@@ -199,8 +199,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "「完成」沒有收回")
         XCTAssertEqual(text.value as? String, "1\n2\n3\n4", "收回後草稿不見了")
         XCTAssertFalse(element("conversation.echo", in: app).exists, "收回不該送出")
-        if app.keyboards.firstMatch.exists { element("composer.hideKeyboard", in: app).tap() }
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(element("composer.hideKeyboard", in: app).exists, "收回後輸入列不該聚焦")
         XCTAssertTrue(expand.exists, "沒聚焦、4 行時應有展開鈕")
     }
 
