@@ -38,6 +38,34 @@ public enum ComposerKeys {
     }
 }
 
+// MARK: - 長高
+
+/// 輸入框的高度與是否在框內捲動。
+public struct ComposerHeight: Sendable, Equatable {
+    public let height: Double
+    public let scrolls: Bool
+
+    public init(height: Double, scrolls: Bool) {
+        self.height = height
+        self.scrolls = scrolls
+    }
+}
+
+/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):最多 8 行且不超過鍵盤上方可用高度的 40%(取小),最小 44pt,超過才內捲。
+public enum ComposerSizing {
+    public static let maxLines = 8.0
+    public static let availableFraction = 0.4
+    public static let minHeight = 44.0
+
+    /// - Parameters:
+    ///   - contentHeight: 內容全部攤開的高度(含上下內距)。
+    ///   - verticalInsets: 上下內距合計。
+    ///   - availableHeight: 鍵盤上方可用高度;不知道時只看行數。
+    public static func height(contentHeight: Double, lineHeight: Double, verticalInsets: Double, availableHeight: Double?) -> ComposerHeight {
+        ComposerHeight(height: 0, scrolls: false)
+    }
+}
+
 // MARK: - 圖片
 
 /// 剪貼簿圖片的規則(行為規格 F6.3、F7;#37 故事 33–34)。只看剪貼簿的**類型**,不讀內容(讀內容會跳「允許貼上」)。
