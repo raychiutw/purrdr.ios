@@ -2,54 +2,51 @@ import Foundation
 import Observation
 import PurrdrCore
 
-/// Agent 列表畫面的 model。
+/// Agent 列表畫面的 model。快照與即時更新來自這台主機的主機更新來源(`HostUpdates`,#160)。
 @MainActor
 @Observable
 public final class AgentListModel {
-    public enum Phase: Equatable {
-        case loading
-        case loaded
-        case failed(String)
-    }
+    public typealias Phase = HostUpdates.Phase
 
-    public private(set) var phase: Phase = .loading
     /// 搜尋字串。空白時列出全部。
     public var query = ""
     /// 各 Agent(以 pane id)對話中最後一則訊息。來源是對話紀錄，由對話閱讀(#12)提供。
     public var previews: [String: MessagePreview] = [:]
 
-    /// 即時更新(`run()`),由所有顯示這份列表的視窗共用：iPad 多視窗時只跑一份(#31)。
-    @ObservationIgnored public private(set) lazy var liveUpdates = SharedRun { [weak self] in await self?.run() }
-
-    /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
-    public private(set) var snapshot: HostSnapshot?
-    private let client: HerdrClient
+    /// 這台主機的主機更新來源。
+    public let updates: HostUpdates
     private let transcripts: TranscriptReader?
-    private let sleep: Sleep
-    /// 使用者取消了 Tailscale 重新驗證：即時更新停下來等「再試一次」(`load()`)。
-    /// 與退避的 `retryWaiter` 分開：網路恢復、回到前景(`retryNow()`)不會讓它重連而又跳出驗證。
-    private var checkCancelWaiter: CheckedContinuation<Void, Never>?
 
     /// 所在的主機(列的身分)。
     public let host: HostSelection
 
-    /// 即時更新要不要訂閱版面事件(#40:只有 Spaces 檢視要)。執行中改變時，關掉目前的訂閱、立刻用新的清單重新訂閱。
-    public var subscribesToLayout = false {
-        didSet { if subscribesToLayout != oldValue { endSubscription?() } }
-    }
-
-    /// 結束目前的訂閱串流(`run()` 訂閱中才有)。
-    @ObservationIgnored private var endSubscription: (() -> Void)?
-
-    /// - Parameter sleep: 退避與去抖用的等待;測試注入假的。
-    public init(
+    /// - Parameter sleep: 退避用的等待;測試注入假的。
+    public convenience init(
         client: HerdrClient, transcripts: TranscriptReader? = nil, host: HostSelection = .demo,
         sleep: @escaping Sleep = Sleeping.task
     ) {
-        self.host = host
-        self.client = client
+        self.init(updates: HostUpdates(client: client, sleep: sleep), transcripts: transcripts, host: host)
+    }
+
+    public init(updates: HostUpdates, transcripts: TranscriptReader? = nil, host: HostSelection = .demo) {
+        self.updates = updates
         self.transcripts = transcripts
-        self.sleep = sleep
+        self.host = host
+        updates.afterSnapshot = { [weak self] in await self?.refreshPreviews() }
+    }
+
+    public var phase: Phase { updates.phase }
+
+    /// 最後一次成功讀到的 snapshot。讀取失敗時保留，列表不會變空。
+    public var snapshot: HostSnapshot? { updates.snapshot }
+
+    /// 即時更新，由所有顯示這份列表的視窗共用(#31)。
+    public var liveUpdates: SharedRun { updates.liveUpdates }
+
+    /// 即時更新要不要訂閱版面事件(#40:只有 Spaces 檢視要)。
+    public var subscribesToLayout: Bool {
+        get { updates.subscribesToLayout }
+        set { updates.subscribesToLayout = newValue }
     }
 
     /// 依「需要你／工作中／閒置」分組、套用搜尋後的列表。
@@ -57,12 +54,12 @@ public final class AgentListModel {
         AgentListProjection.sections(snapshot: snapshot, query: query, previews: previews, host: host)
     }
 
-    /// 列表看到的 pane 的 session 參照(id 或路徑;開對話時用來比對快取)。
     /// 列表裡 Claude Code 的 session id → pane id(「You should know」以完整 session id 配對聊天，#23)。
     public var claudeSessionPanes: [String: String] {
         Dictionary((snapshot?.agents ?? []).compactMap { agent in agent.claudeSessionID.map { ($0, agent.paneID) } }) { first, _ in first }
     }
 
+    /// 列表看到的 pane 的 session 參照(id 或路徑;開對話時用來比對快取)。
     public func sessionID(ofPane paneID: String) -> String? {
         snapshot?.agents.first { $0.paneID == paneID }?.transcriptTarget?.sessionKey
     }
@@ -71,200 +68,16 @@ public final class AgentListModel {
     public var hasAgents: Bool { snapshot?.agents.isEmpty == false }
 
     /// 即時更新停著，等使用者按「再試一次」(取消了 Tailscale 重新驗證)。
-    public var isWaitingForRetry: Bool { checkCancelWaiter != nil }
+    public var isWaitingForRetry: Bool { updates.isWaitingForRetry }
 
     /// 讀一次主機的 snapshot。即時更新因取消 Tailscale 重新驗證而停著時，改為讓它重新開始。
-    public func load() async {
-        if let checkCancelWaiter {
-            self.checkCancelWaiter = nil
-            phase = .loading
-            checkCancelWaiter.resume()
-            return
-        }
-        do {
-            try await refresh()
-        } catch {
-            fail(with: error)
-        }
-    }
+    public func load() async { await updates.load() }
 
-    /// 即時更新，直到所在的 task 被取消(行為規格 §3.7)。只在畫面可見、app 在前景時執行。
-    ///
-    /// - 先讀 snapshot 得知有哪些 Agent pane,再訂閱每個 pane 的狀態改變與全主機事件。
-    /// - 事件不重播，所以訂閱開始(ack)時重讀一次對帳;之後事件只當「重讀」的觸發，不把內容套到列表上。
-    ///   事件是依序處理的，重讀進行中到達的事件會在讀完後再觸發一次。
-    /// - `events_lost`:快取已過期，立刻重新訂閱並重讀。
-    /// - 重讀後 Agent pane 的集合變了，或換了檢視(`subscribesToLayout`):訂閱不能修改，關掉舊的、用新清單重新訂閱。
-    /// - herdr 沒有事件訂閱(`herdrCapabilityMissing`):不算失敗，每 30 秒重讀。
-    /// - 其他失敗(含訂閱在 ack 前就結束):退避 1 秒起倍增、上限 30 秒;收到 ack 即歸零。
-    /// - 使用者取消了 Tailscale 重新驗證：不自動重試(否則每次重試又跳出驗證),等使用者按「再試一次」。
-    public func run() async {
-        var failures = 0
-        var needsSnapshot = true
-        while !Task.isCancelled {
-            var resubscribeNow = false
-            do {
-                if needsSnapshot { try await refresh() }
-                needsSnapshot = false
-                let panes = agentPaneIDs
-                let layout = subscribesToLayout
-                let subscription: AsyncThrowingStream<HerdrEvent, any Error>
-                do {
-                    subscription = try await client.subscribe(
-                        panes.map(EventSubscription.agentStatusChanged) + EventSubscription.hostWide + (layout ? EventSubscription.layout : []))
-                } catch HostServiceError.herdrCapabilityMissing {
-                    // herdr 太舊沒有事件訂閱：只停用即時更新，列表照常顯示並定期重讀。
-                    try await sleep(Self.pollingInterval)
-                    needsSnapshot = true
-                    continue
-                }
-                let events = interruptible(subscription)
-                defer { endSubscription?(); endSubscription = nil }
-                for try await event in events {
-                    if case .event = event { try await sleep(Self.debounce) }
-                    if event == .subscriptionStarted { failures = 0 }
-                    try await refresh()
-                    if Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout { break }
-                }
-                // 換了 pane 集合或檢視(訂閱中途被 `subscribesToLayout` 結束的也是):重新訂閱，不算失敗。
-                resubscribeNow = Set(agentPaneIDs) != Set(panes) || subscribesToLayout != layout
-            } catch HerdrError.herdr(code: "events_lost", _) {
-                needsSnapshot = true
-                resubscribeNow = true
-            } catch let error as HostServiceError where error.requiresPairing {
-                // 權杖失效：重連也一樣被拒，等使用者重新配對後按「再試一次」。
-                fail(with: error)
-                await waitForUserRetry()
-                if Task.isCancelled { return }
-                failures = 0
-                needsSnapshot = true
-                continue
-            } catch SSHConnectionError.tailscaleCheckCancelled {
-                fail(with: SSHConnectionError.tailscaleCheckCancelled)
-                await waitForUserRetry()
-                if Task.isCancelled { return }
-                failures = 0
-                needsSnapshot = true
-                continue
-            } catch {
-                if Task.isCancelled { return }
-                fail(with: error)
-                needsSnapshot = true
-            }
-            if Task.isCancelled { return }
-            guard !resubscribeNow else { continue }
-            // 主機那端結束了串流，或失敗:退避後重連。
-            failures += 1
-            needsSnapshot = true
-            do {
-                try await backoff(Self.backoff(afterFailures: failures))
-            } catch {
-                return
-            }
-        }
-    }
+    /// 即時更新，直到所在的 task 被取消。只在畫面可見、app 在前景時執行。
+    public func run() async { await updates.run() }
 
-    /// 轉送訂閱串流，並讓 `endSubscription` 能從外面結束它(結束時取消轉送，關掉底層的訂閱通道)。
-    private func interruptible(_ events: AsyncThrowingStream<HerdrEvent, any Error>) -> AsyncThrowingStream<HerdrEvent, any Error> {
-        let (stream, continuation) = AsyncThrowingStream<HerdrEvent, any Error>.makeStream()
-        let forward = Task {
-            do {
-                for try await event in events { continuation.yield(event) }
-                continuation.finish()
-            } catch {
-                continuation.finish(throwing: error)
-            }
-        }
-        continuation.onTermination = { _ in forward.cancel() }
-        endSubscription = { continuation.finish() }
-        return stream
-    }
-
-    /// 使用者按「重試」或網路恢復：正在退避就立刻重連;正在連就讓下一次退避直接跳過。
-    public func retryNow() {
-        if let waiter = retryWaiter {
-            retryWaiter = nil
-            waiter.resume()
-        } else {
-            retryRequested = true
-        }
-    }
-
-    private var retryRequested = false
-    private var retryWaiter: CheckedContinuation<Void, Never>?
-
-    /// 退避等待：時間到，或有人要求立刻重試。
-    private func backoff(_ duration: Duration) async throws {
-        if retryRequested {
-            retryRequested = false
-            return
-        }
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { [sleep] in try await sleep(duration) }
-            group.addTask { await self.waitForRetry() }
-            try await group.next()
-            group.cancelAll()
-        }
-    }
-
-    /// 等使用者按「再試一次」(`load()`);所在的 task 被取消時也結束。
-    private func waitForUserRetry() async {
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                if Task.isCancelled {
-                    continuation.resume()
-                } else {
-                    checkCancelWaiter = continuation
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in self.resumeCheckCancelWaiter() }
-        }
-    }
-
-    private func resumeCheckCancelWaiter() {
-        let waiter = checkCancelWaiter
-        checkCancelWaiter = nil
-        waiter?.resume()
-    }
-
-    private func waitForRetry() async {
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                if Task.isCancelled {
-                    continuation.resume()
-                } else {
-                    retryWaiter = continuation
-                }
-            }
-        } onCancel: {
-            Task { @MainActor in self.cancelRetryWait() }
-        }
-    }
-
-    private func cancelRetryWait() {
-        retryWaiter?.resume()
-        retryWaiter = nil
-    }
-
-    /// 事件去抖：連續的事件只觸發一次重讀的機會變大，也不會讓列表跳動得太頻繁。
-    package static let debounce: Duration = .milliseconds(250)
-
-    /// 沒有事件訂閱可用時重讀的間隔。
-    package static let pollingInterval: Duration = .seconds(30)
-
-    /// 1 秒起倍增、上限 30 秒。
-    package static func backoff(afterFailures failures: Int) -> Duration {
-        .seconds(min(30, 1 << min(failures - 1, 5)))
-    }
-
-    private var agentPaneIDs: [String] { snapshot?.agents.map(\.paneID) ?? [] }
-
-    private func refresh() async throws {
-        snapshot = try await client.snapshot()
-        phase = .loaded
-        await refreshPreviews()
-    }
+    /// 使用者按「重試」或網路恢復：正在退避就立刻重連。
+    public func retryNow() { updates.retryNow() }
 
     /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04)。
     private var previewSessions: [String: String] = [:]
@@ -285,18 +98,6 @@ public final class AgentListModel {
         for (paneID, preview) in fresh {
             previews[paneID] = preview
             previewSessions[paneID] = sessions[paneID]
-        }
-    }
-
-    private func fail(with error: any Error) {
-        switch error {
-        case HerdrError.herdr(_, let message):
-            // 未知碼保留 herdr 原文(行為規格 §3.8)。
-            phase = .failed(message)
-        case is SSHConnectionError, is HostServiceError:
-            phase = .failed(HostErrorText.message(for: error))
-        default:
-            phase = .failed(String(localized: "Couldn’t read this host’s herdr status."))
         }
     }
 }
