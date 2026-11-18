@@ -114,9 +114,14 @@ public struct PlanUsageRow: Equatable, Sendable, Identifiable {
     /// 圓環的比例，0～1。
     public var fraction: Double
     public var resetsAt: Date?
+    /// 圓環顏色的分級(依剩餘比例)。
+    public var level: PlanUsageLevel = .ample
 
     public var id: PlanUsage.Period.Kind { period }
 }
+
+/// 依剩餘比例分的三級。
+public enum PlanUsageLevel: Equatable, Sendable { case ample, low, depleted }
 
 /// 方案用量的顯示規則。
 public enum PlanUsagePresentation {
@@ -127,4 +132,7 @@ public enum PlanUsagePresentation {
             return PlanUsageRow(period: period.kind, percent: Int(shown.rounded()), fraction: shown / 100, resetsAt: period.resetsAt)
         }
     }
+
+    /// 擷取超過 10 分鐘時的擷取時間(畫面註明「截至」)。
+    public static func asOf(_ usage: PlanUsage, now: Date) -> Date? { nil }
 }

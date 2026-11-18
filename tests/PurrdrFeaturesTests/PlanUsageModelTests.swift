@@ -61,3 +61,58 @@ struct PlanUsageModelTests {
     }
 }
 #endif
+
+/// 方案用量的顯示規則(純函式，不需要主機;沿用原本 Claude 用量的規則)。
+@Suite("方案用量顯示")
+struct PlanUsagePresentationTests {
+    static let now = Date(timeIntervalSince1970: 1_738_400_000)
+    static func usage(
+        fiveHourUsed: Double = 23.5, weekUsed: Double = 41.2, capturedAt: TimeInterval = 1_738_399_900,
+        fiveHourResets: TimeInterval? = 1_738_425_600
+    ) -> PlanUsage {
+        PlanUsage(
+            periods: [
+                .init(kind: .fiveHour, usedPercentage: fiveHourUsed, resetsAt: fiveHourResets.map { Date(timeIntervalSince1970: $0) }),
+                .init(kind: .week, usedPercentage: weekUsed, resetsAt: Date(timeIntervalSince1970: 1_738_857_600)),
+            ],
+            capturedAt: Date(timeIntervalSince1970: capturedAt))
+    }
+
+    @Test("預設顯示剩餘比例;切換後顯示已用比例")
+    func remainingByDefaultThenUsed() {
+        let remaining = PlanUsagePresentation.rows(for: Self.usage(), showing: .remaining, now: Self.now)
+        #expect(remaining.map(\.percent) == [77, 59])
+        #expect(zip(remaining.map(\.fraction), [0.765, 0.588]).allSatisfy { abs($0 - $1) < 0.0001 })
+
+        let used = PlanUsagePresentation.rows(for: Self.usage(), showing: .used, now: Self.now)
+        #expect(used.map(\.percent) == [24, 41])
+    }
+
+    @Test("已過重置時間的用量週期不顯示")
+    func hidesPeriodsPastReset() {
+        let rows = PlanUsagePresentation.rows(for: Self.usage(fiveHourResets: 1_738_399_000), showing: .remaining, now: Self.now)
+        #expect(rows.map(\.period) == [.week])
+    }
+
+    @Test("擷取超過 10 分鐘才註明「截至」")
+    func staleAfterTenMinutes() {
+        #expect(PlanUsagePresentation.asOf(Self.usage(capturedAt: Self.now.timeIntervalSince1970 - 600), now: Self.now) == nil)
+        let old = Self.usage(capturedAt: Self.now.timeIntervalSince1970 - 601)
+        #expect(PlanUsagePresentation.asOf(old, now: Self.now) == old.capturedAt)
+    }
+
+    @Test("比例超出 0～100 時夾住")
+    func clampsPercentages() {
+        let usage = Self.usage(fiveHourUsed: 104, weekUsed: -3, fiveHourResets: nil)
+        #expect(PlanUsagePresentation.rows(for: usage, showing: .remaining, now: Self.now).map(\.percent) == [0, 100])
+    }
+
+    @Test("圓環顏色依剩餘比例分三級：超過 40% 充足、超過 15% 偏低、其餘將用完;與顯示剩餘或已用無關")
+    func levelFollowsRemaining() {
+        let usage = Self.usage(fiveHourUsed: 60, weekUsed: 85)
+        #expect(PlanUsagePresentation.rows(for: usage, showing: .remaining, now: Self.now).map(\.level) == [.low, .depleted])
+        #expect(PlanUsagePresentation.rows(for: usage, showing: .used, now: Self.now).map(\.level) == [.low, .depleted])
+        let ample = Self.usage(fiveHourUsed: 59, weekUsed: 84)
+        #expect(PlanUsagePresentation.rows(for: ample, showing: .remaining, now: Self.now).map(\.level) == [.ample, .low])
+    }
+}
