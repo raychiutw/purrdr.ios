@@ -198,6 +198,69 @@ public enum TranscriptCommand {
         fi
         """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
 
+    /// 長駐追蹤腳本(#166):一條 exec 通道服務所有追蹤中的路徑，閒置 `idleSeconds` 或總長 `totalSeconds` 到了以 exit 124 結束。
+    ///
+    /// 每個請求一行「游標 版本 錨點 路徑」(版本、錨點不知道時是 `-`),回應一則：`unchanged`、`error <exit code>`、
+    /// `replaced <大小>`(變短或游標前 64 bytes 的 `cksum` 不符),或 `appended <大小> <版本>` 接著分段接著讀(#130)的行
+    /// (格式同 `catchUp`;落後超過 `limit` 時這次讀到 `backlogLimit`),最後 `end <新游標> <錨點>`。版本是「修改時間秒數-大小」。
+    package static func follow(
+        limit: Int = TranscriptReader.catchUpLimit, backlogLimit: Int = TranscriptReader.catchUpBacklogLimit,
+        idleSeconds: Int = HostScriptTimeLimit.followIdleSeconds, totalSeconds: Int = HostScriptTimeLimit.followTotalSeconds
+    ) -> String {
+        ([prefix + PosixShell.quote(HostScriptTimeLimit.posix(followScript, seconds: "$4")), "sh"]
+            + [limit, backlogLimit, idleSeconds, totalSeconds].map { PosixShell.quote(String($0)) }).joined(separator: " ")
+    }
+
+    /// 閒置時限：每收到一個請求就換一個新的 `purrdr_limit`(總長的那個由 `HostScriptTimeLimit.posix` 起)。
+    /// HUP 也以 124 結束：CI 上閒置時限曾以 1 結束(推測是停住程序樹時孤兒程序群組收到的 HUP)。
+    package static let followScript = #"""
+        trap 'exit 124' HUP
+        purrdr_anchor() {
+        if [ "$2" -le 0 ]; then k=0; return; fi
+        a=$(($2 - 64))
+        if [ "$a" -lt 0 ]; then a=0; fi
+        k=$(tail -c +$((a + 1)) "$1" | head -c $(($2 - a)) | cksum)
+        k=${k%% *}
+        }
+        purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
+        i=$!
+        while IFS= read -r q; do
+        kill "$i" 2>/dev/null
+        purrdr_limit "$$" "$3" < /dev/null > /dev/null 2>&1 &
+        i=$!
+        c=${q%% *}
+        q=${q#* }
+        t=${q%% *}
+        q=${q#* }
+        h=${q%% *}
+        f=${q#* }
+        if [ ! -e "$f" ]; then printf 'error 3\n'; continue; fi
+        if [ ! -r "$f" ]; then printf 'error 5\n'; continue; fi
+        z=$(wc -c < "$f")
+        z=$((z + 0))
+        s=$(date -r "$f" +%s 2>/dev/null)-$z
+        if [ "$s" = "$t" ]; then printf 'unchanged\n'; continue; fi
+        if [ "$z" -lt "$c" ]; then printf 'replaced %s\n' "$z"; continue; fi
+        if [ "$h" != - ]; then
+        purrdr_anchor "$f" "$c"
+        if [ "$k" != "$h" ]; then printf 'replaced %s\n' "$z"; continue; fi
+        fi
+        m=$1
+        if [ $((z - c)) -gt "$1" ]; then m=$2; fi
+        e=$c
+        if [ "$z" -gt "$c" ]; then
+        e=$(tail -c +$((c + 1)) "$f" | head -c $((z - c)) | awk -v t=$((z - c)) -v m="$m" '{ p = q + length($0) + 1; if (p > t || (p > m && NR > 1)) exit; q = p } END { print q + 0 }')
+        e=$((c + e))
+        fi
+        purrdr_anchor "$f" "$e"
+        printf 'appended %s %s\n' "$z" "$s"
+        if [ "$e" -gt "$c" ]; then
+        tail -c +$((c + 1)) "$f" | head -c $((e - c)) | ANNOTATE | awk -v m="$m" '{ i = index($0, "\t"); if (length($0) - i > m) $0 = substr($0, 1, i + m); print }'
+        fi
+        printf 'end %s %s\n' "$e" "$k"
+        done
+        """#.replacingOccurrences(of: "ANNOTATE", with: annotateAndStrip)
+
     /// Claude Code 聊天的列表預覽(參數：每個請求的 key、session id、資料夾名)。見 `previews(marker:entries:)`。
     public static func previews(marker: String, requests: [(key: String, sessionID: String, projectFolder: String)]) -> String {
         previews(marker: marker, entries: requests.map { PreviewEntry(key: $0.key, type: "claude", value: $0.sessionID, extra: $0.projectFolder) })
