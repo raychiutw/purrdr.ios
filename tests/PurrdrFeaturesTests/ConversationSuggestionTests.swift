@@ -113,6 +113,19 @@ struct ConversationSuggestionTests {
         #expect(setup.model.suggestion == "add subtract to calc.py")
     }
 
+    @Test("接受建議後把字刪光：建議再出現，輸入框上方是建議卡")
+    func clearingAcceptedSuggestionShowsItAgain() async throws {
+        let setup = try await Self.withSuggestion()
+        #expect(setup.model.topAccessory == .suggestion("add subtract to calc.py"))
+        #expect(setup.model.acceptSuggestion())
+        #expect(setup.model.topAccessory == nil)
+
+        setup.model.draft = ""
+
+        #expect(setup.model.suggestion == "add subtract to calc.py")
+        #expect(setup.model.topAccessory == .suggestion("add subtract to calc.py"))
+    }
+
     @Test("同一段完成期間只讀一次畫面(指令預算)")
     func readsOncePerCompletion() async throws {
         let setup = try await Self.withSuggestion()

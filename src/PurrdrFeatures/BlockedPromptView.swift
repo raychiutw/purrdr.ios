@@ -76,7 +76,7 @@ struct BlockedPromptView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("prompt.card")
     }
@@ -227,7 +227,7 @@ struct PromptDetailsView: View {
                         .textSelection(.enabled)
                         .padding(8)
                 }
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8))
                 .contextMenu {
                     Button("Copy", systemImage: "doc.on.doc") {
                         Clipboard.copy(details.content.joined(separator: "\n"))

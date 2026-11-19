@@ -453,8 +453,8 @@ struct AgentRowView: View {
             .font(.body)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 // 非選取中主機：副標開頭的主機名前加主機圖示(#37 故事 2、5)。主機名在文字裡，圖示不念。
-                if let label = row.hostLabel {
-                    Image(systemName: label.icon.symbol)
+                if let symbol = row.hostLabel?.icon.symbol {
+                    Image(systemName: symbol)
                         .accessibilityHidden(true)
                 }
                 Text(row.subtitle)

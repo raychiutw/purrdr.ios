@@ -58,3 +58,38 @@ extension XCUIApplication {
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
     }
 }
+
+extension XCUIApplication {
+    /// 點列表工具列的「⋯」再點選單項目(新增聊天也在選單裡，#241)。
+    @MainActor
+    func openMoreMenuItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let more = buttons["toolbar.more"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
+        more.tap()
+        let item = buttons[identifier].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "「⋯」選單沒有 \(identifier)", file: file, line: line)
+        item.tap()
+    }
+
+    /// 會員不在「⋯」選單(#241):從設定頁的會員列進入。
+    @MainActor
+    func openMemberFromSettings(file: StaticString = #filePath, line: UInt = #line) {
+        openMoreMenuItem("menu.settings", file: file, line: line)
+        let member = buttons["settings.member"].firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout: 10), "設定頁沒有會員列", file: file, line: line)
+        member.tap()
+    }
+
+    /// Purrdr Plus 不在「⋯」選單(#241):沒訂閱時從設定頁的主機同步進入付費牆。
+    @MainActor
+    func openPlusFromSettings(file: StaticString = #filePath, line: UInt = #line) {
+        openMoreMenuItem("menu.settings", file: file, line: line)
+        let toggle = descendants(matching: .any)["settings.hostSync"].firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "設定頁沒有主機同步", file: file, line: line)
+        // 點開關本身(列的右側)。
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        let plus = descendants(matching: .any)["settings.hostSync.plus"].firstMatch
+        XCTAssertTrue(plus.waitForExistence(timeout: 10), "沒有顯示需要 Purrdr Plus", file: file, line: line)
+        plus.tap()
+    }
+}

@@ -156,8 +156,7 @@ private struct SpacesHostHeader: View {
                     .font(.title3.bold())
                     .foregroundStyle(.primary)
             } icon: {
-                Image(systemName: host.icon.symbol)
-                    .foregroundStyle(.secondary)
+                HostIconBadge(host.icon, diameter: 28)
             }
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
             StatusLegend(counts: host.counts)
@@ -344,8 +343,8 @@ struct SpacesAgentRowView: View {
                 .fixedSize()
             if !row.subtitle.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    if let label = row.hostLabel {
-                        Image(systemName: label.icon.symbol)
+                    if let symbol = row.hostLabel?.icon.symbol {
+                        Image(systemName: symbol)
                             .accessibilityHidden(true)
                     }
                     Text(row.subtitle)

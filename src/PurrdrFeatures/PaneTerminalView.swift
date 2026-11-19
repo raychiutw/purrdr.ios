@@ -126,7 +126,7 @@ struct TerminalBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(SwiftUI.Color(white: 0.15))
+        .background(.background.secondary)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.banner")
     }
@@ -312,13 +312,11 @@ struct BarKeyButton: View {
                 }
             }
             .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-            .foregroundStyle(isLocked ? SwiftUI.Color.black : SwiftUI.Color.white)
             .padding(.horizontal, 8)
             .frame(minWidth: 44, minHeight: 44)
-            .background(isLocked ? SwiftUI.Color.white : SwiftUI.Color.clear, in: .capsule)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TerminalKeyButtonStyle(isLocked: isLocked))
         .disabled(!model.isInteractive)
         .accessibilityLabel(key.label)
         .accessibilityValue(key.modifier == nil ? "" : (isLocked ? "Locked" : "Off"))
@@ -338,11 +336,10 @@ struct PasteKey: View {
         } label: {
             Image(systemName: "doc.on.clipboard")
                 .font(.body)
-                .foregroundStyle(.white)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TerminalKeyButtonStyle(isLocked: false))
         .disabled(!model.isInteractive)
         .accessibilityLabel("Paste")
         .accessibilityIdentifier("terminal.key.paste")
@@ -358,13 +355,43 @@ struct KeyboardToggle: View {
         } label: {
             Image(systemName: screen.isKeyboardVisible ? "keyboard.chevron.compact.down" : "keyboard")
                 .font(.body)
-                .foregroundStyle(.white)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TerminalKeyButtonStyle(isLocked: false))
         .accessibilityLabel(screen.isKeyboardVisible ? "Hide Keyboard" : "Show Keyboard")
         .accessibilityIdentifier("terminal.key.keyboard")
+    }
+}
+
+/// 按鍵列的鍵：停用變暗、按下有底、鎖定用中性填色(`TerminalKeyAppearance`)。終端機強制深色，主要色即白字。
+struct TerminalKeyButtonStyle: ButtonStyle {
+    let isLocked: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        KeyBody(configuration: configuration, isLocked: isLocked)
+    }
+
+    private struct KeyBody: View {
+        let configuration: ButtonStyleConfiguration
+        let isLocked: Bool
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            let appearance = TerminalKeyAppearance(isLocked: isLocked, isEnabled: isEnabled, isPressed: configuration.isPressed)
+            configuration.label
+                .foregroundStyle(appearance.text == .primary ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondaryText))
+                .background(fillStyle(appearance.fill), in: .capsule)
+        }
+
+        private func fillStyle(_ fill: TerminalKeyAppearance.Fill) -> AnyShapeStyle {
+            switch fill {
+            case .none: AnyShapeStyle(SwiftUI.Color.clear)
+            case .pressed: AnyShapeStyle(.fill.tertiary)
+            case .locked: AnyShapeStyle(.fill.secondary)
+            case .lockedPressed: AnyShapeStyle(.fill)
+            }
+        }
     }
 }
 
