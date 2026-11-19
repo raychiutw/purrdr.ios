@@ -336,10 +336,10 @@ struct TranscriptPreviewTests {
         let recorder = RoutingHost(shell: host)
         let reader = TranscriptReader(channel: recorder, marker: { "MARK-1234" })
 
-        let previews = try await reader.previews(of: [
+        let previews = try await reader.previewReadings(of: [
             PreviewRequest(key: "w1:p1", sessionID: TranscriptReaderTests.sessionID, cwd: "/Users/demo/Projects/ledger"),
             PreviewRequest(key: "w2:p1", sessionID: "00000000-0000-4000-8000-0000000000ff", cwd: "/Users/demo/Projects/ledger"),
-        ])
+        ]).compactMapValues(\.preview)
 
         #expect(await recorder.shellCommands.count == 1)
         #expect(previews.keys.sorted() == ["w1:p1"])
@@ -350,9 +350,9 @@ struct TranscriptPreviewTests {
     @Test("Session id 不安全的請求直接略過，不進 shell")
     func unsafePreviewRequestsAreSkipped() async throws {
         let host = FakeHost()
-        let previews = try await TranscriptReader(channel: host).previews(of: [
+        let previews = try await TranscriptReader(channel: host).previewReadings(of: [
             PreviewRequest(key: "w1:p1", sessionID: "$(reboot)", cwd: "/Users/demo"),
-        ])
+        ]).compactMapValues(\.preview)
         #expect(previews.isEmpty)
         #expect(await host.executions.isEmpty)
     }
@@ -361,7 +361,7 @@ struct TranscriptPreviewTests {
     static let newReply = Data(
         #"{"type":"assistant","isSidechain":false,"message":{"role":"assistant","content":[{"type":"text","text":"新的回覆"}]},"uuid":"00000000-0000-4000-8000-0000000000aa","timestamp":"2026-11-14T00:03:00.000Z"}"#.utf8) + [0x0A]
 
-    static func request(knownVersion: String?) -> PreviewRequest {
+    static func request(knownVersion: PreviewVersion?) -> PreviewRequest {
         var request = PreviewRequest(key: "w1:p1", sessionID: TranscriptReaderTests.sessionID, cwd: "/Users/demo/Projects/ledger")
         request.knownVersion = knownVersion
         return request

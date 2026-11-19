@@ -147,7 +147,7 @@ public final class AgentListModel {
     /// 各 pane 讀預覽時的 Agent 狀態;狀態變了才重讀。
     private var previewStatuses: [String: AgentStatus] = [:]
     /// 各 pane 上次讀到的對話紀錄版本(下次讀預覽時帶回)。
-    @ObservationIgnored private var previewVersions: [String: String] = [:]
+    @ObservationIgnored private var previewVersions: [String: PreviewVersion] = [:]
     /// 已經成功讀過一次全部的預覽。
     private var hasReadAllPreviews = false
 

@@ -154,7 +154,7 @@ struct OtherAgentTranscriptLocationTests {
         ]
         let requests = try agents.map { try PreviewRequest(key: $0.0, target: #require($0.1.transcriptTarget)) }
 
-        let previews = try await TranscriptReader(channel: host, marker: { "MARK-1234" }).previews(of: requests)
+        let previews = try await TranscriptReader(channel: host, marker: { "MARK-1234" }).previewReadings(of: requests).compactMapValues(\.preview)
 
         #expect(await host.shellCommands.count == 1)
         #expect(previews.keys.sorted() == ["w1:p1", "w2:p1", "w3:p1"])
