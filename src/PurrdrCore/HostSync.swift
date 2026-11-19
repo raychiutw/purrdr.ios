@@ -13,12 +13,14 @@ public struct SyncedHost: Sendable, Equatable {
     public var hostKeyPin: HostKeyFingerprint?
     /// HTTPS 主機的主機服務位址(裝置權杖永不同步)。
     public var hostService: HostServiceAddress?
+    /// 主機圖示的存檔值(`HostIcon.rawValue`,#243)。`nil` = 沒有圖示資料(舊版 app 上傳的主機)。
+    public var icon: String?
     /// 修改這台主機的時間(最後修改者勝)。
     public var modifiedAt: Date
 
     public init(
         id: UUID, name: String, endpoint: SSHEndpoint, connectionMethod: HostConfiguration.ConnectionMethod,
-        hostKeyPin: HostKeyFingerprint?, hostService: HostServiceAddress? = nil, modifiedAt: Date
+        hostKeyPin: HostKeyFingerprint?, hostService: HostServiceAddress? = nil, icon: String? = nil, modifiedAt: Date
     ) {
         self.id = id
         self.name = name
@@ -26,20 +28,21 @@ public struct SyncedHost: Sendable, Equatable {
         self.connectionMethod = connectionMethod
         self.hostKeyPin = hostKeyPin
         self.hostService = connectionMethod.usesHostService ? hostService : nil
+        self.icon = icon
         self.modifiedAt = modifiedAt
     }
 
     /// HTTPS 主機的位址欄位是主機服務的主機名稱與埠(後台 wire 必填)。
-    public init(_ host: HostConfiguration, modifiedAt: Date) {
+    public init(_ host: HostConfiguration, modifiedAt: Date, icon: String? = nil) {
         switch host.connection {
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
             self.init(
                 id: host.id, name: host.name, endpoint: settings.endpoint, connectionMethod: host.connectionMethod,
-                hostKeyPin: settings.hostKeyPin, modifiedAt: modifiedAt)
+                hostKeyPin: settings.hostKeyPin, icon: icon, modifiedAt: modifiedAt)
         case .https(let address):
             self.init(
                 id: host.id, name: host.name, endpoint: address.legacyEndpoint,
-                connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: modifiedAt)
+                connectionMethod: .https, hostKeyPin: nil, hostService: address, icon: icon, modifiedAt: modifiedAt)
         }
     }
 }
@@ -67,10 +70,13 @@ public struct HostSyncOutcome: Sendable, Equatable {
     public var saves: [HostConfiguration]
     /// 別台裝置刪掉、這支裝置也要刪的主機。
     public var deletions: [UUID]
+    /// 採用後台版本的主機圖示(存檔值);後台沒有圖示資料的主機不在這裡。
+    public var icons: [UUID: String]
 
-    public init(saves: [HostConfiguration] = [], deletions: [UUID] = []) {
+    public init(saves: [HostConfiguration] = [], deletions: [UUID] = [], icons: [UUID: String] = [:]) {
         self.saves = saves
         self.deletions = deletions
+        self.icons = icons
     }
 }
 
@@ -102,12 +108,13 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
     }
 
     /// 要上傳的變更：還沒上傳的修改與刪除。沒有修改紀錄的主機(開啟同步前就存在)以 `now` 當修改時間記下來。
-    public mutating func pendingChanges(hosts: [HostConfiguration], now: Date) -> [HostSyncChange] {
+    /// `icons` 是各主機圖示的存檔值。
+    public mutating func pendingChanges(hosts: [HostConfiguration], icons: [UUID: String] = [:], now: Date) -> [HostSyncChange] {
         var changes: [HostSyncChange] = []
         for host in hosts.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
             let modifiedAt = modified[host.id] ?? Self.milliseconds(now)
             modified[host.id] = modifiedAt
-            if synced[host.id] != modifiedAt { changes.append(.upsert(SyncedHost(host, modifiedAt: modifiedAt))) }
+            if synced[host.id] != modifiedAt { changes.append(.upsert(SyncedHost(host, modifiedAt: modifiedAt, icon: icons[host.id]))) }
         }
         for id in deleted.sorted(by: { $0.uuidString < $1.uuidString }) {
             changes.append(.delete(id))
@@ -146,6 +153,7 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
             modified[remote.id] = remote.modifiedAt
             synced[remote.id] = remote.modifiedAt
             if merged != local[remote.id] { outcome.saves.append(merged) }
+            if let icon = remote.icon { outcome.icons[remote.id] = icon }
         }
         return outcome
     }

@@ -244,6 +244,53 @@ struct HostSyncJournalTests {
         #expect(journal.pendingChanges(hosts: [], now: Self.t3) == [.delete(Self.studio.id)])
     }
 
+    // MARK: - 主機圖示(#243)
+
+    @Test("上傳的修改帶這支裝置替主機選的圖示")
+    func pendingChangeCarriesIcon() {
+        var journal = HostSyncJournal()
+        journal.recordSave(Self.studio.id, at: Self.t1)
+
+        let changes = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "macMini"], now: Self.t3)
+
+        #expect(changes == [.upsert(SyncedHost(Self.studio, modifiedAt: Self.t1, icon: "macMini"))])
+    }
+
+    @Test("採用別台裝置的版本時，連同它的圖示一起交給這支裝置")
+    func appliedRemoteReportsIcon() {
+        var journal = HostSyncJournal()
+        let renamed = SyncedHost(Self.studio, modifiedAt: Self.t2, icon: "rack")
+
+        let outcome = journal.reconcile(
+            hosts: [Self.studio], sent: [], snapshot: HostSyncSnapshot(hosts: [renamed], deletedHostIDs: []))
+
+        #expect(outcome.icons == [Self.studio.id: "rack"])
+    }
+
+    @Test("後台沒有圖示資料(舊版 app 上傳的主機):不交圖示，這支裝置沿用自己的")
+    func remoteWithoutIconReportsNothing() {
+        var journal = HostSyncJournal()
+
+        let outcome = journal.reconcile(
+            hosts: [Self.studio], sent: [], snapshot: HostSyncSnapshot(hosts: [Self.remote(at: Self.t2)], deletedHostIDs: []))
+
+        #expect(outcome.icons.isEmpty)
+    }
+
+    @Test("同步途中又修改的主機：後台的舊圖示也不蓋掉")
+    func changedDuringSyncKeepsIcon() {
+        var journal = HostSyncJournal()
+        journal.recordSave(Self.studio.id, at: Self.t1)
+        let sent = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "rack"], now: Self.t3)
+        journal.recordSave(Self.studio.id, at: Self.t2)
+
+        let outcome = journal.reconcile(
+            hosts: [Self.studio], sent: sent,
+            snapshot: HostSyncSnapshot(hosts: [SyncedHost(Self.studio, modifiedAt: Self.t1, icon: "rack")], deletedHostIDs: []))
+
+        #expect(outcome.icons.isEmpty)
+    }
+
     @Test("修改時間只到毫秒(與後台相同),後台回來的時間才對得上")
     func timesAreMilliseconds() {
         var journal = HostSyncJournal()

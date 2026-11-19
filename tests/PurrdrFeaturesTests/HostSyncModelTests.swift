@@ -23,10 +23,11 @@ struct HostSyncModelTests {
         hostKeyPin: HostKeyFingerprint(stored: "nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8"))
 
     /// 後台回應的一台主機(`hosts` 的一筆)。
-    static func remoteStudio(name: String = "Studio Mac", modifiedAt: String = "2026-11-15T08:00:00.000Z") -> String {
-        #"""
+    static func remoteStudio(name: String = "Studio Mac", modifiedAt: String = "2026-11-15T08:00:00.000Z", icon: String? = nil) -> String {
+        let iconField = icon.map { #", "icon": "\#($0)""# } ?? ""
+        return #"""
         {"id": "6f1c2a4e-3b7d-4c8e-9a10-2b3c4d5e6f70", "name": "\#(name)", "address": "studio-mac", "port": 22, "username": "ray",
-         "connectionMethod": "openssh", "hostKeyFingerprint": "nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8", "modifiedAt": "\#(modifiedAt)"}
+         "connectionMethod": "openssh", "hostKeyFingerprint": "nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8", "modifiedAt": "\#(modifiedAt)"\#(iconField)}
         """#
     }
 
@@ -36,13 +37,13 @@ struct HostSyncModelTests {
 
     func makeModels(
         hosts: [HostConfiguration] = [studio], channels: Int = 4, deviceTokens: any DeviceTokenStore = InMemoryDeviceTokenStore(),
-        now: @escaping @MainActor () -> Date = { Self.now }
+        icons: [UUID: HostIcon] = [:], now: @escaping @MainActor () -> Date = { Self.now }
     ) -> (HostSyncModel, HostsModel) {
         hostStore.hosts = hosts
         let factory = ChannelFactory()
         factory.hosts = (0..<channels).map { _ in FakeHost() }
         let hostsModel = HostsModel(
-            store: hostStore, demoChannel: FakeHost(), credentials: HostCredentials(secrets: secrets, deviceKey: EphemeralDeviceKey()),
+            store: hostStore, demoChannel: FakeHost(), hostIcons: InMemoryHostIconStore(icons), credentials: HostCredentials(secrets: secrets, deviceKey: EphemeralDeviceKey()),
             hostService: HostServiceAccess(tokens: deviceTokens), makeChannel: factory.make)
         hostsModel.load()
         let session = MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens)
@@ -160,7 +161,7 @@ struct HostSyncModelTests {
         let changes = sentChanges()
         #expect(changes.count == 2)
         for change in changes {
-            #expect(Set(change.keys) == ["id", "name", "address", "port", "username", "connectionMethod", "hostKeyFingerprint", "modifiedAt"])
+            #expect(Set(change.keys) == ["id", "name", "address", "port", "username", "connectionMethod", "hostKeyFingerprint", "icon", "modifiedAt"])
         }
         let body = String(decoding: request.body, as: UTF8.self)
         for secret in ["hunter2-password", "OPENSSH PRIVATE KEY", "b3BlbnNzaC1rZXktdjE", "pass-phrase-9", "secret-project", "ops-session", "/opt/herdr"] {
@@ -195,7 +196,7 @@ struct HostSyncModelTests {
         #expect(request.json?["connectionMethods"] as? [String] == ["tailscale_ssh", "openssh", "https"])
         let change = try #require(sentChanges().first)
         #expect(Set(change.keys) == [
-            "id", "name", "address", "port", "username", "connectionMethod", "hostKeyFingerprint", "hostServiceAddress", "modifiedAt",
+            "id", "name", "address", "port", "username", "connectionMethod", "hostKeyFingerprint", "hostServiceAddress", "icon", "modifiedAt",
         ])
         #expect(change["connectionMethod"] as? String == "https")
         #expect(change["hostServiceAddress"] as? String == "https://studio.tail1234.ts.net")
@@ -364,5 +365,85 @@ struct HostSyncModelTests {
             return
         }
         #expect(hosts.hosts == [Self.studio])
+    }
+
+    // MARK: - 主機圖示(#243)
+
+    @Test("上傳帶這支裝置替主機選的圖示;沒選過的送預設圖示")
+    func uploadCarriesIcon() async throws {
+        try subscribe()
+        let linux = HostConfiguration(name: "Linux box", endpoint: SSHEndpoint(host: "100.64.0.9", username: "ops"), openSSH: .deviceKey)
+        backend.on("POST", Self.path, .json(200, Self.snapshot()))
+        let (sync, _) = makeModels(hosts: [Self.studio, linux], icons: [Self.studio.id: .macMini])
+
+        await sync.setEnabled(true)
+
+        let iconsByID = Dictionary(uniqueKeysWithValues: sentChanges().map { ($0["id"] as? String ?? "", $0["icon"] as? String) })
+        #expect(iconsByID == [Self.studio.id.uuidString: "macMini", linux.id.uuidString: "desktop"])
+    }
+
+    @Test("開啟同步時只換圖示：自動上傳新的圖示與修改時間")
+    func iconChangeIsUploaded() async throws {
+        try subscribe()
+        backend.on(
+            "POST", Self.path, .json(200, Self.snapshot(hosts: [Self.remoteStudio()])),
+            .json(200, Self.snapshot(hosts: [Self.remoteStudio(modifiedAt: "2026-11-15T08:01:00.000Z", icon: "rack")])))
+        var clock = Self.now
+        let (sync, hosts) = makeModels(now: { clock })
+        await sync.setEnabled(true)
+
+        clock = Self.now.addingTimeInterval(60)
+        hosts.setIcon(.rack, for: Self.studio.id)
+        try await waitUntil { await MainActor.run { backend.requests(to: Self.path).count == 2 } }
+        try await waitUntil { await MainActor.run { sync.status == .upToDate(Self.now.addingTimeInterval(60)) } }
+
+        #expect(sentChanges(1).first?["icon"] as? String == "rack")
+        #expect(sentChanges(1).first?["modifiedAt"] as? String == "2026-11-15T08:01:00.000Z")
+        #expect(hosts.icon(for: Self.studio.id) == .rack)
+    }
+
+    @Test("別台裝置換的圖示套用到這支裝置，而且不會再上傳回去")
+    func remoteIconIsApplied() async throws {
+        try subscribe()
+        let remote = Self.snapshot(hosts: [Self.remoteStudio(modifiedAt: "2026-11-16T08:00:00.000Z", icon: "cloud")])
+        backend.on("POST", Self.path, .json(200, remote), .json(200, remote))
+        let (sync, hosts) = makeModels(icons: [Self.studio.id: .laptop])
+
+        await sync.setEnabled(true)
+        #expect(hosts.icon(for: Self.studio.id) == .cloud)
+
+        await sync.sync()
+        #expect(sentChanges(1).isEmpty, "套用別台裝置的圖示不算這支裝置的修改")
+    }
+
+    @Test("別台裝置新增、帶圖示的主機：這支裝置顯示同樣的圖示")
+    func remoteHostIsAddedWithIcon() async throws {
+        try subscribe()
+        backend.on("POST", Self.path, .json(200, Self.snapshot(hosts: [Self.remoteStudio(icon: "none")])))
+        let (sync, hosts) = makeModels(hosts: [])
+
+        await sync.setEnabled(true)
+
+        #expect(hosts.icon(for: Self.studio.id) == .noIcon)
+    }
+
+    @Test(
+        "相容：後台沒帶圖示(舊版 app 上傳)或不認得的值(較新版 app):沿用這支裝置的圖示;舊值 server 讀成機架",
+        arguments: [
+            (nil, HostIcon.laptop),
+            ("robotArm", HostIcon.laptop),
+            ("server", HostIcon.rack),
+        ] as [(String?, HostIcon)])
+    func remoteIconCompatibility(remoteIcon: String?, expected: HostIcon) async throws {
+        try subscribe()
+        backend.on("POST", Self.path, .json(200, Self.snapshot(hosts: [
+            Self.remoteStudio(name: "Renamed on iPad", modifiedAt: "2026-11-16T08:00:00.000Z", icon: remoteIcon),
+        ])))
+        let (sync, hosts) = makeModels(icons: [Self.studio.id: .laptop])
+
+        await sync.setEnabled(true)
+
+        #expect(hosts.hosts.first?.name == "Renamed on iPad", "其他欄位照常套用")
+        #expect(hosts.icon(for: Self.studio.id) == expected)
     }
 }

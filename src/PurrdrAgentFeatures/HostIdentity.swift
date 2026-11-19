@@ -104,7 +104,7 @@ public final class InMemoryHostIconStore: HostIconStore {
     public func setIcon(_ icon: HostIcon?, for host: UUID) { icons[host] = icon }
 }
 
-/// 存在 `UserDefaults`(只在這支裝置，不同步、不分享)。
+/// 存在 `UserDefaults`(主機同步開啟時由 `HostSyncModel` 另外上傳，#243)。
 @MainActor
 public final class UserDefaultsHostIconStore: HostIconStore {
     private let defaults: UserDefaults

@@ -316,6 +316,8 @@ private enum Wire {
         var hostKeyFingerprint: String?
         /// 只有 HTTPS 主機有。
         var hostServiceAddress: String?
+        /// 主機圖示(#243)。舊版後台與舊版 app 上傳的主機沒有。
+        var icon: String?
         var modifiedAt: String
 
         init(_ host: SyncedHost) {
@@ -331,6 +333,7 @@ private enum Wire {
             }
             hostKeyFingerprint = host.hostKeyPin?.stored
             hostServiceAddress = host.hostService?.description
+            icon = host.icon
             modifiedAt = host.modifiedAt.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         }
 
@@ -345,6 +348,7 @@ private enum Wire {
             try container.encode(connectionMethod, forKey: .connectionMethod)
             try container.encode(hostKeyFingerprint, forKey: .hostKeyFingerprint)
             try container.encodeIfPresent(hostServiceAddress, forKey: .hostServiceAddress)
+            try container.encodeIfPresent(icon, forKey: .icon)
             try container.encode(modifiedAt, forKey: .modifiedAt)
         }
 
@@ -362,7 +366,7 @@ private enum Wire {
             return SyncedHost(
                 id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
                 hostKeyPin: hostKeyFingerprint.flatMap(HostKeyFingerprint.init(stored:)),
-                hostService: hostService, modifiedAt: modifiedAt)
+                hostService: hostService, icon: icon, modifiedAt: modifiedAt)
         }
     }
 
