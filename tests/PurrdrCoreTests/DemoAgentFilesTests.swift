@@ -19,6 +19,26 @@ struct DemoAgentFilesTests {
 
     static let scope = HostFileAccessScope(workingDirectories: ["/Users/demo/ledger"], mentionedPaths: [])
 
+    @Test("ledger 的回覆提到報告 PDF 與預覽圖的路徑(#229):對話紀錄出現過，只靠這點也能從 Demo 主機下載")
+    func ledgerReplyMentionsHostPaths() async throws {
+        let reader = TranscriptReader(channel: DemoHost())
+        let file = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        let chunk = try await reader.window(path: file.path, endingAt: file.size, lines: 300)
+        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        let mentioned = HostFileAccessScope.mentionedPaths(in: items)
+
+        #expect(mentioned.isSuperset(of: [DemoHostFileFetcher.reportPath, "/Users/demo/ledger/docs/export-preview.png"]))
+        let directory = FileManager.default.temporaryDirectory.appending(path: "purrdr-demo-mentions-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let downloader = HostFileDownloader(fetcher: DemoHostFileFetcher(), directory: directory)
+        let onlyMentioned = HostFileAccessScope(workingDirectories: [], mentionedPaths: mentioned)
+        guard case .downloaded(let report, _) = await downloader.download(DemoHostFileFetcher.reportPath, scope: onlyMentioned) else {
+            Issue.record("提到的 PDF 沒有下載")
+            return
+        }
+        #expect(try Data(contentsOf: report).prefix(5) == Data("%PDF-".utf8))
+    }
+
     @Test("ledger 的對話有修改與新建的檔案卡片，內容來自對話紀錄")
     func ledgerHasEditAndCreateCards() async throws {
         let cards = try await Self.ledgerCards().filter { $0.file.kind != .image }

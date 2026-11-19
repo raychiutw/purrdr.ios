@@ -82,6 +82,21 @@ public struct HostFileAccessScope: Sendable, Equatable {
     }
 }
 
+extension HostFileAccessScope {
+    /// 對話紀錄裡出現過的路徑：檔案卡片的路徑，與 Agent 訊息文字中的主機路徑(#229)。
+    public static func mentionedPaths(in items: [ConversationItem]) -> Set<String> {
+        var mentioned: Set<String> = []
+        for item in items {
+            switch item {
+            case .agentFile(let card): mentioned.insert(card.file.path)
+            case .agentText(let text): mentioned.formUnion(HostPathMention.paths(in: text.markdown))
+            default: break
+            }
+        }
+        return mentioned
+    }
+}
+
 /// 主機取檔的存取規則(app 端提前擋;主機端腳本解析 symlink 後再檢查，是權威)。
 public enum HostFileAccessPolicy {
     public enum Decision: Sendable, Equatable {

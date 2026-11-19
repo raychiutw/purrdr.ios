@@ -11,6 +11,7 @@ pub mod herdr_cli;
 pub mod herdr_client;
 pub mod herdr_socket;
 pub mod host_files;
+pub mod host_path_mentions;
 mod http;
 pub mod install;
 pub mod management;

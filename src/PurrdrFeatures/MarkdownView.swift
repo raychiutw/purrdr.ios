@@ -80,7 +80,7 @@ private struct BlockView: View {
     }
 }
 
-/// 行內文字：連結只會是 http(s)(解析時已過濾);行內 code 用等寬字、**沒有底色**(iOS 換行時底色會畫成一條)。
+/// 行內文字：連結只會是 http(s)(解析時已過濾)與主機路徑(#229);行內 code 用等寬字、**沒有底色**(iOS 換行時底色會畫成一條)。
 struct InlineText: View {
     let inlines: [MarkdownInline]
 
@@ -115,6 +115,12 @@ struct InlineText: View {
             case .link(let children, let url):
                 var run = attributed(children, bold: bold, italic: italic)
                 run.link = URL(string: url)
+                run.underlineStyle = .single
+                result += run
+            case .hostPath(let children, let path):
+                // 點了由 `AgentMessageView` 的 openURL 攔下，在 app 內開(#229)。
+                var run = attributed(children, bold: bold, italic: italic)
+                run.link = HostPathMention.linkURL(for: path)
                 run.underlineStyle = .single
                 result += run
             }

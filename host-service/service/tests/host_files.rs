@@ -314,6 +314,37 @@ async fn a_path_only_contained_in_a_longer_mention_is_not_allowed() {
 }
 
 #[tokio::test]
+async fn a_path_written_in_message_text_counts_as_mentioned() {
+    let fixture = Fixture::start().await;
+    let report = fixture.elsewhere("報告/screen shot.png", b"hello");
+    let text = serde_json::to_string(&format!("截圖在 `{}`。", path_text(&report))).unwrap();
+    let mut client = fixture.client().await;
+    fixture
+        .locate_journal(
+            &mut client,
+            &format!("{{\"type\":\"assistant\",\"message\":{{\"content\":[{{\"type\":\"text\",\"text\":{text}}}]}}}}\n"),
+        )
+        .await;
+
+    let reply = client.request(stat(&report)).await;
+
+    assert_eq!(reply["status"], "file");
+}
+
+#[tokio::test]
+async fn a_path_that_message_text_only_contains_as_a_prefix_is_not_mentioned() {
+    let fixture = Fixture::start().await;
+    let image = fixture.elsewhere("shot.png", b"hello");
+    let text = serde_json::to_string(&format!("See {}.bak and {}x/a.png", path_text(&image), path_text(&image))).unwrap();
+    let mut client = fixture.client().await;
+    fixture.locate_journal(&mut client, &format!("{{\"text\":{text}}}\n")).await;
+
+    let reply = client.request(stat(&image)).await;
+
+    assert_eq!(reply["status"], "denied");
+}
+
+#[tokio::test]
 async fn mentioned_paths_still_go_through_the_excluded_locations() {
     let fixture = Fixture::start().await;
     let key = fixture.elsewhere(".ssh/id_ed25519", b"hello");
