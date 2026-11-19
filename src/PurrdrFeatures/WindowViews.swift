@@ -78,7 +78,7 @@ struct WindowSidebar: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableRow(cornerRadius: 8))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

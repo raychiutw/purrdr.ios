@@ -45,7 +45,7 @@ struct BubbleImagesView: View {
                             .frame(width: Self.fitted(size).width, height: Self.fitted(size).height)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressableThumbnail(cornerRadius: 14))
                     .accessibilityLabel(Text("Image \(index + 1)"))
                     .accessibilityHint(Text("Opens the image full screen."))
                     .accessibilityIdentifier("conversation.image")
@@ -180,7 +180,7 @@ struct AttachmentStrip: View {
                     .foregroundStyle(.white, .black.opacity(0.6))
                     .font(.title3)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .offset(x: 14, y: -14)

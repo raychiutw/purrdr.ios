@@ -66,6 +66,19 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(disclosure.label.contains("year"), disclosure.label)
     }
 
+    /// 方案卡片有按壓回饋後(#234),按住一下再放開仍選取該方案。
+    @MainActor
+    func testHeldPlanCardStillSelects() {
+        let app = XCUIApplication.launchUITesting()
+        openPlus(in: app)
+        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
+        XCTAssertTrue(yearly.waitForExistence(timeout: 15))
+
+        yearly.press(forDuration: 0.3)
+
+        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "\(String(describing: yearly.value))")
+    }
+
     /// 訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
     @MainActor
     func testSubscribingNeedsSignInAndPaywallCanBeClosed() {
