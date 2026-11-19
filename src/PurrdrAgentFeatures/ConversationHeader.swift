@@ -75,10 +75,9 @@ extension ConversationHeader.Status {
     }
 }
 
-/// 標題列的動作鈕：不在工作中「重新載入」,工作中「停止」(F5.7、F6.7)。
+/// 標題列的動作鈕(F5.7)。停止與強制結束在輸入卡片的停止列(#220)。
 public enum HeaderAction: Equatable, Sendable {
     case reload
-    case stop
 }
 
 /// 工作中指示的經過時間：「12s」「11m 43s」「1h 5m」(行為規格 F5.11)。

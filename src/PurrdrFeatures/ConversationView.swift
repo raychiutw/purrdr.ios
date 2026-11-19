@@ -46,9 +46,9 @@ public struct ConversationView: View {
                 ToolbarItem(placement: .principal) {
                     ConversationTitleView(title: displayTitle, header: model.header)
                 }
-                if let action = model.headerAction {
+                if model.headerAction == .reload {
                     ToolbarItem(placement: .primaryAction) {
-                        HeaderActionButton(model: model, action: action) {
+                        ReloadButton(model: model) {
                             // 重新載入後切回跟隨尾端並捲到底(F5.12)。
                             scroll.jumpToLatest()
                             position.scrollTo(edge: .bottom)
@@ -63,6 +63,7 @@ public struct ConversationView: View {
                 }
             }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
+            .forceQuitConfirmation(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerImage = ViewerImage(url: $0) }
@@ -337,15 +338,27 @@ public struct ConversationView: View {
     private var banner: some View {
         if let banner = model.banner {
             HStack {
-                Label(banner.text, systemImage: banner.symbol)
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(banner.text)
+                        // 斷線前在工作：停止列已收起，說明為什麼不能停(#220)。
+                        if banner == .offline && model.stopNeedsReconnect {
+                            Text("You can stop the agent after reconnecting.")
+                        }
+                    }
+                } icon: {
+                    Image(systemName: banner.symbol)
+                }
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
                 Spacer(minLength: 8)
                 if banner == .offline {
                     // 中斷標示留在畫面上直到重新連上;也可以手動立刻重試(輪詢本身仍會每幾秒重試)。
-                    Button("Try Again") { Task { await model.poll() } }
-                        .font(.footnote)
-                        .accessibilityIdentifier("conversation.retry")
+                    Button { Task { await model.poll() } } label: {
+                        HitTarget("Try Again")
+                    }
+                    .font(.footnote)
+                    .accessibilityIdentifier("conversation.retry")
                 }
             }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -357,45 +370,21 @@ public struct ConversationView: View {
     }
 }
 
-/// 標題列的動作鈕(F5.7、F6.7):不在工作中「重新載入」;工作中「停止」——點一下送一個 Esc,
-/// 長按打開選單，選「強制結束」才送 Ctrl-C(選單本身就是說明與確認)。「需要你」的 agent 永不中斷(model 與核心都擋)。
-private struct HeaderActionButton: View {
+/// 標題列的重新載入(F5.7)。停止與強制結束在輸入卡片的停止列(#220,`StopBar`)。
+private struct ReloadButton: View {
     let model: ConversationModel
-    let action: HeaderAction
     let didReload: () -> Void
 
     var body: some View {
-        switch action {
-        case .reload:
-            Button {
-                Task {
-                    await model.reload()
-                    didReload()
-                }
-            } label: {
-                Label("Reload", systemImage: "arrow.clockwise")
+        Button {
+            Task {
+                await model.reload()
+                didReload()
             }
-            .accessibilityIdentifier("conversation.reload")
-        case .stop:
-            Menu {
-                Section {
-                    Button("Force Quit Agent", systemImage: "xmark.octagon", role: .destructive) {
-                        Task { await model.forceQuit() }
-                    }
-                    .accessibilityIdentifier("conversation.forceQuit")
-                } header: {
-                    Text("Control-C may end the agent process and this session. The conversation stays on the host, but the agent stops. Stop only interrupts the current turn.")
-                        .foregroundStyle(.secondaryText)
-                }
-            } label: {
-                Label("Stop", systemImage: "stop.fill")
-            } primaryAction: {
-                Task { await model.stop() }
-            }
-            .disabled(model.isStopping)
-            .accessibilityHint(Text("Interrupts the agent’s current turn. Press and hold to force quit."))
-            .accessibilityIdentifier("conversation.stop")
+        } label: {
+            Label("Reload", systemImage: "arrow.clockwise")
         }
+        .accessibilityIdentifier("conversation.reload")
     }
 }
 

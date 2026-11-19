@@ -79,6 +79,22 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)   // 選取底色 7.1:1
     )
 
+    /// 停止列「已停止」的文字(#220)。
+    static let successText = ContrastPalette(
+        light: ThemeColor(red: 0x1B, green: 0x7A, blue: 0x33),             // 白底 5.4:1、#EFEFF0 4.7:1
+        dark: ThemeColor(red: 0x30, green: 0xD1, blue: 0x58),              // 系統綠;#2C2C2E 6.9:1
+        lightHighContrast: ThemeColor(red: 0x0F, green: 0x5A, blue: 0x24), // #EFEFF0 7.3:1
+        darkHighContrast: ThemeColor(red: 0x5E, green: 0xE0, blue: 0x7D)   // #2C2C2E 8.3:1
+    )
+
+    /// 停止列「仍在工作」「無法確認」的文字(#220)。系統橘淺色在白底只有 2.2:1。
+    static let warningText = ContrastPalette(
+        light: ThemeColor(red: 0xA3, green: 0x52, blue: 0x00),             // 白底 5.6:1、#EFEFF0 4.9:1
+        dark: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x0A),              // 系統橘;#2C2C2E 6.8:1
+        lightHighContrast: ThemeColor(red: 0x7A, green: 0x3C, blue: 0x00), // #EFEFF0 7.4:1
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0xB3, blue: 0x40)   // #2C2C2E 7.8:1
+    )
+
     /// 對話中的連結(#93):系統連結藍的色相(`#007AFF`／`#0A84FF`),只調明度。
     /// 系統 `.link` 淺色對 `#EFEFF0` 只有 3.5:1、深色對 `#2C2C2E` 3.8:1,不能承載文字。
     static let linkText = ContrastPalette(
@@ -101,6 +117,12 @@ extension ShapeStyle where Self == Color {
 
     /// iPad 選取列上的文字與「需要你」。
     static var selectedRowText: Color { AccessibleColors.selectedRowText.color }
+
+    /// 停止列成功結果的文字(#220)。
+    static var successText: Color { AccessibleColors.successText.color }
+
+    /// 停止列警告結果的文字(#220)。
+    static var warningText: Color { AccessibleColors.warningText.color }
 
     /// 對話中連結的顏色(連結藍，不用品牌紅 tint)。
     static var linkText: Color { AccessibleColors.linkText.color }

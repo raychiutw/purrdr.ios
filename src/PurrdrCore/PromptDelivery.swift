@@ -30,11 +30,14 @@ public enum UnconfirmedReason: Sendable, Equatable {
 
 /// 中斷的結果(F6.7)。
 public enum StopOutcome: Sendable, Equatable {
-    case stopped
+    /// 已離開 working;帶回當下讀到的狀態(pane 沒有 agent 時 `nil`)。
+    case stopped(AgentStatus?)
     /// 3 秒後仍在工作。
     case stillWorking
     /// 連 Esc 都送不出去。
     case failed
+    /// 送出 Esc 後讀不到狀態：不知道停了沒。
+    case unconfirmed
     /// agent 在等你回答：什麼都沒送(中斷可能把問題關掉)。
     case needsAnswer
 }
@@ -159,14 +162,14 @@ public struct PromptDelivery: Sendable {
     // MARK: - 中斷
 
     /// 停止(F6.7):送**一個** Esc(第二個會打開 Claude 的回溯選單),之後每 500ms 讀狀態、最多 3 秒，
-    /// 等它離開 working;讀不到狀態視為成功。主機會把不認得的鍵名當文字收下，所以「鍵被接受」不代表停了。
+    /// 等它離開 working;讀不到狀態回報無法確認(#220)。主機會把不認得的鍵名當文字收下，所以「鍵被接受」不代表停了。
     /// 送前重讀狀態：只在 working 時送;「需要你」的 agent 一個按鍵都不送(中斷可能把問題關掉)。
     public func stop(paneID: String) async -> StopOutcome {
         switch await freshInterruptTarget(paneID: paneID) {
         case .unknown: return .failed
         case .needsYou: return .needsAnswer
         // 已經停了：多一個 Esc 會打開 Claude 的回溯選單。
-        case .notWorking: return .stopped
+        case .notWorking(let status): return .stopped(status)
         case .working: break
         }
         do {
@@ -180,8 +183,9 @@ public struct PromptDelivery: Sendable {
             } catch {
                 return .stillWorking
             }
-            guard let snapshot = try? await client.snapshot() else { return .stopped }
-            if snapshot.agents.first(where: { $0.paneID == paneID })?.status != .working { return .stopped }
+            guard let snapshot = try? await client.snapshot() else { return .unconfirmed }
+            let status = snapshot.agents.first(where: { $0.paneID == paneID })?.status
+            if status != .working { return .stopped(status) }
         }
         return .stillWorking
     }
@@ -205,7 +209,7 @@ public struct PromptDelivery: Sendable {
     private enum InterruptTarget {
         case working
         case needsYou
-        case notWorking
+        case notWorking(AgentStatus?)
         case unknown
     }
 
@@ -213,8 +217,8 @@ public struct PromptDelivery: Sendable {
     /// 永不中斷——Esc／ctrl+c 可能把問題關掉(F6.7);讀不到狀態也不送。
     private func freshInterruptTarget(paneID: String) async -> InterruptTarget {
         guard let snapshot = try? await client.snapshot() else { return .unknown }
-        guard let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else { return .notWorking }
+        guard let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else { return .notWorking(nil) }
         if agent.status == .blocked || (agent.inputPending && agent.status != .working) { return .needsYou }
-        return agent.status == .working ? .working : .notWorking
+        return agent.status == .working ? .working : .notWorking(agent.status)
     }
 }
