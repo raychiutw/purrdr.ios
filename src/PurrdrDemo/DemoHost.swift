@@ -32,6 +32,9 @@ public actor DemoHost: HostChannel {
         case largeOutputOnPrompt
         /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
         case workingAfterPrompt(for: Duration)
+        /// 聊天中斷網(#219):第一個主機指令(app 啟動)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
+        /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
+        case goesOffline(after: Duration, hangs: Bool)
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -86,11 +89,15 @@ public actor DemoHost: HostChannel {
 
     public func execute(_ command: String) async throws -> any ExecSession {
         try await passTailscaleCheck()
+        try await failIfOffline()
+        scheduleOfflineIfDue()
         if command == HerdrCommand.bridge() {
-            return DemoBridgeSession { [weak self] line in
+            let bridge = DemoBridgeSession { [weak self] line in
                 guard let self else { return (Data(), false) }
                 return await self.respond(to: line)
             }
+            if case .goesOffline = scenario { openBridges.append(bridge) }
+            return bridge
         }
         if command == CodexPlanUsageHost.command {
             return DemoCodexAppServer()
@@ -174,6 +181,36 @@ public actor DemoHost: HostChannel {
 
     private func cancelTailscaleCheck() {
         checkWait?.cancel()
+    }
+
+    // MARK: - 斷網情境
+
+    private var isOffline = false
+    private var offlineScheduled = false
+    /// 斷網時要以連線中斷結束的請求與訂閱。
+    private var openBridges: [DemoBridgeSession] = []
+
+    /// 斷網情境：第一個主機指令時排定斷網。
+    private func scheduleOfflineIfDue() {
+        guard case .goesOffline(let delay, _) = scenario, !offlineScheduled else { return }
+        offlineScheduled = true
+        Task { [weak self] in
+            guard (try? await Task.sleep(for: delay)) != nil else { return }
+            await self?.goOffline()
+        }
+    }
+
+    private func goOffline() async {
+        isOffline = true
+        let bridges = openBridges
+        openBridges = []
+        for bridge in bridges { await bridge.fail(SSHConnectionError.connectionLost) }
+    }
+
+    private func failIfOffline() async throws {
+        guard isOffline, case .goesOffline(_, let hangs) = scenario else { return }
+        if hangs { try await Task.sleep(for: .seconds(10)) }
+        throw SSHConnectionError.timedOut
     }
 
     private func finishUpload(_ upload: FolderUpload, received: Int) -> (stdout: Data, exitCode: Int32) {
@@ -694,6 +731,11 @@ private actor DemoBridgeSession: ExecSession {
     }
 
     func close() async { continuation.finish() }
+
+    /// 連線中斷：還沒結束的串流以 `error` 結束。
+    func fail(_ error: any Error) {
+        continuation.finish(throwing: error)
+    }
 }
 
 /// 圖片上傳：收 stdin 到 EOF,大小相符就回上傳資料夾的路徑(內容不保存)。大小不符(上傳中斷)時失敗。
