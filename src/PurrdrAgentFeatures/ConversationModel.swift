@@ -251,7 +251,7 @@ public final class ConversationModel {
     public private(set) var entriesRevision = 0
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
-    public private(set) var isStopping = false
+    public var isStopping: Bool { stopPhase == .stopping }
     /// 停止列顯示的停止進度或結果(#220)。
     public private(set) var stopPhase: StopPhase?
     /// 停止中最多等多久，之後當成仍在工作。
@@ -516,6 +516,7 @@ public final class ConversationModel {
             return
         }
         agentStatus = agent.inputPending && agent.status != .working ? .blocked : agent.status
+        settleStopResult()
         screenThisPoll = nil
         workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
         await refreshPrompt(agent)
@@ -817,11 +818,29 @@ public final class ConversationModel {
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
 
-    /// 輸入卡片最上面的停止列(#220)。
-    public var showsStopBar: Bool { false }
+    /// 輸入卡片最上面的停止列(#220):工作中或有停止進度、結果時;唯讀、離線時沒有。
+    public var showsStopBar: Bool {
+        !isReadOnly && !isOffline && (agentStatus == .working || stopPhase != nil)
+    }
+
+    /// 輪詢讀到狀態後：agent 不在工作就收起失敗結果;「無法確認」此時已確認，仍在工作就換成仍在工作。
+    private func settleStopResult() {
+        switch stopPhase {
+        case .stillWorking?, .failed?, .unconfirmed?:
+            if agentStatus != .working {
+                stopPhase = nil
+            } else if stopPhase == .unconfirmed {
+                stopPhase = .stillWorking
+            }
+        case .stopping?, .stopped?, nil:
+            break
+        }
+    }
 
     /// 關閉停止列的失敗結果。
-    public func dismissStopResult() {}
+    public func dismissStopResult() {
+        if stopPhase != .stopping { stopPhase = nil }
+    }
 
     /// 強制結束同停止，只對 working 的 agent;唯讀、離線時不可用(#220)。
     public var canForceQuit: Bool { agentStatus == .working && !isReadOnly && !isOffline }
@@ -906,21 +925,40 @@ public final class ConversationModel {
         }
     }
 
-    /// 停止(F6.7):一個 Esc,3 秒內確認離開 working。
+    /// 停止(F6.7):一個 Esc,3 秒內確認離開 working;結果顯示在停止列(#220)。
     public func stop() async {
         guard canStop else { return }
-        isStopping = true
-        defer { isStopping = false }
-        switch await delivery.stop(paneID: paneID) {
-        case .stopped(let status):
-            notice = nil
-            // 不等下一次輪詢：按鈕立刻換回送出。
+        stopPhase = .stopping
+        notice = nil
+        switch await stopWithinTimeout() {
+        case .stopped(let status)?:
+            // 不等下一次輪詢：工作中的介面立刻收起。
             agentStatus = status
             updateWorkingSince()
-        case .unconfirmed: notice = .stopUnconfirmed
-        case .stillWorking: notice = .stillWorking
-        case .failed: notice = .interruptFailed
-        case .needsAnswer: notice = .interruptRefusedNeedsAnswer
+            stopPhase = .stopped
+            try? await sleep(.seconds(2))
+            if stopPhase == .stopped { stopPhase = nil }
+        case .unconfirmed?: stopPhase = .unconfirmed
+        case .stillWorking?, nil: stopPhase = .stillWorking
+        case .failed?: stopPhase = .failed
+        case .needsAnswer?:
+            stopPhase = nil
+            notice = .interruptRefusedNeedsAnswer
+        }
+    }
+
+    /// 停止中超過 `stopTimeout` 回 `nil`(當成仍在工作，不讓轉圈停在原地)。
+    private func stopWithinTimeout() async -> StopOutcome? {
+        let delivery = delivery, paneID = paneID, sleep = sleep
+        return await withTaskGroup(of: StopOutcome?.self) { group in
+            group.addTask { await delivery.stop(paneID: paneID) }
+            group.addTask {
+                try? await sleep(Self.stopTimeout)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
         }
     }
 
