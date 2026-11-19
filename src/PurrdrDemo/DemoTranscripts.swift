@@ -25,9 +25,10 @@ enum DemoTranscripts {
     static let sessions = [ledger, weather]
 
     /// 對指令的 stdout;不是對話紀錄指令時回傳 `nil`。`appended` 是送出 prompt 後各 session 接上的行。
-    static func respond(to command: String, appended: [String: [String]] = [:]) -> Data? {
+    /// `base` 是這個情境的對話紀錄(檔案情境換掉 ledger 的內容)。
+    static func respond(to command: String, appended: [String: [String]] = [:], sessions base: [Session] = sessions) -> Data? {
         if let delegation = respondToDelegation(command) { return delegation }
-        let sessions = sessions.map { $0.appending(appended[$0.sessionID] ?? []) }
+        let sessions = base.map { $0.appending(appended[$0.sessionID] ?? []) }
         for session in sessions {
             let size = session.data.count
             if command == TranscriptCommand.locate(sessionID: session.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: session.cwd)) {
@@ -126,52 +127,7 @@ enum DemoTranscripts {
                 "file_path": "/Users/demo/ledger/Sources/Ledger/CSVExport.swift",
                 "old_string": "[\"amount\", \"date\", \"note\"]", "new_string": "[\"date\", \"amount\", \"note\"]",
             ]),
-            // 寫檔情境(#224):Edit 與 Write 的結果帶 `toolUseResult`(形狀照 #223 錄製的 Claude Code 2.1.328),聊天顯示檔案卡片。
-            toolResult("d3m0-l-10", "2026-11-16T09:00:20.300Z", id: "toolu_demo_04",
-                       text: "The file /Users/demo/ledger/Sources/Ledger/CSVExport.swift has been updated successfully.", toolUseResult: [
-                "filePath": "/Users/demo/ledger/Sources/Ledger/CSVExport.swift",
-                "oldString": "[\"amount\", \"date\", \"note\"]", "newString": "[\"date\", \"amount\", \"note\"]",
-                "structuredPatch": [[
-                    "oldStart": 3, "oldLines": 3, "newStart": 3, "newLines": 3,
-                    "lines": [" enum CSVExport {", "-    static let columns = [\"amount\", \"date\", \"note\"]", "+    static let columns = [\"date\", \"amount\", \"note\"]", " "],
-                ]],
-                "userModified": false, "replaceAll": false,
-            ]),
-            assistantTool("d3m0-l-10a", "2026-11-16T09:00:21.000Z", id: "toolu_demo_06", name: "Write", input: [
-                "file_path": "/Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift", "content": quotingTests,
-            ]),
-            toolResult("d3m0-l-10b", "2026-11-16T09:00:21.200Z", id: "toolu_demo_06",
-                       text: "File created successfully at: /Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift", toolUseResult: [
-                "type": "create", "filePath": "/Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift", "content": quotingTests,
-                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
-            ]),
-            // 圖片縮圖情境(#225):Read 圖片的結果帶 `toolUseResult.type == image`(形狀照 #223 錄製;圖片資料像主機剝圖後一樣是空的)。
-            // 預覽圖自動載入縮圖，掃描檔超過 8 MiB 等點擊;內容由 `DemoHostFileFetcher` 提供。
-            assistantTool("d3m0-l-10c", "2026-11-16T09:00:21.400Z", id: "toolu_demo_07", name: "Read", input: ["file_path": DemoHostFileFetcher.previewPath]),
-            imageResult("d3m0-l-10d", "2026-11-16T09:00:21.600Z", id: "toolu_demo_07", size: DemoImages.previewSize),
-            assistantTool("d3m0-l-10e", "2026-11-16T09:00:21.700Z", id: "toolu_demo_08", name: "Read", input: ["file_path": DemoHostFileFetcher.scanPath]),
-            imageResult("d3m0-l-10f", "2026-11-16T09:00:21.900Z", id: "toolu_demo_08", size: DemoImages.scanSize),
-            // 點開檔案情境(#228):寫了匯出檔的開頭再附加全部紀錄(超過 25 MiB),寫了草稿又刪掉(主機上已沒有)。
-            assistantTool("d3m0-l-10g", "2026-11-16T09:00:22.100Z", id: "toolu_demo_f1", name: "Write", input: [
-                "file_path": DemoHostFileFetcher.historyPath, "content": historyHeader,
-            ]),
-            toolResult("d3m0-l-10h", "2026-11-16T09:00:22.200Z", id: "toolu_demo_f1",
-                       text: "File created successfully at: \(DemoHostFileFetcher.historyPath)", toolUseResult: [
-                "type": "create", "filePath": DemoHostFileFetcher.historyPath, "content": historyHeader,
-                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
-            ]),
-            assistantTool("d3m0-l-10i", "2026-11-16T09:00:22.300Z", id: "toolu_demo_f2", name: "Write", input: [
-                "file_path": DemoHostFileFetcher.draftPath, "content": historyHeader,
-            ]),
-            toolResult("d3m0-l-10j", "2026-11-16T09:00:22.400Z", id: "toolu_demo_f2",
-                       text: "File created successfully at: \(DemoHostFileFetcher.draftPath)", toolUseResult: [
-                "type": "create", "filePath": DemoHostFileFetcher.draftPath, "content": historyHeader,
-                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
-            ]),
-            assistantTool("d3m0-l-10k", "2026-11-16T09:00:23.000Z", id: "toolu_demo_f3", name: "Bash", input: [
-                "command": "swift run ledger export --all --skip-header >> exports/history.csv && rm exports/draft.csv",
-            ]),
-            toolResult("d3m0-l-10l", "2026-11-16T09:00:25.000Z", id: "toolu_demo_f3", text: "Exported 412,880 rows."),
+            toolResult("d3m0-l-10", "2026-11-16T09:00:20.300Z", id: "toolu_demo_04", text: "The file has been updated."),
             assistantTool("d3m0-l-11", "2026-11-16T09:00:22.000Z", id: "toolu_demo_05", name: "Bash", input: ["command": "swift test --filter CSVExportTests"]),
             toolResult("d3m0-l-12", "2026-11-16T09:00:26.000Z", id: "toolu_demo_05", text: "Test run with 7 tests passed after 0.21 seconds."),
             assistantText("d3m0-l-13", "2026-11-16T09:00:30.000Z", """
@@ -188,8 +144,69 @@ enum DemoTranscripts {
             ```
 
             Quoting follows [RFC 4180](https://www.rfc-editor.org/rfc/rfc4180); local notes are in [the README](file:///Users/demo/ledger/README.md).
+            """),
+        ]
+    )
 
-            The report is at `\(DemoHostFileFetcher.reportPath)` and the preview at /Users/demo/ledger/docs/export-preview.png.
+    /// 檔案情境(`DemoHost.Scenario.agentFiles`)的 ledger 對話：同一個 session,內容換成寫檔、讀圖、提到主機路徑的一段。
+    /// 卡片依序排在使用者那一則之後;圖片在最下面(開啟時就在畫面內，縮圖自動載入)。
+    static let agentFiles = Session(
+        sessionID: ledger.sessionID, cwd: ledger.cwd, paneID: ledger.paneID,
+        lines: [
+            user("d3m0-f-01", "2026-11-16T10:00:00.000Z", "Put dates first, add quoting tests, export the full history, and check the preview."),
+            assistantTool("d3m0-f-02", "2026-11-16T10:00:02.000Z", id: "toolu_files_01", name: "Edit", input: [
+                "file_path": DemoHostFileFetcher.exportPath,
+                "old_string": "[\"amount\", \"date\", \"note\"]", "new_string": "[\"date\", \"amount\", \"note\"]",
+            ]),
+            // 寫檔(#224):Edit 與 Write 的結果帶 `toolUseResult`(形狀照 #223 錄製的 Claude Code 2.1.328),聊天顯示檔案卡片。
+            toolResult("d3m0-f-03", "2026-11-16T10:00:02.300Z", id: "toolu_files_01",
+                       text: "The file \(DemoHostFileFetcher.exportPath) has been updated successfully.", toolUseResult: [
+                "filePath": DemoHostFileFetcher.exportPath,
+                "oldString": "[\"amount\", \"date\", \"note\"]", "newString": "[\"date\", \"amount\", \"note\"]",
+                "structuredPatch": [[
+                    "oldStart": 3, "oldLines": 3, "newStart": 3, "newLines": 3,
+                    "lines": [" enum CSVExport {", "-    static let columns = [\"amount\", \"date\", \"note\"]", "+    static let columns = [\"date\", \"amount\", \"note\"]", " "],
+                ]],
+                "userModified": false, "replaceAll": false,
+            ]),
+            assistantTool("d3m0-f-04", "2026-11-16T10:00:03.000Z", id: "toolu_files_02", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.quotingTestsPath, "content": quotingTests,
+            ]),
+            toolResult("d3m0-f-05", "2026-11-16T10:00:03.200Z", id: "toolu_files_02",
+                       text: "File created successfully at: \(DemoHostFileFetcher.quotingTestsPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.quotingTestsPath, "content": quotingTests,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            // 點開檔案(#228):寫了匯出檔的開頭再附加全部紀錄(超過 25 MiB),寫了草稿又刪掉(主機上已沒有)。
+            assistantTool("d3m0-f-06", "2026-11-16T10:00:04.000Z", id: "toolu_files_03", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.historyPath, "content": historyHeader,
+            ]),
+            toolResult("d3m0-f-07", "2026-11-16T10:00:04.200Z", id: "toolu_files_03",
+                       text: "File created successfully at: \(DemoHostFileFetcher.historyPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.historyPath, "content": historyHeader,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            assistantTool("d3m0-f-08", "2026-11-16T10:00:04.300Z", id: "toolu_files_04", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.draftPath, "content": historyHeader,
+            ]),
+            toolResult("d3m0-f-09", "2026-11-16T10:00:04.400Z", id: "toolu_files_04",
+                       text: "File created successfully at: \(DemoHostFileFetcher.draftPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.draftPath, "content": historyHeader,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            assistantTool("d3m0-f-10", "2026-11-16T10:00:05.000Z", id: "toolu_files_05", name: "Bash", input: [
+                "command": "swift run ledger export --all --skip-header >> exports/history.csv && rm exports/draft.csv",
+            ]),
+            toolResult("d3m0-f-11", "2026-11-16T10:00:07.000Z", id: "toolu_files_05", text: "Exported 412,880 rows."),
+            // 圖片縮圖(#225):Read 圖片的結果帶 `toolUseResult.type == image`(形狀照 #223 錄製;圖片資料像主機剝圖後一樣是空的)。
+            // 預覽圖自動載入縮圖，掃描檔超過 8 MiB 等點擊;內容由 `DemoHostFileFetcher` 提供。
+            assistantTool("d3m0-f-12", "2026-11-16T10:00:08.000Z", id: "toolu_files_06", name: "Read", input: ["file_path": DemoHostFileFetcher.previewPath]),
+            imageResult("d3m0-f-13", "2026-11-16T10:00:08.200Z", id: "toolu_files_06", size: DemoImages.previewSize),
+            assistantTool("d3m0-f-14", "2026-11-16T10:00:08.300Z", id: "toolu_files_07", name: "Read", input: ["file_path": DemoHostFileFetcher.scanPath]),
+            imageResult("d3m0-f-15", "2026-11-16T10:00:08.500Z", id: "toolu_files_07", size: DemoImages.scanSize),
+            // 訊息內主機路徑(#229)。
+            assistantText("d3m0-f-16", "2026-11-16T10:00:10.000Z", """
+            The report is at `\(DemoHostFileFetcher.reportPath)` and the preview at \(DemoHostFileFetcher.previewPath).
             """),
         ]
     )

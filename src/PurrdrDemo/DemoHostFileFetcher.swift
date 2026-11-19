@@ -30,21 +30,30 @@ public struct DemoHostFileFetcher: HostFileFetching {
         }
     }
 
+    /// 檔案大小。圖片由尺寸算出，查狀態時不必先產生內容(掃描檔約 8.8 MiB,等使用者點擊才產生)。
+    static func size(at path: String) -> Int? {
+        switch path {
+        case previewPath: DemoImages.encodedSize(width: DemoImages.previewSize.width, height: DemoImages.previewSize.height)
+        case scanPath: DemoImages.encodedSize(width: DemoImages.scanSize.width, height: DemoImages.scanSize.height)
+        default: file(at: path)?.count
+        }
+    }
+
     public func status(of target: HostFileTarget) async throws -> HostFileStatus {
         if target.path == Self.historyPath { return .tooLarge(size: Self.historySize) }
-        guard let data = Self.file(at: target.path) else { return .missing }
-        return .file(version: Self.version(of: data), size: data.count)
+        guard let size = Self.size(at: target.path) else { return .missing }
+        return .file(version: Self.version(ofSize: size), size: size)
     }
 
     public func read(_ target: HostFileTarget, version: HostFileVersion, offset: Int, length: Int) async throws -> Data {
         guard let data = Self.file(at: target.path) else { throw HostFileFetchError.unavailable(.missing) }
-        guard Self.version(of: data) == version else { throw HostFileFetchError.changed }
+        guard Self.version(ofSize: data.count) == version else { throw HostFileFetchError.changed }
         let start = min(max(offset, 0), data.count)
         return data.subdata(in: start..<min(start + length, data.count))
     }
 
-    private static func version(of data: Data) -> HostFileVersion {
-        HostFileVersion(checksum: "demo:\(data.count)")
+    private static func version(ofSize size: Int) -> HostFileVersion {
+        HostFileVersion(checksum: "demo:\(size)")
     }
 }
 
@@ -78,15 +87,23 @@ enum DemoDocuments {
 /// Demo 的 PNG:RGB、未壓縮的 deflate 區塊(可攜核心沒有壓縮器)。
 enum DemoImages {
     /// 匯出預覽(480×300,約 420 KB):藍綠漸層上的三條「欄位」色帶。
-    static let preview = png(width: previewSize.width, height: previewSize.height) { x, y in
-        let band = (x / 160) % 3
+    static let preview = png(width: previewSize.width, height: previewSize.height) { y in
         let shade = UInt8(150 + y * 80 / 300)
-        return band == 0 ? (40, shade, 200) : band == 1 ? (60, 200, shade) : (shade, 120, 60)
+        return (0..<previewSize.width).flatMap { x -> [UInt8] in
+            let band = (x / 160) % 3
+            return band == 0 ? [40, shade, 200] : band == 1 ? [60, 200, shade] : [shade, 120, 60]
+        }
     }
 
-    /// 掃描檔(1920×1600,約 8.8 MiB,超過自動載入上限):紙色底與橫線。
-    static let scan = png(width: scanSize.width, height: scanSize.height) { _, y in
-        y % 48 < 2 ? (180, 190, 200) : (246, 242, 232)
+    /// 掃描檔(1920×1600,約 8.8 MiB,超過自動載入上限):紙色底與橫線。只有兩種列，先各排好一列再重複(Debug 下也不吃 CPU)。
+    static let scan: Data = {
+        let line = row(repeating: [180, 190, 200], width: scanSize.width)
+        let paper = row(repeating: [246, 242, 232], width: scanSize.width)
+        return png(width: scanSize.width, height: scanSize.height) { y in y % 48 < 2 ? line : paper }
+    }()
+
+    private static func row(repeating pixel: [UInt8], width: Int) -> [UInt8] {
+        Array([[UInt8]](repeating: pixel, count: width).joined())
     }
 
     static let previewSize = (width: 480, height: 300)
@@ -99,15 +116,13 @@ enum DemoImages {
         return 8 + (12 + 13) + (12 + 2 + raw + blocks * 5 + 4) + 12
     }
 
-    static func png(width: Int, height: Int, pixel: (Int, Int) -> (UInt8, UInt8, UInt8)) -> Data {
+    /// - Parameter row: 第 y 列的 RGB bytes(`width * 3` 個)。
+    static func png(width: Int, height: Int, row: (Int) -> [UInt8]) -> Data {
         var raw = [UInt8]()
         raw.reserveCapacity(height * (width * 3 + 1))
         for y in 0..<height {
             raw.append(0)
-            for x in 0..<width {
-                let (red, green, blue) = pixel(x, y)
-                raw += [red, green, blue]
-            }
+            raw.append(contentsOf: row(y))
         }
         var header = Data()
         header.appendBigEndian(UInt32(width))
@@ -135,17 +150,31 @@ enum DemoImages {
             let isFinal = offset + count == raw.count
             data.append(isFinal ? 1 : 0)
             data += [UInt8(count & 0xFF), UInt8(count >> 8), UInt8(~count & 0xFF), UInt8((~count >> 8) & 0xFF)]
-            data += raw[offset..<offset + count]
+            raw.withUnsafeBufferPointer { data.append(UnsafeBufferPointer(rebasing: $0[offset..<offset + count])) }
             offset += count
         } while offset < raw.count
+        data.appendBigEndian(adler32(raw))
+        return data
+    }
+
+    /// Adler-32:每 5,552 bytes 才取一次餘數(zlib 的 NMAX,累加不會溢位)。
+    private static func adler32(_ bytes: [UInt8]) -> UInt32 {
         var low: UInt32 = 1
         var high: UInt32 = 0
-        for byte in raw {
-            low = (low + UInt32(byte)) % 65_521
-            high = (high + low) % 65_521
+        bytes.withUnsafeBufferPointer { buffer in
+            var start = 0
+            while start < buffer.count {
+                let end = min(start + 5_552, buffer.count)
+                for index in start..<end {
+                    low &+= UInt32(buffer[index])
+                    high &+= low
+                }
+                low %= 65_521
+                high %= 65_521
+                start = end
+            }
         }
-        data.appendBigEndian(high << 16 | low)
-        return data
+        return high << 16 | low
     }
 }
 

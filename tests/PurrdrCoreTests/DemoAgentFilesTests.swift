@@ -28,7 +28,7 @@ struct DemoAgentFilesTests {
         let items = try await Self.ledgerItems(DemoHost())
 
         #expect(!items.contains { if case .agentFile = $0 { true } else { false } })
-        #expect(HostFileAccessScope.mentionedPaths(in: items).isEmpty)
+        #expect(HostFileAccessScope.mentionedPaths(in: items).isDisjoint(with: [DemoHostFileFetcher.reportPath, "/Users/demo/ledger/docs/export-preview.png"]))
     }
 
     @Test("ledger 的回覆提到報告 PDF 與預覽圖的路徑(#229):在工作目錄之下可下載;工作目錄以外只靠提到不夠(不在暫存、上傳或附檔資料夾)")
