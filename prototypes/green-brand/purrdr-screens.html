@@ -1,0 +1,200 @@
+<title>Purrdr 畫面原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* PROTOTYPE（拋棄式）：聊天列表、聊天、登入 Shell、檔案的設計畫面。?variant=A|B|C 換聊天列表與聊天的版面；?theme=light|dark。
+   主色 B 翡翠綠；主機圖示 C 綠色圓形底；需要你＝系統橙（只上圓點）；按壓灰；頁面只有標題、不放功能描述。 */
+:root{--page:#f2f2f7;--surface:#fff;--fg:#000;--secondary:#3c3c4399;--tertiary:#3c3c434d;--separator:#3c3c4329;--press:#e5e5ea;--fill:#7878801f;
+  --accent:#0b7a5c;--on-accent:#fff;--accent-soft:#0b7a5c1f;--orange:#ff9500;--red:#ff3b30;--gray:#8e8e93;--term:#1c1c1e;--term-fg:#e5e5e5;
+  --bar-bg:#111;--bar-fg:#fff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--press:#2c2c2e;--fill:#7878805c;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--orange:#ff9f0a;--red:#ff453a;--term:#000;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--press:#2c2c2e;--fill:#7878805c;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--orange:#ff9f0a;--red:#ff453a;--term:#000;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 120px}
+.wrap{max-width:1280px;margin:0 auto}
+h1{font-size:20px;margin:0 0 12px}
+.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start}
+.phone{background:var(--page);border:1px solid var(--separator);border-radius:30px;overflow:hidden;min-width:0;display:flex;flex-direction:column;min-height:640px}
+.phone>h2{font-size:12px;color:var(--secondary);margin:10px 16px 0;font-weight:500}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 4px;gap:8px;min-height:44px}
+.nav .t{font-weight:600;font-size:17px;text-align:center;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{color:var(--accent);background:none;border:0;font:inherit;font-weight:500;padding:6px;cursor:pointer;white-space:nowrap}
+.circle{width:32px;height:32px;border-radius:50%;background:var(--fill);border:0;color:var(--fg);display:grid;place-items:center;cursor:pointer;flex:none}
+.large{font-size:30px;font-weight:700;padding:0 16px 8px}
+.picker{display:inline-flex;align-items:center;gap:6px;background:var(--fill);border-radius:999px;padding:5px 10px 5px 5px;font-weight:600;font-size:15px;border:0;color:var(--fg);cursor:pointer}
+.picker .hi{width:24px;height:24px}.picker svg.g{width:15px;height:15px}
+.caret{color:var(--secondary);font-size:12px}
+.sect{font-size:13px;color:var(--secondary);padding:12px 28px 6px;display:flex;align-items:center;gap:8px}
+.sect .hi{width:22px;height:22px}.sect svg.g{width:13px;height:13px}
+.group{background:var(--surface);border-radius:12px;margin:0 12px 10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:11px;padding:10px 14px;position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.row+.row::before{content:"";position:absolute;top:0;left:var(--inset,58px);right:0;border-top:.5px solid var(--separator)}
+.row:active,.row.pressed{background:var(--press)}
+.main{flex:1;min-width:0}
+.top{display:flex;align-items:baseline;gap:6px}
+.name{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time{font-size:13px;color:var(--secondary);flex:none}
+.prev{color:var(--secondary);font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.prev.one{-webkit-line-clamp:1}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.needs{background:var(--orange)}.working{background:var(--accent)}.idle{background:var(--gray)}
+.hi{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+svg.g{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.av{width:40px;height:40px;border-radius:50%;background:var(--fill);display:grid;place-items:center;font-weight:700;font-size:15px;flex:none;position:relative}
+.av .dot{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border:2px solid var(--surface)}
+.chips{display:flex;gap:6px;padding:0 16px 10px;overflow:auto}
+.chip{border:0;background:var(--fill);color:var(--fg);border-radius:999px;padding:6px 12px;font:inherit;font-size:14px;white-space:nowrap;cursor:pointer}
+.chip.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+.search{margin:0 16px 10px;background:var(--fill);border-radius:10px;padding:8px 10px;color:var(--secondary);font-size:15px}
+/* 聊天 */
+.chat{flex:1;padding:6px 14px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.me{align-self:flex-end;max-width:82%;background:var(--fill);padding:8px 12px;border-radius:18px}
+.agent{max-width:100%}
+.tool{font-size:13px;color:var(--secondary);display:flex;align-items:center;gap:6px}
+.tool b{color:var(--fg);font-weight:500}
+.filecard{background:var(--surface);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center}
+.filecard .hi{border-radius:9px;width:32px;height:32px}
+.q{background:var(--surface);border-radius:14px;padding:12px}
+.q .qt{font-weight:600;margin-bottom:8px;display:flex;gap:6px;align-items:center}
+.opt{display:block;width:100%;text-align:left;border:0;background:var(--fill);color:var(--fg);border-radius:10px;padding:10px 12px;margin-top:6px;font:inherit;cursor:pointer}
+.opt:active{background:var(--press)}
+.status{align-self:center;display:inline-flex;align-items:center;gap:8px;background:var(--surface);border-radius:999px;padding:6px 8px 6px 12px;font-size:13px;box-shadow:0 1px 3px #0001}
+.status .stop{border:0;background:var(--fill);color:var(--fg);border-radius:999px;padding:4px 10px;font:inherit;font-weight:600;cursor:pointer}
+.composer{margin:6px 12px 12px;background:var(--surface);border-radius:22px;padding:10px 12px}
+.composer .ph{color:var(--tertiary);margin:0 0 10px;min-height:22px}
+.tools{display:flex;align-items:center;justify-content:space-between}
+.round{width:34px;height:34px;border-radius:50%;border:0;display:grid;place-items:center;font-size:16px;cursor:pointer}
+.attach{background:var(--fill);color:var(--fg)}.send{background:var(--accent);color:var(--on-accent)}
+.head{display:flex;align-items:center;gap:8px;flex:1;min-width:0;justify-content:center}
+.head .meta{display:flex;flex-direction:column;align-items:center;min-width:0}
+.head .sub{font-size:12px;color:var(--secondary);display:flex;align-items:center;gap:4px}
+/* 終端機與檔案 */
+.term{flex:1;background:var(--term);color:var(--term-fg);font:13px/1.5 ui-monospace,Menlo,monospace;padding:12px 14px;margin:6px 12px;border-radius:12px;min-height:300px}
+.term .p{color:#7ee2b8}
+.keys{display:flex;gap:6px;padding:8px 12px 12px;overflow:auto}
+.key{border:0;background:var(--surface);color:var(--fg);border-radius:8px;padding:8px 12px;font:600 14px/1 -apple-system,sans-serif;cursor:pointer}
+.key:active{background:var(--press)}
+.path{font-size:13px;color:var(--secondary);padding:0 16px 8px;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.path b{color:var(--fg);font-weight:500}
+.fi{width:30px;height:30px;display:grid;place-items:center;color:var(--accent);flex:none}
+.size{font-size:13px;color:var(--secondary)}
+/* 主機挑選選單 */
+.menu{position:absolute;left:50%;transform:translateX(-50%);top:52px;width:250px;background:var(--surface);border-radius:14px;box-shadow:0 10px 40px #0004;overflow:hidden;z-index:3}
+.menu .row{padding:9px 12px}.menu .hi{width:28px;height:28px}.menu svg.g{width:16px;height:16px}
+.relative{position:relative}
+.ck{color:var(--accent);font-weight:700;width:16px}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;align-items:center;box-shadow:0 6px 24px #0005;z-index:9;max-width:calc(100% - 32px)}
+.switcher button{background:none;border:0;color:inherit;font:600 14px/1 -apple-system,sans-serif;padding:9px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.switcher .label{padding:0 6px;font-size:13px;white-space:nowrap}
+button:focus-visible,.row:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <h1>Purrdr 畫面原型</h1>
+  <div class="phones">
+    <section class="phone"><h2>聊天列表</h2><div id="list"></div></section>
+    <section class="phone"><h2>聊天</h2><div id="chat" style="display:flex;flex-direction:column;flex:1"></div></section>
+    <section class="phone relative"><h2>登入 Shell</h2>
+      <div class="nav"><button class="btn">完成</button><span id="shellPicker"></span><button class="circle" aria-label="更多">⋯</button></div>
+      <div class="term"><span class="p">raychiu@ray-pc</span> ~/Projects $ git status<br>On branch master<br>nothing to commit, working tree clean<br><span class="p">raychiu@ray-pc</span> ~/Projects $ ▍</div>
+      <div class="keys"><button class="key">esc</button><button class="key">tab</button><button class="key">ctrl</button><button class="key">alt</button><button class="key">←</button><button class="key">→</button><button class="key">↑</button><button class="key">↓</button></div>
+      <div id="shellMenu"></div>
+    </section>
+    <section class="phone relative"><h2>檔案</h2>
+      <div class="nav"><button class="btn">完成</button><span id="filesPicker"></span><button class="circle" aria-label="上傳">＋</button></div>
+      <div class="path">~ › <b>Projects</b> › <b>ledger</b></div>
+      <div class="group" style="--inset:52px" id="files"></div>
+      <div id="filesMenu"></div>
+    </section>
+  </div>
+</div>
+
+<div class="switcher" role="toolbar" aria-label="原型切換（不屬於設計）">
+  <button id="prev" aria-label="上一個版面">←</button><span class="label" id="label"></span><button id="next" aria-label="下一個版面">→</button><button id="theme"></button>
+</div>
+
+<script>
+const P={desktop:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/>',laptop:'<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2.5 18.5h19"/>',
+macMini:'<rect x="3" y="9" width="18" height="6" rx="2.5"/><path d="M7 15.5v1M17 15.5v1M15 12h2"/>',pc:'<rect x="7" y="2.5" width="10" height="19" rx="1.8"/><circle cx="12" cy="17" r="1.4"/><path d="M10 6h4M10 9h4"/>',
+cloud:'<path d="M7 18h10.5a3.5 3.5 0 0 0 .4-7A5.5 5.5 0 0 0 7.3 9.6 4.2 4.2 0 0 0 7 18Z"/>',board:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>',
+folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',doc:'<path d="M7 3h7l4 4v14H7Z"/><path d="M14 3v4h4"/>',img:'<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m5 17 4.5-4 3 2.5 3-3 3.5 4"/>'};
+const svg=k=>`<svg class="g" viewBox="0 0 24 24" aria-hidden="true">${P[k]}</svg>`;
+const hi=k=>`<span class="hi">${svg(k)}</span>`;
+const HOSTS=[{id:"pc",n:"Ray PC",i:"pc"},{id:"mini",n:"Mac mini",i:"macMini"},{id:"studio",n:"Studio",i:"cloud"},{id:"pi",n:"Pi 5",i:"board"}];
+const AGENTS=[
+ {h:"pc",n:"ledger",s:"needs",t:"現在",p:"Ready to submit your answers?",k:"C"},
+ {h:"pc",n:"purrdr.ios",s:"working",t:"2 分",p:"正在整理輪詢流量的研究報告，已讀完 Heeler 的對話紀錄追蹤…",k:"C"},
+ {h:"mini",n:"site",s:"working",t:"5 分",p:"部署到預覽環境中",k:"X"},
+ {h:"studio",n:"notes",s:"idle",t:"12 分",p:"週報已經寫好，放在 docs/weekly.md。",k:"C"},
+ {h:"pi",n:"sensor",s:"idle",t:"1 小時",p:"溫度記錄器已重新啟動。",k:"X"}];
+const hostOf=id=>HOSTS.find(h=>h.id===id);
+let shellHost="pc", filesHost="mini", openMenu=null;
+const V={F:"定案：A 為基底＋主機篩選＋Spaces",A:"A 單一清單",B:"B 依主機分組",C:"C 需要你置頂＋篩選"};const keys=Object.keys(V);
+const st=()=>{const p=new URLSearchParams(location.hash.slice(1));return{v:keys.includes(p.get("variant"))?p.get("variant"):"F",t:p.get("theme")}};
+const set=(v,t)=>{const p=new URLSearchParams();p.set("variant",v);if(t)p.set("theme",t);location.hash=p.toString()};
+const dark=t=>t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches);
+
+function rowA(a){const h=hostOf(a.h);return `<div class="row" tabindex="0">${hi(h.i)}<div class="main"><div class="top"><span class="dot ${a.s}"></span><span class="name">${a.n}</span><span class="time">${a.t}</span></div><div class="prev">${h.n} · ${a.p}</div></div></div>`}
+function rowB(a){return `<div class="row" tabindex="0" style="--inset:62px"><span class="av">${a.k}<span class="dot ${a.s}"></span></span><div class="main"><div class="top"><span class="name">${a.n}</span><span class="time">${a.t}</span></div><div class="prev one">${a.p}</div></div></div>`}
+let listHost="all", listMode="agents", listMenu=false;
+const SPACES=[{h:"pc",w:"ledger",tabs:["CSV 匯出","測試"],a:["ledger"]},{h:"pc",w:"purrdr.ios",tabs:["輪詢","UI"],a:["purrdr.ios"]},{h:"mini",w:"site",tabs:["部署"],a:["site"]}];
+function finalList(){
+  const cur=listHost==="all"?null:hostOf(listHost);
+  const filterBtn=`<button class="picker" id="hostFilter">${cur?hi(cur.i):'<span class="hi">'+svg("desktop")+'</span>'}${cur?cur.n:"所有主機"}<span class="caret">▾</span></button>`;
+  const seg=`<div style="display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 16px 10px">${[["agents","Agents"],["spaces","Spaces"]].map(([k,n])=>`<button data-mode="${k}" style="flex:1;border:0;border-radius:7px;padding:6px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;background:${listMode===k?"var(--surface)":"transparent"};color:var(--fg);box-shadow:${listMode===k?"0 1px 3px #0002":"none"}">${n}</button>`).join("")}</div>`;
+  const menu=listMenu?`<div class="menu" style="left:16px;transform:none;top:50px">${[{id:"all",n:"所有主機",i:"desktop"},...HOSTS].map(x=>`<div class="row" data-host="${x.id}" style="--inset:52px"><span class="ck">${x.id===listHost?"✓":""}</span>${hi(x.i)}<div class="main"><span class="name">${x.n}</span></div></div>`).join("")}</div>`:"";
+  const nav=`<div class="nav relative">${filterBtn}<span class="t"></span><button class="circle" aria-label="新增">＋</button>${menu}</div><div class="large">${listMode==="agents"?"Agents":"Spaces"}</div>${seg}`;
+  if(listMode==="agents"){const as=AGENTS.filter(a=>listHost==="all"||a.h===listHost);return nav+`<div class="search">搜尋</div><div class="group">${as.map(rowA).join("")||'<div class="row"><div class="main prev">沒有 Agent</div></div>'}</div>`;}
+  const sp=SPACES.filter(s=>listHost==="all"||s.h===listHost);
+  return nav+sp.map(s=>{const h=hostOf(s.h);return `<div class="sect">${hi(h.i)}${h.n} · ${s.w}</div><div class="group" style="--inset:16px">${s.tabs.map(t=>`<div class="row"><div class="main"><span class="name" style="font-weight:400">${t}</span></div><span class="caret">›</span></div>`).join("")}</div>`}).join("");
+}
+function list(v){ if(v==="F") return finalList();
+  const nav=`<div class="nav"><button class="circle" aria-label="主機">${svg("pc")}</button><span class="t"></span><button class="circle" aria-label="新增">＋</button></div><div class="large">Agents</div>`;
+  if(v==="A") return nav+`<div class="search">搜尋</div><div class="group">${AGENTS.map(rowA).join("")}</div>`;
+  if(v==="B") return nav+HOSTS.map(h=>{const as=AGENTS.filter(a=>a.h===h.id);return as.length?`<div class="sect">${hi(h.i)}${h.n}</div><div class="group">${as.map(rowB).join("")}</div>`:""}).join("");
+  const needs=AGENTS.filter(a=>a.s==="needs"), rest=AGENTS.filter(a=>a.s!=="needs");
+  return nav+`<div class="chips"><button class="chip on">全部</button>${HOSTS.map(h=>`<button class="chip">${h.n}</button>`).join("")}</div>`+
+    `<div class="sect"><span class="dot needs"></span>需要你</div><div class="group">${needs.map(rowA).join("")}</div><div class="sect">其他</div><div class="group">${rest.map(rowA).join("")}</div>`;
+}
+function chat(v){ if(v==="F") v="A2";
+  const h=hostOf("pc");
+  const head = v==="B"
+    ? `<div class="nav"><button class="btn">‹</button><div class="head"><span class="av" style="width:30px;height:30px;font-size:13px">C<span class="dot needs" style="width:10px;height:10px"></span></span><div class="meta"><span class="t" style="font-weight:600">ledger</span><span class="sub">${svg("pc").replace('class="g"','class="g" style="width:12px;height:12px"')}Ray PC</span></div></div><button class="circle" aria-label="終端機">›_</button></div>`
+    : `<div class="nav"><button class="btn">‹</button><div class="head"><div class="meta"><span class="t" style="font-weight:600">ledger</span><span class="sub"><span class="dot needs"></span>Ray PC</span></div></div><button class="circle" aria-label="終端機">›_</button></div>`;
+  const msgs=`<div class="me">CSV 的引號跳脫幫我修一下</div>
+    <div class="tool">✓ <b>已修改 2 個檔案</b> · 3 個步驟</div>
+    ${v==="A"?"":`<div class="filecard"><span class="hi">${svg("doc")}</span><div class="main"><div class="name">CSVExport.swift</div><div class="size">修改 +12 −3</div></div><span class="caret">›</span></div>`}
+    <div class="agent">已經改好引號跳脫，並新增 CSVQuotingTests.swift。要送出嗎？</div>`;
+  const q=`<div class="q"><div class="qt"><span class="dot needs"></span>Ready to submit your answers?</div><button class="opt">Submit</button><button class="opt">Cancel</button></div>`;
+  const status=`<div class="status"><span class="dot working"></span>工作中 0:42<button class="stop">停止</button></div>`;
+  const composer=`<div class="composer"><p class="ph">訊息</p><div class="tools"><button class="round attach" aria-label="加入圖片">＋</button><button class="round send" aria-label="送出">↑</button></div></div>`;
+  if(v==="C") return head+`<div class="chat">${msgs}</div>${q.replace('class="q"','class="q" style="margin:0 12px"')}${composer}`;
+  return head+`<div class="chat">${msgs}${q}</div>${v==="B"||v==="A2"?`<div style="display:flex;justify-content:center">${status}</div>`:""}${composer}`;
+}
+function picker(id,menuId,cur){
+  const h=hostOf(cur);
+  document.getElementById(id).innerHTML=`<button class="picker" data-menu="${menuId}">${hi(h.i)}${h.n}<span class="caret">▾</span></button>`;
+  document.getElementById(menuId).innerHTML= openMenu===menuId ? `<div class="menu" role="menu">${HOSTS.map(x=>`<div class="row" data-pick="${menuId}:${x.id}" style="--inset:52px"><span class="ck">${x.id===cur?"✓":""}</span>${hi(x.i)}<div class="main"><span class="name">${x.n}</span></div></div>`).join("")}</div>` : "";
+}
+const FILES=[["folder","Sources","—"],["folder","Tests","—"],["doc","README.md","4 KB"],["doc","CSVExport.swift","9 KB"],["img","screenshot.png","812 KB"]];
+function render(){
+  const {v,t}=st(); if(t)document.documentElement.setAttribute("data-theme",t);else document.documentElement.removeAttribute("data-theme");
+  document.getElementById("label").textContent=V[v]; document.getElementById("theme").textContent=dark(t)?"深色":"淺色";
+  document.getElementById("list").innerHTML=list(v); document.getElementById("chat").innerHTML=chat(v);
+  picker("shellPicker","shellMenu",shellHost); picker("filesPicker","filesMenu",filesHost);
+  document.getElementById("files").innerHTML=FILES.map(([k,n,s])=>`<div class="row"><span class="fi">${svg(k)}</span><div class="main"><span class="name" style="font-weight:400">${n}</span></div><span class="size">${s}</span></div>`).join("");
+  const hf=document.getElementById("hostFilter"); if(hf) hf.onclick=()=>{listMenu=!listMenu;render()};
+  document.querySelectorAll("[data-host]").forEach(r=>r.onclick=()=>{listHost=r.dataset.host;listMenu=false;render()});
+  document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{listMode=b.dataset.mode;render()});
+  document.querySelectorAll("[data-menu]").forEach(b=>b.onclick=()=>{openMenu=openMenu===b.dataset.menu?null:b.dataset.menu;render()});
+  document.querySelectorAll("[data-pick]").forEach(r=>r.onclick=()=>{const [m,id]=r.dataset.pick.split(":");if(m==="shellMenu")shellHost=id;else filesHost=id;openMenu=null;render()});
+}
+document.getElementById("prev").onclick=()=>{const{v,t}=st();set(keys[(keys.indexOf(v)+keys.length-1)%keys.length],t)};
+document.getElementById("next").onclick=()=>{const{v,t}=st();set(keys[(keys.indexOf(v)+1)%keys.length],t)};
+document.getElementById("theme").onclick=()=>{const{v,t}=st();set(v,dark(t)?"light":"dark")};
+addEventListener("keydown",e=>{if(e.key==="ArrowLeft")document.getElementById("prev").click();if(e.key==="ArrowRight")document.getElementById("next").click()});
+addEventListener("hashchange",render);matchMedia("(prefers-color-scheme: dark)").addEventListener("change",render);
+render();
+</script>
