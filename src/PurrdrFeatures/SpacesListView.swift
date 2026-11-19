@@ -217,7 +217,6 @@ private struct WorkspaceGroupHeader: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: spokenLabel))
         .accessibilityAddTraits(.isButton)
@@ -274,12 +273,8 @@ private struct StatusBarView: View {
 struct SpacesAgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(主色底，`selectionFill(for:)`):次要色改選取列文字色(同 `AgentRowView`)。
-    @Environment(\.backgroundProminence) private var backgroundProminence
-
-    private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.secondaryText)
-    }
+    /// 次要色;選取列是中性灰底，不換色(同 `AgentRowView`)。
+    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
     private func lines(_ limit: Int) -> Int? {
@@ -331,7 +326,7 @@ struct SpacesAgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(backgroundProminence == .increased ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.tint))
+                .foregroundStyle(.tint)
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
@@ -381,12 +376,8 @@ struct AgentKindAvatar: View {
 struct TerminalRowView: View {
     let row: TerminalRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(主色底)次要色改 `onProminentFill`(同 `AgentRowView`)。
-    @Environment(\.backgroundProminence) private var backgroundProminence
-
-    private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.secondaryText)
-    }
+    /// 次要色;選取列是中性灰底，不換色(同 `AgentRowView`)。
+    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -459,7 +450,8 @@ struct AgentListLargeTitle: View {
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .menuStyle(.button)
+        .buttonStyle(.pressableRow(cornerRadius: 10))
         .accessibilityHint("Switches between Spaces and Agents.")
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("agentList.title")

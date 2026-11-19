@@ -283,7 +283,7 @@ struct PlanRow: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableCard(cornerRadius: 12))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(plan.accessibilityLabel))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)

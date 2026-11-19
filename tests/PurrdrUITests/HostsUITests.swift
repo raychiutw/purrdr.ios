@@ -138,6 +138,7 @@ final class HostsUITests: XCTestCase {
     }
 
     static let seededRow = "hosts.row.5EED0000-0000-4000-8000-000000000001"
+    static let seededInfo = "hosts.info.5EED0000-0000-4000-8000-000000000001"
 
     @MainActor
     private func openHosts(_ app: XCUIApplication) {
@@ -168,7 +169,22 @@ final class HostsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled, "匯入後沒測試就能儲存")
     }
 
-    /// 已存的主機：分享(QR code)、重新命名、刪除(不另外確認)。
+    /// 列尾 ⓘ 開那台主機的編輯器(VoiceOver 念「主機名 詳細資訊」);點列本身仍是選取並關閉 sheet。
+    @MainActor
+    func testInfoButtonOpensEditor() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        openHosts(app)
+        let info = app.buttons[Self.seededInfo]
+        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertEqual(info.label, "Studio Mac Details")
+
+        info.tap()
+
+        XCTAssertTrue(app.navigationBars["Edit Host"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["hostEditor.name"].value as? String, "Studio Mac")
+    }
+
+    /// 已存的主機：分享(QR code)、重新命名、刪除(先確認，取消就不刪)。
     @MainActor
     func testShareRenameAndDeleteHost() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
@@ -198,11 +214,22 @@ final class HostsUITests: XCTestCase {
         let renamed = expectation(for: NSPredicate(format: "label CONTAINS %@", "Office Mac"), evaluatedWith: row)
         wait(for: [renamed], timeout: 5)
 
-        // 刪除：滑動後點一下就刪，不跳確認;選取改回 Demo 主機。
+        // 選單的刪除：先確認，取消就不刪。
+        row.press(forDuration: 1)
+        app.buttons["Delete…"].firstMatch.tap()
+        let confirm = app.buttons["hosts.delete.confirm"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "刪除主機要先確認")
+        app.buttons["Cancel"].firstMatch.tap()
+        XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(row.exists, "取消後主機還在")
+
+        // 滑動的刪除：確認後才移除;選取改回 Demo 主機。
         row.swipeLeft()
         app.buttons["hosts.delete"].tap()
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "刪除主機要先確認")
+        XCTAssertTrue(row.exists, "確認前不該移除")
+        confirm.tap()
         XCTAssertTrue(row.waitForNonExistence(timeout: 5))
-        XCTAssertFalse(app.alerts.firstMatch.exists, "刪除主機不該另外確認")
         XCTAssertTrue(app.buttons["hosts.demo"].isSelected)
     }
 }

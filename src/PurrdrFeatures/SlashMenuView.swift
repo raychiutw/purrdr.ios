@@ -109,7 +109,7 @@ struct SlashMenuView: View {
             .contentShape(Rectangle())
             .background(menu.highlighted == command.name ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.clear))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableRow())
         .accessibilityLabel(Text(verbatim: "/\(command.name)"))
         .accessibilityValue(Text(verbatim: [command.argumentHint, command.summary].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")))
         .accessibilityAddTraits(menu.highlighted == command.name ? .isSelected : [])

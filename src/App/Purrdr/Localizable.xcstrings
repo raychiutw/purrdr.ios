@@ -11,6 +11,17 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "%@ Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 詳細資訊"
+          }
+        }
+      }
+    },
     "%@ Pull down to try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2524,6 +2535,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要刪除你的會員嗎?"
+          }
+        }
+      }
+    },
+    "Delete…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除…"
           }
         }
       }
@@ -5322,6 +5344,17 @@
         }
       }
     },
+    "Remove Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除主機"
+          }
+        }
+      }
+    },
     "Remove Image %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5329,6 +5362,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移除第 %lld 張圖片"
+          }
+        }
+      }
+    },
+    "Remove “%@” from This Device?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要從這部裝置移除「%@」嗎？"
           }
         }
       }
@@ -7485,6 +7529,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置上沒有這台主機的密碼或金鑰。請編輯主機並重新輸入。"
+          }
+        }
+      }
+    },
+    "This host’s settings and keys are removed from this device, and this device’s pairing is revoked. The computer itself isn’t changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這部裝置上的主機設定與金鑰會刪除，並撤銷這部裝置的配對；主機本身不受影響。"
           }
         }
       }
