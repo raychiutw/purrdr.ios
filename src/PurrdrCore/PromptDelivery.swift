@@ -161,7 +161,7 @@ public struct PromptDelivery: Sendable {
     // MARK: - 中斷
 
     /// 停止(F6.7):送**一個** Esc(第二個會打開 Claude 的回溯選單),之後每 500ms 讀狀態、最多 3 秒，
-    /// 等它離開 working;讀不到狀態視為成功。主機會把不認得的鍵名當文字收下，所以「鍵被接受」不代表停了。
+    /// 等它離開 working;讀不到狀態回報無法確認(#220)。主機會把不認得的鍵名當文字收下，所以「鍵被接受」不代表停了。
     /// 送前重讀狀態：只在 working 時送;「需要你」的 agent 一個按鍵都不送(中斷可能把問題關掉)。
     public func stop(paneID: String) async -> StopOutcome {
         switch await freshInterruptTarget(paneID: paneID) {
@@ -182,7 +182,7 @@ public struct PromptDelivery: Sendable {
             } catch {
                 return .stillWorking
             }
-            guard let snapshot = try? await client.snapshot() else { return .stopped }
+            guard let snapshot = try? await client.snapshot() else { return .unconfirmed }
             if snapshot.agents.first(where: { $0.paneID == paneID })?.status != .working { return .stopped }
         }
         return .stillWorking
