@@ -222,7 +222,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testPaywall() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            openMenu("menu.plus", in: app)
+            app.openPlusFromSettings()
             XCTAssertTrue(element("plus.plan.com.raychiu.purrdr.plus.monthly", in: app).waitForExistence(timeout: 15))
             try audit(app, "付費牆", contentSize: size)
             app.terminate()
@@ -233,7 +233,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testSignIn() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            openMenu("menu.member", in: app)
+            app.openMemberFromSettings()
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
             try audit(app, "登入", contentSize: size)
             app.terminate()
@@ -254,9 +254,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testNewChat() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            let plus = app.buttons["toolbar.newChat"]
-            XCTAssertTrue(plus.waitForExistence(timeout: 10))
-            plus.tap()
+            openMenu("menu.newChat", in: app)
             XCTAssertTrue(element("sheet.newChat", in: app).waitForExistence(timeout: 10))
             try audit(app, "新增對話", contentSize: size)
             app.terminate()
