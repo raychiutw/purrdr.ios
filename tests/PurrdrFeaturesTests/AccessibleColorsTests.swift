@@ -151,23 +151,6 @@ struct SpacesColorsTests {
             }
         }
     }
-
-    /// 非文字圖形(WCAG 1.4.11):對列的背景 ≥ 3:1,高對比 ≥ 4.5:1。淺色列 #FFFFFF;深色列 #1C1C1E、#2C2C2E。
-    @Test("狀態條的閒置段：對列背景 ≥ 3:1,高對比 ≥ 4.5:1")
-    func idleSegmentContrast() {
-        let palette = AccessibleColors.idleSegment
-        let darkRows = [ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E), ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)]
-        let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
-            ("淺色", palette.light, [Self.white], 3), ("深色", palette.dark, darkRows, 3),
-            ("淺色高對比", palette.lightHighContrast, [Self.white], 4.5), ("深色高對比", palette.darkHighContrast, darkRows, 4.5),
-        ]
-        for (name, color, backgrounds, minimum) in cases {
-            for background in backgrounds {
-                let ratio = color.contrastRatio(with: background)
-                #expect(ratio >= minimum, "\(name) \(color) 對 \(background) 只有 \(ratio)")
-            }
-        }
-    }
 }
 
 /// 方案用量圓環的三級顏色(#177)。

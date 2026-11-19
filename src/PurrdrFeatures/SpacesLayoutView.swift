@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
@@ -131,7 +132,7 @@ private struct LayoutTabView: View {
     }
 }
 
-/// 一個 pane 方塊。Agent 用填色、shell 用中性色;「需要你」用 tint 加 `!` 符號(不只靠顏色);聚焦的 pane 有 2pt tint 外環。
+/// 一個 pane 方塊。Agent 用填色、shell 用中性色;「需要你」用橙色 `!` 符號加中性底(不只靠顏色);聚焦的 pane 有 2pt tint 外環。
 private struct LayoutBlockView: View {
     let block: SpacesLayout.Block
     let onChoose: (PaneOpenTarget) -> Void
@@ -166,7 +167,7 @@ private struct LayoutBlockView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Image(systemName: status.symbol)
-                        .foregroundStyle(status == .blocked ? AnyShapeStyle(.tint) : status.color)
+                        .foregroundStyle(status.tone.style)
                     Text(name).font(.caption.weight(.semibold))
                 }
                 if let detail {
@@ -193,7 +194,7 @@ private struct LayoutBlockView: View {
 
     private var fill: AnyShapeStyle {
         switch block.content {
-        case .agent(_, _, .blocked): AnyShapeStyle(.tint.opacity(0.18))
+        case .agent(_, _, .blocked): AnyShapeStyle(Color.gray.opacity(0.18))
         case .agent: AnyShapeStyle(.fill.secondary)
         case .terminal, .unavailable: AnyShapeStyle(.fill.quaternary)
         }
