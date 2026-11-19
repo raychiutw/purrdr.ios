@@ -255,7 +255,7 @@ public final class ConversationModel {
     /// 停止列顯示的停止進度或結果(#220)。
     public private(set) var stopPhase: StopPhase?
     /// 斷線前 agent 在工作：離線橫幅說明重新連上後才能停止(#220)。
-    public var stopNeedsReconnect: Bool { false }
+    public private(set) var stopNeedsReconnect = false
     /// 停止中最多等多久，之後當成仍在工作。
     public nonisolated static let stopTimeout: Duration = .seconds(10)
 
@@ -505,6 +505,7 @@ public final class ConversationModel {
             }
         }
         isOffline = false
+        stopNeedsReconnect = false
         if banner == .offline { banner = nil }
         // 送出時被拒過就維持唯讀。
         if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
@@ -767,6 +768,7 @@ public final class ConversationModel {
     private func showOffline() async {
         isOffline = true
         // 斷線前的狀態已過時：不能留著 working 讓停止鈕可按(#220)。
+        if agentStatus == .working { stopNeedsReconnect = true }
         agentStatus = nil
         // 看不到主機畫面，建議可能已過時;恢復連線後重讀(#123)。
         clearSuggestion()
