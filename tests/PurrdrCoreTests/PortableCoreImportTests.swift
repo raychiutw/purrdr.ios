@@ -25,15 +25,53 @@ struct PortableCoreImportTests {
                 .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
             for file in files {
                 scanned += 1
-                let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
-                for line in lines {
-                    guard let module = Self.importedModule(in: String(line)), !Self.allowedModules.contains(module) else { continue }
+                guard let modules = Self.importedModules(inSource: try String(contentsOf: file, encoding: .utf8)) else {
+                    violations.append("\(target)/\(file.lastPathComponent): 多行字串的分隔符號不成對，無法確認 import")
+                    continue
+                }
+                for module in modules where !Self.allowedModules.contains(module) {
                     violations.append("\(target)/\(file.lastPathComponent): import \(module)")
                 }
             }
         }
         #expect(scanned > 0, "沒有掃到任何原始碼，路徑可能錯了")
         #expect(violations.isEmpty, "可攜核心 import 了不可攜的 module:\(violations)")
+    }
+
+    @Test("多行字串裡的 import 文字不是 import 宣告;字串結束後的 import 照樣檢查")
+    func importTextInsideMultilineStringIsNotADeclaration() {
+        let source = """
+        import Foundation
+        static let sample = \"\"\"
+            import Testing
+            @testable import Ledger
+            \"\"\"
+        import SwiftUI
+        """
+        #expect(Self.importedModules(inSource: source) == ["Foundation", "SwiftUI"])
+    }
+
+    @Test("多行字串沒有結束時回報無法確認，不默默略過後面的程式碼")
+    func unbalancedMultilineStringIsReported() {
+        let source = """
+        let script = \"\"\"
+        import SwiftUI
+        """
+        #expect(Self.importedModules(inSource: source) == nil)
+    }
+
+    /// 原始碼的 import 宣告(頂層 module 名稱),略過多行字串(`"""` 之間)的內容;`"""` 不成對時回 `nil`。
+    static func importedModules(inSource source: String) -> [String]? {
+        var modules: [String] = []
+        var isInsideMultilineString = false
+        for line in source.split(separator: "\n", omittingEmptySubsequences: false) {
+            let delimiterCount = line.components(separatedBy: "\"\"\"").count - 1
+            if !isInsideMultilineString, delimiterCount == 0, let module = importedModule(in: String(line)) {
+                modules.append(module)
+            }
+            if delimiterCount % 2 == 1 { isInsideMultilineString.toggle() }
+        }
+        return isInsideMultilineString ? nil : modules
     }
 
     /// `import X`、`@preconcurrency import X`、`import struct X.Y` 都取出頂層 module 名稱 `X`。

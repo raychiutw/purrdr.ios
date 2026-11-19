@@ -106,7 +106,7 @@ final class ConversationUITests: XCTestCase {
         let app = openLedger()
         let headers = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.header")
         XCTAssertTrue(headers.firstMatch.waitForExistence(timeout: 10), "沒有檔案卡片")
-        XCTAssertEqual(headers.count, 2)
+        XCTAssertEqual(headers.count, 4, "CSVExport.swift、CSVQuotingTests.swift 與 #228 的 history.csv、draft.csv")
 
         let edited = headers.element(boundBy: 0)
         XCTAssertTrue(edited.label.hasPrefix("Edited file CSVExport.swift, Code"), "修改卡片標題不對：\(edited.label)")
@@ -159,6 +159,58 @@ final class ConversationUITests: XCTestCase {
         shot.name = "conversation-image-cards"
         shot.lifetime = .keepAlways
         add(shot)
+    }
+
+    /// 點開檔案(#228):「Open」從 Demo 主機下載新建的測試檔，以 QuickLook 預覽;關閉後可以分享。
+    @MainActor
+    func testOpeningAFileShowsQuickLookAndShare() {
+        let app = openLedger()
+        let open = app.buttons["Open CSVQuotingTests.swift"].firstMatch
+        XCTAssertTrue(app.reveal(open), "新建的測試檔沒有「Open」")
+        XCTAssertEqual(open.label, "Open CSVQuotingTests.swift")
+        XCTAssertGreaterThanOrEqual(open.frame.height, 44)
+        open.tap()
+
+        let preview = app.navigationBars["CSVQuotingTests.swift"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 15), "沒有出現 QuickLook 預覽")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-file-quicklook"
+        shot.lifetime = .keepAlways
+        add(shot)
+        preview.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
+
+        let share = element("conversation.agentFile.share", in: app)
+        XCTAssertTrue(app.reveal(share), "下載好之後沒有「Share」")
+        XCTAssertEqual(share.label, "Share CSVQuotingTests.swift")
+        XCTAssertGreaterThanOrEqual(share.frame.height, 44)
+    }
+
+    /// 點開檔案(#228):匯出檔之後被附加到超過 25 MiB,顯示大小與說明，不下載。
+    @MainActor
+    func testOpeningAFileOverTheLimitExplains() {
+        let app = openLedger()
+        let headers = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.header")
+        let history = headers.element(boundBy: 2)
+        XCTAssertTrue(app.reveal(history), "沒有 history.csv 的卡片")
+        XCTAssertTrue(history.label.hasPrefix("Created file history.csv"), "卡片不對：\(history.label)")
+        history.tap()
+
+        let note = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Too large to open here")).firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 10), "沒有超過上限的說明")
+        XCTAssertTrue(note.label.contains("Open it on the host."))
+    }
+
+    /// 點開檔案(#228):草稿寫完被刪掉，顯示「主機上已沒有這個檔案」。
+    @MainActor
+    func testOpeningADeletedFileExplains() {
+        let app = openLedger()
+        let open = app.buttons["Open draft.csv"].firstMatch
+        XCTAssertTrue(app.reveal(open), "沒有 draft.csv 的「Open」")
+        XCTAssertEqual(open.label, "Open draft.csv")
+        open.tap()
+
+        XCTAssertTrue(app.staticTexts["This file is no longer on the host."].waitForExistence(timeout: 10), "沒有缺檔說明")
     }
 
     // MARK: - 送出(F6)

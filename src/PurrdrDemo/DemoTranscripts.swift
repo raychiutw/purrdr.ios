@@ -151,6 +151,27 @@ enum DemoTranscripts {
             imageResult("d3m0-l-10d", "2026-11-16T09:00:21.600Z", id: "toolu_demo_07", size: DemoImages.previewSize),
             assistantTool("d3m0-l-10e", "2026-11-16T09:00:21.700Z", id: "toolu_demo_08", name: "Read", input: ["file_path": DemoHostFileFetcher.scanPath]),
             imageResult("d3m0-l-10f", "2026-11-16T09:00:21.900Z", id: "toolu_demo_08", size: DemoImages.scanSize),
+            // 點開檔案情境(#228):寫了匯出檔的開頭再附加全部紀錄(超過 25 MiB),寫了草稿又刪掉(主機上已沒有)。
+            assistantTool("d3m0-l-10g", "2026-11-16T09:00:22.100Z", id: "toolu_demo_f1", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.historyPath, "content": historyHeader,
+            ]),
+            toolResult("d3m0-l-10h", "2026-11-16T09:00:22.200Z", id: "toolu_demo_f1",
+                       text: "File created successfully at: \(DemoHostFileFetcher.historyPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.historyPath, "content": historyHeader,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            assistantTool("d3m0-l-10i", "2026-11-16T09:00:22.300Z", id: "toolu_demo_f2", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.draftPath, "content": historyHeader,
+            ]),
+            toolResult("d3m0-l-10j", "2026-11-16T09:00:22.400Z", id: "toolu_demo_f2",
+                       text: "File created successfully at: \(DemoHostFileFetcher.draftPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.draftPath, "content": historyHeader,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            assistantTool("d3m0-l-10k", "2026-11-16T09:00:23.000Z", id: "toolu_demo_f3", name: "Bash", input: [
+                "command": "swift run ledger export --all --skip-header >> exports/history.csv && rm exports/draft.csv",
+            ]),
+            toolResult("d3m0-l-10l", "2026-11-16T09:00:25.000Z", id: "toolu_demo_f3", text: "Exported 412,880 rows."),
             assistantTool("d3m0-l-11", "2026-11-16T09:00:22.000Z", id: "toolu_demo_05", name: "Bash", input: ["command": "swift test --filter CSVExportTests"]),
             toolResult("d3m0-l-12", "2026-11-16T09:00:26.000Z", id: "toolu_demo_05", text: "Test run with 7 tests passed after 0.21 seconds."),
             assistantText("d3m0-l-13", "2026-11-16T09:00:30.000Z", """
@@ -184,6 +205,32 @@ enum DemoTranscripts {
     @Test func datesComeFirst() {
         #expect(CSVExport.columns.first == "date")
     }
+    """
+
+    /// ledger 匯出檔的開頭(點開檔案情境)。
+    static let historyHeader = """
+    date,amount,note
+    2026-11-14,4.20,coffee
+    2026-11-15,12.50,"coffee, beans"
+
+    """
+
+    /// ledger 的 CSVExport.swift(Demo 主機上修改後的內容)。
+    static let exportSource = """
+    import Foundation
+
+    enum CSVExport {
+        static let columns = ["date", "amount", "note"]
+
+        static func row(date: String, amount: Decimal, note: String) -> String {
+            [date, String(format: "%.2f", NSDecimalNumber(decimal: amount).doubleValue), quoted(note)].joined(separator: ",")
+        }
+
+        static func quoted(_ field: String) -> String {
+            field.contains(",") ? "\\"\\(field)\\"" : field
+        }
+    }
+
     """
 
     static let weather = Session(

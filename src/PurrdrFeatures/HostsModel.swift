@@ -467,6 +467,7 @@ public final class HostsModel {
         members[.host(id)] = nil
         preferences.removeAll(for: .host(id))
         hostIcons.setIcon(nil, for: id)
+        try? FileManager.default.removeItem(at: AgentFileLoads.defaultDownloadDirectory.appending(path: id.uuidString, directoryHint: .isDirectory))
         hostServiceVersions[id] = nil
         dismissedHostServiceUpdates[id] = nil
         hostServiceUpdates.store.setDismissedVersion(nil, for: id)
@@ -723,7 +724,7 @@ final class HostMember {
     let gzipAvailability = HostGzipAvailability()
     /// 主題、註記、Claude 方案用量定期讀取共用的長駐通道(#203)。
     let hostFiles: HostFiles
-    /// 聊天裡圖片卡片的縮圖(#225),這台主機的聊天共用一份快取。
+    /// 聊天裡圖片卡片的縮圖(#225)與點開的檔案(#228),這台主機的聊天共用一份快取。
     let agentFiles: AgentFileLoads
 
     /// - Parameters:
@@ -753,8 +754,10 @@ final class HostMember {
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
         self.hostFiles = hostFiles
+        // 點開的檔案依主機分資料夾，刪除主機時一起清(#228)。
         agentFiles = AgentFileLoads(
-            fetcher: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")))
+            fetcher: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")),
+            downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
     }

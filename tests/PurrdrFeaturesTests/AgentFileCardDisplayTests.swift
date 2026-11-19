@@ -52,4 +52,24 @@ struct AgentFileCardDisplayTests {
         #expect(AgentImageCardDisplay(state: .failed).offersRetry)
         #expect(AgentImageCardDisplay(state: .loading).note == nil)
     }
+
+    @Test("點開檔案(#228):下載中顯示進度與取消;超過 25 MiB、已刪除、主機不支援各有說明;下載好了可分享")
+    func openStates() {
+        let downloading = AgentFileOpenDisplay(state: .downloading(received: 1_024 * 1_024, total: 4 * 1_024 * 1_024))
+        #expect(downloading.progress == 0.25)
+        #expect(downloading.offersCancel)
+        #expect(!downloading.offersOpen)
+        #expect(AgentFileOpenDisplay(state: .downloading(received: 0, total: 0)).progress == nil)
+
+        #expect(AgentFileOpenDisplay(state: .tooLarge(size: 30 * 1024 * 1024)).note == "Too large to open here (31.5 MB). Open it on the host.")
+        #expect(AgentFileOpenDisplay(state: .missing).note == "This file is no longer on the host.")
+        #expect(AgentFileOpenDisplay(state: .unsupported).note == "Opening files isn’t available for this host yet.")
+        #expect(AgentFileOpenDisplay(state: .failed).offersRetry)
+        #expect(AgentFileOpenDisplay(state: nil).offersOpen)
+
+        let ready = AgentFileOpenDisplay(state: .ready(URL(filePath: "/tmp/report.pdf")))
+        #expect(ready.offersOpen)
+        #expect(ready.shareableFile == URL(filePath: "/tmp/report.pdf"))
+        #expect(ready.note == nil)
+    }
 }

@@ -23,9 +23,9 @@ struct DemoAgentFilesTests {
     func ledgerHasEditAndCreateCards() async throws {
         let cards = try await Self.ledgerCards().filter { $0.file.kind != .image }
 
-        #expect(cards.map(\.file.origin) == [.edited, .created])
-        #expect(cards.map(\.file.name) == ["CSVExport.swift", "CSVQuotingTests.swift"])
-        guard cards.count == 2, case .edit(let change) = cards[0].file.snapshot,
+        #expect(cards.map(\.file.origin) == [.edited, .created, .created, .created])
+        #expect(cards.map(\.file.name) == ["CSVExport.swift", "CSVQuotingTests.swift", "history.csv", "draft.csv"])
+        guard cards.count == 4, case .edit(let change) = cards[0].file.snapshot,
               case .content(let content, isTruncated: false) = cards[1].file.snapshot else {
             Issue.record("卡片沒有快照")
             return
@@ -58,6 +58,32 @@ struct DemoAgentFilesTests {
             return
         }
         #expect(scan.count == size)
+    }
+
+    @Test("點開 ledger 的檔案(#228):測試檔下載成同內容的檔案，匯出檔超過 25 MiB,草稿已刪掉;另有一份 PDF 報告")
+    func ledgerFilesOpenFromTheDemoHost() async throws {
+        let files = try await Self.ledgerCards().filter { !$0.file.isImageFromAgent }.map(\.file)
+        let directory = FileManager.default.temporaryDirectory.appending(path: "purrdr-demo-opens-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let downloader = HostFileDownloader(fetcher: DemoHostFileFetcher(), directory: directory)
+        let byName = Dictionary(uniqueKeysWithValues: files.map { ($0.name, $0.path) })
+
+        guard case .downloaded(let tests, _) = await downloader.download(try #require(byName["CSVQuotingTests.swift"]), scope: Self.scope) else {
+            Issue.record("測試檔沒有下載"); return
+        }
+        #expect(try String(contentsOf: tests, encoding: .utf8).hasPrefix("import Testing\n"))
+        guard case .downloaded = await downloader.download(try #require(byName["CSVExport.swift"]), scope: Self.scope) else {
+            Issue.record("修改的檔案沒有下載"); return
+        }
+        guard case .tooLarge(let size) = await downloader.download(try #require(byName["history.csv"]), scope: Self.scope) else {
+            Issue.record("匯出檔應該超過上限"); return
+        }
+        #expect(size > HostFileFetchLimits.maximumSize)
+        #expect(await downloader.download(try #require(byName["draft.csv"]), scope: Self.scope) == .missing)
+        guard case .downloaded(let report, _) = await downloader.download(DemoHostFileFetcher.reportPath, scope: Self.scope) else {
+            Issue.record("PDF 沒有下載"); return
+        }
+        #expect(try Data(contentsOf: report).prefix(5) == Data("%PDF-".utf8))
     }
 
     @Test("Demo 主機的取檔：沒有的檔案是缺檔")
