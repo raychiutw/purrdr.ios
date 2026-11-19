@@ -38,3 +38,7 @@
 - `tailscale serve` 的 HTTPS 模式能否轉送 WebSocket,官方文件沒有明寫，主機服務骨架要先實測。
 - 上層功能(Agent 列表、聊天、Pane 終端機)只依賴可攜核心的「主機連線」介面,SSH 與 HTTPS 各有一個實作。
 - 設計只依據 herdr 官方文件與實測。研究時曾在使用者授權下閱讀 Allymote 的散布檔(`docs/research/allymote-herdr-communication.md`),僅作比較，不相容也不沿用其協定。
+
+## 更新(2026-11-19):主機端搬到 raychiutw/purrdr-host
+
+主機服務(`host-service/`)、主機外掛(`host-plugin/`)、協定(`protocol/` 的 JSON Schema 與範例)、codegen 與主機服務的 Release 都搬到公開 repo [`raychiutw/purrdr-host`](https://github.com/raychiutw/purrdr-host)(保留歷史)。上面「repo 多一個 Rust 專案與 CI」改成在那個 repo;協定仍是先改 JSON Schema 再產生兩端型別，只是 app 這邊以 `scripts/sync-purrdr-host.sh` 拉回產生的 Swift 型別與 `vendor/purrdr-host/protocol/`,CI 以 `--check` 確認沒被手改。一行安裝指令改從 purrdr-host 的 Release 下載;推播外掛來源改成 `raychiutw/purrdr-host/host-plugin`。

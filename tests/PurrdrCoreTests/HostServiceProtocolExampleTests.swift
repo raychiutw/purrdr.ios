@@ -2,13 +2,13 @@ import Foundation
 import PurrdrCore
 import Testing
 
-/// 主機服務協定(ADR-0010):`protocol/examples/` 的範例以產生的 Swift 型別編解碼後不失真。
-/// 同一組範例也由主機服務的 Rust 測試(`host-service/service/tests/protocol_examples.rs`)驗證。
+/// 主機服務協定(ADR-0010):`vendor/purrdr-host/protocol/examples/`(從 raychiutw/purrdr-host 同步)的範例以產生的 Swift 型別編解碼後不失真。
+/// 同一組範例也由主機服務的 Rust 測試(purrdr-host 的 `host-service/service/tests/protocol_examples.rs`)驗證。
 @Suite("主機服務協定範例")
 struct HostServiceProtocolExampleTests {
     static let examplesDirectory = URL(filePath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "protocol/examples")
+        .appending(path: "vendor/purrdr-host/protocol/examples")
 
     static func examples() throws -> [(name: String, data: Data)] {
         try FileManager.default.contentsOfDirectory(at: examplesDirectory, includingPropertiesForKeys: nil)

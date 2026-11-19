@@ -2,8 +2,8 @@ import Foundation
 
 /// 主機服務的更新提示(#198):HTTPS 主機回報的主機服務版本比這版 app 已知的最新版舊時，在主機清單提示更新。
 ///
-/// 最新版是 app 內的常數(不連網路查 GitHub),發行新的主機服務時與 `host-service/service/Cargo.toml` 一起遞增
-/// (`HostServiceUpdateTests` 核對兩邊一致)。使用者關閉某台主機的提示後，同一個新版本不再提示。
+/// 最新版是 app 內的常數(不連網路查 GitHub),發行新的主機服務(raychiutw/purrdr-host)時一起遞增，並跑
+/// `scripts/sync-purrdr-host.sh` 更新 `vendor/purrdr-host/VERSION`(`HostServiceUpdateTests` 核對兩邊一致)。使用者關閉某台主機的提示後，同一個新版本不再提示。
 @MainActor
 public struct HostServiceUpdates {
     /// 這版 app 已知的最新主機服務版本。
@@ -11,10 +11,10 @@ public struct HostServiceUpdates {
 
     /// 在主機上更新(或安裝)主機服務的一行指令：macOS、Linux。
     nonisolated public static let posixInstallCommand =
-        "curl -fsSL https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.sh | sh"
+        "curl -fsSL https://github.com/raychiutw/purrdr-host/releases/latest/download/install.sh | sh"
     /// Windows(PowerShell)。
     nonisolated public static let windowsInstallCommand =
-        "irm https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.ps1 | iex"
+        "irm https://github.com/raychiutw/purrdr-host/releases/latest/download/install.ps1 | iex"
 
     public let latestVersion: String
     let store: any HostServiceUpdateStore

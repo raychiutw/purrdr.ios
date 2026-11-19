@@ -92,12 +92,12 @@
 
 | # | 輪詢點 | 間隔 | 每次內容與大小【估算】 | 增量? | 每小時【估算】 |
 |---|---|---|---|---|---|
-| H1 | **對話畫面**:仍是同一份 `ConversationModel` 輪詢迴圈(`src/PurrdrAgentFeatures/ConversationModel.swift:75-77`、`:375-396`) | 2／4 秒 | snapshot 改走主機服務的 `agents.list`(`src/PurrdrHTTPS/HTTPSHostConnection.swift:54-80`):請求 41 B,回應約每 Agent 250 B(`protocol/examples/server.agents-list-result.json` 2 個 Agent 為 521 B),8 個 Agent 約 **2.3 KB** | 全量，但很小 | working ≈ **4 MB**,閒置 ≈ **2 MB** |
-| H2 | **對話紀錄尾端**:`tail` 改由推送的行回答，不經網路(`src/PurrdrHTTPS/HTTPSTranscripts.swift:3-5`、`:52-81`) | 推送;主機服務本機每 250 ms 看一次檔案(`host-service/service/src/transcript_session.rs:18`、`:184`),**這個成本在主機上，不在網路上** | `transcript.update` 只帶新增行，約為實際內容加 100 B(`protocol/examples/server.transcript-update.json` 225 B) | **增量** | 約等於新增的對話內容 |
-| H3 | **WSS 心跳** | app 每 15 秒 ping、10 秒內要回 pong(`src/PurrdrHTTPS/HostServiceHeartbeat.swift`);主機服務也每 15 秒 ping、45 秒沒收到任何 frame 就斷線(`host-service/service/src/lib.rs:51-64`、`connection.rs:80`、`:107-125`) | 每次約 150 B,兩個方向都有 | 不適用 | ≈ **0.07 MB** |
+| H1 | **對話畫面**:仍是同一份 `ConversationModel` 輪詢迴圈(`src/PurrdrAgentFeatures/ConversationModel.swift:75-77`、`:375-396`) | 2／4 秒 | snapshot 改走主機服務的 `agents.list`(`src/PurrdrHTTPS/HTTPSHostConnection.swift:54-80`):請求 41 B,回應約每 Agent 250 B(`vendor/purrdr-host/protocol/examples/server.agents-list-result.json` 2 個 Agent 為 521 B),8 個 Agent 約 **2.3 KB** | 全量，但很小 | working ≈ **4 MB**,閒置 ≈ **2 MB** |
+| H2 | **對話紀錄尾端**:`tail` 改由推送的行回答，不經網路(`src/PurrdrHTTPS/HTTPSTranscripts.swift:3-5`、`:52-81`) | 推送;主機服務本機每 250 ms 看一次檔案(purrdr-host 的 `host-service/service/src/transcript_session.rs:18`、`:184`),**這個成本在主機上，不在網路上** | `transcript.update` 只帶新增行，約為實際內容加 100 B(`vendor/purrdr-host/protocol/examples/server.transcript-update.json` 225 B) | **增量** | 約等於新增的對話內容 |
+| H3 | **WSS 心跳** | app 每 15 秒 ping、10 秒內要回 pong(`src/PurrdrHTTPS/HostServiceHeartbeat.swift`);主機服務也每 15 秒 ping、45 秒沒收到任何 frame 就斷線(purrdr-host 的 `host-service/service/src/lib.rs:51-64`、`connection.rs:80`、`:107-125`) | 每次約 150 B,兩個方向都有 | 不適用 | ≈ **0.07 MB** |
 | H4 | **Agent 列表**:事件經同一條 WSS(`HTTPSHostConnection.swift:122-180`),每個事件重讀 `agents.list` | 事件觸發 | 約 2.3 KB;預覽 `previews` 在 HTTPS 丟 `unsupported`(`HTTPSTranscripts.swift:25-26`、`AgentListModel.swift:274-284`),**沒有網路流量，但列表也沒有預覽** | snapshot 全量(小) | 可忽略 |
 | H5 | `pane.read`、`pane.report_metadata`(在場)、subagent／workflow 讀取 | — | `herdrRequest` 只支援 5 個 method,其他在送出前就丟 `unsupported`(`HTTPSHostConnection.swift:56-72`、`:185-186`) | — | 0(功能缺) |
-| H6 | **Pane 終端機** | 推送 `pane.terminal.frame`(`protocol/examples/server.pane-terminal-frame.json`) | 依畫面變化 | 增量 | 依使用 |
+| H6 | **Pane 終端機** | 推送 `pane.terminal.frame`(`vendor/purrdr-host/protocol/examples/server.pane-terminal-frame.json`) | 依畫面變化 | 增量 | 依使用 |
 
 **HTTPS 一小時前景估算**:H1 約 3 MB + H3 + 新增對話內容，總計約 **3～5 MB**。【估算】
 
