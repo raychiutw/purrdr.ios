@@ -1,10 +1,8 @@
 import Foundation
 import PurrdrCore
 
-/// 每台主機一條長駐 exec 通道跑一支有自我時限的腳本：請求一行、回應一則，一次一個請求(#166 抽出，#203 也用)。
-///
-/// 通道結束(自我時限、背景被殺)時下一個請求重開;沒回應就結束的依次數退避再重開。只有明確訊號(還沒回應就 exit 127
-/// 找不到指令或 exit 0 stdin 已結束;Windows 方言認不得)才回 `.unsupported`,由呼叫端退回一次性讀取。
+/// 每台主機一條長駐 exec 通道跑一支有自我時限的腳本：請求一行、回應一則，一次一個(#166、#203)。
+/// 通道結束就重開(沒回應的依次數退避);主機跑不了腳本時回 `.unsupported`,由呼叫端退回一次性讀取。
 actor LongRunningScriptChannel<Reply: Sendable> {
     enum Outcome: Sendable {
         case reply(Reply)
@@ -105,8 +103,7 @@ actor LongRunningScriptChannel<Reply: Sendable> {
         throw Ended(exitCode: nil)
     }
 
-    /// 還沒回應就以這些結束 = 這台主機跑不了長駐腳本：127 是 sh 找不到指令(Demo 主機也回它);0 是腳本一開始就讀到
-    /// stdin 結束(通道送不了請求，只有這種情況腳本會正常結束)。
+    /// 還沒回應就以這些結束 = 跑不了長駐腳本：127 找不到指令(Demo 主機也回它)、0 是 stdin 一開始就結束。
     static var unsupportedExitCodes: Set<Int32> { [127, 0] }
 
     /// 重開通道前的退避：1 秒起倍增、上限 30 秒。

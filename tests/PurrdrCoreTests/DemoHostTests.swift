@@ -93,7 +93,7 @@ struct DemoHostTests {
             agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
         }
 
-        let previews = try await TranscriptReader(channel: host).previews(of: requests)
+        let previews = try await TranscriptReader(channel: host).previewReadings(of: requests).compactMapValues(\.preview)
 
         #expect(previews.keys.sorted() == ["w1:p1", "w2:p1"])
     }
@@ -106,7 +106,7 @@ struct DemoHostTests {
             agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
         }
 
-        let previews = try await TranscriptReader(channel: host).previews(of: requests)
+        let previews = try await TranscriptReader(channel: host).previewReadings(of: requests).compactMapValues(\.preview)
 
         #expect(previews.keys.sorted() == ["w1:p1", "w2:p1"])
     }

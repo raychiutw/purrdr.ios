@@ -259,7 +259,7 @@ public final class ConversationModel {
     public private(set) var prompt: BlockedPrompt?
     /// 已送出、還在等結果的回答(選項全部鎖住)。
     public private(set) var answerInFlight: PromptAnswer?
-    /// 最近一次已送達的回答(畫面清楚顯示選了什麼);對話多了新的一列就收起(#213)。
+    /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213,`AnsweredCardAnchor`)。
     public private(set) var lastAnswer: AnsweredPrompt?
     private var answeredCardAnchor: AnsweredCardAnchor?
     public private(set) var answerNotice: AnswerNotice?
@@ -286,8 +286,8 @@ public final class ConversationModel {
     private var probeScreen = false
     private var answerSignature: String?
     private var answerQuestion: String?
-    /// 按鍵送達主機的時間;還在送時為 `nil`(不判定)。
-    private var answerSentAt: Date?
+    /// 按鍵送達主機的時間與當時對話的最後一列(已回答卡片的錨點，#213);還在送時為 `nil`(不判定)。
+    private var answerSent: AnsweredCardAnchor?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
     /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
     @ObservationIgnored private var screenThisPoll: String?
@@ -485,6 +485,8 @@ public final class ConversationModel {
 
     /// 一次輪詢：快照(主機更新來源的，或自己讀)→ 綁定 session → 讀對話紀錄。
     public func poll() async {
+        // 沒有新的列時，卡片也要依經過時間收起。
+        defer { refreshAnsweredCard() }
         let snapshot: HostSnapshot
         if let liveSnapshot {
             snapshot = liveSnapshot
@@ -937,7 +939,7 @@ public final class ConversationModel {
         answerInFlight = answer
         answerSignature = prompt.signature
         answerQuestion = prompt.question
-        answerSentAt = nil
+        answerSent = nil
         answerNotice = nil
         haptics.play(.selection)
         do {
@@ -961,7 +963,7 @@ public final class ConversationModel {
             return
         }
         guard answerInFlight == answer else { return }
-        answerSentAt = clock.now()
+        answerSent = AnsweredCardAnchor(lastEntryID: entries.last?.id, sentAt: clock.now())
         // 下一題常緊接著出現：0.4 秒與 1.2 秒各多看一次(R-Q09)。
         kickTask?.cancel()
         kickTask = Task { [weak self, sleep] in
@@ -1089,14 +1091,14 @@ public final class ConversationModel {
 
     /// 以新的畫面判定在途的回答，再換上新的提示(同一提示保持原物件)。
     private func update(prompt next: BlockedPrompt?) {
-        if let answer = answerInFlight, answerSentAt != nil {
+        if let answer = answerInFlight, let sent = answerSent {
             if next == nil || next?.signature != answerSignature {
                 // 不再 blocked = 已送達;換成別的提示 = 被取代(通常是下一題),新問題不繼承鎖。
                 if case .option(let option) = answer, option.checked != nil {
                     // 勾選只是切換，不是最終的回答。
                 } else {
                     lastAnswer = AnsweredPrompt(question: answerQuestion, choice: Self.choiceText(answer))
-                    answeredCardAnchor = AnsweredCardAnchor(lastEntryID: entries.last?.id)
+                    answeredCardAnchor = sent
                 }
                 clearAnswer()
                 haptics.play(.success)
@@ -1110,7 +1112,7 @@ public final class ConversationModel {
     }
 
     private func checkAnswerDeadline() {
-        guard answerInFlight != nil, let sentAt = answerSentAt,
+        guard answerInFlight != nil, let sentAt = answerSent?.sentAt,
               clock.now().timeIntervalSince(sentAt) > Self.answerDeadline else { return }
         clearAnswer()
         answerNotice = .mayNotHaveArrived
@@ -1121,7 +1123,7 @@ public final class ConversationModel {
         answerInFlight = nil
         answerSignature = nil
         answerQuestion = nil
-        answerSentAt = nil
+        answerSent = nil
     }
 
     private static func choiceText(_ answer: PromptAnswer) -> String {
@@ -1253,9 +1255,24 @@ public final class ConversationModel {
         let merged = EchoTimeline.merge(items: items, echoes: echoes)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
-        if let anchor = answeredCardAnchor, !anchor.isShowing(lastEntryID: entries.last?.id) {
-            lastAnswer = nil
-            answeredCardAnchor = nil
+        refreshAnsweredCard()
+    }
+
+    /// 已回答卡片：Agent 寫出新的文字，或只有工具步驟但已過保留時間就收起(#213)。
+    private func refreshAnsweredCard() {
+        guard let anchor = answeredCardAnchor, !anchor.isShowing(rows: answeredCardRows, at: clock.now()) else { return }
+        lastAnswer = nil
+        answeredCardAnchor = nil
+    }
+
+    /// 已回答卡片去留規則看的對話列。
+    private var answeredCardRows: [AnsweredCardAnchor.Row] {
+        entries.map { entry in
+            let showsText = switch entry {
+            case .item(.agentText), .item(.user), .item(.shell), .echo: true
+            case .item: false
+            }
+            return AnsweredCardAnchor.Row(id: entry.id, showsText: showsText)
         }
     }
 
@@ -1443,21 +1460,12 @@ public final class ConversationModel {
     /// 從 pane 可見畫面擷取到的散文(只在 working 時);沒有真正的散文，或已寫進對話紀錄的最後一則回覆時為 `nil`(#208)。
     public var livePreview: String? {
         guard let screenPreview else { return nil }
-        guard let reply = latestReplyText else { return screenPreview }
+        guard let reply = Conversation.latestReplyText(in: recent) else { return screenPreview }
         return LivePreview.isWritten(screenPreview, in: reply) ? nil : screenPreview
     }
 
     /// 這次輪詢從畫面擷取到的散文，尚未與對話紀錄去重。
     private var screenPreview: String?
-
-    /// 對話紀錄裡最後一則 agent 回覆的文字。
-    private var latestReplyText: String? {
-        recent.reversed().lazy
-            .filter { $0.role == .assistant && !$0.isSidechain }
-            .map { $0.parts.compactMap { part in if case .text(let text) = part { text } else { nil } } }
-            .first { !$0.isEmpty }?
-            .joined(separator: "\n")
-    }
 
     /// working 時讀 pane 可見畫面擷取即時預覽(與背景 agents 窗格共用同一次讀取);還沒到讀取時間沿用上次的(#204)。
     private func refreshLivePreview() async {

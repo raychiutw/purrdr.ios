@@ -116,7 +116,7 @@ struct CodexTranscriptLocationTests {
         let other = TranscriptTarget(format: .codex, location: .codex(sessionID: otherID), sessionKey: otherID)
 
         let previews = try await TranscriptReader(channel: host, marker: { "MARK" })
-            .previews(of: [PreviewRequest(key: "w3:p1", target: Self.target), PreviewRequest(key: "w4:p1", target: other)])
+            .previewReadings(of: [PreviewRequest(key: "w3:p1", target: Self.target), PreviewRequest(key: "w4:p1", target: other)]).compactMapValues(\.preview)
 
         #expect(previews["w3:p1"]?.text == "Exported 2 notes to out/.")
         #expect(previews["w4:p1"] == nil)

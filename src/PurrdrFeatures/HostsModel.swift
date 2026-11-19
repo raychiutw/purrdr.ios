@@ -738,8 +738,7 @@ final class HostMember {
         self.push = push
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
-        let hostFiles = HostFiles(
-            channel: channel, readsOverLongRunningChannel: true, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
+        let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
         self.hostFiles = hostFiles
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)

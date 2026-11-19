@@ -274,10 +274,9 @@ public enum TranscriptCommand {
         package var type: String
         package var value: String
         package var extra: String
-        /// 上次讀到的版本;沒有時是空字串。
-        package var knownVersion: String
+        package var knownVersion: PreviewVersion?
 
-        package init(key: String, type: String, value: String, extra: String = "", knownVersion: String = "") {
+        package init(key: String, type: String, value: String, extra: String = "", knownVersion: PreviewVersion? = nil) {
             self.key = key
             self.type = type
             self.value = value
@@ -305,17 +304,15 @@ public enum TranscriptCommand {
                 guard TranscriptReader.isValidPath(path) else { return nil }
                 self.init(key: request.key, type: header ? "pipath" : "path", value: path)
             }
-            knownVersion = request.knownVersion ?? ""
+            knownVersion = request.knownVersion
         }
     }
 
-    /// 列表預覽：每個請求印一行「分隔標記 key」;找得到可讀的檔再印「分隔標記@ key 範圍 版本」(版本是「修改時間秒數-大小 錨點」,
-    /// 錨點同追蹤腳本：結尾前 64 bytes 的 `cksum`),接著依範圍印內容：`unchanged` 不印;`appended` 印已知版本之後附加的部分
-    /// (已知位置前的錨點相同、前一個 byte 是換行、附加不超過 48,000 bytes);`whole` 印剝除圖片後的檔尾 48,000 bytes,
-    /// Pi／OMP、Codex 先印「分隔標記! key」與檔案前兩行(header 檢查)。每個請求在 subshell 裡定位，一個檔不存在或有歧義不讓整批失敗。
-    /// 參數：標記，接著每個請求五個(key、定位方式、id 或路徑、Claude 的資料夾名、已知版本或空字串)。
+    /// 列表預覽：每個請求印「標記 key」,讀得到再印「標記@ key 範圍 版本」與內容(unchanged 不印、appended 只印附加、whole 印檔尾)。
+    /// 參數：標記，接著每個請求五個(key、定位方式、id 或路徑、Claude 的資料夾名、已知版本)。
     package static func previews(marker: String, entries: [PreviewEntry]) -> String {
-        command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra, $0.knownVersion] })
+        // 腳本以空字串表示沒有已知版本。
+        command(previewsScript, arguments: [marker] + entries.flatMap { [$0.key, $0.type, $0.value, $0.extra, $0.knownVersion?.value ?? ""] })
     }
 
     /// 列表預覽每個請求最多讀的檔尾 bytes(與 `previewsScript` 的 `tail -c` 相同;估算期限用)。

@@ -62,14 +62,14 @@ struct HostCommandDeadlineTests {
             command: TranscriptCommand.previews(marker: "m", entries: previewRequests(2).compactMap(TranscriptCommand.PreviewEntry.init)),
             deadline: .milliseconds(23_000)
         ) { host, sleep in
-            _ = try await TranscriptReader(channel: host, marker: { "m" }, sleep: sleep).previews(of: previewRequests(2))
+            _ = try await TranscriptReader(channel: host, marker: { "m" }, sleep: sleep).previewReadings(of: previewRequests(2))
         },
         StuckCommand(
             testDescription: "讀對話紀錄：列表預覽(100 個聊天，封頂 100 秒)",
             command: TranscriptCommand.previews(marker: "m", entries: previewRequests(100).compactMap(TranscriptCommand.PreviewEntry.init)),
             deadline: .seconds(100)
         ) { host, sleep in
-            _ = try await TranscriptReader(channel: host, marker: { "m" }, sleep: sleep).previews(of: previewRequests(100))
+            _ = try await TranscriptReader(channel: host, marker: { "m" }, sleep: sleep).previewReadings(of: previewRequests(100))
         },
         StuckCommand(
             testDescription: "新增對話的資料夾清單",

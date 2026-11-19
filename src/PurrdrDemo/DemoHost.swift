@@ -49,7 +49,15 @@ public actor DemoHost: HostChannel {
     private var largeOutputAt: ContinuousClock.Instant?
     private var largeOutputWritten = false
     /// 送出後工作中的情境：還在工作的 pane 與工作結束時接上的回覆。
-    private var pendingReplies: [(paneID: String, sessionID: String, due: ContinuousClock.Instant, lines: [String])] = []
+    private var pendingReplies: [PendingReply] = []
+
+    /// 送出後工作中的一個 pane:`due` 時把 `lines` 接到對話紀錄。
+    private struct PendingReply {
+        let paneID: String
+        let sessionID: String
+        let due: ContinuousClock.Instant
+        let lines: [String]
+    }
 
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
@@ -194,7 +202,8 @@ public actor DemoHost: HostChannel {
                 let reply = DemoTranscripts.reply(to: text, number: prompts, at: Date())
                 if case .workingAfterPrompt(let duration) = scenario {
                     appended[session.sessionID, default: []] += reply.prefix(1)
-                    pendingReplies.append((target, session.sessionID, .now + duration, Array(reply.dropFirst())))
+                    pendingReplies.append(PendingReply(
+                        paneID: target, sessionID: session.sessionID, due: .now + duration, lines: Array(reply.dropFirst())))
                     return DemoSnapshot.prompted(id: id, paneID: target)
                 }
                 appended[session.sessionID, default: []] += reply

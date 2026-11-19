@@ -30,7 +30,7 @@ struct HostFilesLongRunningTests {
     @Test("沒變時只送一行「路徑 已知版本」、收 unchanged;再讀一次還是同一條通道")
     func unchangedOverOneChannel() async throws {
         let host = await Self.followingHost()
-        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: host)
         let known = [Self.theme: HostFileVersion(checksum: "11:5")]
 
         let first = Self.reading(files, [Self.theme], known: known)
@@ -52,7 +52,7 @@ struct HostFilesLongRunningTests {
     @Test("有變：回傳新內容與版本;內容裡有 end 行也照宣告的長度讀完")
     func changedContentsMayContainEndLine() async throws {
         let host = await Self.followingHost()
-        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: host)
 
         let reading = Self.reading(files, [Self.theme], known: [Self.theme: HostFileVersion(checksum: "11:5")])
         try #require(await host.waitForStdin(ofExecution: 0) { !$0.stdin.isEmpty })
@@ -64,7 +64,7 @@ struct HostFilesLongRunningTests {
     @Test("通道結束(自我時限 exit 124)後，下一次讀重開通道")
     func reopensAfterTimeLimit() async throws {
         let host = await Self.followingHost(channels: 2)
-        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: host)
         let first = Self.reading(files, [Self.theme])
         try #require(await host.waitForStdin(ofExecution: 0) { !$0.stdin.isEmpty })
         await host.send(stdout: Self.reply("missing 0\n"), toExecution: 0)
@@ -88,7 +88,7 @@ struct HostFilesLongRunningTests {
         for _ in 0..<2 {
             await host.expect(oneShot, reply: FakeReply(stdout: Data("purrdr-files 1\nuser demo\nunchanged 0\n".utf8)))
         }
-        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: host)
         let known = [Self.theme: HostFileVersion(checksum: "11:5")]
 
         #expect(try await files.read([Self.theme], knownVersions: known).unchanged == [Self.theme])
@@ -99,7 +99,7 @@ struct HostFilesLongRunningTests {
     @Test("主題與註記共用同一條長駐通道")
     func themeAndNotesShareOneChannel() async throws {
         let host = await Self.followingHost()
-        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: host)
         let store: HostPath = ".claude/plugins/store/cc-plugin-you-should-know_builtin-0123456789ab.json"
         let theme = Task { try await HostThemeHost(channel: host, files: files).readTheme(ifChangedFrom: HostFileVersion(checksum: "11:5")) }
         try #require(await host.waitForStdin(ofExecution: 0) { $0.stdinText.components(separatedBy: "\n").count == 2 })
@@ -120,7 +120,7 @@ struct HostFilesLongRunningTests {
     @Test("Windows 主機：stub 與 PowerShell 腳本只送一次、不送 EOF,之後同一個 stdin 只送請求行")
     func windowsUploadsScriptOnce() async throws {
         let host = await Self.followingHost(command: WindowsHostScriptsTests.stub)
-        let files = HostFiles(channel: WindowsHostChannel(host), readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: WindowsHostChannel(host))
         let known = [Self.theme: HostFileVersion(checksum: "ab:5")]
         let windowsReply = Data("purrdr-files 1\nuser demo\nhome C:/Users/demo\nunchanged 0\nend\n".utf8)
 
@@ -148,7 +148,7 @@ struct HostFilesLongRunningTests {
     func scriptAnswersOverOneChannel() async throws {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         try host.write(Data("[theme]\nname = \"dracula\"\n".utf8), to: Self.theme.relative)
-        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: host)
 
         let first = try await files.read([Self.theme, Self.usage])
         guard case .file(let contents, let version)? = first[Self.theme] else {
