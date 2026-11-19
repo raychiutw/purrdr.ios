@@ -29,7 +29,7 @@ public final class AgentFileLoads {
     /// 點開的非圖片檔案(#228):主機路徑 → 狀態。
     public private(set) var opens: [String: OpenState] = [:]
     private let downloader: HostFileDownloader
-    private var openTasks: [String: Task<HostFileDownloader.Result, Never>] = [:]
+    private var openTasks: [String: Task<HostFileDownloader.Outcome, Never>] = [:]
 
     /// - Parameter downloadDirectory: 點開的檔案下載到這裡(app 傳這台主機在 Caches 底下的資料夾)。
     public init(fetcher: any HostFileFetching, downloadDirectory: URL = AgentFileLoads.defaultDownloadDirectory) {
@@ -77,14 +77,10 @@ public final class AgentFileLoads {
         case .downloaded(let file, _):
             opens[path] = .ready(file)
             return file
-        case .tooLarge(let size): opens[path] = .tooLarge(size: size)
-        case .missing: opens[path] = .missing
-        case .denied: opens[path] = .denied
-        case .unsupported: opens[path] = .unsupported
-        case .notRegularFile, .unreadable, .failed: opens[path] = .failed
-        case .cancelled: opens[path] = nil
+        case .unavailable(let problem):
+            opens[path] = Shown(problem).map(OpenState.init)
+            return nil
         }
-        return nil
     }
 
     /// 取消下載，狀態回到未開啟。
@@ -108,12 +104,57 @@ public final class AgentFileLoads {
         switch result {
         case .loaded(let data, let version): states[path] = .loaded(data, version: version)
         case .overAutomaticLimit(let size): states[path] = .overAutomaticLimit(size: size)
-        case .tooLarge(let size): states[path] = .tooLarge(size: size)
-        case .missing: states[path] = .missing
-        case .denied: states[path] = .denied
-        case .unsupported: states[path] = .unsupported
-        case .notRegularFile, .unreadable, .failed: states[path] = .failed
-        case .cancelled: if states[path] == .loading { states[path] = nil }
+        case .unavailable(let problem):
+            if let shown = Shown(problem) {
+                states[path] = State(shown)
+            } else if states[path] == .loading {
+                states[path] = nil
+            }
+        }
+    }
+
+    /// 載入與點開共用：拿不到檔案時畫面顯示的原因;取消回 `nil`(回到未載入)。
+    enum Shown {
+        case tooLarge(size: Int)
+        case missing
+        case denied
+        case unsupported
+        /// 不是一般檔案、讀不到或傳輸失敗;可以再試。
+        case failed
+
+        init?(_ problem: HostFileProblem) {
+            switch problem {
+            case .tooLarge(let size): self = .tooLarge(size: size)
+            case .missing: self = .missing
+            case .denied: self = .denied
+            case .unsupported: self = .unsupported
+            case .notRegularFile, .unreadable, .failed: self = .failed
+            case .cancelled: return nil
+            }
+        }
+    }
+}
+
+extension AgentFileLoads.State {
+    init(_ shown: AgentFileLoads.Shown) {
+        switch shown {
+        case .tooLarge(let size): self = .tooLarge(size: size)
+        case .missing: self = .missing
+        case .denied: self = .denied
+        case .unsupported: self = .unsupported
+        case .failed: self = .failed
+        }
+    }
+}
+
+extension AgentFileLoads.OpenState {
+    init(_ shown: AgentFileLoads.Shown) {
+        switch shown {
+        case .tooLarge(let size): self = .tooLarge(size: size)
+        case .missing: self = .missing
+        case .denied: self = .denied
+        case .unsupported: self = .unsupported
+        case .failed: self = .failed
         }
     }
 }

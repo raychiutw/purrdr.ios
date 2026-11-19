@@ -61,7 +61,7 @@ struct HostFileLoaderTests {
         let fetcher = FakeHostFileFetcher(files: [Self.shot: Self.bytes(2_000)], maximumSize: 1_000)
         let loader = HostFileLoader(fetcher: fetcher)
 
-        #expect(await loader.load(Self.shot, scope: Self.scope, userRequested: true) == .tooLarge(size: 2_000))
+        #expect(await loader.load(Self.shot, scope: Self.scope, userRequested: true) == .unavailable(.tooLarge(size: 2_000)))
         #expect(await fetcher.readCount == 0)
     }
 
@@ -72,12 +72,12 @@ struct HostFileLoaderTests {
         let loader = HostFileLoader(fetcher: fetcher)
         let scope = HostFileAccessScope(workingDirectories: [Self.root], mentionedPaths: ["/Users/demo/.ssh/id_ed25519"])
 
-        #expect(await loader.load("/Users/demo/.ssh/id_ed25519", scope: scope) == .denied)
-        #expect(await loader.load("/Users/demo/notes/x.png", scope: scope) == .denied)
+        #expect(await loader.load("/Users/demo/.ssh/id_ed25519", scope: scope) == .unavailable(.denied))
+        #expect(await loader.load("/Users/demo/notes/x.png", scope: scope) == .unavailable(.denied))
         #expect(await fetcher.requests.isEmpty, "app 端擋下的不送出")
-        #expect(await loader.load("/Users/demo/ledger/link.png", scope: scope) == .denied)
-        #expect(await loader.load("/Users/demo/ledger/gone.png", scope: scope) == .missing)
-        #expect(await HostFileLoader(fetcher: FakeHostFileFetcher(isSupported: false)).load(Self.shot, scope: Self.scope) == .unsupported)
+        #expect(await loader.load("/Users/demo/ledger/link.png", scope: scope) == .unavailable(.denied))
+        #expect(await loader.load("/Users/demo/ledger/gone.png", scope: scope) == .unavailable(.missing))
+        #expect(await HostFileLoader(fetcher: FakeHostFileFetcher(isSupported: false)).load(Self.shot, scope: Self.scope) == .unavailable(.unsupported))
     }
 
     @Test("讀到一半檔案被覆寫：重新查狀態、讀新版本")

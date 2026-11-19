@@ -4,18 +4,10 @@ import Foundation
 /// 點開非圖片檔案(#228):經主機取檔下載到 app 的快取資料夾，給 QuickLook 與分享用。
 /// 快取鍵是「路徑 + 版本」(資料夾 `<路徑雜湊>/<版本雜湊>/<檔名>`),版本沒變只查狀態;Agent 覆寫後換新資料夾、刪掉舊版本。
 public actor HostFileDownloader {
-    public enum Result: Sendable, Equatable {
+    public enum Outcome: Sendable, Equatable {
         case downloaded(URL, version: HostFileVersion)
-        /// 超過點擊開啟的上限(`HostFileFetchLimits.maximumSize`)。
-        case tooLarge(size: Int)
-        case missing
-        case notRegularFile
-        case unreadable
-        /// app 端或主機端的存取規則不允許。
-        case denied
-        case unsupported
-        case cancelled
-        case failed(String)
+        /// 超過點擊開啟的上限(`HostFileFetchLimits.maximumSize`)是 `.tooLarge`。
+        case unavailable(HostFileProblem)
     }
 
     private let fetcher: any HostFileFetching
@@ -30,32 +22,19 @@ public actor HostFileDownloader {
     /// - Parameter progress: 已收到與總共的 bytes;開始讀之前先回報一次 0。
     public func download(
         _ path: String, scope: HostFileAccessScope, progress: @Sendable (_ received: Int, _ total: Int) -> Void = { _, _ in }
-    ) async -> Result {
-        guard case .allowed(let target) = HostFileAccessPolicy.decision(for: path, in: scope) else { return .denied }
-        // 下載途中被覆寫(changed)時重新查狀態再下載一次。
-        for _ in 0..<2 {
-            do {
-                let status = try await fetcher.status(of: target)
-                guard case .file(let version, let size) = status else { return Self.result(of: status) }
-                guard size <= HostFileFetchLimits.maximumSize else { return .tooLarge(size: size) }
-                let file = location(of: path, version: version)
-                if FileManager.default.fileExists(atPath: file.path) { return .downloaded(file, version: version) }
-                try await write(target, version: version, size: size, to: file, progress: progress)
-                removeOtherVersions(of: path, keeping: file.deletingLastPathComponent())
-                return .downloaded(file, version: version)
-            } catch HostFileFetchError.changed {
-                continue
-            } catch HostFileFetchError.unavailable(let status) {
-                return Self.result(of: status)
-            } catch HostFileFetchError.unsupported {
-                return .unsupported
-            } catch is CancellationError {
-                return .cancelled
-            } catch {
-                return .failed(String(describing: error))
-            }
+    ) async -> Outcome {
+        let attempt = await HostFileFetchAttempt.run(path, scope: scope, fetcher: fetcher) { target, version, size -> Outcome in
+            guard size <= HostFileFetchLimits.maximumSize else { throw HostFileProblem.tooLarge(size: size) }
+            let file = location(of: path, version: version)
+            if FileManager.default.fileExists(atPath: file.path) { return .downloaded(file, version: version) }
+            try await write(target, version: version, size: size, to: file, progress: progress)
+            removeOtherVersions(of: path, keeping: file.deletingLastPathComponent())
+            return .downloaded(file, version: version)
         }
-        return .failed("host file kept changing")
+        switch attempt {
+        case .success(let outcome): return outcome
+        case .failure(let problem): return .unavailable(problem)
+        }
     }
 
     /// 先寫到暫存檔，讀完才改名;取消或失敗時刪掉，不留半個檔案。
@@ -81,7 +60,7 @@ public actor HostFileDownloader {
             try Task.checkCancellation()
             let chunk = try await fetcher.read(target, version: version, offset: received, length: min(HostFileFetchLimits.chunkSize, size - received))
             try Task.checkCancellation()
-            guard !chunk.isEmpty else { throw HostFileFetchError.failed("host file ended early") }
+            guard !chunk.isEmpty else { throw HostFileProblem.failed("host file ended early") }
             try handle.write(contentsOf: chunk)
             received += chunk.count
             progress(received, size)
@@ -115,16 +94,5 @@ public actor HostFileDownloader {
     static func fileName(of path: String) -> String {
         let name = HostPathSyntax.components(path).last.map(String.init) ?? ""
         return name.isEmpty || name == "." || name == ".." ? "file" : name
-    }
-
-    private static func result(of status: HostFileStatus) -> Result {
-        switch status {
-        case .file: .failed("unexpected file status")
-        case .missing: .missing
-        case .notRegularFile: .notRegularFile
-        case .unreadable: .unreadable
-        case .denied: .denied
-        case .tooLarge(let size): .tooLarge(size: size)
-        }
     }
 }

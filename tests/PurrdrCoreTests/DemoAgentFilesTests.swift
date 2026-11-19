@@ -19,7 +19,7 @@ struct DemoAgentFilesTests {
 
     static let scope = HostFileAccessScope(workingDirectories: ["/Users/demo/ledger"], mentionedPaths: [])
 
-    @Test("ledger 的回覆提到報告 PDF 與預覽圖的路徑(#229):對話紀錄出現過，只靠這點也能從 Demo 主機下載")
+    @Test("ledger 的回覆提到報告 PDF 與預覽圖的路徑(#229):在工作目錄之下可下載;工作目錄以外只靠提到不夠(不在暫存、上傳或附檔資料夾)")
     func ledgerReplyMentionsHostPaths() async throws {
         let reader = TranscriptReader(channel: DemoHost())
         let file = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
@@ -32,7 +32,9 @@ struct DemoAgentFilesTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let downloader = HostFileDownloader(fetcher: DemoHostFileFetcher(), directory: directory)
         let onlyMentioned = HostFileAccessScope(workingDirectories: [], mentionedPaths: mentioned)
-        guard case .downloaded(let report, _) = await downloader.download(DemoHostFileFetcher.reportPath, scope: onlyMentioned) else {
+        #expect(await downloader.download(DemoHostFileFetcher.reportPath, scope: onlyMentioned) == .unavailable(.denied))
+        let withWorkingDirectory = HostFileAccessScope(workingDirectories: ["/Users/demo/ledger"], mentionedPaths: mentioned)
+        guard case .downloaded(let report, _) = await downloader.download(DemoHostFileFetcher.reportPath, scope: withWorkingDirectory) else {
             Issue.record("提到的 PDF 沒有下載")
             return
         }
@@ -95,11 +97,11 @@ struct DemoAgentFilesTests {
         guard case .downloaded = await downloader.download(try #require(byName["CSVExport.swift"]), scope: Self.scope) else {
             Issue.record("修改的檔案沒有下載"); return
         }
-        guard case .tooLarge(let size) = await downloader.download(try #require(byName["history.csv"]), scope: Self.scope) else {
+        guard case .unavailable(.tooLarge(let size)) = await downloader.download(try #require(byName["history.csv"]), scope: Self.scope) else {
             Issue.record("匯出檔應該超過上限"); return
         }
         #expect(size > HostFileFetchLimits.maximumSize)
-        #expect(await downloader.download(try #require(byName["draft.csv"]), scope: Self.scope) == .missing)
+        #expect(await downloader.download(try #require(byName["draft.csv"]), scope: Self.scope) == .unavailable(.missing))
         guard case .downloaded(let report, _) = await downloader.download(DemoHostFileFetcher.reportPath, scope: Self.scope) else {
             Issue.record("PDF 沒有下載"); return
         }
@@ -109,6 +111,6 @@ struct DemoAgentFilesTests {
     @Test("Demo 主機的取檔：沒有的檔案是缺檔")
     func missingFile() async throws {
         let loader = HostFileLoader(fetcher: DemoHostFileFetcher())
-        #expect(await loader.load("/Users/demo/ledger/docs/none.png", scope: Self.scope) == .missing)
+        #expect(await loader.load("/Users/demo/ledger/docs/none.png", scope: Self.scope) == .unavailable(.missing))
     }
 }

@@ -75,7 +75,7 @@ struct HostFileDownloaderTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let downloader = HostFileDownloader(fetcher: fetcher, directory: directory)
 
-        #expect(await downloader.download(Self.report, scope: Self.scope) == .tooLarge(size: 2_000))
+        #expect(await downloader.download(Self.report, scope: Self.scope) == .unavailable(.tooLarge(size: 2_000)))
         #expect(await fetcher.readCount == 0)
     }
 
@@ -86,10 +86,10 @@ struct HostFileDownloaderTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let downloader = HostFileDownloader(fetcher: fetcher, directory: directory)
 
-        #expect(await downloader.download(Self.report, scope: Self.scope) == .missing)
-        #expect(await downloader.download("/Users/demo/.ssh/id_ed25519", scope: Self.scope) == .denied)
+        #expect(await downloader.download(Self.report, scope: Self.scope) == .unavailable(.missing))
+        #expect(await downloader.download("/Users/demo/.ssh/id_ed25519", scope: Self.scope) == .unavailable(.denied))
         let unsupported = HostFileDownloader(fetcher: UnsupportedHostFileFetcher(), directory: directory)
-        #expect(await unsupported.download(Self.report, scope: Self.scope) == .unsupported)
+        #expect(await unsupported.download(Self.report, scope: Self.scope) == .unavailable(.unsupported))
         #expect(await fetcher.readCount == 0)
     }
 
@@ -106,7 +106,7 @@ struct HostFileDownloaderTests {
         download.cancel()
         await gate.release()
 
-        #expect(await download.value == .cancelled)
+        #expect(await download.value == .unavailable(.cancelled))
         let leftovers = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey])?
             .compactMap { $0 as? URL }.filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true } ?? []
         #expect(leftovers.isEmpty, "取消後不留檔案:\(leftovers)")
