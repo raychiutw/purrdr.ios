@@ -13,7 +13,13 @@
 - 手機與主機服務之間：連線配對與撤銷走一般 HTTPS 請求，其餘全部走單一 WSS 連線，以請求識別碼與串流識別碼多工。
 - **主機服務用 Rust 實作**。herdr 本身是 Rust,named pipe 等跨平台本機 IPC 有成熟的 crate(herdr 自己用 `interprocess`),單一執行檔好發行;SwiftNIO 官方只在 macOS、Linux 開發與測試,Windows named pipe 支援查不到。
 - 協定以 **JSON Schema** 為唯一定義，放在 repo 中;Rust 端與 app 可攜核心的 Swift 型別都由它產生，並以同一組協定範例做兩端的相容測試。
-- **主機取檔**(#227)是窄 API 裡唯一讀任意路徑的操作，只有唯讀的「查狀態」與「依版本分塊讀取」。存取規則由主機服務判定，不信任 app 送來的範圍：工作目錄以 herdr `session.snapshot` 當下回報的 Agent cwd 為準，或路徑出現在這條連線定位過的對話紀錄裡(JSON 字串值恰好是這個路徑，或字串值的文字中以訊息內路徑規則認得它，#229);先以請求的路徑比對，再以解析 symlink 後的實際路徑比對解析後的工作目錄;拒絕相對路徑與 `.`／`..`;排除清單(SSH 金鑰、雲端與套件憑證、keychain、Purrdr 主機服務與推播配對等)定義在協定 schema 的 `x-excluded-file-locations`,主機服務、app 與 SSH 取檔腳本共用同一份。上限 25 MiB;版本是內容的 SHA-256,從頭讀時建這條連線的記憶體快照，之後的分塊從快照讀，與 SSH 取檔的語意相同。稽核紀錄記路徑、大小與結果，不記內容。
+- **主機取檔**(#227)是窄 API 裡唯一讀任意路徑的操作，只有唯讀的「查狀態」與「依版本分塊讀取」。存取規則由主機服務判定，不信任 app 送來的範圍(app、主機服務、SSH 的 POSIX 與 PowerShell 取檔腳本跑同一組案例 `protocol/host-file-access.json`):
+  - 工作目錄以 herdr `session.snapshot` 當下回報的 Agent cwd 為準;cwd 是根目錄、家目錄或家目錄的上層時不算(Agent 在家目錄啟動很常見，否則等於放行整個家目錄)。
+  - 工作目錄以外，只放行 Agent 在這條連線定位過的對話紀錄裡**自己寫出**的路徑：assistant 訊息文字中以訊息內路徑規則認得的路徑(#229)、工具呼叫參數的檔案路徑、圖片生成的 `saved_path`、MCP 圖片的 `[Image: source: …]`。使用者 prompt、工具結果內容、讀到的檔案與網頁不算——它們可能被 prompt injection 寫進路徑。而且只限系統暫存目錄(schema 的 `x-temporary-file-locations` 與主機的 `TMPDIR`／`TEMP`)、家目錄的 `.purrdr/uploads` 與這段對話紀錄的附檔資料夾(`<資料夾>/<檔名去掉副檔名>/tool-results`):Agent 寫到家目錄其他地方的檔案，就算被提到也不讀。
+  - 先以請求的路徑比對，再以解析 symlink 後的實際路徑比對;開檔時最後一段不跟隨 symlink、不阻塞(FIFO 不會卡住),開檔後以 handle 取得實際路徑(macOS `F_GETPATH`、Linux `/proc/self/fd`、Windows `GetFinalPathNameByHandle`)再核對一次，檢查與開檔之間被換掉也讀不到外面。拒絕相對路徑與 `.`／`..`;Windows 只收磁碟機路徑(UNC 會對外送出 NTLM、ADS 讀到別的資料流)。
+  - 排除清單(SSH 金鑰、雲端與套件憑證、keychain、瀏覽器設定與 cookie、shell 歷史、`.env`、git 設定、Windows 認證管理員與 DPAPI、Purrdr 主機服務與推播配對等)定義在協定 schema 的 `x-excluded-file-locations`,主機服務、app 與 SSH 取檔腳本共用同一份;主機服務另外拒讀它實際的 `--state-dir`。
+  - 上限 25 MiB(schema 的 `x-maximum-file-size`);版本是內容的 SHA-256,大小與修改時間沒變時沿用不重算;從頭讀時建這條連線的記憶體快照，之後的分塊從快照讀，與 SSH 取檔的語意相同。對話紀錄裡的路徑在連線內增量索引，取檔請求有頻率上限。稽核紀錄記路徑、大小與結果，不記內容。
+  - **SSH 連線方式**:「是否 Agent 寫出的路徑」由 app 判斷，取檔腳本只在主機端檢查工作目錄、暫存／上傳／附檔資料夾(以路徑樣式比對 Claude 的 `tool-results`,不知道是哪段對話紀錄)、排除清單與開檔後的核對，也不寫稽核紀錄。理由：SSH 的使用者本來就有這台主機的 shell 權限，取檔規則只是避免 app 誤讀敏感檔案，不是權限邊界;為了驗證對話紀錄而讓腳本解析各種 Agent 的對話紀錄格式，成本高而沒有增加防護。不寫稽核紀錄是因為 ADR-0002 的主機端零安裝：會寫入主機的功能要經同意且可還原，而登入紀錄本來就由 sshd 留下。POSIX 腳本以「先 cd 進檢查過的資料夾再以相對路徑開檔、核對 inode」防止資料夾被換成 symlink;FIFO 在檢查後被換入時，開檔會卡到腳本的閒置時限才結束。
 - 檔案放在 `~/.purrdr/`(Windows 為 `%USERPROFILE%\.purrdr\`);解除安裝會移除自動啟動與 `tailscale serve` 設定，可完整還原。
 
 ## 考慮過但不採用
