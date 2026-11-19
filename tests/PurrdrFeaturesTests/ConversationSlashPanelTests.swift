@@ -106,7 +106,7 @@ struct ConversationSlashPanelTests {
 
         setup.model.pick(slash: SlashCommand(name: "add-dir", argumentHint: "<path>", summary: "Add a working directory"))
 
-        #expect(setup.model.draft == "請 /add-dir  這裡")
+        #expect(setup.model.draft == "請 /add-dir 這裡")
         #expect(setup.model.draftCaret == 11)
         #expect(setup.model.slashArgumentHint == "<path>")
         #expect(await Self.promptRequests(setup).isEmpty)

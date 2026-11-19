@@ -108,12 +108,23 @@ struct SlashMenuModelTests {
     func fillReplacesOnlyTriggerWord() {
         let inline = SlashMenuModel.Trigger(range: 3..<6, query: "td", placement: .inline)
         let filled = inline.filling("mattpocock-skills:tdd", in: "先跑 /td 再幫我改")
-        #expect(filled.draft == "先跑 /mattpocock-skills:tdd  再幫我改")
+        #expect(filled.draft == "先跑 /mattpocock-skills:tdd 再幫我改")
         #expect(filled.caret == 26)
         let leading = SlashMenuModel.Trigger(range: 0..<4, query: "rev", placement: .leading)
         let whole = leading.filling("review", in: "/rev")
         #expect(whole.draft == "/review ")
         #expect(whole.caret == 8)
+    }
+
+    @Test("游標後已經是空白或換行時不再補空格，游標停在既有空白之後")
+    func fillReusesFollowingWhitespace() {
+        let trigger = SlashMenuModel.Trigger(range: 3..<6, query: "td", placement: .inline)
+        let spaced = trigger.filling("tdd", in: "先跑 /td 再改")
+        #expect(spaced.draft == "先跑 /tdd 再改")
+        #expect(spaced.caret == 8)
+        let newline = trigger.filling("tdd", in: "先跑 /td\n再改")
+        #expect(newline.draft == "先跑 /tdd\n再改")
+        #expect(newline.caret == 8)
     }
 
     @Test("輸入名稱後改成單一排名清單：名稱開頭 > 名稱包含 > 說明包含;同級依分組與原順序")

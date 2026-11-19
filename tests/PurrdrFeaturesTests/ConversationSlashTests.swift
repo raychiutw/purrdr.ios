@@ -105,7 +105,7 @@ struct ConversationSlashTests {
         let tdd = try #require(model.slash.commands.first { $0.name == "mattpocock-skills:tdd" })
         model.slash.pick(tdd)
 
-        #expect(model.draft == "先跑 /mattpocock-skills:tdd  再幫我改")
+        #expect(model.draft == "先跑 /mattpocock-skills:tdd 再幫我改")
         #expect(model.draftCaret == 26)
         #expect(model.lastSlashInsertion?.name == "mattpocock-skills:tdd")
         #expect(!model.slash.isVisible)

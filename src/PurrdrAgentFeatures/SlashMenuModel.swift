@@ -83,13 +83,17 @@ public final class SlashMenuModel {
         }
 
         /// 把這段 `/字詞` 換成 `/名稱 `,其餘文字不動;回傳新草稿與插入文字之後的游標(UTF-16 位置)。
+        /// 後面已經是空白或換行時不再補空格，游標停在那個空白之後。
         public func filling(_ name: String, in draft: String) -> (draft: String, caret: Int) {
             let text = draft as NSString
-            let inserted = "/\(name) "
             let location = min(range.lowerBound, text.length)
-            let length = min(range.upperBound, text.length) - location
-            let filled = text.replacingCharacters(in: NSRange(location: location, length: length), with: inserted)
-            return (filled, location + (inserted as NSString).length)
+            let end = min(range.upperBound, text.length)
+            let followedBySpace = end < text.length
+                && text.substring(with: text.rangeOfComposedCharacterSequence(at: end)).allSatisfy(\.isWhitespace)
+            let inserted = followedBySpace ? "/\(name)" : "/\(name) "
+            let filled = text.replacingCharacters(in: NSRange(location: location, length: end - location), with: inserted)
+            let caret = location + (inserted as NSString).length
+            return (filled, followedBySpace ? caret + text.rangeOfComposedCharacterSequence(at: end).length : caret)
         }
     }
 
