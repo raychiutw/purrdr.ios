@@ -370,6 +370,12 @@ public struct ComposerAccessoryArrangement: Sendable, Equatable {
 
     public static let full = ComposerAccessoryArrangement(note: .full, suggestion: .full)
 
+    /// 輸入框上方一次只顯示一樣完整卡片：You should know 完整顯示時建議卡收起，註記收成一行或拿掉後建議卡才出現。
+    public func sharingTopSlot(hasNote: Bool) -> ComposerAccessoryArrangement {
+        guard hasNote, note == .full else { return self }
+        return ComposerAccessoryArrangement(note: note, suggestion: .hidden, stopBar: stopBar)
+    }
+
     /// 暫時拿掉的元素換回一行，其他維持。
     var restoringHidden: ComposerAccessoryArrangement {
         ComposerAccessoryArrangement(

@@ -47,6 +47,37 @@ final class YouShouldKnowUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: gone, evaluatedWith: note)], timeout: 10), .completed, "註記沒有消失")
     }
 
+    /// 註記卡片的動作排成一列(略過是標題列右上的 ✕),不直排佔掉對話;註記在時建議卡不同時出現(一次只顯示一樣)。
+    @MainActor
+    func testNoteActionsShareOneRowAndHideSuggestion() {
+        let app = XCUIApplication.launchUITesting()
+        let row = element("agent.row.demo/w1:p1", in: app)
+        XCTAssertTrue(app.reveal(row, timeout: 15))
+        row.tap()
+
+        let note = element("youShouldKnow.note", in: app)
+        XCTAssertTrue(note.waitForExistence(timeout: 15), "聊天輸入列上方沒有註記")
+        let learnMore = app.buttons["youShouldKnow.learnMore"]
+        let knewIt = app.buttons["youShouldKnow.knewIt"]
+        let discuss = app.buttons["youShouldKnow.discuss"]
+        let dismiss = app.buttons["youShouldKnow.dismiss"]
+        for button in [learnMore, knewIt, discuss, dismiss] {
+            XCTAssertTrue(button.exists, "註記少了動作 \(button.identifier)")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 44, "\(button.identifier) 觸控目標不到 44pt")
+        }
+        XCTAssertEqual(learnMore.frame.midY, knewIt.frame.midY, accuracy: 1, "動作沒有排成一列")
+        XCTAssertEqual(knewIt.frame.midY, discuss.frame.midY, accuracy: 1, "動作沒有排成一列")
+        XCTAssertLessThan(dismiss.frame.maxY, note.frame.minY + 1, "略過不在標題列")
+        XCTAssertFalse(element("conversation.suggestion", in: app).exists, "註記與建議卡同時出現")
+
+        dismiss.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
+        alert.buttons["Allow"].firstMatch.tap()
+        XCTAssertTrue(note.waitForNonExistence(timeout: 10), "略過後註記沒有消失")
+        XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 10), "註記略過後建議卡沒有出現")
+    }
+
     /// 設定頁打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失。
     @MainActor
     func testHostThemeToggle() {

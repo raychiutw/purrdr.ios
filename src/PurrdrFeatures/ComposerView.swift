@@ -122,8 +122,8 @@ struct ComposerBar: View {
                 AttachmentStrip(model: model)
             }
             // Claude Code 的建議提示詞(#123):輸入框空白、沒有問題在等也不在工作時才有(#240),點了填入並聚焦，不送出。
-            if case .suggestion(let suggestion) = model.topAccessory, arrangement.suggestion != .hidden {
-                let isCompact = arrangement.suggestion == .compact
+            if case .suggestion(let suggestion) = model.topAccessory, shownArrangement.suggestion != .hidden {
+                let isCompact = shownArrangement.suggestion == .compact
                 PromptSuggestionView(suggestion: suggestion, isCompact: isCompact) { acceptSuggestion() }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
                         if isCompact { suggestionHeights.compact = height } else { suggestionHeights.full = height }
@@ -199,10 +199,14 @@ struct ComposerBar: View {
         conversationHeight.arrangementChanged()
     }
 
+    private var showsNote: Bool { model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible }
+
+    /// 實際顯示的方式：完整的註記與建議卡不同時出現(註記優先)。
+    private var shownArrangement: ComposerAccessoryArrangement { arrangement.sharingTopSlot(hasNote: showsNote) }
+
     private var arrangementInput: ArrangementInput {
-        let showsNote = model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible
         var showsSuggestion = false
-        if case .suggestion = model.topAccessory { showsSuggestion = true }
+        if case .suggestion = model.topAccessory, shownArrangement.suggestion != .hidden { showsSuggestion = true }
         return ArrangementInput(
             // 聚焦時才有鍵盤;實體鍵盤只有快捷列，對話夠高，規則自然完整顯示。
             // 只在聚焦時讀對話高度：沒聚焦時不必讓位，也不讓輸入列隨每次捲動量測重畫(載入、大量輸出時

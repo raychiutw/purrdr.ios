@@ -106,7 +106,21 @@ final class ConversationUITests: XCTestCase {
     private func openAgentFiles() -> XCUIApplication {
         let app = open(paneID: "w1:p1", flags: ["-demoAgentFiles"])
         XCTAssertTrue(app.scrollViews.firstMatch.waitForExistence(timeout: 10), "對話沒有開啟")
+        // 這裡看的是對話裡的卡片：先略過輸入列上方的註記，卡片才整張放得進可視區。
+        dismissNote(in: app)
         return app
+    }
+
+    /// 略過 ledger 輸入列上方的 You should know 註記(第一次要同意)。
+    @MainActor
+    private func dismissNote(in app: XCUIApplication) {
+        let note = element("youShouldKnow.note", in: app)
+        XCTAssertTrue(note.waitForExistence(timeout: 15), "ledger 沒有註記")
+        app.buttons["youShouldKnow.dismiss"].tap()
+        let allow = app.alerts.firstMatch.buttons["Allow"]
+        XCTAssertTrue(allow.waitForExistence(timeout: 5), "略過註記沒有詢問同意")
+        allow.tap()
+        XCTAssertTrue(note.waitForNonExistence(timeout: 10), "略過後註記沒有消失")
     }
 
     /// 識別碼相同、label 以 `prefix` 開頭的元素(卡片標題、縮圖等同一種元素有好幾個時)。
@@ -283,8 +297,7 @@ final class ConversationUITests: XCTestCase {
         let send = element("composer.send", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
         XCTAssertFalse(send.isEnabled, "空白時送出鈕應停用")
-        XCTAssertGreaterThanOrEqual(send.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(send.frame.height, 44)
+        XCTAssertHitTarget(send)
 
         text.tap()
         text.typeText("Add a header row too?")
@@ -308,10 +321,11 @@ final class ConversationUITests: XCTestCase {
     }
 
     /// 建議提示詞(#123):ledger 完成時輸入列上方有 Claude Code 的建議;點了只填入輸入框、叫出鍵盤，不送出，
-    /// 對話紀錄沒有新增。輸入框有字時建議不顯示。
+    /// 對話紀錄沒有新增。輸入框有字時建議不顯示。註記的完整卡片在時建議卡不同時出現，先略過註記。
     @MainActor
     func testSuggestionFillsComposerWithoutSending() {
         let app = openLedger()
+        dismissNote(in: app)
         let suggestion = element("conversation.suggestion", in: app)
         let text = element("composer.text", in: app)
         XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "沒有建議")
@@ -342,7 +356,7 @@ final class ConversationUITests: XCTestCase {
         let app = openLedger()
         let text = element("composer.text", in: app)
         XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 15), "沒有註記")
-        XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 10), "沒有建議")
+        XCTAssertFalse(element("conversation.suggestion", in: app).exists, "註記完整顯示時建議卡不該同時出現")
         text.tap()
         let keyboard = app.keyboards.firstMatch
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
@@ -351,6 +365,7 @@ final class ConversationUITests: XCTestCase {
         let compact = element("youShouldKnow.compact", in: app)
         XCTAssertTrue(compact.waitForExistence(timeout: 5), "鍵盤出現時註記沒有收成一行")
         XCTAssertFalse(element("youShouldKnow.note", in: app).exists, "完整卡片應收起")
+        XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 5), "註記收成一行後建議卡沒有出現")
         text.typeText("Typing while reading")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "soft-keyboard-typing"
@@ -491,8 +506,7 @@ final class ConversationUITests: XCTestCase {
         text.tap()
         XCTAssertTrue(expand.waitForExistence(timeout: 5), "聚焦時沒有展開鈕")
         XCTAssertEqual(expand.label, "Expand")
-        XCTAssertGreaterThanOrEqual(expand.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(expand.frame.height, 44)
+        XCTAssertHitTarget(expand)
         text.typeText("1\n2\n3")
         expand.tap()
 

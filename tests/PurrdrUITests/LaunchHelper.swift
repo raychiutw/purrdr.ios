@@ -114,3 +114,13 @@ extension XCUIApplication {
         open(URL(string: "purrdr://plus")!)
     }
 }
+
+/// 觸控目標至少 44×44pt。畫面座標是浮點數，44pt 的按鈕可能量成 43.99999999999994,只容許浮點誤差。
+@MainActor
+func XCTAssertHitTarget(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+    let floatingPointError = 0.001
+    XCTAssertGreaterThanOrEqual(
+        element.frame.width + floatingPointError, 44, "\(element.identifier) 寬度不到 44pt:\(element.frame)", file: file, line: line)
+    XCTAssertGreaterThanOrEqual(
+        element.frame.height + floatingPointError, 44, "\(element.identifier) 高度不到 44pt:\(element.frame)", file: file, line: line)
+}
