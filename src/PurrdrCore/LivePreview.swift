@@ -120,8 +120,11 @@ public enum LivePreview {
 
     // MARK: - chrome
 
+    /// 介面的符號標記，出現在哪裡都算。
+    private static let chromeMarks = ["◉", "⏸"]
+    /// 介面列的關鍵字(小寫比對):只在行首或 `·` 分隔的狀態列裡才算，散文提到不算(#214)。
     private static let chromePhrases = [
-        "manual mode", "for agents", "/effort", "◉", "esc to", "ctrl+", "⏸", "resume this session", "? for shortcuts",
+        "manual mode", "for agents", "/effort", "esc to", "ctrl+", "resume this session", "? for shortcuts",
         "restart to update", "auto-update", "ctx:",
     ]
 
@@ -131,10 +134,16 @@ public enum LivePreview {
         if line.unicodeScalars.allSatisfy({ (0x2800...0x28FF).contains($0.value) || (0x2580...0x259F).contains($0.value) || $0 == " " }) {
             return true
         }
-        // 不分大小寫：Claude Code 的更新提示是「Restart to update」(#214)。
-        let lowercased = line.lowercased()
-        if chromePhrases.contains(where: lowercased.contains) { return true }
+        if chromeMarks.contains(where: line.contains) { return true }
+        if isChromePhraseLine(line.lowercased()) { return true }
         return line.contains("@") && line.filter { $0 == "|" }.count >= 3
+    }
+
+    /// 以關鍵字開頭(前導的 ✔ ⏵ 等記號不算),或是含關鍵字、以 ` · ` 分隔的狀態列。
+    private static func isChromePhraseLine(_ lowercased: String) -> Bool {
+        let body = lowercased.drop { !$0.isLetter && !$0.isNumber && !"?/".contains($0) }
+        if chromePhrases.contains(where: body.hasPrefix) { return true }
+        return lowercased.contains(" · ") && chromePhrases.contains(where: lowercased.contains)
     }
 
     private static func isSeparator(_ line: String) -> Bool {
