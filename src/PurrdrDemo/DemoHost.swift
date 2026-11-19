@@ -246,11 +246,29 @@ public actor DemoHost: HostChannel {
 
     /// 停下來，並像 herdr 一樣對訂閱送狀態事件(畫面靠事件更新快照)。
     private func finishStop(paneID: String) async {
+        let before = currentStatuses()
         answers.finishStop(paneID: paneID)
-        let workspace = paneID.split(separator: ":").first.map(String.init) ?? ""
-        let event = #"{"event":"pane.agent_status_changed","data":{"agent_status":"done","pane_id":"\#(paneID)","workspace_id":"\#(workspace)"}}"#
-        for bridge in bridges {
-            await bridge.session?.emit(Data((event + "\n").utf8))
+        await notifyStatusChanges(from: before)
+    }
+
+    /// 各 pane 目前的狀態(沒列出的照快照預設)。
+    private func currentStatuses() -> [String: String] {
+        var statuses = answers.statuses
+        for pending in pendingReplies { statuses[pending.paneID] = "working" }
+        return statuses
+    }
+
+    /// 狀態和 `before` 不同的 pane,像 herdr 一樣對訂閱送狀態事件。
+    private func notifyStatusChanges(from before: [String: String]) async {
+        let after = currentStatuses()
+        let changed = Set(before.keys).union(after.keys).filter { before[$0] != after[$0] }.sorted()
+        for paneID in changed {
+            let workspace = paneID.split(separator: ":").first.map(String.init) ?? ""
+            let status = after[paneID] ?? "done"
+            let event = #"{"event":"pane.agent_status_changed","data":{"agent_status":"\#(status)","pane_id":"\#(paneID)","workspace_id":"\#(workspace)"}}"#
+            for bridge in bridges {
+                await bridge.session?.emit(Data((event + "\n").utf8))
+            }
         }
     }
 
@@ -361,10 +379,16 @@ public actor DemoHost: HostChannel {
     }
 
     private func respond(to requestLine: Data) -> (line: Data, keepsOpen: Bool) {
+        let before = currentStatuses()
+        defer {
+            // 回答、prompt 或工作時間到改了狀態：送事件(聊天畫面靠事件更新快照)。
+            if currentStatuses() != before {
+                Task { [weak self] in await self?.notifyStatusChanges(from: before) }
+            }
+        }
         writeDueReplies()
         if let response = promptResponse(to: requestLine) ?? paneResponse(to: requestLine) { return response }
-        state.statuses = answers.statuses
-        for pending in pendingReplies { state.statuses[pending.paneID] = "working" }
+        state.statuses = currentStatuses()
         return DemoSnapshot.response(to: requestLine, state: &state)
     }
 
