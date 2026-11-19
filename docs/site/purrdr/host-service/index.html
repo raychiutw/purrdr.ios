@@ -54,7 +54,15 @@
     <p>列出已配對的裝置：<code>purrdr-host-service devices</code>;撤銷一支裝置：<code>purrdr-host-service revoke &lt;裝置 ID&gt;</code>。Windows 同樣用完整路徑：<code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; devices</code>、<code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; revoke &lt;裝置 ID&gt;</code>。在 Purrdr 刪除這台主機時，也會撤銷這支裝置。</p>
 
     <h2>更新</h2>
-    <p>再執行一次上面的安裝指令就是更新，已配對的裝置會保留。Purrdr 發現主機服務比它知道的版本舊時，會在主機清單提示更新並附上指令。</p>
+    <p>主機服務預設會自動更新：背景服務啟動後幾分鐘先檢查一次，之後每天檢查最新版本;有新版就下載、以 SHA-256 檢查碼驗證(macOS 另驗 Developer ID 簽章)、替換並重新啟動，新版起不來會自動退回原版本。設定、HTTPS 埠與已配對的裝置都會保留。</p>
+    <ul>
+      <li>查看版本：<code>purrdr-host-service version</code>(已安裝與最新版本、自動更新開關、上次檢查的時間與結果)。</li>
+      <li>只檢查有沒有新版：<code>purrdr-host-service update --check</code>。</li>
+      <li>立刻更新：<code>purrdr-host-service update</code>(加 <code>--yes</code> 不詢問)。</li>
+      <li>關閉自動更新：<code>purrdr-host-service auto-update off</code>(<code>on</code> 再打開);安裝時也可以加 <code>--no-auto-update</code>,例如 macOS／Linux 用 <code>curl -fsSL …/install.sh | sh -s -- --no-auto-update</code>,Windows 用 <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --no-auto-update</code>。</li>
+    </ul>
+    <p>Windows 安裝程式不會把主機服務加進 PATH,上面的指令要在 PowerShell 用完整路徑，例如 <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; update</code>、<code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; auto-update off</code>。</p>
+    <p>0.4.x 以前的主機服務沒有更新功能：先重跑一次上面的安裝指令(會保留已配對的裝置),之後才會開始自動更新。Purrdr 發現主機服務比它知道的版本舊時，會在主機清單提示更新並依主機的版本附上指令。</p>
 
     <h2>查看狀態與解除安裝</h2>
     <ul>
@@ -102,7 +110,15 @@
     <p>List paired devices with <code>purrdr-host-service devices</code>; revoke one with <code>purrdr-host-service revoke &lt;device ID&gt;</code>. On Windows, use the full path here too: <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; devices</code> and <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; revoke &lt;device ID&gt;</code>. Deleting the host in Purrdr also revokes that device.</p>
 
     <h2>Updating</h2>
-    <p>Run the install command again to update. Paired devices stay paired. When Purrdr sees a host service older than the version it knows about, it shows an update notice with the command in the host list.</p>
+    <p>The host service updates itself by default: a few minutes after it starts, and then every day, it checks for the latest version; when there is a newer one it downloads it, verifies its SHA-256 checksum (and the Developer ID signature on macOS), replaces itself, and restarts. If the new version doesn’t start, it goes back to the previous one. Settings, the HTTPS port, and paired devices are kept.</p>
+    <ul>
+      <li>Version: <code>purrdr-host-service version</code> (installed and latest version, whether auto update is on, and the last check and its result).</li>
+      <li>Only check for a newer version: <code>purrdr-host-service update --check</code>.</li>
+      <li>Update now: <code>purrdr-host-service update</code> (<code>--yes</code> skips the question).</li>
+      <li>Turn auto update off: <code>purrdr-host-service auto-update off</code> (<code>on</code> turns it back on). You can also install with <code>--no-auto-update</code>: on macOS and Linux, <code>curl -fsSL …/install.sh | sh -s -- --no-auto-update</code>; on Windows, <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --no-auto-update</code>.</li>
+    </ul>
+    <p>The Windows installer doesn’t add the host service to PATH, so in PowerShell use the full path, for example <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; update</code> or <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; auto-update off</code>.</p>
+    <p>Host service 0.4.x and earlier can’t update itself: run the install command above once more (paired devices are kept), and it starts updating itself from then on. When Purrdr sees a host service older than the version it knows about, it shows an update notice in the host list with the command for that host’s version.</p>
 
     <h2>Status and uninstalling</h2>
     <ul>

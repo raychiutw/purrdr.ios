@@ -99,6 +99,42 @@ struct HostServiceUpdateTests {
         #expect(HostServiceUpdates.latestKnownVersion == String(line.dropFirst(prefix.count)))
     }
 
+    @Test("0.5.0 起的主機服務提示執行 update 指令;0.4.x 以前沒有 update,提示重跑一行安裝指令")
+    func updateCommandsDependOnInstalledVersion() {
+        let reinstall = HostServiceUpdates.commands(installed: "0.4.1")
+        #expect(reinstall == HostServiceUpdateCommands(
+            installedVersion: "0.4.1", canUpdateItself: false,
+            posix: HostServiceUpdates.posixInstallCommand, windows: HostServiceUpdates.windowsInstallCommand))
+        for installed in ["0.5.0", "0.5", "0.6.2", "1.0.0-beta"] {
+            #expect(HostServiceUpdates.commands(installed: installed) == HostServiceUpdateCommands(
+                installedVersion: installed, canUpdateItself: true,
+                posix: HostServiceUpdates.posixUpdateCommand, windows: HostServiceUpdates.windowsUpdateCommand))
+        }
+    }
+
+    @Test("主機列帶著依該主機已安裝版本決定的更新指令")
+    func rowsCarryUpdateCommandsForInstalledVersion() async {
+        let (store, tokens) = Self.hosts()
+        let model = Self.model(
+            latest: "0.6.0", store: store, tokens: tokens,
+            connections: await Self.connections(reporting: ["0.4.1", "0.5.0", "0.6.0"]), dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
+
+        await model.checkHostServiceVersions()
+
+        let commands = Dictionary(uniqueKeysWithValues: model.rows.compactMap { row in row.hostServiceUpdateCommands.map { (row.title, $0) } })
+        #expect(commands == [
+            "A Older": HostServiceUpdates.commands(installed: "0.4.1"),
+            "B Same": HostServiceUpdates.commands(installed: "0.5.0"),
+        ])
+    }
+
+    @Test("update 指令用安裝位置的完整路徑(安裝程式不改 PATH)")
+    func updateCommandsUseInstalledProgramPath() {
+        #expect(HostServiceUpdates.posixUpdateCommand == "~/.purrdr/host-service/bin/purrdr-host-service update")
+        #expect(HostServiceUpdates.windowsUpdateCommand == #"& "$HOME\.purrdr\host-service\bin\purrdr-host-service.exe" update"#)
+    }
+
     @Test("一行安裝指令從主機端 repo raychiutw/purrdr.host 的最新 Release 下載")
     func installCommandsDownloadFromPurrdrHostReleases() {
         let base = "https://github.com/raychiutw/purrdr.host/releases/latest/download/"
