@@ -253,6 +253,17 @@ struct DemoHostTests {
         #expect(try await client.snapshot().agents.first { $0.paneID == "w2:p1" }?.status == .blocked)
     }
 
+    /// #220:停止要看得到「停止中」:收到 Esc 後下一次讀狀態仍是 working,再下一次才完成。
+    @Test("停止中:Demo 的工作中 agent 收到 Esc 後先再回報一次 working,之後才完成")
+    func workingDemoAgentStopsAfterOneMoreRead() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        try await client.sendKeys(paneID: "w3:p1", keys: ["esc"])
+
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .working)
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
+    }
+
     /// #210 的 UI 測試情境：送出後先只接上使用者那一行，agent 工作中且畫面有即時預覽;時間到才接上回覆並完成。
     @Test("送出後工作中情境：先接上使用者那一行並工作，時間到才接上回覆")
     func workingAfterPromptRepliesLater() async throws {
