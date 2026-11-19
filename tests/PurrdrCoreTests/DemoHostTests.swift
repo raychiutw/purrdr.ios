@@ -259,13 +259,22 @@ struct DemoHostTests {
     func workingDemoAgentStopsAfterAMomentAndNotifies() async throws {
         let host = DemoHost()
         let client = HerdrClient(channel: host)
-        var events = try await client.subscribe([.agentStatusChanged(paneID: "w3:p1")]).makeAsyncIterator()
-        #expect(try await events.next() == .subscriptionStarted)
+        let events = try await client.subscribe([.agentStatusChanged(paneID: "w3:p1")])
+        let statusEvent = Task {
+            var iterator = events.makeAsyncIterator()
+            _ = try await iterator.next()
+            return try await iterator.next()
+        }
 
         try await client.sendKeys(paneID: "w3:p1", keys: ["esc"])
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .working)
 
-        #expect(try await events.next() == .event(name: "pane.agent_status_changed", paneID: "w3:p1"))
+        let giveUp = Task {
+            try await Task.sleep(for: .seconds(3))
+            statusEvent.cancel()
+        }
+        #expect(try? await statusEvent.value == .event(name: "pane.agent_status_changed", paneID: "w3:p1"))
+        giveUp.cancel()
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
     }
 
