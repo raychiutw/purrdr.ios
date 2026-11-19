@@ -811,8 +811,12 @@ public final class ConversationModel {
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly }
 
-    /// 輸入列的送出鈕換成停止鈕(#220)。
-    public var showsStopButton: Bool { false }
+    /// 輸入列的送出鈕換成停止鈕(#220):working(或停止中)且草稿、圖片都空;有草稿時是送出(prompt 會排隊)。
+    public var showsStopButton: Bool {
+        guard !isReadOnly, !isOffline, typedAnswer == nil else { return false }
+        if isStopping { return true }
+        return agentStatus == .working && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty
+    }
 
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
@@ -900,7 +904,11 @@ public final class ConversationModel {
         isStopping = true
         defer { isStopping = false }
         switch await delivery.stop(paneID: paneID) {
-        case .stopped: notice = nil
+        case .stopped(let status):
+            notice = nil
+            // 不等下一次輪詢：按鈕立刻換回送出。
+            agentStatus = status
+            updateWorkingSince()
         case .unconfirmed: notice = .stopUnconfirmed
         case .stillWorking: notice = .stillWorking
         case .failed: notice = .interruptFailed
