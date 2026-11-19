@@ -139,9 +139,12 @@ struct SSHTranscriptFollowerTests {
 
         firstPace.wake()
         secondPace.wake()
-        #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.contains("8 - - \(Self.path)\n") })
+        // 請求在通道上排隊，哪一個先送不固定：先回應先到的那個，另一個才送得出來。
+        let firstRequest = "8 - - \(Self.path)\n"
+        let secondRequest = "20 - - \(Self.otherPath)\n"
+        #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.contains(firstRequest) || $0.stdinText.contains(secondRequest) })
         await host.send(stdout: Data("unchanged\n".utf8), toExecution: 0)
-        #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.contains("20 - - \(Self.otherPath)\n") })
+        #expect(await host.waitForStdin(ofExecution: 0) { $0.stdinText.contains(firstRequest) && $0.stdinText.contains(secondRequest) })
 
         #expect(await host.executions.count == 1)
     }

@@ -6675,7 +6675,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登入主機自己的 SSH 伺服器，用金鑰或密碼。"
+            "value" : "用金鑰或密碼登入主機自己的 sshd。"
           }
         }
       }
