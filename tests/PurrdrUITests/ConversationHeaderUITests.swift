@@ -81,7 +81,7 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(menuItem.waitForExistence(timeout: 5), "長按沒有強制結束的選項")
         menuItem.tap()
 
-        let confirm = app.buttons["stopBar.forceQuit.confirm"]
+        let confirm = app.buttons["stopBar.forceQuit.confirm"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "強制結束沒有先確認")
         XCTAssertTrue(app.staticTexts["Force Quit Codex?"].exists, "確認對話框標題不對")
         confirm.tap()
