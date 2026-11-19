@@ -21,7 +21,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - 每個自訂顏色都要有 light／dark／各自 high contrast 四個值，放在 Asset Catalog 或程式碼的 `ContrastPalette`(`AccessibleColors`)都可以;四個值都要有對比測試(對它實際出現的背景計算，見 `AccessibleColorsTests`)。
 - 每個畫面 prominent 按鈕最多 2 個。
 - 主色填色一律經 `prominentFill`(有主機主題時是主題填色)與 `onProminentFill`(主題填色上白字，主色上 `onAccent`):填色寫 `hostFill(in:)` 或 `.prominentFill`,prominent 按鈕用 `filledProminentButtonStyle()`／`filledGlassProminentButtonStyle()`;不要直接用 tint／`Color.accentColor` 當底(`ProminentFillUsageTests` 擋),否則深色模式會變成白字配亮綠。
-- iPad 列表(split view 內容欄)的選取列加 `selectionFill(for:)`:底色 `prominentFill`,列內文字、次要文字與「需要你」的符號、狀態字、「Waiting for your input」改成 `onProminentFill`。
+- iPad 列表(split view 內容欄)的選取列加 `selectionFill(for:)`:中性灰底 `neutralSelection`(系統 `systemGray5`:`#E5E5EA`／`#2C2C2E`／高對比 `#D8D8DC`／`#363638`),不用主色或主機主題的填色;列內文字維持主要色與 `secondaryText`,不另換字色(#238)。主要文字與 `secondaryText` 對四值都 ≥ 4.5:1(淺色次要 4.8:1 最低，`SelectionAppearanceTests`)。
 - 「需要你」一律同時有 `!` 符號與文字，不只靠顏色;錯誤與刪除用系統 `.red`／destructive role,不用主色。
 - 次要文字的判斷原則(#67):**承載資訊的文字一律用 `secondaryText`**——副標、時間、說明、狀態字、預覽、參數提示、placeholder、空狀態與錯誤說明，List／Form 的 section 標題與註腳(系統預設是 secondaryLabel,要明確指定;iPad 側欄的系統樣式 section 標題除外，保留系統色：它畫在系統的 Liquid Glass 側欄上，系統依底下透出的內容、深淺色與「增加對比」調整文字的 vibrancy,換成固定的 `secondaryText` 反而失去這層調整;側欄只用系統語意色文字，audit 透過玻璃取樣不穩定的情況記在 `AccessibilityAudit` 的排除規則),以及「圖示 + 文字」的 Label 整體、只有圖示的按鈕(關閉、複製)與單獨表達狀態的圖示(縮放、未知)。**純裝飾可留系統階層色**:旁邊已有文字說明或對 VoiceOver 隱藏的圖示(卡片種類圖示、主機圖示、工具種類圖示、檔案圖示、圖片佔位圖示、展開箭頭 chevron)、軌道線、分隔線、邊框與底色(`.fill.*`、`.background.secondary`、`Color.secondary.opacity(…)`)。在按鈕(List 列、`DisclosureGroup` label)裡也不會被 tint 染色，因為 `secondaryText` 是固定色。
 - 其他使用系統外觀，不提供 app 內的深淺色設定。

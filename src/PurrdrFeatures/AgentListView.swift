@@ -391,14 +391,8 @@ struct ConversationScreen: View {
 struct AgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(iPad 的 split view 列以主色填滿，`selectionFill(for:)`)時是 `.increased`:次要色與 tint 字都要改成 `onProminentFill`,
-    /// 否則次要色與主色字疊在主色底上看不見(#35 iPad audit)。
-    @Environment(\.backgroundProminence) private var backgroundProminence
-
-    private var isProminent: Bool { backgroundProminence == .increased }
-
-    /// 次要色;選取中改白色。
-    private var secondary: AnyShapeStyle { isProminent ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.secondaryText) }
+    /// 次要色;iPad 選取列是中性灰底(`selectionFill(for:)`),選取中也不換色。
+    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -479,7 +473,7 @@ struct AgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(isProminent ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.tint))
+                .foregroundStyle(.tint)
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
@@ -502,18 +496,15 @@ struct AgentRowView: View {
 /// 顏色只上在符號：文字維持次要色，確保對比;「需要你」整個用 tint(主色，對各背景 ≥ 4.5:1)。
 struct StatusLabel: View {
     let status: AgentStatus
-    /// 選取中的列(主色底):符號與文字都用 `onProminentFill`,形狀仍區分狀態。
-    @Environment(\.backgroundProminence) private var backgroundProminence
 
     var body: some View {
-        let prominent = backgroundProminence == .increased
         // 不用 `Label`:在 List 列裡 Label 套的是列表樣式(圖示固定欄寬、標題對齊列文字),放進 `fixedSize` 的右側欄
         // 算不出理想寬度，標題被擠成極窄、一字一行，整列被撐高(#35)。
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: status.symbol)
-                .foregroundStyle(prominent ? AnyShapeStyle(.onProminentFill) : status.color)
+                .foregroundStyle(status.color)
             Text(status.title)
-                .foregroundStyle(prominent ? AnyShapeStyle(.onProminentFill) : status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
+                .foregroundStyle(status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
         }
         .font(.subheadline)
         .accessibilityElement(children: .combine)
@@ -599,7 +590,7 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// iPad 選取列用 `prominentFill` 底、`onProminentFill` 字(#95)。
+    /// iPad 選取列用中性灰底(`neutralSelection`),文字不換色(#238)。
     func selectionFill(for route: ChatRoute) -> some View {
         modifier(SelectionFillModifier(route: route))
     }
@@ -608,14 +599,12 @@ extension View {
 private struct SelectionFillModifier: ViewModifier {
     let route: ChatRoute
     @Environment(\.selectedChatRoute) private var selectedChatRoute
-    @Environment(\.backgroundProminence) private var backgroundProminence
 
     // 不用 if/else 分支：選取切換時列的 identity 不變(滑動與選單狀態不重建)。
     func body(content: Content) -> some View {
         let isSelected = selectedChatRoute == route
         content
-            .foregroundStyle(isSelected ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.primary))
-            .environment(\.backgroundProminence, isSelected ? .increased : backgroundProminence)
-            .listRowBackground(isSelected ? Rectangle().fill(.prominentFill) : nil)
+            .foregroundStyle(.primary)
+            .listRowBackground(isSelected ? Rectangle().fill(.neutralSelection) : nil)
     }
 }

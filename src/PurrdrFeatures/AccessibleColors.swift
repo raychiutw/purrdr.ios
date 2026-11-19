@@ -70,6 +70,15 @@ extension ShapeStyle where Self == Color {
 
     /// 主色(`AccentColor`)底上的字與符號。
     static var onAccent: Color { AccessibleColors.onAccent.color }
+
+    /// iPad 分欄選取列的中性灰底(系統 `systemGray5`,#238);文字維持主要色與次要文字色。
+    static var neutralSelection: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .systemGray5)
+        #else
+        Color.gray.opacity(0.2)
+        #endif
+    }
 }
 
 /// 文字按鈕的 label,觸控目標至少 44×44 pt(HIG 20.2)。
