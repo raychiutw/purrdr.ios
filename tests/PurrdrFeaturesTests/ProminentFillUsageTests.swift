@@ -4,9 +4,9 @@ import Testing
 /// 承載字的主色填色一律經 `prominentFill`／`onProminentFill`(ADR-0011):深色模式主色上要用黑字，系統 prominent 樣式預設白字。
 @Suite("主色填色用法")
 struct ProminentFillUsageTests {
-    /// 直接拿主色當底、繞過 `onProminentFill` 字色的寫法。
+    /// 直接拿主色當底、繞過 `onProminentFill` 字色的寫法;`.accentColor` 也擋省略 `Color.` 的寫法(滑動鈕 `.tint(.accentColor)`)。
     static let forbiddenPatterns = [
-        "Color.accentColor", ".fill(.tint)", ".background(.tint", "(.borderedProminent)", "(.glassProminent)",
+        ".accentColor", ".fill(.tint)", ".background(.tint", "(.borderedProminent)", "(.glassProminent)",
     ]
     /// 定義 `prominentFill` 與 `.filledProminent` 系列的檔案。
     static let prominentStyleFile = "FilledProminentButtonStyle.swift"

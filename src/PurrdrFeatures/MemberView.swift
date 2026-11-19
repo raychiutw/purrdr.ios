@@ -421,13 +421,13 @@ private struct AccountHeader: View {
     }
 }
 
-/// 帳號頭像：主色圓底上的頭像字;沒有字時用人像符號，未加入會員(`nil`)用「?」。帳號鈕與帳號頁共用。
+/// 帳號頭像：主色填色(`prominentFill`)圓底上的頭像字;沒有字時用人像符號，未加入會員(`nil`)用「?」。帳號鈕與帳號頁共用。
 struct AccountAvatar: View {
     let member: Member?
 
     var body: some View {
         ZStack {
-            Circle().fill(.tint)
+            Circle().fill(.prominentFill)
             Group {
                 if let member {
                     if let initial = member.avatarInitial {
@@ -440,7 +440,7 @@ struct AccountAvatar: View {
                 }
             }
             .fontWeight(.semibold)
-            .foregroundStyle(.onAccent)
+            .foregroundStyle(.onProminentFill)
         }
         .accessibilityHidden(true)
     }

@@ -273,7 +273,7 @@ struct AnsweredPromptView: View {
             }
         } icon: {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(.tint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

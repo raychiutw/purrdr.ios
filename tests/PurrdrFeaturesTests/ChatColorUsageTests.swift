@@ -51,6 +51,23 @@ struct ChatColorUsageTests {
         #expect(found.isEmpty, "改用 ErrorLabel 或 secondaryText:\n\(found.joined(separator: "\n"))")
     }
 
+    /// 語意色只用系統紅、系統橙(ADR-0011);成功與勾選用主色。
+    @Test("不用系統綠：成功與勾選用主色 tint")
+    func noSystemGreen() throws {
+        let sources = try Self.featureSources()
+        let found = ["(.green)", "Color.green"].flatMap { Self.violations(of: $0, in: sources) }
+        #expect(found.isEmpty, "改用 .tint:\n\(found.joined(separator: "\n"))")
+    }
+
+    /// 錯誤圖示只在 `ErrorLabel` 與 subagent 狀態圖示(只有圖示、念狀態名)。
+    @Test("錯誤訊息不自組 Label,一律用 ErrorLabel")
+    func errorsUseErrorLabel() throws {
+        let allowed: Set<String> = ["ErrorLabel.swift", "DelegationViews.swift"]
+        let sources = try Self.featureSources().filter { !allowed.contains($0.name) }
+        let found = Self.violations(of: "exclamationmark.triangle.fill", in: sources)
+        #expect(found.isEmpty, "改用 ErrorLabel:\n\(found.joined(separator: "\n"))")
+    }
+
     @Test("內容層底色用系統語意色，不拿次要文字色當底")
     func contentBackgroundsUseSystemColors() throws {
         let sources = try Self.featureSources()

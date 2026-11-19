@@ -168,9 +168,9 @@ private struct WorkspaceRowActions: ViewModifier {
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
                     buttons.close(title: "Close", role: nil, used: swiped)
-                        .tint(WorkspaceSwipeAction.close.tint.color)
+                        .tint(WorkspaceSwipeAction.close.tint.style)
                     buttons.rename(title: "Workspace", used: swiped)
-                        .tint(WorkspaceSwipeAction.workspace.tint.color)
+                        .tint(WorkspaceSwipeAction.workspace.tint.style)
                 }
                 .contextMenu {
                     if let openInNewWindow {
@@ -201,13 +201,13 @@ private struct WorkspaceRowActions: ViewModifier {
                 if fromSwipe { swiped() }
                 actions.togglePin(sessionID: sessionID)
             }
-            .tint(WorkspaceSwipeAction.pin.tint.color)
+            .tint(WorkspaceSwipeAction.pin.tint.style)
             let muted = actions.isMuted(sessionID: sessionID)
             Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
                 if fromSwipe { swiped() }
                 actions.toggleMute(sessionID: sessionID)
             }
-            .tint(WorkspaceSwipeAction.mute.tint.color)
+            .tint(WorkspaceSwipeAction.mute.tint.style)
         }
     }
 
@@ -435,12 +435,12 @@ struct NewWorktreeSheet: View {
 }
 
 extension WorkspaceSwipeAction.Tint {
-    /// 灰用系統灰，跟滑動鈕預設一致。
-    var color: SwiftUI.Color {
+    /// 主色走 `prominentFill`(跟主機主題);灰用系統灰，跟滑動鈕預設一致。
+    var style: AnyShapeStyle {
         switch self {
-        case .accent: .accentColor
-        case .gray: .gray
-        case .red: .red
+        case .accent: AnyShapeStyle(.prominentFill)
+        case .gray: AnyShapeStyle(.gray)
+        case .red: AnyShapeStyle(.red)
         }
     }
 }
