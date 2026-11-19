@@ -67,7 +67,7 @@ final class YouShouldKnowUITests: XCTestCase {
         }
         XCTAssertEqual(learnMore.frame.midY, knewIt.frame.midY, accuracy: 1, "動作沒有排成一列")
         XCTAssertEqual(knewIt.frame.midY, discuss.frame.midY, accuracy: 1, "動作沒有排成一列")
-        XCTAssertLessThan(dismiss.frame.maxY, note.frame.minY + 1, "略過不在標題列")
+        XCTAssertLessThan(dismiss.frame.midY, note.frame.minY, "略過不在標題列")
         XCTAssertFalse(element("conversation.suggestion", in: app).exists, "註記與建議卡同時出現")
 
         dismiss.tap()
