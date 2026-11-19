@@ -80,6 +80,15 @@ final class AccessibilityAuditContext {
         app.descendants(matching: .any).matching(identifier: identifier).allElementsBoundByIndex.map(\.frame)
     }.filter { !$0.isEmpty }
 
+    /// 鍵盤讓位時收成一行的註記與建議卡(#196):DESIGN.md 通用規則明列的截斷例外。建議卡收成一行時沒有「Suggestion」小標，
+    /// 高度只有一行(AX5 約 60pt,完整卡片有小標、內容與下方的「填入」,遠高於 100pt)。
+    lazy var compactAccessories: [CGRect] = {
+        let note = app.descendants(matching: .any).matching(identifier: "youShouldKnow.compact").allElementsBoundByIndex.map(\.frame)
+        let suggestion = app.descendants(matching: .any).matching(identifier: "conversation.suggestion").allElementsBoundByIndex
+            .map(\.frame).filter { $0.height < 100 }
+        return (note + suggestion).filter { !$0.isEmpty }
+    }()
+
     /// 元素在導覽列裡(導覽列標題、工具列按鈕)。
     func isInNavigationBar(_ frame: CGRect) -> Bool {
         navigationBars.contains { $0.insetBy(dx: 0, dy: -4).contains(CGPoint(x: frame.midX, y: frame.midY)) }
@@ -238,6 +247,19 @@ enum AccessibilityAuditExclusions {
         ) { issue, context in
             guard let element = issue.element, element.elementType == .staticText, let sidebar = context.sidebar else { return false }
             return sidebar.contains(CGPoint(x: element.frame.midX, y: element.frame.midY))
+        },
+        Rule(
+            types: .textClipped,
+            reason: "鍵盤讓位時收成一行的 You should know 註記與建議卡(#196):DESIGN.md 通用規則明列的截斷例外，點了展開或填入，"
+                + "完整內容在 VoiceOver label。#249 截圖(0.45.0 Mac mini,testShellCommand AX5)確認被回報的是一行建議卡的「Run the…」;"
+                + "對應不到元素時只在畫面上有一行的註記或建議卡、且是 AX 字級時才算"
+        ) { issue, context in
+            guard !context.compactAccessories.isEmpty else { return false }
+            guard let element = issue.element else {
+                return context.isAccessibilitySize && issue.detailedDescription.contains("SwiftUI.AccessibilityNode")
+            }
+            let middle = CGPoint(x: element.frame.midX, y: element.frame.midY)
+            return context.compactAccessories.contains { $0.contains(middle) }
         },
         Rule(
             types: .sufficientElementDescription,
