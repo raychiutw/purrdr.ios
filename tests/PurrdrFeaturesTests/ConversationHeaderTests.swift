@@ -388,9 +388,13 @@ struct ConversationHeaderTests {
         #expect(phases.contains(.stopping))
         #expect(setup.model.stopPhase == .stopped)
         #expect(setup.model.showsStopBar)
-        stopping.cancel()
         await stopping.value
+        // 收起在另一個 task 等 2 秒(可被再次工作取消)。
+        for _ in 0..<2000 where await !sleeper.requested.contains(.seconds(2)) {
+            await Task.yield()
+        }
         #expect(await sleeper.requested.contains(.seconds(2)))
+        #expect(setup.model.stopPhase == .stopped)
     }
 
     @Test("停止：送不出 Esc → 停止列顯示送不出;關閉後收起")
