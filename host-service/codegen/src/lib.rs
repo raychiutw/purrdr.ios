@@ -6,6 +6,7 @@
 //! - 字串列舉:`type: string` + `enum`。
 //! - 訊息聯集:`oneOf` 只列 `$ref`,每個都是帶 `type` const 的物件。
 //!   有變體標 `x-write: true` 時，聯集多產生 `is_write()`(Swift `isWrite`)。
+//! - 頂層 `x-excluded-file-locations`:主機取檔的排除清單，產生成兩端共用的常數(#227)。
 
 use serde_json::Value;
 
@@ -57,6 +58,7 @@ enum Definition {
 /// schema 解析後的模型。
 pub struct Protocol {
     version: i64,
+    excluded_file_locations: Vec<String>,
     definitions: Vec<Definition>,
 }
 
@@ -64,12 +66,22 @@ impl Protocol {
     /// 解析 schema;用到子集合以外的寫法時回傳錯誤。
     pub fn parse(schema: &Value) -> Result<Self, String> {
         let version = schema["x-protocol-version"].as_i64().ok_or("缺少 x-protocol-version")?;
+        let excluded_file_locations = schema["x-excluded-file-locations"]
+            .as_array()
+            .ok_or("缺少 x-excluded-file-locations")?
+            .iter()
+            .map(|location| location.as_str().map(str::to_owned).ok_or("x-excluded-file-locations 只能是字串"))
+            .collect::<Result<Vec<_>, _>>()?;
         let definitions_json = schema["$defs"].as_object().ok_or("缺少 $defs")?;
         let mut definitions = Vec::new();
         for (name, definition) in definitions_json {
             definitions.push(parse_definition(name, definition, schema)?);
         }
-        Ok(Protocol { version, definitions })
+        Ok(Protocol {
+            version,
+            excluded_file_locations,
+            definitions,
+        })
     }
 
     /// 產生 Rust(serde)型別。
@@ -78,6 +90,10 @@ impl Protocol {
         output += &format!(
             "/// 協定版本(schema 的 `x-protocol-version`)。\npub const PROTOCOL_VERSION: i64 = {};\n",
             self.version
+        );
+        output += &format!(
+            "\n/// 主機取檔的排除清單(schema 的 `x-excluded-file-locations`)。\npub const EXCLUDED_FILE_LOCATIONS: &[&str] = &[{}];\n",
+            self.quoted_locations()
         );
         for definition in &self.definitions {
             output += "\n";
@@ -91,14 +107,26 @@ impl Protocol {
         let mut output = format!("// {HEADER}\n\nimport Foundation\n\n");
         output += "/// 主機服務協定(ADR-0010)的訊息型別。\npublic enum HostServiceProtocol {\n";
         output += &format!(
-            "    /// 協定版本(schema 的 `x-protocol-version`)。\n    public static let version = {}\n}}\n",
-            self.version
+            "    /// 協定版本(schema 的 `x-protocol-version`)。\n    public static let version = {}\n    /// 主機取檔的排除清單(schema 的 `x-excluded-file-locations`)。\n    public static let excludedFileLocations = [{}]\n}}\n",
+            self.version,
+            self.quoted_locations()
         );
         for definition in &self.definitions {
             output += "\n";
             output += &swift_definition(definition);
         }
         output
+    }
+}
+
+impl Protocol {
+    /// 排除清單的字串字面值(Rust 與 Swift 寫法相同)。
+    fn quoted_locations(&self) -> String {
+        self.excluded_file_locations
+            .iter()
+            .map(|location| serde_json::to_string(location).expect("字串可序列化"))
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 

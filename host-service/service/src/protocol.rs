@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 /// 協定版本(schema 的 `x-protocol-version`)。
 pub const PROTOCOL_VERSION: i64 = 1;
 
+/// 主機取檔的排除清單(schema 的 `x-excluded-file-locations`)。
+pub const EXCLUDED_FILE_LOCATIONS: &[&str] = &[".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains", ".codex/auth.json", ".claude/.credentials.json", ".purrdr/host-service", ".purrdr/push-*"];
+
 /// app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -41,6 +44,10 @@ pub enum ClientMessage {
     PaneTerminalScroll(PaneTerminalScroll),
     #[serde(rename = "pane.terminal.close")]
     PaneTerminalClose(PaneTerminalClose),
+    #[serde(rename = "file.stat")]
+    FileStat(FileStat),
+    #[serde(rename = "file.read")]
+    FileRead(FileRead),
 }
 
 impl ClientMessage {
@@ -88,6 +95,10 @@ pub enum ServerMessage {
     PaneTerminalFrame(PaneTerminalFrame),
     #[serde(rename = "pane.terminal.closed")]
     PaneTerminalClosed(PaneTerminalClosed),
+    #[serde(rename = "file.stat.result")]
+    FileStatResult(FileStatResult),
+    #[serde(rename = "file.read.result")]
+    FileReadResult(FileReadResult),
     #[serde(rename = "error")]
     ErrorMessage(ErrorMessage),
 }
@@ -538,6 +549,67 @@ pub struct EventsUnsubscribeResult {
     pub request_id: String,
 }
 
+/// 主機取檔(#227):查檔案狀態。只允許 herdr snapshot 目前回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑;主機服務解析 symlink 後再比對工作目錄與排除清單(x-excluded-file-locations)。唯讀，唯讀裝置也可用。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileStat {
+    pub request_id: String,
+    /// 主機上的絕對路徑(不可含 . 或 .. 段落)。
+    pub path: String,
+}
+
+/// 檔案狀態。status 是 file 時帶版本(內容的 SHA-256)與大小;too_large 只帶大小。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileStatResult {
+    pub request_id: String,
+    pub status: FileStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+}
+
+/// file:可讀的一般檔案;missing:不存在;not_regular_file:資料夾、FIFO、裝置等;unreadable:沒有權限或讀取失敗;denied:存取規則不允許;too_large:超過 25 MiB。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum FileStatus {
+    #[serde(rename = "file")]
+    File,
+    #[serde(rename = "missing")]
+    Missing,
+    #[serde(rename = "not_regular_file")]
+    NotRegularFile,
+    #[serde(rename = "unreadable")]
+    Unreadable,
+    #[serde(rename = "denied")]
+    Denied,
+    #[serde(rename = "too_large")]
+    TooLarge,
+}
+
+/// 依版本讀 offset 起最多 length bytes(每次最多 1 MiB)。從頭讀(offset 0)或還沒有這個檔案的快照時，主機服務先檢查存取規則、把檔案讀成這條連線的快照並比對版本;之後的分塊從快照讀，分塊之間檔案被覆寫也不會拼出兩個版本。版本不符回 file_changed。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileRead {
+    pub request_id: String,
+    pub path: String,
+    /// file.stat 回報的版本。
+    pub version: String,
+    pub offset: i64,
+    pub length: i64,
+}
+
+/// status 是 file 時帶 offset 與 bytes(標準 base64,超過檔尾時為空);其他狀態同 file.stat,不帶內容。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileReadResult {
+    pub request_id: String,
+    pub status: FileStatus,
+    /// status 是 too_large 時的大小。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<String>,
+}
+
 /// POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PairRequest {
@@ -572,7 +644,7 @@ pub struct ErrorMessage {
     pub supported_protocol_versions: Option<Vec<i64>>,
 }
 
-/// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
+/// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ErrorCode {
     #[serde(rename = "invalid_message")]
@@ -609,6 +681,8 @@ pub enum ErrorCode {
     TranscriptAmbiguous,
     #[serde(rename = "transcript_compressed")]
     TranscriptCompressed,
+    #[serde(rename = "file_changed")]
+    FileChanged,
     #[serde(rename = "internal_error")]
     InternalError,
 }

@@ -2,8 +2,8 @@ import Foundation
 
 /// 主機取檔(GLOSSARY「主機取檔」,#225):從主機讀 Agent 碰過的檔案。只有兩個操作——查狀態、依版本分塊讀取。
 ///
-/// adapter:SSH(`SSHHostFileFetcher`,長駐通道跑 `HostFileFetchScript`)、Demo、測試用 Fake;
-/// 還沒支援的連線方式(Windows #226、HTTPS #227)回 `HostFileFetchError.unsupported`。
+/// adapter:SSH(`SSHHostFileFetcher`,長駐通道跑 `HostFileFetchScript`)、HTTPS(`HTTPSHostConnection`,主機服務的
+/// `file.stat`／`file.read`,#227)、Demo、測試用 Fake;還沒支援的連線方式或主機回 `HostFileFetchError.unsupported`。
 /// 存取規則在呼叫前由 `HostFileAccessPolicy` 檢查(app 端),主機端再檢查一次(權威)。
 public protocol HostFileFetching: Sendable {
     /// 查狀態：存在、大小、版本。
@@ -89,13 +89,9 @@ public enum HostFileAccessPolicy {
         case denied
     }
 
-    /// 排除清單：路徑任何位置連續出現這些段落就不讀(不分大小寫;`*` 結尾比對開頭)。主機端腳本用同一份(`HostFileFetchScript`)。
-    /// SSH 金鑰、GPG、雲端與套件憑證、keychain、密碼庫、Agent 的登入憑證、Purrdr 主機服務與推播配對。
-    package static let excludedLocations = [
-        ".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials",
-        ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains",
-        ".codex/auth.json", ".claude/.credentials.json", ".purrdr/host-service", ".purrdr/push-*",
-    ]
+    /// 排除清單：路徑任何位置連續出現這些段落就不讀(不分大小寫;`*` 結尾比對開頭)。定義在主機服務協定 schema 的
+    /// `x-excluded-file-locations`,SSH 取檔腳本(`HostFileFetchScript`)與主機服務(#227)用同一份。
+    package static let excludedLocations = HostServiceProtocol.excludedFileLocations
 
     public static func decision(for path: String, in scope: HostFileAccessScope) -> Decision {
         guard let components = components(of: path), !isExcluded(components) else { return .denied }
