@@ -32,13 +32,16 @@ public typealias PaneTerminalView = TerminalSessionView
 /// 輸入、按鍵列、貼上、滑動都經過 model(Pane 終端機變成 herdr 的訊息，登入 Shell 直接寫進 PTY)。
 public struct TerminalSessionView: View {
     let model: any TerminalSessionModel
+    /// 登入 Shell 的主機挑選鈕(#245);Pane 終端機沒有。
+    let hostPicker: HostPickerModel?
     @Environment(\.scenePhase) private var scenePhase
     @State private var screen = TerminalScreenHandle()
     /// 主機主題的終端機配色(#23);`nil` 時用預設深色。
     @Environment(\.hostTheme) private var hostTheme
 
-    public init(model: any TerminalSessionModel) {
+    public init(model: any TerminalSessionModel, hostPicker: HostPickerModel? = nil) {
         self.model = model
+        self.hostPicker = hostPicker
     }
 
     public var body: some View {
@@ -55,7 +58,7 @@ public struct TerminalSessionView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                TerminalTitle(title: model.title, status: model.status, statusText: model.statusText)
+                TerminalTitle(title: model.title, status: model.status, statusText: model.statusText, hostPicker: hostPicker)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 FontSizeMenu(model: model)
@@ -86,24 +89,40 @@ struct TerminalTitle: View {
     let title: String
     let status: TerminalStatus
     let statusText: String
+    var hostPicker: HostPickerModel?
 
     var body: some View {
-        VStack(spacing: 0) {
-            Text(title)
-                .font(.headline)
-                .lineLimit(1)
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(status.tone.style)
-                    .frame(width: 8, height: 8)
-                    .accessibilityHidden(true)
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondaryText)
+        if let hostPicker {
+            // 主機挑選鈕是自己的按鈕;狀態另成一個元素，念出主機與狀態。
+            VStack(spacing: 2) {
+                HostPickerButton(model: hostPicker, identifier: "loginShell.host")
+                statusRow
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "\(title), \(statusText)"))
+                    .accessibilityIdentifier("terminal.status")
             }
+        } else {
+            VStack(spacing: 0) {
+                Text(title)
+                    .font(.headline)
+                    .lineLimit(1)
+                statusRow
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("terminal.status")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("terminal.status")
+    }
+
+    private var statusRow: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(status.tone.style)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+            Text(statusText)
+                .font(.caption)
+                .foregroundStyle(.secondaryText)
+        }
     }
 }
 

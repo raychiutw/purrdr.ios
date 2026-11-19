@@ -90,12 +90,12 @@ public struct TopNavigationView: View {
                         navigation.sheet = nil
                     }
                 case .newChat:
-                    NewChatSheet(model: hosts.newChat()) {
+                    NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker(listFilter: newChatListFilter)) {
                         navigation.sheet = nil
-                    } onStarted: { workspace in
+                    } onStarted: { workspace, host in
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
                         navigation.sheet = nil
-                        Task { await hosts.openStartedChat(workspace) }
+                        Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
             }
@@ -159,14 +159,10 @@ public struct TopNavigationView: View {
                 // 登入 Shell、檔案瀏覽:窄視窗推疊在列表上;三欄時顯示在對話欄。
                 .navigationDestination(item: $hostTool) { tool in
                     switch tool {
-                    case .loginShell(let model):
-                        #if canImport(UIKit)
-                        TerminalSessionView(model: model)
-                        #else
-                        Text(verbatim: model.title)
-                        #endif
-                    case .files(let model):
-                        FolderBrowserView(model: model)
+                    case .loginShell(let picker):
+                        LoginShellScreen(hosts: hosts, picker: picker)
+                    case .files(let picker):
+                        FilesScreen(hosts: hosts, picker: picker)
                     case .planUsage(let model):
                         PlanUsageView(model: model)
                     }
@@ -239,7 +235,11 @@ public struct TopNavigationView: View {
         }
     }
 
-    /// 「⋯」選單的一項。登入 Shell 與檔案開選取中主機的(行為規格 F13;iPad 上也是推疊)。
+    /// 新增聊天預設的主機：聊天列表的主機篩選(`nil` 是所有主機，改用選取中主機,#245)。
+    /// #244 的 `MergedAgentListModel.hostFilter` 合進來後改讀 `hosts.agentList.hostFilter`;在那之前一律是所有主機。
+    private var newChatListFilter: HostSelection? { nil }
+
+    /// 「⋯」選單的一項。登入 Shell 與檔案預設上次選的主機，畫面上可換(#245;iPad 上也是推疊)。
     @ViewBuilder
     private func moreMenuButton(_ item: MoreMenuItem) -> some View {
         switch item {
@@ -251,9 +251,9 @@ public struct TopNavigationView: View {
             // 方案用量(#177):獨立畫面，選主機與 Agent 後查詢。
             Button("Plan Usage", systemImage: "gauge.with.dots.needle.33percent") { hostTool = .planUsage(hosts.planUsage()) }
         case .loginShell:
-            Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
+            Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.hostPicker(for: .loginShell)) }
         case .files:
-            Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
+            Button("Files", systemImage: "folder") { hostTool = .files(hosts.hostPicker(for: .files)) }
         case .settings:
             Button("Settings", systemImage: "gearshape") { navigation.sheet = .settings }
         }
@@ -268,10 +268,11 @@ extension TopNavigationView {
     #endif
 }
 
-/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始、方案用量重新查一次)。
+/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始、方案用量重新查一次);
+/// 登入 Shell 與檔案帶主機挑選鈕，換主機時畫面自己重建 model。
 enum HostTool: Hashable {
-    case loginShell(LoginShellModel)
-    case files(FolderBrowserModel)
+    case loginShell(HostPickerModel)
+    case files(HostPickerModel)
     case planUsage(PlanUsageModel)
 
     private var object: AnyObject {
@@ -286,20 +287,49 @@ enum HostTool: Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(object)) }
 }
 
-/// 新增對話的 sheet:model 在 sheet 開啟時建立一次(選取中主機),之後重繪不重建。
+/// 新增對話的 sheet:主機挑選鈕在 sheet 開啟時建立一次;換主機就在那台主機重建表單(#245)。
 private struct NewChatSheet: View {
-    @State private var model: NewChatModel
+    let hosts: HostsModel
+    @State private var picker: HostPickerModel
     let onCancel: () -> Void
-    let onStarted: (CreatedWorkspace) -> Void
+    let onStarted: (CreatedWorkspace, HostSelection) -> Void
 
-    init(model: @autoclosure () -> NewChatModel, onCancel: @escaping () -> Void, onStarted: @escaping (CreatedWorkspace) -> Void) {
-        _model = State(wrappedValue: model())
+    init(
+        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, onCancel: @escaping () -> Void,
+        onStarted: @escaping (CreatedWorkspace, HostSelection) -> Void
+    ) {
+        self.hosts = hosts
+        _picker = State(wrappedValue: picker())
         self.onCancel = onCancel
         self.onStarted = onStarted
     }
 
     var body: some View {
-        NewChatView(model: model, onCancel: onCancel, onStarted: onStarted)
+        let host = picker.selection
+        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host) }
+            .id(host)
+    }
+}
+
+/// 一台主機上的新增對話表單：model 建立一次，之後重繪不重建。
+private struct NewChatForm: View {
+    @State private var model: NewChatModel
+    let picker: HostPickerModel
+    let onCancel: () -> Void
+    let onStarted: (CreatedWorkspace) -> Void
+
+    init(
+        model: @autoclosure () -> NewChatModel, picker: HostPickerModel, onCancel: @escaping () -> Void,
+        onStarted: @escaping (CreatedWorkspace) -> Void
+    ) {
+        _model = State(wrappedValue: model())
+        self.picker = picker
+        self.onCancel = onCancel
+        self.onStarted = onStarted
+    }
+
+    var body: some View {
+        NewChatView(model: model, hostPicker: picker, onCancel: onCancel, onStarted: onStarted)
     }
 }
 

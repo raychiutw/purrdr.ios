@@ -3309,6 +3309,17 @@
         }
       }
     },
+    "Host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機：%@"
+          }
+        }
+      }
+    },
     "Hosts" : {
       "extractionState" : "manual",
       "localizations" : {
