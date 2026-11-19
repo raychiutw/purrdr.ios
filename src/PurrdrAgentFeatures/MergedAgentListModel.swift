@@ -18,18 +18,43 @@ public struct HostFailure: Equatable, Sendable {
     public var text: String { String(localized: "\(name): \(message)") }
 }
 
+/// 一台還沒讀到或讀不到的主機在列表上的狀態列(#221)。
+public struct HostLoadStatus: Equatable, Sendable {
+    public enum State: Equatable, Sendable {
+        /// 連線中(第一次載入或按了再試一次)。
+        case connecting
+        /// 連線超過 `slowConnectionThreshold`:仍在連線，提供再試一次。
+        case stillConnecting
+    }
+
+    public var host: HostSelection
+    public var name: String
+    public var icon: HostIcon
+    public var state: State
+
+    public init(host: HostSelection, name: String, icon: HostIcon, state: State) {
+        self.host = host
+        self.name = name
+        self.icon = icon
+        self.state = state
+    }
+}
+
 /// 所有主機合併成的 Agent 列表(#39;取代 #10「切換目前主機」只看一台)。
 ///
 /// - 每台主機各自一個 `AgentListModel`:各自連線、各自事件訂閱、各自錯誤與退避;一台連不上不影響其他台。
 /// - 連不上的主機保留最後讀到的列，列表下方顯示「主機名：原因」。
-/// - 選取中主機只決定排序(在前)、哪些列不標示主機名，以及沒有任何列時誰的錯誤佔滿畫面。
+/// - 選取中主機只決定排序(在前)、哪些列不標示主機名，以及每台都讀不到時誰的錯誤佔滿畫面。
 @MainActor
 @Observable
 public final class MergedAgentListModel {
     /// 畫面要呈現的內容。
     public enum Content: Equatable {
+        /// 第一次載入、還沒有任何列：列表骨架與各主機的連線狀態(不整頁轉圈,#221)。
         case loading
-        /// 沒有任何列，選取中主機讀不到:錯誤佔滿畫面。
+        /// 裝置沒有網路、也沒有任何列：離線畫面與再試一次(不等連線逾時,#221)。
+        case offline
+        /// 沒有任何列，每台主機都讀不到:選取中主機的錯誤佔滿畫面。
         case failed(String)
         /// 所有主機都讀到了，沒有 Agent。
         case empty
@@ -218,6 +243,23 @@ public final class MergedAgentListModel {
         }
     }
 
+    /// 裝置有沒有網路(網路路徑監看提供;沒有時不等連線逾時就顯示離線)。
+    public var isNetworkAvailable = true
+
+    /// 連線多久沒有結果就顯示「仍在連線」與再試一次。
+    public static let slowConnectionThreshold: TimeInterval = 10
+
+    /// 還在連線的主機，各一行狀態(依主機順序)。
+    public func hostStatuses(at now: Date) -> [HostLoadStatus] {
+        sources.compactMap { source in
+            // 沒網路時連不上是確定的：列表只顯示離線，不逐台顯示連線中。
+            guard isNetworkAvailable, hostFilter == nil || source.host == hostFilter, source.list.phase == .loading else { return nil }
+            let elapsed = now.timeIntervalSince(source.list.updates.connectingSince)
+            let state: HostLoadStatus.State = elapsed >= Self.slowConnectionThreshold ? .stillConnecting : .connecting
+            return HostLoadStatus(host: source.host, name: source.name, icon: source.icon, state: state)
+        }
+    }
+
     /// 任何一台主機有 Agent 以外的 pane(終端機;Spaces 檢視的卡片看得到)。
     private var hasTerminals: Bool {
         sources.contains { $0.list.snapshot?.terminalPanes.isEmpty == false }
@@ -225,10 +267,22 @@ public final class MergedAgentListModel {
 
     public var content: Content {
         if hasAgents { return .list }
-        if case .failed(let message)? = list(for: selected)?.phase { return .failed(message) }
+        if !isNetworkAvailable { return .offline }
+        if let message = allFailedMessage { return .failed(message) }
         if sources.contains(where: { $0.list.phase == .loading }) { return .loading }
         if hasTerminals { return mode == .spaces ? .list : .noAgentsInAgentsView }
         return failures.isEmpty ? .empty : .list
+    }
+
+    /// 每台主機都讀不到時，佔滿畫面的錯誤：選取中主機的(#221:只有一部分讀不到時錯誤留在那台主機的狀態行)。
+    private var allFailedMessage: String? {
+        let messages = sources.map { source -> String? in
+            if case .failed(let message) = source.list.phase { return message }
+            return nil
+        }
+        guard !messages.isEmpty, messages.allSatisfy({ $0 != nil }) else { return nil }
+        if case .failed(let message)? = list(for: selected)?.phase { return message }
+        return messages.first ?? nil
     }
 
     /// 所有主機的「You should know」註記(#23):只算列表裡有的 Claude 聊天(以完整 session id 配對)。
@@ -305,14 +359,14 @@ public final class MergedAgentListModel {
         for source in sources { source.list.retryNow() }
     }
 
-    /// 「再試一次」:讀不到的主機各自重試(取消 Tailscale 重新驗證而停著的，重新開始即時更新)。
+    /// 「再試一次」:讀不到的主機各自重試並改回連線中(取消 Tailscale 重新驗證而停著的，重新開始即時更新);
+    /// 還在連的主機丟掉卡住的連線重新開始(#221)。
     public func retry() {
-        for source in sources {
-            guard case .failed = source.list.phase else { continue }
+        for source in sources where source.list.phase != .loaded {
             if source.list.isWaitingForRetry {
                 Task { await source.list.load() }
             } else {
-                source.list.retryNow()
+                source.list.retry()
             }
         }
     }

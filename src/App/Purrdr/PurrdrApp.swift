@@ -81,8 +81,12 @@ struct PurrdrApp: App {
                 // 滑動提示每次啟動都顯示(只在記憶體)。
                 swipeHint: InMemorySwipeHintStore(),
                 listMode: Self.uiTestingListMode(arguments),
-                // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台)。
-                makeChannel: { endpoint, _, _ in endpoint.host == Self.unreachableHost.ssh?.endpoint.host ? DemoUnreachableChannel() as any HostChannel : demo })
+                // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
+                makeChannel: { endpoint, _, _ in
+                    if endpoint.host == Self.unreachableHost.ssh?.endpoint.host { return DemoUnreachableChannel() as any HostChannel }
+                    if endpoint.host == Self.slowHost.ssh?.endpoint.host { return DemoUnreachableChannel(hangs: true) as any HostChannel }
+                    return demo
+                })
         } else {
             // 公鑰註解只帶裝置種類(「iPhone」「iPad」),不帶使用者取的裝置名稱。
             let credentials = HostCredentials(
@@ -108,6 +112,8 @@ struct PurrdrApp: App {
                     diagnostics: SSHConnectionLog.system(host: endpoint.host))
             }
         }
+        // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
+        if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
         hosts.haptics = SystemHaptics()
         hosts.reviewPrompt = Self.makeReviewPrompt(uiTesting: uiTesting)
         hosts.load()
@@ -189,6 +195,11 @@ struct PurrdrApp: App {
         ]
     }
 
+    /// UI 測試情境 `-seedSlowHost`:再存一台連線卡住的主機(列表的「連線中」與「仍在連線」,#221)。
+    private static let slowHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000004")!, name: "Slow Box",
+        endpoint: SSHEndpoint(host: "slow-box.invalid", username: "demo"), operatingSystem: .linux)
+
     /// UI 測試情境 `-seedUnpairedHTTPSHost`:主機同步帶來、這支裝置還沒配對的 HTTPS 主機(#63)。
     private static let unpairedHTTPSHost = HostConfiguration(
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000003")!, name: "Studio HTTPS",
@@ -197,11 +208,12 @@ struct PurrdrApp: App {
     private static func seededHosts(_ arguments: [String]) -> [HostConfiguration] {
         (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
             + (arguments.contains("-seedUnpairedHTTPSHost") ? [unpairedHTTPSHost] : [])
+            + (arguments.contains("-seedSlowHost") ? [slowHost] : [])
     }
 
     /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成);
     /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話 8 秒後、或每次送出 prompt 後 agent 一次寫出大量輸出(#130);
-    /// 啟動 12 秒後斷網(立刻失敗，或每個指令等 10 秒才失敗,#219)。
+    /// 啟動 12 秒後斷網(立刻失敗，或每個指令等 10 秒才失敗,#219);啟動就沒有網路(每個指令等 10 秒才失敗,#221)。
     /// 情境只能選一個：旗標互斥，同時帶多個時只採用下面順序中的第一個。
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
@@ -214,6 +226,7 @@ struct PurrdrApp: App {
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
         if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(12), hangs: false) }
         if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(12), hangs: true) }
+        if arguments.contains("-demoNoNetwork") { return .goesOffline(after: .zero, hangs: true) }
         return .standard
     }
 

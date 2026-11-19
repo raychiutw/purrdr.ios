@@ -142,6 +142,9 @@ public final class AgentListModel {
     /// 使用者按「重試」或網路恢復：正在退避就立刻重連。
     public func retryNow() { updates.retryNow() }
 
+    /// 使用者按「再試一次」:讀不到的改回連線中，還在連的重新開始(#221)。
+    public func retry() { updates.retry() }
+
     /// 各 pane 的預覽是讀哪個 session 時取得的(R-I04);有值代表這個 session 讀過(即使沒有可讀訊息)。
     private var previewSessions: [String: String] = [:]
     /// 各 pane 讀預覽時的 Agent 狀態;狀態變了才重讀。

@@ -1917,6 +1917,17 @@
         }
       }
     },
+    "Connect to Wi-Fi or cellular data to see your agents. Purrdr reconnects automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連上 Wi-Fi 或行動網路就能看到你的 Agent。Purrdr 會自動重新連線。"
+          }
+        }
+      }
+    },
     "Connected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4106,17 +4117,6 @@
         }
       }
     },
-    "Loading agents…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在載入 Agent…"
-          }
-        }
-      }
-    },
     "Loading conversation…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4447,6 +4447,17 @@
         }
       }
     },
+    "No Internet Connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有網路連線"
+          }
+        }
+      }
+    },
     "No Layout" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4509,6 +4520,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這裡沒有子資料夾。仍然可以使用這個資料夾。"
+          }
+        }
+      }
+    },
+    "No internet connection. Showing agents from your last connection." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有網路連線。顯示上次連線時的 Agent。"
           }
         }
       }
@@ -6863,6 +6885,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "狀態"
+          }
+        }
+      }
+    },
+    "Still connecting…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍在連線…"
           }
         }
       }
