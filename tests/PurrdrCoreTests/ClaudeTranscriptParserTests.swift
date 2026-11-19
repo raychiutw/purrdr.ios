@@ -21,6 +21,7 @@ struct ClaudeTranscriptParserTests {
         case .subagent(let card): "subagent: \(card.title)"
         case .workflow(let card): "workflow: \(card.name)"
         case .shell(let run): "shell: \(run.command)"
+        case .agentFile(let card): "file: \(card.file.name)"
         case .toolRun(let run):
             "tools: " + run.steps.map { step in
                 switch step.kind {

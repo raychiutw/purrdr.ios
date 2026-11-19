@@ -129,6 +129,7 @@ struct DelegationCardTests {
             case .skill: "skill"
             case .note: "note"
             case .shell: "shell"
+            case .agentFile: "file"
             }
         }
 

@@ -18,6 +18,8 @@ public enum ConversationItem: Sendable, Equatable, Identifiable {
     case workflow(WorkflowCard)
     /// Shell `!` 指令與它的輸出(F5.9)。
     case shell(ShellRun)
+    /// 檔案卡片：Agent 寫入或修改的檔案(#224)。
+    case agentFile(AgentFileCard)
 
     public var id: String {
         switch self {
@@ -29,6 +31,7 @@ public enum ConversationItem: Sendable, Equatable, Identifiable {
         case .subagent(let item): item.id
         case .workflow(let item): item.id
         case .shell(let item): item.id
+        case .agentFile(let item): item.id
         }
     }
 }
@@ -88,6 +91,19 @@ public struct ShellRun: Sendable, Equatable {
         self.command = command
         self.date = date
         self.output = output
+    }
+}
+
+/// 檔案卡片(GLOSSARY):一個 Agent 檔案參照在對話中的位置。
+public struct AgentFileCard: Sendable, Equatable {
+    public var id: String
+    public var file: AgentFileReference
+    public var date: Date?
+
+    public init(id: String, file: AgentFileReference, date: Date?) {
+        self.id = id
+        self.file = file
+        self.date = date
     }
 }
 
@@ -310,6 +326,9 @@ public enum Conversation {
                         run.output = .recorded(output)
                         items[index] = .shell(run)
                     }
+                case .agentFile(let file):
+                    // 不結束工具串：同一串的寫檔卡片依序排在工具串之後(DESIGN「檔案卡片」)。
+                    items.append(.agentFile(AgentFileCard(id: partID, file: file, date: message.date)))
                 }
             }
             let (text, paths) = UploadedImages.extract(from: userTexts.joined(separator: "\n"))

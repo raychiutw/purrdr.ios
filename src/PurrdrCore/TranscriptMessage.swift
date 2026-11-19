@@ -50,6 +50,8 @@ public enum TranscriptPart: Sendable, Equatable, Codable {
     case shellInput(String)
     /// 上一個 `!` 指令的輸出(`<bash-stdout>`、`<bash-stderr>`)。
     case shellOutput(ShellOutput)
+    /// Agent 寫入或修改的主機檔案(#224):成為檔案卡片。
+    case agentFile(AgentFileReference)
 }
 
 /// Shell `!` 指令的輸出(行為規格 F5.9):已解 HTML 跳脫、去掉 ANSI 色碼與前後換行，各自最多 20,000 字。

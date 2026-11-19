@@ -309,6 +309,7 @@ extension ConversationItem {
         case .subagent(let card): card.startedAt
         case .workflow(let card): card.startedAt
         case .shell(let run): run.date
+        case .agentFile(let card): card.date
         case .toolRun, .skill, .note: nil
         }
     }
