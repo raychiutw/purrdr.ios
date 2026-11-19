@@ -17,6 +17,10 @@ public struct ConversationScroll: Equatable, Sendable {
     private var returnedAtLayout: ConversationScrollMetrics.Layout?
     /// 同一個排版第二次捲回(改以底部位移)的排版(#251):再被推回內容之外就真的不再捲。
     private var offsetReturnedAtLayout: ConversationScrollMetrics.Layout?
+    /// 以位移捲回(或之後再以位移捲)時的內容高度;`nil` 是還沒以位移捲過(#251)。
+    private var offsetFollowedContentHeight: Double?
+    /// 以位移捲回後再以位移捲的次數。
+    private var offsetFollows = 0
     /// 一列都沒顯示時已經再捲的次數(#191)。
     private var refills = 0
     /// 沒有新內容、使用者也沒捲、可見範圍高度也沒變時已經連續捲回內容的次數(#251)。
@@ -41,6 +45,7 @@ public struct ConversationScroll: Equatable, Sendable {
         rebuiltAt = nil
         refills = 0
         returns = 0
+        offsetFollowedContentHeight = nil
         following = distanceFromBottom <= Self.threshold
     }
 
@@ -49,8 +54,25 @@ public struct ConversationScroll: Equatable, Sendable {
         self.distanceFromBottom = distanceFromBottom
     }
 
-    /// 這次捲回要不要直接捲到底部位移(`bottomContentOffsetY`)而不是最後一列(#251)。
+    /// 這次捲回要不要直接捲到底部位移(`bottomScrollPositionY`)而不是最後一列(#251)。
     public func returnsByOffset(_ metrics: ConversationScrollMetrics) -> Bool { metrics.layout == returnedAtLayout }
+
+    /// 以位移捲回後(`returnsByOffset`),ScrollPosition 停在那個位移、不再跟著底部;那裡的列排出實際高度、內容變高，
+    /// 畫面就停在對話中間(AX5 開啟長對話,#251)。跟隨中、內容高度又變了、不在底部時，以新的底部位移再捲。
+    /// 捲動途中同一個內容高度的位置不算;次數有上限，使用者自己捲過或下一次以位移捲回時重新計算。
+    public func followsByOffset(_ metrics: ConversationScrollMetrics) -> Bool {
+        guard following, let height = offsetFollowedContentHeight, offsetFollows < Self.maximumOffsetFollows else { return false }
+        return metrics.contentHeight != height && abs(metrics.distanceFromBottom) > Self.threshold
+    }
+
+    /// `followsByOffset` 成立、畫面以新的底部位移再捲時呼叫。
+    public mutating func followedByOffset(_ metrics: ConversationScrollMetrics) {
+        offsetFollowedContentHeight = metrics.contentHeight
+        offsetFollows += 1
+    }
+
+    /// 以位移捲回後、內容高度又變時再以位移捲的次數上限(#251)。
+    public static let maximumOffsetFollows = 5
 
     /// 跟隨中畫面捲去顯示新出現、但不是對話項目的內容(slash 面板、需要你、工作中指示)時呼叫(#251)。
     public mutating func followedNewContent() {
@@ -136,7 +158,11 @@ extension ConversationScroll {
     /// `returnsToContent` 或 `refillsVisibleRange` 成立、畫面捲回內容時呼叫：切回跟隨，記下這次的排版。
     public mutating func returnedToContent(_ metrics: ConversationScrollMetrics) {
         jumpToLatest()
-        if metrics.layout == returnedAtLayout { offsetReturnedAtLayout = metrics.layout }
+        if metrics.layout == returnedAtLayout {
+            offsetReturnedAtLayout = metrics.layout
+            offsetFollowedContentHeight = metrics.contentHeight
+            offsetFollows = 0
+        }
         returnedAtLayout = metrics.layout
         refills += 1
         if metrics.containerHeight != returnsContainerHeight {
@@ -197,10 +223,10 @@ public struct ConversationScrollMetrics: Equatable, Sendable {
         Layout(contentHeight: contentHeight, containerHeight: containerHeight, topInset: topInset, bottomInset: bottomInset)
     }
 
-    /// 捲到底時的 `contentOffsetY`:內容底緣貼齊可見範圍底緣(`distanceFromBottom` 為 0);內容比畫面矮時停在頂端。
-    /// 可見範圍小、底部 inset 大時，捲到最後一列(anchor `.bottom`)會多捲一個底部 inset,所以捲回內容時直接用這個位移(#251)。
-    public var bottomContentOffsetY: Double {
-        max(contentHeight - containerHeight - topInset, -topInset)
+    /// 捲到底時 `ScrollPosition.scrollTo(y:)` 要給的值：從內容頂端量起、不含頂部 inset(實測 `scrollTo(y:)` 之後
+    /// contentOffset 少一個頂部 inset,#251)。內容比畫面矮時是 0。
+    public var bottomScrollPositionY: Double {
+        max(contentHeight - containerHeight, 0)
     }
 
     /// 可見範圍頂緣到內容頂緣的距離。

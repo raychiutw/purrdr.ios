@@ -68,6 +68,12 @@ final class AccessibilityAuditContext {
         return menu.exists ? menu.frame : nil
     }()
 
+    /// slash 選單自己的列與文字：完全落在選單範圍內、卻不是這些的元素，是整個被選單蓋住的訊息(#251)。
+    lazy var slashMenuContents: [CGRect] = {
+        let menu = app.descendants(matching: .any)["slash.menu"].firstMatch
+        return menu.exists ? menu.descendants(matching: .any).allElementsBoundByIndex.map(\.frame) : []
+    }()
+
     lazy var window: CGRect = app.windows.firstMatch.frame
 
     /// 卡片裡的內層捲動區(slash 面板的選項清單，最高 240pt):裡面的列與它們的文字。捲出這一區的列被裁掉，
@@ -105,7 +111,7 @@ final class AccessibilityAuditContext {
 
     /// 元素被系統的玻璃層或容器蓋住、裁掉：
     /// - 中線落在狀態列、導覽列與其下方 24pt 的 scroll edge effect、或底部玻璃層(搜尋欄、輸入列、按鍵列)底下;
-    /// - 有一部分在 slash 選單的範圍外(在選單後面的訊息，或選單裡捲到圓角外被裁掉的列);
+    /// - 有一部分在 slash 選單的範圍外(在選單後面的訊息，或選單裡捲到圓角外被裁掉的列),或整個在選單範圍內、卻不是選單的列(整個被蓋住的訊息);
     /// - 是面板選項清單(內層捲動區)的列，卻在那一區外(捲出去被裁掉);
     /// - 超出視窗(例如可橫捲的 shell 輸出、捲到畫面外的列)。
     /// 只看中線：邊緣擦到玻璃的元素仍要受檢。
@@ -115,7 +121,7 @@ final class AccessibilityAuditContext {
         let middle = CGPoint(x: frame.midX, y: frame.midY)
         let tops = navigationBars.map { CGRect(x: $0.minX, y: window.minY, width: $0.width, height: $0.maxY + 24 - window.minY) }
         if (tops + bottomBars).contains(where: { $0.contains(middle) }) { return true }
-        if let slashMenu, slashMenu.intersects(frame), !slashMenu.contains(frame) { return true }
+        if let slashMenu, slashMenu.intersects(frame), !slashMenu.contains(frame) || !slashMenuContents.contains(frame) { return true }
         // 內層捲動區裡、捲出那一區被裁掉的列(以 frame 對到該區的子元素)。
         if innerScrollRegions.contains(where: { region in
             region.contents.contains(frame) && !region.frame.insetBy(dx: -1, dy: -1).contains(frame)

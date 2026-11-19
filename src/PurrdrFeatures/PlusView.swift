@@ -195,14 +195,14 @@ public struct PlusView: View {
 
     private var termsLink: some View {
         Link(destination: PurrdrLinks.termsOfUse) {
-            Text("Terms of Use").padding(.vertical, 13)
+            Text("Terms of Use").padding(.vertical, 13).frame(minHeight: 44)
         }
         .accessibilityIdentifier("plus.terms")
     }
 
     private var privacyLink: some View {
         Link(destination: PurrdrLinks.privacyPolicy) {
-            Text("Privacy Policy").padding(.vertical, 13)
+            Text("Privacy Policy").padding(.vertical, 13).frame(minHeight: 44)
         }
         .accessibilityIdentifier("plus.privacy")
     }
