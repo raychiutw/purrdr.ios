@@ -35,6 +35,7 @@ struct PlusSetupCard: View {
                 row(step)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("account.plusSetup")
     }
 

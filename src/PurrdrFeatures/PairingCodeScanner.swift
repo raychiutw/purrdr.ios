@@ -116,6 +116,7 @@ struct PairingCodeScannerView: View {
             Button("Enter Manually") { dismiss() }
                 .accessibilityIdentifier("scanner.manual")
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("scanner.denied")
     }
 
