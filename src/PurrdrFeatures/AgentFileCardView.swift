@@ -16,12 +16,15 @@ struct AgentFileCardDisplay {
 
     let file: AgentFileReference
 
-    /// 「Created」「Overwritten」「Edited」。
+    /// 「Created」「Overwritten」「Edited」;圖片是「Read」「Captured」(工具結果帶圖)「Generated」。
     var originText: String {
         switch file.origin {
         case .created: String(localized: "Created")
         case .overwritten: String(localized: "Overwritten")
         case .edited: String(localized: "Edited")
+        case .readImage: String(localized: "Read")
+        case .toolImage: String(localized: "Captured")
+        case .generatedImage: String(localized: "Generated")
         }
     }
 

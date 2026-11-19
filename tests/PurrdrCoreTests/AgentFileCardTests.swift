@@ -10,13 +10,14 @@ struct AgentFileCardTests {
     static let fixture = "agent-files.jsonl"
     static let notesPath = #"C:\Users\demo\Projects\ledger\notes.txt"#
 
+    /// 寫檔的參照(讀圖片、工具結果帶圖見 `AgentImageReferenceTests`)。
     static func fileReferences(_ lines: [String]) -> [AgentFileReference] {
         lines.flatMap(ClaudeTranscriptParser.messages(in:)).flatMap(\.parts).compactMap { part in
-            if case .agentFile(let file) = part { file } else { nil }
+            if case .agentFile(let file) = part, [.created, .edited, .overwritten].contains(file.origin) { file } else { nil }
         }
     }
 
-    @Test("Write 新建、Edit、Write 覆寫各成為一個 Agent 檔案參照;讀圖片不算寫檔")
+    @Test("Write 新建、Edit、Write 覆寫各成為一個 Agent 檔案參照")
     func writesAndEditsBecomeFileReferences() {
         let files = Self.fileReferences(Fixtures.transcriptLines(Self.fixture))
 
@@ -84,8 +85,8 @@ struct AgentFileCardTests {
             default: "other"
             }
         }
-        // Write、Edit、Read×2、MCP 截圖是同一個工具串;兩張卡片依寫入順序排在它之後，最後是回覆文字。
-        #expect(kinds == ["user", "tools(5)", "file(created)", "file(edited)", "agent"])
+        // Write、Edit、Read×2、MCP 截圖是同一個工具串;卡片依結果順序排在它之後(圖片卡片見 #225),最後是回覆文字。
+        #expect(kinds == ["user", "tools(5)", "file(created)", "file(edited)", "file(readImage)", "file(readImage)", "file(toolImage)", "agent"])
         let again = Conversation.items(from: lines.flatMap(ClaudeTranscriptParser.messages(in:)))
         #expect(items.map(\.id) == again.map(\.id))
         if case .agentFile(let card) = items[2] {
