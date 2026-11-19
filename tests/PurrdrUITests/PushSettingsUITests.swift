@@ -18,7 +18,7 @@ final class PushSettingsUITests: XCTestCase {
         expectValue("Next Step", of: notifications)
         app.buttons["account.plusSetup.action"].tap()
 
-        let install = app.alerts.buttons["settings.push.install"]
+        let install = app.alerts.buttons["settings.push.install"].firstMatch
         XCTAssertTrue(install.waitForExistence(timeout: 10), "沒有先確認安裝外掛")
         install.tap()
 
