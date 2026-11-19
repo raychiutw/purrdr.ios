@@ -129,11 +129,11 @@ struct PurrdrApp: App {
         return .simulated(payload: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")
     }
 
-    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體(每次啟動都是 Spaces)。
-    /// `-rememberListMode` 改存 UserDefaults(另一個 key,不碰正式的 `agentListMode`),測「重新啟動後記住」(#66);
+    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體，每次啟動都從 Spaces 開始(既有 UI 測試以 Spaces 為起點)。
+    /// `-rememberListMode` 改存 UserDefaults(另一個 key,不碰正式的 `agentListMode`),測沒有記錄時的預設與「重新啟動後記住」(#66);
     /// `-resetListMode` 先清掉上次留下的值。
     private static func uiTestingListMode(_ arguments: [String]) -> any AgentListModeStore {
-        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore() }
+        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore(.spaces) }
         let key = "uiTesting.agentListMode"
         if arguments.contains("-resetListMode") { UserDefaults.standard.removeObject(forKey: key) }
         return UserDefaultsAgentListModeStore(key: key)
