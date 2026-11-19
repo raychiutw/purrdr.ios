@@ -254,6 +254,8 @@ public final class ConversationModel {
     public var isStopping: Bool { stopPhase == .stopping }
     /// 停止列顯示的停止進度或結果(#220)。
     public private(set) var stopPhase: StopPhase?
+    /// 強制結束的確認對話框是否開著(#220;停止列與「仍在工作」結果共用)。
+    public var confirmsForceQuit = false
     /// 斷線前 agent 在工作：離線橫幅說明重新連上後才能停止(#220)。
     public private(set) var stopNeedsReconnect = false
     /// 停止中最多等多久，之後當成仍在工作。

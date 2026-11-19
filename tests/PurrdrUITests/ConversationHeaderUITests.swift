@@ -58,7 +58,8 @@ final class ConversationHeaderUITests: XCTestCase {
         stop.tap()
 
         let stopping = element("stopBar.stopping", in: app)
-        XCTAssertTrue(stopping.waitForExistence(timeout: 3), "按下後沒有顯示停止中")
+        // 停止中不到 1 秒，waitForExistence 第一次檢查就要等約 1 秒：直接查。
+        XCTAssertTrue(stopping.exists, "按下後沒有顯示停止中")
         XCTAssertFalse(stopping.isEnabled, "停止中應該停用")
 
         let result = element("stopBar.result", in: app)
@@ -80,7 +81,7 @@ final class ConversationHeaderUITests: XCTestCase {
         XCTAssertTrue(menuItem.waitForExistence(timeout: 5), "長按沒有強制結束的選項")
         menuItem.tap()
 
-        let confirm = app.buttons["stopBar.forceQuit.confirm"].firstMatch
+        let confirm = app.buttons["stopBar.forceQuit.confirm"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "強制結束沒有先確認")
         XCTAssertTrue(app.staticTexts["Force Quit Codex?"].exists, "確認對話框標題不對")
         confirm.tap()

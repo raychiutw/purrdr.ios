@@ -10,8 +10,6 @@ struct StopBar: View {
     let model: ConversationModel
     /// 鍵盤讓位時只留一行(#196、`ComposerKeyboardLayout`)。
     var isCompact = false
-    /// 強制結束的確認對話框(`ComposerBar` 在玻璃卡片外以 `forceQuitConfirmation` 顯示)。
-    @Binding var confirmsForceQuit: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -42,7 +40,7 @@ struct StopBar: View {
         Menu {
             Section {
                 Button("Force Quit…", systemImage: "xmark.octagon", role: .destructive) {
-                    confirmsForceQuit = true
+                    model.confirmsForceQuit = true
                 }
                 .disabled(!model.canForceQuit)
                 .accessibilityIdentifier("stopBar.forceQuit")
@@ -128,7 +126,7 @@ struct StopBar: View {
         switch phase {
         case .stillWorking:
             Button(role: .destructive) {
-                confirmsForceQuit = true
+                model.confirmsForceQuit = true
             } label: {
                 Text("Force Quit…").frame(minHeight: 44)
             }
@@ -174,8 +172,10 @@ struct StopBar: View {
 
 extension View {
     /// 強制結束前的確認(#220):會送 Ctrl-C,destructive 確認，系統提供取消。
-    func forceQuitConfirmation(isPresented: Binding<Bool>, model: ConversationModel) -> some View {
-        confirmationDialog(Text("Force Quit \(model.agentName)?"), isPresented: isPresented, titleVisibility: .visible) {
+    /// 掛在對話畫面上，不放在輸入列(`safeAreaBar` 的內容裡按了不會執行動作)。
+    func forceQuitConfirmation(model: ConversationModel) -> some View {
+        @Bindable var model = model
+        return confirmationDialog(Text("Force Quit \(model.agentName)?"), isPresented: $model.confirmsForceQuit, titleVisibility: .visible) {
             Button("Force Quit", role: .destructive) {
                 Task { await model.forceQuit() }
             }
