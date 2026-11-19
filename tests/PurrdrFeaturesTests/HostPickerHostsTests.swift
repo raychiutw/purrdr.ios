@@ -33,6 +33,14 @@ struct HostPickerHostsTests {
         }
     }
 
+    @Test("選取中主機是 HTTPS 主機時，「⋯」仍有登入 Shell 與檔案(挑選鈕能選其他台)")
+    func shellToolsOfferedWhileHTTPSHostSelected() {
+        let model = Self.model()
+        model.select(.host(Self.https.id))
+
+        #expect(model.anyHostSupportsShell)
+    }
+
     @Test("新增聊天列出所有主機")
     func newChatListsEveryHost() {
         let model = Self.model()

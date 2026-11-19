@@ -212,14 +212,14 @@ public struct TopNavigationView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        // 主機篩選(#244):只篩選列表，不改選取中主機。
+        // 主機篩選(#244):選某台主機時同時設成選取中主機。
         ToolbarItem(placement: Self.hostPlacement) {
             HostFilterMenu(list: hosts.agentList)
         }
         ToolbarItem(placement: .primaryAction) {
             // 以 Divider 分組;不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
             Menu {
-                let groups = MoreMenuItem.groups(supportsShell: hosts.selectedHostSupportsShell)
+                let groups = MoreMenuItem.groups(supportsShell: hosts.anyHostSupportsShell)
                 ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
                     if index > 0 { Divider() }
                     ForEach(group, id: \.self) { item in

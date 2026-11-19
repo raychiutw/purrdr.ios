@@ -242,8 +242,8 @@ public final class HostsModel {
         PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
     }
 
-    /// 選取中主機有沒有登入 Shell 與檔案(HTTPS 連線方式沒有，ADR-0010)。
-    public var selectedHostSupportsShell: Bool { selectedHost?.supportsLoginShell ?? true }
+    /// 「⋯」選單要不要有登入 Shell 與檔案：有任何一台支援就有(挑選鈕能選;HTTPS 主機沒有，ADR-0010)。
+    public var anyHostSupportsShell: Bool { !hostPickerOptions { $0.supportsLoginShell }.isEmpty }
 
     /// 登入 Shell、檔案的主機挑選鈕(#245):只列支援的主機(HTTPS 主機沒有，ADR-0010),預設上次選的電腦或選取中主機。
     public func hostPicker(for scope: HostPickerScope) -> HostPickerModel {

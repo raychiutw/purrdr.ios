@@ -322,7 +322,6 @@ struct HTTPSHostsModelTests {
         #expect(channels.endpoints.isEmpty, "HTTPS 主機不應該開 SSH 連線")
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
         #expect(model.rows.first?.subtitle == "https://studio.tail1234.ts.net")
-        #expect(!model.selectedHostSupportsShell)
     }
 
     @Test("主機清單：沒有裝置權杖的 HTTPS 主機標示要配對;已配對的與 SSH 主機不標示")
