@@ -92,13 +92,18 @@ public actor DemoHost: HostChannel {
     /// 「送出後工作中」到期判斷用的現在時間(測試注入手動時鐘)。
     private let now: @Sendable () -> ContinuousClock.Instant
 
+    /// 停止中到停下來的等待(測試注入，不靠真時間)。
+    private let sleep: Sleep
+
     public init(
         scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil,
-        now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { .now },
+        sleep: @escaping Sleep = Sleeping.task
     ) {
         self.scenario = scenario
         self.tailscaleCheck = tailscaleCheck
         self.now = now
+        self.sleep = sleep
         // 延遲 0 的斷網：啟動就沒有網路(`-demoNoNetwork`,#221)。
         if case .goesOffline(let delay, _) = scenario, delay == .zero {
             isOffline = true
@@ -238,8 +243,9 @@ public actor DemoHost: HostChannel {
     }
 
     private func scheduleStop(paneID: String) {
+        let stopSleep = self.sleep
         Task { [weak self] in
-            guard (try? await Task.sleep(for: Self.stopDelay)) != nil else { return }
+            guard (try? await stopSleep(Self.stopDelay)) != nil else { return }
             await self?.finishStop(paneID: paneID)
         }
     }

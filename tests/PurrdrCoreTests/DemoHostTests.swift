@@ -258,7 +258,8 @@ struct DemoHostTests {
     /// #220:停止要看得到「停止中」:收到 Esc 後約 1 秒才完成，完成時對訂閱送狀態事件(畫面靠事件更新快照)。
     @Test("停止中:Demo 的工作中 agent 收到 Esc 後約 1 秒才完成，並送出狀態事件")
     func workingDemoAgentStopsAfterAMomentAndNotifies() async throws {
-        let host = DemoHost()
+        let stopWait = HeldSleeper()
+        let host = DemoHost(sleep: stopWait.sleep)
         let client = HerdrClient(channel: host)
         let events = try await client.subscribe([.agentStatusChanged(paneID: "w3:p1")])
         let statusEvent = Task {
@@ -269,7 +270,9 @@ struct DemoHostTests {
 
         try await client.sendKeys(paneID: "w3:p1", keys: ["esc"])
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .working)
+        #expect(await stopWait.waitForRequest() == .seconds(1))
 
+        stopWait.release()
         let giveUp = Task {
             try await Task.sleep(for: .seconds(3))
             statusEvent.cancel()
@@ -589,4 +592,63 @@ final class ManualDemoClock: Sendable {
 enum DemoStatusChange: Sendable {
     case answer
     case askMe
+}
+
+/// 停止的等待：記下要求的時間，測試放行前一直等(不靠真時間，CI 忙時也不會提早完成)。
+final class HeldSleeper: Sendable {
+    private struct State {
+        var requested: Duration?
+        var released = false
+        var waiters: [CheckedContinuation<Void, Never>] = []
+    }
+
+    private let state = Mutex(State())
+
+    /// 給 Demo 主機注入的等待。
+    var sleep: Sleep {
+        { duration in
+            await self.hold(duration)
+            try Task.checkCancellation()
+        }
+    }
+
+    /// 放行所有等待(之後的等待立刻結束)。
+    func release() {
+        let waiters = state.withLock { state in
+            state.released = true
+            defer { state.waiters = [] }
+            return state.waiters
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    /// 等到有人要求等待，回傳要求的時間;逾時回 `nil`。
+    func waitForRequest(timeout: Duration = .seconds(30)) async -> Duration? {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if let requested = state.withLock({ $0.requested }) {
+                return requested
+            }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return nil
+    }
+
+    private func hold(_ duration: Duration) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumesNow = state.withLock { state -> Bool in
+                state.requested = duration
+                if state.released {
+                    return true
+                }
+                state.waiters.append(continuation)
+                return false
+            }
+            if resumesNow {
+                continuation.resume()
+            }
+        }
+    }
 }
