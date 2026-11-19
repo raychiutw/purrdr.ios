@@ -5443,6 +5443,17 @@
         }
       }
     },
+    "Sent Stop, but couldn’t read the agent’s status. It may still be working; check the chat." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出停止，但讀不到 agent 的狀態，可能還在工作；請看一下對話。"
+          }
+        }
+      }
+    },
     "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again." : {
       "extractionState" : "manual",
       "localizations" : {
