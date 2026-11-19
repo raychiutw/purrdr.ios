@@ -830,13 +830,13 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 開始追蹤對話紀錄尾端：從 from 起，主機服務把新增的完整行以 transcript.update 推送，直到 transcript.unfollow、追蹤結束或連線關閉。stream_id 由 app 指定，同一條連線內不可重複。path 必須是這條連線定位過的。
+    /// 開始追蹤對話紀錄尾端：從 from 起，主機服務把新增的完整行(每則最多 limit bytes,落後很多時分段接著送)以 transcript.update 推送，直到 transcript.unfollow、追蹤結束或連線關閉。stream_id 由 app 指定，同一條連線內不可重複。path 必須是這條連線定位過的。
     public struct TranscriptFollow: Codable, Sendable, Equatable {
         public var requestId: String
         public var streamId: String
         public var path: String
         public var from: Int
-        /// 一次落後超過這麼多 byte 就結束追蹤(too_far_behind),由 app 改讀視窗。
+        /// 每則回應或推送的上限(byte,#173):落後超過時從游標分段送出，每次最多 limit bytes 的完整行，後面還有就下一次接著送;第一行就超過 limit 時只送那一行，剝除圖片後的內容截短到 limit bytes(length 照原始長度，游標照樣前進)。#173 之前的主機服務落後超過 limit 就以 too_far_behind 結束。
         public var limit: Int
 
         public init(requestId: String, streamId: String, path: String, from: Int, limit: Int) {
@@ -917,7 +917,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、replaced 檔案被換成同長或更長的新檔(游標前的內容變了)、too_far_behind 落後超過 limit、absent 檔案不見了、unreadable 讀不到。
+    /// 主機服務停止追蹤的原因:shrank 檔案變小(換新)、replaced 檔案被換成同長或更長的新檔(游標前的內容變了)、absent 檔案不見了、unreadable 讀不到。too_far_behind 只有 #173 之前的主機服務會送(落後超過 limit;現在改為分段送出),app 仍要能接受。
     public enum TranscriptStreamEnd: String, Codable, Sendable, CaseIterable {
         case shrank
         case replaced

@@ -5,7 +5,7 @@ mod support;
 
 use std::path::{Path, PathBuf};
 
-use purrdr_host_service::transcript::TranscriptEnvironment;
+use purrdr_host_service::transcript::{self, LongLineScan, Record, Tail, TranscriptEnvironment};
 use serde_json::{Value, json};
 use support::{FakeHerdr, TestClient, TestHostService, recorded, start_service_with_transcripts};
 use tempfile::TempDir;
@@ -380,19 +380,83 @@ async fn follow_ends_with_replaced_instead_of_pushing_lines_of_a_longer_replacem
 }
 
 #[tokio::test]
-async fn follow_that_starts_too_far_behind_ends_immediately_so_the_app_reads_a_window() {
+async fn follow_that_starts_far_behind_sends_from_the_cursor_in_chunks_within_the_limit() {
+    // #173:與 SSH 的分段接著讀(#130)相同：落後超過 limit 不結束追蹤，每次送不超過 limit 的完整行，接著送下一段。
     let fixture = Fixture::recorded_snapshot().await;
-    let transcript = fixture.claude_transcript("{\"n\":1}\n{\"n\":2}\n");
+    let transcript = fixture.claude_transcript("{\"n\":1}\n{\"n\":2}\n{\"n\":3}\n");
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+
+    let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 16)).await;
+    let next_chunk = client.receive().await;
+
+    assert_eq!(
+        started,
+        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 24, "start": 0,
+               "records": [{"length": 7, "text": "{\"n\":1}"}, {"length": 7, "text": "{\"n\":2}"}]})
+    );
+    assert_eq!(
+        next_chunk,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 24, "start": 16, "records": [{"length": 7, "text": "{\"n\":3}"}]})
+    );
+}
+
+#[tokio::test]
+async fn follow_sends_a_line_longer_than_the_limit_truncated_and_moves_past_it() {
+    // 第一行就超過 limit:只送那一行，剝除圖片後的內容截短到 limit bytes,長度照原始長度(游標照樣前進，不卡住)。
+    let fixture = Fixture::recorded_snapshot().await;
+    let transcript = fixture.claude_transcript("{\"long\":\"abcdefghijklmnopqrstuvwxyz\"}\n{\"n\":2}\n");
     let mut client = fixture.client().await;
     client.request(locate("r1", "id", CLAUDE_SESSION)).await;
 
     let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 10)).await;
+    let next_chunk = client.receive().await;
 
     assert_eq!(
         started,
-        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 16, "start": 0, "records": [],
-               "ended": "too_far_behind"})
+        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 46, "start": 0,
+               "records": [{"length": 37, "text": "{\"long\":\"a"}]})
     );
+    assert_eq!(
+        next_chunk,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 46, "start": 38, "records": [{"length": 7, "text": "{\"n\":2}"}]})
+    );
+}
+
+#[tokio::test]
+async fn follow_waits_for_a_long_line_to_finish_before_sending_it_truncated() {
+    let fixture = Fixture::recorded_snapshot().await;
+    let transcript = fixture.claude_transcript("{\"long\":\"abcdefghijklmnopqrstuvwxyz");
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+
+    let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 10)).await;
+    append(&transcript, "\"}\n");
+    let finished = client.receive().await;
+
+    assert_eq!(
+        started,
+        json!({"type": "transcript.follow.result", "request_id": "r2", "stream_id": "s1", "size": 35, "start": 0, "records": []})
+    );
+    assert_eq!(
+        finished,
+        json!({"type": "transcript.update", "stream_id": "s1", "size": 38, "start": 0, "records": [{"length": 37, "text": "{\"long\":\"a"}]})
+    );
+}
+
+#[tokio::test]
+async fn follow_truncates_a_long_line_after_stripping_images() {
+    // 與 SSH 腳本相同：先剝除圖片再截短(原始 217 bytes 超過上限，剝除後 17 bytes 不必截)。
+    let fixture = Fixture::recorded_snapshot().await;
+    let image = "A".repeat(200);
+    let transcript = fixture.claude_transcript(&format!("{{\"i\":\"{image}\",\"t\":\"ok\"}}\n"));
+    let mut client = fixture.client().await;
+    client.request(locate("r1", "id", CLAUDE_SESSION)).await;
+
+    let started = client.request(follow("r2", "s1", &path_text(&transcript), 0, 20)).await;
+
+    assert_eq!(started["records"], json!([{"length": 217, "text": "{\"i\":\"\",\"t\":\"ok\"}"}]));
+    assert_eq!(started.get("ended"), None);
 }
 
 #[tokio::test]
@@ -444,4 +508,115 @@ async fn two_streams_on_one_connection_are_followed_independently() {
 
     assert_eq!(pushed["stream_id"], "first");
     assert_eq!(next["type"], "agents.list.result");
+}
+
+// MARK: - 超過上限的單行(直接呼叫 `transcript::tail`)
+
+/// `tail` 的一次檢查：回傳這次的紀錄與新游標。
+fn check(path: &Path, from: u64, limit: u64, anchor: &[u8], scan: &mut LongLineScan) -> (Vec<Record>, u64) {
+    match transcript::tail(path, from, limit, anchor, scan).expect("讀得到對話紀錄") {
+        Tail::Lines { chunk, .. } => (chunk.records, chunk.end),
+        other => panic!("不該是 {other:?}"),
+    }
+}
+
+fn write_raw(path: &Path, bytes: &[u8]) {
+    use std::io::Write;
+    std::fs::OpenOptions::new().append(true).open(path).unwrap().write_all(bytes).unwrap();
+}
+
+#[test]
+fn tail_resumes_an_unfinished_long_line_from_where_it_stopped_scanning() {
+    // 那一行還沒寫完時，下一次檢查從掃描到的位置接著找換行，不從頭重讀(每 250ms 一次)。
+    // 從外面看得到的證據：在已掃描過的範圍裡改寫出一個換行，接著讀時看不到它，行尾仍是後來寫的換行。
+    let home = TempDir::new().unwrap();
+    let path = write_file(home.path(), "t.jsonl", "");
+    // 不是 base64 字元(否則整串會被當成圖片剝除)。
+    let body = "-".repeat(3 << 20);
+    write_raw(&path, format!("{{\"long\":\"{body}").as_bytes());
+    let mut scan = LongLineScan::default();
+
+    let (records, cursor) = check(&path, 0, 10, &[], &mut scan);
+    assert!(records.is_empty());
+    assert_eq!(cursor, 0, "還沒寫完：游標不動");
+    let size = std::fs::metadata(&path).unwrap().len();
+    assert_eq!(scan.scanned(), Some(size), "記住掃描到檔尾");
+
+    {
+        use std::io::{Seek, SeekFrom, Write};
+        let mut file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.seek(SeekFrom::Start(1 << 20)).unwrap();
+        file.write_all(b"\n").unwrap();
+    }
+    write_raw(&path, b"\"}\n");
+    let (records, cursor) = check(&path, 0, 10, &[], &mut scan);
+
+    let length = size + 2;
+    assert_eq!(
+        records,
+        vec![Record {
+            length,
+            text: "{\"long\":\"-".to_owned()
+        }]
+    );
+    assert_eq!(cursor, length + 1);
+    assert_eq!(scan.scanned(), None, "送出後不再有進行中的超長行");
+}
+
+#[test]
+fn tail_keeps_only_about_the_limit_of_an_unfinished_long_line_in_memory() {
+    // 幾 MB 的圖片行還沒寫完：記憶體只留截短後的內容與還沒決定的引號字串，不留整行。
+    let home = TempDir::new().unwrap();
+    let path = write_file(home.path(), "t.jsonl", "");
+    let image = "A".repeat(3 << 20);
+    write_raw(&path, format!("{{\"i\":\"{image}").as_bytes());
+    let mut scan = LongLineScan::default();
+
+    let (records, _) = check(&path, 0, 64, &[], &mut scan);
+    assert!(records.is_empty());
+    assert!(scan.scanned().is_some(), "還沒寫完的超長行要記住掃描進度");
+    // 上限是 limit 與判斷 base64 圖片所需的 128 bytes 取大，再加幾個 byte 的狀態。
+    assert!(scan.retained_bytes() <= 256, "留了 {} bytes", scan.retained_bytes());
+
+    write_raw(&path, b"\",\"t\":\"ok\"}\n");
+    let (records, _) = check(&path, 0, 64, &[], &mut scan);
+    let length = (image.len() + 17) as u64;
+    assert_eq!(
+        records,
+        vec![Record {
+            length,
+            text: "{\"i\":\"\",\"t\":\"ok\"}".to_owned()
+        }]
+    );
+}
+
+#[test]
+fn tail_strips_images_of_a_long_line_written_in_parts_like_the_whole_line() {
+    // 分次寫完的超長行：結果與整行剝除圖片後截短相同(與 SSH 腳本一致)，圖片後面的內容也看得到。
+    let home = TempDir::new().unwrap();
+    let path = write_file(home.path(), "t.jsonl", "");
+    let line = format!(
+        "{{\"u\":\"data:image/png;base64,{}\",\"b\":\"{}\",\"t\":\"{}\"}}",
+        "B".repeat(2 << 20),
+        "C".repeat(300),
+        "x".repeat(100)
+    );
+    let (first, rest) = line.split_at((1 << 20) + 5);
+    write_raw(&path, first.as_bytes());
+    let mut scan = LongLineScan::default();
+    assert!(check(&path, 0, 40, &[], &mut scan).0.is_empty());
+    write_raw(&path, rest.as_bytes());
+    write_raw(&path, b"\n");
+
+    let (records, _) = check(&path, 0, 40, &[], &mut scan);
+
+    let mut expected = transcript::strip_images(line.as_bytes());
+    expected.truncate(40);
+    assert_eq!(
+        records,
+        vec![Record {
+            length: line.len() as u64,
+            text: String::from_utf8(expected).unwrap()
+        }]
+    );
 }

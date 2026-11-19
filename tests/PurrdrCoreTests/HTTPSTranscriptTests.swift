@@ -183,6 +183,19 @@ struct HTTPSTranscriptTests {
         #expect(tail == .tooFarBehind(size: 900000))
     }
 
+    @Test("分段接著讀(#173):落後超過上限時主機送出第一段，讀到 appended(超大單行照原始長度前進),不是落後太多")
+    func catchUpReadsFirstChunkWhenFarBehind() async throws {
+        let service = try await Self.start([
+            "transcript.follow": #"{"type":"transcript.follow.result","size":900000,"start":100,"records":[{"length":300000,"text":"{\"type\":\"user\""}]}"#,
+        ])
+        defer { Task { await service.stop() } }
+
+        let tail = try await Self.reader(for: service).0.catchUp(path: Self.path, from: 100)
+
+        #expect(tail == .appended(TranscriptChunk(start: 100, end: 300101, lines: [#"{"type":"user""#])))
+        #expect(service.messages(ofType: "transcript.follow").first?["limit"] as? Int == TranscriptReader.catchUpLimit)
+    }
+
     @Test("關閉對話：送出 unfollow,主機停止追蹤")
     func stopFollowingSendsUnfollow() async throws {
         let service = try await Self.start([

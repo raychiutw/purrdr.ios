@@ -4,7 +4,7 @@
 //   App → Features → SSH → Core;App → Demo → SSH
 //   App → Features → HTTPS → Core
 // - 可攜核心(PurrdrCore、PurrdrSSH、PurrdrHTTPS、PurrdrDemo)不依賴任何 Apple 專屬 framework(ADR-0006),
-//   CI 用 Swift SDK for Android 編譯它們把關;`PortableCoreImportTests` 在本機先擋一次。
+//   `PortableCoreImportTests` 把關(CI 的 Android 交叉編譯已拿掉，見 ADR-0006 的更新)。
 // - 上層功能(PurrdrAgentFeatures:Agent 列表、對話、Pane 終端機)只依賴核心的主機連線 HostConnection,
 //   看不到主機通道 HostChannel(在 PurrdrSSH);SSH 專屬功能在 PurrdrFeatures。
 // - Features 不依賴 Demo:畫面只透過核心與主機通道的介面拿資料，不知道背後是誰。

@@ -12,7 +12,7 @@ use crate::protocol::{
     ErrorCode, ErrorMessage, ServerMessage, TranscriptFollow, TranscriptFollowResult, TranscriptLocateResult, TranscriptRecord, TranscriptStreamEnd,
     TranscriptUnfollow, TranscriptUnfollowResult, TranscriptUpdate, TranscriptWindow, TranscriptWindowResult,
 };
-use crate::transcript::{self, AgentSessionInfo, Record, Tail, TranscriptEnvironment, TranscriptFailure};
+use crate::transcript::{self, AgentSessionInfo, LongLineScan, Record, Tail, TranscriptEnvironment, TranscriptFailure};
 
 /// 追蹤中的對話紀錄多久檢查一次(主機本機的檔案大小，不經 herdr)。
 const FOLLOW_INTERVAL: Duration = Duration::from_millis(250);
@@ -59,16 +59,22 @@ impl TranscriptSession {
         let reading = path.clone();
         let tail = blocking(move || {
             let anchor = transcript::anchor(&reading, from)?;
-            transcript::tail(&reading, from, limit, &anchor)
+            let mut scan = LongLineScan::default();
+            transcript::tail(&reading, from, limit, &anchor, &mut scan).map(|tail| (tail, scan))
         })
         .await;
-        let tail = match tail {
+        let (tail, scan) = match tail {
             Ok(tail) => tail,
             Err(failure) => return failure_message(request.request_id, failure),
         };
         let update = StreamUpdate::from_tail(from, tail);
         if update.ended.is_none() {
-            let task = tokio::spawn(track(path, update.cursor, update.anchor, limit, request.stream_id.clone(), self.pushes.clone()));
+            let follow = Following {
+                cursor: update.cursor,
+                anchor: update.anchor.clone(),
+                scan,
+            };
+            let task = tokio::spawn(track(path, follow, limit, request.stream_id.clone(), self.pushes.clone()));
             self.streams.insert(request.stream_id.clone(), task);
         }
         ServerMessage::TranscriptFollowResult(TranscriptFollowResult {
@@ -170,7 +176,6 @@ impl StreamUpdate {
             },
             Tail::Shrank { size } => ended(size, TranscriptStreamEnd::Shrank),
             Tail::Replaced { size } => ended(size, TranscriptStreamEnd::Replaced),
-            Tail::TooFarBehind { size } => ended(size, TranscriptStreamEnd::TooFarBehind),
         }
     }
 
@@ -189,23 +194,40 @@ impl StreamUpdate {
     }
 }
 
-/// 定期檢查檔案，有新的完整行就推送;檔案變小、被換掉、落後太多、讀不到時推送結束原因後停止。
-async fn track(path: PathBuf, mut cursor: u64, mut anchor: Vec<u8>, limit: u64, stream_id: String, pushes: UnboundedSender<ServerMessage>) {
+/// 追蹤中的一條串流：游標、比對換檔用的游標前內容，與超長行的掃描進度。
+struct Following {
+    cursor: u64,
+    anchor: Vec<u8>,
+    scan: LongLineScan,
+}
+
+/// 定期檢查檔案，有新的完整行就推送(每次最多 `limit` bytes,落後很多時分段接著送);檔案變小、被換掉、讀不到時推送結束原因後停止。
+async fn track(path: PathBuf, mut follow: Following, limit: u64, stream_id: String, pushes: UnboundedSender<ServerMessage>) {
     loop {
         tokio::time::sleep(FOLLOW_INTERVAL).await;
         let reading = path.clone();
-        let from = cursor;
-        let comparing = anchor.clone();
-        let update = match blocking(move || transcript::tail(&reading, from, limit, &comparing)).await {
-            Ok(tail) => StreamUpdate::from_tail(from, tail),
-            Err(failure) => StreamUpdate::from_failure(from, failure),
+        let from = follow.cursor;
+        // 超長行還沒寫完時的掃描進度跟著送進去再拿回來，下一次從掃描到的位置接著找換行。
+        let (result, scan) = blocking(move || {
+            let mut scan = follow.scan;
+            let result = transcript::tail(&reading, from, limit, &follow.anchor, &mut scan);
+            (result.map(|tail| (tail, follow.anchor)), scan)
+        })
+        .await;
+        let (update, anchor) = match result {
+            Ok((tail, anchor)) => (StreamUpdate::from_tail(from, tail), anchor),
+            Err(failure) => (StreamUpdate::from_failure(from, failure), Vec::new()),
         };
         if update.ended.is_none() && update.records.is_empty() {
+            follow = Following { cursor: from, anchor, scan };
             continue;
         }
         let ended = update.ended.is_some();
-        cursor = update.cursor;
-        anchor = update.anchor;
+        follow = Following {
+            cursor: update.cursor,
+            anchor: update.anchor,
+            scan,
+        };
         let message = ServerMessage::TranscriptUpdate(TranscriptUpdate {
             stream_id: stream_id.clone(),
             size: update.size as i64,

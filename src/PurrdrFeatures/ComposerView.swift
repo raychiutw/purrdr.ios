@@ -7,18 +7,38 @@ public enum ComposerSettings {
     public static let returnSendsKey = "composer.returnSends"
 }
 
+/// 對話目前的可見高度(#196):`ConversationView` 從捲動量測寫入，只有輸入列讀。
+@MainActor @Observable
+final class ConversationVisibleHeight {
+    /// 沒有訊息列表(載入中、空白)時是 `nil`。
+    private(set) var value: Double?
+    /// 輸入列上方元素的顯示方式改了幾次：對話跟隨中時據此捲回最新一列(收起鍵盤時註記卡片一下子長回來，
+    /// 又碰上大量輸出重建列表時，LazyVStack 會停在內容之外、一列都不畫)。
+    private(set) var arrangementRevision = 0
+
+    func arrangementChanged() { arrangementRevision += 1 }
+
+    /// 值沒變就不寫，不讓讀它的輸入列重畫。
+    func update(_ height: Double?) {
+        if value != height { value = height }
+    }
+}
+
 /// 輸入列(行為規格 F6.1;HIG 20.6)。
 ///
 /// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
 /// - 上下版面(#187):一張玻璃卡片，整寬輸入框在上，按鈕列(加入圖片｜收起鍵盤、送出)在下。
-/// - 多行，預設兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
+/// - 多行，空白時一行高、有內容時至少兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
 /// - 停止與強制結束在標題列(#44,`ConversationView`)。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
 ///   這時不能附圖。打過字之後清空輸入框也會取消(#127,`ConversationModel`)。
 /// - 內容超過 2 行或聚焦時有「展開」鈕(`ComposerExpansion`,#142),打開 `ExpandedComposer`。
+/// - 鍵盤出現時 You should know 註記與建議提示詞依 `ComposerKeyboardLayout` 收成一行或暫時拿掉，對話至少留最小可見高度(#196)。
 struct ComposerBar: View {
     @Bindable var model: ConversationModel
+    /// 對話目前的可見高度(`ConversationView` 從捲動量測回報)。
+    var conversationHeight: ConversationVisibleHeight
     @AppStorage(ComposerSettings.returnSendsKey) private var returnSends = true
     @State private var isFocused = false
     /// 鍵盤上方可用高度(輸入框量到後回報;變了要重新量輸入框高度)。
@@ -27,6 +47,22 @@ struct ComposerBar: View {
     @State private var showsExpandButton = false
     @State private var isExpanded = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// 內文一行的高度(最小對話可見高度用)。
+    @ScaledMetric(relativeTo: .body) private var bodyLineHeight = 22.0
+    /// 鍵盤出現時註記與建議提示詞的顯示方式(#196)。
+    @State private var arrangement = ComposerAccessoryArrangement.full
+    @State private var noteHeights = ComposerAccessoryHeights(full: nil)
+    @State private var suggestionHeights = ComposerAccessoryHeights(full: nil)
+
+    /// 讓位規則的輸入;變了就重新決定顯示方式。
+    private struct ArrangementInput: Equatable {
+        var keyboardShown: Bool
+        var conversationHeight: Double?
+        var note: ComposerAccessoryHeights?
+        var suggestion: ComposerAccessoryHeights?
+        var minimum: Double
+    }
 
     private struct NotesKey: Equatable {
         var active: Bool
@@ -44,7 +80,8 @@ struct ComposerBar: View {
     }
 
     private var composer: some View {
-        VStack(spacing: 8) {
+        // 間距與讓位規則估算高度用的是同一個常數。
+        VStack(spacing: ComposerKeyboardLayout.spacing) {
             if model.slash.isVisible {
                 SlashMenuView(menu: model.slash)
             }
@@ -60,14 +97,29 @@ struct ComposerBar: View {
             // 「You should know」:只顯示這個輸入框要送往的 session 的那則(#23)。
             // slash 選單開著時先收起：鍵盤、選單、註記同時在時，AX 字級下註記卡片被擠到截字(#35)。
             if let note = model.note, let notes = model.youShouldKnow, !model.slash.isVisible {
-                YouShouldKnowNoteView(note: note, model: notes, conversation: model)
+                switch arrangement.note {
+                case .full:
+                    YouShouldKnowNoteView(note: note, model: notes, conversation: model)
+                        .onGeometryChange(for: Double.self) { $0.size.height } action: { noteHeights.full = $0 }
+                case .compact:
+                    // 點了收起鍵盤、完整卡片(含動作)回來。
+                    YouShouldKnowCompactNoteView(note: note) { expandAccessories() }
+                        .onGeometryChange(for: Double.self) { $0.size.height } action: { noteHeights.compact = $0 }
+                case .hidden:
+                    // 只在鍵盤出現時：失焦時換回一行(`ComposerKeyboardLayout`)。
+                    EmptyView()
+                }
             }
             if !model.attachments.isEmpty && model.typedAnswer == nil {
                 AttachmentStrip(model: model)
             }
             // Claude Code 的建議提示詞(#123):只在輸入框空白時有，點了填入並聚焦，不送出。
-            if let suggestion = model.suggestion {
-                PromptSuggestionView(suggestion: suggestion) { acceptSuggestion() }
+            if let suggestion = model.suggestion, arrangement.suggestion != .hidden {
+                let isCompact = arrangement.suggestion == .compact
+                PromptSuggestionView(suggestion: suggestion, isCompact: isCompact) { acceptSuggestion() }
+                    .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
+                        if isCompact { suggestionHeights.compact = height } else { suggestionHeights.full = height }
+                    }
             }
             // 上下版面(#187):一張玻璃卡片，整寬輸入框在上、按鈕列在下;卡片內的按鈕不再疊玻璃。
             GlassEffectContainer {
@@ -93,6 +145,21 @@ struct ComposerBar: View {
             if option != nil { isFocused = true }
         }
         .onDisappear { model.cancelTypedAnswer() }
+        .onChange(of: arrangementInput, initial: true) { _, input in
+            let next = ComposerKeyboardLayout.arrangement(
+                keyboardShown: input.keyboardShown, conversationHeight: input.conversationHeight, current: arrangement,
+                note: input.note, suggestion: input.suggestion, minimumConversationHeight: input.minimum)
+            guard next != arrangement else { return }
+            arrangement = next
+            conversationHeight.arrangementChanged()
+        }
+        // 換了註記、建議或字級：量過的高度不再準。
+        .onChange(of: model.note?.line) { noteHeights = ComposerAccessoryHeights(full: nil) }
+        .onChange(of: model.suggestion) { suggestionHeights = ComposerAccessoryHeights(full: nil) }
+        .onChange(of: dynamicTypeSize) {
+            noteHeights = ComposerAccessoryHeights(full: nil)
+            suggestionHeights = ComposerAccessoryHeights(full: nil)
+        }
         // 對話可見且在前景時讀註記;與列表共用同一個讀取迴圈(列表被蓋住時它不再看)。
         .task(id: NotesKey(active: scenePhase == .active, notes: model.youShouldKnow.map(ObjectIdentifier.init))) {
             guard scenePhase == .active else { return }
@@ -104,6 +171,25 @@ struct ComposerBar: View {
                 isExpanded = false
             }
         }
+    }
+
+    /// 點一行的註記：收起鍵盤，註記與建議提示詞完整顯示(鍵盤收起時規則不會自己換回完整卡片)。
+    private func expandAccessories() {
+        isFocused = false
+        guard arrangement != .full else { return }
+        arrangement = .full
+        conversationHeight.arrangementChanged()
+    }
+
+    private var arrangementInput: ArrangementInput {
+        let showsNote = model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible
+        return ArrangementInput(
+            // 聚焦時才有鍵盤;實體鍵盤只有快捷列，對話夠高，規則自然完整顯示。
+            // 只在聚焦時讀對話高度：沒聚焦時不必讓位，也不讓輸入列隨每次捲動量測重畫(載入、大量輸出時
+            // 列表會被捲到內容之外，`ConversationUITests` 的載入與大量輸出案例)。
+            keyboardShown: isFocused, conversationHeight: isFocused ? conversationHeight.value : nil,
+            note: showsNote ? noteHeights : nil, suggestion: model.suggestion == nil ? nil : suggestionHeights,
+            minimum: ComposerKeyboardLayout.minimumConversationHeight(bodyLineHeight: bodyLineHeight))
     }
 
     // MARK: - 輸入框
@@ -682,7 +768,7 @@ final class KeyHandlingTextView: UITextView {
 
     /// 依目前字級與可用高度，內容高 `contentHeight` 時輸入框的高度與是否內捲(#137)。
     func sizing(contentHeight: CGFloat) -> ComposerHeight {
-        ComposerSizing.height(metrics(contentHeight: contentHeight), availableHeight: availableHeight.map(Double.init))
+        ComposerSizing.height(metrics(contentHeight: contentHeight), isEmpty: text.isEmpty, availableHeight: availableHeight.map(Double.init))
     }
 
     /// 目前字級與內距下，內容高 `contentHeight` 的量測。
@@ -870,7 +956,7 @@ struct ComposerTextEditor: View {
 
     var body: some View {
         TextField("", text: $text, axis: .vertical)
-            .lineLimit(Int(ComposerSizing.defaultLines)...Int(ComposerSizing.maxLines))
+            .lineLimit(Int(ComposerSizing.emptyLines)...Int(ComposerSizing.maxLines))
             .textFieldStyle(.plain)
             .padding(.horizontal, 13)
             .padding(.vertical, 11)

@@ -3,8 +3,8 @@ import Testing
 
 /// 可攜核心(PurrdrCore、PurrdrSSH、PurrdrHTTPS、PurrdrDemo,ADR-0006)只能 import Foundation 與 swift-nio／swift-nio-ssh／swift-crypto 系列。
 ///
-/// 真正的守門是 CI 用 Swift SDK for Android 編譯可攜核心;這個測試讓本機的 `swift test` 先擋一次,
-/// 不必等 CI 才發現有人在核心 import 了 SwiftUI、Security 或 os。
+/// CI 的 Android 交叉編譯 job 已拿掉(ADR-0006 的更新),這個測試(`swift test`,CI 也跑)是目前唯一的守門:
+/// 擋得到核心 import 了 SwiftUI、Security 或 os,擋不到「Apple 平台有、Android 的 Foundation 沒有」的 API。
 @Suite("可攜核心")
 struct PortableCoreImportTests {
     static let portableTargets = ["src/PurrdrCore", "src/PurrdrSSH", "src/PurrdrHTTPS", "src/PurrdrDemo"]

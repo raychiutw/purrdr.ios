@@ -5729,6 +5729,17 @@
         }
       }
     },
+    "Shows the whole note." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示完整註記。"
+          }
+        }
+      }
+    },
     "Sign In" : {
       "extractionState" : "manual",
       "localizations" : {
