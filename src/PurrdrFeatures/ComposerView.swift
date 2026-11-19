@@ -475,9 +475,7 @@ extension SendNotice {
         case .unconfirmed(.connectionLost): String(localized: "The connection dropped while sending. The message may have arrived; check the chat before sending again.")
         case .unconfirmed(.mayBeInTerminal): String(localized: "Couldn’t confirm delivery. The message may be stuck in the terminal.")
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
-        case .stillWorking: String(localized: "The agent is still working. Tap Stop again, or press and hold to force quit.")
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
-        case .stopUnconfirmed: String(localized: "Sent Stop, but couldn’t read the agent’s status. It may still be working; check the chat.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .interruptRefusedNeedsAnswer: String(localized: "The agent is waiting for an answer, so nothing was interrupted. Answer it instead.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
@@ -496,8 +494,7 @@ extension SendNotice {
         case .offline: "wifi.slash"
         case .rejected, .noResponse, .interruptFailed, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
         case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
-        case .unconfirmed, .stopUnconfirmed: "questionmark.circle"
-        case .stillWorking: "ellipsis.circle"
+        case .unconfirmed: "questionmark.circle"
         }
     }
 }

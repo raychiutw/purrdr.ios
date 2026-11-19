@@ -254,6 +254,8 @@ public final class ConversationModel {
     public var isStopping: Bool { stopPhase == .stopping }
     /// 停止列顯示的停止進度或結果(#220)。
     public private(set) var stopPhase: StopPhase?
+    /// 斷線前 agent 在工作：離線橫幅說明重新連上後才能停止(#220)。
+    public var stopNeedsReconnect: Bool { false }
     /// 停止中最多等多久，之後當成仍在工作。
     public nonisolated static let stopTimeout: Duration = .seconds(10)
 
@@ -1640,12 +1642,8 @@ public enum SendNotice: Sendable, Equatable {
     case imageTooLarge
     /// 圖片上傳失敗：整則沒送出，草稿與圖片保留。
     case uploadFailed
-    /// 停止後 3 秒仍在工作。
-    case stillWorking
     /// 送不出中斷的按鍵。
     case interruptFailed
-    /// 送出停止後讀不到狀態，不知道停了沒(#220)。
-    case stopUnconfirmed
     /// 送不出 slash 面板的按鍵(#45)。
     case panelKeysFailed
     /// agent 在等你回答，所以沒有送出中斷(F6.7)。

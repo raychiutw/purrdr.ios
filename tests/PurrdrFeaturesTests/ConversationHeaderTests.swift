@@ -150,6 +150,28 @@ struct ConversationHeaderTests {
         #expect(setup.model.agentStatus != .working)
         #expect(!setup.model.canStop)
         #expect(!setup.model.canForceQuit)
+        // 斷線前在工作：離線橫幅說明重新連上後才能停止;連上後拿掉。
+        #expect(setup.model.stopNeedsReconnect)
+
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        #expect(!setup.model.stopNeedsReconnect)
+        #expect(setup.model.canStop)
+    }
+
+    @Test("離線：斷線前不在工作 → 橫幅不提停止")
+    func offlineWhileIdleDoesNotMentionStop() async throws {
+        let setup = try Self.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.model.poll()
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
+        await setup.model.poll()
+        await setup.model.poll()
+
+        #expect(setup.model.isOffline)
+        #expect(!setup.model.stopNeedsReconnect)
     }
 
     // MARK: - 重新載入與停止
