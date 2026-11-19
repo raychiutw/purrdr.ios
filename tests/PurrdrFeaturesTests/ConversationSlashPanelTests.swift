@@ -97,6 +97,23 @@ struct ConversationSlashPanelTests {
         #expect(setup.model.slashArgumentHint == nil)
     }
 
+    @Test("文字中間選定需要參數的 skill:游標後提示參數;開始打參數就不再提示(#230)")
+    func inlinePickShowsArgumentHint() async throws {
+        let setup = try await Self.opened()
+        let draft = "請 /ad 這裡"
+        setup.model.updateDraftCaret(5, in: draft)
+        setup.model.draft = draft
+
+        setup.model.pick(slash: SlashCommand(name: "add-dir", argumentHint: "<path>", summary: "Add a working directory"))
+
+        #expect(setup.model.draft == "請 /add-dir 這裡")
+        #expect(setup.model.draftCaret == 11)
+        #expect(setup.model.slashArgumentHint == "<path>")
+        #expect(await Self.promptRequests(setup).isEmpty)
+        setup.model.draft = "請 /add-dir ~ 這裡"
+        #expect(setup.model.slashArgumentHint == nil)
+    }
+
     // MARK: - 面板
 
     /// 點選 `/model`、使用者按送出後讀畫面看到面板。

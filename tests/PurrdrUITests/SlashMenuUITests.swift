@@ -42,6 +42,27 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertTrue(element("composer.hideKeyboard", in: app).exists, "點選不該收起鍵盤")
     }
 
+    /// 文字中間打「空格＋/」:出現只有 skill／自訂指令的選單，點選只換掉 `/字詞`,游標停在插入文字之後可接著打(#230)。
+    @MainActor
+    func testInlineSlashInsertsSkillKeepingText() {
+        let app = XCUIApplication.launchUITesting()
+        let text = openLedger(app)
+        text.typeText("run /")
+
+        XCTAssertTrue(element("slash.row.demo-kit:changelog", in: app).waitForExistence(timeout: 10), "文中打 / 沒有出現 skill")
+        XCTAssertFalse(element("slash.row.compact", in: app).exists, "文中選單不該列內建指令")
+
+        text.typeText("check")
+        let row = element("slash.row.demo-kit:check-diff", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertEqual(text.value as? String, "run /demo-kit:check-diff ")
+        XCTAssertFalse(element("slash.menu", in: app).exists, "選取後選單應收起")
+
+        text.typeText("then fix")
+        XCTAssertEqual(text.value as? String, "run /demo-kit:check-diff then fix")
+    }
+
     /// 點面板卡片上的控制項，直到 `done` 成立。
     ///
     /// 卡片在送鍵期間整張停用(`isOperatingPanel`),但畫面可能已經先反映上一次操作(面板監看的輪詢比送鍵的回應早到，

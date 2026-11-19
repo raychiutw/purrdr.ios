@@ -79,6 +79,11 @@ struct ComposerBar: View {
                 .padding(.bottom, 8)
         } else {
             composer
+                .onChange(of: model.lastSlashInsertion) { _, insertion in
+                    // 選定後念出插入了哪個指令(文中選定時輸入框其他文字不變，光看朗讀不知道插了什麼,#230)。
+                    guard let insertion else { return }
+                    AccessibilityNotification.Announcement(String(localized: "Inserted /\(insertion.name)")).post()
+                }
         }
     }
 
@@ -218,15 +223,17 @@ struct ComposerBar: View {
                 slashKey: { model.slash.handle($0) },
                 tabKey: acceptSuggestion,
                 onComposingChange: { model.isComposingDraft = $0 },
+                caret: model.knownDraftCaret,
+                onCaretChange: { model.updateDraftCaret($1, in: $0) },
                 pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
                 onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) },
                 onSend: send
             )
         )
         .overlay(alignment: .topLeading) {
-            if let hint = model.slashArgumentHint {
-                // 點選需要參數的 slash 指令後，游標後淡淡顯示要填什麼(#45)。草稿本身透明，只為了把提示排在它後面。
-                Text(Self.ghost(draft: model.draft, hint: hint))
+            if let hint = model.slashArgumentHint, let typed = Self.textBeforeHint(draft: model.draft, caret: model.draftCaret) {
+                // 點選需要參數的 slash 指令後，游標後淡淡顯示要填什麼(#45)。游標前的字透明，只為了把提示排在它後面。
+                Text(Self.ghost(draft: typed, hint: hint))
                     .lineLimit(1)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 11)
@@ -274,6 +281,15 @@ struct ComposerBar: View {
     /// 輸入框的提示(也是朗讀標籤)。
     private var placeholder: String {
         model.typedAnswer == nil ? String(localized: "Message") : String(localized: "Type your answer")
+    }
+
+    /// 參數提示要排在後面的字(游標前);游標後同一行還有字時不顯示，避免提示疊在字上(#230)。
+    static func textBeforeHint(draft: String, caret: Int?) -> String? {
+        let text = draft as NSString
+        guard let caret, caret <= text.length else { return nil }
+        let restOfLine = text.substring(from: caret).prefix { !$0.isNewline }
+        guard restOfLine.allSatisfy(\.isWhitespace) else { return nil }
+        return text.substring(to: caret)
     }
 
     private static func ghost(draft: String, hint: String) -> AttributedString {
@@ -592,6 +608,10 @@ struct ComposerEditorOptions {
     var tabKey: () -> Bool = { false }
     /// 組字狀態(有 marked text)改變時呼叫(#138)。
     var onComposingChange: (Bool) -> Void = { _ in }
+    /// 程式改寫草稿時要放的游標(UTF-16 位置);`nil` 時保持與結尾的距離。
+    var caret: Int?
+    /// 游標或選取範圍改變時回報(文字、游標;有選取範圍時游標為 `nil`),在寫回草稿之前呼叫(#230)。
+    var onCaretChange: (String, Int?) -> Void = { _, _ in }
     /// 貼上(Command-V 或編輯選單)時要當圖片附件還是交給系統。
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
@@ -662,7 +682,7 @@ struct ComposerTextEditor: UIViewRepresentable {
         // 程式改寫草稿：組字中延後到組字結束，不打斷正在組的字(#138)。
         if view.text != text,
            let applied = context.coordinator.overwrite.request(text, current: view.text, isComposing: view.markedTextRange != nil) {
-            view.replaceText(with: applied)
+            view.replaceText(with: applied, caret: applied == text ? options.caret : nil)
         }
         if isFocused, !view.isFirstResponder, view.window != nil {
             // 程式要求聚焦(點「Type something.」#120、接受建議後叫出鍵盤 #123):等這次畫面更新結束再取得焦點。
@@ -713,6 +733,8 @@ struct ComposerTextEditor: UIViewRepresentable {
         func textViewDidChangeSelection(_ textView: UITextView) {
             // 取消組字時文字可能沒變，只有選取範圍變。
             if textView.markedTextRange == nil, overwrite.isPending || reportedComposing { syncDraft(from: textView) }
+            // 只移動游標(文字已同步):打字時文字還沒寫回，由 syncDraft 一起回報。
+            if textView.markedTextRange == nil, textView.text == parent.text { reportCaret(of: textView) }
             (textView as? KeyHandlingTextView)?.contentDidChange()
         }
 
@@ -721,6 +743,7 @@ struct ComposerTextEditor: UIViewRepresentable {
             let isComposing = textView.markedTextRange != nil
             if let resolved = overwrite.inputChanged(textView.text, isComposing: isComposing) {
                 (textView as? KeyHandlingTextView)?.replaceText(with: resolved)
+                reportCaret(of: textView)
                 parent.text = resolved
                 reportComposing(false)
                 return
@@ -728,8 +751,14 @@ struct ComposerTextEditor: UIViewRepresentable {
             // 有延後的覆寫時草稿維持程式要的內容，組字結束再合併。
             guard !overwrite.isPending else { return }
             if isComposing { reportComposing(true) }
+            reportCaret(of: textView)
             parent.text = textView.text
             if !isComposing { reportComposing(false) }
+        }
+
+        private func reportCaret(of textView: UITextView) {
+            let selection = textView.selectedRange
+            parent.options.onCaretChange(textView.text, selection.length == 0 ? selection.location : nil)
         }
 
         private func reportComposing(_ isComposing: Bool) {
@@ -826,11 +855,12 @@ final class KeyHandlingTextView: UITextView {
         return max(0, bottom - window.safeAreaInsets.top)
     }
 
-    /// 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3)。
-    func replaceText(with newText: String) {
+    /// 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3);有指定游標(選定 slash 指令，#230)時放在那裡。
+    func replaceText(with newText: String, caret: Int? = nil) {
         let fromEnd = (text as NSString).length - selectedRange.location - selectedRange.length
         text = newText
-        let location = max(0, (newText as NSString).length - max(0, fromEnd))
+        let length = (newText as NSString).length
+        let location = caret.map { min(max(0, $0), length) } ?? max(0, length - max(0, fromEnd))
         selectedRange = NSRange(location: location, length: 0)
         contentDidChange()
     }
