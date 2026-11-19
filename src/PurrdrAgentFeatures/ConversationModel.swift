@@ -255,7 +255,7 @@ public final class ConversationModel {
     /// 停止列顯示的停止進度或結果(#220)。
     public private(set) var stopPhase: StopPhase?
     /// 停止中最多等多久，之後當成仍在工作。
-    public static let stopTimeout: Duration = .seconds(10)
+    public nonisolated static let stopTimeout: Duration = .seconds(10)
 
     // MARK: 回答「需要你」(F8)
 
