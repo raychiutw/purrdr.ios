@@ -37,7 +37,7 @@ struct PromptSuggestionView: View {
                     .foregroundStyle(.tint)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(.tint.opacity(Self.fillInTintOpacity), in: Capsule())
+                    .background(.softAccentFill(opacity: Self.fillInTintOpacity), in: Capsule())
             }
             // 一行的高度(也是觸控目標的 44pt)與讓位規則的估算一致。
             .frame(maxWidth: .infinity, minHeight: ComposerKeyboardLayout.compactHeight, alignment: .leading)

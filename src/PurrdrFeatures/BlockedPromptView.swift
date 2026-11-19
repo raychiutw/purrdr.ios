@@ -31,7 +31,7 @@ struct BlockedPromptView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(AgentStatus.blocked.tone.style)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("Needs You: \(prompt.question ?? String(localized: "The agent is waiting for you."))"))
@@ -242,13 +242,15 @@ struct PromptDetailsView: View {
                 }
             }
             if let note = details.note {
+                // 系統橙對卡片底約 2:1,只上圖示(#237)。
                 Label {
                     Text(verbatim: note)
+                        .foregroundStyle(Color.primary)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(StatusTone.attention.style)
                 }
                 .font(.footnote)
-                .foregroundStyle(.orange)
             }
         }
     }

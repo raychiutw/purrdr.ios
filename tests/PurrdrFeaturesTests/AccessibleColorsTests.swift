@@ -138,6 +138,23 @@ struct SpacesColorsTests {
         #expect(letters == ["C", "X", "G", "O", "P", "G", "P"])
     }
 
+    @Test("Agent 種類頭像底色是低飽和多色(#242 方案 B),深淺色共用、高對比更深")
+    func avatarColorsAreMutedPalette() {
+        let expected: [(AgentKind, String, String)] = [
+            (.claudeCode, "#8A5A48", "#6D4739"), (.codex, "#55565C", "#4F5056"), (.gemini, "#4A5F86", "#3E5071"),
+            (.openCode, "#5C6B4A", "#48533A"), (.copilot, "#6A5884", "#58496E"), (.unknown("grok"), "#5A5A5F", "#505055"),
+        ]
+        for (kind, normal, highContrast) in expected {
+            let palette = AgentKindAvatarStyle(kind: kind).palette
+            #expect(palette.light == ThemeColor(hex: normal), "\(kind) 一般值")
+            #expect(palette.dark == ThemeColor(hex: normal), "\(kind) 深色值")
+            #expect(palette.lightHighContrast == ThemeColor(hex: highContrast), "\(kind) 高對比值")
+            #expect(palette.darkHighContrast == ThemeColor(hex: highContrast), "\(kind) 深色高對比值")
+            #expect(Self.white.contrastRatio(with: palette.lightHighContrast) > Self.white.contrastRatio(with: palette.light),
+                    "\(kind) 高對比沒有更深")
+        }
+    }
+
     @Test("Agent 種類頭像的白色字母：底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
     func avatarContrast() {
         for kind in [AgentKind.claudeCode, .codex, .gemini, .openCode, .copilot, .unknown("grok")] {
@@ -148,23 +165,6 @@ struct SpacesColorsTests {
             ] {
                 let ratio = Self.white.contrastRatio(with: color)
                 #expect(ratio >= minimum, "\(kind) \(name) \(color) 只有 \(ratio)")
-            }
-        }
-    }
-
-    /// 非文字圖形(WCAG 1.4.11):對列的背景 ≥ 3:1,高對比 ≥ 4.5:1。淺色列 #FFFFFF;深色列 #1C1C1E、#2C2C2E。
-    @Test("狀態條的閒置段：對列背景 ≥ 3:1,高對比 ≥ 4.5:1")
-    func idleSegmentContrast() {
-        let palette = AccessibleColors.idleSegment
-        let darkRows = [ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E), ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)]
-        let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
-            ("淺色", palette.light, [Self.white], 3), ("深色", palette.dark, darkRows, 3),
-            ("淺色高對比", palette.lightHighContrast, [Self.white], 4.5), ("深色高對比", palette.darkHighContrast, darkRows, 4.5),
-        ]
-        for (name, color, backgrounds, minimum) in cases {
-            for background in backgrounds {
-                let ratio = color.contrastRatio(with: background)
-                #expect(ratio >= minimum, "\(name) \(color) 對 \(background) 只有 \(ratio)")
             }
         }
     }

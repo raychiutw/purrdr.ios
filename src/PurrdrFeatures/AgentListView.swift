@@ -473,7 +473,8 @@ struct AgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(.tint)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.primary)
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
@@ -493,7 +494,7 @@ struct AgentRowView: View {
 }
 
 /// Agent 狀態同時用文字、符號形狀與顏色表示，不只靠顏色(DESIGN.md)。
-/// 顏色只上在符號：文字維持次要色，確保對比;「需要你」整個用 tint(主色，對各背景 ≥ 4.5:1)。
+/// 顏色只上在符號(`StatusTone`);文字用主要色或次要文字色，不上狀態色(#237)。
 struct StatusLabel: View {
     let status: AgentStatus
 
@@ -502,9 +503,9 @@ struct StatusLabel: View {
         // 算不出理想寬度，標題被擠成極窄、一字一行，整列被撐高(#35)。
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: status.symbol)
-                .foregroundStyle(status.color)
+                .foregroundStyle(status.tone.style)
             Text(status.title)
-                .foregroundStyle(status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
+                .foregroundStyle(status.textEmphasis.style)
         }
         .font(.subheadline)
         .accessibilityElement(children: .combine)
@@ -569,17 +570,6 @@ extension AgentStatus {
         case .done: "circle.fill"
         case .idle: "circle"
         case .unknown: "questionmark.circle"
-        }
-    }
-
-    /// 語意對應 herdr 側欄(行為規格 F2.5);用系統色，深淺色與高對比由系統處理。
-    var color: AnyShapeStyle {
-        switch self {
-        case .blocked: AnyShapeStyle(.tint)
-        case .working: AnyShapeStyle(.orange)
-        case .done: AnyShapeStyle(.teal)
-        case .idle: AnyShapeStyle(.green)
-        case .unknown: AnyShapeStyle(.gray)
         }
     }
 }
