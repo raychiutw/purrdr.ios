@@ -38,6 +38,19 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertTrue(error.waitForExistence(timeout: 5) || scrollTo(error, in: app), "選回所有主機後錯誤行沒回來")
     }
 
+    /// 左上角的主機篩選是「主機圖示＋名稱＋▾」的膠囊(原型 purrdr-screens.html),不是只有圖示的圓鈕;換主機後寬度跟著名稱變。
+    @MainActor
+    func testHostFilterShowsIconNameAndChevron() {
+        let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
+        let filter = app.buttons["toolbar.hostFilter"].firstMatch
+        XCTAssertTrue(filter.waitForExistence(timeout: 15))
+        // 只有圖示的工具列鈕是 36～44pt 寬;帶「All Hosts」與 ▾ 才會超過 100pt。
+        XCTAssertGreaterThan(filter.frame.width, 100, "主機篩選只有圖示，沒有名稱與 ▾:\(filter.frame)")
+        XCTAssertGreaterThanOrEqual(filter.frame.height, 36, "主機篩選太矮:\(filter.frame)")
+        let more = app.buttons["toolbar.more"].firstMatch
+        XCTAssertLessThan(filter.frame.maxX, more.frame.minX, "主機篩選蓋到「⋯」")
+    }
+
     /// 主機篩選(#244):Spaces 檢視只留篩選那台的主機組;篩選選單帶各主機，第一項是所有主機。
     @MainActor
     func testHostFilterLimitsSpaces() {
