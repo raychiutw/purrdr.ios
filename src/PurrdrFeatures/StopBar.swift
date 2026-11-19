@@ -45,7 +45,8 @@ struct StopBar: View {
                 .disabled(!model.canForceQuit)
                 .accessibilityIdentifier("stopBar.forceQuit")
             } footer: {
-                if !model.canForceQuit {
+                // 只說明「需要你」;離線、唯讀時停止列本身就不在。
+                if model.agentStatus == .blocked {
                     Text("An agent that needs you can’t be interrupted.")
                 }
             }
@@ -130,7 +131,7 @@ struct StopBar: View {
             } label: {
                 Text("Force Quit…").frame(minHeight: 44)
             }
-            .buttonStyle(StopBarButtonStyle(foreground: .errorText))
+            .buttonStyle(StopBarButtonStyle())
             .disabled(!model.canForceQuit)
             .accessibilityIdentifier("stopBar.forceQuitResult")
         case .failed:
@@ -195,14 +196,12 @@ extension View {
     }
 }
 
-/// 停止列的中性按鈕：淡填色底與主要文字色(玻璃上的 bordered tint 對比不足),按下變淡。
+/// 停止列的中性按鈕：淡填色底與主要文字色(玻璃上的 bordered tint 對比不足),destructive 用系統紅，按下變淡。
 private struct StopBarButtonStyle: ButtonStyle {
-    var foreground: Color = .primary
-
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .padding(.horizontal, 12)
-            .foregroundStyle(foreground)
+            .foregroundStyle(configuration.role == .destructive ? Color.red : Color.primary)
             .background(.fill.tertiary, in: Capsule())
             .opacity(configuration.isPressed ? 0.6 : 1)
             .contentShape(Capsule())
