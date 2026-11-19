@@ -9,7 +9,7 @@ struct ErrorLabel: View {
     }
 
     /// 錯誤圖示;停止列的送不出也用它(#220)。
-    static let symbolName = "exclamationmark.triangle.fill"
+    nonisolated static let symbolName = "exclamationmark.triangle.fill"
 
     var body: some View {
         Label {
