@@ -97,6 +97,8 @@ public actor DemoHost: HostChannel {
                 return await self.respond(to: line)
             }
             if case .goesOffline = scenario { openBridges.append(bridge) }
+            bridges.removeAll { $0.session == nil }
+            bridges.append(WeakBridge(session: bridge))
             return bridge
         }
         if command == CodexPlanUsageHost.command {
@@ -181,6 +183,34 @@ public actor DemoHost: HostChannel {
 
     private func cancelTailscaleCheck() {
         checkWait?.cancel()
+    }
+
+    // MARK: - 停止(#220)
+
+    /// 收到 Esc／ctrl+c 到停下來的時間：停止中看得到。
+    static let stopDelay: Duration = .seconds(1)
+    /// 所有 bridge(只對開著的訂閱送事件)。
+    private var bridges: [WeakBridge] = []
+
+    private struct WeakBridge {
+        weak var session: DemoBridgeSession?
+    }
+
+    private func scheduleStop(paneID: String) {
+        Task { [weak self] in
+            guard (try? await Task.sleep(for: Self.stopDelay)) != nil else { return }
+            await self?.finishStop(paneID: paneID)
+        }
+    }
+
+    /// 停下來，並像 herdr 一樣對訂閱送狀態事件(畫面靠事件更新快照)。
+    private func finishStop(paneID: String) async {
+        answers.finishStop(paneID: paneID)
+        let workspace = paneID.split(separator: ":").first.map(String.init) ?? ""
+        let event = #"{"event":"pane.agent_status_changed","data":{"agent_status":"done","pane_id":"\#(paneID)","workspace_id":"\#(workspace)"}}"#
+        for bridge in bridges {
+            await bridge.session?.emit(Data((event + "\n").utf8))
+        }
     }
 
     // MARK: - 斷網情境
@@ -293,7 +323,6 @@ public actor DemoHost: HostChannel {
         writeDueReplies()
         if let response = promptResponse(to: requestLine) ?? paneResponse(to: requestLine) { return response }
         state.statuses = answers.statuses
-        answers.didReadStatuses()
         for pending in pendingReplies { state.statuses[pending.paneID] = "working" }
         return DemoSnapshot.response(to: requestLine, state: &state)
     }
@@ -329,7 +358,9 @@ public actor DemoHost: HostChannel {
             }
             return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID, ansi: ansi), ansi: ansi)
         case "pane.send_keys":
+            let wasStopping = answers.stopping.contains(paneID)
             answers.receivedKeys(params["keys"] as? [String] ?? [], paneID: paneID)
+            if !wasStopping && answers.stopping.contains(paneID) { scheduleStop(paneID: paneID) }
             return DemoSnapshot.ok(id: id)
         case "pane.send_text":
             answers.receivedText(params["text"] as? String ?? "", paneID: paneID)
@@ -706,6 +737,9 @@ private actor DemoBridgeSession: ExecSession {
     private let respond: @Sendable (Data) async -> (line: Data, keepsOpen: Bool)
     private var stdin = Data()
     private var answered = false
+    /// 回應後保持開著的訂閱(`events.subscribe`)。
+    private var isSubscription = false
+    private var isFinished = false
 
     init(respond: @escaping @Sendable (Data) async -> (line: Data, keepsOpen: Bool)) {
         (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
@@ -719,8 +753,22 @@ private actor DemoBridgeSession: ExecSession {
         answered = true
         let response = await respond(Data(stdin[stdin.startIndex..<newline]))
         continuation.yield(.stdout(response.line))
-        guard !response.keepsOpen else { return }
+        guard !response.keepsOpen else {
+            isSubscription = true
+            return
+        }
         continuation.yield(.exit(code: 0))
+        finish()
+    }
+
+    /// 對開著的訂閱送一行事件。
+    func emit(_ line: Data) {
+        guard isSubscription, !isFinished else { return }
+        continuation.yield(.stdout(line))
+    }
+
+    private func finish() {
+        isFinished = true
         continuation.finish()
     }
 
@@ -728,13 +776,14 @@ private actor DemoBridgeSession: ExecSession {
         guard !answered else { return }
         answered = true
         continuation.yield(.exit(code: 0))
-        continuation.finish()
+        finish()
     }
 
-    func close() async { continuation.finish() }
+    func close() async { finish() }
 
     /// 連線中斷：還沒結束的串流以 `error` 結束。
     func fail(_ error: any Error) {
+        isFinished = true
         continuation.finish(throwing: error)
     }
 }
