@@ -46,6 +46,17 @@ final class HostsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["hosts.add"].waitForExistence(timeout: 5))
     }
 
+    /// 頁首只有標題(#236):沒有主機時也不在清單最上面放說明文字。
+    @MainActor
+    func testEmptyHostListShowsOnlyTitle() {
+        let app = XCUIApplication.launchUITesting()
+        openHosts(app)
+
+        XCTAssertTrue(app.buttons["hosts.demo"].waitForExistence(timeout: 5))
+        let description = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Add a computer that runs herdr"))
+        XCTAssertEqual(description.count, 0, "主機清單仍有說明文字")
+    }
+
     /// OpenSSH 主機預設用這支裝置的金鑰：公鑰以可選取的文字顯示，有拷貝、分享，以及 macOS／Linux／Windows 的加入指令。
     @MainActor
     func testOpenSSHShowsDevicePublicKeyWithCommands() {

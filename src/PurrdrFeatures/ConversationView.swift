@@ -5,7 +5,7 @@ import SwiftUI
 
 /// 對話畫面(閱讀，行為規格 F5;DESIGN.md 方向 A)。
 ///
-/// - 使用者泡泡右對齊、填色紅底白字;agent 文字不是泡泡，全寬如文件。內容層一律不用 Liquid Glass。
+/// - 使用者泡泡右對齊、主色填色;agent 文字不是泡泡，全寬如文件。內容層一律不用 Liquid Glass。
 /// - thinking 與工具呼叫收合成一行摘要(DisclosureGroup);呼叫 skill 顯示「Loaded skill: <名稱>」。
 /// - 只在使用者位於底部時自動捲到底(`ConversationScroll`)。
 /// - 往上捲到接近頂端時載入更早的訊息。
@@ -565,7 +565,7 @@ struct HostPathOpenStatus: View {
     }
 }
 
-/// 使用者泡泡：右對齊、紅底填色(`hostFill`,白字 ≥ 4.5:1)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
+/// 使用者泡泡：右對齊、主色填色(`hostFill`,字色 ≥ 4.5:1)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
 struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
@@ -581,7 +581,6 @@ struct UserBubbleView: View {
                 }
                 if !bubble.text.isEmpty {
                     Text(bubble.text)
-                        .foregroundStyle(.white)
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)

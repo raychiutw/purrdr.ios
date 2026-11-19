@@ -119,6 +119,21 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled)
     }
 
+    /// 配對碼是大寫字母(#236、HIG TF-1):欄位用全大寫鍵盤，小寫鍵入的字變成大寫。
+    @MainActor
+    func testPairingCodeUsesUppercaseKeyboard() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        chooseHTTPS(app)
+        app.swipeDown()
+
+        let code = app.textFields["hostEditor.pairingCode"]
+        XCTAssertTrue(code.waitForExistence(timeout: 5))
+        code.tap()
+        code.typeText("k7qm-2xpa")
+        XCTAssertEqual(code.value as? String, "K7QM-2XPA")
+    }
+
     /// 系統相機掃主機配對指令的 QR code(`purrdr://pair?…`):開啟新增主機，帶入 HTTPS、位址與配對碼。
     @MainActor
     func testPairingLinkFillsAddHost() {

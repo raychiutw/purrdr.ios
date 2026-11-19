@@ -32,9 +32,9 @@ extension View {
             .modifier(HostThemePolling(model: model))
     }
 
-    /// 放白字的填色(使用者泡泡、送出鈕):有主機主題時用主題的填色，沒有主題或白字對比不足就用紅底角色。
+    /// 承載字的填色(使用者泡泡、徽章)與它上面的字色：`prominentFill` 底、`onProminentFill` 字。
     func hostFill<S: Shape>(in shape: S) -> some View {
-        modifier(HostFillModifier(shape: shape))
+        foregroundStyle(.onProminentFill).background(.prominentFill, in: shape)
     }
 }
 
@@ -65,21 +65,6 @@ private struct HostThemePolling: ViewModifier {
             await model.liveUpdates.attach()
         }
     }
-}
-
-private struct HostFillModifier<S: Shape>: ViewModifier {
-    let shape: S
-    @Environment(\.hostTheme) private var theme
-    @Environment(\.colorScheme) private var scheme
-
-    func body(content: Content) -> some View {
-        content.background(whiteTextFill(theme: theme, scheme: scheme), in: shape)
-    }
-}
-
-/// 放白字的填色：主機主題的填色(白字對比已檢查),沒有就用紅底角色。
-func whiteTextFill(theme: HostTheme?, scheme: ColorScheme) -> Color {
-    theme?.app(ThemeAppearance(scheme)).fill.map(Color.init) ?? .brandFill
 }
 
 /// 設定頁的「主機主題」區(#23)。開關打開時先說明會在主機上寫什麼、以哪個使用者，確認才寫入。
