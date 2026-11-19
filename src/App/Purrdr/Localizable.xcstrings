@@ -148,6 +148,17 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "%@ · Not loaded automatically" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 未自動載入"
+          }
+        }
+      }
+    },
     "%@: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1182,6 +1193,17 @@
         }
       }
     },
+    "Captured" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "擷取"
+          }
+        }
+      }
+    },
     "Change Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2040,6 +2062,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法載入訂閱方案。請檢查網路連線後再試一次。"
+          }
+        }
+      }
+    },
+    "Couldn’t load the image." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法載入圖片。"
           }
         }
       }
@@ -3023,6 +3056,17 @@
         }
       }
     },
+    "Generated" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "產生"
+          }
+        }
+      }
+    },
     "Go to Chat" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3309,6 +3353,17 @@
         }
       }
     },
+    "Image %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片 %@"
+          }
+        }
+      }
+    },
     "Image %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3327,6 +3382,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "圖片在主機上"
+          }
+        }
+      }
+    },
+    "Image previews aren’t available for this host yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機目前還不能預覽圖片。"
           }
         }
       }
@@ -3628,6 +3694,17 @@
         }
       }
     },
+    "Load Image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "載入圖片"
+          }
+        }
+      }
+    },
     "Loaded skill: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3679,6 +3756,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在載入資料夾…"
+          }
+        }
+      }
+    },
+    "Loading image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在載入圖片"
           }
         }
       }
@@ -4937,6 +5025,17 @@
         }
       }
     },
+    "Purrdr doesn’t open files in this location." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 不開啟這個位置的檔案。"
+          }
+        }
+      }
+    },
     "Purrdr host service %@ is available for %@. Run this on the host to update it. Paired devices stay paired." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5098,6 +5197,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為 Purrdr 評分"
+          }
+        }
+      }
+    },
+    "Read" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀取"
           }
         }
       }
@@ -7170,6 +7280,28 @@
         }
       }
     },
+    "This file is no longer on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上已沒有這個檔案。"
+          }
+        }
+      }
+    },
+    "This file isn’t an image Purrdr can show." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個檔案不是 Purrdr 能顯示的圖片。"
+          }
+        }
+      }
+    },
     "This file name can’t be used on the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7661,6 +7793,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為了標記註記，Purrdr 會以 %@ 更新 ~/.claude/plugins/store 裡 Claude Code 的註記檔。可以在設定中復原 Purrdr 的變更。"
+          }
+        }
+      }
+    },
+    "Too large to preview here (%@). Open it on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案太大，無法在這裡預覽(%@)。請在主機上開啟。"
           }
         }
       }
@@ -8571,6 +8714,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你已付款，但無法連上 Purrdr 來開啟 Purrdr Plus。下次在連網狀態下開啟 Purrdr 時會自動完成。"
+          }
+        }
+      }
+    },
+    "Zoom In" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放大"
+          }
+        }
+      }
+    },
+    "Zoom Out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "縮小"
           }
         }
       }

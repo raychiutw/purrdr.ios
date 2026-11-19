@@ -269,6 +269,10 @@ public enum Conversation {
         var handBacks: [Int: String] = [:]
         /// 還在等輸出的 shell 區塊(在 `items` 中的位置)。
         var pendingShell: Int?
+        /// 呼叫 id → 工具輸入的檔案路徑(Read 圖片的卡片取路徑用)。
+        var callPaths: [String: String] = [:]
+        /// 已有卡片的產生圖片(同一張圖的項目與事件只算一張)。
+        var generatedImages: Set<String> = []
 
         mutating func add(_ message: TranscriptMessage) {
             // Shell 指令只和**下一則**訊息配對：下一則不是輸出 → 中斷(沒有記錄輸出,F5.9)。
@@ -280,6 +284,7 @@ public enum Conversation {
             }
             var images = 0
             var userTexts: [String] = []
+            var resultCallID: String?
             for (index, part) in message.parts.enumerated() {
                 let partID = "\(message.id):\(index)"
                 switch part {
@@ -295,7 +300,9 @@ public enum Conversation {
                                             input: input, path: path, result: nil, isError: false)
                     let location = append(ToolStep(id: partID, kind: .call(call)))
                     if let callID { callsByID[callID] = location } else { callsWithoutID.append(location) }
+                    if let callID, let path { callPaths[callID] = path }
                 case .toolResult(let callID, let text, let isError):
+                    resultCallID = callID
                     if let callID, let index = delegationsByCall[callID] {
                         delegationResult(text: text, isError: isError, date: message.date, at: index)
                     } else {
@@ -326,8 +333,14 @@ public enum Conversation {
                         run.output = .recorded(output)
                         items[index] = .shell(run)
                     }
-                case .agentFile(let file):
-                    // 不結束工具串：同一串的寫檔卡片依序排在工具串之後(DESIGN「檔案卡片」)。
+                case .agentFile(var file):
+                    if file.path.isEmpty {
+                        // Read 圖片：路徑取自同一行工具結果對應的呼叫;呼叫不在視窗內就不顯示。
+                        guard let callID = resultCallID, let path = callPaths[callID] else { continue }
+                        file.path = path
+                    }
+                    if file.origin == .generatedImage, !generatedImages.insert(file.path).inserted { continue }
+                    // 不結束工具串：同一串的檔案卡片依序排在工具串之後(DESIGN「檔案卡片」)。
                     items.append(.agentFile(AgentFileCard(id: partID, file: file, date: message.date)))
                 }
             }

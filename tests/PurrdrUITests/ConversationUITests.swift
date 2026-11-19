@@ -46,7 +46,7 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "沒有使用者泡泡")
         XCTAssertTrue(app.staticTexts["Loaded skill: tdd"].exists, "skill 沒有顯示成「Loaded skill」")
-        XCTAssertTrue(app.staticTexts["Ran 1 command · Edited 2 files · Read 1 file"].exists, "工具串沒有收合成一行摘要")
+        XCTAssertTrue(app.staticTexts["Ran 1 command · Edited 2 files · Read 3 files"].exists, "工具串沒有收合成一行摘要")
         XCTAssertTrue(element("conversation.table", in: app).exists, "沒有表格")
         XCTAssertTrue(element("conversation.beginning", in: app).exists, "頂端沒有「對話開頭」")
     }
@@ -84,7 +84,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testToolRunExpandsToShowCalls() {
         let app = openLedger()
-        let summary = app.staticTexts["Ran 1 command · Edited 2 files · Read 1 file"]
+        let summary = app.staticTexts["Ran 1 command · Edited 2 files · Read 3 files"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
         // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
         let window = app.windows.firstMatch
@@ -124,6 +124,39 @@ final class ConversationUITests: XCTestCase {
 
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-file-cards"
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
+    /// 圖片卡片(#225):ledger 的 agent 讀了匯出預覽(小圖，自動從 Demo 主機載入縮圖)與掃描檔(超過 8 MiB,
+    /// 顯示大小與「Load Image」,點了才載入)。點縮圖全螢幕看，「Done」關閉。
+    @MainActor
+    func testAgentImagesShowThumbnails() {
+        let app = openLedger()
+        let headers = app.descendants(matching: .any).matching(identifier: "conversation.agentImage.header")
+        XCTAssertTrue(headers.firstMatch.waitForExistence(timeout: 10), "沒有圖片卡片")
+        XCTAssertTrue(headers.firstMatch.label.hasPrefix("Read file export-preview.png, Image"), "圖片卡片標題不對：\(headers.firstMatch.label)")
+
+        let thumbnail = element("conversation.agentImage.thumbnail", in: app)
+        XCTAssertTrue(app.reveal(thumbnail), "預覽圖沒有自動載入縮圖")
+        thumbnail.tap()
+        XCTAssertTrue(element("agentImage.viewer", in: app).waitForExistence(timeout: 5), "沒有全螢幕檢視")
+        let done = element("agentImage.viewer.done", in: app)
+        XCTAssertGreaterThanOrEqual(done.frame.height, 44)
+        done.tap()
+        XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5))
+
+        let load = element("conversation.agentImage.load", in: app)
+        XCTAssertTrue(app.reveal(load), "超過 8 MiB 的掃描檔應該等點擊")
+        let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Not loaded automatically")).firstMatch
+        XCTAssertTrue(note.exists, "沒有顯示大小與說明")
+        XCTAssertGreaterThanOrEqual(load.frame.height, 44)
+        load.tap()
+        let thumbnails = app.descendants(matching: .any).matching(identifier: "conversation.agentImage.thumbnail")
+        XCTAssertTrue(thumbnails.element(boundBy: 1).waitForExistence(timeout: 15), "點了之後掃描檔沒有載入")
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-image-cards"
         shot.lifetime = .keepAlways
         add(shot)
     }

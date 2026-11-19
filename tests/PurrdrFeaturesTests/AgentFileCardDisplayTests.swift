@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 @testable import PurrdrFeatures
 import Testing
@@ -36,5 +37,19 @@ struct AgentFileCardDisplayTests {
         #expect(display.visibleLines(expanded: true).count == 12)
         #expect(display.truncationNote == "Content truncated at 20,000 characters")
         #expect(display.copyableContent == text)
+    }
+
+    @Test("圖片卡片(#225):標題念讀取與大小;超過 8 MiB 顯示大小並提供載入，其他原因各有說明")
+    func imageCard() {
+        let image = AgentFileReference(origin: .readImage, path: "/Users/demo/ledger/docs/shot.png", byteCount: 2_048)
+        #expect(AgentFileCardDisplay(file: image).summary == "Read · Image · 2 KB")
+        #expect(AgentFileCardDisplay(file: AgentFileReference(origin: .toolImage, path: "/tmp/a.png")).originText == "Captured")
+
+        let over = AgentImageCardDisplay(state: .overAutomaticLimit(size: 9 * 1024 * 1024))
+        #expect(over.note == "9.4 MB · Not loaded automatically")
+        #expect(over.offersLoad)
+        #expect(AgentImageCardDisplay(state: .missing).note == "This file is no longer on the host.")
+        #expect(AgentImageCardDisplay(state: .failed).offersRetry)
+        #expect(AgentImageCardDisplay(state: .loading).note == nil)
     }
 }

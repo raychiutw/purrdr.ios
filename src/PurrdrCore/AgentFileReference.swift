@@ -10,6 +10,12 @@ public struct AgentFileReference: Sendable, Equatable, Codable {
         case overwritten
         /// `Edit`／`MultiEdit` 修改。
         case edited
+        /// `Read` 讀過的圖片(#225)。
+        case readImage
+        /// 工具結果帶的圖片(MCP 截圖等另存的檔案，#225)。
+        case toolImage
+        /// Agent 產生的圖片(Codex 圖片生成，#225)。
+        case generatedImage
     }
 
     public var origin: Origin
@@ -19,16 +25,27 @@ public struct AgentFileReference: Sendable, Equatable, Codable {
     public var snapshot: AgentFileSnapshot?
     /// 檔案大小(bytes);不知道時為 `nil`。
     public var byteCount: Int?
+    /// 對話紀錄記下的 MIME(例如 Read 圖片的 `image/png`);沒有時為 `nil`。
+    public var mediaType: String?
 
-    public init(origin: Origin, path: String, snapshot: AgentFileSnapshot? = nil, byteCount: Int? = nil) {
+    public init(origin: Origin, path: String, snapshot: AgentFileSnapshot? = nil, byteCount: Int? = nil, mediaType: String? = nil) {
         self.origin = origin
         self.path = path
         self.snapshot = snapshot
         self.byteCount = byteCount
+        self.mediaType = mediaType
     }
 
     /// 快照(寫入內容、修改摘要)最多保留的字數;超過時截斷並標示。
     public static let snapshotLimit = 20_000
+
+    /// Agent 讀過、截取或產生的圖片(圖片卡片從主機讀縮圖,#225)。
+    public var isImageFromAgent: Bool {
+        switch origin {
+        case .readImage, .toolImage, .generatedImage: true
+        case .created, .overwritten, .edited: false
+        }
+    }
 
     /// 檔名(路徑最後一段)。
     public var name: String {
@@ -37,6 +54,35 @@ public struct AgentFileReference: Sendable, Equatable, Codable {
 }
 
 extension AgentFileReference {
+    /// Claude 工具結果行頂層的 `toolUseResult` → 檔案參照(寫檔、讀圖片、工具結果帶圖)。
+    ///
+    /// Read 圖片的 `toolUseResult` 沒有路徑：`path` 留空，由 `Conversation` 以同一行的工具結果對回呼叫的路徑。
+    /// MCP 工具帶圖時 `toolUseResult` 是區塊陣列，另存的檔案記在 `[Image: source: <路徑>]` 文字裡(#223)。
+    static func claudeToolResultFiles(_ value: Any?) -> [AgentFileReference] {
+        if let blocks = value as? [[String: Any]] {
+            return blocks.compactMap { block in
+                guard block["type"] as? String == "text", let text = block["text"] as? String,
+                      let path = imageSource(in: text) else { return nil }
+                return AgentFileReference(origin: .toolImage, path: path)
+            }
+        }
+        guard let result = value as? [String: Any] else { return [] }
+        if result["type"] as? String == "image" {
+            let file = result["file"] as? [String: Any]
+            return [AgentFileReference(origin: .readImage, path: "", byteCount: file?["originalSize"] as? Int, mediaType: file?["type"] as? String)]
+        }
+        return claudeToolResult(result).map { [$0] } ?? []
+    }
+
+    /// `[Image: source: <絕對路徑>]` 的路徑。
+    private static func imageSource(in text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefix = "[Image: source: "
+        guard trimmed.hasPrefix(prefix), trimmed.hasSuffix("]") else { return nil }
+        let path = String(trimmed.dropFirst(prefix.count).dropLast())
+        return HostPathSyntax.isAbsolute(path) ? path : nil
+    }
+
     /// Claude 工具結果行頂層的 `toolUseResult` → 檔案參照(欄位依 #223 錄製樣本，沒有官方 schema)。
     /// `Write` 帶 `type: create／update` 與 `content`;`Edit` 沒有 `type`,帶 `structuredPatch`。其他結果回 `nil`。
     static func claudeToolResult(_ result: [String: Any]) -> AgentFileReference? {

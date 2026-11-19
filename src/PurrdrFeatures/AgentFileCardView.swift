@@ -16,12 +16,15 @@ struct AgentFileCardDisplay {
 
     let file: AgentFileReference
 
-    /// 「Created」「Overwritten」「Edited」。
+    /// 「Created」「Overwritten」「Edited」;圖片是「Read」「Captured」(工具結果帶圖)「Generated」。
     var originText: String {
         switch file.origin {
         case .created: String(localized: "Created")
         case .overwritten: String(localized: "Overwritten")
         case .edited: String(localized: "Edited")
+        case .readImage: String(localized: "Read")
+        case .toolImage: String(localized: "Captured")
+        case .generatedImage: String(localized: "Generated")
         }
     }
 
@@ -115,7 +118,7 @@ struct AgentFileCardView: View {
     var body: some View {
         let visible = display.visibleLines(expanded: expanded)
         VStack(alignment: .leading, spacing: 8) {
-            header
+            AgentFileCardHeader(card: card, display: display, identifier: "conversation.agentFile.header")
             if !visible.isEmpty {
                 ScrollView(.horizontal) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -164,7 +167,23 @@ struct AgentFileCardView: View {
         .accessibilityIdentifier("conversation.agentFile")
     }
 
-    private var header: some View {
+    /// 刪除的行用錯誤文字色、未變的行用次要文字色;新增的行用主要文字色加粗(沒有對比足夠的綠色角色)。
+    private static func style(of kind: AgentFileCardDisplay.Line.Kind) -> AnyShapeStyle {
+        switch kind {
+        case .plain, .added: AnyShapeStyle(.primary)
+        case .removed: AnyShapeStyle(.errorText)
+        case .context, .hunkHeader: AnyShapeStyle(.secondaryText)
+        }
+    }
+}
+
+/// 檔案卡片與圖片卡片共用的標題列：類型圖示、檔名、路徑、「動作 · 類型 · 大小」與時間;VoiceOver 念完整資訊。
+struct AgentFileCardHeader: View {
+    let card: AgentFileCard
+    let display: AgentFileCardDisplay
+    let identifier: String
+
+    var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: display.symbol)
                 .font(.title3)
@@ -190,15 +209,7 @@ struct AgentFileCardView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(display.accessibilityLabel)
-        .accessibilityIdentifier("conversation.agentFile.header")
-    }
-
-    /// 刪除的行用錯誤文字色、未變的行用次要文字色;新增的行用主要文字色加粗(沒有對比足夠的綠色角色)。
-    private static func style(of kind: AgentFileCardDisplay.Line.Kind) -> AnyShapeStyle {
-        switch kind {
-        case .plain, .added: AnyShapeStyle(.primary)
-        case .removed: AnyShapeStyle(.errorText)
-        case .context, .hunkHeader: AnyShapeStyle(.secondaryText)
-        }
+        .accessibilityIdentifier(identifier)
     }
 }
+
