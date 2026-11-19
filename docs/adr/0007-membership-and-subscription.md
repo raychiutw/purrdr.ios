@@ -11,3 +11,7 @@ StoreKit 本身不需要帳號，但我們仍然加入會員機制:iOS 提供 Si
 - 主機同步由會員主動開啟，後台可讀(TLS 傳輸、Cloudflare 靜態加密，寫進隱私權政策),不做端對端加密;以單一主機為單位最後寫入者勝，刪除留紀錄。私鑰與密碼永不上傳。
 - 後台從單純的推播轉送擴大為 Cloudflare Worker + D1,位於主 repo 的 `backend/`。
 - 連結登入方式時，若另一種登入已屬於另一個會員：該會員沒有訂閱也沒有同步資料時自動併入並刪除它;否則拒絕並說明，使用者須先登入該會員刪除它。可隨時解除連結，但會員至少保留一種登入方式。
+
+## 更新(2026-11-19):後台搬到 raychiutw/purrdr.server
+
+後台(原本主 repo 的 `backend/`)搬到私人 repo [`raychiutw/purrdr.server`](https://github.com/raychiutw/purrdr.server)(保留歷史),CI 的後台測試也在那裡跑。API 契約與上線前設定見那裡的 `README.md`;後台仍由使用者手動部署。

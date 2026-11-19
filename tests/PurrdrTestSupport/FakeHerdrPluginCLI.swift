@@ -19,7 +19,7 @@ public enum FakeHerdrPluginCLI {
             else
               printf '%s\\n' '{"id":"cli:plugin","result":{"plugins":[],"type":"plugin_list"}}'
             fi ;;
-          "plugin install raychiutw/purrdr-host/host-plugin --yes")
+          "plugin install raychiutw/purrdr.host/host-plugin --yes")
             if [ -f "$HOME/fake/install-fails" ]; then echo "git clone failed" >&2; exit 1; fi
             : > "$HOME/fake/installed" ;;
           "plugin uninstall purrdr.push") rm -f "$HOME/fake/installed" ;;

@@ -5,7 +5,7 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// 主機同步(#30、ADR-0007)的 model(Seam 2:後台用 `HTTPStub`,回應依 `backend/README.md` 的契約手寫)。
+/// 主機同步(#30、ADR-0007)的 model(Seam 2:後台用 `HTTPStub`,回應依 `raychiutw/purrdr.server` 的 `README.md` 的契約手寫)。
 @MainActor
 @Suite("主機同步")
 struct HostSyncModelTests {

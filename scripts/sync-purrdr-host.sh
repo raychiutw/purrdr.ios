@@ -1,5 +1,5 @@
 #!/bin/sh
-# 從主機端 repo raychiutw/purrdr-host(公開)同步 app 需要的檔案。
+# 從主機端 repo raychiutw/purrdr.host(公開)同步 app 需要的檔案。
 #
 #   scripts/sync-purrdr-host.sh [ref]    以 ref(branch、tag 或 commit,預設 master)解析成 commit SHA 後拉回
 #   scripts/sync-purrdr-host.sh --check  依 vendor/purrdr-host/VERSION 記的 commit 重新取回比對，不同就 exit 1(CI 跑)
@@ -9,11 +9,11 @@
 #   protocol/(schema 與 examples/)             → vendor/purrdr-host/protocol/(FakeHostService 與範例測試讀它)
 #   host-service/service/Cargo.toml 的版本號    → vendor/purrdr-host/VERSION(連同 commit SHA;HostServiceUpdateTests 核對)
 #
-# 改協定的流程：在 purrdr-host 改 schema、跑 codegen 並合併 → 這裡跑本腳本 → 讓 app 的測試通過。
+# 改協定的流程：在 purrdr.host 改 schema、跑 codegen 並合併 → 這裡跑本腳本 → 讓 app 的測試通過。
 # 不需要本機 clone:commit 經 GitHub API 解析(有 GITHUB_TOKEN／GH_TOKEN 就帶上),內容從 codeload 的 tarball 取。
 set -eu
 
-repo="raychiutw/purrdr-host"
+repo="raychiutw/purrdr.host"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 version_file="$root/vendor/purrdr-host/VERSION"
 
@@ -78,7 +78,7 @@ case "${1:-}" in
         diff -u "$expected/src/PurrdrCore/HostServiceProtocol.swift" "$root/src/PurrdrCore/HostServiceProtocol.swift" || status=1
         diff -ru "$expected/vendor/purrdr-host" "$root/vendor/purrdr-host" || status=1
         if [ "$status" -ne 0 ]; then
-            echo "與 $repo@$sha 不同：協定檔案不要手改，在 purrdr-host 改好後執行 scripts/sync-purrdr-host.sh" >&2
+            echo "與 $repo@$sha 不同：協定檔案不要手改，在 purrdr.host 改好後執行 scripts/sync-purrdr-host.sh" >&2
             exit 1
         fi
         echo "與 $repo@$sha 一致"

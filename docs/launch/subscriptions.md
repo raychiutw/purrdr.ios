@@ -1,7 +1,7 @@
 # Purrdr Plus 訂閱設定(#36)
 
 App Store Connect → App → 營利 → 訂閱。商品 ID、期間、試用、Offer Code 與 `src/App/Purrdr.storekit` 相同，由 `StoreKitConfigurationTests` 檢查設定檔
-(商品 ID 等於 app 的 `MemberSubscription.productIDs`;後台的 `PLUS_PRODUCT_IDS` 在 `backend/src/subscriptions.ts`)。**ID 建立後不能改**,改了要三處同步。
+(商品 ID 等於 app 的 `MemberSubscription.productIDs`;後台的 `PLUS_PRODUCT_IDS` 在 `raychiutw/purrdr.server` 的 `src/subscriptions.ts`)。**ID 建立後不能改**,改了要三處同步。
 
 ## 訂閱群組
 
@@ -57,10 +57,10 @@ App 名稱的在地化(群組的「App 名稱」欄)選「使用 App 名稱」�
 | 到期日 | 由人工決定(依 App Store Connect 的上限) |
 
 兌換方式：app 的「Purrdr Plus → Redeem Code」(登入會員後，系統兌換畫面),或 App Store 的兌換連結。
-在 App Store 兌換的交易沒有 `appAccountToken`,打開 app 登入後由交易更新送到後台，歸登入的會員(`backend/README.md`「訂閱歸屬」)。
+在 App Store 兌換的交易沒有 `appAccountToken`,打開 app 登入後由交易更新送到後台，歸登入的會員(`raychiutw/purrdr.server` 的 `README.md`「訂閱歸屬」)。
 不用自訂授權碼(審查規範 3.1.1)。
 
 ## 其他要在 App Store Connect 設定的
 
-- **App Store 伺服器通知**:Production 與 Sandbox 都填 `https://<後台網址>/v1/app-store/notifications`,Version 2(`backend/README.md`)。
+- **App Store 伺服器通知**:Production 與 Sandbox 都填 `https://<後台網址>/v1/app-store/notifications`,Version 2(`raychiutw/purrdr.server` 的 `README.md`)。
 - **App 內購買項目的稅務、銀行與合約**:「付費 App」合約要生效才能賣訂閱與 sandbox 測試。

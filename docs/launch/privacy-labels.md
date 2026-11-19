@@ -17,21 +17,21 @@ App Store Connect → App → App 隱私權。每題附依據(程式位置)。�
 
 | 類別 → 類型 | 蒐集? | 內容 | 依據 |
 |---|---|---|---|
-| 聯絡資訊 → 電子郵件地址 | **是** | Apple／Google ID token 的 email(可能是 Apple 轉寄地址) | `backend/migrations/` 的 `identities.email`;`src/PurrdrFeatures/MemberView.swift`(Sign in with Apple `requestedScopes = [.email]`);`src/PurrdrFeatures/GoogleSignIn.swift`(scope `openid email`) |
+| 聯絡資訊 → 電子郵件地址 | **是** | Apple／Google ID token 的 email(可能是 Apple 轉寄地址) | `raychiutw/purrdr.server` 的 `migrations/` 的 `identities.email`;`src/PurrdrFeatures/MemberView.swift`(Sign in with Apple `requestedScopes = [.email]`);`src/PurrdrFeatures/GoogleSignIn.swift`(scope `openid email`) |
 | 聯絡資訊 → 姓名、電話、實體地址、其他 | 否 | Sign in with Apple 不要求 `.fullName` | `MemberView.swift` |
-| 識別碼 → 使用者 ID | **是** | 會員 ID、Apple／Google 的 subject | `identities.subject`、`members.id`;`backend/README.md`「API」 |
+| 識別碼 → 使用者 ID | **是** | 會員 ID、Apple／Google 的 subject | `identities.subject`、`members.id`;`raychiutw/purrdr.server` 的 `README.md`「API」 |
 | 識別碼 → 裝置 ID | **是** | APNs device token(推播配對) | `push_pairings.device_token`;`src/PurrdrFeatures/PushModel.swift`;`POST /v1/members/me/push-pairings` |
-| 購買項目 → 購買記錄 | **是** | App Store 交易:original transaction ID、商品、購買／到期／退款時間、自動續訂狀態 | `entitlements` 表;`backend/src/subscriptions.ts`;`src/PurrdrFeatures/SubscriptionModel.swift` |
-| 使用者內容 → 其他使用者內容 | **是** | 主機同步：主機名稱、位址與埠、使用者名稱、連線方式、host key 指紋、修改時間 | `synced_hosts` 表;`src/PurrdrCore/HostSync.swift`(`SyncedHost`、`HostSyncJournal`);`backend/README.md`「主機同步」 |
+| 購買項目 → 購買記錄 | **是** | App Store 交易:original transaction ID、商品、購買／到期／退款時間、自動續訂狀態 | `entitlements` 表;`raychiutw/purrdr.server` 的 `src/subscriptions.ts`;`src/PurrdrFeatures/SubscriptionModel.swift` |
+| 使用者內容 → 其他使用者內容 | **是** | 主機同步：主機名稱、位址與埠、使用者名稱、連線方式、host key 指紋、修改時間 | `synced_hosts` 表;`src/PurrdrCore/HostSync.swift`(`SyncedHost`、`HostSyncJournal`);`raychiutw/purrdr.server` 的 `README.md`「主機同步」 |
 | 使用者內容 → 照片或影片 | 否 | 圖片經 SSH 直接上傳到使用者自己的主機 `~/.purrdr/uploads/`,不經我們 | `src/PurrdrCore/UploadedImages.swift`;`src/PurrdrFeatures/ComposerImageViews.swift` |
-| 使用者內容 → 電子郵件或簡訊、遊戲內容、客戶支援、其他 | 否 | 對話與 prompt 只在裝置與使用者的主機之間(SSH) | `src/PurrdrCore/SSHHostChannel.swift`;`backend/README.md` 開頭「聊天與終端機不經過這裡」 |
+| 使用者內容 → 電子郵件或簡訊、遊戲內容、客戶支援、其他 | 否 | 對話與 prompt 只在裝置與使用者的主機之間(SSH) | `src/PurrdrCore/SSHHostChannel.swift`;`raychiutw/purrdr.server` 的 `README.md` 開頭「聊天與終端機不經過這裡」 |
 | 診斷 → 當機資料、效能資料、其他診斷資料 | 否 | 沒有當機回報或分析 SDK(相依只有 swift-nio、swift-nio-ssh、swift-crypto、SwiftTerm);「拷貝診斷資訊」只到剪貼簿，由使用者自己決定是否寄出 | `Package.swift`;`src/PurrdrFeatures/SettingsModel.swift`(`diagnostics`) |
 | 使用資料 → 產品互動、廣告資料、其他 | 否 | 沒有分析;評分提示計數只在 UserDefaults | `src/PurrdrFeatures/ReviewPrompt.swift` |
 | 位置 | 否 | 不使用定位 | 全 repo 沒有 CoreLocation |
 | 健康與健身、財務資訊、聯絡人、敏感資訊、瀏覽紀錄、搜尋紀錄 | 否 | — | — |
-| 其他資料 | 否 | 推播的 workspace 名稱／狀態／pane id 只在轉送當下處理、不保存(見上方判斷基準) | `backend/README.md`「推播」 |
+| 其他資料 | 否 | 推播的 workspace 名稱／狀態／pane id 只在轉送當下處理、不保存(見上方判斷基準) | `raychiutw/purrdr.server` 的 `README.md`「推播」 |
 
-> 需人工判斷的一點:後台開啟了 Cloudflare Workers Logs(`backend/wrangler.jsonc` 的 `observability.enabled`),Cloudflare 會短期保存請求紀錄(可能含 IP 位址)用於除錯。
+> 需人工判斷的一點:後台開啟了 Cloudflare Workers Logs(`raychiutw/purrdr.server` 的 `wrangler.jsonc` 的 `observability.enabled`),Cloudflare 會短期保存請求紀錄(可能含 IP 位址)用於除錯。
 > 這是服務供應商為提供服務而處理、只用於維運與除錯，沒有拿來推算位置、也不連結到會員，所以此處**不申報**「粗略位置」或「其他診斷資料」。
 > 若之後把紀錄用於分析，或保存較久，要改申報「診斷 → 其他診斷資料」。
 

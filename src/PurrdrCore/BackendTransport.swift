@@ -36,7 +36,7 @@ public struct BackendResponse: Sendable, Equatable {
 
 /// 後台相關的錯誤。
 public enum BackendError: Error, Equatable {
-    /// 後台回的錯誤(`code` 見 backend/README.md)。
+    /// 後台回的錯誤(`code` 見 raychiutw/purrdr.server 的 README.md)。
     case backend(status: Int, code: String, message: String)
     /// 連不上後台。
     case unreachable

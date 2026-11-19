@@ -7,7 +7,7 @@ import Testing
 
 /// 會員畫面 model(Seam 2:後台用 `HTTPStub` 擋在 `URLSession` 底下;Seam 3:權杖存放用記憶體內的假實作)。
 ///
-/// 後台回應依 `backend/README.md` 的 API 契約手寫(後台還沒上線，錄不到真實回應)。
+/// 後台回應依 `raychiutw/purrdr.server` 的 `README.md` 的 API 契約手寫(後台還沒上線，錄不到真實回應)。
 @MainActor
 @Suite("會員")
 struct MemberModelTests {
@@ -320,7 +320,7 @@ func sha256Hex(_ text: String) -> String {
     SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
 }
 
-/// 後台回應(依 backend/README.md 的契約)。
+/// 後台回應(依 raychiutw/purrdr.server 的 README.md 的契約)。
 enum Replies {
     static let appleMember = #"""
     {"id": "member-1", "identities": [{"provider": "apple", "email": "abc@privaterelay.appleid.com", "linkedAt": "2026-11-15T08:00:00.000Z"}]}
