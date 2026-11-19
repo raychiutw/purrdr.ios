@@ -111,6 +111,35 @@ struct LivePreviewTests {
         #expect(LivePreview.extract(screen: screen) == "這兩張會併進這一批，跟 #203、#204、#205、#208、#210 一起，最後開一個 PR 到 master，CI 只跑一次。")
     }
 
+    /// #214 review:介面列比對不分大小寫後，提到這些字的散文整行被拿掉。
+    @Test("散文提到 Ctrl+C、Esc to cancel、Manual mode 不算介面列")
+    func proseMentioningShortcutsIsKept() {
+        let screen = """
+            ⏺ 測試卡住時按 Ctrl+C 結束，選單裡的 Esc to cancel 只會關掉選單;
+              README 也一起補上 Manual mode 的說明。
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        #expect(LivePreview.extract(screen: screen)
+            == "測試卡住時按 Ctrl+C 結束，選單裡的 Esc to cancel 只會關掉選單; README 也一起補上 Manual mode 的說明。")
+    }
+
+    @Test("介面列：以關鍵字開頭、或以 · 分隔的狀態列，照樣略過")
+    func chromeShapedLinesAreDropped() {
+        let screen = """
+            ⏺ The exporter now writes the header row before any data rows.
+              ⏸ Manual mode on (shift+tab to cycle)
+              Ctrl+T to show todos
+              ✗ Auto-update failed · Try claude doctor
+              ◐ medium · /effort
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        #expect(LivePreview.extract(screen: screen) == "The exporter now writes the header row before any data rows.")
+    }
+
     @Test("閒置畫面(沒有錨點只有輸入框)上方的舊回覆也照規則取;空畫面 → 不顯示")
     func emptyScreen() {
         #expect(LivePreview.extract(screen: "") == nil)
