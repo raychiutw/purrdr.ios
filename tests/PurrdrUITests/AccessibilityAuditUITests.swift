@@ -134,6 +134,11 @@ final class AccessibilityAuditUITests: XCTestCase {
             // 停止列出現時輸入卡片長高、對話跟著捲動：等版面停下再稽核。
             XCTAssertTrue(waitForSettledLayout([stop, element("conversation.working", in: app)], timeout: 5), "版面沒有停下")
             try audit(app, "對話(工作中)", contentSize: size)
+            // 工作中指示在輸入卡片正上方的漸層帶：不論 audit 有沒有回報，都以截圖量實際對比(#220)。
+            let workingLabel = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Writing'")).firstMatch
+            XCTAssertTrue(workingLabel.exists, "沒有工作中指示")
+            let contrast = measuredTextContrast(workingLabel) ?? 0
+            XCTAssertGreaterThanOrEqual(contrast, 4.5, "工作中指示的實際對比只有 \(contrast)")
 
             // 強制結束的確認對話框(#220)。
             stop.press(forDuration: 1.0)

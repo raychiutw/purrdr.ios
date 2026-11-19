@@ -100,6 +100,15 @@ final class AccessibilityAuditContext {
         return false
     }
 
+    /// 元素在底部玻璃層正上方的 scroll edge effect 漸層帶裡：中線在玻璃層上緣以上、一個玻璃層高度以內
+    /// (漸層隨玻璃層高度變，AX 字級時玻璃層與漸層都變高)。
+    func isInBottomEdgeBand(_ frame: CGRect) -> Bool {
+        let middle = CGPoint(x: frame.midX, y: frame.midY)
+        return bottomBars.contains { bar in
+            middle.y < bar.minY && middle.y >= bar.minY - bar.height
+        }
+    }
+
     /// 印出這次判斷用的玻璃區域(稽核紀錄)。
     func describeBars() -> String {
         "導覽列 \(navigationBars) 底部 \(bottomBars) slash \(String(describing: slashMenu)) 視窗 \(window)"
@@ -159,6 +168,15 @@ enum AccessibilityAuditExclusions {
         ) { issue, context in
             guard context.isAccessibilitySize, let element = issue.element, element.elementType == .staticText else { return false }
             return element.frame.height >= 50
+        },
+        Rule(
+            types: .contrast,
+            reason: "底部玻璃層正上方 scroll edge effect 漸層帶裡的文字(工作中的「Writing…」與經過時間等):audit 取樣到漸層，"
+                + "但元素截圖實際量到的文字對背景 ≥ 4.5:1(截圖量測見 `measuredTextContrast`,量不到或不足一律算失敗)"
+        ) { issue, context in
+            guard let element = issue.element, element.elementType == .staticText,
+                  context.isInBottomEdgeBand(element.frame) else { return false }
+            return (measuredTextContrast(element) ?? 0) >= 4.5
         },
         Rule(
             types: .contrast,
@@ -251,4 +269,50 @@ enum AccessibilityAuditExclusions {
         default: "other(\(type.rawValue))"
         }
     }
+}
+
+/// 元素截圖實際畫出來的文字對比：離背景最遠的像素(文字)對截圖四邊裡亮度最接近它的像素(最不利的背景)。
+@MainActor
+func measuredTextContrast(_ element: XCUIElement) -> Double? {
+    guard let image = element.screenshot().image.cgImage else { return nil }
+    let width = image.width, height = image.height
+    guard width > 2, height > 2 else { return nil }
+    var pixels = [UInt8](repeating: 0, count: width * height * 4)
+    let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+        guard let bitmap = CGContext(
+            data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return false }
+        bitmap.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return true
+    }
+    guard drawn else { return nil }
+    func luminance(_ x: Int, _ y: Int) -> Double {
+        let offset = (y * width + x) * 4
+        let channels = (0..<3).map { index -> Double in
+            let value = Double(pixels[offset + index]) / 255
+            return value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+    }
+    var border: [Double] = []
+    for x in 0..<width {
+        border.append(luminance(x, 0))
+        border.append(luminance(x, height - 1))
+    }
+    for y in 0..<height {
+        border.append(luminance(0, y))
+        border.append(luminance(width - 1, y))
+    }
+    let background = border.sorted()[border.count / 2]
+    var text = background
+    for y in 0..<height {
+        for x in 0..<width {
+            let value = luminance(x, y)
+            if abs(value - background) > abs(text - background) { text = value }
+        }
+    }
+    guard let nearest = border.min(by: { abs($0 - text) < abs($1 - text) }) else { return nil }
+    let lighter = max(text, nearest), darker = min(text, nearest)
+    return (lighter + 0.05) / (darker + 0.05)
 }
