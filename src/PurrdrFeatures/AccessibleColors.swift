@@ -97,20 +97,20 @@ extension AccessibleColors {
     )
 }
 
-/// Agent 種類頭像(#103):底色與白色字母。深淺色共用同一個底色，高對比時更深。
+/// Agent 種類頭像(#103;#242 低飽和多色):底色與白色字母。深淺色共用同一個底色，高對比時更深。
 struct AgentKindAvatarStyle {
     var letter: String
     var palette: ContrastPalette
 
     init(kind: AgentKind) {
         let (letter, normal, highContrast): (String?, ThemeColor, ThemeColor) = switch kind {
-        case .claudeCode: ("C", ThemeColor(red: 0xA8, green: 0x4A, blue: 0x2A), ThemeColor(red: 0x8F, green: 0x3E, blue: 0x22)) // 5.7／7.3:1
-        case .codex: ("X", ThemeColor(red: 0x48, green: 0x48, blue: 0x4A), ThemeColor(red: 0x3A, green: 0x3A, blue: 0x3C)) // 9.1／11.4:1
-        case .gemini: ("G", ThemeColor(red: 0x2F, green: 0x5F, blue: 0xCC), ThemeColor(red: 0x24, green: 0x4C, blue: 0xA8)) // 5.8／7.9:1
-        case .openCode: ("O", ThemeColor(red: 0x23, green: 0x73, blue: 0x47), ThemeColor(red: 0x1B, green: 0x5E, blue: 0x39)) // 5.8／7.8:1
-        case .copilot: ("P", ThemeColor(red: 0x73, green: 0x40, blue: 0xCF), ThemeColor(red: 0x5E, green: 0x2F, blue: 0xB0)) // 6.2／8.4:1
+        case .claudeCode: ("C", ThemeColor(red: 0x8A, green: 0x5A, blue: 0x48), ThemeColor(red: 0x6D, green: 0x47, blue: 0x39)) // 5.8／8.0:1
+        case .codex: ("X", ThemeColor(red: 0x55, green: 0x56, blue: 0x5C), ThemeColor(red: 0x4F, green: 0x50, blue: 0x56)) // 7.3／8.0:1
+        case .gemini: ("G", ThemeColor(red: 0x4A, green: 0x5F, blue: 0x86), ThemeColor(red: 0x3E, green: 0x50, blue: 0x71)) // 6.4／8.1:1
+        case .openCode: ("O", ThemeColor(red: 0x5C, green: 0x6B, blue: 0x4A), ThemeColor(red: 0x48, green: 0x53, blue: 0x3A)) // 5.7／8.2:1
+        case .copilot: ("P", ThemeColor(red: 0x6A, green: 0x58, blue: 0x84), ThemeColor(red: 0x58, green: 0x49, blue: 0x6E)) // 6.3／8.1:1
         // 其他種類：中性色 + 顯示名首字母。
-        case .unknown: (nil, ThemeColor(red: 0x5A, green: 0x5A, blue: 0x5F), ThemeColor(red: 0x48, green: 0x48, blue: 0x4A)) // 6.9／9.1:1
+        case .unknown: (nil, ThemeColor(red: 0x5A, green: 0x5A, blue: 0x5F), ThemeColor(red: 0x50, green: 0x50, blue: 0x55)) // 6.9／8.0:1
         }
         self.letter = letter ?? (kind.displayName?.first.map { String($0).uppercased() } ?? "?")
         palette = ContrastPalette(light: normal, dark: normal, lightHighContrast: highContrast, darkHighContrast: highContrast)
