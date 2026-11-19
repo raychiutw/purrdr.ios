@@ -174,4 +174,26 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["agentList.title"].waitForExistence(timeout: 5), "回到最上面後沒有大標題")
         XCTAssertFalse(app.navigationBars.buttons["Agents"].exists, "回到最上面後導覽列不該再有小標題")
     }
+
+    /// 按壓回饋(#234):按住一下再放開(短於長按選單)，群組標頭仍收合、大標題仍出檢視選單;按住時的畫面附在結果裡。
+    @MainActor
+    func testHeldGroupHeaderAndLargeTitleStillAct() {
+        let app = XCUIApplication.launchUITesting()
+        let header = app.buttons["workspace.group.demo/w3"]
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "群組標頭不是按鈕")
+        let agent = element("agent.row.demo/w3:p1", in: app)
+        XCTAssertTrue(agent.exists)
+
+        header.press(forDuration: 0.3)
+        XCTAssertTrue(agent.waitForNonExistence(timeout: 5), "按住後放開群組標頭沒有收合")
+
+        let title = app.buttons["agentList.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "大標題不是按鈕")
+        title.press(forDuration: 0.3)
+        XCTAssertTrue(app.buttons["Agents"].firstMatch.waitForExistence(timeout: 5), "按住後放開大標題沒有出現檢視選單")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "press-feedback-spaces"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
 }

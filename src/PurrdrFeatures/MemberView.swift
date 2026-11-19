@@ -198,7 +198,7 @@ struct SignInButtons: View {
                 .overlay(RoundedRectangle(cornerRadius: Self.cornerRadius).strokeBorder(.secondary, lineWidth: 1))
                 .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableCard(cornerRadius: Self.cornerRadius))
         .accessibilityIdentifier("member.signIn.google")
     }
 }

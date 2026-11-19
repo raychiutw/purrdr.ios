@@ -217,7 +217,6 @@ private struct WorkspaceGroupHeader: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: spokenLabel))
         .accessibilityAddTraits(.isButton)
@@ -459,7 +458,8 @@ struct AgentListLargeTitle: View {
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .menuStyle(.button)
+        .buttonStyle(.pressableRow(cornerRadius: 10))
         .accessibilityHint("Switches between Spaces and Agents.")
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("agentList.title")
