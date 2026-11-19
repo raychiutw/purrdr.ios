@@ -25,10 +25,10 @@ struct HostEditorConnectionFieldsTests {
     @Test(
         "每種連線方式只出現自己的欄位;Tailscale SSH 沒有登入方式(密碼),HTTPS 沒有帳號",
         arguments: [
-            (HostConfiguration.ConnectionMethod.tailscaleSSH, [HostEditorModel.ConnectionField.address, .port, .username, .advanced]),
+            (.tailscaleSSH, [.address, .port, .username, .advanced]),
             (.openSSH, [.address, .port, .username, .signIn, .advanced]),
             (.https, [.address, .port, .pairingCode]),
-        ])
+        ] as [(HostConfiguration.ConnectionMethod, [HostEditorModel.ConnectionField])])
     func fieldsPerMethod(method: HostConfiguration.ConnectionMethod, expected: [HostEditorModel.ConnectionField]) {
         let model = Self.newEditor()
 
