@@ -185,10 +185,13 @@ actor LongRunningScriptChannel<Reply: Sendable> {
         let current = generation
         do {
             try await session.write(request)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             // 通道已經結束(例如主機沒有這支腳本):照結束處理。
             if current == generation, let endedError { throw endedError }
-            throw error
+            // 腳本已結束但結束狀態還沒送到(閒置到時限，broken pipe):同樣當通道結束，重開再問。
+            throw ChannelEnded(exitCode: nil, hadReplied: hasReplied)
         }
         let timer = Task { [sleep, deadline, weak self] in
             guard (try? await sleep(deadline)) != nil, !Task.isCancelled else { return }

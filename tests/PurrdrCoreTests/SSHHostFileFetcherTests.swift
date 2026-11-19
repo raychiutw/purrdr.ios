@@ -2,6 +2,7 @@ import Foundation
 import PurrdrCore
 import PurrdrSSH
 import PurrdrTestSupport
+import Synchronization
 import Testing
 
 /// SSH 的主機取檔 adapter(#225):每台主機一條長駐通道，請求一行、回應以 `end` 結束;路徑以 base64 送(可含空白、換行以外任何字元)。
@@ -51,6 +52,65 @@ struct SSHHostFileFetcherTests {
         await host.send(stdout: Data("changed\nend\n".utf8), toExecution: 0)
 
         await #expect(throws: HostFileFetchError.changed) { _ = try await read.value }
+    }
+
+    @Test("閒置結束的通道還沒回報結束就寫入失敗(broken pipe):重開一條通道再問，不丟寫入錯誤")
+    func writeToEndedChannelReopens() async throws {
+        let host = FakeHost()
+        await host.expect(HostFileFetchScript.follow(), reply: FakeReply(keepsOpen: true))
+        await host.expect(HostFileFetchScript.follow(), reply: FakeReply(keepsOpen: true))
+        let fetcher = SSHHostFileFetcher(channel: StdinGoneAfterFirstReplyChannel(base: host))
+        let statusLine = "stat \(Self.base64(Self.target.path)) \(Self.base64("/Users/demo/ledger"))\n"
+
+        let first = Task { try await fetcher.status(of: Self.target) }
+        try #require(await host.waitForStdin(ofExecution: 0) { $0.stdinText == statusLine })
+        await host.send(stdout: Data("file 123:6 6\nend\n".utf8), toExecution: 0)
+        _ = try await first.value
+
+        let second = Task { try await fetcher.status(of: Self.target) }
+        try #require(await host.waitForStdin(ofExecution: 1) { $0.stdinText == statusLine })
+        await host.send(stdout: Data("missing\nend\n".utf8), toExecution: 1)
+
+        #expect(try await second.value == .missing)
+    }
+
+    /// 第一條通道回應一次後，腳本已結束、stdin 斷了，但結束狀態還沒送到(實跑時的時間差)。
+    final class StdinGoneAfterFirstReplyChannel: HostChannel {
+        let base: FakeHost
+        private let opened = Mutex(0)
+
+        init(base: FakeHost) { self.base = base }
+
+        func execute(_ command: String) async throws -> any ExecSession {
+            let session = try await base.execute(command)
+            let index = opened.withLock { count in
+                defer { count += 1 }
+                return count
+            }
+            return index == 0 ? StdinGoneSession(base: session) : session
+        }
+
+        func openPTY(_ request: PTYRequest) async throws -> any PTYSession { try await base.openPTY(request) }
+    }
+
+    final class StdinGoneSession: ExecSession {
+        let base: any ExecSession
+        private let writes = Mutex(0)
+
+        init(base: any ExecSession) { self.base = base }
+
+        var output: AsyncThrowingStream<ExecOutput, any Error> { base.output }
+
+        func write(_ data: Data) async throws {
+            guard writes.withLock({ count in
+                defer { count += 1 }
+                return count
+            }) == 0 else { throw POSIXError(.EPIPE) }
+            try await base.write(data)
+        }
+
+        func closeStdin() async { await base.closeStdin() }
+        func close() async { await base.close() }
     }
 
     @Test("主機跑不了腳本(還沒回應就 exit 127,例如 Demo 主機):unsupported")

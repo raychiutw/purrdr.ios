@@ -44,9 +44,9 @@ struct AgentFileLoadsTests {
         #expect(unsupported.states[Self.shot] == .unsupported)
     }
 
-    @Test("對話的存取範圍：Agent 的工作目錄、對話紀錄裡檔案卡片的路徑與目前的對話紀錄(Demo ledger)")
+    @Test("對話的存取範圍：Agent 的工作目錄、對話紀錄裡檔案卡片的路徑與目前的對話紀錄(Demo ledger 的檔案情境)")
     func conversationScope() async throws {
-        let connection = SSHHostConnection(channel: DemoHost())
+        let connection = SSHHostConnection(channel: DemoHost(scenario: .agentFiles))
         let model = ConversationModel(
             client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: "w1:p1",
             knownSessionID: nil, cache: InMemoryConversationCache())
