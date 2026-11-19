@@ -88,20 +88,10 @@ public struct PlusView: View {
 
     // MARK: - 區塊
 
+    /// 每期提供的內容(App Store 3.1.2);頁首只有導覽列標題，不再重複標題與說明(#236)。
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "bell.badge")
-                .font(.largeTitle)
-                .foregroundStyle(.tint)
-                .accessibilityHidden(true)
-            Text("Purrdr Plus")
-                .font(.title.bold())
-            // 每期提供的內容。
-            Text("Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.")
-                .accessibilityIdentifier("plus.benefits")
-            Text("Chat and terminal are free and never need a subscription.")
-                .foregroundStyle(.secondaryText)
-        }
+        Text("Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.")
+            .accessibilityIdentifier("plus.benefits")
     }
 
     @ViewBuilder
