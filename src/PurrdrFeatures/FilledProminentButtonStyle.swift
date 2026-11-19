@@ -49,3 +49,16 @@ extension ShapeStyle where Self == OnProminentFillStyle {
     /// `prominentFill` 上的字與符號。
     static var onProminentFill: OnProminentFillStyle { OnProminentFillStyle() }
 }
+
+/// 不承載字的淡主色底(主機圖示的圓形底):tint(主色或主機主題 accent)淺色 12%、深色 16%,上面的符號用 `.tint`。
+struct SoftAccentFillStyle: ShapeStyle {
+    func resolve(in environment: EnvironmentValues) -> Color {
+        let tint = environment.hostTheme?.app(ThemeAppearance(environment.colorScheme)).tint.map(Color.init) ?? Color.accentColor
+        return tint.opacity(environment.colorScheme == .dark ? 0.16 : 0.12)
+    }
+}
+
+extension ShapeStyle where Self == SoftAccentFillStyle {
+    /// 淡主色底(不承載字)。
+    static var softAccentFill: SoftAccentFillStyle { SoftAccentFillStyle() }
+}
