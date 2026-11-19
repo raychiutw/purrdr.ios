@@ -238,7 +238,7 @@ public enum PurrdrLinks {
     /// 隱私權政策。
     public static let privacyPolicy = URL(string: "https://raychiutw.github.io/purrdr/privacy/")!
     /// App Store id:App Store Connect → App 資訊 → 一般資訊 → Apple ID(數字)。全 app 只在這裡填
-    /// (設定頁與歡迎頁的「為 Purrdr 評分」都從這裡來);後台 `backend/wrangler.jsonc` 的 `APP_STORE_APP_APPLE_ID` 是同一個數字。
+    /// (設定頁與歡迎頁的「為 Purrdr 評分」都從這裡來);後台 `raychiutw/purrdr.server` 的 `wrangler.jsonc` 的 `APP_STORE_APP_APPLE_ID` 是同一個數字。
     public static let appStoreID = "6835416115"
     /// 支援頁(常見問題與聯絡方式)。
     public static let support = URL(string: "https://raychiutw.github.io/purrdr/support/")!

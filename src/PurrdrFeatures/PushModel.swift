@@ -343,7 +343,7 @@ public final class PushModel {
     }
 }
 
-/// 點通知時要開的 Agent:payload 根層的 `pairing`(配對密鑰雜湊 → 主機)與 `pane`(後台組的,`backend/src/push.ts`)。
+/// 點通知時要開的 Agent:payload 根層的 `pairing`(配對密鑰雜湊 → 主機)與 `pane`(後台組的,`raychiutw/purrdr.server` 的 `src/push.ts`)。
 public struct PushRoute: Equatable, Sendable {
     public var keyHash: String
     public var paneID: String?

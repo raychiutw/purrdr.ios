@@ -10,7 +10,7 @@ import Testing
 /// 關閉時移除外掛與設定並撤銷配對。
 ///
 /// Seam:主機是 `LocalShellHost`(暫存家目錄、真的 `/bin/sh`,herdr 換成 `FakeHerdrPluginCLI`);
-/// 後台是 `HTTPStub`(回應依 backend/README.md 契約手寫);通知權限與 APNs token 是 `FakePushPlatform`。
+/// 後台是 `HTTPStub`(回應依 raychiutw/purrdr.server 的 README.md 契約手寫);通知權限與 APNs token 是 `FakePushPlatform`。
 @MainActor
 @Suite("推播開關")
 struct PushModelTests {

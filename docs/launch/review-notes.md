@@ -64,7 +64,7 @@ Contact: lean.lean@gmail.com
 
 ## 送審前的前提(否則審查會卡在登入或訂閱)
 
-- 後台已部署，`BackendConfiguration.baseURL`、Google client ID 已換成真值(`backend/README.md`「上線前要填的東西」)。否則 Sign in with Apple 會顯示連線錯誤，審查員無法測訂閱。
+- 後台已部署，`BackendConfiguration.baseURL`、Google client ID 已換成真值(`raychiutw/purrdr.server` 的 `README.md`「上線前要填的東西」)。否則 Sign in with Apple 會顯示連線錯誤，審查員無法測訂閱。
 - 兩個訂閱商品已「準備提交」並跟這個版本一起送;「付費 App」合約生效。
 - App Store Server Notifications 的 Sandbox 網址已填(審查員在 Sandbox 購買)。
 - 隱私權政策與支援頁已發佈到 `https://raychiutw.github.io/purrdr/`(已完成);聯絡信箱 lean.lean@gmail.com(網站與備註最後一行)。
