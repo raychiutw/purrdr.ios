@@ -88,4 +88,47 @@ struct ConversationSlashTests {
         await pi.slash.load()
         #expect(!pi.slash.isVisible)
     }
+    @Test("文字中間打「空格＋/」:只列 skill 與自訂指令，選定只換掉 /字詞,游標停在插入文字之後(#230)")
+    func inlinePickKeepsSurroundingText() async throws {
+        let (host, model) = try Self.setup()
+        await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        await model.poll()
+        let draft = "先跑 /tdd 再幫我改"
+        model.updateDraftCaret(7, in: draft)
+        model.draft = draft
+        await model.slash.load()
+        #expect(model.slash.isVisible)
+        #expect(model.slash.trigger?.placement == .inline)
+        #expect(model.slash.commands.contains { $0.name == "mattpocock-skills:tdd" })
+        #expect(!model.slash.commands.contains { $0.name == "clear" })
+
+        let tdd = try #require(model.slash.commands.first { $0.name == "mattpocock-skills:tdd" })
+        model.slash.pick(tdd)
+
+        #expect(model.draft == "先跑 /mattpocock-skills:tdd 再幫我改")
+        #expect(model.draftCaret == 26)
+        #expect(model.lastSlashInsertion?.name == "mattpocock-skills:tdd")
+        #expect(!model.slash.isVisible)
+    }
+
+    @Test("移動游標回到「空格＋/」後也叫出選單;組字中不觸發(#230)")
+    func caretMoveAndComposing() async throws {
+        let (host, model) = try Self.setup()
+        await host.bridge.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
+        await model.poll()
+        model.draft = "hi /mat there"
+        await model.slash.load()
+        #expect(!model.slash.isVisible)
+        model.updateDraftCaret(7, in: model.draft)
+        #expect(model.slash.isVisible)
+        #expect(model.slash.trigger?.query == "mat")
+
+        model.updateDraftCaret(nil, in: model.draft)
+        #expect(!model.slash.isVisible)
+        model.isComposingDraft = true
+        model.draft = "hi /"
+        #expect(!model.slash.isVisible)
+        model.isComposingDraft = false
+        #expect(model.slash.isVisible)
+    }
 }
