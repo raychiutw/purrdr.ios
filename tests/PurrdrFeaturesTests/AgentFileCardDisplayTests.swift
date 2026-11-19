@@ -41,8 +41,9 @@ struct AgentFileCardDisplayTests {
 
     @Test("圖片卡片(#225):標題念讀取與大小;超過 8 MiB 顯示大小並提供載入，其他原因各有說明")
     func imageCard() {
-        let image = AgentFileReference(origin: .readImage, path: "/Users/demo/ledger/docs/shot.png", byteCount: 2_048)
-        #expect(AgentFileCardDisplay(file: image).summary == "Read · Image · 2 KB")
+        let image = AgentFileReference(origin: .readImage, path: "/Users/demo/ledger/docs/shot.png", byteCount: 2_500_000)
+        // KB 級的單位寫法(KB／kB)依系統版本不同;用 MB 級，與其他大小斷言一致。
+        #expect(AgentFileCardDisplay(file: image).summary == "Read · Image · 2.5 MB")
         #expect(AgentFileCardDisplay(file: AgentFileReference(origin: .toolImage, path: "/tmp/a.png")).originText == "Captured")
 
         let over = AgentImageCardDisplay(state: .overAutomaticLimit(size: 9 * 1024 * 1024))

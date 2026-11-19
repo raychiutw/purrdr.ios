@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 設定頁的「主機同步」區(#30):開關、狀態、沒有 Purrdr Plus 時的訂閱入口;footer 說明同步什麼、不同步什麼。
+/// 帳號頁開通後的「主機同步」區(#30):開關、狀態、沒有 Purrdr Plus 時的訂閱入口;footer 說明同步什麼、不同步什麼。
 struct HostSyncSection: View {
     let model: HostSyncModel
     let plus: SubscriptionModel?

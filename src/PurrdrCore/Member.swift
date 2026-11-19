@@ -14,6 +14,18 @@ public struct Member: Equatable, Sendable {
     public func identity(_ method: SignInMethod) -> MemberIdentity? {
         identities.first { $0.method == method }
     }
+
+    /// 帳號頁顯示的名稱(#246):第一個有 email 的登入方式。
+    public var accountName: String? {
+        identities.lazy
+            .compactMap { $0.email?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    /// 帳號鈕的頭像字(#246);`nil` 時畫面用人像符號。
+    public var avatarInitial: String? {
+        accountName?.first.map { String($0).uppercased() }
+    }
 }
 
 /// 會員連結的一種登入方式。

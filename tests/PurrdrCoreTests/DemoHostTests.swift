@@ -2,6 +2,7 @@ import Foundation
 import PurrdrCore
 import PurrdrDemo
 import PurrdrSSH
+import Synchronization
 import Testing
 
 /// Demo 主機走正式程式路徑：herdr client 對它送的是跟真主機一模一樣的指令。
@@ -256,7 +257,8 @@ struct DemoHostTests {
     /// #210 的 UI 測試情境：送出後先只接上使用者那一行，agent 工作中且畫面有即時預覽;時間到才接上回覆並完成。
     @Test("送出後工作中情境：先接上使用者那一行並工作，時間到才接上回覆")
     func workingAfterPromptRepliesLater() async throws {
-        let host = DemoHost(scenario: .workingAfterPrompt(for: .milliseconds(300)))
+        let clock = ManualDemoClock()
+        let host = DemoHost(scenario: .workingAfterPrompt(for: .seconds(15)), now: clock.now)
         let client = HerdrClient(channel: host)
         let reader = TranscriptReader(channel: host)
         let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
@@ -271,7 +273,9 @@ struct DemoHostTests {
         #expect(try await client.snapshot().agents.first { $0.paneID == "w1:p1" }?.status == .working)
         #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w1:p1")) != nil)
 
-        try await Task.sleep(for: .milliseconds(400))
+        clock.advance(by: .seconds(14))
+        #expect(try await reader.tail(path: before.path, from: sent.end) == .unchanged, "還沒到時間不接上回覆")
+        clock.advance(by: .seconds(1))
         guard case .appended(let reply) = try await reader.tail(path: before.path, from: sent.end) else {
             Issue.record("時間到應接上回覆")
             return
@@ -510,5 +514,18 @@ struct DemoHostTailscaleCheckTests {
 
         await #expect(throws: SSHConnectionError.tailscaleCheckCancelled) { _ = try await pending.value }
         #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
+    }
+}
+
+/// 手動推進的時間(Demo 主機「送出後工作中」的到期判斷用，不真的等)。
+final class ManualDemoClock: Sendable {
+    private let current = Mutex(ContinuousClock.now)
+
+    var now: @Sendable () -> ContinuousClock.Instant {
+        { self.current.withLock { $0 } }
+    }
+
+    func advance(by duration: Duration) {
+        current.withLock { $0 += duration }
     }
 }
