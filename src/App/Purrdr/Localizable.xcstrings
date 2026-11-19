@@ -2248,7 +2248,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法送出強制結束"
+            "value" : "送不出強制結束"
           }
         }
       }
