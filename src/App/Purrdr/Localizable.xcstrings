@@ -5613,13 +5613,24 @@
         }
       }
     },
-    "Purrdr host service %@ is available for %@. Run this on the host to update it. Paired devices stay paired." : {
+    "Purrdr host service %@ is available for %@. The host service updates itself automatically; to update now, run this on the host. Paired devices stay paired." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%2$@ 有新版的 Purrdr 主機服務 %1$@。在主機上執行下面的指令即可更新，已配對的裝置不受影響。"
+            "value" : "%2$@ 有新版的 Purrdr 主機服務 %1$@。主機服務會自動更新；要立刻更新，在主機上執行下面的指令。已配對的裝置不受影響。"
+          }
+        }
+      }
+    },
+    "Purrdr host service %@ is available for %@. This host runs %@, which can’t update itself: run the install command on the host once. From 0.5.0 on, the host service updates itself, or you can run purrdr-host-service update. Paired devices stay paired." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$@ 有新版的 Purrdr 主機服務 %1$@。這台主機目前是 %3$@,這個版本不能自己更新：請在主機上執行一次下面的安裝指令。0.5.0 起主機服務會自動更新，也可以執行 purrdr-host-service update。已配對的裝置不受影響。"
           }
         }
       }

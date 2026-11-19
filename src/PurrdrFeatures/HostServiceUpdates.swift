@@ -7,7 +7,7 @@ import Foundation
 @MainActor
 public struct HostServiceUpdates {
     /// 這版 app 已知的最新主機服務版本。
-    nonisolated public static let latestKnownVersion = "0.4.0"
+    nonisolated public static let latestKnownVersion = "0.5.0"
 
     /// 在主機上更新(或安裝)主機服務的一行指令：macOS、Linux。
     nonisolated public static let posixInstallCommand =
@@ -15,6 +15,25 @@ public struct HostServiceUpdates {
     /// Windows(PowerShell)。
     nonisolated public static let windowsInstallCommand =
         "irm https://github.com/raychiutw/purrdr.host/releases/latest/download/install.ps1 | iex"
+
+    /// 主機服務能自己更新(`purrdr-host-service update`、自動更新)的第一個版本;更舊的要重跑一行安裝指令。
+    nonisolated public static let selfUpdatingVersion = "0.5.0"
+
+    /// 0.5.0 起在主機上立刻更新的指令：macOS、Linux(安裝程式不改 PATH,用安裝位置的完整路徑)。
+    nonisolated public static let posixUpdateCommand = "~/.purrdr/host-service/bin/purrdr-host-service update"
+    /// Windows(PowerShell)。
+    nonisolated public static let windowsUpdateCommand =
+        #"& "$HOME\.purrdr\host-service\bin\purrdr-host-service.exe" update"#
+
+    /// 回報 `installed` 的主機要用的更新指令。
+    nonisolated public static func commands(installed: String) -> HostServiceUpdateCommands {
+        let canUpdateItself = numbers(installed).map { !$0.lexicographicallyPrecedes(numbers(selfUpdatingVersion) ?? []) } ?? false
+        return canUpdateItself
+            ? HostServiceUpdateCommands(
+                installedVersion: installed, canUpdateItself: true, posix: posixUpdateCommand, windows: windowsUpdateCommand)
+            : HostServiceUpdateCommands(
+                installedVersion: installed, canUpdateItself: false, posix: posixInstallCommand, windows: windowsInstallCommand)
+    }
 
     public let latestVersion: String
     let store: any HostServiceUpdateStore
@@ -31,11 +50,27 @@ public struct HostServiceUpdates {
     }
 
     /// `1.2.3` → `[1, 2, 3]`(缺的段補 0,所以 `1.2` 與 `1.2.0` 相同);預發行標記(`-beta`)之後不比。
-    private static func numbers(_ version: String) -> [Int]? {
+    nonisolated private static func numbers(_ version: String) -> [Int]? {
         let core = version.split(separator: "-", maxSplits: 1).first ?? ""
         let parts = core.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
         guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0 != nil }) else { return nil }
         return parts.compactMap(\.self) + Array(repeating: 0, count: 3 - parts.count)
+    }
+}
+
+/// 更新一台主機的主機服務要執行的指令(依它已安裝的版本)。
+public struct HostServiceUpdateCommands: Equatable, Sendable {
+    public var installedVersion: String
+    /// 0.5.0 起為 `true`:執行 `update`;更舊的版本沒有 `update`,指令是一行安裝指令。
+    public var canUpdateItself: Bool
+    public var posix: String
+    public var windows: String
+
+    public init(installedVersion: String, canUpdateItself: Bool, posix: String, windows: String) {
+        self.installedVersion = installedVersion
+        self.canUpdateItself = canUpdateItself
+        self.posix = posix
+        self.windows = windows
     }
 }
 

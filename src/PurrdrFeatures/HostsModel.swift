@@ -17,10 +17,12 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var needsPairing: Bool
     /// HTTPS 主機的主機服務比這版 app 已知的最新版舊：可更新到的版本(#198)。
     public var hostServiceUpdate: String?
+    /// 有可更新版本時，依這台主機已安裝的版本要執行的更新指令。
+    public var hostServiceUpdateCommands: HostServiceUpdateCommands?
 
     public init(
         id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
-        needsPairing: Bool = false, hostServiceUpdate: String? = nil
+        needsPairing: Bool = false, hostServiceUpdate: String? = nil, hostServiceUpdateCommands: HostServiceUpdateCommands? = nil
     ) {
         self.id = id
         self.title = title
@@ -30,6 +32,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
         self.icon = icon
         self.needsPairing = needsPairing
         self.hostServiceUpdate = hostServiceUpdate
+        self.hostServiceUpdateCommands = hostServiceUpdateCommands
     }
 }
 
@@ -315,12 +318,14 @@ public final class HostsModel {
 
     public var rows: [HostRow] {
         hosts.map { host in
+            let update = hostServiceUpdate(for: host.id)
             let subtitle = host.ssh.map { "\($0.endpoint.username)@\($0.endpoint.host):\($0.endpoint.port)" }
                 ?? host.hostService?.description ?? ""
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
                 isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id),
-                hostServiceUpdate: hostServiceUpdate(for: host.id))
+                hostServiceUpdate: update,
+                hostServiceUpdateCommands: update.flatMap { _ in hostServiceVersions[host.id].map(HostServiceUpdates.commands(installed:)) })
         }
     }
 

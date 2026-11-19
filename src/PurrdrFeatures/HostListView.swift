@@ -193,8 +193,10 @@ public struct HostListView: View {
                     dismiss()
                 }
             case .hostServiceUpdate(let id):
-                if let row = model.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate {
-                    HostServiceUpdateView(hostName: row.title, version: version) {
+                if let row = model.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate,
+                    let commands = row.hostServiceUpdateCommands
+                {
+                    HostServiceUpdateView(hostName: row.title, version: version, commands: commands) {
                         model.dismissHostServiceUpdate(for: id)
                         flow.path.removeLast()
                     }
