@@ -123,7 +123,7 @@ jobs:
       - name: 檢查 String Catalog
         run: scripts/strings.sh check .derivedData/package
 
-  # 主機端在 raychiutw/purrdr-host:協定型別、schema 與 examples、主機服務版本是同步來的副本(scripts/sync-purrdr-host.sh)。
+  # 主機端在 raychiutw/purrdr.host:協定型別、schema 與 examples、主機服務版本是同步來的副本(scripts/sync-purrdr-host.sh)。
   # 依 vendor/purrdr-host/VERSION 記的 commit 重新取回比對，確認沒被手改、也沒漏同步。
   purrdr-host-sync:
     name: 主機端同步檢查(sync-purrdr-host --check)
@@ -132,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: 比對 purrdr-host 的同步副本
+      - name: 比對 purrdr.host 的同步副本
         run: scripts/sync-purrdr-host.sh --check
 
   # CI 不做 UI 測試(太久);UI 測試在本機跑，只跑有修改到的類別(見 AGENTS.md「常用指令」)。

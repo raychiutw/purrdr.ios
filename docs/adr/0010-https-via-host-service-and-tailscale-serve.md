@@ -13,7 +13,7 @@
 - 手機與主機服務之間：連線配對與撤銷走一般 HTTPS 請求，其餘全部走單一 WSS 連線，以請求識別碼與串流識別碼多工。
 - **主機服務用 Rust 實作**。herdr 本身是 Rust,named pipe 等跨平台本機 IPC 有成熟的 crate(herdr 自己用 `interprocess`),單一執行檔好發行;SwiftNIO 官方只在 macOS、Linux 開發與測試,Windows named pipe 支援查不到。
 - 協定以 **JSON Schema** 為唯一定義，放在 repo 中;Rust 端與 app 可攜核心的 Swift 型別都由它產生，並以同一組協定範例做兩端的相容測試。
-- **主機取檔**(#227)是窄 API 裡唯一讀任意路徑的操作，只有唯讀的「查狀態」與「依版本分塊讀取」。存取規則由主機服務判定，不信任 app 送來的範圍(app、主機服務、SSH 的 POSIX 與 PowerShell 取檔腳本跑同一組案例 purrdr-host 的 `protocol/host-file-access.json`,app 讀同步來的 `vendor/purrdr-host/protocol/`):
+- **主機取檔**(#227)是窄 API 裡唯一讀任意路徑的操作，只有唯讀的「查狀態」與「依版本分塊讀取」。存取規則由主機服務判定，不信任 app 送來的範圍(app、主機服務、SSH 的 POSIX 與 PowerShell 取檔腳本跑同一組案例 purrdr.host 的 `protocol/host-file-access.json`,app 讀同步來的 `vendor/purrdr-host/protocol/`):
   - 工作目錄以 herdr `session.snapshot` 當下回報的 Agent cwd 為準;cwd 是根目錄、家目錄或家目錄的上層時不算(Agent 在家目錄啟動很常見，否則等於放行整個家目錄)。
   - 工作目錄以外，只放行 Agent 在這條連線定位過的對話紀錄裡**自己寫出**的路徑：assistant 訊息文字中以訊息內路徑規則認得的路徑(#229)、工具呼叫參數的檔案路徑、圖片生成的 `saved_path`、MCP 圖片的 `[Image: source: …]`。使用者 prompt、工具結果內容、讀到的檔案與網頁不算——它們可能被 prompt injection 寫進路徑。而且只限系統暫存目錄(schema 的 `x-temporary-file-locations` 與主機的 `TMPDIR`／`TEMP`)、家目錄的 `.purrdr/uploads` 與這段對話紀錄的附檔資料夾(`<資料夾>/<檔名去掉副檔名>/tool-results`):Agent 寫到家目錄其他地方的檔案，就算被提到也不讀。
   - 先以請求的路徑比對，再以解析 symlink 後的實際路徑比對;開檔時最後一段不跟隨 symlink、不阻塞(FIFO 不會卡住),開檔後以 handle 取得實際路徑(macOS `F_GETPATH`、Linux `/proc/self/fd`、Windows `GetFinalPathNameByHandle`)再核對一次，檢查與開檔之間被換掉也讀不到外面。拒絕相對路徑與 `.`／`..`;Windows 只收磁碟機路徑(UNC 會對外送出 NTLM、ADS 讀到別的資料流)。
@@ -46,6 +46,6 @@
 - 上層功能(Agent 列表、聊天、Pane 終端機)只依賴可攜核心的「主機連線」介面,SSH 與 HTTPS 各有一個實作。
 - 設計只依據 herdr 官方文件與實測。研究時曾在使用者授權下閱讀 Allymote 的散布檔(`docs/research/allymote-herdr-communication.md`),僅作比較，不相容也不沿用其協定。
 
-## 更新(2026-11-19):主機端搬到 raychiutw/purrdr-host
+## 更新(2026-11-19):主機端搬到 raychiutw/purrdr.host
 
-主機服務(`host-service/`)、主機外掛(`host-plugin/`)、協定(`protocol/` 的 JSON Schema 與範例)、codegen 與主機服務的 Release 都搬到公開 repo [`raychiutw/purrdr-host`](https://github.com/raychiutw/purrdr-host)(保留歷史)。上面「repo 多一個 Rust 專案與 CI」改成在那個 repo;協定仍是先改 JSON Schema 再產生兩端型別，只是 app 這邊以 `scripts/sync-purrdr-host.sh` 拉回產生的 Swift 型別與 `vendor/purrdr-host/protocol/`,CI 以 `--check` 確認沒被手改。一行安裝指令改從 purrdr-host 的 Release 下載;推播外掛來源改成 `raychiutw/purrdr-host/host-plugin`。
+主機服務(`host-service/`)、主機外掛(`host-plugin/`)、協定(`protocol/` 的 JSON Schema 與範例)、codegen 與主機服務的 Release 都搬到公開 repo [`raychiutw/purrdr.host`](https://github.com/raychiutw/purrdr.host)(保留歷史)。上面「repo 多一個 Rust 專案與 CI」改成在那個 repo;協定仍是先改 JSON Schema 再產生兩端型別，只是 app 這邊以 `scripts/sync-purrdr-host.sh` 拉回產生的 Swift 型別與 `vendor/purrdr-host/protocol/`,CI 以 `--check` 確認沒被手改。一行安裝指令改從 purrdr.host 的 Release 下載;推播外掛來源改成 `raychiutw/purrdr.host/host-plugin`。

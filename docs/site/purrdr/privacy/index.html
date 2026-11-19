@@ -85,7 +85,7 @@
     <p>為某台主機開啟推播時：</p>
     <ul>
       <li>App 向 iOS 要求通知權限並取得 APNs device token。</li>
-      <li>App 產生一組隨機的配對密鑰，<strong>密鑰本身只寫到你的主機</strong>(<code>~/.purrdr/push-&lt;裝置代號&gt;/pairing</code>),並經 SSH 在主機安裝一個小型 herdr 外掛(來源是公開的 <code>raychiutw/purrdr-host</code>,由主機上的 herdr 下載)。</li>
+      <li>App 產生一組隨機的配對密鑰，<strong>密鑰本身只寫到你的主機</strong>(<code>~/.purrdr/push-&lt;裝置代號&gt;/pairing</code>),並經 SSH 在主機安裝一個小型 herdr 外掛(來源是公開的 <code>raychiutw/purrdr.host</code>,由主機上的 herdr 下載)。</li>
       <li>後台保存：配對密鑰的 SHA-256 雜湊、APNs device token、平台(APNs)與環境(production／sandbox)、建立與更新時間，以及每組密鑰每分鐘的速率限制計數。</li>
     </ul>
     <p>Agent 需要你時，主機外掛只送出 <strong>workspace 名稱、狀態與 pane id</strong>。後台據此組成通知(標題是 workspace 名稱，內文固定是「An agent needs you.」)交給 Apple Push Notification service(APNs)送到你的裝置。這些內容只在轉送當下處理，<strong>後台不保存</strong>;對話內容不會經過後台或 APNs。關閉推播或刪除主機時，App 會撤銷配對並移除主機上的配對檔。</p>
@@ -200,7 +200,7 @@
     <p>When you turn on notifications for a host:</p>
     <ul>
       <li>The app asks iOS for notification permission and gets an APNs device token.</li>
-      <li>The app makes a random pairing key. <strong>The key itself is written only to your host</strong> (<code>~/.purrdr/push-&lt;device code&gt;/pairing</code>), and the app installs a small herdr plugin on the host over SSH (from the public repository <code>raychiutw/purrdr-host</code>, downloaded by herdr on your host).</li>
+      <li>The app makes a random pairing key. <strong>The key itself is written only to your host</strong> (<code>~/.purrdr/push-&lt;device code&gt;/pairing</code>), and the app installs a small herdr plugin on the host over SSH (from the public repository <code>raychiutw/purrdr.host</code>, downloaded by herdr on your host).</li>
       <li>Our backend keeps the SHA-256 hash of the pairing key, the APNs device token, the platform (APNs) and environment (production or sandbox), when it was created and updated, and a per-minute rate-limit counter for that key.</li>
     </ul>
     <p>When an agent needs you, the host plugin sends only the <strong>workspace name, the status, and the pane ID</strong>. Our backend builds the notification (the title is the workspace name; the text is always “An agent needs you.”) and hands it to the Apple Push Notification service (APNs) for delivery. This is processed only while it’s being relayed and <strong>is not stored</strong>; conversation content never goes through our backend or APNs. When you turn notifications off or remove the host, the app revokes the pairing and removes the pairing file from the host.</p>
