@@ -811,6 +811,9 @@ public final class ConversationModel {
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly }
 
+    /// 輸入列的送出鈕換成停止鈕(#220)。
+    public var showsStopButton: Bool { false }
+
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
     }

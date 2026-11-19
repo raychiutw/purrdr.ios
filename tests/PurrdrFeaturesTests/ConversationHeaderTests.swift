@@ -184,6 +184,38 @@ struct ConversationHeaderTests {
         #expect(setup.model.notice == .interruptRefusedNeedsAnswer)
     }
 
+    /// #220:工作中送出鈕變停止鈕;打了字就回到送出(工作中送出的 prompt 會排隊)。
+    @Test("停止鈕：工作中且草稿空白才出現，有草稿時是送出")
+    func stopButtonReplacesSendWhileWorking() async throws {
+        let setup = try Self.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.model.poll()
+        #expect(!setup.model.showsStopButton)
+
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        #expect(setup.model.showsStopButton)
+
+        setup.model.draft = "接著做"
+        #expect(!setup.model.showsStopButton)
+    }
+
+    @Test("停止成功：不等下一次輪詢，停止鈕立刻換回送出")
+    func stopSuccessReturnsToSendImmediately() async throws {
+        let setup = try Self.setup(sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard })
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
+        await setup.model.stop()
+
+        #expect(setup.model.notice == nil)
+        #expect(!setup.model.showsStopButton)
+        #expect(setup.model.header.status != .working)
+    }
+
     /// #220:讀不到狀態不能當成功。
     @Test("停止：送出 Esc 後讀不到狀態 → 提示無法確認是否已停止")
     func stopUnreadableStatusShowsUnconfirmed() async throws {
