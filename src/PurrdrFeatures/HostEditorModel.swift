@@ -76,6 +76,8 @@ public final class HostEditorModel {
     public var privateKeyText = ""
     /// HTTPS 主機的配對碼(主機配對指令顯示的)。編輯已配對的主機時留空 = 沿用存著的裝置權杖。
     public var pairingCode = ""
+    /// 主機圖示(#239)。只改圖示時不必重新測試連線就能儲存。
+    public var icon: HostIcon
     public private(set) var phase: Phase = .editing
     /// 這支裝置的公鑰(含註解),`loadDeviceKey()` 之後才有。
     public private(set) var devicePublicKey: SSHPublicKey?
@@ -93,6 +95,9 @@ public final class HostEditorModel {
 
     private let store: any HostStore
     private let existing: HostConfiguration?
+    private let originalIcon: HostIcon
+    /// 儲存後套用圖示(主機 id 存好才知道)。
+    private let saveIcon: @MainActor (HostIcon, UUID) -> Void
     private let credentials: HostCredentials
     private let hostService: HostServiceAccess
     /// 編輯的 HTTPS 主機在這支裝置已有裝置權杖。
@@ -109,11 +114,15 @@ public final class HostEditorModel {
 
     public init(
         store: any HostStore, editing: HostConfiguration? = nil, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(),
+        hostService: HostServiceAccess = HostServiceAccess(), icon: HostIcon = .default,
+        saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
         existing = editing
+        self.icon = icon
+        originalIcon = icon
+        self.saveIcon = saveIcon
         self.credentials = credentials
         self.hostService = hostService
         self.makeChannel = makeChannel
@@ -139,10 +148,11 @@ public final class HostEditorModel {
     /// 所以連線測試只接受那一把 key(主機出示別的 key 時一樣阻擋);仍要測試通過才能儲存。
     public convenience init(
         store: any HostStore, importing shared: SharedHost, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(),
+        hostService: HostServiceAccess = HostServiceAccess(), saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
-        self.init(store: store, editing: nil, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+        self.init(
+            store: store, editing: nil, credentials: credentials, hostService: hostService, saveIcon: saveIcon, makeChannel: makeChannel)
         name = shared.name
         address = shared.hostService?.description ?? shared.endpoint.host
         port = String(shared.endpoint.port)
@@ -156,10 +166,11 @@ public final class HostEditorModel {
     /// 從主機配對指令的 QR code(`purrdr://pair?…`)新增 HTTPS 主機：帶入位址與配對碼，名稱預設是主機名稱的第一段。
     public convenience init(
         store: any HostStore, pairing link: HostServicePairingLink, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(),
+        hostService: HostServiceAccess = HostServiceAccess(), saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
-        self.init(store: store, editing: nil, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+        self.init(
+            store: store, editing: nil, credentials: credentials, hostService: hostService, saveIcon: saveIcon, makeChannel: makeChannel)
         connectionMethod = .https
         address = link.address.description
         pairingCode = link.pairingCode
@@ -172,6 +183,7 @@ public final class HostEditorModel {
 
     /// 最近一次測試成功，而且之後沒有改過任何欄位。
     public var canSave: Bool {
+        if changesOnlyIcon { return true }
         guard let tested else { return false }
         switch phase {
         case .tested, .connected: return tested.draft == draft
@@ -180,7 +192,12 @@ public final class HostEditorModel {
     }
 
     /// 有沒有未儲存的變更(按取消時要確認放棄)。
-    public var hasChanges: Bool {
+    public var hasChanges: Bool { settingsChanged || icon != originalIcon }
+
+    /// 編輯既有主機時只改了圖示：不必測試連線，儲存也不動主機設定與連線。
+    public var changesOnlyIcon: Bool { existing != nil && icon != originalIcon && !settingsChanged }
+
+    private var settingsChanged: Bool {
         let secretsEntered = !(password.isEmpty && privateKeyText.isEmpty && pairingCode.isEmpty)
         guard let existing else {
             return secretsEntered || !(name.isEmpty && address.isEmpty && username.isEmpty && herdrPath.isEmpty && herdrSession.isEmpty)
@@ -384,6 +401,16 @@ public final class HostEditorModel {
     /// 祕密先寫(寫不進 Keychain 就什麼都不存),再存主機設定;不再需要的祕密刪掉。
     @discardableResult
     public func save() -> HostConfiguration? {
+        if changesOnlyIcon, let existing {
+            saveIcon(icon, existing.id)
+            return existing
+        }
+        guard let host = saveSettings() else { return nil }
+        if icon != originalIcon { saveIcon(icon, host.id) }
+        return host
+    }
+
+    private func saveSettings() -> HostConfiguration? {
         guard canSave, let tested else { return nil }
         let id = existing?.id ?? UUID()
         if case .https(let address, let pairingCode) = tested.draft.connection {

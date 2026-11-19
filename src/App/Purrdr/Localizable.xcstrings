@@ -1551,7 +1551,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "雲端"
+            "value" : "雲"
           }
         }
       }
@@ -2583,6 +2583,17 @@
         }
       }
     },
+    "Dev Board" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開發板"
+          }
+        }
+      }
+    },
     "Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2644,7 +2655,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "顯示器"
+            "value" : "螢幕"
           }
         }
       }
@@ -3056,6 +3067,17 @@
         }
       }
     },
+    "Game Console" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遊戲機"
+          }
+        }
+      }
+    },
     "General" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3283,6 +3305,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機"
+          }
+        }
+      }
+    },
+    "House" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家"
           }
         }
       }
@@ -4185,6 +4218,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上沒有 workspace 在跑 agent。Spaces 也會列出它們的終端機。"
+          }
+        }
+      }
+    },
+    "None" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無"
           }
         }
       }

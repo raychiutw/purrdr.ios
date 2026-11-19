@@ -68,7 +68,7 @@ struct WindowSidebar: View {
         } label: {
             HStack {
                 // 主機圖示同主機鈕與列表的主機名標示(#39)。
-                Label(title, systemImage: icon.symbol)
+                HostMenuLabel(title, icon: icon)
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark")
