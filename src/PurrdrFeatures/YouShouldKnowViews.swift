@@ -86,6 +86,7 @@ struct YouShouldKnowNoteView: View {
                 Label {
                     Text(verbatim: note.tag ?? String(localized: "You should know"))
                         .font(.footnote.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: "sparkle")
                 }
@@ -107,6 +108,8 @@ struct YouShouldKnowNoteView: View {
             }
             Text(verbatim: note.line)
                 .font(.subheadline)
+                // AX 字級時輸入列上方高度不夠，不讓註記被壓成一行截字(#249),讓對話讓出空間。
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("youShouldKnow.note")
             if note.kind == .explained, let explanation = note.explanation {
                 Text(verbatim: explanation)
