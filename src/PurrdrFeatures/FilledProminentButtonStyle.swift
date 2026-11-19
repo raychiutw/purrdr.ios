@@ -50,15 +50,21 @@ extension ShapeStyle where Self == OnProminentFillStyle {
     static var onProminentFill: OnProminentFillStyle { OnProminentFillStyle() }
 }
 
-/// 不承載字的淡主色底(主機圖示的圓形底):tint(主色或主機主題 accent)淺色 12%、深色 16%,上面的符號用 `.tint`。
+/// 淡主色底:tint(主色或主機主題 accent)加不透明度，上面的字與符號用 `.tint`。
 struct SoftAccentFillStyle: ShapeStyle {
+    /// 固定不透明度;`nil` 是淺色 12%、深色 16%(主機圖示的圓形底)。
+    var opacity: Double?
+
     func resolve(in environment: EnvironmentValues) -> Color {
         let tint = environment.hostTheme?.app(ThemeAppearance(environment.colorScheme)).tint.map(Color.init) ?? Color.accentColor
-        return tint.opacity(environment.colorScheme == .dark ? 0.16 : 0.12)
+        return tint.opacity(opacity ?? (environment.colorScheme == .dark ? 0.16 : 0.12))
     }
 }
 
 extension ShapeStyle where Self == SoftAccentFillStyle {
-    /// 淡主色底(不承載字)。
+    /// 淡主色底(主機圖示的圓形底，不承載字)。
     static var softAccentFill: SoftAccentFillStyle { SoftAccentFillStyle() }
+
+    /// 指定不透明度的淡主色底;承載字時不透明度要有對比測試。
+    static func softAccentFill(opacity: Double) -> SoftAccentFillStyle { SoftAccentFillStyle(opacity: opacity) }
 }

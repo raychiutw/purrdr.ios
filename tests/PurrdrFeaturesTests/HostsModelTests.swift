@@ -137,9 +137,9 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let shell = model.loginShell()
+        let shell = model.loginShell(on: model.selection)
         shell.viewDidResize(columns: 80, rows: 24)
-        let files = model.folderBrowser()
+        let files = model.folderBrowser(on: model.selection)
         await files.load()
         #expect(await real.waitForPTYs(1) == 1)
 
@@ -173,10 +173,10 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let first = model.folderBrowser()
+        let first = model.folderBrowser(on: model.selection)
         await first.load()
         await first.upload(log, named: "first.log")
-        let second = model.folderBrowser()
+        let second = model.folderBrowser(on: model.selection)
         await second.load()
         await second.upload(log, named: "second.log")
 
@@ -200,7 +200,7 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let files = model.folderBrowser()
+        let files = model.folderBrowser(on: model.selection)
         await files.load()
         await files.upload(log, named: "build.log")
 
@@ -223,10 +223,10 @@ struct HostsModelTests {
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
-        let newChat = model.newChat()
+        let newChat = model.newChat(on: model.selection)
         newChat.folder = "~/ledger"
         let workspace = try #require(await newChat.start())
-        await model.openStartedChat(workspace)
+        await model.openStartedChat(workspace, on: model.selection)
 
         #expect(model.agentList.openedChat == ChatRoute(host: .host(Self.studio.id), paneID: "w4:p1"))
         #expect(model.agentList.list(for: .host(Self.studio.id))?.phase == .loaded)
