@@ -149,13 +149,13 @@ public struct HostListView: View {
             if row.hostServiceUpdate != nil {
                 Button("Update Host Service…", systemImage: "arrow.up.circle") { flow.path.append(.hostServiceUpdate(row.id)) }
             }
-            // 主機圖示(#37 故事 5):只存在這支裝置，讓多台主機的列一眼分得出來。
+            // 主機圖示(#37 故事 5、#239):讓多台主機的列一眼分得出來;編輯器也能改。
             Picker(selection: iconBinding(row.id)) {
                 ForEach(HostIcon.allCases, id: \.self) { icon in
-                    Label(icon.title, systemImage: icon.symbol)
+                    Label(icon.title, systemImage: icon.pickerSymbol)
                 }
             } label: {
-                Label("Icon", systemImage: row.icon.symbol)
+                Label("Icon", systemImage: row.icon.pickerSymbol)
             }
             .pickerStyle(.menu)
             Divider()
@@ -189,6 +189,8 @@ public struct HostListView: View {
                     saved(host)
                 } onCancel: {
                     flow.path.removeLast()
+                } onIconSaved: {
+                    dismiss()
                 }
             case .hostServiceUpdate(let id):
                 if let row = model.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate {
@@ -207,6 +209,8 @@ public struct HostListView: View {
                         saved(host)
                     } onCancel: {
                         flow.path.removeLast()
+                    } onIconSaved: {
+                        dismiss()
                     }
                 } else {
                     ContentUnavailableView(
@@ -294,10 +298,7 @@ struct HostRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon.symbol)
-                .foregroundStyle(Color.secondary)
-                .frame(minWidth: 28)
-                .accessibilityHidden(true)
+            HostIconBadge(icon)
             VStack(alignment: .leading, spacing: 2) {
                 // `Color.primary`/`Color.secondaryText`:列是 Button,階層式的 `.primary`/`.secondary` 會跟著按鈕變成 tint,
                 // 副標成了淡粉紅、對比不足(#35)。

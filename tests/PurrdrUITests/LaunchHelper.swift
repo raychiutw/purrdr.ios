@@ -58,3 +58,33 @@ extension XCUIApplication {
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
     }
 }
+
+extension XCUIApplication {
+    /// 點列表工具列的「⋯」再點選單項目(新增聊天也在選單裡，#241)。
+    @MainActor
+    func openMoreMenuItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let more = buttons["toolbar.more"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
+        more.tap()
+        let item = buttons[identifier].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "「⋯」選單沒有 \(identifier)", file: file, line: line)
+        item.tap()
+    }
+
+    /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
+    @MainActor
+    func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
+        let account = buttons["toolbar.account"].firstMatch
+        XCTAssertTrue(account.waitForExistence(timeout: 10), "列表右上角沒有帳號鈕", file: file, line: line)
+        account.tap()
+        let join = buttons["account.plusSetup.action"].firstMatch
+        XCTAssertTrue(join.waitForExistence(timeout: 10), "帳號頁沒有「加入」", file: file, line: line)
+        join.tap()
+    }
+
+    /// 付費牆不在「⋯」選單(#241),未加入會員時帳號頁也還沒有「開通」:以深層連結開(#246)。
+    @MainActor
+    func openPlusPaywall() {
+        open(URL(string: "purrdr://plus")!)
+    }
+}

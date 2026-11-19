@@ -26,7 +26,7 @@ struct ConversationHeaderLine: View {
     var body: some View {
         HStack(spacing: 5) {
             Circle()
-                .fill(header.status.color)
+                .fill(header.status.tone.style)
                 .frame(width: 7, height: 7)
                 .opacity(header.status == .offline ? 0.5 : 1)
             ViewThatFits(in: .horizontal) {
@@ -44,19 +44,6 @@ struct ConversationHeaderLine: View {
         // 只是文字、不能點(#35:沒有這個 trait 時 audit 把它當成觸控目標，報 hit region 太小)。
         .accessibilityAddTraits(.isStaticText)
         .accessibilityIdentifier("conversation.header")
-    }
-}
-
-extension ConversationHeader.Status {
-    /// 與列表的狀態色相同(系統色，深淺色與高對比由系統處理);狀態一律同時有文字。
-    var color: AnyShapeStyle {
-        switch self {
-        case .offline: AnyShapeStyle(.gray)
-        case .working: AnyShapeStyle(.orange)
-        case .needsYou: AnyShapeStyle(.tint)
-        case .done: AnyShapeStyle(.teal)
-        case .online: AnyShapeStyle(.green)
-        }
     }
 }
 
@@ -114,7 +101,7 @@ struct WorkingDotsView: View {
                 }
             }
         }
-        .foregroundStyle(.orange)
+        .foregroundStyle(AgentStatus.working.tone.style)
         .accessibilityHidden(true)
     }
 }

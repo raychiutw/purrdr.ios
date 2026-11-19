@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// 三欄 `NavigationSplitView`:主機與 workspace → Agent 列表 → 對話。依可用寬度排版(size class,不看裝置):
 /// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)收合成一疊，從 Agent 列表開始，點列推入對話。
-/// 列表工具列有「⋯」選單與「+」,其餘畫面以 sheet 開啟;不採 tab bar。
+/// 列表工具列有「⋯」選單(第一項是新增聊天),其餘畫面以 sheet 開啟;不採 tab bar。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
     @State private var navigation = TopNavigationModel()
@@ -17,7 +17,7 @@ public struct TopNavigationView: View {
     let hosts: HostsModel
     let member: MemberModel
     let settings: SettingsModel
-    /// Purrdr Plus(#28);`nil` 時選單不顯示。
+    /// Purrdr Plus(#28);`nil` 時不提供付費牆。
     let plus: SubscriptionModel?
     /// 主機同步(#30);`nil` 時設定頁不顯示。
     let hostSync: HostSyncModel?
@@ -228,40 +228,40 @@ public struct TopNavigationView: View {
         .sharedBackgroundVisibility(.hidden)
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
+            // 以 Divider 分組;不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
             Menu {
-                Button("Settings", systemImage: "gearshape") { navigation.sheet = .settings }
-                    .accessibilityIdentifier("menu.settings")
-                Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
-                    .accessibilityIdentifier("menu.hosts")
-                // 方案用量(#177):獨立畫面，選主機與 Agent 後查詢。
-                Button("Plan Usage", systemImage: "gauge.with.dots.needle.33percent") { hostTool = .planUsage(hosts.planUsage()) }
-                    .accessibilityIdentifier("menu.planUsage")
-                // 選取中主機的登入 Shell 與檔案(行為規格 F13;iPad 上也是推疊)。
-                // 不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
-                // HTTPS 主機沒有登入 Shell 與檔案(ADR-0010)。
-                if hosts.selectedHostSupportsShell {
-                    Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
-                        .accessibilityIdentifier("menu.loginShell")
-                    Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
-                        .accessibilityIdentifier("menu.files")
-                }
-                Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
-                    .accessibilityIdentifier("menu.member")
-                if plus != nil {
-                    Button("Purrdr Plus", systemImage: "bell.badge") { navigation.sheet = .plus }
-                        .accessibilityIdentifier("menu.plus")
+                let groups = MoreMenuItem.groups(supportsShell: hosts.selectedHostSupportsShell)
+                ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
+                    if index > 0 { Divider() }
+                    ForEach(group, id: \.self) { item in
+                        moreMenuButton(item)
+                            .accessibilityIdentifier(item.accessibilityIdentifier)
+                    }
                 }
             } label: {
                 Label("More", systemImage: "ellipsis")
             }
             .accessibilityIdentifier("toolbar.more")
         }
-        // 「+」是主要動作(DESIGN.md:主色填色),跟「⋯」分成兩個玻璃群組。
-        ToolbarSpacer(.fixed, placement: .primaryAction)
-        ToolbarItem(placement: .primaryAction) {
+    }
+
+    /// 「⋯」選單的一項。登入 Shell 與檔案開選取中主機的(行為規格 F13;iPad 上也是推疊)。
+    @ViewBuilder
+    private func moreMenuButton(_ item: MoreMenuItem) -> some View {
+        switch item {
+        case .newChat:
             Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
-                .filledGlassProminentButtonStyle()
-                .accessibilityIdentifier("toolbar.newChat")
+        case .hosts:
+            Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
+        case .planUsage:
+            // 方案用量(#177):獨立畫面，選主機與 Agent 後查詢。
+            Button("Plan Usage", systemImage: "gauge.with.dots.needle.33percent") { hostTool = .planUsage(hosts.planUsage()) }
+        case .loginShell:
+            Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
+        case .files:
+            Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
+        case .settings:
+            Button("Settings", systemImage: "gearshape") { navigation.sheet = .settings }
         }
     }
 }
@@ -340,10 +340,10 @@ struct SelectedHostMenu: View {
     var body: some View {
         Menu {
             Picker(selection: selection) {
-                Label("Demo", systemImage: HostIcon.default.symbol)
+                Label("Demo", systemImage: HostIcon.default.pickerSymbol)
                     .tag(HostSelection.demo)
                 ForEach(hosts.rows) { row in
-                    Label(row.title, systemImage: row.icon.symbol)
+                    HostMenuLabel(row.title, icon: row.icon)
                         .tag(HostSelection.host(row.id))
                 }
             } label: {
@@ -354,12 +354,8 @@ struct SelectedHostMenu: View {
                 Text("New chats start on the selected host. Agents on every host stay in the list.")
             }
         } label: {
-            Label {
-                Text(verbatim: hosts.name(of: hosts.selection))
-            } icon: {
-                Image(systemName: hosts.selectionIcon.symbol)
-            }
-            .labelStyle(.titleAndIcon)
+            HostMenuLabel(hosts.name(of: hosts.selection), icon: hosts.selectionIcon)
+                .labelStyle(.titleAndIcon)
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label。
         .accessibilityLabel(Text("Selected Host: \(hosts.name(of: hosts.selection))"))

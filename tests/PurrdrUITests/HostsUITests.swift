@@ -184,6 +184,37 @@ final class HostsUITests: XCTestCase {
         XCTAssertEqual(app.textFields["hostEditor.name"].value as? String, "Studio Mac")
     }
 
+    /// 編輯器的圖示欄位：11 種加「無」;只改圖示不必重新測試連線就能儲存，再開編輯器仍是選的那個。
+    @MainActor
+    func testEditorChangesHostIconWithoutRetesting() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        openHosts(app)
+        let info = app.buttons[Self.seededInfo]
+        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        info.tap()
+        let desktop = app.buttons["hostEditor.icon.desktop"]
+        XCTAssertTrue(desktop.waitForExistence(timeout: 5))
+        XCTAssertTrue(desktop.isSelected, "沒選過圖示的主機是桌機")
+        for raw in ["laptop", "macMini", "rack", "pc", "display", "board", "console", "home", "cloud", "terminal", "none"] {
+            XCTAssertTrue(app.buttons["hostEditor.icon.\(raw)"].exists, raw)
+        }
+
+        let board = app.buttons["hostEditor.icon.board"]
+        board.tap()
+        XCTAssertTrue(board.isSelected)
+        XCTAssertFalse(desktop.isSelected)
+        let save = app.buttons["hostEditor.save"]
+        XCTAssertTrue(save.isEnabled, "只改圖示不必重新測試連線")
+        save.tap()
+
+        // 儲存後同一般儲存關閉主機 sheet;再開一次確認圖示存起來了。
+        openHosts(app)
+        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        info.tap()
+        XCTAssertTrue(app.buttons["hostEditor.icon.board"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["hostEditor.icon.board"].isSelected)
+    }
+
     /// 已存的主機：分享(QR code)、重新命名、刪除(先確認，取消就不刪)。
     @MainActor
     func testShareRenameAndDeleteHost() {
