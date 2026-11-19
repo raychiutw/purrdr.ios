@@ -164,6 +164,8 @@ public struct PlusView: View {
             VStack(alignment: .leading, spacing: 12) { restoreButton; redeemButton }
         }
         .buttonStyle(.bordered)
+        // 中性色：主色字在 bordered 的灰底上不到 4.5:1(audit「Contrast nearly passed」);主色留給訂閱鈕。
+        .tint(.primary)
         .controlSize(.large)
     }
 
