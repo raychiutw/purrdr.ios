@@ -44,6 +44,24 @@ struct HostSyncJournalTests {
             connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: Self.t1))])
     }
 
+    @Test("帶埠號的 HTTPS 主機同步出去、別台裝置收回來都保留埠(#218)")
+    func httpsPortSurvivesSync() throws {
+        var journal = HostSyncJournal()
+        let address = try #require(HostServiceAddress("https://studio.tail1234.ts.net:8443"))
+        let https = HostConfiguration(name: "Studio Mac", hostService: address)
+        journal.recordSave(https.id, at: Self.t1)
+
+        let changes = journal.pendingChanges(hosts: [https], now: Self.t3)
+        var other = HostSyncJournal()
+        let outcome = other.reconcile(
+            hosts: [], sent: [], snapshot: HostSyncSnapshot(hosts: [SyncedHost(https, modifiedAt: Self.t1)], deletedHostIDs: []))
+
+        #expect(changes == [.upsert(SyncedHost(
+            id: https.id, name: "Studio Mac", endpoint: SSHEndpoint(host: "studio.tail1234.ts.net", port: 8443, username: ""),
+            connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: Self.t1))])
+        #expect(outcome.saves.first?.hostService?.description == "https://studio.tail1234.ts.net:8443")
+    }
+
     @Test("別台裝置新增的 HTTPS 主機：存成有主機服務位址的 HTTPS 主機(權杖要在這支裝置重新配對)")
     func remoteHTTPSHostIsAdded() throws {
         var journal = HostSyncJournal()

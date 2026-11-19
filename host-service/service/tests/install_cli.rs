@@ -16,6 +16,7 @@ fn install_subcommands_are_parsed() {
         Some(Ok(InstallCommand::Install {
             port: 47_820,
             herdr_session: None,
+            https_port: None,
             assume_yes: false
         }))
     );
@@ -24,7 +25,17 @@ fn install_subcommands_are_parsed() {
         Some(Ok(InstallCommand::Install {
             port: 47_999,
             herdr_session: Some("work".into()),
+            https_port: None,
             assume_yes: true
+        }))
+    );
+    assert_eq!(
+        InstallCommand::parse(&arguments("install --https-port 8443")),
+        Some(Ok(InstallCommand::Install {
+            port: 47_820,
+            herdr_session: None,
+            https_port: Some(8443),
+            assume_yes: false
         }))
     );
     assert_eq!(InstallCommand::parse(&arguments("uninstall")), Some(Ok(InstallCommand::Uninstall)));
@@ -39,6 +50,9 @@ fn other_arguments_are_left_to_the_service_or_rejected() {
         "install --bind 0.0.0.0",
         "install --port",
         "install --port x",
+        "install --https-port",
+        "install --https-port 0",
+        "install --https-port https",
         "uninstall --force",
         "status extra",
     ] {
