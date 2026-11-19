@@ -50,12 +50,13 @@ final class AccessibilityAuditContext {
         var frames = app.searchFields.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }.map { field in
             CGRect(x: window.minX, y: field.minY - 24, width: window.width, height: window.maxY - field.minY + 24)
         }
-        // 停止列(#220)在輸入卡片最上面：玻璃從它開始。
-        for identifier in ["stopBar", "composer.text", "terminal.key.esc"] {
+        // 停止列(#220)在輸入卡片最上面：玻璃從它開始，卡片變高後 scroll edge effect 也往上淡出約 48pt
+        // (截圖上「Writing…」看得清楚，audit 取樣到淡出的漸層)。
+        for (identifier, edge) in [("stopBar", 48.0), ("composer.text", 12), ("terminal.key.esc", 12)] {
             let element = app.descendants(matching: .any)[identifier].firstMatch
             if element.exists {
-                // 輸入列／按鍵列整條：元素上緣往下到視窗底。
-                let top = element.frame.minY - 12
+                // 輸入列／按鍵列整條：元素上緣(加上淡出範圍)往下到視窗底。
+                let top = element.frame.minY - edge
                 frames.append(CGRect(x: window.minX, y: top, width: window.width, height: window.maxY - top))
             }
         }
