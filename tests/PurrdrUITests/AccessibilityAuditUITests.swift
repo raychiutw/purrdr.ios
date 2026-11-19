@@ -34,8 +34,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 15))
-            app.buttons["agentList.title"].tap()
-            app.buttons["Agents"].firstMatch.tap()
+            app.switchListMode(to: "Agents")
             // AX5 時導覽列標題由系統縮成 Large Content Viewer 樣式，不以標題判斷：群組消失就是 Agents 檢視。
             XCTAssertTrue(element("workspace.group.demo/w3", in: app).waitForNonExistence(timeout: 5), "沒有切到 Agents 檢視")
             XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))

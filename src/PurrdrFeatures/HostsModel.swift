@@ -255,6 +255,11 @@ public final class HostsModel {
         .newChat(options: hostPickerOptions { _ in true }, listFilter: listFilter, selection: selection)
     }
 
+    /// 新增聊天的主機挑選鈕，預設聊天列表目前篩選的主機(#244)。
+    public func newChatHostPicker() -> HostPickerModel {
+        newChatHostPicker(listFilter: agentList.hostFilter)
+    }
+
     /// Demo 主機加上符合條件的已存主機(同方案用量的主機選單)。
     private func hostPickerOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostPickerOption] {
         [HostPickerOption(id: .demo, name: name(of: .demo))]

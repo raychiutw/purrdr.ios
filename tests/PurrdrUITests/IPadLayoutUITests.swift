@@ -71,26 +71,23 @@ final class IPadLayoutUITests: XCTestCase {
         return (Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
     }
 
-    /// 列表欄也是大標題(#66):在列表欄裡、導覽列下方;點了切到 Agents,群組消失。
+    /// 列表欄也是大標題(#66):在列表欄裡;下方的分段切換切到 Agents,群組消失(#244)。
     @MainActor
     func testListColumnLargeTitleSwitchesView() {
         let app = launchInLandscape()
         let card = element("workspace.group.demo/w3", in: app)
         XCTAssertTrue(app.reveal(card), "沒有看到 Spaces 檢視")
 
-        let title = app.buttons["agentList.title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5), "列表欄沒有大標題按鈕")
+        let title = app.listLargeTitle
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "列表欄沒有大標題")
         XCTAssertEqual(title.label, "Spaces")
         let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch.frame
         XCTAssertTrue(list.insetBy(dx: -1, dy: -1).contains(title.frame), "大標題不在列表欄:\(title.frame) 列表 \(list)")
         XCTAssertGreaterThanOrEqual(title.frame.height, 34, "標題字不夠大:\(title.frame)")
 
-        title.tap()
-        let agents = app.buttons["Agents"].firstMatch
-        XCTAssertTrue(agents.waitForExistence(timeout: 5), "點大標題沒有出現檢視選單")
-        agents.tap()
+        app.switchListMode(to: "Agents")
         XCTAssertTrue(card.waitForNonExistence(timeout: 5), "沒有切到 Agents 檢視")
-        XCTAssertEqual(app.buttons["agentList.title"].label, "Agents")
+        XCTAssertEqual(app.listLargeTitle.label, "Agents")
     }
 
     /// 側欄選 workspace:列表只留那個 workspace 的 Agent;選「All Workspaces」回到全部。

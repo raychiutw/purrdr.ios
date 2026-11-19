@@ -60,6 +60,30 @@ extension XCUIApplication {
 }
 
 extension XCUIApplication {
+    /// 聊天列表的大標題(目前檢視名，#244 起是靜態文字)。
+    var listLargeTitle: XCUIElement { staticTexts["agentList.title"].firstMatch }
+
+    /// 點大標題下的 Agents／Spaces 分段切換(#244)。
+    @MainActor
+    func switchListMode(to mode: String, file: StaticString = #filePath, line: UInt = #line) {
+        let control = segmentedControls["agentList.mode"].firstMatch
+        XCTAssertTrue(control.waitForExistence(timeout: 15), "大標題下沒有 Agents／Spaces 切換", file: file, line: line)
+        control.buttons[mode].tap()
+    }
+
+    /// 左上角的主機篩選選了某一項(#244)。
+    @MainActor
+    func filterHosts(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let filter = buttons["toolbar.hostFilter"].firstMatch
+        XCTAssertTrue(filter.waitForExistence(timeout: 10), "左上角沒有主機篩選", file: file, line: line)
+        filter.tap()
+        let item = buttons[name].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "主機篩選選單沒有 \(name)", file: file, line: line)
+        item.tap()
+    }
+}
+
+extension XCUIApplication {
     /// 點列表工具列的「⋯」再點選單項目(新增聊天也在選單裡，#241)。
     @MainActor
     func openMoreMenuItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
