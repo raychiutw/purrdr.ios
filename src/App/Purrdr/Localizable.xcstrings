@@ -609,17 +609,6 @@
         }
       }
     },
-    "A member account is only needed for Purrdr Plus: notifications when an agent needs you, and syncing your hosts between devices." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只有 Purrdr Plus 需要會員:Agent 需要你時通知你，以及在你的裝置之間同步主機。"
-          }
-        }
-      }
-    },
     "About" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -671,17 +660,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加入圖片"
-          }
-        }
-      }
-    },
-    "Add a computer that runs herdr. Purrdr connects to it with SSH over your tailnet; nothing is exposed to the internet." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增一台執行 herdr 的主機。Purrdr 透過你的 tailnet 以 SSH 連線，不會對網際網路開放任何東西。"
           }
         }
       }
@@ -1255,28 +1233,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法取得對話內容"
-          }
-        }
-      }
-    },
-    "Chat and terminal are free and never need a subscription." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "對話與終端機免費，永遠不需要訂閱。"
-          }
-        }
-      }
-    },
-    "Chat and terminal never need an account, and your conversations never pass through our servers." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "對話與終端機都不需要登入，你的對話也不會經過 Purrdr 後台。"
           }
         }
       }

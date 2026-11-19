@@ -88,25 +88,16 @@ public struct MemberContent: View {
 
 // MARK: - 登入頁
 
-/// 登入頁：說明成為會員的好處，下方固定兩個登入按鈕(不需捲動就看得到)。
+/// 登入頁：只有標題(#236),下方固定兩個登入按鈕(不需捲動就看得到)。
 struct SignInView: View {
     let model: MemberModel
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .font(.largeTitle)
-                    .foregroundStyle(.tint)
-                    .accessibilityHidden(true)
-                Text("Sign in to use Purrdr Plus")
-                    .font(.title2.bold())
-                Text("A member account is only needed for Purrdr Plus: notifications when an agent needs you, and syncing your hosts between devices.")
-                Text("Chat and terminal never need an account, and your conversations never pass through our servers.")
-                    .foregroundStyle(.secondaryText)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            Text("Sign in to use Purrdr Plus")
+                .font(.title2.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
         }
         .safeAreaInset(edge: .bottom) {
             SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)

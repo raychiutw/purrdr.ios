@@ -85,6 +85,17 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitForExistence(timeout: 5))
     }
 
+    /// 頁首只有標題(#236):沒有裝飾圖示、重複的大標題與「聊天與終端機免費」說明;方案內容仍要寫出來(App Store 3.1.2)。
+    @MainActor
+    func testPaywallShowsOnlyTitleAtTop() {
+        let app = XCUIApplication.launchUITesting()
+        openPlus(in: app)
+
+        XCTAssertTrue(app.staticTexts["plus.benefits"].waitForExistence(timeout: 10), "沒有方案內容")
+        XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
+        XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
+    }
+
     @MainActor
     private func openPlus(in app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]

@@ -23,12 +23,6 @@ public struct HostListView: View {
     public var body: some View {
         NavigationStack(path: $path) {
             List {
-                if model.rows.isEmpty {
-                    Section {
-                        Text("Add a computer that runs herdr. Purrdr connects to it with SSH over your tailnet; nothing is exposed to the internet.")
-                            .foregroundStyle(.secondaryText)
-                    }
-                }
                 let updates = model.rows.filter { $0.hostServiceUpdate != nil }
                 if !updates.isEmpty {
                     // 主機服務有新版本(#198):放在最上面，點進去看更新指令。

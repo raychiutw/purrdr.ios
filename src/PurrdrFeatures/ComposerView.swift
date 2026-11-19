@@ -131,9 +131,9 @@ struct ComposerBar: View {
                 }
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
                 .overlay {
-                    // 聚焦時邊框 tint(F6.1)。
+                    // 聚焦時中性邊框(F6.1);主色只留給送出鈕(HIG CO-4,#236)。
                     RoundedRectangle(cornerRadius: Self.cardCornerRadius)
-                        .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
+                        .strokeBorder(isFocused ? AnyShapeStyle(.separator) : AnyShapeStyle(.clear), lineWidth: 1)
                         .allowsHitTesting(false)
                 }
             }
