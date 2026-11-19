@@ -34,13 +34,13 @@
     <h2>安裝</h2>
     <p>在電腦上開終端機，執行一行指令(不需要 sudo 或系統管理員):</p>
     <h3>macOS、Linux</h3>
-    <pre><code>curl -fsSL https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.sh | sh</code></pre>
+    <pre><code>curl -fsSL https://github.com/raychiutw/purrdr-host/releases/latest/download/install.sh | sh</code></pre>
     <h3>Windows(PowerShell)</h3>
-    <pre><code>irm https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.ps1 | iex</code></pre>
+    <pre><code>irm https://github.com/raychiutw/purrdr-host/releases/latest/download/install.ps1 | iex</code></pre>
     <p>指令會下載這台電腦適用的版本，以 SHA-256 檢查碼驗證(不符就停止、不留下檔案),再執行 <code>purrdr-host-service install</code>:檢查 Tailscale 設定、把程式放到 <code>~/.purrdr/host-service/</code>、設定 <code>tailscale serve</code>,並在登入後自動啟動(macOS 是 LaunchAgent,Linux 是 systemd user service,Windows 是登入時執行)。</p>
-    <p>macOS 版經過 Apple 公證。Windows 版沒有程式碼簽章，Windows 可能顯示 SmartScreen 警告。</p>
+    <p>macOS 版以 Apple Developer ID 簽章。Windows 版沒有程式碼簽章，Windows 可能顯示 SmartScreen 警告。</p>
     <p>要指定埠或 herdr 的具名 session:macOS／Linux 用 <code>curl -fsSL …/install.sh | sh -s -- --port 47820 --session work</code>;Windows 用 <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --port 47820 --session work</code>。要安裝特定版本，先設環境變數 <code>PURRDR_HOST_SERVICE_VERSION</code>(例如 <code>0.1.0</code>)。</p>
-    <p>也可以從 <a href="https://github.com/raychiutw/purrdr.ios/releases">GitHub Releases</a> 手動下載壓縮檔(附 <code>SHA256SUMS</code>),解壓後執行 <code>purrdr-host-service install</code>。</p>
+    <p>也可以從 <a href="https://github.com/raychiutw/purrdr-host/releases">GitHub Releases</a> 手動下載壓縮檔(附 <code>SHA256SUMS</code>),解壓後執行 <code>purrdr-host-service install</code>。</p>
 
     <h2>配對 iPhone／iPad</h2>
     <ol>
@@ -79,13 +79,13 @@
     <h2>Installing</h2>
     <p>Open a terminal on the computer and run one command (no sudo or administrator needed):</p>
     <h3>macOS, Linux</h3>
-    <pre><code>curl -fsSL https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.sh | sh</code></pre>
+    <pre><code>curl -fsSL https://github.com/raychiutw/purrdr-host/releases/latest/download/install.sh | sh</code></pre>
     <h3>Windows (PowerShell)</h3>
-    <pre><code>irm https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.ps1 | iex</code></pre>
+    <pre><code>irm https://github.com/raychiutw/purrdr-host/releases/latest/download/install.ps1 | iex</code></pre>
     <p>The command downloads the build for this computer, verifies its SHA-256 checksum (stopping without leaving files behind if it doesn’t match), and runs <code>purrdr-host-service install</code>, which checks your Tailscale settings, puts the program in <code>~/.purrdr/host-service/</code>, sets up <code>tailscale serve</code>, and starts it when you sign in (a LaunchAgent on macOS, a systemd user service on Linux, a sign-in entry on Windows).</p>
-    <p>The macOS build is notarized by Apple. The Windows build isn’t code-signed, so Windows may show a SmartScreen warning.</p>
+    <p>The macOS build is signed with an Apple Developer ID. The Windows build isn’t code-signed, so Windows may show a SmartScreen warning.</p>
     <p>To choose a port or a named herdr session: on macOS and Linux, <code>curl -fsSL …/install.sh | sh -s -- --port 47820 --session work</code>; on Windows, <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --port 47820 --session work</code>. To install a specific version, set <code>PURRDR_HOST_SERVICE_VERSION</code> (for example <code>0.1.0</code>) first.</p>
-    <p>You can also download an archive from <a href="https://github.com/raychiutw/purrdr.ios/releases">GitHub Releases</a> (with <code>SHA256SUMS</code>), extract it, and run <code>purrdr-host-service install</code>.</p>
+    <p>You can also download an archive from <a href="https://github.com/raychiutw/purrdr-host/releases">GitHub Releases</a> (with <code>SHA256SUMS</code>), extract it, and run <code>purrdr-host-service install</code>.</p>
 
     <h2>Pairing your iPhone or iPad</h2>
     <ol>

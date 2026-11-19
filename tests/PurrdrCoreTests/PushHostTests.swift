@@ -11,7 +11,7 @@ import Testing
 @Suite("推播(主機)")
 struct PushHostTests {
     static let endpoint = URL(string: "https://backend.test/v1/push")!
-    static let source = "raychiutw/purrdr-host-plugin"
+    static let source = "raychiutw/purrdr-host/host-plugin"
 
     let host: LocalShellHost
 
@@ -41,7 +41,7 @@ struct PushHostTests {
         try await push().pair(file)
 
         #expect(pluginInstalled)
-        #expect(try herdrCalls().contains("plugin install raychiutw/purrdr-host-plugin --yes"))
+        #expect(try herdrCalls().contains("plugin install raychiutw/purrdr-host/host-plugin --yes"))
         let url = host.url(".purrdr/push-0123456789abcdef/pairing")
         #expect(PushPairingFile(contents: try Data(contentsOf: url)) == file)
         let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber

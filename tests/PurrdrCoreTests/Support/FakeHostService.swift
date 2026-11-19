@@ -7,11 +7,11 @@ import PurrdrCore
 import PurrdrTestSupport
 import Synchronization
 
-/// 假的主機服務：本機 127.0.0.1 隨機埠上的 HTTP + WebSocket 伺服器，照協定(`protocol/host-service.schema.json`)回應。
+/// 假的主機服務：本機 127.0.0.1 隨機埠上的 HTTP + WebSocket 伺服器，照協定(`vendor/purrdr-host/protocol/host-service.schema.json`)回應。
 ///
-/// 行為仿照真正的主機服務(`host-service/`):先完成 WebSocket 升級再驗證 `Authorization: Bearer`,
+/// 行為仿照真正的主機服務(raychiutw/purrdr-host 的 `host-service/`):先完成 WebSocket 升級再驗證 `Authorization: Bearer`,
 /// 權杖無效或已撤銷時送 `error` 後以 close code 4401 關閉;每個訊息都重新驗證(`revoke(_:)` 立即生效)。
-/// 回應內容來自 `protocol/examples/`(兩端共用的範例)。
+/// 回應內容來自 `vendor/purrdr-host/protocol/examples/`(兩端共用的範例，從 purrdr-host 同步)。
 final class FakeHostService: Sendable {
     /// `agents.list` 的回應方式。
     enum AgentsReply: Sendable {
@@ -404,7 +404,7 @@ final class FakeHostService: Sendable {
 
     static let examplesDirectory = URL(filePath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "protocol/examples")
+        .appending(path: "vendor/purrdr-host/protocol/examples")
 
     /// 協定範例，換上這次的請求識別碼。
     private static func example(_ name: String, requestID: String?, changing changes: [String: Any] = [:]) -> String {
