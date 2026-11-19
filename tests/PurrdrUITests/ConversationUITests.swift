@@ -556,7 +556,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 
-    /// #219:聊天時斷網(開啟 8 秒後所有主機指令立刻失敗)。頂端顯示連線中斷，畫面仍可操作：能捲動、能返回列表。
+    /// #219:聊天時斷網(啟動 12 秒後所有主機指令立刻失敗)。頂端顯示連線中斷，畫面仍可操作：能捲動、能返回列表。
     @MainActor
     func testGoingOfflineWhileChattingKeepsAppResponsive() throws {
         try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline")
@@ -574,10 +574,10 @@ final class ConversationUITests: XCTestCase {
         try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", typing: true)
     }
 
-    /// #219:工作中的 agent(每 2 秒輪詢、讀畫面)斷網，畫面仍可操作。
+    /// #219:工作中的 agent(Codex,沒有對話紀錄;每 2 秒輪詢、讀畫面)斷網，畫面仍可操作。
     @MainActor
     func testGoingOfflineWhileAgentWorksKeepsAppResponsive() throws {
-        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", paneID: "w3:p1")
+        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", paneID: "w3:p1", hasMessages: false)
     }
 
     /// #219:「需要你」的 agent(提示卡占去大半畫面)斷網，畫面仍可操作。
@@ -587,12 +587,12 @@ final class ConversationUITests: XCTestCase {
     }
 
     @MainActor
-    private func assertStaysResponsiveWhenGoingOffline(flag: String, paneID: String = "w1:p1", typing: Bool = false) throws {
+    private func assertStaysResponsiveWhenGoingOffline(flag: String, paneID: String = "w1:p1", hasMessages: Bool = true, typing: Bool = false) throws {
         let app = open(paneID: paneID, flags: [flag])
         XCTAssertTrue(element("composer.text", in: app).waitForExistence(timeout: 10), "聊天畫面沒有開啟")
         let message = app.descendants(matching: .any).matching(NSPredicate(
             format: "identifier IN %@", ["conversation.user", "conversation.agent", "conversation.toolRun"])).firstMatch
-        XCTAssertTrue(message.waitForExistence(timeout: 10), "對話沒有載入完成")
+        XCTAssertTrue(!hasMessages || message.waitForExistence(timeout: 10), "對話沒有載入完成")
         if typing {
             let text = element("composer.text", in: app)
             text.tap()

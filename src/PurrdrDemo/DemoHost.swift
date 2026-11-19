@@ -32,7 +32,7 @@ public actor DemoHost: HostChannel {
         case largeOutputOnPrompt
         /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
         case workingAfterPrompt(for: Duration)
-        /// 聊天中斷網(#219):第一次定位對話紀錄後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
+        /// 聊天中斷網(#219):第一個主機指令(app 啟動)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
     }
@@ -90,7 +90,7 @@ public actor DemoHost: HostChannel {
     public func execute(_ command: String) async throws -> any ExecSession {
         try await passTailscaleCheck()
         try await failIfOffline()
-        scheduleOfflineIfDue(command)
+        scheduleOfflineIfDue()
         if command == HerdrCommand.bridge() {
             let bridge = DemoBridgeSession { [weak self] line in
                 guard let self else { return (Data(), false) }
@@ -190,9 +190,9 @@ public actor DemoHost: HostChannel {
     /// 斷網時要以連線中斷結束的請求與訂閱。
     private var openBridges: [DemoBridgeSession] = []
 
-    /// 斷網情境：第一次定位對話紀錄(開啟聊天)後排定斷網。
-    private func scheduleOfflineIfDue(_ command: String) {
-        guard case .goesOffline(let delay, _) = scenario, !offlineScheduled, DemoTranscripts.isLocate(command) else { return }
+    /// 斷網情境：第一個主機指令時排定斷網。
+    private func scheduleOfflineIfDue() {
+        guard case .goesOffline(let delay, _) = scenario, !offlineScheduled else { return }
         offlineScheduled = true
         Task { [weak self] in
             try await Task.sleep(for: delay)
