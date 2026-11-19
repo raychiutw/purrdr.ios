@@ -43,7 +43,7 @@ public struct ClaudePlanUsageHost: Sendable {
     /// - Parameter files: 讀用量用的主機檔案(每台主機共用長駐讀取的那份);`nil` 時每次讀是一次性指令。
     public init(channel: any HostChannel, files: HostFiles? = nil) {
         write = ReversibleHostWrite(channel: channel, feature: Self.feature)
-        self.files = files ?? HostFiles(channel: channel)
+        self.files = .shared(files, channel: channel)
     }
 
     /// 同意前的檢查：設定可以安全修改嗎、會以哪個使用者修改。
@@ -96,7 +96,7 @@ public struct ClaudePlanUsageHost: Sendable {
         let state = read[Self.usagePath]
         let usage = state?.contents.flatMap(ClaudeUsage.init(usageFile:))
         if case .file(_, let version)? = state {
-            await lastRead.update((version, usage))
+            await lastRead.update(UsageRead(version: version, usage: usage))
         } else {
             await lastRead.update(nil)
         }
@@ -236,11 +236,17 @@ extension ClaudeUsage {
     }
 }
 
-/// `ClaudePlanUsageHost` 上次讀到的用量與 `usage.json` 的版本。
-private actor LastUsageRead {
-    private(set) var value: (version: HostFileVersion, usage: ClaudeUsage?)?
+/// 一次讀到的用量與 `usage.json` 的版本。
+private struct UsageRead {
+    let version: HostFileVersion
+    let usage: ClaudeUsage?
+}
 
-    func update(_ value: (version: HostFileVersion, usage: ClaudeUsage?)?) {
+/// `ClaudePlanUsageHost` 上次讀到的用量。
+private actor LastUsageRead {
+    private(set) var value: UsageRead?
+
+    func update(_ value: UsageRead?) {
         self.value = value
     }
 }

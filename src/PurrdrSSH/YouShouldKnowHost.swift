@@ -24,7 +24,7 @@ public struct YouShouldKnowHost: YouShouldKnowHosting {
     /// - Parameter files: 讀 store 用的主機檔案(每台主機共用長駐讀取的那份);`nil` 時每次讀是一次性指令。
     public init(channel: any HostChannel, files: HostFiles? = nil, now: @escaping @Sendable () -> Date = Date.init) {
         self.channel = channel
-        self.files = files ?? HostFiles(channel: channel)
+        self.files = .shared(files, channel: channel)
         self.now = now
     }
 

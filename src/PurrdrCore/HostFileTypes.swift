@@ -109,6 +109,9 @@ public enum HostFilesError: Error, Equatable {
     case malformedOutput
     /// 主機腳本失敗(非零 exit)。
     case failed(exitCode: Int32, message: String)
+
+    /// 通道結束卻沒有結束狀態(例如斷線)時 `failed` 帶的 exit code。
+    public static let unknownExitCode: Int32 = -1
 }
 
 extension HostFileChange {

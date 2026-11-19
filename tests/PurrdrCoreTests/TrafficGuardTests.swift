@@ -107,7 +107,7 @@ struct TrafficGuardTests {
         let consent = InMemoryHostWriteConsentStore()
         for feature in [HostThemeHost.feature.id, YouShouldKnowFeature.id] { consent.grant(feature, host: "mac") }
         // 主題與註記共用每台主機一條長駐讀取(#203,同 `HostMember`)。
-        let files = HostFiles(channel: host, readsOverLongRunningChannel: true)
+        let files = HostFiles.longRunning(channel: host)
         let theme = HostThemeModel(host: HostThemeHost(channel: host, files: files), hostID: "mac", consent: consent, sleep: clock.sleep)
         let notes = YouShouldKnowModel(host: YouShouldKnowHost(channel: host, files: files), hostID: "mac", consent: consent, sleep: clock.sleep)
         // 列表、聊天、主題各一個視窗;註記由列表與聊天輸入列共用。
