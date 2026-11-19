@@ -8,11 +8,17 @@ import SwiftUI
 /// Cancel 在左、Start 在右。開始中不能滑掉 sheet(主機上正在建立 workspace)。
 public struct NewChatView: View {
     @Bindable var model: NewChatModel
+    /// 標題列中間的主機挑選鈕(#245)。
+    let hostPicker: HostPickerModel?
     let onCancel: () -> Void
     let onStarted: (CreatedWorkspace) -> Void
 
-    public init(model: NewChatModel, onCancel: @escaping () -> Void, onStarted: @escaping (CreatedWorkspace) -> Void) {
+    public init(
+        model: NewChatModel, hostPicker: HostPickerModel? = nil, onCancel: @escaping () -> Void,
+        onStarted: @escaping (CreatedWorkspace) -> Void
+    ) {
         self.model = model
+        self.hostPicker = hostPicker
         self.onCancel = onCancel
         self.onStarted = onStarted
     }
@@ -84,10 +90,17 @@ public struct NewChatView: View {
             .accessibilityIdentifier("sheet.newChat")
             .navigationTitle("New Chat")
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
+            // 有主機挑選鈕時它佔標題列中間，「新增聊天」改成大標題放在下面(原型)。
+            .navigationBarTitleDisplayMode(hostPicker == nil ? .inline : .large)
             #endif
             .interactiveDismissDisabled(model.isStarting)
             .toolbar {
+                if let hostPicker {
+                    ToolbarItem(placement: .principal) {
+                        HostPickerButton(model: hostPicker, identifier: "newChat.host")
+                            .disabled(model.isStarting)
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
                         .disabled(model.isStarting)
