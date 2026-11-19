@@ -317,6 +317,7 @@ struct ComposerBar: View {
 }
 
 /// 送出鈕：唯一 tinted 主要動作(44pt),送出中顯示轉圈。輸入列與展開畫面共用。
+/// agent 工作中且草稿空白時換成停止鈕(#220):點一下送一個 Esc,停止中轉圈且不能重按。
 struct ComposerSendButton: View {
     let model: ConversationModel
     let identifier: String
@@ -325,6 +326,14 @@ struct ComposerSendButton: View {
     let action: () -> Void
 
     var body: some View {
+        if model.showsStopButton {
+            stopButton
+        } else {
+            sendButton
+        }
+    }
+
+    private var sendButton: some View {
         styled(Button(action: action) {
             Group {
                 if model.isSending {
@@ -342,6 +351,28 @@ struct ComposerSendButton: View {
         .disabled(!model.canSend)
         .accessibilityLabel(model.isSending ? Text("Sending") : Text("Send"))
         .accessibilityIdentifier(identifier)
+    }
+
+    private var stopButton: some View {
+        styled(Button {
+            Task { await model.stop() }
+        } label: {
+            Group {
+                if model.isStopping {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "stop.fill")
+                }
+            }
+            .frame(width: 30, height: 30)
+        })
+        .buttonBorderShape(.circle)
+        .frame(minWidth: 44, minHeight: 44)
+        .disabled(!model.canStop)
+        .accessibilityLabel(model.isStopping ? Text("Stopping") : Text("Stop"))
+        .accessibilityHint(Text("Interrupts the agent’s current turn."))
+        .accessibilityIdentifier(identifier.replacingOccurrences(of: ".send", with: ".stop"))
     }
 
     @ViewBuilder
@@ -475,7 +506,7 @@ extension SendNotice {
         case .unconfirmed(.connectionLost): String(localized: "The connection dropped while sending. The message may have arrived; check the chat before sending again.")
         case .unconfirmed(.mayBeInTerminal): String(localized: "Couldn’t confirm delivery. The message may be stuck in the terminal.")
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
-        case .stillWorking: String(localized: "The agent is still working. Tap Stop again, or press and hold to force quit.")
+        case .stillWorking: String(localized: "The agent is still working. Tap Stop again, or choose Force Quit from the More menu.")
         case .interruptFailed: String(localized: "Couldn’t send the interrupt to the host.")
         case .stopUnconfirmed: String(localized: "Sent Stop, but couldn’t read the agent’s status. It may still be working; check the chat.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")

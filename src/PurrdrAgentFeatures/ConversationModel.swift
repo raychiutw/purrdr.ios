@@ -813,8 +813,8 @@ public final class ConversationModel {
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
 
-    /// 標題列選單的強制結束(#220)。
-    public var canForceQuit: Bool { false }
+    /// 標題列選單的強制結束(#220):同停止，只對 working 的 agent。
+    public var canForceQuit: Bool { agentStatus == .working && !isReadOnly && !isOffline }
 
     /// 輸入列的送出鈕換成停止鈕(#220):working(或停止中)且草稿、圖片都空;有草稿時是送出(prompt 會排隊)。
     public var showsStopButton: Bool {
@@ -923,7 +923,7 @@ public final class ConversationModel {
 
     /// 強制結束(ctrl+c,F6.7)。呼叫端先請使用者確認;只對 working 的 agent。
     public func forceQuit() async {
-        guard agentStatus == .working else { return }
+        guard canForceQuit else { return }
         switch await delivery.forceQuit(paneID: paneID) {
         case .sent, .notWorking: notice = nil
         case .needsAnswer: notice = .interruptRefusedNeedsAnswer
@@ -1451,10 +1451,9 @@ public final class ConversationModel {
         ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName())
     }
 
-    /// 標題列的動作鈕:working(或停止進行中)時「停止」,其他時候「重新載入」;還沒輪詢過時沒有。
+    /// 標題列的動作鈕：一律「重新載入」(停止在輸入列,#220);還沒輪詢過時沒有。
     public var headerAction: HeaderAction? {
-        if agentStatus == .working || isStopping { return .stop }
-        return phase == .loading ? nil : .reload
+        phase == .loading ? nil : .reload
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
