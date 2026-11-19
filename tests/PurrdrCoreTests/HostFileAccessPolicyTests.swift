@@ -47,6 +47,25 @@ struct HostFileAccessPolicyTests {
             == .allowed(HostFileTarget(path: "/Users/demo/.purrdr/uploads/a1.jpg", root: nil)))
     }
 
+    @Test("Windows 主機(#226):工作目錄比對不分大小寫、`\\` 與 `/` 都是分隔，帶原本的工作目錄給主機")
+    func windowsWorkingDirectory() {
+        let scope = HostFileAccessScope(workingDirectories: [#"C:\Users\Demo\Ledger"#], mentionedPaths: [])
+        #expect(HostFileAccessPolicy.decision(for: #"c:\users\demo\ledger\docs\a.png"#, in: scope)
+            == .allowed(HostFileTarget(path: #"c:\users\demo\ledger\docs\a.png"#, root: #"C:\Users\Demo\Ledger"#)))
+        #expect(HostFileAccessPolicy.decision(for: "C:/Users/Demo/Ledger/docs/a.png", in: scope)
+            == .allowed(HostFileTarget(path: "C:/Users/Demo/Ledger/docs/a.png", root: #"C:\Users\Demo\Ledger"#)))
+    }
+
+    @Test("Windows 主機(#226):別的磁碟機、名稱開頭相同的兄弟資料夾、`..`、UNC 拒絕;排除清單不分大小寫")
+    func windowsDenied() {
+        let scope = HostFileAccessScope(workingDirectories: [#"C:\Users\Demo\Ledger"#], mentionedPaths: [#"\\server\share\a.png"#])
+        let paths = [
+            #"D:\Users\Demo\Ledger\a.png"#, #"C:\Users\Demo\Ledger-private\a.png"#, #"C:\Users\Demo\Ledger\..\.ssh\id_rsa"#,
+            #"\\server\share\a.png"#, #"C:\Users\Demo\Ledger\.SSH\config"#, #"C:\Users\Demo\Ledger\.Purrdr\Push-1\pairing"#,
+        ]
+        #expect(paths.filter { HostFileAccessPolicy.decision(for: $0, in: scope) != .denied } == [])
+    }
+
     @Test("相對路徑、`..`、`.`、控制字元一律拒絕")
     func malformedPaths() {
         let scope = HostFileAccessScope(workingDirectories: ["/Users/demo/ledger"], mentionedPaths: [])
