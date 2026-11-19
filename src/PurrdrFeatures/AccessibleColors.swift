@@ -79,6 +79,22 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)   // 選取底色 7.1:1
     )
 
+    /// 停止列「已停止」的文字(#220)。
+    static let successText = ContrastPalette(
+        light: ThemeColor(red: 0x24, green: 0x8A, blue: 0x3D),
+        dark: ThemeColor(red: 0x30, green: 0xD1, blue: 0x58),
+        lightHighContrast: ThemeColor(red: 0x24, green: 0x8A, blue: 0x3D),
+        darkHighContrast: ThemeColor(red: 0x30, green: 0xD1, blue: 0x58)
+    )
+
+    /// 停止列「仍在工作」「無法確認」的文字(#220)。
+    static let warningText = ContrastPalette(
+        light: ThemeColor(red: 0xC2, green: 0x5E, blue: 0x00),
+        dark: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x0A),
+        lightHighContrast: ThemeColor(red: 0xC2, green: 0x5E, blue: 0x00),
+        darkHighContrast: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x0A)
+    )
+
     /// 對話中的連結(#93):系統連結藍的色相(`#007AFF`／`#0A84FF`),只調明度。
     /// 系統 `.link` 淺色對 `#EFEFF0` 只有 3.5:1、深色對 `#2C2C2E` 3.8:1,不能承載文字。
     static let linkText = ContrastPalette(

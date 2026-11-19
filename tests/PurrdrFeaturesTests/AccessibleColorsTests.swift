@@ -41,7 +41,17 @@ struct AccessibleColorsTests {
 
     @Test("次要文字：深淺色對主要與 grouped 背景 ≥ 4.5:1,高對比 ≥ 7:1")
     func secondaryTextContrast() {
-        let palette = AccessibleColors.secondaryText
+        Self.expectReadable(AccessibleColors.secondaryText)
+    }
+
+    /// 停止列的結果文字(#220):成功與警告。停止列在輸入卡片裡，背景取次要文字的同一組。
+    @Test("停止結果的成功、警告文字：深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
+    func stopResultTextContrast() {
+        Self.expectReadable(AccessibleColors.successText)
+        Self.expectReadable(AccessibleColors.warningText)
+    }
+
+    static func expectReadable(_ palette: ContrastPalette) {
         let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
             ("淺色", palette.light, Self.lightSecondaryBackgrounds, 4.5),
             ("深色", palette.dark, Self.darkSecondaryBackgrounds, 4.5),
