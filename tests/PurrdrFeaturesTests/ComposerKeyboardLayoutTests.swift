@@ -34,6 +34,17 @@ struct ComposerKeyboardLayoutTests {
         #expect(Self.arrange(keyboard: false, conversation: 6) == .full)
     }
 
+    @Test("鍵盤收起時暫時拿掉的註記與建議提示詞回到一行(可點)，不直接長回完整卡片")
+    func keyboardHiddenRestoresHiddenAsCompact() {
+        let shed = ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden)
+        #expect(Self.arrange(keyboard: false, conversation: 600, current: shed) == ComposerAccessoryArrangement(note: .compact, suggestion: .compact))
+        let partly = ComposerAccessoryArrangement(note: .hidden, suggestion: .full)
+        #expect(Self.arrange(keyboard: false, conversation: nil, current: partly) == ComposerAccessoryArrangement(note: .compact, suggestion: .full))
+        // 元素暫時不在時也一樣：回來時是可點的一行。
+        #expect(Self.arrange(keyboard: false, conversation: nil, current: shed, note: nil, suggestion: nil)
+            == ComposerAccessoryArrangement(note: .compact, suggestion: .compact))
+    }
+
     @Test("iPhone 17 軟體鍵盤：註記先收成一行，建議提示詞照常，對話留 247pt")
     func iPhoneSoftKeyboardCollapsesNoteFirst() {
         // 對話 6pt + 卡片 285 + 8 + 建議 60 + 8 = 367pt 可分配;註記收成一行後對話 367 − 52 − 68 = 247。

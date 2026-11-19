@@ -105,6 +105,7 @@ struct ComposerBar: View {
                     YouShouldKnowCompactNoteView(note: note) { expandAccessories() }
                         .onGeometryChange(for: Double.self) { $0.size.height } action: { noteHeights.compact = $0 }
                 case .hidden:
+                    // 只在鍵盤出現時：失焦時換回一行(`ComposerKeyboardLayout`)。
                     EmptyView()
                 }
             }
@@ -171,7 +172,7 @@ struct ComposerBar: View {
         }
     }
 
-    /// 點一行的註記：收起鍵盤，註記與建議提示詞完整顯示(鍵盤收起時規則維持目前的顯示方式)。
+    /// 點一行的註記：收起鍵盤，註記與建議提示詞完整顯示(鍵盤收起時規則不會自己換回完整卡片)。
     private func expandAccessories() {
         isFocused = false
         guard arrangement != .full else { return }

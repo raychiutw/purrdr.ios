@@ -353,6 +353,12 @@ public struct ComposerAccessoryArrangement: Sendable, Equatable {
     }
 
     public static let full = ComposerAccessoryArrangement(note: .full, suggestion: .full)
+
+    /// 暫時拿掉的元素換回一行，其他維持。
+    var restoringHidden: ComposerAccessoryArrangement {
+        ComposerAccessoryArrangement(
+            note: note == .hidden ? .compact : note, suggestion: suggestion == .hidden ? .compact : suggestion)
+    }
 }
 
 /// 一個可讓位元素各種顯示方式的高度(不含與下一個元素的間距)。
@@ -387,9 +393,11 @@ public enum ComposerKeyboardLayout {
         keyboardShown: Bool, conversationHeight: Double?, current: ComposerAccessoryArrangement,
         note: ComposerAccessoryHeights?, suggestion: ComposerAccessoryHeights?, minimumConversationHeight: Double
     ) -> ComposerAccessoryArrangement {
-        // 鍵盤收起時維持目前的顯示方式：卡片若跟著鍵盤收起一起長回來，輸入列高度會在鍵盤動畫中連跳兩次，
-        // 又碰上大量輸出重建列表時對話會停在一片空白。點一行的註記才展開(`ComposerBar`)。
-        guard keyboardShown else { return current }
+        // 鍵盤收起時不長回完整卡片：卡片若跟著鍵盤收起一起長回來，先以沒量過的高度排一次、量到後再排一次，
+        // 輸入列高度在鍵盤動畫中連跳兩次，又碰上大量輸出重建列表(#130)時對話會停在一片空白。點一行的註記才展開
+        // (`ComposerBar`)。暫時拿掉的元素則回到一行：拿掉只是鍵盤在時的讓位，鍵盤收起後要叫得回來;一行的高度固定
+        // (不必重新量)，只在失焦當下變一次，不會在動畫中連跳。
+        guard keyboardShown else { return current.restoringHidden }
         guard let conversationHeight else { return current }
         // 可分配的高度與目前怎麼排無關：對話可見高度加上目前顯示中的元素(含間距)。
         let budget = conversationHeight + displayedCost(note, current.note) + displayedCost(suggestion, current.suggestion)
