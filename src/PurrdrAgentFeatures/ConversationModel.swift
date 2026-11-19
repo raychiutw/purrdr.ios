@@ -132,13 +132,33 @@ public final class ConversationModel {
                 return
             }
             drafts.save(draft, chatKey: chatKey, session: boundSessionID ?? knownSessionID)
-            if !isComposingDraft { slash.update(draft: draft) }
+            if !isComposingDraft { slash.update(draft: draft, caret: draftCaret) }
         }
+    }
+    /// 輸入框回報的游標(UTF-16 位置;有選取範圍時為 `nil`),連同當時的文字。
+    @ObservationIgnored private var reportedCaret: (text: String, caret: Int?)?
+    /// 草稿的游標(UTF-16 位置;有選取範圍時為 `nil`)。輸入框沒回報過這份草稿時視為在結尾。
+    public var draftCaret: Int? {
+        if let reportedCaret, reportedCaret.text == draft { return reportedCaret.caret }
+        return draft.utf16.count
+    }
+    /// 已知的游標(輸入框回報過或選定 slash 指令時指定);輸入框程式改寫草稿時把游標放這裡。
+    public var knownDraftCaret: Int? {
+        guard let reportedCaret, reportedCaret.text == draft else { return nil }
+        return reportedCaret.caret
+    }
+
+    /// 輸入框的游標或選取範圍改變時呼叫(#230)。文字先回報游標再寫草稿，slash 選單只更新一次。
+    public func updateDraftCaret(_ caret: Int?, in text: String) {
+        if let reportedCaret, reportedCaret.text == text, reportedCaret.caret == caret { return }
+        reportedCaret = (text, caret)
+        guard text == draft, typedAnswer == nil, !isComposingDraft else { return }
+        slash.update(draft: draft, caret: caret)
     }
     /// 輸入框正在組字(有 marked text)。組字中不拿暫時文字篩選 slash 選單(#138)。
     public var isComposingDraft = false {
         didSet {
-            if oldValue, !isComposingDraft, typedAnswer == nil { slash.update(draft: draft) }
+            if oldValue, !isComposingDraft, typedAnswer == nil { slash.update(draft: draft, caret: draftCaret) }
         }
     }
     /// 選取中主機的「You should know」註記(#23);由 `HostsModel` 接上，沒有時不顯示。
@@ -400,7 +420,7 @@ public final class ConversationModel {
         if images != nil { attachments = drafts.attachments(chatKey: paneID) }
         slash.loader = { [weak self] in await self?.slashCatalog() }
         slash.onPick = { [weak self] command in self?.pick(slash: command) }
-        slash.update(draft: draft)
+        slash.update(draft: draft, caret: draftCaret)
     }
 
     /// 這個 agent 的 slash 清單(#15):Claude 在主機上發現;Grok、Antigravity 用固定清單;其他沒有選單(`nil`)。
@@ -457,6 +477,8 @@ public final class ConversationModel {
     /// 有主機更新來源時一起保持它的即時更新，這個 Agent 在快照裡變了就立刻再輪詢一次，不等間隔(#163)。
     /// 期間連線快速偵測斷線(最壞約 15 秒顯示離線)。
     public func run(sleep: @escaping Sleep = Sleeping.task) async {
+        let runID = UUID()
+        currentRunID = runID
         followPace = TranscriptFollowPace(interval: pollInterval, sleep: sleep)
         let pollDue = WakeSignal(sleep: sleep)
         self.pollDue = pollDue
@@ -480,13 +502,21 @@ public final class ConversationModel {
             }
             group.cancelAll()
         }
-        stopFollowingUpdates()
-        followPace = nil
-        self.pollDue = nil
+        // 場景重新可見時新的 run 可能已經開始(#219):追蹤與節奏是它的，不收。
+        let isCurrentRun = currentRunID == runID
+        if isCurrentRun {
+            currentRunID = nil
+            stopFollowingUpdates()
+            followPace = nil
+            self.pollDue = nil
+        }
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
-        if let path = file?.path { await transcripts.stopFollowing(path: path) }
+        if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
     }
+
+    /// 目前的 `run()`;舊的 run 晚於新的結束時據此不收新的資源。
+    @ObservationIgnored private var currentRunID: UUID?
 
     /// 這個 Agent 在主機更新來源的快照裡變了(狀態事件觸發的重讀):叫醒輪詢。
     private func wakeOnChanges(from updates: HostUpdates) async {
@@ -1373,10 +1403,18 @@ public final class ConversationModel {
     // MARK: - Slash 點選與面板(#45)
 
     /// 點選 slash 指令：一律只填入 `/名稱 `,由使用者自己按送出(#83,刻意偏離行為規格 F9.3 的直接送出)。
+    /// 只換掉游標前的 `/字詞`,前後文字保留，游標停在插入文字之後(#230);沒有觸發時整段換掉。
     public func pick(slash command: SlashCommand) {
-        draft = "/\(command.name) "
+        let trigger = slash.trigger ?? SlashMenuModel.Trigger(range: 0..<draft.utf16.count, query: "", placement: .leading)
+        let filled = trigger.filling(command.name, in: draft)
+        reportedCaret = (filled.draft, filled.caret)
+        draft = filled.draft
         pickedHint = command.argumentHint.map { (draft, $0) }
+        lastSlashInsertion = SlashInsertion(name: command.name, sequence: (lastSlashInsertion?.sequence ?? 0) + 1)
     }
+
+    /// 最近一次選定插入的指令(VoiceOver 念出插入了哪個指令)。
+    public private(set) var lastSlashInsertion: SlashInsertion?
 
     /// 點選後游標後淡淡顯示的參數提示;使用者開始打參數(草稿改變)就消失。
     public var slashArgumentHint: String? {
