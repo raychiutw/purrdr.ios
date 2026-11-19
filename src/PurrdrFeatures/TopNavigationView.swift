@@ -359,7 +359,7 @@ private struct NewChatForm: View {
     }
 }
 
-/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;只篩選列表，不改選取中主機。
+/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;選某一台時同時設成選取中主機。
 struct HostFilterMenu: View {
     @Bindable var list: MergedAgentListModel
 
@@ -370,8 +370,8 @@ struct HostFilterMenu: View {
                 Label("All Hosts", systemImage: "square.grid.2x2")
                     .tag(HostSelection?.none)
                 ForEach(list.hostFilterOptions) { option in
-                    HostMenuLabel(option.label.name, icon: option.label.icon)
-                        .tag(HostSelection?.some(option.host))
+                    HostMenuLabel(option.name, icon: option.icon)
+                        .tag(HostSelection?.some(option.id))
                 }
             } label: {
                 Text("Hosts")

@@ -9,7 +9,7 @@ import Testing
 struct PlanUsageSelectionStoreTests {
     static let mac = HostSelection.host(UUID(uuidString: "6F1C2A4E-0B7D-4C1E-9A55-0D2C8E1F3A10")!)
     static let linux = HostSelection.host(UUID(uuidString: "1A2B3C4D-5E6F-4A1B-8C2D-3E4F5A6B7C8D")!)
-    static let hosts = [PlanUsageHostOption(id: mac, name: "Mac"), PlanUsageHostOption(id: linux, name: "Linux")]
+    static let hosts = [HostOption(id: mac, name: "Mac"), HostOption(id: linux, name: "Linux")]
 
     let suite = "purrdr.tests.planUsageSelection.\(UUID().uuidString)"
 

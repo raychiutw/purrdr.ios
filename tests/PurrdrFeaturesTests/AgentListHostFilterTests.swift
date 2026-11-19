@@ -71,8 +71,8 @@ struct AgentListHostFilterTests {
         let model = await Self.loadedModel()
 
         #expect(model.hostFilterOptions == [
-            HostLabelOption(host: Self.studio, label: HostLabel(name: "Studio", icon: .macMini)),
-            HostLabelOption(host: Self.lab, label: HostLabel(name: "Lab", icon: .rack)),
+            HostOption(id: Self.studio, name: "Studio", icon: .macMini),
+            HostOption(id: Self.lab, name: "Lab", icon: .rack),
         ])
     }
 

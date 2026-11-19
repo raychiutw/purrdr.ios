@@ -206,9 +206,7 @@ public final class HostsModel {
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
     public func planUsage() -> PlanUsageModel {
-        let options = [PlanUsageHostOption(id: .demo, name: name(of: .demo))]
-            + hosts.map { PlanUsageHostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
-        return PlanUsageModel(hosts: options, fallback: selection, store: planUsageSelection) { [weak self] host, agent in
+        PlanUsageModel(hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection) { [weak self] host, agent in
             self?.planUsageSource(host, agent)
         }
     }
@@ -243,23 +241,23 @@ public final class HostsModel {
     }
 
     /// 「⋯」選單要不要有登入 Shell 與檔案：有任何一台支援就有(挑選鈕能選;HTTPS 主機沒有，ADR-0010)。
-    public var anyHostSupportsShell: Bool { !hostPickerOptions { $0.supportsLoginShell }.isEmpty }
+    public var anyHostSupportsShell: Bool { !hostOptions { $0.supportsLoginShell }.isEmpty }
 
     /// 登入 Shell、檔案的主機挑選鈕(#245):只列支援的主機(HTTPS 主機沒有，ADR-0010),預設上次選的電腦或選取中主機。
     public func hostPicker(for scope: HostPickerScope) -> HostPickerModel {
-        let options = hostPickerOptions { $0.supportsLoginShell }
+        let options = hostOptions { $0.supportsLoginShell }
         return .remembering(scope, options: options, fallback: selection, store: hostPickerStore)
     }
 
     /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表目前篩選的主機(#244),所有主機時用選取中主機。
     public func newChatHostPicker() -> HostPickerModel {
-        .newChat(options: hostPickerOptions { _ in true }, listFilter: agentList.hostFilter, selection: selection)
+        .newChat(options: hostOptions { _ in true }, listFilter: agentList.hostFilter, selection: selection)
     }
 
-    /// Demo 主機加上符合條件的已存主機(同方案用量的主機選單)。
-    private func hostPickerOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostPickerOption] {
-        [HostPickerOption(id: .demo, name: name(of: .demo))]
-            + hosts.filter(isIncluded).map { HostPickerOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
+    /// Demo 主機加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
+    private func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {
+        [HostOption(id: .demo, name: name(of: .demo))]
+            + hosts.filter(isIncluded).map { HostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
     }
 
     /// 某台主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。

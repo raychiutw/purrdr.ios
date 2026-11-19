@@ -34,10 +34,10 @@ struct PlanUsageModelTests {
         consent.grant(ClaudePlanUsageHost.feature.id, host: selection.storedValue)
     }
 
-    static let bothHosts = [PlanUsageHostOption(id: mac, name: "Mac"), PlanUsageHostOption(id: linux, name: "Linux")]
+    static let bothHosts = [HostOption(id: mac, name: "Mac"), HostOption(id: linux, name: "Linux")]
 
     func model(
-        hosts: [PlanUsageHostOption] = Self.bothHosts, store: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
+        hosts: [HostOption] = Self.bothHosts, store: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         channel: (any HostChannel)? = nil, cost: PlanUsageQueryCost = .transfer, sleep: @escaping Sleep = StepSleeper().sleep,
         unsupported: Set<HostSelection> = []
     ) -> PlanUsageModel {
@@ -95,7 +95,7 @@ struct PlanUsageModelTests {
         #expect(reopened.host == Self.linux)
         #expect(reopened.agent == .claudeCode)
 
-        let linuxDeleted = model(hosts: [PlanUsageHostOption(id: Self.mac, name: "Mac")], store: store)
+        let linuxDeleted = model(hosts: [HostOption(id: Self.mac, name: "Mac")], store: store)
         #expect(linuxDeleted.host == Self.mac)
     }
 

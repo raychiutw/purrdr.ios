@@ -10,19 +10,6 @@ public enum PlanUsageAgent: String, CaseIterable, Sendable {
     case codex
 }
 
-/// 方案用量畫面的主機選項。
-public struct PlanUsageHostOption: Identifiable, Equatable, Sendable {
-    public var id: HostSelection
-    public var name: String
-    public var icon: HostIcon
-
-    public init(id: HostSelection, name: String, icon: HostIcon = .default) {
-        self.id = id
-        self.name = name
-        self.icon = icon
-    }
-}
-
 /// 一台主機上一種 Agent 的方案用量來源。
 public struct PlanUsageSource: Sendable {
     public var cost: PlanUsageQueryCost
@@ -203,7 +190,7 @@ public final class PlanUsageModel {
     public var display: Display = .remaining
     /// 同意或關閉失敗的說明。
     public private(set) var message: String?
-    public let hosts: [PlanUsageHostOption]
+    public let hosts: [HostOption]
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     private let store: any PlanUsageSelectionStore
@@ -215,7 +202,7 @@ public final class PlanUsageModel {
     ///   - sleep: 定期重整的等待;測試注入假的。
     ///   - source: 某台主機某種 Agent 的來源;`nil` 表示這種連線方式不支援。
     public init(
-        hosts: [PlanUsageHostOption], fallback: HostSelection, store: any PlanUsageSelectionStore,
+        hosts: [HostOption], fallback: HostSelection, store: any PlanUsageSelectionStore,
         now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
         source: @escaping (HostSelection, PlanUsageAgent) -> PlanUsageSource?

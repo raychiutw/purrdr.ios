@@ -29,14 +29,14 @@ private struct FilledProminentModifier: ViewModifier {
 /// 承載字的填色(ADR-0011):主機主題的填色(白字對比已檢查),沒有就用主色 `AccentColor`。
 struct ProminentFillStyle: ShapeStyle {
     func resolve(in environment: EnvironmentValues) -> Color {
-        environment.hostTheme?.app(ThemeAppearance(environment.colorScheme)).fill.map(Color.init) ?? Color.accentColor
+        environment.hostThemeColor(\.fill)
     }
 }
 
 /// `ProminentFillStyle` 上的字與符號：主機主題填色用白字，主色用 `onAccent`。
 struct OnProminentFillStyle: ShapeStyle {
     func resolve(in environment: EnvironmentValues) -> Color {
-        environment.hostTheme?.app(ThemeAppearance(environment.colorScheme)).fill == nil ? .onAccent : .white
+        environment.hostAppColors?.fill == nil ? .onAccent : .white
     }
 }
 
@@ -56,8 +56,7 @@ struct SoftAccentFillStyle: ShapeStyle {
     var opacity: Double?
 
     func resolve(in environment: EnvironmentValues) -> Color {
-        let tint = environment.hostTheme?.app(ThemeAppearance(environment.colorScheme)).tint.map(Color.init) ?? Color.accentColor
-        return tint.opacity(opacity ?? (environment.colorScheme == .dark ? 0.16 : 0.12))
+        environment.hostThemeColor(\.tint).opacity(opacity ?? (environment.colorScheme == .dark ? 0.16 : 0.12))
     }
 }
 
@@ -67,4 +66,14 @@ extension ShapeStyle where Self == SoftAccentFillStyle {
 
     /// 指定不透明度的淡主色底;承載字時不透明度要有對比測試。
     static func softAccentFill(opacity: Double) -> SoftAccentFillStyle { SoftAccentFillStyle(opacity: opacity) }
+}
+
+extension EnvironmentValues {
+    /// 主機主題在目前深淺色的 App 配色;沒有主機主題時是 `nil`。
+    fileprivate var hostAppColors: AppThemeColors? { hostTheme?.app(ThemeAppearance(colorScheme)) }
+
+    /// 主機主題的某個顏色，沒有就用主色 `AccentColor`。
+    fileprivate func hostThemeColor(_ color: KeyPath<AppThemeColors, ThemeColor?>) -> Color {
+        hostAppColors?[keyPath: color].map(Color.init) ?? Color.accentColor
+    }
 }

@@ -139,6 +139,19 @@ public struct HostLabel: Equatable, Sendable {
     }
 }
 
+/// 選單裡的一台主機：主機挑選鈕、聊天列表主機篩選與方案用量共用。
+public struct HostOption: Identifiable, Equatable, Sendable {
+    public var id: HostSelection
+    public var name: String
+    public var icon: HostIcon
+
+    public init(id: HostSelection, name: String, icon: HostIcon = .default) {
+        self.id = id
+        self.name = name
+        self.icon = icon
+    }
+}
+
 // MARK: - 釘選、靜音(以主機分開)
 
 /// 各主機的釘選、靜音存放處。同一個 session 值在不同主機是不同的聊天(路徑型的 session 在兩台主機可能完全相同)。
