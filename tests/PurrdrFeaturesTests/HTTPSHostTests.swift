@@ -140,7 +140,7 @@ struct HTTPSHostEditorTests {
             store: MemoryHostStore(), editing: existing, hostService: connections.access(tokens: tokens, http: http),
             makeChannel: ChannelFactory().make)
         #expect(model.connectionMethod == .https)
-        #expect(model.address == "https://studio.tail1234.ts.net")
+        #expect(model.address == "studio.tail1234.ts.net")
 
         model.name = "Studio Mac"
         await model.test()
@@ -166,6 +166,19 @@ struct HTTPSHostEditorTests {
         #expect(model.canTest)
     }
 
+    @Test("配對碼小寫鍵入(硬體鍵盤、貼上)也以大寫配對(#236)")
+    func lowercasePairingCodePairsUppercased() async {
+        let http = FakeHostServiceHTTP()
+        let connections = HostServiceConnections()
+        connections.connections = [await HostServiceConnections.healthy()]
+        let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(http: http), makeChannel: ChannelFactory().make)
+        Self.fill(model, code: "k7qm-2xpa")
+
+        await model.test()
+
+        #expect(http.requests.first?.body?["pairing_code"] == "K7QM-2XPA")
+    }
+
     @Test("QR code 的配對連結帶入 HTTPS、位址與配對碼")
     func importsPairingLink() throws {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
@@ -174,7 +187,7 @@ struct HTTPSHostEditorTests {
         let editor = try model.makeImportEditor(url)
 
         #expect(editor.connectionMethod == .https)
-        #expect(editor.address == "https://studio.tail1234.ts.net")
+        #expect(editor.address == "studio.tail1234.ts.net")
         #expect(editor.pairingCode == "K7QM-2XPA")
         #expect(editor.name == "studio")
     }
@@ -188,7 +201,7 @@ struct HTTPSHostEditorTests {
 
         #expect(editor.connectionMethod == .https)
         #expect(editor.name == "Studio")
-        #expect(editor.address == "https://studio.tail1234.ts.net")
+        #expect(editor.address == "studio.tail1234.ts.net")
         #expect(editor.pairingCode.isEmpty)
         #expect(editor.needsPairingCode)
         #expect(!editor.canTest)
@@ -322,7 +335,6 @@ struct HTTPSHostsModelTests {
         #expect(channels.endpoints.isEmpty, "HTTPS 主機不應該開 SSH 連線")
         #expect(model.agentList.sections.flatMap(\.rows).count == 3)
         #expect(model.rows.first?.subtitle == "https://studio.tail1234.ts.net")
-        #expect(!model.selectedHostSupportsShell)
     }
 
     @Test("主機清單：沒有裝置權杖的 HTTPS 主機標示要配對;已配對的與 SSH 主機不標示")
@@ -341,6 +353,37 @@ struct HTTPSHostsModelTests {
 
         let needsPairing = Dictionary(uniqueKeysWithValues: model.rows.map { ($0.title, $0.needsPairing) })
         #expect(needsPairing == ["Synced": true, "Paired": false, "SSH": false])
+    }
+
+    @Test("沒有記錄的選取中主機時，預設跳過還沒配對的 HTTPS 主機(連不上)")
+    func defaultSelectionSkipsUnpairedHost() {
+        let unpaired = HostConfiguration(name: "Alpha HTTPS", hostService: Self.address)
+        let ssh = HostConfiguration(name: "Beta Mac", endpoint: SSHEndpoint(host: "beta-mac", username: "ray"))
+        let store = MemoryHostStore()
+        store.hosts = [unpaired, ssh]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(),
+            hostService: HostServiceConnections().access(tokens: InMemoryDeviceTokenStore()),
+            makeChannel: ChannelFactory().make)
+
+        model.load()
+
+        #expect(model.selection == .host(ssh.id))
+    }
+
+    @Test("已存主機都還沒配對時，預設仍是第一台(點了去配對)")
+    func defaultSelectionFallsBackToUnpairedHost() {
+        let unpaired = HostConfiguration(name: "Alpha HTTPS", hostService: Self.address)
+        let store = MemoryHostStore()
+        store.hosts = [unpaired]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(),
+            hostService: HostServiceConnections().access(tokens: InMemoryDeviceTokenStore()),
+            makeChannel: ChannelFactory().make)
+
+        model.load()
+
+        #expect(model.selection == .host(unpaired.id))
     }
 
     @Test("配對完儲存後，主機清單不再標示要配對")

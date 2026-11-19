@@ -52,11 +52,12 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
 }
 
 extension AgentStatus {
-    /// 狀態條與圖例的顏色;閒置用低飽和的 `idleSegment`(#103)。
+    /// 狀態條的段色：中性的完成與閒置用深淺灰區分(段沒有形狀可分);其他同對照表。
     var segmentColor: AnyShapeStyle {
         switch self {
-        case .idle, .unknown: AnyShapeStyle(AccessibleColors.idleSegment.color)
-        default: color
+        case .done: AnyShapeStyle(Color.gray)
+        case .idle, .unknown: AnyShapeStyle(Color.lightNeutralSegment)
+        default: tone.style
         }
     }
 }
@@ -89,7 +90,7 @@ struct StatusLegend: View {
             ForEach(counts.nonZero, id: \.status) { entry in
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Image(systemName: entry.status.symbol)
-                        .foregroundStyle(entry.status.segmentColor)
+                        .foregroundStyle(entry.status.tone.style)
                     Text(entry.status.title)
                     Text(entry.count, format: .number)
                         .monospacedDigit()
@@ -155,8 +156,7 @@ private struct SpacesHostHeader: View {
                     .font(.title3.bold())
                     .foregroundStyle(.primary)
             } icon: {
-                Image(systemName: host.icon.symbol)
-                    .foregroundStyle(.secondary)
+                HostIconBadge(host.icon, diameter: 28)
             }
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
             StatusLegend(counts: host.counts)
@@ -217,7 +217,6 @@ private struct WorkspaceGroupHeader: View {
             }
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: spokenLabel))
         .accessibilityAddTraits(.isButton)
@@ -274,12 +273,8 @@ private struct StatusBarView: View {
 struct SpacesAgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(紅底，`selectionFill(for:)`):次要色改選取列文字色(同 `AgentRowView`)。
-    @Environment(\.backgroundProminence) private var backgroundProminence
-
-    private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
-    }
+    /// 次要色;選取列是中性灰底，不換色(同 `AgentRowView`)。
+    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
     private func lines(_ limit: Int) -> Int? {
@@ -331,7 +326,8 @@ struct SpacesAgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.tint))
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.primary)
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
@@ -347,8 +343,8 @@ struct SpacesAgentRowView: View {
                 .fixedSize()
             if !row.subtitle.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    if let label = row.hostLabel {
-                        Image(systemName: label.icon.symbol)
+                    if let symbol = row.hostLabel?.icon.symbol {
+                        Image(systemName: symbol)
                             .accessibilityHidden(true)
                     }
                     Text(row.subtitle)
@@ -360,9 +356,11 @@ struct SpacesAgentRowView: View {
     }
 }
 
-/// Agent 種類頭像：36pt 圓角方塊，白色字母。種類名稱在列的文字裡，對 VoiceOver 隱藏。
+/// Agent 種類頭像：36pt 圓角方塊，白色字母。
 struct AgentKindAvatar: View {
     let kind: AgentKind
+    /// VoiceOver 念出種類名稱(Agents 列的文字裡沒有種類);Spaces 列的第三行已有，維持隱藏。
+    var announcesKind = false
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
@@ -373,7 +371,8 @@ struct AgentKindAvatar: View {
             .dynamicTypeSize(...DynamicTypeSize.xLarge)
             .frame(width: 36, height: 36)
             .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
-            .accessibilityHidden(true)
+            .accessibilityLabel(Text(verbatim: kind.displayName ?? ""))
+            .accessibilityHidden(!announcesKind || kind.displayName == nil)
     }
 }
 
@@ -381,12 +380,8 @@ struct AgentKindAvatar: View {
 struct TerminalRowView: View {
     let row: TerminalRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(紅底)次要色改白色(同 `AgentRowView`)。
-    @Environment(\.backgroundProminence) private var backgroundProminence
-
-    private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
-    }
+    /// 次要色;選取列是中性灰底，不換色(同 `AgentRowView`)。
+    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -435,34 +430,28 @@ extension AgentListMode {
     }
 }
 
-/// 列表的大標題(#66):目前檢視名 + ⌄,點了出檢視選單。樣子同系統大標題(Large Title 粗體、靠前緣);
-/// 它是一般的 `Menu`,所以 VoiceOver 唸「Spaces,按鈕」(另帶標題特徵，轉子的「標題」找得到)、UI 測試也找得到。
-/// AX 字級時換行，不截斷。
+/// 列表的大標題與其下的 Agents／Spaces 切換(#244):標題是目前檢視名，切換用分段控制。AX 字級時標題換行，不截斷。
 struct AgentListLargeTitle: View {
     @Binding var mode: AgentListMode
 
     var body: some View {
-        Menu {
-            AgentListModePicker(mode: $mode)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(mode.title)
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Image(systemName: "chevron.down")
-                    .font(.title3.bold())
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(mode.title)
+                .font(.largeTitle.bold())
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("agentList.title")
+            Picker("View", selection: $mode) {
+                ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
+                    Text(mode.title).tag(mode)
+                }
             }
-            // 觸控目標至少 44pt 高(HIG 20.2)。
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("agentList.mode")
         }
-        .buttonStyle(.plain)
-        .accessibilityHint("Switches between Spaces and Agents.")
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("agentList.title")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, 4)
     }
 }
 

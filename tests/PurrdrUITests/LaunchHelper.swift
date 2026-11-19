@@ -58,3 +58,97 @@ extension XCUIApplication {
             .press(forDuration: 0.1, thenDragTo: list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)))
     }
 }
+
+extension XCUIApplication {
+    /// 聊天列表的大標題(目前檢視名，#244 起是靜態文字)。
+    var listLargeTitle: XCUIElement { staticTexts["agentList.title"].firstMatch }
+
+    /// 點大標題下的 Agents／Spaces 分段切換(#244)。
+    @MainActor
+    func switchListMode(to mode: String, file: StaticString = #filePath, line: UInt = #line) {
+        let control = segmentedControls["agentList.mode"].firstMatch
+        XCTAssertTrue(control.waitForExistence(timeout: 15), "大標題下沒有 Agents／Spaces 切換", file: file, line: line)
+        control.buttons[mode].tap()
+    }
+
+    /// 左上角的主機篩選選了某一項(#244)。
+    @MainActor
+    func filterHosts(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let filter = buttons["toolbar.hostFilter"].firstMatch
+        XCTAssertTrue(filter.waitForExistence(timeout: 10), "左上角沒有主機篩選", file: file, line: line)
+        filter.tap()
+        let item = buttons[name].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "主機篩選選單沒有 \(name)", file: file, line: line)
+        item.tap()
+    }
+}
+
+extension XCUIApplication {
+    /// 點列表工具列的「⋯」再點選單項目(新增聊天也在選單裡，#241)。
+    @MainActor
+    func openMoreMenuItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
+        let more = buttons["toolbar.more"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
+        more.tap()
+        let item = buttons[identifier].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "「⋯」選單沒有 \(identifier)", file: file, line: line)
+        item.tap()
+    }
+
+    /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
+    @MainActor
+    func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
+        let account = buttons["toolbar.account"].firstMatch
+        XCTAssertTrue(account.waitForExistence(timeout: 10), "列表右上角沒有帳號鈕", file: file, line: line)
+        account.tap()
+        let join = buttons["account.plusSetup.action"].firstMatch
+        XCTAssertTrue(join.waitForExistence(timeout: 10), "帳號頁沒有「加入」", file: file, line: line)
+        join.tap()
+    }
+
+    /// 付費牆不在「⋯」選單(#241),未加入會員時帳號頁也還沒有「開通」:以深層連結開(#246)。
+    @MainActor
+    func openPlusPaywall() {
+        open(URL(string: "purrdr://plus")!)
+    }
+}
+
+/// 觸控目標至少 44×44pt。畫面座標是浮點數，44pt 的按鈕可能量成 43.99999999999994,只容許浮點誤差。
+@MainActor
+func XCTAssertHitTarget(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+    let floatingPointError = 0.001
+    XCTAssertGreaterThanOrEqual(
+        element.frame.width + floatingPointError, 44, "\(element.identifier) 寬度不到 44pt:\(element.frame)", file: file, line: line)
+    XCTAssertGreaterThanOrEqual(
+        element.frame.height + floatingPointError, 44, "\(element.identifier) 高度不到 44pt:\(element.frame)", file: file, line: line)
+}
+
+/// 軟體鍵盤的輸入法。模擬器用系統鍵盤清單的第一個或上次用的(`-AppleKeyboards` 啟動參數不會換掉它)。
+enum KeyboardLayout {
+    case english
+    case zhuyin
+}
+
+extension XCUIApplication {
+    /// 軟體鍵盤不是指定的輸入法時按地球鍵切過去(切換會被模擬器記成上次用的)。沒有軟體鍵盤時不做事。
+    @MainActor
+    func switchKeyboard(to layout: KeyboardLayout) {
+        let keyboard = keyboards.firstMatch
+        guard keyboard.exists else { return }
+        let markers = layout == .english ? ["q", "Q"] : ["ㄅ"]
+        // 地球鍵在鍵盤元素外(底部 home indicator 旁)。
+        let nextKeyboard = buttons["Next keyboard"].firstMatch
+        for _ in 0..<5 where !markers.contains(where: { keyboard.keys[$0].exists }) && nextKeyboard.exists {
+            nextKeyboard.tap()
+        }
+    }
+}
+
+extension XCUIElement {
+    /// 以英文軟體鍵盤打字：注音等輸入法會把英文變成組字。
+    @MainActor
+    func typeEnglish(_ text: String) {
+        XCUIApplication().switchKeyboard(to: .english)
+        typeText(text)
+    }
+}

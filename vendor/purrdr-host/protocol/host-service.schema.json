@@ -4,6 +4,24 @@
   "title": "Purrdr 主機服務協定",
   "description": "app 與主機服務之間的 JSON 訊息(ADR-0010):WSS 上的訊息，以及連線配對與撤銷的 HTTPS 請求本文。這份檔案是唯一定義:Rust 與 Swift 型別都由它產生(host-service/codegen)。解碼端一律忽略未知欄位。WSS 與 POST /v1/revoke 都以 Authorization: Bearer <裝置權杖> 認證。",
   "x-protocol-version": 1,
+  "x-excluded-file-locations": [
+    ".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials",
+    ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains",
+    ".codex/auth.json", ".claude/.credentials.json", ".claude.json", ".purrdr/host-service", ".purrdr/push-*",
+    ".env", ".env.*", ".vault-token", ".terraform.d", ".m2/settings.xml", ".git/config",
+    ".bash_history", ".zsh_history", "ConsoleHost_history.txt",
+    "Library/Application Support/Google/Chrome", "Library/Application Support/Microsoft Edge", "Library/Application Support/BraveSoftware",
+    "Library/Application Support/Firefox", "Library/Cookies", "Library/Safari", ".mozilla",
+    ".config/google-chrome", ".config/chromium", ".config/microsoft-edge", ".config/BraveSoftware",
+    "AppData/Local/Google/Chrome/User Data", "AppData/Local/Microsoft/Edge/User Data", "AppData/Local/BraveSoftware",
+    "AppData/Roaming/Mozilla/Firefox", "AppData/Roaming/Microsoft/Credentials", "AppData/Roaming/Microsoft/Protect"
+  ],
+  "x-excluded-file-locations-description": "主機取檔(file.stat、file.read)的排除清單：路徑任何位置連續出現這些段落就拒絕(不分大小寫;* 結尾比對段落開頭)。SSH 金鑰、GPG、雲端與套件憑證、keychain、密碼庫、Agent 的登入憑證與設定、Purrdr 主機服務與推播配對、.env、git 設定(可能含權杖)、shell 歷史、瀏覽器設定與 cookie、Windows 認證管理員與 DPAPI。主機服務另外拒讀它實際的 --state-dir。主機服務與 app(HostFileAccessPolicy、SSH 取檔腳本)共用。",
+  "x-temporary-file-locations": ["/tmp", "/private/tmp", "/var/folders", "/private/var/folders"],
+  "x-temporary-file-locations-description": "主機取檔在工作目錄以外、只因對話紀錄提到而放行時，允許的系統暫存目錄(POSIX;macOS 的 /tmp 與 /var/folders 解析後在 /private 底下)。另外還有主機的 TMPDIR／TEMP、Windows 家目錄的 AppData/Local/Temp、家目錄的 .purrdr/uploads 與這段對話紀錄的 tool-results 資料夾。",
+  "x-maximum-file-size": 26214400,
+  "x-maximum-file-chunk": 1048576,
+  "x-maximum-file-size-description": "主機取檔的大小上限(25 MiB)與一次 file.read 最多回傳的 bytes(1 MiB)。主機服務、app 與 SSH 取檔腳本共用。",
   "$defs": {
     "ClientMessage": {
       "description": "app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。",
@@ -23,7 +41,9 @@
         { "$ref": "#/$defs/PaneTerminalInput" },
         { "$ref": "#/$defs/PaneTerminalResize" },
         { "$ref": "#/$defs/PaneTerminalScroll" },
-        { "$ref": "#/$defs/PaneTerminalClose" }
+        { "$ref": "#/$defs/PaneTerminalClose" },
+        { "$ref": "#/$defs/FileStat" },
+        { "$ref": "#/$defs/FileRead" }
       ]
     },
     "ServerMessage": {
@@ -46,6 +66,8 @@
         { "$ref": "#/$defs/PaneTerminalOpenResult" },
         { "$ref": "#/$defs/PaneTerminalFrame" },
         { "$ref": "#/$defs/PaneTerminalClosed" },
+        { "$ref": "#/$defs/FileStatResult" },
+        { "$ref": "#/$defs/FileReadResult" },
         { "$ref": "#/$defs/ErrorMessage" }
       ]
     },
@@ -534,6 +556,59 @@
       },
       "required": ["type", "request_id"]
     },
+    "FileStat": {
+      "description": "主機取檔(raychiutw/purrdr.ios#227):查檔案狀態。只允許 herdr snapshot 目前回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑;主機服務解析 symlink 後再比對工作目錄與排除清單(x-excluded-file-locations)。唯讀，唯讀裝置也可用。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "file.stat" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string", "description": "主機上的絕對路徑(不可含 . 或 .. 段落)。" }
+      },
+      "required": ["type", "request_id", "path"]
+    },
+    "FileStatResult": {
+      "description": "檔案狀態。status 是 file 時帶版本(內容的 SHA-256)與大小;too_large 只帶大小。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "file.stat.result" },
+        "request_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/FileStatus" },
+        "version": { "type": "string" },
+        "size": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["type", "request_id", "status"]
+    },
+    "FileStatus": {
+      "description": "file:可讀的一般檔案;missing:不存在;not_regular_file:資料夾、FIFO、裝置等;unreadable:沒有權限或讀取失敗;denied:存取規則不允許;too_large:超過 25 MiB。",
+      "type": "string",
+      "enum": ["file", "missing", "not_regular_file", "unreadable", "denied", "too_large"]
+    },
+    "FileRead": {
+      "description": "依版本讀 offset 起最多 length bytes(每次最多 1 MiB)。從頭讀(offset 0)或還沒有這個檔案的快照時，主機服務先檢查存取規則、把檔案讀成這條連線的快照並比對版本;之後的分塊從快照讀，分塊之間檔案被覆寫也不會拼出兩個版本。版本不符回 file_changed。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "file.read" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string" },
+        "version": { "type": "string", "description": "file.stat 回報的版本。" },
+        "offset": { "type": "integer", "minimum": 0 },
+        "length": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["type", "request_id", "path", "version", "offset", "length"]
+    },
+    "FileReadResult": {
+      "description": "status 是 file 時帶 offset 與 bytes(標準 base64,超過檔尾時為空);其他狀態同 file.stat,不帶內容。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "file.read.result" },
+        "request_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/FileStatus" },
+        "size": { "type": "integer", "minimum": 0, "description": "status 是 too_large 時的大小。" },
+        "offset": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "string" }
+      },
+      "required": ["type", "request_id", "status"]
+    },
     "PairRequest": {
       "description": "POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。",
       "type": "object",
@@ -571,7 +646,7 @@
       "required": ["type", "code", "message"]
     },
     "ErrorCode": {
-      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。",
+      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。",
       "type": "string",
       "enum": [
         "invalid_message",
@@ -591,6 +666,7 @@
         "transcript_unreadable",
         "transcript_ambiguous",
         "transcript_compressed",
+        "file_changed",
         "internal_error"
       ]
     }

@@ -12,7 +12,14 @@ public final class HostUpdates {
         case failed(String)
     }
 
-    public private(set) var phase: Phase = .loading
+    public private(set) var phase: Phase = .loading {
+        didSet {
+            if phase == .loading, oldValue != .loading { connectingSince = now() }
+        }
+    }
+
+    /// 這次連線從什麼時候開始(`phase` 是 `.loading` 時才有意義;列表據此顯示「仍在連線」,#221)。
+    public private(set) var connectingSince: Date
 
     /// 最後一次成功讀到的主機快照。讀取失敗時保留。
     public private(set) var snapshot: HostSnapshot?
@@ -60,6 +67,7 @@ public final class HostUpdates {
 
     private let client: HerdrClient
     private let sleep: Sleep
+    private let now: @Sendable () -> Date
     @ObservationIgnored private var endSubscription: (() -> Void)?
     /// 等使用者按「再試一次」(`load()` 叫醒)。
     private let userRetry = WakeSignal()
@@ -72,10 +80,14 @@ public final class HostUpdates {
     /// 這一輪訂閱收到 ack 了(退避歸零)。
     @ObservationIgnored private var subscriptionStarted = false
 
-    /// - Parameter sleep: 退避用的等待;測試注入假的。
-    public init(client: HerdrClient, sleep: @escaping Sleep = Sleeping.task) {
+    /// - Parameters:
+    ///   - sleep: 退避用的等待;測試注入假的。
+    ///   - now: 現在時間(連線多久了);測試注入假的。
+    public init(client: HerdrClient, sleep: @escaping Sleep = Sleeping.task, now: @escaping @Sendable () -> Date = Date.init) {
         self.client = client
         self.sleep = sleep
+        self.now = now
+        connectingSince = now()
         retryDue = WakeSignal(sleep: sleep)
     }
 
@@ -187,6 +199,25 @@ public final class HostUpdates {
         retryDue.wake()
     }
 
+    /// 使用者按「再試一次」(#221):讀不到的改回連線中並立刻重連;還在連的丟掉卡住的連線重新開始。
+    public func retry() {
+        switch phase {
+        case .failed:
+            phase = .loading
+        case .loading:
+            connectingSince = now()
+            isRestarting = true
+            let client = client
+            Task { await client.disconnect() }
+        case .loaded:
+            break
+        }
+        retryDue.wake()
+    }
+
+    /// 為了重新開始而丟掉連線：接下來那次失敗不算讀不到。
+    @ObservationIgnored private var isRestarting = false
+
     /// 沒有事件訂閱可用時重讀的間隔。
     package static let pollingInterval: Duration = .seconds(30)
 
@@ -202,6 +233,7 @@ public final class HostUpdates {
         defer { isReading = false }
         let fresh = try await client.snapshot()
         snapshot = fresh
+        isRestarting = false
         phase = .loaded
         for id in paneWatchers.keys { paneWatchers[id]?.publish(from: fresh) }
         for reader in snapshotReaders.values { reader.yield(namedPanes) }
@@ -242,6 +274,10 @@ public final class HostUpdates {
     }
 
     private func fail(with error: any Error) {
+        if isRestarting {
+            isRestarting = false
+            return
+        }
         switch error {
         case HerdrError.herdr(_, let message):
             // 未知碼保留 herdr 原文(行為規格 §3.8)。

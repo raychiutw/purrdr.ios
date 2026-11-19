@@ -25,9 +25,10 @@ enum DemoTranscripts {
     static let sessions = [ledger, weather]
 
     /// 對指令的 stdout;不是對話紀錄指令時回傳 `nil`。`appended` 是送出 prompt 後各 session 接上的行。
-    static func respond(to command: String, appended: [String: [String]] = [:]) -> Data? {
+    /// `base` 是這個情境的對話紀錄(檔案情境換掉 ledger 的內容)。
+    static func respond(to command: String, appended: [String: [String]] = [:], sessions base: [Session] = sessions) -> Data? {
         if let delegation = respondToDelegation(command) { return delegation }
-        let sessions = sessions.map { $0.appending(appended[$0.sessionID] ?? []) }
+        let sessions = base.map { $0.appending(appended[$0.sessionID] ?? []) }
         for session in sessions {
             let size = session.data.count
             if command == TranscriptCommand.locate(sessionID: session.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: session.cwd)) {
@@ -146,6 +147,110 @@ enum DemoTranscripts {
             """),
         ]
     )
+
+    /// 檔案情境(`DemoHost.Scenario.agentFiles`)的 ledger 對話：同一個 session,內容換成寫檔、讀圖、提到主機路徑的一段。
+    /// 卡片依序排在使用者那一則之後;圖片在最下面(開啟時就在畫面內，縮圖自動載入)。
+    static let agentFiles = Session(
+        sessionID: ledger.sessionID, cwd: ledger.cwd, paneID: ledger.paneID,
+        lines: [
+            user("d3m0-f-01", "2026-11-16T10:00:00.000Z", "Put dates first, add quoting tests, export the full history, and check the preview."),
+            assistantTool("d3m0-f-02", "2026-11-16T10:00:02.000Z", id: "toolu_files_01", name: "Edit", input: [
+                "file_path": DemoHostFileFetcher.exportPath,
+                "old_string": "[\"amount\", \"date\", \"note\"]", "new_string": "[\"date\", \"amount\", \"note\"]",
+            ]),
+            // 寫檔(#224):Edit 與 Write 的結果帶 `toolUseResult`(形狀照 #223 錄製的 Claude Code 2.1.328),聊天顯示檔案卡片。
+            toolResult("d3m0-f-03", "2026-11-16T10:00:02.300Z", id: "toolu_files_01",
+                       text: "The file \(DemoHostFileFetcher.exportPath) has been updated successfully.", toolUseResult: [
+                "filePath": DemoHostFileFetcher.exportPath,
+                "oldString": "[\"amount\", \"date\", \"note\"]", "newString": "[\"date\", \"amount\", \"note\"]",
+                "structuredPatch": [[
+                    "oldStart": 3, "oldLines": 3, "newStart": 3, "newLines": 3,
+                    "lines": [" enum CSVExport {", "-    static let columns = [\"amount\", \"date\", \"note\"]", "+    static let columns = [\"date\", \"amount\", \"note\"]", " "],
+                ]],
+                "userModified": false, "replaceAll": false,
+            ]),
+            assistantTool("d3m0-f-04", "2026-11-16T10:00:03.000Z", id: "toolu_files_02", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.quotingTestsPath, "content": quotingTests,
+            ]),
+            toolResult("d3m0-f-05", "2026-11-16T10:00:03.200Z", id: "toolu_files_02",
+                       text: "File created successfully at: \(DemoHostFileFetcher.quotingTestsPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.quotingTestsPath, "content": quotingTests,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            // 點開檔案(#228):寫了匯出檔的開頭再附加全部紀錄(超過 25 MiB),寫了草稿又刪掉(主機上已沒有)。
+            assistantTool("d3m0-f-06", "2026-11-16T10:00:04.000Z", id: "toolu_files_03", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.historyPath, "content": historyHeader,
+            ]),
+            toolResult("d3m0-f-07", "2026-11-16T10:00:04.200Z", id: "toolu_files_03",
+                       text: "File created successfully at: \(DemoHostFileFetcher.historyPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.historyPath, "content": historyHeader,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            assistantTool("d3m0-f-08", "2026-11-16T10:00:04.300Z", id: "toolu_files_04", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.draftPath, "content": historyHeader,
+            ]),
+            toolResult("d3m0-f-09", "2026-11-16T10:00:04.400Z", id: "toolu_files_04",
+                       text: "File created successfully at: \(DemoHostFileFetcher.draftPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.draftPath, "content": historyHeader,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
+            assistantTool("d3m0-f-10", "2026-11-16T10:00:05.000Z", id: "toolu_files_05", name: "Bash", input: [
+                "command": "swift run ledger export --all --skip-header >> exports/history.csv && rm exports/draft.csv",
+            ]),
+            toolResult("d3m0-f-11", "2026-11-16T10:00:07.000Z", id: "toolu_files_05", text: "Exported 412,880 rows."),
+            // 圖片縮圖(#225):Read 圖片的結果帶 `toolUseResult.type == image`(形狀照 #223 錄製;圖片資料像主機剝圖後一樣是空的)。
+            // 預覽圖自動載入縮圖，掃描檔超過 8 MiB 等點擊;內容由 `DemoHostFileFetcher` 提供。
+            assistantTool("d3m0-f-12", "2026-11-16T10:00:08.000Z", id: "toolu_files_06", name: "Read", input: ["file_path": DemoHostFileFetcher.previewPath]),
+            imageResult("d3m0-f-13", "2026-11-16T10:00:08.200Z", id: "toolu_files_06", size: DemoImages.previewSize),
+            assistantTool("d3m0-f-14", "2026-11-16T10:00:08.300Z", id: "toolu_files_07", name: "Read", input: ["file_path": DemoHostFileFetcher.scanPath]),
+            imageResult("d3m0-f-15", "2026-11-16T10:00:08.500Z", id: "toolu_files_07", size: DemoImages.scanSize),
+            // 訊息內主機路徑(#229)。
+            assistantText("d3m0-f-16", "2026-11-16T10:00:10.000Z", """
+            The report is at `\(DemoHostFileFetcher.reportPath)` and the preview at \(DemoHostFileFetcher.previewPath).
+            """),
+        ]
+    )
+
+    /// ledger 的 agent 新建的測試檔(寫檔情境)。
+    static let quotingTests = """
+    import Testing
+    @testable import Ledger
+
+    @Test func notesWithCommasAreQuoted() {
+        let row = CSVExport.row(date: "2026-11-16", amount: 12.5, note: "coffee, beans")
+        #expect(row == "2026-11-16,12.50,\"coffee, beans\"")
+    }
+
+    @Test func datesComeFirst() {
+        #expect(CSVExport.columns.first == "date")
+    }
+    """
+
+    /// ledger 匯出檔的開頭(點開檔案情境)。
+    static let historyHeader = """
+    date,amount,note
+    2026-11-14,4.20,coffee
+    2026-11-15,12.50,"coffee, beans"
+
+    """
+
+    /// ledger 的 CSVExport.swift(Demo 主機上修改後的內容)。
+    static let exportSource = """
+    import Foundation
+
+    enum CSVExport {
+        static let columns = ["date", "amount", "note"]
+
+        static func row(date: String, amount: Decimal, note: String) -> String {
+            [date, String(format: "%.2f", NSDecimalNumber(decimal: amount).doubleValue), quoted(note)].joined(separator: ",")
+        }
+
+        static func quoted(_ field: String) -> String {
+            field.contains(",") ? "\\"\\(field)\\"" : field
+        }
+    }
+
+    """
 
     static let weather = Session(
         sessionID: "d3m0d3m0-0000-4000-8000-000000000002", cwd: "/Users/demo/weather-app", paneID: "w2:p1",
@@ -361,10 +466,27 @@ enum DemoTranscripts {
         return line(object)
     }
 
-    private static func toolResult(_ uuid: String, _ timestamp: String, id: String, text: String) -> String {
+    /// Read 圖片的結果(PNG)。
+    private static func imageResult(_ uuid: String, _ timestamp: String, id: String, size: (width: Int, height: Int)) -> String {
+        var object = base("user", uuid, timestamp)
+        object["promptId"] = uuid
+        object["message"] = ["role": "user", "content": [[
+            "type": "tool_result", "tool_use_id": id,
+            "content": [["type": "image", "source": ["type": "base64", "data": "", "media_type": "image/png"]]],
+        ]]]
+        let dimensions = ["originalWidth": size.width, "originalHeight": size.height, "displayWidth": size.width, "displayHeight": size.height]
+        object["toolUseResult"] = ["type": "image", "file": [
+            "base64": "", "type": "image/png", "originalSize": DemoImages.encodedSize(width: size.width, height: size.height),
+            "dimensions": dimensions,
+        ] as [String: Any]]
+        return line(object)
+    }
+
+    private static func toolResult(_ uuid: String, _ timestamp: String, id: String, text: String, toolUseResult: [String: Any]? = nil) -> String {
         var object = base("user", uuid, timestamp)
         object["promptId"] = uuid
         object["message"] = ["role": "user", "content": [["type": "tool_result", "tool_use_id": id, "content": text, "is_error": false]]]
+        if let toolUseResult { object["toolUseResult"] = toolUseResult }
         return line(object)
     }
 }

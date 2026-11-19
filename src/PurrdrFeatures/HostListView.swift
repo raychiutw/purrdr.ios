@@ -5,13 +5,13 @@ import SwiftUI
 /// 主機清單(行為規格 F1.1;HIG 檢核 20.3):sheet,點一台就選取並回到 Agent 列表。
 ///
 /// 新增、編輯、分享(QR code)與匯入都在同一個 sheet 內 push,不疊第二個 sheet。
-/// 刪除是使用者刻意的動作(滑動或選單再點一下),不另外確認:只刪這支裝置上的設定，主機本身不受影響，隨時可以再加回來。
+/// 列尾 ⓘ 開編輯器;刪除會撤銷這支裝置的配對，滑動與選單都先確認(#235)。
 public struct HostListView: View {
     let model: HostsModel
     /// 等著匯入的主機分享連結(深層連結帶進來的);開啟後清掉。
     @Binding var importURL: URL?
     @Environment(\.dismiss) private var dismiss
-    @State private var path: [HostRoute] = []
+    @State private var flow = HostListFlow()
     @State private var renaming: HostRenaming?
     @State private var actionError: String?
 
@@ -21,14 +21,8 @@ public struct HostListView: View {
     }
 
     public var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: $flow.path) {
             List {
-                if model.rows.isEmpty {
-                    Section {
-                        Text("Add a computer that runs herdr. Purrdr connects to it with SSH over your tailnet; nothing is exposed to the internet.")
-                            .foregroundStyle(.secondaryText)
-                    }
-                }
                 let updates = model.rows.filter { $0.hostServiceUpdate != nil }
                 if !updates.isEmpty {
                     // 主機服務有新版本(#198):放在最上面，點進去看更新指令。
@@ -81,7 +75,7 @@ public struct HostListView: View {
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Add Host", systemImage: "plus") { path.append(.add) }
+                    Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
                         .accessibilityIdentifier("hosts.add")
                 }
             }
@@ -98,16 +92,82 @@ public struct HostListView: View {
             } message: { _ in
                 Text("The name is only used on this device.")
             }
+            .confirmationDialog(
+                deletionTitle, isPresented: deletionBinding, titleVisibility: .visible, presenting: flow.pendingDeletion
+            ) { request in
+                Button("Remove Host", role: .destructive) { confirmDeletion(request) }
+                    .accessibilityIdentifier("hosts.delete.confirm")
+                Button("Cancel", role: .cancel) { flow.cancelDeletion() }
+            } message: { _ in
+                Text("This host’s settings and keys are removed from this device, and this device’s pairing is revoked. The computer itself isn’t changed.")
+            }
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
     }
 
     private func hostRow(_ row: HostRow) -> some View {
+        HStack(spacing: 0) {
+            selectButton(row)
+            // ⓘ 是主要的編輯入口(HIG 盤點 2.2);`.borderless` 讓它只回應自己的範圍，不觸發整列的選取。
+            Button {
+                flow.showDetails(of: row.id)
+            } label: {
+                Image(systemName: "info.circle")
+                    .imageScale(.large)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.tint)
+            .accessibilityLabel(Text("\(row.title) Details"))
+            .accessibilityIdentifier("hosts.info.\(row.id.uuidString)")
+        }
+        // context menu 頂端的動作與滑動動作一致;刪除放最後並標 destructive(HIG 20.3)。
+        .swipeActions(edge: .leading) {
+            if row.needsPairing {
+                Button("Pair", systemImage: "link") { flow.showDetails(of: row.id) }
+            } else {
+                Button("Edit", systemImage: "pencil") { flow.showDetails(of: row.id) }
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
+            Button("Delete", systemImage: "trash") { flow.requestDeletion(of: row.id, name: row.title) }
+                .tint(.red)
+                .accessibilityIdentifier("hosts.delete")
+            Button("Share", systemImage: "qrcode") { flow.path.append(.share(row.id)) }
+        }
+        .contextMenu {
+            if row.needsPairing {
+                Button("Pair…", systemImage: "link") { flow.showDetails(of: row.id) }
+            } else {
+                Button("Edit", systemImage: "pencil") { flow.showDetails(of: row.id) }
+            }
+            Button("Rename…", systemImage: "character.cursor.ibeam") { renaming = HostRenaming(id: row.id, name: row.title) }
+            Button("Share…", systemImage: "qrcode") { flow.path.append(.share(row.id)) }
+            if row.hostServiceUpdate != nil {
+                Button("Update Host Service…", systemImage: "arrow.up.circle") { flow.path.append(.hostServiceUpdate(row.id)) }
+            }
+            // 主機圖示(#37 故事 5、#239):讓多台主機的列一眼分得出來;編輯器也能改。
+            Picker(selection: iconBinding(row.id)) {
+                ForEach(HostIcon.allCases, id: \.self) { icon in
+                    Label(icon.title, systemImage: icon.pickerSymbol)
+                }
+            } label: {
+                Label("Icon", systemImage: row.icon.pickerSymbol)
+            }
+            .pickerStyle(.menu)
+            Divider()
+            Button("Delete…", systemImage: "trash", role: .destructive) { flow.requestDeletion(of: row.id, name: row.title) }
+        }
+    }
+
+    private func selectButton(_ row: HostRow) -> some View {
         Button {
             // 還沒配對的 HTTPS 主機連不上：點它直接去配對。
             if row.needsPairing {
-                path.append(.edit(row.id))
+                flow.showDetails(of: row.id)
             } else {
                 model.select(.host(row.id))
                 dismiss()
@@ -119,42 +179,6 @@ public struct HostListView: View {
         }
         .accessibilityIdentifier("hosts.row.\(row.id.uuidString)")
         .accessibilityHint(row.needsPairing ? Text("Opens pairing for this host.") : Text(verbatim: ""))
-        // context menu 頂端的動作與滑動動作一致;刪除放最後並標 destructive(HIG 20.3)。
-        .swipeActions(edge: .leading) {
-            if row.needsPairing {
-                Button("Pair", systemImage: "link") { path.append(.edit(row.id)) }
-            } else {
-                Button("Edit", systemImage: "pencil") { path.append(.edit(row.id)) }
-            }
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button("Delete", systemImage: "trash", role: .destructive) { delete(row.id) }
-                .accessibilityIdentifier("hosts.delete")
-            Button("Share", systemImage: "qrcode") { path.append(.share(row.id)) }
-        }
-        .contextMenu {
-            if row.needsPairing {
-                Button("Pair…", systemImage: "link") { path.append(.edit(row.id)) }
-            } else {
-                Button("Edit", systemImage: "pencil") { path.append(.edit(row.id)) }
-            }
-            Button("Rename…", systemImage: "character.cursor.ibeam") { renaming = HostRenaming(id: row.id, name: row.title) }
-            Button("Share…", systemImage: "qrcode") { path.append(.share(row.id)) }
-            if row.hostServiceUpdate != nil {
-                Button("Update Host Service…", systemImage: "arrow.up.circle") { path.append(.hostServiceUpdate(row.id)) }
-            }
-            // 主機圖示(#37 故事 5):只存在這支裝置，讓多台主機的列一眼分得出來。
-            Picker(selection: iconBinding(row.id)) {
-                ForEach(HostIcon.allCases, id: \.self) { icon in
-                    Label(icon.title, systemImage: icon.symbol)
-                }
-            } label: {
-                Label("Icon", systemImage: row.icon.symbol)
-            }
-            .pickerStyle(.menu)
-            Divider()
-            Button("Delete", systemImage: "trash", role: .destructive) { delete(row.id) }
-        }
     }
 
     private func destination(_ route: HostRoute) -> some View {
@@ -164,13 +188,17 @@ public struct HostListView: View {
                 HostEditorView(model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } })) { host in
                     saved(host)
                 } onCancel: {
-                    path.removeLast()
+                    flow.path.removeLast()
+                } onIconSaved: {
+                    dismiss()
                 }
             case .hostServiceUpdate(let id):
-                if let row = model.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate {
-                    HostServiceUpdateView(hostName: row.title, version: version) {
+                if let row = model.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate,
+                    let commands = row.hostServiceUpdateCommands
+                {
+                    HostServiceUpdateView(hostName: row.title, version: version, commands: commands) {
                         model.dismissHostServiceUpdate(for: id)
-                        path.removeLast()
+                        flow.path.removeLast()
                     }
                 }
             case .share(let id):
@@ -182,7 +210,9 @@ public struct HostListView: View {
                     HostEditorView(model: editor) { host in
                         saved(host)
                     } onCancel: {
-                        path.removeLast()
+                        flow.path.removeLast()
+                    } onIconSaved: {
+                        dismiss()
                     }
                 } else {
                     ContentUnavailableView(
@@ -201,10 +231,10 @@ public struct HostListView: View {
         dismiss()
     }
 
-    private func delete(_ id: UUID) {
+    private func confirmDeletion(_ request: HostDeletionRequest) {
         Task {
             do {
-                try await model.delete(id)
+                try await flow.confirmDeletion(of: request) { try await model.delete($0) }
                 actionError = nil
             } catch {
                 actionError = String(localized: "Couldn’t remove this host from this device. \(error.localizedDescription)")
@@ -233,6 +263,14 @@ public struct HostListView: View {
         Binding { renaming != nil } set: { if !$0 { renaming = nil } }
     }
 
+    private var deletionTitle: Text {
+        Text("Remove “\(flow.pendingDeletion?.name ?? "")” from This Device?")
+    }
+
+    private var deletionBinding: Binding<Bool> {
+        Binding { flow.pendingDeletion != nil } set: { if !$0 { flow.cancelDeletion() } }
+    }
+
     private var renameText: Binding<String> {
         Binding { renaming?.name ?? "" } set: { renaming?.name = $0 }
     }
@@ -240,26 +278,13 @@ public struct HostListView: View {
     private func openPendingImport() {
         guard let url = importURL else { return }
         importURL = nil
-        path = [.importLink(url)]
+        flow.path = [.importLink(url)]
     }
 }
 
 private struct HostRenaming {
     var id: UUID
     var name: String
-}
-
-enum HostRoute: Hashable {
-    case add
-    case edit(UUID)
-    case share(UUID)
-    case hostServiceUpdate(UUID)
-    case importLink(URL)
-
-    var hostID: UUID? {
-        if case .edit(let id) = self { return id }
-        return nil
-    }
 }
 
 struct HostRowView: View {
@@ -275,10 +300,7 @@ struct HostRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon.symbol)
-                .foregroundStyle(Color.secondary)
-                .frame(minWidth: 28)
-                .accessibilityHidden(true)
+            HostIconBadge(icon)
             VStack(alignment: .leading, spacing: 2) {
                 // `Color.primary`/`Color.secondaryText`:列是 Button,階層式的 `.primary`/`.secondary` 會跟著按鈕變成 tint,
                 // 副標成了淡粉紅、對比不足(#35)。

@@ -39,13 +39,21 @@ final class SignInUITests: XCTestCase {
         }
     }
 
+    /// 頁首只有標題(#236):登入頁不放功能說明文字。
+    @MainActor
+    func testSignInShowsOnlyTitle() {
+        let app = XCUIApplication.launchUITesting()
+        openSignIn(in: app)
+
+        XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Sign in to use Purrdr Plus"].exists, "沒有標題")
+        let description = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "A member account is only needed", "never need an account"))
+        XCTAssertEqual(description.count, 0, "登入頁仍有說明文字")
+    }
+
     @MainActor
     private func openSignIn(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        let member = app.buttons["menu.member"]
-        XCTAssertTrue(member.waitForExistence(timeout: 5))
-        member.tap()
+        app.openSignInFromAccount()
     }
 }

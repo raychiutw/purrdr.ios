@@ -8,7 +8,7 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
     /// 正規化後的位址，例如 `https://studio.tail1234.ts.net`。
     public let url: URL
 
-    /// 接受 `studio.tail1234.ts.net`、`https://studio.tail1234.ts.net/`、`http://127.0.0.1:47820`;其他形式回傳 `nil`。
+    /// 接受 `studio.tail1234.ts.net`、`https://studio.tail1234.ts.net:8443/`、`http://127.0.0.1:47820`;其他形式回傳 `nil`。
     public init?(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -22,8 +22,30 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
         components.scheme = scheme
         components.host = host
         components.path = ""
+        // 寫明預設埠與不寫視為同一個位址(主機服務不用 443 時才帶埠,#218)。
+        if components.port == (scheme == "https" ? 443 : 80) { components.port = nil }
         guard let url = components.url else { return nil }
         self.url = url
+    }
+
+    /// 以主機名稱與 Port 組成(編輯器、同步 wire 共用,#250)。loopback 是本機測試，用 http;其他一律 https。
+    public init?(host: String, port: Int) {
+        let host = host.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty, (1...65_535).contains(port), !host.contains(where: { "/:@?# ".contains($0) }) || host.hasPrefix("[")
+        else { return nil }
+        let scheme = Self.isLoopback(host.lowercased()) ? "http" : "https"
+        self.init("\(scheme)://\(host):\(port)")
+    }
+
+    /// 編輯器的位址欄位與 Port 欄位。位址欄位自己寫了埠(舊習慣 `x:8443`、貼上完整網址)時以它為準。
+    public init?(addressField: String, portField: String) {
+        guard let typed = HostServiceAddress(addressField) else { return nil }
+        if typed.url.port != nil {
+            self = typed
+            return
+        }
+        guard let port = Int(portField.trimmingCharacters(in: .whitespaces)) else { return nil }
+        self.init(host: typed.hostName, port: port)
     }
 
     /// 主機名稱(顯示用)。

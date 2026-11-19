@@ -32,6 +32,8 @@ public actor DemoHost: HostChannel {
         case largeOutputOnPrompt
         /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
         case workingAfterPrompt(for: Duration)
+        /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
+        case agentFiles
         /// 聊天中斷網(#219):第一個主機指令(app 啟動)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
@@ -76,12 +78,37 @@ public actor DemoHost: HostChannel {
 
     private let tailscaleCheck: TailscaleCheckObserver?
 
+    /// 推播外掛是否已安裝(只在記憶體;帳號頁開通知的 UI 測試,#246)。
+    private var pushPluginInstalled = false
+
     /// Demo 家目錄的上傳資料夾。
     static let uploadFolder = "/Users/demo/" + UploadedImages.folder
 
-    public init(scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil) {
+    /// 這個情境的 Claude Code 對話紀錄。
+    private var transcripts: [DemoTranscripts.Session] {
+        scenario == .agentFiles ? [DemoTranscripts.agentFiles, DemoTranscripts.weather] : DemoTranscripts.sessions
+    }
+
+    /// 「送出後工作中」到期判斷用的現在時間(測試注入手動時鐘)。
+    private let now: @Sendable () -> ContinuousClock.Instant
+
+    /// 停止中到停下來的等待(測試注入，不靠真時間)。
+    private let sleep: Sleep
+
+    public init(
+        scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil,
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { .now },
+        sleep: @escaping Sleep = Sleeping.task
+    ) {
         self.scenario = scenario
         self.tailscaleCheck = tailscaleCheck
+        self.now = now
+        self.sleep = sleep
+        // 延遲 0 的斷網：啟動就沒有網路(`-demoNoNetwork`,#221)。
+        if case .goesOffline(let delay, _) = scenario, delay == .zero {
+            isOffline = true
+            offlineScheduled = true
+        }
         if scenario == .largeOutputOnPrompt {
             appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
         }
@@ -118,7 +145,7 @@ public actor DemoHost: HostChannel {
         }
         writeLargeOutputIfDue(command)
         writeDueReplies()
-        if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
+        if let stdout = DemoTranscripts.respond(to: command, appended: appended, sessions: transcripts) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         if let path = HostFolderCommand.parseList(command) {
@@ -139,11 +166,30 @@ public actor DemoHost: HostChannel {
             let result = files.handle(request, now: Date())
             return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
+        if let stdout = herdrPluginResponse(to: command) {
+            return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
             .stderr(Data("sh: \(program): command not found\n".utf8)),
             .exit(code: 127),
         ])
+    }
+
+    /// `herdr plugin list／install／uninstall`:Demo 只認推播外掛。
+    private func herdrPluginResponse(to command: String) -> Data? {
+        if command.contains(" plugin list --plugin ") {
+            return Data((pushPluginInstalled ? #"[{"plugin_id":"\#(PushHost.pluginID)"}]"# : "[]").utf8)
+        }
+        if command.contains(" plugin install ") {
+            pushPluginInstalled = true
+            return Data()
+        }
+        if command.contains(" plugin uninstall ") {
+            pushPluginInstalled = false
+            return Data()
+        }
+        return nil
     }
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
@@ -197,19 +243,38 @@ public actor DemoHost: HostChannel {
     }
 
     private func scheduleStop(paneID: String) {
+        let stopSleep = self.sleep
         Task { [weak self] in
-            guard (try? await Task.sleep(for: Self.stopDelay)) != nil else { return }
+            guard (try? await stopSleep(Self.stopDelay)) != nil else { return }
             await self?.finishStop(paneID: paneID)
         }
     }
 
     /// 停下來，並像 herdr 一樣對訂閱送狀態事件(畫面靠事件更新快照)。
     private func finishStop(paneID: String) async {
+        let before = currentStatuses()
         answers.finishStop(paneID: paneID)
-        let workspace = paneID.split(separator: ":").first.map(String.init) ?? ""
-        let event = #"{"event":"pane.agent_status_changed","data":{"agent_status":"done","pane_id":"\#(paneID)","workspace_id":"\#(workspace)"}}"#
-        for bridge in bridges {
-            await bridge.session?.emit(Data((event + "\n").utf8))
+        await notifyStatusChanges(from: before)
+    }
+
+    /// 各 pane 目前的狀態(沒列出的照快照預設)。
+    private func currentStatuses() -> [String: String] {
+        var statuses = answers.statuses
+        for pending in pendingReplies { statuses[pending.paneID] = "working" }
+        return statuses
+    }
+
+    /// 狀態和 `before` 不同的 pane,像 herdr 一樣對訂閱送狀態事件。
+    private func notifyStatusChanges(from before: [String: String]) async {
+        let after = currentStatuses()
+        let changed = Set(before.keys).union(after.keys).filter { before[$0] != after[$0] }.sorted()
+        for paneID in changed {
+            let workspace = paneID.split(separator: ":").first.map(String.init) ?? ""
+            let status = after[paneID] ?? "done"
+            let event = #"{"event":"pane.agent_status_changed","data":{"agent_status":"\#(status)","pane_id":"\#(paneID)","workspace_id":"\#(workspace)"}}"#
+            for bridge in bridges {
+                await bridge.session?.emit(Data((event + "\n").utf8))
+            }
         }
     }
 
@@ -270,7 +335,7 @@ public actor DemoHost: HostChannel {
                 if case .workingAfterPrompt(let duration) = scenario {
                     appended[session.sessionID, default: []] += reply.prefix(1)
                     pendingReplies.append(PendingReply(
-                        paneID: target, sessionID: session.sessionID, due: .now + duration, lines: Array(reply.dropFirst())))
+                        paneID: target, sessionID: session.sessionID, due: now() + duration, lines: Array(reply.dropFirst())))
                     return DemoSnapshot.prompted(id: id, paneID: target)
                 }
                 appended[session.sessionID, default: []] += reply
@@ -290,10 +355,10 @@ public actor DemoHost: HostChannel {
         let ledger = DemoTranscripts.ledger
         if largeOutputAt == nil,
            command == TranscriptCommand.locate(sessionID: ledger.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: ledger.cwd)) {
-            largeOutputAt = .now + delay
+            largeOutputAt = now() + delay
             return
         }
-        guard let due = largeOutputAt, ContinuousClock.now >= due else { return }
+        guard let due = largeOutputAt, now() >= due else { return }
         largeOutputWritten = true
         appended[ledger.sessionID, default: []] += DemoTranscripts.largeOutput(at: Date())
     }
@@ -320,20 +385,26 @@ public actor DemoHost: HostChannel {
     }
 
     private func respond(to requestLine: Data) -> (line: Data, keepsOpen: Bool) {
+        let before = currentStatuses()
+        defer {
+            // 回答、prompt 或工作時間到改了狀態：送事件(聊天畫面靠事件更新快照)。
+            if currentStatuses() != before {
+                Task { [weak self] in await self?.notifyStatusChanges(from: before) }
+            }
+        }
         writeDueReplies()
         if let response = promptResponse(to: requestLine) ?? paneResponse(to: requestLine) { return response }
-        state.statuses = answers.statuses
-        for pending in pendingReplies { state.statuses[pending.paneID] = "working" }
+        state.statuses = currentStatuses()
         return DemoSnapshot.response(to: requestLine, state: &state)
     }
 
     /// 送出後工作中的情境：工作時間到了，接上回覆(agent 隨之完成)。
     private func writeDueReplies() {
-        let now = ContinuousClock.now
-        for pending in pendingReplies where now >= pending.due {
+        let current = now()
+        for pending in pendingReplies where current >= pending.due {
             appended[pending.sessionID, default: []] += pending.lines
         }
-        pendingReplies.removeAll { now >= $0.due }
+        pendingReplies.removeAll { current >= $0.due }
     }
 
     /// 送出後工作中的 pane 畫面：Claude Code 正在寫的散文(即時預覽)。

@@ -274,12 +274,38 @@ struct ConversationHeaderTests {
         await setup.model.poll()
         #expect(setup.model.stopPhase == .needsAnswer)
         #expect(setup.model.showsStopBar)
+        // 停止列只剩「需要你」的結果：輸入框上方這一樣是需要你，不是工作中。
+        #expect(setup.model.topAccessory == .needsYou)
 
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read(text: "❯ "))
         await setup.model.poll()
         #expect(setup.model.stopPhase == nil)
         #expect(!setup.model.showsStopBar)
+    }
+
+    @Test("輸入框上方一次只一樣：停止列(含已停止的結果)佔「工作中」,建議卡等它收起才出現")
+    func stopBarHoldsWorkingSlotOverSuggestion() async throws {
+        // 「已停止」的 2 秒永遠不到，只有確認迴圈的 500ms 會到。
+        let setup = try Self.setup(sleeper: RecordingSleeper { $0 == .milliseconds(500) })
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.model.stop()
+        #expect(setup.model.stopPhase == .stopped)
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: ConversationSuggestionTests.ansiScreen("suggestion"))
+        await setup.model.poll()
+        #expect(setup.model.suggestion == "add subtract to calc.py")
+        #expect(setup.model.showsStopBar)
+        #expect(setup.model.topAccessory == .working)
+
+        setup.model.dismissStopResult()
+        #expect(!setup.model.showsStopBar)
+        #expect(setup.model.topAccessory == .suggestion("add subtract to calc.py"))
     }
 
     @Test("停止成功：不等下一次輪詢，立刻換成停下後的狀態(停止不再可用)")

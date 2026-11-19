@@ -6,7 +6,7 @@ import Foundation
 /// - 存取權杖快過期或被後台拒絕(401)時，自動用更新權杖換一組新的再重送一次;同時間只會有一個換權杖的請求
 ///   (更新權杖用一次就作廢，兩個同時換會讓其中一個失效)。
 /// - 更新權杖被拒時清掉本機的登入狀態，丟 `BackendError.signedOut`。
-/// - wire format(camelCase JSON)只在這個檔案處理，契約見 `backend/README.md`。
+/// - wire format(camelCase JSON)只在這個檔案處理，契約見 `raychiutw/purrdr.server` 的 `README.md`。
 public actor MemberSession {
     public struct SignInResult: Sendable, Equatable {
         public var member: Member
@@ -202,7 +202,7 @@ public actor MemberSession {
     }
 }
 
-/// 後台 JSON 的形狀(backend/README.md)。
+/// 後台 JSON 的形狀(raychiutw/purrdr.server 的 README.md)。
 private enum Wire {
     struct Credential: Encodable {
         var provider: String
@@ -314,8 +314,8 @@ private enum Wire {
         var username: String
         var connectionMethod: String
         var hostKeyFingerprint: String?
-        /// 只有 HTTPS 主機有。
-        var hostServiceAddress: String?
+        /// 主機圖示(#243)。舊版後台與舊版 app 上傳的主機沒有。
+        var icon: String?
         var modifiedAt: String
 
         init(_ host: SyncedHost) {
@@ -330,7 +330,7 @@ private enum Wire {
             case .https: "https"
             }
             hostKeyFingerprint = host.hostKeyPin?.stored
-            hostServiceAddress = host.hostService?.description
+            icon = host.icon
             modifiedAt = host.modifiedAt.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         }
 
@@ -344,7 +344,7 @@ private enum Wire {
             try container.encode(username, forKey: .username)
             try container.encode(connectionMethod, forKey: .connectionMethod)
             try container.encode(hostKeyFingerprint, forKey: .hostKeyFingerprint)
-            try container.encodeIfPresent(hostServiceAddress, forKey: .hostServiceAddress)
+            try container.encodeIfPresent(icon, forKey: .icon)
             try container.encode(modifiedAt, forKey: .modifiedAt)
         }
 
@@ -356,13 +356,14 @@ private enum Wire {
             case "https": method = .https
             default: throw BackendError.invalidResponse
             }
-            let hostService = hostServiceAddress.flatMap(HostServiceAddress.init)
+            // HTTPS 主機的主機服務位址以 address＋port 為唯一來源(#250)。
+            let hostService = method.usesHostService ? HostServiceAddress(host: address, port: port) : nil
             if method.usesHostService, hostService == nil { throw BackendError.invalidResponse }
             guard let id = UUID(uuidString: id), let modifiedAt = Wire.date(modifiedAt) else { throw BackendError.invalidResponse }
             return SyncedHost(
                 id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
                 hostKeyPin: hostKeyFingerprint.flatMap(HostKeyFingerprint.init(stored:)),
-                hostService: hostService, modifiedAt: modifiedAt)
+                hostService: hostService, icon: icon, modifiedAt: modifiedAt)
         }
     }
 

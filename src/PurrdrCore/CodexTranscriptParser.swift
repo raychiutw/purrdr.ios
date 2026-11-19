@@ -9,8 +9,8 @@ import Foundation
 /// 依行為規格(herdrchat 對 Codex 0.157–0.163 的行為描述)與 openai/codex 公開原始碼撰寫，本機沒有 Codex 可以驗證。
 public enum CodexTranscriptParser {
     public static func messages(in line: String) -> [TranscriptMessage] {
-        guard let object = ClaudeTranscriptParser.jsonObject(line), object["type"] as? String == "response_item",
-              let payload = object["payload"] as? [String: Any], let kind = payload["type"] as? String else { return [] }
+        guard let object = ClaudeTranscriptParser.jsonObject(line), let payload = object["payload"] as? [String: Any],
+              let kind = payload["type"] as? String else { return [] }
         let timestamp = object["timestamp"] as? String ?? ""
         // 跨視窗穩定，也區分稍後重複的相同 prompt(時間不同)。
         let id = "codex:\(timestamp):" + ClaudeTranscriptParser.stableID(of: line).dropFirst("line-".count)
@@ -18,6 +18,12 @@ public enum CodexTranscriptParser {
         let message = { (role: TranscriptMessage.Role, parts: [TranscriptPart]) -> [TranscriptMessage] in
             parts.isEmpty ? [] : [TranscriptMessage(id: id, role: role, date: date, parts: parts)]
         }
+        // `event_msg` 只取圖片生成結束的 `saved_path`(#225;欄位依原始碼 `ImageGenerationEndEvent`,未實測)。
+        if object["type"] as? String == "event_msg" {
+            guard kind == "image_generation_end", let image = generatedImage(payload) else { return [] }
+            return message(.assistant, [.agentFile(image)])
+        }
+        guard object["type"] as? String == "response_item" else { return [] }
         switch kind {
         case "message":
             // 0.157 以前的 analysis channel 是內部推理;developer、system 等角色不是對話。
@@ -56,7 +62,8 @@ public enum CodexTranscriptParser {
                                                text: failed ? "Tool search failed" : "Found \(count) tools", isError: failed)])
         case "image_generation_call":
             let prompt = payload["revised_prompt"] as? String ?? ""
-            return message(.assistant, [.toolCall(id: payload["id"] as? String, name: "image_generation", input: prompt.truncated(to: 2000), path: nil)])
+            let call = TranscriptPart.toolCall(id: payload["id"] as? String, name: "image_generation", input: prompt.truncated(to: 2000), path: nil)
+            return message(.assistant, [call] + (generatedImage(payload).map { [.agentFile($0)] } ?? []))
         case "function_call_output", "custom_tool_call_output":
             let text = outputText(payload["output"])
             return message(.user, [.toolResult(callID: payload["call_id"] as? String, text: text.truncated(to: 4000), isError: isError(text))])
@@ -68,6 +75,12 @@ public enum CodexTranscriptParser {
         default:
             return []
         }
+    }
+
+    /// 圖片生成的 `saved_path`(新格式可能是 `savedPath`)→ 產生圖片的檔案參照。
+    private static func generatedImage(_ payload: [String: Any]) -> AgentFileReference? {
+        guard let path = (payload["saved_path"] ?? payload["savedPath"]) as? String, HostPathSyntax.isAbsolute(path) else { return nil }
+        return AgentFileReference(origin: .generatedImage, path: path)
     }
 
     /// 模型與 effort 取 `turn_context`;context 取 `event_msg` 的 `token_count.info.last_token_usage.input_tokens`

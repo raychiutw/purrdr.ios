@@ -33,7 +33,7 @@ public struct PushPairingKey: Sendable, Equatable, CustomStringConvertible {
 
     public var hex: String { Self.hex(bytes) }
 
-    /// 交給後台的雜湊：32 bytes 的 SHA-256,小寫 hex(與 `backend/src/push.ts` 的 `pairingKeyHash` 相同)。
+    /// 交給後台的雜湊：32 bytes 的 SHA-256,小寫 hex(與 `raychiutw/purrdr.server` 的 `src/push.ts` 的 `pairingKeyHash` 相同)。
     public var hash: String { Self.hex(Data(SHA256.hash(data: bytes))) }
 
     /// 不印出密鑰本身(避免進 log)。

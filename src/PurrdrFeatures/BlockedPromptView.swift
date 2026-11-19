@@ -31,7 +31,7 @@ struct BlockedPromptView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(AgentStatus.blocked.tone.style)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Text("Needs You: \(prompt.question ?? String(localized: "The agent is waiting for you."))"))
@@ -76,7 +76,7 @@ struct BlockedPromptView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
+        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("prompt.card")
     }
@@ -186,7 +186,7 @@ struct BlockedPromptView: View {
 }
 
 private extension View {
-    /// 同一組選項同尺寸;建議選項用紅底 prominent 樣式而非大小區分(HIG 20.7)。
+    /// 同一組選項同尺寸;建議選項用主色 prominent 樣式而非大小區分(HIG 20.7)。
     /// 圓角長方形選項卡(#93):膠囊形像按鈕列，多行文字也不好讀。
     @ViewBuilder
     func optionStyle(prominent: Bool) -> some View {
@@ -227,7 +227,7 @@ struct PromptDetailsView: View {
                         .textSelection(.enabled)
                         .padding(8)
                 }
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 8))
                 .contextMenu {
                     Button("Copy", systemImage: "doc.on.doc") {
                         Clipboard.copy(details.content.joined(separator: "\n"))
@@ -242,13 +242,15 @@ struct PromptDetailsView: View {
                 }
             }
             if let note = details.note {
+                // 系統橙對卡片底約 2:1,只上圖示(#237)。
                 Label {
                     Text(verbatim: note)
+                        .foregroundStyle(Color.primary)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(StatusTone.attention.style)
                 }
                 .font(.footnote)
-                .foregroundStyle(.orange)
             }
         }
     }
@@ -271,7 +273,7 @@ struct AnsweredPromptView: View {
             }
         } icon: {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(.tint)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

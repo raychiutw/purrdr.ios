@@ -44,6 +44,24 @@ struct HostSyncJournalTests {
             connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: Self.t1))])
     }
 
+    @Test("帶埠號的 HTTPS 主機同步出去、別台裝置收回來都保留埠(#218)")
+    func httpsPortSurvivesSync() throws {
+        var journal = HostSyncJournal()
+        let address = try #require(HostServiceAddress("https://studio.tail1234.ts.net:8443"))
+        let https = HostConfiguration(name: "Studio Mac", hostService: address)
+        journal.recordSave(https.id, at: Self.t1)
+
+        let changes = journal.pendingChanges(hosts: [https], now: Self.t3)
+        var other = HostSyncJournal()
+        let outcome = other.reconcile(
+            hosts: [], sent: [], snapshot: HostSyncSnapshot(hosts: [SyncedHost(https, modifiedAt: Self.t1)], deletedHostIDs: []))
+
+        #expect(changes == [.upsert(SyncedHost(
+            id: https.id, name: "Studio Mac", endpoint: SSHEndpoint(host: "studio.tail1234.ts.net", port: 8443, username: ""),
+            connectionMethod: .https, hostKeyPin: nil, hostService: address, modifiedAt: Self.t1))])
+        #expect(outcome.saves.first?.hostService?.description == "https://studio.tail1234.ts.net:8443")
+    }
+
     @Test("別台裝置新增的 HTTPS 主機：存成有主機服務位址的 HTTPS 主機(權杖要在這支裝置重新配對)")
     func remoteHTTPSHostIsAdded() throws {
         var journal = HostSyncJournal()
@@ -224,6 +242,65 @@ struct HostSyncJournalTests {
 
         #expect(outcome == HostSyncOutcome())
         #expect(journal.pendingChanges(hosts: [], now: Self.t3) == [.delete(Self.studio.id)])
+    }
+
+    // MARK: - 主機圖示(#243)
+
+    @Test("上傳的修改帶這支裝置替主機選的圖示")
+    func pendingChangeCarriesIcon() {
+        var journal = HostSyncJournal()
+        journal.recordSave(Self.studio.id, at: Self.t1)
+
+        let changes = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "macMini"], now: Self.t3)
+
+        #expect(changes == [.upsert(SyncedHost(Self.studio, modifiedAt: Self.t1, icon: "macMini"))])
+    }
+
+    @Test("採用別台裝置的版本時，連同它的圖示一起交給這支裝置")
+    func appliedRemoteReportsIcon() {
+        var journal = HostSyncJournal()
+        let renamed = SyncedHost(Self.studio, modifiedAt: Self.t2, icon: "rack")
+
+        let outcome = journal.reconcile(
+            hosts: [Self.studio], sent: [], snapshot: HostSyncSnapshot(hosts: [renamed], deletedHostIDs: []))
+
+        #expect(outcome.icons == [Self.studio.id: "rack"])
+    }
+
+    @Test("後台沒有圖示資料(舊版 app 上傳的主機):不交圖示，這支裝置沿用自己的")
+    func remoteWithoutIconReportsNothing() {
+        var journal = HostSyncJournal()
+
+        let outcome = journal.reconcile(
+            hosts: [Self.studio], sent: [], snapshot: HostSyncSnapshot(hosts: [Self.remote(at: Self.t2)], deletedHostIDs: []))
+
+        #expect(outcome.icons.isEmpty)
+    }
+
+    @Test("同步途中又修改的主機：後台的舊圖示也不蓋掉")
+    func changedDuringSyncKeepsIcon() {
+        var journal = HostSyncJournal()
+        journal.recordSave(Self.studio.id, at: Self.t1)
+        let sent = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "rack"], now: Self.t3)
+        journal.recordSave(Self.studio.id, at: Self.t2)
+
+        let outcome = journal.reconcile(
+            hosts: [Self.studio], sent: sent,
+            snapshot: HostSyncSnapshot(hosts: [SyncedHost(Self.studio, modifiedAt: Self.t1, icon: "rack")], deletedHostIDs: []))
+
+        #expect(outcome.icons.isEmpty)
+    }
+
+    @Test("#243 時期存下的修改紀錄(多一個 unsyncedIcons 欄位)照樣讀得回來，多的欄位忽略")
+    func journalWithRetiredFieldDecodes() throws {
+        var journal = HostSyncJournal()
+        journal.recordSave(Self.studio.id, at: Self.t1)
+        var object = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(journal)) as? [String: Any])
+        object["unsyncedIcons"] = [Self.studio.id.uuidString]
+
+        let decoded = try JSONDecoder().decode(HostSyncJournal.self, from: JSONSerialization.data(withJSONObject: object))
+
+        #expect(decoded == journal)
     }
 
     @Test("修改時間只到毫秒(與後台相同),後台回來的時間才對得上")

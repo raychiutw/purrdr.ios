@@ -168,8 +168,9 @@ private struct WorkspaceRowActions: ViewModifier {
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
                     buttons.close(title: "Close", role: nil, used: swiped)
-                        .tint(.red)
+                        .tint(WorkspaceSwipeAction.close.tint.style)
                     buttons.rename(title: "Workspace", used: swiped)
+                        .tint(WorkspaceSwipeAction.workspace.tint.style)
                 }
                 .contextMenu {
                     if let openInNewWindow {
@@ -200,13 +201,13 @@ private struct WorkspaceRowActions: ViewModifier {
                 if fromSwipe { swiped() }
                 actions.togglePin(sessionID: sessionID)
             }
-            .tint(.orange)
+            .tint(WorkspaceSwipeAction.pin.tint.style)
             let muted = actions.isMuted(sessionID: sessionID)
             Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
                 if fromSwipe { swiped() }
                 actions.toggleMute(sessionID: sessionID)
             }
-            .tint(.indigo)
+            .tint(WorkspaceSwipeAction.mute.tint.style)
         }
     }
 
@@ -320,8 +321,7 @@ struct RenameWorkspaceSheet: View {
                 }
                 if let error = actions.renameError {
                     Section {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.errorText)
+                        ErrorLabel(error)
                             .accessibilityIdentifier("workspace.rename.error")
                     }
                 }
@@ -397,8 +397,7 @@ struct NewWorktreeSheet: View {
                 }
                 if let error = actions.worktreeError {
                     Section {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.errorText)
+                        ErrorLabel(error)
                             .accessibilityIdentifier("workspace.worktree.error")
                     }
                 }
@@ -431,6 +430,17 @@ struct NewWorktreeSheet: View {
                 onCreated(created)
                 dismiss()
             }
+        }
+    }
+}
+
+extension WorkspaceSwipeAction.Tint {
+    /// 主色走 `prominentFill`(跟主機主題);灰用系統灰，跟滑動鈕預設一致。
+    var style: AnyShapeStyle {
+        switch self {
+        case .accent: AnyShapeStyle(.prominentFill)
+        case .gray: AnyShapeStyle(.gray)
+        case .red: AnyShapeStyle(.red)
         }
     }
 }

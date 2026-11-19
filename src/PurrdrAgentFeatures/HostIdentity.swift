@@ -16,7 +16,7 @@ public struct ChatRoute: Hashable, Sendable {
 
 // MARK: - 主機圖示
 
-/// 使用者替主機選的圖示(#37 故事 5)。只存在這支裝置。
+/// 主機圖示(#37 故事 5、#239):使用者替主機選的圖示，顯示在主機名稱前。11 種加「無」;`rawValue` 是存檔與同步的值，不可改。
 public enum HostIcon: String, CaseIterable, Codable, Sendable {
     case desktop
     case laptop
@@ -25,17 +25,26 @@ public enum HostIcon: String, CaseIterable, Codable, Sendable {
     case rack
     case pc
     case display
+    /// 開發板(Raspberry Pi 之類)。
+    case board
+    /// 遊戲機。
+    case console
+    case home
     case cloud
+    case terminal
+    /// 「無」:名稱前留同寬空位。不叫 `none`,免得跟 `Optional.none` 混淆。
+    case noIcon = "none"
 
     /// 沒選過圖示的主機。
     public static let `default`: HostIcon = .desktop
 
-    /// 讀裝置上存的值;認得舊版的 `server`(現在是 `rack`)。
+    /// 讀裝置上存的值;認得舊版的 `server`(現在是 `rack`)。不認得的值(較新版本加的)回 `nil`,由呼叫端用預設。
     public init?(stored: String) {
         self.init(rawValue: stored == "server" ? HostIcon.rack.rawValue : stored)
     }
 
-    public var symbol: String {
+    /// 主機名稱前的 SF Symbol;「無」是 `nil`。
+    public var symbol: String? {
         switch self {
         case .desktop: "desktopcomputer"
         case .laptop: "laptopcomputer"
@@ -43,11 +52,19 @@ public enum HostIcon: String, CaseIterable, Codable, Sendable {
         case .rack: "server.rack"
         case .pc: "pc"
         case .display: "display"
+        case .board: "cpu"
+        case .console: "gamecontroller"
+        case .home: "house"
         case .cloud: "cloud"
+        case .terminal: "apple.terminal"
+        case .noIcon: nil
         }
     }
 
-    /// 選單上的名稱。
+    /// 圖示選擇器(編輯器格子、選單)上的符號;「無」也要有一個可點的符號。
+    public var pickerSymbol: String { symbol ?? "circle.slash" }
+
+    /// 選擇器上的名稱。
     public var title: String {
         switch self {
         case .desktop: String(localized: "Desktop")
@@ -56,7 +73,12 @@ public enum HostIcon: String, CaseIterable, Codable, Sendable {
         case .rack: String(localized: "Rack")
         case .pc: String(localized: "PC")
         case .display: String(localized: "Display")
+        case .board: String(localized: "Dev Board")
+        case .console: String(localized: "Game Console")
+        case .home: String(localized: "House")
         case .cloud: String(localized: "Cloud")
+        case .terminal: String(localized: "Terminal")
+        case .noIcon: String(localized: "None")
         }
     }
 }
@@ -82,7 +104,7 @@ public final class InMemoryHostIconStore: HostIconStore {
     public func setIcon(_ icon: HostIcon?, for host: UUID) { icons[host] = icon }
 }
 
-/// 存在 `UserDefaults`(只在這支裝置，不同步、不分享)。
+/// 存在 `UserDefaults`(主機同步開啟時由 `HostSyncModel` 另外上傳，#243)。
 @MainActor
 public final class UserDefaultsHostIconStore: HostIconStore {
     private let defaults: UserDefaults
@@ -112,6 +134,19 @@ public struct HostLabel: Equatable, Sendable {
     public var icon: HostIcon
 
     public init(name: String, icon: HostIcon) {
+        self.name = name
+        self.icon = icon
+    }
+}
+
+/// 選單裡的一台主機：主機挑選鈕、聊天列表主機篩選與方案用量共用。
+public struct HostOption: Identifiable, Equatable, Sendable {
+    public var id: HostSelection
+    public var name: String
+    public var icon: HostIcon
+
+    public init(id: HostSelection, name: String, icon: HostIcon = .default) {
+        self.id = id
         self.name = name
         self.icon = icon
     }

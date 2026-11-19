@@ -23,7 +23,7 @@ struct SlashMenuModelTests {
         SlashMenuModel(loader: { catalog })
     }
 
-    @Test("草稿恰好是 / 加名稱字元時才出現;有空白或其他文字就收起")
+    @Test("游標前是 / 加名稱字元時才出現;接著打空白就收起")
     func visibilityFollowsDraft() async {
         let menu = Self.menu()
         menu.update(draft: "hello")
@@ -34,10 +34,97 @@ struct SlashMenuModelTests {
         #expect(menu.sections.map(\.source) == [.builtIn, .plugin("mattpocock-skills")])
         menu.update(draft: "/model ")
         #expect(!menu.isVisible)
-        menu.update(draft: "x /model")
+        menu.update(draft: "x/model")
         #expect(!menu.isVisible)
         menu.update(draft: "/mattpocock-skills:t")
         #expect(menu.isVisible)
+    }
+
+    @Test("文字中間「空格＋/」與換行後的 / 叫出文中選單，只列 skill 與自訂指令")
+    func inlineTriggerListsOnlySkills() async {
+        let menu = Self.menu()
+        menu.update(draft: "先跑 /", caret: 4)
+        await menu.load()
+        #expect(menu.isVisible)
+        #expect(menu.trigger?.placement == .inline)
+        #expect(menu.sections.map(\.source) == [.plugin("mattpocock-skills")])
+        menu.update(draft: "第一行\n/td", caret: 7)
+        #expect(menu.isVisible)
+        #expect(menu.trigger == SlashMenuModel.Trigger(range: 4..<7, query: "td", placement: .inline))
+        #expect(menu.ranked?.map(\.name) == ["mattpocock-skills:tdd"])
+    }
+
+    @Test(
+        "網址、路徑、分數、/ 後接空白、有選取範圍都不觸發",
+        arguments: [
+            ("a/b", 3 as Int?), ("看 https://x/y", 13), ("1/2", 3), ("先跑 / ", 5), ("先跑 /rev", nil),
+        ]
+    )
+    func nonTriggers(draft: String, caret: Int?) async {
+        let menu = Self.menu()
+        await menu.load()
+        menu.update(draft: draft, caret: caret)
+        #expect(menu.trigger == nil)
+        #expect(!menu.isVisible)
+    }
+
+    @Test("游標在句子中間時以游標前那段判斷;開頭 / 後面還有字也是開頭選單")
+    func caretInsideSentence() async {
+        let menu = Self.menu()
+        menu.update(draft: "先跑 /td 再幫我改", caret: 6)
+        await menu.load()
+        #expect(menu.trigger == SlashMenuModel.Trigger(range: 3..<6, query: "td", placement: .inline))
+        #expect(menu.ranked?.map(\.name) == ["mattpocock-skills:tdd"])
+        menu.update(draft: "/mo 其他文字", caret: 3)
+        #expect(menu.trigger?.placement == .leading)
+        #expect(menu.ranked?.map(\.name) == ["model"])
+    }
+
+    @Test("只有內建指令的 agent(固定清單)文中不出現;開頭照常列出")
+    func inlineHiddenWithOnlyBuiltIns() async {
+        let menu = Self.menu(SlashCatalog(fixed: [SlashCommand(name: "model", summary: "Choose the model")]))
+        menu.update(draft: "hi /")
+        await menu.load()
+        #expect(!menu.isVisible)
+        #expect(menu.handle(.down) == false)
+        menu.update(draft: "/")
+        #expect(menu.isVisible)
+    }
+
+    @Test("文中選單按 Esc 收起，直到離開這段 /字詞 才重新出現")
+    func inlineEscapeUntilLeavingWord() async {
+        let menu = Self.menu()
+        menu.update(draft: "hi /")
+        await menu.load()
+        menu.handle(.dismiss)
+        menu.update(draft: "hi /mat")
+        #expect(!menu.isVisible)
+        menu.update(draft: "hi /mat ")
+        menu.update(draft: "hi /mat /")
+        #expect(menu.isVisible)
+    }
+
+    @Test("選定時只把 /字詞 換成 /名稱 ,前後文字保留，游標停在插入文字之後")
+    func fillReplacesOnlyTriggerWord() {
+        let inline = SlashMenuModel.Trigger(range: 3..<6, query: "td", placement: .inline)
+        let filled = inline.filling("mattpocock-skills:tdd", in: "先跑 /td 再幫我改")
+        #expect(filled.draft == "先跑 /mattpocock-skills:tdd 再幫我改")
+        #expect(filled.caret == 26)
+        let leading = SlashMenuModel.Trigger(range: 0..<4, query: "rev", placement: .leading)
+        let whole = leading.filling("review", in: "/rev")
+        #expect(whole.draft == "/review ")
+        #expect(whole.caret == 8)
+    }
+
+    @Test("游標後已經是空白或換行時不再補空格，游標停在既有空白之後")
+    func fillReusesFollowingWhitespace() {
+        let trigger = SlashMenuModel.Trigger(range: 3..<6, query: "td", placement: .inline)
+        let spaced = trigger.filling("tdd", in: "先跑 /td 再改")
+        #expect(spaced.draft == "先跑 /tdd 再改")
+        #expect(spaced.caret == 8)
+        let newline = trigger.filling("tdd", in: "先跑 /td\n再改")
+        #expect(newline.draft == "先跑 /tdd\n再改")
+        #expect(newline.caret == 8)
     }
 
     @Test("輸入名稱後改成單一排名清單：名稱開頭 > 名稱包含 > 說明包含;同級依分組與原順序")

@@ -5,7 +5,9 @@ import SwiftUI
 /// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「已釘選／需要你／工作中／閒置」分 section,標題帶數量。
 ///
 /// 所有主機的 Agent 合併在同一個列表(#39):非選取中主機的列在副標開頭標示主機名;某台主機連不上時保留它最後的列，
-/// 列表下方顯示「主機名：原因」。沒有任何列時，選取中主機的錯誤才佔滿畫面。
+/// 列表下方顯示「主機名：原因」。每台主機都讀不到、也沒有任何列時，選取中主機的錯誤才佔滿畫面。
+/// 不整頁轉圈(#221):還在連的主機在列表上方各一行「連線中」(超過 10 秒「仍在連線」與再試一次);
+/// 第一次載入還沒有列時是列表骨架;裝置沒網路時直接顯示離線。
 ///
 /// 畫面可見且 app 在前景時才即時更新(長駐的訂閱通道在背景是 iOS 第一個殺的，行為規格 §3.7)。
 /// app 在前景時，新的「需要你」只出現在列表裡，這個畫面不發任何系統通知。
@@ -28,6 +30,8 @@ public struct AgentListView: View {
     @State private var largeTitleScrolledAway = false
     /// 大標題那一列的高度(AX 字級會換行變高);捲過一半就算收合。
     @State private var largeTitleHeight: CGFloat = 52
+    /// 主機連線狀態行用的現在時間(有主機在連線時每秒更新，換成「仍在連線」)。
+    @State private var now = Date()
 
     public init(
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
@@ -74,12 +78,9 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 標題是目前檢視名，點標題切換 Spaces／Agents(行為規格 F2.1、#37 故事 7、#66)。
-        // 系統的標題選單(`toolbarTitleMenu`)只掛在 inline 標題上：大標題模式(`.large`、`.inlineLarge`)最上面的大標題
-        // 是靜態文字，點了沒有選單;iOS 26 的 `ToolbarItem(placement: .largeTitle)` 自訂內容畫得出來，但不在
-        // accessibility tree、也不接觸控(#66 實測)。所以大標題畫在列表第一列(`AgentListLargeTitle`,一般的 Menu),
-        // 它在畫面上時以 `toolbar(removing: .title)` 收起導覽列的小標題;捲上去後小標題(含系統標題選單)回來，
-        // 跟系統大標題收合一樣。`navigationTitle` 一直設著(iPad 的 App 切換器、視窗標題用它)。
+        // 標題是目前檢視名;大標題與其下的 Agents／Spaces 分段切換畫在列表第一列(#244)。
+        // iOS 26 的 `ToolbarItem(placement: .largeTitle)` 不在 accessibility tree、也不接觸控(#66 實測),所以不用系統大標題;
+        // 第一列在畫面上時以 `toolbar(removing: .title)` 收起小標題，捲上去後小標題(含標題選單)回來。
         .navigationTitle(model.mode.title)
         .toolbarTitleMenu { AgentListModePicker(mode: $model.mode) }
         .toolbar(removing: showsLargeTitle ? .title : nil)
@@ -91,6 +92,13 @@ public struct AgentListView: View {
             guard scenePhase == .active else { return }
             await model.runNotes()
         }
+        // 有主機在連線時每秒更新現在時間，連線狀態行到 10 秒換成「仍在連線」(#221)。
+        .task(id: hasConnectingHosts) {
+            while hasConnectingHosts, !Task.isCancelled {
+                now = Date()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
         .sheet(isPresented: $showingNotes) {
             YouShouldKnowListView(entries: model.notes) { model.openedChat = $0 }
         }
@@ -101,11 +109,15 @@ public struct AgentListView: View {
         }
     }
 
-    /// 列表第一列的大標題在畫面上(只有列表本身有;載入中、錯誤、空狀態沿用導覽列的小標題與標題選單)。
+    /// 列表第一列的大標題在畫面上(列表與載入中的骨架有;錯誤、離線、空狀態沿用導覽列的小標題與標題選單)。
     private var showsLargeTitle: Bool {
-        if case .list = model.content { return !largeTitleScrolledAway }
-        return false
+        switch model.content {
+        case .list, .loading: !largeTitleScrolledAway
+        default: false
+        }
     }
+
+    private var hasConnectingHosts: Bool { !model.hostStatuses(at: now).isEmpty }
 
     /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
     private var sections: [AgentSection] {
@@ -135,7 +147,19 @@ public struct AgentListView: View {
     private var content: some View {
         switch model.content {
         case .loading:
-            ProgressView("Loading agents…")
+            loadingList
+        case .offline:
+            // 沒網路就直接說，不等連線逾時(#221);網路恢復後自動重連。
+            ContentUnavailableView {
+                Label("No Internet Connection", systemImage: "wifi.slash")
+            } description: {
+                Text("Connect to Wi-Fi or cellular data to see your agents. Purrdr reconnects automatically.")
+            } actions: {
+                Button("Try Again") { model.retry() }
+                    .accessibilityIdentifier("agentList.retry")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("agentList.offline")
         case .failed(let message):
             ContentUnavailableView {
                 Label("Can’t Load Agents", systemImage: "exclamationmark.triangle")
@@ -165,6 +189,52 @@ public struct AgentListView: View {
         }
     }
 
+    /// 第一次載入、還沒有任何列：大標題、各主機的連線狀態與列表骨架(不整頁轉圈,#221)。
+    private var loadingList: some View {
+        List {
+            largeTitleRow
+            hostStatusRows
+            Section {
+                ForEach(0..<3, id: \.self) { index in
+                    AgentRowView(row: .placeholder(index), host: nil)
+                }
+            }
+            .redacted(reason: .placeholder)
+            .accessibilityHidden(true)
+        }
+        #if os(iOS)
+        .listStyle(.insetGrouped)
+        #endif
+        .contentMargins(.top, 0, for: .scrollContent)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > largeTitleHeight / 2
+        } action: { _, scrolledAway in
+            largeTitleScrolledAway = scrolledAway
+        }
+        .accessibilityIdentifier("agentList.loading")
+    }
+
+    /// 裝置離線(已有列時)與還在連線的主機：放在大標題下面，一眼看到哪台在連(#221)。
+    @ViewBuilder
+    private var hostStatusRows: some View {
+        if !model.isNetworkAvailable {
+            Section {
+                Label("No internet connection. Showing agents from your last connection.", systemImage: "wifi.slash")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("agentList.offlineBanner")
+            }
+        }
+        let statuses = model.hostStatuses(at: now)
+        if !statuses.isEmpty {
+            Section {
+                ForEach(statuses, id: \.host) { status in
+                    HostLoadStatusRow(status: status) { model.retry() }
+                }
+            }
+        }
+    }
+
     private var list: some View {
         let sections = sections
         return Group {
@@ -172,6 +242,7 @@ public struct AgentListView: View {
             if window != nil {
                 List(selection: selection) {
                     largeTitleRow
+                    hostStatusRows
                     notesRow
                     listRows(sections)
                 }
@@ -179,6 +250,7 @@ public struct AgentListView: View {
             } else {
                 List {
                     largeTitleRow
+                    hostStatusRows
                     notesRow
                     listRows(sections)
                 }
@@ -229,7 +301,7 @@ public struct AgentListView: View {
         #endif
     }
 
-    /// 列表第一列：大標題(目前檢視名 + ⌄),點了出檢視選單(#66)。
+    /// 列表第一列：大標題與 Agents／Spaces 分段切換(#244)。
     private var largeTitleRow: some View {
         Section {
             AgentListLargeTitle(mode: $model.mode)
@@ -257,13 +329,21 @@ public struct AgentListView: View {
         let failures = model.failures
         if model.mode == .spaces {
             SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation) { row in agentRow(row, spaces: true) }
-        } else {
-            ForEach(sections) { section in
-                Section {
-                    ForEach(section.rows) { row in agentRow(row) }
-                } header: {
-                    AgentSectionHeader(group: section.group, count: section.rows.count)
-                }
+        } else if !sections.isEmpty {
+            // 單一清單(#244):不分段，順序仍是已釘選、需要你、工作中、閒置。
+            Section {
+                ForEach(sections.flatMap(\.rows)) { row in agentRow(row) }
+            }
+        }
+        if let filtered = model.hostFilter.flatMap({ model.hostLabel(of: $0) }),
+           model.query.trimmingCharacters(in: .whitespaces).isEmpty,
+           model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty {
+            // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
+            Section {
+                Text("No agents on \(filtered.name).")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("agentList.filterEmpty")
             }
         }
         if !failures.isEmpty {
@@ -297,7 +377,7 @@ public struct AgentListView: View {
     /// 一個 Agent 列(兩種檢視共用：同樣的滑動、選單、已讀與釘選;Spaces 檢視的版面不同)。
     private func agentRow(_ row: AgentRow, spaces: Bool = false) -> some View {
         NavigationLink(value: row.route) {
-            if spaces { SpacesAgentRowView(row: row) } else { AgentRowView(row: row) }
+            if spaces { SpacesAgentRowView(row: row) } else { AgentRowView(row: row, host: model.hostLabel(of: row.host)) }
         }
             .accessibilityIdentifier("agent.row.\(row.id)")
             .selectionFill(for: row.route)
@@ -388,44 +468,24 @@ struct ConversationScreen: View {
     }
 }
 
+/// Agents 檢視的一列(#244 單一清單):列首是 agent 種類頭像，第一行狀態點、名稱與時間，第二行小主機圖示與「主機 · 最後一句」。
 struct AgentRowView: View {
     let row: AgentRow
+    /// 這列所在主機的名稱與圖示(選取中主機也有)。
+    let host: HostLabel?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(iPad 的 split view 列以紅底填滿，`selectionFill(for:)`)時是 `.increased`:次要色與 tint 字都要改成白色，
-    /// 否則淡白／紅字疊在紅底上看不見(#35 iPad audit)。
-    @Environment(\.backgroundProminence) private var backgroundProminence
-
-    private var isProminent: Bool { backgroundProminence == .increased }
-
-    /// 次要色;選取中改白色。
-    private var secondary: AnyShapeStyle { isProminent ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText) }
+    /// 次要色;iPad 選取列是中性灰底(`selectionFill(for:)`),選取中也不換色。
+    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // agent 種類圖示(#37 故事 6)。種類名稱已在副標裡，VoiceOver 不重複念。
-            Image(systemName: AgentKindSymbol.name(for: row.kind))
-                .font(.body)
-                .foregroundStyle(secondary)
-                .frame(minWidth: 24)
-                .accessibilityHidden(true)
-            // AX 字級改成上下堆疊，不截斷(DESIGN.md)。不用 `ViewThatFits`:它比的是文字不換行的理想寬度，
-            // 副標稍長(例如「Claude Code · demo/weather-app」)就在預設字級也堆疊，各列版面不一致(#35)。
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) {
-                    texts
-                    StatusLabel(status: row.status)
-                    timeText
-                }
-            } else {
-                HStack(alignment: .top, spacing: 8) {
-                    texts
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .trailing, spacing: 4) {
-                        StatusLabel(status: row.status)
-                        timeText
-                    }
-                    .fixedSize()
-                }
+            AgentKindAvatar(kind: AgentKind(rawKind: row.kind), announcesKind: true)
+            VStack(alignment: .leading, spacing: 2) {
+                titleLine
+                previewLine
+                    .font(.subheadline)
+                    .lineLimit(lines(2))
+                if dynamicTypeSize.isAccessibilitySize { timeText }
             }
         }
         .accessibilityElement(children: .combine)
@@ -437,55 +497,59 @@ struct AgentRowView: View {
         dynamicTypeSize.isAccessibilitySize ? nil : limit
     }
 
-    private var texts: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(row.title)
-                    .lineLimit(lines(2))
-                // 釘選、靜音：標題後的小圖示，不只靠顏色(#37 故事 18)。VoiceOver 念「已釘選」「已靜音」(行為規格 F2.4 的順序)。
-                if row.isPinned {
-                    Image(systemName: "pin.fill")
-                        .imageScale(.small)
-                        .foregroundStyle(secondary)
-                        .accessibilityLabel(Text("Pinned"))
-                }
-                if row.isMuted {
-                    Image(systemName: "bell.slash.fill")
-                        .imageScale(.small)
-                        .foregroundStyle(secondary)
-                        .accessibilityLabel(Text("Muted"))
-                }
-            }
-            .font(.body)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                // 非選取中主機：副標開頭的主機名前加主機圖示(#37 故事 2、5)。主機名在文字裡，圖示不念。
-                if let label = row.hostLabel {
-                    Image(systemName: label.icon.symbol)
-                        .accessibilityHidden(true)
-                }
-                Text(row.subtitle)
-                    .lineLimit(lines(1))
-            }
-            .font(.subheadline.monospaced())
-            .foregroundStyle(secondary)
-            preview
-                .font(.subheadline)
+    private var titleLine: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            // 狀態點：形狀與顏色都依狀態(`StatusTone`),VoiceOver 念狀態字。
+            Image(systemName: row.status.symbol)
+                .imageScale(.small)
+                .foregroundStyle(row.status.tone.style)
+                .accessibilityLabel(Text(row.status.title))
+            Text(row.title)
                 .lineLimit(lines(1))
+            // 釘選、靜音：名稱後的小圖示，不只靠顏色(#37 故事 18)。
+            if row.isPinned {
+                Image(systemName: "pin.fill")
+                    .imageScale(.small)
+                    .foregroundStyle(secondary)
+                    .accessibilityLabel(Text("Pinned"))
+            }
+            if row.isMuted {
+                Image(systemName: "bell.slash.fill")
+                    .imageScale(.small)
+                    .foregroundStyle(secondary)
+                    .accessibilityLabel(Text("Muted"))
+            }
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+                timeText
+            }
+        }
+        .font(.body)
+    }
+
+    /// 小主機圖示(「無」不畫)與「主機 · 最後一句」;需要你時是「主機 · 等你回覆」。
+    private var previewLine: some View {
+        HStack(alignment: .top, spacing: 5) {
+            if let icon = host?.icon, icon.symbol != nil {
+                HostIconBadge(icon, diameter: 18)
+            }
+            previewText
         }
     }
 
-    @ViewBuilder
-    private var preview: some View {
-        switch row.preview {
-        case .needsInput:
-            Text("Waiting for your input")
-                .foregroundStyle(isProminent ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.tint))
-        case .message(let text, let fromYou):
-            Text(fromYou ? "You: \(text)" : "\(text)")
-                .foregroundStyle(secondary)
-        case .none:
-            EmptyView()
+    private var previewText: some View {
+        let hostName = host?.name ?? ""
+        return Group {
+            switch row.preview {
+            case .needsInput:
+                Text("\(hostName) · \(Text("Waiting for your input").fontWeight(.semibold).foregroundStyle(Color.primary))")
+            case .message(let text, let fromYou):
+                fromYou ? Text("\(hostName) · You: \(text)") : Text(verbatim: "\(hostName) · \(text)")
+            case .none:
+                Text(verbatim: hostName)
+            }
         }
+        .foregroundStyle(secondary)
     }
 
     @ViewBuilder
@@ -498,22 +562,66 @@ struct AgentRowView: View {
     }
 }
 
-/// Agent 狀態同時用文字、符號形狀與顏色表示，不只靠顏色(DESIGN.md)。
-/// 顏色只上在符號：文字維持次要色，確保對比;「需要你」整個用 tint(紅字角色，對各背景 ≥ 4.5:1,#70)。
-struct StatusLabel: View {
-    let status: AgentStatus
-    /// 選取中的列(紅底):符號與文字都用白色，形狀仍區分狀態。
-    @Environment(\.backgroundProminence) private var backgroundProminence
+/// 一台還在連線的主機(#221):主機圖示、名稱與「連線中…」(系統小型進度);超過 10 秒換成「仍在連線…」與「再試一次」。
+struct HostLoadStatusRow: View {
+    let status: HostLoadStatus
+    let retry: () -> Void
 
     var body: some View {
-        let prominent = backgroundProminence == .increased
+        HStack(spacing: 12) {
+            HostIconBadge(status.icon, diameter: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: status.name)
+                Text(stateText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("agentList.host.\(status.host.storedValue)")
+            Spacer(minLength: 8)
+            switch status.state {
+            case .connecting:
+                ProgressView()
+                    .accessibilityHidden(true)
+            case .stillConnecting:
+                Button("Try Again", action: retry)
+                    .buttonStyle(.borderless)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("agentList.host.\(status.host.storedValue).retry")
+            }
+        }
+    }
+
+    private var stateText: LocalizedStringKey {
+        switch status.state {
+        case .connecting: "Connecting…"
+        case .stillConnecting: "Still connecting…"
+        }
+    }
+}
+
+extension AgentRow {
+    /// 列表骨架的佔位列(`redacted` 畫成灰條，對 VoiceOver 隱藏)。
+    static func placeholder(_ index: Int) -> AgentRow {
+        AgentRow(
+            paneID: "placeholder-\(index)", title: "Agent name placeholder", subtitle: "",
+            preview: .message("The latest message from this agent", fromYou: false), time: nil, status: .idle)
+    }
+}
+
+/// Agent 狀態同時用文字、符號形狀與顏色表示，不只靠顏色(DESIGN.md)。
+/// 顏色只上在符號(`StatusTone`);文字用主要色或次要文字色，不上狀態色(#237)。
+struct StatusLabel: View {
+    let status: AgentStatus
+
+    var body: some View {
         // 不用 `Label`:在 List 列裡 Label 套的是列表樣式(圖示固定欄寬、標題對齊列文字),放進 `fixedSize` 的右側欄
         // 算不出理想寬度，標題被擠成極窄、一字一行，整列被撐高(#35)。
         HStack(alignment: .firstTextBaseline, spacing: 4) {
             Image(systemName: status.symbol)
-                .foregroundStyle(prominent ? AnyShapeStyle(.selectedRowText) : status.color)
+                .foregroundStyle(status.tone.style)
             Text(status.title)
-                .foregroundStyle(prominent ? AnyShapeStyle(.selectedRowText) : status == .blocked ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
+                .foregroundStyle(status.textEmphasis.style)
         }
         .font(.subheadline)
         .accessibilityElement(children: .combine)
@@ -548,10 +656,9 @@ struct AttentionBadge: View {
             Text(verbatim: count > 99 ? "99+" : "\(count)")
                 .font(.footnote.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(.white)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
-                .background(Capsule().fill(.brandFill))
+                .hostFill(in: Capsule())
                 .accessibilityLabel(count == 1 ? Text("1 workspace needs you") : Text("\(count) workspaces need you"))
                 .accessibilityIdentifier("attention.badge")
         }
@@ -581,17 +688,6 @@ extension AgentStatus {
         case .unknown: "questionmark.circle"
         }
     }
-
-    /// 語意對應 herdr 側欄(行為規格 F2.5);用系統色，深淺色與高對比由系統處理。
-    var color: AnyShapeStyle {
-        switch self {
-        case .blocked: AnyShapeStyle(.tint)
-        case .working: AnyShapeStyle(.orange)
-        case .done: AnyShapeStyle(.teal)
-        case .idle: AnyShapeStyle(.green)
-        case .unknown: AnyShapeStyle(.gray)
-        }
-    }
 }
 
 extension EnvironmentValues {
@@ -600,7 +696,7 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// iPad 選取列改用紅底(或主機主題的白字填色)，不用系統以 tint(紅字角色)畫的選取底色(#95)。
+    /// iPad 選取列用中性灰底(`neutralSelection`),文字不換色(#238)。
     func selectionFill(for route: ChatRoute) -> some View {
         modifier(SelectionFillModifier(route: route))
     }
@@ -609,16 +705,12 @@ extension View {
 private struct SelectionFillModifier: ViewModifier {
     let route: ChatRoute
     @Environment(\.selectedChatRoute) private var selectedChatRoute
-    @Environment(\.hostTheme) private var theme
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.backgroundProminence) private var backgroundProminence
 
     // 不用 if/else 分支：選取切換時列的 identity 不變(滑動與選單狀態不重建)。
     func body(content: Content) -> some View {
         let isSelected = selectedChatRoute == route
         content
-            .foregroundStyle(isSelected ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.primary))
-            .environment(\.backgroundProminence, isSelected ? .increased : backgroundProminence)
-            .listRowBackground(isSelected ? theme?.app(ThemeAppearance(scheme)).fill.map(Color.init) ?? AccessibleColors.selectionFill.color : nil)
+            .foregroundStyle(.primary)
+            .listRowBackground(isSelected ? Rectangle().fill(.neutralSelection) : nil)
     }
 }

@@ -40,7 +40,7 @@ public enum PushHostError: Error, Equatable {
 /// herdr 自己為 plugin 建的 config／state 資料夾在移除後仍會保留(herdr 文件:「Config and state are preserved」),
 /// 外掛不在裡面放任何東西。Windows 主機(PowerShell 方言)還沒做，只有 POSIX。
 public struct PushHost: Sendable {
-    /// 主機外掛(raychiutw/purrdr-host 的 `host-plugin/herdr-plugin.toml`)的 id。
+    /// 主機外掛(raychiutw/purrdr.host 的 `host-plugin/herdr-plugin.toml`)的 id。
     public static let pluginID = "purrdr.push"
     /// 「外掛是 Purrdr 裝的」的紀錄。裝置 id 不能是 `plugin`,才不會撞名。
     static let pluginFeature = HostWriteFeature(id: "push-plugin", userFiles: [])

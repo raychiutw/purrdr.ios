@@ -6,7 +6,7 @@ import Testing
 
 /// 訂閱 Purrdr Plus 的 model(Seam 2:後台用 `HTTPStub`;Seam 3:StoreKit 用記憶體內的 `FakePlusStore`)。
 ///
-/// 後台回應依 `backend/README.md` 的 API 契約手寫。StoreKit 真正的商品與購買由 UI 測試以 StoreKit 設定檔
+/// 後台回應依 `raychiutw/purrdr.server` 的 `README.md` 的 API 契約手寫。StoreKit 真正的商品與購買由 UI 測試以 StoreKit 設定檔
 /// (`src/App/Purrdr.storekit`)驗證;`SKTestSession` 需要 app 宿主，`swift test` 跑不了。
 @MainActor
 @Suite("訂閱")

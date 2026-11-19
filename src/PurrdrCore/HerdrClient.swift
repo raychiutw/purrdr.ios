@@ -16,6 +16,11 @@ public struct HerdrClient: Sendable {
         try await connection.isReadOnlyDevice()
     }
 
+    /// 關掉底層連線(卡住的請求跟著失敗);下一個請求重新連線。
+    public func disconnect() async {
+        await connection.disconnect()
+    }
+
     /// 開始快速偵測斷線(聊天畫面可見時)。
     public func beginQuickDisconnectDetection() async {
         await connection.beginQuickDisconnectDetection()

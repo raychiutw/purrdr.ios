@@ -3,20 +3,19 @@ import PurrdrCore
 
 /// Purrdr 後台與 Google 登入的設定。
 ///
-/// 標成 REPLACE_ME 的值上線前要換成真值(清單見 backend/README.md「上線前要填的東西」)。
-/// 還是佔位符時，登入會因為連不上而顯示錯誤，聊天與終端機不受影響。
+/// 後台設定見 raychiutw/purrdr.server 的 README.md「上線前要填的東西」。
 enum BackendConfiguration {
     /// 部署後的 Worker 網址。
-    static let baseURL = URL(string: "https://purrdr-backend.REPLACE-ME.workers.dev")!
+    static let baseURL = URL(string: "https://purrdr-backend.lean-lean.workers.dev")!
 
     /// Google Cloud Console 的 iOS OAuth client ID(與後台 `GOOGLE_CLIENT_IDS` 相同)。
-    static let googleClientID = "REPLACE-ME.apps.googleusercontent.com"
+    static let googleClientID = "1026000701769-rvh7oog9r0f8svhrf2bvpbqp0vcfskft.apps.googleusercontent.com"
 }
 
 /// 推播(#29)。
 enum PushSettings {
-    /// 主機外掛在公開 repo raychiutw/purrdr-host 的 `host-plugin/`(`herdr plugin install` 的來源，herdr 0.9.5 接受 `OWNER/REPO/SUBDIR`)。
-    static let pluginSource = "raychiutw/purrdr-host/host-plugin"
+    /// 主機外掛在公開 repo raychiutw/purrdr.host 的 `host-plugin/`(`herdr plugin install` 的來源，herdr 0.9.5 接受 `OWNER/REPO/SUBDIR`)。
+    static let pluginSource = "raychiutw/purrdr.host/host-plugin"
 
     /// 主機外掛呼叫的後台網址，寫進主機上的配對檔。
     static var endpoint: URL { BackendConfiguration.baseURL.appending(path: "v1/push") }

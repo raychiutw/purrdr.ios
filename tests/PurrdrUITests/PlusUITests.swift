@@ -66,6 +66,19 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(disclosure.label.contains("year"), disclosure.label)
     }
 
+    /// 方案卡片有按壓回饋後(#234),按住一下再放開仍選取該方案。
+    @MainActor
+    func testHeldPlanCardStillSelects() {
+        let app = XCUIApplication.launchUITesting()
+        openPlus(in: app)
+        let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
+        XCTAssertTrue(yearly.waitForExistence(timeout: 15))
+
+        yearly.press(forDuration: 0.3)
+
+        XCTAssertTrue(yearly.isSelected || yearly.value as? String == "Selected", "\(String(describing: yearly.value))")
+    }
+
     /// 訂閱要先成為會員(權限記在會員身上):沒登入時主要按鈕帶去登入。付費牆可以關閉、不擋免費功能。
     @MainActor
     func testSubscribingNeedsSignInAndPaywallCanBeClosed() {
@@ -77,22 +90,29 @@ final class PlusUITests: XCTestCase {
 
         subscribe.tap()
         XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
-        app.buttons["member.done"].tap()
+        app.buttons["member.signIn.cancel"].tap()
 
+        // 深層連結開的是付費牆 sheet(#246),「完成」關掉就回到列表。
         let done = app.buttons["plus.done"]
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitForExistence(timeout: 5))
     }
 
+    /// 頁首只有標題(#236):沒有裝飾圖示、重複的大標題與「聊天與終端機免費」說明;方案內容仍要寫出來(App Store 3.1.2)。
+    @MainActor
+    func testPaywallShowsOnlyTitleAtTop() {
+        let app = XCUIApplication.launchUITesting()
+        openPlus(in: app)
+
+        XCTAssertTrue(app.staticTexts["plus.benefits"].waitForExistence(timeout: 10), "沒有方案內容")
+        XCTAssertFalse(app.scrollViews.staticTexts["Purrdr Plus"].exists, "內容裡重複了標題")
+        XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
+    }
+
     @MainActor
     private func openPlus(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        let plus = app.buttons["menu.plus"]
-        XCTAssertTrue(plus.waitForExistence(timeout: 5))
-        plus.tap()
+        app.openPlusPaywall()
     }
 
     @MainActor

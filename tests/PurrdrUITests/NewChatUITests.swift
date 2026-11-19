@@ -9,9 +9,7 @@ final class NewChatUITests: XCTestCase {
     @MainActor
     private func openNewChat() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
-        let plus = app.buttons["toolbar.newChat"]
-        XCTAssertTrue(plus.waitForExistence(timeout: 10), "列表工具列沒有「+」")
-        plus.tap()
+        app.openMoreMenuItem("menu.newChat")
         XCTAssertTrue(app.textFields["newChat.folder"].waitForExistence(timeout: 5), "沒有開出新增對話")
         return app
     }
@@ -59,7 +57,7 @@ final class NewChatUITests: XCTestCase {
 
         let folder = app.textFields["newChat.folder"]
         folder.tap()
-        folder.typeText("~/ledger")
+        folder.typeEnglish("~/ledger")
         app.buttons["newChat.start"].tap()
 
         let error = app.descendants(matching: .any)["newChat.error"].firstMatch

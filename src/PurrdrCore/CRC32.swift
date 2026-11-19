@@ -1,7 +1,7 @@
 import Foundation
 
 /// CRC-32(IEEE 802.3,gzip 用的那個)。
-enum CRC32 {
+package enum CRC32 {
     private static let table: [UInt32] = (0..<256).map { index in
         var crc = UInt32(index)
         for _ in 0..<8 {
@@ -10,10 +10,15 @@ enum CRC32 {
         return crc
     }
 
-    static func checksum(_ data: Data) -> UInt32 {
+    package static func checksum(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
-        for byte in data {
-            crc = table[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
+        // 經 buffer 逐 byte 讀：Debug 建置下大檔(Demo 的 8.8 MiB 掃描檔)也不吃 CPU。
+        table.withUnsafeBufferPointer { lookup in
+            data.withUnsafeBytes { bytes in
+                for byte in bytes {
+                    crc = lookup[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
+                }
+            }
         }
         return crc ^ 0xFFFF_FFFF
     }

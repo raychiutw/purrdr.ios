@@ -6,6 +6,14 @@ import Foundation
 public enum HostServiceProtocol {
     /// 協定版本(schema 的 `x-protocol-version`)。
     public static let version = 1
+    /// 主機取檔的排除清單(schema 的 `x-excluded-file-locations`)。
+    public static let excludedFileLocations = [".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains", ".codex/auth.json", ".claude/.credentials.json", ".claude.json", ".purrdr/host-service", ".purrdr/push-*", ".env", ".env.*", ".vault-token", ".terraform.d", ".m2/settings.xml", ".git/config", ".bash_history", ".zsh_history", "ConsoleHost_history.txt", "Library/Application Support/Google/Chrome", "Library/Application Support/Microsoft Edge", "Library/Application Support/BraveSoftware", "Library/Application Support/Firefox", "Library/Cookies", "Library/Safari", ".mozilla", ".config/google-chrome", ".config/chromium", ".config/microsoft-edge", ".config/BraveSoftware", "AppData/Local/Google/Chrome/User Data", "AppData/Local/Microsoft/Edge/User Data", "AppData/Local/BraveSoftware", "AppData/Roaming/Mozilla/Firefox", "AppData/Roaming/Microsoft/Credentials", "AppData/Roaming/Microsoft/Protect"]
+    /// 主機取檔在工作目錄以外可放行的系統暫存目錄(schema 的 `x-temporary-file-locations`)。
+    public static let temporaryFileLocations = ["/tmp", "/private/tmp", "/var/folders", "/private/var/folders"]
+    /// 主機取檔的大小上限(schema 的 `x-maximum-file-size`)。
+    public static let maximumFileSize = 26214400
+    /// 主機取檔一次讀取最多回傳的 bytes(schema 的 `x-maximum-file-chunk`)。
+    public static let maximumFileChunk = 1048576
 }
 
 extension HostServiceProtocol {
@@ -27,6 +35,8 @@ extension HostServiceProtocol {
         case paneTerminalResize(PaneTerminalResize)
         case paneTerminalScroll(PaneTerminalScroll)
         case paneTerminalClose(PaneTerminalClose)
+        case fileStat(FileStat)
+        case fileRead(FileRead)
 
         private enum TypeKey: String, CodingKey {
             case type
@@ -52,6 +62,8 @@ extension HostServiceProtocol {
             case "pane.terminal.resize": self = .paneTerminalResize(try PaneTerminalResize(from: decoder))
             case "pane.terminal.scroll": self = .paneTerminalScroll(try PaneTerminalScroll(from: decoder))
             case "pane.terminal.close": self = .paneTerminalClose(try PaneTerminalClose(from: decoder))
+            case "file.stat": self = .fileStat(try FileStat(from: decoder))
+            case "file.read": self = .fileRead(try FileRead(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
             }
@@ -108,6 +120,12 @@ extension HostServiceProtocol {
             case .paneTerminalClose(let message):
                 try container.encode("pane.terminal.close", forKey: .type)
                 try message.encode(to: encoder)
+            case .fileStat(let message):
+                try container.encode("file.stat", forKey: .type)
+                try message.encode(to: encoder)
+            case .fileRead(let message):
+                try container.encode("file.read", forKey: .type)
+                try message.encode(to: encoder)
             }
         }
 
@@ -141,6 +159,8 @@ extension HostServiceProtocol {
         case paneTerminalOpenResult(PaneTerminalOpenResult)
         case paneTerminalFrame(PaneTerminalFrame)
         case paneTerminalClosed(PaneTerminalClosed)
+        case fileStatResult(FileStatResult)
+        case fileReadResult(FileReadResult)
         case errorMessage(ErrorMessage)
 
         private enum TypeKey: String, CodingKey {
@@ -168,6 +188,8 @@ extension HostServiceProtocol {
             case "pane.terminal.open.result": self = .paneTerminalOpenResult(try PaneTerminalOpenResult(from: decoder))
             case "pane.terminal.frame": self = .paneTerminalFrame(try PaneTerminalFrame(from: decoder))
             case "pane.terminal.closed": self = .paneTerminalClosed(try PaneTerminalClosed(from: decoder))
+            case "file.stat.result": self = .fileStatResult(try FileStatResult(from: decoder))
+            case "file.read.result": self = .fileReadResult(try FileReadResult(from: decoder))
             case "error": self = .errorMessage(try ErrorMessage(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
@@ -227,6 +249,12 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .paneTerminalClosed(let message):
                 try container.encode("pane.terminal.closed", forKey: .type)
+                try message.encode(to: encoder)
+            case .fileStatResult(let message):
+                try container.encode("file.stat.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .fileReadResult(let message):
+                try container.encode("file.read.result", forKey: .type)
                 try message.encode(to: encoder)
             case .errorMessage(let message):
                 try container.encode("error", forKey: .type)
@@ -1200,6 +1228,117 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
+    /// 主機取檔(raychiutw/purrdr.ios#227):查檔案狀態。只允許 herdr snapshot 目前回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑;主機服務解析 symlink 後再比對工作目錄與排除清單(x-excluded-file-locations)。唯讀，唯讀裝置也可用。
+    public struct FileStat: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 主機上的絕對路徑(不可含 . 或 .. 段落)。
+        public var path: String
+
+        public init(requestId: String, path: String) {
+            self.requestId = requestId
+            self.path = path
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 檔案狀態。status 是 file 時帶版本(內容的 SHA-256)與大小;too_large 只帶大小。
+    public struct FileStatResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var status: FileStatus
+        public var version: String?
+        public var size: Int?
+
+        public init(requestId: String, status: FileStatus, version: String? = nil, size: Int? = nil) {
+            self.requestId = requestId
+            self.status = status
+            self.version = version
+            self.size = size
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case status
+            case version
+            case size
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// file:可讀的一般檔案;missing:不存在;not_regular_file:資料夾、FIFO、裝置等;unreadable:沒有權限或讀取失敗;denied:存取規則不允許;too_large:超過 25 MiB。
+    public enum FileStatus: String, Codable, Sendable, CaseIterable {
+        case file
+        case missing
+        case notRegularFile = "not_regular_file"
+        case unreadable
+        case denied
+        case tooLarge = "too_large"
+    }
+}
+
+extension HostServiceProtocol {
+    /// 依版本讀 offset 起最多 length bytes(每次最多 1 MiB)。從頭讀(offset 0)或還沒有這個檔案的快照時，主機服務先檢查存取規則、把檔案讀成這條連線的快照並比對版本;之後的分塊從快照讀，分塊之間檔案被覆寫也不會拼出兩個版本。版本不符回 file_changed。
+    public struct FileRead: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var path: String
+        /// file.stat 回報的版本。
+        public var version: String
+        public var offset: Int
+        public var length: Int
+
+        public init(requestId: String, path: String, version: String, offset: Int, length: Int) {
+            self.requestId = requestId
+            self.path = path
+            self.version = version
+            self.offset = offset
+            self.length = length
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+            case version
+            case offset
+            case length
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// status 是 file 時帶 offset 與 bytes(標準 base64,超過檔尾時為空);其他狀態同 file.stat,不帶內容。
+    public struct FileReadResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var status: FileStatus
+        /// status 是 too_large 時的大小。
+        public var size: Int?
+        public var offset: Int?
+        public var bytes: String?
+
+        public init(requestId: String, status: FileStatus, size: Int? = nil, offset: Int? = nil, bytes: String? = nil) {
+            self.requestId = requestId
+            self.status = status
+            self.size = size
+            self.offset = offset
+            self.bytes = bytes
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case status
+            case size
+            case offset
+            case bytes
+        }
+    }
+}
+
+extension HostServiceProtocol {
     /// POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。
     public struct PairRequest: Codable, Sendable, Equatable {
         /// 大小寫與連字號不拘，例如 K7QM-2XPA。
@@ -1272,7 +1411,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
+    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
     public enum ErrorCode: String, Codable, Sendable, CaseIterable {
         case invalidMessage = "invalid_message"
         case handshakeRequired = "handshake_required"
@@ -1291,6 +1430,7 @@ extension HostServiceProtocol {
         case transcriptUnreadable = "transcript_unreadable"
         case transcriptAmbiguous = "transcript_ambiguous"
         case transcriptCompressed = "transcript_compressed"
+        case fileChanged = "file_changed"
         case internalError = "internal_error"
     }
 }

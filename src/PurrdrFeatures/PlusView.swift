@@ -64,7 +64,7 @@ public struct PlusView: View {
             await model.refresh()
         }
         .sheet(isPresented: $signingIn) {
-            MemberView(model: member)
+            SignInSheet(model: member)
         }
         #if os(iOS)
         .offerCodeRedemption(isPresented: $redeeming) { _ in
@@ -88,20 +88,10 @@ public struct PlusView: View {
 
     // MARK: - 區塊
 
+    /// 每期提供的內容(App Store 3.1.2);頁首只有導覽列標題，不再重複標題與說明(#236)。
     private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "bell.badge")
-                .font(.largeTitle)
-                .foregroundStyle(.tint)
-                .accessibilityHidden(true)
-            Text("Purrdr Plus")
-                .font(.title.bold())
-            // 每期提供的內容。
-            Text("Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.")
-                .accessibilityIdentifier("plus.benefits")
-            Text("Chat and terminal are free and never need a subscription.")
-                .foregroundStyle(.secondaryText)
-        }
+        Text("Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.")
+            .accessibilityIdentifier("plus.benefits")
     }
 
     @ViewBuilder
@@ -174,6 +164,8 @@ public struct PlusView: View {
             VStack(alignment: .leading, spacing: 12) { restoreButton; redeemButton }
         }
         .buttonStyle(.bordered)
+        // 中性色：主色字在 bordered 的灰底上不到 4.5:1(audit「Contrast nearly passed」);主色留給訂閱鈕。
+        .tint(.primary)
         .controlSize(.large)
     }
 
@@ -248,7 +240,7 @@ public enum PurrdrLinks {
     /// 隱私權政策。
     public static let privacyPolicy = URL(string: "https://raychiutw.github.io/purrdr/privacy/")!
     /// App Store id:App Store Connect → App 資訊 → 一般資訊 → Apple ID(數字)。全 app 只在這裡填
-    /// (設定頁與歡迎頁的「為 Purrdr 評分」都從這裡來);後台 `backend/wrangler.jsonc` 的 `APP_STORE_APP_APPLE_ID` 是同一個數字。
+    /// (設定頁與歡迎頁的「為 Purrdr 評分」都從這裡來);後台 `raychiutw/purrdr.server` 的 `wrangler.jsonc` 的 `APP_STORE_APP_APPLE_ID` 是同一個數字。
     public static let appStoreID = "6835416115"
     /// 支援頁(常見問題與聯絡方式)。
     public static let support = URL(string: "https://raychiutw.github.io/purrdr/support/")!
@@ -293,7 +285,7 @@ struct PlanRow: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableCard(cornerRadius: 12))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(plan.accessibilityLabel))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)

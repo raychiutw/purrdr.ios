@@ -2,23 +2,29 @@ import AuthenticationServices
 import PurrdrCore
 import SwiftUI
 
-/// 會員畫面：未登入時是登入頁，登入後是登入方式與刪除會員(HIG 檢核清單 20.10、20.11)。
+/// 帳號 sheet(#246;聊天列表右上角的帳號鈕開啟):頭像與名稱、「設定 Purrdr Plus」步驟卡、登入方式、登出、刪除會員。
 ///
-/// 只有訂閱功能需要會員;聊天與終端機不需要登入，所以這個畫面只從選單進來，不會擋在任何功能前面。
+/// 聊天與終端機不需要會員或訂閱，這個畫面不會擋在任何功能前面。
 public struct MemberView: View {
     @Bindable var model: MemberModel
-    /// 已登入時顯示 Purrdr Plus 的狀態與入口;`nil` 時不顯示(例如從付費牆開來登入)。
+    /// `nil` 時不顯示步驟卡與 Purrdr Plus。
     let plus: SubscriptionModel?
+    /// 選取中主機的推播(步驟三)。
+    let push: PushModel?
+    /// 主機同步(步驟四)。
+    let hostSync: HostSyncModel?
     @Environment(\.dismiss) private var dismiss
 
-    public init(model: MemberModel, plus: SubscriptionModel? = nil) {
+    public init(model: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil, hostSync: HostSyncModel? = nil) {
         self.model = model
         self.plus = plus
+        self.push = push
+        self.hostSync = hostSync
     }
 
     public var body: some View {
         NavigationStack {
-            MemberContent(model: model, plus: plus)
+            MemberContent(model: model, plus: plus, push: push, hostSync: hostSync)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -29,20 +35,23 @@ public struct MemberView: View {
     }
 }
 
-/// 會員畫面的內容(不含 NavigationStack 與「完成」):設定頁在自己的 sheet 裡 push 這個畫面(#32)。
+/// 帳號頁的內容(不含 NavigationStack 與「完成」)。
 public struct MemberContent: View {
     @Bindable var model: MemberModel
-    /// 已登入時顯示 Purrdr Plus 的狀態與入口;`nil` 時不顯示。
     let plus: SubscriptionModel?
+    let push: PushModel?
+    let hostSync: HostSyncModel?
 
-    public init(model: MemberModel, plus: SubscriptionModel? = nil) {
+    public init(model: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil, hostSync: HostSyncModel? = nil) {
         self.model = model
         self.plus = plus
+        self.push = push
+        self.hostSync = hostSync
     }
 
     public var body: some View {
         content
-            .navigationTitle("Purrdr Member")
+            .navigationTitle("Account")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -61,8 +70,7 @@ public struct MemberContent: View {
 
     @ViewBuilder
     private var content: some View {
-        switch model.phase {
-        case .unknown:
+        if model.phase == .unknown {
             if model.isWorking {
                 ProgressView()
             } else {
@@ -74,10 +82,8 @@ public struct MemberContent: View {
                     Button("Try Again") { Task { await model.restore() } }
                 }
             }
-        case .signedOut:
-            SignInView(model: model)
-        case .signedIn(let member):
-            AccountView(model: model, member: member, plus: plus)
+        } else {
+            AccountView(model: model, plus: plus, push: push, hostSync: hostSync)
         }
     }
 
@@ -86,27 +92,43 @@ public struct MemberContent: View {
     }
 }
 
+/// 只有登入的 sheet(付費牆的「登入以訂閱」):登入完成就自動關閉。
+struct SignInSheet: View {
+    let model: MemberModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            SignInView(model: model)
+                .navigationTitle("Join as a Member")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                            .accessibilityIdentifier("member.signIn.cancel")
+                    }
+                }
+        }
+        .onChange(of: model.phase) { _, phase in
+            if case .signedIn = phase { dismiss() }
+        }
+    }
+}
+
 // MARK: - 登入頁
 
-/// 登入頁：說明成為會員的好處，下方固定兩個登入按鈕(不需捲動就看得到)。
+/// 登入頁：只有標題(#236),下方固定兩個登入按鈕(不需捲動就看得到)。
 struct SignInView: View {
     let model: MemberModel
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .font(.largeTitle)
-                    .foregroundStyle(.tint)
-                    .accessibilityHidden(true)
-                Text("Sign in to use Purrdr Plus")
-                    .font(.title2.bold())
-                Text("A member account is only needed for Purrdr Plus: notifications when an agent needs you, and syncing your hosts between devices.")
-                Text("Chat and terminal never need an account, and your conversations never pass through our servers.")
-                    .foregroundStyle(.secondaryText)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
+            Text("Sign in to use Purrdr Plus")
+                .font(.title2.bold())
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
         }
         .safeAreaInset(edge: .bottom) {
             SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
@@ -198,43 +220,275 @@ struct SignInButtons: View {
                 .overlay(RoundedRectangle(cornerRadius: Self.cornerRadius).strokeBorder(.secondary, lineWidth: 1))
                 .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableCard(cornerRadius: Self.cornerRadius))
         .accessibilityIdentifier("member.signIn.google")
     }
 }
 
-// MARK: - 會員(已登入)
+// MARK: - 帳號頁
 
-/// 已登入：目前的登入方式、連結／解除、登出、刪除會員。
+/// 帳號頁：頭像、步驟卡(完成後收成一列)、登入方式、登出、刪除會員。
 struct AccountView: View {
     let model: MemberModel
-    let member: Member
     let plus: SubscriptionModel?
+    let push: PushModel?
+    let hostSync: HostSyncModel?
     @State private var confirmingDeletion = false
+    @State private var signingIn = false
+    @State private var showingPlus = false
+    @State private var offeringFeatureSetup = false
+
+    private var signedInMember: Member? {
+        if case .signedIn(let member) = model.phase { return member }
+        return nil
+    }
+
+    private var progress: PlusSetupProgress? {
+        plus.map { PlusSetupProgress(member: model, plus: $0, push: push, hostSync: hostSync) }
+    }
 
     var body: some View {
         List {
-            if let plus {
-                Section {
-                    NavigationLink {
-                        PlusView(model: plus, member: model)
-                    } label: {
-                        LabeledContent("Purrdr Plus") {
-                            Text(plus.statusText)
-                        }
-                    }
-                    .accessibilityIdentifier("member.plus")
-                } footer: {
-                    Group {
-                        if plus.needsRenewal {
-                            Text("Your subscription has ended. Notifications and host sync are paused until you subscribe again.")
-                        }
-                    }
-                    .foregroundStyle(.secondaryText)
-                }
-                .task { await plus.refresh() }
+            Section {
+                AccountHeader(member: signedInMember)
+            }
+            .listRowBackground(Color.clear)
+
+            if let plus, let progress {
+                plusSection(plus: plus, progress: progress)
             }
 
+            if let member = signedInMember {
+                Section {
+                    NavigationLink {
+                        SignInMethodsView(model: model, member: member)
+                    } label: {
+                        Text("Sign-In Methods")
+                    }
+                    .accessibilityIdentifier("member.signInMethods")
+                    Button("Sign Out") { Task { await model.signOut() } }
+                    Button("Delete Member…", role: .destructive) { confirmingDeletion = true }
+                        .accessibilityIdentifier("member.delete")
+                } footer: {
+                    Text("Deleting your member account removes it and its data from Purrdr right away. Subscriptions billed by Apple continue until you cancel them in Settings.")
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+        }
+        .accessibilityIdentifier("sheet.account")
+        .disabled(model.isWorking)
+        .navigationDestination(isPresented: $signingIn) {
+            SignInView(model: model)
+                .navigationTitle("Join as a Member")
+        }
+        .navigationDestination(isPresented: $showingPlus) {
+            if let plus {
+                PlusView(model: plus, member: model)
+            }
+        }
+        .onChange(of: signedInMember?.id) { _, id in
+            if id != nil { signingIn = false }
+        }
+        .onChange(of: progress) { previous, current in
+            // 只有從這裡進付費牆開通才問;開帳號頁時讀回訂閱不算剛開通。
+            guard showingPlus, let previous, let current, current.offersFeatureSetup(after: previous) else { return }
+            showingPlus = false
+            offeringFeatureSetup = true
+        }
+        .task(id: signedInMember?.id) { await plus?.refresh() }
+        .modifier(OptionalPushConfirmation(push: push))
+        .alert("Purrdr Plus Is On", isPresented: $offeringFeatureSetup) {
+            Button("Later", role: .cancel) {}
+            Button("Turn On All") { turnOnAll() }
+                .accessibilityIdentifier("account.turnOnAll")
+        } message: {
+            Text("Turn on notifications and host sync now? You can change them later.")
+        }
+        .confirmationDialog("Delete your member account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
+            Button("Delete Member", role: .destructive) { Task { await model.deleteMember() } }
+        } message: {
+            Text("Your member account, push pairings, and synced hosts will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions.")
+        }
+    }
+
+    @ViewBuilder
+    private func plusSection(plus: SubscriptionModel, progress: PlusSetupProgress) -> some View {
+        Section {
+            if progress.isComplete {
+                NavigationLink {
+                    PlusFeaturesView(plus: plus, member: model, push: push, hostSync: hostSync)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Purrdr Plus · Active")
+                        Text("Notifications and host sync are on")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondaryText)
+                    }
+                }
+                .accessibilityIdentifier("member.plus")
+            } else {
+                PlusSetupCard(progress: progress, isWorking: isStepWorking) { perform($0) }
+                if let push, let problem = push.problem, progress.currentStep == .turnOnNotifications {
+                    PushProblemRow(problem: problem, model: push) { showingPlus = true }
+                }
+                if progress.isPlusActive {
+                    // 開通後還沒走完：訂閱狀態與通知、同步開關在這裡管理。
+                    NavigationLink {
+                        PlusFeaturesView(plus: plus, member: model, push: push, hostSync: hostSync)
+                    } label: {
+                        LabeledContent("Purrdr Plus") { Text(plus.statusText) }
+                    }
+                    .accessibilityIdentifier("member.plus")
+                }
+            }
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                if let hint = progress.lockedFeatureHint {
+                    Text(hint.text)
+                        .accessibilityIdentifier("account.lockedHint")
+                }
+                if plus.needsRenewal {
+                    Text("Your subscription has ended. Notifications and host sync are paused until you subscribe again.")
+                }
+                Text("Chat and terminal don’t need a member account or subscription.")
+            }
+            .foregroundStyle(.secondaryText)
+        }
+    }
+
+    private var isStepWorking: Bool {
+        guard let push else { return false }
+        switch push.state {
+        case .checking, .turningOn, .confirming: return true
+        case .off, .on, .turningOff: return false
+        }
+    }
+
+    private func perform(_ step: PlusSetupProgress.Step) {
+        switch step {
+        case .joinMember: signingIn = true
+        case .activatePlus: showingPlus = true
+        case .turnOnNotifications: Task { await push?.requestOn() }
+        case .syncHosts: Task { await hostSync?.setEnabled(true) }
+        }
+    }
+
+    /// 開通後的「全部開啟」:同步直接開，通知仍經過安裝外掛的確認。
+    private func turnOnAll() {
+        Task { await hostSync?.setEnabled(true) }
+        Task { await push?.requestOn() }
+    }
+}
+
+/// 推播可能沒有(`nil`)時才掛安裝確認。
+private struct OptionalPushConfirmation: ViewModifier {
+    let push: PushModel?
+
+    func body(content: Content) -> some View {
+        if let push {
+            content.pushInstallConfirmation(push)
+        } else {
+            content
+        }
+    }
+}
+
+/// 帳號頁頂端的頭像與名稱;未加入會員顯示「?」。
+private struct AccountHeader: View {
+    let member: Member?
+
+    var body: some View {
+        VStack(spacing: 8) {
+            AccountAvatar(member: member)
+                .font(.largeTitle)
+                .frame(width: 72, height: 72)
+            Group {
+                if let member {
+                    if let name = member.accountName {
+                        Text(verbatim: name)
+                    } else {
+                        Text("Purrdr Member")
+                    }
+                } else {
+                    Text("Not a Member Yet")
+                }
+            }
+            .font(.title3.bold())
+            .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// 帳號頭像：主色填色(`prominentFill`)圓底上的頭像字;沒有字時用人像符號，未加入會員(`nil`)用「?」。帳號鈕與帳號頁共用。
+struct AccountAvatar: View {
+    let member: Member?
+
+    var body: some View {
+        ZStack {
+            Circle().fill(.prominentFill)
+            Group {
+                if let member {
+                    if let initial = member.avatarInitial {
+                        Text(verbatim: initial)
+                    } else {
+                        Image(systemName: "person.fill")
+                    }
+                } else {
+                    // 圖示而非文字：AX 字級時帳號鈕收進溢出選單，選單項目會把畫面上的「?」當名稱。
+                    Image(systemName: "questionmark")
+                }
+            }
+            .fontWeight(.semibold)
+            .foregroundStyle(.onProminentFill)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// 開通後管理：訂閱狀態、選取中主機的通知、主機同步。
+struct PlusFeaturesView: View {
+    let plus: SubscriptionModel
+    let member: MemberModel
+    let push: PushModel?
+    let hostSync: HostSyncModel?
+    @State private var showingPlus = false
+
+    var body: some View {
+        List {
+            Section {
+                NavigationLink {
+                    PlusView(model: plus, member: member)
+                } label: {
+                    LabeledContent("Subscription") { Text(plus.statusText) }
+                }
+                .accessibilityIdentifier("member.subscription")
+            }
+            if let push, push.isAvailable {
+                PushSettingsSection(model: push) { showingPlus = true }
+            }
+            if let hostSync {
+                HostSyncSection(model: hostSync, plus: plus, member: member)
+            }
+        }
+        .navigationTitle("Purrdr Plus")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .navigationDestination(isPresented: $showingPlus) {
+            PlusView(model: plus, member: member)
+        }
+    }
+}
+
+/// 登入方式：目前的登入方式、解除連結、連結另一種。
+struct SignInMethodsView: View {
+    let model: MemberModel
+    let member: Member
+
+    var body: some View {
+        List {
             Section {
                 ForEach(member.identities, id: \.method) { identity in
                     LabeledContent {
@@ -250,9 +504,6 @@ struct AccountView: View {
                     }
                     .accessibilityIdentifier("member.identity.\(identity.method.rawValue)")
                 }
-            } header: {
-                Text("Sign-In Methods")
-                    .foregroundStyle(.secondaryText)
             } footer: {
                 Text("Link another sign-in method to reach the same member from either. Keep at least one.")
                     .foregroundStyle(.secondaryText)
@@ -268,25 +519,12 @@ struct AccountView: View {
                         .foregroundStyle(.secondaryText)
                 }
             }
-
-            Section {
-                Button("Sign Out") { Task { await model.signOut() } }
-            }
-
-            Section {
-                Button("Delete Member…", role: .destructive) { confirmingDeletion = true }
-                    .accessibilityIdentifier("member.delete")
-            } footer: {
-                Text("Deleting your member account removes it and its data from Purrdr right away. Subscriptions billed by Apple continue until you cancel them in Settings.")
-                    .foregroundStyle(.secondaryText)
-            }
         }
         .disabled(model.isWorking)
-        .confirmationDialog("Delete your member account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
-            Button("Delete Member", role: .destructive) { Task { await model.deleteMember() } }
-        } message: {
-            Text("Your member account, push pairings, and synced hosts will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions.")
-        }
+        .navigationTitle("Sign-In Methods")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 

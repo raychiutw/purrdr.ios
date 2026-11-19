@@ -45,6 +45,16 @@ final class TerminalTextInputView: UIView, UITextInput {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// 元件只有游標一格大：VoiceOver 的範圍以游標為中心撐到至少 44×44pt(HIG 觸控目標)。
+    override var accessibilityFrame: CGRect {
+        get {
+            let cell = UIAccessibility.convertToScreenCoordinates(bounds, in: self)
+            let minimum: CGFloat = 44
+            return cell.insetBy(dx: min(0, (cell.width - minimum) / 2), dy: min(0, (cell.height - minimum) / 2))
+        }
+        set { super.accessibilityFrame = newValue }
+    }
+
     /// 觸控穿過去給終端機畫面(點連結、選取、捲動)。
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         false

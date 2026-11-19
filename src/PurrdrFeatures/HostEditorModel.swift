@@ -59,15 +59,42 @@ public final class HostEditorModel {
         case invalid(SSHKeyImportError)
     }
 
+    /// 連線方式之下出現的欄位(#250),依畫面順序。
+    public enum ConnectionField: Sendable, Equatable {
+        case address
+        case port
+        case username
+        /// OpenSSH 的登入方式(這台裝置的金鑰／匯入私鑰／密碼)。
+        case signIn
+        case pairingCode
+        /// herdr 路徑與 Session。
+        case advanced
+    }
+
     public var name = ""
+    /// SSH 是主機名稱或 IP;HTTPS 是主機服務的主機名稱(埠在 `port`)。
     public var address = ""
-    public var port = "22"
+    /// 使用者改過就不再跟著連線方式換預設值。
+    public var port: String {
+        get { portText }
+        set {
+            portText = newValue
+            isPortEdited = true
+        }
+    }
     public var username = ""
     /// 空白為 `herdr`。
     public var herdrPath = ""
     /// 空白為預設 session。
     public var herdrSession = ""
-    public var connectionMethod: HostConfiguration.ConnectionMethod = .tailscaleSSH
+    /// 新主機還沒選是 `nil`,這時不出現連線欄位。換方式時，沒手動改過的 Port 換成新方式的預設。
+    public var connectionMethod: HostConfiguration.ConnectionMethod? {
+        get { chosenMethod }
+        set {
+            chosenMethod = newValue
+            if let newValue, !isPortEdited { portText = String(newValue.defaultPort) }
+        }
+    }
     /// OpenSSH 的登入方式。預設用這支裝置的金鑰。
     public var authentication: HostConfiguration.OpenSSHAuthentication = .deviceKey
     /// 編輯既有主機時留空 = 保留原本的密碼。
@@ -76,6 +103,8 @@ public final class HostEditorModel {
     public var privateKeyText = ""
     /// HTTPS 主機的配對碼(主機配對指令顯示的)。編輯已配對的主機時留空 = 沿用存著的裝置權杖。
     public var pairingCode = ""
+    /// 主機圖示(#239)。只改圖示時不必重新測試連線就能儲存。
+    public var icon: HostIcon
     public private(set) var phase: Phase = .editing
     /// 這支裝置的公鑰(含註解),`loadDeviceKey()` 之後才有。
     public private(set) var devicePublicKey: SSHPublicKey?
@@ -86,13 +115,29 @@ public final class HostEditorModel {
     public var isEditing: Bool { existing != nil }
 
     /// herdr 過舊時能不能由 Purrdr 更新(SSH 才能;HTTPS 請使用者在主機上更新)。
-    public var canUpdateHerdr: Bool { !connectionMethod.usesHostService }
+    public var canUpdateHerdr: Bool { connectionMethod?.usesHostService != true }
 
     /// HTTPS 主機要輸入配對碼：新主機，或這支裝置還沒有它的裝置權杖(例如主機同步帶來的)。
-    public var needsPairingCode: Bool { connectionMethod.usesHostService && !hasStoredDeviceToken }
+    public var needsPairingCode: Bool { connectionMethod?.usesHostService == true && !hasStoredDeviceToken }
 
+    /// 目前連線方式要填的欄位;還沒選連線方式時沒有。
+    public var connectionFields: [ConnectionField] {
+        switch connectionMethod {
+        case nil: []
+        case .tailscaleSSH?: [.address, .port, .username, .advanced]
+        case .openSSH?: [.address, .port, .username, .signIn, .advanced]
+        case .https?: [.address, .port, .pairingCode]
+        }
+    }
+
+    private var chosenMethod: HostConfiguration.ConnectionMethod?
+    private var portText = ""
+    private var isPortEdited = false
     private let store: any HostStore
     private let existing: HostConfiguration?
+    private let originalIcon: HostIcon
+    /// 儲存後套用圖示(主機 id 存好才知道)。
+    private let saveIcon: @MainActor (HostIcon, UUID) -> Void
     private let credentials: HostCredentials
     private let hostService: HostServiceAccess
     /// 編輯的 HTTPS 主機在這支裝置已有裝置權杖。
@@ -109,11 +154,15 @@ public final class HostEditorModel {
 
     public init(
         store: any HostStore, editing: HostConfiguration? = nil, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(),
+        hostService: HostServiceAccess = HostServiceAccess(), icon: HostIcon = .default,
+        saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
         existing = editing
+        self.icon = icon
+        originalIcon = icon
+        self.saveIcon = saveIcon
         self.credentials = credentials
         self.hostService = hostService
         self.makeChannel = makeChannel
@@ -122,16 +171,16 @@ public final class HostEditorModel {
         } ?? false
         guard let editing else { return }
         name = editing.name
-        connectionMethod = editing.connectionMethod
+        chosenMethod = editing.connectionMethod
         if let settings = editing.ssh {
             address = settings.endpoint.host
-            port = String(settings.endpoint.port)
+            loadPort(settings.endpoint.port)
             username = settings.endpoint.username
             herdrPath = settings.herdr.path == "herdr" ? "" : settings.herdr.path
             herdrSession = settings.herdr.session ?? ""
             authentication = editing.authentication ?? .deviceKey
         } else if let hostServiceAddress = editing.hostService {
-            address = hostServiceAddress.description
+            loadHostService(hostServiceAddress)
         }
     }
 
@@ -139,31 +188,64 @@ public final class HostEditorModel {
     /// 所以連線測試只接受那一把 key(主機出示別的 key 時一樣阻擋);仍要測試通過才能儲存。
     public convenience init(
         store: any HostStore, importing shared: SharedHost, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(),
+        hostService: HostServiceAccess = HostServiceAccess(), saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
-        self.init(store: store, editing: nil, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+        self.init(
+            store: store, editing: nil, credentials: credentials, hostService: hostService, saveIcon: saveIcon, makeChannel: makeChannel)
         name = shared.name
-        address = shared.hostService?.description ?? shared.endpoint.host
-        port = String(shared.endpoint.port)
+        chosenMethod = shared.connectionMethod
+        if let hostService = shared.hostService {
+            loadHostService(hostService)
+        } else {
+            address = shared.endpoint.host
+            loadPort(shared.endpoint.port)
+        }
         username = shared.endpoint.username
         herdrPath = shared.herdr.path == "herdr" ? "" : shared.herdr.path
         herdrSession = shared.herdr.session ?? ""
-        connectionMethod = shared.connectionMethod
         if let pin = shared.hostKeyPin { accepted = (pin, shared.endpoint) }
     }
 
     /// 從主機配對指令的 QR code(`purrdr://pair?…`)新增 HTTPS 主機：帶入位址與配對碼，名稱預設是主機名稱的第一段。
     public convenience init(
         store: any HostStore, pairing link: HostServicePairingLink, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(),
+        hostService: HostServiceAccess = HostServiceAccess(), saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
-        self.init(store: store, editing: nil, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
-        connectionMethod = .https
-        address = link.address.description
+        self.init(
+            store: store, editing: nil, credentials: credentials, hostService: hostService, saveIcon: saveIcon, makeChannel: makeChannel)
+        apply(link)
+    }
+
+    /// 掃到的 QR code 內容(#250):是配對連結就選 HTTPS 並填好位址、Port、配對碼(名稱空白時用主機名稱第一段);不是就不動。
+    @discardableResult
+    public func applyScannedCode(_ text: String) -> Bool {
+        guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let link = try? HostServicePairingLink(url: url) else { return false }
+        apply(link)
+        return true
+    }
+
+    private func apply(_ link: HostServicePairingLink) {
+        chosenMethod = .https
+        loadHostService(link.address)
         pairingCode = link.pairingCode
-        name = link.address.hostName.split(separator: ".").first.map(String.init) ?? link.address.hostName
+        if name.trimmingCharacters(in: .whitespaces).isEmpty {
+            name = link.address.hostName.split(separator: ".").first.map(String.init) ?? link.address.hostName
+        }
+    }
+
+    /// HTTPS 位址拆成位址欄位與 Port 欄位(舊資料 `https://x:8443` 也一樣)。
+    private func loadHostService(_ hostService: HostServiceAddress) {
+        address = hostService.hostName
+        loadPort(hostService.port)
+    }
+
+    /// 帶入已有的 Port;與連線方式的預設不同時視為使用者指定，換方式不覆蓋。
+    private func loadPort(_ value: Int) {
+        portText = String(value)
+        isPortEdited = value != chosenMethod?.defaultPort
     }
 
     // MARK: - 狀態
@@ -172,6 +254,7 @@ public final class HostEditorModel {
 
     /// 最近一次測試成功，而且之後沒有改過任何欄位。
     public var canSave: Bool {
+        if changesOnlyIcon { return true }
         guard let tested else { return false }
         switch phase {
         case .tested, .connected: return tested.draft == draft
@@ -180,7 +263,12 @@ public final class HostEditorModel {
     }
 
     /// 有沒有未儲存的變更(按取消時要確認放棄)。
-    public var hasChanges: Bool {
+    public var hasChanges: Bool { settingsChanged || icon != originalIcon }
+
+    /// 編輯既有主機時只改了圖示：不必測試連線，儲存也不動主機設定與連線。
+    public var changesOnlyIcon: Bool { existing != nil && icon != originalIcon && !settingsChanged }
+
+    private var settingsChanged: Bool {
         let secretsEntered = !(password.isEmpty && privateKeyText.isEmpty && pairingCode.isEmpty)
         guard let existing else {
             return secretsEntered || !(name.isEmpty && address.isEmpty && username.isEmpty && herdrPath.isEmpty && herdrSession.isEmpty)
@@ -384,6 +472,16 @@ public final class HostEditorModel {
     /// 祕密先寫(寫不進 Keychain 就什麼都不存),再存主機設定;不再需要的祕密刪掉。
     @discardableResult
     public func save() -> HostConfiguration? {
+        if changesOnlyIcon, let existing {
+            saveIcon(icon, existing.id)
+            return existing
+        }
+        guard let host = saveSettings() else { return nil }
+        if icon != originalIcon { saveIcon(icon, host.id) }
+        return host
+    }
+
+    private func saveSettings() -> HostConfiguration? {
         guard canSave, let tested else { return nil }
         let id = existing?.id ?? UUID()
         if case .https(let address, let pairingCode) = tested.draft.connection {
@@ -533,6 +631,7 @@ public final class HostEditorModel {
     }
 
     private var draft: Draft? {
+        guard let connectionMethod else { return nil }
         if connectionMethod.usesHostService { return hostServiceDraft }
         let name = name.trimmingCharacters(in: .whitespaces)
         let address = address.trimmingCharacters(in: .whitespaces)
@@ -548,8 +647,9 @@ public final class HostEditorModel {
     /// HTTPS 主機：名稱、https 位址，以及配對碼(已存的 HTTPS 主機可以不填，沿用存著的權杖)。
     private var hostServiceDraft: Draft? {
         let name = name.trimmingCharacters(in: .whitespaces)
-        let code = pairingCode.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty, let address = HostServiceAddress(address) else { return nil }
+        // 配對碼是大寫字母：硬體鍵盤與貼上打的小寫也算(#236)。
+        let code = pairingCode.trimmingCharacters(in: .whitespaces).uppercased()
+        guard !name.isEmpty, let address = HostServiceAddress(addressField: address, portField: port) else { return nil }
         guard !code.isEmpty || !needsPairingCode else { return nil }
         return Draft(name: name, connection: .https(address, pairingCode: code.isEmpty ? nil : code))
     }
@@ -564,6 +664,11 @@ public final class HostEditorModel {
     private static func sameMachine(_ lhs: SSHEndpoint, _ rhs: SSHEndpoint) -> Bool {
         lhs.host == rhs.host && lhs.port == rhs.port
     }
+}
+
+private extension HostConfiguration.ConnectionMethod {
+    /// 加入主機頁的 Port 預設(#250)。
+    var defaultPort: Int { usesHostService ? 443 : 22 }
 }
 
 extension HostEditorModel.KeyCheck {

@@ -42,6 +42,28 @@ final class AgentListUITests: XCTestCase {
         XCTAssertLessThan(working.frame.minY, done.frame.minY)
     }
 
+    /// Agents 檢視是單一清單(#244):沒有分段標題，需要你仍在工作中之前;每列先念 agent 種類，再念狀態，預覽前是主機名。
+    @MainActor
+    func testAgentsViewIsSingleListWithHostPreview() {
+        let app = XCUIApplication.launchUITesting()
+        app.switchListMode(to: "Agents")
+
+        let needsYou = row("w2:p1", in: app)
+        let working = row("w3:p1", in: app)
+        XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
+        XCTAssertTrue(working.waitForExistence(timeout: 5))
+        XCTAssertTrue(needsYou.label.contains("Needs You"), "狀態點沒有念出狀態:\(needsYou.label)")
+        XCTAssertTrue(needsYou.label.contains("Demo · "), "預覽前沒有主機名:\(needsYou.label)")
+        XCTAssertTrue(working.label.contains("Now"), "工作中的列沒有「Now」:\(working.label)")
+        XCTAssertTrue(working.label.hasPrefix("Codex"), "列首頭像沒有念出 agent 種類:\(working.label)")
+        XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
+        XCTAssertFalse(app.descendants(matching: .any)["agentList.section.needsYou"].exists, "單一清單不該有分段標題")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "chat-list-agents"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     @MainActor
     func testSearchFiltersAgents() {
         let app = XCUIApplication.launchUITesting()
@@ -50,13 +72,13 @@ final class AgentListUITests: XCTestCase {
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 5), "沒有搜尋欄")
         search.tap()
-        search.typeText("weather")
+        search.typeEnglish("weather")
 
         XCTAssertTrue(row("w2:p1", in: app).waitForExistence(timeout: 5))
         XCTAssertFalse(row("w1:p1", in: app).exists, "不符合的列仍在")
         XCTAssertFalse(row("w3:p1", in: app).exists, "不符合的列仍在")
 
-        search.typeText("zzz")
+        search.typeEnglish("zzz")
         XCTAssertTrue(app.staticTexts["No Matching Agents"].waitForExistence(timeout: 5), "沒有「無符合結果」的說明")
     }
 }

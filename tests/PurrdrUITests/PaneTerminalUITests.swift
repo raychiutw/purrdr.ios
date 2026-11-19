@@ -84,7 +84,7 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertTrue(input.waitForExistence(timeout: 5), "沒有終端機輸入元件")
         XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, true, "輸入元件要是焦點")
 
-        app.typeText("ls")
+        app.typeEnglish("ls")
         waitForScreen(screen, toContain: "demo@purrdr ledger % ls")
         app.buttons["terminal.key.esc"].firstMatch.tap()
         waitForScreen(screen, toContain: "ls^[")
@@ -95,7 +95,7 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, false, "收起鍵盤後輸入元件不是焦點")
         keyboard.tap()
         XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, true, "叫出鍵盤後輸入元件回到焦點")
-        app.typeText("x")
+        app.typeEnglish("x")
         waitForScreen(screen, toContain: "ls^[x")
     }
 
@@ -107,6 +107,7 @@ final class PaneTerminalUITests: XCTestCase {
         waitForScreen(screen, toContain: "demo@purrdr ledger %")
         let input = app.descendants(matching: .any)["terminal.input"].firstMatch
         XCTAssertTrue(input.waitForExistence(timeout: 5), "沒有終端機輸入元件")
+        app.switchKeyboard(to: .zhuyin)
 
         // 模擬器接著實體鍵盤，軟體鍵盤在畫面外;以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
         for key in ["s", "u", "3"] {
@@ -139,7 +140,7 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertEqual(ctrl.value as? String, "Locked")
         XCTAssertTrue(ctrl.isSelected, "Ctrl 鎖定要有 selected 特性")
 
-        app.typeText("c")
+        app.typeEnglish("c")
         waitForScreen(screen, toContain: "^C")
         XCTAssertEqual(ctrl.value as? String, "Off", "送出後 Ctrl 要放開")
 
@@ -160,7 +161,7 @@ final class PaneTerminalUITests: XCTestCase {
         }
         waitForScreen(screen, toContain: "python export.py")
 
-        app.typeText("l")
+        app.typeEnglish("l")
         waitForScreen(screen, toContain: "demo@purrdr ledger % l")
     }
 

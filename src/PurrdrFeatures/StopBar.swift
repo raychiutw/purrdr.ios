@@ -4,8 +4,9 @@ import SwiftUI
 
 /// 輸入卡片最上面的停止列(#220):停止鈕(長按開強制結束選單)、停止中、停止的結果。
 ///
-/// 停止鈕是中性的淡填色鈕，送出維持輸入列唯一的紅底主要動作。結果有前導符號與文字(不只靠顏色),
-/// 出現時有觸覺回饋與 VoiceOver 公告;「已停止」由 model 2 秒後收起，其他結果留到處理或狀態改變。
+/// 停止鈕是中性的淡填色鈕，送出維持輸入列唯一的主色主要動作。結果有前導符號與文字(不只靠顏色),
+/// 顏色只上在符號(`StopPhase.tone`);出現時有觸覺回饋與 VoiceOver 公告;「已停止」由 model 2 秒後收起。
+/// 停止列就是輸入框上方「工作中」那一樣(`ComposerTopAccessory`)。
 struct StopBar: View {
     let model: ConversationModel
     /// 鍵盤讓位時只留一行(#196、`ComposerKeyboardLayout`)。
@@ -104,7 +105,7 @@ struct StopBar: View {
         Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: phase.title(agent: model.agentName))
-                    .foregroundStyle(phase.color)
+                    .foregroundStyle(Color.primary)
                 if !isCompact, let detail = phase.detail {
                     Text(verbatim: detail)
                         .foregroundStyle(.secondaryText)
@@ -112,7 +113,7 @@ struct StopBar: View {
             }
         } icon: {
             Image(systemName: phase.symbol)
-                .foregroundStyle(phase.color)
+                .foregroundStyle(phase.tone.style)
         }
         .font(.footnote)
         .lineLimit(isCompact ? 1 : nil)
@@ -237,16 +238,8 @@ extension StopPhase {
         switch self {
         case .stopping, .stopped: "checkmark.circle.fill"
         case .stillWorking, .needsAnswer: "exclamationmark.circle.fill"
-        case .failed, .forceQuitFailed: "exclamationmark.triangle.fill"
+        case .failed, .forceQuitFailed: ErrorLabel.symbolName
         case .unconfirmed: "questionmark.circle.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .stopping, .stopped: .successText
-        case .stillWorking, .unconfirmed, .needsAnswer: .warningText
-        case .failed, .forceQuitFailed: .errorText
         }
     }
 

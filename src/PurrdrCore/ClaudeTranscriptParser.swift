@@ -137,6 +137,7 @@ public enum ClaudeTranscriptParser {
             }
         }
         if images > 0 { parts.append(.images(images)) }
+        parts += AgentFileReference.claudeToolResultFiles(object["toolUseResult"]).map(TranscriptPart.agentFile)
         return parts
     }
 

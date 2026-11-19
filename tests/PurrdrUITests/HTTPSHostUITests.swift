@@ -34,7 +34,7 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
         app.buttons["toolbar.more"].tap()
         XCTAssertTrue(app.buttons["menu.hosts"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["menu.loginShell"].exists, "HTTPS 主機不應該有登入 Shell")
+        XCTAssertTrue(app.buttons["menu.loginShell"].exists, "選取中主機是 HTTPS 時，Demo 仍能開登入 Shell")
     }
 
     /// 唯讀配對(配對碼 `R3AD-0NLY`,#60):聊天沒有輸入框，「需要你」卡片沒有選項，兩處都說明是唯讀。
@@ -119,17 +119,33 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled)
     }
 
+    /// 配對碼是大寫字母(#236、HIG TF-1):欄位用全大寫鍵盤，小寫鍵入的字變成大寫。
+    @MainActor
+    func testPairingCodeUsesUppercaseKeyboard() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        chooseHTTPS(app)
+        app.swipeDown()
+
+        let code = app.textFields["hostEditor.pairingCode"]
+        XCTAssertTrue(code.waitForExistence(timeout: 5) || scrollTo(code, in: app))
+        code.tap()
+        code.typeEnglish("k7qm-2xpa")
+        XCTAssertEqual(code.value as? String, "K7QM-2XPA")
+    }
+
     /// 系統相機掃主機配對指令的 QR code(`purrdr://pair?…`):開啟新增主機，帶入 HTTPS、位址與配對碼。
     @MainActor
     func testPairingLinkFillsAddHost() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.buttons["toolbar.more"].waitForExistence(timeout: 10))
 
-        app.open(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net&code=K7QM-2XPA")!)
+        app.open(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")!)
 
         let address = app.textFields["hostEditor.address"]
-        XCTAssertTrue(address.waitForExistence(timeout: 10))
-        XCTAssertEqual(address.value as? String, "https://studio.tail1234.ts.net")
+        XCTAssertTrue(address.waitForExistence(timeout: 10) || scrollTo(address, in: app))
+        XCTAssertEqual(address.value as? String, "studio.tail1234.ts.net")
+        XCTAssertEqual(app.textFields["hostEditor.port"].value as? String, "8443")
         XCTAssertEqual(app.textFields["hostEditor.pairingCode"].value as? String, "K7QM-2XPA")
     }
 
@@ -147,14 +163,18 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(row.label.contains("Not Paired on This Device"), "沒有標示要配對：\(row.label)")
         row.tap()
 
+        // 編輯器先是名稱、圖示格(#239)與連線方式卡片(#250),配對欄位在畫面外;Form 不建立畫面外的列，先捲過去。
+        XCTAssertTrue(app.textFields["hostEditor.name"].waitForExistence(timeout: 5), "沒有開配對")
+        let address = app.textFields["hostEditor.address"]
+        XCTAssertTrue(address.exists || scrollTo(address, in: app), "沒有位址欄位")
+        XCTAssertEqual(address.value as? String, "studio.tail1234.ts.net")
         let code = app.textFields["hostEditor.pairingCode"]
-        XCTAssertTrue(code.waitForExistence(timeout: 5), "沒有開配對")
-        XCTAssertEqual(app.textFields["hostEditor.address"].value as? String, "https://studio.tail1234.ts.net")
+        XCTAssertTrue(code.exists || scrollTo(code, in: app), "沒有配對碼欄位")
         let test = app.buttons["hostEditor.test"]
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         XCTAssertFalse(test.isEnabled, "沒有配對碼不能測試")
         code.tap()
-        code.typeText("K7QM-2XPA")
+        code.typeEnglish("K7QM-2XPA")
         test.tap()
         let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch
         XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
@@ -179,11 +199,8 @@ final class HTTPSHostUITests: XCTestCase {
 
     @MainActor
     private func chooseHTTPS(_ app: XCUIApplication) {
-        let connection = app.buttons["hostEditor.connection"]
-        XCTAssertTrue(connection.waitForExistence(timeout: 5) || scrollTo(connection, in: app), "沒有連線方式選單")
-        connection.tap()
-        let https = app.buttons["HTTPS"].firstMatch
-        XCTAssertTrue(https.waitForExistence(timeout: 5), "沒有 HTTPS 連線方式")
+        let https = app.buttons["hostEditor.method.https"]
+        XCTAssertTrue(https.waitForExistence(timeout: 5) || scrollTo(https, in: app), "沒有 HTTPS 連線方式")
         https.tap()
     }
 
@@ -192,17 +209,24 @@ final class HTTPSHostUITests: XCTestCase {
         app.swipeDown()
         for (identifier, text) in [("name", "Studio"), ("address", "studio.tail1234.ts.net"), ("pairingCode", code)] {
             let field = app.textFields["hostEditor.\(identifier)"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5), "沒有 \(identifier) 欄位")
+            XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
-            field.typeText(text)
+            field.typeEnglish(text)
         }
     }
 
-    /// 往下捲到元素出現(表單比畫面長)。
+    /// 捲到元素出現且不在鍵盤底下(表單比畫面長):先往下，沒有再往上。
     @MainActor
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        for _ in 0..<6 where !element.isHittable {
+        let keyboard = app.keyboards.firstMatch
+        func isReachable() -> Bool {
+            element.isHittable && (!keyboard.exists || element.frame.maxY < keyboard.frame.minY)
+        }
+        for _ in 0..<6 where !isReachable() {
             app.swipeUp()
+        }
+        for _ in 0..<6 where !isReachable() {
+            app.swipeDown()
         }
         return element.exists
     }

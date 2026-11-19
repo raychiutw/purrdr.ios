@@ -82,6 +82,36 @@ pane／tab／workspace id → `w1:pA`／`w1:tA`／`w1`。對話內容是錄製�
 
 `claude-code/workflow/`(#17):**不是錄製的**。作者 Mac 上所有 `~/.claude/projects` 都沒有 `Workflow` 工具的紀錄、run 檔或 journal,所以 `run.json` 與 `journal.jsonl` 依行為規格 §4.6 描述的欄位寫成(journal 最後一行刻意撕裂)。測試裡 `Workflow` 呼叫與「Workflow launched」結果也是以 `delegation.jsonl` 的行為底改成。之後錄得到真實 workflow 時應換掉。
 
+`claude-code/agent-files.jsonl`(#223):Agent 寫檔、改檔、讀圖片、工具結果帶圖的對話紀錄,**Claude Code 2.1.328**(model `claude-haiku-5-5`),2026-11-19,Windows 11 主機(作者的 PC)。
+**不讀使用者既有的對話紀錄**:在自建的空暫存資料夾以非互動模式 `claude -p "<步驟>" --session-id <新 uuid> --model haiku --strict-mcp-config --mcp-config <自寫的 MCP>
+--allowedTools "Write,Edit,Read,mcp__shot__take_screenshot" --permission-mode acceptEdits` 跑一輪，再以 `--resume` 跑第二輪;資料夾裡只有自己產生的
+`orange.png`(16×16)、`teal.jpg`(16×16)、`wide.png`(3000×2000)。截圖工具是自寫的 stdio MCP(`shot`,`take_screenshot` 回一段文字 + 8×8 PNG),
+不碰瀏覽器或真實畫面。擷取後刪掉暫存資料夾、該 session 的 jsonl、`<session>/tool-results/` 與 `~/.claude/session-env/<session>`。
+
+| 行 | 情境 |
+|---|---|
+| 1、13 | 兩輪的使用者 prompt(錄製時自己寫的步驟) |
+| 2–3 | `Write` 新建 → `toolUseResult.type: "create"` |
+| 4–5 | `Edit` → `toolUseResult` 沒有 `type`,有 `oldString`／`newString`／`originalFile`／`structuredPatch`／`replaceAll` |
+| 6–7 | `Read` PNG → `tool_result` 內 `image` 區塊 + `toolUseResult.type: "image"` |
+| 8–9 | `Read` JPEG(`image/jpeg`) |
+| 10–11 | MCP 工具結果帶圖：`toolUseResult` 是**陣列**(text、image、`[Image: source: <路徑>]` text);CLI 另把圖存到 session 的 `tool-results/` |
+| 12、19 | 兩輪最後的文字回覆 |
+| 14–15 | `Write` 覆寫既有檔 → `type: "update"`、`originalFile`、`structuredPatch` |
+| 16–18 | `Read` 大圖(3000×2000 縮成 2000×1333):`dimensions` 原始與顯示尺寸不同，另接一行 `isMeta` 的 `[Image: original …, displayed at …]` |
+
+- **保留原樣**:行的欄位、旗標(`promptId`、`sourceToolAssistantUUID`、`permissionDecision`、`mcpCallNotReadOnly`、`isMeta`、`turnCompanion`、`caller`、`attributionMcpServer`…)、
+  `toolUseResult` 的結構與數值(`originalSize`、`dimensions`、`structuredPatch` 含 `\ No newline at end of file`)、Windows 路徑的反斜線、檔案內容(錄製用的無意義樣本)、model、usage、時間戳。
+  16×16／8×8 圖的 base64 原樣(本來就是自己產生的小圖)。
+- **換成假值**:暫存資料夾 → `C:\Users\demo\Projects\ledger`;家目錄 → `C:\Users\demo`;`~/.claude/projects/` 下的資料夾名 → `C--Users-demo-Projects-ledger`;
+  session id → `00000000-0000-4000-a000-000000000223`;uuid → `00000000-0000-4000-a000-0000000000NN`;promptId → `…-b000-…`;tool use／message／request id → `toolu_demo_fNN`／`msg_demo_fNN`／`req_demo_fNN`。
+  `wide.png` 的 base64(17 KB)換成 16×16 小圖，`dimensions`／`originalSize` 保留原值。拿掉 `wireToolInputs`、`requestRef`。
+- **只留相關行**:拿掉 thinking 行(簽章)、`ToolSearch`(載入 MCP 工具)、attachment、`api-request*`、`session-owner`(帳號 id)、`queue-operation`、`last-prompt` 等;
+  `parentUuid` 改成指向前一個保留行(第 1 行為 `null`),所以鏈結是連續的，不是原檔的鏈結。
+- 擷取腳本的做法：以 Python 讀 JSON、依欄位名換 id、對所有字串做路徑替換，再 `grep` 確認沒有真實的使用者名稱、帳號／組織 id、暫存路徑或原始 id。
+- **錄不到**:Codex 圖片生成(`saved_path`)——這台與作者的 Mac 都沒有安裝 Codex CLI;macOS／Linux 路徑形式(錄製主機是 Windows);`NotebookEdit`、`MultiEdit`、
+  `Read` PDF、`SendUserFile`(只在 Remote Control／雲端 session 可用)。
+
 ## 錄不到、以真實回應為底改動的情境
 
 測試以 `FakeReply.recorded(_:modify:)`／`Fixtures.modifiedLine` 改動真實回應，改了什麼寫在測試裡:

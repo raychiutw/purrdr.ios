@@ -167,17 +167,17 @@ struct SpacesViewTests {
         #expect(!rows.contains { $0.paneID == "w2:p1" })
     }
 
-    @Test("檢視選擇會記住;沒存過時是 Spaces")
+    @Test("檢視選擇會記住;沒存過時是 Agents")
     func modeIsRemembered() async throws {
         let store = InMemoryAgentListModeStore()
         let first = await Self.model(modeStore: store)
-        #expect(first.agentList.mode == .spaces)
+        #expect(first.agentList.mode == .agents)
 
-        first.agentList.mode = .agents
+        first.agentList.mode = .spaces
 
-        #expect(store.load() == .agents)
+        #expect(store.load() == .spaces)
         let second = await Self.model(modeStore: store)
-        #expect(second.agentList.mode == .agents)
+        #expect(second.agentList.mode == .spaces)
     }
 
     @Test("搜尋：命中 workspace 名稱時群組列出全部;只命中 agent 時群組只留命中的列;都不命中則沒有群組")

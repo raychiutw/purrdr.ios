@@ -79,6 +79,11 @@ struct ComposerBar: View {
                 .padding(.bottom, 8)
         } else {
             composer
+                .onChange(of: model.lastSlashInsertion) { _, insertion in
+                    // 選定後念出插入了哪個指令(文中選定時輸入框其他文字不變，光看朗讀不知道插了什麼,#230)。
+                    guard let insertion else { return }
+                    AccessibilityNotification.Announcement(String(localized: "Inserted /\(insertion.name)")).post()
+                }
         }
     }
 
@@ -116,9 +121,9 @@ struct ComposerBar: View {
             if !model.attachments.isEmpty && model.typedAnswer == nil {
                 AttachmentStrip(model: model)
             }
-            // Claude Code 的建議提示詞(#123):只在輸入框空白時有，點了填入並聚焦，不送出。
-            if let suggestion = model.suggestion, arrangement.suggestion != .hidden {
-                let isCompact = arrangement.suggestion == .compact
+            // Claude Code 的建議提示詞(#123):輸入框空白、沒有問題在等也不在工作時才有(#240),點了填入並聚焦，不送出。
+            if case .suggestion(let suggestion) = model.topAccessory, shownArrangement.suggestion != .hidden {
+                let isCompact = shownArrangement.suggestion == .compact
                 PromptSuggestionView(suggestion: suggestion, isCompact: isCompact) { acceptSuggestion() }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
                         if isCompact { suggestionHeights.compact = height } else { suggestionHeights.full = height }
@@ -143,9 +148,9 @@ struct ComposerBar: View {
                 }
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
                 .overlay {
-                    // 聚焦時邊框 tint(F6.1)。
+                    // 聚焦時中性邊框(F6.1);主色只留給送出鈕(HIG CO-4,#236)。
                     RoundedRectangle(cornerRadius: Self.cardCornerRadius)
-                        .strokeBorder(isFocused ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 1)
+                        .strokeBorder(isFocused ? AnyShapeStyle(.separator) : AnyShapeStyle(.clear), lineWidth: 1)
                         .allowsHitTesting(false)
                 }
             }
@@ -194,14 +199,20 @@ struct ComposerBar: View {
         conversationHeight.arrangementChanged()
     }
 
+    private var showsNote: Bool { model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible }
+
+    /// 實際顯示的方式：完整的註記與建議卡不同時出現(註記優先)。
+    private var shownArrangement: ComposerAccessoryArrangement { arrangement.sharingTopSlot(hasNote: showsNote) }
+
     private var arrangementInput: ArrangementInput {
-        let showsNote = model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible
+        var showsSuggestion = false
+        if case .suggestion = model.topAccessory, shownArrangement.suggestion != .hidden { showsSuggestion = true }
         return ArrangementInput(
             // 聚焦時才有鍵盤;實體鍵盤只有快捷列，對話夠高，規則自然完整顯示。
             // 只在聚焦時讀對話高度：沒聚焦時不必讓位，也不讓輸入列隨每次捲動量測重畫(載入、大量輸出時
             // 列表會被捲到內容之外，`ConversationUITests` 的載入與大量輸出案例)。
             keyboardShown: isFocused, conversationHeight: isFocused ? conversationHeight.value : nil,
-            note: showsNote ? noteHeights : nil, suggestion: model.suggestion == nil ? nil : suggestionHeights,
+            note: showsNote ? noteHeights : nil, suggestion: showsSuggestion ? suggestionHeights : nil,
             stopBar: model.showsStopBar ? stopBarHeights : nil,
             minimum: ComposerKeyboardLayout.minimumConversationHeight(bodyLineHeight: bodyLineHeight))
     }
@@ -216,15 +227,17 @@ struct ComposerBar: View {
                 slashKey: { model.slash.handle($0) },
                 tabKey: acceptSuggestion,
                 onComposingChange: { model.isComposingDraft = $0 },
+                caret: model.knownDraftCaret,
+                onCaretChange: { model.updateDraftCaret($1, in: $0) },
                 pasteAction: { [model] in ComposerPasteHandler.action(for: model) },
                 onPasteImages: { [model] in ComposerPasteHandler.attachPasteboardImages(to: model) },
                 onSend: send
             )
         )
         .overlay(alignment: .topLeading) {
-            if let hint = model.slashArgumentHint {
-                // 點選需要參數的 slash 指令後，游標後淡淡顯示要填什麼(#45)。草稿本身透明，只為了把提示排在它後面。
-                Text(Self.ghost(draft: model.draft, hint: hint))
+            if let hint = model.slashArgumentHint, let typed = Self.textBeforeHint(draft: model.draft, caret: model.draftCaret) {
+                // 點選需要參數的 slash 指令後，游標後淡淡顯示要填什麼(#45)。游標前的字透明，只為了把提示排在它後面。
+                Text(Self.ghost(draft: typed, hint: hint))
                     .lineLimit(1)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 11)
@@ -272,6 +285,15 @@ struct ComposerBar: View {
     /// 輸入框的提示(也是朗讀標籤)。
     private var placeholder: String {
         model.typedAnswer == nil ? String(localized: "Message") : String(localized: "Type your answer")
+    }
+
+    /// 參數提示要排在後面的字(游標前);游標後同一行還有字時不顯示，避免提示疊在字上(#230)。
+    static func textBeforeHint(draft: String, caret: Int?) -> String? {
+        let text = draft as NSString
+        guard let caret, caret <= text.length else { return nil }
+        let restOfLine = text.substring(from: caret).prefix { !$0.isNewline }
+        guard restOfLine.allSatisfy(\.isWhitespace) else { return nil }
+        return text.substring(to: caret)
     }
 
     private static func ghost(draft: String, hint: String) -> AttributedString {
@@ -343,7 +365,7 @@ struct ComposerSendButton: View {
             Group {
                 if model.isSending {
                     ProgressView()
-                        .tint(.white)
+                        .tint(OnProminentFillStyle())
                 } else {
                     Image(systemName: "arrow.up")
                         .fontWeight(.semibold)
@@ -360,11 +382,31 @@ struct ComposerSendButton: View {
 
     @ViewBuilder
     private func styled(_ button: some View) -> some View {
-        if isInCard {
-            button.filledProminentButtonStyle()
-        } else {
-            button.filledGlassProminentButtonStyle()
+        switch ComposerSendAppearance(canSend: model.canSend, isSending: model.isSending) {
+        case .prominent:
+            if isInCard {
+                button.filledProminentButtonStyle()
+            } else {
+                button.filledGlassProminentButtonStyle()
+            }
+        case .neutralDisabled:
+            // 系統 prominent 的停用外觀在深色模式是黑色實心圓(onAccent 黑字)，幾乎看不見。
+            if isInCard {
+                button.buttonStyle(NeutralDisabledSendButtonStyle())
+            } else {
+                button.buttonStyle(.glass).foregroundStyle(.secondaryText)
+            }
         }
+    }
+}
+
+/// 送出鈕的中性停用樣式：`.fill.tertiary` 圓底、次要色箭頭，尺寸同 prominent 圓鈕。
+private struct NeutralDisabledSendButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.secondaryText)
+            .padding(7)
+            .background(.fill.tertiary, in: Circle())
     }
 }
 
@@ -528,11 +570,10 @@ struct EchoBubbleView: View {
                 }
                 if !echo.text.isEmpty {
                     Text(echo.text)
-                        .foregroundStyle(.white)
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .hostFill(in: RoundedRectangle(cornerRadius: 18))
+                        .userBubbleFill()
                         .accessibilityLabel(Text("Your message. \(echo.text)"))
                 }
                 status
@@ -555,9 +596,8 @@ struct EchoBubbleView: View {
                 .foregroundStyle(.secondaryText)
         case .failed(let failure):
             HStack(spacing: 4) {
-                Label(failure.text, systemImage: "exclamationmark.circle.fill")
+                ErrorLabel(failure.text)
                     .font(.caption)
-                    .foregroundStyle(.errorText)
                 Button(action: retry) { HitTarget("Retry") }
                     .font(.caption.weight(.semibold))
                     .accessibilityIdentifier("conversation.echo.retry")
@@ -592,6 +632,10 @@ struct ComposerEditorOptions {
     var tabKey: () -> Bool = { false }
     /// 組字狀態(有 marked text)改變時呼叫(#138)。
     var onComposingChange: (Bool) -> Void = { _ in }
+    /// 程式改寫草稿時要放的游標(UTF-16 位置);`nil` 時保持與結尾的距離。
+    var caret: Int?
+    /// 游標或選取範圍改變時回報(文字、游標;有選取範圍時游標為 `nil`),在寫回草稿之前呼叫(#230)。
+    var onCaretChange: (String, Int?) -> Void = { _, _ in }
     /// 貼上(Command-V 或編輯選單)時要當圖片附件還是交給系統。
     var pasteAction: () -> ComposerPaste.Action
     var onPasteImages: () -> Void
@@ -662,7 +706,7 @@ struct ComposerTextEditor: UIViewRepresentable {
         // 程式改寫草稿：組字中延後到組字結束，不打斷正在組的字(#138)。
         if view.text != text,
            let applied = context.coordinator.overwrite.request(text, current: view.text, isComposing: view.markedTextRange != nil) {
-            view.replaceText(with: applied)
+            view.replaceText(with: applied, caret: applied == text ? options.caret : nil)
         }
         if isFocused, !view.isFirstResponder, view.window != nil {
             // 程式要求聚焦(點「Type something.」#120、接受建議後叫出鍵盤 #123):等這次畫面更新結束再取得焦點。
@@ -713,6 +757,8 @@ struct ComposerTextEditor: UIViewRepresentable {
         func textViewDidChangeSelection(_ textView: UITextView) {
             // 取消組字時文字可能沒變，只有選取範圍變。
             if textView.markedTextRange == nil, overwrite.isPending || reportedComposing { syncDraft(from: textView) }
+            // 只移動游標(文字已同步):打字時文字還沒寫回，由 syncDraft 一起回報。
+            if textView.markedTextRange == nil, textView.text == parent.text { reportCaret(of: textView) }
             (textView as? KeyHandlingTextView)?.contentDidChange()
         }
 
@@ -721,6 +767,7 @@ struct ComposerTextEditor: UIViewRepresentable {
             let isComposing = textView.markedTextRange != nil
             if let resolved = overwrite.inputChanged(textView.text, isComposing: isComposing) {
                 (textView as? KeyHandlingTextView)?.replaceText(with: resolved)
+                reportCaret(of: textView)
                 parent.text = resolved
                 reportComposing(false)
                 return
@@ -728,8 +775,14 @@ struct ComposerTextEditor: UIViewRepresentable {
             // 有延後的覆寫時草稿維持程式要的內容，組字結束再合併。
             guard !overwrite.isPending else { return }
             if isComposing { reportComposing(true) }
+            reportCaret(of: textView)
             parent.text = textView.text
             if !isComposing { reportComposing(false) }
+        }
+
+        private func reportCaret(of textView: UITextView) {
+            let selection = textView.selectedRange
+            parent.options.onCaretChange(textView.text, selection.length == 0 ? selection.location : nil)
         }
 
         private func reportComposing(_ isComposing: Bool) {
@@ -826,11 +879,12 @@ final class KeyHandlingTextView: UITextView {
         return max(0, bottom - window.safeAreaInsets.top)
     }
 
-    /// 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3)。
-    func replaceText(with newText: String) {
+    /// 程式改寫草稿(送出、被拒恢復)時，游標保持與結尾的距離(F6.3);有指定游標(選定 slash 指令，#230)時放在那裡。
+    func replaceText(with newText: String, caret: Int? = nil) {
         let fromEnd = (text as NSString).length - selectedRange.location - selectedRange.length
         text = newText
-        let location = max(0, (newText as NSString).length - max(0, fromEnd))
+        let length = (newText as NSString).length
+        let location = caret.map { min(max(0, $0), length) } ?? max(0, length - max(0, fromEnd))
         selectedRange = NSRange(location: location, length: 0)
         contentDidChange()
     }

@@ -2,6 +2,7 @@ import Foundation
 import PurrdrCore
 import PurrdrDemo
 import PurrdrSSH
+import Synchronization
 import Testing
 
 /// Demo 主機走正式程式路徑：herdr client 對它送的是跟真主機一模一樣的指令。
@@ -257,7 +258,8 @@ struct DemoHostTests {
     /// #220:停止要看得到「停止中」:收到 Esc 後約 1 秒才完成，完成時對訂閱送狀態事件(畫面靠事件更新快照)。
     @Test("停止中:Demo 的工作中 agent 收到 Esc 後約 1 秒才完成，並送出狀態事件")
     func workingDemoAgentStopsAfterAMomentAndNotifies() async throws {
-        let host = DemoHost()
+        let stopWait = HeldSleeper()
+        let host = DemoHost(sleep: stopWait.sleep)
         let client = HerdrClient(channel: host)
         let events = try await client.subscribe([.agentStatusChanged(paneID: "w3:p1")])
         let statusEvent = Task {
@@ -268,7 +270,9 @@ struct DemoHostTests {
 
         try await client.sendKeys(paneID: "w3:p1", keys: ["esc"])
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .working)
+        #expect(await stopWait.waitForRequest() == .seconds(1))
 
+        stopWait.release()
         let giveUp = Task {
             try await Task.sleep(for: .seconds(3))
             statusEvent.cancel()
@@ -279,10 +283,40 @@ struct DemoHostTests {
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
     }
 
+    /// 聊天畫面靠訂閱事件更新快照：回答提示、觸發提示的 prompt 改了狀態，也要像 herdr 一樣送狀態事件。
+    @Test("Demo 的 agent 狀態因回答或 prompt 改變時送出狀態事件", arguments: [
+        ("w2:p1", DemoStatusChange.answer),
+        ("w1:p1", DemoStatusChange.askMe),
+    ])
+    func statusChangesNotifySubscribers(paneID: String, change: DemoStatusChange) async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let events = try await client.subscribe([.agentStatusChanged(paneID: paneID)])
+        let statusEvent = Task {
+            var iterator = events.makeAsyncIterator()
+            _ = try await iterator.next()
+            return try await iterator.next()
+        }
+
+        switch change {
+        case .answer: try await client.sendKeys(paneID: paneID, keys: ["1"])
+        case .askMe: _ = try await client.prompt(target: paneID, text: "ask me", wait: nil)
+        }
+
+        let giveUp = Task {
+            try await Task.sleep(for: .seconds(3))
+            statusEvent.cancel()
+        }
+        let received = try? await statusEvent.value
+        #expect(received == .event(name: "pane.agent_status_changed", paneID: paneID))
+        giveUp.cancel()
+    }
+
     /// #210 的 UI 測試情境：送出後先只接上使用者那一行，agent 工作中且畫面有即時預覽;時間到才接上回覆並完成。
     @Test("送出後工作中情境：先接上使用者那一行並工作，時間到才接上回覆")
     func workingAfterPromptRepliesLater() async throws {
-        let host = DemoHost(scenario: .workingAfterPrompt(for: .milliseconds(300)))
+        let clock = ManualDemoClock()
+        let host = DemoHost(scenario: .workingAfterPrompt(for: .seconds(15)), now: clock.now)
         let client = HerdrClient(channel: host)
         let reader = TranscriptReader(channel: host)
         let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
@@ -297,7 +331,9 @@ struct DemoHostTests {
         #expect(try await client.snapshot().agents.first { $0.paneID == "w1:p1" }?.status == .working)
         #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w1:p1")) != nil)
 
-        try await Task.sleep(for: .milliseconds(400))
+        clock.advance(by: .seconds(14))
+        #expect(try await reader.tail(path: before.path, from: sent.end) == .unchanged, "還沒到時間不接上回覆")
+        clock.advance(by: .seconds(1))
         guard case .appended(let reply) = try await reader.tail(path: before.path, from: sent.end) else {
             Issue.record("時間到應接上回覆")
             return
@@ -536,5 +572,83 @@ struct DemoHostTailscaleCheckTests {
 
         await #expect(throws: SSHConnectionError.tailscaleCheckCancelled) { _ = try await pending.value }
         #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
+    }
+}
+
+/// 手動推進的時間(Demo 主機「送出後工作中」的到期判斷用，不真的等)。
+final class ManualDemoClock: Sendable {
+    private let current = Mutex(ContinuousClock.now)
+
+    var now: @Sendable () -> ContinuousClock.Instant {
+        { self.current.withLock { $0 } }
+    }
+
+    func advance(by duration: Duration) {
+        current.withLock { $0 += duration }
+    }
+}
+
+/// 改變 Demo agent 狀態的動作。
+enum DemoStatusChange: Sendable {
+    case answer
+    case askMe
+}
+
+/// 停止的等待：記下要求的時間，測試放行前一直等(不靠真時間，CI 忙時也不會提早完成)。
+final class HeldSleeper: Sendable {
+    private struct State {
+        var requested: Duration?
+        var released = false
+        var waiters: [CheckedContinuation<Void, Never>] = []
+    }
+
+    private let state = Mutex(State())
+
+    /// 給 Demo 主機注入的等待。
+    var sleep: Sleep {
+        { duration in
+            await self.hold(duration)
+            try Task.checkCancellation()
+        }
+    }
+
+    /// 放行所有等待(之後的等待立刻結束)。
+    func release() {
+        let waiters = state.withLock { state in
+            state.released = true
+            defer { state.waiters = [] }
+            return state.waiters
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    /// 等到有人要求等待，回傳要求的時間;逾時回 `nil`。
+    func waitForRequest(timeout: Duration = .seconds(30)) async -> Duration? {
+        let deadline = ContinuousClock.now + timeout
+        while ContinuousClock.now < deadline {
+            if let requested = state.withLock({ $0.requested }) {
+                return requested
+            }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return nil
+    }
+
+    private func hold(_ duration: Duration) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumesNow = state.withLock { state -> Bool in
+                state.requested = duration
+                if state.released {
+                    return true
+                }
+                state.waiters.append(continuation)
+                return false
+            }
+            if resumesNow {
+                continuation.resume()
+            }
+        }
     }
 }

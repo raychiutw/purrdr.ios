@@ -29,7 +29,7 @@ public final class InMemoryAgentListModeStore: AgentListModeStore {
     public func save(_ mode: AgentListMode) { self.mode = mode }
 }
 
-/// 存在 `UserDefaults`。未知或缺值一律回到 Spaces(由呼叫端處理 `nil`)。
+/// 存在 `UserDefaults`。未知或缺值回 `nil`(呼叫端用 Agents)。
 @MainActor
 public final class UserDefaultsAgentListModeStore: AgentListModeStore {
     private let defaults: UserDefaults

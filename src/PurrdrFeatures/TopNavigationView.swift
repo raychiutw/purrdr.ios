@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// 三欄 `NavigationSplitView`:主機與 workspace → Agent 列表 → 對話。依可用寬度排版(size class,不看裝置):
 /// 窄的視窗(iPhone、iPad 窄視窗、iPhone Duo 外螢幕)收合成一疊，從 Agent 列表開始，點列推入對話。
-/// 列表工具列有「⋯」選單與「+」,其餘畫面以 sheet 開啟;不採 tab bar。
+/// 列表工具列有「⋯」選單(第一項是新增聊天),其餘畫面以 sheet 開啟;不採 tab bar。
 /// 導覽狀態每個視窗一份(`TopNavigationModel`);Agent 列表本身(`AgentListView`)不知道有哪些 sheet。
 public struct TopNavigationView: View {
     @State private var navigation = TopNavigationModel()
@@ -17,7 +17,7 @@ public struct TopNavigationView: View {
     let hosts: HostsModel
     let member: MemberModel
     let settings: SettingsModel
-    /// Purrdr Plus(#28);`nil` 時選單不顯示。
+    /// Purrdr Plus(#28);`nil` 時不提供付費牆。
     let plus: SubscriptionModel?
     /// 主機同步(#30);`nil` 時設定頁不顯示。
     let hostSync: HostSyncModel?
@@ -63,16 +63,15 @@ public struct TopNavigationView: View {
                     HostListView(model: hosts, importURL: $navigation.pendingHostImport)
                 case .settings:
                     SettingsView(
-                        model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync,
-                        hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
-                        openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher,
+                        model: settings, hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
+                        codexLauncher: hosts.codexLauncher,
                         attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }
                     ) {
                         navigation.sheet = nil
                     }
                 case .member:
-                    // 會員畫面自帶 NavigationStack 與「完成」。
-                    MemberView(model: member, plus: plus)
+                    // 帳號頁(#246)自帶 NavigationStack 與「完成」。
+                    MemberView(model: member, plus: plus, push: hosts.push, hostSync: hostSync)
                 case .plus:
                     if let plus {
                         PlusSheet(model: plus, member: member)
@@ -90,12 +89,12 @@ public struct TopNavigationView: View {
                         navigation.sheet = nil
                     }
                 case .newChat:
-                    NewChatSheet(model: hosts.newChat()) {
+                    NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker()) {
                         navigation.sheet = nil
-                    } onStarted: { workspace in
+                    } onStarted: { workspace, host in
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
                         navigation.sheet = nil
-                        Task { await hosts.openStartedChat(workspace) }
+                        Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
             }
@@ -159,14 +158,10 @@ public struct TopNavigationView: View {
                 // 登入 Shell、檔案瀏覽:窄視窗推疊在列表上;三欄時顯示在對話欄。
                 .navigationDestination(item: $hostTool) { tool in
                     switch tool {
-                    case .loginShell(let model):
-                        #if canImport(UIKit)
-                        TerminalSessionView(model: model)
-                        #else
-                        Text(verbatim: model.title)
-                        #endif
-                    case .files(let model):
-                        FolderBrowserView(model: model)
+                    case .loginShell(let picker):
+                        LoginShellScreen(hosts: hosts, picker: picker)
+                    case .files(let picker):
+                        FilesScreen(hosts: hosts, picker: picker)
                     case .planUsage(let model):
                         PlanUsageView(model: model)
                     }
@@ -217,45 +212,52 @@ public struct TopNavigationView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        // 選取中主機(#39):只決定新聊天開在哪裡與套用誰的主題;所有主機的 Agent 都在列表上。
+        // 主機篩選(#244):選某台主機時同時設成選取中主機。
         ToolbarItem(placement: Self.hostPlacement) {
-            SelectedHostMenu(hosts: hosts)
+            HostFilterMenu(list: hosts.agentList)
         }
         ToolbarItem(placement: .primaryAction) {
+            // 以 Divider 分組;不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
             Menu {
-                Button("Settings", systemImage: "gearshape") { navigation.sheet = .settings }
-                    .accessibilityIdentifier("menu.settings")
-                Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
-                    .accessibilityIdentifier("menu.hosts")
-                // 方案用量(#177):獨立畫面，選主機與 Agent 後查詢。
-                Button("Plan Usage", systemImage: "gauge.with.dots.needle.33percent") { hostTool = .planUsage(hosts.planUsage()) }
-                    .accessibilityIdentifier("menu.planUsage")
-                // 選取中主機的登入 Shell 與檔案(行為規格 F13;iPad 上也是推疊)。
-                // 不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
-                // HTTPS 主機沒有登入 Shell 與檔案(ADR-0010)。
-                if hosts.selectedHostSupportsShell {
-                    Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.loginShell()) }
-                        .accessibilityIdentifier("menu.loginShell")
-                    Button("Files", systemImage: "folder") { hostTool = .files(hosts.folderBrowser()) }
-                        .accessibilityIdentifier("menu.files")
-                }
-                Button("Member", systemImage: "person.crop.circle") { navigation.sheet = .member }
-                    .accessibilityIdentifier("menu.member")
-                if plus != nil {
-                    Button("Purrdr Plus", systemImage: "bell.badge") { navigation.sheet = .plus }
-                        .accessibilityIdentifier("menu.plus")
+                let groups = MoreMenuItem.groups(supportsShell: hosts.anyHostSupportsShell)
+                ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
+                    if index > 0 { Divider() }
+                    ForEach(group, id: \.self) { item in
+                        moreMenuButton(item)
+                            .accessibilityIdentifier(item.accessibilityIdentifier)
+                    }
                 }
             } label: {
                 Label("More", systemImage: "ellipsis")
             }
             .accessibilityIdentifier("toolbar.more")
         }
-        // 「+」是主要動作(DESIGN.md:填色紅底),跟「⋯」分成兩個玻璃群組。
+        // 帳號鈕(#246):最右上角(HIG),「⋯」在它左邊;開帳號頁。
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
+            AccountButton(member: member) { navigation.sheet = .member }
+        }
+        // 頭像本身就是圓形，不再包一層玻璃。
+        .sharedBackgroundVisibility(.hidden)
+    }
+
+    /// 「⋯」選單的一項。登入 Shell 與檔案預設上次選的主機，畫面上可換(#245;iPad 上也是推疊)。
+    @ViewBuilder
+    private func moreMenuButton(_ item: MoreMenuItem) -> some View {
+        switch item {
+        case .newChat:
             Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
-                .filledGlassProminentButtonStyle()
-                .accessibilityIdentifier("toolbar.newChat")
+        case .hosts:
+            Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
+        case .planUsage:
+            // 方案用量(#177):獨立畫面，選主機與 Agent 後查詢。
+            Button("Plan Usage", systemImage: "gauge.with.dots.needle.33percent") { hostTool = .planUsage(hosts.planUsage()) }
+        case .loginShell:
+            Button("Login Shell", systemImage: "apple.terminal") { hostTool = .loginShell(hosts.hostPicker(for: .loginShell)) }
+        case .files:
+            Button("Files", systemImage: "folder") { hostTool = .files(hosts.hostPicker(for: .files)) }
+        case .settings:
+            Button("Settings", systemImage: "gearshape") { navigation.sheet = .settings }
         }
     }
 }
@@ -268,10 +270,11 @@ extension TopNavigationView {
     #endif
 }
 
-/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始、方案用量重新查一次)。
+/// 從「⋯」選單推進來的主機工具。每次打開都是新的 model(新的 shell、從家目錄開始、方案用量重新查一次);
+/// 登入 Shell 與檔案帶主機挑選鈕，換主機時畫面自己重建 model。
 enum HostTool: Hashable {
-    case loginShell(LoginShellModel)
-    case files(FolderBrowserModel)
+    case loginShell(HostPickerModel)
+    case files(HostPickerModel)
     case planUsage(PlanUsageModel)
 
     private var object: AnyObject {
@@ -286,57 +289,123 @@ enum HostTool: Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(object)) }
 }
 
-/// 新增對話的 sheet:model 在 sheet 開啟時建立一次(選取中主機),之後重繪不重建。
-private struct NewChatSheet: View {
-    @State private var model: NewChatModel
-    let onCancel: () -> Void
-    let onStarted: (CreatedWorkspace) -> Void
+/// 聊天列表右上角的帳號鈕(#246):會員的頭像字，未加入會員顯示「?」。
+struct AccountButton: View {
+    let member: MemberModel
+    let action: () -> Void
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 28
 
-    init(model: @autoclosure () -> NewChatModel, onCancel: @escaping () -> Void, onStarted: @escaping (CreatedWorkspace) -> Void) {
-        _model = State(wrappedValue: model())
+    var body: some View {
+        // 名稱放在 Label 標題與無障礙表示:AX 字級時系統把這顆收進工具列的溢出選單。
+        Button(action: action) {
+            Label {
+                Text("Account")
+            } icon: {
+                AccountAvatar(member: signedInMember)
+                    .font(.subheadline)
+                    .frame(width: size, height: size)
+                    .accessibilityRepresentation { Text("Account") }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Account"))
+        .accessibilityIdentifier("toolbar.account")
+        .task { if member.phase == .unknown { await member.restore() } }
+    }
+
+    private var signedInMember: Member? {
+        if case .signedIn(let member) = member.phase { return member }
+        return nil
+    }
+}
+
+/// 新增對話的 sheet:主機挑選鈕在 sheet 開啟時建立一次;換主機就在那台主機重建表單(#245)。
+private struct NewChatSheet: View {
+    let hosts: HostsModel
+    @State private var picker: HostPickerModel
+    let onCancel: () -> Void
+    let onStarted: (CreatedWorkspace, HostSelection) -> Void
+
+    init(
+        hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, onCancel: @escaping () -> Void,
+        onStarted: @escaping (CreatedWorkspace, HostSelection) -> Void
+    ) {
+        self.hosts = hosts
+        _picker = State(wrappedValue: picker())
         self.onCancel = onCancel
         self.onStarted = onStarted
     }
 
     var body: some View {
-        NewChatView(model: model, onCancel: onCancel, onStarted: onStarted)
+        let host = picker.selection
+        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host) }
+            .id(host)
     }
 }
 
-/// 頂部的主機鈕：顯示選取中主機的圖示與名稱，選單裡切換選取中主機(#39、DESIGN.md)。
-struct SelectedHostMenu: View {
-    let hosts: HostsModel
+/// 一台主機上的新增對話表單：model 建立一次，之後重繪不重建。
+private struct NewChatForm: View {
+    @State private var model: NewChatModel
+    let picker: HostPickerModel
+    let onCancel: () -> Void
+    let onStarted: (CreatedWorkspace) -> Void
 
-    var body: some View {
-        Menu {
-            Picker(selection: selection) {
-                Label("Demo", systemImage: HostIcon.default.symbol)
-                    .tag(HostSelection.demo)
-                ForEach(hosts.rows) { row in
-                    Label(row.title, systemImage: row.icon.symbol)
-                        .tag(HostSelection.host(row.id))
-                }
-            } label: {
-                Text("Selected Host")
-            }
-            .accessibilityIdentifier("hostMenu.picker")
-            Section {
-                Text("New chats start on the selected host. Agents on every host stay in the list.")
-            }
-        } label: {
-            Label {
-                Text(verbatim: hosts.name(of: hosts.selection))
-            } icon: {
-                Image(systemName: hosts.selectionIcon.symbol)
-            }
-            .labelStyle(.titleAndIcon)
-        }
-        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label。
-        .accessibilityLabel(Text("Selected Host: \(hosts.name(of: hosts.selection))"))
-        .accessibilityIdentifier("toolbar.host")
+    init(
+        model: @autoclosure () -> NewChatModel, picker: HostPickerModel, onCancel: @escaping () -> Void,
+        onStarted: @escaping (CreatedWorkspace) -> Void
+    ) {
+        _model = State(wrappedValue: model())
+        self.picker = picker
+        self.onCancel = onCancel
+        self.onStarted = onStarted
     }
 
-    private var selection: Binding<HostSelection> {
-        Binding { hosts.selection } set: { hosts.select($0) }
+    var body: some View {
+        NewChatView(model: model, hostPicker: picker, onCancel: onCancel, onStarted: onStarted)
+    }
+}
+
+/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;選某一台時同時設成選取中主機。
+struct HostFilterMenu: View {
+    @Bindable var list: MergedAgentListModel
+
+    var body: some View {
+        let current = list.hostFilter.flatMap { list.hostLabel(of: $0) }
+        Menu {
+            Picker(selection: $list.hostFilter) {
+                Label("All Hosts", systemImage: "square.grid.2x2")
+                    .tag(HostSelection?.none)
+                ForEach(list.hostFilterOptions) { option in
+                    HostMenuLabel(option.name, icon: option.icon)
+                        .tag(HostSelection?.some(option.id))
+                }
+            } label: {
+                Text("Hosts")
+            }
+            .accessibilityIdentifier("hostFilter.picker")
+        } label: {
+            // 工具列的 Label 只畫圖示，自己排「主機圖示＋名稱＋▾」(原型 purrdr-screens.html);膠囊由工具列玻璃提供。
+            HStack(spacing: 6) {
+                HostIconBadge(current?.icon ?? .default, diameter: 24)
+                Group {
+                    if let current {
+                        Text(verbatim: current.name)
+                    } else {
+                        Text("All Hosts")
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityHidden(true)
+            }
+            .padding(.trailing, 4)
+        }
+        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
+        .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))
+        .accessibilityIdentifier("toolbar.hostFilter")
     }
 }

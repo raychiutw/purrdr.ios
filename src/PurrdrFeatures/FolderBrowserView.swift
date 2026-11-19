@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrSSH
 import SwiftUI
@@ -7,20 +8,37 @@ import UniformTypeIdentifiers
 /// 下拉重新整理。資料夾在前，點資料夾或 symlink 打開，檔案只顯示大小與修改時間。
 public struct FolderBrowserView: View {
     let model: FolderBrowserModel
+    /// 標題列中間的主機挑選鈕(#245);沒有時副標顯示主機名稱。
+    let hostPicker: HostPickerModel?
     @State private var importing = false
 
-    public init(model: FolderBrowserModel) {
+    public init(model: FolderBrowserModel, hostPicker: HostPickerModel? = nil) {
         self.model = model
+        self.hostPicker = hostPicker
     }
 
     public var body: some View {
         content
             .navigationTitle(model.title)
-            .navigationSubtitle(model.hostName)
+            .navigationSubtitle(hostPicker == nil ? model.hostName : "")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
+                if let hostPicker {
+                    // 主機挑選鈕佔標題位置，資料夾名稱移到它下面。
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: 2) {
+                            HostPickerButton(model: hostPicker, identifier: "files.host")
+                            Text(model.title)
+                                .font(.caption)
+                                .foregroundStyle(.secondaryText)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .accessibilityIdentifier("files.folder")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Enclosing Folder", systemImage: "arrow.up") {
                         Task { await model.goUp() }

@@ -1,10 +1,11 @@
 import PurrdrAgentFeatures
 import PurrdrCore
+import QuickLook
 import SwiftUI
 
 /// 對話畫面(閱讀，行為規格 F5;DESIGN.md 方向 A)。
 ///
-/// - 使用者泡泡右對齊、填色紅底白字;agent 文字不是泡泡，全寬如文件。內容層一律不用 Liquid Glass。
+/// - 使用者泡泡右對齊、主色填色;agent 文字不是泡泡，全寬如文件。內容層一律不用 Liquid Glass。
 /// - thinking 與工具呼叫收合成一行摘要(DisclosureGroup);呼叫 skill 顯示「Loaded skill: <名稱>」。
 /// - 只在使用者位於底部時自動捲到底(`ConversationScroll`)。
 /// - 往上捲到接近頂端時載入更早的訊息。
@@ -69,6 +70,7 @@ public struct ConversationView: View {
                 show: { viewerImage = ViewerImage(url: $0) }
             ))
             .imageViewer(item: $viewerImage)
+            .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
             .environment(\.delegationContext, DelegationContext(
                 workflowModel: { [model] in model.workflowModel(for: $0) },
                 canOpen: { [model] in model.canOpen($0) }
@@ -435,28 +437,131 @@ struct ConversationItemView: View {
             WorkflowCardView(card: card)
         case .shell(let run):
             ShellRunView(run: run)
+        case .agentFile(let card) where card.file.isImageFromAgent:
+            AgentImageCardView(card: card)
+        case .agentFile(let card):
+            AgentFileCardView(card: card)
         }
     }
 }
 
 /// agent 的訊息。VoiceOver:一則訊息一個元素，開頭念「Agent」(HIG 20.5,#35)。
 /// 有程式碼區塊或表格時改成容器：程式碼要能單獨橫捲、複製，表格要能逐格讀，不併成一長串。
+///
+/// 文字中的主機路徑可點(#229):在 app 內沿用檔案卡片的開啟流程(圖片看大圖、其他用 QuickLook),不交給系統;點之前不讀檔。
 struct AgentMessageView: View {
     let text: AgentText
+    @Environment(\.agentImages) private var context
+    /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
+    @State private var openedPath: String?
+    @State private var previewFile: URL?
+    @State private var viewer: AgentImageViewerItem?
 
     var body: some View {
         let markdown = MarkdownView(text.markdown)
-        markdown
-            .accessibilityElement(children: markdown.hasStructuredBlocks ? .contain : .combine)
-            .accessibilityLabel { label in
-                Text("Agent:")
-                label
+        VStack(alignment: .leading, spacing: 6) {
+            markdown
+                .accessibilityElement(children: markdown.hasStructuredBlocks ? .contain : .combine)
+                .accessibilityLabel { label in
+                    Text("Agent:")
+                    label
+                }
+                .accessibilityIdentifier("conversation.agent")
+            if let openedPath {
+                HostPathOpenStatus(path: openedPath, loads: context.loads) {
+                    context.loads?.cancelOpen(openedPath)
+                    self.openedPath = nil
+                }
             }
-            .accessibilityIdentifier("conversation.agent")
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            guard let path = HostPathMention.path(fromLink: url) else { return .systemAction }
+            Task { @MainActor in open(path) }
+            return .handled
+        })
+        .quickLookPreview($previewFile)
+        .agentImageViewer(item: $viewer)
+    }
+
+    private func open(_ path: String) {
+        openedPath = path
+        guard let loads = context.loads else { return }
+        let scope = context.scope()
+        Task {
+            if HostPathOpenStatus.isImage(path) {
+                await loads.load(path, scope: scope, userRequested: true)
+                guard case .loaded(let data, _) = loads.states[path] else { return }
+                viewer = AgentImageViewerItem(data: data, name: HostPathOpenStatus.name(of: path))
+            } else {
+                guard let file = await loads.open(path, scope: scope) else { return }
+                previewFile = file
+            }
+            if openedPath == path { openedPath = nil }
+        }
     }
 }
 
-/// 使用者泡泡：右對齊、紅底填色(`hostFill`,白字 ≥ 4.5:1)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
+/// 點了訊息內路徑後的狀態(#229):下載中(可取消)或開不了的原因，文字與檔案卡片相同。
+struct HostPathOpenStatus: View {
+    let path: String
+    let loads: AgentFileLoads?
+    let cancel: () -> Void
+
+    static func isImage(_ path: String) -> Bool { AgentFileReference(origin: .readImage, path: path).kind == .image }
+    static func name(of path: String) -> String { AgentFileReference(origin: .readImage, path: path).name }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if let loads, Self.isImage(path) {
+                let state = loads.states[path]
+                if let note = AgentImageCardDisplay(state: state).note {
+                    noteText(note)
+                } else if state == .loading {
+                    ProgressView()
+                        .accessibilityLabel(Text("Loading image"))
+                        .accessibilityIdentifier("conversation.hostPath.progress")
+                }
+            } else if let loads {
+                let display = AgentFileOpenDisplay(state: loads.opens[path])
+                if display.isDownloading {
+                    Group {
+                        if let progress = display.progress {
+                            ProgressView(value: progress)
+                        } else {
+                            ProgressView()
+                        }
+                    }
+                    .accessibilityLabel(Text("Downloading \(Self.name(of: path))"))
+                    .accessibilityIdentifier("conversation.hostPath.progress")
+                    Button("Cancel", action: cancel)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("conversation.hostPath.cancel")
+                } else if let note = display.note {
+                    noteText(note)
+                }
+            } else if let note = AgentFileOpenDisplay(state: .unsupported).note {
+                noteText(note)
+            }
+        }
+        .font(.footnote)
+    }
+
+    private func noteText(_ note: String) -> some View {
+        Text(note)
+            .foregroundStyle(.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("conversation.hostPath.note")
+    }
+}
+
+extension View {
+    /// 使用者泡泡的底：系統次要填色、主要色文字(#240);大面積不用主色，agent 與使用者靠位置區分。
+    func userBubbleFill() -> some View {
+        foregroundStyle(.primary).background(.fill.secondary, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+/// 使用者泡泡：右對齊、中性填色(`userBubbleFill`)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
 struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
@@ -472,11 +577,10 @@ struct UserBubbleView: View {
                 }
                 if !bubble.text.isEmpty {
                     Text(bubble.text)
-                        .foregroundStyle(.white)
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .hostFill(in: RoundedRectangle(cornerRadius: 18))
+                        .userBubbleFill()
                 }
                 if let date = bubble.date {
                     Text(date, format: .dateTime.hour().minute())
@@ -559,13 +663,14 @@ struct ToolStepView: View {
             } label: {
                 Label("Thinking", systemImage: "brain")
                     .font(.subheadline)
+                    .foregroundStyle(Color.primary)
             }
         case .call(let call):
             if let result = call.result, !result.isEmpty {
                 DisclosureGroup(isExpanded: $expanded) {
                     Text(result.split(separator: "\n", omittingEmptySubsequences: false).prefix(12).joined(separator: "\n"))
                         .font(.caption.monospaced())
-                        .foregroundStyle(call.isError ? AnyShapeStyle(.errorText) : AnyShapeStyle(.secondaryText))
+                        .foregroundStyle(.secondaryText)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
@@ -582,6 +687,7 @@ struct ToolStepView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(call.name)
                     .font(.subheadline)
+                    .foregroundStyle(Color.primary)
                 if !call.input.isEmpty {
                     Text(call.input)
                         .font(.caption.monospaced())

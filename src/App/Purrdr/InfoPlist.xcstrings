@@ -1,0 +1,24 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSCameraUsageDescription" : {
+      "comment" : "相機權限說明：聊天拍照與掃描主機配對 QR code(#250)。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr uses the camera to take photos for your chats and to scan the pairing QR code a host shows."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會用相機拍照傳到聊天，以及掃描主機顯示的配對 QR code。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

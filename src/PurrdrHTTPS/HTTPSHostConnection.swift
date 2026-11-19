@@ -356,6 +356,7 @@ public actor HTTPSHostConnection: HostConnection {
         case .transcriptCompressed: TranscriptReadError.compressed
         case .transcriptNotAllowed: TranscriptReadError.invalidReference
         case .transcriptUnsupported: HostServiceError.unsupported("transcript")
+        case .fileChanged: HostFileFetchError.changed
         case .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
         }
     }

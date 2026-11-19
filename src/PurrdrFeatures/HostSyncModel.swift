@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 
 /// 主機清單的變更(新增、修改、刪除)要通知誰。`HostsModel` 在使用者改動主機時呼叫;主機同步據此記下修改並上傳。
@@ -48,7 +49,7 @@ public final class UserDefaultsHostSyncStore: HostSyncStore {
     }
 }
 
-/// 主機同步(GLOSSARY「主機同步」、ADR-0007):會員主動開啟，主機名稱、位址、使用者、連線方式、host key 指紋
+/// 主機同步(GLOSSARY「主機同步」、ADR-0007):會員主動開啟，主機名稱、位址、使用者、連線方式、host key 指紋、主機圖示
 /// 在會員的各裝置間同步。以單一主機為單位最後修改者勝(後台判定);刪除留紀錄、不被同步回來;私鑰與密碼永不上傳。
 ///
 /// 要有 Purrdr Plus(`SubscriptionModel.isPlusActive`):沒有就不開啟;開啟後到期就停止同步並提示續訂。
@@ -144,7 +145,8 @@ public final class HostSyncModel: HostChangeRecorder {
             return
         }
         var journal = store.journal
-        let changes = journal.pendingChanges(hosts: hosts.hosts, now: now())
+        let icons = Dictionary(hosts.hosts.map { ($0.id, hosts.icon(for: $0.id).rawValue) }, uniquingKeysWith: { first, _ in first })
+        let changes = journal.pendingChanges(hosts: hosts.hosts, icons: icons, now: now())
         store.journal = journal
         let snapshot: HostSyncSnapshot
         do {

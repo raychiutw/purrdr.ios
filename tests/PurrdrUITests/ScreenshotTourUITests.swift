@@ -68,7 +68,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let text = openChat("w1:p1", in: app)
         text.tap()
-        text.typeText("/")
+        text.typeEnglish("/")
         XCTAssertTrue(element("slash.row.demo-kit:changelog", in: app).waitForExistence(timeout: 10), "沒有 slash 選單")
         capture("04-slash-menu", app)
     }
@@ -78,7 +78,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let text = openChat("w1:p1", in: app)
         text.tap()
-        text.typeText("/model")
+        text.typeEnglish("/model")
         element("slash.row.model", in: app).tap()
         element("composer.send", in: app).tap()
         XCTAssertTrue(element("panel.card", in: app).waitForExistence(timeout: 10), "沒有 /model 面板卡片")
@@ -91,7 +91,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let text = openChat("w1:p1", in: app)
         text.tap()
-        text.typeText("/effort")
+        text.typeEnglish("/effort")
         element("slash.row.effort", in: app).tap()
         element("composer.send", in: app).tap()
         XCTAssertTrue(element("panel.levels", in: app).waitForExistence(timeout: 10), "沒有 /effort 面板卡片")
@@ -104,7 +104,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let text = openChat("w1:p1", in: app)
         text.tap()
-        text.typeText("!git status")
+        text.typeEnglish("!git status")
         element("composer.send", in: app).tap()
         XCTAssertTrue(element("conversation.shell", in: app).waitForExistence(timeout: 15), "沒有 shell 區塊")
         element("composer.hideKeyboard", in: app).tap()
@@ -137,13 +137,14 @@ final class ScreenshotTourUITests: XCTestCase {
     }
 
     @MainActor
-    func test10PushSettings() {
+    func test10Account() {
         let app = XCUIApplication.uiTesting()
         app.launch()
-        app.open(URL(string: "purrdr://settings")!)
-        XCTAssertTrue(element("sheet.settings", in: app).waitForExistence(timeout: 10))
-        XCTAssertTrue(app.switches["settings.push"].waitForExistence(timeout: 10), "設定頁沒有推播開關")
-        capture("10-push-settings", app)
+        // 通知與主機同步在帳號頁的「設定 Purrdr Plus」步驟卡(#246)。
+        XCTAssertTrue(app.buttons["toolbar.account"].waitForExistence(timeout: 10))
+        app.buttons["toolbar.account"].tap()
+        XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10), "帳號頁沒有步驟卡")
+        capture("10-account", app)
     }
 
     @MainActor

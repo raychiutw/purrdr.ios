@@ -35,7 +35,7 @@ enum WindowsScripts {
     /// - `PStrip`:剝除圖片(與 POSIX 的 `sed` 相同的兩個規則，逐行套用)。
     /// - `PLines`:把 `$b[$i..$t)` 裡**完整**的行(以 `\n` 結尾)印成「原始 byte 長度 TAB 剝除後的行」。
     /// - `PRead`:從 `$s` 讀 `$n` bytes(檔案較短時讀到結尾)。
-    /// - `PChunk`:分段追趕(#130)印出 `$p` 之後累計不超過 `$m` 的完整行，回傳新游標。
+    /// - `PCatchUpLines`:分段追趕(#130)印出 `$p` 之後累計不超過 `$m` 的完整行，回傳新游標。
     /// - `PAnchor`:`$e` 之前 64 bytes 的 SHA-256 前 8 bytes(換檔判斷，追蹤用)。
     /// - `PFail`:丟出帶 exit code 的錯誤，由呼叫處決定要結束還是略過(列表預覽一個失敗不影響其他)。
     static let transcriptFunctions = #"""
@@ -43,7 +43,7 @@ enum WindowsScripts {
         function PLines([byte[]]$b,[int]$i,[int]$t){while($i -lt $t){$j=[Array]::IndexOf($b,[byte]10,$i,$t-$i);if($j -lt 0){break};PWrite ("$($j-$i)`t"+(PStrip $u.GetString($b,$i,$j-$i))+"`n");$i=$j+1}}
         function POpen([string]$f){[IO.File]::Open($f,'Open','Read','ReadWrite,Delete')}
         function PRead($h,[long]$s,[long]$n){$b=New-Object byte[] $n;[void]$h.Seek($s,'Begin');$t=0;while($t -lt $n){$r=$h.Read($b,$t,$n-$t);if($r -le 0){break};$t+=$r};if($t -lt $n){$c=New-Object byte[] $t;[Array]::Copy($b,$c,$t);$b=$c};,$b}
-        function PChunk($h,[long]$p,[long]$z,[long]$m){$r=$z-$p;$n=[Math]::Min($r,$m);while($true){$b=PRead $h $p $n;$j=[Array]::LastIndexOf($b,[byte]10);if($j -ge 0 -or $n -ge $r){break};$n=[Math]::Min($r,$n*2)};if($n -gt $m){$j=[Array]::IndexOf($b,[byte]10);if($j -ge 0){$c=$u.GetBytes((PStrip $u.GetString($b,0,$j)));PWrite "$j`t";$o.Write($c,0,[int][Math]::Min($c.Length,$m));PWrite "`n";return $p+$j+1}}elseif($j -ge 0){PLines $b 0 ($j+1);return $p+$j+1};$p}
+        function PCatchUpLines($h,[long]$p,[long]$z,[long]$m){$r=$z-$p;$n=[Math]::Min($r,$m);while($true){$b=PRead $h $p $n;$j=[Array]::LastIndexOf($b,[byte]10);if($j -ge 0 -or $n -ge $r){break};$n=[Math]::Min($r,$n*2)};if($n -gt $m){$j=[Array]::IndexOf($b,[byte]10);if($j -ge 0){$c=$u.GetBytes((PStrip $u.GetString($b,0,$j)));PWrite "$j`t";$o.Write($c,0,[int][Math]::Min($c.Length,$m));PWrite "`n";return $p+$j+1}}elseif($j -ge 0){PLines $b 0 ($j+1);return $p+$j+1};$p}
         function PAnchor($h,[long]$e){if($e -le 0){return '0'};$x=[Math]::Max([long]0,$e-64);$b=PRead $h $x ($e-$x);-join ([Security.Cryptography.SHA256]::Create().ComputeHash($b)[0..7]|%{$_.ToString('x2')})}
         function PFail([int]$c){throw "purrdr-exit:$c"}
         function PCode($e){if("$($e.Exception.Message)" -match '^purrdr-exit:(\d+)$'){[int]$Matches[1]}else{1}}
@@ -124,7 +124,7 @@ enum WindowsScripts {
         $f=$a[0];$p=[long]$a[1];$m=[long]$a[2]
         $z=PProbe $f
         PWrite "$z`n"
-        if($z -gt $p){$h=POpen $f;[void](PChunk $h $p $z $m);$h.Close()}
+        if($z -gt $p){$h=POpen $f;[void](PCatchUpLines $h $p $z $m);$h.Close()}
         }
         """#
 
@@ -148,7 +148,7 @@ enum WindowsScripts {
         $size=$handle.Length;$stamp="$([IO.File]::GetLastWriteTimeUtc($file).Ticks)-$size"
         if($size -lt $cursor -or ($knownAnchor -cne '-' -and (PAnchor $handle $cursor) -cne $knownAnchor)){PWrite "replaced $size`n"}
         elseif($stamp -ceq $knownStamp){PWrite "unchanged`n"}
-        else{$limit=[long]$a[0];if(($size-$cursor) -gt $limit){$limit=[long]$a[1]};PWrite "appended $size $stamp`n";$end=$cursor;if($size -gt $cursor){$end=PChunk $handle $cursor $size $limit};PWrite "end $end $(PAnchor $handle $end)`n"}
+        else{$limit=[long]$a[0];if(($size-$cursor) -gt $limit){$limit=[long]$a[1]};PWrite "appended $size $stamp`n";$end=$cursor;if($size -gt $cursor){$end=PCatchUpLines $handle $cursor $size $limit};PWrite "end $end $(PAnchor $handle $end)`n"}
         }
         }
         }catch{PWrite "error 5`n"}finally{if($handle){$handle.Close()}}
@@ -475,6 +475,151 @@ enum WindowsScripts {
         $d=PPath '.purrdr'
         if([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Directory|?{$_.Name -clike 'push-*'})){if([IO.File]::Exists((Join-Path $e.FullName 'pairing'))){PWrite "$($e.Name)/pairing`n"}}}
         $o.Flush()
+        """#
+
+    // MARK: - 主機取檔(#226)
+
+    /// `HostFileFetchScript.follow` 的 PowerShell 版，協定相同。參數(`$a`):閒置、總長秒數、大小上限。
+    static func hostFileFetch(arguments values: [String]) -> String {
+        [prelude, arguments(values), fetchSettings, transcriptFunctions, hostFileFunctions, hostFileFetchScript].joined(separator: "\n")
+    }
+
+    /// 排除清單的 `-like` 樣式(路徑轉成小寫、`/` 分隔後比對)與一次讀取的上限。
+    static var fetchSettings: String {
+        let patterns = HostFileAccessPolicy.excludedLocations.flatMap { location in
+            ["*/\(location.lowercased())", "*/\(location.lowercased())/*"]
+        }
+        return "$purrdrExcluded=@(" + patterns.map(PowerShell.quote).joined(separator: ",") + ");$purrdrChunk=\(HostFileFetchScript.maximumChunk)"
+    }
+
+    /// 存取規則與 POSIX 版、主機服務相同(共用案例 `vendor/purrdr-host/protocol/host-file-access.json`):工作目錄不能是磁碟機根目錄、
+    /// `%USERPROFILE%` 或它的上層;沒有工作目錄(`-`,`HostFileFetchScript.noWorkingDirectory`)時只放行 `%TEMP%`、
+    /// 家目錄的 `AppData\Local\Temp`、`.purrdr\uploads` 與 Claude 的 `tool-results`。先比對請求的路徑，再以
+    /// `GetFinalPathNameByHandle` 取得 junction／symlink／8.3 短檔名都解析後的實際路徑比對;讀取用的 handle 也再核對一次。
+    /// 只收磁碟機路徑,ADS、UNC 拒絕。版本是「SHA-256:大小」;從頭讀時把內容留在記憶體當快照，之後的分塊都從快照切。
+    static let hostFileFetchScript = #"""
+        Add-Type -TypeDefinition @'
+        using System;
+        using System.Runtime.InteropServices;
+        using System.Text;
+        using Microsoft.Win32.SafeHandles;
+        public static class PurrdrFinalPath {
+          const uint NoAccess = 0;
+          const uint ShareReadWriteDelete = 7;
+          const uint OpenExisting = 3;
+          const uint BackupSemantics = 0x02000000;
+          public const int AccessDenied = 5;
+          [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+          static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+          [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+          static extern uint GetFinalPathNameByHandleW(SafeFileHandle handle, StringBuilder buffer, uint size, uint flags);
+          public static int LastError;
+          public static string OfHandle(SafeFileHandle handle) {
+            var buffer = new StringBuilder(1024);
+            uint length = GetFinalPathNameByHandleW(handle, buffer, (uint)buffer.Capacity, 0);
+            if (length >= buffer.Capacity) { buffer = new StringBuilder((int)length + 1); length = GetFinalPathNameByHandleW(handle, buffer, (uint)buffer.Capacity, 0); }
+            if (length == 0 || length >= buffer.Capacity) { LastError = Marshal.GetLastWin32Error(); return null; }
+            var path = buffer.ToString();
+            if (path.StartsWith(@"\\?\UNC\")) { return @"\\" + path.Substring(8); }
+            if (path.StartsWith(@"\\?\")) { return path.Substring(4); }
+            return path;
+          }
+          public static string Of(string path) {
+            LastError = 0;
+            using (var handle = CreateFileW(path, NoAccess, ShareReadWriteDelete, IntPtr.Zero, OpenExisting, BackupSemantics, IntPtr.Zero)) {
+              if (handle.IsInvalid) { LastError = Marshal.GetLastWin32Error(); return null; }
+              return OfHandle(handle);
+            }
+          }
+        }
+        '@
+        $idleSeconds=[int]$a[0];$totalSeconds=[int]$a[1];$maximumSize=[long]$a[2];$requestReader=$s
+        # 請求裡「沒有工作目錄」(只因對話紀錄提到而放行),同 HostFileFetchScript.noWorkingDirectory。
+        $noRoot='-'
+        $homeFinal=$null;if($env:USERPROFILE){$homeFinal=[PurrdrFinalPath]::Of($env:USERPROFILE)}
+        $temporaryFinal=$null;if($env:TEMP){$temporaryFinal=[PurrdrFinalPath]::Of($env:TEMP)}
+        function PDrivePath([string]$path){$path -match '^[A-Za-z]:[\\/]' -and $path.IndexOf(':',2) -lt 0}
+        function PPlainPath([string]$path){(PDrivePath $path) -and -not @($path.Split([char[]]'\/') | Where-Object { $_ -eq '.' -or $_ -eq '..' }).Count}
+        function PComparable([string]$path){$path.Replace('/','\').TrimEnd('\').ToLowerInvariant()}
+        function PUnder([string]$path,[string]$folder){if(-not $folder){return $false};(PComparable $path).StartsWith((PComparable $folder)+'\')}
+        function PExcluded([string]$path){$lowered=$path.Replace('\','/').ToLowerInvariant();foreach($pattern in $purrdrExcluded){if($lowered -like $pattern){return $true}};$false}
+        function PHomeForms{@($env:USERPROFILE,$homeFinal) | Where-Object { $_ }}
+        function PTooBroad([string]$folder){
+        $comparableFolder=PComparable $folder
+        if($comparableFolder -match '^[a-z]:$'){return $true}
+        foreach($homeFolder in PHomeForms){$comparableHome=PComparable $homeFolder;if($comparableHome -eq $comparableFolder -or $comparableHome.StartsWith($comparableFolder+'\')){return $true}}
+        $false
+        }
+        function PMentionable([string]$path){
+        $locations=@($env:TEMP,$env:TMP,$temporaryFinal)
+        foreach($homeFolder in PHomeForms){$locations+=(Join-Path $homeFolder 'AppData\Local\Temp');$locations+=(Join-Path $homeFolder '.purrdr\uploads')}
+        foreach($location in $locations){if(PUnder $path $location){return $true}}
+        foreach($homeFolder in PHomeForms){if((PComparable $path) -like ((PComparable $homeFolder)+'\.claude\projects\*\*\tool-results\*')){return $true}}
+        $false
+        }
+        function PAllowed([string]$path,[string]$root){
+        if(PExcluded $path){return $false}
+        if($root -ceq $noRoot){return (PMentionable $path)}
+        if(PTooBroad $root){return $false}
+        PUnder $path $root
+        }
+        function PLocate([string]$path,[string]$root){
+        $script:fetchHandle=$null
+        if(-not (PPlainPath $path) -or ($root -cne $noRoot -and -not (PPlainPath $root))){return 'denied'}
+        try{$path=[IO.Path]::GetFullPath($path);if($root -cne $noRoot){$root=[IO.Path]::GetFullPath($root)}}catch{return 'denied'}
+        if(-not (PAllowed $path $root)){return 'denied'}
+        if($root -ceq $noRoot){$rootFinal=$noRoot}else{$rootFinal=[PurrdrFinalPath]::Of($root);if(-not $rootFinal){return 'missing'}}
+        $final=[PurrdrFinalPath]::Of($path)
+        if(-not $final){if([PurrdrFinalPath]::LastError -eq [PurrdrFinalPath]::AccessDenied){return 'unreadable'};return 'missing'}
+        if(-not (PAllowed $final $rootFinal)){return 'denied'}
+        if([IO.Directory]::Exists($final)){return 'other'}
+        try{$handle=POpen $final}catch{return 'unreadable'}
+        if([PurrdrFinalPath]::OfHandle($handle.SafeFileHandle) -cne $final){$handle.Close();return 'denied'}
+        if($handle.Length -gt $maximumSize){$size=$handle.Length;$handle.Close();return "toolarge $size"}
+        $script:fetchHandle=$handle;$script:fetchTarget=$final
+        'file'
+        }
+        function PDecode([string]$encoded){try{$u.GetString([Convert]::FromBase64String($encoded))}catch{''}}
+        function PRequestRoot([string]$encoded){if($encoded -ceq $noRoot){$noRoot}else{PDecode $encoded}}
+        function PStat([string]$path,[string]$root){
+        $verdict=PLocate $path $root
+        if($verdict -cne 'file'){PWrite "$verdict`n";return}
+        $handle=$script:fetchHandle;try{$contents=PRead $handle 0 $handle.Length}catch{PWrite "unreadable`n";return}finally{$handle.Close()}
+        PWrite "file $(PHashOf $contents) $($contents.Length)`n"
+        }
+        function PReadChunk([string]$path,[string]$root,[string]$version,[string]$offsetText,[string]$lengthText){
+        $verdict=PLocate $path $root
+        if($verdict -cne 'file'){PWrite "$verdict`n";return}
+        $handle=$script:fetchHandle
+        try{
+        if($offsetText -notmatch '^\d{1,15}$' -or $lengthText -notmatch '^\d{1,15}$'){PWrite "bad`n";return}
+        if([long]$offsetText -eq 0 -or $script:snapshotPath -cne $script:fetchTarget -or $script:snapshotVersion -cne $version){
+        try{$contents=PRead $handle 0 $handle.Length}catch{PWrite "unreadable`n";return}
+        $script:snapshot=$contents;$script:snapshotVersion=PHashOf $contents;$script:snapshotPath=$script:fetchTarget
+        }
+        }finally{$handle.Close()}
+        if($script:snapshotVersion -cne $version){PWrite "changed`n";return}
+        $total=[long]$script:snapshot.Length;$start=[long]$offsetText;$count=[Math]::Min([long]$lengthText,[long]$purrdrChunk)
+        if($start -ge $total){$count=0}elseif($start+$count -gt $total){$count=$total-$start}
+        $encoded=[Convert]::ToBase64String($script:snapshot,[int]$start,[int]$count)
+        PWrite "chunk $start $count $($encoded.Length)`n$encoded`n"
+        }
+        $purrdrEnd=[DateTime]::UtcNow.AddSeconds($totalSeconds)
+        function PIdle{$idleUntil=[DateTime]::UtcNow.AddSeconds($idleSeconds);if($idleUntil -gt $purrdrEnd){$idleUntil=$purrdrEnd};$purrdrLimit.At=$idleUntil}
+        PIdle
+        while(($request=$requestReader.ReadLine()) -ne $null){
+        PIdle
+        $fields=@($request.Split([char]' ',[StringSplitOptions]::RemoveEmptyEntries))
+        try{
+        if($fields.Count -eq 3 -and $fields[0] -ceq 'stat'){PStat (PDecode $fields[1]) (PRequestRoot $fields[2])}
+        elseif($fields.Count -eq 6 -and $fields[0] -ceq 'read'){PReadChunk (PDecode $fields[1]) (PRequestRoot $fields[2]) $fields[3] $fields[4] $fields[5]}
+        else{PWrite "bad`n"}
+        }catch{PWrite "unreadable`n"}
+        PWrite "end`n"
+        $o.Flush()
+        }
+        $o.Flush()
+        exit 0
         """#
 
     // MARK: - Claude Code 的 slash 清單探索(#68,`ClaudeSlashCommand`)
