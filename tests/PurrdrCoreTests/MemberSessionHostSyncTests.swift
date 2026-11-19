@@ -67,9 +67,10 @@ struct MemberSessionHostSyncTests {
         let backend = FakeBackend(acceptsIcon: true)
         let session = try makeSession(backend)
 
-        _ = try await session.syncHosts(Self.changes())
+        let snapshot = try await session.syncHosts(Self.changes())
 
         #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"]])
+        #expect(!snapshot.iconsSkipped)
     }
 
     @Test("舊後台拒絕 icon:同一次同步改送不含圖示的版本，其他欄位照常同步成功")
@@ -79,7 +80,7 @@ struct MemberSessionHostSyncTests {
 
         let snapshot = try await session.syncHosts(Self.changes())
 
-        #expect(snapshot == HostSyncSnapshot(hosts: [], deletedHostIDs: []))
+        #expect(snapshot == HostSyncSnapshot(hosts: [], deletedHostIDs: [], iconsSkipped: true))
         #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"], [nil]])
         let retried = try #require((backend.syncBodies.last?["changes"] as? [[String: Any]])?.first)
         #expect(retried["name"] as? String == "Studio Mac")

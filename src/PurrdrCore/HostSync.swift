@@ -57,10 +57,13 @@ public enum HostSyncChange: Sendable, Equatable {
 public struct HostSyncSnapshot: Sendable, Equatable {
     public var hosts: [SyncedHost]
     public var deletedHostIDs: [UUID]
+    /// 這次送出時略過了主機圖示(舊後台不收，#243);不是後台回應的欄位。
+    public var iconsSkipped: Bool
 
-    public init(hosts: [SyncedHost], deletedHostIDs: [UUID]) {
+    public init(hosts: [SyncedHost], deletedHostIDs: [UUID], iconsSkipped: Bool = false) {
         self.hosts = hosts
         self.deletedHostIDs = deletedHostIDs
+        self.iconsSkipped = iconsSkipped
     }
 }
 
@@ -85,14 +88,29 @@ public struct HostSyncOutcome: Sendable, Equatable {
 /// - `modified`:這支裝置修改各主機的時間(關閉同步時也記，開啟時才知道誰比較新)。
 /// - `synced`:跟後台一致的版本(後台的 `modifiedAt`)。`modified` 與它不同 = 還沒上傳。
 /// - `deleted`:還沒上傳的刪除。
+/// - `unsyncedIcons`:舊後台略過了圖示的主機(#243);後台收下圖示前每次同步都帶圖示重送。
 ///
 /// 只有 id 與時間，沒有主機內容、沒有祕密。
 public struct HostSyncJournal: Sendable, Equatable, Codable {
     public var modified: [UUID: Date] = [:]
     public var synced: [UUID: Date] = [:]
     public var deleted: Set<UUID> = []
+    public var unsyncedIcons: Set<UUID> = []
 
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case modified, synced, deleted, unsyncedIcons
+    }
+
+    /// 升級前存的紀錄沒有 `unsyncedIcons`。
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        modified = try container.decode([UUID: Date].self, forKey: .modified)
+        synced = try container.decode([UUID: Date].self, forKey: .synced)
+        deleted = try container.decode(Set<UUID>.self, forKey: .deleted)
+        unsyncedIcons = try container.decodeIfPresent(Set<UUID>.self, forKey: .unsyncedIcons) ?? []
+    }
 
     /// 這支裝置新增或修改了主機。
     public mutating func recordSave(_ id: UUID, at date: Date) {
@@ -104,6 +122,7 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
     public mutating func recordDeletion(_ id: UUID) {
         modified[id] = nil
         synced[id] = nil
+        unsyncedIcons.remove(id)
         deleted.insert(id)
     }
 
@@ -114,7 +133,7 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
         for host in hosts.sorted(by: { $0.id.uuidString < $1.id.uuidString }) {
             let modifiedAt = modified[host.id] ?? Self.milliseconds(now)
             modified[host.id] = modifiedAt
-            if synced[host.id] != modifiedAt { changes.append(.upsert(SyncedHost(host, modifiedAt: modifiedAt, icon: icons[host.id]))) }
+            if synced[host.id] != modifiedAt || unsyncedIcons.contains(host.id) { changes.append(.upsert(SyncedHost(host, modifiedAt: modifiedAt, icon: icons[host.id]))) }
         }
         for id in deleted.sorted(by: { $0.uuidString < $1.uuidString }) {
             changes.append(.delete(id))
@@ -128,7 +147,11 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
         var sentDeletions: Set<UUID> = []
         for change in sent {
             switch change {
-            case .upsert(let host): sentModifiedAt[host.id] = host.modifiedAt
+            case .upsert(let host):
+                sentModifiedAt[host.id] = host.modifiedAt
+                if host.icon != nil {
+                    if snapshot.iconsSkipped { unsyncedIcons.insert(host.id) } else { unsyncedIcons.remove(host.id) }
+                }
             case .delete(let id): sentDeletions.insert(id)
             }
         }
@@ -140,6 +163,7 @@ public struct HostSyncJournal: Sendable, Equatable, Codable {
         for id in snapshot.deletedHostIDs {
             modified[id] = nil
             synced[id] = nil
+            unsyncedIcons.remove(id)
             deleted.remove(id)
             if local[id] != nil { outcome.deletions.append(id) }
         }

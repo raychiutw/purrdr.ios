@@ -117,7 +117,9 @@ public actor MemberSession {
         }
         let body = try JSONEncoder().encode(Wire.HostSyncRequest(changes: sending.map(Wire.HostChange.init)))
         let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/hosts/sync", body: body))
-        return try Wire.decode(Wire.HostSyncResponse.self, from: response).domain()
+        var snapshot = try Wire.decode(Wire.HostSyncResponse.self, from: response).domain()
+        snapshot.iconsSkipped = !includingIcons
+        return snapshot
     }
 
     // MARK: - 推播配對(#29)
