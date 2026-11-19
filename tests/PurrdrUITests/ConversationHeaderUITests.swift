@@ -65,8 +65,9 @@ final class ConversationHeaderUITests: XCTestCase {
         let result = element("stopBar.result", in: app)
         XCTAssertTrue(result.waitForExistence(timeout: 10), "停下後沒有顯示結果")
         XCTAssertTrue(result.label.contains("Stopped"), "結果應該是已停止：\(result.label)")
-        XCTAssertTrue(element("stopBar", in: app).waitForNonExistence(timeout: 6), "已停止沒有自動收起")
-        XCTAssertTrue(working.waitForNonExistence(timeout: 10), "停下後指示沒有消失")
+        // Demo 不送事件，主機更新來源的快照要等它重讀才跟上(同 #44 的 15 秒)。
+        XCTAssertTrue(element("stopBar", in: app).waitForNonExistence(timeout: 15), "已停止後停止列沒有收起")
+        XCTAssertTrue(working.waitForNonExistence(timeout: 5), "停下後指示沒有消失")
     }
 
     /// 長按停止鈕開出選單，「Force Quit…」要先在確認對話框確認才送 Ctrl-C。
