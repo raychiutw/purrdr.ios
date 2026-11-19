@@ -11,13 +11,36 @@ struct ComposerKeyboardLayoutTests {
     private static let suggestion = ComposerAccessoryHeights(full: 60, compact: 44)
     private static let minimum = 132.0
 
+    /// 停止列有結果時兩行(約 72pt),只留停止鈕時一行(#220)。
+    private static let stopBar = ComposerAccessoryHeights(full: 72, compact: 44)
+
     private static func arrange(
         keyboard: Bool = true, conversation: Double?, current: ComposerAccessoryArrangement = .full,
-        note: ComposerAccessoryHeights? = Self.note, suggestion: ComposerAccessoryHeights? = Self.suggestion
+        note: ComposerAccessoryHeights? = Self.note, suggestion: ComposerAccessoryHeights? = Self.suggestion,
+        stopBar: ComposerAccessoryHeights? = nil
     ) -> ComposerAccessoryArrangement {
         ComposerKeyboardLayout.arrangement(
             keyboardShown: keyboard, conversationHeight: conversation, current: current,
-            note: note, suggestion: suggestion, minimumConversationHeight: minimum)
+            note: note, suggestion: suggestion, stopBar: stopBar, minimumConversationHeight: minimum)
+    }
+
+    @Test("停止列排在輸入列之後、建議提示詞之前：註記與建議都拿掉仍放不下，才收成只有停止鈕的一行，永不拿掉")
+    func stopBarYieldsLastAndNeverHides() {
+        // 全部完整時的可分配高度 = 對話 + 293 + 68 + 80。
+        let allShed = 132 - 361 - 80 + 80
+        #expect(Self.arrange(conversation: Double(allShed), stopBar: Self.stopBar)
+            == ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden, stopBar: .full))
+        #expect(Self.arrange(conversation: Double(allShed - 1), stopBar: Self.stopBar)
+            == ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden, stopBar: .compact))
+        #expect(Self.arrange(conversation: -800, stopBar: Self.stopBar)
+            == ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden, stopBar: .compact))
+    }
+
+    @Test("停止列收成一行後空間回來就恢復;鍵盤收起時也恢復")
+    func stopBarRestores() {
+        let shed = ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden, stopBar: .compact)
+        #expect(Self.arrange(conversation: 900, current: shed, stopBar: Self.stopBar) == .full)
+        #expect(Self.arrange(keyboard: false, conversation: nil, current: shed, stopBar: Self.stopBar).stopBar == .full)
     }
 
     @Test("最小對話可見高度：預設字級 132pt(3 列 44pt);大字級時是 3 行內文加列表上下內距")

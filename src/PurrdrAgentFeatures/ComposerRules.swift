@@ -344,14 +344,17 @@ public enum ComposerAccessoryForm: Sendable, Equatable {
     case hidden
 }
 
-/// 註記與建議提示詞各自的顯示方式。
+/// 註記、建議提示詞與停止列各自的顯示方式。
 public struct ComposerAccessoryArrangement: Sendable, Equatable {
     public var note: ComposerAccessoryForm
     public var suggestion: ComposerAccessoryForm
+    /// 停止列(#220):只會 `.full` 或 `.compact`(只留停止鈕)。
+    public var stopBar: ComposerAccessoryForm
 
-    public init(note: ComposerAccessoryForm, suggestion: ComposerAccessoryForm) {
+    public init(note: ComposerAccessoryForm, suggestion: ComposerAccessoryForm, stopBar: ComposerAccessoryForm = .full) {
         self.note = note
         self.suggestion = suggestion
+        self.stopBar = stopBar
     }
 
     public static let full = ComposerAccessoryArrangement(note: .full, suggestion: .full)
@@ -394,7 +397,8 @@ public enum ComposerKeyboardLayout {
     /// 依目前的對話可見高度與目前的顯示方式，決定註記與建議提示詞的顯示方式。
     public static func arrangement(
         keyboardShown: Bool, conversationHeight: Double?, current: ComposerAccessoryArrangement,
-        note: ComposerAccessoryHeights?, suggestion: ComposerAccessoryHeights?, minimumConversationHeight: Double
+        note: ComposerAccessoryHeights?, suggestion: ComposerAccessoryHeights?, stopBar: ComposerAccessoryHeights? = nil,
+        minimumConversationHeight: Double
     ) -> ComposerAccessoryArrangement {
         // 鍵盤收起時不長回完整卡片：卡片若跟著鍵盤收起一起長回來，先以沒量過的高度排一次、量到後再排一次，
         // 輸入列高度在鍵盤動畫中連跳兩次，又碰上大量輸出重建列表(#130)時對話會停在一片空白。點一行的註記才展開
