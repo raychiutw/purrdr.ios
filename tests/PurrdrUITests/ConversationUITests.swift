@@ -46,7 +46,7 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "沒有使用者泡泡")
         XCTAssertTrue(app.staticTexts["Loaded skill: tdd"].exists, "skill 沒有顯示成「Loaded skill」")
-        XCTAssertTrue(app.staticTexts["Ran 1 command · Edited 2 files · Read 3 files"].exists, "工具串沒有收合成一行摘要")
+        XCTAssertTrue(app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"].exists, "工具串沒有收合成一行摘要")
         XCTAssertTrue(element("conversation.table", in: app).exists, "沒有表格")
         XCTAssertTrue(element("conversation.beginning", in: app).exists, "頂端沒有「對話開頭」")
     }
@@ -84,7 +84,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testToolRunExpandsToShowCalls() {
         let app = openLedger()
-        let summary = app.staticTexts["Ran 1 command · Edited 2 files · Read 3 files"]
+        let summary = app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
         // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
         let window = app.windows.firstMatch
@@ -99,27 +99,65 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Edit"].waitForExistence(timeout: 5), "展開後沒有看到每個呼叫")
     }
 
-    /// 檔案卡片(#224):ledger 的 agent 改了 CSVExport.swift、新建了 CSVQuotingTests.swift,
+    // MARK: - 檔案情境(`-demoAgentFiles`:ledger 的對話換成寫檔、讀圖、提到主機路徑的一段)
+
+    /// 開啟檔案情境的 ledger。
+    @MainActor
+    private func openAgentFiles() -> XCUIApplication {
+        let app = open(paneID: "w1:p1", flags: ["-demoAgentFiles"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitForExistence(timeout: 10), "對話沒有開啟")
+        return app
+    }
+
+    /// 識別碼相同、label 以 `prefix` 開頭的元素(卡片標題、縮圖等同一種元素有好幾個時)。
+    private func element(_ identifier: String, labelPrefix prefix: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@ AND label BEGINSWITH %@", identifier, prefix)).firstMatch
+    }
+
+    /// 對話從底部開啟、列是 lazy 的：元素還沒建立或在畫面外時一次捲一點(先往上找)，直到它整個在對話區內。
+    @MainActor
+    @discardableResult
+    private func revealInConversation(_ target: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
+        let list = app.scrollViews.firstMatch
+        guard list.waitForExistence(timeout: timeout) else { return false }
+        _ = target.waitForExistence(timeout: 3)
+        for _ in 0..<16 {
+            if target.exists, target.isHittable, target.frame.minY >= list.frame.minY, target.frame.maxY <= list.frame.maxY {
+                return true
+            }
+            let isBelow = target.exists && target.frame.midY > list.frame.midY
+            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isBelow ? 0.65 : 0.35))
+            let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isBelow ? 0.4 : 0.6))
+            start.press(forDuration: 0.1, thenDragTo: end)
+            _ = target.waitForExistence(timeout: 1)
+        }
+        return target.exists && target.isHittable
+    }
+
+    /// 檔案卡片(#224):agent 改了 CSVExport.swift、新建了 CSVQuotingTests.swift(#228 另有 history.csv、draft.csv),
     /// 卡片標題念出動作、檔名、類型與路徑;內容來自對話紀錄，超過 8 行可展開。
     @MainActor
     func testWrittenFilesShowAsCards() {
-        let app = openLedger()
-        let headers = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.header")
-        XCTAssertTrue(headers.firstMatch.waitForExistence(timeout: 10), "沒有檔案卡片")
-        XCTAssertEqual(headers.count, 4, "CSVExport.swift、CSVQuotingTests.swift 與 #228 的 history.csv、draft.csv")
+        let app = openAgentFiles()
+        let header = "conversation.agentFile.header"
+        for prefix in ["Created file draft.csv", "Created file history.csv"] {
+            XCTAssertTrue(revealInConversation(element(header, labelPrefix: prefix, in: app), in: app), "沒有 \(prefix) 的卡片")
+        }
 
-        let edited = headers.element(boundBy: 0)
-        XCTAssertTrue(edited.label.hasPrefix("Edited file CSVExport.swift, Code"), "修改卡片標題不對：\(edited.label)")
-        XCTAssertTrue(edited.label.contains("1 lines added, 1 removed"))
-        XCTAssertTrue(edited.label.hasSuffix("Path: /Users/demo/ledger/Sources/Ledger/CSVExport.swift"))
-        let created = headers.element(boundBy: 1)
-        XCTAssertTrue(created.label.hasPrefix("Created file CSVQuotingTests.swift, Code"), "新建卡片標題不對：\(created.label)")
+        let created = element(header, labelPrefix: "Created file CSVQuotingTests.swift, Code", in: app)
+        XCTAssertTrue(revealInConversation(created, in: app), "新建卡片標題不對")
+        let edited = element(header, labelPrefix: "Edited file CSVExport.swift, Code", in: app)
+        XCTAssertTrue(revealInConversation(edited, in: app), "修改卡片標題不對")
+        XCTAssertTrue(edited.label.contains("1 lines added, 1 removed"), "\(edited.label)")
+        XCTAssertTrue(edited.label.hasSuffix("Path: /Users/demo/ledger/Sources/Ledger/CSVExport.swift"), "\(edited.label)")
 
         let toggle = element("conversation.agentFile.toggle", in: app)
-        XCTAssertTrue(app.reveal(toggle), "新建的測試檔超過 8 行，應該可以展開")
+        XCTAssertTrue(revealInConversation(toggle, in: app), "新建的測試檔超過 8 行，應該可以展開")
         XCTAssertGreaterThanOrEqual(toggle.frame.height, 44)
         toggle.tap()
-        XCTAssertTrue(app.staticTexts[#"    #expect(CSVExport.columns.first == "date")"#].waitForExistence(timeout: 5), "展開後沒有看到後面的行")
+        let lastLine = app.staticTexts[#"    #expect(CSVExport.columns.first == "date")"#]
+        XCTAssertTrue(revealInConversation(lastLine, in: app), "展開後沒有看到後面的行")
         XCTAssertEqual(toggle.label, "Show Less")
 
         let shot = XCTAttachment(screenshot: app.screenshot())
@@ -128,17 +166,17 @@ final class ConversationUITests: XCTestCase {
         add(shot)
     }
 
-    /// 圖片卡片(#225):ledger 的 agent 讀了匯出預覽(小圖，自動從 Demo 主機載入縮圖)與掃描檔(超過 8 MiB,
+    /// 圖片卡片(#225):agent 讀了匯出預覽(小圖，自動從 Demo 主機載入縮圖)與掃描檔(超過 8 MiB,
     /// 顯示大小與「Load Image」,點了才載入)。點縮圖全螢幕看，「Done」關閉。
     @MainActor
     func testAgentImagesShowThumbnails() {
-        let app = openLedger()
-        let headers = app.descendants(matching: .any).matching(identifier: "conversation.agentImage.header")
-        XCTAssertTrue(headers.firstMatch.waitForExistence(timeout: 10), "沒有圖片卡片")
-        XCTAssertTrue(headers.firstMatch.label.hasPrefix("Read file export-preview.png, Image"), "圖片卡片標題不對：\(headers.firstMatch.label)")
+        let app = openAgentFiles()
+        let previewHeader = element("conversation.agentImage.header", labelPrefix: "Read file export-preview.png, Image", in: app)
+        XCTAssertTrue(revealInConversation(previewHeader, in: app), "沒有預覽圖的圖片卡片")
 
-        let thumbnail = element("conversation.agentImage.thumbnail", in: app)
-        XCTAssertTrue(app.reveal(thumbnail), "預覽圖沒有自動載入縮圖")
+        let thumbnail = element("conversation.agentImage.thumbnail", labelPrefix: "Image export-preview.png", in: app)
+        XCTAssertTrue(thumbnail.waitForExistence(timeout: 15), "預覽圖沒有自動載入縮圖")
+        XCTAssertTrue(revealInConversation(thumbnail, in: app))
         thumbnail.tap()
         XCTAssertTrue(element("agentImage.viewer", in: app).waitForExistence(timeout: 5), "沒有全螢幕檢視")
         let done = element("agentImage.viewer.done", in: app)
@@ -147,13 +185,13 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5))
 
         let load = element("conversation.agentImage.load", in: app)
-        XCTAssertTrue(app.reveal(load), "超過 8 MiB 的掃描檔應該等點擊")
+        XCTAssertTrue(revealInConversation(load, in: app), "超過 8 MiB 的掃描檔應該等點擊")
         let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Not loaded automatically")).firstMatch
         XCTAssertTrue(note.exists, "沒有顯示大小與說明")
         XCTAssertGreaterThanOrEqual(load.frame.height, 44)
         load.tap()
-        let thumbnails = app.descendants(matching: .any).matching(identifier: "conversation.agentImage.thumbnail")
-        XCTAssertTrue(thumbnails.element(boundBy: 1).waitForExistence(timeout: 15), "點了之後掃描檔沒有載入")
+        let scan = element("conversation.agentImage.thumbnail", labelPrefix: "Image statement-scan.png", in: app)
+        XCTAssertTrue(scan.waitForExistence(timeout: 15), "點了之後掃描檔沒有載入")
 
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-image-cards"
@@ -164,10 +202,9 @@ final class ConversationUITests: XCTestCase {
     /// 點開檔案(#228):「Open」從 Demo 主機下載新建的測試檔，以 QuickLook 預覽;關閉後可以分享。
     @MainActor
     func testOpeningAFileShowsQuickLookAndShare() {
-        let app = openLedger()
+        let app = openAgentFiles()
         let open = app.buttons["Open CSVQuotingTests.swift"].firstMatch
-        XCTAssertTrue(app.reveal(open), "新建的測試檔沒有「Open」")
-        XCTAssertEqual(open.label, "Open CSVQuotingTests.swift")
+        XCTAssertTrue(revealInConversation(open, in: app), "新建的測試檔沒有「Open」")
         XCTAssertGreaterThanOrEqual(open.frame.height, 44)
         open.tap()
 
@@ -180,20 +217,17 @@ final class ConversationUITests: XCTestCase {
         preview.buttons["Done"].firstMatch.tap()
         XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
 
-        let share = element("conversation.agentFile.share", in: app)
-        XCTAssertTrue(app.reveal(share), "下載好之後沒有「Share」")
-        XCTAssertEqual(share.label, "Share CSVQuotingTests.swift")
+        let share = app.buttons["Share CSVQuotingTests.swift"].firstMatch
+        XCTAssertTrue(revealInConversation(share, in: app), "下載好之後沒有「Share」")
         XCTAssertGreaterThanOrEqual(share.frame.height, 44)
     }
 
     /// 點開檔案(#228):匯出檔之後被附加到超過 25 MiB,顯示大小與說明，不下載。
     @MainActor
     func testOpeningAFileOverTheLimitExplains() {
-        let app = openLedger()
-        let headers = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.header")
-        let history = headers.element(boundBy: 2)
-        XCTAssertTrue(app.reveal(history), "沒有 history.csv 的卡片")
-        XCTAssertTrue(history.label.hasPrefix("Created file history.csv"), "卡片不對：\(history.label)")
+        let app = openAgentFiles()
+        let history = element("conversation.agentFile.header", labelPrefix: "Created file history.csv", in: app)
+        XCTAssertTrue(revealInConversation(history, in: app), "沒有 history.csv 的卡片")
         history.tap()
 
         let note = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Too large to open here")).firstMatch
@@ -204,22 +238,21 @@ final class ConversationUITests: XCTestCase {
     /// 點開檔案(#228):草稿寫完被刪掉，顯示「主機上已沒有這個檔案」。
     @MainActor
     func testOpeningADeletedFileExplains() {
-        let app = openLedger()
+        let app = openAgentFiles()
         let open = app.buttons["Open draft.csv"].firstMatch
-        XCTAssertTrue(app.reveal(open), "沒有 draft.csv 的「Open」")
-        XCTAssertEqual(open.label, "Open draft.csv")
+        XCTAssertTrue(revealInConversation(open, in: app), "沒有 draft.csv 的「Open」")
         open.tap()
 
         XCTAssertTrue(app.staticTexts["This file is no longer on the host."].waitForExistence(timeout: 10), "沒有缺檔說明")
     }
 
-    /// 訊息內主機路徑(#229):ledger 的回覆提到報告 PDF 與預覽圖，路徑是連結;點 PDF 在 app 內以 QuickLook 開，
+    /// 訊息內主機路徑(#229):回覆提到報告 PDF 與預覽圖，路徑是連結;點 PDF 在 app 內以 QuickLook 開，
     /// 點圖片全螢幕看(不交給系統 openURL,沒有離開 app)。
     @MainActor
     func testHostPathsInMessagesOpenInApp() {
-        let app = openLedger()
+        let app = openAgentFiles()
         let report = app.links["/Users/demo/ledger/docs/export-report.pdf"].firstMatch
-        XCTAssertTrue(app.reveal(report), "訊息中的 PDF 路徑不是連結")
+        XCTAssertTrue(revealInConversation(report, in: app), "訊息中的 PDF 路徑不是連結")
         report.tap()
 
         let preview = app.navigationBars["export-report.pdf"]
@@ -233,7 +266,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
 
         let image = app.links["/Users/demo/ledger/docs/export-preview.png"].firstMatch
-        XCTAssertTrue(app.reveal(image), "訊息中的圖片路徑不是連結")
+        XCTAssertTrue(revealInConversation(image, in: app), "訊息中的圖片路徑不是連結")
         image.tap()
         XCTAssertTrue(element("agentImage.viewer", in: app).waitForExistence(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
         element("agentImage.viewer.done", in: app).tap()
