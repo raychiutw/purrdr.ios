@@ -62,12 +62,26 @@ struct SSHHostFileFetcherTests {
         await #expect(throws: HostFileFetchError.unsupported) { _ = try await fetcher.status(of: Self.target) }
     }
 
-    @Test("Windows 主機(#226 之前):不送 POSIX 腳本，回 unsupported")
-    func windowsHostIsUnsupported() async throws {
+    @Test("Windows 主機(#226):命令列只有 stub,PowerShell 取檔腳本經 stdin 送一次、不送 EOF;請求行接在同一個 stdin,回應同 POSIX")
+    func windowsHostUsesPowerShellScript() async throws {
         let host = FakeHost()
+        await host.expect(WindowsHostScriptsTests.stub, reply: FakeReply(keepsOpen: true))
         let fetcher = SSHHostFileFetcher(channel: WindowsHostChannel(host))
+        let root = #"C:\Users\demo\ledger"#
+        let target = HostFileTarget(path: root + #"\shot 1.png"#, root: root)
 
-        await #expect(throws: HostFileFetchError.unsupported) { _ = try await fetcher.status(of: Self.target) }
-        #expect(await host.executions.isEmpty)
+        let status = Task { try await fetcher.status(of: target) }
+        let statusLine = "stat \(Self.base64(target.path)) \(Self.base64(root))\n"
+        try #require(await host.waitForStdin(ofExecution: 0) { $0.stdinText.hasSuffix(statusLine) })
+        await host.send(stdout: Data("file ab12:6 6\nend\n".utf8), toExecution: 0)
+
+        #expect(try await status.value == .file(version: HostFileVersion(checksum: "ab12:6"), size: 6))
+        let execution = try #require(await host.executions.first)
+        #expect(execution.closedStdin == false)
+        let script = String(execution.stdinText.dropLast(statusLine.count))
+        #expect(script.hasSuffix("\n#purrdr-end-of-script\n"))
+        #expect(script.contains("$a=@('60','600','26214400')"), "閒置、總長、上限照 POSIX 的參數")
+        #expect(script.contains("GetFinalPathNameByHandle"), "以實際路徑(junction／symlink 解析後)比對存取規則")
+        #expect(!script.contains("cd -P"), "POSIX 腳本不能送到 Windows")
     }
 }
