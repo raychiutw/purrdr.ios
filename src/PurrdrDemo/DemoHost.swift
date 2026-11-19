@@ -99,6 +99,11 @@ public actor DemoHost: HostChannel {
         self.scenario = scenario
         self.tailscaleCheck = tailscaleCheck
         self.now = now
+        // 延遲 0 的斷網：啟動就沒有網路(`-demoNoNetwork`,#221)。
+        if case .goesOffline(let delay, _) = scenario, delay == .zero {
+            isOffline = true
+            offlineScheduled = true
+        }
         if scenario == .largeOutputOnPrompt {
             appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
         }

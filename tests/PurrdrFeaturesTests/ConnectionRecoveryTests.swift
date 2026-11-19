@@ -98,6 +98,20 @@ struct ConnectionRecoveryTests {
         #expect(log.messages.first?.contains("satisfied|wifi → satisfied|cellular,other") == true, "\(log.messages)")
     }
 
+    @Test("網路路徑沒有連線時列表立刻知道裝置離線(第一次回報也算);恢復後回到有網路(#221)")
+    func networkPathSetsListOffline() async throws {
+        let store = MemoryHostStore()
+        store.hosts = [HostManagementTests.linux]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory([FakeHost()]).make)
+        model.load()
+
+        await model.networkPathChanged("unsatisfied|")?.value
+        #expect(model.agentList.isNetworkAvailable == false)
+
+        await model.networkPathChanged("satisfied|wifi")?.value
+        #expect(model.agentList.isNetworkAvailable == true)
+    }
+
     @Test("喚醒探測失敗而丟棄連線時留下診斷紀錄")
     func failedWakeProbeIsLogged() async throws {
         let log = RecordingDiagnosticLog()
