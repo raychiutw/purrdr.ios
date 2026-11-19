@@ -97,7 +97,7 @@ final class HostsUITests: XCTestCase {
         keyField.tap()
         keyField.typeText("-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----")
 
-        let problem = app.staticTexts["hostEditor.keyProblem"]
+        let problem = app.descendants(matching: .any)["hostEditor.keyProblem"].firstMatch
         XCTAssertTrue(problem.waitForExistence(timeout: 5) || scrollTo(problem, in: app))
         XCTAssertTrue(problem.label.contains("RSA"))
         let useDeviceKey = app.buttons["hostEditor.useDeviceKey"]

@@ -356,9 +356,11 @@ struct SpacesAgentRowView: View {
     }
 }
 
-/// Agent 種類頭像：36pt 圓角方塊，白色字母。種類名稱在列的文字裡，對 VoiceOver 隱藏。
+/// Agent 種類頭像：36pt 圓角方塊，白色字母。
 struct AgentKindAvatar: View {
     let kind: AgentKind
+    /// VoiceOver 念出種類名稱(Agents 列的文字裡沒有種類);Spaces 列的第三行已有，維持隱藏。
+    var announcesKind = false
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
@@ -369,7 +371,8 @@ struct AgentKindAvatar: View {
             .dynamicTypeSize(...DynamicTypeSize.xLarge)
             .frame(width: 36, height: 36)
             .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
-            .accessibilityHidden(true)
+            .accessibilityLabel(Text(verbatim: kind.displayName ?? ""))
+            .accessibilityHidden(!announcesKind || kind.displayName == nil)
     }
 }
 

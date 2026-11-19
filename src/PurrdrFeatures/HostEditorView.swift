@@ -301,12 +301,8 @@ struct HostEditorView: View {
                 Text("Checking key…")
             }
         case .invalid(let error):
-            Label {
-                Text(HostErrorText.keyImportMessage(error))
-                    .accessibilityIdentifier("hostEditor.keyProblem")
-            } icon: {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-            }
+            ErrorLabel(HostErrorText.keyImportMessage(error))
+                .accessibilityIdentifier("hostEditor.keyProblem")
             if error == .rsaNotSupported || error.isUnsupportedKeyType {
                 Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
                     .accessibilityIdentifier("hostEditor.useDeviceKey")
@@ -326,7 +322,7 @@ struct HostEditorView: View {
                     .foregroundStyle(.secondaryText)
             }
         } icon: {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint)
         }
         .accessibilityIdentifier("hostEditor.result")
     }
@@ -359,12 +355,8 @@ struct HostEditorView: View {
             case .connected(let check):
                 connectedRow(Text("Connected · herdr \(check.herdrVersion)"), summary: check.summary)
             case .failed(let message):
-                Label {
-                    Text(message)
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                }
-                .accessibilityIdentifier("hostEditor.result")
+                ErrorLabel(message)
+                    .accessibilityIdentifier("hostEditor.result")
             case .restartServerRequired:
                 // Windows 沒有 live handoff:更新只換了執行檔。
                 Label {

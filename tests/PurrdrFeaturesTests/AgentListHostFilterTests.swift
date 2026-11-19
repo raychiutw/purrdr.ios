@@ -71,9 +71,32 @@ struct AgentListHostFilterTests {
         let model = await Self.loadedModel()
 
         #expect(model.hostFilterOptions == [
-            HostLabelOption(host: Self.studio, label: HostLabel(name: "Studio", icon: .macMini)),
-            HostLabelOption(host: Self.lab, label: HostLabel(name: "Lab", icon: .rack)),
+            HostOption(id: Self.studio, name: "Studio", icon: .macMini),
+            HostOption(id: Self.lab, name: "Lab", icon: .rack),
         ])
+    }
+
+    @Test("篩選選某台主機：同時設成選取中主機")
+    func filteringHostSelectsIt() async {
+        let model = await Self.loadedModel()
+        var selected: [HostSelection] = []
+        model.selectHost = { selected.append($0) }
+
+        model.hostFilter = Self.lab
+
+        #expect(selected == [Self.lab])
+    }
+
+    @Test("篩選選回所有主機：選取中主機不變")
+    func filteringAllHostsKeepsSelection() async {
+        let model = await Self.loadedModel()
+        model.hostFilter = Self.lab
+        var selected: [HostSelection] = []
+        model.selectHost = { selected.append($0) }
+
+        model.hostFilter = nil
+
+        #expect(selected.isEmpty)
     }
 
     @Test("篩選中的主機被刪除：回到所有主機")

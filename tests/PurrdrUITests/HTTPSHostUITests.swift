@@ -34,7 +34,7 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
         app.buttons["toolbar.more"].tap()
         XCTAssertTrue(app.buttons["menu.hosts"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["menu.loginShell"].exists, "HTTPS 主機不應該有登入 Shell")
+        XCTAssertTrue(app.buttons["menu.loginShell"].exists, "選取中主機是 HTTPS 時，Demo 仍能開登入 Shell")
     }
 
     /// 唯讀配對(配對碼 `R3AD-0NLY`,#60):聊天沒有輸入框，「需要你」卡片沒有選項，兩處都說明是唯讀。

@@ -18,18 +18,6 @@ public struct HostFailure: Equatable, Sendable {
     public var text: String { String(localized: "\(name): \(message)") }
 }
 
-/// 主機篩選選單的一項：主機身分與它的名稱、圖示。
-public struct HostLabelOption: Equatable, Sendable, Identifiable {
-    public var host: HostSelection
-    public var label: HostLabel
-    public var id: HostSelection { host }
-
-    public init(host: HostSelection, label: HostLabel) {
-        self.host = host
-        self.label = label
-    }
-}
-
 /// 所有主機合併成的 Agent 列表(#39;取代 #10「切換目前主機」只看一台)。
 ///
 /// - 每台主機各自一個 `AgentListModel`:各自連線、各自事件訂閱、各自錯誤與退避;一台連不上不影響其他台。
@@ -108,12 +96,18 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// 主機篩選(#244);`nil` 是所有主機。
-    public var hostFilter: HostSelection?
+    /// 主機篩選(#244);`nil` 是所有主機。選某台主機時同時設成選取中主機，選回所有主機時選取中主機不變。
+    public var hostFilter: HostSelection? {
+        didSet {
+            if let hostFilter, hostFilter != oldValue { selectHost?(hostFilter) }
+        }
+    }
+    /// 篩選選了某台主機時，把它設成選取中主機(主機清單接上)。
+    public var selectHost: (@MainActor (HostSelection) -> Void)?
 
     /// 篩選選單的主機項目(依列表的主機順序)。
-    public var hostFilterOptions: [HostLabelOption] {
-        sources.map { HostLabelOption(host: $0.host, label: HostLabel(name: $0.name, icon: $0.icon)) }
+    public var hostFilterOptions: [HostOption] {
+        sources.map { HostOption(id: $0.host, name: $0.name, icon: $0.icon) }
     }
 
     /// Agents 檢視的單一清單：依分組順序(已釘選、需要你、工作中、閒置)接成一份。

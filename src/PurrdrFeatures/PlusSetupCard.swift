@@ -86,10 +86,10 @@ private struct StepBadge: View {
         ZStack {
             switch state {
             case .done:
-                Circle().fill(.tint)
+                Circle().fill(.prominentFill)
                 Image(systemName: "checkmark")
                     .font(.caption.bold())
-                    .foregroundStyle(.onAccent)
+                    .foregroundStyle(.onProminentFill)
             case .current:
                 Circle().strokeBorder(.tint, lineWidth: 2)
                 Text(verbatim: "\(number)")

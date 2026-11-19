@@ -67,9 +67,10 @@ struct MemberSessionHostSyncTests {
         let backend = FakeBackend(acceptsIcon: true)
         let session = try makeSession(backend)
 
-        _ = try await session.syncHosts(Self.changes())
+        let snapshot = try await session.syncHosts(Self.changes())
 
         #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"]])
+        #expect(!snapshot.iconsSkipped)
     }
 
     @Test("舊後台拒絕 icon:同一次同步改送不含圖示的版本，其他欄位照常同步成功")
@@ -79,7 +80,7 @@ struct MemberSessionHostSyncTests {
 
         let snapshot = try await session.syncHosts(Self.changes())
 
-        #expect(snapshot == HostSyncSnapshot(hosts: [], deletedHostIDs: []))
+        #expect(snapshot == HostSyncSnapshot(hosts: [], deletedHostIDs: [], iconsSkipped: true))
         #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"], [nil]])
         let retried = try #require((backend.syncBodies.last?["changes"] as? [[String: Any]])?.first)
         #expect(retried["name"] as? String == "Studio Mac")
@@ -107,5 +108,38 @@ struct MemberSessionHostSyncTests {
             try await session.syncHosts(Self.changes())
         }
         #expect(backend.syncBodies.count == 1)
+    }
+
+    @Test("以錯誤碼與欄位名判斷：舊後台把多出的欄位一起列出(含 icon)時也改送不含圖示的版本")
+    func oldBackendListingSeveralFieldsIsRecognizedByFieldName() async throws {
+        let backend = FakeBackend(
+            acceptsIcon: false, rejection: #"{"error":{"code":"invalid_request","message":"Unexpected field: icon, color."}}"#)
+        let session = try makeSession(backend)
+
+        _ = try await session.syncHosts(Self.changes())
+
+        #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"], [nil]])
+    }
+
+    @Test("錯誤碼不是 invalid_request:即使訊息提到 icon 也不重送")
+    func otherErrorCodeIsNotRetried() async throws {
+        let backend = FakeBackend(
+            acceptsIcon: false, rejection: #"{"error":{"code":"conflict","message":"Unexpected field: icon."}}"#)
+        let session = try makeSession(backend)
+
+        await #expect(throws: BackendError.backend(status: 400, code: "conflict", message: "Unexpected field: icon.")) {
+            try await session.syncHosts(Self.changes())
+        }
+        #expect(backend.syncBodies.count == 1)
+    }
+
+    /// 判斷依據是後台多出欄位時的固定訊息格式;後台改了格式，這裡要一起改。
+    @Test("後台多出欄位的訊息格式與判斷依據一致(backend/src/host-sync.ts)")
+    func backendMessageFormatMatches() throws {
+        let source = URL(filePath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "backend/src/host-sync.ts")
+        let text = try String(contentsOf: source, encoding: .utf8)
+        #expect(text.contains("throw invalid(`Unexpected field: ${extra.join(\", \")}.`)"))
     }
 }

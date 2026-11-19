@@ -1,6 +1,6 @@
 /// 可點列表列、卡片與縮圖按下時的外觀(#234,DESIGN.md「按壓回饋」)。
 enum PressFeedback: Sendable, CaseIterable {
-    /// 本身沒有底色的列(slash 選單、建議提示詞、側欄主機列、大標題選單)。
+    /// 本身沒有底色的列(slash 選單、建議提示詞、側欄主機列)。
     case row
     /// 自己有不透明底的卡片(方案卡片、Google 鈕)。
     case card

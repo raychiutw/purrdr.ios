@@ -212,14 +212,14 @@ public struct TopNavigationView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        // 主機篩選(#244):只篩選列表，不改選取中主機。
+        // 主機篩選(#244):選某台主機時同時設成選取中主機。
         ToolbarItem(placement: Self.hostPlacement) {
             HostFilterMenu(list: hosts.agentList)
         }
         ToolbarItem(placement: .primaryAction) {
             // 以 Divider 分組;不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
             Menu {
-                let groups = MoreMenuItem.groups(supportsShell: hosts.selectedHostSupportsShell)
+                let groups = MoreMenuItem.groups(supportsShell: hosts.anyHostSupportsShell)
                 ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
                     if index > 0 { Divider() }
                     ForEach(group, id: \.self) { item in
@@ -359,7 +359,7 @@ private struct NewChatForm: View {
     }
 }
 
-/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;只篩選列表，不改選取中主機。
+/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;選某一台時同時設成選取中主機。
 struct HostFilterMenu: View {
     @Bindable var list: MergedAgentListModel
 
@@ -370,8 +370,8 @@ struct HostFilterMenu: View {
                 Label("All Hosts", systemImage: "square.grid.2x2")
                     .tag(HostSelection?.none)
                 ForEach(list.hostFilterOptions) { option in
-                    HostMenuLabel(option.label.name, icon: option.label.icon)
-                        .tag(HostSelection?.some(option.host))
+                    HostMenuLabel(option.name, icon: option.icon)
+                        .tag(HostSelection?.some(option.id))
                 }
             } label: {
                 Text("Hosts")

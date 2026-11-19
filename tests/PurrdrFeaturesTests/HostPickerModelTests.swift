@@ -10,9 +10,9 @@ struct HostPickerModelTests {
     static let linux = HostSelection.host(UUID(uuidString: "1A2B3C4D-5E6F-4A1B-8C2D-3E4F5A6B7C8D")!)
     static let removed = HostSelection.host(UUID(uuidString: "0B0B0B0B-1C1C-4D1D-8E1E-2F2F2F2F2F2F")!)
     static let options = [
-        HostPickerOption(id: .demo, name: "Demo"),
-        HostPickerOption(id: mac, name: "Mac", icon: .macMini),
-        HostPickerOption(id: linux, name: "Linux", icon: .rack),
+        HostOption(id: .demo, name: "Demo"),
+        HostOption(id: mac, name: "Mac", icon: .macMini),
+        HostOption(id: linux, name: "Linux", icon: .rack),
     ]
 
     let suite = "purrdr.tests.hostPicker.\(UUID().uuidString)"

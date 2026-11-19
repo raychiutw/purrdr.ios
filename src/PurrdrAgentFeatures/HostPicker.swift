@@ -1,19 +1,6 @@
 import Foundation
 import Observation
 
-/// 主機挑選鈕的一個選項(#245)。
-public struct HostPickerOption: Identifiable, Equatable, Sendable {
-    public var id: HostSelection
-    public var name: String
-    public var icon: HostIcon
-
-    public init(id: HostSelection, name: String, icon: HostIcon = .default) {
-        self.id = id
-        self.name = name
-        self.icon = icon
-    }
-}
-
 /// 各自記住上次選的電腦的主機工具。
 public enum HostPickerScope: String, CaseIterable, Sendable {
     case loginShell
@@ -62,12 +49,12 @@ public final class UserDefaultsHostPickerStore: HostPickerStore {
 @MainActor
 @Observable
 public final class HostPickerModel {
-    public let options: [HostPickerOption]
+    public let options: [HostOption]
     public private(set) var selection: HostSelection
     private let remember: (HostSelection) -> Void
 
     /// - Parameter preferred: 依序採用第一個在選項裡的;都不在時選第一個選項。
-    public init(options: [HostPickerOption], preferred: [HostSelection?], remember: @escaping (HostSelection) -> Void = { _ in }) {
+    public init(options: [HostOption], preferred: [HostSelection?], remember: @escaping (HostSelection) -> Void = { _ in }) {
         self.options = options
         let listed = Set(options.map(\.id))
         selection = preferred.compactMap { $0 }.first { listed.contains($0) } ?? options.first?.id ?? .demo
@@ -76,17 +63,17 @@ public final class HostPickerModel {
 
     /// 登入 Shell、檔案：預設上次選的電腦，沒選過或已不在選項裡時用選取中主機。
     public static func remembering(
-        _ scope: HostPickerScope, options: [HostPickerOption], fallback: HostSelection, store: any HostPickerStore
+        _ scope: HostPickerScope, options: [HostOption], fallback: HostSelection, store: any HostPickerStore
     ) -> HostPickerModel {
         HostPickerModel(options: options, preferred: [store.load(scope), fallback]) { store.save($0, for: scope) }
     }
 
     /// 新增聊天：預設聊天列表篩選的主機(`nil` 是所有主機)，所有主機時用選取中主機;不記住。
-    public static func newChat(options: [HostPickerOption], listFilter: HostSelection?, selection: HostSelection) -> HostPickerModel {
+    public static func newChat(options: [HostOption], listFilter: HostSelection?, selection: HostSelection) -> HostPickerModel {
         HostPickerModel(options: options, preferred: [listFilter, selection])
     }
 
-    public var selectedOption: HostPickerOption? { options.first { $0.id == selection } }
+    public var selectedOption: HostOption? { options.first { $0.id == selection } }
 
     public func select(_ host: HostSelection) {
         guard host != selection, options.contains(where: { $0.id == host }) else { return }

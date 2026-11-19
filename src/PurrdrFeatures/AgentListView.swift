@@ -393,7 +393,7 @@ struct ConversationScreen: View {
     }
 }
 
-/// Agents 檢視的一列(#244 單一清單):列首是主機圖示，第一行狀態點、名稱與時間，第二行「主機 · 最後一句」。
+/// Agents 檢視的一列(#244 單一清單):列首是 agent 種類頭像，第一行狀態點、名稱與時間，第二行小主機圖示與「主機 · 最後一句」。
 struct AgentRowView: View {
     let row: AgentRow
     /// 這列所在主機的名稱與圖示(選取中主機也有)。
@@ -404,7 +404,7 @@ struct AgentRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            HostIconBadge(host?.icon ?? .default)
+            AgentKindAvatar(kind: AgentKind(rawKind: row.kind), announcesKind: true)
             VStack(alignment: .leading, spacing: 2) {
                 titleLine
                 previewLine
@@ -452,8 +452,17 @@ struct AgentRowView: View {
         .font(.body)
     }
 
-    /// 「主機 · 最後一句」;需要你時是「主機 · 等你回覆」。
+    /// 小主機圖示(「無」不畫)與「主機 · 最後一句」;需要你時是「主機 · 等你回覆」。
     private var previewLine: some View {
+        HStack(alignment: .top, spacing: 5) {
+            if let icon = host?.icon, icon.symbol != nil {
+                HostIconBadge(icon, diameter: 18)
+            }
+            previewText
+        }
+    }
+
+    private var previewText: some View {
         let hostName = host?.name ?? ""
         return Group {
             switch row.preview {
