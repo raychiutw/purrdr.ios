@@ -16,6 +16,16 @@ struct TopNavigationModelTests {
         #expect(model.sheet == .settings)
     }
 
+    @Test("深層連結 purrdr://plus 開啟 Purrdr Plus 付費牆 sheet")
+    func plusDeepLinkOpensPaywall() throws {
+        let model = TopNavigationModel()
+
+        let handled = model.open(try #require(URL(string: "purrdr://plus")))
+
+        #expect(handled)
+        #expect(model.sheet == .plus)
+    }
+
     @Test("主機分享連結(掃 QR code 或點連結)開啟主機 sheet,並帶著要匯入的連結")
     func hostLinkOpensHostsForImport() throws {
         let model = TopNavigationModel()

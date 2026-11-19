@@ -137,13 +137,14 @@ final class ScreenshotTourUITests: XCTestCase {
     }
 
     @MainActor
-    func test10PushSettings() {
+    func test10Account() {
         let app = XCUIApplication.uiTesting()
         app.launch()
-        app.open(URL(string: "purrdr://settings")!)
-        XCTAssertTrue(element("sheet.settings", in: app).waitForExistence(timeout: 10))
-        XCTAssertTrue(app.switches["settings.push"].waitForExistence(timeout: 10), "設定頁沒有推播開關")
-        capture("10-push-settings", app)
+        // 通知與主機同步在帳號頁的「設定 Purrdr Plus」步驟卡(#246)。
+        XCTAssertTrue(app.buttons["toolbar.account"].waitForExistence(timeout: 10))
+        app.buttons["toolbar.account"].tap()
+        XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10), "帳號頁沒有步驟卡")
+        capture("10-account", app)
     }
 
     @MainActor

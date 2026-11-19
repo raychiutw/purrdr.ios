@@ -136,7 +136,7 @@ App → Demo → SSH
 - 加了字串就跑 `scripts/strings.sh sync`(以編譯器抽出 package 字串、標 `extractionState: manual`),再補 `zh-Hant`。
   `scripts/strings.sh check`(CI)擋缺 key／沒翻／已不用;`StringCatalogTests` 擋格式符不符與 GLOSSARY 避免的詞。
 - 可攜核心(PurrdrCore)不放顯示字串;要翻的英文在 Features 對應。
-- 不提供 app 內深淺色設定(跟隨系統)。
+- 外觀預設跟隨系統;設定頁可改淺色或深色(#246,`AppearancePreference`)。
 - UI 測試預設以英文啟動(`LaunchHelper` 帶 `-AppleLanguages (en)`;模擬器系統語言是繁中)。測繁中：`launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])`。
 
 ## 測試慣例

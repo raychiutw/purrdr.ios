@@ -215,12 +215,14 @@ struct PurrdrApp: App {
             TopNavigationView(
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
                 welcome: welcome)
+            .appAppearance()
         }
         .commands { PurrdrCommands() }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in
             if let window {
                 PaneWindowView(window: window, hosts: hosts)
+                    .appAppearance()
             }
         }
     }

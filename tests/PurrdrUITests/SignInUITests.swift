@@ -54,11 +54,12 @@ final class SignInUITests: XCTestCase {
 
     @MainActor
     private func openSignIn(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        let member = app.buttons["menu.member"]
-        XCTAssertTrue(member.waitForExistence(timeout: 5))
-        member.tap()
+        // 帳號頁(#246)步驟卡的「加入」。
+        let account = app.buttons["toolbar.account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 10))
+        account.tap()
+        let join = app.buttons["account.plusSetup.action"]
+        XCTAssertTrue(join.waitForExistence(timeout: 10))
+        join.tap()
     }
 }

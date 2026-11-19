@@ -173,7 +173,11 @@ _避免_:Registration、Pairing token
 
 **會員**(Member):
 以 Sign in with Apple 或 Google 登入 Purrdr 後台的使用者身分;一個會員可以連結兩種登入方式，用任一種都登入同一個會員。只有訂閱功能需要會員;聊天與終端機不需要登入。
-_避免_:帳號、User、Account
+_避免_:帳號、User、Account(例外：聊天列表右上角的「帳號」鈕與它開的「帳號」頁是畫面名稱,#246)
+
+**設定 Purrdr Plus 步驟**(Plus setup steps):
+帳號頁上依序的四步：加入會員 → 開通 Purrdr Plus → 開啟通知 → 同步主機名單。每步依實際狀態算完成，只有第一個沒完成的步驟能操作;四步完成後收成「Purrdr Plus・已開通」一列。
+_避免_:新手引導、Onboarding(那是歡迎頁)
 
 **訂閱**(Subscription):
 會員的自動續訂方案(商品名稱 Purrdr Plus)，開通推播與主機同步。可以購買，也可以用 Apple 的 Offer Code 兌換;權限記在會員身上，不記在裝置上。

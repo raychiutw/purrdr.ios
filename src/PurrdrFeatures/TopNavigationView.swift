@@ -63,16 +63,15 @@ public struct TopNavigationView: View {
                     HostListView(model: hosts, importURL: $navigation.pendingHostImport)
                 case .settings:
                     SettingsView(
-                        model: settings, member: member, plus: plus, push: hosts.push, hostSync: hostSync,
-                        hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
-                        openPlus: { navigation.sheet = .plus }, codexLauncher: hosts.codexLauncher,
+                        model: settings, hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
+                        codexLauncher: hosts.codexLauncher,
                         attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }
                     ) {
                         navigation.sheet = nil
                     }
                 case .member:
-                    // 會員畫面自帶 NavigationStack 與「完成」。
-                    MemberView(model: member, plus: plus)
+                    // 帳號頁(#246)自帶 NavigationStack 與「完成」。
+                    MemberView(model: member, plus: plus, push: hosts.push, hostSync: hostSync)
                 case .plus:
                     if let plus {
                         PlusSheet(model: plus, member: member)
@@ -221,6 +220,13 @@ public struct TopNavigationView: View {
         ToolbarItem(placement: Self.hostPlacement) {
             SelectedHostMenu(hosts: hosts)
         }
+        // 帳號鈕(#246):在「⋯」旁，開帳號頁。
+        ToolbarItem(placement: .primaryAction) {
+            AccountButton(member: member) { navigation.sheet = .member }
+        }
+        // 頭像本身就是圓形，不再包一層玻璃。
+        .sharedBackgroundVisibility(.hidden)
+        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             Menu {
                 Button("Settings", systemImage: "gearshape") { navigation.sheet = .settings }
@@ -284,6 +290,30 @@ enum HostTool: Hashable {
 
     static func == (a: HostTool, b: HostTool) -> Bool { a.object === b.object }
     func hash(into hasher: inout Hasher) { hasher.combine(ObjectIdentifier(object)) }
+}
+
+/// 聊天列表右上角的帳號鈕(#246):會員的頭像字，未加入會員顯示「?」。
+struct AccountButton: View {
+    let member: MemberModel
+    let action: () -> Void
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 28
+
+    var body: some View {
+        Button(action: action) {
+            AccountAvatar(member: signedInMember)
+                .font(.subheadline)
+                .frame(width: size, height: size)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Account"))
+        .accessibilityIdentifier("toolbar.account")
+        .task { if member.phase == .unknown { await member.restore() } }
+    }
+
+    private var signedInMember: Member? {
+        if case .signedIn(let member) = member.phase { return member }
+        return nil
+    }
 }
 
 /// 新增對話的 sheet:model 在 sheet 開啟時建立一次(選取中主機),之後重繪不重建。

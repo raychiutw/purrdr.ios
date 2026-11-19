@@ -92,7 +92,9 @@ struct StringCatalogTests {
     func usesGlossaryTerms() throws {
         for entry in try Self.entries() {
             // 「Apple 帳號」是 iOS 系統設定裡的正式名稱(引導使用者去取消訂閱時要照抄)。
-            for chinese in entry.chinese.map({ $0.replacingOccurrences(of: "Apple 帳號", with: "") }) {
+            // 右上角帳號鈕與帳號頁的標題「帳號」是使用者指定的畫面名稱(#246)。
+            let chineseTexts = entry.key == "Account" ? [] : entry.chinese
+            for chinese in chineseTexts.map({ $0.replacingOccurrences(of: "Apple 帳號", with: "") }) {
                 for word in Self.avoidedWords {
                     #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」")
                 }

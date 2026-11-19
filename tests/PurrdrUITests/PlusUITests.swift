@@ -90,7 +90,7 @@ final class PlusUITests: XCTestCase {
 
         subscribe.tap()
         XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
-        app.buttons["member.done"].tap()
+        app.buttons["member.signIn.cancel"].tap()
 
         let done = app.buttons["plus.done"]
         XCTAssertTrue(done.waitForExistence(timeout: 5))
@@ -111,12 +111,8 @@ final class PlusUITests: XCTestCase {
 
     @MainActor
     private func openPlus(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        let plus = app.buttons["menu.plus"]
-        XCTAssertTrue(plus.waitForExistence(timeout: 5))
-        plus.tap()
+        // 「⋯」選單不再有 Purrdr Plus(#246),以深層連結開。
+        app.open(URL(string: "purrdr://plus")!)
     }
 
     @MainActor

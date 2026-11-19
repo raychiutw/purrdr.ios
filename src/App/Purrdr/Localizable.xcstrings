@@ -324,6 +324,17 @@
         }
       }
     },
+    "%lld of %lld Done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成 %1$lld／%2$lld"
+          }
+        }
+      }
+    },
     "%lld of %lld agents done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -638,6 +649,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動接受編輯"
+          }
+        }
+      }
+    },
+    "Account" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帳號"
+          }
+        }
+      }
+    },
+    "Activate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開通"
+          }
+        }
+      }
+    },
+    "Activate Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開通 Purrdr Plus"
           }
         }
       }
@@ -973,6 +1017,28 @@
         }
       }
     },
+    "Automatic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動"
+          }
+        }
+      }
+    },
+    "Automatic follows your device’s Light or Dark setting." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「自動」跟著裝置的深淺色設定。"
+          }
+        }
+      }
+    },
     "Beginning of conversation" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1244,6 +1310,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法取得對話內容"
+          }
+        }
+      }
+    },
+    "Chat and terminal don’t need a member account or subscription." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天與終端機不需要會員或訂閱。"
           }
         }
       }
@@ -2451,6 +2528,17 @@
         }
       }
     },
+    "Dark" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "深色"
+          }
+        }
+      }
+    },
     "Data" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3045,6 +3133,17 @@
         }
       }
     },
+    "Free trial available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可免費試用"
+          }
+        }
+      }
+    },
     "Full Access" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3074,6 +3173,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "產生"
+          }
+        }
+      }
+    },
+    "Get notified when an agent needs you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 需要你時通知"
           }
         }
       }
@@ -3118,17 +3228,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "觸覺回饋"
-          }
-        }
-      }
-    },
-    "Hardware Keyboard" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "實體鍵盤"
           }
         }
       }
@@ -3518,6 +3617,28 @@
         }
       }
     },
+    "Join" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入"
+          }
+        }
+      }
+    },
+    "Join as a Member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入會員"
+          }
+        }
+      }
+    },
     "Jump to Latest" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3558,6 +3679,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請至少保留一種登入方式。"
+          }
+        }
+      }
+    },
+    "Keyboard and Haptics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵盤與觸覺"
           }
         }
       }
@@ -3617,6 +3749,17 @@
         }
       }
     },
+    "Later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後"
+          }
+        }
+      }
+    },
     "Learn More" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3668,6 +3811,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "層級"
+          }
+        }
+      }
+    },
+    "Light" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淺色"
           }
         }
       }
@@ -4068,6 +4222,17 @@
         }
       }
     },
+    "Next Step" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一步"
+          }
+        }
+      }
+    },
     "No Agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4255,6 +4420,28 @@
         }
       }
     },
+    "Not Yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒到"
+          }
+        }
+      }
+    },
+    "Not a Member Yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未加入會員"
+          }
+        }
+      }
+    },
     "Not on This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4295,6 +4482,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通知是選用的"
+          }
+        }
+      }
+    },
+    "Notifications and host sync are on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知與同步都已開啟"
+          }
+        }
+      }
+    },
+    "Notifications and host sync need Purrdr Plus. Activate it next." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知與主機同步需要 Purrdr Plus，下一步請開通。"
+          }
+        }
+      }
+    },
+    "Notifications and host sync need Purrdr Plus. Join as a member first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知與主機同步需要 Purrdr Plus，請先加入會員。"
           }
         }
       }
@@ -5003,6 +5223,17 @@
         }
       }
     },
+    "Purrdr Plus Is On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已開通 Purrdr Plus"
+          }
+        }
+      }
+    },
     "Purrdr Plus belongs to your Purrdr member account. Sign in, and your purchase is added automatically." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5010,6 +5241,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr Plus 屬於你的 Purrdr 會員。登入後，你的購買項目會自動加入。"
+          }
+        }
+      }
+    },
+    "Purrdr Plus · Active" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr Plus・已開通"
           }
         }
       }
@@ -5795,6 +6037,17 @@
         }
       }
     },
+    "Set Up Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 Purrdr Plus"
+          }
+        }
+      }
+    },
     "Setting up notifications…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5879,6 +6132,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享公鑰"
+          }
+        }
+      }
+    },
+    "Share hosts between iPhone and iPad" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone、iPad 共用主機"
           }
         }
       }
@@ -6169,6 +6433,17 @@
         }
       }
     },
+    "Sign in with Apple or Google" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Apple 或 Google 登入"
+          }
+        }
+      }
+    },
     "Sign in with Google" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6345,6 +6620,17 @@
         }
       }
     },
+    "Subscription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱"
+          }
+        }
+      }
+    },
     "Suggestion: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6385,6 +6671,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Spaces 與 Agents 之間切換。"
+          }
+        }
+      }
+    },
+    "Sync Host List" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步主機名單"
           }
         }
       }
@@ -7980,6 +8277,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉 Claude 方案用量"
+          }
+        }
+      }
+    },
+    "Turn On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟"
+          }
+        }
+      }
+    },
+    "Turn On All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部開啟"
+          }
+        }
+      }
+    },
+    "Turn On Notifications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟通知"
+          }
+        }
+      }
+    },
+    "Turn on notifications and host sync now? You can change them later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要現在開啟通知和主機同步嗎？之後也可以在這裡開關。"
           }
         }
       }

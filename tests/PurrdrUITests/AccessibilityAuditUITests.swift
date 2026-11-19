@@ -222,7 +222,8 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testPaywall() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            openMenu("menu.plus", in: app)
+            // 「⋯」選單不再有 Purrdr Plus(#246),以深層連結開。
+            app.open(URL(string: "purrdr://plus")!)
             XCTAssertTrue(element("plus.plan.com.raychiu.purrdr.plus.monthly", in: app).waitForExistence(timeout: 15))
             try audit(app, "付費牆", contentSize: size)
             app.terminate()
@@ -233,7 +234,10 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testSignIn() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            openMenu("menu.member", in: app)
+            app.buttons["toolbar.account"].tap()
+            XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10))
+            try audit(app, "帳號", contentSize: size)
+            app.buttons["account.plusSetup.action"].tap()
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
             try audit(app, "登入", contentSize: size)
             app.terminate()
