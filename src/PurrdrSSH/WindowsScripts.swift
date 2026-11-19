@@ -477,6 +477,117 @@ enum WindowsScripts {
         $o.Flush()
         """#
 
+    // MARK: - 主機取檔(#226)
+
+    /// `HostFileFetchScript.follow` 的 PowerShell 版，協定相同。參數(`$a`):閒置、總長秒數、大小上限。
+    static func hostFileFetch(arguments values: [String]) -> String {
+        [prelude, arguments(values), fetchSettings, transcriptFunctions, hostFileFunctions, hostFileFetchScript].joined(separator: "\n")
+    }
+
+    /// 排除清單的 `-like` 樣式(路徑轉成小寫、`/` 分隔後比對)與一次讀取的上限。
+    static var fetchSettings: String {
+        let patterns = HostFileAccessPolicy.excludedLocations.flatMap { location in
+            ["*/\(location.lowercased())", "*/\(location.lowercased())/*"]
+        }
+        return "$purrdrExcluded=@(" + patterns.map(PowerShell.quote).joined(separator: ",") + ");$purrdrChunk=\(HostFileFetchScript.maximumChunk)"
+    }
+
+    /// 存取規則以 `GetFinalPathNameByHandle` 取得 junction／symlink／8.3 短檔名都解析後的實際路徑，與排除清單、
+    /// 解析後的工作目錄比對(不分大小寫);只收磁碟機路徑，ADS、UNC 拒絕。讀取用的 handle 也再核對一次實際路徑。
+    /// 版本是「SHA-256:大小」;從頭讀時把內容留在記憶體當快照，之後的分塊都從快照切。
+    static let hostFileFetchScript = #"""
+        Add-Type -TypeDefinition @'
+        using System;
+        using System.Runtime.InteropServices;
+        using System.Text;
+        using Microsoft.Win32.SafeHandles;
+        public static class PurrdrFinalPath {
+          [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+          static extern SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+          [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+          static extern uint GetFinalPathNameByHandleW(SafeFileHandle handle, StringBuilder buffer, uint size, uint flags);
+          public static int LastError;
+          public static string OfHandle(SafeFileHandle handle) {
+            var buffer = new StringBuilder(1024);
+            uint length = GetFinalPathNameByHandleW(handle, buffer, (uint)buffer.Capacity, 0);
+            if (length >= buffer.Capacity) { buffer = new StringBuilder((int)length + 1); length = GetFinalPathNameByHandleW(handle, buffer, (uint)buffer.Capacity, 0); }
+            if (length == 0 || length >= buffer.Capacity) { LastError = Marshal.GetLastWin32Error(); return null; }
+            var path = buffer.ToString();
+            if (path.StartsWith(@"\\?\UNC\")) { return @"\\" + path.Substring(8); }
+            if (path.StartsWith(@"\\?\")) { return path.Substring(4); }
+            return path;
+          }
+          public static string Of(string path) {
+            LastError = 0;
+            using (var handle = CreateFileW(path, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero)) {
+              if (handle.IsInvalid) { LastError = Marshal.GetLastWin32Error(); return null; }
+              return OfHandle(handle);
+            }
+          }
+        }
+        '@
+        function PDrive([string]$p){$p -match '^[A-Za-z]:[\\/]' -and $p.IndexOf(':',2) -lt 0}
+        function PExcluded([string]$p){$l=$p.Replace('\','/').ToLowerInvariant();foreach($y in $purrdrExcluded){if($l -like $y){return $true}};$false}
+        function PAllowed([string]$p,[string]$r){if(PExcluded $p){return $false};if($r -ceq '-'){return $true};$p.StartsWith($r.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)}
+        function PLocate([string]$p,[string]$r){
+        $script:fetchHandle=$null
+        if(-not (PDrive $p) -or ($r -cne '-' -and -not (PDrive $r))){return 'denied'}
+        try{$p=[IO.Path]::GetFullPath($p);if($r -cne '-'){$r=[IO.Path]::GetFullPath($r)}}catch{return 'denied'}
+        if($r -ceq '-'){$rootFinal='-'}else{$rootFinal=[PurrdrFinalPath]::Of($r);if(-not $rootFinal){return 'denied'}}
+        if(-not (PAllowed $p $r)){return 'denied'}
+        $final=[PurrdrFinalPath]::Of($p)
+        if(-not $final){if([PurrdrFinalPath]::LastError -eq 5){return 'unreadable'};return 'missing'}
+        if(-not (PAllowed $final $rootFinal)){return 'denied'}
+        if([IO.Directory]::Exists($final)){return 'other'}
+        try{$h=POpen $final}catch{return 'unreadable'}
+        if([PurrdrFinalPath]::OfHandle($h.SafeFileHandle) -cne $final){$h.Close();return 'denied'}
+        if($h.Length -gt [long]$a[2]){$z=$h.Length;$h.Close();return "toolarge $z"}
+        $script:fetchHandle=$h;$script:fetchTarget=$final
+        'file'
+        }
+        function PDecode([string]$x){try{$u.GetString([Convert]::FromBase64String($x))}catch{''}}
+        function PRoot([string]$x){if($x -ceq '-'){'-'}else{PDecode $x}}
+        function PStat([string]$p,[string]$r){
+        $v=PLocate $p $r
+        if($v -cne 'file'){PWrite "$v`n";return}
+        $h=$script:fetchHandle;try{$b=PRead $h 0 $h.Length}catch{PWrite "unreadable`n";return}finally{$h.Close()}
+        PWrite "file $(PHashOf $b) $($b.Length)`n"
+        }
+        function PChunkOf([string]$p,[string]$r,[string]$k,[string]$f,[string]$n){
+        $v=PLocate $p $r
+        if($v -cne 'file'){PWrite "$v`n";return}
+        $h=$script:fetchHandle
+        try{
+        if($f -notmatch '^\d{1,15}$' -or $n -notmatch '^\d{1,15}$'){PWrite "bad`n";return}
+        if([long]$f -eq 0 -or $script:snapPath -cne $script:fetchTarget -or $script:snapVersion -cne $k){
+        try{$b=PRead $h 0 $h.Length}catch{PWrite "unreadable`n";return}
+        $script:snap=$b;$script:snapVersion=PHashOf $b;$script:snapPath=$script:fetchTarget
+        }
+        }finally{$h.Close()}
+        if($script:snapVersion -cne $k){PWrite "changed`n";return}
+        $total=[long]$script:snap.Length;$start=[long]$f;$count=[Math]::Min([long]$n,[long]$purrdrChunk)
+        if($start -ge $total){$count=0}elseif($start+$count -gt $total){$count=$total-$start}
+        $e=[Convert]::ToBase64String($script:snap,[int]$start,[int]$count)
+        PWrite "chunk $start $count $($e.Length)`n$e`n"
+        }
+        $purrdrEnd=[DateTime]::UtcNow.AddSeconds([int]$a[1])
+        function PIdle{$idleUntil=[DateTime]::UtcNow.AddSeconds([int]$a[0]);if($idleUntil -gt $purrdrEnd){$idleUntil=$purrdrEnd};$purrdrLimit.At=$idleUntil}
+        PIdle
+        while(($request=$s.ReadLine()) -ne $null){
+        PIdle
+        $fields=@($request.Split([char]' ',[StringSplitOptions]::RemoveEmptyEntries))
+        try{
+        if($fields.Count -eq 3 -and $fields[0] -ceq 'stat'){PStat (PDecode $fields[1]) (PRoot $fields[2])}
+        elseif($fields.Count -eq 6 -and $fields[0] -ceq 'read'){PChunkOf (PDecode $fields[1]) (PRoot $fields[2]) $fields[3] $fields[4] $fields[5]}
+        else{PWrite "bad`n"}
+        }catch{PWrite "unreadable`n"}
+        PWrite "end`n"
+        $o.Flush()
+        }
+        $o.Flush()
+        exit 0
+        """#
+
     // MARK: - Claude Code 的 slash 清單探索(#68,`ClaudeSlashCommand`)
 
     /// 與 POSIX 版相同的紀錄格式(`@F`、`@S`、`@L`,內容每行前面加 `|`)。路徑以參數原樣為基準、往下一律接 `/`,

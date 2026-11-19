@@ -3,7 +3,7 @@ import Foundation
 /// 主機取檔(GLOSSARY「主機取檔」,#225):從主機讀 Agent 碰過的檔案。只有兩個操作——查狀態、依版本分塊讀取。
 ///
 /// adapter:SSH(`SSHHostFileFetcher`,長駐通道跑 `HostFileFetchScript`)、Demo、測試用 Fake;
-/// 還沒支援的連線方式(Windows #226、HTTPS #227)回 `HostFileFetchError.unsupported`。
+/// 還沒支援的連線方式(HTTPS #227)回 `HostFileFetchError.unsupported`。
 /// 存取規則在呼叫前由 `HostFileAccessPolicy` 檢查(app 端),主機端再檢查一次(權威)。
 public protocol HostFileFetching: Sendable {
     /// 查狀態：存在、大小、版本。
