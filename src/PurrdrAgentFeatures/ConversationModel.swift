@@ -1460,21 +1460,12 @@ public final class ConversationModel {
     /// 從 pane 可見畫面擷取到的散文(只在 working 時);沒有真正的散文，或已寫進對話紀錄的最後一則回覆時為 `nil`(#208)。
     public var livePreview: String? {
         guard let screenPreview else { return nil }
-        guard let reply = latestReplyText else { return screenPreview }
+        guard let reply = Conversation.latestReplyText(in: recent) else { return screenPreview }
         return LivePreview.isWritten(screenPreview, in: reply) ? nil : screenPreview
     }
 
     /// 這次輪詢從畫面擷取到的散文，尚未與對話紀錄去重。
     private var screenPreview: String?
-
-    /// 對話紀錄裡最後一則 agent 回覆的文字。
-    private var latestReplyText: String? {
-        recent.reversed().lazy
-            .filter { $0.role == .assistant && !$0.isSidechain }
-            .map { $0.parts.compactMap { part in if case .text(let text) = part { text } else { nil } } }
-            .first { !$0.isEmpty }?
-            .joined(separator: "\n")
-    }
 
     /// working 時讀 pane 可見畫面擷取即時預覽(與背景 agents 窗格共用同一次讀取);還沒到讀取時間沿用上次的(#204)。
     private func refreshLivePreview() async {
