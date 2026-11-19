@@ -25,7 +25,7 @@ final class AnswerPromptUITests: XCTestCase {
         let field = element("composer.text", in: app)
         XCTAssertTrue(field.waitForExistence(timeout: 10), "沒有輸入框")
         field.tap()
-        field.typeText(text)
+        field.typeEnglish(text)
         element("composer.send", in: app).tap()
     }
 
@@ -111,7 +111,7 @@ final class AnswerPromptUITests: XCTestCase {
 
         typeSomething.tap()
         XCTAssertTrue(banner.waitForExistence(timeout: 5))
-        element("composer.text", in: app).typeText("Forest green")
+        element("composer.text", in: app).typeEnglish("Forest green")
         element("composer.send", in: app).tap()
 
         XCTAssertTrue(app.staticTexts["How large should the chart be?"].waitForExistence(timeout: 10), "自訂回答後應進到第二題")

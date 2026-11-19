@@ -72,13 +72,13 @@ final class AgentListUITests: XCTestCase {
         let search = app.searchFields.firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 5), "沒有搜尋欄")
         search.tap()
-        search.typeText("weather")
+        search.typeEnglish("weather")
 
         XCTAssertTrue(row("w2:p1", in: app).waitForExistence(timeout: 5))
         XCTAssertFalse(row("w1:p1", in: app).exists, "不符合的列仍在")
         XCTAssertFalse(row("w3:p1", in: app).exists, "不符合的列仍在")
 
-        search.typeText("zzz")
+        search.typeEnglish("zzz")
         XCTAssertTrue(app.staticTexts["No Matching Agents"].waitForExistence(timeout: 5), "沒有「無符合結果」的說明")
     }
 }

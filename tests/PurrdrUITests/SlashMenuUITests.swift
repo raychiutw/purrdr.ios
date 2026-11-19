@@ -23,7 +23,7 @@ final class SlashMenuUITests: XCTestCase {
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         text.tap()
-        text.typeText("/")
+        text.typeEnglish("/")
 
         XCTAssertTrue(element("slash.menu", in: app).waitForExistence(timeout: 10), "打 / 沒有出現選單")
         XCTAssertTrue(element("slash.row.demo-kit:changelog", in: app).waitForExistence(timeout: 10), "plugin 宣告的巢狀 skill 沒有出現")
@@ -31,7 +31,7 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["old-kit"].exists, "停用的 plugin 不該出現")
         XCTAssertTrue(element("slash.row.compact", in: app).exists, "沒有內建指令")
 
-        text.typeText("check")
+        text.typeEnglish("check")
         XCTAssertTrue(element("slash.row.demo-kit:check-diff", in: app).waitForExistence(timeout: 5))
         XCTAssertFalse(element("slash.row.compact", in: app).exists, "篩選後不該留下不符合的指令")
         XCTAssertFalse(app.staticTexts["demo-kit"].exists, "輸入名稱後是單一排名清單，不該有分組標題")
@@ -47,19 +47,19 @@ final class SlashMenuUITests: XCTestCase {
     func testInlineSlashInsertsSkillKeepingText() {
         let app = XCUIApplication.launchUITesting()
         let text = openLedger(app)
-        text.typeText("run /")
+        text.typeEnglish("run /")
 
         XCTAssertTrue(element("slash.row.demo-kit:changelog", in: app).waitForExistence(timeout: 10), "文中打 / 沒有出現 skill")
         XCTAssertFalse(element("slash.row.compact", in: app).exists, "文中選單不該列內建指令")
 
-        text.typeText("check")
+        text.typeEnglish("check")
         let row = element("slash.row.demo-kit:check-diff", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
         XCTAssertEqual(text.value as? String, "run /demo-kit:check-diff ")
         XCTAssertFalse(element("slash.menu", in: app).exists, "選取後選單應收起")
 
-        text.typeText("then fix")
+        text.typeEnglish("then fix")
         XCTAssertEqual(text.value as? String, "run /demo-kit:check-diff then fix")
     }
 
@@ -92,14 +92,14 @@ final class SlashMenuUITests: XCTestCase {
     func testPickingCommandWithRequiredArgumentShowsHint() {
         let app = XCUIApplication.launchUITesting()
         let text = openLedger(app)
-        text.typeText("/add-d")
+        text.typeEnglish("/add-d")
         let row = element("slash.row.add-dir", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
 
         XCTAssertEqual(text.value as? String, "/add-dir ")
         XCTAssertTrue(element("composer.argumentHint", in: app).waitForExistence(timeout: 5), "沒有參數提示")
-        text.typeText("docs")
+        text.typeEnglish("docs")
         XCTAssertFalse(element("composer.argumentHint", in: app).exists, "打了參數後提示應消失")
     }
 
@@ -108,7 +108,7 @@ final class SlashMenuUITests: XCTestCase {
     func testModelPanelCard() {
         let app = XCUIApplication.launchUITesting()
         let text = openLedger(app)
-        text.typeText("/model")
+        text.typeEnglish("/model")
         let row = element("slash.row.model", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
@@ -143,7 +143,7 @@ final class SlashMenuUITests: XCTestCase {
     func testEffortPanelCard() {
         let app = XCUIApplication.launchUITesting()
         let text = openLedger(app)
-        text.typeText("/effort")
+        text.typeEnglish("/effort")
         let row = element("slash.row.effort", in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()

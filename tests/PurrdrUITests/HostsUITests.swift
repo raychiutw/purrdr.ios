@@ -26,7 +26,7 @@ final class HostsUITests: XCTestCase {
         let name = app.textFields["hostEditor.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
-        name.typeText("Studio")
+        name.typeEnglish("Studio")
         XCTAssertFalse(app.textFields["hostEditor.address"].exists, "還沒選連線方式就出現連線欄位")
         XCTAssertFalse(app.buttons["hostEditor.test"].exists, "還沒選連線方式就能測試")
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled, "沒測試就能儲存")
@@ -41,7 +41,7 @@ final class HostsUITests: XCTestCase {
             let field = app.textFields["hostEditor.\(identifier)"]
             XCTAssertTrue(field.exists || scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
-            field.typeText(text)
+            field.typeEnglish(text)
         }
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         XCTAssertTrue(test.isEnabled)
@@ -106,7 +106,7 @@ final class HostsUITests: XCTestCase {
         let keyField = app.textViews["hostEditor.privateKey"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 5))
         keyField.tap()
-        keyField.typeText("-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----")
+        keyField.typeEnglish("-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----")
 
         let problem = app.descendants(matching: .any)["hostEditor.keyProblem"].firstMatch
         XCTAssertTrue(problem.waitForExistence(timeout: 5) || scrollTo(problem, in: app))
@@ -283,11 +283,12 @@ final class HostsUITests: XCTestCase {
 
 extension XCUIElement {
     /// 清掉文字欄位原本的內容再輸入。
+    @MainActor
     func clearAndType(_ text: String) {
         tap()
         if let value = value as? String, !value.isEmpty {
-            typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
+            typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
         }
-        typeText(text)
+        typeEnglish(text)
     }
 }

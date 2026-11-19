@@ -18,9 +18,7 @@ extension XCUIApplication {
         let app = XCUIApplication()
         // 介面語言固定英文(斷言用英文字);模擬器系統語言可能是繁中。要測繁中時在 flags 帶 `-AppleLanguages`。
         let language = flags.contains("-AppleLanguages") ? [] : ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        // 軟體鍵盤固定英文：模擬器會記住上次用的輸入法(注音測試留下的),`typeText` 英文會變成注音組字。要注音時在 flags 帶 `-AppleKeyboards`。
-        let keyboard = flags.contains("-AppleKeyboards") ? [] : ["-AppleKeyboards", "(en_US@sw=QWERTY;hw=Automatic)"]
-        app.launchArguments = ["-uiTesting"] + flags + language + keyboard
+        app.launchArguments = ["-uiTesting"] + flags + language
             + (contentSize.map { ["-UIPreferredContentSizeCategoryName", $0] } ?? [])
         return app
     }
@@ -123,4 +121,34 @@ func XCTAssertHitTarget(_ element: XCUIElement, file: StaticString = #filePath, 
         element.frame.width + floatingPointError, 44, "\(element.identifier) 寬度不到 44pt:\(element.frame)", file: file, line: line)
     XCTAssertGreaterThanOrEqual(
         element.frame.height + floatingPointError, 44, "\(element.identifier) 高度不到 44pt:\(element.frame)", file: file, line: line)
+}
+
+/// 軟體鍵盤的輸入法。模擬器用系統鍵盤清單的第一個或上次用的(`-AppleKeyboards` 啟動參數不會換掉它)。
+enum KeyboardLayout {
+    case english
+    case zhuyin
+}
+
+extension XCUIApplication {
+    /// 軟體鍵盤不是指定的輸入法時按地球鍵切過去(切換會被模擬器記成上次用的)。沒有軟體鍵盤時不做事。
+    @MainActor
+    func switchKeyboard(to layout: KeyboardLayout) {
+        let keyboard = keyboards.firstMatch
+        guard keyboard.exists else { return }
+        let markers = layout == .english ? ["q", "Q"] : ["ㄅ"]
+        // 地球鍵在鍵盤元素外(底部 home indicator 旁)。
+        let nextKeyboard = buttons["Next keyboard"].firstMatch
+        for _ in 0..<5 where !markers.contains(where: { keyboard.keys[$0].exists }) && nextKeyboard.exists {
+            nextKeyboard.tap()
+        }
+    }
+}
+
+extension XCUIElement {
+    /// 以英文軟體鍵盤打字：注音等輸入法會把英文變成組字。
+    @MainActor
+    func typeEnglish(_ text: String) {
+        XCUIApplication().switchKeyboard(to: .english)
+        typeText(text)
+    }
 }

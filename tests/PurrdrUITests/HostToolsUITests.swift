@@ -36,7 +36,7 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(status.label.contains("Connected"), "狀態不對:\(status.label)")
 
         // 鍵盤輸入直接寫進 PTY(Demo 的 shell 會回顯);接上後終端機自動取得焦點。
-        app.typeText("ls")
+        app.typeEnglish("ls")
         waitForScreen(screen, toContain: "demo@purrdr ~ % ls")
         XCTAssertTrue(app.buttons["terminal.key.esc"].firstMatch.isHittable, "按鍵列沒有出現")
     }

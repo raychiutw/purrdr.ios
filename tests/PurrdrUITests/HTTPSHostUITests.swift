@@ -130,7 +130,7 @@ final class HTTPSHostUITests: XCTestCase {
         let code = app.textFields["hostEditor.pairingCode"]
         XCTAssertTrue(code.waitForExistence(timeout: 5) || scrollTo(code, in: app))
         code.tap()
-        code.typeText("k7qm-2xpa")
+        code.typeEnglish("k7qm-2xpa")
         XCTAssertEqual(code.value as? String, "K7QM-2XPA")
     }
 
@@ -174,7 +174,7 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         XCTAssertFalse(test.isEnabled, "沒有配對碼不能測試")
         code.tap()
-        code.typeText("K7QM-2XPA")
+        code.typeEnglish("K7QM-2XPA")
         test.tap()
         let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch
         XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
@@ -211,7 +211,7 @@ final class HTTPSHostUITests: XCTestCase {
             let field = app.textFields["hostEditor.\(identifier)"]
             XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
-            field.typeText(text)
+            field.typeEnglish(text)
         }
     }
 

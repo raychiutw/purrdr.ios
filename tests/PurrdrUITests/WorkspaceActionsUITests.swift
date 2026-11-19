@@ -24,7 +24,7 @@ final class WorkspaceActionsUITests: XCTestCase {
         let field = app.textFields["workspace.rename.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5), "沒有重新命名表單")
         XCTAssertEqual(field.value as? String, "ledger", "沒有預填 workspace 名稱")
-        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 10) + "Budget")
+        field.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 10) + "Budget")
         app.buttons["Save"].tap()
 
         XCTAssertTrue(field.waitForNonExistence(timeout: 5), "儲存後表單沒有關閉")
@@ -108,7 +108,7 @@ final class WorkspaceActionsUITests: XCTestCase {
         app.buttons["New Worktree…"].tap()
         let branch = app.textFields["workspace.worktree.branch"]
         XCTAssertTrue(branch.waitForExistence(timeout: 5))
-        branch.typeText("try-sorting")
+        branch.typeEnglish("try-sorting")
         app.buttons["Create"].tap()
 
         XCTAssertTrue(app.descendants(matching: .any)["workspace.worktree.error"].waitForExistence(timeout: 5), "沒有顯示錯誤")
