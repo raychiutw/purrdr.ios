@@ -492,7 +492,7 @@ enum WindowsScripts {
         return "$purrdrExcluded=@(" + patterns.map(PowerShell.quote).joined(separator: ",") + ");$purrdrChunk=\(HostFileFetchScript.maximumChunk)"
     }
 
-    /// 存取規則與 POSIX 版、主機服務相同(共用案例 `protocol/host-file-access.json`):工作目錄不能是磁碟機根目錄、
+    /// 存取規則與 POSIX 版、主機服務相同(共用案例 `vendor/purrdr-host/protocol/host-file-access.json`):工作目錄不能是磁碟機根目錄、
     /// `%USERPROFILE%` 或它的上層;沒有工作目錄(`-`,`HostFileFetchScript.noWorkingDirectory`)時只放行 `%TEMP%`、
     /// 家目錄的 `AppData\Local\Temp`、`.purrdr\uploads` 與 Claude 的 `tool-results`。先比對請求的路徑，再以
     /// `GetFinalPathNameByHandle` 取得 junction／symlink／8.3 短檔名都解析後的實際路徑比對;讀取用的 handle 也再核對一次。

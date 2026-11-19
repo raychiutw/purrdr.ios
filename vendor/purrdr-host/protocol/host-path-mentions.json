@@ -1,5 +1,5 @@
 {
-  "description": "訊息文字中的主機絕對路徑辨識(#229)。app(PurrdrCore HostPathMention)與主機服務(host_path_mentions.rs)用同一份案例測試，兩端認得的路徑一致。paths 依出現順序列出。",
+  "description": "訊息文字中的主機絕對路徑辨識(raychiutw/purrdr.ios#229)。app(PurrdrCore HostPathMention)與主機服務(host_path_mentions.rs)用同一份案例測試，兩端認得的路徑一致。paths 依出現順序列出。",
   "cases": [
     { "name": "POSIX 路徑，句尾標點不算", "text": "Saved to /Users/demo/ledger/docs/report.pdf.", "paths": ["/Users/demo/ledger/docs/report.pdf"] },
     { "name": "Windows 反斜線路徑", "text": "寫到 C:\\Users\\Demo\\ledger\\out.csv 了", "paths": ["C:\\Users\\Demo\\ledger\\out.csv"] },

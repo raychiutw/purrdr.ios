@@ -1228,7 +1228,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 主機取檔(#227):查檔案狀態。只允許 herdr snapshot 目前回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑;主機服務解析 symlink 後再比對工作目錄與排除清單(x-excluded-file-locations)。唯讀，唯讀裝置也可用。
+    /// 主機取檔(raychiutw/purrdr.ios#227):查檔案狀態。只允許 herdr snapshot 目前回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑;主機服務解析 symlink 後再比對工作目錄與排除清單(x-excluded-file-locations)。唯讀，唯讀裝置也可用。
     public struct FileStat: Codable, Sendable, Equatable {
         public var requestId: String
         /// 主機上的絕對路徑(不可含 . 或 .. 段落)。

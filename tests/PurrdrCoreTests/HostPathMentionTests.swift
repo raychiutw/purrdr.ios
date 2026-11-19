@@ -11,11 +11,11 @@ struct HostPathMentionTests {
         var paths: [String]
     }
 
-    /// 與主機服務共用的案例(`protocol/host-path-mentions.json`)。
+    /// 與主機服務共用的案例(`vendor/purrdr-host/protocol/host-path-mentions.json`)。
     static let vectors: [Vector] = {
         let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         struct File: Decodable { var cases: [Vector] }
-        let data = (try? Data(contentsOf: root.appending(path: "protocol/host-path-mentions.json"))) ?? Data()
+        let data = (try? Data(contentsOf: root.appending(path: "vendor/purrdr-host/protocol/host-path-mentions.json"))) ?? Data()
         return (try? JSONDecoder().decode(File.self, from: data).cases) ?? []
     }()
 

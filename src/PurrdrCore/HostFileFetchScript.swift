@@ -8,7 +8,7 @@ import Foundation
 /// - `read <路徑> <工作目錄> <版本> <offset> <length>` → 同上的非 `file` 狀態、`changed`,或
 ///   `chunk <offset> <bytes> <base64 長度>` 接著一行 base64
 ///
-/// 每則回應最後一行 `end`。主機端的存取規則(與 app、主機服務共用案例 `protocol/host-file-access.json`):
+/// 每則回應最後一行 `end`。主機端的存取規則(與 app、主機服務共用案例 `vendor/purrdr-host/protocol/host-file-access.json`):
 /// 工作目錄不能是 `/`、`$HOME` 或它的上層;沒有工作目錄時只放行暫存目錄、`~/.purrdr/uploads` 與 Claude 的 `tool-results`
 /// (「是否出現在對話紀錄」由 app 判斷，見 ADR-0010);排除清單不分大小寫。先比對請求的路徑，再比對 `cd -P` 與 symlink 迴圈
 /// 解析後的實際路徑;開檔後以開著的檔案(`/dev/fd/3`)的 inode 核對實際路徑。查狀態與從頭讀都把檔案複製成快照，

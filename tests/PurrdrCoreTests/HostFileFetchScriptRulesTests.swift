@@ -5,7 +5,7 @@ import Testing
 #if os(macOS) || os(Linux)
 
 /// SSH 的 POSIX 取檔腳本自己的存取規則(主機端判斷):以真的 `/bin/sh` 跑 `HostFileFetchScript`,不經 SSH。
-/// 共用案例 `protocol/host-file-access.json` 只看路徑(檔案不存在：放行時回 `missing`,不放行回 `denied`)。
+/// 共用案例 `vendor/purrdr-host/protocol/host-file-access.json` 只看路徑(檔案不存在：放行時回 `missing`,不放行回 `denied`)。
 @Suite("主機取檔腳本的存取規則(POSIX)", .serialized)
 struct HostFileFetchScriptRulesTests {
     /// 直接執行取檔腳本，一次送出所有請求，收齊回應。

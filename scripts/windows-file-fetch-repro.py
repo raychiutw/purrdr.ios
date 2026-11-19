@@ -12,7 +12,7 @@ kind:
           symbolic link 跳出工作目錄(建不了就略過)、排除清單大小寫不同、別的磁碟機、相對路徑、ADS、UNC 都拒絕;缺檔、資料夾
   snapshot  從頭讀之後覆寫檔案，同版本的後續分塊仍是舊內容(不拼出兩個版本);舊版本從頭讀回 changed
   limit   閒置時限(3 秒)以 exit 124 結束、程序樹不留程序
-  shared  與 app、主機服務共用的存取規則案例(protocol/host-file-access.json 的 Windows 案例，只看路徑):家目錄設成
+  shared  與 app、主機服務共用的存取規則案例(vendor/purrdr-host/protocol/host-file-access.json 的 Windows 案例，只看路徑):家目錄設成
           共用案例的 Windows 家目錄(只改 PowerShell 程序內的 $env:USERPROFILE),不碰真的家目錄;放行回 missing、不放行回 denied
 
 用法(要在 Windows 主機本機跑：測試檔寫在本機 %TEMP%):
@@ -47,7 +47,7 @@ CHUNK = 192 * 1024
 
 def schema():
     """主機服務協定 schema(排除清單、大小上限的唯一定義)。"""
-    with open(os.path.join(repro.REPO, "protocol", "host-service.schema.json"), encoding="utf-8") as file:
+    with open(os.path.join(repro.REPO, "vendor", "purrdr-host", "protocol", "host-service.schema.json"), encoding="utf-8") as file:
         return json.load(file)
 
 
@@ -311,7 +311,7 @@ def run_access(source):
 
 def run_shared(source):
     """共用案例(只看路徑):PowerShell 程序內把家目錄指到共用案例裡不存在的家目錄。"""
-    with open(os.path.join(repro.REPO, "protocol", "host-file-access.json"), encoding="utf-8") as file:
+    with open(os.path.join(repro.REPO, "vendor", "purrdr-host", "protocol", "host-file-access.json"), encoding="utf-8") as file:
         vectors = json.load(file)
     home = vectors["environment"]["windows"]["home"]
     # TEMP 不改：Add-Type 要在真的暫存目錄編譯;家目錄底下的 AppData\Local\Temp 由 USERPROFILE 推得。

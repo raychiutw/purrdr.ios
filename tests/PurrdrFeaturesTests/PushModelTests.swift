@@ -36,7 +36,7 @@ struct PushModelTests {
         PushService(
             session: MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens),
             platform: platform, store: store,
-            configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr-host-plugin"),
+            configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr-host/host-plugin"),
             isPlusActive: { plusActive })
     }
 

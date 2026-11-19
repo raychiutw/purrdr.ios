@@ -1,7 +1,7 @@
 import Foundation
 
 /// 訊息文字中的主機絕對路徑(#229)。主機服務以同一套規則(`host_path_mentions.rs`)判斷「對話紀錄出現過」,
-/// 兩端共用 `protocol/host-path-mentions.json` 的案例。
+/// 兩端共用 `vendor/purrdr-host/protocol/host-path-mentions.json` 的案例。
 ///
 /// - POSIX(`/` 開頭、至少兩段)與 Windows 磁碟機路徑(`C:\…`、`C:/…`);不含 `.`／`..`、空段落，結尾不是分隔符號。
 /// - 一般文字裡的路徑到空白或標點為止，前面要接空白、標點或非 ASCII 文字;句尾標點與 `:行號` 不算。

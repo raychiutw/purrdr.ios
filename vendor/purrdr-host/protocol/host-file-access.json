@@ -1,5 +1,5 @@
 {
-  "description": "主機取檔的存取規則(#227)。app(HostFileAccessPolicy)、主機服務(host_files.rs)、SSH 的 POSIX 取檔腳本與 Windows PowerShell 取檔腳本跑同一組案例。",
+  "description": "主機取檔的存取規則(raychiutw/purrdr.ios#227)。app(HostFileAccessPolicy)、主機服務(host_files.rs)、SSH 的 POSIX 取檔腳本與 Windows PowerShell 取檔腳本跑同一組案例。",
   "environment": {
     "posix": {
       "home": "/home/demo",
@@ -422,7 +422,7 @@
       "root": "C:\\Users\\Demo\\ledger"
     }
   ],
-  "mentionDescription": "mentionCases:一段對話紀錄(lines)中 path 算不算 Agent 自己寫出的路徑。只認 Agent 訊息文字(#229 的規則)、Agent 工具呼叫參數的檔案路徑、圖片生成的 saved_path 與 MCP 圖片的 [Image: source: …];使用者 prompt、工具結果內容、讀到的檔案內容一律不算。app 與主機服務都跑。",
+  "mentionDescription": "mentionCases:一段對話紀錄(lines)中 path 算不算 Agent 自己寫出的路徑。只認 Agent 訊息文字(raychiutw/purrdr.ios#229 的規則)、Agent 工具呼叫參數的檔案路徑、圖片生成的 saved_path 與 MCP 圖片的 [Image: source: …];使用者 prompt、工具結果內容、讀到的檔案內容一律不算。app 與主機服務都跑。",
   "mentionCases": [
     {
       "name": "Claude:Agent 訊息文字中的路徑",

@@ -106,7 +106,7 @@ extension HostFileAccessScope {
     }
 }
 
-/// 主機取檔的存取規則(app 端提前擋;主機端再檢查，是權威)。與主機服務、SSH 取檔腳本共用案例 `protocol/host-file-access.json`。
+/// 主機取檔的存取規則(app 端提前擋;主機端再檢查，是權威)。與主機服務、SSH 取檔腳本共用案例 `vendor/purrdr-host/protocol/host-file-access.json`。
 ///
 /// - Agent 工作目錄之下;工作目錄是根目錄、家目錄或它的上層時不算(等於放行整個家目錄)。
 /// - 或 Agent 在對話紀錄寫出的路徑，且在系統暫存目錄、家目錄的 `.purrdr/uploads`、Windows 的 `AppData\Local\Temp`,

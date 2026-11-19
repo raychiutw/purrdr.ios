@@ -2,7 +2,7 @@ import Foundation
 import PurrdrCore
 import Testing
 
-/// 主機取檔的存取規則與「Agent 寫出的路徑」:與主機服務、SSH 取檔腳本共用 `protocol/host-file-access.json` 的案例。
+/// 主機取檔的存取規則與「Agent 寫出的路徑」:與主機服務、SSH 取檔腳本共用 `vendor/purrdr-host/protocol/host-file-access.json` 的案例。
 @Suite("主機取檔的存取規則(共用案例)")
 struct HostFileAccessSharedCasesTests {
     struct AccessCase: Decodable {
@@ -37,7 +37,7 @@ struct HostFileAccessSharedCasesTests {
 
     static let vectors: Vectors? = {
         let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        guard let data = try? Data(contentsOf: root.appending(path: "protocol/host-file-access.json")) else { return nil }
+        guard let data = try? Data(contentsOf: root.appending(path: "vendor/purrdr-host/protocol/host-file-access.json")) else { return nil }
         return try? JSONDecoder().decode(Vectors.self, from: data)
     }()
 

@@ -87,16 +87,22 @@ struct HostServiceUpdateTests {
         #expect(Self.updates(newerRelease) == ["A Older": "0.12.0", "B Same": "0.12.0", "C Newer": "0.12.0"])
     }
 
-    @Test("app 已知的最新主機服務版本與 host-service/service/Cargo.toml 的版本一致(發行主機服務時一起遞增)")
-    func latestVersionMatchesCargoManifest() throws {
-        let manifest = URL(filePath: #filePath)
+    @Test("app 已知的最新主機服務版本與 vendor/purrdr-host/VERSION 同步來的主機服務版本一致(發行主機服務時一起遞增)")
+    func latestVersionMatchesSyncedHostServiceVersion() throws {
+        let versionFile = URL(filePath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "host-service/service/Cargo.toml")
-        let contents = try String(contentsOf: manifest, encoding: .utf8)
-        let package = try #require(contents.components(separatedBy: "\n[").first)
-        let line = try #require(package.split(separator: "\n").first { $0.hasPrefix("version") })
-        let version = line.split(separator: "\"")[1]
+            .appending(path: "vendor/purrdr-host/VERSION")
+        let contents = try String(contentsOf: versionFile, encoding: .utf8)
+        let prefix = "host_service_version="
+        let line = try #require(contents.split(separator: "\n").first { $0.hasPrefix(prefix) })
 
-        #expect(HostServiceUpdates.latestKnownVersion == String(version))
+        #expect(HostServiceUpdates.latestKnownVersion == String(line.dropFirst(prefix.count)))
+    }
+
+    @Test("一行安裝指令從主機端 repo raychiutw/purrdr-host 的最新 Release 下載")
+    func installCommandsDownloadFromPurrdrHostReleases() {
+        let base = "https://github.com/raychiutw/purrdr-host/releases/latest/download/"
+        #expect(HostServiceUpdates.posixInstallCommand == "curl -fsSL \(base)install.sh | sh")
+        #expect(HostServiceUpdates.windowsInstallCommand == "irm \(base)install.ps1 | iex")
     }
 }
