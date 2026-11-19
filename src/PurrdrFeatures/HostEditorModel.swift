@@ -647,7 +647,8 @@ public final class HostEditorModel {
     /// HTTPS 主機：名稱、https 位址，以及配對碼(已存的 HTTPS 主機可以不填，沿用存著的權杖)。
     private var hostServiceDraft: Draft? {
         let name = name.trimmingCharacters(in: .whitespaces)
-        let code = pairingCode.trimmingCharacters(in: .whitespaces)
+        // 配對碼是大寫字母：硬體鍵盤與貼上打的小寫也算(#236)。
+        let code = pairingCode.trimmingCharacters(in: .whitespaces).uppercased()
         guard !name.isEmpty, let address = HostServiceAddress(addressField: address, portField: port) else { return nil }
         guard !code.isEmpty || !needsPairingCode else { return nil }
         return Draft(name: name, connection: .https(address, pairingCode: code.isEmpty ? nil : code))

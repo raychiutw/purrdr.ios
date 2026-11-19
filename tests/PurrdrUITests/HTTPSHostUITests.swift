@@ -209,17 +209,24 @@ final class HTTPSHostUITests: XCTestCase {
         app.swipeDown()
         for (identifier, text) in [("name", "Studio"), ("address", "studio.tail1234.ts.net"), ("pairingCode", code)] {
             let field = app.textFields["hostEditor.\(identifier)"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5) || scrollTo(field, in: app), "沒有 \(identifier) 欄位")
+            XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
             field.typeText(text)
         }
     }
 
-    /// 往下捲到元素出現(表單比畫面長)。
+    /// 捲到元素出現且不在鍵盤底下(表單比畫面長):先往下，沒有再往上。
     @MainActor
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        for _ in 0..<6 where !element.isHittable {
+        let keyboard = app.keyboards.firstMatch
+        func isReachable() -> Bool {
+            element.isHittable && (!keyboard.exists || element.frame.maxY < keyboard.frame.minY)
+        }
+        for _ in 0..<6 where !isReachable() {
             app.swipeUp()
+        }
+        for _ in 0..<6 where !isReachable() {
+            app.swipeDown()
         }
         return element.exists
     }
