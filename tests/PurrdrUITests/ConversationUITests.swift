@@ -156,6 +156,43 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(sent.waitForExistence(timeout: 5), "對話紀錄不該新增訊息")
     }
 
+    /// 軟體鍵盤出現時(#196):You should know 卡片收成一行，對話至少留 132pt、看得到訊息;
+    /// 收起鍵盤後仍是一行(不在鍵盤動畫中長回來),點一行的註記才換回完整卡片。
+    /// 模擬器接著硬體鍵盤(只有快捷列)時空間夠，卡片不收，這時不適用。
+    @MainActor
+    func testSoftKeyboardKeepsConversationVisible() throws {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 15), "沒有註記")
+        XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 10), "沒有建議")
+        text.tap()
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+        guard keyboard.frame.height > 150 else { throw XCTSkip("模擬器接著硬體鍵盤，沒有軟體鍵盤") }
+
+        let compact = element("youShouldKnow.compact", in: app)
+        XCTAssertTrue(compact.waitForExistence(timeout: 5), "鍵盤出現時註記沒有收成一行")
+        XCTAssertFalse(element("youShouldKnow.note", in: app).exists, "完整卡片應收起")
+        text.typeText("Typing while reading")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "soft-keyboard-typing"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        let top = app.navigationBars.firstMatch.frame.maxY
+        let bottom = [compact, element("conversation.suggestion", in: app)].filter(\.exists).map(\.frame.minY).min() ?? text.frame.minY
+        XCTAssertGreaterThanOrEqual(bottom - top, 132, "對話只剩 \(bottom - top)pt")
+        let rows = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier == 'conversation.agent' OR identifier == 'conversation.user'")).allElementsBoundByIndex
+        XCTAssertTrue(rows.contains { $0.frame.maxY > top + 20 && $0.frame.minY < bottom - 20 }, "打字時看不到任何訊息")
+
+        hideKeyboard(in: app)
+        XCTAssertTrue(compact.exists, "收起鍵盤時註記應維持一行")
+        compact.tap()
+        XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 5), "點一行的註記後完整卡片沒有回來")
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
+    }
+
     /// 聚焦時有「收起鍵盤」:收起後草稿還在、沒有送出(#37 故事 36)。
     @MainActor
     func testHideKeyboardKeepsDraft() {
