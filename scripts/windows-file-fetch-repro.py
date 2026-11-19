@@ -12,6 +12,8 @@ kind:
           symbolic link 跳出工作目錄(建不了就略過)、排除清單大小寫不同、別的磁碟機、相對路徑、ADS、UNC 都拒絕;缺檔、資料夾
   snapshot  從頭讀之後覆寫檔案，同版本的後續分塊仍是舊內容(不拼出兩個版本);舊版本從頭讀回 changed
   limit   閒置時限(3 秒)以 exit 124 結束、程序樹不留程序
+  shared  與 app、主機服務共用的存取規則案例(protocol/host-file-access.json 的 Windows 案例，只看路徑):家目錄設成
+          共用案例的 Windows 家目錄(只改 PowerShell 程序內的 $env:USERPROFILE),不碰真的家目錄;放行回 missing、不放行回 denied
 
 用法(要在 Windows 主機本機跑：測試檔寫在本機 %TEMP%):
   PURRDR_WINDOWS_HOST=user@127.0.0.1 PURRDR_WINDOWS_KEY=<私鑰> \
@@ -23,6 +25,7 @@ import base64
 import glob
 import hashlib
 import importlib.util
+import json
 import os
 import queue
 import re
@@ -40,7 +43,15 @@ _spec.loader.exec_module(repro)
 
 REPLY_TIMEOUT = 30
 CHUNK = 192 * 1024
-MAXIMUM = 25 * 1024 * 1024
+
+
+def schema():
+    """主機服務協定 schema(排除清單、大小上限的唯一定義)。"""
+    with open(os.path.join(repro.REPO, "protocol", "host-service.schema.json"), encoding="utf-8") as file:
+        return json.load(file)
+
+
+MAXIMUM = schema()["x-maximum-file-size"]
 
 
 def core_source(file_name):
@@ -51,35 +62,18 @@ def core_source(file_name):
         return file.read()
 
 
-def excluded_locations():
-    """`HostFileAccessPolicy.excludedLocations` 的字串。"""
-    match = re.search(r"static let excludedLocations = \[(.*?)\]", core_source("HostFileFetching.swift"), re.S)
-    if not match:
-        sys.exit("找不到 HostFileAccessPolicy.excludedLocations:寫法改了，請更新本腳本")
-    return re.findall(r'"([^"]+)"', match.group(1))
-
-
-def maximum_chunk():
-    match = re.search(r"static let maximumChunk = ([0-9_ *]+)\n", core_source("HostFileFetchScript.swift"))
-    if not match:
-        sys.exit("找不到 HostFileFetchScript.maximumChunk:寫法改了，請更新本腳本")
-    value = 1
-    for factor in match.group(1).split("*"):
-        value *= int(factor.strip().replace("_", ""))
-    return value
-
-
 def fetch_settings():
     """同 `WindowsScripts.fetchSettings`。"""
     patterns = []
-    for location in excluded_locations():
+    for location in schema()["x-excluded-file-locations"]:
         lowered = location.lower()
         patterns += [f"*/{lowered}", f"*/{lowered}/*"]
-    return "$purrdrExcluded=@(" + ",".join(repro.quote(p) for p in patterns) + f");$purrdrChunk={maximum_chunk()}"
+    return "$purrdrExcluded=@(" + ",".join(repro.quote(p) for p in patterns) + f");$purrdrChunk={schema()['x-maximum-file-chunk']}"
 
 
-def fetch_stdin(source, idle=60, total=600, maximum=MAXIMUM):
+def fetch_stdin(source, idle=60, total=600, maximum=MAXIMUM, preamble=""):
     script = "\n".join([
+        preamble,
         repro.swift_literal(source, "prelude"),
         "$a=@(" + ",".join(repro.quote(str(v)) for v in (idle, total, maximum)) + ")",
         fetch_settings(),
@@ -97,7 +91,7 @@ def b64(text):
 class Fetcher:
     """一條長駐取檔通道(一個 ssh 程序)。"""
 
-    def __init__(self, source, idle=60, total=600, verbose=False):
+    def __init__(self, source, idle=60, total=600, verbose=False, preamble=""):
         remote = "cat /proc/$$/winpid >&2; " + repro.encoded(repro.stdin_stub(source))
         argv = repro.ssh_argv(remote)
         if verbose:
@@ -110,7 +104,7 @@ class Fetcher:
         self.last_reply_bytes = 0
         threading.Thread(target=self._read, daemon=True).start()
         threading.Thread(target=self._read_stderr, daemon=True).start()
-        self.process.stdin.write(fetch_stdin(source, idle, total))
+        self.process.stdin.write(fetch_stdin(source, idle, total, preamble=preamble))
         self.process.stdin.flush()
 
     def _read(self):
@@ -315,6 +309,31 @@ def run_access(source):
         remove(folder)
 
 
+def run_shared(source):
+    """共用案例(只看路徑):PowerShell 程序內把家目錄指到共用案例裡不存在的家目錄。"""
+    with open(os.path.join(repro.REPO, "protocol", "host-file-access.json"), encoding="utf-8") as file:
+        vectors = json.load(file)
+    home = vectors["environment"]["windows"]["home"]
+    # TEMP 不改：Add-Type 要在真的暫存目錄編譯;家目錄底下的 AppData\Local\Temp 由 USERPROFILE 推得。
+    preamble = f"$env:USERPROFILE={repro.quote(home)}"
+    cases = [case for case in vectors["accessCases"]
+             if case["platform"] == "windows" and "powershell" in case.get("only", ["powershell"])]
+    fetcher = Fetcher(source, preamble=preamble)
+    trees, failures, green = [], [], True
+    try:
+        for case in cases:
+            verdict = fetcher.stat(case["path"], case["root"])[0]
+            trees = trees or fetcher.tree()
+            ok = (verdict == "denied") == (case["expected"] == "denied")
+            green &= ok
+            if not ok:
+                failures.append(f"{case['name']} {verdict}(應為 {case['expected']})")
+        return green, f"{len(cases)} 個案例" + ("" if green else ":" + " · ".join(failures))
+    finally:
+        fetcher.close()
+        repro.stop_processes(repro.still_running(trees))
+
+
 def run_snapshot(source):
     folder = tempfile.mkdtemp(prefix="purrdr-fetch-")
     path = os.path.join(folder, "shot.png")
@@ -371,12 +390,12 @@ def run_limit(source):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--kind", choices=["binary", "access", "snapshot", "limit", "all"], default="all")
+    parser.add_argument("--kind", choices=["binary", "access", "shared", "snapshot", "limit", "all"], default="all")
     options = parser.parse_args()
     if os.name != "nt":
         sys.exit("要在 Windows 主機本機跑(測試檔直接寫在本機 %TEMP%)")
     source = repro.swift_source()
-    runs = {"binary": run_binary, "access": run_access, "snapshot": run_snapshot, "limit": run_limit}
+    runs = {"binary": run_binary, "access": run_access, "shared": run_shared, "snapshot": run_snapshot, "limit": run_limit}
     all_green = True
     for kind in (list(runs) if options.kind == "all" else [options.kind]):
         try:
