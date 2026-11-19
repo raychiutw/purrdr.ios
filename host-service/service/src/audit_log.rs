@@ -1,4 +1,4 @@
-//! 稽核紀錄 `audit.log`(JSON Lines):配對、連線、撤銷與寫入類操作。不記 prompt、按鍵與終端機內容。
+//! 稽核紀錄 `audit.log`(JSON Lines):配對、連線、撤銷、寫入類操作與主機取檔。不記 prompt、按鍵、終端機與檔案內容。
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -39,6 +39,15 @@ pub enum AuditEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         pane_id: Option<String>,
         allowed: bool,
+    },
+    /// 主機取檔(#227):路徑、結果(`FileStatus` 或 `changed`)與大小，不記內容。
+    FileAccess {
+        device_id: String,
+        operation: &'static str,
+        path: String,
+        result: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        size: Option<u64>,
     },
 }
 
