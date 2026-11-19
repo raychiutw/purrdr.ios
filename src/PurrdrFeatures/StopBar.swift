@@ -10,7 +10,8 @@ struct StopBar: View {
     let model: ConversationModel
     /// 鍵盤讓位時只留一行(#196、`ComposerKeyboardLayout`)。
     var isCompact = false
-    @State private var confirmsForceQuit = false
+    /// 強制結束的確認對話框(`ComposerBar` 在玻璃卡片外以 `forceQuitConfirmation` 顯示)。
+    @Binding var confirmsForceQuit: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -22,16 +23,6 @@ struct StopBar: View {
             .onChange(of: model.stopPhase) { _, phase in
                 guard let phase, phase != .stopping else { return }
                 AccessibilityNotification.Announcement(phase.title(agent: model.agentName)).post()
-            }
-            .confirmationDialog(
-                Text("Force Quit \(model.agentName)?"), isPresented: $confirmsForceQuit, titleVisibility: .visible
-            ) {
-                Button("Force Quit", role: .destructive) {
-                    Task { await model.forceQuit() }
-                }
-                .accessibilityIdentifier("stopBar.forceQuit.confirm")
-            } message: {
-                Text("This sends Control-C. Tool calls in progress may be interrupted.")
             }
     }
 
@@ -178,6 +169,20 @@ struct StopBar: View {
         .foregroundStyle(.secondaryText)
         .accessibilityLabel(Text("Close"))
         .accessibilityIdentifier("stopBar.dismiss")
+    }
+}
+
+extension View {
+    /// 強制結束前的確認(#220):會送 Ctrl-C,destructive 確認，系統提供取消。
+    func forceQuitConfirmation(isPresented: Binding<Bool>, model: ConversationModel) -> some View {
+        confirmationDialog(Text("Force Quit \(model.agentName)?"), isPresented: isPresented, titleVisibility: .visible) {
+            Button("Force Quit", role: .destructive) {
+                Task { await model.forceQuit() }
+            }
+            .accessibilityIdentifier("stopBar.forceQuit.confirm")
+        } message: {
+            Text("This sends Control-C. Tool calls in progress may be interrupted.")
+        }
     }
 }
 

@@ -56,6 +56,8 @@ struct ComposerBar: View {
     @State private var suggestionHeights = ComposerAccessoryHeights(full: nil)
     /// 停止列一開始只有停止鈕一行，完整高度先以一行估(量到結果再更新)。
     @State private var stopBarHeights = ComposerAccessoryHeights(full: ComposerKeyboardLayout.compactHeight)
+    /// 停止列的強制結束確認：放在玻璃卡片外，卡片內的對話框按了不會執行動作。
+    @State private var confirmsForceQuit = false
 
     /// 讓位規則的輸入;變了就重新決定顯示方式。
     private struct ArrangementInput: Equatable {
@@ -129,7 +131,7 @@ struct ComposerBar: View {
                 VStack(spacing: 0) {
                     if model.showsStopBar {
                         let isCompact = arrangement.stopBar == .compact
-                        StopBar(model: model, isCompact: isCompact)
+                        StopBar(model: model, isCompact: isCompact, confirmsForceQuit: $confirmsForceQuit)
                             .padding(.horizontal, 6)
                             .padding(.top, 6)
                             .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
@@ -152,6 +154,7 @@ struct ComposerBar: View {
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
+        .forceQuitConfirmation(isPresented: $confirmsForceQuit, model: model)
         // 點了「Type something.」:輸入框取得焦點(#120)。離開聊天就取消。
         .onChange(of: model.typedAnswer) { _, option in
             if option != nil { isFocused = true }
