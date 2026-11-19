@@ -3,32 +3,31 @@ import PurrdrCore
 import Synchronization
 import Testing
 
-/// 主機同步的 wire 相容(#243):還沒部署圖示欄位的舊後台遇到 `icon` 會整個請求 400,app 要改送不含圖示的版本。
-@Suite("主機同步：舊後台相容")
+/// 主機同步的 wire(#243、#250):HTTPS 主機以 `address`(主機名稱)＋`port` 為唯一來源，不再帶 `hostServiceAddress`。
+@Suite("主機同步：wire")
 struct MemberSessionHostSyncTests {
     static let studio = HostConfiguration(
         id: UUID(uuidString: "6F1C2A4E-3B7D-4C8E-9A10-2B3C4D5E6F70")!, name: "Studio Mac",
         endpoint: SSHEndpoint(host: "studio-mac", username: "ray"), openSSH: .password)
+    static let httpsStudio = HostConfiguration(
+        id: UUID(uuidString: "1D2E3F40-5A6B-4C7D-8E9F-0A1B2C3D4E5F")!, name: "Studio HTTPS",
+        hostService: HostServiceAddress("https://studio.tail1234.ts.net:8443")!)
     static let modifiedAt = Date(timeIntervalSince1970: 1_794_729_600)
-    static let snapshot = #"{"hosts": [], "deletedHostIds": []}"#
+    static let emptySnapshot = #"{"hosts": [], "deletedHostIds": []}"#
 
-    /// 舊後台(#243 之前)對帶 `icon` 的修改實際回的錯誤(以舊版 backend/src/host-sync.ts 實測)。
-    static let oldBackendRejection = #"{"error":{"code":"invalid_request","message":"Unexpected field: icon."}}"#
-
-    /// 依後台版本回應主機同步的替身;登入用更新權杖換存取權杖。
+    /// 回固定回應的後台替身;登入用更新權杖換存取權杖。
     final class FakeBackend: BackendTransport {
-        let acceptsIcon: Bool
-        let rejection: String
+        let reply: String
         private let sent = Mutex<[Data]>([])
 
-        init(acceptsIcon: Bool, rejection: String = MemberSessionHostSyncTests.oldBackendRejection) {
-            self.acceptsIcon = acceptsIcon
-            self.rejection = rejection
+        init(reply: String = MemberSessionHostSyncTests.emptySnapshot) {
+            self.reply = reply
         }
 
-        /// 送出的主機同步 body。
-        var syncBodies: [[String: Any]] {
+        /// 送出的主機同步 body 的 `changes`。
+        var sentChanges: [[String: Any]] {
             sent.withLock { $0 }.compactMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                .flatMap { $0["changes"] as? [[String: Any]] ?? [] }
         }
 
         func send(_ request: BackendRequest) async throws -> BackendResponse {
@@ -39,12 +38,8 @@ struct MemberSessionHostSyncTests {
                      "member": {"id": "6f1c2b0e-5d4a-4c7e-9a7b-3e2f1d0c9b8a", "identities": []}}
                     """#.utf8))
             }
-            let body = request.body ?? Data()
-            sent.withLock { $0.append(body) }
-            if !acceptsIcon, String(decoding: body, as: UTF8.self).contains(#""icon""#) {
-                return BackendResponse(status: 400, body: Data(rejection.utf8))
-            }
-            return BackendResponse(status: 200, body: Data(MemberSessionHostSyncTests.snapshot.utf8))
+            sent.withLock { $0.append(request.body ?? Data()) }
+            return BackendResponse(status: 200, body: Data(reply.utf8))
         }
     }
 
@@ -54,92 +49,57 @@ struct MemberSessionHostSyncTests {
         return MemberSession(transport: backend, tokenStore: tokens)
     }
 
-    static func changes(icon: String? = "macMini") -> [HostSyncChange] {
-        [.upsert(SyncedHost(studio, modifiedAt: modifiedAt, icon: icon))]
+    static func remoteHTTPS(address: String, port: Int) -> String {
+        #"""
+        {"hosts": [{"id": "1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f", "name": "Studio HTTPS", "address": "\#(address)", "port": \#(port),
+          "username": "", "connectionMethod": "https", "hostKeyFingerprint": null, "modifiedAt": "2026-11-15T08:00:00.000Z"}],
+         "deletedHostIds": []}
+        """#
     }
 
-    static func sentIcons(_ body: [String: Any]) -> [String?] {
-        (body["changes"] as? [[String: Any]] ?? []).map { $0["icon"] as? String }
-    }
-
-    @Test("新後台：照常帶主機圖示")
-    func newBackendReceivesIcon() async throws {
-        let backend = FakeBackend(acceptsIcon: true)
+    @Test("照常帶主機圖示")
+    func sendsIcon() async throws {
+        let backend = FakeBackend()
         let session = try makeSession(backend)
 
-        let snapshot = try await session.syncHosts(Self.changes())
+        _ = try await session.syncHosts([.upsert(SyncedHost(Self.studio, modifiedAt: Self.modifiedAt, icon: "macMini"))])
 
-        #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"]])
-        #expect(!snapshot.iconsSkipped)
+        #expect(backend.sentChanges.map { $0["icon"] as? String } == ["macMini"])
     }
 
-    @Test("舊後台拒絕 icon:同一次同步改送不含圖示的版本，其他欄位照常同步成功")
-    func oldBackendRetriesWithoutIcon() async throws {
-        let backend = FakeBackend(acceptsIcon: false)
+    @Test("HTTPS 主機送主機名稱與獨立的 port,不帶 hostServiceAddress")
+    func httpsHostSendsHostNameAndPort() async throws {
+        let backend = FakeBackend()
         let session = try makeSession(backend)
 
-        let snapshot = try await session.syncHosts(Self.changes())
+        _ = try await session.syncHosts([.upsert(SyncedHost(Self.httpsStudio, modifiedAt: Self.modifiedAt))])
 
-        #expect(snapshot == HostSyncSnapshot(hosts: [], deletedHostIDs: [], iconsSkipped: true))
-        #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"], [nil]])
-        let retried = try #require((backend.syncBodies.last?["changes"] as? [[String: Any]])?.first)
-        #expect(retried["name"] as? String == "Studio Mac")
-        #expect(retried.keys.contains("icon") == false)
+        let change = try #require(backend.sentChanges.first)
+        #expect(change["address"] as? String == "studio.tail1234.ts.net")
+        #expect(change["port"] as? Int == 8443)
+        #expect(change.keys.contains("hostServiceAddress") == false)
     }
 
-    @Test("記住舊後台不支援圖示：之後的同步(這次執行內)直接不帶，不再先被拒")
-    func rememberedForLaterSyncs() async throws {
-        let backend = FakeBackend(acceptsIcon: false)
-        let session = try makeSession(backend)
-        _ = try await session.syncHosts(Self.changes())
-
-        _ = try await session.syncHosts(Self.changes(icon: "rack"))
-
-        #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"], [nil], [nil]])
-    }
-
-    @Test("其他欄位被拒(不是圖示):不重送，照常丟錯")
-    func otherRejectionIsNotRetried() async throws {
-        let backend = FakeBackend(
-            acceptsIcon: false, rejection: #"{"error":{"code":"invalid_request","message":"name must be 1–100 characters."}}"#)
+    @Test(
+        "後台回來的 HTTPS 主機以 address＋port 組回主機服務位址",
+        arguments: [
+            ("studio.tail1234.ts.net", 8443, "https://studio.tail1234.ts.net:8443"),
+            ("studio.tail1234.ts.net", 443, "https://studio.tail1234.ts.net"),
+        ])
+    func httpsHostIsRebuiltFromAddressAndPort(address: String, port: Int, expected: String) async throws {
+        let backend = FakeBackend(reply: Self.remoteHTTPS(address: address, port: port))
         let session = try makeSession(backend)
 
-        await #expect(throws: BackendError.backend(status: 400, code: "invalid_request", message: "name must be 1–100 characters.")) {
-            try await session.syncHosts(Self.changes())
-        }
-        #expect(backend.syncBodies.count == 1)
+        let snapshot = try await session.syncHosts([])
+
+        #expect(snapshot.hosts.first?.hostService?.description == expected)
     }
 
-    @Test("以錯誤碼與欄位名判斷：舊後台把多出的欄位一起列出(含 icon)時也改送不含圖示的版本")
-    func oldBackendListingSeveralFieldsIsRecognizedByFieldName() async throws {
-        let backend = FakeBackend(
-            acceptsIcon: false, rejection: #"{"error":{"code":"invalid_request","message":"Unexpected field: icon, color."}}"#)
+    @Test("HTTPS 主機的 address 組不出位址：整份回應視為無效")
+    func invalidHTTPSAddressIsRejected() async throws {
+        let backend = FakeBackend(reply: Self.remoteHTTPS(address: "not a host", port: 443))
         let session = try makeSession(backend)
 
-        _ = try await session.syncHosts(Self.changes())
-
-        #expect(backend.syncBodies.map(Self.sentIcons) == [["macMini"], [nil]])
-    }
-
-    @Test("錯誤碼不是 invalid_request:即使訊息提到 icon 也不重送")
-    func otherErrorCodeIsNotRetried() async throws {
-        let backend = FakeBackend(
-            acceptsIcon: false, rejection: #"{"error":{"code":"conflict","message":"Unexpected field: icon."}}"#)
-        let session = try makeSession(backend)
-
-        await #expect(throws: BackendError.backend(status: 400, code: "conflict", message: "Unexpected field: icon.")) {
-            try await session.syncHosts(Self.changes())
-        }
-        #expect(backend.syncBodies.count == 1)
-    }
-
-    /// 判斷依據是後台多出欄位時的固定訊息格式;後台改了格式，這裡要一起改。
-    @Test("後台多出欄位的訊息格式與判斷依據一致(backend/src/host-sync.ts)")
-    func backendMessageFormatMatches() throws {
-        let source = URL(filePath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "backend/src/host-sync.ts")
-        let text = try String(contentsOf: source, encoding: .utf8)
-        #expect(text.contains("throw invalid(`Unexpected field: ${extra.join(\", \")}.`)"))
+        await #expect(throws: BackendError.invalidResponse) { try await session.syncHosts([]) }
     }
 }

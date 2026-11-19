@@ -98,28 +98,9 @@ public actor MemberSession {
     /// 主機同步(要有效的 Purrdr Plus):送出這支裝置的變更，回傳後台套用後的整份清單與刪除紀錄。
     /// 只送 `SyncedHost` 的欄位(白名單);沒有訂閱時後台回 403 `subscription_required`。
     public func syncHosts(_ changes: [HostSyncChange]) async throws -> HostSyncSnapshot {
-        do {
-            return try await sendHostSync(changes, includingIcons: !backendRejectsHostIcons)
-        } catch let BackendError.backend(status, code, message)
-            where LegacyHostIconRejection.matches(status: status, code: code, message: message) && !backendRejectsHostIcons {
-            backendRejectsHostIcons = true
-            return try await sendHostSync(changes, includingIcons: false)
-        }
-    }
-    /// 後台不收主機圖示：記到這次執行結束，之後的同步直接不帶。
-    private var backendRejectsHostIcons = false
-
-    private func sendHostSync(_ changes: [HostSyncChange], includingIcons: Bool) async throws -> HostSyncSnapshot {
-        let sending = includingIcons ? changes : changes.map { change in
-            guard case .upsert(var host) = change else { return change }
-            host.icon = nil
-            return .upsert(host)
-        }
-        let body = try JSONEncoder().encode(Wire.HostSyncRequest(changes: sending.map(Wire.HostChange.init)))
+        let body = try JSONEncoder().encode(Wire.HostSyncRequest(changes: changes.map(Wire.HostChange.init)))
         let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/hosts/sync", body: body))
-        var snapshot = try Wire.decode(Wire.HostSyncResponse.self, from: response).domain()
-        snapshot.iconsSkipped = !includingIcons
-        return snapshot
+        return try Wire.decode(Wire.HostSyncResponse.self, from: response).domain()
     }
 
     // MARK: - 推播配對(#29)
@@ -333,8 +314,6 @@ private enum Wire {
         var username: String
         var connectionMethod: String
         var hostKeyFingerprint: String?
-        /// 只有 HTTPS 主機有。
-        var hostServiceAddress: String?
         /// 主機圖示(#243)。舊版後台與舊版 app 上傳的主機沒有。
         var icon: String?
         var modifiedAt: String
@@ -351,7 +330,6 @@ private enum Wire {
             case .https: "https"
             }
             hostKeyFingerprint = host.hostKeyPin?.stored
-            hostServiceAddress = host.hostService?.description
             icon = host.icon
             modifiedAt = host.modifiedAt.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         }
@@ -366,7 +344,6 @@ private enum Wire {
             try container.encode(username, forKey: .username)
             try container.encode(connectionMethod, forKey: .connectionMethod)
             try container.encode(hostKeyFingerprint, forKey: .hostKeyFingerprint)
-            try container.encodeIfPresent(hostServiceAddress, forKey: .hostServiceAddress)
             try container.encodeIfPresent(icon, forKey: .icon)
             try container.encode(modifiedAt, forKey: .modifiedAt)
         }
@@ -379,7 +356,8 @@ private enum Wire {
             case "https": method = .https
             default: throw BackendError.invalidResponse
             }
-            let hostService = hostServiceAddress.flatMap(HostServiceAddress.init)
+            // HTTPS 主機的主機服務位址以 address＋port 為唯一來源(#250)。
+            let hostService = method.usesHostService ? HostServiceAddress(host: address, port: port) : nil
             if method.usesHostService, hostService == nil { throw BackendError.invalidResponse }
             guard let id = UUID(uuidString: id), let modifiedAt = Wire.date(modifiedAt) else { throw BackendError.invalidResponse }
             return SyncedHost(
@@ -432,20 +410,5 @@ private enum Wire {
     /// 後台的時間是 JavaScript `toISOString()`(含毫秒)。
     static func date(_ text: String) -> Date? {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text)) ?? (try? Date.ISO8601FormatStyle().parse(text))
-    }
-}
-
-/// 還沒部署圖示欄位(#243)的舊後台對 `icon` 的固定回應：多出欄位整個請求 400 `invalid_request`,
-/// 訊息「Unexpected field: <欄位>, <欄位>.」(backend/src/host-sync.ts)。以錯誤碼加欄位名判斷，不比對整句。
-enum LegacyHostIconRejection {
-    static let status = 400
-    static let code = "invalid_request"
-    static let messagePrefix = "Unexpected field: "
-    static let field = "icon"
-
-    static func matches(status: Int, code: String, message: String) -> Bool {
-        guard status == Self.status, code == Self.code, message.hasPrefix(messagePrefix) else { return false }
-        let fields = message.dropFirst(messagePrefix.count).trimmingCharacters(in: CharacterSet(charactersIn: ". "))
-        return fields.components(separatedBy: ", ").contains(field)
     }
 }
