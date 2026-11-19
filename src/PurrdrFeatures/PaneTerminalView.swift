@@ -94,7 +94,7 @@ struct TerminalTitle: View {
                 .lineLimit(1)
             HStack(spacing: 4) {
                 Circle()
-                    .fill(dotColor)
+                    .fill(status.tone.style)
                     .frame(width: 8, height: 8)
                     .accessibilityHidden(true)
                 Text(statusText)
@@ -104,16 +104,6 @@ struct TerminalTitle: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("terminal.status")
-    }
-
-    /// 狀態同時有文字，顏色只是輔助。
-    private var dotColor: SwiftUI.Color {
-        switch status {
-        case .connected: .green
-        case .waitingForSize, .connecting: .yellow
-        case .ended: .gray
-        case .disconnected, .inUse, .takenOver, .unavailable: .red
-        }
     }
 }
 
