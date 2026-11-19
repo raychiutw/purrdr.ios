@@ -21,7 +21,7 @@ extension EnvironmentValues {
 
 // MARK: - 狀態圖示
 
-/// 執行中轉圈、完成勾、失敗驚嘆(注意色)。狀態同時有 VoiceOver 文字，不只靠顏色與形狀。
+/// 執行中轉圈、完成勾、失敗驚嘆(錯誤色)。狀態同時有 VoiceOver 文字，不只靠顏色與形狀。
 struct DelegationStatusIcon: View {
     let status: DelegationStatus
 
@@ -33,10 +33,10 @@ struct DelegationStatusIcon: View {
                     .controlSize(.small)
             case .completed:
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(status.tone.style)
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(status.tone.style)
             }
         }
         .accessibilityElement()
@@ -442,7 +442,7 @@ struct WorkflowAgentRow: View {
                     Text(stats).font(.footnote).foregroundStyle(.secondaryText)
                 }
                 if let error = agent.error {
-                    Text(error).font(.footnote).foregroundStyle(.errorText)
+                    ErrorLabel(error).font(.footnote)
                 } else if agent.state == .running, let activity = agent.activity {
                     Text(activity).font(.footnote.monospaced()).foregroundStyle(.secondaryText).lineLimit(2)
                 } else if let preview = agent.resultPreview {

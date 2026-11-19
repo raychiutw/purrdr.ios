@@ -565,7 +565,14 @@ struct HostPathOpenStatus: View {
     }
 }
 
-/// 使用者泡泡：右對齊、主色填色(`hostFill`,字色 ≥ 4.5:1)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
+extension View {
+    /// 使用者泡泡的底：系統次要填色、主要色文字(#240);大面積不用主色，agent 與使用者靠位置區分。
+    func userBubbleFill() -> some View {
+        foregroundStyle(.primary).background(.fill.secondary, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+/// 使用者泡泡：右對齊、中性填色(`userBubbleFill`)、左側至少留 44pt;agent 與使用者的區分不只靠顏色(位置)。
 struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
@@ -584,7 +591,7 @@ struct UserBubbleView: View {
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .hostFill(in: RoundedRectangle(cornerRadius: 18))
+                        .userBubbleFill()
                 }
                 if let date = bubble.date {
                     Text(date, format: .dateTime.hour().minute())
@@ -667,13 +674,14 @@ struct ToolStepView: View {
             } label: {
                 Label("Thinking", systemImage: "brain")
                     .font(.subheadline)
+                    .foregroundStyle(Color.primary)
             }
         case .call(let call):
             if let result = call.result, !result.isEmpty {
                 DisclosureGroup(isExpanded: $expanded) {
                     Text(result.split(separator: "\n", omittingEmptySubsequences: false).prefix(12).joined(separator: "\n"))
                         .font(.caption.monospaced())
-                        .foregroundStyle(call.isError ? AnyShapeStyle(.errorText) : AnyShapeStyle(.secondaryText))
+                        .foregroundStyle(.secondaryText)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } label: {
@@ -690,6 +698,7 @@ struct ToolStepView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(call.name)
                     .font(.subheadline)
+                    .foregroundStyle(Color.primary)
                 if !call.input.isEmpty {
                     Text(call.input)
                         .font(.caption.monospaced())

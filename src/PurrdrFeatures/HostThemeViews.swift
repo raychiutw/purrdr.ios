@@ -32,7 +32,7 @@ extension View {
             .modifier(HostThemePolling(model: model))
     }
 
-    /// 承載字的填色(使用者泡泡、徽章)與它上面的字色：`prominentFill` 底、`onProminentFill` 字。
+    /// 承載字的填色(徽章)與它上面的字色：`prominentFill` 底、`onProminentFill` 字。
     func hostFill<S: Shape>(in shape: S) -> some View {
         foregroundStyle(.onProminentFill).background(.prominentFill, in: shape)
     }

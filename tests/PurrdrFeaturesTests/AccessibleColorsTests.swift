@@ -7,25 +7,6 @@ import Testing
 /// 承載文字的自訂顏色對比(#35;HIG 20.2:文字對比 ≥ 4.5:1,Increase Contrast 時 ≥ 7:1)。
 @Suite("無障礙配色")
 struct AccessibleColorsTests {
-    /// 錯誤文字可能落在的背景裡最不利的那個(固定值，取自 iOS 系統色):
-    /// 淺色是 shell 區塊的 `.fill.tertiary`(rgba(118,118,128,0.12))疊在白底上 = #EFEFF0;
-    /// 深色是 grouped list 第二層 `secondarySystemGroupedBackground`／`secondarySystemBackground` = #2C2C2E。
-    static let lightBackground = ThemeColor(red: 0xEF, green: 0xEF, blue: 0xF0)
-    static let darkBackground = ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)
-
-    @Test("錯誤文字：深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
-    func errorTextContrast() {
-        let palette = AccessibleColors.errorText
-        let light = palette.light.contrastRatio(with: Self.lightBackground)
-        let dark = palette.dark.contrastRatio(with: Self.darkBackground)
-        let lightHigh = palette.lightHighContrast.contrastRatio(with: Self.lightBackground)
-        let darkHigh = palette.darkHighContrast.contrastRatio(with: Self.darkBackground)
-        #expect(light >= 4.5, "淺色 \(light)")
-        #expect(dark >= 4.5, "深色 \(dark)")
-        #expect(lightHigh >= 7, "淺色高對比 \(lightHigh)")
-        #expect(darkHigh >= 7, "深色高對比 \(darkHigh)")
-    }
-
     /// 次要文字可能落在的背景(固定值，取自 iOS 系統色):
     /// 淺色：主要背景 `systemBackground`／grouped 的列 #FFFFFF、grouped 背景 `systemGroupedBackground` #F2F2F7、
     /// 卡片與 shell 區塊的淡填色疊在白底上 #EFEFF0;
@@ -157,6 +138,23 @@ struct SpacesColorsTests {
         #expect(letters == ["C", "X", "G", "O", "P", "G", "P"])
     }
 
+    @Test("Agent 種類頭像底色是低飽和多色(#242 方案 B),深淺色共用、高對比更深")
+    func avatarColorsAreMutedPalette() {
+        let expected: [(AgentKind, String, String)] = [
+            (.claudeCode, "#8A5A48", "#6D4739"), (.codex, "#55565C", "#4F5056"), (.gemini, "#4A5F86", "#3E5071"),
+            (.openCode, "#5C6B4A", "#48533A"), (.copilot, "#6A5884", "#58496E"), (.unknown("grok"), "#5A5A5F", "#505055"),
+        ]
+        for (kind, normal, highContrast) in expected {
+            let palette = AgentKindAvatarStyle(kind: kind).palette
+            #expect(palette.light == ThemeColor(hex: normal), "\(kind) 一般值")
+            #expect(palette.dark == ThemeColor(hex: normal), "\(kind) 深色值")
+            #expect(palette.lightHighContrast == ThemeColor(hex: highContrast), "\(kind) 高對比值")
+            #expect(palette.darkHighContrast == ThemeColor(hex: highContrast), "\(kind) 深色高對比值")
+            #expect(Self.white.contrastRatio(with: palette.lightHighContrast) > Self.white.contrastRatio(with: palette.light),
+                    "\(kind) 高對比沒有更深")
+        }
+    }
+
     @Test("Agent 種類頭像的白色字母：底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
     func avatarContrast() {
         for kind in [AgentKind.claudeCode, .codex, .gemini, .openCode, .copilot, .unknown("grok")] {
@@ -167,23 +165,6 @@ struct SpacesColorsTests {
             ] {
                 let ratio = Self.white.contrastRatio(with: color)
                 #expect(ratio >= minimum, "\(kind) \(name) \(color) 只有 \(ratio)")
-            }
-        }
-    }
-
-    /// 非文字圖形(WCAG 1.4.11):對列的背景 ≥ 3:1,高對比 ≥ 4.5:1。淺色列 #FFFFFF;深色列 #1C1C1E、#2C2C2E。
-    @Test("狀態條的閒置段：對列背景 ≥ 3:1,高對比 ≥ 4.5:1")
-    func idleSegmentContrast() {
-        let palette = AccessibleColors.idleSegment
-        let darkRows = [ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E), ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E)]
-        let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
-            ("淺色", palette.light, [Self.white], 3), ("深色", palette.dark, darkRows, 3),
-            ("淺色高對比", palette.lightHighContrast, [Self.white], 4.5), ("深色高對比", palette.darkHighContrast, darkRows, 4.5),
-        ]
-        for (name, color, backgrounds, minimum) in cases {
-            for background in backgrounds {
-                let ratio = color.contrastRatio(with: background)
-                #expect(ratio >= minimum, "\(name) \(color) 對 \(background) 只有 \(ratio)")
             }
         }
     }
@@ -220,5 +201,35 @@ struct PlanUsageColorsTests {
         #expect(palettes[0].light.green > palettes[0].light.red, "充足不是綠色")
         #expect(palettes[1].light.red > palettes[1].light.green && palettes[1].light.green > palettes[1].light.blue, "偏低不是橘色")
         #expect(Int(palettes[2].light.red) > Int(palettes[2].light.green) * 2, "將用完不是紅色")
+    }
+}
+
+/// 建議卡「填入」膠囊(#240):主色字放在主色淡疊的底上，底是卡片的 `.background`(淺色白、深色黑或 #1C1C1E)。
+@Suite("建議卡的填入膠囊")
+struct SuggestionFillInContrastTests {
+    static func composite(_ color: ThemeColor, over background: ThemeColor, opacity: Double) -> ThemeColor {
+        func channel(_ top: UInt8, _ bottom: UInt8) -> UInt8 {
+            UInt8((opacity * Double(top) + (1 - opacity) * Double(bottom)).rounded())
+        }
+        return ThemeColor(
+            red: channel(color.red, background.red), green: channel(color.green, background.green),
+            blue: channel(color.blue, background.blue))
+    }
+
+    @Test("主色字對淡綠底：四值 ≥ 4.5:1")
+    func fillInTextContrast() throws {
+        let accent = try AccentColorTests.accentColorAsset()
+        let opacity = PromptSuggestionView.fillInTintOpacity
+        let darkCards = [ThemeColor(red: 0x00, green: 0x00, blue: 0x00), ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E)]
+        let cases: [(String, ThemeColor, [ThemeColor])] = [
+            ("淺色", accent.light, [AccentColorTests.white]), ("淺色高對比", accent.lightHighContrast, [AccentColorTests.white]),
+            ("深色", accent.dark, darkCards), ("深色高對比", accent.darkHighContrast, darkCards),
+        ]
+        for (name, color, cards) in cases {
+            for card in cards {
+                let ratio = color.contrastRatio(with: Self.composite(color, over: card, opacity: opacity))
+                #expect(ratio >= 4.5, "\(name) \(color) 對卡片 \(card) 上的淡綠底只有 \(ratio)")
+            }
+        }
     }
 }

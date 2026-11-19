@@ -93,6 +93,8 @@ public final class HostsModel {
     private let selectionStore: any HostSelectionStore
     /// 方案用量畫面上次選的主機與 Agent。
     private let planUsageSelection: any PlanUsageSelectionStore
+    /// 登入 Shell、檔案上次選的電腦(#245)。
+    private let hostPickerStore: any HostPickerStore
     private let demoChannel: any HostChannel
     /// Demo 主機的主機取檔(#225;composition root 給 Demo 的 adapter,Features 不 import Demo)。
     private let demoFiles: any HostFileFetching
@@ -150,6 +152,7 @@ public final class HostsModel {
         hostIcons: any HostIconStore = InMemoryHostIconStore(),
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
         planUsageSelection: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
+        hostPicker hostPickerStore: any HostPickerStore = InMemoryHostPickerStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
         hostConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(), credentials: HostCredentials = HostCredentials(),
         hostService: HostServiceAccess = HostServiceAccess(),
@@ -165,6 +168,7 @@ public final class HostsModel {
         agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
         self.selectionStore = selectionStore
         self.planUsageSelection = planUsageSelection
+        self.hostPickerStore = hostPickerStore
         self.demoChannel = demoChannel
         self.demoFiles = demoFiles
         self.demoCompanions = demoCompanions
@@ -240,16 +244,33 @@ public final class HostsModel {
     /// 選取中主機有沒有登入 Shell 與檔案(HTTPS 連線方式沒有，ADR-0010)。
     public var selectedHostSupportsShell: Bool { selectedHost?.supportsLoginShell ?? true }
 
-    /// 選取中主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
-    public func loginShell() -> LoginShellModel {
-        LoginShellModel(channel: member(for: selection).channel, title: name(of: selection))
+    /// 登入 Shell、檔案的主機挑選鈕(#245):只列支援的主機(HTTPS 主機沒有，ADR-0010),預設上次選的電腦或選取中主機。
+    public func hostPicker(for scope: HostPickerScope) -> HostPickerModel {
+        let options = hostPickerOptions { $0.supportsLoginShell }
+        return .remembering(scope, options: options, fallback: selection, store: hostPickerStore)
     }
 
-    /// 選取中主機的檔案瀏覽(從家目錄開始);壓得小的檔案以 gzip 傳輸，主機沒有 `gzip` 時記在那台主機的成員上。
-    public func folderBrowser() -> FolderBrowserModel {
-        let member = member(for: selection)
+    /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表篩選的主機(`nil` 是所有主機，用選取中主機)。
+    public func newChatHostPicker(listFilter: HostSelection?) -> HostPickerModel {
+        .newChat(options: hostPickerOptions { _ in true }, listFilter: listFilter, selection: selection)
+    }
+
+    /// Demo 主機加上符合條件的已存主機(同方案用量的主機選單)。
+    private func hostPickerOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostPickerOption] {
+        [HostPickerOption(id: .demo, name: name(of: .demo))]
+            + hosts.filter(isIncluded).map { HostPickerOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
+    }
+
+    /// 某台主機的登入 Shell(標題是主機名稱;Demo 主機是回顯的 shell)。
+    public func loginShell(on host: HostSelection) -> LoginShellModel {
+        LoginShellModel(channel: member(for: host).channel, title: name(of: host))
+    }
+
+    /// 某台主機的檔案瀏覽(從家目錄開始);壓得小的檔案以 gzip 傳輸，主機沒有 `gzip` 時記在那台主機的成員上。
+    public func folderBrowser(on host: HostSelection) -> FolderBrowserModel {
+        let member = member(for: host)
         let folders = HostFolders(channel: member.channel, deflate: SystemDeflate(), gzipAvailability: member.gzipAvailability)
-        return FolderBrowserModel(folders: folders, hostName: name(of: selection))
+        return FolderBrowserModel(folders: folders, hostName: name(of: host))
     }
 
     /// 某台主機上某個 Agent 的對話 model(列表看到的 session)。非選取中主機的聊天在標題列帶主機名(#44)。
@@ -274,16 +295,15 @@ public final class HostsModel {
         return model
     }
 
-    /// 選取中主機上的新增對話(#18)。
-    public func newChat() -> NewChatModel {
-        let member = member(for: selection)
+    /// 某台主機上的新增對話(#18;主機由新增聊天的主機挑選鈕決定，#245)。
+    public func newChat(on host: HostSelection) -> NewChatModel {
+        let member = member(for: host)
         let folders = NewChatFolders(channel: member.channel)
         return NewChatModel(launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders)
     }
 
-    /// 新對話開始後：重讀列表，開選取中主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
-    public func openStartedChat(_ workspace: CreatedWorkspace) async {
-        let host = selection
+    /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
+    public func openStartedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async {
         let list = agentList
         await list.load()
         list.openedChat = ChatRoute(host: host, paneID: workspace.rootPaneID)

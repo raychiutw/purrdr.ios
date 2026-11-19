@@ -8,7 +8,6 @@ public struct HostIconBadge: View {
     let icon: HostIcon
     let showsNoIconSymbol: Bool
     @ScaledMetric private var diameter: CGFloat
-    @Environment(\.colorScheme) private var colorScheme
 
     /// - Parameters:
     ///   - diameter: 標準字級下的圓直徑(列表 32pt、編輯器格子 40pt),跟著動態字級縮放。
@@ -24,9 +23,9 @@ public struct HostIconBadge: View {
             if let symbol = showsNoIconSymbol ? icon.pickerSymbol : icon.symbol {
                 Image(systemName: symbol)
                     .font(.system(size: diameter * 0.5))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(.tint)
                     .frame(width: diameter, height: diameter)
-                    .background(Color.accentColor.opacity(colorScheme == .dark ? 0.16 : 0.12), in: Circle())
+                    .background(.softAccentFill, in: Circle())
             } else {
                 Color.clear
                     .frame(width: diameter, height: diameter)
@@ -86,7 +85,8 @@ struct HostIconGrid: View {
             .padding(.vertical, 8)
             .overlay {
                 RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 1.5)
+                    .strokeBorder(.tint, lineWidth: 1.5)
+                    .opacity(isSelected ? 1 : 0)
             }
             .contentShape(RoundedRectangle(cornerRadius: 12))
         }

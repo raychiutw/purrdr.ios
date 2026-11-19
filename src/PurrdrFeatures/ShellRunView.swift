@@ -60,7 +60,7 @@ struct ShellRunDisplay {
     }
 }
 
-/// 終端機風格的 shell 區塊：`$ 指令`(等寬粗體)+ 時間，下方 stdout,stderr 用注意色;超過 16 行折疊。
+/// 終端機風格的 shell 區塊：`$ 指令`(等寬粗體)+ 時間，下方 stdout,stderr 前加系統紅圖示(`ErrorLabel`);超過 16 行折疊。
 /// 內容層，不用玻璃。長按(context menu)可複製輸出或指令;不用會吃掉觸控的按鈕包住內容，橫向捲動才不受影響。
 struct ShellRunView: View {
     let run: ShellRun
@@ -89,8 +89,7 @@ struct ShellRunView: View {
                                 .accessibilityIdentifier("conversation.shell.stdout")
                         }
                         if !visible.stderr.isEmpty {
-                            Text(verbatim: visible.stderr.joined(separator: "\n"))
-                                .foregroundStyle(.errorText)
+                            ErrorLabel(visible.stderr.joined(separator: "\n"))
                                 .accessibilityIdentifier("conversation.shell.stderr")
                         }
                     }
