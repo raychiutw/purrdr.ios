@@ -68,6 +68,7 @@ public struct ConversationView: View {
                 show: { viewerImage = ViewerImage(url: $0) }
             ))
             .imageViewer(item: $viewerImage)
+            .environment(\.agentImages, AgentImageContext(loads: model.agentFiles, scope: { [model] in model.fileAccessScope }))
             .environment(\.delegationContext, DelegationContext(
                 workflowModel: { [model] in model.workflowModel(for: $0) },
                 canOpen: { [model] in model.canOpen($0) }
@@ -446,6 +447,8 @@ struct ConversationItemView: View {
             WorkflowCardView(card: card)
         case .shell(let run):
             ShellRunView(run: run)
+        case .agentFile(let card) where card.file.isImageFromAgent:
+            AgentImageCardView(card: card)
         case .agentFile(let card):
             AgentFileCardView(card: card)
         }

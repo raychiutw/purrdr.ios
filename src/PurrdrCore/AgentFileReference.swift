@@ -39,6 +39,14 @@ public struct AgentFileReference: Sendable, Equatable, Codable {
     /// 快照(寫入內容、修改摘要)最多保留的字數;超過時截斷並標示。
     public static let snapshotLimit = 20_000
 
+    /// Agent 讀過、截取或產生的圖片(圖片卡片從主機讀縮圖,#225)。
+    public var isImageFromAgent: Bool {
+        switch origin {
+        case .readImage, .toolImage, .generatedImage: true
+        case .created, .overwritten, .edited: false
+        }
+    }
+
     /// 檔名(路徑最後一段)。
     public var name: String {
         HostPathSyntax.lastComponent(path).map(String.init) ?? path

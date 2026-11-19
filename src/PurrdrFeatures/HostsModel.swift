@@ -94,6 +94,8 @@ public final class HostsModel {
     /// 方案用量畫面上次選的主機與 Agent。
     private let planUsageSelection: any PlanUsageSelectionStore
     private let demoChannel: any HostChannel
+    /// Demo 主機的主機取檔(#225;composition root 給 Demo 的 adapter,Features 不 import Demo)。
+    private let demoFiles: any HostFileFetching
     /// Demo 的示範主機(#34)。
     private let demoCompanions: [DemoCompanionHost]
     private let makeChannel: @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
@@ -141,7 +143,8 @@ public final class HostsModel {
     ///   - diagnostics: 不給使用者看的紀錄(例如偵測到的作業系統存不進這支裝置)。
     ///   - makeChannel: 依端點、host key pin 與憑證來源建立主機通道(憑證在撥號時才讀)。
     public init(
-        store: any HostStore, demoChannel: any HostChannel, demoCompanions: [DemoCompanionHost] = [],
+        store: any HostStore, demoChannel: any HostChannel, demoFiles: any HostFileFetching = UnsupportedHostFileFetcher(),
+        demoCompanions: [DemoCompanionHost] = [],
         conversationCache: any ConversationCache = InMemoryConversationCache(),
         preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),
         hostIcons: any HostIconStore = InMemoryHostIconStore(),
@@ -163,6 +166,7 @@ public final class HostsModel {
         self.selectionStore = selectionStore
         self.planUsageSelection = planUsageSelection
         self.demoChannel = demoChannel
+        self.demoFiles = demoFiles
         self.demoCompanions = demoCompanions
         self.makeChannel = makeChannel
         self.credentials = credentials
@@ -264,6 +268,8 @@ public final class HostsModel {
             updates: member.list.updates)
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
+        // 圖片縮圖讀聊天所在的主機(#225)。
+        model.agentFiles = member.agentFiles
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
         return model
     }
@@ -624,15 +630,16 @@ public final class HostsModel {
         }
         guard let configuration else {
             return HostMember(
-                host: host, configuration: nil, channel: demoChannel, preferences: preferences.store(for: host), push: pushService,
-                consent: demoConsent)
+                host: host, configuration: nil, channel: demoChannel, files: demoFiles, preferences: preferences.store(for: host),
+                push: pushService, consent: demoConsent)
         }
         switch configuration.connection {
         case .https(let address):
             return HostMember(
                 host: host, configuration: configuration, channel: UnsupportedHostChannel(),
-                connection: hostServiceConnection(for: configuration, address: address), preferences: preferences.store(for: host),
-                push: nil, consent: hostConsent)
+                connection: hostServiceConnection(for: configuration, address: address),
+                // HTTPS 主機的取檔在 #227(主機服務協定加訊息後換成 HTTPS adapter)。
+                files: UnsupportedHostFileFetcher(), preferences: preferences.store(for: host), push: nil, consent: hostConsent)
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
             return HostMember(
                 host: host, configuration: configuration, channel: channel(for: configuration, settings: settings),
@@ -715,11 +722,16 @@ final class HostMember {
     let gzipAvailability = HostGzipAvailability()
     /// 主題、註記、Claude 方案用量定期讀取共用的長駐通道(#203)。
     let hostFiles: HostFiles
+    /// 聊天裡圖片卡片的縮圖(#225),這台主機的聊天共用一份快取。
+    let agentFiles: AgentFileLoads
 
-    /// - Parameter connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
+    /// - Parameters:
+    ///   - connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
+    ///   - files: 主機取檔;`nil` 時經 `channel` 跑 SSH 的取檔腳本(主機跑不了時是 unsupported)。
     init(
         host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
-        preferences: any ChatPreferencesStore, push pushService: PushService?, consent: any HostWriteConsentStore
+        files: (any HostFileFetching)? = nil, preferences: any ChatPreferencesStore, push pushService: PushService?,
+        consent: any HostWriteConsentStore
     ) {
         self.host = host
         self.channel = channel
@@ -740,6 +752,8 @@ final class HostMember {
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
         self.hostFiles = hostFiles
+        agentFiles = AgentFileLoads(
+            fetcher: files ?? SSHHostFileFetcher(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-file-fetch")))
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
     }

@@ -63,7 +63,7 @@ struct PurrdrApp: App {
             // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。
             let credentials = HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey())
             hosts = HostsModel(
-                store: EphemeralHostStore(hosts: Self.seededHosts(arguments)), demoChannel: demo,
+                store: EphemeralHostStore(hosts: Self.seededHosts(arguments)), demoChannel: demo, demoFiles: DemoHostFileFetcher(),
                 // 示範主機在 UI 測試要明確開啟(`-demoCompanions`),其他測試的列表才不會多出它們的列。
                 demoCompanions: arguments.contains("-demoCompanions") ? Self.demoCompanions(demo) : [],
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
@@ -87,7 +87,7 @@ struct PurrdrApp: App {
                 secrets: KeychainHostSecretStore(), deviceKey: SecureEnclaveDeviceKey(comment: "purrdr@\(UIDevice.current.model)"))
             // 主機寫入的同意(Claude 方案用量等):真主機存在 UserDefaults;Demo 主機的只在記憶體(HostsModel 預設)。
             hosts = HostsModel(
-                store: KeychainHostStore(), demoChannel: demo, demoCompanions: Self.demoCompanions(demo),
+                store: KeychainHostStore(), demoChannel: demo, demoFiles: DemoHostFileFetcher(), demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
                 selectionStore: UserDefaultsHostSelectionStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
                 hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
