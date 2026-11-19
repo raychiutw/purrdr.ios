@@ -133,11 +133,15 @@ final class AddHostUITests: XCTestCase {
         return element
     }
 
-    /// 往下捲到元素出現(表單比畫面長)。
+    /// 捲到元素出現(表單比畫面長):先往下，沒有再往上。
     @MainActor
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         for _ in 0..<6 where !element.isHittable {
             app.swipeUp()
+        }
+        // 已捲過頭(例如掃描後回到表單下半部，名稱在上面):往回捲。
+        for _ in 0..<6 where !element.isHittable {
+            app.swipeDown()
         }
         return element.exists
     }
