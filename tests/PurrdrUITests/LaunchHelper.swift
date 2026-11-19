@@ -18,7 +18,9 @@ extension XCUIApplication {
         let app = XCUIApplication()
         // 介面語言固定英文(斷言用英文字);模擬器系統語言可能是繁中。要測繁中時在 flags 帶 `-AppleLanguages`。
         let language = flags.contains("-AppleLanguages") ? [] : ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
-        app.launchArguments = ["-uiTesting"] + flags + language
+        // 軟體鍵盤固定英文：模擬器會記住上次用的輸入法(注音測試留下的),`typeText` 英文會變成注音組字。要注音時在 flags 帶 `-AppleKeyboards`。
+        let keyboard = flags.contains("-AppleKeyboards") ? [] : ["-AppleKeyboards", "(en_US@sw=QWERTY;hw=Automatic)"]
+        app.launchArguments = ["-uiTesting"] + flags + language + keyboard
             + (contentSize.map { ["-UIPreferredContentSizeCategoryName", $0] } ?? [])
         return app
     }
