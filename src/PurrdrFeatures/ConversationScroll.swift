@@ -17,8 +17,8 @@ public struct ConversationScroll: Equatable, Sendable {
     private var returnedAtLayout: ConversationScrollMetrics.Layout?
     /// 同一個排版第二次捲回(改以底部位移)的排版(#251):再被推回內容之外就真的不再捲。
     private var offsetReturnedAtLayout: ConversationScrollMetrics.Layout?
-    /// 以位移捲回(或之後再以位移捲)時的內容高度;`nil` 是還沒以位移捲過(#251)。
-    private var offsetFollowedContentHeight: Double?
+    /// 以位移捲回(或之後再以位移捲)時的排版;`nil` 是還沒以位移捲過(#251)。
+    private var offsetFollowedLayout: ConversationScrollMetrics.Layout?
     /// 以位移捲回後再以位移捲的次數。
     private var offsetFollows = 0
     /// 一列都沒顯示時已經再捲的次數(#191)。
@@ -45,7 +45,7 @@ public struct ConversationScroll: Equatable, Sendable {
         rebuiltAt = nil
         refills = 0
         returns = 0
-        offsetFollowedContentHeight = nil
+        offsetFollowedLayout = nil
         following = distanceFromBottom <= Self.threshold
     }
 
@@ -58,16 +58,17 @@ public struct ConversationScroll: Equatable, Sendable {
     public func returnsByOffset(_ metrics: ConversationScrollMetrics) -> Bool { metrics.layout == returnedAtLayout }
 
     /// 以位移捲回後(`returnsByOffset`),ScrollPosition 停在那個位移、不再跟著底部;那裡的列排出實際高度、內容變高，
-    /// 畫面就停在對話中間(AX5 開啟長對話,#251)。跟隨中、內容高度又變了、不在底部時，以新的底部位移再捲。
-    /// 捲動途中同一個內容高度的位置不算;次數有上限，使用者自己捲過或下一次以位移捲回時重新計算。
+    /// 畫面就停在對話中間(AX5 開啟長對話,#251)。跟隨中、排版又變了(內容變高、停止列或鍵盤讓可見範圍變小)、不在底部時，以新的底部位移再捲。
+    /// 捲動途中同一個排版的位置不算;次數有上限，使用者自己捲過或下一次以位移捲回時重新計算。
     public func followsByOffset(_ metrics: ConversationScrollMetrics) -> Bool {
-        guard following, let height = offsetFollowedContentHeight, offsetFollows < Self.maximumOffsetFollows else { return false }
-        return metrics.contentHeight != height && abs(metrics.distanceFromBottom) > Self.threshold
+        guard following, let layout = offsetFollowedLayout, offsetFollows < Self.maximumOffsetFollows else { return false }
+        // 以位移捲就是要貼齊底部：差 1pt 以上就再捲(「在底部」的門檻 48pt 會讓最後一列有一截留在輸入卡片底下)。
+        return metrics.layout != layout && abs(metrics.distanceFromBottom) > 1
     }
 
     /// `followsByOffset` 成立、畫面以新的底部位移再捲時呼叫。
     public mutating func followedByOffset(_ metrics: ConversationScrollMetrics) {
-        offsetFollowedContentHeight = metrics.contentHeight
+        offsetFollowedLayout = metrics.layout
         offsetFollows += 1
     }
 
@@ -160,7 +161,7 @@ extension ConversationScroll {
         jumpToLatest()
         if metrics.layout == returnedAtLayout {
             offsetReturnedAtLayout = metrics.layout
-            offsetFollowedContentHeight = metrics.contentHeight
+            offsetFollowedLayout = metrics.layout
             offsetFollows = 0
         }
         returnedAtLayout = metrics.layout

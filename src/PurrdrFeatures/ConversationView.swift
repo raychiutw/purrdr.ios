@@ -195,12 +195,11 @@ public struct ConversationView: View {
                 let byOffset = scroll.returnsByOffset(metrics)
                 scroll.returnedToContent(metrics)
                 if byOffset {
-                    position.scrollTo(y: metrics.bottomScrollPositionY)
                 } else {
                     scrollToLastRow(proxy, isNewContent: false)
                 }
             }
-            // 以位移捲過後 ScrollPosition 停在那個位移、不跟著底部：內容又變高(列排出實際高度)就以新的底部位移再捲(#251)。
+            // 以位移捲過後 ScrollPosition 停在那個位移、不跟著底部：內容變高(列排出實際高度)或可見範圍變了(停止列、鍵盤)就以新的底部位移再捲(#251)。
             if !userIsScrolling, scroll.followsByOffset(metrics) {
                 scroll.followedByOffset(metrics)
                 position.scrollTo(y: metrics.bottomScrollPositionY)

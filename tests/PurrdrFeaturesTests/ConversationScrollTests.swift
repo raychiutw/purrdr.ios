@@ -354,6 +354,23 @@ struct ConversationScrollTests {
         #expect(follows == ConversationScroll.maximumOffsetFollows, "高度一直變也有上限")
     }
 
+    @Test("以位移捲回後可見範圍變小(停止列出現、輸入卡片長高)、內容高度沒變：以新的底部位移再捲")
+    func followsByOffsetWhenContainerShrinks() {
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#251,AX5 開啟工作中的 Codex 對話):以位移捲到底後停止列出現，可見範圍變小、底部 inset 變大，
+        // 內容高度不變;ScrollPosition 停在原來的位移，「Writing…」被壓到輸入卡片底下。
+        let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
+        scroll.returnedToContent(pushedBeyond)
+        scroll.returnedToContent(pushedBeyond)
+        let shrunk = ConversationScrollMetrics(contentHeight: 664, containerHeight: 560, contentOffsetY: -110.33, topInset: 116, bottomInset: 198)
+        #expect(scroll.followsByOffset(shrunk), "距底 98pt,最後一列在輸入卡片底下")
+        scroll.followedByOffset(shrunk)
+        // 實測：停止列出現後內容 676、可見範圍 511.33、底部 inset 246.67,距底 36.67pt(比「在底部」的門檻 48pt 小),
+        // 「Writing…」下半被輸入卡片蓋住。以位移捲就是要貼齊底部，差 1pt 以上就再捲。
+        let slightlyShort = ConversationScrollMetrics(contentHeight: 676, containerHeight: 511.33, contentOffsetY: 12, topInset: 116, bottomInset: 246.67)
+        #expect(scroll.followsByOffset(slightlyShort), "距底 36.67pt")
+    }
+
     @Test("以位移捲回後使用者自己捲走或內容在底部：不再以位移捲")
     func doesNotFollowByOffsetAfterUserScrolledOrAtBottom() {
         var scroll = ConversationScroll()
