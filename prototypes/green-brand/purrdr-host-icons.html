@@ -1,0 +1,118 @@
+<title>Purrdr 主機圖示</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* PROTOTYPE（拋棄式）：主機圖示 11 種＋無，選單線條風格；?variant=A|B|C 換呈現方式，?theme=light|dark；主色 B 翡翠綠 */
+:root{--page:#f2f2f7;--surface:#fff;--fg:#000;--secondary:#3c3c4399;--separator:#3c3c4329;--press:#e5e5ea;--tile:#eeeef0;
+  --accent:#0b7a5c;--accent-soft:#0b7a5c1f;--menu:#f9f9f9ee;--bar-bg:#111;--bar-fg:#fff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--press:#2c2c2e;--tile:#2c2c2e;
+  --accent:#3ccf9e;--accent-soft:#3ccf9e29;--menu:#2c2c2eee;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--press:#2c2c2e;--tile:#2c2c2e;
+  --accent:#3ccf9e;--accent-soft:#3ccf9e29;--menu:#2c2c2eee;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 120px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:22px;margin:0 0 4px}
+.note{color:var(--secondary);font-size:13px;margin:0 0 16px;max-width:70ch}
+.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.phone{background:var(--page);border:1px solid var(--separator);border-radius:28px;overflow:hidden;min-width:0;padding-bottom:12px}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px}
+.nav b{font-size:17px}
+.link{color:var(--accent);font-weight:500;background:none;border:0;font:inherit;padding:0;cursor:pointer}
+.cap{font-size:12px;color:var(--secondary);text-transform:uppercase;letter-spacing:.04em;padding:6px 28px 6px}
+.group{background:var(--surface);border-radius:12px;margin:0 12px 14px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:11px 14px;position:relative;min-height:52px;cursor:pointer}
+.row+.row::before{content:"";position:absolute;top:0;left:58px;right:0;border-top:.5px solid var(--separator)}
+.row:active{background:var(--press)}
+.main{flex:1;min-width:0}.title{font-weight:600}.sub{color:var(--secondary);font-size:13px}
+.info{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);display:grid;place-items:center;font:600 14px/1 Georgia,serif;background:none;flex:none}
+svg.g{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* 三種呈現 */
+.hi{display:grid;place-items:center;flex:none;width:32px;height:32px}
+body[data-v="A"] .hi{color:var(--fg)}
+body[data-v="B"] .hi{background:var(--tile);border-radius:8px;color:var(--fg)}
+body[data-v="C"] .hi{background:var(--accent-soft);border-radius:50%;color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 2px;border-radius:12px;border:1.5px solid transparent;font-size:11px;color:var(--secondary);background:none;cursor:pointer}
+.cell .hi{width:40px;height:40px}.cell svg.g{width:24px;height:24px}
+.cell[aria-pressed="true"]{border-color:var(--accent);color:var(--fg)}
+.menu{margin:0 12px;background:var(--menu);border-radius:14px;overflow:hidden;box-shadow:0 8px 30px #0003;backdrop-filter:blur(20px)}
+.mi{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;font-size:15px}
+.mi+.mi{border-top:.5px solid var(--separator)}
+.mi svg.g{width:19px;height:19px}
+.mi .chk{width:18px;color:var(--fg);font-weight:600}
+.left{display:flex;align-items:center;gap:8px}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;align-items:center;box-shadow:0 6px 24px #0005;z-index:5;max-width:calc(100% - 32px)}
+.switcher button{background:none;border:0;color:inherit;font:600 14px/1 -apple-system,sans-serif;padding:9px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.switcher .label{padding:0 6px;font-size:13px;white-space:nowrap}
+.switcher button:focus-visible,.cell:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <h1>Purrdr 主機圖示</h1>
+  <p class="note">拋棄式原型。11 種圖示加「無」，全部照選單選項的線條風格重畫：單色、圓角線條、線寬一致，選單裡的樣子和清單、編輯器一模一樣。下方切換列可以換三種呈現方式（A 只有線條、B 灰色圓角方塊、C 綠色圓形底），也可以切換淺色和深色。編輯器裡的格子可以直接點，選了之後清單會跟著變。</p>
+  <div class="phones">
+    <section class="phone" aria-label="主機清單">
+      <div class="nav"><button class="link">完成</button><b>主機</b><button class="link">＋</button></div>
+      <div class="group" id="hostList"></div>
+    </section>
+    <section class="phone" aria-label="主機編輯器">
+      <div class="nav"><button class="link">取消</button><b>編輯主機</b><button class="link">儲存</button></div>
+      <div class="cap">名稱</div>
+      <div class="group"><div class="row"><div class="main">Ray PC</div></div></div>
+      <div class="cap">圖示</div>
+      <div class="group"><div class="grid" id="grid"></div></div>
+    </section>
+    <section class="phone" aria-label="長按選單">
+      <div class="nav"><span></span><b>長按選單 › 圖示</b><span></span></div>
+      <div class="menu" id="menu"></div>
+    </section>
+  </div>
+</div>
+
+<div class="switcher" role="toolbar" aria-label="原型切換（不屬於設計）">
+  <button id="prev" aria-label="上一種">←</button><span class="label" id="label"></span><button id="next" aria-label="下一種">→</button><button id="theme"></button>
+</div>
+
+<script>
+// 線條圖示（24×24，模仿選單 SF Symbols 的單色線條風格）
+const P = {
+  desktop:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/>',
+  laptop:'<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M2.5 18.5h19"/>',
+  macMini:'<rect x="3" y="9" width="18" height="6" rx="2.5"/><path d="M7 15.5v1M17 15.5v1M15 12h2"/>',
+  rack:'<rect x="4" y="3.5" width="16" height="7" rx="1.5"/><rect x="4" y="13.5" width="16" height="7" rx="1.5"/><path d="M7.5 7h.01M7.5 17h.01M11 7h5M11 17h5"/>',
+  pc:'<rect x="7" y="2.5" width="10" height="19" rx="1.8"/><circle cx="12" cy="17" r="1.4"/><path d="M10 6h4M10 9h4"/>',
+  display:'<rect x="2.5" y="4" width="19" height="13" rx="1.8"/><path d="M8 20.5h8"/>',
+  board:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M12 2v2M15 2v2M9 20v2M12 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>',
+  console:'<path d="M7 8h10a4 4 0 0 1 4 4v1.5a3 3 0 0 1-5.3 1.9L14.5 14h-5l-1.2 1.4A3 3 0 0 1 3 13.5V12a4 4 0 0 1 4-4Z"/><path d="M7.5 11v2.5M6.25 12.25h2.5M16 11.5h.01M17.5 13h.01"/>',
+  home:'<path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
+  cloud:'<path d="M7 18h10.5a3.5 3.5 0 0 0 .4-7A5.5 5.5 0 0 0 7.3 9.6 4.2 4.2 0 0 0 7 18Z"/>',
+  terminal:'<rect x="2.5" y="4" width="19" height="16" rx="2"/><path d="M6.5 9.5 9.5 12l-3 2.5M12 15h5"/>',
+  none:'<circle cx="12" cy="12" r="8.5"/><path d="M6 18 18 6"/>'
+};
+const ORDER=[["desktop","桌機"],["laptop","筆電"],["macMini","Mac mini"],["rack","機架"],["pc","PC"],["display","螢幕"],["board","開發板"],["console","遊戲機"],["home","家"],["cloud","雲"],["terminal","終端機"],["none","無"]];
+const svg = k => `<svg class="g" viewBox="0 0 24 24" aria-hidden="true">${P[k]}</svg>`;
+const hosts=[{n:"Ray PC",s:"SSH · Windows",i:"pc"},{n:"Mac mini",s:"SSH · macOS",i:"macMini"},{n:"Studio",s:"HTTPS · 主機服務",i:"cloud"},{n:"Pi 5",s:"SSH · Linux",i:"board"}];
+let chosen="pc";
+const V={A:"A 只有線條（同選單）",B:"B 灰色圓角方塊",C:"C 綠色圓形底"};
+const keys=Object.keys(V);
+const st=()=>{const p=new URLSearchParams(location.hash.slice(1));return{v:keys.includes(p.get("variant"))?p.get("variant"):"A",t:p.get("theme")}};
+const set=(v,t)=>{const p=new URLSearchParams();p.set("variant",v);if(t)p.set("theme",t);location.hash=p.toString()};
+const dark=t=>t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches);
+function render(){
+  const {v,t}=st(); document.body.dataset.v=v;
+  if(t)document.documentElement.setAttribute("data-theme",t);else document.documentElement.removeAttribute("data-theme");
+  document.getElementById("label").textContent=V[v]; document.getElementById("theme").textContent=dark(t)?"深色":"淺色";
+  hosts[0].i=chosen;
+  document.getElementById("hostList").innerHTML=hosts.map(h=>`<div class="row">${h.i==="none"?'<span class="hi"></span>':`<span class="hi">${svg(h.i)}</span>`}<div class="main"><div class="title">${h.n}</div><div class="sub">${h.s}</div></div><button class="info" aria-label="編輯 ${h.n}">i</button></div>`).join("");
+  document.getElementById("grid").innerHTML=ORDER.map(([k,n])=>`<button class="cell" data-k="${k}" aria-pressed="${k===chosen}"><span class="hi">${svg(k)}</span>${n}</button>`).join("");
+  document.getElementById("menu").innerHTML=ORDER.map(([k,n])=>`<div class="mi"><span class="left"><span class="chk">${k===chosen?"✓":""}</span>${n}</span>${svg(k)}</div>`).join("");
+  document.querySelectorAll(".cell").forEach(c=>c.onclick=()=>{chosen=c.dataset.k;render()});
+}
+document.getElementById("prev").onclick=()=>{const{v,t}=st();set(keys[(keys.indexOf(v)+2)%3],t)};
+document.getElementById("next").onclick=()=>{const{v,t}=st();set(keys[(keys.indexOf(v)+1)%3],t)};
+document.getElementById("theme").onclick=()=>{const{v,t}=st();set(v,dark(t)?"light":"dark")};
+addEventListener("keydown",e=>{if(e.key==="ArrowLeft")document.getElementById("prev").click();if(e.key==="ArrowRight")document.getElementById("next").click()});
+addEventListener("hashchange",render);matchMedia("(prefers-color-scheme: dark)").addEventListener("change",render);
+render();
+</script>
