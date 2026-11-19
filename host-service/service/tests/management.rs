@@ -44,7 +44,7 @@ async fn service() -> (FakeHerdr, TestHostService) {
 async fn pair_prints_qr_code_address_and_a_code_the_running_service_accepts() {
     let (_herdr, service) = service().await;
 
-    let output = run(&format!("pair --address {ADDRESS}"), service.state_directory.path()).unwrap();
+    let output = run(&format!("pair --address {ADDRESS}"), &service.state_path).unwrap();
 
     let code = printed_code(&output);
     assert_eq!(code.len(), 9, "{output}");
@@ -66,7 +66,7 @@ async fn pair_prints_qr_code_address_and_a_code_the_running_service_accepts() {
 async fn pair_read_only_issues_read_only_device() {
     let (_herdr, service) = service().await;
 
-    let output = run(&format!("pair --read-only --address {ADDRESS}"), service.state_directory.path()).unwrap();
+    let output = run(&format!("pair --read-only --address {ADDRESS}"), &service.state_path).unwrap();
 
     let (_, body) = http_request(
         &service,
@@ -111,7 +111,7 @@ async fn devices_lists_name_access_last_connection_and_revocation() {
     client.request(json!({"type": "hello", "request_id": "r1", "protocol_version": 1})).await;
     service.store().revoke(&lost.device.device_id, SystemTime::now()).unwrap();
 
-    let output = run("devices", service.state_directory.path()).unwrap();
+    let output = run("devices", &service.state_path).unwrap();
 
     let line_of = |device_id: &str| {
         output
@@ -137,7 +137,7 @@ async fn revoke_disconnects_the_device_and_is_audited() {
     let (_herdr, service) = service().await;
     let phone = service.pair_device("遺失的手機", false);
 
-    let output = run(&format!("revoke {}", phone.device.device_id), service.state_directory.path()).unwrap();
+    let output = run(&format!("revoke {}", phone.device.device_id), &service.state_path).unwrap();
 
     assert!(output.contains("遺失的手機"), "{output}");
     let mut client = TestClient::connect_with_token(&service, Some(&phone.device_token)).await;

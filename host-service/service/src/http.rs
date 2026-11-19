@@ -39,6 +39,8 @@ pub(crate) struct ServiceContext {
     pub audit: AuditLog,
     pub heartbeat: Heartbeat,
     pub transcripts: TranscriptEnvironment,
+    /// 主機取檔的家目錄、暫存目錄與主機服務資料夾。
+    pub files: crate::host_files::FileAccessEnvironment,
 }
 
 impl ServiceContext {

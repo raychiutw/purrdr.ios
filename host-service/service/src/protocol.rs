@@ -6,7 +6,16 @@ use serde::{Deserialize, Serialize};
 pub const PROTOCOL_VERSION: i64 = 1;
 
 /// 主機取檔的排除清單(schema 的 `x-excluded-file-locations`)。
-pub const EXCLUDED_FILE_LOCATIONS: &[&str] = &[".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains", ".codex/auth.json", ".claude/.credentials.json", ".purrdr/host-service", ".purrdr/push-*"];
+pub const EXCLUDED_FILE_LOCATIONS: &[&str] = &[".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains", ".codex/auth.json", ".claude/.credentials.json", ".claude.json", ".purrdr/host-service", ".purrdr/push-*", ".env", ".env.*", ".vault-token", ".terraform.d", ".m2/settings.xml", ".git/config", ".bash_history", ".zsh_history", "ConsoleHost_history.txt", "Library/Application Support/Google/Chrome", "Library/Application Support/Microsoft Edge", "Library/Application Support/BraveSoftware", "Library/Application Support/Firefox", "Library/Cookies", "Library/Safari", ".mozilla", ".config/google-chrome", ".config/chromium", ".config/microsoft-edge", ".config/BraveSoftware", "AppData/Local/Google/Chrome/User Data", "AppData/Local/Microsoft/Edge/User Data", "AppData/Local/BraveSoftware", "AppData/Roaming/Mozilla/Firefox", "AppData/Roaming/Microsoft/Credentials", "AppData/Roaming/Microsoft/Protect"];
+
+/// 主機取檔在工作目錄以外可放行的系統暫存目錄(schema 的 `x-temporary-file-locations`)。
+pub const TEMPORARY_FILE_LOCATIONS: &[&str] = &["/tmp", "/private/tmp", "/var/folders", "/private/var/folders"];
+
+/// 主機取檔的大小上限(schema 的 `x-maximum-file-size`)。
+pub const MAXIMUM_FILE_SIZE: u64 = 26214400;
+
+/// 主機取檔一次讀取最多回傳的 bytes(schema 的 `x-maximum-file-chunk`)。
+pub const MAXIMUM_FILE_CHUNK: u64 = 1048576;
 
 /// app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

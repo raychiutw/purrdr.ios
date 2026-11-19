@@ -7,9 +7,21 @@
   "x-excluded-file-locations": [
     ".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials",
     ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains",
-    ".codex/auth.json", ".claude/.credentials.json", ".purrdr/host-service", ".purrdr/push-*"
+    ".codex/auth.json", ".claude/.credentials.json", ".claude.json", ".purrdr/host-service", ".purrdr/push-*",
+    ".env", ".env.*", ".vault-token", ".terraform.d", ".m2/settings.xml", ".git/config",
+    ".bash_history", ".zsh_history", "ConsoleHost_history.txt",
+    "Library/Application Support/Google/Chrome", "Library/Application Support/Microsoft Edge", "Library/Application Support/BraveSoftware",
+    "Library/Application Support/Firefox", "Library/Cookies", "Library/Safari", ".mozilla",
+    ".config/google-chrome", ".config/chromium", ".config/microsoft-edge", ".config/BraveSoftware",
+    "AppData/Local/Google/Chrome/User Data", "AppData/Local/Microsoft/Edge/User Data", "AppData/Local/BraveSoftware",
+    "AppData/Roaming/Mozilla/Firefox", "AppData/Roaming/Microsoft/Credentials", "AppData/Roaming/Microsoft/Protect"
   ],
-  "x-excluded-file-locations-description": "主機取檔(file.stat、file.read)的排除清單：路徑任何位置連續出現這些段落就拒絕(不分大小寫;* 結尾比對段落開頭)。SSH 金鑰、GPG、雲端與套件憑證、keychain、密碼庫、Agent 的登入憑證、Purrdr 主機服務與推播配對。主機服務與 app(HostFileAccessPolicy、SSH 取檔腳本)共用。",
+  "x-excluded-file-locations-description": "主機取檔(file.stat、file.read)的排除清單：路徑任何位置連續出現這些段落就拒絕(不分大小寫;* 結尾比對段落開頭)。SSH 金鑰、GPG、雲端與套件憑證、keychain、密碼庫、Agent 的登入憑證與設定、Purrdr 主機服務與推播配對、.env、git 設定(可能含權杖)、shell 歷史、瀏覽器設定與 cookie、Windows 認證管理員與 DPAPI。主機服務另外拒讀它實際的 --state-dir。主機服務與 app(HostFileAccessPolicy、SSH 取檔腳本)共用。",
+  "x-temporary-file-locations": ["/tmp", "/private/tmp", "/var/folders", "/private/var/folders"],
+  "x-temporary-file-locations-description": "主機取檔在工作目錄以外、只因對話紀錄提到而放行時，允許的系統暫存目錄(POSIX;macOS 的 /tmp 與 /var/folders 解析後在 /private 底下)。另外還有主機的 TMPDIR／TEMP、Windows 家目錄的 AppData/Local/Temp、家目錄的 .purrdr/uploads 與這段對話紀錄的 tool-results 資料夾。",
+  "x-maximum-file-size": 26214400,
+  "x-maximum-file-chunk": 1048576,
+  "x-maximum-file-size-description": "主機取檔的大小上限(25 MiB)與一次 file.read 最多回傳的 bytes(1 MiB)。主機服務、app 與 SSH 取檔腳本共用。",
   "$defs": {
     "ClientMessage": {
       "description": "app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。",

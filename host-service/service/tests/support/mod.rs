@@ -26,11 +26,19 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 static NEXT_SOCKET: AtomicU32 = AtomicU32::new(0);
 
+/// `host-service/service` 資料夾;交叉編譯到別台執行時以 `PURRDR_HOST_SERVICE_PACKAGE_DIR` 指定。
+pub fn package_directory() -> PathBuf {
+    std::env::var_os("PURRDR_HOST_SERVICE_PACKAGE_DIR").map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), PathBuf::from)
+}
+
+/// 測試檔案的暫存區(不在系統暫存目錄);交叉編譯到別台執行時以 `PURRDR_TEST_TMPDIR` 指定。
+pub fn test_files_directory() -> PathBuf {
+    std::env::var_os("PURRDR_TEST_TMPDIR").map_or_else(|| PathBuf::from(env!("CARGO_TARGET_TMPDIR")), PathBuf::from)
+}
+
 /// 從真實主機錄下的 herdr 回應(`tests/PurrdrTestSupport/Fixtures/herdr-0.9.5/`)。
 pub fn recorded(name: &str) -> Value {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/PurrdrTestSupport/Fixtures/herdr-0.9.5")
-        .join(name);
+    let path = package_directory().join("../../tests/PurrdrTestSupport/Fixtures/herdr-0.9.5").join(name);
     let text = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
     serde_json::from_str(text.lines().next().unwrap()).unwrap()
 }
@@ -294,7 +302,9 @@ impl TestClient {
 /// 測試用的主機服務：自己的暫存資料夾，並預先配對好一支可寫入的裝置。
 pub struct TestHostService {
     pub service: RunningHostService,
-    pub state_directory: TempDir,
+    /// 主機服務資料夾(`--state-dir`)。
+    pub state_path: PathBuf,
+    _state_root: TempDir,
     pub device_token: String,
 }
 
@@ -304,7 +314,7 @@ impl TestHostService {
     }
 
     pub fn store(&self) -> DeviceStore {
-        DeviceStore::new(self.state_directory.path())
+        DeviceStore::new(&self.state_path)
     }
 
     /// 產生配對碼(與主機上的配對指令相同)。
@@ -320,12 +330,12 @@ impl TestHostService {
 
     /// 稽核紀錄的全部內容。
     pub fn audit_log(&self) -> String {
-        std::fs::read_to_string(self.state_directory.path().join("audit.log")).unwrap_or_default()
+        std::fs::read_to_string(self.state_path.join("audit.log")).unwrap_or_default()
     }
 
     /// 主機服務資料夾裡所有檔案的內容(檢查有沒有存明文)。
     pub fn stored_files(&self) -> String {
-        std::fs::read_dir(self.state_directory.path())
+        std::fs::read_dir(&self.state_path)
             .unwrap()
             .map(|entry| std::fs::read_to_string(entry.unwrap().path()).unwrap_or_default())
             .collect::<Vec<_>>()
@@ -353,29 +363,60 @@ pub async fn start_service_with_herdr_cli(herdr_socket: HerdrSocket, herdr_cli: 
     start_service_with(herdr_socket, herdr_cli, Heartbeat::default(), TranscriptEnvironment::default()).await
 }
 
+/// 主機取檔的測試：對話紀錄位置、主機的暫存目錄(`TMPDIR`／`TEMP`)與主機服務資料夾都可指定。
+pub struct FileServiceOptions {
+    pub transcripts: TranscriptEnvironment,
+    pub temporary_directory: Option<PathBuf>,
+    /// 沒指定時用暫存資料夾。
+    pub state_directory: Option<PathBuf>,
+}
+
+pub async fn start_file_service(herdr_socket: HerdrSocket, options: FileServiceOptions) -> TestHostService {
+    start_service_with_options(
+        herdr_socket,
+        HerdrCli::search(None),
+        Heartbeat::default(),
+        options.transcripts,
+        options.temporary_directory,
+        options.state_directory,
+    )
+    .await
+}
+
 async fn start_service_with(herdr_socket: HerdrSocket, herdr_cli: HerdrCli, heartbeat: Heartbeat, transcripts: TranscriptEnvironment) -> TestHostService {
-    let state_directory = tempfile::tempdir().unwrap();
+    start_service_with_options(herdr_socket, herdr_cli, heartbeat, transcripts, None, None).await
+}
+
+async fn start_service_with_options(
+    herdr_socket: HerdrSocket,
+    herdr_cli: HerdrCli,
+    heartbeat: Heartbeat,
+    transcripts: TranscriptEnvironment,
+    temporary_directory: Option<PathBuf>,
+    state_directory: Option<PathBuf>,
+) -> TestHostService {
+    let state_root = tempfile::tempdir().unwrap();
+    let state_path = state_directory.unwrap_or_else(|| state_root.path().to_owned());
     let service = purrdr_host_service::start(HostServiceConfig {
         port: 0,
         herdr_socket,
         herdr_cli,
-        state_directory: state_directory.path().to_owned(),
+        state_directory: state_path.clone(),
         heartbeat,
         transcripts,
+        temporary_directory,
     })
     .await
     .expect("啟動主機服務");
-    let code = DeviceStore::new(state_directory.path())
-        .create_pairing_code(false, SystemTime::now())
-        .unwrap()
-        .code;
-    let device_token = DeviceStore::new(state_directory.path())
+    let code = DeviceStore::new(&state_path).create_pairing_code(false, SystemTime::now()).unwrap().code;
+    let device_token = DeviceStore::new(&state_path)
         .redeem_pairing_code(&code, "測試裝置", SystemTime::now())
         .unwrap()
         .device_token;
     TestHostService {
         service,
-        state_directory,
+        state_path,
+        _state_root: state_root,
         device_token,
     }
 }

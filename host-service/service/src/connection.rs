@@ -1,6 +1,8 @@
 //! 一條 app 的 WebSocket 連線：解析協定訊息，轉成 herdr 請求。只處理協定定義的訊息種類。
 
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use axum::extract::ws::{CloseFrame, Message, WebSocket};
@@ -18,7 +20,7 @@ use crate::audit_log::{AuditEvent, AuditLog};
 use crate::device_store::Device;
 use crate::herdr_cli::HerdrCli;
 use crate::herdr_client::{HerdrClient, HerdrFailure, HerdrSubscription};
-use crate::host_files::{self, FileAccessScope, FileSnapshot, Located};
+use crate::host_files::{self, FileAccessCache, FileAccessEnvironment, FileAccessRules, FileSnapshot, Located, Purpose, RequestPacing};
 use crate::http::{ServiceContext, blocking};
 use crate::pane_terminal::{self, PaneTerminal};
 use crate::protocol::{
@@ -78,6 +80,9 @@ pub async fn serve(socket: WebSocket, context: ServiceContext, device_token: Opt
         accepted_subscription: None,
         terminals: HashMap::new(),
         terminal_frames,
+        files: context.files.clone(),
+        file_cache: Arc::new(std::sync::Mutex::new(FileAccessCache::default())),
+        file_pacing: RequestPacing::default(),
         file_snapshot: None,
     };
     let handler = tokio::spawn(handle_requests(connection, request_queue, context, device_token));
@@ -202,6 +207,10 @@ struct ClientConnection {
     /// 開著的 Pane 終端機，以串流識別碼(開啟請求的 request_id)為 key;drop 時子行程收尾。
     terminals: HashMap<String, PaneTerminal>,
     terminal_frames: mpsc::Sender<ServerMessage>,
+    files: FileAccessEnvironment,
+    /// 主機取檔：對話紀錄裡 Agent 寫出的路徑與版本快取(在 blocking 執行緒用)。
+    file_cache: Arc<std::sync::Mutex<FileAccessCache>>,
+    file_pacing: RequestPacing,
     /// 主機取檔最近一次從頭讀的快照。
     file_snapshot: Option<FileSnapshot>,
 }
@@ -460,21 +469,33 @@ impl ClientConnection {
         self.subscriptions.insert(stream_id, forwarding);
     }
 
-    /// 主機取檔的範圍:herdr snapshot 目前回報的工作目錄，與這條連線定位過的對話紀錄。
-    async fn file_access_scope(&self) -> Result<FileAccessScope, HerdrFailure> {
+    /// 主機取檔的規則:herdr snapshot 目前回報的工作目錄、這條連線定位過的對話紀錄與主機服務的環境。
+    async fn file_access_rules(&self) -> Result<FileAccessRules, HerdrFailure> {
         let result = self.herdr.request("session.snapshot", json!({})).await?;
         let snapshot = serde_json::from_value::<SnapshotResult>(result).unwrap_or_default().snapshot;
-        Ok(FileAccessScope {
-            working_directories: snapshot.agents.into_iter().filter_map(|agent| agent.cwd).collect(),
+        Ok(FileAccessRules {
+            working_directories: snapshot.agents.into_iter().filter_map(|agent| agent.cwd).map(PathBuf::from).collect(),
+            home: self.files.home.clone(),
+            temporary_directories: self.files.temporary_directory.iter().cloned().collect(),
             transcripts: self.transcripts.located_paths(),
+            excluded_directories: vec![self.files.state_directory.clone()],
         })
     }
 
-    /// 套用存取規則並讀出檔案與版本(在 blocking 執行緒)。
-    async fn locate_file(&self, path: &str) -> Result<Located, HerdrFailure> {
-        let scope = self.file_access_scope().await?;
+    /// 套用存取規則並開檔(在 blocking 執行緒);超過頻率上限時先等。
+    async fn locate_file(&mut self, path: &str, purpose: Purpose) -> Result<Located, HerdrFailure> {
+        let delay = self.file_pacing.delay_for(std::time::Instant::now());
+        if !delay.is_zero() {
+            tokio::time::sleep(delay).await;
+        }
+        let rules = self.file_access_rules().await?;
+        let cache = self.file_cache.clone();
         let path = path.to_owned();
-        Ok(blocking(move || host_files::locate(&path, &scope)).await)
+        Ok(blocking(move || {
+            let mut cache = cache.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            host_files::locate(&path, &rules, &mut cache, purpose)
+        })
+        .await)
     }
 
     fn audit_file_access(&self, device: &Device, operation: &'static str, path: &str, result: String, size: Option<u64>) {
@@ -494,12 +515,12 @@ impl ClientConnection {
         if !self.handshaken {
             return error(Some(request.request_id), ErrorCode::HandshakeRequired, "send hello first");
         }
-        let located = match self.locate_file(&request.path).await {
+        let located = match self.locate_file(&request.path, Purpose::Status).await {
             Ok(located) => located,
             Err(failure) => return herdr_error(request.request_id, "session.snapshot", failure),
         };
         let (status, version, size) = match located {
-            Located::File { contents, version } => (FileStatus::File, Some(version), Some(contents.len() as u64)),
+            Located::File { version, size, .. } => (FileStatus::File, Some(version), Some(size)),
             Located::Unavailable { status, size } => (status, None, size),
         };
         self.audit_file_access(device, "file.stat", &request.path, status_name(status), size);
@@ -524,12 +545,12 @@ impl ClientConnection {
             .as_ref()
             .is_some_and(|snapshot| offset > 0 && snapshot.path == request.path && snapshot.version == request.version);
         if !reusable {
-            let located = match self.locate_file(&request.path).await {
+            let located = match self.locate_file(&request.path, Purpose::Contents).await {
                 Ok(located) => located,
                 Err(failure) => return herdr_error(request.request_id, "session.snapshot", failure),
             };
             let (contents, version) = match located {
-                Located::File { contents, version } => (contents, version),
+                Located::File { contents, version, .. } => (contents.unwrap_or_default(), version),
                 Located::Unavailable { status, size } => {
                     self.audit_file_access(device, "file.read", &request.path, status_name(status), size);
                     return ServerMessage::FileReadResult(FileReadResult {

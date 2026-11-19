@@ -7,7 +7,13 @@ public enum HostServiceProtocol {
     /// 協定版本(schema 的 `x-protocol-version`)。
     public static let version = 1
     /// 主機取檔的排除清單(schema 的 `x-excluded-file-locations`)。
-    public static let excludedFileLocations = [".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains", ".codex/auth.json", ".claude/.credentials.json", ".purrdr/host-service", ".purrdr/push-*"]
+    public static let excludedFileLocations = [".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains", ".codex/auth.json", ".claude/.credentials.json", ".claude.json", ".purrdr/host-service", ".purrdr/push-*", ".env", ".env.*", ".vault-token", ".terraform.d", ".m2/settings.xml", ".git/config", ".bash_history", ".zsh_history", "ConsoleHost_history.txt", "Library/Application Support/Google/Chrome", "Library/Application Support/Microsoft Edge", "Library/Application Support/BraveSoftware", "Library/Application Support/Firefox", "Library/Cookies", "Library/Safari", ".mozilla", ".config/google-chrome", ".config/chromium", ".config/microsoft-edge", ".config/BraveSoftware", "AppData/Local/Google/Chrome/User Data", "AppData/Local/Microsoft/Edge/User Data", "AppData/Local/BraveSoftware", "AppData/Roaming/Mozilla/Firefox", "AppData/Roaming/Microsoft/Credentials", "AppData/Roaming/Microsoft/Protect"]
+    /// 主機取檔在工作目錄以外可放行的系統暫存目錄(schema 的 `x-temporary-file-locations`)。
+    public static let temporaryFileLocations = ["/tmp", "/private/tmp", "/var/folders", "/private/var/folders"]
+    /// 主機取檔的大小上限(schema 的 `x-maximum-file-size`)。
+    public static let maximumFileSize = 26214400
+    /// 主機取檔一次讀取最多回傳的 bytes(schema 的 `x-maximum-file-chunk`)。
+    public static let maximumFileChunk = 1048576
 }
 
 extension HostServiceProtocol {
