@@ -116,6 +116,8 @@ final class AccessibilityAuditUITests: XCTestCase {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             _ = openChat("w3:p1", in: app)
             XCTAssertTrue(element("stopBar.stop", in: app).waitForExistence(timeout: 15))
+            // 停止列出現時輸入卡片長高、對話跟著捲動：等版面停下再稽核。
+            sleep(1)
             try audit(app, "對話(工作中)", contentSize: size)
             app.terminate()
         }

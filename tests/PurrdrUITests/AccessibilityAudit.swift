@@ -50,7 +50,8 @@ final class AccessibilityAuditContext {
         var frames = app.searchFields.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }.map { field in
             CGRect(x: window.minX, y: field.minY - 24, width: window.width, height: window.maxY - field.minY + 24)
         }
-        for identifier in ["composer.text", "terminal.key.esc"] {
+        // 停止列(#220)在輸入卡片最上面：玻璃從它開始。
+        for identifier in ["stopBar", "composer.text", "terminal.key.esc"] {
             let element = app.descendants(matching: .any)[identifier].firstMatch
             if element.exists {
                 // 輸入列／按鍵列整條：元素上緣往下到視窗底。
