@@ -122,6 +122,11 @@ impl TranscriptSession {
         }
     }
 
+    /// 這條連線定位過的對話紀錄(主機取檔以其中出現的路徑放行)。
+    pub fn located_paths(&self) -> Vec<PathBuf> {
+        self.located.iter().map(PathBuf::from).collect()
+    }
+
     /// 讀視窗;路徑必須是這條連線定位過的。
     pub async fn window(&self, request: TranscriptWindow) -> ServerMessage {
         if !self.located.contains(&request.path) {

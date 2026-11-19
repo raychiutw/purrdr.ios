@@ -393,7 +393,7 @@ extension HostServiceProtocol.ServerMessage {
         case .paneTerminalClosed(let message): message.streamId
         case .welcome, .agentsListResult, .paneSendKeysResult, .transcriptLocateResult, .transcriptWindowResult, .transcriptFollowResult,
              .transcriptUnfollowResult, .paneSendTextResult, .agentPromptResult, .eventsSubscribeResult, .eventsUnsubscribeResult,
-             .paneTerminalOpenResult, .errorMessage: nil
+             .paneTerminalOpenResult, .fileStatResult, .fileReadResult, .errorMessage: nil
         }
     }
 
@@ -420,6 +420,8 @@ extension HostServiceProtocol.ServerMessage {
         case .eventsSubscribeResult(let message): message.requestId
         case .eventsUnsubscribeResult(let message): message.requestId
         case .paneTerminalOpenResult(let message): message.requestId
+        case .fileStatResult(let message): message.requestId
+        case .fileReadResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
         case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed: nil
         }

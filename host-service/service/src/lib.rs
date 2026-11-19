@@ -10,6 +10,7 @@ pub mod device_store;
 pub mod herdr_cli;
 pub mod herdr_client;
 pub mod herdr_socket;
+pub mod host_files;
 mod http;
 pub mod install;
 pub mod management;

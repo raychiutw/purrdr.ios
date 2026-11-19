@@ -13,6 +13,7 @@
 - 手機與主機服務之間：連線配對與撤銷走一般 HTTPS 請求，其餘全部走單一 WSS 連線，以請求識別碼與串流識別碼多工。
 - **主機服務用 Rust 實作**。herdr 本身是 Rust,named pipe 等跨平台本機 IPC 有成熟的 crate(herdr 自己用 `interprocess`),單一執行檔好發行;SwiftNIO 官方只在 macOS、Linux 開發與測試,Windows named pipe 支援查不到。
 - 協定以 **JSON Schema** 為唯一定義，放在 repo 中;Rust 端與 app 可攜核心的 Swift 型別都由它產生，並以同一組協定範例做兩端的相容測試。
+- **主機取檔**(#227)是窄 API 裡唯一讀任意路徑的操作，只有唯讀的「查狀態」與「依版本分塊讀取」。存取規則由主機服務判定，不信任 app 送來的範圍：工作目錄以 herdr `session.snapshot` 當下回報的 Agent cwd 為準，或路徑以 JSON 字串值完整出現在這條連線定位過的對話紀錄裡;先以請求的路徑比對，再以解析 symlink 後的實際路徑比對解析後的工作目錄;拒絕相對路徑與 `.`／`..`;排除清單(SSH 金鑰、雲端與套件憑證、keychain、Purrdr 主機服務與推播配對等)定義在協定 schema 的 `x-excluded-file-locations`,主機服務、app 與 SSH 取檔腳本共用同一份。上限 25 MiB;版本是內容的 SHA-256,從頭讀時建這條連線的記憶體快照，之後的分塊從快照讀，與 SSH 取檔的語意相同。稽核紀錄記路徑、大小與結果，不記內容。
 - 檔案放在 `~/.purrdr/`(Windows 為 `%USERPROFILE%\.purrdr\`);解除安裝會移除自動啟動與 `tailscale serve` 設定，可完整還原。
 
 ## 考慮過但不採用
