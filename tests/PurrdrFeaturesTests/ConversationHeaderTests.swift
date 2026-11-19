@@ -242,8 +242,8 @@ struct ConversationHeaderTests {
         #expect(await setup.cache.load(chatKey: Self.paneID)?.cursor == replaced.count)
     }
 
-    /// F6.7:畫面上是 2 秒前的 working,按下停止時 agent 已經在等你回答 → 一個按鍵都不送，並說明原因。
-    @Test("停止：送前重讀到「需要你」→ 不送 Esc,提示先回答")
+    /// F6.7:畫面上是 2 秒前的 working,按下停止時 agent 已經在等你回答 → 一個按鍵都不送，在停止列說明原因(#220)。
+    @Test("停止：送前重讀到「需要你」→ 不送 Esc,停止列提示先回答")
     func stopRefusesAgentThatNowNeedsYou() async throws {
         // 等待立刻結束，herdr 請求的期限除外。
         let setup = try Self.setup(sleeper: Self.shortWaitsFire())
@@ -256,7 +256,30 @@ struct ConversationHeaderTests {
         await setup.model.stop()
 
         #expect(await Self.keyRequests(setup).isEmpty)
-        #expect(setup.model.notice == .interruptRefusedNeedsAnswer)
+        #expect(setup.model.stopPhase == .needsAnswer)
+        #expect(setup.model.notice == nil)
+        #expect(setup.model.showsStopBar)
+    }
+
+    @Test("停止列的「需要你」:仍在需要你時留著，agent 不再需要你就收起")
+    func needsAnswerResultFollowsBlocked() async throws {
+        let setup = try Self.setup(sleeper: Self.shortWaitsFire())
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
+        await setup.model.stop()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-bash"))
+        await setup.model.poll()
+        #expect(setup.model.stopPhase == .needsAnswer)
+        #expect(setup.model.showsStopBar)
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read(text: "❯ "))
+        await setup.model.poll()
+        #expect(setup.model.stopPhase == nil)
+        #expect(!setup.model.showsStopBar)
     }
 
     @Test("停止成功：不等下一次輪詢，立刻換成停下後的狀態(停止不再可用)")
@@ -273,9 +296,36 @@ struct ConversationHeaderTests {
         #expect(setup.model.notice == nil)
         #expect(setup.model.agentStatus == .idle)
         #expect(!setup.model.canStop)
-        // 「已停止」2 秒後自動收起。
+        // 「已停止」2 秒後自動收起(這裡的 2 秒立刻到)。
+        for _ in 0..<2000 where setup.model.stopPhase != nil {
+            await Task.yield()
+        }
         #expect(setup.model.stopPhase == nil)
         #expect(!setup.model.showsStopBar)
+    }
+
+    @Test("已停止：收起前 agent 又開始工作 → 立刻換回停止鈕，不等 2 秒")
+    func stoppedResultGivesWayWhenWorkingAgain() async throws {
+        // 「已停止」的 2 秒永遠不到，只有確認迴圈的 500ms 會到。
+        let setup = try Self.setup(sleeper: RecordingSleeper { $0 == .milliseconds(500) })
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        let stopping = Task { await setup.model.stop() }
+        for _ in 0..<2000 where setup.model.stopPhase != .stopped {
+            await Task.yield()
+        }
+        #expect(setup.model.stopPhase == .stopped)
+
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        #expect(setup.model.stopPhase == nil)
+        #expect(setup.model.canStop)
+        stopping.cancel()
+        await stopping.value
     }
 
     /// #220:讀不到狀態不能當成功。
@@ -390,7 +440,27 @@ struct ConversationHeaderTests {
         await setup.model.forceQuit()
 
         #expect(await Self.keyRequests(setup).isEmpty)
-        #expect(setup.model.notice == .interruptRefusedNeedsAnswer)
+        #expect(setup.model.stopPhase == .needsAnswer)
+        #expect(setup.model.notice == nil)
+    }
+
+    @Test("強制結束：送不出 Ctrl-C → 停止列顯示送不出;agent 不在工作就收起")
+    func forceQuitKeysFailShowsOnStopBar() async throws {
+        let setup = try Self.setup()
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        await setup.model.forceQuit()
+        #expect(setup.model.stopPhase == .forceQuitFailed)
+        #expect(setup.model.notice == nil)
+        #expect(setup.model.showsStopBar)
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read(text: "❯ "))
+        await setup.model.poll()
+        #expect(setup.model.stopPhase == nil)
     }
 
     // MARK: - 工作中指示

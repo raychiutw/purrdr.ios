@@ -149,7 +149,16 @@ struct StopBar: View {
             }
             .buttonStyle(StopBarButtonStyle())
             .accessibilityIdentifier("stopBar.reload")
-        case .stopping, .stopped:
+        case .forceQuitFailed:
+            Button {
+                model.confirmsForceQuit = true
+            } label: {
+                Text("Try Again").frame(minHeight: 44)
+            }
+            .buttonStyle(StopBarButtonStyle())
+            .disabled(!model.canForceQuit)
+            .accessibilityIdentifier("stopBar.forceQuitRetry")
+        case .stopping, .stopped, .needsAnswer:
             EmptyView()
         }
     }
@@ -209,6 +218,8 @@ extension StopPhase {
         case .stillWorking: String(localized: "\(agent) is still working")
         case .failed: String(localized: "Couldn’t send Stop")
         case .unconfirmed: String(localized: "Couldn’t confirm it stopped")
+        case .needsAnswer: String(localized: "\(agent) needs you")
+        case .forceQuitFailed: String(localized: "Couldn’t send Force Quit")
         }
     }
 
@@ -218,14 +229,16 @@ extension StopPhase {
         case .stillWorking: String(localized: "Stop was sent, but the agent didn’t stop.")
         case .failed: String(localized: "Check the connection and try again.")
         case .unconfirmed: String(localized: "Stop was sent, but the agent’s status couldn’t be read.")
+        case .needsAnswer: String(localized: "Nothing was interrupted. Answer its question instead.")
+        case .forceQuitFailed: String(localized: "Check the connection and try again.")
         }
     }
 
     var symbol: String {
         switch self {
         case .stopping, .stopped: "checkmark.circle.fill"
-        case .stillWorking: "exclamationmark.circle.fill"
-        case .failed: "exclamationmark.triangle.fill"
+        case .stillWorking, .needsAnswer: "exclamationmark.circle.fill"
+        case .failed, .forceQuitFailed: "exclamationmark.triangle.fill"
         case .unconfirmed: "questionmark.circle.fill"
         }
     }
@@ -233,8 +246,8 @@ extension StopPhase {
     var color: Color {
         switch self {
         case .stopping, .stopped: .successText
-        case .stillWorking, .unconfirmed: .warningText
-        case .failed: .errorText
+        case .stillWorking, .unconfirmed, .needsAnswer: .warningText
+        case .failed, .forceQuitFailed: .errorText
         }
     }
 
@@ -242,8 +255,8 @@ extension StopPhase {
         switch self {
         case .stopping: nil
         case .stopped: .success
-        case .stillWorking, .unconfirmed: .warning
-        case .failed: .error
+        case .stillWorking, .unconfirmed, .needsAnswer: .warning
+        case .failed, .forceQuitFailed: .error
         }
     }
 }

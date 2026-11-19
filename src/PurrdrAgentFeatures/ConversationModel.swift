@@ -843,7 +843,7 @@ public final class ConversationModel {
             } else if stopPhase == .unconfirmed {
                 stopPhase = .stillWorking
             }
-        case .stopping?, .stopped?, nil:
+        case .stopping?, .stopped?, .needsAnswer?, .forceQuitFailed?, nil:
             break
         }
     }
@@ -1624,6 +1624,10 @@ public enum StopPhase: Sendable, Equatable {
     case failed
     /// 送出後讀不到狀態，不知道停了沒。
     case unconfirmed
+    /// agent 在等你回答：停止或強制結束都沒送(F6.7)。
+    case needsAnswer
+    /// 送不出強制結束的 Ctrl-C。
+    case forceQuitFailed
 }
 
 /// 送出與中斷的提示(對話畫面上的非干擾式標示)。
