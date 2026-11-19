@@ -145,6 +145,12 @@ enum DemoTranscripts {
                 "type": "create", "filePath": "/Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift", "content": quotingTests,
                 "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
             ]),
+            // 圖片縮圖情境(#225):Read 圖片的結果帶 `toolUseResult.type == image`(形狀照 #223 錄製;圖片資料像主機剝圖後一樣是空的)。
+            // 預覽圖自動載入縮圖，掃描檔超過 8 MiB 等點擊;內容由 `DemoHostFileFetcher` 提供。
+            assistantTool("d3m0-l-10c", "2026-11-16T09:00:21.400Z", id: "toolu_demo_07", name: "Read", input: ["file_path": DemoHostFileFetcher.previewPath]),
+            imageResult("d3m0-l-10d", "2026-11-16T09:00:21.600Z", id: "toolu_demo_07", size: DemoImages.previewSize),
+            assistantTool("d3m0-l-10e", "2026-11-16T09:00:21.700Z", id: "toolu_demo_08", name: "Read", input: ["file_path": DemoHostFileFetcher.scanPath]),
+            imageResult("d3m0-l-10f", "2026-11-16T09:00:21.900Z", id: "toolu_demo_08", size: DemoImages.scanSize),
             assistantTool("d3m0-l-11", "2026-11-16T09:00:22.000Z", id: "toolu_demo_05", name: "Bash", input: ["command": "swift test --filter CSVExportTests"]),
             toolResult("d3m0-l-12", "2026-11-16T09:00:26.000Z", id: "toolu_demo_05", text: "Test run with 7 tests passed after 0.21 seconds."),
             assistantText("d3m0-l-13", "2026-11-16T09:00:30.000Z", """
@@ -391,6 +397,22 @@ enum DemoTranscripts {
             "role": "assistant", "model": "claude-opus-5-5", "type": "message",
             "content": [["type": "tool_use", "id": id, "name": name, "input": input]],
         ]
+        return line(object)
+    }
+
+    /// Read 圖片的結果(PNG)。
+    private static func imageResult(_ uuid: String, _ timestamp: String, id: String, size: (width: Int, height: Int)) -> String {
+        var object = base("user", uuid, timestamp)
+        object["promptId"] = uuid
+        object["message"] = ["role": "user", "content": [[
+            "type": "tool_result", "tool_use_id": id,
+            "content": [["type": "image", "source": ["type": "base64", "data": "", "media_type": "image/png"]]],
+        ]]]
+        let dimensions = ["originalWidth": size.width, "originalHeight": size.height, "displayWidth": size.width, "displayHeight": size.height]
+        object["toolUseResult"] = ["type": "image", "file": [
+            "base64": "", "type": "image/png", "originalSize": DemoImages.encodedSize(width: size.width, height: size.height),
+            "dimensions": dimensions,
+        ] as [String: Any]]
         return line(object)
     }
 
