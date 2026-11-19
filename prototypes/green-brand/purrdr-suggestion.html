@@ -1,0 +1,119 @@
+<title>Purrdr 建議提示詞</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* PROTOTYPE（拋棄式）：Claude Code 回完一輪後的「下一句建議」怎麼顯示。?variant=A|B|C；點了只填入輸入框、不送出。主色翡翠綠。 */
+:root{--page:#f2f2f7;--surface:#fff;--fg:#000;--secondary:#3c3c4399;--tertiary:#3c3c434d;--separator:#3c3c4329;--press:#e5e5ea;--fill:#7878801f;
+  --accent:#0b7a5c;--on-accent:#fff;--accent-soft:#0b7a5c1f;--orange:#ff9500;--bar-bg:#111;--bar-fg:#fff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--press:#2c2c2e;--fill:#7878805c;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--press:#2c2c2e;--fill:#7878805c;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 120px}
+.wrap{max-width:430px;margin:0 auto}
+h1{font-size:20px;margin:0 0 12px}
+.phone{background:var(--page);border:1px solid var(--separator);border-radius:30px;overflow:hidden;display:flex;flex-direction:column;min-height:680px}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 6px}
+.btn{color:var(--accent);background:none;border:0;font:inherit;font-weight:500;padding:6px;cursor:pointer}
+.circle{width:32px;height:32px;border-radius:50%;background:var(--fill);border:0;color:var(--fg);display:grid;place-items:center}
+.head{text-align:center}.head b{display:block;font-size:17px}.head span{font-size:12px;color:var(--secondary)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--orange)}
+.chat{flex:1;padding:6px 14px;display:flex;flex-direction:column;gap:10px}
+.me{align-self:flex-end;max-width:82%;background:var(--fill);padding:8px 12px;border-radius:18px}
+.tool{font-size:13px;color:var(--secondary)}
+.composer{margin:6px 12px 12px;background:var(--surface);border-radius:22px;padding:10px 12px}
+textarea{width:100%;border:0;background:none;color:var(--fg);font:inherit;resize:none;outline:none;min-height:24px;padding:0;margin:0 0 8px}
+textarea::placeholder{color:var(--tertiary)}
+.tools{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.round{width:34px;height:34px;border-radius:50%;border:0;display:grid;place-items:center;font-size:16px;cursor:pointer;flex:none}
+.attach{background:var(--fill);color:var(--fg)}.send{background:var(--accent);color:var(--on-accent)}
+.send:disabled{background:var(--fill);color:var(--tertiary)}
+svg.g{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* A：輸入列上方的建議卡（現況加上明確提示） */
+.sugA{margin:0 12px 6px;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--separator);border-radius:16px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--fg);font:inherit;width:calc(100% - 24px)}
+.sugA:active{background:var(--press)}
+.sugA .lab{font-size:12px;color:var(--secondary);display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.sugA .txt{font-size:15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sugA .act{flex:none;color:var(--accent);font-size:13px;font-weight:600;display:flex;align-items:center;gap:3px}
+/* B：輸入框內的灰字建議＋「填入」鈕 */
+.ghost{color:var(--tertiary);margin:0 0 8px;min-height:24px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fill{border:0;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:6px 12px;font:inherit;font-size:14px;font-weight:600;display:flex;align-items:center;gap:4px;cursor:pointer}
+.fill:active{opacity:.7}
+/* C：多個建議膠囊、可左右捲 */
+.sugC{padding:0 12px 6px}
+.sugC .lab{font-size:12px;color:var(--secondary);margin:0 4px 6px;display:flex;align-items:center;gap:4px}
+.pills{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.pill{flex:none;max-width:260px;border:1px solid var(--separator);background:var(--surface);color:var(--fg);border-radius:999px;padding:8px 14px;font:inherit;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:flex;align-items:center;gap:6px}
+.pill:active{background:var(--press)}
+.state{font-size:12px;color:var(--secondary);margin:12px 4px 0}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;align-items:center;box-shadow:0 6px 24px #0005;z-index:9;max-width:calc(100% - 32px)}
+.switcher button{background:none;border:0;color:inherit;font:600 14px/1 -apple-system,sans-serif;padding:9px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.switcher .label{padding:0 6px;font-size:13px;white-space:nowrap}
+button:focus-visible,textarea:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <h1>建議提示詞</h1>
+  <section class="phone">
+    <div class="nav"><button class="btn">‹</button><div class="head"><b>ledger</b><span><span class="dot"></span> Ray PC</span></div><button class="circle" aria-label="終端機">›_</button></div>
+    <div class="chat">
+      <div class="me">CSV 的引號跳脫幫我修一下</div>
+      <div class="tool">✓ 已修改 2 個檔案 · 3 個步驟</div>
+      <div>已經改好引號跳脫，並新增 CSVQuotingTests.swift，測試都通過了。</div>
+    </div>
+    <div id="suggest"></div>
+    <div class="composer" id="composer"></div>
+  </section>
+  <p class="state" id="state"></p>
+</div>
+
+<div class="switcher" role="toolbar" aria-label="原型切換（不屬於設計）">
+  <button id="prev" aria-label="上一種">←</button><span class="label" id="label"></span><button id="next" aria-label="下一種">→</button><button id="theme"></button><button id="phase"></button><button id="reset">重來</button>
+</div>
+
+<script>
+const BULB='<svg class="g" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3Z"/></svg>';
+const FILLI='<svg class="g" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 9v8H9"/></svg>';
+const SUG=["幫我 commit 並開 PR","也把 TSV 匯出一起改","跑一次完整測試"];
+const V={A1:"A1 文字鈕「填入」",A2:"A2 圖示鈕（填入）",A3:"A3 膠囊鈕「填入」",A:"A 原版「點一下填入」",B:"B 輸入框灰字＋填入鈕",C:"C 多個建議膠囊"};const keys=Object.keys(V);
+let text="", used=false, phase="done";
+const PH={working:"工作中",done:"回完一輪",needs:"需要你"};
+const st=()=>{const p=new URLSearchParams(location.hash.slice(1));return{v:keys.includes(p.get("variant"))?p.get("variant"):"A3",t:p.get("theme")}};
+const set=(v,t)=>{const p=new URLSearchParams();p.set("variant",v);if(t)p.set("theme",t);location.hash=p.toString()};
+const dark=t=>t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matches);
+function fill(s){text=s;used=true;render();const ta=document.querySelector("textarea");if(ta){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length);}}
+function render(){
+  const {v,t}=st(); if(t)document.documentElement.setAttribute("data-theme",t);else document.documentElement.removeAttribute("data-theme");
+  document.getElementById("label").textContent=V[v]; document.getElementById("theme").textContent=dark(t)?"深色":"淺色";
+  const show=text.trim()==="" && phase==="done";
+  document.getElementById("phase").textContent="狀態："+PH[phase];
+  let sug="";
+  if(phase==="working") sug=`<div style="display:flex;justify-content:center;margin:0 0 6px"><span style="display:inline-flex;align-items:center;gap:8px;background:var(--surface);border-radius:999px;padding:6px 8px 6px 12px;font-size:13px;box-shadow:0 1px 3px #0001"><span class="dot" style="background:var(--accent)"></span>工作中 0:42<button style="border:0;background:var(--fill);color:var(--fg);border-radius:999px;padding:4px 10px;font:inherit;font-weight:600">停止</button></span></div>`;
+  if(phase==="needs") sug=`<div style="margin:0 12px 6px;background:var(--surface);border-radius:14px;padding:12px"><div style="font-weight:600;margin-bottom:6px"><span class="dot"></span> Ready to submit your answers?</div><button style="display:block;width:100%;text-align:left;border:0;background:var(--fill);color:var(--fg);border-radius:10px;padding:9px 12px;margin-top:6px;font:inherit">Submit</button><button style="display:block;width:100%;text-align:left;border:0;background:var(--fill);color:var(--fg);border-radius:10px;padding:9px 12px;margin-top:6px;font:inherit">Cancel</button></div>`;
+  if(show&&v==="A") sug=`<button class="sugA" data-s="0"><span style="flex:1;min-width:0"><span class="lab">${BULB}建議</span><span class="txt">${SUG[0]}</span></span><span class="act">點一下填入${FILLI}</span></button>`;
+  const card=(trail,label)=>`<button class="sugA" data-s="0" aria-label="建議：${SUG[0]}，${label}"><span style="flex:1;min-width:0"><span class="lab">${BULB}建議</span><span class="txt">${SUG[0]}</span></span>${trail}</button>`;
+  if(show&&v==="A1") sug=card(`<span class="act" style="min-width:44px;min-height:44px;justify-content:flex-end">填入</span>`,"填入");
+  if(show&&v==="A2") sug=card(`<span style="width:44px;height:44px;display:grid;place-items:center;color:var(--accent);flex:none"><svg class="g" viewBox="0 0 24 24" style="width:20px;height:20px" aria-hidden="true"><path d="M5 12h11M12 7l5 5-5 5M19 6v12"/></svg></span>`,"填入");
+  if(show&&v==="A3") sug=card(`<span style="flex:none;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;min-height:32px;display:flex;align-items:center">填入</span>`,"填入");
+  if(show&&v==="C") sug=`<div class="sugC"><div class="lab">${BULB}建議 · 點一下填入輸入框</div><div class="pills">${SUG.map((s,i)=>`<button class="pill" data-s="${i}">${s}</button>`).join("")}</div></div>`;
+  document.getElementById("suggest").innerHTML=sug;
+  const body = (show&&v==="B")
+    ? `<div class="ghost" aria-label="建議：${SUG[0]}">${SUG[0]}</div>`
+    : `<textarea rows="1" placeholder="訊息" aria-label="訊息">${text}</textarea>`;
+  const right = (show&&v==="B") ? `<button class="fill" data-s="0">${FILLI}填入建議</button>` : `<button class="round send" aria-label="送出" ${text.trim()?"":"disabled"}>↑</button>`;
+  document.getElementById("composer").innerHTML=`${body}<div class="tools"><button class="round attach" aria-label="加入圖片">＋</button><span style="flex:1"></span>${right}</div>`;
+  document.querySelectorAll("[data-s]").forEach(b=>b.onclick=()=>fill(SUG[+b.dataset.s]));
+  const ghost=document.querySelector(".ghost"); if(ghost) ghost.onclick=()=>{used=true;render();document.querySelector("textarea").focus()};
+  const ta=document.querySelector("textarea"); if(ta) ta.oninput=e=>{const wasEmpty=text.trim()==="";text=e.target.value;const nowEmpty=text.trim()==="";if(wasEmpty!==nowEmpty){render();const t2=document.querySelector("textarea");if(t2){t2.focus();t2.setSelectionRange(t2.value.length,t2.value.length);}return;}document.querySelector(".send").disabled=!text.trim();document.getElementById("state").textContent=stateText()};
+  document.getElementById("state").textContent=stateText();
+}
+const stateText=()=>`狀態：輸入框內容「${text}」｜建議${text.trim()===""?"顯示中（輸入框是空的）":"已收起（輸入框有字；刪光後會再出現）"}`;
+document.getElementById("prev").onclick=()=>{const{v,t}=st();set(keys[(keys.indexOf(v)+keys.length-1)%keys.length],t)};
+document.getElementById("next").onclick=()=>{const{v,t}=st();set(keys[(keys.indexOf(v)+1)%keys.length],t)};
+document.getElementById("theme").onclick=()=>{const{v,t}=st();set(v,dark(t)?"light":"dark")};
+document.getElementById("reset").onclick=()=>{text="";used=false;render()};
+document.getElementById("phase").onclick=()=>{const o=["working","done","needs"];phase=o[(o.indexOf(phase)+1)%3];text="";used=false;render()};
+addEventListener("hashchange",()=>{text="";used=false;render()});matchMedia("(prefers-color-scheme: dark)").addEventListener("change",render);
+render();
+</script>
