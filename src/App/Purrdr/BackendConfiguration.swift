@@ -15,8 +15,8 @@ enum BackendConfiguration {
 
 /// 推播(#29)。
 enum PushSettings {
-    /// 主機外掛的公開 repo(`herdr plugin install` 的來源)。發佈 `host-plugin/` 的公開 repo 前是佔位(見 backend/README.md 上線清單)。
-    static let pluginSource = "raychiutw/purrdr-host-plugin"
+    /// 主機外掛在公開 repo raychiutw/purrdr-host 的 `host-plugin/`(`herdr plugin install` 的來源，herdr 0.9.5 接受 `OWNER/REPO/SUBDIR`)。
+    static let pluginSource = "raychiutw/purrdr-host/host-plugin"
 
     /// 主機外掛呼叫的後台網址，寫進主機上的配對檔。
     static var endpoint: URL { BackendConfiguration.baseURL.appending(path: "v1/push") }
