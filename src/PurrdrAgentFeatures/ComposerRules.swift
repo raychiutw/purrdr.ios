@@ -38,6 +38,16 @@ public enum ComposerKeys {
     }
 }
 
+/// 送出鈕的外觀：可送或送出中是主色填色，不能送是中性停用樣式(`.fill.tertiary` 底、次要色箭頭)。
+public enum ComposerSendAppearance: Sendable, Equatable {
+    case prominent
+    case neutralDisabled
+
+    public init(canSend: Bool, isSending: Bool) {
+        self = canSend || isSending ? .prominent : .neutralDisabled
+    }
+}
+
 // MARK: - 長高
 
 /// 輸入框的高度與是否在框內捲動。
@@ -359,6 +369,12 @@ public struct ComposerAccessoryArrangement: Sendable, Equatable {
     }
 
     public static let full = ComposerAccessoryArrangement(note: .full, suggestion: .full)
+
+    /// 輸入框上方一次只顯示一樣完整卡片：You should know 完整顯示時建議卡收起，註記收成一行或拿掉後建議卡才出現。
+    public func sharingTopSlot(hasNote: Bool) -> ComposerAccessoryArrangement {
+        guard hasNote, note == .full else { return self }
+        return ComposerAccessoryArrangement(note: note, suggestion: .hidden, stopBar: stopBar)
+    }
 
     /// 暫時拿掉的元素換回一行，其他維持。
     var restoringHidden: ComposerAccessoryArrangement {

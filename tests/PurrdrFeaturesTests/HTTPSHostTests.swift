@@ -342,6 +342,37 @@ struct HTTPSHostsModelTests {
         #expect(needsPairing == ["Synced": true, "Paired": false, "SSH": false])
     }
 
+    @Test("沒有記錄的選取中主機時，預設跳過還沒配對的 HTTPS 主機(連不上)")
+    func defaultSelectionSkipsUnpairedHost() {
+        let unpaired = HostConfiguration(name: "Alpha HTTPS", hostService: Self.address)
+        let ssh = HostConfiguration(name: "Beta Mac", endpoint: SSHEndpoint(host: "beta-mac", username: "ray"))
+        let store = MemoryHostStore()
+        store.hosts = [unpaired, ssh]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(),
+            hostService: HostServiceConnections().access(tokens: InMemoryDeviceTokenStore()),
+            makeChannel: ChannelFactory().make)
+
+        model.load()
+
+        #expect(model.selection == .host(ssh.id))
+    }
+
+    @Test("已存主機都還沒配對時，預設仍是第一台(點了去配對)")
+    func defaultSelectionFallsBackToUnpairedHost() {
+        let unpaired = HostConfiguration(name: "Alpha HTTPS", hostService: Self.address)
+        let store = MemoryHostStore()
+        store.hosts = [unpaired]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(),
+            hostService: HostServiceConnections().access(tokens: InMemoryDeviceTokenStore()),
+            makeChannel: ChannelFactory().make)
+
+        model.load()
+
+        #expect(model.selection == .host(unpaired.id))
+    }
+
     @Test("配對完儲存後，主機清單不再標示要配對")
     func pairingClearsUnpairedRow() async throws {
         let synced = HostConfiguration(name: "Studio", hostService: Self.address)

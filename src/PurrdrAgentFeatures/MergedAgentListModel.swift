@@ -155,8 +155,8 @@ public final class MergedAgentListModel {
         self.swipeHint = swipeHint
         showsSwipeHint = !swipeHint.isDismissed
         self.modeStore = modeStore
-        // 未知或缺值一律回到 Spaces(行為規格 F2.1)。
-        mode = modeStore.load() ?? .spaces
+        // 未知或缺值(新安裝)一律是 Agents。
+        mode = modeStore.load() ?? .agents
     }
 
     /// 對話出現在畫面上：記下開啟時間(這之前的回覆都算讀過)。

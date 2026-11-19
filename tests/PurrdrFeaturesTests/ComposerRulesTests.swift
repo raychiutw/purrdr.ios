@@ -8,6 +8,15 @@ import Testing
 @MainActor
 @Suite("輸入列規則")
 struct ComposerRulesTests {
+    // MARK: - 送出鈕外觀
+
+    @Test("送出鈕：可送或送出中是主色填色;不能送(輸入框空白)是中性停用樣式，深色模式不會變成黑色實心圓")
+    func sendButtonAppearance() {
+        #expect(ComposerSendAppearance(canSend: true, isSending: false) == .prominent)
+        #expect(ComposerSendAppearance(canSend: false, isSending: true) == .prominent)
+        #expect(ComposerSendAppearance(canSend: false, isSending: false) == .neutralDisabled)
+    }
+
     // MARK: - 硬體鍵盤(F6.3)
 
     @Test("Command-Return:可送時送出，不可送時什麼都不做")

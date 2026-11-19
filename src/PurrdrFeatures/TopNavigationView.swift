@@ -378,13 +378,25 @@ struct HostFilterMenu: View {
             }
             .accessibilityIdentifier("hostFilter.picker")
         } label: {
-            if let current {
-                HostMenuLabel(current.name, icon: current.icon)
-                    .labelStyle(.titleAndIcon)
-            } else {
-                Label("All Hosts", systemImage: "square.grid.2x2")
-                    .labelStyle(.titleAndIcon)
+            // 工具列的 Label 只畫圖示，自己排「主機圖示＋名稱＋▾」(原型 purrdr-screens.html);膠囊由工具列玻璃提供。
+            HStack(spacing: 6) {
+                HostIconBadge(current?.icon ?? .default, diameter: 24)
+                Group {
+                    if let current {
+                        Text(verbatim: current.name)
+                    } else {
+                        Text("All Hosts")
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityHidden(true)
             }
+            .padding(.trailing, 4)
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
         .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))

@@ -38,4 +38,23 @@ struct ComposerTopAccessoryTests {
         let accessory = ComposerTopAccessory.choose(needsYou: true, isWorking: false, showsStopBar: true, suggestion: nil)
         #expect(accessory == .needsYou)
     }
+
+    @Test("You should know 完整卡片與建議卡不同時出現：註記優先，建議卡收起")
+    func fullNoteHidesSuggestion() {
+        let shown = ComposerAccessoryArrangement.full.sharingTopSlot(hasNote: true)
+        #expect(shown == ComposerAccessoryArrangement(note: .full, suggestion: .hidden))
+    }
+
+    @Test("註記收成一行(鍵盤讓位)或被拿掉時，建議卡照讓位規則顯示")
+    func compactNoteKeepsSuggestion() {
+        let compactNote = ComposerAccessoryArrangement(note: .compact, suggestion: .full)
+        #expect(compactNote.sharingTopSlot(hasNote: true) == compactNote)
+        let hiddenNote = ComposerAccessoryArrangement(note: .hidden, suggestion: .compact)
+        #expect(hiddenNote.sharingTopSlot(hasNote: true) == hiddenNote)
+    }
+
+    @Test("沒有註記：建議卡照讓位規則顯示")
+    func noNoteKeepsSuggestion() {
+        #expect(ComposerAccessoryArrangement.full.sharingTopSlot(hasNote: false) == .full)
+    }
 }

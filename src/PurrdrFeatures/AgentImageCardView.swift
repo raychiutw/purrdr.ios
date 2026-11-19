@@ -213,6 +213,7 @@ struct AgentImageViewer: View {
                 .padding()
                 .accessibilityIdentifier("agentImage.viewer.done")
         }
+        .accessibilityElement(children: .contain)
         .accessibilityAction(named: Text("Close")) { dismiss() }
         .accessibilityAction(.escape) { dismiss() }
         .accessibilityIdentifier("agentImage.viewer")

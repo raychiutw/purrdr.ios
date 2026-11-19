@@ -80,16 +80,36 @@ struct YouShouldKnowNoteView: View {
     let conversation: ConversationModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label {
-                Text(verbatim: note.tag ?? String(localized: "You should know"))
-                    .font(.footnote.weight(.semibold))
-            } icon: {
-                Image(systemName: "sparkle")
+        VStack(alignment: .leading, spacing: 4) {
+            // 略過放標題列右上的 ✕,其他動作排成一列：不直排佔掉對話可視區。
+            HStack(alignment: .center, spacing: 8) {
+                Label {
+                    Text(verbatim: note.tag ?? String(localized: "You should know"))
+                        .font(.footnote.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "sparkle")
+                }
+                .foregroundStyle(.secondaryText)
+                Spacer(minLength: 0)
+                Button { Task { await model.perform(.dismiss, on: note) } } label: {
+                    Image(systemName: "xmark")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondaryText)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.borderless)
+                .disabled(model.isWorking)
+                .accessibilityLabel(Text("Dismiss"))
+                .accessibilityIdentifier("youShouldKnow.dismiss")
+                .padding(.vertical, -12)
+                .padding(.trailing, -12)
             }
-            .foregroundStyle(.secondaryText)
             Text(verbatim: note.line)
                 .font(.subheadline)
+                // AX 字級時輸入列上方高度不夠，不讓註記被壓成一行截字(#249),讓對話讓出空間。
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("youShouldKnow.note")
             if note.kind == .explained, let explanation = note.explanation {
                 Text(verbatim: explanation)
@@ -101,9 +121,14 @@ struct YouShouldKnowNoteView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
             }
+            // 放不下一列時，第一個動作之外收進「更多」選單，不改成直排。
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { actions }
-                VStack(alignment: .leading, spacing: 4) { actions }
+                HStack(spacing: 16) { actions }
+                HStack(spacing: 16) {
+                    primaryAction
+                    Menu { secondaryActions } label: { HitTarget("More") }
+                        .accessibilityIdentifier("youShouldKnow.more")
+                }
             }
             .font(.subheadline)
             .buttonStyle(.borderless)
@@ -122,13 +147,39 @@ struct YouShouldKnowNoteView: View {
     @ViewBuilder
     private var actions: some View {
         if note.canLearnMore {
-            Button { Task { await model.perform(.learnMore, on: note) } } label: { HitTarget("Learn More") }
-                .accessibilityIdentifier("youShouldKnow.learnMore")
+            learnMore
         }
+        knewIt
+        discuss
+    }
+
+    /// 放不下一列時留在外面的動作。
+    @ViewBuilder
+    private var primaryAction: some View {
+        if note.canLearnMore { learnMore } else { knewIt }
+    }
+
+    @ViewBuilder
+    private var secondaryActions: some View {
+        if note.canLearnMore {
+            knewIt
+        }
+        discuss
+    }
+
+    private var learnMore: some View {
+        Button { Task { await model.perform(.learnMore, on: note) } } label: { HitTarget("Learn More") }
+            .accessibilityIdentifier("youShouldKnow.learnMore")
+    }
+
+    private var knewIt: some View {
         Button { Task { await model.perform(.knewIt, on: note) } } label: {
             HitTarget(note.kind == .explained ? "Got It" : "I Knew That")
         }
         .accessibilityIdentifier("youShouldKnow.knewIt")
+    }
+
+    private var discuss: some View {
         Button {
             // 先放進輸入框(不改主機),再當作「早就知道」寫回(行為規格 F17)。
             conversation.insertIntoDraft(note.discussionDraft)
@@ -137,8 +188,6 @@ struct YouShouldKnowNoteView: View {
             HitTarget("Discuss in Chat")
         }
         .accessibilityIdentifier("youShouldKnow.discuss")
-        Button { Task { await model.perform(.dismiss, on: note) } } label: { HitTarget("Dismiss") }
-            .accessibilityIdentifier("youShouldKnow.dismiss")
     }
 }
 

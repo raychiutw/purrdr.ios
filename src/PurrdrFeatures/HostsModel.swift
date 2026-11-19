@@ -618,7 +618,10 @@ public final class HostsModel {
         switch stored {
         case .demo?: return .demo
         case .host(let id)? where hosts.contains(where: { $0.id == id }): return .host(id)
-        default: return hosts.first.map { .host($0.id) } ?? .demo
+        default:
+            // 還沒配對的 HTTPS 主機連不上，有其他主機時不預設選它。
+            let preferred = hosts.first { !unpairedHostIDs.contains($0.id) } ?? hosts.first
+            return preferred.map { .host($0.id) } ?? .demo
         }
     }
 

@@ -163,9 +163,13 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(row.label.contains("Not Paired on This Device"), "沒有標示要配對：\(row.label)")
         row.tap()
 
+        // 編輯器先是名稱、圖示格(#239)與連線方式卡片(#250),配對欄位在畫面外;Form 不建立畫面外的列，先捲過去。
+        XCTAssertTrue(app.textFields["hostEditor.name"].waitForExistence(timeout: 5), "沒有開配對")
+        let address = app.textFields["hostEditor.address"]
+        XCTAssertTrue(address.exists || scrollTo(address, in: app), "沒有位址欄位")
+        XCTAssertEqual(address.value as? String, "studio.tail1234.ts.net")
         let code = app.textFields["hostEditor.pairingCode"]
-        XCTAssertTrue(code.waitForExistence(timeout: 5), "沒有開配對")
-        XCTAssertEqual(app.textFields["hostEditor.address"].value as? String, "studio.tail1234.ts.net")
+        XCTAssertTrue(code.exists || scrollTo(code, in: app), "沒有配對碼欄位")
         let test = app.buttons["hostEditor.test"]
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         XCTAssertFalse(test.isEnabled, "沒有配對碼不能測試")
