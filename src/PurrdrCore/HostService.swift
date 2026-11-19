@@ -8,7 +8,7 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
     /// 正規化後的位址，例如 `https://studio.tail1234.ts.net`。
     public let url: URL
 
-    /// 接受 `studio.tail1234.ts.net`、`https://studio.tail1234.ts.net/`、`http://127.0.0.1:47820`;其他形式回傳 `nil`。
+    /// 接受 `studio.tail1234.ts.net`、`https://studio.tail1234.ts.net:8443/`、`http://127.0.0.1:47820`;其他形式回傳 `nil`。
     public init?(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -22,6 +22,8 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
         components.scheme = scheme
         components.host = host
         components.path = ""
+        // 寫明預設埠與不寫視為同一個位址(主機服務不用 443 時才帶埠,#218)。
+        if components.port == (scheme == "https" ? 443 : 80) { components.port = nil }
         guard let url = components.url else { return nil }
         self.url = url
     }

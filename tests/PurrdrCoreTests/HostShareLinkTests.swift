@@ -93,6 +93,19 @@ struct HostShareLinkTests {
         #expect(shared.hostKeyPin == nil)
     }
 
+    @Test("帶埠號的 HTTPS 主機分享後仍是同一個埠(#218)")
+    func httpsPortSurvivesSharing() throws {
+        let address = try #require(HostServiceAddress("https://studio.tail1234.ts.net:8443"))
+        let url = HostShareLink.url(for: HostConfiguration(name: "Studio", hostService: address))
+        let object = try #require(try JSONSerialization.jsonObject(with: Self.payload(of: url)) as? [String: Any])
+
+        let shared = try HostShareLink.decode(url)
+
+        #expect(shared.hostService == address)
+        #expect(object["url"] as? String == "https://studio.tail1234.ts.net:8443")
+        #expect(object["port"] as? Int == 8443)
+    }
+
     @Test("HTTPS 主機的匯出內容只有白名單欄位，不含裝置權杖或配對碼")
     func httpsExportContainsNoDeviceToken() throws {
         let url = HostShareLink.url(for: HostConfiguration(name: "Studio", hostService: Self.httpsAddress))

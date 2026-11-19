@@ -11,6 +11,9 @@ use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 const RECORD_VARIABLE: &str = "PURRDR_FAKE_HOST_SERVICE_RECORD";
+/// 設了這個變數，假的主機服務就把它的值印到 stderr 並以 1 結束(模擬安裝失敗)。
+const FAILURE_VARIABLE: &str = "PURRDR_FAKE_HOST_SERVICE_FAILURE";
+const FAILURE_REASON: &str = "tailscale serve already uses HTTPS 443 for another service:\n  / -> http://127.0.0.1:8765\nNext: install on HTTPS 8443 instead";
 
 fn scripts_directory() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../install")
@@ -111,6 +114,11 @@ impl Run {
 
 /// 照使用者的一行指令執行：POSIX 把腳本從 stdin 餵給 `sh`;Windows 以 scriptblock 執行(可帶參數)。
 fn run_script(release: &Release, arguments: &[&str]) -> Run {
+    run_script_with(release, arguments, &[])
+}
+
+/// 照使用者的一行指令執行，另外設定 `variables`。
+fn run_script_with(release: &Release, arguments: &[&str], variables: &[(&str, &str)]) -> Run {
     let temporary = tempfile::tempdir().unwrap();
     let record_directory = tempfile::tempdir().unwrap();
     let record = record_directory.path().join("record.txt");
@@ -124,7 +132,11 @@ fn run_script(release: &Release, arguments: &[&str]) -> Run {
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            &format!("& ([scriptblock]::Create((Get-Content -Raw '{}'))) {}", script.display(), quoted.join(" ")),
+            &format!(
+                "& ([scriptblock]::Create((Get-Content -Raw -Encoding UTF8 '{}'))) {}",
+                script.display(),
+                quoted.join(" ")
+            ),
         ]);
         command.stdin(Stdio::null());
         command
@@ -139,7 +151,12 @@ fn run_script(release: &Release, arguments: &[&str]) -> Run {
         .env("TMPDIR", temporary.path())
         .env("TEMP", temporary.path())
         .env("TMP", temporary.path())
-        .env(RECORD_VARIABLE, &record);
+        .env(RECORD_VARIABLE, &record)
+        .env_remove("PURRDR_HOST_SERVICE_VERSION")
+        .env_remove(FAILURE_VARIABLE);
+    for (name, value) in variables {
+        command.env(name, value);
+    }
     let output = command.output().unwrap();
     Run {
         output,
@@ -165,6 +182,10 @@ fn installs_verified_archive_with_arguments() {
     assert!(run.temporary_is_empty(), "暫存資料夾沒清掉");
 }
 
+fn stderr(run: &Run) -> String {
+    String::from_utf8_lossy(&run.output.stderr).into_owned()
+}
+
 fn checksum_mismatch_aborts_without_running_or_leaving_files() {
     let release = Release::new();
     release.write_checksums(&"f".repeat(64));
@@ -172,7 +193,10 @@ fn checksum_mismatch_aborts_without_running_or_leaving_files() {
     let run = run_script(&release, &["--yes"]);
 
     assert!(!run.output.status.success(), "{:?}", run.output);
-    assert!(String::from_utf8_lossy(&run.output.stderr).contains("checksum"), "{:?}", run.output);
+    let message = stderr(&run);
+    for expected in ["checksum mismatch", "nothing was installed", "Next:"] {
+        assert!(message.contains(expected), "缺少 {expected:?}:\n{message}");
+    }
     assert_eq!(run.record(), None, "checksum 不符還執行了主機服務");
     assert!(run.temporary_is_empty(), "暫存資料夾沒清掉");
 }
@@ -192,7 +216,49 @@ fn missing_checksum_entry_aborts() {
     assert!(run.temporary_is_empty(), "暫存資料夾沒清掉");
 }
 
-/// 假的主機服務：參數一行，接著是執行檔所在資料夾的檔名(排序)。
+fn install_command_for_rerun_is_passed_to_the_host_service() {
+    let release = Release::new();
+
+    let run = run_script(&release, &["--yes"]);
+
+    let record = run.record().expect("沒有執行壓縮檔裡的主機服務");
+    let expected = if cfg!(windows) {
+        "rerun: & ([scriptblock]::Create((irm https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.ps1)))"
+    } else {
+        "rerun: curl -fsSL https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.sh | sh -s --"
+    };
+    assert!(record.lines().any(|line| line == expected), "{record}");
+}
+
+fn failed_install_keeps_the_host_service_reason_and_points_to_it() {
+    let release = Release::new();
+
+    let run = run_script_with(&release, &["--yes"], &[(FAILURE_VARIABLE, FAILURE_REASON)]);
+
+    assert!(!run.output.status.success(), "{:?}", run.output);
+    let message = stderr(&run);
+    assert!(message.contains(FAILURE_REASON.lines().last().unwrap()), "主機服務印出的原因不見了:\n{message}");
+    assert!(message.contains("/ -> http://127.0.0.1:8765"), "{message}");
+    assert!(message.contains("see the reason and next step above"), "{message}");
+    assert!(!message.contains("install exited with"), "{message}");
+    assert!(run.temporary_is_empty(), "暫存資料夾沒清掉");
+}
+
+fn unreachable_download_says_what_failed_and_what_to_do() {
+    let release = Release::new();
+    let missing = release.root.path().join("no-such-release");
+
+    let run = run_script_with(&release, &["--yes"], &[("PURRDR_HOST_SERVICE_DOWNLOAD_URL", missing.to_str().unwrap())]);
+
+    assert!(!run.output.status.success(), "{:?}", run.output);
+    let message = stderr(&run);
+    for expected in ["download failed", "SHA256SUMS", "Next:"] {
+        assert!(message.contains(expected), "缺少 {expected:?}:\n{message}");
+    }
+    assert_eq!(run.record(), None);
+}
+
+/// 假的主機服務：參數一行、重跑指令一行(`rerun: …`)，接著是執行檔所在資料夾的檔名(排序)。
 fn fake_host_service(record: &str) -> std::process::ExitCode {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let directory = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
@@ -201,7 +267,12 @@ fn fake_host_service(record: &str) -> std::process::ExitCode {
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     names.sort();
-    std::fs::write(record, format!("{}\n{}\n", arguments.join(" "), names.join("\n"))).unwrap();
+    let rerun = std::env::var("PURRDR_HOST_SERVICE_INSTALL_COMMAND").unwrap_or_default();
+    std::fs::write(record, format!("{}\nrerun: {rerun}\n{}\n", arguments.join(" "), names.join("\n"))).unwrap();
+    if let Ok(reason) = std::env::var(FAILURE_VARIABLE) {
+        eprintln!("{reason}");
+        return std::process::ExitCode::FAILURE;
+    }
     std::process::ExitCode::SUCCESS
 }
 
@@ -218,6 +289,18 @@ fn main() -> std::process::ExitCode {
             checksum_mismatch_aborts_without_running_or_leaving_files,
         ),
         ("missing_checksum_entry_aborts", missing_checksum_entry_aborts),
+        (
+            "install_command_for_rerun_is_passed_to_the_host_service",
+            install_command_for_rerun_is_passed_to_the_host_service,
+        ),
+        (
+            "failed_install_keeps_the_host_service_reason_and_points_to_it",
+            failed_install_keeps_the_host_service_reason_and_points_to_it,
+        ),
+        (
+            "unreachable_download_says_what_failed_and_what_to_do",
+            unreachable_download_says_what_failed_and_what_to_do,
+        ),
     ];
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let filters: Vec<&String> = arguments.iter().filter(|argument| !argument.starts_with('-')).collect();
