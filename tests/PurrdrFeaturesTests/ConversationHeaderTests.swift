@@ -184,6 +184,22 @@ struct ConversationHeaderTests {
         #expect(setup.model.notice == .interruptRefusedNeedsAnswer)
     }
 
+    /// #220:讀不到狀態不能當成功。
+    @Test("停止：送出 Esc 後讀不到狀態 → 提示無法確認是否已停止")
+    func stopUnreadableStatusShowsUnconfirmed() async throws {
+        let setup = try Self.setup(sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard })
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        await setup.model.stop()
+
+        #expect(await Self.keyRequests(setup).count == 1)
+        #expect(setup.model.notice == .stopUnconfirmed)
+    }
+
     @Test("強制結束：送前重讀到「需要你」→ 不送 ctrl+c")
     func forceQuitRefusesAgentThatNowNeedsYou() async throws {
         let setup = try Self.setup()

@@ -1573,6 +1573,8 @@ public enum SendNotice: Sendable, Equatable {
     case stillWorking
     /// 送不出中斷的按鍵。
     case interruptFailed
+    /// 送出停止後讀不到狀態，不知道停了沒(#220)。
+    case stopUnconfirmed
     /// 送不出 slash 面板的按鍵(#45)。
     case panelKeysFailed
     /// agent 在等你回答，所以沒有送出中斷(F6.7)。
