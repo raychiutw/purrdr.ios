@@ -91,6 +91,32 @@ struct TranscriptFollowViewTests {
         #expect(await Self.tailReads(connection) == 0)
     }
 
+    @Test("聊天：場景非作用中再回來，舊的 run 晚於新的 run 結束時，不關掉新的追蹤(#219)")
+    func lateEndingOldRunKeepsNewRunFollowing() async throws {
+        let connection = FakeHostConnection()
+        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await connection.expect("session.snapshot", reply: Fixtures.data("session.snapshot.ndjson"))
+        await Self.answering(connection)
+        let model = ConversationModel(
+            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: Self.paneID,
+            knownSessionID: Self.sessionID, cache: InMemoryConversationCache(), clock: TestClock().clock)
+        await connection.hold("session.snapshot")
+        let inactiveRun = Task { await model.run(sleep: RecordingSleeper().sleep) }
+        try await waitUntil { await connection.heldCount == 1 }
+
+        inactiveRun.cancel()
+        let activeRun = Task { await model.run(sleep: RecordingSleeper().sleep) }
+        defer { activeRun.cancel() }
+        try await waitUntil { await connection.transcriptFollowOpenings.count == 1 }
+        await connection.releaseHeld()
+        await inactiveRun.value
+
+        let shown = model.items.count
+        #expect(await connection.transcriptFollowsClosed == [false])
+        await connection.send(.appended(Self.addedChunk), toFollow: 0)
+        try await waitUntil { await MainActor.run { model.items.count == shown + 1 } }
+    }
+
     @Test("Subagent:開啟後從游標追蹤，推送的新訊息不等輪詢就顯示，換檔後重讀視窗")
     func subagentFollowsPushedLines() async throws {
         let connection = FakeHostConnection()
