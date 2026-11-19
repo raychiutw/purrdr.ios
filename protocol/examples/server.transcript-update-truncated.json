@@ -1,1 +1,0 @@
-{"type":"transcript.update","stream_id":"t1","size":2148213,"start":48330,"records":[{"length":1048576,"text":"{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"content\":\"截短"}]}

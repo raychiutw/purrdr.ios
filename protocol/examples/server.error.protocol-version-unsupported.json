@@ -1,1 +1,0 @@
-{"type":"error","request_id":"r1","code":"protocol_version_unsupported","message":"protocol version 99 is not supported","supported_protocol_versions":[1]}
