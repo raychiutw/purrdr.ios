@@ -140,6 +140,41 @@ struct LivePreviewTests {
         #expect(LivePreview.extract(screen: screen) == "The exporter now writes the header row before any data rows.")
     }
 
+    // MARK: - 已寫入對話紀錄(#208)
+
+    @Test("清單：畫面的 •／- 項目符號與原文的 -／* 視為相同", arguments: ["-", "•"])
+    func listIsWritten(screenBullet: String) throws {
+        let screen = """
+            ⏺ 這次改了兩個地方：
+              \(screenBullet) 匯出欄位順序改成日期、金額、備註
+              \(screenBullet) 備註裡的換行改成空白
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        let preview = try #require(LivePreview.extract(screen: screen))
+        #expect(LivePreview.isWritten(preview, in: "這次改了兩個地方：\n\n- 匯出欄位順序改成日期、金額、備註\n* 備註裡的換行改成空白\n"))
+    }
+
+    @Test("表格：畫面的框線與原文的 | 與 :-- 分隔列視為相同;內容不同就不算")
+    func tableIsWritten() throws {
+        let screen = """
+            ⏺ 欄位順序改好了：
+              ┌──────┬──────┐
+              │ 欄位 │ 型別 │
+              ├──────┼──────┤
+              │ 日期 │ Date │
+              │ 金額 │ Decimal │
+              └──────┴──────┘
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        let preview = try #require(LivePreview.extract(screen: screen))
+        #expect(LivePreview.isWritten(preview, in: "欄位順序改好了：\n\n| 欄位 | 型別 |\n|:--|:--|\n| 日期 | Date |\n| 金額 | Decimal |\n"))
+        #expect(!LivePreview.isWritten(preview, in: "欄位順序改好了：\n\n| 欄位 | 型別 |\n|:--|:--|\n| 日期 | Date |\n| 備註 | String |\n"))
+    }
+
     @Test("閒置畫面(沒有錨點只有輸入框)上方的舊回覆也照規則取;空畫面 → 不顯示")
     func emptyScreen() {
         #expect(LivePreview.extract(screen: "") == nil)
