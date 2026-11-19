@@ -161,7 +161,7 @@ struct YouShouldKnowCompactNoteView: View {
             .padding(.horizontal, 12)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableRow(cornerRadius: 16))
         // 同完整卡片：內容層、不透明底(#67 audit)。
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
