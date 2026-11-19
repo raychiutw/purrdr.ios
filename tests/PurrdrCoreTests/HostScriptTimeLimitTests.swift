@@ -58,6 +58,14 @@ struct HostScriptTimeLimitTests {
         #expect(script.contains("$purrdrLimit.At"), "Windows 長駐讀取要自己延長／收緊時限")
     }
 
+    @Test("主機取檔的長駐腳本(#225):帶時限，閒置、總長與大小上限由參數帶入")
+    func longLivedHostFileFetchCarriesTimeLimit() {
+        let follow = HostFileFetchScript.follow(maximumSize: 1_000, idleSeconds: 7, totalSeconds: 90)
+        #expect(follow.contains(HostScriptTimeLimit.posixMarker + "() {"), "取檔腳本沒有包上 HostScriptTimeLimit.posix")
+        #expect(follow.hasPrefix(HostFileFetchScript.followInvocation))
+        #expect(PosixShell.unquote(String(follow.dropFirst(HostFileFetchScript.followInvocation.count))) == ["7", "90", "1000"])
+    }
+
     @Test("Windows 的 stdin stub 與上傳腳本都帶時限且仍在 cmd 命令列上限內;herdr bridge 不帶(實跑見 scripts/windows-upload-repro.py --kind limit)")
     func windowsOneShotScriptsCarryTimeLimit() throws {
         let uploadName = try #require(UploadFileName("a-1.jpg"))

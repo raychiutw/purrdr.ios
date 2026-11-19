@@ -28,6 +28,33 @@ struct HostFileFetchScriptTests {
         return Setup(shell: shell, fetcher: SSHHostFileFetcher(channel: shell, maximumSize: maximumSize), home: home)
     }
 
+    @Test("閒置到時限：腳本以 exit 124 結束、不留程序;下一個請求重開通道")
+    func idleLimitEndsTheScript() async throws {
+        let shell = try LocalShellHost.temporary(feedsStdin: true)
+        let home = shell.home.path(percentEncoded: false).trimmingSuffix("/")
+        try shell.write(Data("x".utf8), to: "ledger/a.png")
+        let channel = IdleLimitedChannel(base: shell)
+        let fetcher = SSHHostFileFetcher(channel: channel)
+        let target = HostFileTarget(path: home + "/ledger/a.png", root: home + "/ledger")
+
+        guard case .file = try await fetcher.status(of: target) else { Issue.record("沒有狀態"); return }
+        await shell.waitUntilFinished(timeout: .seconds(10))
+        guard case .file = try await fetcher.status(of: target) else { Issue.record("重開後沒有狀態"); return }
+
+        #expect(shell.commands.count == 2, "閒置結束後重開一條")
+    }
+
+    /// 把取檔腳本的閒置時限改成 1 秒。
+    struct IdleLimitedChannel: HostChannel {
+        let base: LocalShellHost
+
+        func execute(_ command: String) async throws -> any ExecSession {
+            try await base.execute(command == HostFileFetchScript.follow() ? HostFileFetchScript.follow(idleSeconds: 1) : command)
+        }
+
+        func openPTY(_ request: PTYRequest) async throws -> any PTYSession { try await base.openPTY(request) }
+    }
+
     static func symlink(_ link: String, to destination: String) throws {
         try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: destination)
     }
