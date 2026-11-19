@@ -29,6 +29,7 @@ struct HostEditorView: View {
                     field(
                         "Pairing Code", text: $model.pairingCode, prompt: model.needsPairingCode ? "K7QM-2XPA" : "Unchanged",
                         identifier: "pairingCode")
+                    .uppercaseInput()
                 } else {
                     field("Address", text: $model.address, prompt: "my-mac or 100.64.0.1", identifier: "address")
                         .addressKeyboard()
@@ -443,6 +444,15 @@ private extension View {
     func numberKeyboard() -> some View {
         #if os(iOS)
         keyboardType(.numberPad)
+        #else
+        self
+        #endif
+    }
+
+    /// 配對碼是大寫字母(HIG TF-1);自動修正已由 `field` 關掉。
+    func uppercaseInput() -> some View {
+        #if os(iOS)
+        textInputAutocapitalization(.characters)
         #else
         self
         #endif
