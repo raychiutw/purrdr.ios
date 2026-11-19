@@ -99,16 +99,6 @@ struct HitTarget: View {
     }
 }
 
-extension AccessibleColors {
-    /// 狀態條的閒置段(#103):比系統綠低飽和，非文字圖形對列背景 ≥ 3:1。
-    static let idleSegment = ContrastPalette(
-        light: ThemeColor(red: 0x4E, green: 0x9A, blue: 0x62),             // 白底 3.4:1
-        dark: ThemeColor(red: 0x4A, green: 0xA5, blue: 0x5F),              // #1C1C1E 5.5:1、#2C2C2E 4.5:1
-        lightHighContrast: ThemeColor(red: 0x2F, green: 0x7D, blue: 0x43), // 白底 5.1:1
-        darkHighContrast: ThemeColor(red: 0x6B, green: 0xBF, blue: 0x7E)   // #1C1C1E 7.6:1、#2C2C2E 6.2:1
-    )
-}
-
 /// Agent 種類頭像(#103):底色與白色字母。深淺色共用同一個底色，高對比時更深。
 struct AgentKindAvatarStyle {
     var letter: String

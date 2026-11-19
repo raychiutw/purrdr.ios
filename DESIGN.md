@@ -22,6 +22,21 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - 每個畫面 prominent 按鈕最多 2 個。
 - 主色填色一律經 `prominentFill`(有主機主題時是主題填色)與 `onProminentFill`(主題填色上白字，主色上 `onAccent`):填色寫 `hostFill(in:)` 或 `.prominentFill`,prominent 按鈕用 `filledProminentButtonStyle()`／`filledGlassProminentButtonStyle()`;不要直接用 tint／`Color.accentColor` 當底(`ProminentFillUsageTests` 擋),否則深色模式會變成白字配亮綠。
 - iPad 列表(split view 內容欄)的選取列加 `selectionFill(for:)`:中性灰底 `neutralSelection`(系統 `systemGray5`:`#E5E5EA`／`#2C2C2E`／高對比 `#D8D8DC`／`#363638`),不用主色或主機主題的填色;列內文字維持主要色與 `secondaryText`,不另換字色(#238)。主要文字與 `secondaryText` 對四值都 ≥ 4.5:1(淺色次要 4.8:1 最低，`SelectionAppearanceTests`)。
+
+### 狀態色(#237)
+
+一張對照表(`StatusTone`,`StatusToneTests`)供 Agent 列表、聊天標頭、Spaces 狀態條與版面圖、終端機狀態點、委派圖示、問題卡片共用。顏色**只上在符號與圓點**;狀態字一律用主要色或 `secondaryText`,系統橙與系統紅不承載文字(系統橙對白底約 2:1)。狀態一律同時有文字與符號形狀，不只靠顏色。
+
+| tone | 顏色 | 用在 |
+|---|---|---|
+| 注意 `attention` | 系統橙 | 需要你(Agent、聊天標頭、問題卡片的提問圖示)、問題卡片注意附註的圖示 |
+| 主色 `accent` | 主色(tint) | 工作中(含對話底部的工作中點陣)、終端機已連線 |
+| 錯誤 `error` | 系統紅 | 終端機中斷、被占用、被接管、無法開啟;委派失敗 |
+| 中性 `neutral` | 系統灰 | 完成、閒置、未知;聊天標頭的線上與離線;終端機連線中與已結束;委派執行中與完成 |
+
+- 狀態字：「需要你」用主要色(列表預覽「Waiting for your input」再加 semibold),其他狀態用 `secondaryText`。問題卡片的注意附註文字用主要色，只有三角形圖示是橙色。
+- Spaces 狀態條沒有形狀可分，中性的完成段用 `systemGray`、閒置段用較淺的 `systemGray3`;圖例的符號照對照表。版面圖「需要你」方塊是橙色 `!` 加 18% 灰底。
+- 不再使用 teal、yellow、閒置綠與 `idleSegment`。
 - 「需要你」一律同時有 `!` 符號與文字，不只靠顏色;錯誤與刪除用系統 `.red`／destructive role,不用主色。
 - 次要文字的判斷原則(#67):**承載資訊的文字一律用 `secondaryText`**——副標、時間、說明、狀態字、預覽、參數提示、placeholder、空狀態與錯誤說明，List／Form 的 section 標題與註腳(系統預設是 secondaryLabel,要明確指定;iPad 側欄的系統樣式 section 標題除外，保留系統色：它畫在系統的 Liquid Glass 側欄上，系統依底下透出的內容、深淺色與「增加對比」調整文字的 vibrancy,換成固定的 `secondaryText` 反而失去這層調整;側欄只用系統語意色文字，audit 透過玻璃取樣不穩定的情況記在 `AccessibilityAudit` 的排除規則),以及「圖示 + 文字」的 Label 整體、只有圖示的按鈕(關閉、複製)與單獨表達狀態的圖示(縮放、未知)。**純裝飾可留系統階層色**:旁邊已有文字說明或對 VoiceOver 隱藏的圖示(卡片種類圖示、主機圖示、工具種類圖示、檔案圖示、圖片佔位圖示、展開箭頭 chevron)、軌道線、分隔線、邊框與底色(`.fill.*`、`.background.secondary`、`Color.secondary.opacity(…)`)。在按鈕(List 列、`DisclosureGroup` label)裡也不會被 tint 染色，因為 `secondaryText` 是固定色。
 - 其他使用系統外觀，不提供 app 內的深淺色設定。
@@ -48,7 +63,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - **Spaces／Agents 檢視**(#40、#103):Agent 列表的大標題(或收合後的小標題)選單切換兩種檢視，存在本機，重新啟動後還是同一個。Agents 檢視每個 Agent 一列。
   - **依主機分組**:Spaces 檢視最上面是不分主機的「已釘選」組，其餘每台主機一組，順序同合併列表(選取中主機在前)。分組標題是主機圖示、主機名(Title 3 粗體)與這台主機各狀態的 Agent 數量(「● 需要你 1 · ● 工作中 2 · ○ 閒置 3」,已讀的完成算閒置);VoiceOver 念主機名與各狀態數量，有標題特徵。主機組內有需要你的 workspace 在前、再來是工作中，其他依 workspace 編號。搜尋時沒有命中的 workspace 與主機組不顯示。
   - **聊天列與群組**:只有一個 Agent 且沒有其他 Pane 的 workspace 是聊天列(第三行是狀態與 workspace 名稱),其餘是可收合的 workspace 群組。不再顯示 Tab 分組、Tab 數、Pane 數與資料夾。
-  - **收合標頭(H2 狀態條)**:整列是一個按鈕。左側 36pt workspace 圖示(與聊天列的種類頭像對齊);第一行名稱 + Agent 總數膠囊(只算 Agent);第二行 6pt 高的分段狀態條——20 個 Agent 以內每個 Agent 一段、依需要你 > 工作中 > 完成 > 閒置排序、等寬，超過 20 個依狀態合併、段長與數量成正比，沒有 Agent 時不畫;第三行圖例「● 狀態 數量」,有終端機時加「終端機 N」,只有終端機時寫「N 個終端機」。右側 chevron 展開時轉 90°。VoiceOver 念「名稱、N 個 Agent、各狀態數量、已展開／已收合」並有按鈕特徵，狀態條對 VoiceOver 隱藏。狀態色沿用列表的狀態色，閒置段用低飽和的 `idleSegment`(非文字圖形，對列背景 ≥ 3:1)。
+  - **收合標頭(H2 狀態條)**:整列是一個按鈕。左側 36pt workspace 圖示(與聊天列的種類頭像對齊);第一行名稱 + Agent 總數膠囊(只算 Agent);第二行 6pt 高的分段狀態條——20 個 Agent 以內每個 Agent 一段、依需要你 > 工作中 > 完成 > 閒置排序、等寬，超過 20 個依狀態合併、段長與數量成正比，沒有 Agent 時不畫;第三行圖例「● 狀態 數量」,有終端機時加「終端機 N」,只有終端機時寫「N 個終端機」。右側 chevron 展開時轉 90°。VoiceOver 念「名稱、N 個 Agent、各狀態數量、已展開／已收合」並有按鈕特徵，狀態條對 VoiceOver 隱藏。狀態色見「狀態色」一節(完成段深灰、閒置段淺灰)。
   - **展開規則**:有需要你或工作中的群組預設展開，其他收合。點標頭切換;手動狀態以「主機 + workspace id」記在記憶體，列表更新不改回去，App 結束就忘記(不寫入 `UserDefaults`)。搜尋時命中的群組一律展開，不改手動狀態，清掉搜尋後恢復。
   - **展開後的列**:Agent 列依狀態排序(需要你在前),左側 Agent 種類頭像(36pt 圓角方塊、白色字母;Claude Code、Codex、Gemini、opencode、GitHub Copilot 各有底色，其他種類中性色 + 首字母;底色四個值對白字 ≥ 4.5:1、高對比 ≥ 7:1),標題、預覽各最多兩行(AX 字級不限),第三行是狀態(符號 + 文字 + 顏色)與 Agent 種類名稱;終端機列排在 Agent 列之後，開 Pane 終端機(標題是程式名)。
   - **版面圖入口**:長按群組標頭的 context menu 第一項是「顯示版面」,其後是重新命名、新增 worktree、關閉 workspace;卡片上的版面圖按鈕已移除。iPad 側欄的版面圖按鈕不變。

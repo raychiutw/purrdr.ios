@@ -52,11 +52,12 @@ struct SpacesSectionsContent<AgentRowContent: View>: View {
 }
 
 extension AgentStatus {
-    /// 狀態條與圖例的顏色;閒置用低飽和的 `idleSegment`(#103)。
+    /// 狀態條的段色：中性的完成與閒置用深淺灰區分(段沒有形狀可分);其他同對照表。
     var segmentColor: AnyShapeStyle {
         switch self {
-        case .idle, .unknown: AnyShapeStyle(AccessibleColors.idleSegment.color)
-        default: color
+        case .done: AnyShapeStyle(Color.gray)
+        case .idle, .unknown: AnyShapeStyle(Color.lightNeutralSegment)
+        default: tone.style
         }
     }
 }
@@ -89,7 +90,7 @@ struct StatusLegend: View {
             ForEach(counts.nonZero, id: \.status) { entry in
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Image(systemName: entry.status.symbol)
-                        .foregroundStyle(entry.status.segmentColor)
+                        .foregroundStyle(entry.status.tone.style)
                     Text(entry.status.title)
                     Text(entry.count, format: .number)
                         .monospacedDigit()
@@ -326,7 +327,8 @@ struct SpacesAgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(.tint)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.primary)
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
