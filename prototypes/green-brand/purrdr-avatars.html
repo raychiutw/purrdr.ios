@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Purrdr 頭像配色</title>
+<style>
+/* PROTOTYPE（拋棄式）：Agent 種類頭像配色（#242）。#variant=A|B|C；右下切深淺色。 */
+:root{--page:#f2f2f7;--surface:#fff;--fg:#000;--secondary:#3c3c4399;--separator:#3c3c4329;--fill:#7878801f;--accent:#0b7a5c;--on-accent:#fff;--orange:#ff9500;--gray:#8e8e93;--bar-bg:#111;--bar-fg:#fff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--fill:#7878805c;--accent:#3ccf9e;--on-accent:#000;--orange:#ff9f0a;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--fill:#7878805c;--accent:#3ccf9e;--on-accent:#000;--orange:#ff9f0a;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;padding:16px max(16px,env(safe-area-inset-right,0px)) 120px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}.lede{color:var(--secondary);margin:0 0 16px;font-size:14px}
+.grid{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media(max-width:800px){.grid{grid-template-columns:minmax(0,1fr)}}
+.phone{border:1px solid var(--separator);border-radius:30px;overflow:hidden;background:var(--page);padding-bottom:16px}
+.nav{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 4px}
+.circle{width:32px;height:32px;border-radius:50%;background:var(--fill);display:grid;place-items:center}
+.acct{width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:14px}
+.large{font-size:30px;font-weight:700;padding:0 16px 10px}
+.sect{font-size:13px;color:var(--secondary);padding:12px 28px 6px}
+.group{background:var(--surface);border-radius:12px;margin:0 12px 8px;overflow:hidden}
+.row{display:flex;gap:12px;align-items:center;padding:10px 14px;position:relative}
+.row+.row::before{content:"";position:absolute;top:0;left:62px;right:0;border-top:.5px solid var(--separator)}
+.av{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none;position:relative}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.needs{background:var(--orange)}.working{background:var(--accent)}.idle{background:var(--gray)}
+.main{flex:1;min-width:0}.top{display:flex;gap:6px;align-items:center}
+.name{font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time{font-size:13px;color:var(--secondary)}
+.prev{color:var(--secondary);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notes{background:var(--surface);border-radius:14px;padding:16px 18px}
+.notes h2{font-size:16px;margin:0 0 8px}.notes ul{margin:0 0 12px;padding-left:20px}.notes li{margin:3px 0}
+.sw{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 14px}
+.sw div{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--secondary)}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;box-shadow:0 6px 24px #0005;max-width:calc(100% - 32px);overflow-x:auto}
+.switcher button{border:0;background:none;color:inherit;font:inherit;font-size:14px;padding:8px 13px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.switcher button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Agent 頭像配色（#242）</h1>
+<p class="lede">拋棄式原型。底部切換 A／B／C 與深淺色；左邊是聊天列表實際樣子，右邊是色票與對比。</p>
+<div class="grid">
+  <div class="phone"><div class="nav"><span class="circle">▾</span><span style="display:flex;gap:8px"><span class="acct">陳</span><span class="circle">⋯</span></span></div><div class="large">Agents</div><div id="list"></div></div>
+  <div class="notes"><h2 id="t"></h2><ul id="n"></ul><h2>色票（字母一律白色）</h2><div class="sw" id="sw"></div></div>
+</div>
+</div>
+<div class="switcher"><button data-v="A">A 單一中性</button><button data-v="B">B 低飽和多色</button><button data-v="C">C 品牌色（換掉撞色）</button><button id="th">深淺色</button></div>
+<script>
+const KINDS=[["claude","C","Claude Code"],["codex","X","Codex"],["gemini","G","Gemini"],["opencode","O","opencode"],["copilot","P","Copilot"],["other","A","Aider"]];
+const PAL={
+ A:{claude:"#5A5A5F",codex:"#5A5A5F",gemini:"#5A5A5F",opencode:"#5A5A5F",copilot:"#5A5A5F",other:"#5A5A5F"},
+ B:{claude:"#8A5A48",codex:"#55565C",gemini:"#4A5F86",opencode:"#5C6B4A",copilot:"#6A5884",other:"#5A5A5F"},
+ C:{claude:"#A84A2A",codex:"#48484A",gemini:"#2F5FCC",opencode:"#8A6A1F",copilot:"#7340CF",other:"#5A5A5F"}};
+const V={
+ A:["A：單一中性灰","所有種類同一個深灰底（#5A5A5F，白字 6.9:1），種類只靠字母與列內文字分辨。","畫面上的彩色只剩主色綠、需要你橙，最安靜、最符合「顏色少」。","缺點：一眼分不出 Claude 跟 Codex，要看字母。"],
+ B:["B：低飽和多色（推薦）","每種 agent 保留自己的色相，但飽和度壓低（像 iOS 通訊錄的灰調頭像），白字都 ≥ 4.5:1。","一眼還分得出種類，又不會跟主色綠、需要你橙搶注意力。","opencode 改成橄欖灰綠，跟翡翠綠主色拉開。"],
+ C:["C：維持品牌色，只換掉撞色","沿用目前五種品牌色（棕、深灰、藍、紫），只把 opencode 的綠改成芥末黃褐，避免跟主色撞色。","辨識度最高，但頭像是列表裡最大面積的彩色，整頁顏色仍然多。","跟 spec「顏色少、對比不要太高」最不一致。"]};
+const ROWS=[["claude","ledger","needs","現在","Ready to submit your answers?"],["codex","site","working","2 分","部署到預覽環境中"],["gemini","notes","idle","12 分","週報已經寫好"],["opencode","sensor","idle","1 小時","溫度記錄器已重新啟動"],["copilot","api","working","3 分","正在跑測試"],["other","scripts","idle","昨天","已更新 README"]];
+function lum(h){const c=[1,3,5].map(i=>parseInt(h.substr(i,2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*c[0]+.7152*c[1]+.0722*c[2]}
+const ratio=h=>(1.05/(lum(h)+.05)).toFixed(1);
+let v=(location.hash.match(/variant=([ABC])/)||[])[1]||"B";
+function render(){
+ document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+ const p=PAL[v],L=Object.fromEntries(KINDS.map(k=>[k[0],k[1]]));
+ document.getElementById("list").innerHTML='<div class="group">'+ROWS.map(r=>`<div class="row"><span class="av" style="background:${p[r[0]]};color:#fff">${L[r[0]]}</span><div class="main"><div class="top"><span class="dot ${r[2]}"></span><span class="name">${r[1]}</span><span class="time">${r[3]}</span></div><div class="prev">Ray PC · ${r[4]}</div></div></div>`).join("")+"</div>";
+ document.getElementById("t").textContent=V[v][0];
+ document.getElementById("n").innerHTML=V[v].slice(1).map(x=>`<li>${x}</li>`).join("");
+ document.getElementById("sw").innerHTML=KINDS.map(k=>`<div><span class="av" style="background:${p[k[0]]};color:#fff">${k[1]}</span>${k[2]}<br>${p[k[0]]}・${ratio(p[k[0]])}:1</div>`).join("");
+}
+document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{v=b.dataset.v;location.hash="variant="+v;render()});
+document.getElementById("th").onclick=()=>{const r=document.documentElement,d=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=d?"light":"dark"};
+render();
+</script>
+</body>
+</html>
