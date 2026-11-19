@@ -44,6 +44,17 @@
         }
       }
     },
+    "%@ file %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@檔案 %2$@"
+          }
+        }
+      }
+    },
     "%@ finished" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -221,6 +232,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個失敗"
+          }
+        }
+      }
+    },
+    "%lld lines added, %lld removed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增 %1$lld 行，刪除 %2$lld 行"
           }
         }
       }
@@ -1171,6 +1193,17 @@
         }
       }
     },
+    "Changes truncated at 20,000 characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修改超過 20,000 字，已截斷"
+          }
+        }
+      }
+    },
     "Changing the host’s Claude settings…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1791,6 +1824,17 @@
         }
       }
     },
+    "Content truncated at 20,000 characters" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內容超過 20,000 字，已截斷"
+          }
+        }
+      }
+    },
     "Continue" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1879,6 +1923,17 @@
         }
       }
     },
+    "Copy Content" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝內容"
+          }
+        }
+      }
+    },
     "Copy Diagnostics" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1897,6 +1952,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝輸出"
+          }
+        }
+      }
+    },
+    "Copy Path" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝路徑"
           }
         }
       }
@@ -2330,6 +2396,17 @@
         }
       }
     },
+    "Created" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已建立"
+          }
+        }
+      }
+    },
     "Creates a git worktree on a new branch from “%@” and opens it as its own workspace, so its files aren’t shared with other chats in the same repo." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2359,6 +2436,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前使用中"
+          }
+        }
+      }
+    },
+    "Data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料"
           }
         }
       }
@@ -2601,6 +2689,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編輯主機"
+          }
+        }
+      }
+    },
+    "Edited" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已修改"
           }
         }
       }
@@ -3650,6 +3749,17 @@
         }
       }
     },
+    "Markdown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Markdown"
+          }
+        }
+      }
+    },
     "Member" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4409,6 +4519,17 @@
         }
       }
     },
+    "Overwritten" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已覆寫"
+          }
+        }
+      }
+    },
     "PC" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4416,6 +4537,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PC"
+          }
+        }
+      }
+    },
+    "PDF" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF"
           }
         }
       }
@@ -4504,6 +4636,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上 OpenSSH 格式的 ed25519 或 ECDSA 私鑰。不支援 RSA 金鑰與有 passphrase 保護的金鑰。金鑰存放在這支裝置的鑰匙圈。"
+          }
+        }
+      }
+    },
+    "Path: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路徑：%@"
           }
         }
       }
@@ -6242,6 +6385,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "測試連線"
+          }
+        }
+      }
+    },
+    "Text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字"
           }
         }
       }

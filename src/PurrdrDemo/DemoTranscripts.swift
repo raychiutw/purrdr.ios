@@ -126,7 +126,25 @@ enum DemoTranscripts {
                 "file_path": "/Users/demo/ledger/Sources/Ledger/CSVExport.swift",
                 "old_string": "[\"amount\", \"date\", \"note\"]", "new_string": "[\"date\", \"amount\", \"note\"]",
             ]),
-            toolResult("d3m0-l-10", "2026-11-16T09:00:20.300Z", id: "toolu_demo_04", text: "The file has been updated."),
+            // 寫檔情境(#224):Edit 與 Write 的結果帶 `toolUseResult`(形狀照 #223 錄製的 Claude Code 2.1.328),聊天顯示檔案卡片。
+            toolResult("d3m0-l-10", "2026-11-16T09:00:20.300Z", id: "toolu_demo_04",
+                       text: "The file /Users/demo/ledger/Sources/Ledger/CSVExport.swift has been updated successfully.", toolUseResult: [
+                "filePath": "/Users/demo/ledger/Sources/Ledger/CSVExport.swift",
+                "oldString": "[\"amount\", \"date\", \"note\"]", "newString": "[\"date\", \"amount\", \"note\"]",
+                "structuredPatch": [[
+                    "oldStart": 3, "oldLines": 3, "newStart": 3, "newLines": 3,
+                    "lines": [" enum CSVExport {", "-    static let columns = [\"amount\", \"date\", \"note\"]", "+    static let columns = [\"date\", \"amount\", \"note\"]", " "],
+                ]],
+                "userModified": false, "replaceAll": false,
+            ]),
+            assistantTool("d3m0-l-10a", "2026-11-16T09:00:21.000Z", id: "toolu_demo_06", name: "Write", input: [
+                "file_path": "/Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift", "content": quotingTests,
+            ]),
+            toolResult("d3m0-l-10b", "2026-11-16T09:00:21.200Z", id: "toolu_demo_06",
+                       text: "File created successfully at: /Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift", toolUseResult: [
+                "type": "create", "filePath": "/Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift", "content": quotingTests,
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
             assistantTool("d3m0-l-11", "2026-11-16T09:00:22.000Z", id: "toolu_demo_05", name: "Bash", input: ["command": "swift test --filter CSVExportTests"]),
             toolResult("d3m0-l-12", "2026-11-16T09:00:26.000Z", id: "toolu_demo_05", text: "Test run with 7 tests passed after 0.21 seconds."),
             assistantText("d3m0-l-13", "2026-11-16T09:00:30.000Z", """
@@ -146,6 +164,21 @@ enum DemoTranscripts {
             """),
         ]
     )
+
+    /// ledger 的 agent 新建的測試檔(寫檔情境)。
+    static let quotingTests = """
+    import Testing
+    @testable import Ledger
+
+    @Test func notesWithCommasAreQuoted() {
+        let row = CSVExport.row(date: "2026-11-16", amount: 12.5, note: "coffee, beans")
+        #expect(row == "2026-11-16,12.50,\"coffee, beans\"")
+    }
+
+    @Test func datesComeFirst() {
+        #expect(CSVExport.columns.first == "date")
+    }
+    """
 
     static let weather = Session(
         sessionID: "d3m0d3m0-0000-4000-8000-000000000002", cwd: "/Users/demo/weather-app", paneID: "w2:p1",
@@ -361,10 +394,11 @@ enum DemoTranscripts {
         return line(object)
     }
 
-    private static func toolResult(_ uuid: String, _ timestamp: String, id: String, text: String) -> String {
+    private static func toolResult(_ uuid: String, _ timestamp: String, id: String, text: String, toolUseResult: [String: Any]? = nil) -> String {
         var object = base("user", uuid, timestamp)
         object["promptId"] = uuid
         object["message"] = ["role": "user", "content": [["type": "tool_result", "tool_use_id": id, "content": text, "is_error": false]]]
+        if let toolUseResult { object["toolUseResult"] = toolUseResult }
         return line(object)
     }
 }
