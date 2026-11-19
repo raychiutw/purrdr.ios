@@ -897,7 +897,8 @@ public final class ConversationModel {
         isStopping = true
         defer { isStopping = false }
         switch await delivery.stop(paneID: paneID) {
-        case .stopped, .unconfirmed: notice = nil
+        case .stopped: notice = nil
+        case .unconfirmed: notice = .stopUnconfirmed
         case .stillWorking: notice = .stillWorking
         case .failed: notice = .interruptFailed
         case .needsAnswer: notice = .interruptRefusedNeedsAnswer
