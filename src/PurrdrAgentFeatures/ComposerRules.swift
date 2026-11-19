@@ -66,17 +66,19 @@ public struct ComposerTextMetrics: Sendable, Equatable {
     }
 }
 
-/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):預設兩行高(#187),最多 8 行且不超過鍵盤上方可用高度的 40%(取小),
-/// 最小 44pt,超過才內捲。
+/// 輸入框長高規則(#137,偏離 F6.1 的 4 行):空白時一行高(#196),有內容時至少兩行高(#187),最多 8 行且不超過
+/// 鍵盤上方可用高度的 40%(取小),最小 44pt,超過才內捲。
 public enum ComposerSizing {
     public static let maxLines = 8.0
-    /// 空白時也留的行數(上下版面的整寬輸入框，#187)。
+    /// 有內容時至少留的行數(上下版面的整寬輸入框，#187)。
     public static let defaultLines = 2.0
+    /// 空白時的行數：空白的輸入框佔兩行太高，打字時再長高(#196 留言)。
+    public static let emptyLines = 1.0
     public static let availableFraction = 0.4
     public static let minHeight = 44.0
 
-    /// `availableHeight` 是鍵盤上方可用高度;不知道時只看行數。
-    public static func height(_ metrics: ComposerTextMetrics, availableHeight: Double?) -> ComposerHeight {
+    /// `isEmpty` 是輸入框沒有文字(含組字中的文字);`availableHeight` 是鍵盤上方可用高度，不知道時只看行數。
+    public static func height(_ metrics: ComposerTextMetrics, isEmpty: Bool, availableHeight: Double?) -> ComposerHeight {
         let contentHeight = metrics.contentHeight
         var limit = (metrics.lineHeight * maxLines + metrics.verticalInsets).rounded(.up)
         if let availableHeight {
@@ -84,7 +86,7 @@ public enum ComposerSizing {
             limit = min(limit, (availableHeight * availableFraction).rounded())
         }
         limit = max(limit, minHeight)
-        let defaultHeight = (metrics.lineHeight * defaultLines + metrics.verticalInsets).rounded(.up)
+        let defaultHeight = (metrics.lineHeight * (isEmpty ? emptyLines : defaultLines) + metrics.verticalInsets).rounded(.up)
         let floor = min(max(minHeight, defaultHeight), limit)
         return ComposerHeight(height: max(floor, min(contentHeight, limit)), scrolls: contentHeight > limit)
     }

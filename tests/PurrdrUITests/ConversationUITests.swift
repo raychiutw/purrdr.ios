@@ -237,7 +237,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThan(sevenLines, twoLines + lineHeight * 4.5, "7 行時只有 \(sevenLines)pt(2 行 \(twoLines)、行高 \(lineHeight))")
     }
 
-    /// 上下版面(#187):整寬輸入框在上、按鈕列在下;閒置時就有兩行高，按鈕 ≥ 44pt。
+    /// 上下版面(#187):整寬輸入框在上、按鈕列在下;空白時一行高(#196 留言)、打字後至少兩行高，按鈕 ≥ 44pt。
     @MainActor
     func testComposerStacksFullWidthEditorAboveButtons() {
         let app = openLedger()
@@ -250,7 +250,9 @@ final class ConversationUITests: XCTestCase {
 
         let window = app.windows.firstMatch.frame
         XCTAssertGreaterThanOrEqual(text.frame.width, window.width - 64, "輸入框沒有整寬(\(text.frame.width) / \(window.width))")
-        XCTAssertGreaterThanOrEqual(text.frame.height, 60, "閒置時不到兩行高(\(text.frame.height)pt)")
+        let emptyHeight = text.frame.height
+        XCTAssertGreaterThanOrEqual(emptyHeight, 44, "空白時低於 44pt(\(emptyHeight)pt)")
+        XCTAssertLessThan(emptyHeight, 60, "空白時應是一行高(\(emptyHeight)pt)")
         XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
         XCTAssertGreaterThanOrEqual(addImage.frame.minY, text.frame.maxY - 1, "加入圖片鈕要在輸入框下方")
         XCTAssertLessThan(addImage.frame.maxX, send.frame.minX, "加入圖片在左、送出在右")
@@ -262,7 +264,9 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
         XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
         XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
-        text.typeText("Line one\nLine two\nLine three\nLine four")
+        text.typeText("Line one")
+        XCTAssertGreaterThanOrEqual(text.frame.height, 60, "有內容時不到兩行高(\(text.frame.height)pt)")
+        text.typeText("\nLine two\nLine three\nLine four")
         attachScreenshot(of: app, named: "composer-multiline")
         XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "多行時送出鈕仍在輸入框下方")
     }

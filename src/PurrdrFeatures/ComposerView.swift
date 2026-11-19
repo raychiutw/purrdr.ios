@@ -11,7 +11,7 @@ public enum ComposerSettings {
 ///
 /// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
 /// - 上下版面(#187):一張玻璃卡片，整寬輸入框在上，按鈕列(加入圖片｜收起鍵盤、送出)在下。
-/// - 多行，預設兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
+/// - 多行，空白時一行高、有內容時至少兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
 /// - 停止與強制結束在標題列(#44,`ConversationView`)。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
@@ -767,7 +767,7 @@ final class KeyHandlingTextView: UITextView {
 
     /// 依目前字級與可用高度，內容高 `contentHeight` 時輸入框的高度與是否內捲(#137)。
     func sizing(contentHeight: CGFloat) -> ComposerHeight {
-        ComposerSizing.height(metrics(contentHeight: contentHeight), availableHeight: availableHeight.map(Double.init))
+        ComposerSizing.height(metrics(contentHeight: contentHeight), isEmpty: text.isEmpty, availableHeight: availableHeight.map(Double.init))
     }
 
     /// 目前字級與內距下，內容高 `contentHeight` 的量測。
@@ -955,7 +955,7 @@ struct ComposerTextEditor: View {
 
     var body: some View {
         TextField("", text: $text, axis: .vertical)
-            .lineLimit(Int(ComposerSizing.defaultLines)...Int(ComposerSizing.maxLines))
+            .lineLimit(Int(ComposerSizing.emptyLines)...Int(ComposerSizing.maxLines))
             .textFieldStyle(.plain)
             .padding(.horizontal, 13)
             .padding(.vertical, 11)

@@ -40,9 +40,10 @@ struct ComposerRulesTests {
     // MARK: - 長高(#137)
 
     /// 行高 20、上下內距 22 時 `lines` 行內容的高度。
-    private static func layout(lines: Double, lineHeight: Double = 20, available: Double? = 1000) -> ComposerHeight {
+    private static func layout(lines: Double, lineHeight: Double = 20, available: Double? = 1000, isEmpty: Bool = false) -> ComposerHeight {
         ComposerSizing.height(
-            ComposerTextMetrics(contentHeight: lines * lineHeight + 22, lineHeight: lineHeight, verticalInsets: 22), availableHeight: available)
+            ComposerTextMetrics(contentHeight: lines * lineHeight + 22, lineHeight: lineHeight, verticalInsets: 22),
+            isEmpty: isEmpty, availableHeight: available)
     }
 
     @Test("長高到 8 行為止，第 9 行才內捲")
@@ -67,9 +68,18 @@ struct ComposerRulesTests {
         #expect(Self.layout(lines: 5, lineHeight: 22, available: 380) == ComposerHeight(height: 132, scrolls: false))
     }
 
-    @Test("預設高度是兩行(#187):空白或一行時也留兩行的空間")
+    @Test("空白時一行高(#196 留言),不低於 44pt;大字級時一行也跟著變高")
+    func emptyIsOneLine() {
+        // 行高 20:一行 42pt,不到 44pt。
+        #expect(Self.layout(lines: 1, isEmpty: true) == ComposerHeight(height: 44, scrolls: false))
+        // 行高 30:一行 52pt。
+        #expect(Self.layout(lines: 1, lineHeight: 30, isEmpty: true) == ComposerHeight(height: 52, scrolls: false))
+        // AX5 的 body 行高約 64pt:64 + 22 = 86pt,仍比兩行(150pt)矮。
+        #expect(Self.layout(lines: 1, lineHeight: 64, isEmpty: true) == ComposerHeight(height: 86, scrolls: false))
+    }
+
+    @Test("有內容時預設高度是兩行(#187):一行內容也留兩行的空間")
     func defaultsToTwoLines() {
-        #expect(Self.layout(lines: 0) == ComposerHeight(height: 62, scrolls: false))
         #expect(Self.layout(lines: 1) == ComposerHeight(height: 62, scrolls: false))
         #expect(Self.layout(lines: 2) == ComposerHeight(height: 62, scrolls: false))
         #expect(Self.layout(lines: 3) == ComposerHeight(height: 82, scrolls: false))
@@ -89,7 +99,8 @@ struct ComposerRulesTests {
 
     @Test("內容剛好等於上限時不內捲;不知道可用高度時只看 8 行")
     func scrollsOnlyWhenExceeding() {
-        let atLimit = ComposerSizing.height(ComposerTextMetrics(contentHeight: 120, lineHeight: 20, verticalInsets: 22), availableHeight: 300)
+        let atLimit = ComposerSizing.height(
+            ComposerTextMetrics(contentHeight: 120, lineHeight: 20, verticalInsets: 22), isEmpty: false, availableHeight: 300)
         #expect(atLimit == ComposerHeight(height: 120, scrolls: false))
         #expect(Self.layout(lines: 20, available: nil) == ComposerHeight(height: 182, scrolls: true))
     }
