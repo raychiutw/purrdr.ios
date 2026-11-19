@@ -252,6 +252,10 @@ public final class ConversationModel {
     /// 送出與中斷的提示。輪詢成功不清它(R-P11)。
     public private(set) var notice: SendNotice?
     public private(set) var isStopping = false
+    /// 停止列顯示的停止進度或結果(#220)。
+    public private(set) var stopPhase: StopPhase?
+    /// 停止中最多等多久，之後當成仍在工作。
+    public static let stopTimeout: Duration = .seconds(10)
 
     // MARK: 回答「需要你」(F8)
 
@@ -812,6 +816,12 @@ public final class ConversationModel {
 
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
+
+    /// 輸入卡片最上面的停止列(#220)。
+    public var showsStopBar: Bool { false }
+
+    /// 關閉停止列的失敗結果。
+    public func dismissStopResult() {}
 
     /// 強制結束同停止，只對 working 的 agent;唯讀、離線時不可用(#220)。
     public var canForceQuit: Bool { agentStatus == .working && !isReadOnly && !isOffline }
@@ -1553,6 +1563,19 @@ public final class ConversationModel {
         var seen = Set<String>()
         return lines.flatMap(format.messages(in:)).filter { seen.insert($0.id).inserted }
     }
+}
+
+/// 停止列的停止進度與結果(#220)。
+public enum StopPhase: Sendable, Equatable {
+    case stopping
+    /// 已停止(2 秒後自動收起)。
+    case stopped
+    /// 3 秒內沒停下，或停止中超過 10 秒。
+    case stillWorking
+    /// 送不出 Esc。
+    case failed
+    /// 送出後讀不到狀態，不知道停了沒。
+    case unconfirmed
 }
 
 /// 送出與中斷的提示(對話畫面上的非干擾式標示)。

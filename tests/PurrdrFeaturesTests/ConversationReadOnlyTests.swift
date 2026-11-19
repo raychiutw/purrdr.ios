@@ -98,6 +98,7 @@ struct ConversationReadOnlyTests {
         #expect(setup.model.agentStatus == .working)
         #expect(!setup.model.canStop)
         #expect(!setup.model.canForceQuit)
+        #expect(!setup.model.showsStopBar)
     }
 
     @Test("可寫入的裝置不是唯讀")

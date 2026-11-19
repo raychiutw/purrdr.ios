@@ -260,7 +260,7 @@ struct ConversationSendTests {
 
     // MARK: - 中斷
 
-    @Test("停止：只在 working 時可用;送一個 Esc,3 秒內沒停下就提示")
+    @Test("停止：只在 working 時可用;送一個 Esc,3 秒內沒停下就在停止列顯示仍在工作")
     func stopOnlyWhileWorking() async throws {
         let sleeper = RecordingSleeper { $0 == .milliseconds(500) }
         let setup = try await Self.opened(sleeper: sleeper)
@@ -276,7 +276,7 @@ struct ConversationSendTests {
         for _ in 0..<6 { await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot { $0["agent_status"] = "working" }) }
         await setup.model.stop()
 
-        #expect(setup.model.notice == .stillWorking)
+        #expect(setup.model.stopPhase == .stillWorking)
         let keys = await setup.host.bridge.executions.map(\.stdinText).filter { $0.contains("send_keys") }
         #expect(keys == [#"{"id":"purrdr:pane.send_keys","method":"pane.send_keys","params":{"keys":["esc"],"pane_id":"w1:p6"}}"# + "\n"])
     }

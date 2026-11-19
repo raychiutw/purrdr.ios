@@ -52,6 +52,11 @@ struct ConversationHeaderTests {
         ❯
         """
 
+    /// 停止的逾時(10 秒)以外的等待都立刻結束：確認迴圈、「已停止」的收起時間。
+    static func shortWaitsFire() -> RecordingSleeper {
+        RecordingSleeper { $0 < ConversationModel.stopTimeout }
+    }
+
     static func keyRequests(_ setup: Setup) async -> [String] {
         await setup.host.bridge.executions.map(\.stdinText).filter { $0.contains(#""method":"pane.send_keys""#) }
     }
@@ -217,7 +222,7 @@ struct ConversationHeaderTests {
     @Test("停止：送前重讀到「需要你」→ 不送 Esc,提示先回答")
     func stopRefusesAgentThatNowNeedsYou() async throws {
         // 等待立刻結束，herdr 請求的期限除外。
-        let setup = try Self.setup(sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard })
+        let setup = try Self.setup(sleeper: Self.shortWaitsFire())
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
         #expect(setup.model.canStop)
@@ -232,7 +237,7 @@ struct ConversationHeaderTests {
 
     @Test("停止成功：不等下一次輪詢，立刻換成停下後的狀態(停止不再可用)")
     func stopSuccessUpdatesStatusImmediately() async throws {
-        let setup = try Self.setup(sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard })
+        let setup = try Self.setup(sleeper: Self.shortWaitsFire())
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
 
@@ -244,12 +249,15 @@ struct ConversationHeaderTests {
         #expect(setup.model.notice == nil)
         #expect(setup.model.agentStatus == .idle)
         #expect(!setup.model.canStop)
+        // 「已停止」2 秒後自動收起。
+        #expect(setup.model.stopPhase == nil)
+        #expect(!setup.model.showsStopBar)
     }
 
     /// #220:讀不到狀態不能當成功。
-    @Test("停止：送出 Esc 後讀不到狀態 → 提示無法確認是否已停止")
+    @Test("停止：送出 Esc 後讀不到狀態 → 停止列顯示無法確認(不是已停止)")
     func stopUnreadableStatusShowsUnconfirmed() async throws {
-        let setup = try Self.setup(sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard })
+        let setup = try Self.setup(sleeper: Self.shortWaitsFire())
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
 
@@ -259,7 +267,92 @@ struct ConversationHeaderTests {
         await setup.model.stop()
 
         #expect(await Self.keyRequests(setup).count == 1)
-        #expect(setup.model.notice == .stopUnconfirmed)
+        #expect(setup.model.stopPhase == .unconfirmed)
+        #expect(setup.model.showsStopBar)
+    }
+
+    // MARK: - 停止列(#220)
+
+    @Test("停止列：工作中出現;不在工作中、離線時沒有")
+    func stopBarFollowsWorking() async throws {
+        let setup = try Self.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.model.poll()
+        #expect(!setup.model.showsStopBar)
+
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        #expect(setup.model.showsStopBar)
+        #expect(setup.model.stopPhase == nil)
+
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
+        await setup.model.poll()
+        await setup.model.poll()
+        #expect(!setup.model.showsStopBar)
+    }
+
+    @Test("停止中：結果出來前是停止中、不能重按;已停止顯示一下，2 秒後收起")
+    func stoppingThenStoppedCollapses() async throws {
+        // 「已停止」的 2 秒不立刻結束，才看得到它。
+        let sleeper = RecordingSleeper { $0 == .milliseconds(500) }
+        let setup = try Self.setup(sleeper: sleeper)
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        let stopping = Task { await setup.model.stop() }
+        var phases: [StopPhase?] = []
+        for _ in 0..<2000 where setup.model.stopPhase != .stopped {
+            if phases.last != setup.model.stopPhase { phases.append(setup.model.stopPhase) }
+            if setup.model.stopPhase == .stopping { #expect(!setup.model.canStop) }
+            await Task.yield()
+        }
+        #expect(phases.contains(.stopping))
+        #expect(setup.model.stopPhase == .stopped)
+        #expect(setup.model.showsStopBar)
+        stopping.cancel()
+        await stopping.value
+        #expect(await sleeper.requested.contains(.seconds(2)))
+    }
+
+    @Test("停止：送不出 Esc → 停止列顯示送不出;關閉後收起")
+    func stopKeysFailShowsFailed() async throws {
+        let setup = try Self.setup(sleeper: Self.shortWaitsFire())
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        await setup.model.stop()
+
+        #expect(setup.model.stopPhase == .failed)
+        #expect(setup.model.notice == nil)
+        setup.model.dismissStopResult()
+        #expect(setup.model.stopPhase == nil)
+    }
+
+    @Test("停止：10 秒都沒有結果 → 仍在工作;agent 之後不在工作就收起")
+    func stopTimesOutAsStillWorking() async throws {
+        // 確認迴圈的 500ms 永遠不到，只有 10 秒的逾時會到。
+        let setup = try Self.setup(sleeper: RecordingSleeper { $0 == ConversationModel.stopTimeout })
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        await setup.model.stop()
+        #expect(setup.model.stopPhase == .stillWorking)
+        #expect(!setup.model.isStopping)
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read(text: "❯ "))
+        await setup.model.poll()
+        #expect(setup.model.stopPhase == nil)
+        #expect(!setup.model.showsStopBar)
     }
 
     @Test("強制結束：送前重讀到「需要你」→ 不送 ctrl+c")
