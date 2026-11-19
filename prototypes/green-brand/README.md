@@ -58,3 +58,13 @@
 
 - `purrdr-agent-rows.html`：線上 https://claude.ai/artifact/LkPbpVKhVwUq61vNNRgVc6 （私人）
 - 選 **B**：列最前面是 agent 種類頭像（B 低飽和色），第二行前面是小主機圖示＋「主機 · 最後一句」；符合 spec #231 故事 16。原本聊天列表原型把主機圖示放列前，以此修正。
+
+## 加入主機頁（2026-11-19 追加）
+
+- `purrdr-add-host.html`：線上 https://claude.ai/artifact/SgLHPhMjVgra2YxkRsAHtD （私人）
+- 選 **C 單頁・圖示格**：主機名稱 → 主機圖示（12 格直接展開）→ 連線方式（卡片單選，附一句說明）→ 選了才出現對應欄位。
+  - 三種都有位址與 Port：Tailscale SSH／OpenSSH 預設 22、HTTPS 預設 443；Port 沒手動改過時，換連線方式自動換預設。
+  - Tailscale SSH：位址、Port、帳號，沒有密碼。OpenSSH：再選登入方式（這台裝置的金鑰／匯入私鑰／密碼）。HTTPS：配對碼，沒有帳號。
+  - herdr 路徑與 Session 收進「進階」。
+- **配對碼掃描**：配對碼輸入框右邊放掃描框圖示（`qrcode.viewfinder`，44pt 點擊區，VoiceOver「掃描 QR code」），點了開 app 內相機掃描（VisionKit 資料掃描器：對準框、手電筒、取消、手動輸入），掃到震動回饋，自動選 HTTPS 並填好位址、Port、配對碼。不要另一列「掃描 QR code」按鈕。
+- **輸入值一律靠左**（標籤後直接接輸入框）；原版靠右對齊時尾端空白會被吃掉。
