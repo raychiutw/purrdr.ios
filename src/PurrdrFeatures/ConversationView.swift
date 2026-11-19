@@ -191,7 +191,7 @@ public struct ConversationView: View {
             if !userIsScrolling,
                scroll.returnsToContent(metrics, at: .now) || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
                 scroll.returnedToContent(metrics)
-                scrollToLastRow(proxy)
+                scrollToLastRow(proxy, followsNewContent: false)
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
             if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
@@ -262,7 +262,10 @@ public struct ConversationView: View {
 
     /// 捲到最底下那一列的底部。底部輸入列很高時 `scrollTo(edge: .bottom)` 會多捲一個底部 inset、停在估算高度裡，
     /// 指定列則由 LazyVStack 實際排出那一列(#191)。
-    private func scrollToLastRow(_ proxy: ScrollViewProxy) {
+    /// `followsNewContent`:跟隨新出現的內容(面板、需要你、工作中指示、回音)時重新計算連續捲回的次數(#251);
+    /// 停在內容之外而捲回時不算。
+    private func scrollToLastRow(_ proxy: ScrollViewProxy, followsNewContent: Bool = true) {
+        if followsNewContent { scroll.followedNewContent() }
         let target = ConversationFollowTarget.target(
             showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil, showsPanel: model.panel != nil,
             showsPromptCard: model.prompt != nil || model.lastAnswer != nil, lastEntryID: model.entries.last?.id)

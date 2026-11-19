@@ -290,6 +290,13 @@ struct ConversationScrollTests {
         #expect(!scroll.returnsToContent(layoutC, at: now), "又到了上限")
         scroll.userScrolled(distanceFromBottom: 0)
         #expect(scroll.returnsToContent(layoutC, at: now), "使用者自己捲過：重新計算")
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() where scroll.returnsToContent(metrics, at: now) {
+            scroll.returnedToContent(metrics)
+        }
+        #expect(!scroll.returnsToContent(layoutC, at: now), "第三次到了上限")
+        // 不是對話項目的新內容(slash 面板卡片、需要你、工作中指示):畫面捲去跟隨時也重新計算，否則新的列排不出來(#251)。
+        scroll.followedNewContent()
+        #expect(scroll.returnsToContent(layoutC, at: now), "跟隨新內容：重新計算")
     }
 
     @Test("可見列數在 0 與有列之間來回跳：再捲也受連續捲回上限限制")

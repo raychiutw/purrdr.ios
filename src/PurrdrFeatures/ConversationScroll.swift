@@ -47,6 +47,11 @@ public struct ConversationScroll: Equatable, Sendable {
         self.distanceFromBottom = distanceFromBottom
     }
 
+    /// 跟隨中畫面捲去顯示新出現、但不是對話項目的內容(slash 面板、需要你、工作中指示)時呼叫(#251)。
+    public mutating func followedNewContent() {
+        returns = 0
+    }
+
     /// 開啟、點「跳到最新」、重新載入:變跟隨並捲到底。
     public mutating func jumpToLatest() {
         following = true

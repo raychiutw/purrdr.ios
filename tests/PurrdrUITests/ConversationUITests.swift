@@ -12,8 +12,8 @@ final class ConversationUITests: XCTestCase {
     }
 
     @MainActor
-    private func open(paneID: String, flags: [String] = []) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting(flags: flags)
+    private func open(paneID: String, flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
+        let app = XCUIApplication.launchUITesting(flags: flags, contentSize: contentSize)
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
@@ -353,7 +353,8 @@ final class ConversationUITests: XCTestCase {
     /// 模擬器接著硬體鍵盤(只有快捷列)時空間夠，卡片不收，這時不適用。
     @MainActor
     func testSoftKeyboardKeepsConversationVisible() throws {
-        let app = openLedger()
+        // 預設字級時 iPhone 17 放得下完整註記與鍵盤，不必讓位(#251);AX1 才擠到要收成一行。
+        let app = open(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityM")
         let text = element("composer.text", in: app)
         XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 15), "沒有註記")
         XCTAssertFalse(element("conversation.suggestion", in: app).exists, "註記完整顯示時建議卡不該同時出現")

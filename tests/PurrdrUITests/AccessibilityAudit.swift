@@ -58,7 +58,8 @@ final class AccessibilityAuditContext {
                 frames.append(CGRect(x: window.minX, y: top, width: window.width, height: window.maxY - top))
             }
         }
-        return frames.filter { !$0.isEmpty && $0.height < window.height / 2 }
+        // 軟體鍵盤出現時輸入列一路到視窗底約佔一半以上(iPhone 17 slash 選單：454／874pt);上限只是擋掉誤抓的整頁元素(#251)。
+        return frames.filter { !$0.isEmpty && $0.height < window.height * 0.7 }
     }()
 
     /// slash 選單(浮在輸入列上方的 `.bar` 材質):蓋住後面的訊息，但選單自己的列不算被蓋住。
