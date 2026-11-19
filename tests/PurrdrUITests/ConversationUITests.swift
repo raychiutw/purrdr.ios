@@ -282,7 +282,7 @@ final class ConversationUITests: XCTestCase {
         let suggestion = element("conversation.suggestion", in: app)
         let text = element("composer.text", in: app)
         XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "沒有建議")
-        XCTAssertEqual(suggestion.label, "Suggestion: Add a test for CSV export with commas in the memo")
+        XCTAssertEqual(suggestion.label, "Suggestion: Add a test for CSV export with commas in the memo, Fill In")
         XCTAssertGreaterThanOrEqual(suggestion.frame.height, 44)
 
         suggestion.tap()
@@ -295,6 +295,10 @@ final class ConversationUITests: XCTestCase {
         let sent = app.descendants(matching: .any).matching(identifier: "conversation.user")
             .matching(NSPredicate(format: "label CONTAINS 'commas in the memo'")).firstMatch
         XCTAssertFalse(sent.waitForExistence(timeout: 5), "對話紀錄不該新增訊息")
+
+        // 把字刪光：建議再出現(#240)。
+        text.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 60))
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "輸入框刪光後建議沒有再出現")
     }
 
     /// 軟體鍵盤出現時(#196):You should know 卡片收成一行，對話至少留 132pt、看得到訊息;
