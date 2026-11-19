@@ -99,9 +99,9 @@ struct HostServiceUpdateTests {
         #expect(HostServiceUpdates.latestKnownVersion == String(line.dropFirst(prefix.count)))
     }
 
-    @Test("一行安裝指令從主機端 repo raychiutw/purrdr-host 的最新 Release 下載")
+    @Test("一行安裝指令從主機端 repo raychiutw/purrdr.host 的最新 Release 下載")
     func installCommandsDownloadFromPurrdrHostReleases() {
-        let base = "https://github.com/raychiutw/purrdr-host/releases/latest/download/"
+        let base = "https://github.com/raychiutw/purrdr.host/releases/latest/download/"
         #expect(HostServiceUpdates.posixInstallCommand == "curl -fsSL \(base)install.sh | sh")
         #expect(HostServiceUpdates.windowsInstallCommand == "irm \(base)install.ps1 | iex")
     }
