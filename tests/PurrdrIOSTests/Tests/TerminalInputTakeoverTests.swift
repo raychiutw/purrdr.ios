@@ -46,6 +46,18 @@ struct TerminalInputTakeoverTests {
         #expect(screen.textInput.isFirstResponder)
     }
 
+    @Test("輸入元件疊在一個游標格子上，VoiceOver 的範圍仍至少 44×44pt(#249 hit region)")
+    func inputAccessibilityFrameIsAtLeast44() async throws {
+        let (window, screen, _) = try await mount()
+        defer { window.isHidden = true }
+
+        #expect(screen.textInput.bounds.width < 44, "前提：輸入元件只有一格寬")
+        let frame = screen.textInput.accessibilityFrame
+        #expect(frame.width >= 44 && frame.height >= 44, "\(frame)")
+        let cell = UIAccessibility.convertToScreenCoordinates(screen.textInput.bounds, in: screen.textInput)
+        #expect(frame.contains(CGPoint(x: cell.midX, y: cell.midY)), "範圍要以游標格子為中心")
+    }
+
     @Test("沒有組字時：英文、刪除、Return 照舊送出")
     func plainTypingIsSent() async throws {
         let (window, screen, recorder) = try await mount()
