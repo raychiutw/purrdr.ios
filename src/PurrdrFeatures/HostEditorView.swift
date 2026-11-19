@@ -12,11 +12,17 @@ struct HostEditorView: View {
     @State private var confirmingDiscard = false
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
+    /// 只改了圖示就儲存：主機設定沒變，不必重新連線。
+    let onIconSaved: () -> Void
 
-    init(model: HostEditorModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void) {
+    init(
+        model: HostEditorModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
+        onIconSaved: @escaping () -> Void
+    ) {
         _model = State(initialValue: model)
         self.onSaved = onSaved
         self.onCancel = onCancel
+        self.onIconSaved = onIconSaved
     }
 
     var body: some View {
@@ -39,6 +45,13 @@ struct HostEditorView: View {
                 }
             } header: {
                 Text("Host")
+                    .foregroundStyle(.secondaryText)
+            }
+
+            Section {
+                HostIconGrid(selection: $model.icon)
+            } header: {
+                Text("Icon")
                     .foregroundStyle(.secondaryText)
             }
 
@@ -129,7 +142,9 @@ struct HostEditorView: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    if let host = model.save() { onSaved(host) }
+                    let changesOnlyIcon = model.changesOnlyIcon
+                    guard let host = model.save() else { return }
+                    if changesOnlyIcon { onIconSaved() } else { onSaved(host) }
                 }
                 .disabled(!model.canSave)
                 .accessibilityIdentifier("hostEditor.save")

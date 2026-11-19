@@ -310,10 +310,10 @@ struct SelectedHostMenu: View {
     var body: some View {
         Menu {
             Picker(selection: selection) {
-                Label("Demo", systemImage: HostIcon.default.symbol)
+                Label("Demo", systemImage: HostIcon.default.pickerSymbol)
                     .tag(HostSelection.demo)
                 ForEach(hosts.rows) { row in
-                    Label(row.title, systemImage: row.icon.symbol)
+                    HostMenuLabel(row.title, icon: row.icon)
                         .tag(HostSelection.host(row.id))
                 }
             } label: {
@@ -324,12 +324,8 @@ struct SelectedHostMenu: View {
                 Text("New chats start on the selected host. Agents on every host stay in the list.")
             }
         } label: {
-            Label {
-                Text(verbatim: hosts.name(of: hosts.selection))
-            } icon: {
-                Image(systemName: hosts.selectionIcon.symbol)
-            }
-            .labelStyle(.titleAndIcon)
+            HostMenuLabel(hosts.name(of: hosts.selection), icon: hosts.selectionIcon)
+                .labelStyle(.titleAndIcon)
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label。
         .accessibilityLabel(Text("Selected Host: \(hosts.name(of: hosts.selection))"))

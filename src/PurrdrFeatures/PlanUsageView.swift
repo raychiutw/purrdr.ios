@@ -19,7 +19,7 @@ public struct PlanUsageView: View {
             Section {
                 Picker("Host", selection: hostSelection) {
                     ForEach(model.hosts) { option in
-                        Label(option.name, systemImage: option.icon.symbol).tag(option.id)
+                        HostMenuLabel(option.name, icon: option.icon).tag(option.id)
                     }
                 }
                 .accessibilityIdentifier("planUsage.host")
