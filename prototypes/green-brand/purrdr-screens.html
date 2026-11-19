@@ -88,13 +88,31 @@ svg.g{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stro
 .switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;align-items:center;box-shadow:0 6px 24px #0005;z-index:9;max-width:calc(100% - 32px)}
 .switcher button{background:none;border:0;color:inherit;font:600 14px/1 -apple-system,sans-serif;padding:9px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
 .switcher .label{padding:0 6px;font-size:13px;white-space:nowrap}
+.acctbtn{width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--on-accent);border:0;font-weight:700;font-size:14px;cursor:pointer;flex:none}
+.right{display:flex;gap:8px;align-items:center}
+.ov{position:absolute;inset:0;background:#0006;z-index:4;display:flex;flex-direction:column;justify-content:flex-end}
+.ovs{background:var(--page);border-radius:14px 14px 0 0;min-height:82%;display:flex;flex-direction:column;position:relative}
+.pm{position:absolute;right:12px;top:50px;width:230px;background:var(--surface);border-radius:14px;box-shadow:0 10px 40px #0004;overflow:hidden;z-index:3}
+.pm .row{padding:10px 14px;--inset:14px}.pm .row svg.g{width:18px;height:18px;color:var(--fg)}
+.pm .sepw{height:8px;background:var(--page)}
+.steps{background:var(--surface);border-radius:14px;margin:0 12px 8px;padding:14px}
+.steps h3{margin:0 0 2px;font-size:17px}.prog{display:flex;gap:6px;margin:10px 0 8px}.prog i{flex:1;height:4px;border-radius:2px;background:var(--fill)}.prog i.done{background:var(--accent)}
+.step{display:flex;gap:12px;align-items:center;padding:9px 0;border-top:.5px solid var(--separator)}
+.num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--fill);color:var(--secondary);flex:none}
+.step.done .num{background:var(--accent);color:var(--on-accent)}.step.now .num{border:2px solid var(--accent);color:var(--accent);background:none}
+.pill{border:0;border-radius:999px;background:var(--accent);color:var(--on-accent);font:inherit;font-size:14px;font-weight:600;padding:6px 14px;cursor:pointer}
+.agentpick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 12px 8px}
+.agentpick button{border:0;background:var(--surface);color:var(--fg);border-radius:12px;padding:12px;font:inherit;font-weight:600;cursor:pointer;outline:2px solid transparent;text-align:left}
+.agentpick button.on{outline-color:var(--accent)}
+.field{background:var(--surface);border-radius:12px;margin:0 12px 8px;padding:12px 14px;color:var(--tertiary);min-height:90px}
+.go{margin:auto 12px 16px;border:0;border-radius:12px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;font-size:17px;min-height:50px;cursor:pointer}
 button:focus-visible,.row:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
 </style>
 
 <div class="wrap">
   <h1>Purrdr 畫面原型</h1>
   <div class="phones">
-    <section class="phone"><h2>聊天列表</h2><div id="list"></div></section>
+    <section class="phone relative"><h2>聊天列表</h2><div id="list"></div></section>
     <section class="phone"><h2>聊天</h2><div id="chat" style="display:flex;flex-direction:column;flex:1"></div></section>
     <section class="phone relative"><h2>登入 Shell</h2>
       <div class="nav"><button class="btn">完成</button><span id="shellPicker"></span><button class="circle" aria-label="更多">⋯</button></div>
@@ -138,17 +156,39 @@ const dark=t=>t==="dark"||(!t&&matchMedia("(prefers-color-scheme: dark)").matche
 
 function rowA(a){const h=hostOf(a.h);return `<div class="row" tabindex="0">${hi(h.i)}<div class="main"><div class="top"><span class="dot ${a.s}"></span><span class="name">${a.n}</span><span class="time">${a.t}</span></div><div class="prev">${h.n} · ${a.p}</div></div></div>`}
 function rowB(a){return `<div class="row" tabindex="0" style="--inset:62px"><span class="av">${a.k}<span class="dot ${a.s}"></span></span><div class="main"><div class="top"><span class="name">${a.n}</span><span class="time">${a.t}</span></div><div class="prev one">${a.p}</div></div></div>`}
-let listHost="all", listMode="agents", listMenu=false;
+let listHost="all", listMode="agents", listMenu=false, moreMenu=false, overlay=null, newHost="pc", newHostMenu=false, newAgent="claude", acct=1;
+const ICON={plus:'<path d="M12 5v14M5 12h14"/>',hosts:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/>',gauge:'<path d="M4 16a8 8 0 1 1 16 0"/><path d="m12 16 4-5"/>',term:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12 15h5"/>',folder:P.folder,gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>'};
+const isvg=k=>`<svg class="g" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
+function moreMenuHtml(){if(!moreMenu)return "";const it=(k,n,a)=>`<div class="row" data-ov="${a||""}"><div class="main"><span class="name" style="font-weight:${k==="plus"?600:400}">${n}</span></div>${isvg(k)}</div>`;
+ return `<div class="pm" role="menu">${it("plus","新增聊天","new")}<div class="sepw"></div>${it("hosts","主機")}${it("gauge","方案用量")}${it("term","登入 Shell")}${it("folder","檔案")}<div class="sepw"></div>${it("gear","設定")}</div>`}
+function overlayHtml(){
+ if(overlay==="new"){const h=hostOf(newHost);
+  const hm=newHostMenu?`<div class="menu" style="top:46px">${HOSTS.map(x=>`<div class="row" data-newhost="${x.id}" style="--inset:52px"><span class="ck">${x.id===newHost?"✓":""}</span>${hi(x.i)}<div class="main"><span class="name">${x.n}</span></div></div>`).join("")}</div>`:"";
+  return `<div class="ov"><div class="ovs"><div class="nav relative"><button class="btn" data-close>取消</button><button class="picker" data-newhostbtn>${hi(h.i)}${h.n}<span class="caret">▾</span></button><span class="btn" style="visibility:hidden">取消</span>${hm}</div>
+   <div class="large" style="font-size:24px">新增聊天</div>
+   <div class="sect">Agent</div><div class="agentpick">${[["claude","Claude Code"],["codex","Codex"]].map(([k,n])=>`<button data-agent="${k}" class="${newAgent===k?"on":""}">${n}</button>`).join("")}</div>
+   <div class="sect">資料夾</div><div class="group" style="--inset:16px"><div class="row"><div class="main"><span class="name" style="font-weight:400">~/Projects/ledger</span></div><span class="caret">›</span></div></div>
+   <div class="sect">第一則訊息</div><div class="field">要 Agent 做什麼？</div>
+   <button class="go" data-close>開始</button></div></div>`}
+ if(overlay==="acct"){
+  const steps=[["加入會員","用 Apple 或 Google 登入"],["開通 Purrdr Plus","7 天免費試用"],["開啟通知","Agent 需要你時通知"],["同步主機名單","iPhone、iPad 共用主機"]];
+  const card=acct>=4?`<div class="group"><div class="row"><div class="main"><span class="name">Purrdr Plus・已開通</span><div class="prev one">通知與同步都已開啟</div></div><span class="caret">›</span></div></div>`
+   :`<div class="steps"><h3>設定 Purrdr Plus</h3><div class="prev one">完成 ${acct}／4</div><div class="prog">${steps.map((_,i)=>`<i class="${i<acct?"done":""}"></i>`).join("")}</div>${steps.map((x,i)=>`<div class="step ${i<acct?"done":i===acct?"now":""}"><span class="num">${i<acct?"✓":i+1}</span><div class="main"><b style="font-weight:${i===acct?600:400}">${x[0]}</b><div class="prev one">${x[1]}</div></div>${i===acct?`<button class="pill" data-step>${["加入","開通","開啟","開啟"][i]}</button>`:""}</div>`).join("")}</div>`;
+  return `<div class="ov"><div class="ovs"><div class="nav"><span class="btn"></span><span class="t">帳號</span><button class="btn" data-close style="font-weight:600">完成</button></div>
+   <div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0 16px"><span class="acctbtn" style="width:72px;height:72px;font-size:30px;display:grid;place-items:center">${acct>0?"陳":"?"}</span><b style="font-size:20px">${acct>0?"陳小明":"尚未加入會員"}</b></div>
+   ${card}<div class="sect" style="padding-left:28px">聊天與終端機不需要會員或訂閱。</div>
+   ${acct>0?`<div class="group" style="--inset:16px;margin-top:8px"><div class="row"><div class="main"><span class="name" style="font-weight:400">登入方式</span></div><span class="caret">›</span></div><div class="row"><div class="main"><span class="name" style="font-weight:400;color:var(--accent)">登出</span></div></div><div class="row"><div class="main"><span class="name" style="font-weight:400;color:var(--red)">刪除會員</span></div></div></div>`:""}</div></div>`}
+ return ""}
 const SPACES=[{h:"pc",w:"ledger",tabs:["CSV 匯出","測試"],a:["ledger"]},{h:"pc",w:"purrdr.ios",tabs:["輪詢","UI"],a:["purrdr.ios"]},{h:"mini",w:"site",tabs:["部署"],a:["site"]}];
 function finalList(){
   const cur=listHost==="all"?null:hostOf(listHost);
   const filterBtn=`<button class="picker" id="hostFilter">${cur?hi(cur.i):'<span class="hi">'+svg("desktop")+'</span>'}${cur?cur.n:"所有主機"}<span class="caret">▾</span></button>`;
   const seg=`<div style="display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 16px 10px">${[["agents","Agents"],["spaces","Spaces"]].map(([k,n])=>`<button data-mode="${k}" style="flex:1;border:0;border-radius:7px;padding:6px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;background:${listMode===k?"var(--surface)":"transparent"};color:var(--fg);box-shadow:${listMode===k?"0 1px 3px #0002":"none"}">${n}</button>`).join("")}</div>`;
   const menu=listMenu?`<div class="menu" style="left:16px;transform:none;top:50px">${[{id:"all",n:"所有主機",i:"desktop"},...HOSTS].map(x=>`<div class="row" data-host="${x.id}" style="--inset:52px"><span class="ck">${x.id===listHost?"✓":""}</span>${hi(x.i)}<div class="main"><span class="name">${x.n}</span></div></div>`).join("")}</div>`:"";
-  const nav=`<div class="nav relative">${filterBtn}<span class="t"></span><button class="circle" aria-label="新增">＋</button>${menu}</div><div class="large">${listMode==="agents"?"Agents":"Spaces"}</div>${seg}`;
-  if(listMode==="agents"){const as=AGENTS.filter(a=>listHost==="all"||a.h===listHost);return nav+`<div class="search">搜尋</div><div class="group">${as.map(rowA).join("")||'<div class="row"><div class="main prev">沒有 Agent</div></div>'}</div>`;}
+  const nav=`<div class="nav relative">${filterBtn}<span class="t"></span><span class="right"><button class="acctbtn" data-acct aria-label="帳號">${acct>0?"陳":"?"}</button><button class="circle" data-more aria-label="更多">⋯</button></span>${menu}${moreMenuHtml()}</div><div class="large">${listMode==="agents"?"Agents":"Spaces"}</div>${seg}`;
+  if(listMode==="agents"){const as=AGENTS.filter(a=>listHost==="all"||a.h===listHost);return overlayHtml()+nav+`<div class="search">搜尋</div><div class="group">${as.map(rowA).join("")||'<div class="row"><div class="main prev">沒有 Agent</div></div>'}</div>`;}
   const sp=SPACES.filter(s=>listHost==="all"||s.h===listHost);
-  return nav+sp.map(s=>{const h=hostOf(s.h);return `<div class="sect">${hi(h.i)}${h.n} · ${s.w}</div><div class="group" style="--inset:16px">${s.tabs.map(t=>`<div class="row"><div class="main"><span class="name" style="font-weight:400">${t}</span></div><span class="caret">›</span></div>`).join("")}</div>`}).join("");
+  return overlayHtml()+nav+sp.map(s=>{const h=hostOf(s.h);return `<div class="sect">${hi(h.i)}${h.n} · ${s.w}</div><div class="group" style="--inset:16px">${s.tabs.map(t=>`<div class="row"><div class="main"><span class="name" style="font-weight:400">${t}</span></div><span class="caret">›</span></div>`).join("")}</div>`}).join("");
 }
 function list(v){ if(v==="F") return finalList();
   const nav=`<div class="nav"><button class="circle" aria-label="主機">${svg("pc")}</button><span class="t"></span><button class="circle" aria-label="新增">＋</button></div><div class="large">Agents</div>`;
@@ -187,6 +227,14 @@ function render(){
   document.getElementById("files").innerHTML=FILES.map(([k,n,s])=>`<div class="row"><span class="fi">${svg(k)}</span><div class="main"><span class="name" style="font-weight:400">${n}</span></div><span class="size">${s}</span></div>`).join("");
   const hf=document.getElementById("hostFilter"); if(hf) hf.onclick=()=>{listMenu=!listMenu;render()};
   document.querySelectorAll("[data-host]").forEach(r=>r.onclick=()=>{listHost=r.dataset.host;listMenu=false;render()});
+  document.querySelectorAll("[data-more]").forEach(b=>b.onclick=()=>{moreMenu=!moreMenu;listMenu=false;render()});
+  document.querySelectorAll("[data-acct]").forEach(b=>b.onclick=()=>{overlay="acct";moreMenu=false;render()});
+  document.querySelectorAll("[data-ov]").forEach(r=>r.onclick=()=>{moreMenu=false;overlay=r.dataset.ov||null;render()});
+  document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>{overlay=null;newHostMenu=false;render()});
+  document.querySelectorAll("[data-newhostbtn]").forEach(b=>b.onclick=()=>{newHostMenu=!newHostMenu;render()});
+  document.querySelectorAll("[data-newhost]").forEach(r=>r.onclick=()=>{newHost=r.dataset.newhost;newHostMenu=false;render()});
+  document.querySelectorAll("[data-agent]").forEach(b=>b.onclick=()=>{newAgent=b.dataset.agent;render()});
+  document.querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{acct=Math.min(4,acct+1);render()});
   document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>{listMode=b.dataset.mode;render()});
   document.querySelectorAll("[data-menu]").forEach(b=>b.onclick=()=>{openMenu=openMenu===b.dataset.menu?null:b.dataset.menu;render()});
   document.querySelectorAll("[data-pick]").forEach(r=>r.onclick=()=>{const [m,id]=r.dataset.pick.split(":");if(m==="shellMenu")shellHost=id;else filesHost=id;openMenu=null;render()});
