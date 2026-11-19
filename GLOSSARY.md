@@ -155,6 +155,14 @@ _避免_:預編輯、Preedit、Marked text(UIKit 的實作名稱，只在程式�
 終端機畫面上，把組字文字畫在遠端游標格子的那一層;確認或放棄組字後消失。
 _避免_:預覽框、IME 浮窗、Inline preedit
 
+**停止列**(Stop bar):
+agent 工作中或有停止結果時，聊天輸入卡片最上面的那一列;放停止鈕、停止中與停止或強制結束的結果。
+_避免_:停止按鈕列、中斷列、狀態列、Toolbar、Stop banner
+
+**強制結束**(Force Quit):
+經使用者確認後對工作中的 agent 送出 Ctrl-C;可能結束 agent 程序，和只送 Esc、中斷這一輪的「停止」不同。
+_避免_:強制停止、終止、Kill、中斷(中斷是停止的說法)
+
 **展開編輯**(Expanded composer):
 從聊天輸入列打開的大編輯畫面(large sheet),編輯同一份草稿;畫面本身稱「展開畫面」。
 _避免_:全螢幕編輯、Fullscreen editor、大輸入框

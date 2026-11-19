@@ -50,4 +50,15 @@ struct StatusToneTests {
         #expect(DelegationStatus.completed.tone == .neutral)
         #expect(DelegationStatus.failed.tone == .error)
     }
+
+    @Test("停止列結果的符號：已停止主色、仍在工作與需要你注意、送不出紅;文字不上狀態色")
+    func stopPhaseTones() {
+        #expect(StopPhase.stopping.tone == .accent)
+        #expect(StopPhase.stopped.tone == .accent)
+        #expect(StopPhase.stillWorking.tone == .attention)
+        #expect(StopPhase.unconfirmed.tone == .attention)
+        #expect(StopPhase.needsAnswer.tone == .attention)
+        #expect(StopPhase.failed.tone == .error)
+        #expect(StopPhase.forceQuitFailed.tone == .error)
+    }
 }

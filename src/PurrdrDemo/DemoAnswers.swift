@@ -53,6 +53,8 @@ struct DemoAnswers {
     static let workingPanes: Set<String> = ["w3:p1"]
     /// 已經被停止的 pane(變完成)。
     private(set) var stopped: Set<String> = []
+    /// 收到 Esc／ctrl+c、還在停止中的 pane(仍是 working,#220)。
+    private(set) var stopping: Set<String> = []
 
     /// snapshot 上要改的 Agent 狀態(沒列的照範例)。
     var statuses: [String: String] {
@@ -92,10 +94,16 @@ struct DemoAnswers {
         return false
     }
 
+    /// 停止中的 pane 停下來(變完成)。
+    mutating func finishStop(paneID: String) {
+        guard stopping.remove(paneID) != nil else { return }
+        stopped.insert(paneID)
+    }
+
     /// 收到按鍵：照 Claude 的規則(只送數字;信任提示用方向鍵)推進。
     mutating func receivedKeys(_ keys: [String], paneID: String) {
         if Self.workingPanes.contains(paneID), keys == ["esc"] || keys == ["ctrl+c"] {
-            stopped.insert(paneID)
+            if !stopped.contains(paneID) { stopping.insert(paneID) }
             return
         }
         switch panels[paneID] {

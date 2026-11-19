@@ -64,3 +64,14 @@ extension DelegationStatus {
         self == .failed ? .error : .neutral
     }
 }
+
+extension StopPhase {
+    /// 停止列結果符號的顏色(#220);結果文字一律主要色。
+    public var tone: StatusTone {
+        switch self {
+        case .stopping, .stopped: .accent
+        case .stillWorking, .unconfirmed, .needsAnswer: .attention
+        case .failed, .forceQuitFailed: .error
+        }
+    }
+}

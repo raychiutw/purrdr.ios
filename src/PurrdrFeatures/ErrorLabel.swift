@@ -8,11 +8,14 @@ struct ErrorLabel: View {
         self.message = message
     }
 
+    /// 錯誤圖示;停止列的送不出也用它(#220)。
+    static let symbolName = "exclamationmark.triangle.fill"
+
     var body: some View {
         Label {
             Text(message)
         } icon: {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: Self.symbolName)
                 .foregroundStyle(.red)
         }
     }

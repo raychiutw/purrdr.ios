@@ -345,14 +345,17 @@ public enum ComposerAccessoryForm: Sendable, Equatable {
     case hidden
 }
 
-/// 註記與建議提示詞各自的顯示方式。
+/// 註記、建議提示詞與停止列各自的顯示方式。
 public struct ComposerAccessoryArrangement: Sendable, Equatable {
     public var note: ComposerAccessoryForm
     public var suggestion: ComposerAccessoryForm
+    /// 停止列(#220):只會 `.full` 或 `.compact`(只留停止鈕)。
+    public var stopBar: ComposerAccessoryForm
 
-    public init(note: ComposerAccessoryForm, suggestion: ComposerAccessoryForm) {
+    public init(note: ComposerAccessoryForm, suggestion: ComposerAccessoryForm, stopBar: ComposerAccessoryForm = .full) {
         self.note = note
         self.suggestion = suggestion
+        self.stopBar = stopBar
     }
 
     public static let full = ComposerAccessoryArrangement(note: .full, suggestion: .full)
@@ -360,7 +363,7 @@ public struct ComposerAccessoryArrangement: Sendable, Equatable {
     /// 暫時拿掉的元素換回一行，其他維持。
     var restoringHidden: ComposerAccessoryArrangement {
         ComposerAccessoryArrangement(
-            note: note == .hidden ? .compact : note, suggestion: suggestion == .hidden ? .compact : suggestion)
+            note: note == .hidden ? .compact : note, suggestion: suggestion == .hidden ? .compact : suggestion, stopBar: .full)
     }
 }
 
@@ -395,7 +398,8 @@ public enum ComposerKeyboardLayout {
     /// 依目前的對話可見高度與目前的顯示方式，決定註記與建議提示詞的顯示方式。
     public static func arrangement(
         keyboardShown: Bool, conversationHeight: Double?, current: ComposerAccessoryArrangement,
-        note: ComposerAccessoryHeights?, suggestion: ComposerAccessoryHeights?, minimumConversationHeight: Double
+        note: ComposerAccessoryHeights?, suggestion: ComposerAccessoryHeights?, stopBar: ComposerAccessoryHeights? = nil,
+        minimumConversationHeight: Double
     ) -> ComposerAccessoryArrangement {
         // 鍵盤收起時不長回完整卡片：卡片若跟著鍵盤收起一起長回來，先以沒量過的高度排一次、量到後再排一次，
         // 輸入列高度在鍵盤動畫中連跳兩次，又碰上大量輸出重建列表(#130)時對話會停在一片空白。點一行的註記才展開
@@ -405,22 +409,27 @@ public enum ComposerKeyboardLayout {
         guard let conversationHeight else { return current }
         // 可分配的高度與目前怎麼排無關：對話可見高度加上目前顯示中的元素(含間距)。
         let budget = conversationHeight + displayedCost(note, current.note) + displayedCost(suggestion, current.suggestion)
-        // 依優先順序讓位：輸入框最優先(不讓)、建議提示詞次之(Tab 可接受，跟打字有關)、註記最後。
+            + displayedCost(stopBar, current.stopBar)
+        // 依優先順序讓位：輸入框最優先(不讓)、停止列次之(唯一的停止入口，只收成一行，#220)、
+        // 建議提示詞再次之(Tab 可接受，跟打字有關)、註記最後。
         let candidates: [ComposerAccessoryArrangement] = [
             .full,
             ComposerAccessoryArrangement(note: .compact, suggestion: .full),
             ComposerAccessoryArrangement(note: .compact, suggestion: .compact),
             ComposerAccessoryArrangement(note: .hidden, suggestion: .compact),
             ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden),
+            ComposerAccessoryArrangement(note: .hidden, suggestion: .hidden, stopBar: .compact),
         ]
         let chosen = candidates.first { candidate in
-            budget - cost(note, candidate.note) - cost(suggestion, candidate.suggestion) >= minimumConversationHeight
+            budget - cost(note, candidate.note) - cost(suggestion, candidate.suggestion) - cost(stopBar, candidate.stopBar)
+                >= minimumConversationHeight
         } ?? candidates[candidates.count - 1]
         // 暫時不在的元素(送出後重讀註記、換建議)維持目前的顯示方式：回來時不先以完整卡片出現再收起，
         // 輸入列高度一下子跳很多會讓對話列表停在內容之外。
         return ComposerAccessoryArrangement(
             note: note == nil ? current.note : chosen.note,
-            suggestion: suggestion == nil ? current.suggestion : chosen.suggestion)
+            suggestion: suggestion == nil ? current.suggestion : chosen.suggestion,
+            stopBar: stopBar == nil ? current.stopBar : chosen.stopBar)
     }
 
     /// 目前顯示中的元素佔的高度(含間距)。完整卡片剛出現、還沒量到時先以一行估。

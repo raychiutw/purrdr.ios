@@ -246,12 +246,38 @@ struct DemoHostTests {
         let screen = try await client.readPane(paneID: "w3:p1")
         #expect(LivePreview.extract(screen: screen) != nil)
 
-        let delivery = PromptDelivery(client: client, sleep: { _ in })
+        // Demo 停止約 1 秒才完成：確認迴圈要真的等。
+        let delivery = PromptDelivery(client: client, sleep: Sleeping.task)
         #expect(await delivery.stop(paneID: "w2:p1") == .needsAnswer)
-        #expect(await delivery.stop(paneID: "w3:p1") == .stopped)
+        #expect(await delivery.stop(paneID: "w3:p1") == .stopped(.done))
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
         #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w3:p1")) == nil)
         #expect(try await client.snapshot().agents.first { $0.paneID == "w2:p1" }?.status == .blocked)
+    }
+
+    /// #220:停止要看得到「停止中」:收到 Esc 後約 1 秒才完成，完成時對訂閱送狀態事件(畫面靠事件更新快照)。
+    @Test("停止中:Demo 的工作中 agent 收到 Esc 後約 1 秒才完成，並送出狀態事件")
+    func workingDemoAgentStopsAfterAMomentAndNotifies() async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let events = try await client.subscribe([.agentStatusChanged(paneID: "w3:p1")])
+        let statusEvent = Task {
+            var iterator = events.makeAsyncIterator()
+            _ = try await iterator.next()
+            return try await iterator.next()
+        }
+
+        try await client.sendKeys(paneID: "w3:p1", keys: ["esc"])
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .working)
+
+        let giveUp = Task {
+            try await Task.sleep(for: .seconds(3))
+            statusEvent.cancel()
+        }
+        let received = try? await statusEvent.value
+        #expect(received == .event(name: "pane.agent_status_changed", paneID: "w3:p1"))
+        giveUp.cancel()
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
     }
 
     /// #210 的 UI 測試情境：送出後先只接上使用者那一行，agent 工作中且畫面有即時預覽;時間到才接上回覆並完成。

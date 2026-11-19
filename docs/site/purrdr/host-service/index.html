@@ -47,11 +47,11 @@
 
     <h2>配對 iPhone／iPad</h2>
     <ol>
-      <li>在電腦上執行 <code>purrdr-host-service pair</code>(macOS／Linux 的程式在 <code>~/.purrdr/host-service/bin/</code>)。畫面會顯示 QR code、HTTPS 位址與一次性配對碼。</li>
+      <li>在電腦上執行 <code>purrdr-host-service pair</code>(macOS／Linux 的程式在 <code>~/.purrdr/host-service/bin/</code>)。Windows 安裝程式不會把主機服務加進 PATH,要在 PowerShell 用完整路徑：<code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; pair</code>。畫面會顯示 QR code、HTTPS 位址與一次性配對碼。</li>
       <li>用 iPhone 的「相機」App 掃 QR code,或在 Purrdr 的「⋯ → Hosts → +」選 HTTPS,輸入位址與配對碼。</li>
       <li>只想讓這支裝置看、不能操作：改用 <code>purrdr-host-service pair --read-only</code>。</li>
     </ol>
-    <p>列出已配對的裝置：<code>purrdr-host-service devices</code>;撤銷一支裝置：<code>purrdr-host-service revoke &lt;裝置 ID&gt;</code>。在 Purrdr 刪除這台主機時，也會撤銷這支裝置。</p>
+    <p>列出已配對的裝置：<code>purrdr-host-service devices</code>;撤銷一支裝置：<code>purrdr-host-service revoke &lt;裝置 ID&gt;</code>。Windows 同樣用完整路徑：<code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; devices</code>、<code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; revoke &lt;裝置 ID&gt;</code>。在 Purrdr 刪除這台主機時，也會撤銷這支裝置。</p>
 
     <h2>更新</h2>
     <p>再執行一次上面的安裝指令就是更新，已配對的裝置會保留。Purrdr 發現主機服務比它知道的版本舊時，會在主機清單提示更新並附上指令。</p>
@@ -95,11 +95,11 @@
 
     <h2>Pairing your iPhone or iPad</h2>
     <ol>
-      <li>On the computer, run <code>purrdr-host-service pair</code> (on macOS and Linux the program is in <code>~/.purrdr/host-service/bin/</code>). It shows a QR code, the HTTPS address, and a one-time pairing code.</li>
+      <li>On the computer, run <code>purrdr-host-service pair</code> (on macOS and Linux the program is in <code>~/.purrdr/host-service/bin/</code>). The Windows installer doesn’t add the host service to PATH, so in PowerShell use the full path: <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; pair</code>. It shows a QR code, the HTTPS address, and a one-time pairing code.</li>
       <li>Scan the QR code with the iPhone Camera app, or in Purrdr go to “⋯ → Hosts → +”, choose HTTPS, and enter the address and pairing code.</li>
       <li>For a device that can watch but not act, use <code>purrdr-host-service pair --read-only</code> instead.</li>
     </ol>
-    <p>List paired devices with <code>purrdr-host-service devices</code>; revoke one with <code>purrdr-host-service revoke &lt;device ID&gt;</code>. Deleting the host in Purrdr also revokes that device.</p>
+    <p>List paired devices with <code>purrdr-host-service devices</code>; revoke one with <code>purrdr-host-service revoke &lt;device ID&gt;</code>. On Windows, use the full path here too: <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; devices</code> and <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; revoke &lt;device ID&gt;</code>. Deleting the host in Purrdr also revokes that device.</p>
 
     <h2>Updating</h2>
     <p>Run the install command again to update. Paired devices stay paired. When Purrdr sees a host service older than the version it knows about, it shows an update notice with the command in the host list.</p>

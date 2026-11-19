@@ -88,6 +88,17 @@
         }
       }
     },
+    "%@ is still working" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 仍在工作"
+          }
+        }
+      }
+    },
     "%@ keys aren’t supported. Use this device’s key, or an ed25519 or ECDSA key." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -896,6 +907,17 @@
         }
       }
     },
+    "An agent that needs you can’t be interrupted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「需要你」的 agent 不會被中斷。"
+          }
+        }
+      }
+    },
     "Another device took over this pane." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1354,6 +1376,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢查並顯示"
+          }
+        }
+      }
+    },
+    "Check the connection and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請檢查連線後再試一次。"
           }
         }
       }
@@ -1956,17 +1989,6 @@
         }
       }
     },
-    "Control-C may end the agent process and this session. The conversation stays on the host, but the agent stops. Stop only interrupts the current turn." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Control-C 可能會結束 Agent 程序與這個 session。對話仍留在主機上，但 Agent 會停止。「停止」只會中斷目前這一輪。"
-          }
-        }
-      }
-    },
     "Copied" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2106,6 +2128,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法確認是否送達，訊息可能卡在終端機裡。"
+          }
+        }
+      }
+    },
+    "Couldn’t confirm it stopped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認是否已停止"
           }
         }
       }
@@ -2385,6 +2418,28 @@
         }
       }
     },
+    "Couldn’t send Force Quit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送不出強制結束"
+          }
+        }
+      }
+    },
+    "Couldn’t send Stop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送不出停止"
+          }
+        }
+      }
+    },
     "Couldn’t send the answer to the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2392,17 +2447,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法把回答送到主機。"
-          }
-        }
-      }
-    },
-    "Couldn’t send the interrupt to the host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法把中斷送到主機。"
           }
         }
       }
@@ -3144,13 +3188,35 @@
         }
       }
     },
-    "Force Quit Agent" : {
+    "Force Quit" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "強制結束 Agent"
+            "value" : "強制結束"
+          }
+        }
+      }
+    },
+    "Force Quit %@?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強制結束 %@?"
+          }
+        }
+      }
+    },
+    "Force Quit…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "強制結束…"
           }
         }
       }
@@ -3683,13 +3749,13 @@
         }
       }
     },
-    "Interrupts the agent’s current turn. Press and hold to force quit." : {
+    "Interrupts the agent’s current turn. Touch and hold for Force Quit." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中斷 Agent 目前這一輪。按住可強制結束。"
+            "value" : "中斷 agent 目前這一輪。按住可強制結束。"
           }
         }
       }
@@ -4548,6 +4614,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有可恢復的購買項目"
+          }
+        }
+      }
+    },
+    "Nothing was interrupted. Answer its question instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有中斷任何東西。請直接回答它的問題。"
           }
         }
       }
@@ -6686,6 +6763,61 @@
         }
       }
     },
+    "Stop %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止 %@"
+          }
+        }
+      }
+    },
+    "Stop was sent, but the agent didn’t stop." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出停止，但 agent 沒有停下來。"
+          }
+        }
+      }
+    },
+    "Stop was sent, but the agent’s status couldn’t be read." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出停止，但讀不到 agent 的狀態。"
+          }
+        }
+      }
+    },
+    "Stopped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停止"
+          }
+        }
+      }
+    },
+    "Stopping…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在停止…"
+          }
+        }
+      }
+    },
     "Studio Mac" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7089,28 +7221,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 還沒有回報它所在的 session。回報後訊息就會顯示在這裡。"
-          }
-        }
-      }
-    },
-    "The agent is still working. Tap Stop again, or press and hold to force quit." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 仍在工作。再點一次「停止」,或按住以強制結束。"
-          }
-        }
-      }
-    },
-    "The agent is waiting for an answer, so nothing was interrupted. Answer it instead." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 正在等你回答，所以沒有中斷任何東西。請直接回答它。"
           }
         }
       }
@@ -8160,6 +8270,17 @@
         }
       }
     },
+    "This sends Control-C. Tool calls in progress may be interrupted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會送出 Control-C,進行中的工具呼叫可能中斷。"
+          }
+        }
+      }
+    },
     "This subagent’s transcript isn’t on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9062,6 +9183,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一則訊息最多附加 4 張圖片。"
+          }
+        }
+      }
+    },
+    "You can stop the agent after reconnecting." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新連上後才能停止。"
           }
         }
       }

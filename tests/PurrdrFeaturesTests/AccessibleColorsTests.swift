@@ -22,7 +22,10 @@ struct AccessibleColorsTests {
 
     @Test("次要文字：深淺色對主要與 grouped 背景 ≥ 4.5:1,高對比 ≥ 7:1")
     func secondaryTextContrast() {
-        let palette = AccessibleColors.secondaryText
+        Self.expectReadable(AccessibleColors.secondaryText)
+    }
+
+    static func expectReadable(_ palette: ContrastPalette) {
         let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
             ("淺色", palette.light, Self.lightSecondaryBackgrounds, 4.5),
             ("深色", palette.dark, Self.darkSecondaryBackgrounds, 4.5),

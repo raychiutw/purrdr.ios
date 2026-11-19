@@ -97,4 +97,20 @@ struct ChatColorUsageTests {
             #expect(following.contains { $0.contains(".foregroundStyle(Color.primary)") }, "\(title) 沒有指定主要色")
         }
     }
+
+    /// 停止列(#220)併入狀態色對照表：成功、警告不另設文字色。
+    @Test("沒有成功、警告文字色 token:狀態只上在符號，文字用主要色")
+    func noStatusTextColors() throws {
+        let sources = try Self.featureSources()
+        let found = ["successText", "warningText"].flatMap { Self.violations(of: $0, in: sources) }
+        #expect(found.isEmpty, "改用 StatusTone 的符號色:\n\(found.joined(separator: "\n"))")
+    }
+
+    @Test("停止列結果：符號用 StatusTone,文字是主要色")
+    func stopBarResultUsesStatusTone() throws {
+        let sources = try Self.featureSources()
+        let stopBar = try #require(sources.first { $0.name == "StopBar.swift" })
+        #expect(stopBar.lines.contains { $0.contains(".foregroundStyle(phase.tone.style)") }, "結果符號沒有用 StatusTone")
+        #expect(stopBar.lines.contains { $0.contains(".foregroundStyle(Color.primary)") }, "結果文字沒有指定主要色")
+    }
 }
