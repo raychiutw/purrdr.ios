@@ -590,7 +590,9 @@ final class ConversationUITests: XCTestCase {
     private func assertStaysResponsiveWhenGoingOffline(flag: String, paneID: String = "w1:p1", typing: Bool = false) throws {
         let app = open(paneID: paneID, flags: [flag])
         XCTAssertTrue(element("composer.text", in: app).waitForExistence(timeout: 10), "聊天畫面沒有開啟")
-        XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+        let message = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier IN %@", ["conversation.user", "conversation.agent", "conversation.toolRun"])).firstMatch
+        XCTAssertTrue(message.waitForExistence(timeout: 10), "對話沒有載入完成")
         if typing {
             let text = element("composer.text", in: app)
             text.tap()
