@@ -245,7 +245,8 @@ struct DemoHostTests {
         let screen = try await client.readPane(paneID: "w3:p1")
         #expect(LivePreview.extract(screen: screen) != nil)
 
-        let delivery = PromptDelivery(client: client, sleep: { _ in })
+        // Demo 停止約 1 秒才完成：確認迴圈要真的等。
+        let delivery = PromptDelivery(client: client, sleep: Sleeping.task)
         #expect(await delivery.stop(paneID: "w2:p1") == .needsAnswer)
         #expect(await delivery.stop(paneID: "w3:p1") == .stopped(.done))
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
@@ -253,14 +254,18 @@ struct DemoHostTests {
         #expect(try await client.snapshot().agents.first { $0.paneID == "w2:p1" }?.status == .blocked)
     }
 
-    /// #220:停止要看得到「停止中」:收到 Esc 後下一次讀狀態仍是 working,再下一次才完成。
-    @Test("停止中:Demo 的工作中 agent 收到 Esc 後先再回報一次 working,之後才完成")
-    func workingDemoAgentStopsAfterOneMoreRead() async throws {
+    /// #220:停止要看得到「停止中」:收到 Esc 後約 1 秒才完成，完成時對訂閱送狀態事件(畫面靠事件更新快照)。
+    @Test("停止中:Demo 的工作中 agent 收到 Esc 後約 1 秒才完成，並送出狀態事件")
+    func workingDemoAgentStopsAfterAMomentAndNotifies() async throws {
         let host = DemoHost()
         let client = HerdrClient(channel: host)
-        try await client.sendKeys(paneID: "w3:p1", keys: ["esc"])
+        var events = try await client.subscribe([.agentStatusChanged(paneID: "w3:p1")]).makeAsyncIterator()
+        #expect(try await events.next() == .subscriptionStarted)
 
+        try await client.sendKeys(paneID: "w3:p1", keys: ["esc"])
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .working)
+
+        #expect(try await events.next() == .event(name: "pane.agent_status_changed", paneID: "w3:p1"))
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
     }
 
