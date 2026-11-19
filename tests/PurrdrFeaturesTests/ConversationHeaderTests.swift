@@ -128,6 +128,25 @@ struct ConversationHeaderTests {
         #expect(!setup.model.showsWorkingIndicator)
     }
 
+    /// #220:斷線前的 working 已過時，停止鈕不能留著讓人按。
+    @Test("離線：不再保留斷線前的 working,停止不可用、不顯示停止鈕")
+    func offlineDropsStaleWorkingAndStop() async throws {
+        let setup = try Self.setup()
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        #expect(setup.model.canStop)
+
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
+        await setup.model.poll()
+        await setup.model.poll()
+
+        #expect(setup.model.agentStatus != .working)
+        #expect(!setup.model.canStop)
+        #expect(!setup.model.showsStopButton)
+    }
+
     // MARK: - 重新載入與停止
 
     @Test("不在工作中(含需要你)標題列是「重新載入」;工作中換成「停止」")
