@@ -259,7 +259,53 @@ struct ConversationScrollTests {
         #expect(refills == ConversationScroll.maximumRefills)
 
         scroll.visibleRowsChanged(count: 3)
-        #expect(scroll.refillsVisibleRange(Self.smallViewport(contentHeight: 29300), visibleRows: 0), "有列顯示過，之後又空白就再捲")
+        // 有列顯示過、可見範圍又變了(鍵盤收起、輸入列改變)之後空白就再捲;只有內容估算高度來回跳則受連續捲回上限限制(#251)。
+        let resized = ConversationScrollMetrics(contentHeight: 29300, containerHeight: 300, contentOffsetY: 29300 - 300 - 116, topInset: 116, bottomInset: 458)
+        #expect(scroll.refillsVisibleRange(resized, visibleRows: 0), "有列顯示過，可見範圍變了之後又空白就再捲")
+    }
+
+    @Test("捲回內容後兩種排版輪流出現、每次都在內容之外：捲回有次數上限;內容變了或使用者自己捲過就重新計算")
+    func returningToContentIsBoundedWhenTwoLayoutsAlternate() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#251,ledger 對話打 `!git status`,軟體鍵盤＋註記一行＋! 指令提示):LazyVStack 的內容高
+        // 在 618 與 664 之間來回跳，每次捲到最後一列後又停在內容之外;只記上一次的排版擋不住兩個排版輪流，主執行緒滿載。
+        let layoutA = ConversationScrollMetrics(contentHeight: 618, containerHeight: 195.33, contentOffsetY: 869.33, topInset: 116, bottomInset: 562.67)
+        let layoutB = ConversationScrollMetrics(contentHeight: 664, containerHeight: 195.33, contentOffsetY: 869.33, topInset: 116, bottomInset: 562.67)
+        var returns = 0
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() where scroll.returnsToContent(metrics, at: now) {
+            scroll.returnedToContent(metrics)
+            returns += 1
+        }
+        #expect(returns == ConversationScroll.maximumReturns)
+
+        // 另一個排版：不受「同一個排版只捲一次」影響，只看次數。
+        let layoutC = ConversationScrollMetrics(contentHeight: 710, containerHeight: 195.33, contentOffsetY: 869.33, topInset: 116, bottomInset: 562.67)
+        #expect(!scroll.returnsToContent(layoutC, at: now), "到了上限")
+        scroll.contentChanged(from: ["a"], to: ["a", "b"], at: now)
+        #expect(scroll.returnsToContent(layoutC, at: now), "有新的列：照樣捲回")
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() where scroll.returnsToContent(metrics, at: now) {
+            scroll.returnedToContent(metrics)
+        }
+        #expect(!scroll.returnsToContent(layoutC, at: now), "又到了上限")
+        scroll.userScrolled(distanceFromBottom: 0)
+        #expect(scroll.returnsToContent(layoutC, at: now), "使用者自己捲過：重新計算")
+    }
+
+    @Test("可見列數在 0 與有列之間來回跳：再捲也受連續捲回上限限制")
+    func refillingIsBoundedWhenRowsFlicker() {
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#251,`!git status` 後):每次捲到底，列長出來又消失，`visibleRowsChanged` 一直把再捲的次數歸零。
+        let layoutA = Self.smallViewport(contentHeight: 618)
+        let layoutB = Self.smallViewport(contentHeight: 664)
+        var refills = 0
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() {
+            guard scroll.refillsVisibleRange(metrics, visibleRows: 0) else { continue }
+            scroll.returnedToContent(metrics)
+            scroll.visibleRowsChanged(count: 2)
+            refills += 1
+        }
+        #expect(refills == ConversationScroll.maximumReturns)
     }
 
     @Test("可見範圍不到一列高(軟體鍵盤＋卡片擠掉)：不再捲，畫不出任何列")

@@ -17,6 +17,10 @@ public struct ConversationScroll: Equatable, Sendable {
     private var returnedAtLayout: ConversationScrollMetrics.Layout?
     /// 一列都沒顯示時已經再捲的次數(#191)。
     private var refills = 0
+    /// 沒有新內容、使用者也沒捲、可見範圍高度也沒變時已經連續捲回內容的次數(#251)。
+    private var returns = 0
+    /// 上面那些捲回時的可見範圍高度：變了(鍵盤、輸入列、旋轉)就重新計算。
+    private var returnsContainerHeight: Double?
 
     /// 內容重建後這段時間內，停在內容之外就切回跟隨並捲到底(LazyVStack 重新估算高度要幾個畫面才定下來)。
     public static let rebuildSettleTime: TimeInterval = 1
@@ -34,6 +38,7 @@ public struct ConversationScroll: Equatable, Sendable {
         self.distanceFromBottom = distanceFromBottom
         rebuiltAt = nil
         refills = 0
+        returns = 0
         following = distanceFromBottom <= Self.threshold
     }
 
@@ -74,13 +79,15 @@ extension ConversationScroll {
     /// 列表內容改變時呼叫(不論跟隨或閱讀中):記下重建的時間。
     public mutating func contentChanged(from old: [String], to new: [String], at now: Date) {
         if Self.isRebuild(from: old, to: new) { rebuiltAt = now }
+        if old != new { returns = 0 }
     }
 
     /// 可見範圍停在內容之外時要不要切回跟隨並捲到底。跟隨尾端時一律要(開啟時 LazyVStack 的估算高度收斂，
     /// 可見範圍會落在內容之外);閱讀中只在內容剛被重建後(`rebuildSettleTime` 內、使用者之後沒有自己捲過),
     /// 一般排版變化(估算高度變小、reflow、鍵盤)不介入，閱讀中的讀者不被拉走。
     public func returnsToContent(_ metrics: ConversationScrollMetrics, at now: Date) -> Bool {
-        guard metrics.isBeyondContent, metrics.containerHeight >= Self.minimumRowHeight, metrics.layout != returnedAtLayout else {
+        guard metrics.isBeyondContent, metrics.containerHeight >= Self.minimumRowHeight, metrics.layout != returnedAtLayout,
+              canReturnAgain(metrics) else {
             return false
         }
         if following { return true }
@@ -91,7 +98,7 @@ extension ConversationScroll {
     /// 跟隨中，可見範圍至少一列高卻一列都沒顯示時要不要再捲到底(#191)。
     /// 同一個排版只捲一次，次數也有上限，不與系統來回搶(#185)。
     public func refillsVisibleRange(_ metrics: ConversationScrollMetrics, visibleRows: Int) -> Bool {
-        following && visibleRows == 0 && refills < Self.maximumRefills
+        following && visibleRows == 0 && refills < Self.maximumRefills && canReturnAgain(metrics)
             && metrics.containerHeight >= Self.minimumRowHeight && metrics.contentHeight > metrics.containerHeight
             && metrics.layout != returnedAtLayout
     }
@@ -101,6 +108,14 @@ extension ConversationScroll {
 
     /// 再捲一次的次數上限(有列顯示過、使用者自己捲過就重新計算)。
     public static let maximumRefills = 3
+
+    /// 沒有新內容、使用者也沒捲、可見範圍高度也沒變時，連續捲回內容的次數上限(#251):LazyVStack 的估算高度
+    /// 在兩個值之間來回跳、列長出來又消失時，只記上一次的排版擋不住，主執行緒會一直捲。
+    public static let maximumReturns = 3
+
+    private func canReturnAgain(_ metrics: ConversationScrollMetrics) -> Bool {
+        returns < Self.maximumReturns || metrics.containerHeight != returnsContainerHeight
+    }
 
     /// 畫面上看得到的列數改變時呼叫。
     public mutating func visibleRowsChanged(count: Int) {
@@ -112,6 +127,11 @@ extension ConversationScroll {
         jumpToLatest()
         returnedAtLayout = metrics.layout
         refills += 1
+        if metrics.containerHeight != returnsContainerHeight {
+            returns = 0
+            returnsContainerHeight = metrics.containerHeight
+        }
+        returns += 1
     }
 
     /// 重建：原有的列(不算回音)沒有原封不動、連續地留在新的列裡(後面接上、前面加上舊頁都不是)。
