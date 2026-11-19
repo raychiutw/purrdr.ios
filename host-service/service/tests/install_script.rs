@@ -16,7 +16,10 @@ const FAILURE_VARIABLE: &str = "PURRDR_FAKE_HOST_SERVICE_FAILURE";
 const FAILURE_REASON: &str = "tailscale serve already uses HTTPS 443 for another service:\n  / -> http://127.0.0.1:8765\nNext: install on HTTPS 8443 instead";
 
 fn scripts_directory() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../install")
+    // 交叉編譯到別台執行時以 `PURRDR_HOST_SERVICE_PACKAGE_DIR` 指定 `host-service/service`。
+    std::env::var_os("PURRDR_HOST_SERVICE_PACKAGE_DIR")
+        .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), PathBuf::from)
+        .join("../install")
 }
 
 /// 這台機器該下載的 Release 檔名(獨立於腳本的對照：作業系統與架構 → Rust target)。
@@ -230,6 +233,21 @@ fn install_command_for_rerun_is_passed_to_the_host_service() {
     assert!(record.lines().any(|line| line == expected), "{record}");
 }
 
+fn pinned_version_is_shown_quoted_in_the_rerun_command() {
+    let release = Release::new();
+    let version = "0.4.0'; echo pwned #";
+
+    let run = run_script_with(&release, &["--yes"], &[("PURRDR_HOST_SERVICE_VERSION", version)]);
+
+    let record = run.record().expect("沒有執行壓縮檔裡的主機服務");
+    let expected = if cfg!(windows) {
+        "rerun: $env:PURRDR_HOST_SERVICE_VERSION = '0.4.0''; echo pwned #'; & ([scriptblock]::Create((irm https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.ps1)))"
+    } else {
+        r"rerun: curl -fsSL https://github.com/raychiutw/purrdr.ios/releases/latest/download/install.sh | PURRDR_HOST_SERVICE_VERSION='0.4.0'\''; echo pwned #' sh -s --"
+    };
+    assert!(record.lines().any(|line| line == expected), "{record}");
+}
+
 fn failed_install_keeps_the_host_service_reason_and_points_to_it() {
     let release = Release::new();
 
@@ -292,6 +310,10 @@ fn main() -> std::process::ExitCode {
         (
             "install_command_for_rerun_is_passed_to_the_host_service",
             install_command_for_rerun_is_passed_to_the_host_service,
+        ),
+        (
+            "pinned_version_is_shown_quoted_in_the_rerun_command",
+            pinned_version_is_shown_quoted_in_the_rerun_command,
         ),
         (
             "failed_install_keeps_the_host_service_reason_and_points_to_it",

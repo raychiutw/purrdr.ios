@@ -24,7 +24,8 @@
     # 重跑這個安裝的指令(主機服務的錯誤訊息用它組出「下一步」)。
     $rerun = "& ([scriptblock]::Create((irm $repository/releases/latest/download/install.ps1)))"
     if ($env:PURRDR_HOST_SERVICE_VERSION) {
-        $rerun = "`$env:PURRDR_HOST_SERVICE_VERSION = '$($env:PURRDR_HOST_SERVICE_VERSION)'; $rerun"
+        # 單引號字串裡的 ' 寫成 ''。
+        $rerun = "`$env:PURRDR_HOST_SERVICE_VERSION = '$($env:PURRDR_HOST_SERVICE_VERSION.Replace("'", "''"))'; $rerun"
     }
     function Stop-Install([string] $what, [string] $next) {
         throw "purrdr-host-service install: $what`nNext: $next"

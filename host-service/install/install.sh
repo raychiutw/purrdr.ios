@@ -19,7 +19,9 @@ repository="https://github.com/raychiutw/purrdr.ios"
 # 重跑這個安裝的指令(主機服務的錯誤訊息用它組出「下一步」)。
 rerun="curl -fsSL $repository/releases/latest/download/install.sh | sh -s --"
 if [ -n "${PURRDR_HOST_SERVICE_VERSION:-}" ]; then
-    rerun="curl -fsSL $repository/releases/latest/download/install.sh | PURRDR_HOST_SERVICE_VERSION=$PURRDR_HOST_SERVICE_VERSION sh -s --"
+    # 值加單引號顯示(內含的 ' 寫成 '\''),複製貼上也不會被 shell 解讀。
+    quoted_version="'$(printf '%s' "$PURRDR_HOST_SERVICE_VERSION" | sed "s/'/'\\\\''/g")'"
+    rerun="curl -fsSL $repository/releases/latest/download/install.sh | PURRDR_HOST_SERVICE_VERSION=$quoted_version sh -s --"
 fi
 
 # fail <發生什麼> <下一步>

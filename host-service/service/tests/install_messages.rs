@@ -88,17 +88,59 @@ fn taken_https_port_with_no_free_candidate_asks_for_a_port_of_your_choice() {
 }
 
 #[test]
-fn rerun_command_repeats_the_given_options_but_not_the_https_port() {
+fn rerun_command_repeats_every_given_option_including_the_https_port() {
     let command = InstallCommand::Install {
         port: 47_999,
         herdr_session: Some("work".into()),
-        https_port: Some(443),
+        https_port: Some(8443),
         assume_yes: true,
     };
 
-    let rerun = rerun_install_command("curl -fsSL https://example.test/install.sh | sh -s --", &command);
+    let rerun = rerun_install_command("curl -fsSL https://example.test/install.sh | sh -s --", &command, InstallPlatform::Linux);
 
-    assert_eq!(rerun, "curl -fsSL https://example.test/install.sh | sh -s -- --port 47999 --session work --yes");
+    assert_eq!(
+        rerun,
+        "curl -fsSL https://example.test/install.sh | sh -s -- --port 47999 --session work --yes --https-port 8443"
+    );
+}
+
+#[test]
+fn rerun_command_quotes_a_session_name_for_the_shell_that_runs_it() {
+    let command = |session: &str| InstallCommand::Install {
+        port: purrdr_host_service::DEFAULT_PORT,
+        herdr_session: Some(session.into()),
+        https_port: None,
+        assume_yes: false,
+    };
+
+    let posix = rerun_install_command("sh -s --", &command("my work; rm -rf ~"), InstallPlatform::MacOs);
+    let posix_quote = rerun_install_command("sh -s --", &command("it's"), InstallPlatform::Linux);
+    let windows = rerun_install_command("& $install", &command("it's $(boom)"), InstallPlatform::Windows);
+
+    assert_eq!(posix, "sh -s -- --session 'my work; rm -rf ~'");
+    assert_eq!(posix_quote, r"sh -s -- --session 'it'\''s'");
+    assert_eq!(windows, "& $install --session 'it''s $(boom)'");
+}
+
+#[test]
+fn taken_https_port_suggests_the_other_port_without_repeating_the_taken_one() {
+    let command = InstallCommand::Install {
+        port: purrdr_host_service::DEFAULT_PORT,
+        herdr_session: None,
+        https_port: Some(8443),
+        assume_yes: true,
+    };
+    let rerun = rerun_install_command("sh -s --", &command, InstallPlatform::Linux);
+    let error = InstallError::ServePortTaken {
+        https_port: 8443,
+        handlers: "/ -> http://127.0.0.1:3000".into(),
+        available: Some(8444),
+    };
+
+    let message = error.explain(&rerun);
+
+    assert_contains_all(&message, &["sh -s -- --yes --https-port 8444", "and run:\n  sh -s -- --yes --https-port 8443"]);
+    assert!(!message.contains("--https-port 8443 --https-port"), "{message}");
 }
 
 #[test]

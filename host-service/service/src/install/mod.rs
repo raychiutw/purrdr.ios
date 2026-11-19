@@ -255,13 +255,14 @@ impl std::fmt::Display for Installed {
     }
 }
 
-/// 重跑安裝的指令：`prefix` 加上這次的選項(不含 `--https-port`,由錯誤訊息補上)。
-pub fn rerun_install_command(prefix: &str, command: &InstallCommand) -> String {
+/// 重跑安裝的指令：`prefix` 加上這次的選項;`--https-port` 放最後(換埠的建議以它替換)。
+/// session 名稱依執行的 shell 加引號(Windows 是 PowerShell,其他是 sh)。
+pub fn rerun_install_command(prefix: &str, command: &InstallCommand, platform: InstallPlatform) -> String {
     let InstallCommand::Install {
         port,
         herdr_session,
+        https_port,
         assume_yes,
-        ..
     } = command
     else {
         return prefix.to_owned();
@@ -271,12 +272,26 @@ pub fn rerun_install_command(prefix: &str, command: &InstallCommand) -> String {
         parts.push(format!("--port {port}"));
     }
     if let Some(session) = herdr_session {
-        parts.push(format!("--session {session}"));
+        parts.push(format!("--session {}", shell_argument(session, platform)));
     }
     if *assume_yes {
         parts.push("--yes".to_owned());
     }
+    if let Some(https_port) = https_port {
+        parts.push(format!("{HTTPS_PORT_OPTION} {https_port}"));
+    }
     parts.join(" ")
+}
+
+const HTTPS_PORT_OPTION: &str = "--https-port";
+
+/// 只有英數與 `._-` 時原樣，否則加單引號(sh 的 `'` 寫成 `'\''`,PowerShell 寫成 `''`)。
+fn shell_argument(value: &str, platform: InstallPlatform) -> String {
+    if !value.is_empty() && value.chars().all(|character| character.is_ascii_alphanumeric() || "._-".contains(character)) {
+        return value.to_owned();
+    }
+    let escaped_quote = if platform == InstallPlatform::Windows { "''" } else { r"'\''" };
+    format!("'{}'", value.replace('\'', escaped_quote))
 }
 
 /// 解除安裝完成。
@@ -356,9 +371,13 @@ impl InstallError {
                 handlers,
                 available,
             } => {
+                // 重跑指令若已指定這個(被占用的)埠，換埠時以新埠取代。
+                let without_taken_port = rerun.strip_suffix(&format!(" {HTTPS_PORT_OPTION} {https_port}")).unwrap_or(rerun);
                 let next = match available {
-                    Some(available) => format!("Next: install on HTTPS {available} instead:\n  {rerun} --https-port {available}"),
-                    None => format!("Next: pick a free HTTPS port (`tailscale serve status` lists the ones in use) and run:\n  {rerun} --https-port <port>"),
+                    Some(available) => format!("Next: install on HTTPS {available} instead:\n  {without_taken_port} {HTTPS_PORT_OPTION} {available}"),
+                    None => format!(
+                        "Next: pick a free HTTPS port (`tailscale serve status` lists the ones in use) and run:\n  {without_taken_port} {HTTPS_PORT_OPTION} <port>"
+                    ),
                 };
                 format!(
                     "tailscale serve already uses HTTPS {https_port} for another service:\n  {handlers}\n\

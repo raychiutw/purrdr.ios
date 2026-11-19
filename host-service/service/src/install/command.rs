@@ -22,7 +22,7 @@ pub async fn run_command(command: InstallCommand) -> ExitCode {
         .ok()
         .filter(|prefix| !prefix.trim().is_empty())
         .unwrap_or_else(|| format!("{} install", shell_quoted(&environment.current_executable, environment.platform)));
-    let rerun = rerun_install_command(&rerun_prefix, &command);
+    let rerun = rerun_install_command(&rerun_prefix, &command, environment.platform);
     let mut installer = Installer::new(environment, ProcessHostSystem);
     match command {
         InstallCommand::Install {
