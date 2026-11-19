@@ -176,8 +176,9 @@ struct ConversationHeaderTests {
 
     // MARK: - 重新載入與停止
 
-    @Test("不在工作中(含需要你)標題列是「重新載入」;工作中換成「停止」")
-    func reloadOrStop() async throws {
+    /// #220:停止在輸入卡片的停止列，標題列一律是重新載入。
+    @Test("標題列一律是「重新載入」(工作中、需要你也是)")
+    func headerAlwaysReloads() async throws {
         let setup = try Self.setup()
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
         await setup.model.poll()
@@ -185,7 +186,8 @@ struct ConversationHeaderTests {
 
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
-        #expect(setup.model.headerAction == .stop)
+        #expect(setup.model.headerAction == .reload)
+        #expect(setup.model.agentName == "Claude Code")
 
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-bash"))

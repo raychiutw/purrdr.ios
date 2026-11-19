@@ -822,6 +822,9 @@ public final class ConversationModel {
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
 
+    /// 停止列與強制結束確認裡的 agent 名稱(#220)。
+    public var agentName: String { "" }
+
     /// 輸入卡片最上面的停止列(#220):工作中或有停止進度、結果時;唯讀、離線時沒有。
     public var showsStopBar: Bool {
         !isReadOnly && !isOffline && (agentStatus == .working || stopPhase != nil)
