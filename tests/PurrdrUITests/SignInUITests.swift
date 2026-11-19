@@ -54,11 +54,6 @@ final class SignInUITests: XCTestCase {
 
     @MainActor
     private func openSignIn(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        let member = app.buttons["menu.member"]
-        XCTAssertTrue(member.waitForExistence(timeout: 5))
-        member.tap()
+        app.openMemberFromSettings()
     }
 }

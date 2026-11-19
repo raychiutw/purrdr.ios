@@ -32,12 +32,10 @@ final class TopNavigationUITests: XCTestCase {
     }
 
     @MainActor
-    func testPlusOpensNewChat() {
+    func testMoreMenuNewChatOpensNewChat() {
         let app = XCUIApplication.launchUITesting()
 
-        let plus = app.buttons["toolbar.newChat"]
-        XCTAssertTrue(plus.waitForExistence(timeout: 10), "列表工具列沒有「+」")
-        plus.tap()
+        openMoreMenuItem("menu.newChat", in: app)
         // 新增對話是表單：左上「Cancel」,不是「完成」(HIG 檢核清單 20.3)。
         XCTAssertTrue(app.descendants(matching: .any)["sheet.newChat"].firstMatch.waitForExistence(timeout: 10), "沒有開出新增對話")
         let cancel = app.buttons["newChat.cancel"]
@@ -57,7 +55,27 @@ final class TopNavigationUITests: XCTestCase {
         let more = app.buttons["toolbar.more"]
         XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」")
         XCTAssertEqual(more.label, "More")
-        XCTAssertEqual(app.buttons["toolbar.newChat"].label, "New Chat")
+    }
+
+    /// 「⋯」選單：新增聊天第一、主機工具在中間、設定最後;會員與 Purrdr Plus 不在選單(#241)。
+    @MainActor
+    func testMoreMenuListsNewChatFirstAndSettingsLast() {
+        let app = XCUIApplication.launchUITesting()
+
+        let more = app.buttons["toolbar.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」")
+        XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "工具列不該再有獨立的「+」")
+        more.tap()
+
+        let newChat = app.buttons["menu.newChat"]
+        XCTAssertTrue(newChat.waitForExistence(timeout: 5), "選單沒有新增聊天")
+        let hosts = app.buttons["menu.hosts"]
+        let settings = app.buttons["menu.settings"]
+        XCTAssertTrue(hosts.exists && settings.exists)
+        XCTAssertLessThan(newChat.frame.minY, hosts.frame.minY, "新增聊天不在主機之前")
+        XCTAssertLessThan(hosts.frame.minY, settings.frame.minY, "設定不在最後")
+        XCTAssertFalse(app.buttons["menu.member"].exists, "選單不該有會員")
+        XCTAssertFalse(app.buttons["menu.plus"].exists, "選單不該有 Purrdr Plus")
     }
 
     @MainActor
