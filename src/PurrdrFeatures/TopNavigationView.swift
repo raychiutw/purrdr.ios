@@ -220,13 +220,6 @@ public struct TopNavigationView: View {
         ToolbarItem(placement: Self.hostPlacement) {
             SelectedHostMenu(hosts: hosts)
         }
-        // 帳號鈕(#246):在「⋯」旁，開帳號頁。
-        ToolbarItem(placement: .primaryAction) {
-            AccountButton(member: member) { navigation.sheet = .member }
-        }
-        // 頭像本身就是圓形，不再包一層玻璃。
-        .sharedBackgroundVisibility(.hidden)
-        ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             // 以 Divider 分組;不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
             Menu {
@@ -243,6 +236,13 @@ public struct TopNavigationView: View {
             }
             .accessibilityIdentifier("toolbar.more")
         }
+        // 帳號鈕(#246):最右上角(HIG),「⋯」在它左邊;開帳號頁。
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
+            AccountButton(member: member) { navigation.sheet = .member }
+        }
+        // 頭像本身就是圓形，不再包一層玻璃。
+        .sharedBackgroundVisibility(.hidden)
     }
 
     /// 「⋯」選單的一項。登入 Shell 與檔案開選取中主機的(行為規格 F13;iPad 上也是推疊)。

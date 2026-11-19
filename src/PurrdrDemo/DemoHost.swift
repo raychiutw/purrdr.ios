@@ -73,6 +73,9 @@ public actor DemoHost: HostChannel {
 
     private let tailscaleCheck: TailscaleCheckObserver?
 
+    /// 推播外掛是否已安裝(只在記憶體;帳號頁開通知的 UI 測試,#246)。
+    private var pushPluginInstalled = false
+
     /// Demo 家目錄的上傳資料夾。
     static let uploadFolder = "/Users/demo/" + UploadedImages.folder
 
@@ -130,11 +133,30 @@ public actor DemoHost: HostChannel {
             let result = files.handle(request, now: Date())
             return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
+        if let stdout = herdrPluginResponse(to: command) {
+            return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
             .stderr(Data("sh: \(program): command not found\n".utf8)),
             .exit(code: 127),
         ])
+    }
+
+    /// `herdr plugin list／install／uninstall`:Demo 只認推播外掛。
+    private func herdrPluginResponse(to command: String) -> Data? {
+        if command.contains(" plugin list --plugin ") {
+            return Data((pushPluginInstalled ? #"[{"plugin_id":"\#(PushHost.pluginID)"}]"# : "[]").utf8)
+        }
+        if command.contains(" plugin install ") {
+            pushPluginInstalled = true
+            return Data()
+        }
+        if command.contains(" plugin uninstall ") {
+            pushPluginInstalled = false
+            return Data()
+        }
+        return nil
     }
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {

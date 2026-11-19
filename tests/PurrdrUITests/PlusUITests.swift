@@ -92,8 +92,8 @@ final class PlusUITests: XCTestCase {
         XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
         app.buttons["member.signIn.cancel"].tap()
 
-        // 付費牆推入在設定 sheet 裡(#241),關掉設定就回到列表。
-        let done = app.buttons["sheet.done"]
+        // 深層連結開的是付費牆 sheet(#246),「完成」關掉就回到列表。
+        let done = app.buttons["plus.done"]
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         done.tap()
         XCTAssertTrue(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch.waitForExistence(timeout: 5))

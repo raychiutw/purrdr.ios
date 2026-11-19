@@ -290,7 +290,8 @@ struct AccountView: View {
             if id != nil { signingIn = false }
         }
         .onChange(of: progress) { previous, current in
-            guard let previous, let current, current.offersFeatureSetup(after: previous) else { return }
+            // 只有從這裡進付費牆開通才問;開帳號頁時讀回訂閱不算剛開通。
+            guard showingPlus, let previous, let current, current.offersFeatureSetup(after: previous) else { return }
             showingPlus = false
             offeringFeatureSetup = true
         }
