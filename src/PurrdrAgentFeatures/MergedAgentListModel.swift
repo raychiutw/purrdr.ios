@@ -18,6 +18,18 @@ public struct HostFailure: Equatable, Sendable {
     public var text: String { String(localized: "\(name): \(message)") }
 }
 
+/// 主機篩選選單的一項：主機身分與它的名稱、圖示。
+public struct HostLabelOption: Equatable, Sendable, Identifiable {
+    public var host: HostSelection
+    public var label: HostLabel
+    public var id: HostSelection { host }
+
+    public init(host: HostSelection, label: HostLabel) {
+        self.host = host
+        self.label = label
+    }
+}
+
 /// 所有主機合併成的 Agent 列表(#39;取代 #10「切換目前主機」只看一台)。
 ///
 /// - 每台主機各自一個 `AgentListModel`:各自連線、各自事件訂閱、各自錯誤與退避;一台連不上不影響其他台。
@@ -96,6 +108,22 @@ public final class MergedAgentListModel {
         }
     }
 
+    /// 主機篩選(#244);`nil` 是所有主機。
+    public var hostFilter: HostSelection?
+
+    /// 篩選選單的主機項目(依列表的主機順序)。
+    public var hostFilterOptions: [HostLabelOption] {
+        sources.map { HostLabelOption(host: $0.host, label: HostLabel(name: $0.name, icon: $0.icon)) }
+    }
+
+    /// Agents 檢視的單一清單：依分組順序(已釘選、需要你、工作中、閒置)接成一份。
+    public var agentRows: [AgentRow] { sections.flatMap(\.rows) }
+
+    /// 某台主機的名稱與圖示(列首的主機圖示、預覽前的主機名;選取中主機也有)。
+    public func hostLabel(of host: HostSelection) -> HostLabel? {
+        sources.first { $0.host == host }.map { HostLabel(name: $0.name, icon: $0.icon) }
+    }
+
     private let modeStore: any AgentListModeStore
     /// Spaces 群組的手動展開狀態(以群組 id):只在記憶體，App 結束就忘記(#103)。
     private var expansion: [String: Bool] = [:]
@@ -143,6 +171,7 @@ public final class MergedAgentListModel {
     package func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
         self.sources = sources.filter { $0.host == selected } + sources.filter { $0.host != selected }
+        if let hostFilter, !sources.contains(where: { $0.host == hostFilter }) { self.hostFilter = nil }
         applyLayoutSubscription()
     }
 
@@ -152,7 +181,13 @@ public final class MergedAgentListModel {
 
     /// 合併後依「需要你／工作中／閒置」分組、套用搜尋的列表。
     public var sections: [AgentSection] {
-        AgentListProjection.sections(sources: projectionSources, query: query, visible: visibleChats)
+        AgentListProjection.sections(sources: filteredProjectionSources, query: query, visible: visibleChats)
+    }
+
+    /// 套用主機篩選後的來源。
+    private var filteredProjectionSources: [AgentListProjection.Source] {
+        guard let hostFilter else { return projectionSources }
+        return projectionSources.filter { $0.host == hostFilter }
     }
 
     private var projectionSources: [AgentListProjection.Source] {
@@ -166,7 +201,7 @@ public final class MergedAgentListModel {
     /// Spaces 檢視：每個 workspace 一項，依同樣的分組與搜尋。
     public var spacesSections: [SpacesSection] {
         AgentListProjection.spacesSections(
-            sources: projectionSources, query: query, visible: visibleChats, expansion: isSearching ? searchExpansion : expansion)
+            sources: filteredProjectionSources, query: query, visible: visibleChats, expansion: isSearching ? searchExpansion : expansion)
     }
 
     /// 點群組標頭：展開或收合。搜尋時只記在這次搜尋，不改手動狀態。
@@ -184,7 +219,7 @@ public final class MergedAgentListModel {
     /// 讀不到的主機(保留它最後的列)。
     public var failures: [HostFailure] {
         sources.compactMap { source in
-            guard case .failed(let message) = source.list.phase else { return nil }
+            guard hostFilter == nil || source.host == hostFilter, case .failed(let message) = source.list.phase else { return nil }
             return HostFailure(host: source.host, name: source.name, message: message)
         }
     }
@@ -205,7 +240,8 @@ public final class MergedAgentListModel {
     /// 所有主機的「You should know」註記(#23):只算列表裡有的 Claude 聊天(以完整 session id 配對)。
     /// 依主機順序(選取中主機在前)、每台主機內新→舊。
     public var notes: [NoteEntry] {
-        let titles = Dictionary(sections.flatMap(\.rows).map { ($0.route, $0.title) }) { first, _ in first }
+        let allRows = AgentListProjection.sections(sources: projectionSources, query: query, visible: visibleChats).flatMap(\.rows)
+        let titles = Dictionary(allRows.map { ($0.route, $0.title) }) { first, _ in first }
         return sources.flatMap { source -> [NoteEntry] in
             guard let model = source.notes else { return [] }
             let panes = source.list.claudeSessionPanes
