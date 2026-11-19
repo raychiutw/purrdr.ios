@@ -556,22 +556,49 @@ final class ConversationUITests: XCTestCase {
         XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 
-    /// #219:聊天時斷網(開啟 3 秒後所有主機指令立刻失敗)。頂端顯示連線中斷，畫面仍可操作：能捲動、能返回列表。
+    /// #219:聊天時斷網(開啟 8 秒後所有主機指令立刻失敗)。頂端顯示連線中斷，畫面仍可操作：能捲動、能返回列表。
     @MainActor
-    func testGoingOfflineWhileChattingKeepsAppResponsive() {
-        assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline")
+    func testGoingOfflineWhileChattingKeepsAppResponsive() throws {
+        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline")
     }
 
     /// #219:斷網時每個主機指令都卡到連線期限才失敗(像 Tailscale 不通)。畫面仍可操作。
     @MainActor
-    func testGoingOfflineWithHangingConnectionsKeepsAppResponsive() {
-        assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOfflineHanging")
+    func testGoingOfflineWithHangingConnectionsKeepsAppResponsive() throws {
+        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOfflineHanging")
+    }
+
+    /// #219:正在打字(軟體鍵盤開著、對話可見範圍很小)時斷網，橫幅插入後畫面仍可操作。
+    @MainActor
+    func testGoingOfflineWhileTypingKeepsAppResponsive() throws {
+        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", typing: true)
+    }
+
+    /// #219:工作中的 agent(每 2 秒輪詢、讀畫面)斷網，畫面仍可操作。
+    @MainActor
+    func testGoingOfflineWhileAgentWorksKeepsAppResponsive() throws {
+        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", paneID: "w3:p1")
+    }
+
+    /// #219:「需要你」的 agent(提示卡占去大半畫面)斷網，畫面仍可操作。
+    @MainActor
+    func testGoingOfflineWhileAgentIsBlockedKeepsAppResponsive() throws {
+        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", paneID: "w2:p1")
     }
 
     @MainActor
-    private func assertStaysResponsiveWhenGoingOffline(flag: String) {
-        let app = open(paneID: "w1:p1", flags: [flag])
+    private func assertStaysResponsiveWhenGoingOffline(flag: String, paneID: String = "w1:p1", typing: Bool = false) throws {
+        let app = open(paneID: paneID, flags: [flag])
+        XCTAssertTrue(element("composer.text", in: app).waitForExistence(timeout: 10), "聊天畫面沒有開啟")
         XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+        if typing {
+            let text = element("composer.text", in: app)
+            text.tap()
+            let keyboard = app.keyboards.firstMatch
+            XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+            guard keyboard.frame.height > 150 else { throw XCTSkip("模擬器接著硬體鍵盤，沒有軟體鍵盤") }
+            text.typeText("Typing while the network drops")
+        }
         let offline = app.staticTexts["Offline — showing the last loaded conversation."]
         XCTAssertTrue(offline.waitForExistence(timeout: 60), "斷網後沒有顯示連線中斷橫幅")
 
@@ -580,11 +607,12 @@ final class ConversationUITests: XCTestCase {
         shot.lifetime = .keepAlways
         add(shot)
 
+        if typing { hideKeyboard(in: app) }
         let list = app.scrollViews.firstMatch
         list.swipeDown()
         list.swipeUp()
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
+        let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "斷網後點返回沒有回到列表")
     }
 }
