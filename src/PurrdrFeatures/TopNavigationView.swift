@@ -296,10 +296,16 @@ struct AccountButton: View {
     @ScaledMetric(relativeTo: .body) private var size: CGFloat = 28
 
     var body: some View {
+        // 名稱放在 Label 標題與無障礙表示:AX 字級時系統把這顆收進工具列的溢出選單。
         Button(action: action) {
-            AccountAvatar(member: signedInMember)
-                .font(.subheadline)
-                .frame(width: size, height: size)
+            Label {
+                Text("Account")
+            } icon: {
+                AccountAvatar(member: signedInMember)
+                    .font(.subheadline)
+                    .frame(width: size, height: size)
+                    .accessibilityRepresentation { Text("Account") }
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Account"))
