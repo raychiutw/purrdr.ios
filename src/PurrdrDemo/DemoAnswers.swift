@@ -53,11 +53,13 @@ struct DemoAnswers {
     static let workingPanes: Set<String> = ["w3:p1"]
     /// 已經被停止的 pane(變完成)。
     private(set) var stopped: Set<String> = []
+    /// 收到 Esc／ctrl+c 後還要回報幾次 working(停止中看得到,#220)。
+    private var stoppingReads: [String: Int] = [:]
 
     /// snapshot 上要改的 Agent 狀態(沒列的照範例)。
     var statuses: [String: String] {
         var result: [String: String] = ["w2:p1": "done"]
-        for pane in stopped { result[pane] = "done" }
+        for pane in stopped { result[pane] = stoppingReads[pane, default: 0] > 0 ? "working" : "done" }
         for (pane, stage) in stages {
             result[pane] = stage == .trust ? "done" : "blocked"
         }
@@ -92,10 +94,17 @@ struct DemoAnswers {
         return false
     }
 
+    /// 讀過一次狀態：停止中的 pane 少回報一次 working。
+    mutating func didReadStatuses() {
+        for pane in stoppingReads.keys { stoppingReads[pane]? -= 1 }
+        stoppingReads = stoppingReads.filter { $0.value > 0 }
+    }
+
     /// 收到按鍵：照 Claude 的規則(只送數字;信任提示用方向鍵)推進。
     mutating func receivedKeys(_ keys: [String], paneID: String) {
         if Self.workingPanes.contains(paneID), keys == ["esc"] || keys == ["ctrl+c"] {
             stopped.insert(paneID)
+            stoppingReads[paneID] = 1
             return
         }
         switch panels[paneID] {

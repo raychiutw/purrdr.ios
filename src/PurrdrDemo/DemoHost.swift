@@ -293,6 +293,7 @@ public actor DemoHost: HostChannel {
         writeDueReplies()
         if let response = promptResponse(to: requestLine) ?? paneResponse(to: requestLine) { return response }
         state.statuses = answers.statuses
+        answers.didReadStatuses()
         for pending in pendingReplies { state.statuses[pending.paneID] = "working" }
         return DemoSnapshot.response(to: requestLine, state: &state)
     }

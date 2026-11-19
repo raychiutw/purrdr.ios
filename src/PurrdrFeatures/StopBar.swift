@@ -4,7 +4,7 @@ import SwiftUI
 
 /// 輸入卡片最上面的停止列(#220):停止鈕(長按開強制結束選單)、停止中、停止的結果。
 ///
-/// 停止鈕是中性 bordered,送出維持輸入列唯一的紅底主要動作。結果有前導符號與文字(不只靠顏色),
+/// 停止鈕是中性的淡填色鈕，送出維持輸入列唯一的紅底主要動作。結果有前導符號與文字(不只靠顏色),
 /// 出現時有觸覺回饋與 VoiceOver 公告;「已停止」由 model 2 秒後收起，其他結果留到處理或狀態改變。
 struct StopBar: View {
     let model: ConversationModel
@@ -68,8 +68,8 @@ struct StopBar: View {
         } primaryAction: {
             Task { await model.stop() }
         }
-        .buttonStyle(.bordered)
-        .tint(.primary)
+        .menuStyle(.button)
+        .buttonStyle(StopBarButtonStyle())
         .accessibilityLabel(Text("Stop \(model.agentName)"))
         .accessibilityHint(Text("Interrupts the agent’s current turn. Touch and hold for Force Quit."))
         .accessibilityIdentifier("stopBar.stop")
@@ -84,8 +84,7 @@ struct StopBar: View {
             .font(.subheadline.weight(.semibold))
             .frame(minHeight: 44)
         }
-        .buttonStyle(.bordered)
-        .tint(.primary)
+        .buttonStyle(StopBarButtonStyle())
         .disabled(true)
         .accessibilityLabel(Text("Stopping…"))
         .accessibilityIdentifier("stopBar.stopping")
@@ -142,7 +141,7 @@ struct StopBar: View {
             } label: {
                 Text("Force Quit…").frame(minHeight: 44)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(StopBarButtonStyle(foreground: .errorText))
             .disabled(!model.canForceQuit)
             .accessibilityIdentifier("stopBar.forceQuitResult")
         case .failed:
@@ -151,8 +150,7 @@ struct StopBar: View {
             } label: {
                 Text("Try Again").frame(minHeight: 44)
             }
-            .buttonStyle(.bordered)
-            .tint(.primary)
+            .buttonStyle(StopBarButtonStyle())
             .accessibilityIdentifier("stopBar.retry")
         case .unconfirmed:
             Button {
@@ -160,8 +158,7 @@ struct StopBar: View {
             } label: {
                 Text("Reload").frame(minHeight: 44)
             }
-            .buttonStyle(.bordered)
-            .tint(.primary)
+            .buttonStyle(StopBarButtonStyle())
             .accessibilityIdentifier("stopBar.reload")
         case .stopping, .stopped:
             EmptyView()
@@ -181,6 +178,20 @@ struct StopBar: View {
         .foregroundStyle(.secondaryText)
         .accessibilityLabel(Text("Close"))
         .accessibilityIdentifier("stopBar.dismiss")
+    }
+}
+
+/// 停止列的中性按鈕：淡填色底與主要文字色(玻璃上的 bordered tint 對比不足),按下變淡。
+private struct StopBarButtonStyle: ButtonStyle {
+    var foreground: Color = .primary
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .padding(.horizontal, 12)
+            .foregroundStyle(foreground)
+            .background(.fill.tertiary, in: Capsule())
+            .opacity(configuration.isPressed ? 0.6 : 1)
+            .contentShape(Capsule())
     }
 }
 
