@@ -101,14 +101,11 @@ public actor MemberSession {
         do {
             return try await sendHostSync(changes, includingIcons: !backendRejectsHostIcons)
         } catch let BackendError.backend(status, code, message)
-            where status == 400 && code == "invalid_request" && message == Self.hostIconRejection && !backendRejectsHostIcons {
+            where LegacyHostIconRejection.matches(status: status, code: code, message: message) && !backendRejectsHostIcons {
             backendRejectsHostIcons = true
             return try await sendHostSync(changes, includingIcons: false)
         }
     }
-
-    /// 還沒部署圖示欄位(#243)的後台對 `icon` 的回應(多一個欄位整個請求 400)。
-    static let hostIconRejection = "Unexpected field: icon."
     /// 後台不收主機圖示：記到這次執行結束，之後的同步直接不帶。
     private var backendRejectsHostIcons = false
 
@@ -433,5 +430,20 @@ private enum Wire {
     /// 後台的時間是 JavaScript `toISOString()`(含毫秒)。
     static func date(_ text: String) -> Date? {
         (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(text)) ?? (try? Date.ISO8601FormatStyle().parse(text))
+    }
+}
+
+/// 還沒部署圖示欄位(#243)的舊後台對 `icon` 的固定回應：多出欄位整個請求 400 `invalid_request`,
+/// 訊息「Unexpected field: <欄位>, <欄位>.」(backend/src/host-sync.ts)。以錯誤碼加欄位名判斷，不比對整句。
+enum LegacyHostIconRejection {
+    static let status = 400
+    static let code = "invalid_request"
+    static let messagePrefix = "Unexpected field: "
+    static let field = "icon"
+
+    static func matches(status: Int, code: String, message: String) -> Bool {
+        guard status == Self.status, code == Self.code, message.hasPrefix(messagePrefix) else { return false }
+        let fields = message.dropFirst(messagePrefix.count).trimmingCharacters(in: CharacterSet(charactersIn: ". "))
+        return fields.components(separatedBy: ", ").contains(field)
     }
 }
