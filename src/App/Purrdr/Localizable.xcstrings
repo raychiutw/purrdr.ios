@@ -2242,6 +2242,17 @@
         }
       }
     },
+    "Couldn’t send Force Quit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法送出強制結束"
+          }
+        }
+      }
+    },
     "Couldn’t send Stop" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2260,17 +2271,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法把回答送到主機。"
-          }
-        }
-      }
-    },
-    "Couldn’t send the interrupt to the host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法把中斷送到主機。"
           }
         }
       }
@@ -4130,6 +4130,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有可恢復的購買項目"
+          }
+        }
+      }
+    },
+    "Nothing was interrupted. Answer its question instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有中斷任何東西。請直接回答它的問題。"
           }
         }
       }
@@ -6495,17 +6506,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 還沒有回報它所在的 session。回報後訊息就會顯示在這裡。"
-          }
-        }
-      }
-    },
-    "The agent is waiting for an answer, so nothing was interrupted. Answer it instead." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 正在等你回答，所以沒有中斷任何東西。請直接回答它。"
           }
         }
       }
