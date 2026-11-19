@@ -188,6 +188,7 @@ public final class HostsModel {
         self.diagnostics = diagnostics
         codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         rebuildMembers()
+        agentList.selectHost = { [weak self] host in self?.select(host) }
     }
 
     /// Demo 主機在同意紀錄裡的主機 id。
@@ -250,14 +251,9 @@ public final class HostsModel {
         return .remembering(scope, options: options, fallback: selection, store: hostPickerStore)
     }
 
-    /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表篩選的主機(`nil` 是所有主機，用選取中主機)。
-    public func newChatHostPicker(listFilter: HostSelection?) -> HostPickerModel {
-        .newChat(options: hostPickerOptions { _ in true }, listFilter: listFilter, selection: selection)
-    }
-
-    /// 新增聊天的主機挑選鈕，預設聊天列表目前篩選的主機(#244)。
+    /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表目前篩選的主機(#244),所有主機時用選取中主機。
     public func newChatHostPicker() -> HostPickerModel {
-        newChatHostPicker(listFilter: agentList.hostFilter)
+        .newChat(options: hostPickerOptions { _ in true }, listFilter: agentList.hostFilter, selection: selection)
     }
 
     /// Demo 主機加上符合條件的已存主機(同方案用量的主機選單)。

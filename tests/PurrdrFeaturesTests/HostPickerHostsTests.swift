@@ -37,7 +37,7 @@ struct HostPickerHostsTests {
     func newChatListsEveryHost() {
         let model = Self.model()
 
-        #expect(model.newChatHostPicker(listFilter: nil).options.map(\.name) == ["Demo", "Studio", "Box"])
+        #expect(model.newChatHostPicker().options.map(\.name) == ["Demo", "Studio", "Box"])
     }
 
     @Test("登入 Shell 換電腦不改選取中主機，下次打開選回同一台")
@@ -61,24 +61,28 @@ struct HostPickerHostsTests {
         #expect(model.folderBrowser(on: .demo).hostName == "Demo")
     }
 
-    @Test("新增聊天預設聊天列表篩選的主機;所有主機時用選取中主機")
-    func newChatDefaultsToFilter() {
-        let model = Self.model()
-        model.select(.host(Self.ssh.id))
-
-        #expect(model.newChatHostPicker(listFilter: .host(Self.https.id)).selection == .host(Self.https.id))
-        #expect(model.newChatHostPicker(listFilter: nil).selection == .host(Self.ssh.id))
-    }
-
     @Test("「⋯」的新增聊天預設聊天列表目前篩選的主機(#244);篩選所有主機時用選取中主機")
     func newChatFollowsListHostFilter() {
         let model = Self.model()
         model.select(.host(Self.ssh.id))
+        #expect(model.newChatHostPicker().selection == .host(Self.ssh.id))
 
         model.agentList.hostFilter = .host(Self.https.id)
         #expect(model.newChatHostPicker().selection == .host(Self.https.id))
 
         model.agentList.hostFilter = nil
-        #expect(model.newChatHostPicker().selection == .host(Self.ssh.id))
+        #expect(model.newChatHostPicker().selection == .host(Self.https.id))
+    }
+
+    @Test("聊天列表篩選選某台主機時設成選取中主機;選回所有主機時選取中主機不變")
+    func listHostFilterSelectsHost() {
+        let model = Self.model()
+        model.select(.host(Self.ssh.id))
+
+        model.agentList.hostFilter = .host(Self.https.id)
+        #expect(model.selection == .host(Self.https.id))
+
+        model.agentList.hostFilter = nil
+        #expect(model.selection == .host(Self.https.id))
     }
 }
