@@ -17,7 +17,7 @@
 | 1.6 | 建立訂閱群組「Purrdr Plus」與兩個商品(參考名稱「Purrdr Plus 月繳」「Purrdr Plus 年繳」,同為等級 1)、2 週試用、在地化(`subscriptions.md`) | 主 session | ✅(審查截圖隨送審附上) |
 | 1.7 | 建立 Offer Code「早期測試 1 個月免費」:月繳、限新訂閱者、不與 2 週試用疊加(`subscriptions.md`) | 主 session | ✅ |
 | 1.7a | 產生一次性代碼 100 組(**訂閱商品審查通過後**才能產生);到期日 | 主 session | ⬜ ⚠️ 到期日待定 |
-| 1.8 | App Store Server Notifications:Production 與 Sandbox 都填 `https://<後台網址>/v1/app-store/notifications`,Version 2 | 主 session | ⬜(等 3.1 部署) |
+| 1.8 | App Store Server Notifications:Production 與 Sandbox 都填 `https://purrdr-backend.lean-lean.workers.dev/v1/app-store/notifications`,Version 2 | 使用者 | ✅ 2026-11-19 |
 | 1.9 | App 資訊：類別(開發者工具／生產力工具)、隱私權政策網址、授權合約用 Apple 標準 EULA | 主 session | ⬜ |
 | 1.10 | 年齡分級問卷 | 主 session | ⬜ ⚠️ Agent 與終端機會顯示主機上任意文字，依問卷如實回答 |
 | 1.11 | App 隱私：照 `privacy-labels.md` 逐題填 | 主 session | ⬜ |
