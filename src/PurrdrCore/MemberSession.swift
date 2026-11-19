@@ -98,7 +98,27 @@ public actor MemberSession {
     /// 主機同步(要有效的 Purrdr Plus):送出這支裝置的變更，回傳後台套用後的整份清單與刪除紀錄。
     /// 只送 `SyncedHost` 的欄位(白名單);沒有訂閱時後台回 403 `subscription_required`。
     public func syncHosts(_ changes: [HostSyncChange]) async throws -> HostSyncSnapshot {
-        let body = try JSONEncoder().encode(Wire.HostSyncRequest(changes: changes.map(Wire.HostChange.init)))
+        do {
+            return try await sendHostSync(changes, includingIcons: !backendRejectsHostIcons)
+        } catch let BackendError.backend(status, code, message)
+            where status == 400 && code == "invalid_request" && message == Self.hostIconRejection && !backendRejectsHostIcons {
+            backendRejectsHostIcons = true
+            return try await sendHostSync(changes, includingIcons: false)
+        }
+    }
+
+    /// 還沒部署圖示欄位(#243)的後台對 `icon` 的回應(多一個欄位整個請求 400)。
+    static let hostIconRejection = "Unexpected field: icon."
+    /// 後台不收主機圖示：記到這次執行結束，之後的同步直接不帶。
+    private var backendRejectsHostIcons = false
+
+    private func sendHostSync(_ changes: [HostSyncChange], includingIcons: Bool) async throws -> HostSyncSnapshot {
+        let sending = includingIcons ? changes : changes.map { change in
+            guard case .upsert(var host) = change else { return change }
+            host.icon = nil
+            return .upsert(host)
+        }
+        let body = try JSONEncoder().encode(Wire.HostSyncRequest(changes: sending.map(Wire.HostChange.init)))
         let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/hosts/sync", body: body))
         return try Wire.decode(Wire.HostSyncResponse.self, from: response).domain()
     }
@@ -316,6 +336,8 @@ private enum Wire {
         var hostKeyFingerprint: String?
         /// 只有 HTTPS 主機有。
         var hostServiceAddress: String?
+        /// 主機圖示(#243)。舊版後台與舊版 app 上傳的主機沒有。
+        var icon: String?
         var modifiedAt: String
 
         init(_ host: SyncedHost) {
@@ -331,6 +353,7 @@ private enum Wire {
             }
             hostKeyFingerprint = host.hostKeyPin?.stored
             hostServiceAddress = host.hostService?.description
+            icon = host.icon
             modifiedAt = host.modifiedAt.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
         }
 
@@ -345,6 +368,7 @@ private enum Wire {
             try container.encode(connectionMethod, forKey: .connectionMethod)
             try container.encode(hostKeyFingerprint, forKey: .hostKeyFingerprint)
             try container.encodeIfPresent(hostServiceAddress, forKey: .hostServiceAddress)
+            try container.encodeIfPresent(icon, forKey: .icon)
             try container.encode(modifiedAt, forKey: .modifiedAt)
         }
 
@@ -362,7 +386,7 @@ private enum Wire {
             return SyncedHost(
                 id: id, name: name, endpoint: SSHEndpoint(host: address, port: port, username: username), connectionMethod: method,
                 hostKeyPin: hostKeyFingerprint.flatMap(HostKeyFingerprint.init(stored:)),
-                hostService: hostService, modifiedAt: modifiedAt)
+                hostService: hostService, icon: icon, modifiedAt: modifiedAt)
         }
     }
 

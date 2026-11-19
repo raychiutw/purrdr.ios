@@ -55,6 +55,15 @@ npm run types       # 改了 wrangler.jsonc 之後重新產生 worker-configurat
 SSH 主機不帶 `hostServiceAddress`。裝置權杖不在白名單。body 可帶 `connectionMethods: [...]`(這支 app 看得懂的連線方式);
 **沒帶的是舊版 app,回應不含 HTTPS 主機**(舊版遇到不認得的連線方式會整個同步失敗),刪除紀錄照常給。後台要先於支援 HTTPS 的 app 上線。
 
+**主機圖示**(#243):修改可多帶 `icon`(app `HostIcon` 的存檔值，例如 `macMini`、`rack`,「無」是 `none`;後台只檢查是 1–32 個英數字、
+不列舉名稱，較新版 app 加的圖示也收)。**沒帶 `icon` 的修改(舊版 app)保留已存的圖示**;刪除時清掉。回應只有存過圖示的主機帶 `icon`;
+舊版 app 解析時忽略這個欄位，新版 app 遇到沒帶或不認得的值沿用本機圖示(沒有就用預設)。
+
+上線順序：後台是手動部署，不會跟著 app 發布上線。先 `npx wrangler d1 migrations apply purrdr --remote`(套用 `0005`)、再 `npx wrangler deploy`
+部署後台，app 才會開始同步圖示。舊後台不收 `icon`(回 400 `invalid_request`「Unexpected field: icon.」);app 收到這個回應時，
+同一次同步改送不含圖示的版本(其他欄位照常同步)，並記到這次 app 執行結束，之後直接不帶。所以舊後台期間 app 自動略過圖示，
+後台部署後 app 下次啟動就恢復同步圖示。
+
 存取權杖放在 `Authorization: Bearer <accessToken>`。
 
 ### 錯誤碼

@@ -11,7 +11,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var subtitle: String
     public var session: String?
     public var isSelected: Bool
-    /// 使用者替主機選的圖示(只存本機);沒選過是預設圖示。
+    /// 使用者替主機選的圖示;沒選過是預設圖示。
     public var icon: HostIcon
     /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
     public var needsPairing: Bool
@@ -136,7 +136,7 @@ public final class HostsModel {
     /// - Parameters:
     ///   - conversationCache: 對話快取(所有主機共用一個存放處，key 依主機分開)。
     ///   - preferences: 釘選、靜音等本機偏好(依主機分開：同一個 session 值在不同主機是不同的聊天)。
-    ///   - hostIcons: 使用者替主機選的圖示(只存本機)。
+    ///   - hostIcons: 使用者替主機選的圖示。
     ///   - selectionStore: 選取中主機的存放處。
     ///   - swipeHint: 列表滑動提示是否已經不用再顯示(使用者用過滑動面板的動作)。
     ///   - listMode: 列表檢視(Spaces／Agents)的存放處。
@@ -369,7 +369,7 @@ public final class HostsModel {
         }
     }
 
-    /// 主機的圖示(只存本機);沒選過是預設圖示。
+    /// 主機的圖示;沒選過是預設圖示。
     public func icon(for id: UUID) -> HostIcon {
         icons[id] ?? .default
     }
@@ -377,10 +377,12 @@ public final class HostsModel {
     /// 選取中主機的圖示(主機鈕用)。
     public var selectionIcon: HostIcon { icon(of: selection) }
 
-    /// 替主機選圖示：只存在這支裝置，列表與主機鈕立刻改用它。
+    /// 替主機選圖示：列表與主機鈕立刻改用它;改了已存主機的圖示時記成修改(主機同步上傳，#243)。
     public func setIcon(_ icon: HostIcon, for id: UUID) {
+        let changed = icons[id] != icon && hosts.contains { $0.id == id }
         hostIcons.setIcon(icon, for: id)
         icons[id] = icon
+        if changed { changeRecorder?.hostSaved(id) }
         rebuildMembers()
     }
 
@@ -457,6 +459,10 @@ public final class HostsModel {
                 members[.host(host.id)] = nil
                 reselect = reselect || selection == .host(host.id)
             }
+        }
+        // 不認得的值(較新版 app 加的圖示)沿用這支裝置的;要在重讀清單前存好，清單重讀時會一起讀圖示。
+        for (id, stored) in outcome.icons {
+            if let icon = HostIcon(stored: stored) { hostIcons.setIcon(icon, for: id) }
         }
         hosts = (try? sortedHosts()) ?? hosts
         for id in outcome.deletions {
