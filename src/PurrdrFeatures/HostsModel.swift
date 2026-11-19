@@ -554,6 +554,8 @@ public final class HostsModel {
     @discardableResult
     public func networkPathChanged(_ signature: String) -> Task<Void, Never>? {
         defer { networkPath = signature }
+        // 沒有網路時列表立刻顯示離線，不等連線逾時(#221)。
+        agentList.isNetworkAvailable = !simulatesNoNetwork && signature.hasPrefix("satisfied")
         guard let previous = networkPath, previous != signature else { return nil }
         let dropped = Array(channels.values) + [demoChannel]
         let droppedConnections = Array(hostServiceConnections.values)
@@ -591,6 +593,11 @@ public final class HostsModel {
     }
 
     private var networkPath: String?
+
+    /// UI 測試情境：裝置一直沒有網路(`-demoNoNetwork`,#221)。
+    public var simulatesNoNetwork = false {
+        didSet { if simulatesNoNetwork { agentList.isNetworkAvailable = false } }
+    }
     private var backgroundSince: Date?
 
     // MARK: - 內部

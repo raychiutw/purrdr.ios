@@ -5,7 +5,9 @@ import SwiftUI
 /// Agent 列表(DESIGN.md 方向 A):系統 grouped list,依「已釘選／需要你／工作中／閒置」分 section,標題帶數量。
 ///
 /// 所有主機的 Agent 合併在同一個列表(#39):非選取中主機的列在副標開頭標示主機名;某台主機連不上時保留它最後的列，
-/// 列表下方顯示「主機名：原因」。沒有任何列時，選取中主機的錯誤才佔滿畫面。
+/// 列表下方顯示「主機名：原因」。每台主機都讀不到、也沒有任何列時，選取中主機的錯誤才佔滿畫面。
+/// 不整頁轉圈(#221):還在連的主機在列表上方各一行「連線中」(超過 10 秒「仍在連線」與再試一次);
+/// 第一次載入還沒有列時是列表骨架;裝置沒網路時直接顯示離線。
 ///
 /// 畫面可見且 app 在前景時才即時更新(長駐的訂閱通道在背景是 iOS 第一個殺的，行為規格 §3.7)。
 /// app 在前景時，新的「需要你」只出現在列表裡，這個畫面不發任何系統通知。
@@ -28,6 +30,8 @@ public struct AgentListView: View {
     @State private var largeTitleScrolledAway = false
     /// 大標題那一列的高度(AX 字級會換行變高);捲過一半就算收合。
     @State private var largeTitleHeight: CGFloat = 52
+    /// 主機連線狀態行用的現在時間(有主機在連線時每秒更新，換成「仍在連線」)。
+    @State private var now = Date()
 
     public init(
         model: MergedAgentListModel, window: TopNavigationModel? = nil,
@@ -88,6 +92,13 @@ public struct AgentListView: View {
             guard scenePhase == .active else { return }
             await model.runNotes()
         }
+        // 有主機在連線時每秒更新現在時間，連線狀態行到 10 秒換成「仍在連線」(#221)。
+        .task(id: hasConnectingHosts) {
+            while hasConnectingHosts, !Task.isCancelled {
+                now = Date()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
         .sheet(isPresented: $showingNotes) {
             YouShouldKnowListView(entries: model.notes) { model.openedChat = $0 }
         }
@@ -98,11 +109,15 @@ public struct AgentListView: View {
         }
     }
 
-    /// 列表第一列的大標題在畫面上(只有列表本身有;載入中、錯誤、空狀態沿用導覽列的小標題與標題選單)。
+    /// 列表第一列的大標題在畫面上(列表與載入中的骨架有;錯誤、離線、空狀態沿用導覽列的小標題與標題選單)。
     private var showsLargeTitle: Bool {
-        if case .list = model.content { return !largeTitleScrolledAway }
-        return false
+        switch model.content {
+        case .list, .loading: !largeTitleScrolledAway
+        default: false
+        }
     }
+
+    private var hasConnectingHosts: Bool { !model.hostStatuses(at: now).isEmpty }
 
     /// 套用側欄 workspace 篩選(選取中主機的 workspace)後的分組。
     private var sections: [AgentSection] {
@@ -132,7 +147,18 @@ public struct AgentListView: View {
     private var content: some View {
         switch model.content {
         case .loading:
-            ProgressView("Loading agents…")
+            loadingList
+        case .offline:
+            // 沒網路就直接說，不等連線逾時(#221);網路恢復後自動重連。
+            ContentUnavailableView {
+                Label("No Internet Connection", systemImage: "wifi.slash")
+            } description: {
+                Text("Connect to Wi-Fi or cellular data to see your agents. Purrdr reconnects automatically.")
+            } actions: {
+                Button("Try Again") { model.retry() }
+                    .accessibilityIdentifier("agentList.retry")
+            }
+            .accessibilityIdentifier("agentList.offline")
         case .failed(let message):
             ContentUnavailableView {
                 Label("Can’t Load Agents", systemImage: "exclamationmark.triangle")
@@ -162,6 +188,52 @@ public struct AgentListView: View {
         }
     }
 
+    /// 第一次載入、還沒有任何列：大標題、各主機的連線狀態與列表骨架(不整頁轉圈,#221)。
+    private var loadingList: some View {
+        List {
+            largeTitleRow
+            hostStatusRows
+            Section {
+                ForEach(0..<3, id: \.self) { index in
+                    AgentRowView(row: .placeholder(index), host: nil)
+                }
+            }
+            .redacted(reason: .placeholder)
+            .accessibilityHidden(true)
+        }
+        #if os(iOS)
+        .listStyle(.insetGrouped)
+        #endif
+        .contentMargins(.top, 0, for: .scrollContent)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > largeTitleHeight / 2
+        } action: { _, scrolledAway in
+            largeTitleScrolledAway = scrolledAway
+        }
+        .accessibilityIdentifier("agentList.loading")
+    }
+
+    /// 裝置離線(已有列時)與還在連線的主機：放在大標題下面，一眼看到哪台在連(#221)。
+    @ViewBuilder
+    private var hostStatusRows: some View {
+        if !model.isNetworkAvailable {
+            Section {
+                Label("No internet connection. Showing agents from your last connection.", systemImage: "wifi.slash")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("agentList.offlineBanner")
+            }
+        }
+        let statuses = model.hostStatuses(at: now)
+        if !statuses.isEmpty {
+            Section {
+                ForEach(statuses, id: \.host) { status in
+                    HostLoadStatusRow(status: status) { model.retry() }
+                }
+            }
+        }
+    }
+
     private var list: some View {
         let sections = sections
         return Group {
@@ -169,6 +241,7 @@ public struct AgentListView: View {
             if window != nil {
                 List(selection: selection) {
                     largeTitleRow
+                    hostStatusRows
                     notesRow
                     listRows(sections)
                 }
@@ -176,6 +249,7 @@ public struct AgentListView: View {
             } else {
                 List {
                     largeTitleRow
+                    hostStatusRows
                     notesRow
                     listRows(sections)
                 }
@@ -484,6 +558,53 @@ struct AgentRowView: View {
                 .font(.footnote)
                 .foregroundStyle(secondary)
         }
+    }
+}
+
+/// 一台還在連線的主機(#221):主機圖示、名稱與「連線中…」(系統小型進度);超過 10 秒換成「仍在連線…」與「再試一次」。
+struct HostLoadStatusRow: View {
+    let status: HostLoadStatus
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            HostIconBadge(status.icon, diameter: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: status.name)
+                Text(stateText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("agentList.host.\(status.host.storedValue)")
+            Spacer(minLength: 8)
+            switch status.state {
+            case .connecting:
+                ProgressView()
+                    .accessibilityHidden(true)
+            case .stillConnecting:
+                Button("Try Again", action: retry)
+                    .buttonStyle(.borderless)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("agentList.host.\(status.host.storedValue).retry")
+            }
+        }
+    }
+
+    private var stateText: LocalizedStringKey {
+        switch status.state {
+        case .connecting: "Connecting…"
+        case .stillConnecting: "Still connecting…"
+        }
+    }
+}
+
+extension AgentRow {
+    /// 列表骨架的佔位列(`redacted` 畫成灰條，對 VoiceOver 隱藏)。
+    static func placeholder(_ index: Int) -> AgentRow {
+        AgentRow(
+            paneID: "placeholder-\(index)", title: "Agent name placeholder", subtitle: "",
+            preview: .message("The latest message from this agent", fromYou: false), time: nil, status: .idle)
     }
 }
 

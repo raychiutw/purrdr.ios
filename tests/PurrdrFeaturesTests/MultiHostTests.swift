@@ -126,8 +126,8 @@ struct MultiHostTests {
         #expect(model.agentList.failures.map(\.name) == ["Lab"])
     }
 
-    @Test("選取中主機連不上、也沒有任何列時，它的錯誤佔滿畫面")
-    func selectedHostErrorFillsScreenWhenNothingToShow() async {
+    @Test("選取中主機連不上、其他台讀到但沒有列時，錯誤留在列表的那台主機一行，不佔滿畫面(#221)")
+    func selectedHostErrorStaysInItsRowWhenNothingToShow() async {
         let lab = FakeHost()
         await lab.failConnection(with: SSHConnectionError.timedOut)
         let studio = FakeHost()
@@ -141,7 +141,8 @@ struct MultiHostTests {
 
         await model.agentList.load()
 
-        #expect(model.agentList.content == .failed(Self.timedOut))
+        #expect(model.agentList.content == .list)
+        #expect(model.agentList.failures.map(\.name) == ["Lab"])
     }
 
     @Test("即時更新：一台主機一直連不上(退避中)時，另一台照常讀取並訂閱")
