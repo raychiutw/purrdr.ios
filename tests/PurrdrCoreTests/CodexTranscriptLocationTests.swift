@@ -116,11 +116,27 @@ struct CodexTranscriptLocationTests {
         let other = TranscriptTarget(format: .codex, location: .codex(sessionID: otherID), sessionKey: otherID)
 
         let previews = try await TranscriptReader(channel: host, marker: { "MARK" })
-            .previews(of: [PreviewRequest(key: "w3:p1", target: Self.target), PreviewRequest(key: "w4:p1", target: other)])
+            .previewReadings(of: [PreviewRequest(key: "w3:p1", target: Self.target), PreviewRequest(key: "w4:p1", target: other)]).compactMapValues(\.preview)
 
         #expect(previews["w3:p1"]?.text == "Exported 2 notes to out/.")
         #expect(previews["w4:p1"] == nil)
         #expect(host.commands.count == 1)
+    }
+
+    @Test("列表預覽帶已知版本:Codex 附加的部分不重傳 header,沿用上次的 header 檢查")
+    func previewAppendedSkipsHeader() async throws {
+        let host = try LocalShellHost.temporary()
+        try host.write(Self.data, to: Self.dated)
+        let reader = TranscriptReader(channel: host, marker: { "MARK" })
+        let first = try #require(try await reader.previewReadings(of: [PreviewRequest(key: "w3:p1", target: Self.target)])["w3:p1"])
+        try host.append(Data(#"{"timestamp":"2026-11-14T09:00:21.000Z","type":"response_item","payload":{"type":"message","role":"assistant","phase":"final_answer","content":[{"type":"output_text","text":"Done again."}]}}"#.utf8 + [0x0A]), to: Self.dated)
+        var request = PreviewRequest(key: "w3:p1", target: try Self.target)
+        request.knownVersion = first.version
+
+        let again = try #require(try await reader.previewReadings(of: [request])["w3:p1"])
+
+        #expect(again.change == .appended)
+        #expect(again.preview?.text == "Done again.")
     }
 
     static func sqlite(_ url: URL, _ sql: String) throws {

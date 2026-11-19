@@ -93,7 +93,7 @@ struct DemoHostTests {
             agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
         }
 
-        let previews = try await TranscriptReader(channel: host).previews(of: requests)
+        let previews = try await TranscriptReader(channel: host).previewReadings(of: requests).compactMapValues(\.preview)
 
         #expect(previews.keys.sorted() == ["w1:p1", "w2:p1"])
     }
@@ -106,7 +106,7 @@ struct DemoHostTests {
             agent.claudeSessionID.map { PreviewRequest(key: agent.paneID, sessionID: $0, cwd: agent.cwd ?? "") }
         }
 
-        let previews = try await TranscriptReader(channel: host).previews(of: requests)
+        let previews = try await TranscriptReader(channel: host).previewReadings(of: requests).compactMapValues(\.preview)
 
         #expect(previews.keys.sorted() == ["w1:p1", "w2:p1"])
     }
@@ -251,6 +251,33 @@ struct DemoHostTests {
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
         #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w3:p1")) == nil)
         #expect(try await client.snapshot().agents.first { $0.paneID == "w2:p1" }?.status == .blocked)
+    }
+
+    /// #210 的 UI 測試情境：送出後先只接上使用者那一行，agent 工作中且畫面有即時預覽;時間到才接上回覆並完成。
+    @Test("送出後工作中情境：先接上使用者那一行並工作，時間到才接上回覆")
+    func workingAfterPromptRepliesLater() async throws {
+        let host = DemoHost(scenario: .workingAfterPrompt(for: .milliseconds(300)))
+        let client = HerdrClient(channel: host)
+        let reader = TranscriptReader(channel: host)
+        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        let ledger = try #require(try await client.snapshot().agents.first { $0.paneID == "w1:p1" })
+        _ = await PromptDelivery(client: client, sleep: { _ in }).send("Add a header row too?", to: ledger)
+
+        guard case .appended(let sent) = try await reader.tail(path: before.path, from: before.size) else {
+            Issue.record("對話紀錄應先接上使用者那一行")
+            return
+        }
+        #expect(sent.lines.count == 1)
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w1:p1" }?.status == .working)
+        #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w1:p1")) != nil)
+
+        try await Task.sleep(for: .milliseconds(400))
+        guard case .appended(let reply) = try await reader.tail(path: before.path, from: sent.end) else {
+            Issue.record("時間到應接上回覆")
+            return
+        }
+        #expect(reply.lines.count == 1)
+        #expect(try await client.snapshot().agents.first { $0.paneID == "w1:p1" }?.status != .working)
     }
 
     @Test("不認得的指令像 shell 一樣以 exit 127 結束")

@@ -209,6 +209,7 @@ public final class HostsModel {
         let channel: any HostChannel
         let cost: PlanUsageQueryCost
         let hostID: String
+        var files: HostFiles?
         switch host {
         case .demo:
             (channel, cost, hostID) = (demoChannel, .free, Self.demoID)
@@ -216,11 +217,12 @@ public final class HostsModel {
             guard let configuration = hosts.first(where: { $0.id == id }), !configuration.connectionMethod.usesHostService else {
                 return nil
             }
-            (channel, cost, hostID) = (member(for: host).channel, .transfer, id.uuidString)
+            let member = member(for: host)
+            (channel, cost, hostID, files) = (member.channel, .transfer, id.uuidString, member.hostFiles)
         }
         switch agent {
         case .claudeCode:
-            return .claude(channel: channel, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent)
+            return .claude(channel: channel, files: files, cost: cost, hostID: hostID, consent: host == .demo ? demoConsent : hostConsent)
         case .codex:
             return .codex(channel: channel, cost: cost)
         }
@@ -711,6 +713,8 @@ final class HostMember {
     let hostTheme: HostThemeModel
     /// 這台主機有沒有 `gzip`(檔案上傳的 gzip 傳輸，#76)。
     let gzipAvailability = HostGzipAvailability()
+    /// 主題、註記、Claude 方案用量定期讀取共用的長駐通道(#203)。
+    let hostFiles: HostFiles
 
     /// - Parameter connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
     init(
@@ -734,7 +738,9 @@ final class HostMember {
         self.push = push
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
-        youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel), hostID: hostID, consent: consent)
-        hostTheme = HostThemeModel(host: HostThemeHost(channel: channel), hostID: hostID, consent: consent)
+        let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
+        self.hostFiles = hostFiles
+        youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
+        hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
     }
 }

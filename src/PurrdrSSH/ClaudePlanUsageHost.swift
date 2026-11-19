@@ -37,10 +37,13 @@ public struct ClaudePlanUsageHost: Sendable {
 
     let write: ReversibleHostWrite
     let files: HostFiles
+    /// 上次讀到的用量與版本(條件式讀取，#203)。
+    private let lastRead = LastUsageRead()
 
-    public init(channel: any HostChannel) {
+    /// - Parameter files: 讀用量用的主機檔案(每台主機共用長駐讀取的那份);`nil` 時每次讀是一次性指令。
+    public init(channel: any HostChannel, files: HostFiles? = nil) {
         write = ReversibleHostWrite(channel: channel, feature: Self.feature)
-        files = HostFiles(channel: channel)
+        self.files = .shared(files, channel: channel)
     }
 
     /// 同意前的檢查：設定可以安全修改嗎、會以哪個使用者修改。
@@ -85,9 +88,19 @@ public struct ClaudePlanUsageHost: Sendable {
     }
 
     /// 讀包裝腳本最後存下的用量;還沒有(沒安裝、Claude Code 還沒回報)時是 `nil`。
+    /// 帶上次的版本條件式讀取，沒變時用上次的結果。
     public func readPlanUsage() async throws -> ClaudeUsage? {
-        let read = try await files.read([Self.usagePath])
-        return read[Self.usagePath]?.contents.flatMap(ClaudeUsage.init(usageFile:))
+        let previous = await lastRead.value
+        let read = try await files.read([Self.usagePath], knownVersions: previous.map { [Self.usagePath: $0.version] } ?? [:])
+        if let previous, read.unchanged.contains(Self.usagePath) { return previous.usage }
+        let state = read[Self.usagePath]
+        let usage = state?.contents.flatMap(ClaudeUsage.init(usageFile:))
+        if case .file(_, let version)? = state {
+            await lastRead.update(UsageRead(version: version, usage: usage))
+        } else {
+            await lastRead.update(nil)
+        }
+        return usage
     }
 
     // MARK: - 設定檔
@@ -220,5 +233,20 @@ extension ClaudeUsage {
             return Window(usedPercentage: used, resetsAt: (window["resets_at"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) })
         }
         self.init(fiveHour: window("five_hour"), week: window("seven_day"), capturedAt: Date(timeIntervalSince1970: capturedAt))
+    }
+}
+
+/// 一次讀到的用量與 `usage.json` 的版本。
+private struct UsageRead {
+    let version: HostFileVersion
+    let usage: ClaudeUsage?
+}
+
+/// `ClaudePlanUsageHost` 上次讀到的用量。
+private actor LastUsageRead {
+    private(set) var value: UsageRead?
+
+    func update(_ value: UsageRead?) {
+        self.value = value
     }
 }

@@ -173,12 +173,16 @@ struct WindowsRealHostIntegrationTests {
         #expect(try await reader.catchUp(path: claudeFile, from: first, limit: 1 << 20) == tail)
         #expect(try await reader.catchUp(path: claudeFile, from: body.count, limit: 1 << 20) == .unchanged)
 
-        let previews = try await reader.previews(of: [
+        let previews = try await reader.previewReadings(of: [
             PreviewRequest(key: "c", sessionID: id, cwd: #"C:\work"#),
             PreviewRequest(key: "missing", sessionID: "99999999-0000-0000-0000-000000000000", cwd: #"C:\work"#),
-        ])
+        ]).compactMapValues(\.preview)
         log("預覽:\(previews.mapValues { String(describing: $0) })")
         #expect(previews["c"] != nil)
+        let firstReading = try #require(try await reader.previewReadings(of: [PreviewRequest(key: "c", sessionID: id, cwd: #"C:\work"#)])["c"])
+        var known = PreviewRequest(key: "c", sessionID: id, cwd: #"C:\work"#)
+        known.knownVersion = firstReading.version
+        #expect(try await reader.previewReadings(of: [known])["c"]?.change == .unchanged)
         await temp.remove()
         await ssh.disconnect()
     }

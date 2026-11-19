@@ -137,16 +137,16 @@ public struct ConversationView: View {
                 }
                 // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
                 BlockedPromptView(model: model)
-                    .id("prompt")
+                    .id(ConversationFollowTarget.promptRowID)
                 // slash 指令開出的面板(#45):對 herdr 不可見，從畫面讀出後以原生卡片顯示。
                 if let panel = model.panel {
                     SlashPanelCard(model: model, panel: panel)
-                        .id("panel")
+                        .id(ConversationFollowTarget.panelRowID)
                 }
                 // 工作中指示在列表最底下;agent 停止工作就消失(F5.11)。
                 if model.showsWorkingIndicator, let since = model.workingSince {
                     WorkingIndicatorView(since: since, preview: model.livePreview)
-                        .id("working")
+                        .id(ConversationFollowTarget.workingRowID)
                 }
             }
             .padding(.horizontal)
@@ -207,32 +207,36 @@ public struct ConversationView: View {
                 position.scrollTo(id: id, anchor: .top)
             case .bottom:
                 scroll.jumpToLatest()
-                position.scrollTo(edge: .bottom)
+                scrollToLastRow(proxy)
             }
         }
+        // 跟隨尾端一律捲到最底下那一列:`scrollTo(edge: .bottom)` 會多捲一個底部 inset,停在內容外成一片空白(#191、#210)。
         .onChange(of: model.entries.last?.id) {
-            if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
         }
         .onChange(of: model.livePreview) {
-            if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
+        }
+        .onChange(of: model.showsWorkingIndicator) {
+            if scroll.autoScrollsOnNewContent { scrollToLastRow(proxy) }
         }
         .onChange(of: model.prompt?.signature) {
-            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) } }
+            if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
         }
         .onChange(of: model.panel == nil) {
-            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) } }
+            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
         }
         .onChange(of: model.echoes.count) { old, new in
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。
             guard new > old else { return }
             scroll.jumpToLatest()
-            withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) }
+            withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
         }
         .overlay(alignment: .bottomTrailing) {
             if scroll.showsJumpToLatest {
                 Button {
                     scroll.jumpToLatest()
-                    withAnimation(scrollAnimation) { position.scrollTo(edge: .bottom) }
+                    withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
                 } label: {
                     Label("Jump to Latest", systemImage: "arrow.down")
                         .labelStyle(.iconOnly)
@@ -247,19 +251,12 @@ public struct ConversationView: View {
     /// 捲到最底下那一列的底部。底部輸入列很高時 `scrollTo(edge: .bottom)` 會多捲一個底部 inset、停在估算高度裡，
     /// 指定列則由 LazyVStack 實際排出那一列(#191)。
     private func scrollToLastRow(_ proxy: ScrollViewProxy) {
-        let lastRowID: String? = if model.showsWorkingIndicator, model.workingSince != nil {
-            "working"
-        } else if model.panel != nil {
-            "panel"
-        } else if model.prompt != nil || model.lastAnswer != nil {
-            "prompt"
-        } else {
-            model.entries.last?.id
-        }
-        if let lastRowID {
-            proxy.scrollTo(lastRowID, anchor: .bottom)
-        } else {
-            position.scrollTo(edge: .bottom)
+        let target = ConversationFollowTarget.target(
+            showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil, showsPanel: model.panel != nil,
+            showsPromptCard: model.prompt != nil || model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
+        switch target {
+        case .row(let id): proxy.scrollTo(id, anchor: .bottom)
+        case .bottomEdge: position.scrollTo(edge: .bottom)
         }
     }
 

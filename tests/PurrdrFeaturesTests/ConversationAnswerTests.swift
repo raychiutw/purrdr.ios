@@ -20,6 +20,7 @@ struct ConversationAnswerTests {
 
     struct Setup {
         let host: RoutingHost
+        let shell: LocalShellHost
         let model: ConversationModel
         let clock: TestClock
         let haptics: RecordingHaptics
@@ -37,7 +38,7 @@ struct ConversationAnswerTests {
             knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(), clock: clock.clock,
             haptics: haptics, sleep: sleeper.sleep
         )
-        return Setup(host: host, model: model, clock: clock, haptics: haptics, sleeper: sleeper)
+        return Setup(host: host, shell: shell, model: model, clock: clock, haptics: haptics, sleeper: sleeper)
     }
 
     static func snapshot(status: String, kind: String = "claude", session: Bool = true) -> FakeReply {
@@ -218,6 +219,50 @@ struct ConversationAnswerTests {
         #expect(setup.model.answerInFlight == nil)
         #expect(setup.model.lastAnswer == AnsweredPrompt(question: "Do you want to proceed?", choice: "Yes"))
         #expect(setup.haptics.played == [.selection, .success])
+    }
+
+    /// #213:「你選了：Cancel」曾在 Agent 輸出很多新內容後仍釘在對話底部。
+    @Test("已回答卡片：Agent 繼續工作、對話紀錄多了新回覆後收起")
+    func answeredCardHidesAfterAgentWritesMore() async throws {
+        let setup = try Self.setup()
+        await Self.expectPoll(setup, screen: "claude-ask-review")
+        await setup.model.poll()
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        let cancel = try #require(setup.model.prompt?.options.first { $0.label == "Cancel" })
+        await setup.model.answer(.option(cancel))
+
+        await Self.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+        #expect(setup.model.lastAnswer == AnsweredPrompt(question: "Ready to submit your answers?", choice: "Cancel"))
+
+        let replyLine = ConversationModelTests.fixtureLines[19]
+            .replacingOccurrences(of: "00000000-0000-4000-8000-00000000001f", with: "00000000-0000-4000-8000-0000000000fa")
+        try setup.shell.append(Data((replyLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        setup.clock.advance(by: AnsweredCardAnchor.minimumShowing)
+        await Self.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+
+        #expect(setup.model.lastAnswer == nil)
+    }
+
+    /// #213 review:Agent 回答後幾秒內寫出工具步驟，卡片曾在判定送達的同一輪就收起，看不到「你選了」。
+    @Test("已回答卡片：寫得快，判定送達那一輪對話紀錄已有新的工具步驟，卡片仍留著")
+    func answeredCardStaysWhenStepsFollowQuickly() async throws {
+        let setup = try Self.setup()
+        await Self.expectPoll(setup, screen: "claude-ask-review")
+        await setup.model.poll()
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        let cancel = try #require(setup.model.prompt?.options.first { $0.label == "Cancel" })
+        await setup.model.answer(.option(cancel))
+
+        let toolLine = ConversationModelTests.fixtureLines[20]
+            .replacingOccurrences(of: "00000000-0000-4000-8000-000000000020", with: "00000000-0000-4000-8000-0000000000fb")
+        try setup.shell.append(Data((toolLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        setup.clock.advance(by: 1)
+        await Self.expectPoll(setup, status: "working", screen: nil)
+        await setup.model.poll()
+
+        #expect(setup.model.lastAnswer == AnsweredPrompt(question: "Ready to submit your answers?", choice: "Cancel"))
     }
 
     @Test("被取代：畫面上換成另一個提示(下一題)→ 解鎖，新問題不繼承鎖")

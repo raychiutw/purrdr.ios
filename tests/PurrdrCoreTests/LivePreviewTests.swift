@@ -95,6 +95,86 @@ struct LivePreviewTests {
         #expect(LivePreview.extract(screen: screen) == nil)
     }
 
+    /// #214:真實畫面(Windows 主機 Claude Code,2026-11-19)。spinner 消失的空檔錨點落在輸入框，
+    /// 輸入框上方右對齊的更新提示(首字大寫)曾被當成散文接在預覽後面。
+    @Test("Claude Code 的更新提示(✔ Update installed · Restart to update)不算散文")
+    func updateNoticeIsChrome() {
+        let screen = """
+            ● 這兩張會併進這一批，跟 #203、#204、#205、#208、#210 一起，最後開一個 PR 到 master，CI 只跑一次。
+                                                                                                                            ✔ Update installed · Restart to update
+            \(Self.separator)
+            ❯
+            \(Self.separator)
+              purrdr.ios | integration/batch-3
+              ⏵⏵ bypass permissions on · 2 shells · ⧉ 2 · ← 4 agents · ↓ to manage
+            """
+        #expect(LivePreview.extract(screen: screen) == "這兩張會併進這一批，跟 #203、#204、#205、#208、#210 一起，最後開一個 PR 到 master，CI 只跑一次。")
+    }
+
+    /// #214 review:介面列比對不分大小寫後，提到這些字的散文整行被拿掉。
+    @Test("散文提到 Ctrl+C、Esc to cancel、Manual mode 不算介面列")
+    func proseMentioningShortcutsIsKept() {
+        let screen = """
+            ⏺ 測試卡住時按 Ctrl+C 結束，選單裡的 Esc to cancel 只會關掉選單;
+              README 也一起補上 Manual mode 的說明。
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        #expect(LivePreview.extract(screen: screen)
+            == "測試卡住時按 Ctrl+C 結束，選單裡的 Esc to cancel 只會關掉選單; README 也一起補上 Manual mode 的說明。")
+    }
+
+    @Test("介面列：以關鍵字開頭、或以 · 分隔的狀態列，照樣略過")
+    func chromeShapedLinesAreDropped() {
+        let screen = """
+            ⏺ The exporter now writes the header row before any data rows.
+              ⏸ Manual mode on (shift+tab to cycle)
+              Ctrl+T to show todos
+              ✗ Auto-update failed · Try claude doctor
+              ◐ medium · /effort
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        #expect(LivePreview.extract(screen: screen) == "The exporter now writes the header row before any data rows.")
+    }
+
+    // MARK: - 已寫入對話紀錄(#208)
+
+    @Test("清單：畫面的 •／- 項目符號與原文的 -／* 視為相同", arguments: ["-", "•"])
+    func listIsWritten(screenBullet: String) throws {
+        let screen = """
+            ⏺ 這次改了兩個地方：
+              \(screenBullet) 匯出欄位順序改成日期、金額、備註
+              \(screenBullet) 備註裡的換行改成空白
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        let preview = try #require(LivePreview.extract(screen: screen))
+        #expect(LivePreview.isWritten(preview, in: "這次改了兩個地方：\n\n- 匯出欄位順序改成日期、金額、備註\n* 備註裡的換行改成空白\n"))
+    }
+
+    @Test("表格：畫面的框線與原文的 | 與 :-- 分隔列視為相同;內容不同就不算")
+    func tableIsWritten() throws {
+        let screen = """
+            ⏺ 欄位順序改好了：
+              ┌──────┬──────┐
+              │ 欄位 │ 型別 │
+              ├──────┼──────┤
+              │ 日期 │ Date │
+              │ 金額 │ Decimal │
+              └──────┴──────┘
+
+            ✻ Pondering… (esc to interrupt)
+            ❯
+            """
+        let preview = try #require(LivePreview.extract(screen: screen))
+        #expect(LivePreview.isWritten(preview, in: "欄位順序改好了：\n\n| 欄位 | 型別 |\n|:--|:--|\n| 日期 | Date |\n| 金額 | Decimal |\n"))
+        #expect(!LivePreview.isWritten(preview, in: "欄位順序改好了：\n\n| 欄位 | 型別 |\n|:--|:--|\n| 日期 | Date |\n| 備註 | String |\n"))
+    }
+
     @Test("閒置畫面(沒有錨點只有輸入框)上方的舊回覆也照規則取;空畫面 → 不顯示")
     func emptyScreen() {
         #expect(LivePreview.extract(screen: "") == nil)

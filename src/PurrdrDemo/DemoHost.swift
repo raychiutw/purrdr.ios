@@ -30,6 +30,8 @@ public actor DemoHost: HostChannel {
         /// 送出後大量輸出(#130):ledger 一開始就是長對話(150 輪文字訊息);每次對它送出 prompt,回覆之後
         /// agent 立刻再一次寫出超過 64 KiB。
         case largeOutputOnPrompt
+        /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
+        case workingAfterPrompt(for: Duration)
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -46,6 +48,16 @@ public actor DemoHost: HostChannel {
     /// 大量輸出情境：寫出的時間(第一次定位 ledger 後才定)與是否已寫出。
     private var largeOutputAt: ContinuousClock.Instant?
     private var largeOutputWritten = false
+    /// 送出後工作中的情境：還在工作的 pane 與工作結束時接上的回覆。
+    private var pendingReplies: [PendingReply] = []
+
+    /// 送出後工作中的一個 pane:`due` 時把 `lines` 接到對話紀錄。
+    private struct PendingReply {
+        let paneID: String
+        let sessionID: String
+        let due: ContinuousClock.Instant
+        let lines: [String]
+    }
 
     /// 這次啟動中對 workspace 做過的改動(重新命名、關閉)。只在記憶體裡，重開 app 就回到原樣。
     private var state = DemoSnapshot.State()
@@ -96,6 +108,7 @@ public actor DemoHost: HostChannel {
             return DemoPendingSession()
         }
         writeLargeOutputIfDue(command)
+        writeDueReplies()
         if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
@@ -186,7 +199,14 @@ public actor DemoHost: HostChannel {
             if !answers.receivedPrompt(text, paneID: target),
                let session = DemoTranscripts.sessions.first(where: { $0.paneID == target }) {
                 prompts += 1
-                appended[session.sessionID, default: []] += DemoTranscripts.reply(to: text, number: prompts, at: Date())
+                let reply = DemoTranscripts.reply(to: text, number: prompts, at: Date())
+                if case .workingAfterPrompt(let duration) = scenario {
+                    appended[session.sessionID, default: []] += reply.prefix(1)
+                    pendingReplies.append(PendingReply(
+                        paneID: target, sessionID: session.sessionID, due: .now + duration, lines: Array(reply.dropFirst())))
+                    return DemoSnapshot.prompted(id: id, paneID: target)
+                }
+                appended[session.sessionID, default: []] += reply
                 if scenario == .largeOutputOnPrompt, session.sessionID == DemoTranscripts.ledger.sessionID {
                     appended[session.sessionID, default: []] += DemoTranscripts.largeOutput(run: prompts, at: Date().addingTimeInterval(3))
                 }
@@ -233,10 +253,29 @@ public actor DemoHost: HostChannel {
     }
 
     private func respond(to requestLine: Data) -> (line: Data, keepsOpen: Bool) {
+        writeDueReplies()
         if let response = promptResponse(to: requestLine) ?? paneResponse(to: requestLine) { return response }
         state.statuses = answers.statuses
+        for pending in pendingReplies { state.statuses[pending.paneID] = "working" }
         return DemoSnapshot.response(to: requestLine, state: &state)
     }
+
+    /// 送出後工作中的情境：工作時間到了，接上回覆(agent 隨之完成)。
+    private func writeDueReplies() {
+        let now = ContinuousClock.now
+        for pending in pendingReplies where now >= pending.due {
+            appended[pending.sessionID, default: []] += pending.lines
+        }
+        pendingReplies.removeAll { now >= $0.due }
+    }
+
+    /// 送出後工作中的 pane 畫面：Claude Code 正在寫的散文(即時預覽)。
+    static let workingScreen = """
+        ⏺ Adding the header row now, then I will rerun the exporter tests.
+
+        ✻ Pondering… (3s · esc to interrupt)
+        ❯
+        """
 
     /// `pane.read`(各 pane 畫面上的提示)、`pane.send_keys` 與 `pane.send_text`(回答提示)。其他請求回 `nil`。
     private func paneResponse(to requestLine: Data) -> (line: Data, keepsOpen: Bool)? {
@@ -247,6 +286,9 @@ public actor DemoHost: HostChannel {
         switch request?["method"] as? String {
         case "pane.read":
             let ansi = params["format"] as? String == "ansi"
+            if pendingReplies.contains(where: { $0.paneID == paneID }) {
+                return DemoSnapshot.paneRead(id: id, paneID: paneID, text: Self.workingScreen, ansi: ansi)
+            }
             return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID, ansi: ansi), ansi: ansi)
         case "pane.send_keys":
             answers.receivedKeys(params["keys"] as? [String] ?? [], paneID: paneID)

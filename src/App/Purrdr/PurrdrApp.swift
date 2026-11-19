@@ -198,6 +198,7 @@ struct PurrdrApp: App {
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
         if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(8)) }
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
+        if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         return .standard
     }
 

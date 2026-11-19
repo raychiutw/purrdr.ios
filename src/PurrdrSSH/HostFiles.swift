@@ -2,19 +2,46 @@ import Foundation
 import PurrdrCore
 
 /// 主機檔案：一次往返讀多個檔案;一次往返以 compare-and-swap 寫多個檔案。
+///
+/// `longRunning(channel:)` 建立的讀取經一條長駐通道(#203,`HostFileScript.follow`),複本共用同一條;
+/// 主機跑不了這支腳本時退回一次性讀取。寫入與找最新檔一律是一次性指令。
 public struct HostFiles: Sendable {
     let channel: any HostChannel
     /// 指令期限的計時(測試注入)。
     let sleep: Sleep
+    private let longRunning: LongRunningScriptChannel<Data>?
 
+    /// 每次讀取都是一次性指令。
     public init(channel: any HostChannel, sleep: @escaping Sleep = Sleeping.task) {
+        self.init(channel: channel, sleep: sleep, longRunning: nil)
+    }
+
+    private init(channel: any HostChannel, sleep: @escaping Sleep, longRunning: LongRunningScriptChannel<Data>?) {
         self.channel = channel
         self.sleep = sleep
+        self.longRunning = longRunning
+    }
+
+    /// 讀取經長駐通道(定期讀主題、註記、用量的每台主機共用一份)。
+    /// - Parameter diagnostics: 退回一次性讀取的原因(交給系統紀錄)。
+    public static func longRunning(
+        channel: any HostChannel, sleep: @escaping Sleep = Sleeping.task, diagnostics: (@Sendable (String) -> Void)? = nil
+    ) -> HostFiles {
+        let longRunning = LongRunningScriptChannel(
+            name: "host files", channel: channel, command: HostFileScript.follow(), deadline: HostCommandDeadline.standard, sleep: sleep,
+            closesWhenUnused: false, diagnostics: diagnostics, takeReply: { try HostFileScript.takeFollowReply(from: &$0) })
+        return HostFiles(channel: channel, sleep: sleep, longRunning: longRunning)
+    }
+
+    /// 主機功能用的讀取：有這台主機共用的那份就用它，沒有時每次讀是一次性指令。
+    static func shared(_ shared: HostFiles?, channel: any HostChannel) -> HostFiles {
+        shared ?? HostFiles(channel: channel)
     }
 
     /// 一次往返讀取 `paths`(跟隨 symlink)。每個檔案最多 1 MiB。
     public func read(_ paths: [HostPath]) async throws -> HostFileRead {
         try paths.forEach { try $0.validate() }
+        if let read = try await readOverLongRunningChannel(paths, known: [:]) { return read }
         let result = try await run(HostFileScript.read, arguments: paths.map(\.relative))
         guard result.exitCode == 0 else { throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText) }
         return try HostFileScript.parseRead(result.stdout, paths: paths)
@@ -25,6 +52,7 @@ public struct HostFiles: Sendable {
     public func read(_ paths: [HostPath], knownVersions: [HostPath: HostFileVersion]) async throws -> HostFileRead {
         guard !knownVersions.isEmpty else { return try await read(paths) }
         try paths.forEach { try $0.validate() }
+        if let read = try await readOverLongRunningChannel(paths, known: knownVersions) { return read }
         let arguments = paths.flatMap { [$0.relative, knownVersions[$0]?.checksum ?? HostFileScript.unknownVersion] }
         let result = try await run(HostFileScript.readIfChanged, arguments: arguments)
         guard result.exitCode == 0 else { throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText) }
@@ -54,6 +82,19 @@ public struct HostFiles: Sendable {
         case HostFileRequest.ExitCode.changedSinceRead where detail.hasPrefix("changed "): throw HostFilesError.changedSinceRead(HostPath(String(detail.dropFirst("changed ".count))))
         case HostFileRequest.ExitCode.missingDirectory where detail.hasPrefix("nodir "): throw HostFilesError.missingDirectory(HostPath(String(detail.dropFirst("nodir ".count))))
         default: throw HostFilesError.failed(exitCode: result.exitCode, message: result.stderrText)
+        }
+    }
+
+    /// 經長駐通道讀;沒有長駐通道或主機跑不了腳本時是 `nil`(改用一次性讀取)。
+    private func readOverLongRunningChannel(_ paths: [HostPath], known: [HostPath: HostFileVersion]) async throws -> HostFileRead? {
+        guard let longRunning else { return nil }
+        do {
+            switch try await longRunning.request(HostFileScript.followRequest(paths, known: known)) {
+            case .reply(let output): return try HostFileScript.parseRead(output, paths: paths)
+            case .unsupported: return nil
+            }
+        } catch let ended as LongRunningScriptChannel<Data>.Ended {
+            throw HostFilesError.failed(exitCode: ended.exitCode ?? HostFilesError.unknownExitCode, message: "")
         }
     }
 

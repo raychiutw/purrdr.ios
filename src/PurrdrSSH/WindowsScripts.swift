@@ -158,20 +158,34 @@ enum WindowsScripts {
         exit 0
         """#
 
-    /// 列表預覽：每個請求「標記 key」,再印剝除圖片後的檔尾 48,000 bytes;Pi／OMP、Codex 先印「標記! key」與前兩行。
-    /// 每個請求各自 try:一個檔不在或有歧義不影響其他。參數：標記，接著每個請求四個(key、種類、id 或路徑、資料夾名)。
+    /// 列表預覽(格式同 POSIX 的 `TranscriptCommand.previewsScript`):每個請求「標記 key」,找得到可讀的檔再印「標記@ key 範圍 版本」
+    /// (版本是「修改時間 ticks-大小 錨點」),`unchanged` 不印內容、`appended` 印已知版本之後附加的部分、`whole` 印剝除圖片後的檔尾
+    /// 48,000 bytes(Pi／OMP、Codex 先印「標記! key」與前兩行)。每個請求各自 try:一個檔不在或有歧義不影響其他。
+    /// 參數：標記，接著每個請求五個(key、種類、id 或路徑、資料夾名、已知版本或空字串)。
     static let previews = #"""
-        $m=$a[0]
-        for($r=1;$r+3 -lt $a.Count;$r+=4){
-        $y=$a[$r];$t=$a[$r+1]
-        PWrite "$m $y`n"
+        $marker=$a[0]
+        for($index=1;$index+4 -lt $a.Count;$index+=5){
+        $key=$a[$index];$kind=$a[$index+1];$knownVersion=$a[$index+4]
+        PWrite "$marker $key`n"
+        $handle=$null
         try{
-        $f=PFind $t $a[$r+2] $a[$r+3]
-        $h=POpen $f
-        if('pi','pipath','codex' -ccontains $t){PWrite "$m! $y`n";$x=PHead2 $f;PWrite ((($u.GetString($x) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n$m $y`n"}
-        $s=[Math]::Max([long]0,$h.Length-48000);$b=PRead $h $s ($h.Length-$s);$h.Close()
-        PWrite ((($u.GetString($b) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n"
-        }catch{}
+        $file=PFind $kind $a[$index+2] $a[$index+3]
+        $handle=POpen $file
+        $size=$handle.Length;$version="$([IO.File]::GetLastWriteTimeUtc($file).Ticks)-$size $(PAnchor $handle $size)";$range='whole'
+        if($knownVersion){
+        $knownStamp=$knownVersion.Split([char]' ')[0];[long]$knownSize=-1
+        if(-not [long]::TryParse($knownStamp.Substring($knownStamp.LastIndexOf('-')+1),[ref]$knownSize)){$knownSize=-1}
+        if($knownVersion -ceq $version){$range='unchanged'}
+        elseif($knownSize -ge 0 -and $knownSize -lt $size -and ($size-$knownSize) -le 48000 -and "$knownStamp $(PAnchor $handle $knownSize)" -ceq $knownVersion -and ($knownSize -eq 0 -or (PRead $handle ($knownSize-1) 1)[0] -eq 10)){$range='appended'}
+        }
+        PWrite "$marker@ $key $range $version`n"
+        if($range -ceq 'appended'){$bytes=PRead $handle $knownSize ($size-$knownSize);PWrite ((($u.GetString($bytes) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n"}
+        elseif($range -ceq 'whole'){
+        if('pi','pipath','codex' -ccontains $kind){PWrite "$marker! $key`n";$header=PHead2 $file;PWrite ((($u.GetString($header) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n$marker $key`n"}
+        $start=[Math]::Max([long]0,$size-48000);$bytes=PRead $handle $start ($size-$start)
+        PWrite ((($u.GetString($bytes) -split "`n")|%{PStrip $_}) -join "`n");PWrite "`n"
+        }
+        }catch{}finally{if($handle){$handle.Close()}}
         }
         $o.Flush()
         """#
@@ -363,9 +377,34 @@ enum WindowsScripts {
         $o.Flush()
         """#
 
+    /// 長駐的條件式讀取(#203,輸出同 `HostFileScript.followScript`):stub 讀完腳本後，從同一個 reader(`$s`,原始 handle,#77)
+    /// 繼續讀請求行「路徑 已知版本 …」,每則回應以 `end` 結束。每個請求把時限延到閒置秒數後(不超過總長)。
+    /// 參數(`$a`):閒置秒數、總長秒數。
+    static let hostFileFollow = hostFileReadFunctions + #"""
+        $purrdrEnd=[DateTime]::UtcNow.AddSeconds([int]$a[1])
+        function PIdle{$idleUntil=[DateTime]::UtcNow.AddSeconds([int]$a[0]);if($idleUntil -gt $purrdrEnd){$idleUntil=$purrdrEnd};$purrdrLimit.At=$idleUntil}
+        PIdle
+        while(($request=$s.ReadLine()) -ne $null){
+        PIdle
+        $fields=@($request.Split([char]' ',[StringSplitOptions]::RemoveEmptyEntries))
+        PHeader
+        for($i=0;$i+1 -lt $fields.Count;$i+=2){try{PReadOne $fields[$i] ($i/2) $fields[$i+1]}catch{PWrite "unreadable $($i/2)`n"}}
+        PWrite "end`n"
+        $o.Flush()
+        }
+        $o.Flush()
+        exit 0
+        """#
+
     /// 讀取共用：開頭三行，與讀一個檔案的 `PReadOne <路徑> <序號> <已知版本>`。
-    private static let hostFileReadPrelude = #"""
-        PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"
+    private static let hostFileReadPrelude = hostFileReadFunctions + #"""
+        PHeader
+
+        """#
+
+    /// 讀取的共用函式：開頭三行 `PHeader` 與 `PReadOne`。
+    private static let hostFileReadFunctions = #"""
+        function PHeader{PWrite "purrdr-files 1`nuser $env:USERNAME`nhome $($env:USERPROFILE.Replace('\','/'))`n"}
         function PReadOne([string]$r,[int]$i,[string]$k){
         $p=PResolve (PPath $r)
         if([IO.File]::Exists($p)){

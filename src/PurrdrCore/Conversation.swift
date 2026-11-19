@@ -182,6 +182,15 @@ public enum Conversation {
         return builder.finish()
     }
 
+    /// 最後一則有文字的 agent 回覆(非 sidechain)的文字;撰寫中預覽以它去重(#208)。
+    public static func latestReplyText(in messages: [TranscriptMessage]) -> String? {
+        messages.reversed().lazy
+            .filter { $0.role == .assistant && !$0.isSidechain }
+            .map { $0.parts.compactMap { part in if case .text(let text) = part { text } else { nil } } }
+            .first { !$0.isEmpty }?
+            .joined(separator: "\n")
+    }
+
     /// 列表預覽(行為規格 §4.7):最後一則非 sidechain、非純工具、非系統的訊息;去掉 `**`、`__`、反引號、
     /// 開頭的 `#` 與清單記號，壓縮空白，截 200 字。
     public static func preview(of messages: [TranscriptMessage]) -> MessagePreview? {

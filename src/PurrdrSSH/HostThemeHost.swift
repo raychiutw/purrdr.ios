@@ -33,9 +33,10 @@ public struct HostThemeHost: Sendable {
     let write: ReversibleHostWrite
     let files: HostFiles
 
-    public init(channel: any HostChannel) {
+    /// - Parameter files: 讀主題用的主機檔案(每台主機共用長駐讀取的那份);`nil` 時每次讀是一次性指令。
+    public init(channel: any HostChannel, files: HostFiles? = nil) {
         write = ReversibleHostWrite(channel: channel, feature: Self.feature)
-        files = HostFiles(channel: channel)
+        self.files = .shared(files, channel: channel)
     }
 
     public func inspect() async throws -> HostThemeInspection {
