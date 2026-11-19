@@ -555,4 +555,36 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThan(spinner.midY, screen.height * 0.2, "轉圈沒有置中")
         XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
+
+    /// #219:聊天時斷網(開啟 3 秒後所有主機指令立刻失敗)。頂端顯示連線中斷，畫面仍可操作：能捲動、能返回列表。
+    @MainActor
+    func testGoingOfflineWhileChattingKeepsAppResponsive() {
+        assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline")
+    }
+
+    /// #219:斷網時每個主機指令都卡到連線期限才失敗(像 Tailscale 不通)。畫面仍可操作。
+    @MainActor
+    func testGoingOfflineWithHangingConnectionsKeepsAppResponsive() {
+        assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOfflineHanging")
+    }
+
+    @MainActor
+    private func assertStaysResponsiveWhenGoingOffline(flag: String) {
+        let app = open(paneID: "w1:p1", flags: [flag])
+        XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+        let offline = app.staticTexts["Offline — showing the last loaded conversation."]
+        XCTAssertTrue(offline.waitForExistence(timeout: 60), "斷網後沒有顯示連線中斷橫幅")
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-offline"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        let list = app.scrollViews.firstMatch
+        list.swipeDown()
+        list.swipeUp()
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), "斷網後點返回沒有回到列表")
+    }
 }
