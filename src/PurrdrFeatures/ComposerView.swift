@@ -30,7 +30,7 @@ final class ConversationVisibleHeight {
 /// - 上下版面(#187):一張玻璃卡片，整寬輸入框在上，按鈕列(加入圖片｜收起鍵盤、送出)在下。
 /// - 多行，空白時一行高、有內容時至少兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
 /// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
-/// - 停止與強制結束在標題列(#44,`ConversationView`)。
+/// - agent 工作中時，玻璃卡片最上面是停止列(#220,`StopBar`);送出鈕維持原樣，工作中仍可打字送出。
 /// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
 ///   這時不能附圖。打過字之後清空輸入框也會取消(#127,`ConversationModel`)。
 /// - 內容超過 2 行或聚焦時有「展開」鈕(`ComposerExpansion`,#142),打開 `ExpandedComposer`。
@@ -54,6 +54,8 @@ struct ComposerBar: View {
     @State private var arrangement = ComposerAccessoryArrangement.full
     @State private var noteHeights = ComposerAccessoryHeights(full: nil)
     @State private var suggestionHeights = ComposerAccessoryHeights(full: nil)
+    /// 停止列一開始只有停止鈕一行，完整高度先以一行估(量到結果再更新)。
+    @State private var stopBarHeights = ComposerAccessoryHeights(full: ComposerKeyboardLayout.compactHeight)
 
     /// 讓位規則的輸入;變了就重新決定顯示方式。
     private struct ArrangementInput: Equatable {
@@ -61,6 +63,7 @@ struct ComposerBar: View {
         var conversationHeight: Double?
         var note: ComposerAccessoryHeights?
         var suggestion: ComposerAccessoryHeights?
+        var stopBar: ComposerAccessoryHeights?
         var minimum: Double
     }
 
@@ -124,6 +127,15 @@ struct ComposerBar: View {
             // 上下版面(#187):一張玻璃卡片，整寬輸入框在上、按鈕列在下;卡片內的按鈕不再疊玻璃。
             GlassEffectContainer {
                 VStack(spacing: 0) {
+                    if model.showsStopBar {
+                        let isCompact = arrangement.stopBar == .compact
+                        StopBar(model: model, isCompact: isCompact)
+                            .padding(.horizontal, 6)
+                            .padding(.top, 6)
+                            .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
+                                if isCompact { stopBarHeights.compact = height } else { stopBarHeights.full = height }
+                            }
+                    }
                     editor
                         .padding(.horizontal, 4)
                         .padding(.top, 4)
@@ -148,7 +160,7 @@ struct ComposerBar: View {
         .onChange(of: arrangementInput, initial: true) { _, input in
             let next = ComposerKeyboardLayout.arrangement(
                 keyboardShown: input.keyboardShown, conversationHeight: input.conversationHeight, current: arrangement,
-                note: input.note, suggestion: input.suggestion, minimumConversationHeight: input.minimum)
+                note: input.note, suggestion: input.suggestion, stopBar: input.stopBar, minimumConversationHeight: input.minimum)
             guard next != arrangement else { return }
             arrangement = next
             conversationHeight.arrangementChanged()
@@ -159,6 +171,7 @@ struct ComposerBar: View {
         .onChange(of: dynamicTypeSize) {
             noteHeights = ComposerAccessoryHeights(full: nil)
             suggestionHeights = ComposerAccessoryHeights(full: nil)
+            stopBarHeights = ComposerAccessoryHeights(full: ComposerKeyboardLayout.compactHeight)
         }
         // 對話可見且在前景時讀註記;與列表共用同一個讀取迴圈(列表被蓋住時它不再看)。
         .task(id: NotesKey(active: scenePhase == .active, notes: model.youShouldKnow.map(ObjectIdentifier.init))) {
@@ -189,6 +202,7 @@ struct ComposerBar: View {
             // 列表會被捲到內容之外，`ConversationUITests` 的載入與大量輸出案例)。
             keyboardShown: isFocused, conversationHeight: isFocused ? conversationHeight.value : nil,
             note: showsNote ? noteHeights : nil, suggestion: model.suggestion == nil ? nil : suggestionHeights,
+            stopBar: model.showsStopBar ? stopBarHeights : nil,
             minimum: ComposerKeyboardLayout.minimumConversationHeight(bodyLineHeight: bodyLineHeight))
     }
 

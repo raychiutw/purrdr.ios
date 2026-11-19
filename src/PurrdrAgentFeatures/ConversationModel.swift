@@ -823,7 +823,9 @@ public final class ConversationModel {
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
 
     /// 停止列與強制結束確認裡的 agent 名稱(#220)。
-    public var agentName: String { "" }
+    public var agentName: String {
+        currentAgent.flatMap { AgentKind.displayName($0.kind) } ?? String(localized: "Agent")
+    }
 
     /// 輸入卡片最上面的停止列(#220):工作中或有停止進度、結果時;唯讀、離線時沒有。
     public var showsStopBar: Bool {
@@ -1499,10 +1501,9 @@ public final class ConversationModel {
         ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName())
     }
 
-    /// 標題列的動作鈕:working(或停止進行中)時「停止」,其他時候「重新載入」;還沒輪詢過時沒有。
+    /// 標題列的動作鈕：一律「重新載入」(停止在停止列,#220);還沒輪詢過時沒有。
     public var headerAction: HeaderAction? {
-        if agentStatus == .working || isStopping { return .stop }
-        return phase == .loading ? nil : .reload
+        phase == .loading ? nil : .reload
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
