@@ -1,5 +1,7 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
+import QuickLook
 import SwiftUI
 
 /// 檔案卡片的顯示規則(#224)。
@@ -107,18 +109,68 @@ struct AgentFileCardDisplay {
     }
 }
 
+/// 點開檔案(#228)的顯示規則。
+struct AgentFileOpenDisplay {
+    let state: AgentFileLoads.OpenState?
+
+    /// 下載進度(0…1);還不知道總大小時 `nil`(不定進度)。
+    var progress: Double? {
+        guard case .downloading(let received, let total) = state, total > 0 else { return nil }
+        return Double(received) / Double(total)
+    }
+
+    var isDownloading: Bool { if case .downloading = state { true } else { false } }
+    var offersCancel: Bool { isDownloading }
+    var offersOpen: Bool {
+        switch state {
+        case nil, .ready: true
+        default: false
+        }
+    }
+
+    var offersRetry: Bool { state == .failed }
+
+    /// 下載好的快取檔(分享用)。
+    var shareableFile: URL? { if case .ready(let file) = state { file } else { nil } }
+
+    var note: String? {
+        switch state {
+        case .tooLarge(let size):
+            String(localized: "Too large to open here (\(Int64(size).formatted(.byteCount(style: .file)))). Open it on the host.")
+        case .missing: String(localized: "This file is no longer on the host.")
+        case .denied: String(localized: "Purrdr doesn’t open files in this location.")
+        case .unsupported: String(localized: "Opening files isn’t available for this host yet.")
+        case .failed: String(localized: "Couldn’t download the file.")
+        case .downloading, .ready, nil: nil
+        }
+    }
+}
+
 /// 檔案卡片：Agent 寫入或修改的檔案。標題列是類型圖示、檔名、路徑與「動作 · 類型 · 大小」,
 /// 下方等寬顯示對話紀錄裡的內容或修改摘要(超過 8 行折疊)。內容層，不用玻璃;長按可複製路徑或內容。
+/// 點標題列或「Open」才從主機下載到快取，以 QuickLook 預覽(#228);下載好了可分享。
 struct AgentFileCardView: View {
     let card: AgentFileCard
     @State private var expanded = false
+    @Environment(\.agentImages) private var context
+    @State private var previewFile: URL?
 
     private var display: AgentFileCardDisplay { AgentFileCardDisplay(file: card.file) }
+    private var openDisplay: AgentFileOpenDisplay { AgentFileOpenDisplay(state: context.loads?.opens[card.file.path]) }
 
     var body: some View {
         let visible = display.visibleLines(expanded: expanded)
         VStack(alignment: .leading, spacing: 8) {
+            // 標題列本身可點(VoiceOver 是按鈕);保留它的 identifier 與完整標籤，所以不包成 Button。
             AgentFileCardHeader(card: card, display: display, identifier: "conversation.agentFile.header")
+                .contentShape(Rectangle())
+                .onTapGesture { if openDisplay.offersOpen { open() } }
+                .accessibilityAddTraits(context.loads == nil ? [] : .isButton)
+                .accessibilityHint(context.loads == nil ? Text(verbatim: "") : Text("Downloads the file from the host and shows a preview."))
+                .accessibilityAction { if openDisplay.offersOpen { open() } }
+            if context.loads != nil {
+                AgentFileOpenRow(card: card, display: openDisplay, open: open, cancel: { context.loads?.cancelOpen(card.file.path) })
+            }
             if !visible.isEmpty {
                 ScrollView(.horizontal) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -162,9 +214,20 @@ struct AgentFileCardView: View {
             if let content = display.copyableContent {
                 Button("Copy Content", systemImage: "document.on.document") { Clipboard.copy(content) }
             }
+            if let file = openDisplay.shareableFile {
+                ShareLink(item: file)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("conversation.agentFile")
+        .quickLookPreview($previewFile)
+    }
+
+    /// 下載(版本沒變只查狀態)後以 QuickLook 開。
+    private func open() {
+        guard let loads = context.loads else { return }
+        let scope = context.scope()
+        Task { if let file = await loads.open(card.file.path, scope: scope) { previewFile = file } }
     }
 
     /// 刪除的行用錯誤文字色、未變的行用次要文字色;新增的行用主要文字色加粗(沒有對比足夠的綠色角色)。
@@ -174,6 +237,63 @@ struct AgentFileCardView: View {
         case .removed: AnyShapeStyle(.errorText)
         case .context, .hunkHeader: AnyShapeStyle(.secondaryText)
         }
+    }
+}
+
+/// 檔案卡片的開啟列(#228):「Open」與「Share」,下載中是進度與「Cancel」,不能開時是原因(與「Try Again」)。
+struct AgentFileOpenRow: View {
+    let card: AgentFileCard
+    let display: AgentFileOpenDisplay
+    let open: () -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if display.isDownloading {
+                Group {
+                    if let progress = display.progress {
+                        ProgressView(value: progress)
+                    } else {
+                        ProgressView()
+                    }
+                }
+                .accessibilityLabel(Text("Downloading \(card.file.name)"))
+                .accessibilityIdentifier("conversation.agentFile.progress")
+                Button("Cancel", action: cancel)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .accessibilityIdentifier("conversation.agentFile.cancel")
+            } else if let note = display.note {
+                Text(note)
+                    .foregroundStyle(.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("conversation.agentFile.note")
+                if display.offersRetry {
+                    Button("Try Again", action: open)
+                        .frame(minHeight: 44)
+                        .accessibilityIdentifier("conversation.agentFile.retry")
+                }
+            } else {
+                Button(action: open) {
+                    Label("Open", systemImage: "eye")
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(Text("Open \(card.file.name)"))
+                .accessibilityHint(Text("Downloads the file from the host and shows a preview."))
+                .accessibilityIdentifier("conversation.agentFile.open")
+                if let file = display.shareableFile {
+                    ShareLink(item: file) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel(Text("Share \(card.file.name)"))
+                    .accessibilityIdentifier("conversation.agentFile.share")
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .font(.footnote)
     }
 }
 

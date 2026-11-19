@@ -1,11 +1,21 @@
 import Foundation
 import PurrdrCore
 
-/// Demo 主機的主機取檔(#225):ledger 的 agent 讀過的兩張圖——小的匯出預覽(自動載入縮圖)與超過 8 MiB 的掃描檔(等點擊)。
+/// Demo 主機的主機取檔(#225、#228):ledger 的 agent 讀過的兩張圖——小的匯出預覽(自動載入縮圖)與超過 8 MiB 的掃描檔(等點擊);
+/// 寫過的檔案(點開以 QuickLook 預覽)、匯出後超過 25 MiB 的 CSV、已刪掉的草稿，與一份 PDF 報告。
 /// 內容在記憶體裡產生(不連網路、不帶資源檔)。
 public struct DemoHostFileFetcher: HostFileFetching {
     static let previewPath = "/Users/demo/ledger/docs/export-preview.png"
     static let scanPath = "/Users/demo/ledger/docs/statement-scan.png"
+    static let exportPath = "/Users/demo/ledger/Sources/Ledger/CSVExport.swift"
+    static let quotingTestsPath = "/Users/demo/ledger/Tests/LedgerTests/CSVQuotingTests.swift"
+    /// Agent 寫了開頭幾行，之後以指令附加全部紀錄：超過點擊開啟的上限。
+    static let historyPath = "/Users/demo/ledger/exports/history.csv"
+    static let historySize = 31_457_280
+    /// Agent 寫了又刪掉：主機上已沒有這個檔案。
+    static let draftPath = "/Users/demo/ledger/exports/draft.csv"
+    /// 匯出說明的 PDF(訊息內路徑可點，#229)。
+    public static let reportPath = "/Users/demo/ledger/docs/export-report.pdf"
 
     public init() {}
 
@@ -13,11 +23,15 @@ public struct DemoHostFileFetcher: HostFileFetching {
         switch path {
         case previewPath: DemoImages.preview
         case scanPath: DemoImages.scan
+        case exportPath: Data(DemoTranscripts.exportSource.utf8)
+        case quotingTestsPath: Data(DemoTranscripts.quotingTests.utf8)
+        case reportPath: DemoDocuments.report
         default: nil
         }
     }
 
     public func status(of target: HostFileTarget) async throws -> HostFileStatus {
+        if target.path == Self.historyPath { return .tooLarge(size: Self.historySize) }
         guard let data = Self.file(at: target.path) else { return .missing }
         return .file(version: Self.version(of: data), size: data.count)
     }
@@ -32,6 +46,33 @@ public struct DemoHostFileFetcher: HostFileFetching {
     private static func version(of data: Data) -> HostFileVersion {
         HostFileVersion(checksum: "demo:\(data.count)")
     }
+}
+
+/// Demo 的文件。
+enum DemoDocuments {
+    /// 一頁的 PDF(標題與兩行說明);xref 位移依內容計算。
+    static let report: Data = {
+        let text = "BT /F1 18 Tf 72 720 Td (Ledger CSV export) Tj /F1 12 Tf 0 -28 Td (Columns: date, amount, note.) Tj "
+            + "0 -18 Td (Notes with commas are quoted per RFC 4180.) Tj ET"
+        let objects = [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            "<< /Length \(text.utf8.count) >>\nstream\n\(text)\nendstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        ]
+        var pdf = "%PDF-1.4\n"
+        var offsets: [Int] = []
+        for (index, body) in objects.enumerated() {
+            offsets.append(pdf.utf8.count)
+            pdf += "\(index + 1) 0 obj\n\(body)\nendobj\n"
+        }
+        let xref = pdf.utf8.count
+        pdf += "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+        for offset in offsets { pdf += String(repeating: "0", count: 10 - String(offset).count) + "\(offset) 00000 n \n" }
+        pdf += "trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n"
+        return Data(pdf.utf8)
+    }()
 }
 
 /// Demo 的 PNG:RGB、未壓縮的 deflate 區塊(可攜核心沒有壓縮器)。

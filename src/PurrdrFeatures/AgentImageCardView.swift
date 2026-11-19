@@ -5,7 +5,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 圖片卡片的環境(#225):這台主機的載入狀態與聊天的存取範圍。
+/// 圖片卡片(#225)與檔案卡片開啟(#228)的環境:這台主機的載入狀態與聊天的存取範圍。
 struct AgentImageContext {
     var loads: AgentFileLoads?
     var scope: @MainActor () -> HostFileAccessScope = { HostFileAccessScope(workingDirectories: [], mentionedPaths: []) }

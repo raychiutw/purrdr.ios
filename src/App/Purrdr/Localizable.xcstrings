@@ -2044,6 +2044,17 @@
         }
       }
     },
+    "Couldn’t download the file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法下載檔案。"
+          }
+        }
+      }
+    },
     "Couldn’t find this host name. Check the address and that this device is on your tailnet." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2689,6 +2700,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向下鍵"
+          }
+        }
+      }
+    },
+    "Downloading %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下載 %@"
+          }
+        }
+      }
+    },
+    "Downloads the file from the host and shows a preview." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從主機下載檔案並顯示預覽。"
           }
         }
       }
@@ -4409,6 +4442,28 @@
         }
       }
     },
+    "Open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟"
+          }
+        }
+      }
+    },
+    "Open %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 %@"
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4493,6 +4548,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OpenSSH 私鑰，共 %lld 行"
+          }
+        }
+      }
+    },
+    "Opening files isn’t available for this host yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機目前還不能開啟檔案。"
           }
         }
       }
@@ -5769,6 +5835,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享"
+          }
+        }
+      }
+    },
+    "Share %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享 %@"
           }
         }
       }
@@ -7793,6 +7870,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為了標記註記，Purrdr 會以 %@ 更新 ~/.claude/plugins/store 裡 Claude Code 的註記檔。可以在設定中復原 Purrdr 的變更。"
+          }
+        }
+      }
+    },
+    "Too large to open here (%@). Open it on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案太大，無法在這裡開啟(%@)。請在主機上開啟。"
           }
         }
       }
