@@ -146,9 +146,11 @@ public final class ConversationModel {
     /// 圖片卡片的縮圖載入(#225):聊天所在主機的那份，由 `HostsModel` 接上;沒有時卡片不載入縮圖。
     public var agentFiles: AgentFileLoads?
 
-    /// 主機取檔的存取範圍(#225):Agent 的工作目錄，與目前對話紀錄裡檔案卡片及訊息文字中的路徑(#229)。
+    /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229),與對話紀錄本身(附檔資料夾)。
     public var fileAccessScope: HostFileAccessScope {
-        HostFileAccessScope(workingDirectories: currentAgent?.cwd.map { [$0] } ?? [], mentionedPaths: HostFileAccessScope.mentionedPaths(in: items))
+        HostFileAccessScope(
+            workingDirectories: currentAgent?.cwd.map { [$0] } ?? [], mentionedPaths: HostFileAccessScope.mentionedPaths(in: items),
+            transcriptPaths: file.map { [$0.path] } ?? [])
     }
 
     /// 輸入列上方的註記：只顯示這個輸入框要送往的 session 的那則(行為規格 F17)。

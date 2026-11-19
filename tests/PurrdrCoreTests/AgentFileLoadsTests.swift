@@ -44,7 +44,7 @@ struct AgentFileLoadsTests {
         #expect(unsupported.states[Self.shot] == .unsupported)
     }
 
-    @Test("對話的存取範圍：Agent 的工作目錄，加上對話紀錄裡檔案卡片的路徑(Demo ledger)")
+    @Test("對話的存取範圍：Agent 的工作目錄、對話紀錄裡檔案卡片的路徑與目前的對話紀錄(Demo ledger)")
     func conversationScope() async throws {
         let connection = SSHHostConnection(channel: DemoHost())
         let model = ConversationModel(
@@ -57,5 +57,6 @@ struct AgentFileLoadsTests {
             "/Users/demo/ledger/docs/export-preview.png", "/Users/demo/ledger/docs/statement-scan.png",
             "/Users/demo/ledger/Sources/Ledger/CSVExport.swift",
         ]))
+        #expect(model.fileAccessScope.transcriptPaths.count == 1)
     }
 }
