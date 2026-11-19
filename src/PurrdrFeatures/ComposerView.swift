@@ -329,7 +329,7 @@ struct ComposerSendButton: View {
             Group {
                 if model.isSending {
                     ProgressView()
-                        .tint(.white)
+                        .tint(OnProminentFillStyle())
                 } else {
                     Image(systemName: "arrow.up")
                         .fontWeight(.semibold)
@@ -518,7 +518,6 @@ struct EchoBubbleView: View {
                 }
                 if !echo.text.isEmpty {
                     Text(echo.text)
-                        .foregroundStyle(.white)
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)

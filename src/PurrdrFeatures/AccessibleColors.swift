@@ -51,41 +51,13 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xD1, green: 0xD1, blue: 0xD6)   // 黑底 13.8:1、#1C1C1E 11.2:1、#2C2C2E 9.2:1
     )
 
-    /// 紅字(品牌紅的文字與 tint 角色;#70)。Asset Catalog 的 `AccentColor` 與它同值。
-    /// 色相與飽和度同 `#FA2D48`,只調明度。
-    static let brandText = ContrastPalette(
-        light: ThemeColor(red: 0xD8, green: 0x05, blue: 0x21),             // #EFEFF0 4.6:1、#F2F2F7 4.7:1、白底 5.3:1
-        dark: ThemeColor(red: 0xFC, green: 0x5D, blue: 0x72),              // #2C2C2E 4.6:1、#1C1C1E 5.6:1、黑底 6.9:1
-        lightHighContrast: ThemeColor(red: 0xA2, green: 0x04, blue: 0x19), // #EFEFF0 7.1:1
-        darkHighContrast: ThemeColor(red: 0xFC, green: 0xA1, blue: 0xAD)   // #2C2C2E 7.1:1
-    )
-
-    /// 紅底(承載白字的品牌紅填色;#70):送出鍵、使用者泡泡、主要按鈕、膠囊標籤。深色模式不跟著紅字變亮。
-    static let brandFill = ContrastPalette(
-        light: ThemeColor(red: 0xEA, green: 0x08, blue: 0x26),             // 白字 4.6:1
-        dark: ThemeColor(red: 0xEA, green: 0x08, blue: 0x26),
-        lightHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B), // 白字 7.1:1
-        darkHighContrast: ThemeColor(red: 0xB3, green: 0x04, blue: 0x1B)
-    )
-
-    /// iPad 列表選取列的底色(#95):紅底角色。系統的選取底色是 tint(紅字角色),深色白字只有 3.0:1。
-    static let selectionFill = brandFill
-
-    /// 選取列上的文字與「需要你」(符號與狀態字)。
-    static let selectedRowText = ContrastPalette(
-        light: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),             // 選取底色 4.6:1
-        dark: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),              // 選取底色 4.6:1
-        lightHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), // 選取底色 7.1:1
-        darkHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)   // 選取底色 7.1:1
-    )
-
-    /// 對話中的連結(#93):系統連結藍的色相(`#007AFF`／`#0A84FF`),只調明度。
-    /// 系統 `.link` 淺色對 `#EFEFF0` 只有 3.5:1、深色對 `#2C2C2E` 3.8:1,不能承載文字。
-    static let linkText = ContrastPalette(
-        light: ThemeColor(red: 0x00, green: 0x68, blue: 0xDA),             // 白底 5.3:1、#F2F2F7 4.7:1、#EFEFF0 4.6:1
-        dark: ThemeColor(red: 0x2D, green: 0x96, blue: 0xFF),              // 黑底 6.9:1、#1C1C1E 5.6:1、#2C2C2E 4.6:1
-        lightHighContrast: ThemeColor(red: 0x00, green: 0x4D, blue: 0xA2), // #EFEFF0 7.1:1
-        darkHighContrast: ThemeColor(red: 0x7D, green: 0xBE, blue: 0xFF)   // #2C2C2E 7.1:1
+    /// 主色上的字與符號(ADR-0011):主色本身只有 Asset Catalog 的 `AccentColor` 一份，這組只配它當底。
+    /// 淺色白字(`#0B7A5C` 5.3:1、高對比 `#075C45` 8.0:1),深色黑字(`#3CCF9E` 10.6:1、高對比 `#5DE0B3` 12.8:1)。
+    static let onAccent = ContrastPalette(
+        light: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),
+        dark: ThemeColor(red: 0x00, green: 0x00, blue: 0x00),
+        lightHighContrast: ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF),
+        darkHighContrast: ThemeColor(red: 0x00, green: 0x00, blue: 0x00)
     )
 }
 
@@ -96,14 +68,8 @@ extension ShapeStyle where Self == Color {
     /// 承載資訊的次要文字顏色(取代系統 `.secondary`／`.tertiary` 文字)。圖示、分隔線、底色等純裝飾仍用系統階層色。
     static var secondaryText: Color { AccessibleColors.secondaryText.color }
 
-    /// 承載白字的品牌紅填色(紅底角色)。紅字與 tint 用 `AccentColor`。
-    static var brandFill: Color { AccessibleColors.brandFill.color }
-
-    /// iPad 選取列上的文字與「需要你」。
-    static var selectedRowText: Color { AccessibleColors.selectedRowText.color }
-
-    /// 對話中連結的顏色(連結藍，不用品牌紅 tint)。
-    static var linkText: Color { AccessibleColors.linkText.color }
+    /// 主色(`AccentColor`)底上的字與符號。
+    static var onAccent: Color { AccessibleColors.onAccent.color }
 }
 
 /// 文字按鈕的 label,觸控目標至少 44×44 pt(HIG 20.2)。

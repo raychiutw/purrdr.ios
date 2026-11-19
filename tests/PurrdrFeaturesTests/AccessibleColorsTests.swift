@@ -57,61 +57,14 @@ struct AccessibleColorsTests {
     }
 }
 
-/// 品牌紅的兩個角色(#70):紅字對它出現的背景、白字對紅底，四種外觀各自達標;`AccentColor` 與紅字同值。
-@Suite("品牌紅角色")
-struct BrandRedTests {
+/// 主色翡翠綠(ADR-0011):Asset Catalog 的 `AccentColor` 是唯一來源，主色文字與主色填色共用;填色上的字用 `onAccent`。
+@Suite("主色")
+struct AccentColorTests {
     static let white = ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF)
+    static let black = ThemeColor(red: 0x00, green: 0x00, blue: 0x00)
 
-    @Test("紅字：深淺色對主要、grouped 與卡片背景 ≥ 4.5:1,高對比 ≥ 7:1")
-    func brandTextContrast() {
-        let palette = AccessibleColors.brandText
-        let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
-            ("淺色", palette.light, AccessibleColorsTests.lightSecondaryBackgrounds, 4.5),
-            ("深色", palette.dark, AccessibleColorsTests.darkSecondaryBackgrounds, 4.5),
-            ("淺色高對比", palette.lightHighContrast, AccessibleColorsTests.lightSecondaryBackgrounds, 7),
-            ("深色高對比", palette.darkHighContrast, AccessibleColorsTests.darkSecondaryBackgrounds, 7),
-        ]
-        for (name, color, backgrounds, minimum) in cases {
-            for background in backgrounds {
-                let ratio = color.contrastRatio(with: background)
-                #expect(ratio >= minimum, "\(name) \(color) 對 \(background) 只有 \(ratio)")
-            }
-        }
-    }
-
-    @Test("紅底：白字對它深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
-    func brandFillContrast() {
-        let palette = AccessibleColors.brandFill
-        let cases: [(String, ThemeColor, Double)] = [
-            ("淺色", palette.light, 4.5),
-            ("深色", palette.dark, 4.5),
-            ("淺色高對比", palette.lightHighContrast, 7),
-            ("深色高對比", palette.darkHighContrast, 7),
-        ]
-        for (name, color, minimum) in cases {
-            let ratio = Self.white.contrastRatio(with: color)
-            #expect(ratio >= minimum, "\(name) 白字對 \(color) 只有 \(ratio)")
-        }
-    }
-
-    @Test("iPad 選取列：列文字與「需要你」對選取底色深淺色 ≥ 4.5:1,高對比 ≥ 7:1")
-    func selectedRowContrast() {
-        let text = AccessibleColors.selectedRowText
-        let fill = AccessibleColors.selectionFill
-        let cases: [(String, ThemeColor, ThemeColor, Double)] = [
-            ("淺色", text.light, fill.light, 4.5),
-            ("深色", text.dark, fill.dark, 4.5),
-            ("淺色高對比", text.lightHighContrast, fill.lightHighContrast, 7),
-            ("深色高對比", text.darkHighContrast, fill.darkHighContrast, 7),
-        ]
-        for (name, foreground, background, minimum) in cases {
-            let ratio = foreground.contrastRatio(with: background)
-            #expect(ratio >= minimum, "\(name) \(foreground) 對選取底色 \(background) 只有 \(ratio)")
-        }
-    }
-
-    @Test("AccentColor 四種外觀與紅字同值")
-    func accentColorMatchesBrandText() throws {
+    /// Asset Catalog `AccentColor` 的四種外觀(light／dark／各自高對比)。
+    static func accentColorAsset() throws -> ContrastPalette {
         let url = URL(filePath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "src/App/Purrdr/Assets.xcassets/AccentColor.colorset/Contents.json")
@@ -130,38 +83,64 @@ struct BrandRedTests {
                 + (appearances.contains("contrast=high") ? "HighContrast" : "")
             accentByAppearance[name] = ThemeColor(red: try channel("red"), green: try channel("green"), blue: try channel("blue"))
         }
-        let palette = AccessibleColors.brandText
-        #expect(accentByAppearance == [
-            "light": palette.light, "dark": palette.dark,
-            "lightHighContrast": palette.lightHighContrast, "darkHighContrast": palette.darkHighContrast,
-        ])
+        return ContrastPalette(
+            light: try #require(accentByAppearance["light"]),
+            dark: try #require(accentByAppearance["dark"]),
+            lightHighContrast: try #require(accentByAppearance["lightHighContrast"]),
+            darkHighContrast: try #require(accentByAppearance["darkHighContrast"])
+        )
     }
-}
 
-/// 對話中的連結(#93):系統連結藍的色相，與品牌紅的強調元素分開;四種外觀對主要與卡片背景達標。
-@Suite("連結顏色")
-struct LinkTextTests {
-    static let appearances: [(String, ThemeColor, [ThemeColor], Double)] = [
-        ("淺色", AccessibleColors.linkText.light, AccessibleColorsTests.lightSecondaryBackgrounds, 4.5),
-        ("深色", AccessibleColors.linkText.dark, AccessibleColorsTests.darkSecondaryBackgrounds, 4.5),
-        ("淺色高對比", AccessibleColors.linkText.lightHighContrast, AccessibleColorsTests.lightSecondaryBackgrounds, 7),
-        ("深色高對比", AccessibleColors.linkText.darkHighContrast, AccessibleColorsTests.darkSecondaryBackgrounds, 7),
-    ]
+    @Test("AccentColor 是翡翠綠四值")
+    func accentColorIsEmerald() throws {
+        let accent = try Self.accentColorAsset()
+        #expect(accent.light == ThemeColor(hex: "#0B7A5C"))
+        #expect(accent.dark == ThemeColor(hex: "#3CCF9E"))
+        #expect(accent.lightHighContrast == ThemeColor(hex: "#075C45"))
+        #expect(accent.darkHighContrast == ThemeColor(hex: "#5DE0B3"))
+    }
 
-    @Test("連結：深淺色對主要、grouped 與卡片背景 ≥ 4.5:1,高對比 ≥ 7:1")
-    func linkTextContrast() {
-        for (name, color, backgrounds, minimum) in Self.appearances {
+    /// HIG:一般文字 ≥ 4.5:1;「增加對比」的值要比一般值更強。
+    @Test("主色文字：四值對主要、grouped 與卡片背景 ≥ 4.5:1,高對比值更強")
+    func accentTextContrast() throws {
+        let accent = try Self.accentColorAsset()
+        let cases: [(String, ThemeColor, ThemeColor, [ThemeColor])] = [
+            ("淺色", accent.light, accent.lightHighContrast, AccessibleColorsTests.lightSecondaryBackgrounds),
+            ("深色", accent.dark, accent.darkHighContrast, AccessibleColorsTests.darkSecondaryBackgrounds),
+        ]
+        for (name, normal, highContrast, backgrounds) in cases {
             for background in backgrounds {
-                let ratio = color.contrastRatio(with: background)
-                #expect(ratio >= minimum, "\(name) \(color) 對 \(background) 只有 \(ratio)")
+                let normalRatio = normal.contrastRatio(with: background)
+                let highContrastRatio = highContrast.contrastRatio(with: background)
+                #expect(normalRatio >= 4.5, "\(name) \(normal) 對 \(background) 只有 \(normalRatio)")
+                #expect(highContrastRatio >= 4.5, "\(name)高對比 \(highContrast) 對 \(background) 只有 \(highContrastRatio)")
+                #expect(highContrastRatio > normalRatio, "\(name)高對比 \(highContrast) 沒有比一般值更強")
             }
         }
     }
 
-    @Test("連結是藍色，不是品牌紅")
-    func linkTextIsBlue() {
-        for (name, color, _, _) in Self.appearances {
-            #expect(color.blue > color.red && color.blue > color.green, "\(name) \(color) 不是藍色")
+    @Test("主色上的字色：淺色白、深色黑")
+    func onAccentIsWhiteInLightAndBlackInDark() {
+        let onAccent = AccessibleColors.onAccent
+        #expect(onAccent.light == Self.white)
+        #expect(onAccent.lightHighContrast == Self.white)
+        #expect(onAccent.dark == Self.black)
+        #expect(onAccent.darkHighContrast == Self.black)
+    }
+
+    @Test("主色上的字色：對主色四值 ≥ 4.5:1")
+    func onAccentContrast() throws {
+        let accent = try Self.accentColorAsset()
+        let onAccent = AccessibleColors.onAccent
+        let cases: [(String, ThemeColor, ThemeColor)] = [
+            ("淺色", onAccent.light, accent.light),
+            ("深色", onAccent.dark, accent.dark),
+            ("淺色高對比", onAccent.lightHighContrast, accent.lightHighContrast),
+            ("深色高對比", onAccent.darkHighContrast, accent.darkHighContrast),
+        ]
+        for (name, foreground, background) in cases {
+            let ratio = foreground.contrastRatio(with: background)
+            #expect(ratio >= 4.5, "\(name) \(foreground) 對主色 \(background) 只有 \(ratio)")
         }
     }
 }

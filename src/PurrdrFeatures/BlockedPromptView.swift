@@ -186,7 +186,7 @@ struct BlockedPromptView: View {
 }
 
 private extension View {
-    /// 同一組選項同尺寸;建議選項用紅底 prominent 樣式而非大小區分(HIG 20.7)。
+    /// 同一組選項同尺寸;建議選項用主色 prominent 樣式而非大小區分(HIG 20.7)。
     /// 圓角長方形選項卡(#93):膠囊形像按鈕列，多行文字也不好讀。
     @ViewBuilder
     func optionStyle(prominent: Bool) -> some View {
