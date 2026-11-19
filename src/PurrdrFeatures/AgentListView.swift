@@ -74,12 +74,9 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 標題是目前檢視名，點標題切換 Spaces／Agents(行為規格 F2.1、#37 故事 7、#66)。
-        // 系統的標題選單(`toolbarTitleMenu`)只掛在 inline 標題上：大標題模式(`.large`、`.inlineLarge`)最上面的大標題
-        // 是靜態文字，點了沒有選單;iOS 26 的 `ToolbarItem(placement: .largeTitle)` 自訂內容畫得出來，但不在
-        // accessibility tree、也不接觸控(#66 實測)。所以大標題畫在列表第一列(`AgentListLargeTitle`,一般的 Menu),
-        // 它在畫面上時以 `toolbar(removing: .title)` 收起導覽列的小標題;捲上去後小標題(含系統標題選單)回來，
-        // 跟系統大標題收合一樣。`navigationTitle` 一直設著(iPad 的 App 切換器、視窗標題用它)。
+        // 標題是目前檢視名;大標題與其下的 Agents／Spaces 分段切換畫在列表第一列(#244)。
+        // iOS 26 的 `ToolbarItem(placement: .largeTitle)` 不在 accessibility tree、也不接觸控(#66 實測),所以不用系統大標題;
+        // 第一列在畫面上時以 `toolbar(removing: .title)` 收起小標題，捲上去後小標題(含標題選單)回來。
         .navigationTitle(model.mode.title)
         .toolbarTitleMenu { AgentListModePicker(mode: $model.mode) }
         .toolbar(removing: showsLargeTitle ? .title : nil)
@@ -229,7 +226,7 @@ public struct AgentListView: View {
         #endif
     }
 
-    /// 列表第一列：大標題(目前檢視名 + ⌄),點了出檢視選單(#66)。
+    /// 列表第一列：大標題與 Agents／Spaces 分段切換(#244)。
     private var largeTitleRow: some View {
         Section {
             AgentListLargeTitle(mode: $model.mode)
@@ -257,13 +254,21 @@ public struct AgentListView: View {
         let failures = model.failures
         if model.mode == .spaces {
             SpacesSectionsContent(sections: spacesSections, model: model, presentation: presentation) { row in agentRow(row, spaces: true) }
-        } else {
-            ForEach(sections) { section in
-                Section {
-                    ForEach(section.rows) { row in agentRow(row) }
-                } header: {
-                    AgentSectionHeader(group: section.group, count: section.rows.count)
-                }
+        } else if !sections.isEmpty {
+            // 單一清單(#244):不分段，順序仍是已釘選、需要你、工作中、閒置。
+            Section {
+                ForEach(sections.flatMap(\.rows)) { row in agentRow(row) }
+            }
+        }
+        if let filtered = model.hostFilter.flatMap({ model.hostLabel(of: $0) }),
+           model.query.trimmingCharacters(in: .whitespaces).isEmpty,
+           model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty {
+            // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。
+            Section {
+                Text("No agents on \(filtered.name).")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("agentList.filterEmpty")
             }
         }
         if !failures.isEmpty {
@@ -297,7 +302,7 @@ public struct AgentListView: View {
     /// 一個 Agent 列(兩種檢視共用：同樣的滑動、選單、已讀與釘選;Spaces 檢視的版面不同)。
     private func agentRow(_ row: AgentRow, spaces: Bool = false) -> some View {
         NavigationLink(value: row.route) {
-            if spaces { SpacesAgentRowView(row: row) } else { AgentRowView(row: row) }
+            if spaces { SpacesAgentRowView(row: row) } else { AgentRowView(row: row, host: model.hostLabel(of: row.host)) }
         }
             .accessibilityIdentifier("agent.row.\(row.id)")
             .selectionFill(for: row.route)
@@ -388,38 +393,24 @@ struct ConversationScreen: View {
     }
 }
 
+/// Agents 檢視的一列(#244 單一清單):列首是主機圖示，第一行狀態點、名稱與時間，第二行「主機 · 最後一句」。
 struct AgentRowView: View {
     let row: AgentRow
+    /// 這列所在主機的名稱與圖示(選取中主機也有)。
+    let host: HostLabel?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 次要色;iPad 選取列是中性灰底(`selectionFill(for:)`),選取中也不換色。
     private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            // agent 種類圖示(#37 故事 6)。種類名稱已在副標裡，VoiceOver 不重複念。
-            Image(systemName: AgentKindSymbol.name(for: row.kind))
-                .font(.body)
-                .foregroundStyle(secondary)
-                .frame(minWidth: 24)
-                .accessibilityHidden(true)
-            // AX 字級改成上下堆疊，不截斷(DESIGN.md)。不用 `ViewThatFits`:它比的是文字不換行的理想寬度，
-            // 副標稍長(例如「Claude Code · demo/weather-app」)就在預設字級也堆疊，各列版面不一致(#35)。
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) {
-                    texts
-                    StatusLabel(status: row.status)
-                    timeText
-                }
-            } else {
-                HStack(alignment: .top, spacing: 8) {
-                    texts
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .trailing, spacing: 4) {
-                        StatusLabel(status: row.status)
-                        timeText
-                    }
-                    .fixedSize()
-                }
+            HostIconBadge(host?.icon ?? .default)
+            VStack(alignment: .leading, spacing: 2) {
+                titleLine
+                previewLine
+                    .font(.subheadline)
+                    .lineLimit(lines(2))
+                if dynamicTypeSize.isAccessibilitySize { timeText }
             }
         }
         .accessibilityElement(children: .combine)
@@ -431,56 +422,50 @@ struct AgentRowView: View {
         dynamicTypeSize.isAccessibilitySize ? nil : limit
     }
 
-    private var texts: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(row.title)
-                    .lineLimit(lines(2))
-                // 釘選、靜音：標題後的小圖示，不只靠顏色(#37 故事 18)。VoiceOver 念「已釘選」「已靜音」(行為規格 F2.4 的順序)。
-                if row.isPinned {
-                    Image(systemName: "pin.fill")
-                        .imageScale(.small)
-                        .foregroundStyle(secondary)
-                        .accessibilityLabel(Text("Pinned"))
-                }
-                if row.isMuted {
-                    Image(systemName: "bell.slash.fill")
-                        .imageScale(.small)
-                        .foregroundStyle(secondary)
-                        .accessibilityLabel(Text("Muted"))
-                }
-            }
-            .font(.body)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                // 非選取中主機：副標開頭的主機名前加主機圖示(#37 故事 2、5)。主機名在文字裡，圖示不念。
-                if let symbol = row.hostLabel?.icon.symbol {
-                    Image(systemName: symbol)
-                        .accessibilityHidden(true)
-                }
-                Text(row.subtitle)
-                    .lineLimit(lines(1))
-            }
-            .font(.subheadline.monospaced())
-            .foregroundStyle(secondary)
-            preview
-                .font(.subheadline)
+    private var titleLine: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            // 狀態點：形狀與顏色都依狀態(`StatusTone`),VoiceOver 念狀態字。
+            Image(systemName: row.status.symbol)
+                .imageScale(.small)
+                .foregroundStyle(row.status.tone.style)
+                .accessibilityLabel(Text(row.status.title))
+            Text(row.title)
                 .lineLimit(lines(1))
+            // 釘選、靜音：名稱後的小圖示，不只靠顏色(#37 故事 18)。
+            if row.isPinned {
+                Image(systemName: "pin.fill")
+                    .imageScale(.small)
+                    .foregroundStyle(secondary)
+                    .accessibilityLabel(Text("Pinned"))
+            }
+            if row.isMuted {
+                Image(systemName: "bell.slash.fill")
+                    .imageScale(.small)
+                    .foregroundStyle(secondary)
+                    .accessibilityLabel(Text("Muted"))
+            }
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+                timeText
+            }
         }
+        .font(.body)
     }
 
-    @ViewBuilder
-    private var preview: some View {
-        switch row.preview {
-        case .needsInput:
-            Text("Waiting for your input")
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.primary)
-        case .message(let text, let fromYou):
-            Text(fromYou ? "You: \(text)" : "\(text)")
-                .foregroundStyle(secondary)
-        case .none:
-            EmptyView()
+    /// 「主機 · 最後一句」;需要你時是「主機 · 等你回覆」。
+    private var previewLine: some View {
+        let hostName = host?.name ?? ""
+        return Group {
+            switch row.preview {
+            case .needsInput:
+                Text("\(hostName) · \(Text("Waiting for your input").fontWeight(.semibold).foregroundStyle(Color.primary))")
+            case .message(let text, let fromYou):
+                fromYou ? Text("\(hostName) · You: \(text)") : Text(verbatim: "\(hostName) · \(text)")
+            case .none:
+                Text(verbatim: hostName)
+            }
         }
+        .foregroundStyle(secondary)
     }
 
     @ViewBuilder

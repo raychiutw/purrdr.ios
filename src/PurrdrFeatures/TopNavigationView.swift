@@ -90,7 +90,7 @@ public struct TopNavigationView: View {
                         navigation.sheet = nil
                     }
                 case .newChat:
-                    NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker(listFilter: newChatListFilter)) {
+                    NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker()) {
                         navigation.sheet = nil
                     } onStarted: { workspace, host in
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
@@ -213,9 +213,9 @@ public struct TopNavigationView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
-        // 選取中主機(#39):只決定新聊天開在哪裡與套用誰的主題;所有主機的 Agent 都在列表上。
+        // 主機篩選(#244);右側保留給「⋯」與最右上角的帳號鈕(#246)。
         ToolbarItem(placement: Self.hostPlacement) {
-            SelectedHostMenu(hosts: hosts)
+            HostFilterMenu(list: hosts.agentList)
         }
         ToolbarItem(placement: .primaryAction) {
             // 以 Divider 分組;不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
@@ -234,10 +234,6 @@ public struct TopNavigationView: View {
             .accessibilityIdentifier("toolbar.more")
         }
     }
-
-    /// 新增聊天預設的主機：聊天列表的主機篩選(`nil` 是所有主機，改用選取中主機,#245)。
-    /// #244 的 `MergedAgentListModel.hostFilter` 合進來後改讀 `hosts.agentList.hostFilter`;在那之前一律是所有主機。
-    private var newChatListFilter: HostSelection? { nil }
 
     /// 「⋯」選單的一項。登入 Shell 與檔案預設上次選的主機，畫面上可換(#245;iPad 上也是推疊)。
     @ViewBuilder
@@ -333,36 +329,35 @@ private struct NewChatForm: View {
     }
 }
 
-/// 頂部的主機鈕：顯示選取中主機的圖示與名稱，選單裡切換選取中主機(#39、DESIGN.md)。
-struct SelectedHostMenu: View {
-    let hosts: HostsModel
+/// 左上角的主機篩選(#244):所有主機或某一台，選單帶主機圖示;只篩選列表，不改選取中主機。
+struct HostFilterMenu: View {
+    @Bindable var list: MergedAgentListModel
 
     var body: some View {
+        let current = list.hostFilter.flatMap { list.hostLabel(of: $0) }
         Menu {
-            Picker(selection: selection) {
-                Label("Demo", systemImage: HostIcon.default.pickerSymbol)
-                    .tag(HostSelection.demo)
-                ForEach(hosts.rows) { row in
-                    HostMenuLabel(row.title, icon: row.icon)
-                        .tag(HostSelection.host(row.id))
+            Picker(selection: $list.hostFilter) {
+                Label("All Hosts", systemImage: "square.grid.2x2")
+                    .tag(HostSelection?.none)
+                ForEach(list.hostFilterOptions) { option in
+                    HostMenuLabel(option.label.name, icon: option.label.icon)
+                        .tag(HostSelection?.some(option.host))
                 }
             } label: {
-                Text("Selected Host")
+                Text("Hosts")
             }
-            .accessibilityIdentifier("hostMenu.picker")
-            Section {
-                Text("New chats start on the selected host. Agents on every host stay in the list.")
-            }
+            .accessibilityIdentifier("hostFilter.picker")
         } label: {
-            HostMenuLabel(hosts.name(of: hosts.selection), icon: hosts.selectionIcon)
-                .labelStyle(.titleAndIcon)
+            if let current {
+                HostMenuLabel(current.name, icon: current.icon)
+                    .labelStyle(.titleAndIcon)
+            } else {
+                Label("All Hosts", systemImage: "square.grid.2x2")
+                    .labelStyle(.titleAndIcon)
+            }
         }
-        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label。
-        .accessibilityLabel(Text("Selected Host: \(hosts.name(of: hosts.selection))"))
-        .accessibilityIdentifier("toolbar.host")
-    }
-
-    private var selection: Binding<HostSelection> {
-        Binding { hosts.selection } set: { hosts.select($0) }
+        // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
+        .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))
+        .accessibilityIdentifier("toolbar.hostFilter")
     }
 }

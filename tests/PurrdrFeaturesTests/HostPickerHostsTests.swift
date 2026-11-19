@@ -69,4 +69,16 @@ struct HostPickerHostsTests {
         #expect(model.newChatHostPicker(listFilter: .host(Self.https.id)).selection == .host(Self.https.id))
         #expect(model.newChatHostPicker(listFilter: nil).selection == .host(Self.ssh.id))
     }
+
+    @Test("「⋯」的新增聊天預設聊天列表目前篩選的主機(#244);篩選所有主機時用選取中主機")
+    func newChatFollowsListHostFilter() {
+        let model = Self.model()
+        model.select(.host(Self.ssh.id))
+
+        model.agentList.hostFilter = .host(Self.https.id)
+        #expect(model.newChatHostPicker().selection == .host(Self.https.id))
+
+        model.agentList.hostFilter = nil
+        #expect(model.newChatHostPicker().selection == .host(Self.ssh.id))
+    }
 }
