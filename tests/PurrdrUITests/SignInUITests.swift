@@ -54,6 +54,6 @@ final class SignInUITests: XCTestCase {
 
     @MainActor
     private func openSignIn(in app: XCUIApplication) {
-        app.openMemberFromSettings()
+        app.openSignInFromAccount()
     }
 }

@@ -64,7 +64,7 @@ public struct PlusView: View {
             await model.refresh()
         }
         .sheet(isPresented: $signingIn) {
-            MemberView(model: member)
+            SignInSheet(model: member)
         }
         #if os(iOS)
         .offerCodeRedemption(isPresented: $redeeming) { _ in

@@ -53,7 +53,7 @@ public struct SettingsLinks: Sendable, Equatable {
 }
 
 /// 設定頁的 model(行為規格 F15,範圍依 #32):版本、主機 herdr 版本、複製診斷資訊、評分、支援與隱私權連結、
-/// Return 送出偏好。深淺色跟隨系統，**沒有** app 內設定(DESIGN.md)。
+/// Return 送出偏好、外觀(#246)。
 @MainActor
 @Observable
 public final class SettingsModel {
@@ -81,6 +81,11 @@ public final class SettingsModel {
         didSet { defaults.set(hapticsEnabled, forKey: HapticSettings.enabledKey) }
     }
 
+    /// 外觀(#246;預設自動)。存在 `AppearancePreference.storageKey`,app 根畫面以 `@AppStorage` 讀同一個 key 立即套用。
+    public var appearance: AppearancePreference {
+        didSet { appearance.store(in: defaults) }
+    }
+
     private let app: AppInfo
     /// 目前選取主機的 client(沒有主機時 `nil`)。每次讀版本都重新取，換主機後重開設定就是新主機。
     private let client: @MainActor () -> HerdrClient?
@@ -102,6 +107,7 @@ public final class SettingsModel {
         herdrVersion = .loading
         returnSends = defaults.object(forKey: ComposerSettings.returnSendsKey) as? Bool ?? true
         hapticsEnabled = HapticSettings.isEnabled(defaults)
+        appearance = AppearancePreference.stored(in: defaults)
     }
 
     public var appVersionText: String { "\(app.version) (\(app.build))" }

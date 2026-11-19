@@ -37,7 +37,7 @@ struct PurrdrApp: App {
         let preferences: any HostChatPreferencesStore = uiTesting
             ? InMemoryHostChatPreferencesStore() : UserDefaultsHostChatPreferencesStore()
         let hostIcons: any HostIconStore = uiTesting ? InMemoryHostIconStore() : UserDefaultsHostIconStore()
-        let session = Self.makeMemberSession(uiTesting: uiTesting)
+        let session = Self.makeMemberSession(uiTesting: uiTesting, arguments: arguments)
         member = MemberModel(
             session: session,
             google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID))
@@ -50,7 +50,7 @@ struct PurrdrApp: App {
         // 推播(#29):UI 測試不請求權限、不註冊 APNs、配對只在記憶體。
         let push = PushService(
             session: session,
-            platform: uiTesting ? UITestingPushPlatform() : PushAppDelegate.platform,
+            platform: uiTesting ? UITestingPushPlatform(isAuthorized: Self.uiTestingMemberBackend(arguments) != nil) : PushAppDelegate.platform,
             store: uiTesting ? InMemoryPushPairingStore() : UserDefaultsPushPairingStore(),
             configuration: PushConfiguration(
                 endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource)
@@ -204,10 +204,20 @@ struct PurrdrApp: App {
     }
 
     /// UI 測試模式：權杖只放記憶體(不碰 Keychain)、後台指向不存在的位址(不連網路)。
-    private static func makeMemberSession(uiTesting: Bool) -> MemberSession {
+    /// `-uiTestingMember`／`-uiTestingPlusMember`:改用假後台，以已登入的會員啟動(帳號頁的開通流程,#246)。
+    private static func makeMemberSession(uiTesting: Bool, arguments: [String]) -> MemberSession {
+        if uiTesting, let backend = uiTestingMemberBackend(arguments) {
+            return MemberSession(transport: backend, tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken))
+        }
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
         return MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore)
+    }
+
+    private static func uiTestingMemberBackend(_ arguments: [String]) -> UITestingBackendTransport? {
+        if arguments.contains("-uiTestingPlusMember") { return UITestingBackendTransport(isPlusActive: true) }
+        if arguments.contains("-uiTestingMember") { return UITestingBackendTransport(isPlusActive: false) }
+        return nil
     }
 
     var body: some Scene {
@@ -216,12 +226,14 @@ struct PurrdrApp: App {
             TopNavigationView(
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
                 welcome: welcome)
+            .appAppearance()
         }
         .commands { PurrdrCommands() }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in
             if let window {
                 PaneWindowView(window: window, hosts: hosts)
+                    .appAppearance()
             }
         }
     }

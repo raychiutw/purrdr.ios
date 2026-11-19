@@ -71,25 +71,20 @@ extension XCUIApplication {
         item.tap()
     }
 
-    /// 會員不在「⋯」選單(#241):從設定頁的會員列進入。
+    /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
     @MainActor
-    func openMemberFromSettings(file: StaticString = #filePath, line: UInt = #line) {
-        openMoreMenuItem("menu.settings", file: file, line: line)
-        let member = buttons["settings.member"].firstMatch
-        XCTAssertTrue(member.waitForExistence(timeout: 10), "設定頁沒有會員列", file: file, line: line)
-        member.tap()
+    func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
+        let account = buttons["toolbar.account"].firstMatch
+        XCTAssertTrue(account.waitForExistence(timeout: 10), "列表右上角沒有帳號鈕", file: file, line: line)
+        account.tap()
+        let join = buttons["account.plusSetup.action"].firstMatch
+        XCTAssertTrue(join.waitForExistence(timeout: 10), "帳號頁沒有「加入」", file: file, line: line)
+        join.tap()
     }
 
-    /// Purrdr Plus 不在「⋯」選單(#241):沒訂閱時從設定頁的主機同步進入付費牆。
+    /// 付費牆不在「⋯」選單(#241),未加入會員時帳號頁也還沒有「開通」:以深層連結開(#246)。
     @MainActor
-    func openPlusFromSettings(file: StaticString = #filePath, line: UInt = #line) {
-        openMoreMenuItem("menu.settings", file: file, line: line)
-        let toggle = descendants(matching: .any)["settings.hostSync"].firstMatch
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "設定頁沒有主機同步", file: file, line: line)
-        // 點開關本身(列的右側)。
-        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
-        let plus = descendants(matching: .any)["settings.hostSync.plus"].firstMatch
-        XCTAssertTrue(plus.waitForExistence(timeout: 10), "沒有顯示需要 Purrdr Plus", file: file, line: line)
-        plus.tap()
+    func openPlusPaywall() {
+        open(URL(string: "purrdr://plus")!)
     }
 }
