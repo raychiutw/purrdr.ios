@@ -36,6 +36,7 @@ PURRDR_WINDOWS_HOST=user@host PURRDR_WINDOWS_KEY=<私鑰> \
   python -I scripts/windows-upload-repro.py                      # Windows 上傳、stdin stub 與自我時限(--kind limit)經真正 sshd 的回歸檢查(案例見腳本說明);Windows 開發機 SSH 到本機就能跑
   # 同樣的環境變數:python -I scripts/windows-follow-repro.py    # Windows 長駐追蹤腳本(#167):多通道多輪含 2 MiB、時限、關閉／斷線不留程序;要在 Windows 主機本機跑
   # 同樣的環境變數:python -I scripts/windows-host-files-repro.py  # Windows 主機檔案長駐讀取(#203):回應種類、閒置時限不留程序、以 ssh -v 量每次讀取的位元組
+  # 同樣的環境變數:python -I scripts/windows-previews-repro.py    # Windows 列表預覽帶已知版本(#205):whole、unchanged、只送附加、換檔
 PURRDR_REPRO_HOST=user@host PURRDR_REPRO_KEY=<私鑰> PURRDR_REPRO_HOST_KEY=<主機公鑰檔> \
   scripts/host-poll-repro/run.sh [次數]                          # 以可攜核心連真主機、模擬 app 並行輪詢(容器編譯);任一步失敗或取消後仍不返回就 RED
 ```
