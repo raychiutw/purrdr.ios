@@ -129,7 +129,7 @@ struct ConversationHeaderTests {
     }
 
     /// #220:斷線前的 working 已過時，停止鈕不能留著讓人按。
-    @Test("離線：不再保留斷線前的 working,停止不可用、不顯示停止鈕")
+    @Test("離線：不再保留斷線前的 working,停止與強制結束都不可用")
     func offlineDropsStaleWorkingAndStop() async throws {
         let setup = try Self.setup()
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
@@ -144,29 +144,43 @@ struct ConversationHeaderTests {
 
         #expect(setup.model.agentStatus != .working)
         #expect(!setup.model.canStop)
-        #expect(!setup.model.showsStopButton)
+        #expect(!setup.model.canForceQuit)
     }
 
     // MARK: - 重新載入與停止
 
-    /// #220:停止移到輸入列;強制結束在標題列的選單，只對 working 的 agent(「需要你」永不中斷)。
-    @Test("標題列一律是「重新載入」;強制結束只在工作中可用，需要你、離線時不可用")
-    func headerReloadAndForceQuitAvailability() async throws {
+    @Test("不在工作中(含需要你)標題列是「重新載入」;工作中換成「停止」")
+    func reloadOrStop() async throws {
         let setup = try Self.setup()
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
         await setup.model.poll()
         #expect(setup.model.headerAction == .reload)
-        #expect(!setup.model.canForceQuit)
 
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
-        #expect(setup.model.headerAction == .reload)
-        #expect(setup.model.canForceQuit)
+        #expect(setup.model.headerAction == .stop)
 
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-bash"))
         await setup.model.poll()
         #expect(setup.model.headerAction == .reload)
+    }
+
+    /// #220:強制結束只對 working 的 agent(「需要你」永不中斷);離線時斷線前的 working 已過時。
+    @Test("強制結束：只在工作中可用，需要你、離線時不可用")
+    func forceQuitAvailability() async throws {
+        let setup = try Self.setup()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
+        await setup.model.poll()
+        #expect(!setup.model.canForceQuit)
+
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        #expect(setup.model.canForceQuit)
+
+        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
+        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-bash"))
+        await setup.model.poll()
         #expect(!setup.model.canForceQuit)
 
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
@@ -216,24 +230,8 @@ struct ConversationHeaderTests {
         #expect(setup.model.notice == .interruptRefusedNeedsAnswer)
     }
 
-    /// #220:工作中送出鈕變停止鈕;打了字就回到送出(工作中送出的 prompt 會排隊)。
-    @Test("停止鈕：工作中且草稿空白才出現，有草稿時是送出")
-    func stopButtonReplacesSendWhileWorking() async throws {
-        let setup = try Self.setup()
-        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
-        await setup.model.poll()
-        #expect(!setup.model.showsStopButton)
-
-        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
-        await setup.model.poll()
-        #expect(setup.model.showsStopButton)
-
-        setup.model.draft = "接著做"
-        #expect(!setup.model.showsStopButton)
-    }
-
-    @Test("停止成功：不等下一次輪詢，停止鈕立刻換回送出")
-    func stopSuccessReturnsToSendImmediately() async throws {
+    @Test("停止成功：不等下一次輪詢，立刻換成停下後的狀態(停止不再可用)")
+    func stopSuccessUpdatesStatusImmediately() async throws {
         let setup = try Self.setup(sleeper: RecordingSleeper { $0 < HostCommandDeadline.standard })
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
@@ -244,8 +242,8 @@ struct ConversationHeaderTests {
         await setup.model.stop()
 
         #expect(setup.model.notice == nil)
-        #expect(!setup.model.showsStopButton)
-        #expect(setup.model.header.status != .working)
+        #expect(setup.model.agentStatus == .idle)
+        #expect(!setup.model.canStop)
     }
 
     /// #220:讀不到狀態不能當成功。

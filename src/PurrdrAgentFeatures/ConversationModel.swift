@@ -813,15 +813,8 @@ public final class ConversationModel {
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
 
-    /// 標題列選單的強制結束(#220)。
-    public var canForceQuit: Bool { false }
-
-    /// 輸入列的送出鈕換成停止鈕(#220):working(或停止中)且草稿、圖片都空;有草稿時是送出(prompt 會排隊)。
-    public var showsStopButton: Bool {
-        guard !isReadOnly, !isOffline, typedAnswer == nil else { return false }
-        if isStopping { return true }
-        return agentStatus == .working && draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty
-    }
+    /// 強制結束同停止，只對 working 的 agent;唯讀、離線時不可用(#220)。
+    public var canForceQuit: Bool { agentStatus == .working && !isReadOnly && !isOffline }
 
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
@@ -923,7 +916,7 @@ public final class ConversationModel {
 
     /// 強制結束(ctrl+c,F6.7)。呼叫端先請使用者確認;只對 working 的 agent。
     public func forceQuit() async {
-        guard agentStatus == .working else { return }
+        guard canForceQuit else { return }
         switch await delivery.forceQuit(paneID: paneID) {
         case .sent, .notWorking: notice = nil
         case .needsAnswer: notice = .interruptRefusedNeedsAnswer

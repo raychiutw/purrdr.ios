@@ -88,7 +88,7 @@ struct ConversationReadOnlyTests {
         #expect(setup.model.draft == "繼續")
     }
 
-    @Test("主機服務回報唯讀：工作中的 agent 也不能停止或強制結束，不顯示停止鈕")
+    @Test("主機服務回報唯讀：工作中的 agent 也不能停止或強制結束")
     func readOnlyCannotStop() async throws {
         let setup = try Self.setup()
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "working"))
@@ -97,7 +97,6 @@ struct ConversationReadOnlyTests {
 
         #expect(setup.model.agentStatus == .working)
         #expect(!setup.model.canStop)
-        #expect(!setup.model.showsStopButton)
         #expect(!setup.model.canForceQuit)
     }
 
