@@ -169,7 +169,7 @@ public struct PromptDelivery: Sendable {
         case .unknown: return .failed
         case .needsYou: return .needsAnswer
         // 已經停了：多一個 Esc 會打開 Claude 的回溯選單。
-        case .notWorking: return .stopped(nil)
+        case .notWorking(let status): return .stopped(status)
         case .working: break
         }
         do {
@@ -184,7 +184,8 @@ public struct PromptDelivery: Sendable {
                 return .stillWorking
             }
             guard let snapshot = try? await client.snapshot() else { return .unconfirmed }
-            if snapshot.agents.first(where: { $0.paneID == paneID })?.status != .working { return .stopped(nil) }
+            let status = snapshot.agents.first(where: { $0.paneID == paneID })?.status
+            if status != .working { return .stopped(status) }
         }
         return .stillWorking
     }
@@ -208,7 +209,7 @@ public struct PromptDelivery: Sendable {
     private enum InterruptTarget {
         case working
         case needsYou
-        case notWorking
+        case notWorking(AgentStatus?)
         case unknown
     }
 
@@ -216,8 +217,8 @@ public struct PromptDelivery: Sendable {
     /// 永不中斷——Esc／ctrl+c 可能把問題關掉(F6.7);讀不到狀態也不送。
     private func freshInterruptTarget(paneID: String) async -> InterruptTarget {
         guard let snapshot = try? await client.snapshot() else { return .unknown }
-        guard let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else { return .notWorking }
+        guard let agent = snapshot.agents.first(where: { $0.paneID == paneID }) else { return .notWorking(nil) }
         if agent.status == .blocked || (agent.inputPending && agent.status != .working) { return .needsYou }
-        return agent.status == .working ? .working : .notWorking
+        return agent.status == .working ? .working : .notWorking(agent.status)
     }
 }
