@@ -20,6 +20,7 @@ struct ConversationAnswerTests {
 
     struct Setup {
         let host: RoutingHost
+        let shell: LocalShellHost
         let model: ConversationModel
         let clock: TestClock
         let haptics: RecordingHaptics
@@ -37,7 +38,7 @@ struct ConversationAnswerTests {
             knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(), clock: clock.clock,
             haptics: haptics, sleep: sleeper.sleep
         )
-        return Setup(host: host, model: model, clock: clock, haptics: haptics, sleeper: sleeper)
+        return Setup(host: host, shell: shell, model: model, clock: clock, haptics: haptics, sleeper: sleeper)
     }
 
     static func snapshot(status: String, kind: String = "claude", session: Bool = true) -> FakeReply {
@@ -236,7 +237,7 @@ struct ConversationAnswerTests {
 
         let replyLine = ConversationModelTests.fixtureLines[19]
             .replacingOccurrences(of: "00000000-0000-4000-8000-00000000001f", with: "00000000-0000-4000-8000-0000000000fa")
-        try setup.host.shell.append(Data((replyLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        try setup.shell.append(Data((replyLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
         setup.clock.advance(by: AnsweredCardAnchor.minimumShowing)
         await Self.expectPoll(setup, status: "working", screen: nil)
         await setup.model.poll()
@@ -256,7 +257,7 @@ struct ConversationAnswerTests {
 
         let toolLine = ConversationModelTests.fixtureLines[20]
             .replacingOccurrences(of: "00000000-0000-4000-8000-000000000020", with: "00000000-0000-4000-8000-0000000000fb")
-        try setup.host.shell.append(Data((toolLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
+        try setup.shell.append(Data((toolLine + "\n").utf8), to: ConversationModelTests.transcriptPath)
         setup.clock.advance(by: 1)
         await Self.expectPoll(setup, status: "working", screen: nil)
         await setup.model.poll()
