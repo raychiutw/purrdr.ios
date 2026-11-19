@@ -2990,6 +2990,17 @@
         }
       }
     },
+    "Fill In" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填入"
+          }
+        }
+      }
+    },
     "Fingerprint" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6389,13 +6400,13 @@
         }
       }
     },
-    "Suggestion: %@" : {
+    "Suggestion" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "建議：%@"
+            "value" : "建議"
           }
         }
       }

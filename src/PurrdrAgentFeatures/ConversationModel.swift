@@ -1371,6 +1371,11 @@ public final class ConversationModel {
     /// (不蓋掉使用者打的字，#121 故事 4)。
     public var suggestion: String? { draft.isEmpty ? detectedSuggestion : nil }
 
+    /// 輸入框上方這時要顯示的一樣(需要你 > 工作中 > 建議卡,#240)。
+    public var topAccessory: ComposerTopAccessory? {
+        ComposerTopAccessory.choose(needsYou: prompt != nil, isWorking: showsWorkingIndicator, suggestion: suggestion)
+    }
+
     /// 接受建議：只把文字填入輸入框，**不送任何 herdr 請求**(同 slash 選定,#83)。
     /// 沒有顯示中的建議(例如輸入框已有字)時什麼都不做並回傳 `false`(硬體鍵盤的 Tab 照常交給系統)。
     @discardableResult
