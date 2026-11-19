@@ -158,13 +158,13 @@ final class AccessibilityAuditUITests: XCTestCase {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             let text = openChat("w1:p1", in: app)
             text.tap()
-            text.typeText("/")
+            text.typeEnglish("/")
             XCTAssertTrue(element("slash.row.demo-kit:changelog", in: app).waitForExistence(timeout: 10))
             // 選單出現時輸入列上方的元素還在收合、玻璃在淡入：等版面停下再稽核(#249:量到的是動畫中被蓋住一半的加入圖片鈕)。
             let menu = element("slash.menu", in: app)
             XCTAssertTrue(waitForSettledLayout([menu, element("composer.addImage", in: app), text], timeout: 5), "版面沒有停下")
             try audit(app, "slash 選單", contentSize: size)
-            text.typeText("model")
+            text.typeEnglish("model")
             element("slash.row.model", in: app).tap()
             element("composer.send", in: app).tap()
             XCTAssertTrue(element("panel.card", in: app).waitForExistence(timeout: 10))
@@ -180,7 +180,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             let text = openChat("w1:p1", in: app)
             text.tap()
-            text.typeText("!git status")
+            text.typeEnglish("!git status")
             element("composer.send", in: app).tap()
             XCTAssertTrue(element("conversation.shell", in: app).waitForExistence(timeout: 15))
             element("composer.hideKeyboard", in: app).tap()
@@ -207,12 +207,29 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     private func openMenu(_ item: String, in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
+        tapToolbarItem("toolbar.more", overflowLabel: "More", in: app)
         let button = app.buttons[item]
         XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
+    }
+
+    /// 點列表工具列右側的項目。AX 字級時系統把右側的「⋯」與帳號鈕收進工具列的溢出選單(More):
+    /// 選單項目沒有 identifier,以 VoiceOver 也會念的名稱找(名稱不對就是 a11y 問題)。
+    @MainActor
+    private func tapToolbarItem(_ identifier: String, overflowLabel: String, in app: XCUIApplication) {
+        let item = app.buttons[identifier].firstMatch
+        let overflow = app.buttons["OverflowBarButtonItem"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 10) || overflow.exists, "工具列沒有 \(identifier) 也沒有溢出選單")
+        if item.exists {
+            item.tap()
+            return
+        }
+        overflow.tap()
+        // 溢出鈕自己的名稱也是「More」。
+        let overflowItem = app.buttons.matching(
+            NSPredicate(format: "label == %@ AND identifier != %@", overflowLabel, "OverflowBarButtonItem")).firstMatch
+        XCTAssertTrue(overflowItem.waitForExistence(timeout: 5), "溢出選單裡沒有「\(overflowLabel)」")
+        overflowItem.tap()
     }
 
     @MainActor
@@ -267,7 +284,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testSignIn() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            app.buttons["toolbar.account"].tap()
+            tapToolbarItem("toolbar.account", overflowLabel: "Account", in: app)
             XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10))
             try audit(app, "帳號", contentSize: size)
             app.buttons["account.plusSetup.action"].tap()

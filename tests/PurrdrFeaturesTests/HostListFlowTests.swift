@@ -25,24 +25,36 @@ struct HostListFlowTests {
         flow.requestDeletion(of: Self.studioID, name: "Studio Mac")
 
         #expect(deleted.isEmpty)
-        #expect(flow.pendingDeletion == HostDeletionRequest(id: Self.studioID, name: "Studio Mac"))
+        let request = try #require(flow.pendingDeletion)
+        #expect(request == HostDeletionRequest(id: Self.studioID, name: "Studio Mac"))
 
-        try await flow.confirmDeletion { deleted.append($0) }
+        try await flow.confirmDeletion(of: request) { deleted.append($0) }
 
         #expect(deleted == [Self.studioID])
         #expect(flow.pendingDeletion == nil)
     }
 
-    @Test("取消刪除：不刪主機，收起確認")
-    func cancelKeepsHost() async throws {
+    @Test("按下確認時系統先收起對話框(清掉等確認的刪除):仍刪掉按下時那台")
+    func confirmingAfterDialogDismissedStillDeletes() async throws {
         let flow = HostListFlow()
         var deleted: [UUID] = []
         flow.requestDeletion(of: Self.studioID, name: "Studio Mac")
+        let request = try #require(flow.pendingDeletion)
 
         flow.cancelDeletion()
-        try await flow.confirmDeletion { deleted.append($0) }
+        try await flow.confirmDeletion(of: request) { deleted.append($0) }
 
-        #expect(deleted.isEmpty)
+        #expect(deleted == [Self.studioID])
+        #expect(flow.pendingDeletion == nil)
+    }
+
+    @Test("取消刪除：收起確認，不留等確認的刪除")
+    func cancelKeepsHost() {
+        let flow = HostListFlow()
+        flow.requestDeletion(of: Self.studioID, name: "Studio Mac")
+
+        flow.cancelDeletion()
+
         #expect(flow.pendingDeletion == nil)
     }
 }

@@ -22,7 +22,7 @@ final class ShellCommandUITests: XCTestCase {
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
         text.tap()
-        text.typeText("hello")
+        text.typeEnglish("hello")
         XCTAssertFalse(element("composer.shellHint", in: app).exists, "一般草稿不該有 shell 提示")
         text.clearAndType("!ls Sources")
         XCTAssertTrue(element("composer.shellHint", in: app).waitForExistence(timeout: 5), "沒有 shell 模式提示")

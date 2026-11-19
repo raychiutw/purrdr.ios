@@ -38,9 +38,8 @@ final class HostListFlow {
         pendingDeletion = nil
     }
 
-    /// 使用者確認後刪掉等確認的那台;沒有等確認的刪除就不做事。
-    func confirmDeletion(_ delete: (UUID) async throws -> Void) async throws {
-        guard let request = pendingDeletion else { return }
+    /// 使用者確認後刪掉對話框顯示的那台。帶著 `request`:按下時系統先收起對話框，`pendingDeletion` 已被清掉。
+    func confirmDeletion(of request: HostDeletionRequest, _ delete: (UUID) async throws -> Void) async throws {
         pendingDeletion = nil
         try await delete(request.id)
     }

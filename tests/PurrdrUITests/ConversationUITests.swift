@@ -117,7 +117,7 @@ final class ConversationUITests: XCTestCase {
         let note = element("youShouldKnow.note", in: app)
         XCTAssertTrue(note.waitForExistence(timeout: 15), "ledger 沒有註記")
         app.buttons["youShouldKnow.dismiss"].tap()
-        let allow = app.alerts.firstMatch.buttons["Allow"]
+        let allow = app.alerts.firstMatch.buttons["Allow"].firstMatch
         XCTAssertTrue(allow.waitForExistence(timeout: 5), "略過註記沒有詢問同意")
         allow.tap()
         XCTAssertTrue(note.waitForNonExistence(timeout: 10), "略過後註記沒有消失")
@@ -300,7 +300,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertHitTarget(send)
 
         text.tap()
-        text.typeText("Add a header row too?")
+        text.typeEnglish("Add a header row too?")
         XCTAssertTrue(send.isEnabled)
         send.tap()
 
@@ -344,7 +344,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(sent.waitForExistence(timeout: 5), "對話紀錄不該新增訊息")
 
         // 把字刪光：建議再出現(#240)。
-        text.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 60))
+        text.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 60))
         XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "輸入框刪光後建議沒有再出現")
     }
 
@@ -366,7 +366,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(compact.waitForExistence(timeout: 5), "鍵盤出現時註記沒有收成一行")
         XCTAssertFalse(element("youShouldKnow.note", in: app).exists, "完整卡片應收起")
         XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 5), "註記收成一行後建議卡沒有出現")
-        text.typeText("Typing while reading")
+        text.typeEnglish("Typing while reading")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "soft-keyboard-typing"
         shot.lifetime = .keepAlways
@@ -395,7 +395,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(element("composer.hideKeyboard", in: app).exists, "沒聚焦時不該有收起鍵盤鈕")
 
         text.tap()
-        text.typeText("Half a thought")
+        text.typeEnglish("Half a thought")
         let hide = element("composer.hideKeyboard", in: app)
         XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
         XCTAssertEqual(hide.label, "Hide Keyboard")
@@ -413,13 +413,13 @@ final class ConversationUITests: XCTestCase {
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         text.tap()
-        text.typeText("1\n2")
+        text.typeEnglish("1\n2")
         let twoLines = text.frame.height
-        text.typeText("\n3")
+        text.typeEnglish("\n3")
         let lineHeight = text.frame.height - twoLines
         XCTAssertGreaterThan(lineHeight, 10, "第 3 行沒有長高")
 
-        text.typeText("\n4\n5\n6\n7")
+        text.typeEnglish("\n4\n5\n6\n7")
         // 上限是鍵盤上方可用高度的 40%(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
         hideKeyboard(in: app)
         let sevenLines = text.frame.height
@@ -457,9 +457,9 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
         XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
         XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
-        text.typeText("Line one")
+        text.typeEnglish("Line one")
         XCTAssertGreaterThanOrEqual(text.frame.height, 60, "有內容時不到兩行高(\(text.frame.height)pt)")
-        text.typeText("\nLine two\nLine three\nLine four")
+        text.typeEnglish("\nLine two\nLine three\nLine four")
         attachScreenshot(of: app, named: "composer-multiline")
         XCTAssertGreaterThanOrEqual(send.frame.minY, text.frame.maxY - 1, "多行時送出鈕仍在輸入框下方")
     }
@@ -471,6 +471,7 @@ final class ConversationUITests: XCTestCase {
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         text.tap()
+        app.switchKeyboard(to: .zhuyin)
         let idleHeight = text.frame.height
 
         // 模擬器接著實體鍵盤：以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
@@ -507,7 +508,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(expand.waitForExistence(timeout: 5), "聚焦時沒有展開鈕")
         XCTAssertEqual(expand.label, "Expand")
         XCTAssertHitTarget(expand)
-        text.typeText("1\n2\n3")
+        text.typeEnglish("1\n2\n3")
         expand.tap()
 
         let expanded = element("composer.expanded.text", in: app)
@@ -515,7 +516,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(expanded.value as? String, "1\n2\n3", "展開畫面不是同一份草稿")
         XCTAssertGreaterThan(expanded.frame.height, text.frame.height, "展開畫面的輸入框沒有比輸入列大")
         expanded.tap()
-        expanded.typeText("\n4")
+        expanded.typeEnglish("\n4")
         element("composer.expanded.done", in: app).tap()
 
         XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "「完成」沒有收回")
@@ -537,7 +538,7 @@ final class ConversationUITests: XCTestCase {
         let expanded = element("composer.expanded.text", in: app)
         XCTAssertTrue(expanded.waitForExistence(timeout: 5), "沒有開出展開畫面")
         expanded.tap()
-        expanded.typeText("Sent from the big editor")
+        expanded.typeEnglish("Sent from the big editor")
         let send = element("composer.expanded.send", in: app)
         let done = element("composer.expanded.done", in: app)
         let keyboard = app.keyboards.firstMatch
@@ -567,7 +568,7 @@ final class ConversationUITests: XCTestCase {
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         text.tap()
-        text.typeText("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
+        text.typeEnglish("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
         // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
         let window = app.windows.firstMatch.frame
         let keyboard = app.keyboards.firstMatch
@@ -654,7 +655,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(element("conversation.agent", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
 
         text.tap()
-        text.typeText("Check the logs once more")
+        text.typeEnglish("Check the logs once more")
         element("composer.send", in: app).tap()
         // 軟體鍵盤＋You should know 卡片會把對話的可見範圍擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
         hideKeyboard(in: app)
@@ -682,7 +683,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(element("conversation.agent", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
 
         text.tap()
-        text.typeText("Add a header row too?")
+        text.typeEnglish("Add a header row too?")
         element("composer.send", in: app).tap()
         hideKeyboard(in: app)
         XCTAssertTrue(element("conversation.working", in: app).waitForExistence(timeout: 5), "沒有工作中指示")
@@ -706,7 +707,7 @@ final class ConversationUITests: XCTestCase {
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         text.tap()
-        text.typeText("Go ahead")
+        text.typeEnglish("Go ahead")
         element("composer.send", in: app).tap()
 
         XCTAssertTrue(element("composer.notice", in: app).waitForExistence(timeout: 10), "沒有提示先回答")
@@ -791,7 +792,7 @@ final class ConversationUITests: XCTestCase {
             let keyboard = app.keyboards.firstMatch
             XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
             guard keyboard.frame.height > 150 else { throw XCTSkip("模擬器接著硬體鍵盤，沒有軟體鍵盤") }
-            text.typeText("Typing while the network drops")
+            text.typeEnglish("Typing while the network drops")
         }
         let offline = app.staticTexts["Offline — showing the last loaded conversation."]
         XCTAssertTrue(offline.waitForExistence(timeout: 60), "斷網後沒有顯示連線中斷橫幅")

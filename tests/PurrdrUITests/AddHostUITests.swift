@@ -39,7 +39,7 @@ final class AddHostUITests: XCTestCase {
         let port = field("port", in: app)
         // 輸入值靠左，點欄位中間時游標在「443」之後。
         port.tap()
-        port.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 3) + "8443")
+        port.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 3) + "8443")
         XCTAssertEqual(port.value as? String, "8443")
 
         choose("openSSH", in: app)
@@ -86,7 +86,7 @@ final class AddHostUITests: XCTestCase {
         let code = field("pairingCode", in: app)
         XCTAssertTrue(code.waitForExistence(timeout: 5))
         code.tap()
-        code.typeText("K7QM-2XPA")
+        code.typeEnglish("K7QM-2XPA")
         XCTAssertEqual(code.value as? String, "K7QM-2XPA")
     }
 
@@ -97,7 +97,7 @@ final class AddHostUITests: XCTestCase {
         openAddHost(app)
         let name = field("name", in: app)
         name.tap()
-        name.typeText("Studio  ")
+        name.typeEnglish("Studio  ")
 
         XCTAssertEqual(name.value as? String, "Studio  ")
         XCTAssertLessThan(name.frame.minX, app.windows.firstMatch.frame.midX, "輸入框沒有緊接在標籤後")
@@ -133,11 +133,15 @@ final class AddHostUITests: XCTestCase {
         return element
     }
 
-    /// 往下捲到元素出現(表單比畫面長)。
+    /// 捲到元素出現(表單比畫面長):先往下，沒有再往上。
     @MainActor
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         for _ in 0..<6 where !element.isHittable {
             app.swipeUp()
+        }
+        // 已捲過頭(例如掃描後回到表單下半部，名稱在上面):往回捲。
+        for _ in 0..<6 where !element.isHittable {
+            app.swipeDown()
         }
         return element.exists
     }

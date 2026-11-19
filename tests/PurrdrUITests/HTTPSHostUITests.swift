@@ -130,7 +130,7 @@ final class HTTPSHostUITests: XCTestCase {
         let code = app.textFields["hostEditor.pairingCode"]
         XCTAssertTrue(code.waitForExistence(timeout: 5) || scrollTo(code, in: app))
         code.tap()
-        code.typeText("k7qm-2xpa")
+        code.typeEnglish("k7qm-2xpa")
         XCTAssertEqual(code.value as? String, "K7QM-2XPA")
     }
 
@@ -174,7 +174,7 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         XCTAssertFalse(test.isEnabled, "沒有配對碼不能測試")
         code.tap()
-        code.typeText("K7QM-2XPA")
+        code.typeEnglish("K7QM-2XPA")
         test.tap()
         let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch
         XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
@@ -209,17 +209,24 @@ final class HTTPSHostUITests: XCTestCase {
         app.swipeDown()
         for (identifier, text) in [("name", "Studio"), ("address", "studio.tail1234.ts.net"), ("pairingCode", code)] {
             let field = app.textFields["hostEditor.\(identifier)"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5) || scrollTo(field, in: app), "沒有 \(identifier) 欄位")
+            XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
-            field.typeText(text)
+            field.typeEnglish(text)
         }
     }
 
-    /// 往下捲到元素出現(表單比畫面長)。
+    /// 捲到元素出現且不在鍵盤底下(表單比畫面長):先往下，沒有再往上。
     @MainActor
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        for _ in 0..<6 where !element.isHittable {
+        let keyboard = app.keyboards.firstMatch
+        func isReachable() -> Bool {
+            element.isHittable && (!keyboard.exists || element.frame.maxY < keyboard.frame.minY)
+        }
+        for _ in 0..<6 where !isReachable() {
             app.swipeUp()
+        }
+        for _ in 0..<6 where !isReachable() {
+            app.swipeDown()
         }
         return element.exists
     }

@@ -158,6 +158,7 @@ public struct AgentListView: View {
                 Button("Try Again") { model.retry() }
                     .accessibilityIdentifier("agentList.retry")
             }
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("agentList.offline")
         case .failed(let message):
             ContentUnavailableView {

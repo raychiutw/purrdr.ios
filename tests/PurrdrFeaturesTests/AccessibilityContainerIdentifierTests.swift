@@ -9,6 +9,7 @@ struct AccessibilityContainerIdentifierTests {
         ("PlusSetupCard.swift", "account.plusSetup"),
         ("AgentImageCardView.swift", "agentImage.viewer"),
         ("PairingCodeScanner.swift", "scanner.denied"),
+        ("AgentListView.swift", "agentList.offline"),
     ]
 
     @Test("容器的 identifier 前一律有 children: .contain", arguments: containers)

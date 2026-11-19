@@ -57,7 +57,7 @@ final class NewChatUITests: XCTestCase {
 
         let folder = app.textFields["newChat.folder"]
         folder.tap()
-        folder.typeText("~/ledger")
+        folder.typeEnglish("~/ledger")
         app.buttons["newChat.start"].tap()
 
         let error = app.descendants(matching: .any)["newChat.error"].firstMatch

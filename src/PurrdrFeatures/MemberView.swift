@@ -436,7 +436,8 @@ struct AccountAvatar: View {
                         Image(systemName: "person.fill")
                     }
                 } else {
-                    Text(verbatim: "?")
+                    // 圖示而非文字：AX 字級時帳號鈕收進溢出選單，選單項目會把畫面上的「?」當名稱。
+                    Image(systemName: "questionmark")
                 }
             }
             .fontWeight(.semibold)

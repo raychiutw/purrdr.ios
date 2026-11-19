@@ -241,8 +241,12 @@ struct HostEditorView: View {
             HStack(spacing: 8) {
                 field(
                     "Pairing Code", text: $model.pairingCode, prompt: model.needsPairingCode ? "K7QM-2XPA" : "Unchanged",
-                    identifier: "pairingCode")
-                .uppercaseInput()
+                    identifier: "pairingCode", uppercase: true)
+                // 欄位也顯示成大寫：硬體鍵盤與貼上不受全大寫鍵盤影響。另一個交易才改，TextField 才會跟著更新。
+                .onChange(of: model.pairingCode) { _, code in
+                    let uppercased = code.uppercased()
+                    if uppercased != code { model.pairingCode = uppercased }
+                }
                 if scanSource.isAvailable {
                     Button {
                         scanning = true
@@ -462,14 +466,23 @@ struct HostEditorView: View {
         }
     }
 
-    private func field(_ label: LocalizedStringKey, text: Binding<String>, prompt: LocalizedStringKey, identifier: String) -> some View {
+    /// `uppercase`:全大寫鍵盤(配對碼)。要設在 TextField 上：外層再設會被這裡的 `.plainTextInput()` 蓋掉。
+    private func field(
+        _ label: LocalizedStringKey, text: Binding<String>, prompt: LocalizedStringKey, identifier: String, uppercase: Bool = false
+    ) -> some View {
         LabeledContent(label) {
             // 輸入值靠左：靠右時尾端空白會被吃掉、看不見(#250)。
-            TextField(label, text: text, prompt: Text(prompt))
+            let field = TextField(label, text: text, prompt: Text(prompt))
                 .multilineTextAlignment(.leading)
                 .autocorrectionDisabled()
-                .plainTextInput()
-                .accessibilityIdentifier("hostEditor.\(identifier)")
+            Group {
+                if uppercase {
+                    field.uppercaseInput()
+                } else {
+                    field.plainTextInput()
+                }
+            }
+            .accessibilityIdentifier("hostEditor.\(identifier)")
         }
     }
 

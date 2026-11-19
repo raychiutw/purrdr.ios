@@ -280,6 +280,35 @@ struct DemoHostTests {
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
     }
 
+    /// 聊天畫面靠訂閱事件更新快照：回答提示、觸發提示的 prompt 改了狀態，也要像 herdr 一樣送狀態事件。
+    @Test("Demo 的 agent 狀態因回答或 prompt 改變時送出狀態事件", arguments: [
+        ("w2:p1", DemoStatusChange.answer),
+        ("w1:p1", DemoStatusChange.askMe),
+    ])
+    func statusChangesNotifySubscribers(paneID: String, change: DemoStatusChange) async throws {
+        let host = DemoHost()
+        let client = HerdrClient(channel: host)
+        let events = try await client.subscribe([.agentStatusChanged(paneID: paneID)])
+        let statusEvent = Task {
+            var iterator = events.makeAsyncIterator()
+            _ = try await iterator.next()
+            return try await iterator.next()
+        }
+
+        switch change {
+        case .answer: try await client.sendKeys(paneID: paneID, keys: ["1"])
+        case .askMe: _ = try await client.prompt(target: paneID, text: "ask me", wait: nil)
+        }
+
+        let giveUp = Task {
+            try await Task.sleep(for: .seconds(3))
+            statusEvent.cancel()
+        }
+        let received = try? await statusEvent.value
+        #expect(received == .event(name: "pane.agent_status_changed", paneID: paneID))
+        giveUp.cancel()
+    }
+
     /// #210 的 UI 測試情境：送出後先只接上使用者那一行，agent 工作中且畫面有即時預覽;時間到才接上回覆並完成。
     @Test("送出後工作中情境：先接上使用者那一行並工作，時間到才接上回覆")
     func workingAfterPromptRepliesLater() async throws {
@@ -554,4 +583,10 @@ final class ManualDemoClock: Sendable {
     func advance(by duration: Duration) {
         current.withLock { $0 += duration }
     }
+}
+
+/// 改變 Demo agent 狀態的動作。
+enum DemoStatusChange: Sendable {
+    case answer
+    case askMe
 }

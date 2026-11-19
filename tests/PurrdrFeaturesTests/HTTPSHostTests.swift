@@ -166,6 +166,19 @@ struct HTTPSHostEditorTests {
         #expect(model.canTest)
     }
 
+    @Test("配對碼小寫鍵入(硬體鍵盤、貼上)也以大寫配對(#236)")
+    func lowercasePairingCodePairsUppercased() async {
+        let http = FakeHostServiceHTTP()
+        let connections = HostServiceConnections()
+        connections.connections = [await HostServiceConnections.healthy()]
+        let model = HostEditorModel(store: MemoryHostStore(), hostService: connections.access(http: http), makeChannel: ChannelFactory().make)
+        Self.fill(model, code: "k7qm-2xpa")
+
+        await model.test()
+
+        #expect(http.requests.first?.body?["pairing_code"] == "K7QM-2XPA")
+    }
+
     @Test("QR code 的配對連結帶入 HTTPS、位址與配對碼")
     func importsPairingLink() throws {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)

@@ -67,7 +67,7 @@ final class AccountUITests: XCTestCase {
         expectation(for: NSPredicate(format: "label == %@", "Turn On"), evaluatedWith: action)
         waitForExpectations(timeout: 10)
         action.tap()
-        let install = app.alerts.buttons["settings.push.install"]
+        let install = app.alerts.buttons["settings.push.install"].firstMatch
         XCTAssertTrue(install.waitForExistence(timeout: 10), "開通知沒有先確認安裝外掛")
         install.tap()
 
