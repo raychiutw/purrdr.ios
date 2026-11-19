@@ -293,8 +293,9 @@ struct PromptDeliveryTests {
         #expect(await host.unmetExpectations.isEmpty)
     }
 
-    @Test("停止：送出 Esc 之後讀不到狀態視為成功")
-    func stopTreatsUnreadableStatusAsStopped() async throws {
+    /// #220:讀不到狀態不能當成功，否則按鈕回到送出、使用者以為停了。
+    @Test("停止：送出 Esc 之後讀不到狀態 → 無法確認(不是已停止)")
+    func stopReportsUnconfirmedWhenStatusUnreadable() async throws {
         let host = FakeHost()
         let sleeper = RecordingSleeper { $0 == .milliseconds(500) }
         await host.expect(Self.bridge, reply: Self.snapshot(status: "working"))
@@ -303,7 +304,7 @@ struct PromptDeliveryTests {
 
         let outcome = await Self.delivery(host, sleeper: sleeper).stop(paneID: Self.paneID)
 
-        #expect(outcome == .stopped)
+        #expect(outcome == .unconfirmed)
     }
 
     /// F6.7:停止**永不**送給「需要你」的 agent——中斷可能把問題關掉。畫面上的狀態可能是 2 秒前的，所以送前重讀。

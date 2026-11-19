@@ -35,6 +35,8 @@ public enum StopOutcome: Sendable, Equatable {
     case stillWorking
     /// 連 Esc 都送不出去。
     case failed
+    /// 送出 Esc 後讀不到狀態：不知道停了沒。
+    case unconfirmed
     /// agent 在等你回答：什麼都沒送(中斷可能把問題關掉)。
     case needsAnswer
 }
