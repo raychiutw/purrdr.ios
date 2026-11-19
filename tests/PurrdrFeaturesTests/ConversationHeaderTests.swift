@@ -149,21 +149,34 @@ struct ConversationHeaderTests {
 
     // MARK: - 重新載入與停止
 
-    @Test("不在工作中(含需要你)標題列是「重新載入」;工作中換成「停止」")
-    func reloadOrStop() async throws {
+    /// #220:停止移到輸入列;強制結束在標題列的選單，只對 working 的 agent(「需要你」永不中斷)。
+    @Test("標題列一律是「重新載入」;強制結束只在工作中可用，需要你、離線時不可用")
+    func headerReloadAndForceQuitAvailability() async throws {
         let setup = try Self.setup()
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
         await setup.model.poll()
         #expect(setup.model.headerAction == .reload)
+        #expect(!setup.model.canForceQuit)
 
         await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
         await setup.model.poll()
-        #expect(setup.model.headerAction == .stop)
+        #expect(setup.model.headerAction == .reload)
+        #expect(setup.model.canForceQuit)
 
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
         await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-bash"))
         await setup.model.poll()
         #expect(setup.model.headerAction == .reload)
+        #expect(!setup.model.canForceQuit)
+
+        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
+        await setup.model.poll()
+        for _ in 0..<2 {
+            await setup.host.bridge.expect(Self.bridge, reply: FakeReply(exitCode: 255, trigger: .afterStdinLine))
+        }
+        await setup.model.poll()
+        await setup.model.poll()
+        #expect(!setup.model.canForceQuit)
     }
 
     @Test("重新載入：清掉這個聊天的快取與游標並重讀(重新定位、讀視窗)")

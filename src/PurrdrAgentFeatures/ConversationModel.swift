@@ -813,6 +813,9 @@ public final class ConversationModel {
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
     public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
 
+    /// 標題列選單的強制結束(#220)。
+    public var canForceQuit: Bool { false }
+
     /// 輸入列的送出鈕換成停止鈕(#220):working(或停止中)且草稿、圖片都空;有草稿時是送出(prompt 會排隊)。
     public var showsStopButton: Bool {
         guard !isReadOnly, !isOffline, typedAnswer == nil else { return false }
