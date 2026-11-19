@@ -1,0 +1,28 @@
+{
+  "description": "訊息文字中的主機絕對路徑辨識(#229)。app(PurrdrCore HostPathMention)與主機服務(host_path_mentions.rs)用同一份案例測試，兩端認得的路徑一致。paths 依出現順序列出。",
+  "cases": [
+    { "name": "POSIX 路徑，句尾標點不算", "text": "Saved to /Users/demo/ledger/docs/report.pdf.", "paths": ["/Users/demo/ledger/docs/report.pdf"] },
+    { "name": "Windows 反斜線路徑", "text": "寫到 C:\\Users\\Demo\\ledger\\out.csv 了", "paths": ["C:\\Users\\Demo\\ledger\\out.csv"] },
+    { "name": "Windows 正斜線路徑", "text": "Log: C:/Users/Demo/ledger/run.log", "paths": ["C:/Users/Demo/ledger/run.log"] },
+    { "name": "中文路徑，全形句號不算", "text": "報告在 /Users/demo/報告/第一季.pdf。", "paths": ["/Users/demo/報告/第一季.pdf"] },
+    { "name": "緊接中文", "text": "已存到/Users/demo/ledger/a.png,請看", "paths": ["/Users/demo/ledger/a.png"] },
+    { "name": "含空白：反引號", "text": "Open `/Users/demo/My Report.pdf` now", "paths": ["/Users/demo/My Report.pdf"] },
+    { "name": "含空白：引號", "text": "file \"/Users/demo/My File.txt\" is ready", "paths": ["/Users/demo/My File.txt"] },
+    { "name": "含空白與中文：「」", "text": "已存到「/Users/demo/a b/結果.png」", "paths": ["/Users/demo/a b/結果.png"] },
+    { "name": "含空白：Windows 反引號", "text": "See `C:\\Program Files\\App\\log.txt`", "paths": ["C:\\Program Files\\App\\log.txt"] },
+    { "name": "行號不算", "text": "See /Users/demo/src/a.swift:42 and `/Users/demo/src/b.swift:7:3`", "paths": ["/Users/demo/src/a.swift", "/Users/demo/src/b.swift"] },
+    { "name": "多個路徑", "text": "Compare /a/b.txt and /c/d.txt, then C:\\x\\y.log;", "paths": ["/a/b.txt", "/c/d.txt", "C:\\x\\y.log"] },
+    { "name": "括號", "text": "(see /Users/demo/a.txt) and /Users/demo/file(1).txt", "paths": ["/Users/demo/a.txt", "/Users/demo/file(1).txt"] },
+    { "name": "粗體", "text": "**/Users/demo/a.txt**", "paths": ["/Users/demo/a.txt"] },
+    { "name": "網址不算", "text": "https://example.com/a/b and http://x.y/z/w.png", "paths": [] },
+    { "name": "file 網址不算", "text": "[本機](file:///Users/demo/a.md) <file:///etc/passwd>", "paths": [] },
+    { "name": "相對路徑不算", "text": "src/a/b.swift ./x/y.txt ../z/w.md ~/Documents/a.txt", "paths": [] },
+    { "name": "只有一段不算(slash 指令、分數、單位)", "text": "Run /compact or /help, ratio 1/2, 3 km/s, and/or", "paths": [] },
+    { "name": "資料夾(結尾分隔符號)與 . .. 不算", "text": "/Users/demo/folder/ and /Users/demo/../etc/passwd", "paths": [] },
+    { "name": "雙斜線不算", "text": "//server/share/a.txt and \\\\server\\share\\a.txt", "paths": [] },
+    { "name": "磁碟機代號前接字母或只有代號不算", "text": "ABC:\\x\\y and C: and C:\\", "paths": [] },
+    { "name": "行內 code 是指令時不算", "text": "`cat /Users/demo/a.txt`", "paths": [] },
+    { "name": "程式碼區塊不算", "text": "```\n/Users/demo/a.txt\n```", "paths": [] },
+    { "name": "引號內不是整段路徑時照一般規則", "text": "He said \"look at /Users/demo/a.txt now\"", "paths": ["/Users/demo/a.txt"] }
+  ]
+}

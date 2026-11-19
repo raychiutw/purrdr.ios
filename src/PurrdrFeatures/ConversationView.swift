@@ -1,5 +1,6 @@
 import PurrdrAgentFeatures
 import PurrdrCore
+import QuickLook
 import SwiftUI
 
 /// 對話畫面(閱讀，行為規格 F5;DESIGN.md 方向 A)。
@@ -457,18 +458,110 @@ struct ConversationItemView: View {
 
 /// agent 的訊息。VoiceOver:一則訊息一個元素，開頭念「Agent」(HIG 20.5,#35)。
 /// 有程式碼區塊或表格時改成容器：程式碼要能單獨橫捲、複製，表格要能逐格讀，不併成一長串。
+///
+/// 文字中的主機路徑可點(#229):在 app 內沿用檔案卡片的開啟流程(圖片看大圖、其他用 QuickLook),不交給系統;點之前不讀檔。
 struct AgentMessageView: View {
     let text: AgentText
+    @Environment(\.agentImages) private var context
+    /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
+    @State private var openedPath: String?
+    @State private var previewFile: URL?
+    @State private var viewer: AgentImageViewerItem?
 
     var body: some View {
         let markdown = MarkdownView(text.markdown)
-        markdown
-            .accessibilityElement(children: markdown.hasStructuredBlocks ? .contain : .combine)
-            .accessibilityLabel { label in
-                Text("Agent:")
-                label
+        VStack(alignment: .leading, spacing: 6) {
+            markdown
+                .accessibilityElement(children: markdown.hasStructuredBlocks ? .contain : .combine)
+                .accessibilityLabel { label in
+                    Text("Agent:")
+                    label
+                }
+                .accessibilityIdentifier("conversation.agent")
+            if let openedPath {
+                HostPathOpenStatus(path: openedPath, loads: context.loads) {
+                    context.loads?.cancelOpen(openedPath)
+                    self.openedPath = nil
+                }
             }
-            .accessibilityIdentifier("conversation.agent")
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            guard let path = HostPathMention.path(fromLink: url) else { return .systemAction }
+            Task { @MainActor in open(path) }
+            return .handled
+        })
+        .quickLookPreview($previewFile)
+        .agentImageViewer(item: $viewer)
+    }
+
+    private func open(_ path: String) {
+        openedPath = path
+        guard let loads = context.loads else { return }
+        let scope = context.scope()
+        Task {
+            if HostPathOpenStatus.isImage(path) {
+                await loads.load(path, scope: scope, userRequested: true)
+                guard case .loaded(let data, _) = loads.states[path] else { return }
+                viewer = AgentImageViewerItem(data: data, name: HostPathOpenStatus.name(of: path))
+            } else {
+                guard let file = await loads.open(path, scope: scope) else { return }
+                previewFile = file
+            }
+            if openedPath == path { openedPath = nil }
+        }
+    }
+}
+
+/// 點了訊息內路徑後的狀態(#229):下載中(可取消)或開不了的原因，文字與檔案卡片相同。
+struct HostPathOpenStatus: View {
+    let path: String
+    let loads: AgentFileLoads?
+    let cancel: () -> Void
+
+    static func isImage(_ path: String) -> Bool { AgentFileReference(origin: .readImage, path: path).kind == .image }
+    static func name(of path: String) -> String { AgentFileReference(origin: .readImage, path: path).name }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if let loads, Self.isImage(path) {
+                let state = loads.states[path]
+                if let note = AgentImageCardDisplay(state: state).note {
+                    noteText(note)
+                } else if state == .loading {
+                    ProgressView()
+                        .accessibilityLabel(Text("Loading image"))
+                        .accessibilityIdentifier("conversation.hostPath.progress")
+                }
+            } else if let loads {
+                let display = AgentFileOpenDisplay(state: loads.opens[path])
+                if display.isDownloading {
+                    Group {
+                        if let progress = display.progress {
+                            ProgressView(value: progress)
+                        } else {
+                            ProgressView()
+                        }
+                    }
+                    .accessibilityLabel(Text("Downloading \(Self.name(of: path))"))
+                    .accessibilityIdentifier("conversation.hostPath.progress")
+                    Button("Cancel", action: cancel)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .accessibilityIdentifier("conversation.hostPath.cancel")
+                } else if let note = display.note {
+                    noteText(note)
+                }
+            } else if let note = AgentFileOpenDisplay(state: .unsupported).note {
+                noteText(note)
+            }
+        }
+        .font(.footnote)
+    }
+
+    private func noteText(_ note: String) -> some View {
+        Text(note)
+            .foregroundStyle(.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("conversation.hostPath.note")
     }
 }
 

@@ -20,6 +20,8 @@ public indirect enum MarkdownInline: Sendable, Equatable {
     case strong([MarkdownInline])
     case emphasis([MarkdownInline])
     case link(text: [MarkdownInline], url: String)
+    /// 主機路徑(#229):點了在 app 內以檔案卡片的開啟流程處理，不交給系統。
+    case hostPath(text: [MarkdownInline], path: String)
 }
 
 /// GFM 表格。每一列的格數與標題相同(短列補齊、多的格併回最後一格)。
@@ -46,7 +48,33 @@ public enum Markdown {
     }
 
     public static func inlines(_ text: String) -> [MarkdownInline] {
-        InlineParser(Array(text)).parse()
+        markingHostPaths(InlineParser(Array(text)).parse())
+    }
+
+    /// 文字與整段是路徑的行內 code 標成主機路徑(#229);連結的文字不動。
+    private static func markingHostPaths(_ inlines: [MarkdownInline]) -> [MarkdownInline] {
+        inlines.flatMap { inline -> [MarkdownInline] in
+            switch inline {
+            case .text(let text):
+                var result: [MarkdownInline] = []
+                var cursor = text.startIndex
+                for match in HostPathMention.matches(in: text) {
+                    if cursor < match.range.lowerBound { result.append(.text(String(text[cursor..<match.range.lowerBound]))) }
+                    result.append(.hostPath(text: [.text(String(text[match.range]))], path: match.path))
+                    cursor = match.range.upperBound
+                }
+                if cursor < text.endIndex { result.append(.text(String(text[cursor...]))) }
+                return result
+            case .code(let code):
+                return [HostPathMention.path(inCodeSpan: code).map { .hostPath(text: [inline], path: $0) } ?? inline]
+            case .strong(let children):
+                return [.strong(markingHostPaths(children))]
+            case .emphasis(let children):
+                return [.emphasis(markingHostPaths(children))]
+            case .link, .hostPath:
+                return [inline]
+            }
+        }
     }
 
     /// 只有 http/https 且有主機的網址可點(R-V03)。

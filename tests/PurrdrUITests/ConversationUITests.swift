@@ -213,6 +213,33 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["This file is no longer on the host."].waitForExistence(timeout: 10), "沒有缺檔說明")
     }
 
+    /// 訊息內主機路徑(#229):ledger 的回覆提到報告 PDF 與預覽圖，路徑是連結;點 PDF 在 app 內以 QuickLook 開，
+    /// 點圖片全螢幕看(不交給系統 openURL,沒有離開 app)。
+    @MainActor
+    func testHostPathsInMessagesOpenInApp() {
+        let app = openLedger()
+        let report = app.links["/Users/demo/ledger/docs/export-report.pdf"].firstMatch
+        XCTAssertTrue(app.reveal(report), "訊息中的 PDF 路徑不是連結")
+        report.tap()
+
+        let preview = app.navigationBars["export-report.pdf"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 15), "點了路徑沒有出現 QuickLook 預覽")
+        XCTAssertEqual(app.state, .runningForeground, "路徑不該交給系統開")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-host-path-quicklook"
+        shot.lifetime = .keepAlways
+        add(shot)
+        preview.buttons["Done"].firstMatch.tap()
+        XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
+
+        let image = app.links["/Users/demo/ledger/docs/export-preview.png"].firstMatch
+        XCTAssertTrue(app.reveal(image), "訊息中的圖片路徑不是連結")
+        image.tap()
+        XCTAssertTrue(element("agentImage.viewer", in: app).waitForExistence(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
+        element("agentImage.viewer.done", in: app).tap()
+        XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5))
+    }
+
     // MARK: - 送出(F6)
 
     /// 送出：輸入框清空、回音出現;Demo 的 agent 收下後，對話紀錄接上這則訊息與回覆，回音換成對話紀錄的那則。

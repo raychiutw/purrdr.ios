@@ -1,14 +1,16 @@
 //! 主機取檔(#227):`file.stat` 與 `file.read` 的存取規則(權威)與一條連線的讀取快照。
 //!
-//! 只允許 herdr snapshot 回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑。
+//! 只允許 herdr snapshot 回報的 Agent 工作目錄之下，或這條連線定位過的對話紀錄裡出現的路徑(字串值本身，或訊息文字中認得的路徑)。
 //! 先以請求的路徑比對，再以解析 symlink 後的實際路徑比對解析後的工作目錄與排除清單(與 SSH 取檔腳本相同)。
 
 use std::fs::File;
-use std::io::{ErrorKind, Read};
+use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::path::{Component, Path, PathBuf};
 
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+use crate::host_path_mentions;
 use crate::protocol::{EXCLUDED_FILE_LOCATIONS, FileStatus};
 
 /// 主機取檔的大小上限(與 app 的 `HostFileFetchLimits.maximumSize` 相同)。
@@ -145,10 +147,31 @@ fn comparison_keys(path: &Path) -> Vec<String> {
         .collect()
 }
 
-/// 對話紀錄裡有一個 JSON 字串值恰好是這個路徑。
+/// 對話紀錄裡有一個 JSON 字串值恰好是這個路徑，或字串值的文字中認得這個路徑(`host_path_mentions`,#229)。
 fn is_mentioned(requested: &str, transcripts: &[PathBuf]) -> bool {
-    let needle = serde_json::to_string(requested).expect("字串可序列化").into_bytes();
-    transcripts.iter().any(|transcript| contains(transcript, &needle))
+    let quoted = serde_json::to_string(requested).expect("字串可序列化");
+    let escaped = &quoted.as_bytes()[1..quoted.len() - 1];
+    transcripts
+        .iter()
+        .any(|transcript| contains(transcript, quoted.as_bytes()) || (contains(transcript, escaped) && mentioned_in_text(transcript, requested, escaped)))
+}
+
+/// 含有這個路徑的那幾行，某個 JSON 字串值的文字中認得這個路徑。
+fn mentioned_in_text(transcript: &Path, requested: &str, escaped: &[u8]) -> bool {
+    let Ok(file) = File::open(transcript) else { return false };
+    BufReader::new(file).split(b'\n').map_while(Result::ok).any(|line| {
+        line.windows(escaped.len()).any(|candidate| candidate == escaped)
+            && serde_json::from_slice::<Value>(&line).is_ok_and(|value| has_text_mentioning(&value, requested))
+    })
+}
+
+fn has_text_mentioning(value: &Value, requested: &str) -> bool {
+    match value {
+        Value::String(text) => text.contains(requested) && host_path_mentions::paths(text).iter().any(|path| path == requested),
+        Value::Array(items) => items.iter().any(|item| has_text_mentioning(item, requested)),
+        Value::Object(fields) => fields.values().any(|field| has_text_mentioning(field, requested)),
+        _ => false,
+    }
 }
 
 /// 分段讀檔找 `needle`,段落之間保留 `needle` 長度減一的重疊。

@@ -188,6 +188,8 @@ enum DemoTranscripts {
             ```
 
             Quoting follows [RFC 4180](https://www.rfc-editor.org/rfc/rfc4180); local notes are in [the README](file:///Users/demo/ledger/README.md).
+
+            The report is at `\(DemoHostFileFetcher.reportPath)` and the preview at /Users/demo/ledger/docs/export-preview.png.
             """),
         ]
     )
