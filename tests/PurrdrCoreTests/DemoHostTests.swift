@@ -273,7 +273,8 @@ struct DemoHostTests {
             try await Task.sleep(for: .seconds(3))
             statusEvent.cancel()
         }
-        #expect(try? await statusEvent.value == .event(name: "pane.agent_status_changed", paneID: "w3:p1"))
+        let received = try? await statusEvent.value
+        #expect(received == .event(name: "pane.agent_status_changed", paneID: "w3:p1"))
         giveUp.cancel()
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
     }
