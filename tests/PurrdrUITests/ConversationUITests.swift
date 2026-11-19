@@ -610,9 +610,11 @@ final class ConversationUITests: XCTestCase {
         add(shot)
 
         if typing { hideKeyboard(in: app) }
-        let list = app.scrollViews.firstMatch
-        list.swipeDown()
-        list.swipeUp()
+        if hasMessages {
+            let list = app.scrollViews.firstMatch
+            list.swipeDown()
+            list.swipeUp()
+        }
         app.navigationBars.buttons.element(boundBy: 0).tap()
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "斷網後點返回沒有回到列表")
