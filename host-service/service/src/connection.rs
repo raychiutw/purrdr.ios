@@ -519,16 +519,12 @@ impl ClientConnection {
             Ok(located) => located,
             Err(failure) => return herdr_error(request.request_id, "session.snapshot", failure),
         };
-        let (status, version, size) = match located {
-            Located::File { version, size, .. } => (FileStatus::File, Some(version), Some(size)),
-            Located::Unavailable { status, size } => (status, None, size),
-        };
-        self.audit_file_access(device, "file.stat", &request.path, status_name(status), size);
+        self.audit_file_access(device, "file.stat", &request.path, status_name(located.status()), located.size());
         ServerMessage::FileStatResult(FileStatResult {
             request_id: request.request_id,
-            status,
-            version,
-            size: size.map(|size| size as i64),
+            status: located.status(),
+            version: located.version().map(str::to_owned),
+            size: located.size().map(|size| size as i64),
         })
     }
 

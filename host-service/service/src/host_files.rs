@@ -329,6 +329,30 @@ impl Located {
     fn unavailable(status: FileStatus) -> Located {
         Located::Unavailable { status, size: None }
     }
+
+    /// 協定上的狀態。
+    pub fn status(&self) -> FileStatus {
+        match self {
+            Located::File { .. } => FileStatus::File,
+            Located::Unavailable { status, .. } => *status,
+        }
+    }
+
+    /// 大小(一般檔案與 `too_large`)。
+    pub fn size(&self) -> Option<u64> {
+        match self {
+            Located::File { size, .. } => Some(*size),
+            Located::Unavailable { size, .. } => *size,
+        }
+    }
+
+    /// 一般檔案的版本。
+    pub fn version(&self) -> Option<&str> {
+        match self {
+            Located::File { version, .. } => Some(version),
+            Located::Unavailable { .. } => None,
+        }
+    }
 }
 
 /// 要不要讀內容：`file.stat` 只要版本(大小與修改時間沒變就不讀);`file.read` 從頭讀時要內容建快照。
