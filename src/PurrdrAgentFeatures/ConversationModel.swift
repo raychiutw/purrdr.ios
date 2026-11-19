@@ -759,6 +759,8 @@ public final class ConversationModel {
     /// 連不上主機：畫面空著時，唯讀顯示同一 session 的快取(只在快取屬於列表看到的 session 時,R-B16)。
     private func showOffline() async {
         isOffline = true
+        // 斷線前的狀態已過時：不能留著 working 讓停止鈕可按(#220)。
+        agentStatus = nil
         // 看不到主機畫面，建議可能已過時;恢復連線後重讀(#123)。
         clearSuggestion()
         banner = .offline
@@ -809,7 +811,7 @@ public final class ConversationModel {
     }
 
     /// 停止只在 working 時;**永不對 blocked 的 agent**(中斷可能把問題關掉,F6.7)。
-    public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly }
+    public var canStop: Bool { agentStatus == .working && !isStopping && !isReadOnly && !isOffline }
 
     /// 輸入列的送出鈕換成停止鈕(#220):working(或停止中)且草稿、圖片都空;有草稿時是送出(prompt 會排隊)。
     public var showsStopButton: Bool {
