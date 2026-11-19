@@ -297,6 +297,8 @@ public final class ConversationModel {
     /// 按鍵送達主機的時間與當時對話的最後一列(已回答卡片的錨點，#213);還在送時為 `nil`(不判定)。
     private var answerSent: AnsweredCardAnchor?
     @ObservationIgnored private var kickTask: Task<Void, Never>?
+    /// 「已停止」2 秒後的收起;agent 又開始工作或有新的停止時取消(#220)。
+    @ObservationIgnored private var stoppedCollapseTask: Task<Void, Never>?
     /// 這次輪詢已經讀到的 pane 畫面(提示與背景 agents 窗格共用)。
     @ObservationIgnored private var screenThisPoll: String?
     /// 工作中讀畫面的節奏(#204)。
@@ -835,22 +837,40 @@ public final class ConversationModel {
     }
 
     /// 輪詢讀到狀態後：agent 不在工作就收起失敗結果;「無法確認」此時已確認，仍在工作就換成仍在工作。
+    /// 「已停止」遇到又在工作立刻換回停止鈕;「需要你」留到 agent 不再需要你。
     private func settleStopResult() {
         switch stopPhase {
-        case .stillWorking?, .failed?, .unconfirmed?:
+        case .stillWorking?, .failed?, .unconfirmed?, .forceQuitFailed?:
             if agentStatus != .working {
                 stopPhase = nil
             } else if stopPhase == .unconfirmed {
                 stopPhase = .stillWorking
             }
-        case .stopping?, .stopped?, .needsAnswer?, .forceQuitFailed?, nil:
+        case .stopped?:
+            if agentStatus == .working { setStopPhase(nil) }
+        case .needsAnswer?:
+            if agentStatus != .blocked { stopPhase = nil }
+        case .stopping?, nil:
             break
+        }
+    }
+
+    /// 換停止列的狀態;換掉「已停止」時一併取消它的自動收起。
+    private func setStopPhase(_ phase: StopPhase?) {
+        stoppedCollapseTask?.cancel()
+        stoppedCollapseTask = nil
+        stopPhase = phase
+        guard phase == .stopped else { return }
+        stoppedCollapseTask = Task { [weak self, sleep] in
+            do { try await sleep(.seconds(2)) } catch { return }
+            guard let self, !Task.isCancelled, self.stopPhase == .stopped else { return }
+            self.stopPhase = nil
         }
     }
 
     /// 關閉停止列的失敗結果。
     public func dismissStopResult() {
-        if stopPhase != .stopping { stopPhase = nil }
+        if stopPhase != .stopping { setStopPhase(nil) }
     }
 
     /// 強制結束同停止，只對 working 的 agent;唯讀、離線時不可用(#220)。
@@ -939,22 +959,18 @@ public final class ConversationModel {
     /// 停止(F6.7):一個 Esc,3 秒內確認離開 working;結果顯示在停止列(#220)。
     public func stop() async {
         guard canStop else { return }
-        stopPhase = .stopping
+        setStopPhase(.stopping)
         notice = nil
         switch await stopWithinTimeout() {
         case .stopped(let status)?:
             // 不等下一次輪詢：工作中的介面立刻收起。
             agentStatus = status
             updateWorkingSince()
-            stopPhase = .stopped
-            try? await sleep(.seconds(2))
-            if stopPhase == .stopped { stopPhase = nil }
+            setStopPhase(.stopped)
         case .unconfirmed?: stopPhase = .unconfirmed
         case .stillWorking?, nil: stopPhase = .stillWorking
         case .failed?: stopPhase = .failed
-        case .needsAnswer?:
-            stopPhase = nil
-            notice = .interruptRefusedNeedsAnswer
+        case .needsAnswer?: stopPhase = .needsAnswer
         }
     }
 
@@ -977,9 +993,9 @@ public final class ConversationModel {
     public func forceQuit() async {
         guard canForceQuit else { return }
         switch await delivery.forceQuit(paneID: paneID) {
-        case .sent, .notWorking: notice = nil
-        case .needsAnswer: notice = .interruptRefusedNeedsAnswer
-        case .failed: notice = .interruptFailed
+        case .sent, .notWorking: setStopPhase(nil)
+        case .needsAnswer: setStopPhase(.needsAnswer)
+        case .failed: setStopPhase(.forceQuitFailed)
         }
     }
 
@@ -1654,12 +1670,8 @@ public enum SendNotice: Sendable, Equatable {
     case imageTooLarge
     /// 圖片上傳失敗：整則沒送出，草稿與圖片保留。
     case uploadFailed
-    /// 送不出中斷的按鍵。
-    case interruptFailed
     /// 送不出 slash 面板的按鍵(#45)。
     case panelKeysFailed
-    /// agent 在等你回答，所以沒有送出中斷(F6.7)。
-    case interruptRefusedNeedsAnswer
     /// 這支裝置配對成唯讀，什麼都沒送出。
     case readOnlyDevice
 }
