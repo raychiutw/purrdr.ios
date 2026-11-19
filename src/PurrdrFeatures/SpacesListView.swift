@@ -274,11 +274,11 @@ private struct StatusBarView: View {
 struct SpacesAgentRowView: View {
     let row: AgentRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(紅底，`selectionFill(for:)`):次要色改選取列文字色(同 `AgentRowView`)。
+    /// 選取中(主色底，`selectionFill(for:)`):次要色改選取列文字色(同 `AgentRowView`)。
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
+        backgroundProminence == .increased ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.secondaryText)
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
@@ -331,7 +331,7 @@ struct SpacesAgentRowView: View {
         switch row.preview {
         case .needsInput:
             Text("Waiting for your input")
-                .foregroundStyle(backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.tint))
+                .foregroundStyle(backgroundProminence == .increased ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.tint))
         case .message(let text, let fromYou):
             Text(fromYou ? "You: \(text)" : "\(text)")
                 .foregroundStyle(secondary)
@@ -381,11 +381,11 @@ struct AgentKindAvatar: View {
 struct TerminalRowView: View {
     let row: TerminalRow
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 選取中(紅底)次要色改白色(同 `AgentRowView`)。
+    /// 選取中(主色底)次要色改 `onProminentFill`(同 `AgentRowView`)。
     @Environment(\.backgroundProminence) private var backgroundProminence
 
     private var secondary: AnyShapeStyle {
-        backgroundProminence == .increased ? AnyShapeStyle(.selectedRowText) : AnyShapeStyle(.secondaryText)
+        backgroundProminence == .increased ? AnyShapeStyle(.onProminentFill) : AnyShapeStyle(.secondaryText)
     }
 
     var body: some View {

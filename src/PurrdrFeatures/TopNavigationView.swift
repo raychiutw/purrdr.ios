@@ -250,7 +250,7 @@ public struct TopNavigationView: View {
             }
             .accessibilityIdentifier("toolbar.more")
         }
-        // 「+」是主要動作(DESIGN.md:填色紅底),跟「⋯」分成兩個玻璃群組。
+        // 「+」是主要動作(DESIGN.md:主色填色),跟「⋯」分成兩個玻璃群組。
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
             Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }

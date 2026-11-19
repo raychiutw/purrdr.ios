@@ -91,9 +91,8 @@ struct InlineText: View {
     var body: some View {
         Text(Self.attributed(inlines))
             .textSelection(.enabled)
+            // 連結顏色跟 tint 走，也就是主色(ADR-0011)。
             .fixedSize(horizontal: false, vertical: true)
-            // 連結顏色跟 tint 走;改成連結藍，跟品牌紅的強調元素分開(#93)。
-            .tint(.linkText)
     }
 
     static func attributed(_ inlines: [MarkdownInline], bold: Bool = false, italic: Bool = false) -> AttributedString {

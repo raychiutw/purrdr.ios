@@ -4,28 +4,28 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 ## 選定方向
 
-- **App 圖示：貓掌泡泡(T3,ADR-0009)**。四顆圓形腳趾(中間兩顆大、外側兩顆小)加上一個帶尾巴的圓角對話泡泡當肉墊，泡泡裡是白色「…」:貓正在打字。淺色底、品牌紅貓掌。兩個圖層(貓掌、「…」),以 Icon Composer 製作，六種外觀(default、dark、clear light／dark、tinted light／dark)都要辨識得出;tinted 外觀貓掌為白色、「…」為深灰。不用紅色滿版底，因為「紅漸層底 + 白色圖形」跟 Apple Music 圖示太像。原型見 https://claude.ai/artifact/2P1YePb33dgAnAGgsWsoCT。
+- **App 圖示：貓掌泡泡(T3,ADR-0009)**。四顆圓形腳趾(中間兩顆大、外側兩顆小)加上一個帶尾巴的圓角對話泡泡當肉墊，泡泡裡是白色「…」:貓正在打字。淺色底、紅色貓掌(圖示重新設計另議，見 ADR-0011)。兩個圖層(貓掌、「…」),以 Icon Composer 製作，六種外觀(default、dark、clear light／dark、tinted light／dark)都要辨識得出;tinted 外觀貓掌為白色、「…」為深灰。不用紅色滿版底，因為「紅漸層底 + 白色圖形」跟 Apple Music 圖示太像。原型見 https://claude.ai/artifact/2P1YePb33dgAnAGgsWsoCT。
 - **畫面：方向 A「系統清單風」**。Agent 列表是 iOS 標準 grouped list,依「需要你／工作中／閒置」分 section;對話用標準泡泡;終端機全螢幕，按鍵列是單一玻璃容器。
 
-## 顏色(ADR-0008)
+## 顏色(ADR-0011,取代 ADR-0008)
+
+主色只有一組(翡翠綠);語意色只用系統紅、系統橙;其餘一律中性。對比只要符合 HIG(一般文字 4.5:1、大字 3:1),不追求更高;要降低刺眼感從飽和色的**面積**下手，不調暗文字。
 
 | 用途 | 色碼 | 說明 |
 |---|---|---|
-| 品牌紅 | `#FA2D48` | 接近 Apple Music 紅。只用在圖示與不承載文字的裝飾;配白字只有 3.8:1 |
-| 紅字 `brandText`(#70;`AccentColor` 同值，即系統 tint) | light `#D80521`／dark `#FC5D72`／light 高對比 `#A20419`／dark 高對比 `#FCA1AD` | tint、狀態文字、「需要你」(不用於對話中的連結)。淺色對白底 5.3:1、`#F2F2F7` 4.7:1、`#EFEFF0` 4.6:1;深色對黑底 6.9:1、`#1C1C1E` 5.6:1、`#2C2C2E` 4.6:1;高對比兩值對同一組背景都 ≥ 7.1:1 |
-| 紅底 `brandFill`(#70) | light 與 dark `#EA0826`／兩種高對比 `#B3041B` | 承載白字的填色：送出鍵、使用者泡泡、主要按鈕、「+」、膠囊標籤、iPad 列表的選取列(#95)。白字 4.6:1、高對比 7.1:1;深色模式不跟著紅字變亮 |
+| 主色(Asset Catalog `AccentColor`,即系統 tint;唯一來源) | light `#0B7A5C`／dark `#3CCF9E`／light 高對比 `#075C45`／dark 高對比 `#5DE0B3` | tint、連結、勾選、選取態、主要按鈕與送出鍵的填色。淺色對白底 5.3:1、`#F2F2F7` 4.8:1、`#EFEFF0` 4.6:1;深色對黑底 10.6:1、`#1C1C1E` 8.6:1、`#2C2C2E` 7.0:1;高對比值對同一組背景都比一般值更強。程式碼不另存一份色值，對比測試直接讀 Asset |
+| 主色上的字 `onAccent` | 淺色(含高對比)白、深色(含高對比)黑 | 主色填色上的字與符號。白字對 `#0B7A5C` 5.3:1、對 `#075C45` 8.0:1;黑字對 `#3CCF9E` 10.6:1、對 `#5DE0B3` 12.8:1 |
 | 次要文字 `secondaryText`(#67) | light `#636366`／dark `#AEAEB2`／light 高對比 `#48484A`／dark 高對比 `#D1D1D6` | 取代承載資訊的系統 `.secondary`／`.tertiary` 文字(系統 secondaryLabel 白底只有 3.4:1)。淺色對白底 6.0:1、grouped `#F2F2F7` 5.4:1、淡填色卡片 `#EFEFF0` 5.2:1;深色對黑底 9.5:1、`#1C1C1E` 7.7:1、grouped 列 `#2C2C2E` 6.3:1;高對比兩值對同一組背景都 ≥ 7.9:1 |
-| 連結 `linkText`(#93) | light `#0068DA`／dark `#2D96FF`／light 高對比 `#004DA2`／dark 高對比 `#7DBEFF` | 對話中的連結(markdown)。系統連結藍的色相，只調明度:系統 `.link` 淺色對 `#EFEFF0` 只有 3.5:1、深色對 `#2C2C2E` 3.8:1。對比對同一組背景與紅字相同(淺色 ≥ 4.6:1、深色 ≥ 4.6:1、高對比 ≥ 7.1:1) |
 | 錯誤文字 `errorText`(#35) | light `#C4001A`／dark `#FF7A70`／light 高對比 `#A50011`／dark 高對比 `#FF9F97` | 取代承載文字的系統 `.red`(白底 3.6:1);圖示與小紅點仍用系統紅 |
 
-- 每個自訂顏色都要有 light／dark／各自 high contrast 四個值，放在 Asset Catalog 或程式碼的 `ContrastPalette`(`AccessibleColors`)都可以;四個值都要有對比測試(對它實際出現的背景計算，一般 ≥ 4.5:1、高對比 ≥ 7:1,見 `AccessibleColorsTests`)。
-- 紅色只用在主要動作與「需要你」狀態;每個畫面 prominent 按鈕最多 2 個。
-- 紅底白字一律用紅底角色：填色寫 `.brandFill` 或 `hostFill(in:)`,prominent 按鈕用 `filledProminentButtonStyle()`／`filledGlassProminentButtonStyle()`;不要用 tint／`Color.accentColor` 當白字的底(`BrandFillUsageTests` 擋)。
-- iPad 列表(split view 內容欄)的選取列不用系統選取底色(它是 tint,也就是紅字角色，深色白字只有 3.0:1、深色高對比 1.9:1):列加 `selectionFill(for:)`,底色是紅底角色(有主機主題時用主題的白字填色)，列內文字、次要文字與「需要你」的符號、狀態字、「Waiting for your input」一律改成白字 `selectedRowText`(對紅底 4.6:1、高對比 7.1:1);「需要你」在選取列靠 `!` 符號與文字辨認(`AccessibleColorsTests` 的選取列對比測試)。
-- 紅色在 iOS 常代表危險，所以「需要你」一律同時有 `!` 符號與文字，不只靠顏色;真正的錯誤與刪除用系統 `.red`／destructive role,不用品牌紅。
+- 每個自訂顏色都要有 light／dark／各自 high contrast 四個值，放在 Asset Catalog 或程式碼的 `ContrastPalette`(`AccessibleColors`)都可以;四個值都要有對比測試(對它實際出現的背景計算，見 `AccessibleColorsTests`)。
+- 每個畫面 prominent 按鈕最多 2 個。
+- 主色填色一律經 `prominentFill`(有主機主題時是主題填色)與 `onProminentFill`(主題填色上白字，主色上 `onAccent`):填色寫 `hostFill(in:)` 或 `.prominentFill`,prominent 按鈕用 `filledProminentButtonStyle()`／`filledGlassProminentButtonStyle()`;不要直接用 tint／`Color.accentColor` 當底(`ProminentFillUsageTests` 擋),否則深色模式會變成白字配亮綠。
+- iPad 列表(split view 內容欄)的選取列加 `selectionFill(for:)`:底色 `prominentFill`,列內文字、次要文字與「需要你」的符號、狀態字、「Waiting for your input」改成 `onProminentFill`。
+- 「需要你」一律同時有 `!` 符號與文字，不只靠顏色;錯誤與刪除用系統 `.red`／destructive role,不用主色。
 - 次要文字的判斷原則(#67):**承載資訊的文字一律用 `secondaryText`**——副標、時間、說明、狀態字、預覽、參數提示、placeholder、空狀態與錯誤說明，List／Form 的 section 標題與註腳(系統預設是 secondaryLabel,要明確指定;iPad 側欄的系統樣式 section 標題除外，保留系統色：它畫在系統的 Liquid Glass 側欄上，系統依底下透出的內容、深淺色與「增加對比」調整文字的 vibrancy,換成固定的 `secondaryText` 反而失去這層調整;側欄只用系統語意色文字，audit 透過玻璃取樣不穩定的情況記在 `AccessibilityAudit` 的排除規則),以及「圖示 + 文字」的 Label 整體、只有圖示的按鈕(關閉、複製)與單獨表達狀態的圖示(縮放、未知)。**純裝飾可留系統階層色**:旁邊已有文字說明或對 VoiceOver 隱藏的圖示(卡片種類圖示、主機圖示、工具種類圖示、檔案圖示、圖片佔位圖示、展開箭頭 chevron)、軌道線、分隔線、邊框與底色(`.fill.*`、`.background.secondary`、`Color.secondary.opacity(…)`)。在按鈕(List 列、`DisclosureGroup` label)裡也不會被 tint 染色，因為 `secondaryText` 是固定色。
 - 其他使用系統外觀，不提供 app 內的深淺色設定。
-- **主機主題**(#23,設定「Use Host Theme」,經同意):選取中主機 herdr `config.toml` 的 `[theme]` 套到側欄、列表、對話與終端機(所有主機的聊天都用選取中主機的主題;換選取中主機立刻換，新視窗也一樣)——accent 當 tint(對 `#F2F2F7`／`#1C1C1E` ≥ 4.5:1 才用)、白字填色(使用者泡泡、送出鍵與主要按鈕，白字 ≥ 4.5:1 才用，否則紅底角色)、終端機背景／文字／ANSI(對背景 ≥ 4.5:1,不足的退回系統)。設定等 sheet 永遠用 App 配色(關掉主題的地方不能被主題弄得不可讀)。
+- **主機主題**(#23,設定「Use Host Theme」,經同意):選取中主機 herdr `config.toml` 的 `[theme]` 套到側欄、列表、對話與終端機(所有主機的聊天都用選取中主機的主題;換選取中主機立刻換，新視窗也一樣)——accent 當 tint(對 `#F2F2F7`／`#1C1C1E` ≥ 4.5:1 才用)、白字填色(使用者泡泡、送出鍵與主要按鈕，白字 ≥ 4.5:1 才用，否則主色＋`onAccent`)、終端機背景／文字／ANSI(對背景 ≥ 4.5:1,不足的退回系統)。設定等 sheet 永遠用 App 配色(關掉主題的地方不能被主題弄得不可讀)。
 
 ## Liquid Glass
 
@@ -39,10 +39,10 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 - **iPad 與寬視窗**:三欄 `NavigationSplitView`——側欄(主機、選取中主機的 workspace;workspace 列尾有版面圖按鈕)→ Agent 列表 → 對話。依 size class 排版：窄視窗收合成一疊、從 Agent 列表開始(同 iPhone)。列表的列是選取並持續高亮，沒選時對話欄顯示「選一個對話」。版面圖在側欄按鈕上：指標停留 300ms 出現浮動玻璃卡(寬 340、最高 520pt,在列表欄內靠前緣)、離開 200ms 消失;點按鈕釘住，「關閉」、點背景或 Esc 才關。中欄是所有主機合併的 Agent 列表(同 iPhone,工具列一樣有選取中主機鈕);側欄點主機等於切換選取中主機，只換側欄的 workspace、清掉 workspace 篩選與版面圖卡片，對話欄的聊天留著。列的 context menu 最前面有「在新視窗開啟」「在新視窗開啟終端機」,任何一台主機的 Agent 都可以;每個視窗各自的導覽狀態，UI 一律稱「視窗」。快捷鍵:Command-N 新增對話、Option-Command-N 新視窗、Command-, App 設定(選單列的 Settings… 保留給系統)、Command-F 搜尋、Option-Command-↓／↑ 下／上一個 Agent、Shift-Command-T 開終端機。
 - **Purrdr Plus 付費牆**(「⋯」選單與會員頁進入，sheet 一律可以關閉):每個方案一張可選的卡片——名稱、每期總扣款金額(最醒目)、試用(「2 weeks free, then …」);主要按鈕一顆(沒登入時是「Sign In to Subscribe」,權限記在會員身上);下方是選中方案的自動續訂說明(試用結束自動扣款、24 小時前取消、到設定管理)、「Restore Purchases」「Redeem Code」(系統 Offer Code 流程)、使用條款與隱私權政策連結。購買確認用系統 sheet;已訂閱時不推銷，改顯示續訂日期與「Manage Subscription」(系統 UI);不能付款時隱藏購買並說明;到期或退款後顯示續訂提示(推播與主機同步暫停，聊天與終端機照常)。
 - **Agent 列表**:所有主機的 Agent 合併在同一個列表，選取中主機的列在前。主機標示依檢視而不同:Agents 檢視只在非選取中主機的列副標開頭加主機圖示 + 主機名;Spaces 檢視由主機分組標題表示，每台主機都一樣標示，列上不再加主機名(只有不分主機的「已釘選」組，項目第三行加主機名)。列左側表示 agent 種類(Agents 檢視是圖示，Spaces 檢視是種類頭像;都對 VoiceOver 隱藏，種類名稱在列的文字裡)。某台主機連不上時保留它最後的列，列表下方「連線中斷」區段每台一行「主機名：原因」與「再試一次」;只有沒有任何列時，選取中主機的錯誤才佔滿畫面。工具列左側是**選取中主機鈕**(主機圖示 + 名稱，選單內切換;只決定新聊天開在哪裡、套用誰的主題、推播設定讀哪台、方案用量畫面預設查哪台，不隱藏其他主機);右側搜尋、新增對話;狀態同時用文字 + 符號 + 顏色。列表不顯示、也不讀取方案用量。
-- **方案用量**(#177;「⋯」選單的「方案用量」推入，窄視窗疊在列表上、三欄時在對話欄):iOS 設定頁式 inset grouped。最上面兩列選單「主機」(Demo 主機與所有已存主機，預設上次選的，那台被刪除時用選取中主機)與「Agent」(第一版只有 Claude Code),區段註腳標出查詢方式(「需要傳輸 · 下拉才重查」或「不耗 token 與傳輸 · 畫面開著時自動重整」)。下面一列兩個圓環(5 小時、每週):中央是剩餘或已用的百分比(粗體等寬數字)與「剩餘／已用」,下方是用量週期名稱與重置時間;圓環顏色依剩餘比例分三級(> 40% 綠、> 15% 橘、其餘紅;非文字圖形對列背景 ≥ 3:1、高對比 ≥ 4.5:1,`AccessibleColors.planUsage`),軌道是系統填色。註腳說明數字是 Claude Code 在這台主機最後回報的，超過 10 分鐘加「截至 時:分」。查詢中、需要同意(說明 + 紅底「檢查並顯示」)、尚無資料、連線方式不支援、連不上都以置中的圖示 + 標題 + 說明取代圓環。工具列「⋯」:顯示剩餘／已用、關閉 Claude 方案用量(destructive)。VoiceOver 每個圓環念「名稱、比例、重置時間」。
+- **方案用量**(#177;「⋯」選單的「方案用量」推入，窄視窗疊在列表上、三欄時在對話欄):iOS 設定頁式 inset grouped。最上面兩列選單「主機」(Demo 主機與所有已存主機，預設上次選的，那台被刪除時用選取中主機)與「Agent」(第一版只有 Claude Code),區段註腳標出查詢方式(「需要傳輸 · 下拉才重查」或「不耗 token 與傳輸 · 畫面開著時自動重整」)。下面一列兩個圓環(5 小時、每週):中央是剩餘或已用的百分比(粗體等寬數字)與「剩餘／已用」,下方是用量週期名稱與重置時間;圓環顏色依剩餘比例分三級(> 40% 綠、> 15% 橘、其餘紅;非文字圖形對列背景 ≥ 3:1、高對比 ≥ 4.5:1,`AccessibleColors.planUsage`),軌道是系統填色。註腳說明數字是 Claude Code 在這台主機最後回報的，超過 10 分鐘加「截至 時:分」。查詢中、需要同意(說明 + 主色「檢查並顯示」)、尚無資料、連線方式不支援、連不上都以置中的圖示 + 標題 + 說明取代圓環。工具列「⋯」:顯示剩餘／已用、關閉 Claude 方案用量(destructive)。VoiceOver 每個圓環念「名稱、比例、重置時間」。
 - **主機清單**(sheet):每列左側是主機圖示(使用者在 context menu 的「圖示」選:桌機、筆電、Mac mini、機架、PC、顯示器、雲端;只存在這支裝置)。點一台即選取並回到列表。滑動：左側「編輯」;右側「刪除」(destructive,不允許整列滑到底，點了直接刪、不另外確認——只刪這支裝置上的設定，主機本身不受影響)與「分享」。context menu:編輯、重新命名…、分享…、分隔線、刪除(最後)。分享在同一個 sheet 內 push:白底 QR code(深色模式也是白底)、說明「密碼與私鑰永不分享」、系統分享鈕。掃 QR code 或點分享連結 → 主機 sheet 開出帶好欄位的新增主機表單。
 - **連線中斷**:不用 alert,也不用會自動消失的提示。Agent 列表保留最後的列，在列表下方顯示「連線中斷」區段(原因 + 「再試一次」),重新連上才消失;對話在頂端橫幅顯示離線與「再試一次」;對話畫面可見時最壞約 15 秒發現斷線(連線層的 keepalive／心跳改短間隔)。網路切換或回前景後自動恢復，不需使用者操作。
-- **對話**:使用者泡泡用填色紅底白字，agent 泡泡用系統次要背景;thinking 與 tool 呼叫預設摺疊成一行;呼叫 skill 顯示「已載入 skill:<名稱>」,不貼全文;subagent 用卡片顯示各自狀態;agent 卡住時，選項以卡片放在該則提問下方(內容層):每個選項是同寬的圓角長方形選項卡(圓角 10pt,卡片 16pt 內縮一層;不用膠囊形),長文字多行完整顯示，建議選項用紅底 prominent 樣式而非大小區分。對話中的連結是連結藍(`linkText`),不用品牌紅。「Jump to Latest」只在離開底部時出現(在底部、對話短到不用捲、跟隨新訊息時都不顯示)。標題下一行是狀態點與狀態字，再以「·」串接主機名(非選取中主機)、workspace、agent、模型、effort、資料夾,放不下時從後面整段拿掉、不截斷，VoiceOver 念完整內容。標題列右側：不在工作中「重新載入」,工作中「停止」(點一下送 Esc;長按選單「強制結束」送 Ctrl-C;「需要你」的 agent 永不中斷)。工作中時對話最底下是內容層的指示：即時預覽(次要色)、3×3 點陣(Reduce Motion 時不動)、「Working…／Writing…」與經過時間。
+- **對話**:使用者泡泡用主色填色(`hostFill`),agent 泡泡用系統次要背景;thinking 與 tool 呼叫預設摺疊成一行;呼叫 skill 顯示「已載入 skill:<名稱>」,不貼全文;subagent 用卡片顯示各自狀態;agent 卡住時，選項以卡片放在該則提問下方(內容層):每個選項是同寬的圓角長方形選項卡(圓角 10pt,卡片 16pt 內縮一層;不用膠囊形),長文字多行完整顯示，建議選項用主色 prominent 樣式而非大小區分。對話中的連結用主色(tint)。「Jump to Latest」只在離開底部時出現(在底部、對話短到不用捲、跟隨新訊息時都不顯示)。標題下一行是狀態點與狀態字，再以「·」串接主機名(非選取中主機)、workspace、agent、模型、effort、資料夾,放不下時從後面整段拿掉、不截斷，VoiceOver 念完整內容。標題列右側：不在工作中「重新載入」,工作中「停止」(點一下送 Esc;長按選單「強制結束」送 Ctrl-C;「需要你」的 agent 永不中斷)。工作中時對話最底下是內容層的指示：即時預覽(次要色)、3×3 點陣(Reduce Motion 時不動)、「Working…／Writing…」與經過時間。
 - **列表大標題**(#66):Agent 列表(iPhone 與窄視窗、iPad 的列表欄)最上面是大標題「目前檢視名 ⌄」(Large Title 粗體、靠前緣、⌄ 次要色),點了出檢視選單(目前那個打勾);VoiceOver 唸「Spaces,按鈕」並有標題特徵，AX 字級換行不截斷。往上捲過一半，大標題收合成導覽列的小標題，小標題一樣點了出同一個選單(系統 title menu);載入中、錯誤、空狀態只有小標題。實作：系統的 title menu 只掛在 inline 標題上(`.large`／`.inlineLarge` 最上面的大標題是靜態文字，點了沒選單);iOS 26 的 `ToolbarItem(placement: .largeTitle)` 畫得出自訂內容，但不在 accessibility tree、也不接觸控。所以大標題畫在列表第一列(一般的 `Menu`),它在畫面上時以 `toolbar(removing: .title)` 收起導覽列小標題，捲上去才把小標題(`navigationTitle` + `toolbarTitleMenu`)放回來;`navigationTitle` 一直設著(App 切換器與視窗標題用)。
 - **Spaces／Agents 檢視**(#40、#103):Agent 列表的大標題(或收合後的小標題)選單切換兩種檢視，存在本機，重新啟動後還是同一個。Agents 檢視每個 Agent 一列。
   - **依主機分組**:Spaces 檢視最上面是不分主機的「已釘選」組，其餘每台主機一組，順序同合併列表(選取中主機在前)。分組標題是主機圖示、主機名(Title 3 粗體)與這台主機各狀態的 Agent 數量(「● 需要你 1 · ● 工作中 2 · ○ 閒置 3」,已讀的完成算閒置);VoiceOver 念主機名與各狀態數量，有標題特徵。主機組內有需要你的 workspace 在前、再來是工作中，其他依 workspace 編號。搜尋時沒有命中的 workspace 與主機組不顯示。
