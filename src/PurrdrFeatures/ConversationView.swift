@@ -446,6 +446,8 @@ struct ConversationItemView: View {
             WorkflowCardView(card: card)
         case .shell(let run):
             ShellRunView(run: run)
+        case .agentFile(let card):
+            AgentFileCardView(card: card)
         }
     }
 }

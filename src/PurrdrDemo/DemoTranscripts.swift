@@ -174,6 +174,10 @@ enum DemoTranscripts {
         let row = CSVExport.row(date: "2026-11-16", amount: 12.5, note: "coffee, beans")
         #expect(row == "2026-11-16,12.50,\"coffee, beans\"")
     }
+
+    @Test func datesComeFirst() {
+        #expect(CSVExport.columns.first == "date")
+    }
     """
 
     static let weather = Session(

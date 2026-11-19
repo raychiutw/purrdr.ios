@@ -46,7 +46,7 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "沒有使用者泡泡")
         XCTAssertTrue(app.staticTexts["Loaded skill: tdd"].exists, "skill 沒有顯示成「Loaded skill」")
-        XCTAssertTrue(app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"].exists, "工具串沒有收合成一行摘要")
+        XCTAssertTrue(app.staticTexts["Ran 1 command · Edited 2 files · Read 1 file"].exists, "工具串沒有收合成一行摘要")
         XCTAssertTrue(element("conversation.table", in: app).exists, "沒有表格")
         XCTAssertTrue(element("conversation.beginning", in: app).exists, "頂端沒有「對話開頭」")
     }
@@ -84,7 +84,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testToolRunExpandsToShowCalls() {
         let app = openLedger()
-        let summary = app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"]
+        let summary = app.staticTexts["Ran 1 command · Edited 2 files · Read 1 file"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
         // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
         let window = app.windows.firstMatch
@@ -97,6 +97,35 @@ final class ConversationUITests: XCTestCase {
         summary.tap()
 
         XCTAssertTrue(app.staticTexts["Edit"].waitForExistence(timeout: 5), "展開後沒有看到每個呼叫")
+    }
+
+    /// 檔案卡片(#224):ledger 的 agent 改了 CSVExport.swift、新建了 CSVQuotingTests.swift,
+    /// 卡片標題念出動作、檔名、類型與路徑;內容來自對話紀錄，超過 8 行可展開。
+    @MainActor
+    func testWrittenFilesShowAsCards() {
+        let app = openLedger()
+        let headers = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.header")
+        XCTAssertTrue(headers.firstMatch.waitForExistence(timeout: 10), "沒有檔案卡片")
+        XCTAssertEqual(headers.count, 2)
+
+        let edited = headers.element(boundBy: 0)
+        XCTAssertTrue(edited.label.hasPrefix("Edited file CSVExport.swift, Code"), "修改卡片標題不對：\(edited.label)")
+        XCTAssertTrue(edited.label.contains("1 lines added, 1 removed"))
+        XCTAssertTrue(edited.label.hasSuffix("Path: /Users/demo/ledger/Sources/Ledger/CSVExport.swift"))
+        let created = headers.element(boundBy: 1)
+        XCTAssertTrue(created.label.hasPrefix("Created file CSVQuotingTests.swift, Code"), "新建卡片標題不對：\(created.label)")
+
+        let toggle = element("conversation.agentFile.toggle", in: app)
+        XCTAssertTrue(app.reveal(toggle), "新建的測試檔超過 8 行，應該可以展開")
+        XCTAssertGreaterThanOrEqual(toggle.frame.height, 44)
+        toggle.tap()
+        XCTAssertTrue(app.staticTexts[#"    #expect(CSVExport.columns.first == "date")"#].waitForExistence(timeout: 5), "展開後沒有看到後面的行")
+        XCTAssertEqual(toggle.label, "Show Less")
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "conversation-file-cards"
+        shot.lifetime = .keepAlways
+        add(shot)
     }
 
     // MARK: - 送出(F6)

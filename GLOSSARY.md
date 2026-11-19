@@ -62,6 +62,14 @@ herdr 回報的 `blocked`／`working`／`done`／`idle`／`unknown`。UI 上 `bl
 Agent 自己寫在主機上的對話檔，app 從這裡讀出對話內容。格式由各 agent 自訂，不是公開 API。
 _避免_:Log、History
 
+**Agent 檔案參照**(Agent file reference):
+從對話紀錄解析出、Agent 碰過的一個主機檔案：做了什麼(新建、覆寫、修改)、主機上的絕對路徑，以及對話紀錄當時記下的內容或修改摘要(可能沒有)。只來自對話紀錄，不連主機。
+_避免_:附件、Attachment、檔案連結
+
+**檔案卡片**(File card):
+聊天裡顯示一個 Agent 檔案參照的卡片：檔名、路徑、類型，與寫入的內容或修改摘要。離線也看得到，因為內容來自對話紀錄。
+_避免_:檔案預覽、附件卡、File bubble
+
 **主機更新來源**(Host updates):
 每台主機一個，收 herdr 的事件並維持那台主機最新的快照;Agent 列表與聊天畫面都從它讀，不各自讀快照。
 _避免_:輪詢器、Poller、事件迴圈、Event loop
