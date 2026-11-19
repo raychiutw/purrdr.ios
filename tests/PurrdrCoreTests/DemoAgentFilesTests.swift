@@ -4,27 +4,36 @@ import PurrdrDemo
 import PurrdrSSH
 import Testing
 
-/// Demo 主機的檔案情境：ledger 的 agent 改了一個檔、新建了一個測試檔(#224),讀了兩張圖(#225:一張小圖自動載入縮圖，
-/// 一張超過 8 MiB 的掃描檔等使用者點擊)。
+/// Demo 主機的檔案情境(`agentFiles`):ledger 的 agent 改了一個檔、新建了一個測試檔(#224),讀了兩張圖(#225:一張小圖自動載入縮圖，
+/// 一張超過 8 MiB 的掃描檔等使用者點擊)。預設的 ledger 對話不含這些卡片。
 @Suite("Demo 主機的檔案卡片")
 struct DemoAgentFilesTests {
-    static func ledgerCards() async throws -> [AgentFileCard] {
-        let reader = TranscriptReader(channel: DemoHost())
+    static func ledgerItems(_ host: DemoHost) async throws -> [ConversationItem] {
+        let reader = TranscriptReader(channel: host)
         let file = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
         let chunk = try await reader.window(path: file.path, endingAt: file.size, lines: 300)
-        return Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:))).compactMap { item in
+        return Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+    }
+
+    static func ledgerCards() async throws -> [AgentFileCard] {
+        try await ledgerItems(DemoHost(scenario: .agentFiles)).compactMap { item in
             if case .agentFile(let card) = item { card } else { nil }
         }
     }
 
     static let scope = HostFileAccessScope(workingDirectories: ["/Users/demo/ledger"], mentionedPaths: [])
 
+    @Test("預設的 ledger 對話沒有檔案卡片：使用者那一則之後是工具串與最後的回覆(開啟時整段都在畫面內)")
+    func defaultLedgerHasNoFileCards() async throws {
+        let items = try await Self.ledgerItems(DemoHost())
+
+        #expect(!items.contains { if case .agentFile = $0 { true } else { false } })
+        #expect(HostFileAccessScope.mentionedPaths(in: items).isEmpty)
+    }
+
     @Test("ledger 的回覆提到報告 PDF 與預覽圖的路徑(#229):在工作目錄之下可下載;工作目錄以外只靠提到不夠(不在暫存、上傳或附檔資料夾)")
     func ledgerReplyMentionsHostPaths() async throws {
-        let reader = TranscriptReader(channel: DemoHost())
-        let file = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
-        let chunk = try await reader.window(path: file.path, endingAt: file.size, lines: 300)
-        let items = Conversation.items(from: chunk.lines.flatMap(ClaudeTranscriptParser.messages(in:)))
+        let items = try await Self.ledgerItems(DemoHost(scenario: .agentFiles))
         let mentioned = HostFileAccessScope.mentionedPaths(in: items)
 
         #expect(mentioned.isSuperset(of: [DemoHostFileFetcher.reportPath, "/Users/demo/ledger/docs/export-preview.png"]))

@@ -32,6 +32,8 @@ public actor DemoHost: HostChannel {
         case largeOutputOnPrompt
         /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
         case workingAfterPrompt(for: Duration)
+        /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
+        case agentFiles
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -76,9 +78,16 @@ public actor DemoHost: HostChannel {
     /// Demo 家目錄的上傳資料夾。
     static let uploadFolder = "/Users/demo/" + UploadedImages.folder
 
-    public init(scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil) {
+    /// 「送出後工作中」到期判斷用的現在時間(測試注入手動時鐘)。
+    private let now: @Sendable () -> ContinuousClock.Instant
+
+    public init(
+        scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil,
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }
+    ) {
         self.scenario = scenario
         self.tailscaleCheck = tailscaleCheck
+        self.now = now
         if scenario == .largeOutputOnPrompt {
             appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
         }
