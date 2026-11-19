@@ -270,8 +270,10 @@ public final class MergedAgentListModel {
         if !isNetworkAvailable { return .offline }
         if let message = allFailedMessage { return .failed(message) }
         if sources.contains(where: { $0.list.phase == .loading }) { return .loading }
+        // 有主機讀不到時留在列表，錯誤顯示在那台主機的一行(#221),不換成「沒有 Agent」說明。
+        if !failures.isEmpty { return .list }
         if hasTerminals { return mode == .spaces ? .list : .noAgentsInAgentsView }
-        return failures.isEmpty ? .empty : .list
+        return .empty
     }
 
     /// 每台主機都讀不到時，佔滿畫面的錯誤：選取中主機的(#221:只有一部分讀不到時錯誤留在那台主機的狀態行)。
