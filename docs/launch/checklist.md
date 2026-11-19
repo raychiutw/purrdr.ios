@@ -43,8 +43,8 @@
 | # | 步驟 | 誰做 | 狀態 |
 |---|---|---|---|
 | 3.1 | D1 建立與 migration、Worker 部署(`https://purrdr-backend.lean-lean.workers.dev`) | 主 session | ✅ 2026-11-19 |
-| 3.2 | Sign in with Apple key、APNs key、存取權杖密鑰、Apple Root CA - G3、Google OAuth client(`raychiutw/purrdr.server` 的 `README.md`) | 主 session | ✅ 2026-11-19(Apple／APNs 部分;Google OAuth client 待建) |
-| 3.3 | app 的 `BackendConfiguration.baseURL`、`googleClientID` 換成真值(`src/App/Purrdr/BackendConfiguration.swift`) | 主 session | ⬜ `baseURL` 已換(2026-11-19);`googleClientID` 待補 |
+| 3.2 | Sign in with Apple key、APNs key、存取權杖密鑰、Apple Root CA - G3、Google OAuth client(`raychiutw/purrdr.server` 的 `README.md`) | 主 session | ✅ 2026-11-19 |
+| 3.3 | app 的 `BackendConfiguration.baseURL`、`googleClientID` 換成真值(`src/App/Purrdr/BackendConfiguration.swift`) | 主 session | ✅ 2026-11-19 |
 | 3.4 | 主機外掛的公開來源：已併入公開 repo `raychiutw/purrdr.host` 的 `host-plugin/`(app 以 `herdr plugin install raychiutw/purrdr.host/host-plugin` 安裝),不另開 repo | 主 session | ✅ 2026-11-19 |
 
 ## 3A. 主機服務發行(#198)
@@ -80,7 +80,4 @@
 
 ## repo 裡仍是佔位的值
 
-| 值 | 位置 | 屬於 |
-|---|---|---|
-| `REPLACE-ME.apps.googleusercontent.com` | `src/App/Purrdr/BackendConfiguration.swift`(`googleClientID`) | 3.3 |
-| `REPLACE_ME.apps.googleusercontent.com` | `raychiutw/purrdr.server` 的 `wrangler.jsonc`(`GOOGLE_CLIENT_IDS`) | 3.2 |
+無(2026-11-19 起後台設定與 app 的 `BackendConfiguration` 都已是真值)。
