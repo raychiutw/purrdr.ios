@@ -10,7 +10,7 @@ public struct HostIconBadge: View {
     @ScaledMetric private var diameter: CGFloat
 
     /// - Parameters:
-    ///   - diameter: 標準字級下的圓直徑(列表 32pt、編輯器格子 40pt),跟著動態字級縮放。
+    ///   - diameter: 標準字級下的圓直徑(主機清單 32pt、Agents 列副標 18pt、編輯器格子 40pt),跟著動態字級縮放。
     ///   - showsNoIconSymbol: 「無」也畫符號(圖示選擇器用);否則留空位。
     public init(_ icon: HostIcon, diameter: CGFloat = 32, showsNoIconSymbol: Bool = false) {
         self.icon = icon

@@ -42,7 +42,7 @@ final class AgentListUITests: XCTestCase {
         XCTAssertLessThan(working.frame.minY, done.frame.minY)
     }
 
-    /// Agents 檢視是單一清單(#244):沒有分段標題，需要你仍在工作中之前;每列念出狀態、預覽前是主機名。
+    /// Agents 檢視是單一清單(#244):沒有分段標題，需要你仍在工作中之前;每列先念 agent 種類，再念狀態，預覽前是主機名。
     @MainActor
     func testAgentsViewIsSingleListWithHostPreview() {
         let app = XCUIApplication.launchUITesting()
@@ -55,6 +55,7 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(needsYou.label.contains("Needs You"), "狀態點沒有念出狀態:\(needsYou.label)")
         XCTAssertTrue(needsYou.label.contains("Demo · "), "預覽前沒有主機名:\(needsYou.label)")
         XCTAssertTrue(working.label.contains("Now"), "工作中的列沒有「Now」:\(working.label)")
+        XCTAssertTrue(working.label.hasPrefix("Codex"), "列首頭像沒有念出 agent 種類:\(working.label)")
         XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
         XCTAssertFalse(app.descendants(matching: .any)["agentList.section.needsYou"].exists, "單一清單不該有分段標題")
         let screenshot = XCTAttachment(screenshot: app.screenshot())
