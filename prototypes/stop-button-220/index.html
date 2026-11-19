@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Purrdr 停止鈕原型</title>
+<style>
+/* PROTOTYPE，用完即丟。#220 停止鈕：使用者選定版面 B,依 Apple HIG 檢核修正(research/hig-stop-button.md)。 */
+:root{
+  --bg:#F2F2F7; --surface:#FFFFFF; --surface2:#E9E9EE; --fg:#000; --muted:#636366; --sep:rgba(60,60,67,.18);
+  --brand:#D80521; --brandFill:#EA0826; --link:#0A60D6;
+  --sysRed:#D70015; --okText:#1E7A35; --warnText:#A04E00; --errText:#C4001A;
+  --glass:rgba(255,255,255,.72); --glassEdge:rgba(255,255,255,.9);
+  --page:#DCDCE2; --bar:#1C1C1E; --barFg:#fff; --bubble:#E9E9EE; --mine:#EA0826;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#000; --surface:#1C1C1E; --surface2:#2C2C2E; --fg:#fff; --muted:#AEAEB2; --sep:rgba(84,84,88,.55);
+  --brand:#FC5D72; --link:#64A8FF; --sysRed:#FF6961; --okText:#30D158; --warnText:#FFB340; --errText:#FF6961;
+  --glass:rgba(44,44,46,.72); --glassEdge:rgba(255,255,255,.12);
+  --page:#111113; --bar:#F2F2F7; --barFg:#000; --bubble:#2C2C2E; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font-family:var(--font);font-size:15px;
+  padding:24px max(16px,env(safe-area-inset-right,0px)) 140px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1040px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:32px;align-items:start}
+.notes{min-width:0}
+.notes h1{font-size:28px;margin:0 0 4px}
+.kicker{color:var(--muted);font-size:13px;margin:0 0 20px}
+.notes h2{font-size:20px;margin:0 0 8px}
+.notes h3{font-size:15px;margin:20px 0 8px;color:var(--muted)}
+.notes p,.notes li{line-height:1.6;max-width:64ch}
+.notes ul{padding-left:20px;margin:8px 0}
+.notes code{font-size:13px}
+.statebox{background:var(--surface);border-radius:12px;padding:10px 14px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.phone{width:390px;max-width:100%;height:800px;border-radius:44px;background:var(--bg);overflow:hidden;position:sticky;top:24px;
+  box-shadow:0 0 0 10px #000,0 20px 50px rgba(0,0,0,.35);display:flex;flex-direction:column;isolation:isolate}
+@media (max-width:820px){.wrap{grid-template-columns:minmax(0,1fr)}.phone{order:-1;margin:0 auto;height:720px;border-radius:32px;box-shadow:0 0 0 6px #000;position:relative;top:0}}
+.statusbar{height:44px;flex:none;display:flex;justify-content:space-between;align-items:center;padding:0 28px;font-weight:600}
+.nav{flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 4px;border-bottom:.5px solid var(--sep);position:relative}
+.nav .back{color:var(--brand);font-size:17px;border:0;background:none;min-height:44px;padding:0 8px}
+.nav .title{flex:1;text-align:center;font-weight:600;line-height:1.2;min-width:0}
+.nav .title small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.tb{min-width:44px;height:44px;border:0;background:none;color:var(--brand);font-size:20px;cursor:pointer;border-radius:22px}
+.tb.old{background:var(--surface2);color:var(--fg);min-width:36px;height:36px;font-size:15px}
+.menu{position:absolute;background:var(--surface);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);min-width:240px;z-index:6;overflow:hidden}
+.menu button{display:flex;justify-content:space-between;align-items:center;width:100%;border:0;background:none;color:var(--fg);min-height:44px;padding:0 16px;font-size:16px;text-align:left;border-bottom:.5px solid var(--sep);cursor:pointer}
+.menu button:last-of-type{border-bottom:0}
+.menu .destructive{color:var(--sysRed)}
+.menu button[disabled]{opacity:.35;cursor:default}
+.menu .footer{padding:8px 16px 10px;color:var(--muted);font-size:12px;background:var(--bg)}
+.banner{flex:none;margin:8px 12px 0;padding:4px 4px 4px 12px;border-radius:12px;background:var(--surface);font-size:13px;display:flex;gap:8px;align-items:center}
+.banner .dot{width:8px;height:8px;border-radius:4px;flex:none}
+.banner .sp{flex:1;padding:8px 0}
+.banner button{border:0;background:none;color:var(--link);font-size:15px;font-weight:600;min-height:44px;padding:0 12px}
+.chat{flex:1;overflow-y:auto;padding:12px 12px 8px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none}
+.msg{max-width:80%;padding:9px 13px;border-radius:18px;background:var(--bubble);line-height:1.4}
+.msg.mine{align-self:flex-end;background:var(--mine);color:#fff}
+.tool{align-self:flex-start;font-size:12px;color:var(--muted);padding:2px 6px}
+.working{align-self:flex-start;color:var(--muted);font-size:13px;padding:4px 6px;display:flex;gap:8px;align-items:center}
+.grid9{display:grid;grid-template-columns:repeat(3,4px);gap:2px}
+.grid9 i{width:4px;height:4px;border-radius:1px;background:var(--muted);animation:p 1.2s infinite}
+.grid9 i:nth-child(odd){animation-delay:.4s}
+@keyframes p{50%{opacity:.25}}
+.dock{flex:none;padding:6px 10px 28px;position:relative}
+.card{background:var(--glass);backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);border:1px solid var(--glassEdge);border-radius:24px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden}
+.ctl{display:flex;align-items:center;gap:12px;padding:6px 8px 6px 12px;border-bottom:.5px solid var(--sep);min-height:56px}
+.ctl .msgtxt{flex:1;font-size:13px;line-height:1.35;min-width:0;display:flex;gap:6px;align-items:flex-start}
+.ctl .msgtxt .sym{flex:none;font-size:14px;line-height:1.25}
+.ctl .msgtxt small{display:block;color:var(--muted)}
+.ok{color:var(--okText)} .warn{color:var(--warnText)} .err{color:var(--errText)}
+.bordered{min-height:44px;border-radius:22px;border:0;background:var(--surface2);color:var(--fg);font-size:15px;font-weight:600;padding:0 16px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;flex:none;user-select:none;-webkit-user-select:none}
+.bordered.destructive{color:var(--sysRed)}
+.bordered[disabled]{opacity:.5;cursor:default}
+.close{width:44px;height:44px;border-radius:22px;border:0;background:none;color:var(--muted);font-size:17px;flex:none;cursor:pointer}
+.spin{width:14px;height:14px;border-radius:7px;border:2px solid var(--muted);border-right-color:transparent;animation:r 1s linear infinite;flex:none}
+@keyframes r{to{transform:rotate(360deg)}}
+.input{min-height:44px;color:var(--muted);padding:12px 16px 4px}
+.row{display:flex;align-items:center;gap:8px;padding:4px 8px 8px}
+.row .sp{flex:1}
+.ico{width:44px;height:44px;border-radius:22px;border:0;background:var(--surface2);color:var(--fg);font-size:18px}
+.send{width:44px;height:44px;border-radius:22px;border:0;background:var(--brandFill);color:#fff;font-size:20px;font-weight:700}
+.send[disabled]{opacity:.4}
+.sheet{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;flex-direction:column;justify-content:flex-end;padding:0 8px 28px;gap:8px;z-index:8}
+.sheet .grp{background:var(--surface);border-radius:14px;overflow:hidden;text-align:center}
+.sheet .head{padding:14px 16px;font-size:13px;color:var(--muted);border-bottom:.5px solid var(--sep)}
+.sheet .head b{display:block;color:var(--fg);font-size:13px;margin-bottom:2px}
+.sheet button{width:100%;min-height:56px;border:0;background:none;font-size:18px;color:var(--link);cursor:pointer}
+.sheet button.destructive{color:var(--sysRed)}
+.sheet button.cancel{font-weight:600}
+.toastax{position:absolute;left:12px;right:12px;top:96px;background:var(--bar);color:var(--barFg);border-radius:10px;padding:6px 10px;font-size:11px;z-index:7;opacity:.92}
+/* 原版 B(對照用) */
+.pill{display:flex;align-items:center;gap:8px;background:var(--surface);border-radius:20px;padding:6px 6px 6px 12px;margin:0 0 8px;font-size:13px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.pill .sp{flex:1}
+.pillbtn{border:0;border-radius:16px;padding:6px 12px;font-size:13px;font-weight:600;background:var(--brandFill);color:#fff}
+.pillbtn.ghost{background:var(--surface2);color:var(--fg)}
+.bar{position:fixed;left:50%;transform:translateX(-50%);bottom:max(16px,env(safe-area-inset-bottom,0px));background:var(--bar);color:var(--barFg);border-radius:18px;padding:8px;display:flex;flex-direction:column;gap:6px;z-index:10;max-width:calc(100vw - 32px);box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.bar .r{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.bar button{border:0;border-radius:12px;padding:7px 11px;background:transparent;color:inherit;font-size:13px;white-space:nowrap;cursor:pointer}
+.bar button.on{background:var(--brandFill);color:#fff}
+.bar .lbl{font-size:11px;opacity:.6;padding:6px 4px 0}
+</style>
+<body>
+<div class="wrap">
+  <div class="notes">
+    <h1>停止鈕原型(#220)— 版面 B</h1>
+    <p class="kicker">PROTOTYPE，用完即丟。下方黑色工具列切換「版本」與「狀態」;右邊手機可以直接操作。<b>長按「停止」</b>(或在電腦上按右鍵)開出強制結束選單。</p>
+    <div id="variantNotes"></div>
+    <h3>目前狀態</h3>
+    <div class="statebox" id="state"></div>
+  </div>
+  <div class="phone" id="phone"></div>
+</div>
+<div class="bar">
+  <div class="r" id="variants"></div>
+  <div class="r" id="states"></div>
+</div>
+<script>
+const VARIANTS={
+  fixed:{name:"B 修正版(HIG)",notes:`<h2>B 修正版：依 HIG 檢核修正</h2>
+<ul>
+<li><b>停止列併進輸入卡片</b>:不再另外浮一個白色膠囊；停止列是玻璃輸入卡片最上面的一列(同一個 <code>GlassEffectContainer</code>),只在工作中或有結果時出現。</li>
+<li><b>工作中指示只留一個</b>:保留 DESIGN 規定的對話底部內容層指示(3×3 點陣、Working…、經過時間);停止列不再重複「Claude 工作中…」。</li>
+<li><b>停止是中性 bordered 鈕</b>(<code>stop.fill</code>+「停止」),命中區 ≥ 44pt;送出維持輸入列唯一的紅底主要動作。停止(Esc)不確認。</li>
+<li><b>強制結束</b>:長按停止鈕開出選單(<code>Menu(primaryAction:)</code>),項目標 destructive(系統紅、不用品牌紅),點了跳 <code>confirmationDialog</code> 確認；「仍在工作」結果也有同一個入口。導覽列 ⋯ 不再放強制結束。</li>
+<li><b>停止中</b>:停止鈕換成系統 <code>ProgressView</code>+「正在停止…」並停用；超過 10 秒沒變化自動轉成「仍在工作」。</li>
+<li><b>結果</b>:前導符號＋文字(不只靠顏色)、footnote 字級可換行，對比 ≥ 4.5:1;錯誤用系統錯誤色。「已停止」2 秒後自動收起；其他結果留到處理或狀態改變。結果出現時有觸覺回饋與 VoiceOver 公告。</li>
+<li><b>導覽列</b>:<code>arrow.clockwise</code> 重新載入、<code>ellipsis</code> 更多，不加自訂圓底(系統套玻璃)。唯讀時只剩終端機一項，直接改成終端機按鈕。</li>
+<li><b>離線</b>:斷線前在工作中時，橫幅多一句「重新連上後才能停止」;重試鈕命中區 ≥ 44pt。</li>
+<li><b>鍵盤讓位</b>:停止列排在輸入列之後、建議提示詞之前；空間不夠時只留停止鈕一行。</li>
+</ul>`},
+  orig:{name:"B 原版(對照)",notes:`<h2>B 原版(對照用)</h2><p>你上一輪選定的版本。HIG 檢核指出：按鈕約 28pt(不足 44pt)、強制結束沒確認也用品牌紅、兩個「工作中」指示、膠囊與玻璃輸入卡片是兩種材質、文字對比不足、結果長句會擠。</p>`},
+};
+const STATES={
+  idle:{name:"閒置",agent:"idle"},
+  working:{name:"工作中",agent:"working"},
+  stopping:{name:"停止中",agent:"working",stopping:true},
+  stopped:{name:"已停止",agent:"idle",result:"stopped"},
+  still:{name:"仍在工作",agent:"working",result:"still"},
+  unsent:{name:"送不出",agent:"working",result:"unsent"},
+  unknown:{name:"無法確認",agent:"unknown",result:"unknown"},
+  blocked:{name:"需要你",agent:"blocked"},
+  offline:{name:"離線",agent:"offline",wasWorking:true},
+  readonly:{name:"唯讀裝置",agent:"working",readonly:true},
+};
+const RESULTS={
+  stopped:{cls:"ok",sym:"✓",text:"已停止",haptic:".success",auto:true},
+  still:{cls:"warn",sym:"⚠︎",text:"Claude 仍在工作",sub:"已送出停止，但它沒有停下來。",action:"force",haptic:".warning"},
+  unsent:{cls:"err",sym:"⚠︎",text:"送不出停止",sub:"請檢查連線後再試一次。",action:"retry",haptic:".error"},
+  unknown:{cls:"warn",sym:"?",text:"無法確認是否已停止",sub:"已送出停止，但讀不到 Claude 的狀態。",action:"reload",haptic:".warning"},
+};
+const q=new URLSearchParams(location.search);
+let v=VARIANTS[q.get("variant")]?q.get("variant"):"fixed";
+let s=STATES[q.get("state")]?q.get("state"):"working";
+let overlay=null; // "navMenu" | "stopMenu" | "confirm"
+let announce="";
+let timers=[];
+function clearTimers(){timers.forEach(clearTimeout);timers=[]}
+function setParams(){try{const u=new URL(location.href);u.searchParams.set("variant",v);u.searchParams.set("state",s);history.replaceState(null,"",u)}catch(e){}}
+function go(state){clearTimers();s=state;overlay=null;const r=STATES[s].result;announce=r?`VoiceOver 公告：「${RESULTS[r].text}」· 觸覺 ${RESULTS[r].haptic}`:"";
+  if(r==="stopped"&&v==="fixed")timers.push(setTimeout(()=>{if(s==="stopped")go("idle")},2000));
+  if(s==="stopping")timers.push(setTimeout(()=>{if(s==="stopping")go("still")},10000));
+  render()}
+function stop(){if(s==="working"||s==="still"){go("stopping");timers.push(setTimeout(()=>{if(s==="stopping")go("stopped")},1500))}}
+function open(o){overlay=o;render()}
+let pressTimer=null;
+function pressStart(){pressTimer=setTimeout(()=>{pressTimer=null;open("stopMenu")},500)}
+function pressEnd(){if(pressTimer){clearTimeout(pressTimer);pressTimer=null;stop()}}
+function msgs(st){
+  let h=`<div class="msg mine">幫我把登入頁的錯誤訊息改成繁中</div><div class="msg">好，我先找出登入頁用到的字串。</div><div class="tool">⚙︎ 讀取 LoginView.swift</div>`;
+  if((st.agent==="working"||st.stopping)&&v==="fixed")h+=`<div class="working"><span class="grid9">${"<i></i>".repeat(9)}</span>Working… 0:42</div>`;
+  if(st.agent==="working"&&v==="orig"&&!st.result)h+=`<div class="working">● ● ● Claude 正在回覆</div>`;
+  if(st.agent==="blocked")h+=`<div class="msg">要允許我修改 Localizable.xcstrings 嗎？</div>`;
+  return h;
+}
+function navMenu(st){
+  const working=st.agent==="working";
+  return `<div class="menu" style="right:8px;top:48px"><button onclick="go('${s}')">重新載入<span>↻</span></button><button>終端機<span>▣</span></button><button>資料夾<span>▤</span></button></div>`;
+}
+function stopMenu(st){
+  const can=!st.readonly&&st.agent==="working";
+  return `<div class="menu" style="left:12px;bottom:170px"><button class="destructive" ${can?"":"disabled"} onclick="open('confirm')">強制結束…<span>⊗</span></button>${st.agent==="blocked"?`<div class="footer">「需要你」狀態不會被中斷。</div>`:""}</div>`;
+}
+function confirmSheet(){
+  return `<div class="sheet" onclick="if(event.target===this){overlay=null;render()}"><div class="grp"><div class="head"><b>強制結束 Claude?</b>會送出 Ctrl-C,進行中的工具呼叫可能中斷。</div><button class="destructive" onclick="go('stopped')">強制結束</button></div><div class="grp"><button class="cancel" onclick="overlay=null;render()">取消</button></div></div>`;
+}
+function ctlRow(st){
+  if(st.readonly)return "";
+  const working=st.agent==="working";
+  const r=st.result&&RESULTS[st.result];
+  if(!(working||st.stopping||r))return "";
+  if(st.agent==="offline")return "";
+  let left="",right="";
+  if(st.stopping){
+    left=`<button class="bordered" disabled aria-label="正在停止"><span class="spin"></span>正在停止…</button>`;
+  }else if(r){
+    left=`<div class="msgtxt ${r.cls}"><span class="sym" aria-hidden="true">${r.sym}</span><span>${r.text}${r.sub?`<small>${r.sub}</small>`:""}</span></div>`;
+    if(r.action==="force")right=`<button class="bordered destructive" onclick="open('confirm')">強制結束…</button>`;
+    if(r.action==="retry")right=`<button class="bordered" onclick="stop();go('stopping');timers.push(setTimeout(()=>go('stopped'),1500))">再試一次</button>`;
+    if(r.action==="reload")right=`<button class="bordered" onclick="go('idle')">重新載入</button>`;
+    if(!r.auto)right+=`<button class="close" aria-label="關閉" onclick="go('${working?'working':'idle'}')">✕</button>`;
+    if(st.result==="still"||st.result==="unsent")left=left;
+  }else{
+    left=`<button class="bordered" aria-label="停止 Claude" onmousedown="pressStart()" onmouseup="pressEnd()" onmouseleave="if(pressTimer){clearTimeout(pressTimer);pressTimer=null}" ontouchstart="pressStart()" ontouchend="event.preventDefault();pressEnd()" oncontextmenu="event.preventDefault();open('stopMenu')"><span aria-hidden="true">■</span>停止</button><span style="flex:1;font-size:12px;color:var(--muted)">長按可強制結束</span>`;
+  }
+  if(r&&!st.stopping){return `<div class="ctl">${left}${right}</div>`}
+  return `<div class="ctl">${left}${right}</div>`;
+}
+function renderFixed(st){
+  const offline=st.agent==="offline";
+  const right=st.readonly
+    ?`<button class="tb" aria-label="重新載入" onclick="go('${s}')">↻</button><button class="tb" aria-label="終端機">▣</button>`
+    :`<button class="tb" aria-label="重新載入" onclick="go('${s}')">↻</button><button class="tb" aria-label="更多" onclick="open('navMenu')">⋯</button>`;
+  let banner="";
+  if(offline)banner=`<div class="banner"><span class="dot" style="background:var(--errText)"></span><span class="sp">離線，顯示最後載入的對話。${st.wasWorking?"<br>重新連上後才能停止。":""}</span><button onclick="go('working')">再試一次</button></div>`;
+  if(st.readonly)banner=`<div class="banner"><span class="dot" style="background:var(--muted)"></span><span class="sp">這支裝置是唯讀，不能送訊息或停止。</span></div>`;
+  const sendDisabled=offline||st.readonly;
+  return `
+    <div class="statusbar"><span>9:41</span><span>▮▮▮</span></div>
+    <div class="nav"><button class="back">‹ Agents</button><div class="title">登入頁修正<small>${st.agent==="offline"?"離線":st.agent==="blocked"?"需要你":st.agent==="working"?"工作中":st.agent==="unknown"?"狀態未知":"閒置"} · Claude · mac-mini</small></div>${right}${overlay==="navMenu"?navMenu(st):""}</div>
+    ${banner}
+    ${announce?`<div class="toastax">${announce}</div>`:""}
+    <div class="chat">${msgs(st)}</div>
+    <div class="dock"><div class="card">${ctlRow(st)}<div class="input">${st.readonly?"唯讀":"訊息"}</div><div class="row"><button class="ico" aria-label="加入圖片">＋</button><span class="sp"></span><button class="send" ${sendDisabled?"disabled":""} aria-label="送出">↑</button></div></div>${overlay==="stopMenu"?stopMenu(st):""}</div>
+    ${overlay==="confirm"?confirmSheet():""}`;
+}
+function renderOrig(st){
+  const showStop=(st.agent==="working"||st.stopping)&&!st.readonly;
+  const r=st.result&&RESULTS[st.result];
+  let pill="";
+  if((showStop||r)&&!st.readonly&&st.agent!=="offline"){
+    const lead=st.stopping?`<span class="spin"></span><span class="sp">停止中…</span>`:r?`<span class="sp" style="color:${r.cls==='ok'?'#248A3D':r.cls==='err'?'#D80521':'#C25E00'}">${r.text}</span>`:`<span class="spin"></span><span class="sp">Claude 工作中…</span>`;
+    const acts=st.stopping?`<button class="pillbtn" disabled>停止</button>`:r?`<button class="pillbtn ghost" onclick="go('idle')">✕</button>`:`<button class="pillbtn" onclick="stop()">■ 停止</button><button class="pillbtn ghost">⋯</button>`;
+    pill=`<div class="pill">${lead}${acts}</div>`;
+  }
+  return `
+    <div class="statusbar"><span>9:41</span><span>▮▮▮</span></div>
+    <div class="nav" style="padding:2px 12px 6px"><button class="back">‹ Agents</button><div class="title">登入頁修正<small>Claude · mac-mini</small></div><button class="tb old">↻</button><button class="tb old">⋯</button></div>
+    <div class="chat">${msgs(st)}</div>
+    <div class="dock" style="border-top:.5px solid var(--sep)">${pill}<div style="background:var(--surface);border-radius:20px;padding:8px 10px"><div style="min-height:40px;color:var(--muted)">訊息</div><div style="display:flex;justify-content:flex-end"><button style="width:34px;height:34px;border-radius:17px;border:0;background:var(--brandFill);color:#fff">↑</button></div></div></div>`;
+}
+function render(){
+  setParams();
+  const st=STATES[s];
+  document.getElementById("phone").innerHTML=v==="fixed"?renderFixed(st):renderOrig(st);
+  document.getElementById("variantNotes").innerHTML=VARIANTS[v].notes;
+  const r=st.result&&RESULTS[st.result];
+  const working=st.agent==="working";
+  document.getElementById("state").textContent=
+`版本: ${VARIANTS[v].name}
+狀態: ${st.name}
+agentStatus: ${st.agent}${st.agent==="offline"?"(不顯示斷線前的工作中)":""}
+停止列: ${st.readonly||st.agent==="offline"?"不顯示":st.stopping?"正在停止…(停用,10 秒無變化→仍在工作)":r?"結果: "+r.text:working?"停止鈕(點=Esc,長按=選單)":"不顯示"}
+強制結束: ${st.readonly?"不顯示":working&&!st.stopping?"長按停止 → 選單 → 確認":st.agent==="blocked"?"停用(需要你)":"停用"}
+確認對話框: ${overlay==="confirm"?"顯示中":"—"}
+送出鈕: ${st.readonly||st.agent==="offline"?"停用":"可用(工作中也可打字)"}
+觸覺／VoiceOver: ${r?r.haptic+" ／ 公告「"+r.text+"」":"—"}`;
+  document.getElementById("variants").innerHTML='<span class="lbl">版本</span>'+Object.keys(VARIANTS).map(k=>`<button class="${k===v?'on':''}" onclick="v='${k}';go(s)">${VARIANTS[k].name}</button>`).join("");
+  document.getElementById("states").innerHTML='<span class="lbl">狀態</span>'+Object.keys(STATES).map(k=>`<button class="${k===s?'on':''}" onclick="go('${k}')">${STATES[k].name}</button>`).join("");
+}
+go(s);
+</script>
+</body>
+</html>
