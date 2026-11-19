@@ -635,11 +635,12 @@ public final class HostsModel {
         }
         switch configuration.connection {
         case .https(let address):
+            let connection = hostServiceConnection(for: configuration, address: address)
             return HostMember(
-                host: host, configuration: configuration, channel: UnsupportedHostChannel(),
-                connection: hostServiceConnection(for: configuration, address: address),
-                // HTTPS 主機的取檔在 #227(主機服務協定加訊息後換成 HTTPS adapter)。
-                files: UnsupportedHostFileFetcher(), preferences: preferences.store(for: host), push: nil, consent: hostConsent)
+                host: host, configuration: configuration, channel: UnsupportedHostChannel(), connection: connection,
+                // 主機取檔走同一條主機服務連線(#227);UI 測試的替身連線沒有取檔。
+                files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), preferences: preferences.store(for: host),
+                push: nil, consent: hostConsent)
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
             return HostMember(
                 host: host, configuration: configuration, channel: channel(for: configuration, settings: settings),

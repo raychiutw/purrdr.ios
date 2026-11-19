@@ -76,6 +76,8 @@ final class FakeHostService: Sendable {
         var pairedToken = "token-paired"
         /// 對話紀錄訊息(`transcript.*`)的回應：訊息種類 → JSON 物件(不含 `request_id`;請求帶 `stream_id` 時換上請求的)。
         var transcriptReplies: [String: String] = [:]
+        /// 主機取檔訊息(`file.stat`／`file.read`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
+        var fileReplies: [String: [String]] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
@@ -293,6 +295,18 @@ final class FakeHostService: Sendable {
             }
             object["request_id"] = requestID
             if let streamID = message["stream_id"] { object["stream_id"] = streamID }
+            return [.text(Self.json(object))]
+        case "file.stat", "file.read":
+            // 依序取用;只剩一則時一直回它。
+            let reply = state.withLock { state -> String? in
+                guard let queue = state.settings.fileReplies[type], let first = queue.first else { return nil }
+                if queue.count > 1 { state.settings.fileReplies[type] = Array(queue.dropFirst()) }
+                return first
+            }
+            guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
             return [.text(Self.json(object))]
         case "pane.send_keys", "pane.send_text", "agent.prompt":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
