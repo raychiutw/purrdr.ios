@@ -261,7 +261,7 @@ struct PromptDeliveryTests {
     }
 
     /// R-P13:只送一個 Esc(第二個會開 Claude 的回溯選單);主機會收下不認得的鍵名，所以要確認離開 working。
-    @Test("停止：先讀新鮮的狀態，在 working 才送一個 Esc,之後每 500ms 讀狀態，離開 working 就算停了")
+    @Test("停止：先讀新鮮的狀態，在 working 才送一個 Esc,之後每 500ms 讀狀態，離開 working 就算停了並帶回當下狀態")
     func stopSendsOneEscAndConfirms() async throws {
         let host = FakeHost()
         let sleeper = RecordingSleeper { $0 == .milliseconds(500) }
@@ -272,7 +272,7 @@ struct PromptDeliveryTests {
 
         let outcome = await Self.delivery(host, sleeper: sleeper).stop(paneID: Self.paneID)
 
-        #expect(outcome == .stopped)
+        #expect(outcome == .stopped(.idle))
         let requests = await host.executions.map(\.stdinText)
         #expect(requests.first?.contains(#""method":"session.snapshot""#) == true)
         #expect(await Self.keyRequests(host) == [Self.escKeys])
@@ -331,7 +331,7 @@ struct PromptDeliveryTests {
     func stopSendsNothingWhenNotWorkingOrUnknown() async throws {
         let idle = FakeHost()
         await idle.expect(Self.bridge, reply: Self.snapshot(status: "done"))
-        #expect(await Self.delivery(idle).stop(paneID: Self.paneID) == .stopped)
+        #expect(await Self.delivery(idle).stop(paneID: Self.paneID) == .stopped(.done))
         #expect(await Self.keyRequests(idle).isEmpty)
 
         let offline = FakeHost()

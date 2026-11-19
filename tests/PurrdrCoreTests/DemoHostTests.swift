@@ -247,7 +247,7 @@ struct DemoHostTests {
 
         let delivery = PromptDelivery(client: client, sleep: { _ in })
         #expect(await delivery.stop(paneID: "w2:p1") == .needsAnswer)
-        #expect(await delivery.stop(paneID: "w3:p1") == .stopped)
+        #expect(await delivery.stop(paneID: "w3:p1") == .stopped(.done))
         #expect(try await client.snapshot().agents.first { $0.paneID == "w3:p1" }?.status == .done)
         #expect(LivePreview.extract(screen: try await client.readPane(paneID: "w3:p1")) == nil)
         #expect(try await client.snapshot().agents.first { $0.paneID == "w2:p1" }?.status == .blocked)

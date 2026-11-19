@@ -30,7 +30,8 @@ public enum UnconfirmedReason: Sendable, Equatable {
 
 /// 中斷的結果(F6.7)。
 public enum StopOutcome: Sendable, Equatable {
-    case stopped
+    /// 已離開 working;帶回當下讀到的狀態(pane 沒有 agent 時 `nil`)。
+    case stopped(AgentStatus?)
     /// 3 秒後仍在工作。
     case stillWorking
     /// 連 Esc 都送不出去。
@@ -168,7 +169,7 @@ public struct PromptDelivery: Sendable {
         case .unknown: return .failed
         case .needsYou: return .needsAnswer
         // 已經停了：多一個 Esc 會打開 Claude 的回溯選單。
-        case .notWorking: return .stopped
+        case .notWorking: return .stopped(nil)
         case .working: break
         }
         do {
@@ -183,7 +184,7 @@ public struct PromptDelivery: Sendable {
                 return .stillWorking
             }
             guard let snapshot = try? await client.snapshot() else { return .unconfirmed }
-            if snapshot.agents.first(where: { $0.paneID == paneID })?.status != .working { return .stopped }
+            if snapshot.agents.first(where: { $0.paneID == paneID })?.status != .working { return .stopped(nil) }
         }
         return .stillWorking
     }
