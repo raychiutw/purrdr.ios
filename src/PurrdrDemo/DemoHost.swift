@@ -32,6 +32,8 @@ public actor DemoHost: HostChannel {
         case largeOutputOnPrompt
         /// 送出後工作一段時間(#210):對話紀錄先接上使用者那一行，agent 工作 `for` 之後才接上回覆並完成。
         case workingAfterPrompt(for: Duration)
+        /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
+        case agentFiles
     }
 
     /// check mode 情境的驗證網址(不存在的示範網址)。
@@ -73,12 +75,27 @@ public actor DemoHost: HostChannel {
 
     private let tailscaleCheck: TailscaleCheckObserver?
 
+    /// 推播外掛是否已安裝(只在記憶體;帳號頁開通知的 UI 測試,#246)。
+    private var pushPluginInstalled = false
+
     /// Demo 家目錄的上傳資料夾。
     static let uploadFolder = "/Users/demo/" + UploadedImages.folder
 
-    public init(scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil) {
+    /// 這個情境的 Claude Code 對話紀錄。
+    private var transcripts: [DemoTranscripts.Session] {
+        scenario == .agentFiles ? [DemoTranscripts.agentFiles, DemoTranscripts.weather] : DemoTranscripts.sessions
+    }
+
+    /// 「送出後工作中」到期判斷用的現在時間(測試注入手動時鐘)。
+    private let now: @Sendable () -> ContinuousClock.Instant
+
+    public init(
+        scenario: Scenario = .standard, tailscaleCheck: TailscaleCheckObserver? = nil,
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }
+    ) {
         self.scenario = scenario
         self.tailscaleCheck = tailscaleCheck
+        self.now = now
         if scenario == .largeOutputOnPrompt {
             appended[DemoTranscripts.ledger.sessionID] = DemoTranscripts.longChat(at: Date(timeIntervalSince1970: 1_794_819_660))
         }
@@ -109,7 +126,7 @@ public actor DemoHost: HostChannel {
         }
         writeLargeOutputIfDue(command)
         writeDueReplies()
-        if let stdout = DemoTranscripts.respond(to: command, appended: appended) {
+        if let stdout = DemoTranscripts.respond(to: command, appended: appended, sessions: transcripts) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
         if let path = HostFolderCommand.parseList(command) {
@@ -130,11 +147,30 @@ public actor DemoHost: HostChannel {
             let result = files.handle(request, now: Date())
             return DemoFinishedSession(events: (result.stdout.isEmpty ? [] : [.stdout(result.stdout)]) + [.exit(code: result.exitCode)])
         }
+        if let stdout = herdrPluginResponse(to: command) {
+            return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
+        }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
             .stderr(Data("sh: \(program): command not found\n".utf8)),
             .exit(code: 127),
         ])
+    }
+
+    /// `herdr plugin list／install／uninstall`:Demo 只認推播外掛。
+    private func herdrPluginResponse(to command: String) -> Data? {
+        if command.contains(" plugin list --plugin ") {
+            return Data((pushPluginInstalled ? #"[{"plugin_id":"\#(PushHost.pluginID)"}]"# : "[]").utf8)
+        }
+        if command.contains(" plugin install ") {
+            pushPluginInstalled = true
+            return Data()
+        }
+        if command.contains(" plugin uninstall ") {
+            pushPluginInstalled = false
+            return Data()
+        }
+        return nil
     }
 
     public func openPTY(_ request: PTYRequest) async throws -> any PTYSession {
@@ -203,7 +239,7 @@ public actor DemoHost: HostChannel {
                 if case .workingAfterPrompt(let duration) = scenario {
                     appended[session.sessionID, default: []] += reply.prefix(1)
                     pendingReplies.append(PendingReply(
-                        paneID: target, sessionID: session.sessionID, due: .now + duration, lines: Array(reply.dropFirst())))
+                        paneID: target, sessionID: session.sessionID, due: now() + duration, lines: Array(reply.dropFirst())))
                     return DemoSnapshot.prompted(id: id, paneID: target)
                 }
                 appended[session.sessionID, default: []] += reply
@@ -223,10 +259,10 @@ public actor DemoHost: HostChannel {
         let ledger = DemoTranscripts.ledger
         if largeOutputAt == nil,
            command == TranscriptCommand.locate(sessionID: ledger.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: ledger.cwd)) {
-            largeOutputAt = .now + delay
+            largeOutputAt = now() + delay
             return
         }
-        guard let due = largeOutputAt, ContinuousClock.now >= due else { return }
+        guard let due = largeOutputAt, now() >= due else { return }
         largeOutputWritten = true
         appended[ledger.sessionID, default: []] += DemoTranscripts.largeOutput(at: Date())
     }
@@ -262,11 +298,11 @@ public actor DemoHost: HostChannel {
 
     /// 送出後工作中的情境：工作時間到了，接上回覆(agent 隨之完成)。
     private func writeDueReplies() {
-        let now = ContinuousClock.now
-        for pending in pendingReplies where now >= pending.due {
+        let current = now()
+        for pending in pendingReplies where current >= pending.due {
             appended[pending.sessionID, default: []] += pending.lines
         }
-        pendingReplies.removeAll { now >= $0.due }
+        pendingReplies.removeAll { current >= $0.due }
     }
 
     /// 送出後工作中的 pane 畫面：Claude Code 正在寫的散文(即時預覽)。

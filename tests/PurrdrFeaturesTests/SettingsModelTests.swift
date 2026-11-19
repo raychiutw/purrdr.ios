@@ -192,6 +192,18 @@ struct SettingsModelTests {
         #expect(Self.model(defaults: defaults).hapticsEnabled == false)
     }
 
+    @Test("外觀預設自動，改了存在 app 根畫面讀的同一個 key")
+    func appearanceDefaultsAutomaticAndPersists() {
+        let defaults = UserDefaults(suiteName: "settings-\(UUID().uuidString)")!
+        let model = Self.model(defaults: defaults)
+        #expect(model.appearance == .automatic)
+
+        model.appearance = .dark
+
+        #expect(defaults.string(forKey: AppearancePreference.storageKey) == "dark")
+        #expect(Self.model(defaults: defaults).appearance == .dark)
+    }
+
     @Test("每次讀版本都用當下選取的主機(換主機後重讀)")
     func herdrVersionFollowsSelectedHost() async {
         let first = FakeHost()

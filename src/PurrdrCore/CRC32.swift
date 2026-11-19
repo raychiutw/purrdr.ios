@@ -12,8 +12,13 @@ package enum CRC32 {
 
     package static func checksum(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
-        for byte in data {
-            crc = table[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
+        // 經 buffer 逐 byte 讀：Debug 建置下大檔(Demo 的 8.8 MiB 掃描檔)也不吃 CPU。
+        table.withUnsafeBufferPointer { lookup in
+            data.withUnsafeBytes { bytes in
+                for byte in bytes {
+                    crc = lookup[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8)
+                }
+            }
         }
         return crc ^ 0xFFFF_FFFF
     }

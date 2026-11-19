@@ -1,7 +1,7 @@
 import XCTest
 
-/// 設定頁(#32):版本、主機 herdr 版本、評分、支援、診斷資訊、隱私權政策、Return 送出、觸覺回饋、會員入口;
-/// 沒有 app 內深淺色設定;繁體中文介面。
+/// 設定頁(#32、#246):外觀、Return 送出、觸覺回饋、評分、支援、診斷資訊、關於(版本、主機 herdr 版本、隱私權政策);
+/// 會員與 Purrdr Plus 不在設定頁(在帳號頁);繁體中文介面。
 final class SettingsUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -12,8 +12,8 @@ final class SettingsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
 
-        // 通知、主機同步區在上面，後面的列可能要捲動才出現(List 不建立畫面外的列)。
-        for identifier in ["settings.member", "settings.returnSends", "settings.haptics", "settings.rate", "settings.support"] {
+        // 後面的列可能要捲動才出現(List 不建立畫面外的列)。
+        for identifier in ["settings.appearance", "settings.returnSends", "settings.haptics", "settings.rate", "settings.support"] {
             let entry = element(identifier, in: app)
             scrollTo(entry, in: app)
             XCTAssertTrue(entry.waitForExistence(timeout: 5), "設定頁沒有 \(identifier)")
@@ -27,31 +27,34 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有顯示主機的 herdr 版本:\(herdrVersion.debugDescription)")
         XCTAssertTrue(element("settings.version", in: app).exists)
         XCTAssertTrue(element("settings.privacy", in: app).exists)
-        // 外觀跟隨系統：沒有深淺色設定。
-        for word in ["Appearance", "Dark", "Light"] {
-            XCTAssertFalse(
-                app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", word)).firstMatch.exists,
-                "設定頁不該有「\(word)」"
-            )
-        }
+        // 會員與 Purrdr Plus 移到帳號頁(#246)。
+        XCTAssertFalse(element("settings.member", in: app).exists, "設定頁不該有會員")
+        XCTAssertFalse(element("settings.hostSync", in: app).exists, "設定頁不該有主機同步")
     }
 
-    /// 主機同步(#30):沒有 Purrdr Plus(UI 測試沒有會員)時不開啟，改顯示訂閱入口，在同一個 sheet 內 push 付費牆。
+    /// 外觀(#246):自動／淺色／深色，預設自動;選了立即生效，重開 app 後保留。
     @MainActor
-    func testHostSyncWithoutPlusOffersSubscription() {
+    func testAppearanceChoicePersistsAcrossLaunches() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
+        // 外觀存在 UserDefaults.standard:結束時改回自動，不影響其他測試。
+        addTeardownBlock { @MainActor in
+            let cleanup = XCUIApplication.launchUITesting()
+            self.openSettings(in: cleanup)
+            cleanup.buttons["Automatic"].tap()
+            cleanup.terminate()
+        }
 
-        let toggle = element("settings.hostSync", in: app)
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有主機同步")
-        // 點開關本身(列的右側)。
-        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["Automatic"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Automatic"].isSelected, "預設不是自動")
+        app.buttons["Dark"].tap()
+        XCTAssertTrue(app.buttons["Dark"].isSelected)
+        app.terminate()
 
-        let plus = element("settings.hostSync.plus", in: app)
-        XCTAssertTrue(plus.waitForExistence(timeout: 10), "沒有顯示需要 Purrdr Plus")
-        XCTAssertEqual(toggle.value as? String, "0", "沒有訂閱不該開啟")
-        plus.tap()
-        XCTAssertTrue(element("plus.benefits", in: app).waitForExistence(timeout: 10), "沒有 push 到付費牆")
+        let relaunched = XCUIApplication.launchUITesting()
+        openSettings(in: relaunched)
+        XCTAssertTrue(relaunched.buttons["Dark"].waitForExistence(timeout: 5))
+        XCTAssertTrue(relaunched.buttons["Dark"].isSelected, "重開 app 後沒有保留深色")
     }
 
     @MainActor
@@ -68,19 +71,6 @@ final class SettingsUITests: XCTestCase {
         waitForExpectations(timeout: 5)
     }
 
-    @MainActor
-    func testMemberIsPushedInsideSettingsSheet() {
-        let app = XCUIApplication.launchUITesting()
-        openSettings(in: app)
-
-        app.buttons["settings.member"].tap()
-
-        XCTAssertTrue(app.navigationBars["Purrdr Member"].waitForExistence(timeout: 5), "沒有進入會員畫面")
-        // 同一個 sheet 內 push:有返回鈕，沒有第二個「完成」。
-        app.navigationBars["Purrdr Member"].buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(element("sheet.settings", in: app).waitForExistence(timeout: 5), "沒有回到設定頁")
-    }
-
     /// String Catalog 真的套用到 package 裡的畫面(畫面字串在 PurrdrFeatures,catalog 在 app)。
     @MainActor
     func testTraditionalChineseInterface() {
@@ -91,7 +81,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["需要你"].firstMatch.waitForExistence(timeout: 10), "列表不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 5), "設定頁標題不是繁體中文")
-        // 通知、主機同步、Codex 區在上面，評分列要捲動才出現。
+        // Codex 區在上面，評分列要捲動才出現。
         let rate = app.buttons["為 Purrdr 評分"]
         scrollTo(rate, in: app)
         XCTAssertTrue(rate.waitForExistence(timeout: 5), "沒有「為 Purrdr 評分」")

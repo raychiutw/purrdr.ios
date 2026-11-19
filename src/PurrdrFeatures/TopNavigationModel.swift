@@ -5,7 +5,7 @@ import PurrdrCore
 
 /// 一個視窗的導覽狀態(#37 故事 21、#31):Agent 列表之上以 sheet 開啟的畫面、三欄的選取、鍵盤快捷鍵。
 ///
-/// 不採 tab bar:列表工具列的「⋯」選單進入設定與主機，「+」新增對話;一次只開一個 sheet。
+/// 不採 tab bar:列表工具列的帳號鈕開帳號頁、「⋯」選單進入設定與主機，「+」新增對話;一次只開一個 sheet。
 /// iPad 多視窗時每個視窗各一份(由 `TopNavigationView` 持有);主機清單與選取中主機(`HostsModel`)是全 app 共用的。
 @MainActor
 @Observable
@@ -103,6 +103,9 @@ public final class TopNavigationModel {
         switch url.host()?.lowercased() {
         case "settings":
             sheet = .settings
+        case "plus":
+            // 付費牆(#246):「⋯」選單不再有 Purrdr Plus,未加入會員也能從連結看方案。
+            sheet = .plus
         case "host", "pair":
             // 系統相機掃 QR code(主機分享連結，或主機配對指令的 `purrdr://pair?…`)或點連結都會走到這裡;
             // 內容在主機 sheet 裡解析與說明。
@@ -123,7 +126,7 @@ public enum TopLevelSheet: String, Identifiable, Sendable {
     case settings
     case hosts
     case newChat
-    /// 會員(登入、登入方式、刪除會員,#27)。設定頁(#32)做好後可改從設定進入。
+    /// 帳號頁(#246;右上角帳號鈕):會員、Purrdr Plus 開通步驟、登入方式、刪除會員。
     case member
     /// Purrdr Plus 的付費牆與訂閱摘要(#28)。
     case plus
