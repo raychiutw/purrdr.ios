@@ -53,3 +53,8 @@
 - `purrdr-avatars.html`：線上 https://claude.ai/artifact/VxyxbrPSdpEiJHvvPjtQdm （私人）
 - 頭像配色選 **B 低飽和多色**：每種 agent 保留色相、壓低飽和，白字 ≥ 4.5:1；opencode 改橄欖灰綠，避開翡翠綠主色。
 - **帳號鈕放最右上角**（Apple HIG），「⋯」在它左邊；修正上一節原型中帳號鈕在「⋯」左邊的擺法。
+
+## Agents 列擺法（2026-11-19 追加，修正聊天列表原型）
+
+- `purrdr-agent-rows.html`：線上 https://claude.ai/artifact/LkPbpVKhVwUq61vNNRgVc6 （私人）
+- 選 **B**：列最前面是 agent 種類頭像（B 低飽和色），第二行前面是小主機圖示＋「主機 · 最後一句」；符合 spec #231 故事 16。原本聊天列表原型把主機圖示放列前，以此修正。

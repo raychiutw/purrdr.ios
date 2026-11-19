@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Agents 列擺法</title>
+<style>
+/* PROTOTYPE（拋棄式）：聊天列表 Agents 列的 agent 種類頭像與主機圖示擺法。#variant=A|B|C|D；底部切深淺色。 */
+:root{--page:#f2f2f7;--surface:#fff;--fg:#000;--secondary:#3c3c4399;--tertiary:#3c3c434d;--separator:#3c3c4329;--fill:#7878801f;--press:#e5e5ea;
+  --accent:#0b7a5c;--on-accent:#fff;--accent-soft:#0b7a5c1f;--orange:#ff9500;--gray:#8e8e93;--bar-bg:#111;--bar-fg:#fff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--fill:#7878805c;--press:#2c2c2e;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--orange:#ff9f0a;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--fill:#7878805c;--press:#2c2c2e;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--orange:#ff9f0a;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) 120px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1100px;margin:0 auto}
+h1{font-size:20px;margin:0 0 4px}.lede{color:var(--secondary);margin:0 0 16px;font-size:14px}
+.grid{display:grid;grid-template-columns:minmax(0,390px) minmax(0,1fr);gap:20px;align-items:start}
+@media(max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}}
+.phone{border:1px solid var(--separator);border-radius:32px;overflow:hidden;background:var(--page);padding-bottom:14px}
+.nav{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 4px;gap:8px}
+.picker{display:inline-flex;align-items:center;gap:6px;background:var(--fill);border-radius:999px;padding:5px 10px 5px 5px;font-weight:600}
+.circle{width:32px;height:32px;border-radius:50%;background:var(--fill);display:grid;place-items:center}
+.acct{width:32px;height:32px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:14px}
+.large{font-size:30px;font-weight:700;padding:0 16px 8px}
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 16px 10px}
+.seg span{flex:1;text-align:center;padding:6px;border-radius:7px;font-weight:600;font-size:14px}.seg .on{background:var(--surface);box-shadow:0 1px 3px #0002}
+.search{margin:0 16px 10px;background:var(--fill);border-radius:10px;padding:8px 10px;color:var(--secondary)}
+.group{background:var(--surface);border-radius:12px;margin:0 12px;overflow:hidden}
+.row{display:flex;gap:12px;align-items:center;padding:10px 14px;position:relative;cursor:pointer}
+.row:active{background:var(--press)}
+.row+.row::before{content:"";position:absolute;top:0;left:var(--inset,62px);right:0;border-top:.5px solid var(--separator)}
+.main{flex:1;min-width:0}.top{display:flex;gap:6px;align-items:center}
+.name{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time{font-size:13px;color:var(--secondary);flex:none}
+.prev{color:var(--secondary);font-size:14px;display:flex;align-items:center;gap:5px;min-width:0}
+.prev .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.needs{background:var(--orange)}.working{background:var(--accent)}.idle{background:var(--gray)}
+.av{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff;flex:none;position:relative}
+.hi{width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+.hi.sm{width:18px;height:18px}.hi.sm svg{width:11px;height:11px}
+.badge{position:absolute;right:-5px;bottom:-5px;width:20px;height:20px;border-radius:50%;background:var(--surface);display:grid;place-items:center}
+.badge .hi{width:17px;height:17px}.badge svg{width:10px;height:10px}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--secondary);background:var(--fill);border-radius:999px;padding:1px 7px 1px 2px;flex:none}
+.chip .hi{width:16px;height:16px}.chip svg{width:10px;height:10px}
+svg.g{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.notes{background:var(--surface);border-radius:14px;padding:16px 18px}
+.notes h2{font-size:16px;margin:0 0 8px}.notes ul{margin:0 0 12px;padding-left:20px}.notes li{margin:3px 0}
+.state{font:13px/1.5 ui-monospace,Menlo,monospace;background:var(--fill);border-radius:10px;padding:10px 12px;white-space:pre-wrap}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;box-shadow:0 6px 24px #0005;max-width:calc(100% - 32px);overflow-x:auto;z-index:9}
+.switcher button{border:0;background:none;color:inherit;font:inherit;font-size:14px;padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.switcher button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Agents 列：頭像與主機圖示的擺法</h1>
+<p class="lede">拋棄式原型。spec 故事 16：「agent 頭像照舊顯示是哪種 agent，主機圖示只放在主機名稱前」；#244 原型則把主機圖示放在列前。底部切 A／B／C／D 比較，頭像用已選的 B 低飽和色。</p>
+<div class="grid">
+  <div class="phone">
+    <div class="nav"><span class="picker"><span class="hi" style="width:24px;height:24px"><svg class="g" viewBox="0 0 24 24" style="width:14px;height:14px"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/></svg></span>所有主機<span style="color:var(--secondary);font-size:12px">▾</span></span><span style="display:flex;gap:8px"><span class="circle">⋯</span><span class="acct">陳</span></span></div>
+    <div class="large">Agents</div>
+    <div class="seg"><span class="on">Agents</span><span>Spaces</span></div>
+    <div class="search">搜尋</div>
+    <div class="group" id="list"></div>
+  </div>
+  <div class="notes"><h2 id="t"></h2><ul id="n"></ul><h2>目前狀態</h2><div class="state" id="state"></div></div>
+</div>
+</div>
+<div class="switcher"><button data-v="A">A 原型：主機圖示在前</button><button data-v="B">B 頭像在前＋副標主機圖示</button><button data-v="C">C 頭像＋主機角標</button><button data-v="D">D 頭像＋標題列主機膠囊</button><button id="th">深淺色</button></div>
+<script>
+const P={pc:'<rect x="7" y="2.5" width="10" height="19" rx="1.8"/><circle cx="12" cy="17" r="1.4"/><path d="M10 6h4M10 9h4"/>',macMini:'<rect x="3" y="9" width="18" height="6" rx="2.5"/><path d="M7 15.5v1M17 15.5v1M15 12h2"/>',cloud:'<path d="M7 18h10.5a3.5 3.5 0 0 0 .4-7A5.5 5.5 0 0 0 7.3 9.6 4.2 4.2 0 0 0 7 18Z"/>',board:'<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/>'};
+const svg=k=>`<svg class="g" viewBox="0 0 24 24" aria-hidden="true">${P[k]}</svg>`;
+const hi=(k,c="")=>`<span class="hi ${c}">${svg(k)}</span>`;
+const HOSTS={pc:["Ray PC","pc"],mini:["Mac mini","macMini"],studio:["Studio","cloud"],pi:["Pi 5","board"]};
+const KIND={claude:["C","#8A5A48","Claude Code"],codex:["X","#55565C","Codex"],gemini:["G","#4A5F86","Gemini"],copilot:["P","#6A5884","Copilot"]};
+const ROWS=[["claude","pc","ledger","needs","現在","Ready to submit your answers?"],["codex","mini","site","working","2 分","部署到預覽環境中"],["claude","pc","purrdr.ios","working","5 分","正在整理輪詢流量的研究報告"],["gemini","studio","notes","idle","12 分","週報已經寫好，放在 docs/weekly.md"],["copilot","pi","sensor","idle","1 小時","溫度記錄器已重新啟動"]];
+const V={
+ A:["A：主機圖示在前（#244 目前的實作）","列前是主機圖示（綠色圓），第二行「主機 · 最後一句」。","看不出是哪種 agent；不符合 spec 故事 16。","主機一眼就分得出，適合多台主機、同一種 agent 為主的人。"],
+ B:["B：頭像在前、主機圖示放副標（推薦）","列前是 agent 種類頭像（低飽和色＋字母），第二行前面是小主機圖示＋主機名稱。","完全照 spec 故事 16：「頭像照舊、主機圖示只放在主機名稱前」。","兩種資訊都在，主機圖示小，不跟頭像搶。"],
+ C:["C：頭像右下角疊主機角標","列前是頭像，右下角疊一個小主機圖示圓點（像 iOS 訊息群組頭像的角標）。","最省空間，第二行只放最後一句。","角標很小，主機圖示不容易辨認；主機名稱看不到。"],
+ D:["D：頭像在前、主機膠囊放標題列右側","列前是頭像；第一行名稱右邊有「主機」小膠囊（圖示＋名稱），時間在最右。","主機很醒目，但第一行變擠，長名稱會更早被截斷。","第二行只放最後一句。"]};
+let v=(location.hash.match(/variant=([ABCD])/)||[])[1]||"B";
+function avatar(k,badge){const a=KIND[k];return `<span class="av" style="background:${a[1]}">${a[0]}${badge?`<span class="badge">${hi(badge)}</span>`:""}</span>`}
+function row(r){const [k,h,n,s,t,p]=r,H=HOSTS[h];
+ if(v==="A")return `<div class="row" style="--inset:60px">${hi(H[1])}<div class="main"><div class="top"><span class="dot ${s}"></span><span class="name">${n}</span><span class="time">${t}</span></div><div class="prev"><span class="t">${H[0]} · ${p}</span></div></div></div>`;
+ if(v==="B")return `<div class="row">${avatar(k)}<div class="main"><div class="top"><span class="dot ${s}"></span><span class="name">${n}</span><span class="time">${t}</span></div><div class="prev">${hi(H[1],"sm")}<span class="t">${H[0]} · ${p}</span></div></div></div>`;
+ if(v==="C")return `<div class="row">${avatar(k,H[1])}<div class="main"><div class="top"><span class="dot ${s}"></span><span class="name">${n}</span><span class="time">${t}</span></div><div class="prev"><span class="t">${p}</span></div></div></div>`;
+ return `<div class="row">${avatar(k)}<div class="main"><div class="top"><span class="dot ${s}"></span><span class="name">${n}</span><span class="chip">${hi(H[1])}${H[0]}</span><span class="time">${t}</span></div><div class="prev"><span class="t">${p}</span></div></div></div>`;
+}
+function render(){
+ document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+ document.getElementById("list").innerHTML=ROWS.map(row).join("");
+ document.getElementById("t").textContent=V[v][0];
+ document.getElementById("n").innerHTML=V[v].slice(1).map(x=>`<li>${x}</li>`).join("");
+ document.getElementById("state").textContent=JSON.stringify({版本:v,列前:v==="A"?"主機圖示":"agent 頭像",主機位置:{A:"列前＋副標文字",B:"副標前小圖示",C:"頭像角標",D:"標題列膠囊"}[v],外觀:document.documentElement.dataset.theme||"依系統"},null,2);
+}
+document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{v=b.dataset.v;location.hash="variant="+v;render()});
+document.getElementById("th").onclick=()=>{const r=document.documentElement,d=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=d?"light":"dark";render()};
+render();
+</script>
+</body>
+</html>
