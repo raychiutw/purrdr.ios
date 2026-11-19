@@ -113,8 +113,8 @@ struct ComposerBar: View {
             if !model.attachments.isEmpty && model.typedAnswer == nil {
                 AttachmentStrip(model: model)
             }
-            // Claude Code 的建議提示詞(#123):只在輸入框空白時有，點了填入並聚焦，不送出。
-            if let suggestion = model.suggestion, arrangement.suggestion != .hidden {
+            // Claude Code 的建議提示詞(#123):輸入框空白、沒有問題在等也不在工作時才有(#240),點了填入並聚焦，不送出。
+            if case .suggestion(let suggestion) = model.topAccessory, arrangement.suggestion != .hidden {
                 let isCompact = arrangement.suggestion == .compact
                 PromptSuggestionView(suggestion: suggestion, isCompact: isCompact) { acceptSuggestion() }
                     .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
@@ -183,12 +183,14 @@ struct ComposerBar: View {
 
     private var arrangementInput: ArrangementInput {
         let showsNote = model.note != nil && model.youShouldKnow != nil && !model.slash.isVisible
+        var showsSuggestion = false
+        if case .suggestion = model.topAccessory { showsSuggestion = true }
         return ArrangementInput(
             // 聚焦時才有鍵盤;實體鍵盤只有快捷列，對話夠高，規則自然完整顯示。
             // 只在聚焦時讀對話高度：沒聚焦時不必讓位，也不讓輸入列隨每次捲動量測重畫(載入、大量輸出時
             // 列表會被捲到內容之外，`ConversationUITests` 的載入與大量輸出案例)。
             keyboardShown: isFocused, conversationHeight: isFocused ? conversationHeight.value : nil,
-            note: showsNote ? noteHeights : nil, suggestion: model.suggestion == nil ? nil : suggestionHeights,
+            note: showsNote ? noteHeights : nil, suggestion: showsSuggestion ? suggestionHeights : nil,
             minimum: ComposerKeyboardLayout.minimumConversationHeight(bodyLineHeight: bodyLineHeight))
     }
 
@@ -521,7 +523,7 @@ struct EchoBubbleView: View {
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
-                        .hostFill(in: RoundedRectangle(cornerRadius: 18))
+                        .userBubbleFill()
                         .accessibilityLabel(Text("Your message. \(echo.text)"))
                 }
                 status
@@ -544,9 +546,8 @@ struct EchoBubbleView: View {
                 .foregroundStyle(.secondaryText)
         case .failed(let failure):
             HStack(spacing: 4) {
-                Label(failure.text, systemImage: "exclamationmark.circle.fill")
+                ErrorLabel(failure.text)
                     .font(.caption)
-                    .foregroundStyle(.errorText)
                 Button(action: retry) { HitTarget("Retry") }
                     .font(.caption.weight(.semibold))
                     .accessibilityIdentifier("conversation.echo.retry")

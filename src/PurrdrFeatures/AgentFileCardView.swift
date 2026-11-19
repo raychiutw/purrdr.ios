@@ -178,6 +178,7 @@ struct AgentFileCardView: View {
                             Text(verbatim: line.text.isEmpty ? " " : line.text)
                                 .foregroundStyle(Self.style(of: line.kind))
                                 .fontWeight(line.kind == .added ? .semibold : .regular)
+                                .strikethrough(line.kind == .removed)
                         }
                     }
                     .font(.system(.footnote, design: .monospaced))
@@ -230,12 +231,11 @@ struct AgentFileCardView: View {
         Task { if let file = await loads.open(card.file.path, scope: scope) { previewFile = file } }
     }
 
-    /// 刪除的行用錯誤文字色、未變的行用次要文字色;新增的行用主要文字色加粗(沒有對比足夠的綠色角色)。
+    /// 新增的行主要色加粗、刪除的行次要文字色加刪除線、未變的行次要文字色;不用紅綠承載文字(#240),`+`／`-` 符號保留。
     private static func style(of kind: AgentFileCardDisplay.Line.Kind) -> AnyShapeStyle {
         switch kind {
         case .plain, .added: AnyShapeStyle(.primary)
-        case .removed: AnyShapeStyle(.errorText)
-        case .context, .hunkHeader: AnyShapeStyle(.secondaryText)
+        case .removed, .context, .hunkHeader: AnyShapeStyle(.secondaryText)
         }
     }
 }

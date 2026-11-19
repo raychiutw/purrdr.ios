@@ -320,8 +320,7 @@ struct RenameWorkspaceSheet: View {
                 }
                 if let error = actions.renameError {
                     Section {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.errorText)
+                        ErrorLabel(error)
                             .accessibilityIdentifier("workspace.rename.error")
                     }
                 }
@@ -397,8 +396,7 @@ struct NewWorktreeSheet: View {
                 }
                 if let error = actions.worktreeError {
                     Section {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                            .foregroundStyle(.errorText)
+                        ErrorLabel(error)
                             .accessibilityIdentifier("workspace.worktree.error")
                     }
                 }
