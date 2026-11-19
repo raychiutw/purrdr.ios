@@ -40,6 +40,9 @@
     <p>指令會下載這台電腦適用的版本，以 SHA-256 檢查碼驗證(不符就停止、不留下檔案),再執行 <code>purrdr-host-service install</code>:檢查 Tailscale 設定、把程式放到 <code>~/.purrdr/host-service/</code>、設定 <code>tailscale serve</code>,並在登入後自動啟動(macOS 是 LaunchAgent,Linux 是 systemd user service,Windows 是登入時執行)。</p>
     <p>macOS 版經過 Apple 公證。Windows 版沒有程式碼簽章，Windows 可能顯示 SmartScreen 警告。</p>
     <p>要指定埠或 herdr 的具名 session:macOS／Linux 用 <code>curl -fsSL …/install.sh | sh -s -- --port 47820 --session work</code>;Windows 用 <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --port 47820 --session work</code>。要安裝特定版本，先設環境變數 <code>PURRDR_HOST_SERVICE_VERSION</code>(例如 <code>0.1.0</code>)。</p>
+    <h3>與其他 tailscale serve 服務並存</h3>
+    <p>主機服務預設使用 HTTPS 443。如果這台電腦的 443 已經被其他工具的 <code>tailscale serve</code> 使用，安裝程式不會更動它：互動安裝時會詢問是否改用第一個可用的埠(依序 8443、10000),加 <code>--yes</code> 時直接改用並印出最後的 HTTPS 位址。也可以自己指定埠：macOS／Linux 用 <code>curl -fsSL …/install.sh | sh -s -- --https-port 8443</code>;Windows 用 <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --https-port 8443</code>。位址會帶上埠號(例如 <code>https://my-mac.tailnet.ts.net:8443</code>),配對的 QR code 與在 Purrdr 輸入的位址都要包含它。之後再執行安裝指令(更新)會沿用同一個埠，解除安裝只關掉主機服務自己的埠。</p>
+    <p>安裝失敗時，訊息會說明發生什麼與原因，最後一行 <code>Next:</code> 是下一步要執行的完整指令。</p>
     <p>也可以從 <a href="https://github.com/raychiutw/purrdr.ios/releases">GitHub Releases</a> 手動下載壓縮檔(附 <code>SHA256SUMS</code>),解壓後執行 <code>purrdr-host-service install</code>。</p>
 
     <h2>配對 iPhone／iPad</h2>
@@ -85,6 +88,9 @@
     <p>The command downloads the build for this computer, verifies its SHA-256 checksum (stopping without leaving files behind if it doesn’t match), and runs <code>purrdr-host-service install</code>, which checks your Tailscale settings, puts the program in <code>~/.purrdr/host-service/</code>, sets up <code>tailscale serve</code>, and starts it when you sign in (a LaunchAgent on macOS, a systemd user service on Linux, a sign-in entry on Windows).</p>
     <p>The macOS build is notarized by Apple. The Windows build isn’t code-signed, so Windows may show a SmartScreen warning.</p>
     <p>To choose a port or a named herdr session: on macOS and Linux, <code>curl -fsSL …/install.sh | sh -s -- --port 47820 --session work</code>; on Windows, <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --port 47820 --session work</code>. To install a specific version, set <code>PURRDR_HOST_SERVICE_VERSION</code> (for example <code>0.1.0</code>) first.</p>
+    <h3>Sharing tailscale serve with other services</h3>
+    <p>The host service uses HTTPS port 443 by default. If another tool on this computer already uses 443 with <code>tailscale serve</code>, the installer leaves it alone: it asks whether to use the first free port instead (8443, then 10000), and with <code>--yes</code> it switches right away and prints the final HTTPS address. You can also choose the port: on macOS and Linux, <code>curl -fsSL …/install.sh | sh -s -- --https-port 8443</code>; on Windows, <code>&amp; ([scriptblock]::Create((irm …/install.ps1))) --https-port 8443</code>. The address then includes the port (for example <code>https://my-mac.tailnet.ts.net:8443</code>), and so do the pairing QR code and any address you type in Purrdr. Running the install command again (updating) keeps the same port, and uninstalling only turns off the host service’s own port.</p>
+    <p>If the install fails, the message says what happened and why, and its last <code>Next:</code> line is the full command to run next.</p>
     <p>You can also download an archive from <a href="https://github.com/raychiutw/purrdr.ios/releases">GitHub Releases</a> (with <code>SHA256SUMS</code>), extract it, and run <code>purrdr-host-service install</code>.</p>
 
     <h2>Pairing your iPhone or iPad</h2>

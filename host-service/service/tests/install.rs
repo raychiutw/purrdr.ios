@@ -2,11 +2,11 @@
 
 mod install_support;
 
-use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, RUN_VALUE, SYSTEMD_UNIT, TestHost, executable_names, snapshot};
+use install_support::{FQDN, FakeSystem, LAUNCH_AGENT_LABEL, RUN_VALUE, SYSTEMD_UNIT, TestHost, executable_names, occupy_https_port, snapshot};
 use std::time::SystemTime;
 
 use purrdr_host_service::herdr_socket::{Platform, SocketEnvironment};
-use purrdr_host_service::install::{InstallError, InstallPlatform, Installer};
+use purrdr_host_service::install::{InstallError, InstallPlatform, InstallQuestion, Installer};
 use purrdr_host_service::management;
 use purrdr_host_service::state_directory::default_state_directory;
 
@@ -167,8 +167,8 @@ fn install_warns_that_host_name_enters_certificate_transparency_and_stops_when_d
     let mut notice = String::new();
 
     let error = installer
-        .install(&host.options(PORT), |text| {
-            notice = text.to_owned();
+        .install(&host.options(PORT), |question| {
+            notice = question.to_string();
             false
         })
         .unwrap_err();
@@ -181,24 +181,116 @@ fn install_warns_that_host_name_enters_certificate_transparency_and_stops_when_d
 }
 
 #[test]
-fn https_port_already_served_by_something_else_is_left_alone() {
+fn taken_443_asks_to_use_8443_and_declining_changes_nothing() {
     for platform in PLATFORMS {
         let host = TestHost::new(platform);
         let mut system = FakeSystem::ready(&host.home.0);
-        system
-            .state
-            .serve
-            .insert(format!("{FQDN}:443"), [("/".to_owned(), "http://127.0.0.1:3000".to_owned())].into());
+        occupy_https_port(&mut system, 443, "http://127.0.0.1:8765");
         let system_before = system.state.clone();
         let mut installer = Installer::new(host.environment(), system);
+        let mut questions = Vec::new();
 
-        let error = installer.install(&host.options(PORT), |_| true).unwrap_err();
+        let error = installer
+            .install(&host.options(PORT), |question| {
+                questions.push(question.clone());
+                false
+            })
+            .unwrap_err();
 
-        assert_eq!(error, InstallError::ServePortTaken("/ -> http://127.0.0.1:3000".into()));
-        assert!(error.to_string().contains("tailscale serve --https=443 off"), "{error}");
+        assert_eq!(
+            questions,
+            [InstallQuestion::UseAnotherHttpsPort {
+                taken_port: 443,
+                handlers: "/ -> http://127.0.0.1:8765".into(),
+                alternative: 8443
+            }],
+            "{platform:?}"
+        );
+        assert_eq!(
+            error,
+            InstallError::ServePortTaken {
+                https_port: 443,
+                handlers: "/ -> http://127.0.0.1:8765".into(),
+                available: Some(8443)
+            }
+        );
         assert!(snapshot(&host.home.0).is_empty(), "{platform:?}");
         assert_eq!(installer.system().state, system_before);
     }
+}
+
+#[test]
+fn taken_443_moves_to_the_first_free_https_port_when_accepted() {
+    for platform in PLATFORMS {
+        let host = TestHost::new(platform);
+        let mut system = FakeSystem::ready(&host.home.0);
+        occupy_https_port(&mut system, 443, "http://127.0.0.1:8765");
+        occupy_https_port(&mut system, 8443, "http://127.0.0.1:3000");
+        let mut installer = Installer::new(host.environment(), system);
+
+        let installed = installer.install(&host.options(PORT), |_| true).unwrap();
+
+        assert_eq!(installed.https_address, format!("https://{FQDN}:10000"), "{platform:?}");
+        let serve = &installer.system().state.serve;
+        assert_eq!(serve[&format!("{FQDN}:443")]["/"], "http://127.0.0.1:8765");
+        assert_eq!(serve[&format!("{FQDN}:8443")]["/"], "http://127.0.0.1:3000");
+        assert_eq!(serve[&format!("{FQDN}:10000")]["/"], "http://127.0.0.1:47820");
+    }
+}
+
+#[test]
+fn no_free_https_port_fails_without_asking_or_changing_anything() {
+    let host = TestHost::new(InstallPlatform::Windows);
+    let mut system = FakeSystem::ready(&host.home.0);
+    for https_port in [443, 8443, 10_000] {
+        occupy_https_port(&mut system, https_port, "http://127.0.0.1:3000");
+    }
+    let system_before = system.state.clone();
+    let mut installer = Installer::new(host.environment(), system);
+    let mut asked_to_move = false;
+
+    let error = installer
+        .install(&host.options(PORT), |question| {
+            asked_to_move |= matches!(question, InstallQuestion::UseAnotherHttpsPort { .. });
+            true
+        })
+        .unwrap_err();
+
+    assert!(!asked_to_move);
+    assert!(
+        matches!(
+            error,
+            InstallError::ServePortTaken {
+                https_port: 443,
+                available: None,
+                ..
+            }
+        ),
+        "{error:?}"
+    );
+    assert!(snapshot(&host.home.0).is_empty());
+    assert_eq!(installer.system().state, system_before);
+}
+
+#[test]
+fn taken_https_port_given_explicitly_is_not_replaced_by_another_port() {
+    let host = TestHost::new(InstallPlatform::MacOs);
+    let mut system = FakeSystem::ready(&host.home.0);
+    occupy_https_port(&mut system, 8443, "http://127.0.0.1:3000");
+    let system_before = system.state.clone();
+    let mut installer = Installer::new(host.environment(), system);
+
+    let error = installer.install(&host.options_on_https_port(PORT, 8443), |_| true).unwrap_err();
+
+    assert_eq!(
+        error,
+        InstallError::ServePortTaken {
+            https_port: 8443,
+            handlers: "/ -> http://127.0.0.1:3000".into(),
+            available: Some(443)
+        }
+    );
+    assert_eq!(installer.system().state, system_before);
 }
 
 #[test]
@@ -218,7 +310,7 @@ fn failure_after_changes_rolls_everything_back() {
             let result = installer.install(&host.options(PORT), |_| true);
 
             let error = result.unwrap_err();
-            if platform == InstallPlatform::Linux && error == InstallError::ServeFailed {
+            if platform == InstallPlatform::Linux && matches!(error, InstallError::ServeFailed { .. }) {
                 assert!(error.to_string().contains("sudo tailscale set --operator=$USER"), "{error}");
             }
             assert_eq!(snapshot(&host.home.0), home_before, "{platform:?}: {error:?}");
@@ -327,4 +419,91 @@ fn uninstall_restores_home_and_system_settings_exactly() {
             assert!(uninstalled.warnings.is_empty(), "{:?}", uninstalled.warnings);
         }
     }
+}
+
+#[test]
+fn https_port_option_serves_beside_another_tool_and_uninstall_closes_only_that_port() {
+    for platform in PLATFORMS {
+        let host = TestHost::new(platform);
+        let mut system = FakeSystem::ready(&host.home.0);
+        occupy_https_port(&mut system, 443, "http://127.0.0.1:8765");
+        let system_before = system.state.clone();
+        let mut installer = Installer::new(host.environment(), system);
+
+        let installed = installer.install(&host.options_on_https_port(PORT, 8443), |_| true).unwrap();
+
+        assert_eq!(installed.https_address, format!("https://{FQDN}:8443"), "{platform:?}");
+        let serve = &installer.system().state.serve;
+        assert_eq!(serve[&format!("{FQDN}:443")]["/"], "http://127.0.0.1:8765", "{platform:?}");
+        assert_eq!(serve[&format!("{FQDN}:8443")]["/"], "http://127.0.0.1:47820", "{platform:?}");
+        let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(host.service_directory().join("config.json")).unwrap()).unwrap();
+        assert_eq!(config["https_address"], format!("https://{FQDN}:8443"));
+
+        installer.uninstall().unwrap();
+
+        assert_eq!(installer.system().state.serve, system_before.serve, "{platform:?}");
+    }
+}
+
+#[test]
+fn installing_again_keeps_the_saved_https_port() {
+    for platform in PLATFORMS {
+        let host = TestHost::new(platform);
+        let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+        installer.install(&host.options_on_https_port(PORT, 8443), |_| true).unwrap();
+
+        let updated = installer.install(&host.options(PORT), |_| true).unwrap();
+
+        assert_eq!(updated.https_address, format!("https://{FQDN}:8443"), "{platform:?}");
+        let serve = &installer.system().state.serve;
+        assert_eq!(serve.keys().collect::<Vec<_>>(), [&format!("{FQDN}:8443")], "{platform:?}");
+    }
+}
+
+#[test]
+fn moving_to_another_https_port_closes_the_old_one() {
+    let host = TestHost::new(InstallPlatform::Linux);
+    let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+    installer.install(&host.options(PORT), |_| true).unwrap();
+
+    installer.install(&host.options_on_https_port(PORT, 10_000), |_| true).unwrap();
+
+    let serve = &installer.system().state.serve;
+    assert_eq!(serve.keys().collect::<Vec<_>>(), [&format!("{FQDN}:10000")]);
+    installer.uninstall().unwrap();
+    assert!(installer.system().state.serve.is_empty());
+}
+
+#[test]
+fn record_from_0_2_0_without_https_port_means_443() {
+    let host = TestHost::new(InstallPlatform::Linux);
+    let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+    installer.install(&host.options(PORT), |_| true).unwrap();
+    let record_file = host.service_directory().join("install.json");
+    let mut record: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&record_file).unwrap()).unwrap();
+    record.as_object_mut().unwrap().remove("https_port");
+    std::fs::write(&record_file, record.to_string()).unwrap();
+
+    installer.uninstall().unwrap();
+
+    assert!(installer.system().state.serve.is_empty());
+}
+
+#[test]
+fn pairing_link_keeps_the_https_port() {
+    let host = TestHost::new(InstallPlatform::current());
+    let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+    installer.install(&host.options_on_https_port(PORT, 8443), |_| true).unwrap();
+    let pair = ["pair", "--state-dir"]
+        .map(str::to_owned)
+        .into_iter()
+        .chain([host.service_directory().display().to_string()]);
+
+    let output = management::run(&pair.collect::<Vec<_>>(), Platform::current(), &SocketEnvironment::default(), SystemTime::now()).unwrap();
+
+    assert!(output.contains(&format!("Address:      https://{FQDN}:8443")), "{output}");
+    assert!(
+        output.contains("purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code="),
+        "{output}"
+    );
 }

@@ -7,8 +7,13 @@ use serde::Deserialize;
 use super::system::HostSystem;
 use super::{InstallError, InstallPlatform};
 
-/// `tailscale serve` 對外的 HTTPS 埠。
-const HTTPS_PORT: u16 = 443;
+/// `tailscale serve` 預設的 HTTPS 埠。
+pub(super) const DEFAULT_HTTPS_PORT: u16 = 443;
+
+/// 預設埠被占用時依序改用的 HTTPS 埠。`tailscale serve --https` 可用任何埠
+/// (https://tailscale.com/kb/1242/tailscale-serve),這裡只挑 Funnel 也允許的 443、8443、10000
+/// (https://tailscale.com/kb/1223/funnel),日後開 Funnel 也不必換埠。
+pub(super) const CANDIDATE_HTTPS_PORTS: [u16; 3] = [443, 8443, 10_000];
 
 /// 找到的 tailscale CLI。
 pub(super) struct Tailscale {
@@ -74,17 +79,17 @@ impl Tailscale {
         Ok(host_name)
     }
 
-    /// 把 HTTPS 443 轉到主機服務。
-    pub(super) fn serve(&self, system: &mut impl HostSystem, port: u16) -> Result<(), InstallError> {
-        let arguments = vec!["serve".into(), "--bg".into(), format!("--https={HTTPS_PORT}"), serve_target(port)];
+    /// 把 HTTPS `https_port` 轉到主機服務。
+    pub(super) fn serve(&self, system: &mut impl HostSystem, https_port: u16, port: u16) -> Result<(), InstallError> {
+        let arguments = vec!["serve".into(), "--bg".into(), format!("--https={https_port}"), serve_target(port)];
         let succeeded = system
             .run_attached(&self.program, &arguments)
             .map_err(|error| InstallError::Tailscale(error.to_string()))?;
-        if succeeded { Ok(()) } else { Err(InstallError::ServeFailed) }
+        if succeeded { Ok(()) } else { Err(InstallError::ServeFailed { https_port }) }
     }
 
-    /// HTTPS 443 目前的 proxy 設定(路徑 → 目標);沒有設定時是空的。
-    pub(super) fn https_handlers(&self, system: &mut impl HostSystem) -> Result<BTreeMap<String, String>, InstallError> {
+    /// HTTPS `https_port` 目前的 proxy 設定(路徑 → 目標);沒有設定時是空的。
+    pub(super) fn https_handlers(&self, system: &mut impl HostSystem, https_port: u16) -> Result<BTreeMap<String, String>, InstallError> {
         let output = self.run(system, &["serve", "status", "--json"])?;
         let output = output.trim();
         let config: ServeConfig = if output.is_empty() {
@@ -92,7 +97,7 @@ impl Tailscale {
         } else {
             serde_json::from_str(output).map_err(|_| InstallError::Tailscale(format!("unexpected tailscale serve status: {output}")))?
         };
-        let suffix = format!(":{HTTPS_PORT}");
+        let suffix = format!(":{https_port}");
         Ok(config
             .web
             .unwrap_or_default()
@@ -103,16 +108,19 @@ impl Tailscale {
             .collect())
     }
 
-    /// 移除 HTTPS 443 的設定，但只在它仍是安裝時設的那一個時才移除。
-    pub(super) fn remove_serve(&self, system: &mut impl HostSystem, port: u16) -> Result<(), InstallError> {
-        let handlers = self.https_handlers(system)?;
+    /// 移除 HTTPS `https_port` 的設定，但只在它仍是安裝時設的那一個時才移除。
+    pub(super) fn remove_serve(&self, system: &mut impl HostSystem, https_port: u16, port: u16) -> Result<(), InstallError> {
+        let handlers = self.https_handlers(system, https_port)?;
         if handlers.is_empty() {
             return Ok(());
         }
         if handlers != BTreeMap::from([("/".to_owned(), serve_target(port))]) {
-            return Err(InstallError::ServeChanged(describe(&handlers)));
+            return Err(InstallError::ServeChanged {
+                https_port,
+                handlers: describe(&handlers),
+            });
         }
-        self.run(system, &[&format!("--https={HTTPS_PORT}"), "off"]).map(|_| ())
+        self.run(system, &["serve", &format!("--https={https_port}"), "off"]).map(|_| ())
     }
 
     fn run(&self, system: &mut impl HostSystem, arguments: &[&str]) -> Result<String, InstallError> {
@@ -157,6 +165,15 @@ pub(super) fn describe(handlers: &BTreeMap<String, String>) -> String {
         .map(|(path, target)| format!("{path} -> {target}"))
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+/// 主機服務的 HTTPS 位址;443 不寫埠。
+pub(super) fn https_address(host_name: &str, https_port: u16) -> String {
+    if https_port == DEFAULT_HTTPS_PORT {
+        format!("https://{host_name}")
+    } else {
+        format!("https://{host_name}:{https_port}")
+    }
 }
 
 /// `tailscale serve` 的 proxy 目標(官方文件：proxy 只支援 `http://127.0.0.1`)。

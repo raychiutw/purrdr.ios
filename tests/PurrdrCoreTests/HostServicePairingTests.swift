@@ -12,6 +12,8 @@ struct HostServicePairingTests {
             ("studio.tail1234.ts.net", "https://studio.tail1234.ts.net"),
             ("https://Studio.tail1234.ts.net/", "https://studio.tail1234.ts.net"),
             ("  https://studio.tail1234.ts.net:8443  ", "https://studio.tail1234.ts.net:8443"),
+            ("studio.tail1234.ts.net:8443", "https://studio.tail1234.ts.net:8443"),
+            ("https://studio.tail1234.ts.net:443", "https://studio.tail1234.ts.net"),
             ("http://127.0.0.1:47820", "http://127.0.0.1:47820"),
         ])
     func addressNormalization(text: String, expected: String) throws {
@@ -39,6 +41,29 @@ struct HostServicePairingTests {
         #expect(local.webSocketURL.absoluteString == "ws://127.0.0.1:47820/v1/ws")
         #expect(address.hostName == "studio.tail1234.ts.net")
         #expect(address.port == 443)
+    }
+
+    @Test("帶埠號的位址(#218,443 被其他 tailscale serve 服務占用時):WebSocket、配對、撤銷網址與舊格式端點都保留埠")
+    func endpointsKeepHTTPSPort() throws {
+        let address = try #require(HostServiceAddress("studio.tail1234.ts.net:8443"))
+
+        #expect(address.port == 8443)
+        #expect(address.webSocketURL.absoluteString == "wss://studio.tail1234.ts.net:8443/v1/ws")
+        #expect(address.pairURL.absoluteString == "https://studio.tail1234.ts.net:8443/v1/pair")
+        #expect(address.revokeURL.absoluteString == "https://studio.tail1234.ts.net:8443/v1/revoke")
+        #expect(address.legacyEndpoint == SSHEndpoint(host: "studio.tail1234.ts.net", port: 8443, username: ""))
+        #expect(address == HostServiceAddress("https://studio.tail1234.ts.net:8443/"))
+        #expect(address != HostServiceAddress("studio.tail1234.ts.net"))
+    }
+
+    @Test("主機服務 pair 指令印出的帶埠號配對連結(#218)")
+    func pairingLinkWithHTTPSPort() throws {
+        let url = try #require(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA"))
+
+        let link = try HostServicePairingLink(url: url)
+
+        #expect(link.address.description == "https://studio.tail1234.ts.net:8443")
+        #expect(link.pairingCode == "K7QM-2XPA")
     }
 
     @Test("QR code 的配對連結 purrdr://pair?address=…&code=…")

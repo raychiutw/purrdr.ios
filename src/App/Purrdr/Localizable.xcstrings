@@ -3309,13 +3309,13 @@
         }
       }
     },
-    "Install the Purrdr host service on the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
+    "Install the Purrdr host service on the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. If the host service uses an HTTPS port other than 443, keep the port in the address, for example my-mac.tailnet.ts.net:8443. Login Shell and Files aren’t available over HTTPS." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在主機上安裝 Purrdr 主機服務並執行 purrdr-host-service pair,再用「相機」App 掃描它顯示的 QR code,或輸入它顯示的位址與配對碼。HTTPS 不提供登入 Shell 與檔案。"
+            "value" : "在主機上安裝 Purrdr 主機服務並執行 purrdr-host-service pair,再用「相機」App 掃描它顯示的 QR code,或輸入它顯示的位址與配對碼。主機服務用的 HTTPS 埠不是 443 時，位址要帶埠號，例如 my-mac.tailnet.ts.net:8443。HTTPS 不提供登入 Shell 與檔案。"
           }
         }
       }

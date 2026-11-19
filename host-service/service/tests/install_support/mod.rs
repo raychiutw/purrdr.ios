@@ -93,7 +93,16 @@ impl TestHost {
         InstallOptions {
             port,
             herdr_session: None,
+            https_port: None,
             source_directory: self.downloads.0.clone(),
+        }
+    }
+
+    /// 指定 `--https-port` 的安裝選項。
+    pub fn options_on_https_port(&self, port: u16, https_port: u16) -> InstallOptions {
+        InstallOptions {
+            https_port: Some(https_port),
+            ..self.options(port)
         }
     }
 
@@ -124,6 +133,14 @@ pub struct SystemState {
     pub run_values: BTreeMap<String, String>,
     /// 背景執行中的程式(路徑與參數)。
     pub background_processes: Vec<Vec<String>>,
+}
+
+/// 另一個工具已經用 `tailscale serve` 占用的 HTTPS 埠(例如 Allymote 的 443)。
+pub fn occupy_https_port(system: &mut FakeSystem, https_port: u16, target: &str) {
+    system
+        .state
+        .serve
+        .insert(format!("{FQDN}:{https_port}"), [("/".to_owned(), target.to_owned())].into());
 }
 
 /// 可設定前置條件的假系統。
@@ -204,7 +221,7 @@ impl FakeSystem {
                     .insert("/".into(), (*target).into());
                 ok("")
             }
-            [https, "off"] if https.starts_with("--https=") => {
+            ["serve", https, "off"] if https.starts_with("--https=") => {
                 let port = https.trim_start_matches("--https=");
                 self.state.serve.remove(&format!("{FQDN}:{port}"));
                 ok("")

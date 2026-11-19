@@ -87,3 +87,19 @@ async fn status_flags_serve_pointing_somewhere_else() {
 
     assert_eq!(status.serve, ServeStatus::Other("/ -> http://127.0.0.1:3000".into()));
 }
+
+#[tokio::test]
+async fn status_reports_the_https_port_in_use() {
+    let host = TestHost::new(InstallPlatform::Linux);
+    let port = unused_port();
+    let mut installer = Installer::new(host.environment(), FakeSystem::ready(&host.home.0));
+    installer.install(&host.options_on_https_port(port, 8443), |_| true).unwrap();
+
+    let status = installer.status(&socket_environment_at("purrdr-status-test-missing-socket")).await;
+
+    assert_eq!(status.https_port, 8443);
+    assert_eq!(status.serve, ServeStatus::Configured(format!("http://127.0.0.1:{port}")));
+    let report = status.to_string();
+    assert!(report.contains(&format!("HTTPS address: https://{FQDN}:8443")), "{report}");
+    assert!(report.contains(&format!("tailscale serve: HTTPS 8443 -> http://127.0.0.1:{port}")), "{report}");
+}

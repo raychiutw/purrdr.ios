@@ -40,7 +40,7 @@ impl InstallPlatform {
     }
 }
 
-/// `tailscale serve` 的 HTTPS 443 設定。
+/// `tailscale serve` 在主機服務 HTTPS 埠上的設定。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServeStatus {
     /// 轉到主機服務(proxy 目標)。
@@ -67,6 +67,8 @@ pub struct HostStatus {
     /// 127.0.0.1 上的埠有主機服務在聽。
     pub listening: bool,
     pub port: u16,
+    /// `tailscale serve` 的 HTTPS 埠。
+    pub https_port: u16,
     pub https_address: Option<String>,
     pub serve: ServeStatus,
     pub herdr: HerdrStatus,
@@ -82,9 +84,9 @@ impl std::fmt::Display for HostStatus {
             writeln!(formatter, "  HTTPS address: {address}")?;
         }
         match &self.serve {
-            ServeStatus::Configured(target) => writeln!(formatter, "tailscale serve: HTTPS 443 -> {target}")?,
-            ServeStatus::NotConfigured => writeln!(formatter, "tailscale serve: HTTPS 443 not configured")?,
-            ServeStatus::Other(handlers) => writeln!(formatter, "tailscale serve: HTTPS 443 serves something else ({handlers})")?,
+            ServeStatus::Configured(target) => writeln!(formatter, "tailscale serve: HTTPS {} -> {target}", self.https_port)?,
+            ServeStatus::NotConfigured => writeln!(formatter, "tailscale serve: HTTPS {} not configured", self.https_port)?,
+            ServeStatus::Other(handlers) => writeln!(formatter, "tailscale serve: HTTPS {} serves something else ({handlers})", self.https_port)?,
             ServeStatus::Unavailable(message) => writeln!(formatter, "tailscale serve: unknown ({message})")?,
         }
         match &self.herdr {
@@ -135,6 +137,8 @@ pub enum InstallCommand {
     Install {
         port: u16,
         herdr_session: Option<String>,
+        /// `tailscale serve` 的 HTTPS 埠;沒指定時沿用上次安裝，或 443。
+        https_port: Option<u16>,
         assume_yes: bool,
     },
     Uninstall,
@@ -158,7 +162,7 @@ impl InstallCommand {
     }
 
     fn parse_install(options: &[String]) -> Result<Self, String> {
-        let (mut port, mut herdr_session, mut assume_yes) = (crate::DEFAULT_PORT, None, false);
+        let (mut port, mut herdr_session, mut https_port, mut assume_yes) = (crate::DEFAULT_PORT, None, None, false);
         let mut remaining = options.iter();
         while let Some(option) = remaining.next() {
             let mut value = || remaining.next().ok_or_else(|| format!("{option} needs a value"));
@@ -166,6 +170,15 @@ impl InstallCommand {
                 "--port" => {
                     let text = value()?;
                     port = text.parse().map_err(|_| format!("invalid port: {text}"))?;
+                }
+                "--https-port" => {
+                    let text = value()?;
+                    https_port = Some(
+                        text.parse()
+                            .ok()
+                            .filter(|port| *port != 0)
+                            .ok_or_else(|| format!("invalid HTTPS port: {text}"))?,
+                    );
                 }
                 "--session" => herdr_session = Some(value()?.clone()),
                 "--yes" => assume_yes = true,
@@ -175,6 +188,7 @@ impl InstallCommand {
         Ok(InstallCommand::Install {
             port,
             herdr_session,
+            https_port,
             assume_yes,
         })
     }
@@ -185,14 +199,84 @@ impl InstallCommand {
 pub struct InstallOptions {
     pub port: u16,
     pub herdr_session: Option<String>,
+    /// `--https-port`;`None` 時沿用上次安裝的埠，或 443。
+    pub https_port: Option<u16>,
     /// 放下載的執行檔的資料夾。
     pub source_directory: PathBuf,
+}
+
+/// 安裝途中要使用者同意的事。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstallQuestion {
+    /// 沒指定 `--https-port`,預設的埠已被別的服務占用：改用 `alternative`?
+    UseAnotherHttpsPort { taken_port: u16, handlers: String, alternative: u16 },
+    /// 主機名稱會進 Certificate Transparency 公開紀錄。
+    CertificateTransparency { host_name: String },
+}
+
+impl std::fmt::Display for InstallQuestion {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InstallQuestion::UseAnotherHttpsPort {
+                taken_port,
+                handlers,
+                alternative,
+            } => write!(
+                formatter,
+                "tailscale serve already uses HTTPS {taken_port} for another service ({handlers}). \
+                 The installer leaves it unchanged and can serve Purrdr on HTTPS {alternative} instead."
+            ),
+            InstallQuestion::CertificateTransparency { host_name } => write!(formatter, "{}", certificate_transparency_notice(host_name)),
+        }
+    }
 }
 
 /// 安裝完成。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Installed {
     pub https_address: String,
+    /// 沒能完成、但不影響安裝結果的項目(例如關掉換埠前的舊 HTTPS 埠)。
+    pub warnings: Vec<String>,
+    /// 產生配對碼的指令(安裝好的執行檔 `pair`)。
+    pub pair_command: String,
+}
+
+impl std::fmt::Display for Installed {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(formatter, "Installed. The host service starts at login.")?;
+        writeln!(formatter, "HTTPS address: {}", self.https_address)?;
+        writeln!(formatter, "To pair a device:")?;
+        writeln!(formatter, "  1. On this computer run: {}", self.pair_command)?;
+        write!(
+            formatter,
+            "  2. In Purrdr, tap Add host -> HTTPS and scan the QR code (or enter {} and the pairing code).",
+            self.https_address
+        )
+    }
+}
+
+/// 重跑安裝的指令：`prefix` 加上這次的選項(不含 `--https-port`,由錯誤訊息補上)。
+pub fn rerun_install_command(prefix: &str, command: &InstallCommand) -> String {
+    let InstallCommand::Install {
+        port,
+        herdr_session,
+        assume_yes,
+        ..
+    } = command
+    else {
+        return prefix.to_owned();
+    };
+    let mut parts = vec![prefix.to_owned()];
+    if *port != crate::DEFAULT_PORT {
+        parts.push(format!("--port {port}"));
+    }
+    if let Some(session) = herdr_session {
+        parts.push(format!("--session {session}"));
+    }
+    if *assume_yes {
+        parts.push("--yes".to_owned());
+    }
+    parts.join(" ")
 }
 
 /// 解除安裝完成。
@@ -209,13 +293,23 @@ pub enum InstallError {
     TailscaleNotRunning(String),
     MagicDnsDisabled,
     HttpsCertificatesDisabled,
-    ServeFailed,
+    /// `tailscale serve --https=<埠>` 失敗。
+    ServeFailed {
+        https_port: u16,
+    },
     /// 使用者看過 Certificate Transparency 的說明後取消。
     Declined,
-    /// HTTPS 443 已經轉到別的服務。
-    ServePortTaken(String),
-    /// HTTPS 443 的 `tailscale serve` 設定已不是安裝時設的。
-    ServeChanged(String),
+    /// 這個 HTTPS 埠已經轉到別的服務;`available` 是可以改用的埠。
+    ServePortTaken {
+        https_port: u16,
+        handlers: String,
+        available: Option<u16>,
+    },
+    /// 這個 HTTPS 埠的 `tailscale serve` 設定已不是安裝時設的。
+    ServeChanged {
+        https_port: u16,
+        handlers: String,
+    },
     Tailscale(String),
     Autostart(String),
     NotInstalled,
@@ -224,41 +318,71 @@ pub enum InstallError {
 
 impl std::fmt::Display for InstallError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const DNS_SETTINGS: &str = "https://login.tailscale.com/admin/dns";
-        match self {
-            InstallError::TailscaleMissing => write!(
-                formatter,
-                "Tailscale is not installed. Install it from https://tailscale.com/download, sign in, then run install again."
-            ),
-            InstallError::TailscaleNotRunning(state) => write!(
-                formatter,
-                "Tailscale is not connected (state: {state}). Run `tailscale up` and sign in, then run install again."
-            ),
-            InstallError::MagicDnsDisabled => write!(
-                formatter,
-                "MagicDNS is off for this tailnet. Turn on MagicDNS at {DNS_SETTINGS}, then run install again."
-            ),
-            InstallError::HttpsCertificatesDisabled => write!(
-                formatter,
-                "HTTPS Certificates are off for this tailnet. Click \"Enable HTTPS\" under HTTPS Certificates at {DNS_SETTINGS}, then run install again."
-            ),
-            InstallError::ServeFailed => write!(
-                formatter,
-                "`tailscale serve` failed (see its output above). On Linux, allow your account first with `sudo tailscale set --operator=$USER`."
-            ),
-            InstallError::Declined => write!(formatter, "Install cancelled; nothing was changed."),
-            InstallError::ServePortTaken(handlers) => write!(
-                formatter,
-                "tailscale serve already uses HTTPS 443 ({handlers}). Remove it with `tailscale serve --https=443 off` if you no longer need it, then run install again."
-            ),
-            InstallError::ServeChanged(handlers) => write!(formatter, "tailscale serve HTTPS 443 now serves {handlers}, left unchanged"),
-            InstallError::Tailscale(message) | InstallError::Autostart(message) | InstallError::Io(message) => write!(formatter, "{message}"),
-            InstallError::NotInstalled => write!(formatter, "The Purrdr host service is not installed."),
-        }
+        write!(formatter, "{}", self.explain("purrdr-host-service install"))
     }
 }
 
 impl InstallError {
+    /// 給使用者的說明：發生什麼、為什麼，最後一段 `Next:` 是下一步(`rerun` 是重跑安裝的完整指令)。
+    pub fn explain(&self, rerun: &str) -> String {
+        const DNS_SETTINGS: &str = "https://login.tailscale.com/admin/dns";
+        let then_rerun = format!("then run the install again:\n  {rerun}");
+        match self {
+            InstallError::TailscaleMissing => format!(
+                "Tailscale is not installed (the `tailscale` command was not found). \
+                 The host service is reached through `tailscale serve`, so it needs Tailscale.\n\
+                 Next: install Tailscale from https://tailscale.com/download, sign in, {then_rerun}"
+            ),
+            InstallError::TailscaleNotRunning(state) => format!(
+                "Tailscale is not connected (state: {state}). The HTTPS address only works while this machine is on your tailnet.\n\
+                 Next: run `tailscale up` and sign in, {then_rerun}"
+            ),
+            InstallError::MagicDnsDisabled => format!(
+                "MagicDNS is off for this tailnet. The HTTPS address is this machine's MagicDNS name, so it needs MagicDNS.\n\
+                 Next: turn on MagicDNS at {DNS_SETTINGS}, {then_rerun}"
+            ),
+            InstallError::HttpsCertificatesDisabled => format!(
+                "HTTPS Certificates are off for this tailnet. `tailscale serve` needs them to get an HTTPS certificate for this machine.\n\
+                 Next: click \"Enable HTTPS\" under HTTPS Certificates at {DNS_SETTINGS}, {then_rerun}"
+            ),
+            InstallError::ServeFailed { https_port } => format!(
+                "`tailscale serve --bg --https={https_port}` failed (see its output above).\n\
+                 On Linux, allow your account to change serve settings first: sudo tailscale set --operator=$USER\n\
+                 Next: fix the problem above, {then_rerun}"
+            ),
+            InstallError::Declined => "Install cancelled; nothing was changed.".to_owned(),
+            InstallError::ServePortTaken {
+                https_port,
+                handlers,
+                available,
+            } => {
+                let next = match available {
+                    Some(available) => format!("Next: install on HTTPS {available} instead:\n  {rerun} --https-port {available}"),
+                    None => format!("Next: pick a free HTTPS port (`tailscale serve status` lists the ones in use) and run:\n  {rerun} --https-port <port>"),
+                };
+                format!(
+                    "tailscale serve already uses HTTPS {https_port} for another service:\n  {handlers}\n\
+                     The installer does not change existing tailscale serve settings.\n\
+                     {next}\n\
+                     Or, if you no longer need that service, remove it with `tailscale serve --https={https_port} off` and run:\n  {rerun}"
+                )
+            }
+            InstallError::ServeChanged { https_port, handlers } => {
+                format!("tailscale serve HTTPS {https_port} now serves {handlers}, left unchanged")
+            }
+            InstallError::Tailscale(message) => format!(
+                "Tailscale returned an error: {message}\n\
+                 Next: check Tailscale with `tailscale status`, {then_rerun}"
+            ),
+            InstallError::Autostart(message) => format!(
+                "Could not set the host service to start at login: {message}\n\
+                 Next: fix the problem above, {then_rerun}"
+            ),
+            InstallError::Io(message) => format!("{message}\nNext: fix the problem above, {then_rerun}"),
+            InstallError::NotInstalled => "The Purrdr host service is not installed.".to_owned(),
+        }
+    }
+
     fn io(error: std::io::Error) -> Self {
         InstallError::Io(error.to_string())
     }
@@ -326,6 +450,9 @@ impl ServiceLayout {
 struct InstallRecord {
     port: u16,
     herdr_session: Option<String>,
+    /// `tailscale serve` 的 HTTPS 埠(0.2.0 的紀錄沒有這欄，當時固定 443)。
+    #[serde(default = "default_https_port")]
+    https_port: u16,
     https_address: String,
     /// 是否由安裝流程設定了 `tailscale serve`。
     serve_configured: bool,
@@ -333,10 +460,24 @@ struct InstallRecord {
     created_directories: Vec<String>,
 }
 
+fn default_https_port() -> u16 {
+    tailscale::DEFAULT_HTTPS_PORT
+}
+
 /// 主機服務讀取的設定(`pair` 以 `https_address` 當預設位址)。
 #[derive(Serialize)]
 struct ServiceConfig<'a> {
     https_address: &'a str,
+}
+
+/// 一個 HTTPS 埠的使用狀況。
+enum PortUse {
+    Free,
+    /// 已轉到主機服務;`in_place` 表示目標就是這次要用的本機埠。
+    Ours {
+        in_place: bool,
+    },
+    Taken(String),
 }
 
 /// 安裝與解除安裝主機服務。
@@ -364,29 +505,50 @@ impl<S: HostSystem> Installer<S> {
     }
 
     /// 檢查前置條件、複製執行檔、設定 `tailscale serve` 與登入後自動啟動。
-    /// `confirm` 收到 Certificate Transparency 的說明，回 false 就取消(此時還沒有改任何東西)。
-    pub fn install(&mut self, options: &InstallOptions, confirm: impl FnOnce(&str) -> bool) -> Result<Installed, InstallError> {
+    /// `confirm` 回答安裝途中的問題(`InstallQuestion`),回 false 就取消(此時還沒有改任何東西)。
+    pub fn install(&mut self, options: &InstallOptions, mut confirm: impl FnMut(&InstallQuestion) -> bool) -> Result<Installed, InstallError> {
         let layout = self.layout();
         let previous = self.read_record(&layout)?;
         let tailscale = Tailscale::locate(&mut self.system, self.environment.platform)?;
         let host_name = tailscale.host_name(&mut self.system)?;
-        let handlers = tailscale.https_handlers(&mut self.system)?;
-        let proxy_to = |port: u16| BTreeMap::from([("/".to_owned(), tailscale::serve_target(port))]);
-        let serve_in_place = handlers == proxy_to(options.port);
-        let ours_from_previous_install = previous
-            .as_ref()
-            .is_some_and(|record| record.serve_configured && handlers == proxy_to(record.port));
-        if !handlers.is_empty() && !serve_in_place && !ours_from_previous_install {
-            return Err(InstallError::ServePortTaken(tailscale::describe(&handlers)));
-        }
-        if !confirm(&certificate_transparency_notice(&host_name)) {
+        let preferred = options
+            .https_port
+            .or(previous.as_ref().map(|record| record.https_port))
+            .unwrap_or(tailscale::DEFAULT_HTTPS_PORT);
+        let (https_port, serve_in_place) = match self.check_https_port(&tailscale, preferred, options.port, previous.as_ref())? {
+            PortUse::Free => (preferred, false),
+            PortUse::Ours { in_place } => (preferred, in_place),
+            PortUse::Taken(handlers) => {
+                let available = self.first_free_https_port(&tailscale, preferred, options.port, previous.as_ref())?;
+                let taken = InstallError::ServePortTaken {
+                    https_port: preferred,
+                    handlers: handlers.clone(),
+                    available,
+                };
+                // 使用者指定的埠不擅自換掉。
+                let Some(alternative) = available.filter(|_| options.https_port.is_none()) else {
+                    return Err(taken);
+                };
+                let question = InstallQuestion::UseAnotherHttpsPort {
+                    taken_port: preferred,
+                    handlers,
+                    alternative,
+                };
+                if !confirm(&question) {
+                    return Err(taken);
+                }
+                (alternative, false)
+            }
+        };
+        if !confirm(&InstallQuestion::CertificateTransparency { host_name: host_name.clone() }) {
             return Err(InstallError::Declined);
         }
 
         let mut record = InstallRecord {
             port: options.port,
             herdr_session: options.herdr_session.clone(),
-            https_address: format!("https://{host_name}"),
+            https_port,
+            https_address: tailscale::https_address(&host_name, https_port),
             serve_configured: previous.as_ref().is_some_and(|record| record.serve_configured),
             created_directories: previous.as_ref().map(|record| record.created_directories.clone()).unwrap_or_default(),
         };
@@ -402,9 +564,46 @@ impl<S: HostSystem> Installer<S> {
             }
             return Err(error);
         }
+        let mut warnings = Vec::new();
+        // 換了 HTTPS 埠：關掉上次安裝設的舊埠。
+        if let Some(previous) = previous.filter(|previous| previous.serve_configured && previous.https_port != record.https_port)
+            && let Err(error) = tailscale.remove_serve(&mut self.system, previous.https_port, previous.port)
+        {
+            warnings.push(format!("the previous HTTPS {} was not removed: {error}", previous.https_port));
+        }
         Ok(Installed {
             https_address: record.https_address,
+            warnings,
+            pair_command: format!("{} pair", shell_quoted(&layout.executable(), self.environment.platform)),
         })
+    }
+
+    /// HTTPS 埠目前是空的、已是主機服務的，還是被別的服務占用。
+    fn check_https_port(&mut self, tailscale: &Tailscale, https_port: u16, port: u16, previous: Option<&InstallRecord>) -> Result<PortUse, InstallError> {
+        let handlers = tailscale.https_handlers(&mut self.system, https_port)?;
+        let proxy_to = |port: u16| BTreeMap::from([("/".to_owned(), tailscale::serve_target(port))]);
+        if handlers.is_empty() {
+            return Ok(PortUse::Free);
+        }
+        if handlers == proxy_to(port) {
+            return Ok(PortUse::Ours { in_place: true });
+        }
+        let ours_from_previous_install =
+            previous.is_some_and(|record| record.serve_configured && record.https_port == https_port && handlers == proxy_to(record.port));
+        if ours_from_previous_install {
+            return Ok(PortUse::Ours { in_place: false });
+        }
+        Ok(PortUse::Taken(tailscale::describe(&handlers)))
+    }
+
+    /// 候選 HTTPS 埠中第一個可用的(跳過已被占用的 `taken`)。
+    fn first_free_https_port(&mut self, tailscale: &Tailscale, taken: u16, port: u16, previous: Option<&InstallRecord>) -> Result<Option<u16>, InstallError> {
+        for candidate in tailscale::CANDIDATE_HTTPS_PORTS.into_iter().filter(|candidate| *candidate != taken) {
+            if !matches!(self.check_https_port(tailscale, candidate, port, previous)?, PortUse::Taken(_)) {
+                return Ok(Some(candidate));
+            }
+        }
+        Ok(None)
     }
 
     fn read_record(&self, layout: &ServiceLayout) -> Result<Option<InstallRecord>, InstallError> {
@@ -445,7 +644,7 @@ impl<S: HostSystem> Installer<S> {
 
         if !serve_in_place {
             record.serve_configured = true;
-            tailscale.serve(&mut self.system, options.port)?;
+            tailscale.serve(&mut self.system, record.https_port, options.port)?;
         }
 
         if let Some(registration) = autostart::registration_file(layout) {
@@ -464,7 +663,7 @@ impl<S: HostSystem> Installer<S> {
     fn roll_back(&mut self, layout: &ServiceLayout, tailscale: &Tailscale, record: &InstallRecord) {
         let _ = autostart::unregister(&mut self.system, layout, self.environment.user_name.as_deref());
         if record.serve_configured {
-            let _ = tailscale.remove_serve(&mut self.system, record.port);
+            let _ = tailscale.remove_serve(&mut self.system, record.https_port, record.port);
         }
         let _ = self.remove_files(layout, record);
     }
@@ -474,19 +673,22 @@ impl<S: HostSystem> Installer<S> {
         let layout = self.layout();
         let record = self.read_record(&layout).ok().flatten();
         let port = record.as_ref().map_or(crate::DEFAULT_PORT, |record| record.port);
+        let https_port = record.as_ref().map_or(tailscale::DEFAULT_HTTPS_PORT, |record| record.https_port);
         let target = tailscale::serve_target(port);
-        let serve = match Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.https_handlers(&mut self.system)) {
-            Ok(handlers) if handlers.is_empty() => ServeStatus::NotConfigured,
-            Ok(handlers) if handlers == BTreeMap::from([("/".to_owned(), target.clone())]) => ServeStatus::Configured(target),
-            Ok(handlers) => ServeStatus::Other(tailscale::describe(&handlers)),
-            Err(error) => ServeStatus::Unavailable(error.to_string()),
-        };
+        let serve =
+            match Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.https_handlers(&mut self.system, https_port)) {
+                Ok(handlers) if handlers.is_empty() => ServeStatus::NotConfigured,
+                Ok(handlers) if handlers == BTreeMap::from([("/".to_owned(), target.clone())]) => ServeStatus::Configured(target),
+                Ok(handlers) => ServeStatus::Other(tailscale::describe(&handlers)),
+                Err(error) => ServeStatus::Unavailable(error.to_string()),
+            };
         let session = record.as_ref().and_then(|record| record.herdr_session.clone());
         HostStatus {
             installed: record.is_some(),
             autostart_registered: autostart::is_registered(&mut self.system, &layout),
             listening: is_listening(port).await,
             port,
+            https_port,
             https_address: record.map(|record| record.https_address),
             serve,
             herdr: herdr_status(self.environment.platform, session.as_deref(), socket_environment).await,
@@ -501,8 +703,8 @@ impl<S: HostSystem> Installer<S> {
 
         autostart::unregister(&mut self.system, &layout, self.environment.user_name.as_deref())?;
         if record.serve_configured {
-            let removed =
-                Tailscale::locate(&mut self.system, self.environment.platform).and_then(|tailscale| tailscale.remove_serve(&mut self.system, record.port));
+            let removed = Tailscale::locate(&mut self.system, self.environment.platform)
+                .and_then(|tailscale| tailscale.remove_serve(&mut self.system, record.https_port, record.port));
             if let Err(error) = removed {
                 warnings.push(format!("tailscale serve was not removed: {error}"));
             }
@@ -600,6 +802,16 @@ fn service_arguments(record: &InstallRecord) -> Vec<String> {
         arguments.extend(["--session".to_owned(), session.clone()]);
     }
     arguments
+}
+
+/// 終端機可以直接貼上執行的路徑(有空白時加引號;PowerShell 要 `&` 才會執行引號內的路徑)。
+pub(crate) fn shell_quoted(path: &Path, platform: InstallPlatform) -> String {
+    let text = path.display().to_string();
+    match (text.contains(' '), platform) {
+        (false, _) => text,
+        (true, InstallPlatform::Windows) => format!("& \"{text}\""),
+        (true, _) => format!("\"{text}\""),
+    }
 }
 
 fn same_file(first: &Path, second: &Path) -> bool {
