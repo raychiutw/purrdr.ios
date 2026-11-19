@@ -378,8 +378,9 @@ public struct ComposerAccessoryHeights: Sendable, Equatable {
 
 /// 鍵盤出現時輸入列上方元素的讓位規則(#196,DESIGN.md「輸入列」)。
 public enum ComposerKeyboardLayout {
-    /// 輸入列 VStack 裡元素之間的間距。
+    /// 輸入列 VStack 裡元素之間的間距(`ComposerBar` 直接用它排版)。
     public static let spacing = 8.0
+    /// 收成一行的高度，也是一列觸控目標的高度(一行的註記與建議提示詞直接用它當最小高度)。
     public static let compactHeight = 44.0
 
     /// 對話至少保留的可見高度。
@@ -387,7 +388,7 @@ public enum ComposerKeyboardLayout {
     /// 3 列觸控高度(132pt)與 3 行內文加列表上下內距(大字級時較高)取大，讓打字時看得到最新的一兩則訊息
     /// (HIG Virtual keyboards:鍵盤出現時輸入列與最新訊息不被遮)。
     public static func minimumConversationHeight(bodyLineHeight: Double) -> Double {
-        max(3 * 44, (3 * bodyLineHeight + 24).rounded(.up))
+        max(3 * compactHeight, (3 * bodyLineHeight + 24).rounded(.up))
     }
 
     /// 依目前的對話可見高度與目前的顯示方式，決定註記與建議提示詞的顯示方式。

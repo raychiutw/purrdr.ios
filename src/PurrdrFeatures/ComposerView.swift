@@ -7,17 +7,6 @@ public enum ComposerSettings {
     public static let returnSendsKey = "composer.returnSends"
 }
 
-/// 輸入列(行為規格 F6.1;HIG 20.6)。
-///
-/// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
-/// - 上下版面(#187):一張玻璃卡片，整寬輸入框在上，按鈕列(加入圖片｜收起鍵盤、送出)在下。
-/// - 多行，空白時一行高、有內容時至少兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
-/// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
-/// - 停止與強制結束在標題列(#44,`ConversationView`)。
-/// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
-///   這時不能附圖。打過字之後清空輸入框也會取消(#127,`ConversationModel`)。
-/// - 內容超過 2 行或聚焦時有「展開」鈕(`ComposerExpansion`,#142),打開 `ExpandedComposer`。
-/// - 鍵盤出現時 You should know 註記與建議提示詞依 `ComposerKeyboardLayout` 收成一行或暫時拿掉，對話至少留最小可見高度(#196)。
 /// 對話目前的可見高度(#196):`ConversationView` 從捲動量測寫入，只有輸入列讀。
 @MainActor @Observable
 final class ConversationVisibleHeight {
@@ -35,6 +24,17 @@ final class ConversationVisibleHeight {
     }
 }
 
+/// 輸入列(行為規格 F6.1;HIG 20.6)。
+///
+/// - 功能層：放在 `safeAreaBar`,玻璃材質只用 regular 並包在 `GlassEffectContainer`。
+/// - 上下版面(#187):一張玻璃卡片，整寬輸入框在上，按鈕列(加入圖片｜收起鍵盤、送出)在下。
+/// - 多行，空白時一行高、有內容時至少兩行高，依可用空間長高(`ComposerSizing`:8 行且不超過鍵盤上方可用高度的 40%)後內捲;**軟體鍵盤的 Return 永遠是換行**,硬體鍵盤規則見 `ComposerKeys`。
+/// - 送出鈕是唯一 tinted 主要動作(44pt),送出中顯示轉圈。聚焦時有「收起鍵盤」(保留草稿、不送出)。
+/// - 停止與強制結束在標題列(#44,`ConversationView`)。
+/// - 自訂回答(#120):點問題卡的「Type something.」後輸入框取得焦點、提示改成打回答，上方有可取消的說明;
+///   這時不能附圖。打過字之後清空輸入框也會取消(#127,`ConversationModel`)。
+/// - 內容超過 2 行或聚焦時有「展開」鈕(`ComposerExpansion`,#142),打開 `ExpandedComposer`。
+/// - 鍵盤出現時 You should know 註記與建議提示詞依 `ComposerKeyboardLayout` 收成一行或暫時拿掉，對話至少留最小可見高度(#196)。
 struct ComposerBar: View {
     @Bindable var model: ConversationModel
     /// 對話目前的可見高度(`ConversationView` 從捲動量測回報)。
@@ -80,7 +80,8 @@ struct ComposerBar: View {
     }
 
     private var composer: some View {
-        VStack(spacing: 8) {
+        // 間距與讓位規則估算高度用的是同一個常數。
+        VStack(spacing: ComposerKeyboardLayout.spacing) {
             if model.slash.isVisible {
                 SlashMenuView(menu: model.slash)
             }

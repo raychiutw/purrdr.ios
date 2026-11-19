@@ -157,7 +157,7 @@ struct YouShouldKnowCompactNoteView: View {
             }
             .font(.subheadline)
             .foregroundStyle(.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: ComposerKeyboardLayout.compactHeight, alignment: .leading)
             .padding(.horizontal, 12)
             .contentShape(.rect)
         }

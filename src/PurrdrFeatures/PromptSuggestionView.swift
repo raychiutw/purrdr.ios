@@ -1,3 +1,4 @@
+import PurrdrAgentFeatures
 import SwiftUI
 
 /// 輸入列上方的建議提示詞(#121、#123):Claude Code 回完一輪後輸入列裡的灰色「下一句」。
@@ -23,7 +24,8 @@ struct PromptSuggestionView: View {
             }
             .font(.subheadline)
             .foregroundStyle(.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            // 一行的高度(也是觸控目標的 44pt)與讓位規則的估算一致。
+            .frame(maxWidth: .infinity, minHeight: ComposerKeyboardLayout.compactHeight, alignment: .leading)
             .padding(.horizontal, 12)
             .contentShape(.rect)
         }

@@ -60,6 +60,6 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 ## 通用規則
 
-- 文字一律用 text style,支援到 AX5 不截斷;觸控目標 ≥ 44×44 pt。
+- 文字一律用 text style,支援到 AX5 不截斷(例外：鍵盤出現時讓位成一行的 You should know 註記與建議提示詞，見上方「鍵盤出現時的讓位」);觸控目標 ≥ 44×44 pt。
 - app 快捷鍵只用 Command;終端機聚焦時 Control 組合鍵與 Esc 送往遠端(組字中除外：實體鍵盤的所有按鍵交給輸入法)。
 - 完整的逐畫面檢核清單在 `docs/research/apple-hig-drover-chat.md` 第 20 節，實作每個畫面時逐項檢查。
