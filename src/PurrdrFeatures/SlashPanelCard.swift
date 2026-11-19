@@ -62,6 +62,7 @@ struct SlashPanelCard: View {
         }
         .frame(maxHeight: 240)
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("panel.options")
     }
 
     private func optionRow(_ option: SlashPanelOption) -> some View {

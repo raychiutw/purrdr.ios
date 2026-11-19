@@ -70,6 +70,14 @@ final class AccessibilityAuditContext {
 
     lazy var window: CGRect = app.windows.firstMatch.frame
 
+    /// 卡片裡的內層捲動區(slash 面板的選項清單，最高 240pt):裡面的列與它們的文字。捲出這一區的列被裁掉，
+    /// 無障礙樹仍回報它們疊在下方動作鈕上的位置(#251:AX5 的「Fastest for short answers」量到的是「Cancel」那一塊)。
+    lazy var innerScrollRegions: [(frame: CGRect, contents: [CGRect])] = ["panel.options"].compactMap { identifier in
+        let region = app.descendants(matching: .any)[identifier].firstMatch
+        guard region.exists else { return nil }
+        return (region.frame, region.descendants(matching: .any).allElementsBoundByIndex.map(\.frame))
+    }
+
     /// iPad 的側欄(系統 Liquid Glass 側欄，浮在內容上)。
     lazy var sidebar: CGRect? = {
         let list = app.collectionViews["sidebar"]
@@ -98,6 +106,7 @@ final class AccessibilityAuditContext {
     /// 元素被系統的玻璃層或容器蓋住、裁掉：
     /// - 中線落在狀態列、導覽列與其下方 24pt 的 scroll edge effect、或底部玻璃層(搜尋欄、輸入列、按鍵列)底下;
     /// - 有一部分在 slash 選單的範圍外(在選單後面的訊息，或選單裡捲到圓角外被裁掉的列);
+    /// - 是面板選項清單(內層捲動區)的列，卻在那一區外(捲出去被裁掉);
     /// - 超出視窗(例如可橫捲的 shell 輸出、捲到畫面外的列)。
     /// 只看中線：邊緣擦到玻璃的元素仍要受檢。
     func isCovered(_ frame: CGRect) -> Bool {
@@ -107,6 +116,10 @@ final class AccessibilityAuditContext {
         let tops = navigationBars.map { CGRect(x: $0.minX, y: window.minY, width: $0.width, height: $0.maxY + 24 - window.minY) }
         if (tops + bottomBars).contains(where: { $0.contains(middle) }) { return true }
         if let slashMenu, slashMenu.intersects(frame), !slashMenu.contains(frame) { return true }
+        // 內層捲動區裡、捲出那一區被裁掉的列(以 frame 對到該區的子元素)。
+        if innerScrollRegions.contains(where: { region in
+            region.contents.contains(frame) && !region.frame.insetBy(dx: -1, dy: -1).contains(frame)
+        }) { return true }
         return false
     }
 
@@ -154,7 +167,7 @@ enum AccessibilityAuditExclusions {
         Rule(
             types: [.contrast, .textClipped, .hitRegion],
             reason: "內容元素(以中線判斷)捲到導覽列、搜尋欄、輸入列或終端機按鍵列的 Liquid Glass 底下(scroll edge effect)、"
-                + "在 slash 選單後面，或捲出視窗外;audit 量到的是被玻璃模糊或裁掉的那一塊，捲到可見處時會另外受檢"
+                + "在 slash 選單後面、捲出 slash 面板選項清單被裁掉，或捲出視窗外;audit 量到的是被玻璃模糊或裁掉的那一塊，捲到可見處時會另外受檢"
         ) { issue, context in
             guard let element = issue.element else { return false }
             return context.isCovered(element.frame)

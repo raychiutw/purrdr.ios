@@ -190,8 +190,15 @@ public struct ConversationView: View {
             // 可見範圍小時 LazyVStack 可能停在底部卻一列都沒長出來(#191),同樣再捲一次。
             if !userIsScrolling,
                scroll.returnsToContent(metrics, at: .now) || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
+                // 先捲到最後一列(LazyVStack 才排出那一列);同一個排版又停在內容之外時，捲到最後一列多捲了一個底部 inset
+                // (可見範圍小、底部 inset 大),改以量到的底部位移再捲一次(#251)。
+                let byOffset = scroll.returnsByOffset(metrics)
                 scroll.returnedToContent(metrics)
-                scrollToLastRow(proxy, followsNewContent: false)
+                if byOffset {
+                    position.scrollTo(y: metrics.bottomContentOffsetY)
+                } else {
+                    scrollToLastRow(proxy, isNewContent: false)
+                }
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
             if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
@@ -262,10 +269,10 @@ public struct ConversationView: View {
 
     /// 捲到最底下那一列的底部。底部輸入列很高時 `scrollTo(edge: .bottom)` 會多捲一個底部 inset、停在估算高度裡，
     /// 指定列則由 LazyVStack 實際排出那一列(#191)。
-    /// `followsNewContent`:跟隨新出現的內容(面板、需要你、工作中指示、回音)時重新計算連續捲回的次數(#251);
-    /// 停在內容之外而捲回時不算。
-    private func scrollToLastRow(_ proxy: ScrollViewProxy, followsNewContent: Bool = true) {
-        if followsNewContent { scroll.followedNewContent() }
+    /// `isNewContent`:跟隨新出現的內容(訊息、面板、需要你、工作中指示、回音)時重新計算連續捲回的次數;
+    /// 停在內容之外而捲回時不算，否則兩個排版輪流時連續捲回沒有上限(#251)。
+    private func scrollToLastRow(_ proxy: ScrollViewProxy, isNewContent: Bool = true) {
+        if isNewContent { scroll.followedNewContent() }
         let target = ConversationFollowTarget.target(
             showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil, showsPanel: model.panel != nil,
             showsPromptCard: model.prompt != nil || model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
@@ -464,7 +471,7 @@ struct AgentMessageView: View {
         let markdown = MarkdownView(text.markdown)
         VStack(alignment: .leading, spacing: 6) {
             markdown
-                .accessibilityElement(children: markdown.hasStructuredBlocks ? .contain : .combine)
+                .accessibilityElement(children: markdown.hasStructuredBlocks || markdown.hasHostPaths ? .contain : .combine)
                 .accessibilityLabel { label in
                     Text("Agent:")
                     label

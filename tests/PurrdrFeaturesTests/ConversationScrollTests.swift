@@ -196,10 +196,15 @@ struct ConversationScrollTests {
         var scroll = ConversationScroll()
         let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
         #expect(scroll.returnsToContent(pushedBeyond, at: now))
+        #expect(!scroll.returnsByOffset(pushedBeyond), "第一次捲到最後一列(讓 LazyVStack 排出那一列)")
         scroll.returnedToContent(pushedBeyond)
         #expect(!scroll.returnsToContent(Self.barelyTaller(offsetY: -110.33), at: now))
 
-        #expect(!scroll.returnsToContent(pushedBeyond, at: now), "同一個內容高度只捲回一次")
+        // 同一個排版又被推回內容之外：捲到最後一列會多捲一個底部 inset(#251),改以量到的底部位移再捲一次。
+        #expect(scroll.returnsToContent(pushedBeyond, at: now), "同一個排版第二次以位移捲回")
+        #expect(scroll.returnsByOffset(pushedBeyond))
+        scroll.returnedToContent(pushedBeyond)
+        #expect(!scroll.returnsToContent(pushedBeyond, at: now), "同一個排版最多兩次，不與系統來回搶")
         #expect(scroll.returnsToContent(Self.barelyTaller(offsetY: 600, contentHeight: 1200), at: now), "內容高度變了照樣捲回")
     }
 
@@ -313,6 +318,17 @@ struct ConversationScrollTests {
             refills += 1
         }
         #expect(refills == ConversationScroll.maximumReturns)
+    }
+
+    @Test("捲到底的位移：內容底緣貼齊可見範圍底緣，不多算底部 inset;內容比畫面矮時停在頂端")
+    func bottomContentOffset() {
+        // iPhone 17 實測(#251,AX2、軟體鍵盤):捲到最後一列(anchor .bottom)停在 1435,多了一個底部 inset(543),對話一片空白。
+        let pushedBeyond = ConversationScrollMetrics(contentHeight: 1223, containerHeight: 215, contentOffsetY: 1435, topInset: 116, bottomInset: 543)
+        #expect(pushedBeyond.bottomContentOffsetY == 892)
+        let atBottom = ConversationScrollMetrics(contentHeight: 1223, containerHeight: 215, contentOffsetY: 892, topInset: 116, bottomInset: 543)
+        #expect(atBottom.distanceFromBottom == 0)
+        let short = ConversationScrollMetrics(contentHeight: 100, containerHeight: 215, contentOffsetY: 0, topInset: 116, bottomInset: 543)
+        #expect(short.bottomContentOffsetY == -116, "內容不用捲：停在頂端(頂部 inset 之下)")
     }
 
     @Test("可見範圍不到一列高(軟體鍵盤＋卡片擠掉)：不再捲，畫不出任何列")

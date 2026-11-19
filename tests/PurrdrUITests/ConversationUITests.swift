@@ -136,17 +136,51 @@ final class ConversationUITests: XCTestCase {
         let list = app.scrollViews.firstMatch
         guard list.waitForExistence(timeout: timeout) else { return false }
         _ = target.waitForExistence(timeout: 3)
-        for _ in 0..<16 {
-            if target.exists, target.isHittable, target.frame.minY >= list.frame.minY, target.frame.maxY <= list.frame.maxY {
+        for attempt in 0..<16 {
+            let visible = visibleConversationRange(of: list, in: app)
+            if target.exists, target.isHittable, target.frame.minY >= visible.lowerBound, target.frame.maxY <= visible.upperBound {
                 return true
             }
-            let isBelow = target.exists && target.frame.midY > list.frame.midY
-            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isBelow ? 0.65 : 0.35))
-            let end = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: isBelow ? 0.4 : 0.6))
+            // 還沒排出來(LazyVStack 只排可見附近的列):先往下(較新的訊息)找幾次，再往上找(#251)。
+            let isBelow = target.exists ? target.frame.midY > (visible.lowerBound + visible.upperBound) / 2 : attempt < 8
+            // 在看得到的範圍裡拖，不從蓋在對話上的卡片開始。
+            let height = visible.upperBound - visible.lowerBound
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            func point(_ fraction: CGFloat) -> XCUICoordinate {
+                origin.withOffset(CGVector(dx: list.frame.midX, dy: visible.lowerBound + height * fraction))
+            }
+            let start = point(isBelow ? 0.8 : 0.2)
+            let end = point(isBelow ? 0.3 : 0.7)
             start.press(forDuration: 0.1, thenDragTo: end)
             _ = target.waitForExistence(timeout: 1)
         }
         return target.exists && target.isHittable
+    }
+
+    /// QuickLook 預覽的導覽列。iOS 27 的標題是不含副檔名的檔名(旁邊有選單箭頭),以開頭比對(#251)。
+    @MainActor
+    private func quickLookBar(named stem: String, in app: XCUIApplication) -> XCUIElement {
+        app.navigationBars.matching(NSPredicate(format: "identifier BEGINSWITH %@", stem)).firstMatch
+    }
+
+    /// 關閉 QuickLook:iOS 27 是導覽列左上的 ✕(舊版是「Done」)。
+    @MainActor
+    private func closeQuickLook(_ bar: XCUIElement) {
+        let done = bar.buttons["Done"].firstMatch
+        (done.exists ? done : bar.buttons.firstMatch).tap()
+    }
+
+    /// 對話真正看得到的範圍：導覽列下緣到輸入列上方的元素(建議卡、註記、停止列、輸入框)之間。
+    /// 捲動視圖本身一路延伸到輸入列與導覽列底下，只看它的 frame 會點到蓋在上面的卡片(#251)。
+    @MainActor
+    private func visibleConversationRange(of list: XCUIElement, in app: XCUIApplication) -> ClosedRange<CGFloat> {
+        let top = max(list.frame.minY, app.navigationBars.firstMatch.frame.maxY)
+        let covers = ["conversation.suggestion", "youShouldKnow.note", "youShouldKnow.compact", "stopBar.stop", "composer.text"]
+            .map { app.descendants(matching: .any)[$0].firstMatch }
+            .filter(\.exists)
+            .map { $0.frame.minY - 8 }
+        let bottom = min(list.frame.maxY, covers.min() ?? list.frame.maxY)
+        return top...max(top, bottom)
     }
 
     /// 檔案卡片(#224):agent 改了 CSVExport.swift、新建了 CSVQuotingTests.swift(#228 另有 history.csv、draft.csv),
@@ -222,13 +256,13 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(open.frame.height, 44)
         open.tap()
 
-        let preview = app.navigationBars["CSVQuotingTests.swift"]
+        let preview = quickLookBar(named: "CSVQuotingTests", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 15), "沒有出現 QuickLook 預覽")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-file-quicklook"
         shot.lifetime = .keepAlways
         add(shot)
-        preview.buttons["Done"].firstMatch.tap()
+        closeQuickLook(preview)
         XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
 
         let share = app.buttons["Share CSVQuotingTests.swift"].firstMatch
@@ -269,14 +303,14 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(revealInConversation(report, in: app), "訊息中的 PDF 路徑不是連結")
         report.tap()
 
-        let preview = app.navigationBars["export-report.pdf"]
+        let preview = quickLookBar(named: "export-report", in: app)
         XCTAssertTrue(preview.waitForExistence(timeout: 15), "點了路徑沒有出現 QuickLook 預覽")
         XCTAssertEqual(app.state, .runningForeground, "路徑不該交給系統開")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-host-path-quicklook"
         shot.lifetime = .keepAlways
         add(shot)
-        preview.buttons["Done"].firstMatch.tap()
+        closeQuickLook(preview)
         XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
 
         let image = app.links["/Users/demo/ledger/docs/export-preview.png"].firstMatch
@@ -348,13 +382,13 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "輸入框刪光後建議沒有再出現")
     }
 
-    /// 軟體鍵盤出現時(#196):You should know 卡片收成一行，對話至少留 132pt、看得到訊息;
-    /// 收起鍵盤後仍是一行(不在鍵盤動畫中長回來),點一行的註記才換回完整卡片。
+    /// 軟體鍵盤出現時(#196):You should know 卡片讓位(收成一行或暫時拿掉),對話至少留 132pt、看得到訊息;
+    /// 收起鍵盤後是一行(不在鍵盤動畫中長回來),點一行的註記才換回完整卡片。
     /// 模擬器接著硬體鍵盤(只有快捷列)時空間夠，卡片不收，這時不適用。
     @MainActor
     func testSoftKeyboardKeepsConversationVisible() throws {
-        // 預設字級時 iPhone 17 放得下完整註記與鍵盤，不必讓位(#251);AX1 才擠到要收成一行。
-        let app = open(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityM")
+        // iPhone 17 在預設字級與 AX1 都放得下完整註記與鍵盤(AX1 對話還剩約 135pt),不必讓位(#251);AX2 才要讓位。
+        let app = open(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityL")
         let text = element("composer.text", in: app)
         XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 15), "沒有註記")
         XCTAssertFalse(element("conversation.suggestion", in: app).exists, "註記完整顯示時建議卡不該同時出現")
@@ -364,9 +398,8 @@ final class ConversationUITests: XCTestCase {
         guard keyboard.frame.height > 150 else { throw XCTSkip("模擬器接著硬體鍵盤，沒有軟體鍵盤") }
 
         let compact = element("youShouldKnow.compact", in: app)
-        XCTAssertTrue(compact.waitForExistence(timeout: 5), "鍵盤出現時註記沒有收成一行")
-        XCTAssertFalse(element("youShouldKnow.note", in: app).exists, "完整卡片應收起")
-        XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 5), "註記收成一行後建議卡沒有出現")
+        // 讓位規則(#196):放得下一行就收成一行，連一行都放不下就暫時拿掉(AX2 的 iPhone 17 是後者)。
+        XCTAssertTrue(element("youShouldKnow.note", in: app).waitForNonExistence(timeout: 5), "鍵盤出現時完整卡片應讓位")
         text.typeEnglish("Typing while reading")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "soft-keyboard-typing"
@@ -381,7 +414,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(rows.contains { $0.frame.maxY > top + 20 && $0.frame.minY < bottom - 20 }, "打字時看不到任何訊息")
 
         hideKeyboard(in: app)
-        XCTAssertTrue(compact.exists, "收起鍵盤時註記應維持一行")
+        XCTAssertTrue(compact.waitForExistence(timeout: 5), "收起鍵盤時註記應回到一行(暫時拿掉的也回到一行)")
         compact.tap()
         XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 5), "點一行的註記後完整卡片沒有回來")
         XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
