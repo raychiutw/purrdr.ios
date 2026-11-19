@@ -5,7 +5,7 @@ mod support;
 
 use std::path::{Path, PathBuf};
 
-use purrdr_host_service::transcript::TranscriptEnvironment;
+use purrdr_host_service::transcript::{self, LongLineScan, Record, Tail, TranscriptEnvironment};
 use serde_json::{Value, json};
 use support::{FakeHerdr, TestClient, TestHostService, recorded, start_service_with_transcripts};
 use tempfile::TempDir;
@@ -508,4 +508,115 @@ async fn two_streams_on_one_connection_are_followed_independently() {
 
     assert_eq!(pushed["stream_id"], "first");
     assert_eq!(next["type"], "agents.list.result");
+}
+
+// MARK: - 超過上限的單行(直接呼叫 `transcript::tail`)
+
+/// `tail` 的一次檢查：回傳這次的紀錄與新游標。
+fn check(path: &Path, from: u64, limit: u64, anchor: &[u8], scan: &mut LongLineScan) -> (Vec<Record>, u64) {
+    match transcript::tail(path, from, limit, anchor, scan).expect("讀得到對話紀錄") {
+        Tail::Lines { chunk, .. } => (chunk.records, chunk.end),
+        other => panic!("不該是 {other:?}"),
+    }
+}
+
+fn write_raw(path: &Path, bytes: &[u8]) {
+    use std::io::Write;
+    std::fs::OpenOptions::new().append(true).open(path).unwrap().write_all(bytes).unwrap();
+}
+
+#[test]
+fn tail_resumes_an_unfinished_long_line_from_where_it_stopped_scanning() {
+    // 那一行還沒寫完時，下一次檢查從掃描到的位置接著找換行，不從頭重讀(每 250ms 一次)。
+    // 從外面看得到的證據：在已掃描過的範圍裡改寫出一個換行，接著讀時看不到它，行尾仍是後來寫的換行。
+    let home = TempDir::new().unwrap();
+    let path = write_file(home.path(), "t.jsonl", "");
+    // 不是 base64 字元(否則整串會被當成圖片剝除)。
+    let body = "-".repeat(3 << 20);
+    write_raw(&path, format!("{{\"long\":\"{body}").as_bytes());
+    let mut scan = LongLineScan::default();
+
+    let (records, cursor) = check(&path, 0, 10, &[], &mut scan);
+    assert!(records.is_empty());
+    assert_eq!(cursor, 0, "還沒寫完：游標不動");
+    let size = std::fs::metadata(&path).unwrap().len();
+    assert_eq!(scan.scanned(), Some(size), "記住掃描到檔尾");
+
+    {
+        use std::io::{Seek, SeekFrom, Write};
+        let mut file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.seek(SeekFrom::Start(1 << 20)).unwrap();
+        file.write_all(b"\n").unwrap();
+    }
+    write_raw(&path, b"\"}\n");
+    let (records, cursor) = check(&path, 0, 10, &[], &mut scan);
+
+    let length = size + 2;
+    assert_eq!(
+        records,
+        vec![Record {
+            length,
+            text: "{\"long\":\"-".to_owned()
+        }]
+    );
+    assert_eq!(cursor, length + 1);
+    assert_eq!(scan.scanned(), None, "送出後不再有進行中的超長行");
+}
+
+#[test]
+fn tail_keeps_only_about_the_limit_of_an_unfinished_long_line_in_memory() {
+    // 幾 MB 的圖片行還沒寫完：記憶體只留截短後的內容與還沒決定的引號字串，不留整行。
+    let home = TempDir::new().unwrap();
+    let path = write_file(home.path(), "t.jsonl", "");
+    let image = "A".repeat(3 << 20);
+    write_raw(&path, format!("{{\"i\":\"{image}").as_bytes());
+    let mut scan = LongLineScan::default();
+
+    let (records, _) = check(&path, 0, 64, &[], &mut scan);
+    assert!(records.is_empty());
+    assert!(scan.scanned().is_some(), "還沒寫完的超長行要記住掃描進度");
+    // 上限是 limit 與判斷 base64 圖片所需的 128 bytes 取大，再加幾個 byte 的狀態。
+    assert!(scan.retained_bytes() <= 256, "留了 {} bytes", scan.retained_bytes());
+
+    write_raw(&path, b"\",\"t\":\"ok\"}\n");
+    let (records, _) = check(&path, 0, 64, &[], &mut scan);
+    let length = (image.len() + 17) as u64;
+    assert_eq!(
+        records,
+        vec![Record {
+            length,
+            text: "{\"i\":\"\",\"t\":\"ok\"}".to_owned()
+        }]
+    );
+}
+
+#[test]
+fn tail_strips_images_of_a_long_line_written_in_parts_like_the_whole_line() {
+    // 分次寫完的超長行：結果與整行剝除圖片後截短相同(與 SSH 腳本一致)，圖片後面的內容也看得到。
+    let home = TempDir::new().unwrap();
+    let path = write_file(home.path(), "t.jsonl", "");
+    let line = format!(
+        "{{\"u\":\"data:image/png;base64,{}\",\"b\":\"{}\",\"t\":\"{}\"}}",
+        "B".repeat(2 << 20),
+        "C".repeat(300),
+        "x".repeat(100)
+    );
+    let (first, rest) = line.split_at((1 << 20) + 5);
+    write_raw(&path, first.as_bytes());
+    let mut scan = LongLineScan::default();
+    assert!(check(&path, 0, 40, &[], &mut scan).0.is_empty());
+    write_raw(&path, rest.as_bytes());
+    write_raw(&path, b"\n");
+
+    let (records, _) = check(&path, 0, 40, &[], &mut scan);
+
+    let mut expected = transcript::strip_images(line.as_bytes());
+    expected.truncate(40);
+    assert_eq!(
+        records,
+        vec![Record {
+            length: line.len() as u64,
+            text: String::from_utf8(expected).unwrap()
+        }]
+    );
 }

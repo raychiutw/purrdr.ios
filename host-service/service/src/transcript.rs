@@ -240,24 +240,312 @@ pub fn anchor(path: &Path, cursor: u64) -> Result<Vec<u8>, TranscriptFailure> {
     read_range(&mut file, cursor.saturating_sub(ANCHOR_BYTES), cursor)
 }
 
+/// 游標處那一行超過上限、還沒寫完時的掃描進度(#173 review):下一次檢查從掃描到的位置接著找換行，
+/// 不每 250ms 從頭重讀整行;記憶體只留截短後的內容(最多 `limit` bytes)與還沒決定的引號字串。
+#[derive(Debug, Default)]
+pub struct LongLineScan {
+    progress: Option<LongLineProgress>,
+}
+
+#[derive(Debug)]
+struct LongLineProgress {
+    /// 這一行的起點(游標)。
+    from: u64,
+    /// 游標前的內容(換了檔就不接著用)。
+    anchor: Vec<u8>,
+    limit: u64,
+    /// 已掃描到的位置(之前沒有換行)。
+    scanned: u64,
+    text: LineText,
+}
+
+impl LongLineScan {
+    /// 已掃描到的位置(沒有進行中的超長行時是 `None`)。
+    pub fn scanned(&self) -> Option<u64> {
+        self.progress.as_ref().map(|progress| progress.scanned)
+    }
+
+    /// 為了接著掃描而留在記憶體的 byte 數(錨點不算)。
+    pub fn retained_bytes(&self) -> usize {
+        self.progress.as_ref().map_or(0, |progress| progress.text.retained_bytes())
+    }
+}
+
+/// 逐塊剝除圖片並截短到 `limit` bytes:結果與整行 `strip_images` 後截短相同，但不留整行。
+///
+/// 兩段依序處理(與 `strip_images` 先換長 base64、再換 data URI 相同)，每段遇到 `"` 先暫存，到能判斷是否要換成
+/// `""` 時才往下一段送。輸出滿了之後後面的內容不會再改變結果，只剩找換行。
+#[derive(Debug)]
+struct LineText {
+    limit: usize,
+    base64: Base64Stage,
+    data_uri: DataUriStage,
+    output: Vec<u8>,
+}
+
+impl LineText {
+    fn new(limit: u64) -> Self {
+        let limit = usize::try_from(limit).unwrap_or(usize::MAX);
+        LineText {
+            limit,
+            // 沒換掉的 base64 字串在第 5 個字元後一定原樣輸出(不可能是 `"data:`)，只要留住輸出還放得下的部分;
+            // 判斷是不是圖片要數到 128 個字元。
+            base64: Base64Stage::new(limit.max(BASE64_MIN_LENGTH).saturating_add(8)),
+            data_uri: DataUriStage::new(limit),
+            output: Vec::new(),
+        }
+    }
+
+    fn is_full(&self) -> bool {
+        self.output.len() >= self.limit
+    }
+
+    fn push(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            if self.is_full() {
+                return;
+            }
+            let LineText {
+                limit,
+                base64,
+                data_uri,
+                output,
+            } = self;
+            base64.push(*byte, &mut |byte| data_uri.push(byte, &mut |byte| emit(output, *limit, byte)));
+        }
+    }
+
+    fn finish(mut self) -> Vec<u8> {
+        let LineText {
+            limit,
+            base64,
+            data_uri,
+            output,
+        } = &mut self;
+        base64.finish(&mut |byte| data_uri.push(byte, &mut |byte| emit(output, *limit, byte)));
+        data_uri.finish(&mut |byte| emit(output, *limit, byte));
+        self.output
+    }
+
+    fn retained_bytes(&self) -> usize {
+        self.output.len() + self.base64.retained_bytes() + self.data_uri.retained_bytes()
+    }
+}
+
+fn emit(output: &mut Vec<u8>, limit: usize, byte: u8) {
+    if output.len() < limit {
+        output.push(byte);
+    }
+}
+
+/// base64 圖片字串至少的長度(`long_base64_end`)。
+const BASE64_MIN_LENGTH: usize = 128;
+
+fn is_base64(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'=')
+}
+
+/// 第一段：`"[A-Za-z0-9+/=]{128,}"` 換成 `""`。
+#[derive(Debug)]
+struct Base64Stage {
+    /// 在引號裡：已讀的 base64 字元數與留住的部分;`None` 是在引號外。
+    quoted: Option<(usize, Vec<u8>)>,
+    keep: usize,
+}
+
+impl Base64Stage {
+    fn new(keep: usize) -> Self {
+        Base64Stage { quoted: None, keep }
+    }
+
+    fn push(&mut self, byte: u8, next: &mut impl FnMut(u8)) {
+        let Some((count, kept)) = &mut self.quoted else {
+            if byte == b'"' {
+                self.quoted = Some((0, Vec::new()));
+            } else {
+                next(byte);
+            }
+            return;
+        };
+        if is_base64(byte) {
+            *count += 1;
+            if kept.len() < self.keep {
+                kept.push(byte);
+            }
+            return;
+        }
+        if byte == b'"' && *count >= BASE64_MIN_LENGTH {
+            self.quoted = None;
+            next(b'"');
+            next(b'"');
+            return;
+        }
+        // 不是圖片：開頭的引號與字元原樣送出，這個字元從引號外重新判斷(可能是下一個字串的開頭)。
+        self.flush(next);
+        self.push(byte, next);
+    }
+
+    fn flush(&mut self, next: &mut impl FnMut(u8)) {
+        if let Some((_, kept)) = self.quoted.take() {
+            next(b'"');
+            kept.into_iter().for_each(&mut *next);
+        }
+    }
+
+    fn finish(&mut self, next: &mut impl FnMut(u8)) {
+        self.flush(next);
+    }
+
+    fn retained_bytes(&self) -> usize {
+        self.quoted.as_ref().map_or(0, |(_, kept)| kept.len())
+    }
+}
+
+/// 第二段：`"data:[^"]*;base64,[^"]*"` 換成 `""`。
+#[derive(Debug)]
+struct DataUriStage {
+    state: DataUriState,
+    keep: usize,
+}
+
+#[derive(Debug)]
+enum DataUriState {
+    Outside,
+    /// 引號後已對上 `data:` 的前幾個字元。
+    Prefix(usize),
+    /// `"data:` 之後的內容：留住的部分、最後幾個 byte(找 `;base64,`)與是否已看到它。
+    Content {
+        kept: Vec<u8>,
+        recent: Vec<u8>,
+        marked: bool,
+    },
+}
+
+const DATA_PREFIX: &[u8] = b"data:";
+const BASE64_MARKER: &[u8] = b";base64,";
+
+impl DataUriStage {
+    fn new(keep: usize) -> Self {
+        DataUriStage {
+            state: DataUriState::Outside,
+            keep,
+        }
+    }
+
+    fn push(&mut self, byte: u8, next: &mut impl FnMut(u8)) {
+        match &mut self.state {
+            DataUriState::Outside => {
+                if byte == b'"' {
+                    self.state = DataUriState::Prefix(0);
+                } else {
+                    next(byte);
+                }
+            }
+            DataUriState::Prefix(matched) => {
+                if byte == DATA_PREFIX[*matched] {
+                    *matched += 1;
+                    if *matched == DATA_PREFIX.len() {
+                        self.state = DataUriState::Content {
+                            kept: Vec::new(),
+                            recent: Vec::new(),
+                            marked: false,
+                        };
+                    }
+                    return;
+                }
+                // 不是 data URI:開頭的引號與對上的字元原樣送出，這個字元從引號外重新判斷。
+                self.flush(next);
+                self.push(byte, next);
+            }
+            DataUriState::Content { kept, recent, marked } => {
+                if byte == b'"' {
+                    if *marked {
+                        self.state = DataUriState::Outside;
+                        next(b'"');
+                        next(b'"');
+                    } else {
+                        // 沒有 `;base64,`:原樣送出，結尾的引號可能是下一個字串的開頭。
+                        self.flush(next);
+                        self.push(byte, next);
+                    }
+                    return;
+                }
+                if kept.len() < self.keep {
+                    kept.push(byte);
+                }
+                if !*marked {
+                    recent.push(byte);
+                    if recent.len() > BASE64_MARKER.len() {
+                        recent.remove(0);
+                    }
+                    *marked = recent == BASE64_MARKER;
+                }
+            }
+        }
+    }
+
+    fn flush(&mut self, next: &mut impl FnMut(u8)) {
+        match std::mem::replace(&mut self.state, DataUriState::Outside) {
+            DataUriState::Outside => {}
+            DataUriState::Prefix(matched) => {
+                next(b'"');
+                DATA_PREFIX[..matched].iter().copied().for_each(&mut *next);
+            }
+            DataUriState::Content { kept, .. } => {
+                next(b'"');
+                DATA_PREFIX.iter().copied().for_each(&mut *next);
+                kept.into_iter().for_each(&mut *next);
+            }
+        }
+    }
+
+    fn finish(&mut self, next: &mut impl FnMut(u8)) {
+        self.flush(next);
+    }
+
+    fn retained_bytes(&self) -> usize {
+        match &self.state {
+            DataUriState::Content { kept, recent, .. } => kept.len() + recent.len(),
+            _ => 0,
+        }
+    }
+}
+
 /// 分段接著讀游標之後新增的完整行(#130、#173,與 SSH 的 `catchUp` 腳本相同):累計原始 byte 數不超過 `limit`,
 /// 後面還有就留給下一次。第一行就超過 `limit` 時只送那一行，剝除圖片後的內容截短到 `limit` bytes、長度照原始長度，
-/// 游標照樣前進(那一行還沒寫完就等)。游標前的內容與 `anchor` 不同時是換了檔。
-pub fn tail(path: &Path, from: u64, limit: u64, anchor: &[u8]) -> Result<Tail, TranscriptFailure> {
+/// 游標照樣前進(那一行還沒寫完就等，掃描進度記在 `scan`,下一次接著掃描)。游標前的內容與 `anchor` 不同時是換了檔。
+pub fn tail(path: &Path, from: u64, limit: u64, anchor: &[u8], scan: &mut LongLineScan) -> Result<Tail, TranscriptFailure> {
+    let progress = scan.progress.take();
     let size = probe(path)?;
     if size < from {
         return Ok(Tail::Shrank { size });
     }
     let anchor_start = from.saturating_sub(anchor.len() as u64);
-    let read_end = size.min(from.saturating_add(limit));
     let mut file = File::open(path).map_err(|_| TranscriptFailure::Unreadable)?;
+    // 游標處的超長行上次還沒寫完：只比對游標前的內容，從掃描到的位置接著找換行，不重讀已掃描的部分。
+    if let Some(progress) = progress.filter(|progress| progress.continues(from, limit, anchor, size)) {
+        if read_range(&mut file, anchor_start, from)? != anchor {
+            return Ok(Tail::Replaced { size });
+        }
+        return long_line(&mut file, size, progress, scan);
+    }
+    let read_end = size.min(from.saturating_add(limit));
     let bytes = read_range(&mut file, anchor_start, read_end)?;
     let Some(added) = bytes.strip_prefix(anchor) else {
         return Ok(Tail::Replaced { size });
     };
     let complete = added.iter().rposition(|byte| *byte == b'\n').map_or(0, |index| index + 1);
     if complete == 0 && read_end < size {
-        return long_line(&mut file, size, from, limit, anchor);
+        let mut text = LineText::new(limit);
+        text.push(added);
+        let progress = LongLineProgress {
+            from,
+            anchor: anchor.to_vec(),
+            limit,
+            scanned: from + added.len() as u64,
+            text,
+        };
+        return long_line(&mut file, size, progress, scan);
     }
     let consumed = anchor.len() + complete;
     let next_anchor = bytes[consumed.saturating_sub(ANCHOR_BYTES as usize)..consumed].to_vec();
@@ -272,40 +560,43 @@ pub fn tail(path: &Path, from: u64, limit: u64, anchor: &[u8]) -> Result<Tail, T
     })
 }
 
-/// 游標處的一行超過 `limit`:找到它的換行後只送這一行(剝除圖片後截短到 `limit` bytes);還沒寫完就不送。
-fn long_line(file: &mut File, size: u64, from: u64, limit: u64, anchor: &[u8]) -> Result<Tail, TranscriptFailure> {
-    let unchanged = |size| Tail::Lines {
-        size,
-        chunk: Chunk {
-            start: from,
-            end: from,
-            records: Vec::new(),
-        },
-        anchor: anchor.to_vec(),
-    };
-    let mut line = read_range(file, from, from.saturating_add(limit))?;
-    let newline = loop {
-        let searched = from + line.len() as u64;
-        if searched >= size {
-            break None;
+/// 游標處的一行超過 `limit`:找到它的換行後只送這一行(剝除圖片後截短到 `limit` bytes);還沒寫完就不送，
+/// 掃描進度留在 `scan`。內容逐塊讀、邊讀邊剝除圖片，記憶體只留截短後的內容，不把整行讀進來。
+fn long_line(file: &mut File, size: u64, mut progress: LongLineProgress, scan: &mut LongLineScan) -> Result<Tail, TranscriptFailure> {
+    let finished = loop {
+        if progress.scanned >= size {
+            break false;
         }
-        let block = read_range(file, searched, size.min(searched + LONG_LINE_BLOCK_BYTES))?;
+        let block = read_range(file, progress.scanned, size.min(progress.scanned + LONG_LINE_BLOCK_BYTES))?;
         if block.is_empty() {
-            break None;
+            break false;
         }
         let found = block.iter().position(|byte| *byte == b'\n');
-        line.extend_from_slice(&block[..found.unwrap_or(block.len())]);
+        let part = &block[..found.unwrap_or(block.len())];
+        progress.text.push(part);
+        progress.scanned += part.len() as u64;
         if found.is_some() {
-            break found;
+            break true;
         }
     };
-    let Some(_) = newline else {
-        // 那一行還沒寫完：游標與錨點都不動。
-        return Ok(unchanged(size));
-    };
-    let end = from + line.len() as u64 + 1;
-    let mut text = strip_images(&line);
-    text.truncate(usize::try_from(limit).unwrap_or(usize::MAX));
+    let from = progress.from;
+    if !finished {
+        // 那一行還沒寫完：游標與錨點都不動，下一次從掃描到的位置接著找。
+        let unchanged = Tail::Lines {
+            size,
+            chunk: Chunk {
+                start: from,
+                end: from,
+                records: Vec::new(),
+            },
+            anchor: progress.anchor.clone(),
+        };
+        scan.progress = Some(progress);
+        return Ok(unchanged);
+    }
+    let length = progress.scanned - from;
+    let end = progress.scanned + 1;
+    let text = progress.text.finish();
     let next_anchor = read_range(file, end.saturating_sub(ANCHOR_BYTES), end)?;
     Ok(Tail::Lines {
         size,
@@ -313,12 +604,19 @@ fn long_line(file: &mut File, size: u64, from: u64, limit: u64, anchor: &[u8]) -
             start: from,
             end,
             records: vec![Record {
-                length: line.len() as u64,
+                length,
                 text: String::from_utf8_lossy(&text).into_owned(),
             }],
         },
         anchor: next_anchor,
     })
+}
+
+impl LongLineProgress {
+    /// 這次檢查還是同一行(同一個游標、錨點與上限，檔案沒有比掃描到的位置短)。
+    fn continues(&self, from: u64, limit: u64, anchor: &[u8], size: u64) -> bool {
+        self.from == from && self.limit == limit && self.anchor == anchor && self.scanned <= size
+    }
 }
 
 fn read_range(file: &mut File, start: u64, end: u64) -> Result<Vec<u8>, TranscriptFailure> {
@@ -464,4 +762,37 @@ fn base36(mut value: u32) -> String {
     }
     digits.reverse();
     String::from_utf8(digits).expect("base36 是 ASCII")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 逐塊剝除圖片的結果與整行 `strip_images` 後截短相同，不論從哪裡切塊。
+    #[test]
+    fn line_text_matches_stripping_the_whole_line_for_any_split() {
+        let image = "Q".repeat(150);
+        let short = "Q".repeat(20);
+        let lines = [
+            format!("{{\"i\":\"{image}\",\"t\":\"ok\"}}"),
+            format!("{{\"u\":\"data:image/png;base64,{image}\",\"t\":\"after\"}}"),
+            format!("{{\"u\":\"data:text/plain,{short}\",\"v\":\"\"data:x;base64,\"}}"),
+            format!("\"{image}x\"{image}\"{short}\"\"dat\"data\"data:;base64,\""),
+            format!("\"{image}"),
+            format!("\"data:a;base64,{short}"),
+            "\"\"\"\"data:\"".to_owned(),
+        ];
+        for line in &lines {
+            for limit in [1, 5, 16, 40, 400] {
+                let mut expected = strip_images(line.as_bytes());
+                expected.truncate(limit);
+                for split in 0..=line.len() {
+                    let mut text = LineText::new(limit as u64);
+                    text.push(&line.as_bytes()[..split]);
+                    text.push(&line.as_bytes()[split..]);
+                    assert_eq!(text.finish(), expected, "line {line:?} limit {limit} split {split}");
+                }
+            }
+        }
+    }
 }
