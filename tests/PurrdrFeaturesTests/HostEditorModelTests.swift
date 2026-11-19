@@ -69,6 +69,7 @@ struct HostEditorModelTests {
     }
 
     static func fill(_ model: HostEditorModel, session: String = "") {
+        model.connectionMethod = .tailscaleSSH
         model.name = "Studio"
         model.address = "studio-mac"
         model.username = "demo"

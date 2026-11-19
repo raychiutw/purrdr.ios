@@ -23,6 +23,8 @@ struct PurrdrApp: App {
     private let hostSync: HostSyncModel
     /// 第一次開啟的歡迎頁(#34)。
     private let welcome: WelcomeModel
+    /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
+    private let pairingCodeScanSource: PairingCodeScanSource
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -117,6 +119,14 @@ struct PurrdrApp: App {
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
+        pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
+    }
+
+    /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。
+    private static func pairingCodeScanSource(_ arguments: [String]) -> PairingCodeScanSource {
+        if arguments.contains("-uiTestingCameraDenied") { return .simulatedCameraDenied }
+        guard arguments.contains("-uiTestingPairingScan") else { return .camera }
+        return .simulated(payload: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")
     }
 
     /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體(每次啟動都是 Spaces)。
@@ -231,6 +241,7 @@ struct PurrdrApp: App {
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
                 welcome: welcome)
             .appAppearance()
+            .environment(\.pairingCodeScanSource, pairingCodeScanSource)
         }
         .commands { PurrdrCommands() }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。

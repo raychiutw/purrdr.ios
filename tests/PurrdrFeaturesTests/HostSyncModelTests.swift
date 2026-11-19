@@ -179,12 +179,11 @@ struct HostSyncModelTests {
     static func remoteHTTPSStudio() -> String {
         #"""
         {"id": "1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f", "name": "Studio HTTPS", "address": "studio.tail1234.ts.net", "port": 443,
-         "username": "", "connectionMethod": "https", "hostKeyFingerprint": null,
-         "hostServiceAddress": "https://studio.tail1234.ts.net", "modifiedAt": "2026-11-15T08:00:00.000Z"}
+         "username": "", "connectionMethod": "https", "hostKeyFingerprint": null, "modifiedAt": "2026-11-15T08:00:00.000Z"}
         """#
     }
 
-    @Test("HTTPS 主機上傳名稱、連線方式與主機服務位址;裝置權杖永不上傳。請求說明這支 app 看得懂 HTTPS")
+    @Test("HTTPS 主機上傳名稱、連線方式與主機服務的主機名稱＋port;裝置權杖永不上傳。請求說明這支 app 看得懂 HTTPS")
     func uploadsHTTPSHostWithoutDeviceToken() async throws {
         try subscribe()
         let deviceTokens = InMemoryDeviceTokenStore(tokens: [Self.httpsStudio.id: "purrdr-device-token-secret"])
@@ -197,10 +196,9 @@ struct HostSyncModelTests {
         #expect(request.json?["connectionMethods"] as? [String] == ["tailscale_ssh", "openssh", "https"])
         let change = try #require(sentChanges().first)
         #expect(Set(change.keys) == [
-            "id", "name", "address", "port", "username", "connectionMethod", "hostKeyFingerprint", "hostServiceAddress", "icon", "modifiedAt",
+            "id", "name", "address", "port", "username", "connectionMethod", "hostKeyFingerprint", "icon", "modifiedAt",
         ])
         #expect(change["connectionMethod"] as? String == "https")
-        #expect(change["hostServiceAddress"] as? String == "https://studio.tail1234.ts.net")
         #expect(change["address"] as? String == "studio.tail1234.ts.net")
         #expect(change["port"] as? Int == 443)
         #expect(change["username"] as? String == "")
@@ -426,29 +424,6 @@ struct HostSyncModelTests {
         await sync.setEnabled(true)
 
         #expect(hosts.icon(for: Self.studio.id) == .noIcon)
-    }
-
-    @Test("相容：還沒部署圖示欄位的舊後台拒絕 icon(400):改送不含圖示的版本，同步成功;之後這次執行都不帶")
-    func oldBackendWithoutIconSupport() async throws {
-        try subscribe()
-        backend.on(
-            "POST", Self.path,
-            .json(400, #"{"error":{"code":"invalid_request","message":"Unexpected field: icon."}}"#),
-            .json(200, Self.snapshot(hosts: [Self.remoteStudio(name: "Renamed on iPad", modifiedAt: "2026-11-16T08:00:00.000Z")])),
-            .json(200, Self.snapshot(hosts: [Self.remoteStudio(name: "Renamed on iPad", modifiedAt: "2026-11-16T08:00:00.000Z")])))
-        let (sync, hosts) = makeModels(icons: [Self.studio.id: .laptop])
-
-        await sync.setEnabled(true)
-        hosts.setIcon(.rack, for: Self.studio.id)
-        try await waitUntil { await MainActor.run { backend.requests(to: Self.path).count == 3 } }
-        try await waitUntil { await MainActor.run { sync.status == .upToDate(Self.now) } }
-
-        #expect(sentChanges(0).first?["icon"] as? String == "laptop")
-        #expect(sentChanges(1).first?.keys.contains("icon") == false)
-        #expect(sentChanges(1).first?["name"] as? String == "Studio Mac")
-        #expect(sentChanges(2).first?.keys.contains("icon") == false, "記住後台不支援圖示，不再先被拒")
-        #expect(hosts.hosts.first?.name == "Renamed on iPad", "其他欄位照常同步")
-        #expect(hosts.icon(for: Self.studio.id) == .rack, "本機圖示不受影響")
     }
 
     @Test(

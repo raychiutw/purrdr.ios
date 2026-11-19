@@ -28,6 +28,26 @@ public struct HostServiceAddress: Sendable, Hashable, Codable, CustomStringConve
         self.url = url
     }
 
+    /// 以主機名稱與 Port 組成(編輯器、同步 wire 共用,#250)。loopback 是本機測試，用 http;其他一律 https。
+    public init?(host: String, port: Int) {
+        let host = host.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty, (1...65_535).contains(port), !host.contains(where: { "/:@?# ".contains($0) }) || host.hasPrefix("[")
+        else { return nil }
+        let scheme = Self.isLoopback(host.lowercased()) ? "http" : "https"
+        self.init("\(scheme)://\(host):\(port)")
+    }
+
+    /// 編輯器的位址欄位與 Port 欄位。位址欄位自己寫了埠(舊習慣 `x:8443`、貼上完整網址)時以它為準。
+    public init?(addressField: String, portField: String) {
+        guard let typed = HostServiceAddress(addressField) else { return nil }
+        if typed.url.port != nil {
+            self = typed
+            return
+        }
+        guard let port = Int(portField.trimmingCharacters(in: .whitespaces)) else { return nil }
+        self.init(host: typed.hostName, port: port)
+    }
+
     /// 主機名稱(顯示用)。
     public var hostName: String { url.host() ?? "" }
 

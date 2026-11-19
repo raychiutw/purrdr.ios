@@ -291,43 +291,12 @@ struct HostSyncJournalTests {
         #expect(outcome.icons.isEmpty)
     }
 
-    @Test("舊後台略過了圖示：那台主機的圖示記成未同步，下一次同步帶圖示重送")
-    func skippedIconIsResent() {
-        var journal = HostSyncJournal()
-        journal.recordSave(Self.studio.id, at: Self.t1)
-        let sent = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "macMini"], now: Self.t3)
-
-        _ = journal.reconcile(
-            hosts: [Self.studio], sent: sent,
-            snapshot: HostSyncSnapshot(hosts: [Self.remote(at: Self.t1)], deletedHostIDs: [], iconsSkipped: true))
-
-        let next = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "macMini"], now: Self.t3)
-        #expect(next == [.upsert(SyncedHost(Self.studio, modifiedAt: Self.t1, icon: "macMini"))])
-    }
-
-    @Test("後台收下補送的圖示後就不再重送")
-    func resentIconIsSyncedOnce() {
-        var journal = HostSyncJournal()
-        journal.recordSave(Self.studio.id, at: Self.t1)
-        let sent = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "macMini"], now: Self.t3)
-        _ = journal.reconcile(
-            hosts: [Self.studio], sent: sent,
-            snapshot: HostSyncSnapshot(hosts: [Self.remote(at: Self.t1)], deletedHostIDs: [], iconsSkipped: true))
-        let resent = journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "macMini"], now: Self.t3)
-
-        _ = journal.reconcile(
-            hosts: [Self.studio], sent: resent,
-            snapshot: HostSyncSnapshot(hosts: [SyncedHost(Self.studio, modifiedAt: Self.t1, icon: "macMini")], deletedHostIDs: []))
-
-        #expect(journal.pendingChanges(hosts: [Self.studio], icons: [Self.studio.id: "macMini"], now: Self.t3).isEmpty)
-    }
-
-    @Test("升級前存下的修改紀錄(沒有未同步圖示欄位)照樣讀得回來")
-    func journalSavedBeforeIconTrackingDecodes() throws {
+    @Test("#243 時期存下的修改紀錄(多一個 unsyncedIcons 欄位)照樣讀得回來，多的欄位忽略")
+    func journalWithRetiredFieldDecodes() throws {
         var journal = HostSyncJournal()
         journal.recordSave(Self.studio.id, at: Self.t1)
         var object = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(journal)) as? [String: Any])
-        object = object.filter { ["modified", "synced", "deleted"].contains($0.key) }
+        object["unsyncedIcons"] = [Self.studio.id.uuidString]
 
         let decoded = try JSONDecoder().decode(HostSyncJournal.self, from: JSONSerialization.data(withJSONObject: object))
 

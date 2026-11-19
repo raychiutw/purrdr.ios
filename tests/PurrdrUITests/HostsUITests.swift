@@ -6,7 +6,7 @@ final class HostsUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 沒有主機時選的是 Demo 主機;新增主機表單的欄位都有標籤，填完必填欄位才能測試，測試前不能儲存。
+    /// 沒有主機時選的是 Demo 主機;新增主機表單先選連線方式才出現連線欄位，填完必填欄位才能測試，測試前不能儲存。
     @MainActor
     func testAddHostFormRequiresTestBeforeSaving() {
         let app = XCUIApplication.launchUITesting()
@@ -23,18 +23,27 @@ final class HostsUITests: XCTestCase {
         XCTAssertTrue(demo.isSelected, "沒有主機時應選取 Demo 主機")
 
         app.buttons["hosts.add"].tap()
-        let test = app.buttons["hostEditor.test"]
-        XCTAssertTrue(test.waitForExistence(timeout: 5))
-        XCTAssertFalse(test.isEnabled, "必填欄位沒填就能測試")
+        let name = app.textFields["hostEditor.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeText("Studio")
+        XCTAssertFalse(app.textFields["hostEditor.address"].exists, "還沒選連線方式就出現連線欄位")
+        XCTAssertFalse(app.buttons["hostEditor.test"].exists, "還沒選連線方式就能測試")
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled, "沒測試就能儲存")
-        let method = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Tailscale SSH")).firstMatch
-        XCTAssertTrue(method.exists, "沒有顯示連線方式")
+        let method = app.buttons["hostEditor.method.tailscaleSSH"]
+        XCTAssertTrue(method.waitForExistence(timeout: 5) || scrollTo(method, in: app), "沒有顯示連線方式")
+        method.tap()
 
-        for (identifier, text) in [("name", "Studio"), ("address", "studio-mac"), ("username", "demo")] {
+        let test = app.buttons["hostEditor.test"]
+        XCTAssertTrue(test.waitForExistence(timeout: 5) || scrollTo(test, in: app))
+        XCTAssertFalse(test.isEnabled, "必填欄位沒填就能測試")
+        for (identifier, text) in [("address", "studio-mac"), ("username", "demo")] {
             let field = app.textFields["hostEditor.\(identifier)"]
+            XCTAssertTrue(field.exists || scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
             field.typeText(text)
         }
+        XCTAssertTrue(test.exists || scrollTo(test, in: app))
         XCTAssertTrue(test.isEnabled)
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled)
 
@@ -90,7 +99,9 @@ final class HostsUITests: XCTestCase {
         openAddHost(app)
         chooseOpenSSH(app)
 
-        app.buttons["hostEditor.signIn"].tap()
+        let signIn = app.buttons["hostEditor.signIn"]
+        XCTAssertTrue(signIn.waitForExistence(timeout: 5) || scrollTo(signIn, in: app))
+        signIn.tap()
         app.buttons["Imported Key"].firstMatch.tap()
         let keyField = app.textViews["hostEditor.privateKey"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 5))
@@ -120,11 +131,8 @@ final class HostsUITests: XCTestCase {
 
     @MainActor
     private func chooseOpenSSH(_ app: XCUIApplication) {
-        let connection = app.buttons["hostEditor.connection"]
-        XCTAssertTrue(connection.waitForExistence(timeout: 5) || scrollTo(connection, in: app), "沒有連線方式選單")
-        connection.tap()
-        let openSSH = app.buttons["OpenSSH"].firstMatch
-        XCTAssertTrue(openSSH.waitForExistence(timeout: 5), "沒有 OpenSSH 連線方式")
+        let openSSH = app.buttons["hostEditor.method.openSSH"]
+        XCTAssertTrue(openSSH.waitForExistence(timeout: 5) || scrollTo(openSSH, in: app), "沒有 OpenSSH 連線方式")
         openSSH.tap()
     }
 
