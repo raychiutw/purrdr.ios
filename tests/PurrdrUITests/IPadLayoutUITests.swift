@@ -37,6 +37,40 @@ final class IPadLayoutUITests: XCTestCase {
         XCTAssertTrue(row.exists, "對話推走了列表(應該在列表旁)")
     }
 
+    /// 選取列是中性灰底(#238):底色無彩度、與未選取的列不同，不是主色。
+    @MainActor
+    func testSelectedRowUsesNeutralGray() throws {
+        let app = launchInLandscape()
+        let row = element("agent.row.demo/w1:p1", in: app)
+        XCTAssertTrue(app.reveal(row), "沒有看到 Agent 列表")
+        let unselectedColor = try rowBackgroundColor(row, in: app)
+
+        row.tap()
+        XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "對話沒有開在對話欄")
+        let selectedColor = try rowBackgroundColor(row, in: app)
+
+        let chroma = max(selectedColor.red, selectedColor.green, selectedColor.blue) - min(selectedColor.red, selectedColor.green, selectedColor.blue)
+        XCTAssertLessThanOrEqual(chroma, 8, "選取底不是中性灰:\(selectedColor)")
+        XCTAssertNotEqual(selectedColor.red, unselectedColor.red, "選取列與未選取列底色相同:\(selectedColor)")
+    }
+
+    /// 取列頂端中央 2pt 處(列的內距，沒有文字)的像素。
+    @MainActor
+    private func rowBackgroundColor(_ row: XCUIElement, in app: XCUIApplication) throws -> (red: Int, green: Int, blue: Int) {
+        let screenshot = app.screenshot().image
+        let cgImage = try XCTUnwrap(screenshot.cgImage)
+        let scale = CGFloat(cgImage.width) / app.windows.firstMatch.frame.width
+        let pixelX = Int(row.frame.midX * scale)
+        let pixelY = Int((row.frame.minY + 2) * scale)
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try XCTUnwrap(CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(cgImage, in: CGRect(x: -pixelX, y: pixelY - cgImage.height + 1, width: cgImage.width, height: cgImage.height))
+        return (Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
+    }
+
     /// 列表欄也是大標題(#66):在列表欄裡、導覽列下方;點了切到 Agents,群組消失。
     @MainActor
     func testListColumnLargeTitleSwitchesView() {
