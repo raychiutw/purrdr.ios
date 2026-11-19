@@ -427,6 +427,29 @@ struct HostSyncModelTests {
         #expect(hosts.icon(for: Self.studio.id) == .noIcon)
     }
 
+    @Test("相容：還沒部署圖示欄位的舊後台拒絕 icon(400):改送不含圖示的版本，同步成功;之後這次執行都不帶")
+    func oldBackendWithoutIconSupport() async throws {
+        try subscribe()
+        backend.on(
+            "POST", Self.path,
+            .json(400, #"{"error":{"code":"invalid_request","message":"Unexpected field: icon."}}"#),
+            .json(200, Self.snapshot(hosts: [Self.remoteStudio(name: "Renamed on iPad", modifiedAt: "2026-11-16T08:00:00.000Z")])),
+            .json(200, Self.snapshot(hosts: [Self.remoteStudio(name: "Renamed on iPad", modifiedAt: "2026-11-16T08:00:00.000Z")])))
+        let (sync, hosts) = makeModels(icons: [Self.studio.id: .laptop])
+
+        await sync.setEnabled(true)
+        hosts.setIcon(.rack, for: Self.studio.id)
+        try await waitUntil { await MainActor.run { backend.requests(to: Self.path).count == 3 } }
+        try await waitUntil { await MainActor.run { sync.status == .upToDate(Self.now) } }
+
+        #expect(sentChanges(0).first?["icon"] as? String == "laptop")
+        #expect(sentChanges(1).first?.keys.contains("icon") == false)
+        #expect(sentChanges(1).first?["name"] as? String == "Studio Mac")
+        #expect(sentChanges(2).first?.keys.contains("icon") == false, "記住後台不支援圖示，不再先被拒")
+        #expect(hosts.hosts.first?.name == "Renamed on iPad", "其他欄位照常同步")
+        #expect(hosts.icon(for: Self.studio.id) == .rack, "本機圖示不受影響")
+    }
+
     @Test(
         "相容：後台沒帶圖示(舊版 app 上傳)或不認得的值(較新版 app):沿用這支裝置的圖示;舊值 server 讀成機架",
         arguments: [
