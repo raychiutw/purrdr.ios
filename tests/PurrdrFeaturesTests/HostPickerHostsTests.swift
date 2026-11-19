@@ -41,11 +41,11 @@ struct HostPickerHostsTests {
         #expect(model.anyHostSupportsShell)
     }
 
-    @Test("新增聊天列出所有主機")
+    @Test("新增聊天列出所有主機(Demo 在前，其餘依名稱排序，與主機清單一致)")
     func newChatListsEveryHost() {
         let model = Self.model()
 
-        #expect(model.newChatHostPicker().options.map(\.name) == ["Demo", "Studio", "Box"])
+        #expect(model.newChatHostPicker().options.map(\.name) == ["Demo", "Box", "Studio"])
     }
 
     @Test("登入 Shell 換電腦不改選取中主機，下次打開選回同一台")

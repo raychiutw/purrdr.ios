@@ -4156,17 +4156,6 @@
         }
       }
     },
-    "Member" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "會員"
-          }
-        }
-      }
-    },
     "Member Deleted" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6858,6 +6847,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議"
+          }
+        }
+      }
+    },
+    "Suggestion: %@, Fill In" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議：%@，填入"
           }
         }
       }
