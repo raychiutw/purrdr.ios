@@ -378,11 +378,31 @@ struct ComposerSendButton: View {
 
     @ViewBuilder
     private func styled(_ button: some View) -> some View {
-        if isInCard {
-            button.filledProminentButtonStyle()
-        } else {
-            button.filledGlassProminentButtonStyle()
+        switch ComposerSendAppearance(canSend: model.canSend, isSending: model.isSending) {
+        case .prominent:
+            if isInCard {
+                button.filledProminentButtonStyle()
+            } else {
+                button.filledGlassProminentButtonStyle()
+            }
+        case .neutralDisabled:
+            // 系統 prominent 的停用外觀在深色模式是黑色實心圓(onAccent 黑字)，幾乎看不見。
+            if isInCard {
+                button.buttonStyle(NeutralDisabledSendButtonStyle())
+            } else {
+                button.buttonStyle(.glass).foregroundStyle(.secondaryText)
+            }
         }
+    }
+}
+
+/// 送出鈕的中性停用樣式：`.fill.tertiary` 圓底、次要色箭頭，尺寸同 prominent 圓鈕。
+private struct NeutralDisabledSendButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(.secondaryText)
+            .padding(7)
+            .background(.fill.tertiary, in: Circle())
     }
 }
 

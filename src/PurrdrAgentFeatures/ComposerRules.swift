@@ -38,6 +38,16 @@ public enum ComposerKeys {
     }
 }
 
+/// 送出鈕的外觀：可送或送出中是主色填色，不能送是中性停用樣式(`.fill.tertiary` 底、次要色箭頭)。
+public enum ComposerSendAppearance: Sendable, Equatable {
+    case prominent
+    case neutralDisabled
+
+    public init(canSend: Bool, isSending: Bool) {
+        self = canSend || isSending ? .prominent : .neutralDisabled
+    }
+}
+
 // MARK: - 長高
 
 /// 輸入框的高度與是否在框內捲動。
