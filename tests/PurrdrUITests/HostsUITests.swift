@@ -74,7 +74,7 @@ final class HostsUITests: XCTestCase {
 
         chooseOpenSSH(app)
         let publicKey = app.buttons["hostEditor.devicePublicKey"]
-        XCTAssertTrue(publicKey.waitForExistence(timeout: 5), "沒有這支裝置的公鑰入口")
+        XCTAssertTrue(publicKey.waitForExistence(timeout: 5) || scrollTo(publicKey, in: app), "沒有這支裝置的公鑰入口")
         publicKey.tap()
 
         let keyText = app.staticTexts["deviceKey.publicKey"]
@@ -172,8 +172,13 @@ final class HostsUITests: XCTestCase {
         let name = app.textFields["hostEditor.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 10))
         XCTAssertEqual(name.value as? String, "Studio Mac")
-        XCTAssertEqual(app.textFields["hostEditor.address"].value as? String, "studio-mac")
-        XCTAssertEqual(app.textFields["hostEditor.username"].value as? String, "demo")
+        // 圖示格(#239)與連線方式卡片(#250)把連線欄位推到畫面外，Form 不建立畫面外的列，先捲過去。
+        let address = app.textFields["hostEditor.address"]
+        XCTAssertTrue(address.exists || scrollTo(address, in: app), "沒有位址欄位")
+        XCTAssertEqual(address.value as? String, "studio-mac")
+        let username = app.textFields["hostEditor.username"]
+        XCTAssertTrue(username.exists || scrollTo(username, in: app), "沒有帳號欄位")
+        XCTAssertEqual(username.value as? String, "demo")
         XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled, "匯入後沒測試就能儲存")
     }
 
@@ -258,7 +263,10 @@ final class HostsUITests: XCTestCase {
         app.buttons["Delete…"].firstMatch.tap()
         let confirm = app.buttons["hosts.delete.confirm"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "刪除主機要先確認")
-        app.buttons["Cancel"].firstMatch.tap()
+        // iOS 27 的確認對話框沒有 Cancel 按鈕，點對話框外取消。
+        let dismissRegion = app.otherElements["PopoverDismissRegion"].firstMatch
+        XCTAssertTrue(dismissRegion.exists, "確認對話框沒有可點外面取消的區域")
+        dismissRegion.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
         XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
         XCTAssertTrue(row.exists, "取消後主機還在")
 

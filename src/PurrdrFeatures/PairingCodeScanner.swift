@@ -128,7 +128,8 @@ struct PairingCodeScannerView: View {
                 .overlay { RoundedRectangle(cornerRadius: 28).stroke(.white, lineWidth: 4).frame(width: 230, height: 230) }
                 .accessibilityIdentifier("scanner.viewfinder")
                 .task {
-                    try? await Task.sleep(for: .milliseconds(500))
+                    // UI 測試的 waitForExistence 約 1 秒輪詢一次，停 2 秒才看得到掃描畫面。
+                    try? await Task.sleep(for: .seconds(2))
                     deliver(payload)
                 }
         case .camera:
