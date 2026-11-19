@@ -261,7 +261,7 @@ final class HostsUITests: XCTestCase {
         // 選單的刪除：先確認，取消就不刪。
         row.press(forDuration: 1)
         app.buttons["Delete…"].firstMatch.tap()
-        let confirm = app.buttons["hosts.delete.confirm"]
+        let confirm = app.buttons["hosts.delete.confirm"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "刪除主機要先確認")
         // iOS 27 的確認對話框沒有 Cancel 按鈕，點對話框外取消。
         let dismissRegion = app.otherElements["PopoverDismissRegion"].firstMatch

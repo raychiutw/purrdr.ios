@@ -94,8 +94,8 @@ public struct HostListView: View {
             }
             .confirmationDialog(
                 deletionTitle, isPresented: deletionBinding, titleVisibility: .visible, presenting: flow.pendingDeletion
-            ) { _ in
-                Button("Remove Host", role: .destructive) { confirmDeletion() }
+            ) { request in
+                Button("Remove Host", role: .destructive) { confirmDeletion(request) }
                     .accessibilityIdentifier("hosts.delete.confirm")
                 Button("Cancel", role: .cancel) { flow.cancelDeletion() }
             } message: { _ in
@@ -229,10 +229,10 @@ public struct HostListView: View {
         dismiss()
     }
 
-    private func confirmDeletion() {
+    private func confirmDeletion(_ request: HostDeletionRequest) {
         Task {
             do {
-                try await flow.confirmDeletion { try await model.delete($0) }
+                try await flow.confirmDeletion(of: request) { try await model.delete($0) }
                 actionError = nil
             } catch {
                 actionError = String(localized: "Couldn’t remove this host from this device. \(error.localizedDescription)")
