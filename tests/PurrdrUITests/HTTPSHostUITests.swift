@@ -128,7 +128,7 @@ final class HTTPSHostUITests: XCTestCase {
         app.swipeDown()
 
         let code = app.textFields["hostEditor.pairingCode"]
-        XCTAssertTrue(code.waitForExistence(timeout: 5))
+        XCTAssertTrue(code.waitForExistence(timeout: 5) || scrollTo(code, in: app))
         code.tap()
         code.typeText("k7qm-2xpa")
         XCTAssertEqual(code.value as? String, "K7QM-2XPA")
@@ -140,11 +140,12 @@ final class HTTPSHostUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.buttons["toolbar.more"].waitForExistence(timeout: 10))
 
-        app.open(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net&code=K7QM-2XPA")!)
+        app.open(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")!)
 
         let address = app.textFields["hostEditor.address"]
-        XCTAssertTrue(address.waitForExistence(timeout: 10))
-        XCTAssertEqual(address.value as? String, "https://studio.tail1234.ts.net")
+        XCTAssertTrue(address.waitForExistence(timeout: 10) || scrollTo(address, in: app))
+        XCTAssertEqual(address.value as? String, "studio.tail1234.ts.net")
+        XCTAssertEqual(app.textFields["hostEditor.port"].value as? String, "8443")
         XCTAssertEqual(app.textFields["hostEditor.pairingCode"].value as? String, "K7QM-2XPA")
     }
 
@@ -164,7 +165,7 @@ final class HTTPSHostUITests: XCTestCase {
 
         let code = app.textFields["hostEditor.pairingCode"]
         XCTAssertTrue(code.waitForExistence(timeout: 5), "沒有開配對")
-        XCTAssertEqual(app.textFields["hostEditor.address"].value as? String, "https://studio.tail1234.ts.net")
+        XCTAssertEqual(app.textFields["hostEditor.address"].value as? String, "studio.tail1234.ts.net")
         let test = app.buttons["hostEditor.test"]
         XCTAssertTrue(test.exists || scrollTo(test, in: app))
         XCTAssertFalse(test.isEnabled, "沒有配對碼不能測試")
@@ -194,11 +195,8 @@ final class HTTPSHostUITests: XCTestCase {
 
     @MainActor
     private func chooseHTTPS(_ app: XCUIApplication) {
-        let connection = app.buttons["hostEditor.connection"]
-        XCTAssertTrue(connection.waitForExistence(timeout: 5) || scrollTo(connection, in: app), "沒有連線方式選單")
-        connection.tap()
-        let https = app.buttons["HTTPS"].firstMatch
-        XCTAssertTrue(https.waitForExistence(timeout: 5), "沒有 HTTPS 連線方式")
+        let https = app.buttons["hostEditor.method.https"]
+        XCTAssertTrue(https.waitForExistence(timeout: 5) || scrollTo(https, in: app), "沒有 HTTPS 連線方式")
         https.tap()
     }
 
@@ -207,7 +205,7 @@ final class HTTPSHostUITests: XCTestCase {
         app.swipeDown()
         for (identifier, text) in [("name", "Studio"), ("address", "studio.tail1234.ts.net"), ("pairingCode", code)] {
             let field = app.textFields["hostEditor.\(identifier)"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5), "沒有 \(identifier) 欄位")
+            XCTAssertTrue(field.waitForExistence(timeout: 5) || scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
             field.typeText(text)
         }

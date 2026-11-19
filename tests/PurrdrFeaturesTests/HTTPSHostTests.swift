@@ -140,7 +140,7 @@ struct HTTPSHostEditorTests {
             store: MemoryHostStore(), editing: existing, hostService: connections.access(tokens: tokens, http: http),
             makeChannel: ChannelFactory().make)
         #expect(model.connectionMethod == .https)
-        #expect(model.address == "https://studio.tail1234.ts.net")
+        #expect(model.address == "studio.tail1234.ts.net")
 
         model.name = "Studio Mac"
         await model.test()
@@ -174,7 +174,7 @@ struct HTTPSHostEditorTests {
         let editor = try model.makeImportEditor(url)
 
         #expect(editor.connectionMethod == .https)
-        #expect(editor.address == "https://studio.tail1234.ts.net")
+        #expect(editor.address == "studio.tail1234.ts.net")
         #expect(editor.pairingCode == "K7QM-2XPA")
         #expect(editor.name == "studio")
     }
@@ -188,7 +188,7 @@ struct HTTPSHostEditorTests {
 
         #expect(editor.connectionMethod == .https)
         #expect(editor.name == "Studio")
-        #expect(editor.address == "https://studio.tail1234.ts.net")
+        #expect(editor.address == "studio.tail1234.ts.net")
         #expect(editor.pairingCode.isEmpty)
         #expect(editor.needsPairingCode)
         #expect(!editor.canTest)

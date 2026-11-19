@@ -6,10 +6,14 @@ import SwiftUI
 ///
 /// 儲存前必須通過連線測試;第一次連線以 alert 確認 host key 指紋;herdr 過舊時確認後更新。
 /// OpenSSH 主機可用這支裝置的金鑰、匯入的私鑰或密碼登入;公鑰與加入指令在同一個 sheet 內 push。
-/// HTTPS 主機(ADR-0010)只填位址與配對碼;掃主機配對指令的 QR code 會帶入兩者(系統相機開 `purrdr://pair?…`)。
+/// 順序(#250):名稱 → 圖示 → 連線方式(卡片單選)→ 選了才出現該方式的欄位;輸入值一律靠左。
+/// HTTPS 主機填位址、Port 與配對碼;配對碼旁的掃描鈕開 app 內相機掃主機配對指令的 QR code。
 struct HostEditorView: View {
     @State private var model: HostEditorModel
     @State private var confirmingDiscard = false
+    @State private var scanning = false
+    @State private var showsAdvanced = false
+    @Environment(\.pairingCodeScanSource) private var scanSource
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
     /// 只改了圖示就儲存：主機設定沒變，不必重新連線。
@@ -20,6 +24,8 @@ struct HostEditorView: View {
         onIconSaved: @escaping () -> Void
     ) {
         _model = State(initialValue: model)
+        // 有自訂 herdr 設定的主機一打開就看得到。
+        _showsAdvanced = State(initialValue: !(model.herdrPath.isEmpty && model.herdrSession.isEmpty))
         self.onSaved = onSaved
         self.onCancel = onCancel
         self.onIconSaved = onIconSaved
@@ -29,20 +35,6 @@ struct HostEditorView: View {
         Form {
             Section {
                 field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name")
-                if model.connectionMethod.usesHostService {
-                    field("Address", text: $model.address, prompt: "my-mac.tailnet.ts.net", identifier: "address")
-                        .addressKeyboard()
-                    field(
-                        "Pairing Code", text: $model.pairingCode, prompt: model.needsPairingCode ? "K7QM-2XPA" : "Unchanged",
-                        identifier: "pairingCode")
-                    .uppercaseInput()
-                } else {
-                    field("Address", text: $model.address, prompt: "my-mac or 100.64.0.1", identifier: "address")
-                        .addressKeyboard()
-                    field("Port", text: $model.port, prompt: "22", identifier: "port")
-                        .numberKeyboard()
-                    field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username")
-                }
             } header: {
                 Text("Host")
                     .foregroundStyle(.secondaryText)
@@ -55,58 +47,26 @@ struct HostEditorView: View {
                     .foregroundStyle(.secondaryText)
             }
 
-            Section {
-                Picker("Connection", selection: $model.connectionMethod) {
-                    Text(verbatim: "Tailscale SSH").tag(HostConfiguration.ConnectionMethod.tailscaleSSH)
-                    Text(verbatim: "OpenSSH").tag(HostConfiguration.ConnectionMethod.openSSH)
-                    Text(verbatim: "HTTPS").tag(HostConfiguration.ConnectionMethod.https)
-                }
-                // 選單樣式：AX5 字級時分段控制會把「Tailscale SSH」截斷。
-                .accessibilityIdentifier("hostEditor.connection")
-            } header: {
-                Text("Connection")
-                    .foregroundStyle(.secondaryText)
-            } footer: {
-                Group {
-                    switch model.connectionMethod {
-                    case .tailscaleSSH:
-                        Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
-                    case .openSSH:
-                        Text("Purrdr signs in to the host’s own SSH server with a key or password.")
-                    case .https:
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Install the Purrdr host service on the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. If the host service uses an HTTPS port other than 443, keep the port in the address, for example my-mac.tailnet.ts.net:8443. Login Shell and Files aren’t available over HTTPS.")
-                            Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
-                                .accessibilityIdentifier("hostEditor.hostServiceGuide")
-                        }
-                    }
-                }
-                .foregroundStyle(.secondaryText)
-            }
+            connectionMethodSection
 
-            if model.connectionMethod == .openSSH {
-                signInSection
-            }
+            if let method = model.connectionMethod {
+                connectionSection(method)
+                if model.connectionFields.contains(.pairingCode) {
+                    pairingSection
+                }
+                if model.connectionFields.contains(.signIn) {
+                    signInSection
+                }
+                if model.connectionFields.contains(.advanced) {
+                    advancedSection
+                }
 
-            // HTTPS 的 herdr session 由主機服務決定。
-            if !model.connectionMethod.usesHostService {
                 Section {
-                    field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath")
-                    field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")
-                } header: {
-                    Text("herdr")
-                        .foregroundStyle(.secondaryText)
+                    testStatus
                 } footer: {
-                    Text("Leave Session blank unless this computer runs more than one herdr session.")
+                    Text("Purrdr tests the connection before saving the host.")
                         .foregroundStyle(.secondaryText)
                 }
-            }
-
-            Section {
-                testStatus
-            } footer: {
-                Text("Purrdr tests the connection before saving the host.")
-                    .foregroundStyle(.secondaryText)
             }
 
             if let fingerprint = model.hostKeyFingerprint {
@@ -123,6 +83,9 @@ struct HostEditorView: View {
                         .foregroundStyle(.secondaryText)
                 }
             }
+        }
+        .sheet(isPresented: $scanning) {
+            PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
         }
         .navigationTitle(model.isEditing ? "Edit Host" : "Add Host")
         #if os(iOS)
@@ -190,6 +153,134 @@ struct HostEditorView: View {
         onCancel()
     }
 
+    // MARK: - 連線方式(#250)
+
+    /// 三張卡片單選，各附一句說明;選了才出現下面的連線欄位。
+    private var connectionMethodSection: some View {
+        Section {
+            ForEach(HostConfiguration.ConnectionMethod.editorOrder, id: \.self) { method in
+                methodCard(method)
+            }
+        } header: {
+            Text("Connection")
+                .foregroundStyle(.secondaryText)
+        } footer: {
+            if model.connectionMethod == nil {
+                Text("Choose how Purrdr connects, then fill in the connection details.")
+                    .foregroundStyle(.secondaryText)
+            }
+        }
+    }
+
+    private func methodCard(_ method: HostConfiguration.ConnectionMethod) -> some View {
+        let isSelected = model.connectionMethod == method
+        return Button {
+            model.connectionMethod = method
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: method.title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(method.summary)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("hostEditor.method.\(method.rawValue)")
+    }
+
+    /// 位址、Port,SSH 另有帳號。
+    private func connectionSection(_ method: HostConfiguration.ConnectionMethod) -> some View {
+        Section {
+            field(
+                "Address", text: $model.address, prompt: method.usesHostService ? "my-mac.tailnet.ts.net" : "my-mac or 100.64.0.1",
+                identifier: "address")
+            .addressKeyboard()
+            field("Port", text: $model.port, prompt: method.usesHostService ? "443" : "22", identifier: "port")
+                .numberKeyboard()
+            if model.connectionFields.contains(.username) {
+                field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username")
+            }
+        } header: {
+            Text("Connection Details")
+                .foregroundStyle(.secondaryText)
+        } footer: {
+            connectionFooter(method)
+                .foregroundStyle(.secondaryText)
+        }
+    }
+
+    @ViewBuilder
+    private func connectionFooter(_ method: HostConfiguration.ConnectionMethod) -> some View {
+        switch method {
+        case .tailscaleSSH:
+            Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
+        case .openSSH:
+            EmptyView()
+        case .https:
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS.")
+                Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
+                    .accessibilityIdentifier("hostEditor.hostServiceGuide")
+            }
+        }
+    }
+
+    /// 配對碼，右邊是掃描 QR code 的按鈕(裝置不支援時只能手動輸入)。
+    private var pairingSection: some View {
+        Section {
+            HStack(spacing: 8) {
+                field(
+                    "Pairing Code", text: $model.pairingCode, prompt: model.needsPairingCode ? "K7QM-2XPA" : "Unchanged",
+                    identifier: "pairingCode")
+                .uppercaseInput()
+                if scanSource.isAvailable {
+                    Button {
+                        scanning = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Scan QR Code")
+                    .accessibilityIdentifier("hostEditor.scanPairingCode")
+                }
+            }
+        } header: {
+            Text("Pairing")
+                .foregroundStyle(.secondaryText)
+        }
+    }
+
+    /// herdr 路徑與 Session 收在「進階」(HTTPS 的 herdr session 由主機服務決定)。
+    private var advancedSection: some View {
+        Section {
+            DisclosureGroup(isExpanded: $showsAdvanced) {
+                field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath")
+                field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")
+            } label: {
+                Text("Advanced")
+            }
+            .accessibilityIdentifier("hostEditor.advanced")
+        } footer: {
+            if showsAdvanced {
+                Text("Leave Session blank unless this computer runs more than one herdr session.")
+                    .foregroundStyle(.secondaryText)
+            }
+        }
+    }
+
     // MARK: - OpenSSH 登入
 
     @ViewBuilder
@@ -207,7 +298,7 @@ struct HostEditorView: View {
             case .password:
                 LabeledContent("Password") {
                     SecureField("Password", text: $model.password, prompt: Text(model.hasStoredSecret ? "Unchanged" : "Required"))
-                        .multilineTextAlignment(.trailing)
+                        .multilineTextAlignment(.leading)
                         .accessibilityIdentifier("hostEditor.password")
                 }
             }
@@ -373,8 +464,9 @@ struct HostEditorView: View {
 
     private func field(_ label: LocalizedStringKey, text: Binding<String>, prompt: LocalizedStringKey, identifier: String) -> some View {
         LabeledContent(label) {
+            // 輸入值靠左：靠右時尾端空白會被吃掉、看不見(#250)。
             TextField(label, text: text, prompt: Text(prompt))
-                .multilineTextAlignment(.trailing)
+                .multilineTextAlignment(.leading)
                 .autocorrectionDisabled()
                 .plainTextInput()
                 .accessibilityIdentifier("hostEditor.\(identifier)")
@@ -401,6 +493,29 @@ extension HostEditorModel.Phase {
     var isOutdated: Bool {
         if case .needsUpdate = self { return true }
         return false
+    }
+}
+
+extension HostConfiguration.ConnectionMethod {
+    /// 加入主機頁卡片的順序。
+    static let editorOrder: [Self] = [.tailscaleSSH, .openSSH, .https]
+
+    /// 產品名稱，不翻譯。
+    var title: String {
+        switch self {
+        case .tailscaleSSH: "Tailscale SSH"
+        case .openSSH: "OpenSSH"
+        case .https: "HTTPS"
+        }
+    }
+
+    /// 卡片上的一句說明。
+    var summary: LocalizedStringKey {
+        switch self {
+        case .tailscaleSSH: "Tailscale confirms who you are. No password or key needed."
+        case .openSSH: "Sign in to the host’s own SSH server with a key or password."
+        case .https: "Pair with the Purrdr host service. Login Shell and Files aren’t available."
+        }
     }
 }
 

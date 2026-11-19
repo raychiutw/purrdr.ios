@@ -609,6 +609,11 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "443" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false,
+      "localizations" : {}
+    },
     "5 Hours" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -752,6 +757,17 @@
         }
       }
     },
+    "Advanced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進階"
+          }
+        }
+      }
+    },
     "Agent" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -836,6 +852,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "允許"
+          }
+        }
+      }
+    },
+    "Allow camera access for Purrdr in Settings to scan the pairing QR code, or enter the address and pairing code yourself." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到「設定」允許 Purrdr 使用相機即可掃描配對 QR code,或自己輸入位址與配對碼。"
           }
         }
       }
@@ -1134,6 +1161,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "呼叫了 1 個工具"
+          }
+        }
+      }
+    },
+    "Camera Access Is Off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "相機權限已關閉"
           }
         }
       }
@@ -1475,6 +1513,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在主機上選擇資料夾"
+          }
+        }
+      }
+    },
+    "Choose how Purrdr connects, then fill in the connection details." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先選連線方式，再填連線資料。"
           }
         }
       }
@@ -1930,6 +1979,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連線方式"
+          }
+        }
+      }
+    },
+    "Connection Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線資料"
           }
         }
       }
@@ -2979,6 +3039,17 @@
         }
       }
     },
+    "Enter Manually" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改手動輸入"
+          }
+        }
+      }
+    },
     "Esc" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3727,13 +3798,13 @@
         }
       }
     },
-    "Install the Purrdr host service on the host, run purrdr-host-service pair, then scan its QR code with the Camera app, or enter the address and pairing code it shows. If the host service uses an HTTPS port other than 443, keep the port in the address, for example my-mac.tailnet.ts.net:8443. Login Shell and Files aren’t available over HTTPS." : {
+    "Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在主機上安裝 Purrdr 主機服務並執行 purrdr-host-service pair,再用「相機」App 掃描它顯示的 QR code,或輸入它顯示的位址與配對碼。主機服務用的 HTTPS 埠不是 443 時，位址要帶埠號，例如 my-mac.tailnet.ts.net:8443。HTTPS 不提供登入 Shell 與檔案。"
+            "value" : "在主機安裝 Purrdr 主機服務並執行 purrdr-host-service pair,再掃描它顯示的 QR code,或輸入它顯示的位址、Port 與配對碼。HTTPS 不能用登入 Shell 與檔案。"
           }
         }
       }
@@ -5069,6 +5140,28 @@
         }
       }
     },
+    "Pair with the Purrdr host service. Login Shell and Files aren’t available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機裝 Purrdr 主機服務後配對;不能用登入 Shell 與檔案。"
+          }
+        }
+      }
+    },
+    "Pairing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配對"
+          }
+        }
+      }
+    },
     "Pairing Code" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5263,6 +5356,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這種連線方式不支援方案用量"
+          }
+        }
+      }
+    },
+    "Point the camera at the QR code shown by purrdr-host-service pair." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把相機對準 purrdr-host-service pair 顯示的 QR code。"
           }
         }
       }
@@ -5494,17 +5598,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會以 %@ 讀取 ~/.config/herdr/config.toml 的主題，並新增參考檔 ~/.purrdr/theme/README.md。不會更動你的 herdr 設定;關閉後會移除這個檔案。"
-          }
-        }
-      }
-    },
-    "Purrdr signs in to the host’s own SSH server with a key or password." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Purrdr 以金鑰或密碼登入主機本身的 SSH 服務(sshd)。"
           }
         }
       }
@@ -6011,6 +6104,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存"
+          }
+        }
+      }
+    },
+    "Scan Pairing QR Code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃描配對 QR code"
+          }
+        }
+      }
+    },
+    "Scan QR Code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃描 QR code"
           }
         }
       }
@@ -6554,6 +6669,17 @@
         }
       }
     },
+    "Sign in to the host’s own SSH server with a key or password." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入主機自己的 SSH 伺服器，用金鑰或密碼。"
+          }
+        }
+      }
+    },
     "Sign in to use Purrdr Plus" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6968,6 +7094,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tailscale 會依你在 tailnet 上的身分放行，不需要金鑰或密碼。"
+          }
+        }
+      }
+    },
+    "Tailscale confirms who you are. No password or key needed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tailscale 認證身分，不需要密碼或金鑰。"
           }
         }
       }
@@ -8479,6 +8616,17 @@
         }
       }
     },
+    "Turn Off Flashlight" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉手電筒"
+          }
+        }
+      }
+    },
     "Turn On" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8497,6 +8645,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部開啟"
+          }
+        }
+      }
+    },
+    "Turn On Flashlight" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開手電筒"
           }
         }
       }
