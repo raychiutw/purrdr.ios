@@ -142,6 +142,35 @@ struct YouShouldKnowNoteView: View {
     }
 }
 
+/// 鍵盤出現、空間不夠時收成一行的註記(#196):收起鍵盤後仍是一行，點了才收起鍵盤、換回完整卡片(含動作)。
+struct YouShouldKnowCompactNoteView: View {
+    let note: YouShouldKnowNote
+    let expand: () -> Void
+
+    var body: some View {
+        Button(action: expand) {
+            Label {
+                Text(verbatim: note.line)
+                    .lineLimit(1)
+            } icon: {
+                Image(systemName: "sparkle")
+            }
+            .font(.subheadline)
+            .foregroundStyle(.secondaryText)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 12)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        // 同完整卡片：內容層、不透明底(#67 audit)。
+        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
+        .accessibilityLabel(Text("\(note.tag ?? String(localized: "You should know")): \(note.line)"))
+        .accessibilityHint(Text("Shows the whole note."))
+        .accessibilityIdentifier("youShouldKnow.compact")
+    }
+}
+
 extension View {
     /// 第一次對註記動作時的同意(ADR-0002):說明會改哪個檔、以哪個使用者，可在設定撤掉。
     func youShouldKnowConsent(_ model: YouShouldKnowModel) -> some View {

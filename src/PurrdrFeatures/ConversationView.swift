@@ -27,6 +27,10 @@ public struct ConversationView: View {
     @State private var viewerImage: ViewerImage?
     /// 新訊息與狀態變化的 VoiceOver 公告(有節流，#35)。
     @State private var announcer = ConversationAnnouncer()
+    /// 對話的可見高度(扣掉上下 inset;輸入列依它決定鍵盤出現時要不要讓位，#196)。
+    /// 放在只有輸入列(聚焦時)讀的 observable 裡：寫進這個畫面的 `@State` 會讓整個對話隨每次捲動量測重畫，
+    /// 送出後大量輸出時列表停在一片空白(`testSendingThenLargeOutputKeepsMessagesVisible`)。
+    @State private var conversationHeight = ConversationVisibleHeight()
 
     public init(model: ConversationModel) {
         self.model = model
@@ -58,7 +62,7 @@ public struct ConversationView: View {
                     AgentsBarView(pane: pane, readAt: model.agentsPaneReadAt, conversation: model)
                 }
             }
-            .safeAreaBar(edge: .bottom) { ComposerBar(model: model) }
+            .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerImage = ViewerImage(url: $0) }
@@ -104,6 +108,7 @@ public struct ConversationView: View {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onAppear { conversationHeight.update(nil) }
         } else {
             messages
         }
@@ -172,6 +177,7 @@ public struct ConversationView: View {
                 bottomInset: geometry.contentInsets.bottom
             )
         } action: { _, metrics in
+            conversationHeight.update(metrics.containerHeight)
             if userIsScrolling {
                 scroll.userScrolled(distanceFromBottom: metrics.distanceFromBottom)
             } else {
@@ -211,6 +217,9 @@ public struct ConversationView: View {
             }
         }
         .onChange(of: model.entries.last?.id) {
+            if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
+        }
+        .onChange(of: conversationHeight.arrangementRevision) {
             if scroll.autoScrollsOnNewContent { position.scrollTo(edge: .bottom) }
         }
         .onChange(of: model.livePreview) {
