@@ -170,7 +170,6 @@ impl StreamUpdate {
             },
             Tail::Shrank { size } => ended(size, TranscriptStreamEnd::Shrank),
             Tail::Replaced { size } => ended(size, TranscriptStreamEnd::Replaced),
-            Tail::TooFarBehind { size } => ended(size, TranscriptStreamEnd::TooFarBehind),
         }
     }
 
@@ -189,7 +188,7 @@ impl StreamUpdate {
     }
 }
 
-/// 定期檢查檔案，有新的完整行就推送;檔案變小、被換掉、落後太多、讀不到時推送結束原因後停止。
+/// 定期檢查檔案，有新的完整行就推送(每次最多 `limit` bytes,落後很多時分段接著送);檔案變小、被換掉、讀不到時推送結束原因後停止。
 async fn track(path: PathBuf, mut cursor: u64, mut anchor: Vec<u8>, limit: u64, stream_id: String, pushes: UnboundedSender<ServerMessage>) {
     loop {
         tokio::time::sleep(FOLLOW_INTERVAL).await;

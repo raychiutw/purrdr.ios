@@ -19,8 +19,9 @@ extension HTTPSHostConnection {
                 try await self.window(path: path, end: end, lines: lines)
             }
         case .tail(let path, let cursor, let limit), .catchUp(let path, let cursor, let limit):
-            // 主機服務的追蹤沒有「分段接著讀」:落後超過上限就結束、只回大小，`TranscriptReader.catchUp` 會改回報
-            // 落後太多(讀新視窗)。行從推送累積的緩衝回答，不必依上限放寬期限。
+            // 主機服務(#173 起)落後超過上限時從游標分段送出，與 SSH 的分段接著讀相同;#173 之前的主機服務落後超過上限
+            // 就以 too_far_behind 結束、只回大小，`TranscriptReader.catchUp` 改回報落後太多(讀新視窗)。
+            // 行從推送累積的緩衝回答，不必依上限放寬期限。
             return try await withDeadline(HostCommandDeadline.standard) {
                 try await self.tail(path: path, from: cursor, limit: limit)
             }
@@ -142,7 +143,7 @@ extension HTTPSHostConnection {
             let streamID = await session.makeStreamID()
             let messages = await session.openStream(streamID)
             opened = (session, streamID)
-            // 主機服務的追蹤沒有「分段接著讀」:落後超過上限就以 tooFarBehind 結束(#173 補上)。
+            // 落後超過上限時主機服務分段送出(#173,每則最多 limit bytes、超大單行截短);舊版主機服務改以 too_far_behind 結束。
             let reply = try await withDeadline(HostCommandDeadline.standard) {
                 try await self.send(on: session) {
                     .transcriptFollow(.init(requestId: $0, streamId: streamID, path: path, from: cursor, limit: TranscriptReader.catchUpLimit))
@@ -275,7 +276,7 @@ struct PushedTranscript {
             position = end
         }
         guard ended != nil else { return false }
-        // 換檔、變短，或落後太多(主機服務不能分段接著讀，#173):重讀視窗。
+        // 換檔、變短，或 #173 之前的主機服務落後太多(too_far_behind):重讀視窗。
         continuation.yield(.replaced(size: size))
         return true
     }

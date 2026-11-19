@@ -14,3 +14,5 @@
 後來加入 HTTPS 連線方式(ADR-0010):核心另需 WSS 的 TLS 相依(例如 swift-nio-ssl),以及由 JSON Schema 產生的協定型別;同樣要在 Android 交叉編譯驗證。
 
 實作時(#57)WSS 改用 Foundation 的 `URLSessionWebSocketTask`(非 Apple 平台經 FoundationNetworking／libcurl),放在可攜的 `PurrdrHTTPS`,傳輸以 protocol 注入：不需要 swift-nio-ssl,也不帶入第三方加密(出口合規維持只用系統加密)。Android 在執行期的 WebSocket 與 CA 憑證路徑還沒實測，只驗證到編得過。
+
+**更新(2026-11-19)**:為了縮短 CI,拿掉 CI 的 Android 交叉編譯 job(aarch64、x86_64)。可攜性改由 `PortableCoreImportTests`(只允許 Foundation 與 swift-nio／swift-crypto 系列的 import)守門；它擋不到「API 在 Apple 平台有、Android 的 Foundation 沒有」這類差異，所以開始做 Android 版前，先把 CI job 加回來(做法與版本見 `docs/research/swift-sdk-for-android.md`,舊 job 在 git 歷史的 `.github/workflows/ci.yml`)。

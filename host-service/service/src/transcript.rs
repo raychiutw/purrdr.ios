@@ -217,21 +217,22 @@ pub fn window(path: &Path, end: u64, lines: usize) -> Result<Chunk, TranscriptFa
     }
 }
 
-/// 游標之後的狀態(與 SSH 的追蹤腳本相同的判斷，另外比對游標前的內容)。
+/// 游標之後的狀態(與 SSH 的分段接著讀相同的判斷，另外比對游標前的內容)。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tail {
-    /// 游標之後新增的完整行(可能沒有);`anchor` 是新游標之前的內容，下次讀時比對。
+    /// 游標之後新增的完整行(可能沒有;最多 `limit` bytes,後面還有時下一次從新游標接著讀);`anchor` 是新游標之前的內容，下次讀時比對。
     Lines { size: u64, chunk: Chunk, anchor: Vec<u8> },
     /// 檔案比游標小：被換掉了。
     Shrank { size: u64 },
     /// 游標前的內容變了：被換成同長或更長的新檔。
     Replaced { size: u64 },
-    /// 落後超過上限：改讀視窗，不逐行重播(R-B08)。
-    TooFarBehind { size: u64 },
 }
 
 /// 比對換檔用的游標前內容長度。
 const ANCHOR_BYTES: u64 = 64;
+
+/// 找超過上限的單行結尾時，每次往後讀的區塊大小。
+const LONG_LINE_BLOCK_BYTES: u64 = 1 << 20;
 
 /// 游標前最多 `ANCHOR_BYTES` 的內容(開始追蹤時取，之後由 `tail` 接續)。
 pub fn anchor(path: &Path, cursor: u64) -> Result<Vec<u8>, TranscriptFailure> {
@@ -239,22 +240,25 @@ pub fn anchor(path: &Path, cursor: u64) -> Result<Vec<u8>, TranscriptFailure> {
     read_range(&mut file, cursor.saturating_sub(ANCHOR_BYTES), cursor)
 }
 
-/// 讀游標之後新增的完整行;游標前的內容與 `anchor` 不同時是換了檔。
+/// 分段接著讀游標之後新增的完整行(#130、#173,與 SSH 的 `catchUp` 腳本相同):累計原始 byte 數不超過 `limit`,
+/// 後面還有就留給下一次。第一行就超過 `limit` 時只送那一行，剝除圖片後的內容截短到 `limit` bytes、長度照原始長度，
+/// 游標照樣前進(那一行還沒寫完就等)。游標前的內容與 `anchor` 不同時是換了檔。
 pub fn tail(path: &Path, from: u64, limit: u64, anchor: &[u8]) -> Result<Tail, TranscriptFailure> {
     let size = probe(path)?;
     if size < from {
         return Ok(Tail::Shrank { size });
     }
-    if size - from > limit {
-        return Ok(Tail::TooFarBehind { size });
-    }
     let anchor_start = from.saturating_sub(anchor.len() as u64);
+    let read_end = size.min(from.saturating_add(limit));
     let mut file = File::open(path).map_err(|_| TranscriptFailure::Unreadable)?;
-    let bytes = read_range(&mut file, anchor_start, size)?;
+    let bytes = read_range(&mut file, anchor_start, read_end)?;
     let Some(added) = bytes.strip_prefix(anchor) else {
         return Ok(Tail::Replaced { size });
     };
     let complete = added.iter().rposition(|byte| *byte == b'\n').map_or(0, |index| index + 1);
+    if complete == 0 && read_end < size {
+        return long_line(&mut file, size, from, limit, anchor);
+    }
     let consumed = anchor.len() + complete;
     let next_anchor = bytes[consumed.saturating_sub(ANCHOR_BYTES as usize)..consumed].to_vec();
     Ok(Tail::Lines {
@@ -263,6 +267,55 @@ pub fn tail(path: &Path, from: u64, limit: u64, anchor: &[u8]) -> Result<Tail, T
             start: from,
             end: from + complete as u64,
             records: records(&added[..complete]),
+        },
+        anchor: next_anchor,
+    })
+}
+
+/// 游標處的一行超過 `limit`:找到它的換行後只送這一行(剝除圖片後截短到 `limit` bytes);還沒寫完就不送。
+fn long_line(file: &mut File, size: u64, from: u64, limit: u64, anchor: &[u8]) -> Result<Tail, TranscriptFailure> {
+    let unchanged = |size| Tail::Lines {
+        size,
+        chunk: Chunk {
+            start: from,
+            end: from,
+            records: Vec::new(),
+        },
+        anchor: anchor.to_vec(),
+    };
+    let mut line = read_range(file, from, from.saturating_add(limit))?;
+    let newline = loop {
+        let searched = from + line.len() as u64;
+        if searched >= size {
+            break None;
+        }
+        let block = read_range(file, searched, size.min(searched + LONG_LINE_BLOCK_BYTES))?;
+        if block.is_empty() {
+            break None;
+        }
+        let found = block.iter().position(|byte| *byte == b'\n');
+        line.extend_from_slice(&block[..found.unwrap_or(block.len())]);
+        if found.is_some() {
+            break found;
+        }
+    };
+    let Some(_) = newline else {
+        // 那一行還沒寫完：游標與錨點都不動。
+        return Ok(unchanged(size));
+    };
+    let end = from + line.len() as u64 + 1;
+    let mut text = strip_images(&line);
+    text.truncate(usize::try_from(limit).unwrap_or(usize::MAX));
+    let next_anchor = read_range(file, end.saturating_sub(ANCHOR_BYTES), end)?;
+    Ok(Tail::Lines {
+        size,
+        chunk: Chunk {
+            start: from,
+            end,
+            records: vec![Record {
+                length: line.len() as u64,
+                text: String::from_utf8_lossy(&text).into_owned(),
+            }],
         },
         anchor: next_anchor,
     })

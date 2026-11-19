@@ -51,8 +51,8 @@
 
 | # | 步驟 | 誰做 | 狀態 |
 |---|---|---|---|
-| 3A.1 | Account Holder 在 Apple Developer 建立 **Developer ID Application** 憑證，匯出 `.p12`(含私鑰) | 主 session | ⬜ |
-| 3A.2 | GitHub environment `testflight` 加 secret `DEVELOPER_ID_P12`(`base64 -i cert.p12` 的內容)、`DEVELOPER_ID_P12_PASSWORD`;公證沿用 `ASC_KEY_ID`／`ASC_ISSUER_ID`／`ASC_PRIVATE_KEY` | 主 session | ⬜ |
+| 3A.1 | Account Holder 在 Apple Developer 建立 **Developer ID Application** 憑證，匯出 `.p12`(含私鑰) | 主 session | ✅ 2026-11-19,G2 Sub-CA,到期 2027-12-18;私鑰與 `.p12` 在使用者本機 `~/.config/purrdr-developer-id/` |
+| 3A.2 | GitHub environment `testflight` 加 secret `DEVELOPER_ID_P12`(`base64 -i cert.p12` 的內容)、`DEVELOPER_ID_P12_PASSWORD`;公證沿用 `ASC_KEY_ID`／`ASC_ISSUER_ID`／`ASC_PRIVATE_KEY` | 主 session | ✅ 2026-11-19(本機以同一份 `.p12` 匯入暫時 keychain 試簽：hardened runtime、時間戳、憑證鏈到 Apple Root CA) |
 | 3A.3 | 第一次發行：`gh workflow run host-service-release.yml --ref master`(之後遞增 `host-service/service/Cargo.toml` 的 version 並合併就自動發行);確認 Release `host-service-v<版本>` 有 5 個壓縮檔、`SHA256SUMS`、`install.sh`、`install.ps1`,且標為 Latest | 主 session | ⬜ |
 | 3A.4 | 驗收：乾淨的 macOS(從瀏覽器下載壓縮檔，有 quarantine,直接執行不被 Gatekeeper 擋;`codesign -dv --verbose=4`、`spctl -a -vv -t install` 的結果記下來)、Linux、Windows 各跑一次一行安裝 → `pair` → app 掃 QR 連上;再跑一次一行安裝確認是更新、配對保留 | 主 session | ⬜ |
 | 3A.5 | 網站加上 `host-service/` 頁(見 4.5) | 主 session | ⬜ |
