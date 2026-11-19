@@ -1,20 +1,21 @@
 import SwiftUI
 
-/// 主機服務的更新說明(#198):在主機上再跑一次一行安裝指令(就地更新、保留已配對的裝置)。
-/// 指令等寬、可選取拷貝，有拷貝按鈕;可以不再提示這個版本。
+/// 主機服務的更新說明(#198):0.5.0 起執行 `purrdr-host-service update`,更舊的版本重跑一次一行安裝指令
+/// (就地更新、保留已配對的裝置，之後自動更新)。指令等寬、可選取拷貝，有拷貝按鈕;可以不再提示這個版本。
 struct HostServiceUpdateView: View {
     let hostName: String
     let version: String
+    let commands: HostServiceUpdateCommands
     let dismissUpdate: () -> Void
 
     var body: some View {
         List {
             Section {
-                Text("Purrdr host service \(version) is available for \(hostName). Run this on the host to update it. Paired devices stay paired.")
+                explanation
                     .accessibilityIdentifier("hostServiceUpdate.explanation")
             }
-            command(String(localized: "macOS and Linux"), HostServiceUpdates.posixInstallCommand, identifier: "posix")
-            command(String(localized: "Windows (PowerShell)"), HostServiceUpdates.windowsInstallCommand, identifier: "windows")
+            command(String(localized: "macOS and Linux"), commands.posix, identifier: "posix")
+            command(String(localized: "Windows (PowerShell)"), commands.windows, identifier: "windows")
             Section {
                 Link(destination: PurrdrLinks.hostServiceGuide) {
                     Label("Host Service Guide", systemImage: "book")
@@ -28,6 +29,14 @@ struct HostServiceUpdateView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+    }
+
+    private var explanation: Text {
+        if commands.canUpdateItself {
+            Text("Purrdr host service \(version) is available for \(hostName). The host service updates itself automatically; to update now, run this on the host. Paired devices stay paired.")
+        } else {
+            Text("Purrdr host service \(version) is available for \(hostName). This host runs \(commands.installedVersion), which can’t update itself: run the install command on the host once. From 0.5.0 on, the host service updates itself, or you can run purrdr-host-service update. Paired devices stay paired.")
+        }
     }
 
     private func command(_ title: String, _ command: String, identifier: String) -> some View {
