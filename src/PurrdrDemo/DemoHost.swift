@@ -195,7 +195,7 @@ public actor DemoHost: HostChannel {
         guard case .goesOffline(let delay, _) = scenario, !offlineScheduled else { return }
         offlineScheduled = true
         Task { [weak self] in
-            try await Task.sleep(for: delay)
+            guard (try? await Task.sleep(for: delay)) != nil else { return }
             await self?.goOffline()
         }
     }
