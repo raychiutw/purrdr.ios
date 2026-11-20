@@ -40,7 +40,8 @@ extension HTTPSHostConnection {
             if preview.change == .whole, let header = location.header {
                 output += "\(marker)! \(preview.key)\n" + header.map { $0 + "\n" }.joined() + "\(marker) \(preview.key)\n"
             }
-            output += preview.lines.map { $0 + "\n" }.joined()
+            // SSH 預覽腳本只印剝除圖片後的行，不帶原始長度。
+            output += preview.records.map { $0.text + "\n" }.joined()
         }
         return Data(output.utf8)
     }

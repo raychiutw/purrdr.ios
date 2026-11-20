@@ -28,7 +28,7 @@ struct HTTPSTranscriptDelegationTests {
     func previewsLocateThenReadTail() async throws {
         let service = try await Self.start([
             "transcript.locate": Self.located,
-            "transcript.previews": #"{"type":"transcript.previews.result","previews":[{"key":"w1:p6","change":"whole","version":"1795161012-48331 4e9a","lines":["ge\":\"cut\"}}","{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"標籤整理好了\"}]},\"uuid\":\"a2\"}"]}]}"#,
+            "transcript.previews": #"{"type":"transcript.previews.result","previews":[{"key":"w1:p6","change":"whole","version":"1795161012-48331 4e9a","records":[{"length":11,"text":"ge\":\"cut\"}}"},{"length":119,"text":"{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"標籤整理好了\"}]},\"uuid\":\"a2\"}"}]}]}"#,
         ])
         defer { Task { await service.stop() } }
 
@@ -49,7 +49,7 @@ struct HTTPSTranscriptDelegationTests {
     func previewsReuseLocatedPathAndSendKnownVersion() async throws {
         let service = try await Self.start([
             "transcript.locate": Self.located,
-            "transcript.previews": #"{"type":"transcript.previews.result","previews":[{"key":"w1:p6","change":"unchanged","version":"v1","lines":[]}]}"#,
+            "transcript.previews": #"{"type":"transcript.previews.result","previews":[{"key":"w1:p6","change":"unchanged","version":"v1","records":[]}]}"#,
         ])
         defer { Task { await service.stop() } }
         let reader = Self.reader(for: service)
@@ -71,7 +71,7 @@ struct HTTPSTranscriptDelegationTests {
         let service = try await Self.start(
             [
                 "transcript.locate": Self.located,
-                "transcript.previews": #"{"type":"transcript.previews.result","previews":[{"key":"w1:p6","change":"whole","version":"v2","lines":["{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好了\"}]},\"uuid\":\"a3\"}"]}]}"#,
+                "transcript.previews": #"{"type":"transcript.previews.result","previews":[{"key":"w1:p6","change":"whole","version":"v2","records":[{"length":104,"text":"{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"好了\"}]},\"uuid\":\"a3\"}"}]}]}"#,
             ],
             queued: ["transcript.previews": [
                 #"{"type":"transcript.previews.result","previews":[]}"#,
