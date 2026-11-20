@@ -219,12 +219,14 @@ struct HostsModelTests {
         let created = #"{"id":"purrdr:workspace.create","result":{"type":"workspace_created","workspace":{"workspace_id":"w4","number":4,"label":"ledger","focused":false,"pane_count":1,"tab_count":1,"active_tab_id":"w4:t1","agent_status":"unknown"},"root_pane":{"pane_id":"w4:p1","terminal_id":"t","workspace_id":"w4","tab_id":"w4:t1","focused":false,"agent_status":"unknown","revision":0}}}"#
         await real.expect(bridge, reply: FakeReply(stdout: Data(created.utf8) + [0x0A], trigger: .afterStdinLine))
         await real.expect(bridge, reply: FakeReply(stdout: Data(#"{"id":"purrdr:agent.start","result":{"type":"agent_started"}}"#.utf8) + [0x0A], trigger: .afterStdinLine))
+        await real.expect(bridge, reply: FakeReply(stdout: Data(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted","delivery":"submitted"}}"#.utf8) + [0x0A], trigger: .afterStdinLine))
         await real.expect(bridge, reply: .recorded("session.snapshot.ndjson"))
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(real).make)
         model.load()
 
         let newChat = model.newChat(on: model.selection)
         newChat.folder = "~/ledger"
+        newChat.message = "Fix the CSV quoting"
         let workspace = try #require(await newChat.start())
         await model.openStartedChat(workspace, on: model.selection)
 

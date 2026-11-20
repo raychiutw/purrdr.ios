@@ -78,8 +78,6 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                // 滑動提示每次啟動都顯示(只在記憶體)。
-                swipeHint: InMemorySwipeHintStore(),
                 listMode: Self.uiTestingListMode(arguments),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
                 makeChannel: { endpoint, _, _ in
@@ -103,7 +101,7 @@ struct PurrdrApp: App {
                     deviceName: UIDevice.current.model,
                     appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
                 hostServiceUpdates: HostServiceUpdates(store: UserDefaultsHostServiceUpdateStore()),
-                push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
+                push: push, tailscaleCheck: tailscaleCheck,
                 listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in
                 SSHHostChannel(
@@ -135,11 +133,12 @@ struct PurrdrApp: App {
         return .simulated(payload: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")
     }
 
-    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體，每次啟動都從 Spaces 開始(既有 UI 測試以 Spaces 為起點)。
+    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體，每次啟動都從 Agents 開始(同正式 app 沒存過時;
+    /// #275 起 Spaces 檢視是 Tab 列、沒有 Agent 列，測 Spaces 的測試自己切過去)。
     /// `-rememberListMode` 改存 UserDefaults(另一個 key,不碰正式的 `agentListMode`),測沒有記錄時的預設與「重新啟動後記住」(#66);
     /// `-resetListMode` 先清掉上次留下的值。
     private static func uiTestingListMode(_ arguments: [String]) -> any AgentListModeStore {
-        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore(.spaces) }
+        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore(.agents) }
         let key = "uiTesting.agentListMode"
         if arguments.contains("-resetListMode") { UserDefaults.standard.removeObject(forKey: key) }
         return UserDefaultsAgentListModeStore(key: key)

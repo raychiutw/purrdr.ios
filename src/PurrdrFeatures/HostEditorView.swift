@@ -18,10 +18,12 @@ struct HostEditorView: View {
     let onCancel: () -> Void
     /// 只改了圖示就儲存：主機設定沒變，不必重新連線。
     let onIconSaved: () -> Void
+    /// 已存主機的主機設定(#274):主機主題、You should know、Codex 啟動器，放在主機頁最下方;新增主機時沒有。
+    let hostSettings: HostSettings?
 
     init(
-        model: HostEditorModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
-        onIconSaved: @escaping () -> Void
+        model: HostEditorModel, hostSettings: HostSettings? = nil, onSaved: @escaping (HostConfiguration) -> Void,
+        onCancel: @escaping () -> Void, onIconSaved: @escaping () -> Void
     ) {
         _model = State(initialValue: model)
         // 有自訂 herdr 設定的主機一打開就看得到。
@@ -29,6 +31,7 @@ struct HostEditorView: View {
         self.onSaved = onSaved
         self.onCancel = onCancel
         self.onIconSaved = onIconSaved
+        self.hostSettings = hostSettings
     }
 
     var body: some View {
@@ -82,6 +85,12 @@ struct HostEditorView: View {
                     Text("To compare, run ssh-keygen -lf on a host key file on that computer.")
                         .foregroundStyle(.secondaryText)
                 }
+            }
+
+            if let hostSettings {
+                HostThemeSettingsSection(model: hostSettings.hostTheme)
+                YouShouldKnowSettingsSection(model: hostSettings.youShouldKnow)
+                CodexLauncherSection(model: hostSettings.codexLauncher)
             }
         }
         .sheet(isPresented: $scanning) {

@@ -11,47 +11,23 @@ final class UnreadPinnedUITests: XCTestCase {
         app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
     }
 
-    /// 滑動提示在列表底部，第一次用了滑動面板的動作後消失(列出現在畫面上不算)。
+    /// 釘選後列移到 Agents 檢視最上方(在「需要你」之前),列念出「已釘選」(#244 單一清單)。
     @MainActor
-    func testSwipeHintDisappearsAfterFirstSwipe() {
+    func testPinnedRowMovesToTop() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(app.reveal(ledger))
-        // 提示在列表最底下(Claude 用量之後);列表是 lazy,捲到底才在 accessibility tree 裡。
-        let hint = app.descendants(matching: .any)["agentList.swipeHint"].firstMatch
-        app.collectionViews.firstMatch.swipeUp()
-        XCTAssertTrue(hint.waitForExistence(timeout: 5), "列表底部沒有滑動提示")
-        app.collectionViews.firstMatch.swipeDown()
-        app.reveal(ledger)
-
-        ledger.swipeRight()
-        let pin = app.buttons["Pin"].firstMatch
-        XCTAssertTrue(pin.waitForExistence(timeout: 5))
-        pin.tap()
-        app.collectionViews.firstMatch.swipeUp()
-
-        XCTAssertTrue(hint.waitForNonExistence(timeout: 5), "用過滑動動作後提示仍在")
-    }
-
-    /// 釘選後列移到最上方的「已釘選」組(在主機組之前),組標題帶數量，列念出「已釘選」。
-    @MainActor
-    func testPinnedRowMovesToPinnedSection() {
-        let app = XCUIApplication.launchUITesting()
-        let ledger = row("w1:p1", in: app)
-        let host = app.descendants(matching: .any)["spaces.host.demo"].firstMatch
-        XCTAssertTrue(host.waitForExistence(timeout: 10))
+        let needsYou = row("w2:p1", in: app)
+        XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
         XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeRight()
         app.buttons["Pin"].firstMatch.tap()
-        // 「已釘選」在最上方;捲回頂端。
+        // 已釘選在最上方;捲回頂端。
         app.collectionViews.firstMatch.swipeDown()
 
-        let pinned = app.descendants(matching: .any)["agentList.section.pinned"].firstMatch
-        XCTAssertTrue(pinned.waitForExistence(timeout: 5), "沒有「已釘選」組")
-        XCTAssertTrue(pinned.label.contains("Pinned") && pinned.label.contains("1"), "組標題:\(pinned.label)")
-        XCTAssertLessThan(pinned.frame.minY, host.frame.minY, "「已釘選」不在最上方")
-        XCTAssertTrue(row("w1:p1", in: app).label.contains("Pinned"), "列沒有念出已釘選:\(row("w1:p1", in: app).label)")
+        XCTAssertTrue(ledger.waitForExistence(timeout: 5))
+        XCTAssertLessThan(ledger.frame.minY, needsYou.frame.minY, "已釘選的列不在最上方")
+        XCTAssertTrue(ledger.label.contains("Pinned"), "列沒有念出已釘選:\(ledger.label)")
     }
 
     /// 有新回覆的聊天未讀;打開讀過、回到列表後變已讀。主機 sheet 的「完成」旁顯示需處理的 workspace 數。

@@ -32,6 +32,29 @@ struct FolderBrowserModelTests {
         return []
     }
 
+    @Test("路徑麵包屑(#273,原型):家目錄底下以「~」開頭，每段可點回那一層;家目錄外從根目錄開始")
+    func breadcrumbs() async throws {
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        await host.expect(HostFolderCommand.list("/Users/demo/ledger"), reply: FakeReply(stdout: Data(Self.ledger.utf8)))
+        await host.expect(HostFolderCommand.list("/Users/demo"), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        await host.expect(HostFolderCommand.list("/Users"), reply: FakeReply(stdout: Data("/Users\ntotal 0\n".utf8)))
+        let model = Self.model(host)
+
+        await model.load()
+        #expect(model.breadcrumbs.map(\.title) == ["~"])
+        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
+        #expect(model.breadcrumbs.map(\.title) == ["~", "ledger"])
+        #expect(model.breadcrumbs.map(\.path) == ["/Users/demo", "/Users/demo/ledger"])
+
+        await model.go(to: try #require(model.breadcrumbs.first))
+        #expect(model.path == "/Users/demo")
+        await model.goUp()
+        #expect(model.breadcrumbs.map(\.title) == ["/", "Users"])
+        #expect(model.breadcrumbs.map(\.path) == ["/", "/Users"])
+        #expect(await host.unmetExpectations.isEmpty)
+    }
+
     @Test("先列家目錄：標題是資料夾最後一段，副標是主機")
     func listsHome() async throws {
         let host = FakeHost()

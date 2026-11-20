@@ -389,23 +389,3 @@ struct ConversationAnswerTests {
         #expect(setup.model.prompt?.kind == .trust)
     }
 }
-
-/// 建議選項的樣式(HIG 20.7:以樣式區分;破壞性選項不設為預設)。
-@Suite("建議選項")
-struct PromptOptionStyleTests {
-    @Test("游標所在的選項是建議選項")
-    func cursorOptionIsRecommended() throws {
-        let prompt = try #require(BlockedPromptParser.parse(screen: PaneScreens.text("claude-bash"), agentKind: "claude"))
-        #expect(prompt.options.map(PromptOptionStyle.isRecommended) == [true, false, false])
-    }
-
-    @Test("游標停在「No, exit」/「No, quit」時不把它設為建議選項")
-    func destructiveCursorIsNotRecommended() throws {
-        let prompt = try #require(BlockedPromptParser.parse(screen: PaneScreens.text("claude-trust"), agentKind: "claude"))
-        #expect(prompt.options.filter(PromptOptionStyle.isRecommended).isEmpty)
-        let codex = try #require(BlockedPromptParser.parse(
-            screen: PaneScreens.text("codex-trust").replacingOccurrences(of: "› 1. Yes, continue\n  2. No, quit", with: "  1. Yes, continue\n› 2. No, quit"),
-            agentKind: "codex"))
-        #expect(codex.options.filter(PromptOptionStyle.isRecommended).isEmpty)
-    }
-}

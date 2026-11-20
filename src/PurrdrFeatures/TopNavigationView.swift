@@ -29,6 +29,7 @@ public struct TopNavigationView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 從「⋯」選單推進來的主機工具(登入 Shell、檔案瀏覽、方案用量)。
     @State private var hostTool: HostTool?
 
@@ -63,8 +64,7 @@ public struct TopNavigationView: View {
                     HostListView(model: hosts, importURL: $navigation.pendingHostImport)
                 case .settings:
                     SettingsView(
-                        model: settings, hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
-                        codexLauncher: hosts.codexLauncher,
+                        model: settings,
                         attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }
                     ) {
                         navigation.sheet = nil
@@ -91,9 +91,11 @@ public struct TopNavigationView: View {
                 case .newChat:
                     NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker()) {
                         navigation.sheet = nil
-                    } onStarted: { workspace, host in
+                    } onStarted: { workspace, host, unsentMessage in
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
                         navigation.sheet = nil
+                        // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
+                        if let unsentMessage { hosts.keepDraft(unsentMessage, for: ChatRoute(host: host, paneID: workspace.rootPaneID)) }
                         Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
@@ -219,6 +221,13 @@ public struct TopNavigationView: View {
         ToolbarItem(placement: .primaryAction) {
             // 以 Divider 分組;不包 Section:包了之後 XCUITest 找不到選單項目的 identifier。
             Menu {
+                // AX 字級時帳號併進這個選單(#268):工具列只剩主機篩選與「⋯」,不會被系統收進溢出選單，
+                // 選單項目維持一層(否則溢出選單裡「⋯」變成「更多 ›」第二層)。
+                if dynamicTypeSize.isAccessibilitySize {
+                    Button("Account", systemImage: "person.crop.circle") { navigation.sheet = .member }
+                        .accessibilityIdentifier("menu.account")
+                    Divider()
+                }
                 let groups = MoreMenuItem.groups(supportsShell: hosts.anyHostSupportsShell)
                 ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
                     if index > 0 { Divider() }
@@ -232,13 +241,15 @@ public struct TopNavigationView: View {
             }
             .accessibilityIdentifier("toolbar.more")
         }
-        // 帳號鈕(#246):最右上角(HIG),「⋯」在它左邊;開帳號頁。
-        ToolbarSpacer(.fixed, placement: .primaryAction)
-        ToolbarItem(placement: .primaryAction) {
-            AccountButton(member: member) { navigation.sheet = .member }
+        // 帳號鈕(#246):最右上角(HIG),「⋯」在它左邊;開帳號頁。AX 字級時改在「⋯」選單裡(見上)。
+        if !dynamicTypeSize.isAccessibilitySize {
+            ToolbarSpacer(.fixed, placement: .primaryAction)
+            ToolbarItem(placement: .primaryAction) {
+                AccountButton(member: member) { navigation.sheet = .member }
+            }
+            // 頭像本身就是圓形，不再包一層玻璃。
+            .sharedBackgroundVisibility(.hidden)
         }
-        // 頭像本身就是圓形，不再包一層玻璃。
-        .sharedBackgroundVisibility(.hidden)
     }
 
     /// 「⋯」選單的一項。登入 Shell 與檔案預設上次選的主機，畫面上可換(#245;iPad 上也是推疊)。
@@ -324,11 +335,11 @@ private struct NewChatSheet: View {
     let hosts: HostsModel
     @State private var picker: HostPickerModel
     let onCancel: () -> Void
-    let onStarted: (CreatedWorkspace, HostSelection) -> Void
+    let onStarted: (CreatedWorkspace, HostSelection, String?) -> Void
 
     init(
         hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, onCancel: @escaping () -> Void,
-        onStarted: @escaping (CreatedWorkspace, HostSelection) -> Void
+        onStarted: @escaping (CreatedWorkspace, HostSelection, String?) -> Void
     ) {
         self.hosts = hosts
         _picker = State(wrappedValue: picker())
@@ -338,7 +349,7 @@ private struct NewChatSheet: View {
 
     var body: some View {
         let host = picker.selection
-        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host) }
+        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
             .id(host)
     }
 }
@@ -348,11 +359,11 @@ private struct NewChatForm: View {
     @State private var model: NewChatModel
     let picker: HostPickerModel
     let onCancel: () -> Void
-    let onStarted: (CreatedWorkspace) -> Void
+    let onStarted: (CreatedWorkspace, String?) -> Void
 
     init(
         model: @autoclosure () -> NewChatModel, picker: HostPickerModel, onCancel: @escaping () -> Void,
-        onStarted: @escaping (CreatedWorkspace) -> Void
+        onStarted: @escaping (CreatedWorkspace, String?) -> Void
     ) {
         _model = State(wrappedValue: model())
         self.picker = picker
