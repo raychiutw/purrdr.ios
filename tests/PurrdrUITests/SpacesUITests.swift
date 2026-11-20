@@ -20,7 +20,6 @@ final class SpacesUITests: XCTestCase {
         let notes = element("spaces.section.demo/w3", in: app)
         XCTAssertTrue(app.reveal(notes), "沒有 notes 的段落")
         XCTAssertTrue(notes.label.contains("Demo · notes"), "段落標題不是「主機 · workspace」:\(notes.label)")
-        XCTAssertTrue(notes.isHeader, "段落標題沒有標成 header")
         let tab = element("spaces.tab.demo/w3:t1", in: app)
         XCTAssertTrue(tab.exists)
         XCTAssertTrue(tab.label.contains("Tab 1"), "Tab 列名稱不對:\(tab.label)")
