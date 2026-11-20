@@ -17,6 +17,8 @@ public final class WorkflowModel {
     public private(set) var isTracking = true
     /// 因為 30 分鐘沒變化而停止追蹤(畫面標示「不再追蹤 · 重新載入可再檢查」)。
     public private(set) var stoppedTracking = false
+    /// 讀不了(HTTPS 主機的主機服務太舊)時的說明;有值時不再追蹤。
+    public private(set) var unavailableReason: String?
     public private(set) var card: WorkflowCard
     package private(set) var checksum: String?
 
@@ -76,6 +78,10 @@ public final class WorkflowModel {
                 checksum = newChecksum
                 lastChange = now
             }
+        } catch HostServiceError.hostServiceUpdateRequired(let feature, let installedVersion) {
+            unavailableReason = HostErrorText.hostServiceMessage(.hostServiceUpdateRequired(feature, installedVersion: installedVersion))
+            isTracking = false
+            return
         } catch {
             // 還沒有檔案或讀取失敗：下次再試。
         }

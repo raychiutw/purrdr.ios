@@ -25,8 +25,14 @@ extension HTTPSHostConnection {
             return try await withDeadline(HostCommandDeadline.standard) {
                 try await self.tail(path: path, from: cursor, limit: limit)
             }
-        case .previews, .findSubagent, .readWorkflow, .delegationLines:
-            throw HostServiceError.unsupported("transcript")
+        case .previews(let marker, let requests):
+            return try await previews(marker: marker, requests: requests)
+        case .findSubagent(let sessionFolder, let callID):
+            return try await findSubagent(sessionFolder: sessionFolder, callID: callID)
+        case .readWorkflow(let sessionFolder, let runID, let knownChecksum):
+            return try await readWorkflow(sessionFolder: sessionFolder, runID: runID, knownChecksum: knownChecksum)
+        case .delegationLines(let path, let callID, let agentID, let knownChecksum):
+            return try await delegationLines(path: path, callID: callID, agentID: agentID, knownChecksum: knownChecksum)
         }
     }
 
@@ -40,9 +46,14 @@ extension HTTPSHostConnection {
 
     /// 「路徑、大小、header 各一行」。
     private func locate(_ session: HostServiceProtocol.SessionReference, header: Bool) async throws -> Data {
+        let result = try await locateResult(session, header: header)
+        return Data(([result.path, String(result.size)] + (result.header ?? [])).map { $0 + "\n" }.joined().utf8)
+    }
+
+    func locateResult(_ session: HostServiceProtocol.SessionReference, header: Bool) async throws -> HostServiceProtocol.TranscriptLocateResult {
         let reply = try await send { .transcriptLocate(.init(requestId: $0, session: session, header: header)) }
         guard case .transcriptLocateResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
-        return Data(([result.path, String(result.size)] + (result.header ?? [])).map { $0 + "\n" }.joined().utf8)
+        return result
     }
 
     /// 「起點 終點」一行，再接範圍內的行。

@@ -58,6 +58,8 @@ final class FakeHostService: Sendable {
         var pings = 0
         /// 送給 app 的 WebSocket 文字訊息(回應與推送)。
         var sent: [String] = []
+        /// 收滿而存成正式檔的上傳內容。
+        var storedUploads: [Data] = []
     }
 
     struct Settings: Sendable {
@@ -76,20 +78,49 @@ final class FakeHostService: Sendable {
         var pairedToken = "token-paired"
         /// 對話紀錄訊息(`transcript.*`)的回應：訊息種類 → JSON 物件(不含 `request_id`;請求帶 `stream_id` 時換上請求的)。
         var transcriptReplies: [String: String] = [:]
+        /// 依序先回的對話紀錄回應(用完改回 `transcriptReplies`):訊息種類 → JSON 物件(不含 `request_id`)。
+        var queuedTranscriptReplies: [String: [String]] = [:]
         /// 主機取檔訊息(`file.stat`／`file.read`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
         var fileReplies: [String: [String]] = [:]
+        /// 已配對裝置訊息(`devices.list`／`devices.revoke`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
+        var deviceReplies: [String: [String]] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
         var promptHerdrError: String?
         /// `welcome` 回報的主機服務版本;`nil` 是範例的值。
         var hostServiceVersion: String?
+        /// `workspace.create` 以 `invalid_message` 拒絕的資料夾(主機上不存在)。
+        var missingFolders: Set<String> = []
+        /// 結構操作(`workspace.*`、`worktree.create`、`agent.start`)以 `herdr_error` 失敗：訊息種類 → herdr 錯誤碼。
+        var structureHerdrErrors: [String: String] = [:]
+        /// `host_service.status` 回的範例檔(#290)。
+        var hostServiceStatusExample = "server.host-service-status-result.json"
+        /// 有值時 `host_service.status` 改回這個 JSON 物件(不含 `request_id`)。
+        var hostServiceStatusReply: String?
+        /// `host_service.update` 回的範例檔。
+        var hostServiceUpdateExample = "server.host-service-update-result.json"
+        /// 有值時 `host_service.update` 改回這個 JSON 物件(不含 `request_id`)。
+        var hostServiceUpdateReply: String?
+        /// 有值時 `host_service.*` 以這個錯誤碼失敗。
+        var hostServiceErrorCode: String?
         /// 有值時 `push.install` 安裝外掛失敗(`push_plugin_failed`,帶這個訊息);配對回到安裝前。
         var pushInstallFailure: String?
         /// 有值時 `push.status` 以 `push_plugin_failed` 失敗(herdr plugin list 失敗)。
         var pushStatusFailure: String?
         /// 有值時 `push.remove` 移除外掛失敗(`push_plugin_failed`);配對已移除。
         var pushRemoveFailure: String?
+        /// 上傳收滿時回報的路徑;`nil` 時是 `/Users/demo/.purrdr/uploads/<主機產生的名稱>[.<副檔名>]`。
+        var uploadedPath: String?
+        /// 有值時 `file.upload.start` 以這個錯誤碼失敗。
+        var uploadStartError: String?
+    }
+
+    /// 進行中的上傳(仿照主機服務的 `PendingUpload`)。
+    private struct PendingUpload {
+        var size: Int
+        var fileExtension: String?
+        var received = Data()
     }
 
     /// 主機上的推播外掛與配對(`push.*`,規則同主機服務：最後一支裝置移除時才移除 Purrdr 裝的外掛)。
@@ -130,6 +161,8 @@ final class FakeHostService: Sendable {
     private let state: Mutex<(log: Log, settings: Settings, sockets: [any Channel], streams: [EventStream])>
     /// 等 app 關閉才送出的 `terminal.closed`(以串流識別碼為 key)。
     private let pendingTerminalClosings = Mutex<[String: String]>([:])
+    /// 進行中的上傳(以 upload_id 為 key)。
+    private let pendingUploads = Mutex<[String: PendingUpload]>([:])
 
     /// 開著的事件串流。
     private struct EventStream {
@@ -194,6 +227,8 @@ final class FakeHostService: Sendable {
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
                 let upgrader = NIOWebSocketServerUpgrader(
+                    // 上傳的一塊(1 MiB)base64 後超過預設的 16 KiB。
+                    maxFrameSize: 4 * 1024 * 1024, automaticErrorHandling: true,
                     shouldUpgrade: { channel, head in
                         guard head.uri == "/v1/ws" else { return channel.eventLoop.makeSucceededFuture(nil) }
                         // 升級前先移除 HTTP handler,升級後的 WebSocket 位元組才不會流到它。
@@ -202,6 +237,9 @@ final class FakeHostService: Sendable {
                     upgradePipelineHandler: { channel, head in
                         let authorization = head.headers.first(name: "Authorization")
                         return channel.eventLoop.makeCompletedFuture {
+                            // 分段送來的大訊息(上傳的分塊)併成一個 frame 再處理。
+                            try channel.pipeline.syncOperations.addHandler(NIOWebSocketFrameAggregator(
+                                minNonFinalFragmentSize: 0, maxAccumulatedFrameCount: 1024, maxAccumulatedFrameSize: 4 * 1024 * 1024))
                             try channel.pipeline.syncOperations.addHandler(
                                 WebSocketHandler(server: box.server!, authorization: authorization))
                         }
@@ -328,7 +366,12 @@ final class FakeHostService: Sendable {
             state.withLock { $0.streams.removeAll { $0.socket === socket && $0.streamID == streamID } }
             return [.text(Self.json(["type": "events.unsubscribe.result", "request_id": requestID as Any]))]
         case let transcript where transcript.hasPrefix("transcript."):
-            guard let reply = settings.transcriptReplies[transcript],
+            let queued = state.withLock { state -> String? in
+                guard let queue = state.settings.queuedTranscriptReplies[transcript], let first = queue.first else { return nil }
+                state.settings.queuedTranscriptReplies[transcript] = Array(queue.dropFirst())
+                return first
+            }
+            guard let reply = queued ?? settings.transcriptReplies[transcript],
                   var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
                 return [.text(Self.error(requestID, "invalid_message"))]
             }
@@ -347,6 +390,17 @@ final class FakeHostService: Sendable {
             }
             object["request_id"] = requestID
             return [.text(Self.json(object))]
+        case "devices.list", "devices.revoke":
+            let reply = state.withLock { state -> String? in
+                guard let queue = state.settings.deviceReplies[type], let first = queue.first else { return nil }
+                if queue.count > 1 { state.settings.deviceReplies[type] = Array(queue.dropFirst()) }
+                return first
+            }
+            guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
+            return [.text(Self.json(object))]
         case "pane.send_keys", "pane.send_text", "agent.prompt":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
@@ -357,8 +411,26 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
+        case "workspace.create", "workspace.rename", "workspace.close", "worktree.create", "agent.start":
+            if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+                return [.text(Self.error(requestID, "read_only_device"))]
+            }
+            if type == "workspace.create", let cwd = message["cwd"] as? String, settings.missingFolders.contains(cwd) || !cwd.hasPrefix("/") {
+                return [.text(Self.error(requestID, "invalid_message", message: "cwd must be an absolute path to an existing folder on this host"))]
+            }
+            if let herdrCode = settings.structureHerdrErrors[type] {
+                return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
+            }
+            return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
+        case "host_service.status", "host_service.update", "host_service.set_auto_update":
+            return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
         case "push.status", "push.install", "push.remove", "push.update_muted":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
+        case "file.upload.start", "file.upload.chunk":
+            if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+                return [.text(Self.error(requestID, "read_only_device"))]
+            }
+            return [.text(upload(type, message, requestID: requestID ?? "", settings: settings))]
         case "pane.terminal.open":
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) == true
             return openTerminal(streamID: requestID ?? "", readOnly: readOnly, reply: settings.paneTerminalReply)
@@ -374,6 +446,35 @@ final class FakeHostService: Sendable {
         default:
             return [.text(Self.error(requestID, "invalid_message"))]
         }
+    }
+
+    /// 管理主機服務(#290):寫入類(`update`、`set_auto_update`)唯讀裝置被拒。
+    private func hostServiceReply(
+        _ type: String, message: [String: Any], requestID: String?, authorization: String?, settings: Settings
+    ) -> String {
+        if type != "host_service.status", let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+            return Self.error(requestID, "read_only_device")
+        }
+        if let code = settings.hostServiceErrorCode { return Self.error(requestID, code) }
+        switch type {
+        case "host_service.status":
+            return Self.reply(settings.hostServiceStatusReply, requestID: requestID)
+                ?? Self.example(settings.hostServiceStatusExample, requestID: requestID)
+        case "host_service.update":
+            return Self.reply(settings.hostServiceUpdateReply, requestID: requestID)
+                ?? Self.example(settings.hostServiceUpdateExample, requestID: requestID)
+        default:
+            return Self.json([
+                "type": "host_service.set_auto_update.result", "request_id": requestID as Any, "auto_update": message["enabled"] as? Bool ?? false,
+            ])
+        }
+    }
+
+    /// 換上請求識別碼的 JSON 物件;`nil` 或讀不懂時 `nil`。
+    private static func reply(_ object: String?, requestID: String?) -> String? {
+        guard let object, var parsed = try? JSONSerialization.jsonObject(with: Data(object.utf8)) as? [String: Any] else { return nil }
+        parsed["request_id"] = requestID
+        return json(parsed)
     }
 
     private func respondToPush(
@@ -415,6 +516,42 @@ final class FakeHostService: Sendable {
             return host.result(type + ".result", requestID: requestID, deviceID: deviceID)
         }
         return [.text(Self.json(reply))]
+    }
+
+    /// 分塊上傳：大小、分塊上限與 offset 的檢查照主機服務的 `uploads.rs`;失敗後這次上傳作廢。
+    private func upload(_ type: String, _ message: [String: Any], requestID: String, settings: Settings) -> String {
+        if type == "file.upload.start" {
+            let size = message["size"] as? Int ?? -1
+            guard size <= HostServiceProtocol.maximumFileSize else {
+                return Self.error(requestID, "upload_too_large", message: "upload is larger than \(HostServiceProtocol.maximumFileSize) bytes")
+            }
+            guard size >= 0 else { return Self.error(requestID, "invalid_message") }
+            if let code = settings.uploadStartError { return Self.error(requestID, code) }
+            pendingUploads.withLock { $0[requestID] = PendingUpload(size: size, fileExtension: message["extension"] as? String) }
+            return Self.json(["type": "file.upload.start.result", "request_id": requestID, "upload_id": requestID])
+        }
+        let uploadID = message["upload_id"] as? String ?? ""
+        guard var pending = pendingUploads.withLock({ $0.removeValue(forKey: uploadID) }),
+              let bytes = (message["bytes"] as? String).flatMap({ Data(base64Encoded: $0) }) else {
+            return Self.error(requestID, "invalid_message")
+        }
+        guard bytes.count <= HostServiceProtocol.maximumFileChunk else { return Self.error(requestID, "upload_too_large") }
+        guard message["offset"] as? Int == pending.received.count, pending.received.count + bytes.count <= pending.size else {
+            return Self.error(requestID, "invalid_message")
+        }
+        pending.received.append(bytes)
+        var result: [String: Any] = [
+            "type": "file.upload.chunk.result", "request_id": requestID, "upload_id": uploadID, "received": pending.received.count,
+        ]
+        if pending.received.count < pending.size {
+            pendingUploads.withLock { $0[uploadID] = pending }
+        } else {
+            let stored = pending.received
+            state.withLock { $0.log.storedUploads.append(stored) }
+            let name = "mh1a2b3c-k9x2m4p7" + (pending.fileExtension.map { ".\($0.lowercased())" } ?? "")
+            result["path"] = settings.uploadedPath ?? "/Users/demo/.purrdr/uploads/\(name)"
+        }
+        return Self.json(result)
     }
 
     /// 主機服務對錄製的 herdr stdout 做的轉接:frame 欄位原樣、加上串流識別碼。

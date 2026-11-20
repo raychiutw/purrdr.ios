@@ -88,18 +88,30 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
     }
 
-    /// 設定頁只有外觀、鍵盤與觸覺、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
+    /// 設定頁只有外觀、鍵盤與觸覺、App 鎖(#284)、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
     @MainActor
-    func testSettingsHasOnlyFourSections() {
+    func testSettingsHasOnlyAppWideSections() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
         XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
-        for header in ["Appearance", "Keyboard and Haptics", "Support", "About"] {
+        for header in ["Appearance", "Keyboard and Haptics", "App Lock", "Support", "About"] {
             let text = app.staticTexts[header].firstMatch
             scrollTo(text, in: app)
             XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
         }
+    }
+
+    /// 設定頁只有原型有的段落說明(外觀下的「自動」)與支援段的隱私揭露(#276 的例外)。
+    @MainActor
+    func testSettingsShowsPrototypeFooterAndPrivacyDisclosure() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+        XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitForExistence(timeout: 5))
+        let privacy = element("settings.privacy", in: app)
+        scrollTo(privacy, in: app)
+        let paragraph = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Diagnostics include")).firstMatch
+        XCTAssertTrue(paragraph.exists, "支援段要保留診斷資訊的隱私揭露")
     }
 
     /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。

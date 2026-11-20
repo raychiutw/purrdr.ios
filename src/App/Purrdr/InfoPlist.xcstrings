@@ -18,6 +18,24 @@
           }
         }
       }
+    },
+    "NSFaceIDUsageDescription" : {
+      "comment" : "Face ID 權限說明:App 鎖(#284)。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr uses Face ID to unlock the app when App Lock is on."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 App 鎖時，Purrdr 會用 Face ID 解鎖 app。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

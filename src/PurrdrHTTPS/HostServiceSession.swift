@@ -393,8 +393,27 @@ extension HostServiceProtocol.ServerMessage {
         case .paneTerminalClosed(let message): message.streamId
         case .welcome, .agentsListResult, .paneSendKeysResult, .transcriptLocateResult, .transcriptWindowResult, .transcriptFollowResult,
              .transcriptUnfollowResult, .paneSendTextResult, .agentPromptResult, .eventsSubscribeResult, .eventsUnsubscribeResult,
-             .paneTerminalOpenResult, .fileStatResult, .fileReadResult, .pushStatusResult, .pushInstallResult, .pushRemoveResult,
-             .pushUpdateMutedResult, .errorMessage: nil
+             .paneTerminalOpenResult, .fileStatResult, .fileReadResult, .errorMessage,
+             .transcriptPreviewsResult,
+             .transcriptSubagentResult,
+             .transcriptWorkflowResult,
+             .transcriptDelegationResult,
+             .pushStatusResult,
+             .pushInstallResult,
+             .pushRemoveResult,
+             .pushUpdateMutedResult,
+             .workspaceCreateResult,
+             .workspaceRenameResult,
+             .workspaceCloseResult,
+             .worktreeCreateResult,
+             .agentStartResult,
+             .fileUploadStartResult,
+             .fileUploadChunkResult,
+             .devicesListResult,
+             .devicesRevokeResult,
+             .hostServiceStatusResult,
+             .hostServiceUpdateResult,
+             .hostServiceSetAutoUpdateResult: nil
         }
     }
 
@@ -428,6 +447,22 @@ extension HostServiceProtocol.ServerMessage {
         case .pushRemoveResult(let message): message.requestId
         case .pushUpdateMutedResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
+        case .transcriptPreviewsResult(let message): message.requestId
+        case .transcriptSubagentResult(let message): message.requestId
+        case .transcriptWorkflowResult(let message): message.requestId
+        case .transcriptDelegationResult(let message): message.requestId
+        case .workspaceCreateResult(let message): message.requestId
+        case .workspaceRenameResult(let message): message.requestId
+        case .workspaceCloseResult(let message): message.requestId
+        case .worktreeCreateResult(let message): message.requestId
+        case .agentStartResult(let message): message.requestId
+        case .fileUploadStartResult(let message): message.requestId
+        case .fileUploadChunkResult(let message): message.requestId
+        case .devicesListResult(let message): message.requestId
+        case .devicesRevokeResult(let message): message.requestId
+        case .hostServiceStatusResult(let message): message.requestId
+        case .hostServiceUpdateResult(let message): message.requestId
+        case .hostServiceSetAutoUpdateResult(let message): message.requestId
         case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed: nil
         }
     }

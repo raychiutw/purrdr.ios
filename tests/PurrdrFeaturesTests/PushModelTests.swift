@@ -678,6 +678,114 @@ struct PushModelTests {
         #expect(platform.tokenRequests == 0)
         #expect(platform.authorizationRequests == 0)
     }
+
+    // MARK: - 推播種類(#292)
+
+    /// 以 `FakePushPluginHost` 開啟一台主機的通知。
+    func turnedOnWithPluginHost() async -> PushModel {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
+        let model = model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        await turnOn(model)
+        return model
+    }
+
+    @Test("新開啟的主機收「需要你」與「完成」,註冊時帶 kinds")
+    func turningOnRegistersDefaultKinds() async throws {
+        let model = await turnedOnWithPluginHost()
+
+        #expect(model.state == .on)
+        #expect(model.kinds == [.blocked, .done])
+        let request = try #require(backend.requests(to: "/v1/members/me/push-pairings").first)
+        #expect(request.json?["kinds"] as? [String] == ["blocked", "done"])
+    }
+
+    @Test("關掉「完成」:以同一組配對重送註冊，只帶 blocked;重開 app 仍記得")
+    func changingKindsReRegisters() async throws {
+        let model = await turnedOnWithPluginHost()
+        let keyHash = try #require(store.keyHash(forHost: "studio"))
+
+        await model.setKind(.done, isOn: false)
+
+        #expect(model.kinds == [.blocked])
+        #expect(model.problem == nil)
+        let requests = backend.requests(to: "/v1/members/me/push-pairings")
+        #expect(requests.count == 2)
+        #expect(requests.last?.json?["keyHash"] as? String == keyHash)
+        #expect(requests.last?.json?["kinds"] as? [String] == ["blocked"])
+        let reopened = self.model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        #expect(reopened.kinds == [.blocked])
+    }
+
+    @Test("改種類失敗：維持原本的種類並說明")
+    func failedKindsChangeKeepsPrevious() async throws {
+        platform.status = .authorized
+        backend.on(
+            "POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#),
+            .json(500, #"{"error":{"code":"internal","message":"boom"}}"#))
+        let model = model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        await turnOn(model)
+
+        await model.setKind(.done, isOn: false)
+
+        #expect(model.kinds == [.blocked, .done])
+        guard case .kindsUpdateFailed = model.problem else {
+            Issue.record("沒有說明改種類失敗:\(String(describing: model.problem))")
+            return
+        }
+        #expect(model.state == .on)
+    }
+
+    @Test("不能把最後一個種類也關掉(要不收通知就關閉那台主機)")
+    func lastKindCannotBeTurnedOff() async throws {
+        let model = await turnedOnWithPluginHost()
+        await model.setKind(.done, isOn: false)
+
+        await model.setKind(.blocked, isOn: false)
+
+        #expect(model.kinds == [.blocked])
+        #expect(backend.requests(to: "/v1/members/me/push-pairings").count == 2)
+    }
+
+    @Test("舊版 app 開的配對沒記種類：視為只收「需要你」,補註冊不帶 kinds(後台保留原偏好)")
+    func legacyPairingKeepsBackendKinds() async throws {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setRegisteredToken("old", forKeyHash: Self.studioHash)
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+
+        let model = model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        await service().refreshRegistrations()
+
+        #expect(model.kinds == [.blocked])
+        let request = try #require(backend.requests(to: "/v1/members/me/push-pairings").first)
+        #expect(request.json?["kinds"] == nil)
+    }
+
+    @Test("token 換了補註冊時帶這組配對記得的種類")
+    func tokenRotationCarriesStoredKinds() async throws {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setRegisteredToken("old", forKeyHash: Self.studioHash)
+        store.setKinds([.blocked, .done], forKeyHash: Self.studioHash)
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+
+        await service().refreshRegistrations()
+
+        let request = try #require(backend.requests(to: "/v1/members/me/push-pairings").first)
+        #expect(request.json?["kinds"] as? [String] == ["blocked", "done"])
+    }
+
+    @Test("關閉通知時一併忘記那組配對的種類")
+    func turningOffForgetsKinds() async throws {
+        let model = await turnedOnWithPluginHost()
+        let keyHash = try #require(store.keyHash(forHost: "studio"))
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(keyHash)", .empty(204))
+
+        await model.turnOff()
+
+        #expect(store.kinds(forKeyHash: keyHash) == nil)
+    }
 }
 
 /// 點通知：依 payload 的 `pairing`(配對密鑰雜湊)找到主機，切換過去並開該 Agent 的聊天。
@@ -719,6 +827,78 @@ struct PushRouteTests {
         #expect(router.pending == nil)
         router.receive(route, requestID: "n2")
         #expect(router.pending == route)
+    }
+
+    @Test("點「完成」通知：payload 根層的 pairing 與 pane 一樣導到那個聊天")
+    func doneNotificationRoutesToChat() throws {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title": "api", "loc-key": "An agent finished."], "category": "AGENT_DONE"],
+            "pairing": "abc", "pane": "w2:p1", "status": "done",
+        ]
+
+        #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: "w2:p1"))
+    }
+
+    // MARK: - 主機服務通知(#293)
+
+    @Test("主機服務通知的 payload:根層 pairing 與 event,沒有 pane")
+    func parsesHostServiceEvent() {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title-loc-key": "Host service", "loc-key": "Host service updated to %@.", "loc-args": ["0.7.0"]],
+                    "category": "HOST_SERVICE_EVENT"],
+            "pairing": "abc", "event": "host_service_updated", "version": "0.7.0",
+        ]
+
+        #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: nil, event: "host_service_updated"))
+    }
+
+    @Test("點主機服務通知：回傳要開那台主機的編輯頁，不開聊天",
+          arguments: ["host_service_update_available", "host_service_updated", "host_service_update_rolled_back"])
+    func hostServiceEventOpensHostEditor(event: String) {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+        model.select(.demo)
+
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: nil, event: event), pairings: pairings)
+
+        #expect(destination == .hostEditor(HostsModelTests.studio.id))
+        #expect(model.agentList.openedChat == nil)
+        #expect(model.selection == .demo)
+    }
+
+    @Test("主機服務通知的配對已不認得(主機已移除):不開任何畫面")
+    func hostServiceEventForUnknownPairingOpensNothing() {
+        let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+
+        let destination = model.open(
+            PushRoute(keyHash: "nope", paneID: nil, event: "host_service_updated"), pairings: InMemoryPushPairingStore())
+
+        #expect(destination == nil)
+    }
+
+    @Test("Agent 通知仍回傳開了哪個聊天")
+    func agentNotificationReportsChat() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
+
+        #expect(destination == .chat(ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1")))
+    }
+
+    @Test("「主機服務」種類只給 HTTPS 主機選(SSH 主機沒有主機服務)")
+    func hostServiceKindOnlyForHTTPSHosts() {
+        #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
+        #expect(PushKind.choices(installsViaHostService: true) == [.blocked, .done, .hostService])
     }
 
     @Test("不認得的配對(主機已移除)不切換")

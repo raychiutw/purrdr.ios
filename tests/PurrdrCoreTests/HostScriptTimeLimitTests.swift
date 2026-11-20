@@ -9,7 +9,7 @@ import Testing
 struct HostScriptTimeLimitTests {
     @Test("一次性的 POSIX 主機指令都帶時限;長時間串流(bridge、Pane 終端機)不帶")
     func oneShotPosixCommandsCarryTimeLimit() throws {
-        let uploadName = try #require(UploadFileName("a-1.jpg"))
+        let uploadName = try #require(HostUploadName("a-1.jpg"))
         let oneShot = [
             TranscriptCommand.locate(sessionID: "s", projectFolder: "p"),
             TranscriptCommand.window(path: "/t.jsonl", end: 10, lines: 5),
@@ -18,7 +18,7 @@ struct HostScriptTimeLimitTests {
             HostFolderCommand.list(nil),
             HostFolderCommand.upload(folder: "/f", name: "n", size: 3),
             NewChatFolders.command(for: "~"),
-            ImageUploadCommand.posix(name: uploadName, size: 3),
+            HostUploadCommand.posix(name: uploadName, size: 3),
         ]
         for command in oneShot {
             #expect(command.contains(HostScriptTimeLimit.posixMarker), "\(command.prefix(120))")
@@ -74,11 +74,11 @@ struct HostScriptTimeLimitTests {
 
     @Test("Windows 的 stdin stub 與上傳腳本都帶時限且仍在 cmd 命令列上限內;herdr bridge 不帶(實跑見 scripts/windows-upload-repro.py --kind limit)")
     func windowsOneShotScriptsCarryTimeLimit() throws {
-        let uploadName = try #require(UploadFileName("a-1.jpg"))
+        let uploadName = try #require(HostUploadName("a-1.jpg"))
         let folder = "C:\\Users\\someone\\Documents\\" + String(repeating: "folder name ", count: 8)
         let commands = [
             try WindowsCommand.translate(TranscriptCommand.window(path: "C:/t.jsonl", end: 10, lines: 5)).command,
-            try WindowsCommand.translate(ImageUploadCommand.posix(name: uploadName, size: 25_000_000)).command,
+            try WindowsCommand.translate(HostUploadCommand.posix(name: uploadName, size: 25_000_000)).command,
             try WindowsCommand.translate(HostFolderCommand.upload(
                 folder: folder, name: "a long file name.bin", size: 25_000_000, encoding: .gzip, transferSize: 24_000_000)).command,
         ]

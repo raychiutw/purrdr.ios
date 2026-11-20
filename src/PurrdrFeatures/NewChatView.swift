@@ -46,7 +46,7 @@ public struct NewChatView: View {
                 }
 
                 Section {
-                    TextField("Folder", text: $model.folder, prompt: Text(verbatim: "~/projects/app"))
+                    TextField("Folder", text: $model.folder, prompt: Text(verbatim: model.canBrowseFolders ? "~/projects/app" : "/Users/you/projects/app"))
                         .font(.body.monospaced())
                         .autocorrectionDisabled()
                         #if os(iOS)
@@ -54,15 +54,23 @@ public struct NewChatView: View {
                         .keyboardType(.asciiCapable)
                         #endif
                         .accessibilityIdentifier("newChat.folder")
-                    NavigationLink {
-                        FolderPickerView(model: model.makeFolderPicker()) { model.choose($0) }
-                    } label: {
-                        Label("Choose Folder on Host", systemImage: "folder")
+                    if model.canBrowseFolders {
+                        NavigationLink {
+                            FolderPickerView(model: model.makeFolderPicker()) { model.choose($0) }
+                        } label: {
+                            Label("Choose Folder on Host", systemImage: "folder")
+                        }
+                        .accessibilityIdentifier("newChat.chooseFolder")
                     }
-                    .accessibilityIdentifier("newChat.chooseFolder")
                 } header: {
                     Text("Folder")
                         .foregroundStyle(.secondaryText)
+                } footer: {
+                    if !model.canBrowseFolders {
+                        // HTTPS 主機沒有資料夾瀏覽(#287)。
+                        Text("Enter the folder’s full path on the host.")
+                            .accessibilityIdentifier("newChat.fullPathHint")
+                    }
                 }
 
                 Section {
@@ -72,6 +80,14 @@ public struct NewChatView: View {
                 } header: {
                     Text("First Message")
                         .foregroundStyle(.secondaryText)
+                }
+
+                if let readOnlyReason = model.readOnlyReason {
+                    Section {
+                        Label(readOnlyReason, systemImage: "lock")
+                            .foregroundStyle(.secondaryText)
+                            .accessibilityIdentifier("newChat.readOnly")
+                    }
                 }
 
                 if let error = model.error {
@@ -107,6 +123,7 @@ public struct NewChatView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .interactiveDismissDisabled(model.isStarting)
+            .task(id: ObjectIdentifier(model)) { await model.loadAccess() }
             .toolbar {
                 if let hostPicker {
                     // 主機挑選鈕佔標題位置(原型);頁面只顯示標題，不放說明。

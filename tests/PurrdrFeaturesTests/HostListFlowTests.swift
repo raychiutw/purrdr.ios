@@ -17,6 +17,16 @@ struct HostListFlowTests {
         #expect(flow.path == [.edit(Self.studioID)])
     }
 
+    @Test("從通知開主機編輯頁(#293):換掉原本推入的畫面，只留那台主機的編輯器")
+    func openingEditorFromNotificationReplacesPath() {
+        let flow = HostListFlow()
+        flow.path = [.add]
+
+        flow.openEditor(of: Self.studioID)
+
+        #expect(flow.path == [.edit(Self.studioID)])
+    }
+
     @Test("刪除先跳確認：要求刪除不會刪，確認後才刪那台並收起確認")
     func deletionWaitsForConfirmation() async throws {
         let flow = HostListFlow()
@@ -46,6 +56,17 @@ struct HostListFlowTests {
 
         #expect(deleted == [Self.studioID])
         #expect(flow.pendingDeletion == nil)
+    }
+
+    @Test("主機頁已配對裝置的「這支裝置」(#291):關掉編輯頁，跳出移除主機的確認")
+    func removingFromHostPageUsesDeletionConfirmation() {
+        let flow = HostListFlow()
+        flow.showDetails(of: Self.studioID)
+
+        flow.requestDeletionFromEditor(of: Self.studioID, name: "Studio Mac")
+
+        #expect(flow.path.isEmpty)
+        #expect(flow.pendingDeletion == HostDeletionRequest(id: Self.studioID, name: "Studio Mac"))
     }
 
     @Test("取消刪除：收起確認，不留等確認的刪除")

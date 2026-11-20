@@ -98,8 +98,10 @@ final class UITestingBackendTransport: BackendTransport {
 
     /// 註冊配對：依 `deviceId` 歸到同一支裝置;已有名稱就不覆蓋(與後台相同)。
     private func registerPairing(_ body: Data?) {
-        guard let fields = body.flatMap({ try? JSONSerialization.jsonObject(with: $0) as? [String: String] }),
-              let keyHash = fields["keyHash"], let id = fields["deviceId"] else { return }
+        // `kinds` 是陣列(#292),只取字串欄位。
+        guard let json = body.flatMap({ try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }) else { return }
+        let fields = json.compactMapValues { $0 as? String }
+        guard let keyHash = fields["keyHash"], let id = fields["deviceId"] else { return }
         devices.withLock { devices in
             if let index = devices.firstIndex(where: { $0.id == id }) {
                 devices[index].keyHashes.insert(keyHash)

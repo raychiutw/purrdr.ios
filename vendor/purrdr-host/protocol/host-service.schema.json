@@ -21,7 +21,7 @@
   "x-temporary-file-locations-description": "主機取檔在工作目錄以外、只因對話紀錄提到而放行時，允許的系統暫存目錄(POSIX;macOS 的 /tmp 與 /var/folders 解析後在 /private 底下)。另外還有主機的 TMPDIR／TEMP、Windows 家目錄的 AppData/Local/Temp、家目錄的 .purrdr/uploads 與這段對話紀錄的 tool-results 資料夾。",
   "x-maximum-file-size": 26214400,
   "x-maximum-file-chunk": 1048576,
-  "x-maximum-file-size-description": "主機取檔的大小上限(25 MiB)與一次 file.read 最多回傳的 bytes(1 MiB)。主機服務、app 與 SSH 取檔腳本共用。",
+  "x-maximum-file-size-description": "主機取檔與上傳的大小上限(25 MiB),以及一次 file.read 回傳或 file.upload.chunk 送出的 bytes 上限(1 MiB)。主機服務、app 與 SSH 取檔腳本共用。",
   "$defs": {
     "ClientMessage": {
       "description": "app 送給主機服務的訊息，以 type 區分。標 x-write 的是寫入類操作，唯讀裝置送出時被拒絕(read_only_device)。",
@@ -33,6 +33,10 @@
         { "$ref": "#/$defs/TranscriptWindow" },
         { "$ref": "#/$defs/TranscriptFollow" },
         { "$ref": "#/$defs/TranscriptUnfollow" },
+        { "$ref": "#/$defs/TranscriptPreviews" },
+        { "$ref": "#/$defs/TranscriptSubagent" },
+        { "$ref": "#/$defs/TranscriptWorkflow" },
+        { "$ref": "#/$defs/TranscriptDelegation" },
         { "$ref": "#/$defs/PaneSendText" },
         { "$ref": "#/$defs/AgentPrompt" },
         { "$ref": "#/$defs/EventsSubscribe" },
@@ -47,7 +51,19 @@
         { "$ref": "#/$defs/PushStatus" },
         { "$ref": "#/$defs/PushInstall" },
         { "$ref": "#/$defs/PushRemove" },
-        { "$ref": "#/$defs/PushUpdateMuted" }
+        { "$ref": "#/$defs/PushUpdateMuted" },
+        { "$ref": "#/$defs/WorkspaceCreate" },
+        { "$ref": "#/$defs/WorkspaceRename" },
+        { "$ref": "#/$defs/WorkspaceClose" },
+        { "$ref": "#/$defs/WorktreeCreate" },
+        { "$ref": "#/$defs/AgentStart" },
+        { "$ref": "#/$defs/FileUploadStart" },
+        { "$ref": "#/$defs/FileUploadChunk" },
+        { "$ref": "#/$defs/DevicesList" },
+        { "$ref": "#/$defs/DevicesRevoke" },
+        { "$ref": "#/$defs/HostServiceStatus" },
+        { "$ref": "#/$defs/HostServiceUpdate" },
+        { "$ref": "#/$defs/HostServiceSetAutoUpdate" }
       ]
     },
     "ServerMessage": {
@@ -61,6 +77,10 @@
         { "$ref": "#/$defs/TranscriptFollowResult" },
         { "$ref": "#/$defs/TranscriptUpdate" },
         { "$ref": "#/$defs/TranscriptUnfollowResult" },
+        { "$ref": "#/$defs/TranscriptPreviewsResult" },
+        { "$ref": "#/$defs/TranscriptSubagentResult" },
+        { "$ref": "#/$defs/TranscriptWorkflowResult" },
+        { "$ref": "#/$defs/TranscriptDelegationResult" },
         { "$ref": "#/$defs/PaneSendTextResult" },
         { "$ref": "#/$defs/AgentPromptResult" },
         { "$ref": "#/$defs/EventsSubscribeResult" },
@@ -76,6 +96,18 @@
         { "$ref": "#/$defs/PushInstallResult" },
         { "$ref": "#/$defs/PushRemoveResult" },
         { "$ref": "#/$defs/PushUpdateMutedResult" },
+        { "$ref": "#/$defs/WorkspaceCreateResult" },
+        { "$ref": "#/$defs/WorkspaceRenameResult" },
+        { "$ref": "#/$defs/WorkspaceCloseResult" },
+        { "$ref": "#/$defs/WorktreeCreateResult" },
+        { "$ref": "#/$defs/AgentStartResult" },
+        { "$ref": "#/$defs/FileUploadStartResult" },
+        { "$ref": "#/$defs/FileUploadChunkResult" },
+        { "$ref": "#/$defs/DevicesListResult" },
+        { "$ref": "#/$defs/DevicesRevokeResult" },
+        { "$ref": "#/$defs/HostServiceStatusResult" },
+        { "$ref": "#/$defs/HostServiceUpdateResult" },
+        { "$ref": "#/$defs/HostServiceSetAutoUpdateResult" },
         { "$ref": "#/$defs/ErrorMessage" }
       ]
     },
@@ -439,6 +471,126 @@
       },
       "required": ["type", "request_id"]
     },
+    "TranscriptPreviews": {
+      "description": "列表預覽(raychiutw/purrdr.host#17):一次讀多個對話紀錄的檔尾。path 必須是這條連線定位過的，任一個不是就整個請求回 transcript_not_allowed。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.previews" },
+        "request_id": { "type": "string" },
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/TranscriptPreviewEntry" } }
+      },
+      "required": ["type", "request_id", "entries"]
+    },
+    "TranscriptPreviewEntry": {
+      "description": "一個要讀預覽的對話紀錄。known_version 是上次這個主機服務回的 version(app 原樣帶回，不解讀)。",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "path": { "type": "string" },
+        "known_version": { "type": "string" }
+      },
+      "required": ["key", "path"]
+    },
+    "TranscriptPreviewsResult": {
+      "description": "每個讀得到的對話紀錄一項(讀不到的不在結果裡，同 SSH 的預覽腳本)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.previews.result" },
+        "request_id": { "type": "string" },
+        "previews": { "type": "array", "items": { "$ref": "#/$defs/TranscriptPreview" } }
+      },
+      "required": ["type", "request_id", "previews"]
+    },
+    "TranscriptPreview": {
+      "description": "一個對話紀錄的預覽。records 同其他對話紀錄讀取，每行是原始長度與剝除圖片後的內容:whole 是最後 48000 bytes(第一行可能被切在中間，長度從切點算起)、appended 是 known_version 之後附加的部分、unchanged 沒有內容。",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "change": { "$ref": "#/$defs/TranscriptPreviewChange" },
+        "version": { "type": "string" },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/TranscriptRecord" } }
+      },
+      "required": ["key", "change", "version", "records"]
+    },
+    "TranscriptPreviewChange": {
+      "description": "這次讀到的範圍:unchanged 與 known_version 相同、appended 只有附加的部分、whole 整段檔尾。",
+      "type": "string",
+      "enum": ["unchanged", "appended", "whole"]
+    },
+    "TranscriptSubagent": {
+      "description": "找呼叫 call_id 啟動的 subagent 對話紀錄(raychiutw/purrdr.host#17):在 path 的 session 資料夾的 subagents/ 下找 toolUseId 完全等於 call_id 的 agent-*.meta.json。path 必須是這條連線可讀的對話紀錄。沒有 meta 回 transcript_absent,不只一個回 transcript_ambiguous。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.subagent" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string" },
+        "call_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "path", "call_id"]
+    },
+    "TranscriptSubagentResult": {
+      "description": "subagent 對話紀錄的路徑。session 資料夾 subagents/ 底下的 .jsonl 都可以讀視窗與追蹤。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.subagent.result" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string" }
+      },
+      "required": ["type", "request_id", "path"]
+    },
+    "TranscriptWorkflow": {
+      "description": "讀 workflow 進度(raychiutw/purrdr.host#17):path 的 session 資料夾的 workflows/<run_id>.json(結束才寫)優先，否則 subagents/workflows/<run_id>/journal.jsonl。兩個都沒有回 transcript_absent。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.workflow" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string" },
+        "run_id": { "type": "string" },
+        "known_checksum": { "type": "string", "description": "上次回的 checksum;相同時不回內容。" }
+      },
+      "required": ["type", "request_id", "path", "run_id"]
+    },
+    "TranscriptWorkflowResult": {
+      "description": "kind 是讀到哪個檔(run 或 journal);content 是檔案原樣內容，checksum 等於 known_checksum 時省略。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.workflow.result" },
+        "request_id": { "type": "string" },
+        "kind": { "$ref": "#/$defs/TranscriptWorkflowKind" },
+        "checksum": { "type": "string" },
+        "content": { "type": "string" }
+      },
+      "required": ["type", "request_id", "kind", "checksum"]
+    },
+    "TranscriptWorkflowKind": {
+      "description": "run:workflows/<run_id>.json;journal:subagents/workflows/<run_id>/journal.jsonl。",
+      "type": "string",
+      "enum": ["run", "journal"]
+    },
+    "TranscriptDelegation": {
+      "description": "父對話紀錄中含 call_id 或 agent_id 的行(委派是否結束，raychiutw/purrdr.host#17)。path 必須是這條連線可讀的對話紀錄。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.delegation" },
+        "request_id": { "type": "string" },
+        "path": { "type": "string" },
+        "call_id": { "type": "string" },
+        "agent_id": { "type": "string" },
+        "known_checksum": { "type": "string", "description": "上次回的 checksum;相同時不回內容。" }
+      },
+      "required": ["type", "request_id", "path", "call_id"]
+    },
+    "TranscriptDelegationResult": {
+      "description": "這些行(剝除圖片後)的 checksum 與行;checksum 等於 known_checksum 時省略 records。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "transcript.delegation.result" },
+        "request_id": { "type": "string" },
+        "checksum": { "type": "string" },
+        "records": { "type": "array", "items": { "$ref": "#/$defs/TranscriptRecord" } }
+      },
+      "required": ["type", "request_id", "checksum"]
+    },
     "PaneSendText": {
       "description": "對 Pane 送出文字(herdr pane.send_text),不補 Enter。",
       "type": "object",
@@ -489,6 +641,123 @@
         "type": { "const": "agent.prompt.result" },
         "request_id": { "type": "string" },
         "delivery": { "type": "string", "description": "herdr 回報的送達方式(例如 written_to_pty);沒有時省略。" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "WorkspaceCreate": {
+      "description": "在主機上的資料夾建立 workspace(herdr workspace.create,不搶桌機焦點)。cwd 必須是主機上存在的絕對路徑資料夾(herdr 遇到不存在的資料夾會改開家目錄，所以主機服務先檢查)。新增聊天 = workspace.create 後對 root pane 送 agent.start。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "workspace.create" },
+        "request_id": { "type": "string" },
+        "cwd": { "type": "string", "description": "主機上的絕對路徑。" },
+        "label": { "type": "string", "description": "workspace 名稱;省略時由 herdr 以資料夾名命名。" }
+      },
+      "required": ["type", "request_id", "cwd"]
+    },
+    "WorkspaceCreateResult": {
+      "description": "workspace 已建立;聊天開在 root_pane_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "workspace.create.result" },
+        "request_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "root_pane_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "workspace_id", "root_pane_id"]
+    },
+    "WorkspaceRename": {
+      "description": "重新命名 workspace(herdr workspace.rename)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "workspace.rename" },
+        "request_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "label": { "type": "string", "description": "新名稱，不可空白。" }
+      },
+      "required": ["type", "request_id", "workspace_id", "label"]
+    },
+    "WorkspaceRenameResult": {
+      "description": "已重新命名。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "workspace.rename.result" },
+        "request_id": { "type": "string" },
+        "label": { "type": "string", "description": "herdr 實際保存的名稱(可能經正規化);沒有時省略。" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "WorkspaceClose": {
+      "description": "關閉 workspace(herdr workspace.close):裡面的 tab、pane 與程序都會停止。不連同 worktree 群組一起關，同 repo 的 worktree workspace 還開著時以 herdr_error 回報(herdr_code workspace_group_close_required)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "workspace.close" },
+        "request_id": { "type": "string" },
+        "workspace_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "workspace_id"]
+    },
+    "WorkspaceCloseResult": {
+      "description": "已關閉。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "workspace.close.result" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "WorktreeCreate": {
+      "description": "以 workspace 所在的 git repo 建立 worktree 與分支，開成新的 workspace(herdr worktree.create,不搶桌機焦點)。分支已存在時 herdr 直接 checkout。不在 git repo 裡時以 herdr_error 回報(herdr_code not_git_worktree)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "worktree.create" },
+        "request_id": { "type": "string" },
+        "workspace_id": { "type": "string", "description": "以這個 workspace 的 repo 為底。" },
+        "branch": { "type": "string", "description": "分支名稱：不能以 - 開頭，不含空白、控制字元或 ..。" }
+      },
+      "required": ["type", "request_id", "workspace_id", "branch"]
+    },
+    "WorktreeCreateResult": {
+      "description": "worktree 已建立並開成新的 workspace;聊天開在 root_pane_id。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "worktree.create.result" },
+        "request_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "root_pane_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "workspace_id", "root_pane_id"]
+    },
+    "AgentStart": {
+      "description": "在 pane 的 shell 啟動 Agent(herdr agent.start)。新增聊天 = workspace.create 或 worktree.create 後對 root pane 送這個。不接受任意參數：只有 Claude Code 可帶 permission_mode(轉成 --permission-mode)。主機服務等 herdr 的時間隨 timeout_ms 延長;Agent 停在啟動問題、pane 不在 shell 提示字元等以 herdr_error 回報(herdr_code 如 agent_not_ready、agent_pane_busy、agent_name_taken)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "agent.start" },
+        "request_id": { "type": "string" },
+        "pane_id": { "type": "string" },
+        "name": { "type": "string", "description": "herdr 的 Agent 名稱：英數字、-、_、.,不能以 - 開頭。" },
+        "kind": { "type": "string", "description": "herdr 的 Agent 種類(herdr agent start --kind,例如 claude、codex),只有小寫英文字母與數字。" },
+        "permission_mode": { "$ref": "#/$defs/ClaudePermissionMode" },
+        "timeout_ms": { "type": "integer", "minimum": 3001, "maximum": 300000, "description": "等 Agent 就緒的時間;省略時用 herdr 的預設(30 秒)。" }
+      },
+      "required": ["type", "request_id", "pane_id", "name", "kind"]
+    },
+    "ClaudePermissionMode": {
+      "description": "Claude Code 的 --permission-mode。省略時沿用使用者在主機上的設定。",
+      "type": "string",
+      "enum": ["manual", "acceptEdits", "plan", "auto", "bypassPermissions"]
+    },
+    "AgentStartResult": {
+      "description": "Agent 已在 pane 啟動。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "agent.start.result" },
+        "request_id": { "type": "string" }
       },
       "required": ["type", "request_id"]
     },
@@ -720,6 +989,187 @@
       },
       "required": ["type", "request_id", "plugin_installed", "paired", "other_devices"]
     },
+    "FileUploadStart": {
+      "description": "上傳圖片或檔案(raychiutw/purrdr.host#16):開始一次分塊上傳。主機服務在家目錄的 .purrdr/uploads/ 建暫存檔，檔名由主機服務產生(不採用 app 給的名稱),超過 7 天的上傳檔定期刪除。size 超過 x-maximum-file-size 回 upload_too_large。中繼資料剝除在 app 端做，主機服務不解析內容。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "file.upload.start" },
+        "request_id": { "type": "string", "description": "也是這次上傳的 upload_id。" },
+        "size": { "type": "integer", "minimum": 0, "description": "總 bytes。" },
+        "extension": { "type": "string", "description": "主機檔名的副檔名(不含點):1–16 個英數字元，存成小寫;沒帶時不加副檔名。不合格回 invalid_message。" }
+      },
+      "required": ["type", "request_id", "size"]
+    },
+    "FileUploadStartResult": {
+      "description": "上傳已開始，之後以 upload_id 送分塊。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "file.upload.start.result" },
+        "request_id": { "type": "string" },
+        "upload_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "upload_id"]
+    },
+    "FileUploadChunk": {
+      "description": "依序送一塊內容(解碼後最多 x-maximum-file-chunk bytes,超過回 upload_too_large)。offset 必須等於已收到的 bytes,超過 size 或 upload_id 不是這條連線開始的都回 invalid_message,失敗後這次上傳作廢。收滿 size 時存成正式檔。連線結束時未完成的上傳刪掉。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "file.upload.chunk" },
+        "request_id": { "type": "string" },
+        "upload_id": { "type": "string" },
+        "offset": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "string", "description": "標準 base64。" }
+      },
+      "required": ["type", "request_id", "upload_id", "offset", "bytes"]
+    },
+    "FileUploadChunkResult": {
+      "description": "分塊已寫入。收滿 size 時帶 path:主機上的絕對路徑，app 放進 prompt。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "file.upload.chunk.result" },
+        "request_id": { "type": "string" },
+        "upload_id": { "type": "string" },
+        "received": { "type": "integer", "minimum": 0, "description": "目前已收到的 bytes。" },
+        "path": { "type": "string" }
+      },
+      "required": ["type", "request_id", "upload_id", "received"]
+    },
+    "DevicesList": {
+      "description": "列出這台主機已配對的裝置(raychiutw/purrdr.host#19;不含已撤銷的)。唯讀，唯讀裝置也可用。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "devices.list" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "DevicesListResult": {
+      "description": "已配對的裝置，依配對先後。不含權杖或其雜湊。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "devices.list.result" },
+        "request_id": { "type": "string" },
+        "devices": { "type": "array", "items": { "$ref": "#/$defs/PairedDevice" } }
+      },
+      "required": ["type", "request_id", "devices"]
+    },
+    "PairedDevice": {
+      "description": "一支已配對的裝置。時間是 RFC 3339 UTC(到秒)。",
+      "type": "object",
+      "properties": {
+        "device_id": { "type": "string" },
+        "name": { "type": "string", "description": "配對時 app 給的裝置名稱。" },
+        "read_only": { "type": "boolean" },
+        "paired_at": { "type": "string" },
+        "current": { "type": "boolean", "description": "是發出這個請求的裝置。" }
+      },
+      "required": ["device_id", "name", "read_only", "paired_at", "current"]
+    },
+    "DevicesRevoke": {
+      "description": "撤銷一支已配對的裝置：之後它的每個 WSS 訊息都以 device_token_revoked 與 close code 4401 拒絕。已撤銷的再撤銷一次也成功;不認得的 device_id 回 device_unknown;不能撤銷發出請求的這支裝置(回 invalid_message,撤銷自己用 POST /v1/revoke)。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "devices.revoke" },
+        "request_id": { "type": "string" },
+        "device_id": { "type": "string", "description": "devices.list.result 裡的 device_id。" }
+      },
+      "required": ["type", "request_id", "device_id"]
+    },
+    "DevicesRevokeResult": {
+      "description": "已撤銷。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "devices.revoke.result" },
+        "request_id": { "type": "string" },
+        "device_id": { "type": "string" }
+      },
+      "required": ["type", "request_id", "device_id"]
+    },
+    "HostServiceStatus": {
+      "description": "從 app 管理主機服務(raychiutw/purrdr.host#18):查已安裝版本、最新版本(問 Release 來源)、自動更新開關、上次檢查或更新的結果與退回過的版本。唯讀，唯讀裝置也可用。沒有安裝(開發中直接執行)時回 host_service_not_installed。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "host_service.status" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "HostServiceStatusResult": {
+      "description": "主機服務的更新狀態(同主機上的 update --check 與 version)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "host_service.status.result" },
+        "request_id": { "type": "string" },
+        "installed_version": { "type": "string", "description": "安裝好的執行檔回報的版本;更新後重啟前可能比 welcome 的 host_service_version 新。" },
+        "latest_version": { "type": "string", "description": "Release 來源的最新版本;取不到時沒有這欄，改帶 latest_error。" },
+        "latest_error": { "type": "string", "description": "取不到最新版本的原因(給開發者看)。" },
+        "update_available": { "type": "boolean", "description": "最新版本比已安裝的大(只往更大的版本更新)。" },
+        "auto_update": { "type": "boolean", "description": "安裝紀錄的自動更新開關。" },
+        "last_update": { "$ref": "#/$defs/HostServiceUpdateRecord" },
+        "rolled_back": { "type": "string", "description": "上次更新後起不來、已換回舊版的版本;背景自動更新不再重試它，host_service.update 仍會再試。更新成功後清掉。" }
+      },
+      "required": ["type", "request_id", "installed_version", "update_available", "auto_update"]
+    },
+    "HostServiceUpdateRecord": {
+      "description": "上一次檢查或更新的時間與結果(update.json)。",
+      "type": "object",
+      "properties": {
+        "checked_at": { "type": "string", "description": "RFC 3339(UTC,到秒)。" },
+        "result": { "type": "string", "description": "主機上 version 顯示的同一句話，例如 updated 0.5.0 -> 0.5.1、update failed: …(給人看，不解析)。" }
+      },
+      "required": ["checked_at", "result"]
+    },
+    "HostServiceUpdate": {
+      "description": "立即更新：有更大的版本就以獨立程序執行安裝好的 update --yes(與主機上手動更新同一條流程：update.lock、核對 SHA256SUMS、起不來就換回),回應在重啟前送出。主機服務接著重啟、連線中斷，app 重新連線後以 welcome 的 host_service_version 確認結果，失敗退回時 host_service.status 看得到 rolled_back 與 last_update。已有更新在進行回 update_in_progress;取不到最新版本或啟動不了更新程序回 update_failed。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "host_service.update" },
+        "request_id": { "type": "string" }
+      },
+      "required": ["type", "request_id"]
+    },
+    "HostServiceUpdateResult": {
+      "description": "started:更新程序已啟動，from_version → to_version;up_to_date:已是最新，沒有更新(不重啟)。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "host_service.update.result" },
+        "request_id": { "type": "string" },
+        "outcome": { "$ref": "#/$defs/HostServiceUpdateOutcome" },
+        "from_version": { "type": "string", "description": "已安裝的版本。" },
+        "to_version": { "type": "string", "description": "最新版本(started 時是要更新到的版本)。" }
+      },
+      "required": ["type", "request_id", "outcome", "from_version", "to_version"]
+    },
+    "HostServiceUpdateOutcome": {
+      "description": "立即更新的結果。",
+      "type": "string",
+      "enum": ["started", "up_to_date"]
+    },
+    "HostServiceSetAutoUpdate": {
+      "description": "開關背景自動更新(同主機上的 auto-update on|off,改安裝紀錄的 auto_update);背景服務下一次檢查時就照新的設定。",
+      "type": "object",
+      "x-write": true,
+      "properties": {
+        "type": { "const": "host_service.set_auto_update" },
+        "request_id": { "type": "string" },
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["type", "request_id", "enabled"]
+    },
+    "HostServiceSetAutoUpdateResult": {
+      "description": "已改好，帶改完後的開關。",
+      "type": "object",
+      "properties": {
+        "type": { "const": "host_service.set_auto_update.result" },
+        "request_id": { "type": "string" },
+        "auto_update": { "type": "boolean" }
+      },
+      "required": ["type", "request_id", "auto_update"]
+    },
     "PairRequest": {
       "description": "POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。",
       "type": "object",
@@ -757,7 +1207,7 @@
       "required": ["type", "code", "message"]
     },
     "ErrorCode": {
-      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted 時這支裝置在這台主機沒有推播配對;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。",
+      "description": "錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted 時這支裝置在這台主機沒有推播配對;device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。",
       "type": "string",
       "enum": [
         "invalid_message",
@@ -780,6 +1230,11 @@
         "file_changed",
         "push_plugin_failed",
         "push_not_paired",
+        "upload_too_large",
+        "device_unknown",
+        "host_service_not_installed",
+        "update_in_progress",
+        "update_failed",
         "internal_error"
       ]
     }

@@ -10,6 +10,10 @@ import UserNotifications
 public final class SystemPushPlatform: PushPlatform {
     /// 推播的通知類別：設定隱藏預覽時的通用文字(HIG)。後台的 payload 帶同一個 `category`。
     public static let blockedCategory = "AGENT_BLOCKED"
+    /// 「完成」的通知類別(raychiutw/purrdr.server#10)。
+    public static let doneCategory = "AGENT_DONE"
+    /// 主機服務事件的通知類別(raychiutw/purrdr.server#11)。
+    public static let hostServiceCategory = "HOST_SERVICE_EVENT"
 
     private var waiting: [CheckedContinuation<Data, any Error>] = []
 
@@ -55,13 +59,28 @@ public final class SystemPushPlatform: PushPlatform {
     /// 推播內文：後台的 APNs payload 只送 `loc-key`,由系統以 app 的字串表翻譯。
     /// 寫在程式碼裡，`scripts/strings.sh` 才抽得到這個 key(否則會當成已不用而移除)。
     static let blockedBody = String(localized: "An agent needs you.", comment: "推播內文(後台 APNs payload 的 loc-key)")
+    static let doneBody = String(localized: "An agent finished.", comment: "「完成」推播內文(後台 APNs payload 的 loc-key)")
+    /// 主機服務事件：標題是 `title-loc-key`,「已更新」以 `loc-args` 帶入版本。
+    static let hostServiceTitle = String(localized: "Host service", comment: "主機服務推播標題(後台 APNs payload 的 title-loc-key)")
+    static let hostServiceUpdateAvailableBody = String(
+        localized: "A host service update is available.", comment: "主機服務推播內文：有新版(後台 APNs payload 的 loc-key)")
+    static let hostServiceUpdatedBody = String(
+        localized: "Host service updated to %@.", comment: "主機服務推播內文：已更新到某版(後台 APNs payload 的 loc-key,%@ 是版本)")
+    static let hostServiceRolledBackBody = String(
+        localized: "Host service update failed and was rolled back.", comment: "主機服務推播內文：更新失敗已退回(後台 APNs payload 的 loc-key)")
 
     /// 註冊通知類別(啟動時呼叫一次，不會請求權限)。
     public static func registerCategories() {
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(
                 identifier: blockedCategory, actions: [], intentIdentifiers: [],
-                hiddenPreviewsBodyPlaceholder: String(localized: "An agent needs you"), options: [])
+                hiddenPreviewsBodyPlaceholder: String(localized: "An agent needs you"), options: []),
+            UNNotificationCategory(
+                identifier: doneCategory, actions: [], intentIdentifiers: [],
+                hiddenPreviewsBodyPlaceholder: String(localized: "An agent finished"), options: []),
+            UNNotificationCategory(
+                identifier: hostServiceCategory, actions: [], intentIdentifiers: [],
+                hiddenPreviewsBodyPlaceholder: String(localized: "Host service update"), options: []),
         ])
     }
 }

@@ -18,6 +18,9 @@ public final class WorkspaceActionsModel {
     public var actionError: String?
     /// 有操作正在主機上執行。
     public private(set) var isWorking = false
+    /// 這支裝置配對成唯讀(HTTPS 主機):改到主機的操作停用(`loadAccess()` 讀)。
+    public private(set) var isReadOnly = false
+    private var accessLoaded = false
     /// 靜音清單改變時呼叫(推播開著時改寫主機上的靜音清單,#29)。
     public var mutedChanged: (@MainActor (Set<String>) -> Void)?
 
@@ -36,6 +39,16 @@ public final class WorkspaceActionsModel {
         self.now = now
         self.refresh = refresh
         preferences = store.load()
+    }
+
+    /// 唯讀裝置不能改名、關閉或建立 worktree 的說明。
+    public static let readOnlyMessage = HostErrorText.hostServiceMessage(.readOnlyDevice)
+
+    /// 讀一次這支裝置是否唯讀(HTTPS 主機握手時回報;SSH 主機一律可寫)。
+    public func loadAccess() async {
+        guard !accessLoaded else { return }
+        accessLoaded = true
+        isReadOnly = (try? await client.isReadOnlyDevice()) == true
     }
 
     // MARK: - 釘選、靜音
@@ -146,6 +159,8 @@ public final class WorkspaceActionsModel {
         case HerdrError.herdr(code: "workspace_group_close_required", _): groupCloseRequiredMessage
         case HerdrError.herdr(code: "not_git_worktree", _): notGitRepoMessage
         case HerdrError.herdr(_, let message): message
+        // HTTPS 主機：主機服務版本不足、唯讀裝置等(#287)。
+        case let error as HostServiceError: HostErrorText.hostServiceMessage(error)
         default: String(localized: "Couldn’t reach herdr on this host.")
         }
     }

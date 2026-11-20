@@ -26,12 +26,23 @@ final class HostListFlow {
         path.append(.edit(id))
     }
 
+    /// 從外部(主機服務通知)開那台主機的編輯器：換掉原本推入的畫面。
+    func openEditor(of id: UUID) {
+        path = [.edit(id)]
+    }
+
     /// 等確認的刪除;有值時顯示確認對話框。
     var pendingDeletion: HostDeletionRequest?
 
     /// 滑動或選單的「刪除」:先問，不直接刪。
     func requestDeletion(of id: UUID, name: String) {
         pendingDeletion = HostDeletionRequest(id: id, name: name)
+    }
+
+    /// 主機頁已配對裝置的「這支裝置」(#291):回到主機清單，跳出同一個移除確認。
+    func requestDeletionFromEditor(of id: UUID, name: String) {
+        path.removeAll()
+        requestDeletion(of: id, name: name)
     }
 
     func cancelDeletion() {

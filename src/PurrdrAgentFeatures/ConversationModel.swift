@@ -252,9 +252,54 @@ public final class ConversationModel {
         drafts.saveAttachments(attachments, chatKey: chatKey)
     }
 
-    /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗回傳 `nil`:整則不送(F6.5)。
-    private func uploadAttachments() async -> [String]? {
-        guard let images else { return attachments.isEmpty ? [] : nil }
+    // MARK: 檔案(#286)
+
+    /// 正在上傳到主機的檔案(原始檔名);沒有時是 `nil`。
+    public private(set) var uploadingFileName: String?
+    /// 能不能附加檔案：有上傳到主機、不是唯讀裝置。
+    public var canAttachFiles: Bool { images != nil && !isReadOnly }
+
+    /// 附加一般檔案：上傳到主機，把主機上的路徑插入輸入框。已知大小超過上限時不讀內容。
+    public func addFile(named originalName: String, size: Int?, load: @Sendable () async throws -> Data) async {
+        guard let images, canAttachFiles, uploadingFileName == nil else { return }
+        let limit = HostUploadLimit.maximumFileSize
+        if let size, size > limit {
+            notice = .fileTooLarge(size: size, limit: limit)
+            return
+        }
+        uploadingFileName = originalName
+        defer { uploadingFileName = nil }
+        let data: Data
+        do {
+            data = try await load()
+        } catch {
+            notice = .fileUnreadable
+            return
+        }
+        guard data.count <= limit else {
+            notice = .fileTooLarge(size: data.count, limit: limit)
+            return
+        }
+        do {
+            let path = try await images.uploader.upload(data, named: images.makeFileName(originalName))
+            insertIntoDraft(path)
+        } catch {
+            notice = Self.uploadNotice(for: error, otherwise: .fileUploadFailed)
+        }
+    }
+
+    /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
+    private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {
+        guard case .hostServiceUpdateRequired(_, let installedVersion)? = error as? HostServiceError else { return otherwise }
+        return .hostServiceUpdateRequired(installedVersion: installedVersion)
+    }
+
+    /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗丟出那個錯誤：整則不送(F6.5)。
+    private func uploadAttachments() async throws -> [String] {
+        guard let images else {
+            guard attachments.isEmpty else { throw HostServiceError.unsupported("upload") }
+            return []
+        }
         var paths: [String] = []
         for index in attachments.indices {
             if let path = attachments[index].uploadedPath {
@@ -262,8 +307,9 @@ public final class ConversationModel {
                 continue
             }
             let name = attachments[index].fileName
-            guard let url = images.store.url(of: name.value), let data = try? Data(contentsOf: url),
-                  let path = try? await images.uploader.upload(data, named: name) else { return nil }
+            guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
+            let data = try Data(contentsOf: url)
+            let path = try await images.uploader.upload(data, named: HostUploadName(name))
             if let current = attachments.firstIndex(where: { $0.fileName == name }) {
                 attachments[current].uploadedPath = path
             }
@@ -853,7 +899,7 @@ public final class ConversationModel {
         guard hasTarget, !isReadOnly else { return false }
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if typedAnswer != nil { return answerInFlight == nil && hasText }
-        return !isSending && (hasText || !attachments.isEmpty)
+        return !isSending && uploadingFileName == nil && (hasText || !attachments.isEmpty)
     }
 
     /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
@@ -949,10 +995,13 @@ public final class ConversationModel {
         echoes.append(echo)
         rebuildEntries()
         // 圖片先逐張上傳;任何一張失敗 → 整則不送，草稿與圖片保留(F6.5、F7)。
-        guard let paths = await uploadAttachments() else {
+        let paths: [String]
+        do {
+            paths = try await uploadAttachments()
+        } catch {
             removeEcho(echo.id)
             restoreDraft(text)
-            notice = .uploadFailed
+            notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
             return
         }
         if let index = echoes.firstIndex(where: { $0.id == echo.id }) { echoes[index].imagePaths = paths }
@@ -1718,6 +1767,14 @@ public enum SendNotice: Sendable, Equatable {
     case imageTooLarge
     /// 圖片上傳失敗：整則沒送出，草稿與圖片保留。
     case uploadFailed
+    /// 檔案超過上傳上限(#286):附上檔案大小與上限(bytes)。
+    case fileTooLarge(size: Int, limit: Int)
+    /// 讀不到挑選的檔案。
+    case fileUnreadable
+    /// 檔案上傳到主機失敗，路徑沒有插入。
+    case fileUploadFailed
+    /// HTTPS 主機的主機服務太舊、還不能上傳圖片或檔案(#288):提示更新主機服務。
+    case hostServiceUpdateRequired(installedVersion: String?)
     /// 送不出 slash 面板的按鍵(#45)。
     case panelKeysFailed
     /// 這支裝置配對成唯讀，什麼都沒送出。

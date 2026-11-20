@@ -35,7 +35,7 @@ struct ConversationImageTests {
                 client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
                 knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
                 clock: TestClock().clock, drafts: drafts,
-                images: ComposerImages(uploader: ImageUploader(channel: channel), store: store, makeName: { names.next() }),
+                images: ComposerImages(uploader: SSHHostUploader(channel: channel), store: store, makeName: { names.next() }),
                 sleep: sleeper.sleep
             )
         }
@@ -171,6 +171,21 @@ struct ConversationImageTests {
         #expect(Self.uploadedFiles(setup).isEmpty)
     }
 
+    @Test("HTTPS 主機的主機服務太舊：不送出，草稿與圖片保留，提示更新主機服務(#288)")
+    func olderHostServiceKeepsImagesAndAsksForUpdate() async throws {
+        let failure = HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: "0.6.2")
+        let setup = try await ConversationFileTests.opened(uploader: FakeHostUploader(failure: failure))
+        await setup.model.addImages([TestImage.png(width: 64, height: 64)])
+        setup.model.draft = "看這張"
+
+        await setup.model.send()
+
+        #expect(await ConversationSendTests.promptRequests(setup.base).isEmpty)
+        #expect(setup.model.draft == "看這張")
+        #expect(setup.model.attachments.count == 1)
+        #expect(setup.model.notice == .hostServiceUpdateRequired(installedVersion: "0.6.2"))
+    }
+
     @Test("什麼都沒送出(agent 在等回答):草稿與圖片保留;再送一次不重傳已上傳的圖片")
     func keepsUploadedImagesWhenNothingSent() async throws {
         let setup = try await Self.opened()
@@ -235,7 +250,7 @@ struct ConversationImageTests {
         let reopened = ConversationModel(
             client: HerdrClient(channel: setup.base.host), transcripts: TranscriptReader(channel: setup.base.host),
             paneID: ConversationSendTests.paneID, knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
-            drafts: setup.base.drafts, images: ComposerImages(uploader: ImageUploader(channel: setup.uploads), store: setup.store)
+            drafts: setup.base.drafts, images: ComposerImages(uploader: SSHHostUploader(channel: setup.uploads), store: setup.store)
         )
 
         #expect(reopened.attachments.map(\.fileName.value) == ["img-1.jpg"])

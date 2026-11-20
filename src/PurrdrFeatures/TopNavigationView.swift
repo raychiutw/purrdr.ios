@@ -25,6 +25,8 @@ public struct TopNavigationView: View {
     let notifications: PushNotificationRouter?
     /// 第一次開啟的歡迎頁(#34);`nil` 時不自動開出。
     let welcome: WelcomeModel?
+    /// App 鎖(#284);推播開啟的導航等解鎖後才執行。`nil` 時沒有 App 鎖。
+    let appLock: AppLock?
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.openWindow) private var openWindow
@@ -35,9 +37,11 @@ public struct TopNavigationView: View {
 
     public init(
         hosts: HostsModel, member: MemberModel, settings: SettingsModel, plus: SubscriptionModel? = nil,
-        hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil
+        hostSync: HostSyncModel? = nil, notifications: PushNotificationRouter? = nil, welcome: WelcomeModel? = nil,
+        appLock: AppLock? = nil
     ) {
         self.welcome = welcome
+        self.appLock = appLock
         self.hostSync = hostSync
         self.hosts = hosts
         self.member = member
@@ -61,11 +65,11 @@ public struct TopNavigationView: View {
             .sheet(item: $navigation.sheet) { sheet in
                 switch sheet {
                 case .hosts:
-                    HostListView(model: hosts, importURL: $navigation.pendingHostImport)
+                    HostListView(model: hosts, importURL: $navigation.pendingHostImport, editHostID: $navigation.pendingHostEditor)
                 case .settings:
                     SettingsView(
                         model: settings,
-                        attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }
+                        attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }, appLock: appLock
                     ) {
                         navigation.sheet = nil
                     }
@@ -126,13 +130,22 @@ public struct TopNavigationView: View {
             }
             // 推播：APNs token 換了就向後台重新註冊(不請求權限)。
             .task { await hosts.refreshPushRegistrations() }
-            // 點了通知：先收起 sheet(否則聊天會推到 sheet 下面),再切換主機、開該 Agent 的聊天。
+            // 點了通知：先收起 sheet(否則聊天會推到 sheet 下面),再開該 Agent 的聊天;主機服務通知開那台主機的編輯頁(#293)。
+            // App 鎖定中等解鎖後才開(#284)。
             .onChange(of: notifications?.pending, initial: true) { _, route in
                 guard let route else { return }
                 notifications?.pending = nil
-                navigation.sheet = nil
-                hosts.open(route)
+                openWhenUnlocked {
+                    navigation.sheet = nil
+                    if case .hostEditor(let id) = hosts.open(route) { navigation.openHostEditor(id) }
+                }
             }
+    }
+
+    /// 推播等從 app 外部開啟的導航：App 鎖定中延到解鎖後(只留最後一個)。
+    private func openWhenUnlocked(_ navigation: @escaping @MainActor () -> Void) {
+        guard let appLock else { return navigation() }
+        appLock.whenUnlocked(navigation)
     }
 
     private var windowCommands: WindowCommands {

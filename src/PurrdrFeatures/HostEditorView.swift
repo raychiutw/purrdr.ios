@@ -20,9 +20,16 @@ struct HostEditorView: View {
     let onIconSaved: () -> Void
     /// 已存主機的主機設定(#274):主機主題、You should know、Codex 啟動器，放在主機頁最下方;新增主機時沒有。
     let hostSettings: HostSettings?
+    /// 已配對 HTTPS 主機的主機服務與已配對裝置(#290、#291),在主機頁下方;可以下拉重新整理。
+    @State private var hostStatus: HostStatusModels?
 
+    /// - Parameters:
+    ///   - hostStatusConnection: 已配對 HTTPS 主機的連線。
+    ///   - onRemoveHost: 已配對裝置「這支裝置」那列走移除主機的流程。
     init(
-        model: HostEditorModel, hostSettings: HostSettings? = nil, onSaved: @escaping (HostConfiguration) -> Void,
+        model: HostEditorModel, hostSettings: HostSettings? = nil, hostStatusConnection: (any HostConnection)? = nil,
+        onRemoveHost: (@MainActor () -> Void)? = nil,
+        onSaved: @escaping (HostConfiguration) -> Void,
         onCancel: @escaping () -> Void, onIconSaved: @escaping () -> Void
     ) {
         _model = State(initialValue: model)
@@ -32,6 +39,13 @@ struct HostEditorView: View {
         self.onCancel = onCancel
         self.onIconSaved = onIconSaved
         self.hostSettings = hostSettings
+        _hostStatus = State(initialValue: hostStatusConnection.map { HostStatusModels(connection: $0, removeHost: onRemoveHost) })
+    }
+
+    /// 主機服務與已配對裝置的下拉重新整理;沒有這兩個區塊時不能下拉。
+    private var refreshHostStatus: (@Sendable () async -> Void)? {
+        guard let hostStatus else { return nil }
+        return { await hostStatus.refresh() }
     }
 
     var body: some View {
@@ -92,7 +106,13 @@ struct HostEditorView: View {
                 YouShouldKnowSettingsSection(model: hostSettings.youShouldKnow)
                 CodexLauncherSection(model: hostSettings.codexLauncher)
             }
+
+            if let hostStatus {
+                HostStatusSections(models: hostStatus)
+            }
         }
+        .refreshable(refreshHostStatus)
+        .modifier(PairedDevicesDialogs(model: hostStatus?.pairedDevices))
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
         }
@@ -137,6 +157,12 @@ struct HostEditorView: View {
             if case .hostKeyChanged(let presented, let pinned) = model.phase {
                 Text("This host now identifies itself with a different key. Reinstalling or resetting it does this, and so does someone intercepting the connection. If you didn’t reinstall or reset it, stop.\n\nPresented key:\n\(presented.description)\n\nSaved key:\n\(pinned.description)")
             }
+        }
+        .alert("Add This Device’s Key?", isPresented: presenting(\.isConfirmingKeyInstall)) {
+            Button("Add Key") { Task { await model.confirmKeyInstall() } }
+            Button("Cancel", role: .cancel) { model.dismissPrompt() }
+        } message: {
+            Text("Purrdr signs in to \(model.username)@\(model.address) once with this password and adds this device’s public key to ~/.ssh/authorized_keys (administrators_authorized_keys for a Windows administrator). After that it signs in with the key. The password isn’t saved.")
         }
         .alert("Update herdr?", isPresented: presenting(\.isOutdated)) {
             if model.canUpdateHerdr {
@@ -349,11 +375,52 @@ struct HostEditorView: View {
                 }
             }
             .accessibilityIdentifier("hostEditor.devicePublicKey")
+            keyInstallRows(publicKey)
         } else if let problem = model.deviceKeyProblem {
             ErrorLabel(problem)
         } else {
             ProgressView()
                 .task { await model.loadDeviceKey() }
+        }
+    }
+
+    /// 用這台電腦的密碼加入公鑰(#285):密碼只用一次;失敗時仍可拷貝指令手動加入。
+    @ViewBuilder
+    private func keyInstallRows(_ publicKey: SSHPublicKey) -> some View {
+        LabeledContent("Password") {
+            SecureField("Password", text: $model.keyInstallPassword, prompt: Text("Password on that computer"))
+                .multilineTextAlignment(.leading)
+                .accessibilityIdentifier("hostEditor.keyInstallPassword")
+        }
+        if model.phase == .installingKey {
+            HStack {
+                ProgressView()
+                Text("Adding the key to \(model.address)…")
+            }
+        } else {
+            Button("Add Key Using Password") { model.requestKeyInstall() }
+                .disabled(!model.canInstallDeviceKey)
+                .accessibilityIdentifier("hostEditor.installKey")
+        }
+        if case .keyInstallFailed(let message) = model.phase {
+            ErrorLabel(message)
+                .accessibilityIdentifier("hostEditor.keyInstallResult")
+            NavigationLink {
+                DevicePublicKeyView(publicKey: publicKey, username: model.username)
+            } label: {
+                Label("Copy Command Instead", systemImage: "document.on.document")
+            }
+            .accessibilityIdentifier("hostEditor.keyInstallManual")
+        } else if let outcome = model.keyInstallOutcome {
+            Label {
+                switch outcome {
+                case .added: Text("Key added. Purrdr signs in with this device’s key.")
+                case .alreadyPresent: Text("The key was already on the host.")
+                }
+            } icon: {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint)
+            }
+            .accessibilityIdentifier("hostEditor.keyInstallResult")
         }
     }
 
@@ -516,6 +583,8 @@ extension HostEditorModel.Phase {
         if case .needsUpdate = self { return true }
         return false
     }
+
+    var isConfirmingKeyInstall: Bool { self == .confirmKeyInstall }
 }
 
 extension HostConfiguration.ConnectionMethod {

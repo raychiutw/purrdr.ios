@@ -115,6 +115,11 @@ public actor NewChatLauncher {
         self.sleep = sleep
     }
 
+    /// 這支裝置是否配對成唯讀(HTTPS 主機;唯讀時不能新增聊天)。讀不到算不是。
+    public func isReadOnlyDevice() async -> Bool {
+        (try? await client.isReadOnlyDevice()) == true
+    }
+
     /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
     public func start(_ request: NewChatRequest) async throws -> NewChatStarted {
         let folder = try await folders.resolve(request.folder)

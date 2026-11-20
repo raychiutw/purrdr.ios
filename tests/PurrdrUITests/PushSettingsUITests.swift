@@ -44,6 +44,40 @@ final class PushSettingsUITests: XCTestCase {
         expectValue("Next Step", of: element("account.plusSetup.sync", in: app))
     }
 
+    /// 開著通知的主機可展開選種類(#292):預設「需要你」「完成」都開(SSH 主機沒有「主機服務」);關掉「完成」後只剩「需要你」,最後一個不能關。
+    @MainActor
+    func testChooseNotificationKindsPerHost() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
+        openAccount(app)
+
+        let toggle = app.switches["account.push.\(Self.seededHost)"]
+        XCTAssertTrue(reveal(toggle, in: app), "沒有主機的通知開關")
+        XCTAssertFalse(element("account.push.\(Self.seededHost).kinds", in: app).exists, "未開啟的主機不該有種類")
+        toggle.tap()
+        let install = app.alerts.buttons["settings.push.install"].firstMatch
+        XCTAssertTrue(install.waitForExistence(timeout: 10))
+        install.tap()
+        expectValue("Notifications On", of: toggle)
+
+        let kinds = element("account.push.\(Self.seededHost).kinds", in: app)
+        XCTAssertTrue(reveal(kinds, in: app), "開啟後沒有可展開的通知種類")
+        kinds.tap()
+        let blocked = app.switches["account.push.\(Self.seededHost).kind.blocked"]
+        let done = app.switches["account.push.\(Self.seededHost).kind.done"]
+        XCTAssertTrue(reveal(done, in: app), "展開後沒有「完成」")
+        XCTAssertEqual(blocked.label, "Needs You")
+        XCTAssertEqual(done.label, "Finished")
+        expectValue("1", of: blocked)
+        expectValue("1", of: done)
+        // 主機服務通知(#293)只有 HTTPS 主機能選;這台是 SSH 主機。
+        XCTAssertFalse(app.switches["account.push.\(Self.seededHost).kind.host_service"].exists, "SSH 主機不該有「主機服務」種類")
+
+        done.switches.firstMatch.tap()
+        expectValue("0", of: done)
+        expectValue("1", of: blocked)
+        XCTAssertFalse(blocked.isEnabled, "最後一個種類不該能關")
+    }
+
     /// Demo 主機與還不支援的 HTTPS 主機寫出原因，開關不能點;footer 標示 Windows 主機盡力而為。
     @MainActor
     func testNotificationsExplainHostsThatCannotNotify() {

@@ -181,8 +181,12 @@ public enum HostServiceError: Error, Equatable, Sendable {
     case herdrCapabilityMissing
     /// 這支裝置配對成唯讀，不能做寫入類操作。
     case readOnlyDevice
+    /// 要撤銷的裝置不是這台主機配對過的(`device_unknown`)。
+    case deviceUnknown
     /// HTTPS 連線方式還不提供這個操作(herdr method 或功能名稱)。
     case unsupported(String)
+    /// 主機服務太舊，沒有這個功能;更新主機服務後就能用(`installedVersion` 是 `welcome` 回報的版本)。
+    case hostServiceUpdateRequired(HostServiceFeature, installedVersion: String?)
     /// 找不到這個主機名稱(位址打錯)。
     case hostNotFound
     /// 這支裝置不在 tailnet(MagicDNS 名稱查不到，或沒有網路)。

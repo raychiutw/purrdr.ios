@@ -10,14 +10,17 @@ public struct HostListView: View {
     let model: HostsModel
     /// 等著匯入的主機分享連結(深層連結帶進來的);開啟後清掉。
     @Binding var importURL: URL?
+    /// 等著開編輯頁的主機(點了主機服務通知);開啟後清掉。
+    @Binding var editHostID: UUID?
     @Environment(\.dismiss) private var dismiss
     @State private var flow = HostListFlow()
     @State private var renaming: HostRenaming?
     @State private var actionError: String?
 
-    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil)) {
+    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil)) {
         self.model = model
         _importURL = importURL
+        _editHostID = editHostID
     }
 
     public var body: some View {
@@ -99,11 +102,13 @@ public struct HostListView: View {
                     .accessibilityIdentifier("hosts.delete.confirm")
                 Button("Cancel", role: .cancel) { flow.cancelDeletion() }
             } message: { _ in
-                Text("This host’s settings and keys are removed from this device, and this device’s pairing is revoked. The computer itself isn’t changed.")
+                Text("This host’s settings and keys are removed from this device, and this device’s pairing is revoked. If Purrdr added this device’s public key to the host, that key is removed too; nothing else on the host changes.")
             }
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
+        .onAppear(perform: openPendingEditor)
+        .onChange(of: editHostID) { openPendingEditor() }
     }
 
     private func hostRow(_ row: HostRow) -> some View {
@@ -187,7 +192,9 @@ public struct HostListView: View {
             case .add, .edit:
                 HostEditorView(
                     model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }),
-                    hostSettings: route.hostID.flatMap(model.hostSettings(for:))
+                    hostSettings: route.hostID.flatMap(model.hostSettings(for:)),
+                    hostStatusConnection: route.hostID.flatMap(model.hostStatusConnection(for:)),
+                    onRemoveHost: removeHostAction(for: route.hostID)
                 ) { host in
                     saved(host)
                 } onCancel: {
@@ -227,6 +234,13 @@ public struct HostListView: View {
         }
         // 主機編輯器的「測試連線」也可能遇到 check mode;sheet 蓋住 Agent 列表，所以這裡也要顯示。
         .tailscaleCheckPrompt(model.tailscaleCheck)
+    }
+
+    /// 主機頁已配對裝置「這支裝置」那列：回主機清單跳出移除確認(#291)。
+    private func removeHostAction(for id: UUID?) -> (@MainActor () -> Void)? {
+        guard let id, let host = model.hosts.first(where: { $0.id == id }) else { return nil }
+        let name = host.name
+        return { flow.requestDeletionFromEditor(of: id, name: name) }
     }
 
     private func saved(_ host: HostConfiguration) {
@@ -282,6 +296,12 @@ public struct HostListView: View {
         guard let url = importURL else { return }
         importURL = nil
         flow.path = [.importLink(url)]
+    }
+
+    private func openPendingEditor() {
+        guard let id = editHostID else { return }
+        editHostID = nil
+        flow.openEditor(of: id)
     }
 }
 
