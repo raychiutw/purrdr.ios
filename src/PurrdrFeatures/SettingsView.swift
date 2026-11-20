@@ -56,12 +56,6 @@ public struct SettingsView: View {
                 } header: {
                     Text("Keyboard and Haptics")
                         .foregroundStyle(.secondaryText)
-                } footer: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
-                        Text("Feel a tap when you answer an agent, and whether the answer arrived.")
-                    }
-                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
@@ -80,6 +74,7 @@ public struct SettingsView: View {
                     Text("Support")
                         .foregroundStyle(.secondaryText)
                 } footer: {
+                    // 隱私揭露(複製的診斷資料包含什麼)保留;其他功能說明依原型拿掉(#276)。
                     Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
                         .foregroundStyle(.secondaryText)
                 }

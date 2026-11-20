@@ -16,7 +16,7 @@ struct SpacesSectionsContent: View {
             Section {
                 ForEach(section.tabs) { tab in
                     tabRow(tab, in: section)
-                        .workspaceGroupActions(
+                        .workspaceActionsMenu(
                             WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host)),
                             host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation)
                         .accessibilityIdentifier("spaces.tab.\(tab.id)")

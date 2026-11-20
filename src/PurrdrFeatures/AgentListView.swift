@@ -432,8 +432,26 @@ struct AgentRowView: View {
                 if dynamicTypeSize.isAccessibilitySize { timeText }
             }
         }
-        .accessibilityElement(children: .combine)
+        // 一句念完(#269,spec #267 故事 14):agent、workspace、狀態、主機 · 最後一句、時間;畫面的排列順序不同，不用 `.combine`。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: Self.accessibilityText(row, host: host)))
         .accessibilityValue(row.isUnread ? Text("Unread") : Text(verbatim: ""))
+    }
+
+    /// VoiceOver 句子：agent 種類、workspace、狀態(與釘選、靜音)、「主機 · 最後一句」、時間，以「, 」連接。
+    static func accessibilityText(_ row: AgentRow, host: HostLabel?) -> String {
+        let hostName = host?.name ?? ""
+        let preview: String = switch row.preview {
+        case .needsInput: "\(hostName) · \(String(localized: "Waiting for your input"))"
+        case .message(let text, let fromYou): fromYou ? "\(hostName) · \(String(localized: "You: \(text)"))" : "\(hostName) · \(text)"
+        case .none: hostName
+        }
+        let parts: [String?] = [
+            AgentKind(rawKind: row.kind).displayName, row.workspace, String(localized: row.status.title),
+            row.isPinned ? String(localized: "Pinned") : nil, row.isMuted ? String(localized: "Muted") : nil,
+            preview.isEmpty ? nil : preview, row.time?.text(),
+        ]
+        return parts.compactMap { $0 }.joined(separator: ", ")
     }
 
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。

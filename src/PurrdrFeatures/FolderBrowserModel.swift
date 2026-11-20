@@ -52,7 +52,7 @@ public final class FolderBrowserModel {
         var chain = [path]
         while let parent = HostPathSyntax.parent(of: chain[0]) { chain.insert(parent, at: 0) }
         if let home, let start = chain.firstIndex(of: home) {
-            return [FolderBreadcrumb(title: "~", path: home)] + chain[(start + 1)...].map(Self.crumb)
+            return [FolderBreadcrumb(title: "~", path: home, isHome: true)] + chain[(start + 1)...].map(Self.crumb)
         }
         return chain.map(Self.crumb)
     }
@@ -174,9 +174,12 @@ public final class FolderBrowserModel {
 public struct FolderBreadcrumb: Equatable, Hashable, Sendable {
     public var title: String
     public var path: String
+    /// 家目錄(顯示「~」,VoiceOver 念「家目錄」)。
+    public var isHome: Bool
 
-    public init(title: String, path: String) {
+    public init(title: String, path: String, isHome: Bool = false) {
         self.title = title
         self.path = path
+        self.isHome = isHome
     }
 }

@@ -124,6 +124,8 @@ public final class HostsModel {
     private var hostServiceConnections: [UUID: any HostConnection] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
     private var members: [HostSelection: HostMember] = [:]
+    /// 主機頁的 Codex 啟動器(#274):每台主機一份，主機刪除時丟掉。
+    private var codexLaunchers: [UUID: CodexLauncherModel] = [:]
     /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
     private let demoConsent: any HostWriteConsentStore
     /// 真主機的主機寫入同意(以主機 id 為鍵);移除主機時清除。
@@ -207,9 +209,10 @@ public final class HostsModel {
     public func hostSettings(for id: UUID) -> HostSettings? {
         guard hosts.contains(where: { $0.id == id }) else { return nil }
         let member = member(for: .host(id))
-        return HostSettings(
-            hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow,
-            codexLauncher: CodexLauncherModel(host: CodexLauncherHost(channel: member.channel), hostID: id.uuidString, consent: hostConsent))
+        let launcher = codexLaunchers[id] ?? CodexLauncherModel(
+            host: CodexLauncherHost(channel: member.channel), hostID: id.uuidString, consent: hostConsent)
+        codexLaunchers[id] = launcher
+        return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
     }
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
@@ -426,6 +429,7 @@ public final class HostsModel {
         refreshPairing()
         dropChannel(of: host.id)
         members[.host(host.id)] = nil
+        codexLaunchers[host.id] = nil
         select(.host(host.id))
     }
 
@@ -460,6 +464,7 @@ public final class HostsModel {
             if let previous, previous.connection != host.connection {
                 dropChannel(of: host.id)
                 members[.host(host.id)] = nil
+                codexLaunchers[host.id] = nil
                 reselect = reselect || selection == .host(host.id)
             }
         }
@@ -477,6 +482,7 @@ public final class HostsModel {
 
     private func remove(_ id: UUID) async throws {
         let removed = hosts.first { $0.id == id }
+        codexLaunchers[id] = nil
         // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
         let secret = try? credentials.secrets.secret(for: id)
         let deviceToken = try? hostService.tokens.deviceToken(for: id)

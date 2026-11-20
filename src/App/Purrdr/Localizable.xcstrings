@@ -2787,7 +2787,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "編輯了 1 個檔案"
+            "value" : "已修改 1 個檔案"
           }
         }
       }
@@ -2909,17 +2909,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "失敗"
-          }
-        }
-      }
-    },
-    "Feel a tap when you answer an agent, and whether the answer arrived." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "回答 Agent 時，以及回答是否送達時，會感覺到輕觸。"
           }
         }
       }
@@ -8842,17 +8831,6 @@
         }
       }
     },
-    "When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "關閉時，Return 會換行。Command-Return 一律送出,Shift-Return 一律換行。"
-          }
-        }
-      }
-    },
     "Windows" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9014,6 +8992,17 @@
     "You should know" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
+    },
+    "You: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你:%@"
+          }
+        }
+      }
     },
     "Your Purrdr Plus subscription has ended. Notifications and host sync are paused until you subscribe again. Chat and terminal keep working." : {
       "extractionState" : "manual",

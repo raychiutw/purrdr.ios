@@ -85,14 +85,6 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// 註記清單的一則：註記、所屬聊天(主機 + pane)與 Agent 標題。
-    public struct NoteEntry: Identifiable {
-        public let note: YouShouldKnowNote
-        public let route: ChatRoute
-        public let title: String
-        public var id: String { "\(route.host.storedValue)/\(note.id)" }
-    }
-
     /// 選取中主機在前，其他依主機清單順序。
     public private(set) var sources: [Source] = []
     public private(set) var selected: HostSelection = .demo
@@ -253,22 +245,6 @@ public final class MergedAgentListModel {
         guard !messages.isEmpty, messages.allSatisfy({ $0 != nil }) else { return nil }
         if case .failed(let message)? = list(for: selected)?.phase { return message }
         return messages.first ?? nil
-    }
-
-    /// 所有主機的「You should know」註記(#23):只算列表裡有的 Claude 聊天(以完整 session id 配對)。
-    /// 依主機順序(選取中主機在前)、每台主機內新→舊。
-    public var notes: [NoteEntry] {
-        let allRows = AgentListProjection.sections(sources: projectionSources, query: query, visible: visibleChats).flatMap(\.rows)
-        let titles = Dictionary(allRows.map { ($0.route, $0.title) }) { first, _ in first }
-        return sources.flatMap { source -> [NoteEntry] in
-            guard let model = source.notes else { return [] }
-            let panes = source.list.claudeSessionPanes
-            return model.notes.compactMap { note in
-                guard let paneID = panes[note.sessionID] else { return nil }
-                let route = ChatRoute(host: source.host, paneID: paneID)
-                return NoteEntry(note: note, route: route, title: titles[route] ?? paneID)
-            }
-        }
     }
 
     /// 每台主機各自輪詢註記，直到所在的 task 被取消。與聊天輸入列共用同一個讀取迴圈(`YouShouldKnowModel.liveUpdates`)。

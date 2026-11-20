@@ -152,13 +152,11 @@ struct FolderEntryRow: View {
     private var symbol: String {
         switch entry.kind {
         case .folder: "folder.fill"
-        case .file: Self.imageExtensions.contains((entry.name as NSString).pathExtension.lowercased()) ? "photo" : "doc"
+        case .file: AgentFileKind(fileExtension: (entry.name as NSString).pathExtension.lowercased()) == .image ? "photo" : "doc"
         case .symlink: "arrow.up.forward.square"
         case .other: "questionmark.square.dashed"
         }
     }
-
-    private static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff", "bmp"]
 
     private var kindLabel: Text {
         switch entry.kind {
@@ -209,9 +207,9 @@ struct FolderBreadcrumbBar: View {
                                 .padding(.horizontal, 4)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressableRow(cornerRadius: 8))
                         .disabled(isCurrent)
-                        .accessibilityLabel(crumb.title == "~" ? Text("Home Folder") : Text(verbatim: crumb.title))
+                        .accessibilityLabel(crumb.isHome ? Text("Home Folder") : Text(verbatim: crumb.title))
                         .accessibilityIdentifier("files.crumb.\(index)")
                         .id(index)
                     }

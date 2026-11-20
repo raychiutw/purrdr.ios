@@ -266,6 +266,7 @@ struct MultiHostTests {
         #expect(lab != nil)
         #expect(lab?.youShouldKnow === model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil).youShouldKnow)
         #expect(lab?.youShouldKnow !== model.youShouldKnow, "不該是選取中主機的")
+        #expect(model.hostSettings(for: Self.lab.id) == lab, "同一台主機每次拿到同一份(Codex 啟動器不重建)")
         #expect(model.hostSettings(for: UUID()) == nil)
     }
 

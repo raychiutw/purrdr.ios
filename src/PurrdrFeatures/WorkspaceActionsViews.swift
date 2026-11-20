@@ -74,8 +74,8 @@ extension View {
             openInNewWindow: openInNewWindow))
     }
 
-    /// Spaces 群組標頭的 context menu(#103):第一項是版面圖，其餘同列的 workspace 動作。
-    func workspaceGroupActions(
+    /// Spaces 檢視 Tab 列的 context menu(#275):第一項是版面圖，其餘同列的 workspace 動作。
+    func workspaceActionsMenu(
         _ target: WorkspaceTarget, host: HostSelection, snapshot: HostSnapshot?, presentation: WorkspacePresentation
     ) -> some View {
         contextMenu {
@@ -98,7 +98,7 @@ extension View {
     }
 }
 
-/// 列與群組標頭共用的 workspace 動作按鈕。
+/// Agent 列與 Spaces 的 Tab 列共用的 workspace 動作按鈕。
 @MainActor
 private struct WorkspaceButtons {
     let target: WorkspaceTarget

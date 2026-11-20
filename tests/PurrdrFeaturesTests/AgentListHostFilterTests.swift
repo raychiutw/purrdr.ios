@@ -47,6 +47,7 @@ struct AgentListHostFilterTests {
     @Test("篩選某台主機：Agents 與 Spaces 都只剩那台主機的列")
     func filterLimitsAgentsAndSpaces() async {
         let model = await Self.loadedModel()
+        #expect(Set(model.spacesSections.map(\.host)) == [Self.studio, Self.lab], "沒篩選時 Spaces 有兩台主機的段落")
 
         model.hostFilter = Self.lab
 
