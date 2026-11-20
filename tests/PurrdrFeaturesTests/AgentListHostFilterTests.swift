@@ -47,13 +47,15 @@ struct AgentListHostFilterTests {
     @Test("篩選某台主機：Agents 與 Spaces 都只剩那台主機的列")
     func filterLimitsAgentsAndSpaces() async {
         let model = await Self.loadedModel()
+        #expect(Set(model.spacesSections.map(\.host)) == [Self.studio, Self.lab], "沒篩選時 Spaces 有兩台主機的段落")
 
         model.hostFilter = Self.lab
 
         let rows = model.sections.flatMap(\.rows)
         #expect(rows.count == 3)
         #expect(rows.allSatisfy { $0.host == Self.lab })
-        #expect(model.spacesSections.compactMap(\.host?.host) == [Self.lab])
+        #expect(!model.spacesSections.isEmpty)
+        #expect(model.spacesSections.allSatisfy { $0.host == Self.lab })
     }
 
     @Test("篩選某台主機時，其他主機的連線錯誤不出現在列表下方")

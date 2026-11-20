@@ -79,8 +79,6 @@ public final class HostsModel {
     }
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
-    /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
-    public private(set) var codexLauncher: CodexLauncherModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
     /// Tailscale SSH check mode 的提示。所有主機通道共用;composition root 把它的 `observer` 交給主機通道。
@@ -126,6 +124,8 @@ public final class HostsModel {
     private var hostServiceConnections: [UUID: any HostConnection] = [:]
     /// 列表上每台主機的連線與 model(以主機身分)。
     private var members: [HostSelection: HostMember] = [:]
+    /// 主機頁的 Codex 啟動器(#274):每台主機一份，主機刪除時丟掉。
+    private var codexLaunchers: [UUID: CodexLauncherModel] = [:]
     /// Demo 主機的主機寫入同意(Demo 不持久化，行為規格 F21)。
     private let demoConsent: any HostWriteConsentStore
     /// 真主機的主機寫入同意(以主機 id 為鍵);移除主機時清除。
@@ -143,7 +143,6 @@ public final class HostsModel {
     ///   - preferences: 釘選、靜音等本機偏好(依主機分開：同一個 session 值在不同主機是不同的聊天)。
     ///   - hostIcons: 使用者替主機選的圖示。
     ///   - selectionStore: 選取中主機的存放處。
-    ///   - swipeHint: 列表滑動提示是否已經不用再顯示(使用者用過滑動面板的動作)。
     ///   - listMode: 列表檢視(Spaces／Agents)的存放處。
     ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
     ///   - demoCompanions: Demo 的示範主機(#34);Demo 主機出現在列表時一起出現。
@@ -164,13 +163,12 @@ public final class HostsModel {
         hostServiceUpdates: HostServiceUpdates = HostServiceUpdates(store: InMemoryHostServiceUpdateStore()),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
-        swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
-        agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
+        agentList = MergedAgentListModel(modeStore: listMode)
         self.selectionStore = selectionStore
         self.planUsageSelection = planUsageSelection
         self.hostPickerStore = hostPickerStore
@@ -192,7 +190,6 @@ public final class HostsModel {
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
-        codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
     }
@@ -223,6 +220,17 @@ public final class HostsModel {
     public var hostTheme: HostThemeModel { member(for: selection).hostTheme }
     /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
+
+    /// 某台主機的主機設定(#274):主機頁(主機清單的 ⓘ)下方的主機主題、You should know、Codex 啟動器，作用在那台主機。
+    /// 沒有這台主機時是 `nil`。
+    public func hostSettings(for id: UUID) -> HostSettings? {
+        guard hosts.contains(where: { $0.id == id }) else { return nil }
+        let member = member(for: .host(id))
+        let launcher = codexLaunchers[id] ?? CodexLauncherModel(
+            host: CodexLauncherHost(channel: member.channel), hostID: id.uuidString, consent: hostConsent)
+        codexLaunchers[id] = launcher
+        return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
+    }
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
     public func planUsage() -> PlanUsageModel {
@@ -299,10 +307,8 @@ public final class HostsModel {
             client: member.client, transcripts: member.transcripts, paneID: route.paneID, knownSessionID: sessionID,
             cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: ClaudeSlashDiscovery(channel: member.channel),
             haptics: haptics,
-            hostName: { [weak self] in
-                guard let self, route.host != self.selection else { return nil }
-                return self.name(of: route.host)
-            },
+            // 標題列副標一律是聊天所在主機的名稱(#270)。
+            hostName: { [weak self] in self?.name(of: route.host) },
             // Windows 主機也能上傳(#68:`ImageUploader` 經 `WindowsHostChannel` 送 PowerShell 版)。
             images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore),
             updates: member.list.updates)
@@ -322,6 +328,11 @@ public final class HostsModel {
     }
 
     /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
+    /// 把文字放進某個聊天的輸入框(草稿):新增聊天沒送出的第一則訊息(#272)。
+    public func keepDraft(_ text: String, for route: ChatRoute) {
+        member(for: route.host).drafts.save(text, chatKey: route.paneID, session: nil)
+    }
+
     public func openStartedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async {
         let list = agentList
         await list.load()
@@ -422,19 +433,10 @@ public final class HostsModel {
     /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、推播設定讀哪台;
     /// 不關閉、不重建任何連線(#39)。
     public func select(_ selection: HostSelection) {
-        let host: HostConfiguration?
-        switch selection {
-        case .demo: host = nil
-        case .host(let id):
-            guard let found = hosts.first(where: { $0.id == id }) else { return }
-            host = found
-        }
+        if case .host(let id) = selection, !hosts.contains(where: { $0.id == id }) { return }
         self.selection = selection
         selectionStore.save(selection)
         rebuildMembers()
-        codexLauncher = CodexLauncherModel(
-            host: CodexLauncherHost(channel: member(for: selection).channel), hostID: host?.id.uuidString ?? Self.demoID,
-            consent: host == nil ? demoConsent : hostConsent)
     }
 
     /// 新增或編輯主機並儲存後：重讀清單並選取它。設定改了，那台主機的連線一律關閉重建。
@@ -444,6 +446,7 @@ public final class HostsModel {
         refreshPairing()
         dropChannel(of: host.id)
         members[.host(host.id)] = nil
+        codexLaunchers[host.id] = nil
         select(.host(host.id))
     }
 
@@ -478,6 +481,7 @@ public final class HostsModel {
             if let previous, previous.connection != host.connection {
                 dropChannel(of: host.id)
                 members[.host(host.id)] = nil
+                codexLaunchers[host.id] = nil
                 reselect = reselect || selection == .host(host.id)
             }
         }
@@ -495,6 +499,7 @@ public final class HostsModel {
 
     private func remove(_ id: UUID) async throws {
         let removed = hosts.first { $0.id == id }
+        codexLaunchers[id] = nil
         // 刪配對要再連一次主機：祕密刪掉前先讀出來，給刪配對用的連線。
         let secret = try? credentials.secrets.secret(for: id)
         let deviceToken = try? hostService.tokens.deviceToken(for: id)
@@ -909,5 +914,17 @@ extension PushService {
     public func sshInstaller(channel: any HostChannel, herdr: HerdrInstallation) -> any PushPluginInstalling {
         let pluginSource = configuration.pluginSource
         return installer { SSHPushPluginInstaller(channel: channel, herdr: herdr, deviceID: $0, pluginSource: pluginSource) }
+    }
+}
+
+/// 一台主機的主機設定(#274):在主機頁下方，作用在那台主機。
+@MainActor
+public struct HostSettings: Equatable {
+    public let hostTheme: HostThemeModel
+    public let youShouldKnow: YouShouldKnowModel
+    public let codexLauncher: CodexLauncherModel
+
+    public nonisolated static func == (lhs: HostSettings, rhs: HostSettings) -> Bool {
+        lhs.hostTheme === rhs.hostTheme && lhs.youShouldKnow === rhs.youShouldKnow && lhs.codexLauncher === rhs.codexLauncher
     }
 }

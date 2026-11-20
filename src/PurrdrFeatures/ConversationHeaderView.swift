@@ -2,7 +2,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 導覽列中間：標題與下一行的資訊(F5.7;#44)。
+/// 導覽列中間：workspace 名稱與下一行的狀態、主機名(#270)。
 ///
 /// 資訊行寧可整段拿掉也不截斷(`ViewThatFits` 依序試 `displayVariants`);VoiceOver 念完整內容。
 struct ConversationTitleView: View {
@@ -40,7 +40,7 @@ struct ConversationHeaderLine: View {
         .font(.caption)
         .foregroundStyle(.secondaryText)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(header.accessibilityText))
+        .accessibilityLabel(Text(header.lineAccessibilityText))
         // 只是文字、不能點(#35:沒有這個 trait 時 audit 把它當成觸控目標，報 hit region 太小)。
         .accessibilityAddTraits(.isStaticText)
         .accessibilityIdentifier("conversation.header")

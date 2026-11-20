@@ -59,7 +59,7 @@ struct NewChatLaunchTests {
 
         let created = try await Self.launcher(host).start(request)
 
-        #expect(created == CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"))
+        #expect(created == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"), sentMessage: false))
         let executions = await host.executions
         #expect(executions.map(\.command) == [command, Self.bridge, Self.bridge])
         // 先解析資料夾(herdr 對不存在的資料夾會默默改用家目錄),以絕對路徑建立;focus:false 不搶桌機焦點。
@@ -124,7 +124,7 @@ struct NewChatLaunchTests {
 
         let created = try await Self.launcher(host, sleeper: sleeper).start(NewChatRequest(folder: "~/ledger", agent: .claude))
 
-        #expect(created.rootPaneID == "w4:p1")
+        #expect(created.workspace.rootPaneID == "w4:p1")
         #expect(await host.executions.count == 7)
         #expect(await sleeper.requested.filter { $0 == .milliseconds(750) }.count == 4)
         // 我方期限比 herdr 的等待多 60 秒，絕不比 herdr 先放棄。
@@ -170,7 +170,7 @@ struct NewChatLaunchTests {
         await host.expect(Self.bridge, reply: Self.agentStarted(pane: "w5:p1"))
         let created = try await launcher.start(NewChatRequest(folder: "~/notes", agent: .claude))
 
-        #expect(created == CreatedWorkspace(workspaceID: "w5", rootPaneID: "w5:p1"))
+        #expect(created == NewChatStarted(workspace: CreatedWorkspace(workspaceID: "w5", rootPaneID: "w5:p1"), sentMessage: false))
         let executions = await host.executions
         #expect(executions[6].stdinText == #"{"id":"purrdr:workspace.close","method":"workspace.close","params":{"workspace_id":"w4"}}"# + "\n")
         #expect(executions[7].stdinText == Self.createLine(cwd: "/Users/demo/notes"))

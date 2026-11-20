@@ -17,9 +17,9 @@ final class AgentListUITests: XCTestCase {
 
         let row = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        XCTAssertTrue(row.label.contains("Tidy up the CSV export"), "列標題不對:\(row.label)")
-        // Spaces 檢視：單一 Agent 的聊天列第三行是 workspace 名稱。
+        // Agents 列第一行是 workspace 名稱(#269,原型 B)。
         XCTAssertTrue(row.label.contains("ledger"), "列沒有 workspace 名稱:\(row.label)")
+        XCTAssertFalse(row.label.contains("Tidy up the CSV export"), "列第一行不該是聊天標題:\(row.label)")
         XCTAssertTrue(row.label.contains("Done"), "列沒有狀態文字:\(row.label)")
     }
 
@@ -34,10 +34,10 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
         XCTAssertTrue(needsYou.label.contains("Needs You"), "沒有「需要你」文字:\(needsYou.label)")
         XCTAssertTrue(needsYou.label.contains("Waiting for your input"), "沒有等待輸入的預覽:\(needsYou.label)")
-        XCTAssertTrue(working.label.contains("Sync notes to Markdown"), "Codex 標題沒去掉資料夾:\(working.label)")
+        XCTAssertTrue(working.label.contains("notes"), "列沒有 workspace 名稱:\(working.label)")
         XCTAssertTrue(working.label.contains("Now"), "工作中的列沒有「Now」:\(working.label)")
         XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
-        // ledger 在 notes 群組下方，可能在畫面外(列表是 lazy)。
+        // ledger 在 notes 下方，可能在畫面外(列表是 lazy)。
         XCTAssertTrue(app.reveal(done))
         XCTAssertLessThan(working.frame.minY, done.frame.minY)
     }
@@ -69,7 +69,7 @@ final class AgentListUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
 
-        let search = app.searchFields.firstMatch
+        let search = app.textFields["agentList.search"].firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 5), "沒有搜尋欄")
         search.tap()
         search.typeEnglish("weather")
@@ -80,5 +80,45 @@ final class AgentListUITests: XCTestCase {
 
         search.typeEnglish("zzz")
         XCTAssertTrue(app.staticTexts["No Matching Agents"].waitForExistence(timeout: 5), "沒有「無符合結果」的說明")
+    }
+
+    /// 聊天列表頂部(#268,原型 purrdr-screens 定案版):沒有大標題、沒有標題選單;導覽列下方直接是 Agents／Spaces 分段控制，
+    /// Agents 檢視的搜尋在它下方(Spaces 沒有搜尋);列表上沒有滑動提示與註記卡。
+    @MainActor
+    func testChatListTopHasNoLargeTitleAndSearchUnderModeControl() {
+        let app = XCUIApplication.launchUITesting()
+        XCTAssertTrue(app.reveal(row("w1:p1", in: app)))
+        XCTAssertFalse(app.staticTexts["agentList.title"].exists, "不該有大標題")
+        XCTAssertFalse(app.navigationBars.buttons["Agents"].exists, "導覽列不該有標題(含標題選單)")
+        let control = app.listModeControl
+        XCTAssertTrue(control.exists)
+        let bar = app.navigationBars.firstMatch.frame
+        XCTAssertLessThan(control.frame.minY - bar.maxY, 30, "分段控制不在導覽列正下方:\(control.frame) 導覽列 \(bar)")
+        let search = app.textFields["agentList.search"].firstMatch
+        XCTAssertTrue(search.exists, "Agents 檢視沒有搜尋欄")
+        XCTAssertGreaterThan(search.frame.minY, control.frame.maxY, "搜尋欄不在分段控制下方")
+        XCTAssertFalse(app.searchFields.firstMatch.exists, "不該有系統搜尋欄(底部工具列)")
+        XCTAssertFalse(app.descendants(matching: .any)["agentList.swipeHint"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["youShouldKnow.listRow"].exists)
+
+        app.switchListMode(to: "Spaces")
+        XCTAssertTrue(search.waitForNonExistence(timeout: 5), "Spaces 檢視不該有搜尋欄")
+    }
+
+    /// AX 字級的選單只有一層(#268,使用者實機截圖):帳號併進「⋯」,選單直接列出所有項目，沒有「更多」第二層，
+    /// 也沒有 Agents／Spaces 切換。
+    @MainActor
+    func testMoreMenuIsOneLevelAtAccessibilitySize() {
+        let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        XCTAssertTrue(app.listModeControl.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["toolbar.account"].exists, "AX 字級時帳號應併進「⋯」")
+        // 工具列只剩主機篩選與「⋯」:系統不會把它們收進溢出選單(溢出選單裡「⋯」會變成「更多 ›」第二層)。
+        XCTAssertFalse(app.buttons["OverflowBarButtonItem"].exists, "工具列被收進溢出選單，選單會變成兩層")
+        let more = app.buttons["toolbar.more"].firstMatch
+        XCTAssertTrue(more.exists, "工具列沒有「⋯」")
+        more.tap()
+        for item in ["menu.account", "menu.newChat", "menu.hosts", "menu.settings"] {
+            XCTAssertTrue(app.buttons[item].firstMatch.waitForExistence(timeout: 5), "選單沒有直接列出 \(item)")
+        }
     }
 }

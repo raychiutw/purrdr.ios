@@ -1,11 +1,10 @@
 import Foundation
 import PurrdrCore
 
-/// 對話標題下一行的資訊(行為規格 F5.7;#44、G11)。只依輸入推導，不記任何狀態。
+/// 對話標題列(#270,原型 purrdr-screens 定案版):標題是 workspace 名稱，下一行是狀態(字與點)與主機名。
+/// 只依輸入推導，不記任何狀態。
 ///
-/// 狀態(字與點)永遠在最前面，其後以「 · 」串接：非選取中主機時的主機名、workspace 名稱(不同於標題時)、
-/// agent 名稱、模型、「<effort> effort」、資料夾(不與 workspace 或標題重複時)。
-/// 畫面寬度不夠時從後面整段拿掉，不截斷任何一段;VoiceOver 念 `accessibilityText`(完整內容)。
+/// 畫面寬度不夠時從後面整段拿掉，不截斷;VoiceOver 念 `accessibilityText`(workspace、狀態、主機)。
 public struct ConversationHeader: Equatable, Sendable {
     public enum Status: Equatable, Sendable {
         case offline
@@ -16,10 +15,14 @@ public struct ConversationHeader: Equatable, Sendable {
         case online
     }
 
+    /// Workspace 名稱;還沒讀到 Agent 時是聊天標題。
+    public var title: String
     public var status: Status
+    /// 狀態之後的段落：主機名(有的話)。
     public var segments: [String]
 
-    public init(status: Status, segments: [String]) {
+    public init(title: String, status: Status, segments: [String]) {
+        self.title = title
         self.status = status
         self.segments = segments
     }
@@ -31,12 +34,18 @@ public struct ConversationHeader: Equatable, Sendable {
         }
     }
 
-    /// 完整內容(VoiceOver)。
+    /// 完整內容(VoiceOver):workspace、狀態、主機。
     public var accessibilityText: String {
+        ([title] + [lineAccessibilityText]).filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+
+    /// 標題下一行(狀態、主機)的 VoiceOver 文字;標題是另一個元素，不重複念。
+    public var lineAccessibilityText: String {
         ([status.title] + segments).joined(separator: ", ")
     }
 
-    package init(agent: Agent?, title: String, metadata: TranscriptMetadata, status: AgentStatus?, isOffline: Bool, hostName: String?) {
+    package init(agent: Agent?, title: String, status: AgentStatus?, isOffline: Bool, hostName: String?) {
+        self.title = agent.map(AgentRowText.workspaceName) ?? title
         self.status = if isOffline {
             .offline
         } else {
@@ -47,18 +56,7 @@ public struct ConversationHeader: Equatable, Sendable {
             case .idle, .unknown, nil: .online
             }
         }
-        var parts: [String] = []
-        if let hostName, !hostName.isEmpty { parts.append(hostName) }
-        let label = agent?.workspaceLabel
-        if let label, !label.isEmpty, label != title { parts.append(label) }
-        if let kind = agent?.kind { parts.append(AgentKind.displayName(kind) ?? kind) }
-        if let model = metadata.model, !model.isEmpty { parts.append(TranscriptMetadata.displayName(ofModel: model)) }
-        if let effort = metadata.effort, !effort.isEmpty { parts.append(String(localized: "\(effort) effort")) }
-        if let folder = agent?.cwd.flatMap(HostPathSyntax.lastComponent).map(String.init), !folder.isEmpty,
-           folder.lowercased() != label?.lowercased(), folder != title {
-            parts.append(folder)
-        }
-        segments = parts
+        segments = hostName.flatMap { $0.isEmpty ? nil : [$0] } ?? []
     }
 }
 
@@ -73,11 +71,6 @@ extension ConversationHeader.Status {
         case .online: String(localized: "Online")
         }
     }
-}
-
-/// 標題列的動作鈕(F5.7)。停止與強制結束在輸入卡片的停止列(#220)。
-public enum HeaderAction: Equatable, Sendable {
-    case reload
 }
 
 /// 工作中指示的經過時間：「12s」「11m 43s」「1h 5m」(行為規格 F5.11)。

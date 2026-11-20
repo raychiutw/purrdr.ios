@@ -25,6 +25,9 @@ public final class FolderBrowserModel {
     public var notice: String?
     public let hostName: String
 
+    /// 家目錄(第一次列出的資料夾):麵包屑以「~」代表。
+    private var home: String?
+
     private let folders: HostFolders
     /// 每次載入加一;晚到的舊結果丟棄。
     private var generation = 0
@@ -41,6 +44,29 @@ public final class FolderBrowserModel {
     }
 
     public var canGoUp: Bool { navigation.canGoUp }
+
+    /// 路徑麵包屑(#273,原型 purrdr-screens 定案版:「~ › Projects › ledger」):由上而下每一層一段，最後一段是目前的資料夾。
+    /// 家目錄與它底下以「~」開頭;家目錄外從根目錄(`/`、`C:\`)開始。路徑依主機的語法切段(#26)。
+    public var breadcrumbs: [FolderBreadcrumb] {
+        guard let path else { return [] }
+        var chain = [path]
+        while let parent = HostPathSyntax.parent(of: chain[0]) { chain.insert(parent, at: 0) }
+        if let home, let start = chain.firstIndex(of: home) {
+            return [FolderBreadcrumb(title: "~", path: home, isHome: true)] + chain[(start + 1)...].map(Self.crumb)
+        }
+        return chain.map(Self.crumb)
+    }
+
+    private static func crumb(_ path: String) -> FolderBreadcrumb {
+        let title = HostPathSyntax.isRoot(path) ? path : (HostPathSyntax.lastComponent(path).map(String.init) ?? path)
+        return FolderBreadcrumb(title: title, path: path)
+    }
+
+    /// 點麵包屑的一段：打開那一層。
+    public func go(to crumb: FolderBreadcrumb) async {
+        guard crumb.path != path else { return }
+        await list(crumb.path)
+    }
 
     private var navigation: FolderNavigation { FolderNavigation(current: path) }
 
@@ -67,6 +93,7 @@ public final class FolderBrowserModel {
         do {
             let listing = try await folders.list(target)
             guard self.generation == generation else { return }
+            if target == nil, home == nil { home = listing.path }
             path = listing.path
             phase = .loaded(listing)
         } catch {
@@ -140,5 +167,19 @@ public final class FolderBrowserModel {
         default:
             HostErrorText.message(for: error)
         }
+    }
+}
+
+/// 檔案頁路徑麵包屑的一段：顯示的名稱與那一層的路徑。
+public struct FolderBreadcrumb: Equatable, Hashable, Sendable {
+    public var title: String
+    public var path: String
+    /// 家目錄(顯示「~」,VoiceOver 念「家目錄」)。
+    public var isHome: Bool
+
+    public init(title: String, path: String, isHome: Bool = false) {
+        self.title = title
+        self.path = path
+        self.isHome = isHome
     }
 }

@@ -41,8 +41,9 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["terminal.key.esc"].firstMatch.isHittable, "按鍵列沒有出現")
     }
 
+    /// 檔案頁(#273,原型):路徑麵包屑「~ › ledger」每段可點回那一層;右上「＋」上傳;沒有「上一層」按鈕與說明段落。
     @MainActor
-    func testFilesBrowseFoldersAndGoUp() {
+    func testFilesBrowseFoldersWithBreadcrumbs() {
         let app = XCUIApplication.launchUITesting()
         openMenuItem("menu.files", in: app)
 
@@ -51,14 +52,16 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["files.row..zshrc"].firstMatch.exists, "隱藏檔沒有列出")
         XCTAssertTrue(app.navigationBars["demo"].exists, "標題不是資料夾最後一段")
         XCTAssertEqual(app.buttons["files.upload"].firstMatch.label, "Upload File")
-        XCTAssertEqual(app.buttons["files.up"].firstMatch.label, "Enclosing Folder")
+        XCTAssertFalse(app.buttons["files.up"].exists, "不該再有「上一層」按鈕")
+        XCTAssertEqual(app.buttons["files.crumb.0"].firstMatch.label, "Home Folder")
 
         ledger.tap()
         XCTAssertTrue(app.descendants(matching: .any)["files.row.export.csv"].firstMatch.waitForExistence(timeout: 10), "沒有打開資料夾")
         XCTAssertTrue(app.navigationBars["ledger"].exists)
+        XCTAssertEqual(app.buttons["files.crumb.1"].firstMatch.label, "ledger")
 
-        app.buttons["files.up"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitForExistence(timeout: 10), "沒有回到上一層")
+        app.buttons["files.crumb.0"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitForExistence(timeout: 10), "點「~」沒有回到家目錄")
     }
 
     // MARK: - 主機挑選鈕(#245)
@@ -104,13 +107,13 @@ final class HostToolsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["files.host"].firstMatch.label.contains("Studio Mac"), "檔案不該沿用登入 Shell 的選擇")
     }
 
-    /// 檔案換主機後從那台的家目錄重新列出，資料夾名稱在挑選鈕下方。
+    /// 檔案換主機後從那台的家目錄重新列出。
     @MainActor
     func testFilesPicksHost() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openMenuItem("menu.files", in: app)
         XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitForExistence(timeout: 10), "沒有列出家目錄")
-        XCTAssertEqual(app.staticTexts["files.folder"].firstMatch.label, "demo")
+        XCTAssertEqual(app.buttons["files.crumb.0"].firstMatch.label, "Home Folder")
 
         pickHost("Demo", with: "files.host", in: app)
 

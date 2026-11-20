@@ -169,6 +169,17 @@ public enum SnapshotEdit {
         }
     }
 
+    /// 改 `tab_id` 為 `tabID` 的 tab。
+    public static func tab(_ tabID: String, in response: inout [String: Any], _ change: (inout [String: Any]) -> Void) {
+        editSnapshot(&response) { snapshot in
+            guard var items = snapshot["tabs"] as? [[String: Any]] else { return }
+            for index in items.indices where items[index]["tab_id"] as? String == tabID {
+                change(&items[index])
+            }
+            snapshot["tabs"] = items
+        }
+    }
+
     /// 複製 `pane_id` 為 `template` 的 agent 與 pane,換成新的 pane id 與 Claude session id(多 Agent 的情境)。
     public static func addAgent(copying template: String, as paneID: String, sessionID: String, in response: inout [String: Any]) {
         editSnapshot(&response) { snapshot in

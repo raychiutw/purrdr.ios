@@ -3,20 +3,25 @@ import PurrdrCore
 import PurrdrSSH
 import SwiftUI
 
-/// 新增對話(行為規格 F3.1;#18):選取中主機上的資料夾、名稱、agent、權限模式。
+/// 新增對話(#272,原型 purrdr-screens 定案版):標題列中間是主機挑選鈕，下面是 Agent(分段控制)、資料夾、第一則訊息，
+/// 最下方「開始」。名稱由 herdr 用資料夾名，權限沿用 agent 自己的設定。
 ///
 /// 以 sheet 開啟;資料夾瀏覽在同一個 sheet 內 push(HIG 檢核清單 20.3「多步驟在同一個 sheet 內 push」)。
-/// Cancel 在左、Start 在右。開始中不能滑掉 sheet(主機上正在建立 workspace)。
+/// 開始中不能滑掉 sheet(主機上正在建立 workspace)。
 public struct NewChatView: View {
     @Bindable var model: NewChatModel
     /// 標題列中間的主機挑選鈕(#245)。
     let hostPicker: HostPickerModel?
     let onCancel: () -> Void
-    let onStarted: (CreatedWorkspace) -> Void
+    /// 開始了：新 workspace 與沒送出的第一則訊息(agent 停在啟動問題時)。
+    let onStarted: (CreatedWorkspace, String?) -> Void
+
+    /// 原型只有這兩種(分段控制);其他 agent 的啟動另議。
+    private static let agents: [NewChatAgent] = [.claude, .codex]
 
     public init(
         model: NewChatModel, hostPicker: HostPickerModel? = nil, onCancel: @escaping () -> Void,
-        onStarted: @escaping (CreatedWorkspace) -> Void
+        onStarted: @escaping (CreatedWorkspace, String?) -> Void
     ) {
         self.model = model
         self.hostPicker = hostPicker
@@ -27,6 +32,19 @@ public struct NewChatView: View {
     public var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Agent", selection: $model.agent) {
+                        ForEach(Self.agents, id: \.self) { agent in
+                            Text(verbatim: agent.displayName).tag(agent)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("newChat.agent")
+                } header: {
+                    Text("Agent")
+                        .foregroundStyle(.secondaryText)
+                }
+
                 Section {
                     TextField("Folder", text: $model.folder, prompt: Text(verbatim: "~/projects/app"))
                         .font(.body.monospaced())
@@ -45,39 +63,15 @@ public struct NewChatView: View {
                 } header: {
                     Text("Folder")
                         .foregroundStyle(.secondaryText)
-                } footer: {
-                    Text("The agent starts in this folder on the host, in a new workspace.")
-                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
-                    TextField("Name", text: $model.name, prompt: Text("Optional. Uses the folder name."))
-                        .accessibilityIdentifier("newChat.name")
+                    TextField("First Message", text: $model.message, prompt: Text("What should the agent do?"), axis: .vertical)
+                        .lineLimit(3...8)
+                        .accessibilityIdentifier("newChat.message")
                 } header: {
-                    Text("Name")
+                    Text("First Message")
                         .foregroundStyle(.secondaryText)
-                }
-
-                Section {
-                    Picker("Agent", selection: $model.agent) {
-                        ForEach(NewChatAgent.allCases, id: \.self) { agent in
-                            Text(verbatim: agent.displayName).tag(agent)
-                        }
-                    }
-                    .accessibilityIdentifier("newChat.agent")
-                    if model.showsPermissionMode {
-                        Picker("Permissions", selection: $model.permissionMode) {
-                            ForEach(ClaudePermissionMode.allCases, id: \.self) { mode in
-                                Text(mode.title).tag(mode)
-                            }
-                        }
-                        .accessibilityIdentifier("newChat.permissionMode")
-                    }
-                } footer: {
-                    Group {
-                        agentFooter
-                    }
-                    .foregroundStyle(.secondaryText)
                 }
 
                 if let error = model.error {
@@ -86,16 +80,36 @@ public struct NewChatView: View {
                             .accessibilityIdentifier("newChat.error")
                     }
                 }
+
+                Section {
+                    Button(action: start) {
+                        Group {
+                            if model.isStarting {
+                                ProgressView()
+                                    .accessibilityLabel(Text("Starting…"))
+                                    .accessibilityIdentifier("newChat.starting")
+                            } else {
+                                Text("Start")
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .filledProminentButtonStyle()
+                    .disabled(!model.canStart)
+                    .accessibilityIdentifier("newChat.start")
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
             }
             .accessibilityIdentifier("sheet.newChat")
             .navigationTitle("New Chat")
             #if os(iOS)
-            // 有主機挑選鈕時它佔標題列中間，「新增聊天」改成大標題放在下面(原型)。
-            .navigationBarTitleDisplayMode(hostPicker == nil ? .inline : .large)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
             .interactiveDismissDisabled(model.isStarting)
             .toolbar {
                 if let hostPicker {
+                    // 主機挑選鈕佔標題位置(原型);頁面只顯示標題，不放說明。
                     ToolbarItem(placement: .principal) {
                         HostPickerButton(model: hostPicker, identifier: "newChat.host")
                             .disabled(model.isStarting)
@@ -106,36 +120,13 @@ public struct NewChatView: View {
                         .disabled(model.isStarting)
                         .accessibilityIdentifier("newChat.cancel")
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    if model.isStarting {
-                        ProgressView()
-                            .accessibilityLabel(Text("Starting…"))
-                            .accessibilityIdentifier("newChat.starting")
-                    } else {
-                        Button("Start", action: start)
-                            .disabled(!model.canStart)
-                            .accessibilityIdentifier("newChat.start")
-                    }
-                }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var agentFooter: some View {
-        switch model.agent {
-        case .claude:
-            Text(model.permissionMode.footer)
-        case .codex:
-            Text("Codex reports its session after you send the first message.")
-        default:
-            Text("The agent uses its own settings on the host.")
         }
     }
 
     private func start() {
         Task {
-            if let created = await model.start() { onStarted(created) }
+            if let created = await model.start() { onStarted(created, model.unsentMessage) }
         }
     }
 }
@@ -238,30 +229,6 @@ extension NewChatAgent {
         case .agy: "Antigravity"
         case .pi: "Pi"
         case .omp: "OMP"
-        }
-    }
-}
-
-extension ClaudePermissionMode {
-    var title: LocalizedStringKey {
-        switch self {
-        case .agentDefault: "Claude Code’s Settings"
-        case .manual: "Ask Every Time"
-        case .acceptEdits: "Accept Edits"
-        case .plan: "Plan Only"
-        case .auto: "Auto"
-        case .bypassPermissions: "Full Access"
-        }
-    }
-
-    var footer: LocalizedStringKey {
-        switch self {
-        case .agentDefault: "Claude Code uses the permission settings it already has on this host."
-        case .manual: "Claude Code asks before every tool it uses."
-        case .acceptEdits: "Claude Code edits files without asking, and asks before running commands."
-        case .plan: "Claude Code only plans. It doesn’t edit files or run commands."
-        case .auto: "Claude Code decides which actions are safe to run without asking."
-        case .bypassPermissions: "Claude Code runs commands and edits files without ever asking. Use this only in folders you trust."
         }
     }
 }

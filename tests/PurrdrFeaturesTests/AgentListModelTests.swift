@@ -31,14 +31,14 @@ struct AgentListModelTests {
         #expect(model.phase == .loaded)
         #expect(model.sections == [
             AgentSection(group: .working, rows: [
-                AgentRow(paneID: "w1:pA", title: "規劃天氣小工具", subtitle: "garden-journal · Claude Code · demo/Projects",
+                AgentRow(paneID: "w1:pA", title: "規劃天氣小工具", workspace: "garden-journal", subtitle: "garden-journal · Claude Code · demo/Projects",
                          preview: .none, time: .now, status: .working),
-                AgentRow(paneID: "w1:pB", title: "重構食譜匯入", subtitle: "garden-journal · Claude Code · Projects/recipe-box",
+                AgentRow(paneID: "w1:pB", title: "重構食譜匯入", workspace: "garden-journal", subtitle: "garden-journal · Claude Code · Projects/recipe-box",
                          preview: .none, time: .now, status: .working),
             ]),
             AgentSection(group: .idle, rows: [
                 // workspace 名稱就是資料夾最後一段，已經顯示在資料夾裡，不重複。
-                AgentRow(paneID: "w1:p6", title: "整理植物照片的標籤", subtitle: "Claude Code · Projects/garden-journal",
+                AgentRow(paneID: "w1:p6", title: "整理植物照片的標籤", workspace: "garden-journal", subtitle: "Claude Code · Projects/garden-journal",
                          preview: .none, time: nil, status: .idle),
             ]),
         ])
@@ -75,6 +75,30 @@ struct AgentListModelTests {
         }
 
         #expect(model.sections.first { $0.group == .working }?.rows.map(\.paneID) == ["w1:pB", "w1:pA"])
+    }
+
+    @Test("Agents 列第一行是 workspace 名稱(#269,原型 B):人取的名稱或 herdr 的 workspace 名稱;不受 agent 名稱、session 標題影響")
+    func rowShowsWorkspaceName() async {
+        let model = await Self.loadedModel {
+            SnapshotEdit.agent("w1:p6", in: &$0) { $0["name"] = "植物管家" }
+            SnapshotEdit.agent("w1:pA", in: &$0) { $0["workspace_id"] = "w2" }
+            SnapshotEdit.workspace("w2", in: &$0) { $0["label"] = "天氣" }
+        }
+
+        #expect(Self.row("w1:p6", in: model)?.workspace == "garden-journal", "agent 名稱不取代 workspace 名稱")
+        #expect(Self.row("w1:pA", in: model)?.workspace == "天氣")
+    }
+
+    @Test("Agents 列第一行：workspace 沒有名稱時退回資料夾最後一段，再沒有才是 workspace id")
+    func rowWorkspaceNameFallsBack() {
+        let inFolder = Agent(paneID: "w9:p1", workspaceID: "w9", kind: "claude", status: .idle, cwd: "/Users/demo/Projects/ledger")
+        #expect(AgentRowText.workspaceName(for: inFolder) == "ledger")
+        let windows = Agent(paneID: "w9:p1", workspaceID: "w9", kind: "claude", status: .idle, cwd: #"C:\Users\demo\notes"#)
+        #expect(AgentRowText.workspaceName(for: windows) == "notes")
+        let bare = Agent(paneID: "w9:p1", workspaceID: "w9", kind: "claude", status: .idle)
+        #expect(AgentRowText.workspaceName(for: bare) == "w9")
+        let blankLabel = Agent(paneID: "w9:p1", workspaceID: "w9", kind: "claude", status: .idle, workspaceLabel: " ", cwd: "/srv/site")
+        #expect(AgentRowText.workspaceName(for: blankLabel) == "site")
     }
 
     @Test("標題：herdr agent 名稱優先")

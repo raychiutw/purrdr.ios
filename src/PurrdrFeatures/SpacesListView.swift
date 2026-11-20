@@ -2,357 +2,79 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// Spaces 檢視的 section(#103):已釘選組與每台主機一組。單一 agent 的 workspace 是聊天列，其他是可收合的群組。
+/// Spaces 檢視(#275,原型 purrdr-screens 定案版):每個「主機圖示 主機 · workspace」一段，段內每個 Tab 一列(名稱與 ›)。
 ///
-/// 終端機列跟 Agent 列一樣以 `ChatRoute`(主機 + pane id)導覽:pane 不是 agent 時開的是 Pane 終端機，
-/// 所以 iPad 的 split view 選取與 iPhone 的推入都不用另外處理。
-struct SpacesSectionsContent<AgentRowContent: View>: View {
+/// 點 Tab:只有一個 pane 直接開(以 `ChatRoute` 導覽，Agent 開對話、其他開 Pane 終端機，iPad 是對話欄選取);
+/// 多個 pane 開那個 Tab 的版面圖選 Pane。長按是 workspace 的動作(版面圖、重新命名、新 worktree、關閉)。
+struct SpacesSectionsContent: View {
     let sections: [SpacesSection]
     let model: MergedAgentListModel
     let presentation: WorkspacePresentation
-    /// 跟 Agents 檢視同樣的滑動、選單、已讀與釘選;列的版面是 `SpacesAgentRowView`。
-    @ViewBuilder let agentRow: (AgentRow) -> AgentRowContent
 
     var body: some View {
         ForEach(sections) { section in
             Section {
-                ForEach(section.items) { item in
-                    switch item {
-                    case .chat(let row):
-                        agentRow(row)
-                    case .group(let group):
-                        WorkspaceGroupHeader(group: group) { model.toggleExpanded(group) }
-                            .workspaceGroupActions(
-                                WorkspaceTarget(workspaceID: group.workspaceID, label: group.label, snapshot: model.snapshot(for: group.host)),
-                                host: group.host, snapshot: model.snapshot(for: group.host), presentation: presentation)
-                        if group.isExpanded {
-                            ForEach(group.rows) { row in
-                                switch row {
-                                case .agent(let row):
-                                    agentRow(row)
-                                case .terminal(let row):
-                                    NavigationLink(value: row.route) {
-                                        TerminalRowView(row: row)
-                                    }
-                                    .accessibilityIdentifier("terminal.row.\(row.id)")
-                                    .selectionFill(for: row.route)
-                                }
-                            }
-                        }
-                    }
+                ForEach(section.tabs) { tab in
+                    tabRow(tab, in: section)
+                        .workspaceActionsMenu(
+                            WorkspaceTarget(workspaceID: section.workspaceID, label: section.workspace, snapshot: model.snapshot(for: section.host)),
+                            host: section.host, snapshot: model.snapshot(for: section.host), presentation: presentation)
+                        .accessibilityIdentifier("spaces.tab.\(tab.id)")
                 }
             } header: {
-                switch section.kind {
-                case .pinned: AgentSectionHeader(group: .pinned, count: section.items.count)
-                case .host(let host): SpacesHostHeader(host: host)
-                }
+                SpacesSectionHeader(section: section)
             }
         }
-    }
-}
-
-extension AgentStatus {
-    /// 狀態條的段色：中性的完成與閒置用深淺灰區分(段沒有形狀可分);其他同對照表。
-    var segmentColor: AnyShapeStyle {
-        switch self {
-        case .done: AnyShapeStyle(Color.gray)
-        case .idle, .unknown: AnyShapeStyle(Color.lightNeutralSegment)
-        default: tone.style
-        }
-    }
-}
-
-extension SpacesStatusCounts {
-    /// 數量不為 0 的狀態，依需要你 > 工作中 > 完成 > 閒置。
-    var nonZero: [(status: AgentStatus, count: Int)] {
-        AgentStatus.urgencyOrder.map { ($0, count(of: $0)) }.filter { $0.1 > 0 }
-    }
-
-    /// VoiceOver 用:「Needs You 1」「Working 2」。
-    var spokenText: [String] {
-        nonZero.map { "\(String(localized: $0.status.title)) \($0.count)" }
-    }
-}
-
-/// 圖例「● 需要你 1  ● 工作中 2」:狀態同時有符號、文字與顏色;項目放不下時換行。
-struct StatusLegend: View {
-    let counts: SpacesStatusCounts
-    /// 圖例前的文字(已釘選組的主機名)。
-    var leading: String?
-    /// 圖例後的文字(終端機數)。
-    var trailing: String?
-
-    var body: some View {
-        FlowLayout(spacing: 10, lineSpacing: 2) {
-            if let leading {
-                Text(verbatim: leading)
-            }
-            ForEach(counts.nonZero, id: \.status) { entry in
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Image(systemName: entry.status.symbol)
-                        .foregroundStyle(entry.status.tone.style)
-                    Text(entry.status.title)
-                    Text(entry.count, format: .number)
-                        .monospacedDigit()
-                }
-            }
-            if let trailing {
-                Text(verbatim: trailing)
-            }
-        }
-    }
-}
-
-/// 依寬度換行的水平排列：一行放不下就換到下一行，單一項目比一行寬時由它自己換行。
-struct FlowLayout: Layout {
-    var spacing: CGFloat
-    var lineSpacing: CGFloat
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let frames = arrange(subviews, width: proposal.width ?? .infinity)
-        let width = frames.map(\.maxX).max() ?? 0
-        let height = frames.map(\.maxY).max() ?? 0
-        return CGSize(width: width, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let frames = arrange(subviews, width: bounds.width)
-        for (subview, frame) in zip(subviews, frames) {
-            subview.place(
-                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
-                proposal: ProposedViewSize(width: frame.width, height: frame.height))
-        }
-    }
-
-    private func arrange(_ subviews: Subviews, width maxWidth: CGFloat) -> [CGRect] {
-        var frames: [CGRect] = []
-        var origin = CGPoint.zero
-        var lineHeight: CGFloat = 0
-        for subview in subviews {
-            let size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
-            if origin.x > 0, origin.x + size.width > maxWidth {
-                origin = CGPoint(x: 0, y: origin.y + lineHeight + lineSpacing)
-                lineHeight = 0
-            }
-            frames.append(CGRect(origin: origin, size: size))
-            origin.x += size.width + spacing
-            lineHeight = max(lineHeight, size.height)
-        }
-        return frames
-    }
-}
-
-/// 主機組標題：主機圖示、主機名與各狀態的 Agent 數量(#103 故事 2–3、36)。
-private struct SpacesHostHeader: View {
-    let host: SpacesHost
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
-        layout {
-            Label {
-                Text(verbatim: host.name)
-                    .font(.title3.bold())
-                    .foregroundStyle(.primary)
-            } icon: {
-                HostIconBadge(host.icon, diameter: 28)
-            }
-            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-            StatusLegend(counts: host.counts)
-                .font(.footnote)
-                .foregroundStyle(.secondaryText)
-        }
-        .textCase(nil)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: ([host.name] + host.counts.spokenText).joined(separator: ", ")))
-        .accessibilityAddTraits(.isHeader)
-        .accessibilityIdentifier("spaces.host.\(host.host.storedValue)")
-    }
-}
-
-/// 群組的收合標頭(H2 狀態條):workspace 圖示、名稱 + Agent 數膠囊、狀態條與圖例。整列是一個按鈕，點了展開或收合。
-private struct WorkspaceGroupHeader: View {
-    let group: WorkspaceGroup
-    let toggle: () -> Void
-
-    var body: some View {
-        Button(action: toggle) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "square.stack.3d.up")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 36, height: 36)
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 1.5))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(verbatim: group.label)
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        if group.agentCount > 0 {
-                            Text(group.agentCount, format: .number)
-                                .font(.footnote.weight(.semibold))
-                                .monospacedDigit()
-                                .foregroundStyle(.secondaryText)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(.fill.tertiary))
-                        }
-                    }
-                    if !group.statusBar.isEmpty {
-                        StatusBarView(segments: group.statusBar)
-                    }
-                    StatusLegend(counts: group.counts, leading: group.hostName, trailing: legendTrailing)
-                        .font(.footnote)
-                        .foregroundStyle(.secondaryText)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(group.isExpanded ? 90 : 0))
-                    .frame(minHeight: 36)
-                    .accessibilityHidden(true)
-            }
-            .contentShape(.rect)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: spokenLabel))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("workspace.group.\(group.id)")
-    }
-
-    /// 圖例最後：有終端機時「終端機 N」;只有終端機時「N 個終端機」。
-    private var legendTrailing: String? {
-        guard group.terminalCount > 0 else { return nil }
-        return group.agentCount > 0 ? String(localized: "Terminals \(group.terminalCount)") : terminalPhrase
-    }
-
-    private var terminalPhrase: String {
-        group.terminalCount == 1 ? String(localized: "1 terminal") : String(localized: "\(group.terminalCount) terminals")
-    }
-
-    /// 「notes, 1 agent, 1 terminal, Working 1, Expanded」。
-    private var spokenLabel: String {
-        var parts = [group.label]
-        if let hostName = group.hostName { parts.append(hostName) }
-        if group.agentCount > 0 {
-            parts.append(group.agentCount == 1 ? String(localized: "1 agent") : String(localized: "\(group.agentCount) agents"))
-        }
-        if group.terminalCount > 0 { parts.append(terminalPhrase) }
-        parts += group.counts.spokenText
-        parts.append(group.isExpanded ? String(localized: "Expanded") : String(localized: "Collapsed"))
-        return parts.joined(separator: ", ")
-    }
-}
-
-/// 分段色條：每段寬度與權重成正比，段間 2pt。對 VoiceOver 隱藏(數量在圖例與 label)。
-private struct StatusBarView: View {
-    let segments: [StatusSegment]
-    private static let spacing: CGFloat = 2
-
-    var body: some View {
-        GeometryReader { proxy in
-            let total = CGFloat(segments.map(\.weight).reduce(0, +))
-            let available = max(proxy.size.width - Self.spacing * CGFloat(segments.count - 1), 0)
-            HStack(spacing: Self.spacing) {
-                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                    Capsule()
-                        .fill(segment.status.segmentColor)
-                        .frame(width: total > 0 ? available * CGFloat(segment.weight) / total : 0)
-                }
-            }
-        }
-        .frame(height: 6)
-        .accessibilityHidden(true)
-    }
-}
-
-/// Spaces 檢視的 Agent 列(#103):左側 Agent 種類頭像;標題、預覽各最多兩行;第三行狀態與說明(種類或 workspace 名稱)。
-struct SpacesAgentRowView: View {
-    let row: AgentRow
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 次要色;選取列是中性灰底，不換色(同 `AgentRowView`)。
-    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
-
-    /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
-    private func lines(_ limit: Int) -> Int? {
-        dynamicTypeSize.isAccessibilitySize ? nil : limit
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            AgentKindAvatar(kind: AgentKind(rawKind: row.kind))
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(row.title)
-                        .font(row.status == .blocked ? .body.weight(.semibold) : .body)
-                        .lineLimit(lines(2))
-                    if row.isPinned {
-                        Image(systemName: "pin.fill")
-                            .imageScale(.small)
-                            .foregroundStyle(secondary)
-                            .accessibilityLabel(Text("Pinned"))
-                    }
-                    if row.isMuted {
-                        Image(systemName: "bell.slash.fill")
-                            .imageScale(.small)
-                            .foregroundStyle(secondary)
-                            .accessibilityLabel(Text("Muted"))
-                    }
-                    Spacer(minLength: 8)
-                    if let time = row.time {
-                        Text(time.text())
-                            .font(.footnote)
-                            .foregroundStyle(secondary)
-                            .fixedSize()
-                    }
-                }
-                preview
-                    .font(.subheadline)
-                    .lineLimit(lines(2))
-                detail
-                    .font(.subheadline)
-                    .padding(.top, 2)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityValue(row.isUnread ? Text("Unread") : Text(verbatim: ""))
     }
 
     @ViewBuilder
-    private var preview: some View {
-        switch row.preview {
-        case .needsInput:
-            Text("Waiting for your input")
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.primary)
-        case .message(let text, let fromYou):
-            Text(fromYou ? "You: \(text)" : "\(text)")
-                .foregroundStyle(secondary)
-        case .none:
-            EmptyView()
+    private func tabRow(_ tab: SpacesTab, in section: SpacesSection) -> some View {
+        switch tab.target {
+        case .pane(let route):
+            NavigationLink(value: route) {
+                Text(verbatim: tab.title)
+            }
+            .selectionFill(for: route)
+        case .layout(let workspaceID, let tabID):
+            Button {
+                // 顯示開啟當下的 snapshot,只畫這個 Tab(行為規格 F4)。
+                presentation.host = section.host
+                let layout = model.snapshot(for: section.host).flatMap { SpacesLayout(snapshot: $0, workspaceID: workspaceID) }
+                presentation.sheet = .layout(workspaceLabel: tab.title, layout: layout?.onlyTab(tabID))
+            } label: {
+                HStack {
+                    Text(verbatim: tab.title)
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .accessibilityHint(Text("Shows this tab’s layout."))
         }
     }
+}
 
-    /// 狀態(符號 + 文字 + 顏色)· 種類或 workspace 名稱;已釘選組的列有主機圖示。
-    private var detail: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            StatusLabel(status: row.status)
-                .fixedSize()
-            if !row.subtitle.isEmpty {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    if let symbol = row.hostLabel?.icon.symbol {
-                        Image(systemName: symbol)
-                            .accessibilityHidden(true)
-                    }
-                    Text(row.subtitle)
-                        .lineLimit(lines(1))
-                }
-                .foregroundStyle(secondary)
-            }
+/// 段落標題：主機圖示與「主機 · workspace」(標為 header,VoiceOver 可以在 workspace 之間跳)。
+private struct SpacesSectionHeader: View {
+    let section: SpacesSection
+
+    var body: some View {
+        HStack(spacing: 6) {
+            HostIconBadge(section.hostIcon, diameter: 20)
+            Text(verbatim: "\(section.hostName) · \(section.workspace)")
+                .fixedSize(horizontal: false, vertical: true)
         }
+        // 固定的次要文字色(系統 section header 的灰色對比不到 4.5:1,audit「nearly passed」);不轉大寫。
+        .font(.subheadline)
+        .foregroundStyle(Color.secondaryText)
+        .textCase(nil)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("spaces.section.\(section.id)")
     }
 }
 
@@ -373,33 +95,6 @@ struct AgentKindAvatar: View {
             .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
             .accessibilityLabel(Text(verbatim: kind.displayName ?? ""))
             .accessibilityHidden(!announcesKind || kind.displayName == nil)
-    }
-}
-
-/// 終端機列：標題「Terminal」,副標是程式名與資料夾(#37 故事 14)。
-struct TerminalRowView: View {
-    let row: TerminalRow
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    /// 次要色;選取列是中性灰底，不換色(同 `AgentRowView`)。
-    private var secondary: AnyShapeStyle { AnyShapeStyle(.secondaryText) }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "apple.terminal")
-                .font(.body)
-                .foregroundStyle(secondary)
-                .frame(minWidth: 24)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Terminal")
-                    .font(.body)
-                Text(verbatim: row.subtitle)
-                    .font(.subheadline.monospaced())
-                    .foregroundStyle(secondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-            }
-        }
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -430,40 +125,50 @@ extension AgentListMode {
     }
 }
 
-/// 列表的大標題與其下的 Agents／Spaces 切換(#244):標題是目前檢視名，切換用分段控制。AX 字級時標題換行，不截斷。
-struct AgentListLargeTitle: View {
-    @Binding var mode: AgentListMode
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(mode.title)
-                .font(.largeTitle.bold())
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("agentList.title")
-            Picker("View", selection: $mode) {
-                ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("agentList.mode")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, 4)
-    }
-}
-
-/// 檢視選單的內容(目前那個打勾)。
-struct AgentListModePicker: View {
+/// 列表第一列的 Agents／Spaces 分段控制(#268):檢視切換只有這一個入口，沒有大標題、也不在任何選單裡。
+struct AgentListModeControl: View {
     @Binding var mode: AgentListMode
 
     var body: some View {
         Picker("View", selection: $mode) {
-            ForEach(AgentListMode.allCases, id: \.self) { mode in
+            ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
                 Text(mode.title).tag(mode)
             }
         }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("agentList.mode")
+    }
+}
+
+/// Agents 檢視的搜尋欄(#268):放在分段控制下方(原型 purrdr-screens 定案版),不用 `.searchable`(iOS 26 會放到底部工具列)。
+struct AgentListSearchField: View {
+    @Binding var query: String
+    var focused: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondaryText)
+                .accessibilityHidden(true)
+            TextField("Search", text: $query)
+                .focused(focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+                .accessibilityIdentifier("agentList.search")
+            if !query.isEmpty {
+                Button("Clear Search", systemImage: "xmark.circle.fill") { query = "" }
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.secondaryText)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("agentList.search.clear")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 44)
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
     }
 }

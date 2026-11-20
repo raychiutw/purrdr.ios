@@ -85,32 +85,17 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// 註記清單的一則：註記、所屬聊天(主機 + pane)與 Agent 標題。
-    public struct NoteEntry: Identifiable {
-        public let note: YouShouldKnowNote
-        public let route: ChatRoute
-        public let title: String
-        public var id: String { "\(route.host.storedValue)/\(note.id)" }
-    }
-
     /// 選取中主機在前，其他依主機清單順序。
     public private(set) var sources: [Source] = []
     public private(set) var selected: HostSelection = .demo
     /// 搜尋字串(所有主機共用)。空白時列出全部。
-    public var query = "" {
-        didSet {
-            if query != oldValue { searchExpansion = [:] }
-        }
-    }
+    public var query = ""
     /// 要直接開的聊天：從版面圖選了 Agent,或點了推播通知(#29)。畫面推入後設回 `nil`。
     public var openedChat: ChatRoute?
     /// 目前開著的聊天(iPhone 推入的對話、iPad 每個視窗開在旁邊或新視窗開的):永遠不算未讀，也不算進需處理數量
     /// (行為規格 F2.6、F2.8)。以次數記：同一個聊天開在兩個視窗，關掉一個仍算開著。
     private var visibleCounts: [ChatRoute: Int] = [:]
     public var visibleChats: Set<ChatRoute> { Set(visibleCounts.keys) }
-    /// 列表底部的滑動操作提示：第一次用滑動面板的動作之前顯示(行為規格 F2.7)。
-    public private(set) var showsSwipeHint: Bool
-    private let swipeHint: any SwipeHintStore
     /// 列表檢視(Spaces／Agents);改了就存起來，重新啟動後沿用。兩種檢視共用搜尋、分組、已讀與釘選。
     /// 版面事件只在 Spaces 檢視訂閱(#40),所以換檢視時每台主機的即時更新跟著換訂閱。
     public var mode: AgentListMode {
@@ -144,16 +129,8 @@ public final class MergedAgentListModel {
     }
 
     private let modeStore: any AgentListModeStore
-    /// Spaces 群組的手動展開狀態(以群組 id):只在記憶體，App 結束就忘記(#103)。
-    private var expansion: [String: Bool] = [:]
-    /// 這次搜尋期間點標頭的切換;搜尋字改變或清空就丟掉，不動 `expansion`。
-    private var searchExpansion: [String: Bool] = [:]
 
-    private var isSearching: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-    public init(swipeHint: any SwipeHintStore = InMemorySwipeHintStore(), modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
-        self.swipeHint = swipeHint
-        showsSwipeHint = !swipeHint.isDismissed
+    public init(modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
         self.modeStore = modeStore
         // 未知或缺值(新安裝)一律是 Agents。
         mode = modeStore.load() ?? .agents
@@ -175,13 +152,6 @@ public final class MergedAgentListModel {
     private func markOpened(_ route: ChatRoute) {
         guard let session = snapshot(for: route.host)?.agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return }
         actions(for: route.host)?.markOpened(sessionID: session, seen: list(for: route.host)?.previews[route.paneID]?.date)
-    }
-
-    /// 使用者第一次用了滑動面板的動作：之後不再顯示提示(SwiftUI 沒有「面板滑開」的訊號，以第一次使用代替)。
-    public func swipeActionUsed() {
-        guard showsSwipeHint else { return }
-        showsSwipeHint = false
-        swipeHint.dismiss()
     }
 
     /// 需要處理的 workspace 數(導覽入口的數字;不設 app 圖示徽章)。
@@ -217,19 +187,9 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// Spaces 檢視：每個 workspace 一項，依同樣的分組與搜尋。
+    /// Spaces 檢視(#275):每個「主機 · workspace」一段，段內每個 Tab 一列;套用主機篩選，沒有搜尋。
     public var spacesSections: [SpacesSection] {
-        AgentListProjection.spacesSections(
-            sources: filteredProjectionSources, query: query, visible: visibleChats, expansion: isSearching ? searchExpansion : expansion)
-    }
-
-    /// 點群組標頭：展開或收合。搜尋時只記在這次搜尋，不改手動狀態。
-    public func toggleExpanded(_ group: WorkspaceGroup) {
-        if isSearching {
-            searchExpansion[group.id] = !group.isExpanded
-        } else {
-            expansion[group.id] = !group.isExpanded
-        }
+        AgentListProjection.spacesSections(sources: filteredProjectionSources)
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。
@@ -285,22 +245,6 @@ public final class MergedAgentListModel {
         guard !messages.isEmpty, messages.allSatisfy({ $0 != nil }) else { return nil }
         if case .failed(let message)? = list(for: selected)?.phase { return message }
         return messages.first ?? nil
-    }
-
-    /// 所有主機的「You should know」註記(#23):只算列表裡有的 Claude 聊天(以完整 session id 配對)。
-    /// 依主機順序(選取中主機在前)、每台主機內新→舊。
-    public var notes: [NoteEntry] {
-        let allRows = AgentListProjection.sections(sources: projectionSources, query: query, visible: visibleChats).flatMap(\.rows)
-        let titles = Dictionary(allRows.map { ($0.route, $0.title) }) { first, _ in first }
-        return sources.flatMap { source -> [NoteEntry] in
-            guard let model = source.notes else { return [] }
-            let panes = source.list.claudeSessionPanes
-            return model.notes.compactMap { note in
-                guard let paneID = panes[note.sessionID] else { return nil }
-                let route = ChatRoute(host: source.host, paneID: paneID)
-                return NoteEntry(note: note, route: route, title: titles[route] ?? paneID)
-            }
-        }
     }
 
     /// 每台主機各自輪詢註記，直到所在的 task 被取消。與聊天輸入列共用同一個讀取迴圈(`YouShouldKnowModel.liveUpdates`)。

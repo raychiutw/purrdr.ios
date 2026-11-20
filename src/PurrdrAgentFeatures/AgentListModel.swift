@@ -233,6 +233,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     /// agent 種類(herdr 原文);列左側的圖示依它。
     public var kind: String
     public var title: String
+    /// 所在 workspace 的名稱：Agents 列的第一行(#269,原型 B)。
+    public var workspace: String
     /// 非選取中主機的列以主機名開頭(#37 故事 2)。
     public var subtitle: String
     /// 非選取中主機的列：主機名與圖示;選取中主機為 `nil`。
@@ -252,7 +254,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public var route: ChatRoute { ChatRoute(host: host, paneID: paneID) }
 
     public init(
-        host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, subtitle: String,
+        host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, workspace: String? = nil, subtitle: String,
         hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
         isUnread: Bool = false, isPinned: Bool = false, isMuted: Bool = false
     ) {
@@ -260,6 +262,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
         self.paneID = paneID
         self.kind = kind
         self.title = title
+        self.workspace = workspace ?? title
         self.subtitle = subtitle
         self.hostLabel = hostLabel
         self.preview = preview

@@ -141,8 +141,13 @@ public enum AgentFileKind: String, Sendable, Codable {
 
 extension AgentFileReference {
     /// 檔案類型。
-    public var kind: AgentFileKind {
-        switch fileExtension {
+    public var kind: AgentFileKind { AgentFileKind(fileExtension: fileExtension) }
+}
+
+extension AgentFileKind {
+    /// 依副檔名(小寫、不含點)判斷檔案類型;檔案卡片與檔案頁共用。
+    public init(fileExtension: String) {
+        self = switch fileExtension {
         case "txt", "log", "text": .text
         case "md", "markdown", "mdx": .markdown
         case "png", "jpg", "jpeg", "gif", "webp", "heic", "bmp", "tif", "tiff", "svg": .image
@@ -153,7 +158,9 @@ extension AgentFileReference {
         default: .other
         }
     }
+}
 
+extension AgentFileReference {
     /// 小寫副檔名(沒有時是空字串)。
     public var fileExtension: String {
         guard let dot = name.lastIndex(of: "."), dot != name.startIndex else { return "" }

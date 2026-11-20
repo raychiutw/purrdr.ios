@@ -41,6 +41,11 @@ final class DelegationUITests: XCTestCase {
 
         let open = element("conversation.subagent.open", in: app)
         XCTAssertGreaterThanOrEqual(open.frame.width, 44)
+        // 展開結果後對話跟著底部捲，箭頭可能被推到導覽列底下：捲回看得到再點。
+        let navigationBottom = app.navigationBars.firstMatch.frame.maxY
+        for _ in 0..<6 where !open.isHittable || open.frame.minY < navigationBottom {
+            app.scrollViews.firstMatch.swipeDown(velocity: .slow)
+        }
         open.tap()
         XCTAssertTrue(element("subagent.messages", in: app).waitForExistence(timeout: 10), "沒有打開 subagent 畫面")
         // 每則訊息是一個 VoiceOver 元素(label 以「Agent:」開頭,#35),以內容比對。

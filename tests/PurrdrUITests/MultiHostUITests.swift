@@ -51,34 +51,32 @@ final class MultiHostUITests: XCTestCase {
         XCTAssertLessThan(filter.frame.maxX, more.frame.minX, "主機篩選蓋到「⋯」")
     }
 
-    /// 主機篩選(#244):Spaces 檢視只留篩選那台的主機組;篩選選單帶各主機，第一項是所有主機。
+    /// 主機篩選(#244):Spaces 檢視只留篩選那台主機的 workspace 段落(#275);篩選選單帶各主機，第一項是所有主機。
     @MainActor
     func testHostFilterLimitsSpaces() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-        let demoHeader = element("spaces.host.demo", in: app)
-        let studioHeader = element("spaces.host.DE300000-0000-4000-8000-000000000001", in: app)
+        app.switchListMode(to: "Spaces")
+        let demoHeader = element("spaces.section.demo/w1", in: app)
+        let studioHeader = element("spaces.section.DE300000-0000-4000-8000-000000000001/w1", in: app)
         XCTAssertTrue(demoHeader.waitForExistence(timeout: 20))
         XCTAssertEqual(app.buttons["toolbar.hostFilter"].firstMatch.label, "Showing: All Hosts")
 
         app.filterHosts("Studio Mac")
 
-        XCTAssertTrue(demoHeader.waitForNonExistence(timeout: 5), "篩選 Studio Mac 時不該有 Demo 的主機組")
-        XCTAssertTrue(app.reveal(studioHeader, timeout: 10), "篩選後沒有 Studio Mac 的主機組")
+        XCTAssertTrue(demoHeader.waitForNonExistence(timeout: 5), "篩選 Studio Mac 時不該有 Demo 的段落")
+        XCTAssertTrue(app.reveal(studioHeader, timeout: 10), "篩選後沒有 Studio Mac 的段落")
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "host-filter-spaces"
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
 
-    /// 正式 Demo 也演出多主機(#34):沒有已存主機時，Demo 主機的列之外還有示範主機「Studio Mac」的分組與列,
+    /// 正式 Demo 也演出多主機(#34):沒有已存主機時，Demo 主機的列之外還有示範主機「Studio Mac」的列,
     /// 列表下方「Build Box: 原因」;主機清單裡沒有示範主機。
     @MainActor
     func testDemoShowsCompanionHosts() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
 
-        let studioHeader = element("spaces.host.DE300000-0000-4000-8000-000000000001", in: app)
-        XCTAssertTrue(app.reveal(studioHeader, timeout: 20), "沒有示範主機 Studio Mac 的分組")
-        XCTAssertTrue(studioHeader.label.hasPrefix("Studio Mac"), studioHeader.label)
         let studioRow = element("agent.row.DE300000-0000-4000-8000-000000000001/w2:p1", in: app)
         XCTAssertTrue(app.reveal(studioRow, timeout: 20), "沒有示範主機 Studio Mac 的列")
         let error = element("agentList.error.DE300000-0000-4000-8000-000000000002", in: app)

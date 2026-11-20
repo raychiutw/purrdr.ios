@@ -11,19 +11,15 @@ final class YouShouldKnowUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
-    /// 列表的「✦ 1 note for you」→ 註記清單 →「前往」→ 聊天的輸入列上方有註記 →「在聊天中討論」(先同意)
-    /// 把註記放進輸入框，註記消失。
+    /// 聊天的輸入列上方有註記 →「在聊天中討論」(先同意)把註記放進輸入框，註記消失。
+    /// 列表上不再有註記卡與註記清單(#268,原型沒有);註記只在聊天裡。
     @MainActor
-    func testNoteFromListToChatAndDiscuss() {
+    func testNoteInChatAndDiscuss() {
         let app = XCUIApplication.launchUITesting()
-        let summary = app.buttons["youShouldKnow.summary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 15), "列表沒有註記提示")
-        XCTAssertTrue(summary.label.contains("1 note for you"), "提示文字不對:\(summary.label)")
-        summary.tap()
-
-        let go = element("youShouldKnow.go.demo/w1:p1", in: app)
-        XCTAssertTrue(go.waitForExistence(timeout: 5), "註記清單沒有「前往」")
-        go.tap()
+        XCTAssertFalse(app.buttons["youShouldKnow.summary"].exists, "列表不該有註記卡")
+        let ledger = element("agent.row.demo/w1:p1", in: app)
+        XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
+        ledger.tap()
 
         let note = element("youShouldKnow.note", in: app)
         XCTAssertTrue(note.waitForExistence(timeout: 15), "聊天輸入列上方沒有註記")
@@ -78,16 +74,15 @@ final class YouShouldKnowUITests: XCTestCase {
         XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 10), "註記略過後建議卡沒有出現")
     }
 
-    /// 設定頁打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失。
+    /// 主機頁(#274)打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失。
     @MainActor
     func testHostThemeToggle() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.reveal(element("agent.row.demo/w1:p1", in: app), timeout: 15))
-        app.buttons["toolbar.more"].tap()
-        app.buttons["menu.settings"].tap()
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        app.openSeededHostPage()
 
         let toggle = app.switches["settings.hostTheme"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有主機主題開關")
+        for _ in 0..<6 where !toggle.isHittable { app.swipeUp() }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "主機頁沒有主機主題開關")
         toggle.switches.firstMatch.tap()
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")

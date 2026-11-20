@@ -6,16 +6,12 @@ import UIKit
 import AppKit
 #endif
 
-/// 設定 sheet(#32;#246 重整):外觀、鍵盤與觸覺、選取中主機的設定、支援、關於。
+/// 設定 sheet(#274,原型 purrdr-settings C):外觀、鍵盤與觸覺、支援、關於四段。
+/// 主機主題、You should know、Codex 啟動器在各主機的主機頁(作用在那台主機)。
 ///
 /// 會員、Purrdr Plus、通知與主機同步在帳號頁(聊天列表右上角的帳號鈕)。
 public struct SettingsView: View {
     @Bindable var model: SettingsModel
-    /// 選取中主機的主機主題與「You should know」寫回(#23);`nil` 時不顯示。
-    let hostTheme: HostThemeModel?
-    let youShouldKnow: YouShouldKnowModel?
-    /// 選取中主機的 Codex 啟動器;`nil` 時不顯示。
-    let codexLauncher: CodexLauncherModel?
     /// 需要處理的 workspace 數(「完成」旁的數字，行為規格 F2.8)。
     let attention: () -> Int
     /// 再看一次歡迎頁(#34;HIG Onboarding:跳過後在設定找得到)。
@@ -23,14 +19,10 @@ public struct SettingsView: View {
     let done: () -> Void
 
     public init(
-        model: SettingsModel, hostTheme: HostThemeModel? = nil, youShouldKnow: YouShouldKnowModel? = nil,
-        codexLauncher: CodexLauncherModel? = nil, attention: @escaping () -> Int = { 0 },
+        model: SettingsModel, attention: @escaping () -> Int = { 0 },
         openWelcome: @escaping () -> Void = {}, done: @escaping () -> Void
     ) {
         self.model = model
-        self.hostTheme = hostTheme
-        self.youShouldKnow = youShouldKnow
-        self.codexLauncher = codexLauncher
         self.attention = attention
         self.openWelcome = openWelcome
         self.done = done
@@ -64,23 +56,6 @@ public struct SettingsView: View {
                 } header: {
                     Text("Keyboard and Haptics")
                         .foregroundStyle(.secondaryText)
-                } footer: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line.")
-                        Text("Feel a tap when you answer an agent, and whether the answer arrived.")
-                    }
-                        .foregroundStyle(.secondaryText)
-                }
-
-                if let hostTheme {
-                    HostThemeSettingsSection(model: hostTheme)
-                }
-                if let youShouldKnow {
-                    YouShouldKnowSettingsSection(model: youShouldKnow)
-                }
-
-                if let codexLauncher {
-                    CodexLauncherSection(model: codexLauncher)
                 }
 
                 Section {
@@ -99,6 +74,7 @@ public struct SettingsView: View {
                     Text("Support")
                         .foregroundStyle(.secondaryText)
                 } footer: {
+                    // 隱私揭露(複製的診斷資料包含什麼)保留;其他功能說明依原型拿掉(#276)。
                     Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
                         .foregroundStyle(.secondaryText)
                 }

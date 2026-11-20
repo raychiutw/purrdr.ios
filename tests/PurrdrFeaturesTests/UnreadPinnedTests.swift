@@ -44,8 +44,8 @@ struct UnreadPinnedTests {
         return Host(source: MergedAgentListModel.Source(host: host, name: name, icon: .default, list: list, actions: actions), fake: fake)
     }
 
-    static func merged(_ hosts: [Host], selected: HostSelection = studio, swipeHint: any SwipeHintStore = InMemorySwipeHintStore()) -> MergedAgentListModel {
-        let model = MergedAgentListModel(swipeHint: swipeHint)
+    static func merged(_ hosts: [Host], selected: HostSelection = studio) -> MergedAgentListModel {
+        let model = MergedAgentListModel()
         model.update(sources: hosts.map(\.source), selected: selected)
         return model
     }
@@ -332,18 +332,5 @@ struct UnreadPinnedTests {
         model.chatAppeared(ChatRoute(host: Self.studio, paneID: "w1:pB"))
         #expect(model.attentionCount == 1, "兄弟 w1:pA blocked 仍要算")
     }
-
-    // MARK: - 滑動提示
-
-    @Test("滑動提示一直顯示，直到第一次用了滑動動作;重新啟動後不再顯示")
-    func swipeHintUntilFirstSwipe() {
-        let defaults = UserDefaults(suiteName: "UnreadPinnedTests.swipe.\(UUID())")!
-        let model = MergedAgentListModel(swipeHint: UserDefaultsSwipeHintStore(defaults: defaults))
-        #expect(model.showsSwipeHint)
-
-        model.swipeActionUsed()
-
-        #expect(!model.showsSwipeHint)
-        #expect(!MergedAgentListModel(swipeHint: UserDefaultsSwipeHintStore(defaults: defaults)).showsSwipeHint)
-    }
 }
+
