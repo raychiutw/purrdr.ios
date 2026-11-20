@@ -8,7 +8,7 @@ import PurrdrCore
 @MainActor
 public struct HostServiceUpdates {
     /// 這版 app 已知的最新主機服務版本。
-    nonisolated public static let latestKnownVersion = "0.6.0"
+    nonisolated public static let latestKnownVersion = "0.6.1"
 
     /// 在主機上更新(或安裝)主機服務的一行指令：macOS、Linux。
     nonisolated public static let posixInstallCommand =
