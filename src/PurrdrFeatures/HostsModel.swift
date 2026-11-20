@@ -537,10 +537,9 @@ public final class HostsModel {
         if let paneID = route.paneID { agentList.openedChat = ChatRoute(host: .host(id), paneID: paneID) }
     }
 
-    /// 啟動時：APNs token 換了就向後台重新註冊推播配對;這支裝置被別支關閉了就把「通知」區塊改回關閉。
+    /// 啟動時：這支裝置被別支關閉了就把「通知」區塊改回關閉，之後才補註冊(APNs token 換了、舊版 app 的配對)。
     public func refreshPushRegistrations() async {
-        await pushService?.refreshRegistrations()
-        await pushService?.reconcileRemoteRevocation()
+        await pushService?.refreshAtLaunch()
     }
 
     /// 點了推播通知(用 app 的推播紀錄)。
@@ -650,11 +649,12 @@ public final class HostsModel {
 
     private func pushSupport(of host: HostSelection) -> HostPushSupport {
         guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
+        guard members[host]?.push.isAvailable == true else { return .unsupported }
         // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
         guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
-              !HostServiceUpdates.isAtLeast(installed, HostPush.hostServiceVersion)
+              !HostServiceVersion.isAtLeast(installed, HostServiceVersion.pushPlugin)
         else { return .supported }
-        return .needsHostService(version: HostPush.hostServiceVersion, update: HostServiceUpdates.commands(installed: installed))
+        return .needsHostService(version: HostServiceVersion.pushPlugin, update: HostServiceUpdates.commands(installed: installed))
     }
 
     private func usesHostService(_ host: HostSelection) -> Bool {
@@ -805,6 +805,8 @@ public enum HostPushSupport: Equatable, Sendable {
     case supported
     /// Demo 主機與示範主機。
     case demoHost
+    /// 這台主機沒有推播外掛安裝(例如 HTTPS 主機取不到主機服務連線)。
+    case unsupported
     /// HTTPS 主機要這版以上的主機服務代裝外掛;附依已安裝版本的更新指令。
     case needsHostService(version: String, update: HostServiceUpdateCommands)
 }
@@ -818,9 +820,6 @@ extension [HostPush] {
 
 /// 一台主機的推播開關(帳號頁「通知」區塊的一列)。
 public struct HostPush: Identifiable {
-    /// 主機服務開始支援 `push.*` 的版本。
-    public static let hostServiceVersion = "0.6.0"
-
     public let host: HostSelection
     public let name: String
     public let icon: HostIcon
@@ -877,7 +876,7 @@ final class HostMember {
         let list = AgentListModel(client: client, transcripts: transcripts, host: host)
         self.list = list
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
-        // HTTPS 主機經主機服務代裝(UI 測試的替身連線沒有推播);其他經 SSH。
+        // HTTPS 主機經主機服務代裝(取不到主機服務連線就沒有，列上標成不支援);其他經 SSH。
         let installer: (any PushPluginInstalling)? = if configuration?.connectionMethod.usesHostService == true {
             (connection as? HTTPSHostConnection).flatMap { pushService?.hostServiceInstaller(connection: $0) }
         } else {
@@ -897,5 +896,18 @@ final class HostMember {
             downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
+    }
+}
+
+extension PushService {
+    /// 這支裝置經主機服務(HTTPS 主機)的推播外掛安裝。
+    public func hostServiceInstaller(connection: HTTPSHostConnection) -> any PushPluginInstalling {
+        installer { HostServicePushPluginInstaller(connection: connection, deviceID: $0) }
+    }
+
+    /// 這支裝置經 SSH 的推播外掛安裝。
+    public func sshInstaller(channel: any HostChannel, herdr: HerdrInstallation) -> any PushPluginInstalling {
+        let pluginSource = configuration.pluginSource
+        return installer { SSHPushPluginInstaller(channel: channel, herdr: herdr, deviceID: $0, pluginSource: pluginSource) }
     }
 }

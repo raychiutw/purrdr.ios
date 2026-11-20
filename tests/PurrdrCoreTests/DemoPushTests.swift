@@ -8,7 +8,7 @@ import Testing
 @Suite("Demo 主機推播")
 struct DemoPushTests {
     static func push(_ host: DemoHost) -> SSHPushPluginInstaller {
-        SSHPushPluginInstaller(channel: host, herdr: HerdrInstallation(), deviceID: "uitesting", pluginSource: "owner/repo")
+        SSHPushPluginInstaller(channel: host, herdr: HerdrInstallation(), deviceID: PushDeviceID(rawValue: "uitesting")!, pluginSource: "owner/repo")
     }
 
     @Test("一開始沒有外掛也沒有配對")

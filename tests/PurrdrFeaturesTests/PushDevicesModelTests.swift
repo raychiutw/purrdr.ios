@@ -16,13 +16,13 @@ struct PushDevicesModelTests {
     static let ipad = "1d2e3f40-5a6b-4c7d-8e9f-0a1b2c3d4e5f"
     static let token = Data([0xA1, 0xB2, 0xC3, 0xD4] + Array(repeating: 0x5E, count: 28))
     static let tokenHex = "a1b2c3d4" + String(repeating: "5e", count: 28)
-    static let identity = PushDeviceIdentity(id: thisDevice, name: "iPhone", model: .iPhone)
+    static let identity = PushDeviceIdentity(id: PushDeviceID(rawValue: thisDevice)!, name: "iPhone", model: .iPhone)
     static let studioHash = String(repeating: "1", count: 64)
 
     let backend = HTTPStub()
     let tokens = InMemoryTokenStore()
     let platform = FakePushPlatform()
-    let store = InMemoryPushPairingStore(deviceID: "0123456789abcdef")
+    let store = InMemoryPushPairingStore()
     let host = FakePushPluginHost()
 
     init() throws {
@@ -42,14 +42,13 @@ struct PushDevicesModelTests {
     }
 
     func hostPush(_ service: PushService) -> PushModel {
-        PushModel(service: service, hostID: "studio", installer: host.installer(deviceID: store.deviceID), muted: { [] })
+        PushModel(service: service, hostID: "studio", installer: host.installer(deviceID: Self.identity.id), muted: { [] })
     }
 
     /// 這支裝置已在 studio 開啟通知，且配對已帶裝置 id 註冊過。
     func pairedStudio() {
         store.setKeyHash(Self.studioHash, forHost: "studio")
-        store.lastDeviceToken = Self.tokenHex
-        store.registeredDeviceID = Self.thisDevice
+        store.setRegisteredToken(Self.tokenHex, forKeyHash: Self.studioHash)
     }
 
     static func device(_ id: String, name: String?, model: String?, hosts: Int, current: Bool) -> String {
@@ -165,15 +164,23 @@ struct PushDevicesModelTests {
 
     // MARK: - 錯誤
 
-    @Test("沒有 Purrdr Plus(403):提示訂閱，清單是空的")
-    func listNeedsSubscription() async {
-        backend.on("GET", "/v1/members/me/push-devices", .json(403, #"{"error": {"code": "subscription_required", "message": "x"}}"#))
+    @Test("訂閱到期：清單與關閉照常(遺失的裝置仍關得掉),改名提示要 Purrdr Plus")
+    func expiredSubscriptionCanStillTurnOff() async throws {
+        backend.on("GET", "/v1/members/me/push-devices", Self.list(Self.studioIPad))
+        backend.on("PATCH", "/v1/members/me/push-devices/\(Self.ipad)", .json(403, #"{"error": {"code": "subscription_required", "message": "x"}}"#))
+        backend.on("DELETE", "/v1/members/me/push-devices/\(Self.ipad)", .empty(204))
         let devices = PushDevicesModel(service: service())
-
         await devices.load()
+        let ipad = try #require(devices.devices.first)
 
+        #expect(await devices.rename(ipad, to: "Desk iPad") == false)
         #expect(devices.problem == .needsSubscription)
+        #expect(devices.devices.map(\.id) == [Self.ipad])
+
+        await devices.turnOff(ipad)
+
         #expect(devices.devices.isEmpty)
+        #expect(devices.problem == nil)
     }
 
     @Test("連不上後台：說明，保留上次的清單")
@@ -211,8 +218,7 @@ struct PushDevicesModelTests {
         let service = service()
         let push = hostPush(service)
 
-        await service.refreshRegistrations()
-        await service.reconcileRemoteRevocation()
+        await service.refreshAtLaunch()
 
         #expect(push.state == .off)
         #expect(store.pairings.isEmpty)
@@ -234,7 +240,6 @@ struct PushDevicesModelTests {
     @Test("舊版 app 註冊的配對(沒帶裝置 id):啟動時帶裝置欄位重新註冊，之後才比對清單")
     func legacyPairingsAreReRegisteredWithDevice() async {
         store.setKeyHash(Self.studioHash, forHost: "studio")
-        store.lastDeviceToken = Self.tokenHex
         backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
         let service = service()
 
@@ -244,7 +249,7 @@ struct PushDevicesModelTests {
         #expect(request?.json?["deviceId"] as? String == Self.thisDevice)
         #expect(request?.json?["deviceName"] as? String == "iPhone")
         #expect(request?.json?["model"] as? String == "iPhone")
-        #expect(store.registeredDeviceID == Self.thisDevice)
+        #expect(store.registeredTokens == [Self.studioHash: Self.tokenHex])
     }
 
     @Test("舊配對還沒帶裝置 id 重新註冊成功前，不以清單判斷是否被關閉")

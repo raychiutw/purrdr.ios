@@ -26,24 +26,17 @@ public struct SSHPushPluginInstaller: PushPluginInstalling {
     let sleep: Sleep
 
     /// - Parameters:
-    ///   - deviceID: 這支裝置的 id(`isValidDeviceID`),決定配對資料夾。
+    ///   - deviceID: 這支裝置的推播 id,決定配對資料夾。
     ///   - pluginSource: `herdr plugin install` 的 GitHub 來源(`owner/repo[/subdir]`)。
     public init(
-        channel: any HostChannel, herdr: HerdrInstallation, deviceID: String, pluginSource: String,
+        channel: any HostChannel, herdr: HerdrInstallation, deviceID: PushDeviceID, pluginSource: String,
         sleep: @escaping Sleep = Sleeping.task
     ) {
-        precondition(Self.isValidDeviceID(deviceID), "裝置 id 會拼進主機路徑")
         self.channel = channel
         self.sleep = sleep
         self.herdr = herdr
         self.pluginSource = pluginSource
-        pairingFeature = HostWriteFeature(id: "push-\(deviceID)", userFiles: [])
-    }
-
-    /// 裝置 id 會拼進主機路徑：只接受 1～64 個小寫英數與 `-`,且不能是 `plugin`。
-    public static func isValidDeviceID(_ id: String) -> Bool {
-        !id.isEmpty && id.utf8.count <= 64 && id != "plugin"
-            && id.utf8.allSatisfy { (48...57).contains($0) || (97...122).contains($0) || $0 == 45 }
+        pairingFeature = HostWriteFeature(id: "push-\(deviceID.rawValue)", userFiles: [])
     }
 
     var pairingPath: HostPath { pairingFeature.ownFile("pairing") }

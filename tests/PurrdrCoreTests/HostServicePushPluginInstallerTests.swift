@@ -7,7 +7,7 @@ import Testing
 @Suite("主機服務的推播外掛安裝")
 struct HostServicePushPluginInstallerTests {
     static let endpoint = URL(string: "https://backend.test/v1/push")!
-    static let deviceID = "aaaaaaaaaaaaaaaa"
+    static let deviceID = PushDeviceID(rawValue: "aaaaaaaaaaaaaaaa")!
 
     private static func start(_ settings: FakeHostService.Settings = .init(hostServiceVersion: "0.6.0")) async throws -> FakeHostService {
         try await FakeHostService.start(settings)
@@ -41,26 +41,48 @@ struct HostServicePushPluginInstallerTests {
         try await Self.installer(service).install(PushPairingFile(endpoint: Self.endpoint, key: key, muted: ["s-2", "s-1"]))
 
         let sent = try #require(service.messages(ofType: "push.install").first)
-        #expect(sent["device_id"] as? String == Self.deviceID)
+        #expect(sent["device_id"] as? String == Self.deviceID.rawValue)
         let pairing = try #require(sent["pairing"] as? [String: Any])
         #expect(pairing["endpoint"] as? String == Self.endpoint.absoluteString)
         #expect(pairing["key"] as? String == key.hex)
         #expect(pairing["muted"] as? [String] == ["s-1", "s-2"])
     }
 
-    @Test("改靜音清單：以同一組配對重送安裝，只換靜音清單")
-    func updatingMutedResendsThePairing() async throws {
+    @Test("改靜音清單：送 push.update_muted(只帶靜音清單),不重送安裝、不送密鑰")
+    func updatingMutedSendsOnlyMuted() async throws {
         let service = try await Self.start()
         defer { Task { await service.stop() } }
+        try await Self.installer(service).install(PushPairingFile(endpoint: Self.endpoint, key: .generate(), muted: ["old"]))
+
+        try await Self.installer(service).updateMuted(["s-2", "s-1"])
+
+        let sent = try #require(service.messages(ofType: "push.update_muted").first)
+        #expect(sent["device_id"] as? String == Self.deviceID.rawValue)
+        #expect(sent["muted"] as? [String] == ["s-1", "s-2"])
+        #expect(sent["pairing"] == nil)
+        #expect(service.messages(ofType: "push.install").count == 1)
+        #expect(service.pushState.pairings[Self.deviceID.rawValue] == ["s-1", "s-2"])
+    }
+
+    @Test("主機上沒有這支裝置的配對(被手動移除):改靜音清單丟 notPaired")
+    func updatingMutedWithoutPairingIsNotPaired() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: PushPluginError.notPaired) { try await Self.installer(service).updateMuted(["s-1"]) }
+    }
+
+    @Test("push_plugin_failed 依操作對應：查狀態是 pluginListFailed、移除是 pluginUninstallFailed")
+    func pluginFailureMapsPerOperation() async throws {
+        var settings = FakeHostService.Settings(hostServiceVersion: "0.6.0")
+        settings.pushStatusFailure = "herdr not running"
+        settings.pushRemoveFailure = "uninstall failed"
+        let service = try await Self.start(settings)
+        defer { Task { await service.stop() } }
         let installer = Self.installer(service)
-        let key = PushPairingKey.generate()
-        try await installer.install(PushPairingFile(endpoint: Self.endpoint, key: key, muted: ["old"]))
 
-        try await installer.updateMuted(["new"])
-
-        let resent = try #require(service.messages(ofType: "push.install").last?["pairing"] as? [String: Any])
-        #expect(resent["key"] as? String == key.hex)
-        #expect(service.pushState.pairings[Self.deviceID] == ["new"])
+        await #expect(throws: PushPluginError.pluginListFailed("herdr not running")) { try await installer.status() }
+        await #expect(throws: PushPluginError.pluginUninstallFailed("uninstall failed")) { try await installer.remove() }
     }
 
     @Test("唯讀裝置：查狀態可以，安裝丟 readOnlyDevice")

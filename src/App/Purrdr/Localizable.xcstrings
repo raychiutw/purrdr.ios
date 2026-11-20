@@ -2445,6 +2445,17 @@
         }
       }
     },
+    "Couldn’t read this device’s ID from the keychain. Unlock this device and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法從鑰匙圈讀取這支裝置的識別碼。請解鎖這支裝置後再試一次。"
+          }
+        }
+      }
+    },
     "Couldn’t read this file." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2628,6 +2639,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法更新 herdr。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t update muted chats on this host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新這台主機上的靜音聊天:%@"
           }
         }
       }
@@ -4821,17 +4843,6 @@
         }
       }
     },
-    "Notification devices need Purrdr Plus." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知裝置需要 Purrdr Plus。"
-          }
-        }
-      }
-    },
     "Notifications" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6126,6 +6137,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名…"
+          }
+        }
+      }
+    },
+    "Renaming devices needs Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改裝置名稱需要 Purrdr Plus。"
           }
         }
       }
@@ -8337,6 +8359,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機找不到 Codex。請在主機上安裝 Codex,或確認它在 PATH 裡。"
+          }
+        }
+      }
+    },
+    "This host can’t send notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機無法傳送通知。"
           }
         }
       }

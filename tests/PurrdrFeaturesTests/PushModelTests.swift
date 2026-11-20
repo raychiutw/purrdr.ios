@@ -22,7 +22,9 @@ struct PushModelTests {
     let backend = HTTPStub()
     let tokens = InMemoryTokenStore()
     let platform = FakePushPlatform()
-    let store = InMemoryPushPairingStore(deviceID: "0123456789abcdef")
+    let store = InMemoryPushPairingStore()
+    /// 這支裝置的推播 id(主機路徑與後台共用，0.45 以前的 16 位 hex 沿用)。
+    static let deviceID = PushDeviceID(rawValue: "0123456789abcdef")!
 
     init() throws {
         host = try LocalShellHost.temporary()
@@ -32,11 +34,13 @@ struct PushModelTests {
         platform.token = Self.token
     }
 
-    func service(plusActive: Bool = true, store: (any PushPairingStore)? = nil) -> PushService {
+    func service(
+        plusActive: Bool = true, store: (any PushPairingStore)? = nil, deviceID: PushDeviceID = Self.deviceID
+    ) -> PushService {
         PushService(
             session: MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens),
             platform: platform, store: store ?? self.store,
-            device: PushDeviceIdentity(id: "6f1c2a4e-3b7d-4c8e-9a10-2b3c4d5e6f70", name: "iPhone", model: .iPhone),
+            device: PushDeviceIdentity(id: deviceID, name: "iPhone", model: .iPhone),
             configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
             isPlusActive: { plusActive })
     }
@@ -253,7 +257,7 @@ struct PushModelTests {
     func confirmationNamesInstallerUser() async {
         platform.status = .authorized
         let pluginHost = FakePushPluginHost(user: "ray")
-        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let model = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
 
         await model.requestOn()
 
@@ -266,7 +270,7 @@ struct PushModelTests {
         platform.status = .authorized
         let pluginHost = FakePushPluginHost()
         pluginHost.setStatusFailure(.pluginListFailed("herdr server is not running"))
-        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let model = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
 
         await model.requestOn()
 
@@ -280,38 +284,40 @@ struct PushModelTests {
         backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
         let pluginHost = FakePushPluginHost()
         let service = service()
-        let model = model(service, installer: pluginHost.installer(deviceID: store.deviceID))
+        let model = model(service, installer: pluginHost.installer(deviceID: Self.deviceID))
 
         await turnOn(model)
 
         #expect(model.state == .on)
-        let file = try #require(pluginHost.pairing(deviceID: store.deviceID))
+        let file = try #require(pluginHost.pairing(deviceID: Self.deviceID))
         #expect(store.keyHash(forHost: "studio") == file.key.hash)
         backend.on("DELETE", "/v1/members/me/push-pairings/\(file.key.hash)", .empty(204))
 
         await model.turnOff()
 
         #expect(model.state == .off)
-        #expect(pluginHost.pairing(deviceID: store.deviceID) == nil)
+        #expect(pluginHost.pairing(deviceID: Self.deviceID) == nil)
         #expect(!pluginHost.pluginInstalled)
     }
 
     // MARK: - 多支裝置共用一台主機(#264)
 
     /// 另一支裝置(自己的裝置 id 與配對紀錄)在同一台假主機上的開關。
-    func otherDeviceModel(_ pluginHost: FakePushPluginHost, deviceID: String) -> PushModel {
+    func otherDeviceModel(_ pluginHost: FakePushPluginHost, deviceID: PushDeviceID) -> PushModel {
         PushModel(
-            service: service(store: InMemoryPushPairingStore(deviceID: deviceID)), hostID: "studio",
+            service: service(store: InMemoryPushPairingStore(), deviceID: deviceID), hostID: "studio",
             installer: pluginHost.installer(deviceID: deviceID), muted: { [] })
     }
+
+    static let padID = PushDeviceID(rawValue: "fedcba9876543210")!
 
     @Test("兩支裝置同主機都開：關一支另一支仍開、外掛還在;最後一支關閉外掛才移除")
     func twoDevicesShareOneHost() async throws {
         backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
         platform.status = .authorized
         let pluginHost = FakePushPluginHost()
-        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
-        let pad = otherDeviceModel(pluginHost, deviceID: "fedcba9876543210")
+        let phone = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
+        let pad = otherDeviceModel(pluginHost, deviceID: Self.padID)
 
         await turnOn(phone)
         await turnOn(pad)
@@ -321,8 +327,8 @@ struct PushModelTests {
 
         #expect(phone.state == .off)
         #expect(pad.state == .on)
-        #expect(pluginHost.pairing(deviceID: store.deviceID) == nil)
-        #expect(pluginHost.pairing(deviceID: "fedcba9876543210") != nil)
+        #expect(pluginHost.pairing(deviceID: Self.deviceID) == nil)
+        #expect(pluginHost.pairing(deviceID: Self.padID) != nil)
         #expect(pluginHost.pluginInstalled)
 
         await pad.turnOff()
@@ -335,12 +341,12 @@ struct PushModelTests {
         backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
         platform.status = .authorized
         let pluginHost = FakePushPluginHost()
-        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
-        let pad = otherDeviceModel(pluginHost, deviceID: "fedcba9876543210")
+        let phone = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
+        let pad = otherDeviceModel(pluginHost, deviceID: Self.padID)
         await turnOn(phone)
         await turnOn(pad)
-        let phoneHash = try #require(pluginHost.pairing(deviceID: store.deviceID)?.key.hash)
-        let padHash = try #require(pluginHost.pairing(deviceID: "fedcba9876543210")?.key.hash)
+        let phoneHash = try #require(pluginHost.pairing(deviceID: Self.deviceID)?.key.hash)
+        let padHash = try #require(pluginHost.pairing(deviceID: Self.padID)?.key.hash)
         backend.on("DELETE", "/v1/members/me/push-pairings/\(phoneHash)", .empty(204))
 
         await phone.turnOff()
@@ -353,9 +359,9 @@ struct PushModelTests {
     func showsOtherDevicesOnHost() async throws {
         platform.status = .authorized
         let pluginHost = FakePushPluginHost()
-        try await pluginHost.installer(deviceID: "fedcba9876543210").install(
+        try await pluginHost.installer(deviceID: Self.padID).install(
             PushPairingFile(endpoint: Self.endpoint, key: .generate(), muted: []))
-        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let phone = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
         #expect(phone.otherDevices == 0)
 
         await phone.refreshStatus()
@@ -370,7 +376,7 @@ struct PushModelTests {
     func refreshStatusFailureIsQuiet() async {
         let pluginHost = FakePushPluginHost()
         pluginHost.setStatusFailure(.pluginListFailed("herdr server is not running"))
-        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let phone = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
 
         await phone.refreshStatus()
 
@@ -414,6 +420,18 @@ struct PushModelTests {
         #expect(hosts.hostPushes.first { $0.name == "Studio Mac" }?.icon == .macMini)
     }
 
+    @Test("HTTPS 主機取不到主機服務連線(例如替身連線):明確標成不支援，不是無聲失效")
+    func httpsHostWithoutHostServiceConnectionIsUnsupported() {
+        let hostStore = MemoryHostStore()
+        hostStore.hosts = [HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)]
+        let hosts = HostsModel(
+            store: hostStore, demoChannel: FakeHost(), hostService: HostServiceAccess { _, _ in FakeHostConnection() },
+            push: service(), makeChannel: ChannelsByAddress([:]).make)
+        hosts.load()
+
+        #expect(hosts.hostPushes.first { $0.name == "Box" }?.support == .unsupported)
+    }
+
     @Test("至少一台主機開啟就算開啟通知，列出開著的主機名稱")
     func notifyingHostsListsHostsThatAreOn() {
         let hostStore = MemoryHostStore()
@@ -434,7 +452,7 @@ struct PushModelTests {
         backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
         let pluginHost = FakePushPluginHost()
         pluginHost.setInstallFailure("git not found")
-        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let model = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
 
         await turnOn(model)
         #expect(model.state == .off)
@@ -452,7 +470,7 @@ struct PushModelTests {
     func outdatedHostServiceAsksForUpdate() async {
         let pluginHost = FakePushPluginHost()
         pluginHost.setStatusFailure(.hostServiceOutdated(installed: "0.5.0"))
-        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let model = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
 
         await model.requestOn()
 
@@ -490,33 +508,167 @@ struct PushModelTests {
         #expect(!FileManager.default.fileExists(atPath: host.url(".purrdr").path))
     }
 
+    @Test("改靜音失敗：維持開啟，在這台主機列說明;下次成功就清掉")
+    func mutingFailureIsShownOnHostRow() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let pluginHost = FakePushPluginHost()
+        let model = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
+        await turnOn(model)
+        pluginHost.setUpdateMutedFailure(HostServiceError.connectionLost)
+
+        await model.syncMuted(["session-9"])
+
+        #expect(model.state == .on)
+        guard case .mutedSyncFailed? = model.problem else { Issue.record("沒有說明：\(String(describing: model.problem))"); return }
+
+        pluginHost.setUpdateMutedFailure(nil)
+        await model.syncMuted(["session-9"])
+        #expect(model.problem == nil)
+    }
+
+    @Test("主機上的配對被手動移除：改靜音時回到未開啟並撤銷後台配對，不重裝外掛")
+    func mutingAfterPairingRemovedTurnsOff() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let pluginHost = FakePushPluginHost()
+        let model = model(service(), installer: pluginHost.installer(deviceID: Self.deviceID))
+        await turnOn(model)
+        let hash = try #require(store.keyHash(forHost: "studio"))
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(hash)", .empty(204))
+        pluginHost.removePairingManually(deviceID: Self.deviceID)
+
+        await model.syncMuted(["session-9"])
+
+        #expect(model.state == .off)
+        #expect(store.keyHash(forHost: "studio") == nil)
+        for _ in 0..<200 where backend.requests(to: "/v1/members/me/push-pairings/\(hash)").isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(backend.requests(to: "/v1/members/me/push-pairings/\(hash)").count == 1)
+        #expect(pluginHost.calls.filter { $0.hasPrefix("install") }.count == 1)
+    }
+
+    /// 測試裡的 Keychain 是否已解鎖。
+    @MainActor
+    final class KeychainLock {
+        var isUnlocked = false
+    }
+
+    @Test("Keychain 讀不到這支裝置的 id(還沒第一次解鎖):說明並維持關閉，解鎖後可再開")
+    func unreadableDeviceIDIsExplained() async {
+        platform.status = .authorized
+        let pluginHost = FakePushPluginHost()
+        let keychain = KeychainLock()
+        let service = PushService(
+            session: MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens),
+            platform: platform, store: store,
+            loadDevice: {
+                guard keychain.isUnlocked else { throw PushDeviceIDError.unreadable(status: -25308) }
+                return PushDeviceIdentity(id: Self.deviceID, name: "iPhone", model: .iPhone)
+            },
+            configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
+            isPlusActive: { true })
+        let model = model(service, installer: pluginHost.installer(deviceID: Self.deviceID))
+
+        await model.requestOn()
+
+        #expect(model.state == .off)
+        #expect(model.problem == .deviceIDUnavailable)
+        #expect(pluginHost.calls.isEmpty)
+
+        keychain.isUnlocked = true
+        await model.requestOn()
+        #expect(model.state == .confirming(user: pluginHost.user))
+    }
+
+    static let studioHash = String(repeating: "1", count: 64)
+    static let linuxHash = String(repeating: "2", count: 64)
+
     @Test("APNs token 換了：對每組配對向後台重新註冊(主機不用改)")
     func tokenRotationReRegisters() async throws {
-        store.setKeyHash(String(repeating: "1", count: 64), forHost: "studio")
-        store.setKeyHash(String(repeating: "2", count: 64), forHost: "linux")
-        store.lastDeviceToken = "old"
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setKeyHash(Self.linuxHash, forHost: "linux")
+        store.setRegisteredToken("old", forKeyHash: Self.studioHash)
+        store.setRegisteredToken("old", forKeyHash: Self.linuxHash)
         platform.status = .authorized
         backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
 
         await service().refreshRegistrations()
 
         let hashes = backend.requests(to: "/v1/members/me/push-pairings").compactMap { $0.json?["keyHash"] as? String }
-        #expect(Set(hashes) == [String(repeating: "1", count: 64), String(repeating: "2", count: 64)])
-        #expect(store.lastDeviceToken == Self.tokenHex)
+        #expect(Set(hashes) == [Self.studioHash, Self.linuxHash])
+        #expect(store.registeredTokens == [Self.studioHash: Self.tokenHex, Self.linuxHash: Self.tokenHex])
         #expect(platform.authorizationRequests == 0)
     }
 
     @Test("啟動時 token 沒變：不送後台，也不請求權限")
     func unchangedTokenDoesNothing() async {
-        store.setKeyHash(String(repeating: "1", count: 64), forHost: "studio")
-        store.lastDeviceToken = Self.tokenHex
-        store.registeredDeviceID = "6f1c2a4e-3b7d-4c8e-9a10-2b3c4d5e6f70"
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setRegisteredToken(Self.tokenHex, forKeyHash: Self.studioHash)
         platform.status = .authorized
 
         await service().refreshRegistrations()
 
         #expect(backend.requests(to: "/v1/members/me/push-pairings").isEmpty)
         #expect(platform.authorizationRequests == 0)
+    }
+
+    @Test("部分註冊失敗：成功的那組記為已註冊，失敗的下次再試")
+    func partialRegistrationIsRecordedPerPairing() async throws {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setKeyHash(Self.linuxHash, forHost: "linux")
+        platform.status = .authorized
+        backend.on(
+            "POST", "/v1/members/me/push-pairings",
+            .json(201, #"{"registered":true}"#), .json(500, #"{"error":{"code":"internal","message":"x"}}"#))
+
+        await service().refreshRegistrations()
+
+        let firstHash = try #require(backend.requests(to: "/v1/members/me/push-pairings").first?.json?["keyHash"] as? String)
+        #expect(store.registeredTokens == [firstHash: Self.tokenHex])
+    }
+
+    @Test("啟動：先判斷遠端關閉再補註冊，被撤銷的配對不因 token 換了而復活")
+    func launchChecksRevocationBeforeReRegistering() async {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setRegisteredToken("old", forKeyHash: Self.studioHash)
+        platform.status = .authorized
+        backend.on("GET", "/v1/members/me/push-devices", .json(200, #"{"devices": []}"#))
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let service = service()
+        let push = model(service)
+
+        await service.refreshAtLaunch()
+
+        #expect(backend.requests(to: "/v1/members/me/push-pairings").isEmpty)
+        #expect(store.pairings.isEmpty)
+        #expect(push.state == .off)
+    }
+
+    @Test("啟動時讀不到清單：不判斷，也不補註冊(避免復活被撤銷的配對)")
+    func launchWithoutListSkipsReRegistering() async {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setRegisteredToken("old", forKeyHash: Self.studioHash)
+        platform.status = .authorized
+        backend.on("GET", "/v1/members/me/push-devices", .unreachable)
+        let service = service()
+
+        await service.refreshAtLaunch()
+
+        #expect(backend.requests(to: "/v1/members/me/push-pairings").isEmpty)
+        #expect(store.keyHash(forHost: "studio") == Self.studioHash)
+    }
+
+    @Test("部分配對還沒註冊時，已註冊的仍比對清單(被關閉就清掉),還沒註冊的留著再補")
+    func partiallyRegisteredDeviceIsStillReconciled() async {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setKeyHash(Self.linuxHash, forHost: "linux")
+        store.setRegisteredToken(Self.tokenHex, forKeyHash: Self.studioHash)
+        backend.on("GET", "/v1/members/me/push-devices", .json(200, #"{"devices": []}"#))
+
+        await service().reconcileRemoteRevocation()
+
+        #expect(store.keyHash(forHost: "studio") == nil)
+        #expect(store.keyHash(forHost: "linux") == Self.linuxHash)
     }
 
     @Test("沒有任何配對時啟動不取 token、不請求權限")
@@ -543,7 +695,7 @@ struct PushRouteTests {
     func opensAgentOnPairedHost() {
         let store = MemoryHostStore()
         store.hosts = [HostsModelTests.studio]
-        let pairings = InMemoryPushPairingStore(deviceID: "0123456789abcdef")
+        let pairings = InMemoryPushPairingStore()
         pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
         let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
         model.load()
@@ -574,7 +726,7 @@ struct PushRouteTests {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
         model.load()
 
-        model.open(PushRoute(keyHash: "nope", paneID: "w2:p1"), pairings: InMemoryPushPairingStore(deviceID: "a"))
+        model.open(PushRoute(keyHash: "nope", paneID: "w2:p1"), pairings: InMemoryPushPairingStore())
 
         #expect(model.selection == .demo)
         #expect(model.agentList.openedChat == nil)

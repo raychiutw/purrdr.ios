@@ -119,7 +119,7 @@ public actor MemberSession {
     ) async throws {
         let body = try JSONEncoder().encode([
             "keyHash": keyHash, "platform": "apns", "deviceToken": deviceToken, "environment": environment.rawValue,
-            "deviceId": device.id, "deviceName": device.name, "model": device.model.rawValue,
+            "deviceId": device.id.backendValue, "deviceName": device.name, "model": device.model.rawValue,
         ])
         _ = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/push-pairings", body: body))
     }

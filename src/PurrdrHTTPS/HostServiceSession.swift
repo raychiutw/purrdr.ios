@@ -394,7 +394,7 @@ extension HostServiceProtocol.ServerMessage {
         case .welcome, .agentsListResult, .paneSendKeysResult, .transcriptLocateResult, .transcriptWindowResult, .transcriptFollowResult,
              .transcriptUnfollowResult, .paneSendTextResult, .agentPromptResult, .eventsSubscribeResult, .eventsUnsubscribeResult,
              .paneTerminalOpenResult, .fileStatResult, .fileReadResult, .pushStatusResult, .pushInstallResult, .pushRemoveResult,
-             .errorMessage: nil
+             .pushUpdateMutedResult, .errorMessage: nil
         }
     }
 
@@ -426,6 +426,7 @@ extension HostServiceProtocol.ServerMessage {
         case .pushStatusResult(let message): message.requestId
         case .pushInstallResult(let message): message.requestId
         case .pushRemoveResult(let message): message.requestId
+        case .pushUpdateMutedResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
         case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed: nil
         }

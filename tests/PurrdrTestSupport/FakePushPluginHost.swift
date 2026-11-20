@@ -12,6 +12,7 @@ public final class FakePushPluginHost: Sendable {
         var pluginInstalledByPurrdr = false
         var installFailure: String?
         var statusFailure: PushPluginError?
+        var updateMutedFailure: (any Error & Sendable)?
         var calls: [String] = []
     }
 
@@ -22,8 +23,8 @@ public final class FakePushPluginHost: Sendable {
         self.user = user
     }
 
-    public func installer(deviceID: String) -> any PushPluginInstalling {
-        Installer(host: self, deviceID: deviceID)
+    public func installer(deviceID: PushDeviceID) -> any PushPluginInstalling {
+        Installer(host: self, deviceID: deviceID.rawValue)
     }
 
     /// 之後的外掛安裝失敗，丟出 `pluginInstallFailed(message)`;`nil` 恢復成功。
@@ -41,11 +42,29 @@ public final class FakePushPluginHost: Sendable {
         state.withLock { $0.pluginInstalled = true }
     }
 
+    /// 使用者在主機上手動移除外掛(配對留著)。
+    public func uninstallPluginManually() {
+        state.withLock {
+            $0.pluginInstalled = false
+            $0.pluginInstalledByPurrdr = false
+        }
+    }
+
+    /// 使用者在主機上手動刪掉某支裝置的配對。
+    public func removePairingManually(deviceID: PushDeviceID) {
+        state.withLock { $0.pairings[deviceID.rawValue] = nil }
+    }
+
     public var pluginInstalled: Bool { state.withLock { $0.pluginInstalled } }
 
     /// 某支裝置在這台主機上的配對檔。
-    public func pairing(deviceID: String) -> PushPairingFile? {
-        state.withLock { $0.pairings[deviceID] }
+    public func pairing(deviceID: PushDeviceID) -> PushPairingFile? {
+        state.withLock { $0.pairings[deviceID.rawValue] }
+    }
+
+    /// 之後的改靜音清單丟出 `failure`;`nil` 恢復。
+    public func setUpdateMutedFailure(_ failure: (any Error & Sendable)?) {
+        state.withLock { $0.updateMutedFailure = failure }
     }
 
     /// 依序收到的操作(`status <裝置>`、`install <裝置>`、`remove <裝置>`、`updateMuted <裝置>`)。
@@ -92,6 +111,7 @@ public final class FakePushPluginHost: Sendable {
         func updateMuted(_ muted: Set<String>) async throws {
             try host.state.withLock { state in
                 state.calls.append("updateMuted \(deviceID)")
+                if let failure = state.updateMutedFailure { throw failure }
                 guard state.pairings[deviceID] != nil else { throw PushPluginError.notPaired }
                 state.pairings[deviceID]?.muted = muted
             }

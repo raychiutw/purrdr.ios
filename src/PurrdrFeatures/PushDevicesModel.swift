@@ -9,7 +9,7 @@ import PurrdrCore
 @Observable
 public final class PushDevicesModel {
     public enum Problem: Equatable {
-        /// 需要 Purrdr Plus(清單與改名要有效訂閱;關閉不用)。
+        /// 需要 Purrdr Plus(改名要有效訂閱;清單與關閉不用，訂閱到期也能關掉遺失的裝置)。
         case needsSubscription
         case failed(String)
     }
@@ -37,7 +37,7 @@ public final class PushDevicesModel {
     /// 重讀清單。讀不到時保留上次的清單並說明。
     public func load() async {
         do {
-            let devices = try await service.session.pushDevices(currentDeviceID: service.device.id)
+            let devices = try await service.session.pushDevices(currentDeviceID: service.device().id.backendValue)
             self.devices = devices
             problem = nil
             service.reconcile(with: devices)
@@ -55,7 +55,7 @@ public final class PushDevicesModel {
         busyDeviceIDs.insert(device.id)
         defer { busyDeviceIDs.remove(device.id) }
         do {
-            let renamed = try await service.session.renamePushDevice(device.id, to: name, currentDeviceID: service.device.id)
+            let renamed = try await service.session.renamePushDevice(device.id, to: name, currentDeviceID: service.device().id.backendValue)
             if let index = devices.firstIndex(where: { $0.id == device.id }) { devices[index] = renamed }
             problem = nil
             return true
@@ -79,7 +79,7 @@ public final class PushDevicesModel {
         }
         devices.removeAll { $0.id == device.id }
         problem = nil
-        if device.isCurrent || device.id == service.device.id { service.forgetAllPairings() }
+        if device.isCurrent || device.id == (try? service.device())?.id.backendValue { service.forgetAllPairings() }
     }
 
     private func record(_ error: any Error) {

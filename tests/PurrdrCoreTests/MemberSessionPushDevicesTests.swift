@@ -50,7 +50,7 @@ struct MemberSessionPushDevicesTests {
 
         try await session.registerPushPairing(
             keyHash: "hash-1", deviceToken: "token-1", environment: .production,
-            device: PushDeviceIdentity(id: Self.thisDevice, name: "Ray’s iPhone", model: .iPhone))
+            device: PushDeviceIdentity(id: PushDeviceID(rawValue: Self.thisDevice)!, name: "Ray’s iPhone", model: .iPhone))
 
         let body = try #require(backend.requests.first?.body)
         let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: String])
@@ -58,6 +58,22 @@ struct MemberSessionPushDevicesTests {
         #expect(json["deviceName"] == "Ray’s iPhone")
         #expect(json["model"] == "iPhone")
         #expect(json["keyHash"] == "hash-1")
+    }
+
+    @Test("沿用舊 16 位 hex id 的裝置：後台收到 UUID 格式的值(後台只收 UUID)")
+    func legacyDeviceIDIsSentInUUIDForm() async throws {
+        let backend = FakeBackend([:])
+        let session = try makeSession(backend)
+        let legacy = try #require(PushDeviceID(rawValue: "0123456789abcdef"))
+
+        try await session.registerPushPairing(
+            keyHash: "hash-1", deviceToken: "token-1", environment: .production,
+            device: PushDeviceIdentity(id: legacy, name: "iPhone", model: .iPhone))
+
+        let body = try #require(backend.requests.first?.body)
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: String])
+        #expect(json["deviceId"] == legacy.backendValue)
+        #expect(json["deviceId"] != legacy.rawValue)
     }
 
     @Test("清單帶 currentDeviceId,舊配對的名稱與型號是 nil")

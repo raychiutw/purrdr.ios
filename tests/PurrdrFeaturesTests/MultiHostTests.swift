@@ -289,7 +289,7 @@ struct MultiHostTests {
         let model = Self.model(ChannelsByAddress([:]))
         model.load()
         model.select(.host(Self.studio.id))
-        let pairings = InMemoryPushPairingStore(deviceID: "0123456789abcdef")
+        let pairings = InMemoryPushPairingStore()
         pairings.setKeyHash("abc", forHost: Self.lab.id.uuidString)
 
         model.open(PushRoute(keyHash: "abc", paneID: "w1:pA"), pairings: pairings)

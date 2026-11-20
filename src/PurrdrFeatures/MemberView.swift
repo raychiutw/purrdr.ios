@@ -285,9 +285,12 @@ struct AccountView: View {
                 if progress.isPlusActive {
                     // 四步完成、步驟卡收合後，通知與主機同步仍可隨時開關(spec #261 原型 A)。
                     HostPushSection(pushes: pushes) { showingPlus = true }
-                    if let pushDevices {
-                        PushDevicesSection(model: pushDevices)
-                    }
+                }
+                if signedInMember != nil, let pushDevices {
+                    // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
+                    PushDevicesSection(model: pushDevices, canRename: progress.isPlusActive)
+                }
+                if progress.isPlusActive {
                     if let hostSync, progress.state(of: .syncHosts) == .done {
                         HostSyncSection(model: hostSync, plus: plus, member: model)
                     }
@@ -333,7 +336,7 @@ struct AccountView: View {
         }
         .task(id: signedInMember?.id) { await plus?.refresh() }
         .hostPushConfirmation(pushes)
-        .pushDevicesDialogs(progress?.isPlusActive == true ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
+        .pushDevicesDialogs(signedInMember != nil ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
         .alert("Purrdr Plus Is On", isPresented: $offeringFeatureSetup) {
             Button("Later", role: .cancel) {}
             Button("Turn On All") { turnOnAll() }

@@ -40,6 +40,7 @@ extension HostServiceProtocol {
         case pushStatus(PushStatus)
         case pushInstall(PushInstall)
         case pushRemove(PushRemove)
+        case pushUpdateMuted(PushUpdateMuted)
 
         private enum TypeKey: String, CodingKey {
             case type
@@ -70,6 +71,7 @@ extension HostServiceProtocol {
             case "push.status": self = .pushStatus(try PushStatus(from: decoder))
             case "push.install": self = .pushInstall(try PushInstall(from: decoder))
             case "push.remove": self = .pushRemove(try PushRemove(from: decoder))
+            case "push.update_muted": self = .pushUpdateMuted(try PushUpdateMuted(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
             }
@@ -141,13 +143,16 @@ extension HostServiceProtocol {
             case .pushRemove(let message):
                 try container.encode("push.remove", forKey: .type)
                 try message.encode(to: encoder)
+            case .pushUpdateMuted(let message):
+                try container.encode("push.update_muted", forKey: .type)
+                try message.encode(to: encoder)
             }
         }
 
         /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
         public var isWrite: Bool {
             switch self {
-            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove: return true
+            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted: return true
             default: return false
             }
         }
@@ -179,6 +184,7 @@ extension HostServiceProtocol {
         case pushStatusResult(PushStatusResult)
         case pushInstallResult(PushInstallResult)
         case pushRemoveResult(PushRemoveResult)
+        case pushUpdateMutedResult(PushUpdateMutedResult)
         case errorMessage(ErrorMessage)
 
         private enum TypeKey: String, CodingKey {
@@ -211,6 +217,7 @@ extension HostServiceProtocol {
             case "push.status.result": self = .pushStatusResult(try PushStatusResult(from: decoder))
             case "push.install.result": self = .pushInstallResult(try PushInstallResult(from: decoder))
             case "push.remove.result": self = .pushRemoveResult(try PushRemoveResult(from: decoder))
+            case "push.update_muted.result": self = .pushUpdateMutedResult(try PushUpdateMutedResult(from: decoder))
             case "error": self = .errorMessage(try ErrorMessage(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
@@ -285,6 +292,9 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .pushRemoveResult(let message):
                 try container.encode("push.remove.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushUpdateMutedResult(let message):
+                try container.encode("push.update_muted.result", forKey: .type)
                 try message.encode(to: encoder)
             case .errorMessage(let message):
                 try container.encode("error", forKey: .type)
@@ -1621,6 +1631,54 @@ extension HostServiceProtocol {
         case transcriptCompressed = "transcript_compressed"
         case fileChanged = "file_changed"
         case pushPluginFailed = "push_plugin_failed"
+        case pushNotPaired = "push_not_paired"
         case internalError = "internal_error"
+    }
+}
+
+extension HostServiceProtocol {
+    /// 改這支裝置在這台主機的推播靜音清單：只改配對檔的 muted,保留 key／endpoint,不呼叫 herdr。沒有配對回 push_not_paired。
+    public struct PushUpdateMuted: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// app 的推播裝置 id(與 SSH 路徑相同):1–64 個小寫英數與 -,不能是 plugin。不合格回 invalid_message。
+        public var deviceId: String
+        /// 這支裝置靜音的聊天(Agent 的 session 值)。
+        public var muted: [String]
+
+        public init(requestId: String, deviceId: String, muted: [String]) {
+            self.requestId = requestId
+            self.deviceId = deviceId
+            self.muted = muted
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case deviceId = "device_id"
+            case muted
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 靜音清單已更新，帶完成後的推播狀態(欄位同 push.status.result)。
+    public struct PushUpdateMutedResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var pluginInstalled: Bool
+        public var paired: Bool
+        public var otherDevices: Int
+
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+            self.requestId = requestId
+            self.pluginInstalled = pluginInstalled
+            self.paired = paired
+            self.otherDevices = otherDevices
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case pluginInstalled = "plugin_installed"
+            case paired
+            case otherDevices = "other_devices"
+        }
     }
 }

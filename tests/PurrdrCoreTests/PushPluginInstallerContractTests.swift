@@ -121,6 +121,32 @@ struct PushPluginInstallerContractTests {
 
         #expect(try await installer.status().isPaired)
     }
+
+    @Test("另一個實例(app 重開後)也能改靜音清單，配對密鑰不變", arguments: kinds)
+    func updatingMutedFromAFreshInstaller(kind: InstallerKind) async throws {
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
+        try await host.installer("aaaaaaaaaaaaaaaa").install(pairing(muted: ["old"]))
+
+        try await host.installer("aaaaaaaaaaaaaaaa").updateMuted(["session-1"])
+
+        #expect(try await host.installer("aaaaaaaaaaaaaaaa").status().isPaired)
+    }
+
+    @Test("外掛被手動移除後改靜音清單：不重裝外掛", arguments: kinds)
+    func updatingMutedDoesNotReinstallPlugin(kind: InstallerKind) async throws {
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
+        let installer = host.installer("aaaaaaaaaaaaaaaa")
+        try await installer.install(pairing())
+        try host.uninstallPluginOutsidePurrdr()
+
+        try await installer.updateMuted(["session-1"])
+
+        let status = try await installer.status()
+        #expect(status.isPaired)
+        #expect(!status.pluginInstalled)
+    }
 }
 
 /// 被測的實作。
@@ -148,10 +174,12 @@ enum InstallerKind: String, CustomStringConvertible, Sendable {
 }
 
 /// 測試對一台主機的操作：取某支裝置的安裝介面、安排失敗、模擬使用者自己裝的外掛。
-protocol PushPluginTestHost {
+protocol PushPluginTestHost: Sendable {
     func installer(_ deviceID: String) -> any PushPluginInstalling
     func failPluginInstall(_ message: String) throws
     func installPluginOutsidePurrdr() throws
+    /// 使用者在主機上手動移除外掛(配對留著)。
+    func uninstallPluginOutsidePurrdr() throws
     func stop() async
 }
 
@@ -170,7 +198,7 @@ struct HostServicePushPluginTestHost: PushPluginTestHost {
     }
 
     func installer(_ deviceID: String) -> any PushPluginInstalling {
-        HostServicePushPluginInstaller(connection: connection, deviceID: deviceID)
+        HostServicePushPluginInstaller(connection: connection, deviceID: PushDeviceID(rawValue: deviceID)!)
     }
 
     func failPluginInstall(_ message: String) throws {
@@ -179,6 +207,8 @@ struct HostServicePushPluginTestHost: PushPluginTestHost {
 
     func installPluginOutsidePurrdr() throws { service.installPushPluginOutsidePurrdr() }
 
+    func uninstallPluginOutsidePurrdr() throws { service.uninstallPushPluginOutsidePurrdr() }
+
     func stop() async {
         await connection.disconnect()
         await service.stop()
@@ -186,9 +216,11 @@ struct HostServicePushPluginTestHost: PushPluginTestHost {
 }
 
 extension FakePushPluginHost: PushPluginTestHost {
-    func installer(_ deviceID: String) -> any PushPluginInstalling { installer(deviceID: deviceID) }
+    func installer(_ deviceID: String) -> any PushPluginInstalling { installer(deviceID: PushDeviceID(rawValue: deviceID)!) }
 
     func failPluginInstall(_ message: String) throws { setInstallFailure(message) }
+
+    func uninstallPluginOutsidePurrdr() throws { uninstallPluginManually() }
 }
 
 #if os(macOS)
@@ -203,7 +235,8 @@ struct SSHPushPluginTestHost: PushPluginTestHost {
 
     func installer(_ deviceID: String) -> any PushPluginInstalling {
         SSHPushPluginInstaller(
-            channel: host, herdr: HerdrInstallation(), deviceID: deviceID, pluginSource: "raychiutw/purrdr.host/host-plugin")
+            channel: host, herdr: HerdrInstallation(), deviceID: PushDeviceID(rawValue: deviceID)!,
+            pluginSource: "raychiutw/purrdr.host/host-plugin")
     }
 
     func failPluginInstall(_ message: String) throws {
@@ -212,5 +245,7 @@ struct SSHPushPluginTestHost: PushPluginTestHost {
     }
 
     func installPluginOutsidePurrdr() throws { try host.write(Data(), to: "fake/installed") }
+
+    func uninstallPluginOutsidePurrdr() throws { try FileManager.default.removeItem(at: host.url("fake/installed")) }
 }
 #endif

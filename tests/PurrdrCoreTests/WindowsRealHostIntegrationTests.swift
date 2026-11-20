@@ -443,7 +443,7 @@ struct WindowsRealHostIntegrationTests {
         #expect(known.contains(note.line))
 
         log("推播配對清單…")
-        #expect(try await SSHPushPluginInstaller(channel: channel, herdr: HerdrInstallation(), deviceID: "this-device", pluginSource: "unused").otherPairings() == ["push-other-device/pairing"])
+        #expect(try await SSHPushPluginInstaller(channel: channel, herdr: HerdrInstallation(), deviceID: PushDeviceID(rawValue: "this-device")!, pluginSource: "unused").otherPairings() == ["push-other-device/pairing"])
 
         log("還原…")
         try await ysk.restore()

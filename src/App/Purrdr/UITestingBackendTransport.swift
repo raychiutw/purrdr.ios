@@ -54,7 +54,7 @@ final class UITestingBackendTransport: BackendTransport {
             revokePairing(String(path.dropFirst(Self.pairingsPath.count)))
             return BackendResponse(status: 204, body: Data())
         case ("GET", "/v1/members/me/push-devices"):
-            guard isPlusActive else { return Self.subscriptionRequired }
+            // 清單與關閉不需要 Plus(訂閱到期也能關閉遺失的裝置);改名才要。
             let current = Self.currentDeviceID(request)
             let listed = devices.withLock { $0 }.filter { $0.hostCount > 0 }.map { Self.json($0, current: current) }
             return Self.json(#"{"devices":[\#(listed.joined(separator: ","))]}"#)

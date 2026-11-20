@@ -86,6 +86,10 @@ final class FakeHostService: Sendable {
         var hostServiceVersion: String?
         /// 有值時 `push.install` 安裝外掛失敗(`push_plugin_failed`,帶這個訊息);配對回到安裝前。
         var pushInstallFailure: String?
+        /// 有值時 `push.status` 以 `push_plugin_failed` 失敗(herdr plugin list 失敗)。
+        var pushStatusFailure: String?
+        /// 有值時 `push.remove` 移除外掛失敗(`push_plugin_failed`);配對已移除。
+        var pushRemoveFailure: String?
     }
 
     /// 主機上的推播外掛與配對(`push.*`,規則同主機服務：最後一支裝置移除時才移除 Purrdr 裝的外掛)。
@@ -111,6 +115,14 @@ final class FakeHostService: Sendable {
     /// 使用者自己裝的外掛(主機服務不移除)。
     func installPushPluginOutsidePurrdr() {
         pushHost.withLock { $0.pluginInstalled = true }
+    }
+
+    /// 使用者在主機上手動移除外掛(配對留著)。
+    func uninstallPushPluginOutsidePurrdr() {
+        pushHost.withLock {
+            $0.pluginInstalled = false
+            $0.pluginInstalledByPurrdr = false
+        }
     }
 
     let port: Int
@@ -345,7 +357,7 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
-        case "push.status", "push.install", "push.remove":
+        case "push.status", "push.install", "push.remove", "push.update_muted":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
         case "pane.terminal.open":
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) == true
@@ -373,12 +385,19 @@ final class FakeHostService: Sendable {
         }
         let muted = (message["pairing"] as? [String: Any])?["muted"] as? [String] ?? []
         let reply = pushHost.withLock { host -> [String: Any] in
+            func errorReply(_ code: String, _ text: String) -> [String: Any] {
+                ["type": "error", "request_id": requestID as Any, "code": code, "message": text]
+            }
             switch type {
+            case "push.status":
+                if let failure = settings.pushStatusFailure { return errorReply("push_plugin_failed", failure) }
+            case "push.update_muted":
+                // 已配對時只改靜音清單，不碰外掛(主機服務的規則)。
+                guard host.pairings[deviceID] != nil else { return errorReply("push_not_paired", "not paired") }
+                host.pairings[deviceID] = message["muted"] as? [String] ?? []
             case "push.install":
                 if !host.pluginInstalled {
-                    if let failure = settings.pushInstallFailure {
-                        return ["type": "error", "request_id": requestID as Any, "code": "push_plugin_failed", "message": failure]
-                    }
+                    if let failure = settings.pushInstallFailure { return errorReply("push_plugin_failed", failure) }
                     host.pluginInstalled = true
                     host.pluginInstalledByPurrdr = true
                 }
@@ -386,6 +405,7 @@ final class FakeHostService: Sendable {
             case "push.remove":
                 host.pairings[deviceID] = nil
                 if host.pairings.isEmpty && host.pluginInstalledByPurrdr {
+                    if let failure = settings.pushRemoveFailure { return errorReply("push_plugin_failed", failure) }
                     host.pluginInstalled = false
                     host.pluginInstalledByPurrdr = false
                 }

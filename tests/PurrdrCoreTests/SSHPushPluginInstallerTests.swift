@@ -21,7 +21,7 @@ struct PushHostTests {
     }
 
     func push(device: String = "0123456789abcdef") -> SSHPushPluginInstaller {
-        SSHPushPluginInstaller(channel: host, herdr: HerdrInstallation(), deviceID: device, pluginSource: Self.source)
+        SSHPushPluginInstaller(channel: host, herdr: HerdrInstallation(), deviceID: PushDeviceID(rawValue: device)!, pluginSource: Self.source)
     }
 
     func pairing(_ key: PushPairingKey = .generate(), muted: Set<String> = []) -> PushPairingFile {
@@ -122,14 +122,6 @@ struct PushHostTests {
         #expect(file.key == key)
         #expect(file.endpoint == Self.endpoint)
         #expect(file.muted == ["session-1", "session-2"])
-    }
-
-    @Test("裝置 id 只能是小寫英數與 -(會拼進路徑)")
-    func deviceIDIsValidated() {
-        #expect(SSHPushPluginInstaller.isValidDeviceID("0123456789abcdef"))
-        #expect(!SSHPushPluginInstaller.isValidDeviceID("../x"))
-        #expect(!SSHPushPluginInstaller.isValidDeviceID(""))
-        #expect(!SSHPushPluginInstaller.isValidDeviceID("plugin"))
     }
 }
 

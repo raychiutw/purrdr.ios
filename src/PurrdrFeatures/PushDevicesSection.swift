@@ -1,12 +1,14 @@
 import PurrdrCore
 import SwiftUI
 
-/// 帳號頁的「通知裝置」區塊(#266):會員名下收通知的裝置，標出這支;每支可改名、遠端關閉。
+/// 帳號頁的「通知裝置」區塊(#266):會員名下收通知的裝置，標出這支;每支可遠端關閉(訂閱到期也可以),有 Purrdr Plus 才能改名。
 ///
 /// 這支裝置在各主機的開關仍在「通知」區塊。對話框與重讀清單掛在帳號頁的 List(`pushDevicesDialogs`),
 /// 不掛在 Section 上(List 會把 Section 的修飾套到每一列)。
 struct PushDevicesSection: View {
     let model: PushDevicesModel
+    /// 有效的 Purrdr Plus 才能改名。
+    let canRename: Bool
 
     var body: some View {
         Section {
@@ -16,7 +18,7 @@ struct PushDevicesSection: View {
                     .accessibilityIdentifier("account.pushDevices.empty")
             }
             ForEach(model.devices) { device in
-                PushDeviceRow(device: device, isBusy: model.busyDeviceIDs.contains(device.id)) {
+                PushDeviceRow(device: device, isBusy: model.busyDeviceIDs.contains(device.id), canRename: canRename) {
                     model.pendingAction = .rename(device)
                 } turnOff: {
                     model.pendingAction = .turnOff(device)
@@ -25,7 +27,7 @@ struct PushDevicesSection: View {
             if let problem = model.problem {
                 Label {
                     switch problem {
-                    case .needsSubscription: Text("Notification devices need Purrdr Plus.")
+                    case .needsSubscription: Text("Renaming devices needs Purrdr Plus.")
                     case .failed(let message): Text(verbatim: message)
                     }
                 } icon: {
@@ -113,6 +115,7 @@ private struct PushDevicesDialogs: ViewModifier {
 private struct PushDeviceRow: View {
     let device: PushDevice
     let isBusy: Bool
+    let canRename: Bool
     let rename: () -> Void
     let turnOff: () -> Void
 
@@ -145,8 +148,10 @@ private struct PushDeviceRow: View {
                 ProgressView()
             } else {
                 Menu {
-                    Button("Rename…", systemImage: "pencil", action: rename)
-                        .accessibilityIdentifier("account.pushDevices.rename")
+                    if canRename {
+                        Button("Rename…", systemImage: "pencil", action: rename)
+                            .accessibilityIdentifier("account.pushDevices.rename")
+                    }
                     Button("Turn Off Notifications…", systemImage: "bell.slash", role: .destructive, action: turnOff)
                         .accessibilityIdentifier("account.pushDevices.turnOff")
                 } label: {

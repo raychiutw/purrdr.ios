@@ -69,6 +69,8 @@ private struct HostPushRow: View {
         switch push.support {
         case .demoHost:
             Text("The demo host can’t send notifications.")
+        case .unsupported:
+            Text("This host can’t send notifications.")
         case .needsHostService(let version, _):
             Label("Needs host service \(version) or later", systemImage: "exclamationmark.triangle")
         case .supported:
@@ -131,7 +133,7 @@ extension PushModel.Problem {
     var needsOwnRow: Bool {
         switch self {
         case .failed, .demoHost: false
-        case .needsSubscription, .permissionDenied, .unsupportedDevice, .hostServiceOutdated: true
+        case .needsSubscription, .permissionDenied, .unsupportedDevice, .hostServiceOutdated, .deviceIDUnavailable, .mutedSyncFailed: true
         }
     }
 }
@@ -167,7 +169,10 @@ struct PushProblemRow: View {
         case .hostServiceOutdated(let update):
             HostServicePushUpdateRow(update: update)
                 .accessibilityIdentifier("settings.push.problem")
-        case .failed(let message):
+        case .deviceIDUnavailable:
+            Label("Couldn’t read this device’s ID from the keychain. Unlock this device and try again.", systemImage: "lock")
+                .accessibilityIdentifier("settings.push.problem")
+        case .failed(let message), .mutedSyncFailed(let message):
             Label { Text(verbatim: message) } icon: { Image(systemName: "exclamationmark.triangle") }
                 .accessibilityIdentifier("settings.push.problem")
         }

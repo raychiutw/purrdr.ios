@@ -56,6 +56,25 @@ final class PushDevicesUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 10), .completed, "關閉後仍在清單")
     }
 
+    /// 訂閱到期(已登入、沒有 Purrdr Plus):仍列出裝置並可遠端關閉遺失的裝置，但不能改名。
+    @MainActor
+    func testWithoutPlusCanStillTurnOffDevices() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
+        openAccount(app)
+
+        let ipad = element("account.pushDevice.\(Self.studioIPad)", in: app)
+        XCTAssertTrue(reveal(ipad, in: app), "沒有 Plus 時沒有列出裝置")
+        app.buttons["account.pushDevice.\(Self.studioIPad).actions"].tap()
+        XCTAssertFalse(app.buttons["Rename…"].firstMatch.waitForExistence(timeout: 2), "沒有 Plus 仍能改名")
+        app.buttons["Turn Off Notifications…"].firstMatch.tap()
+        let confirm = app.buttons["account.pushDevices.confirmTurnOff"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "沒有先確認")
+        confirm.tap()
+
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: ipad)
+        XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 10), .completed, "關閉後仍在清單")
+    }
+
     /// 這支裝置開了主機後列出並標「This Device」;從這裡關閉後，「通知」區塊的主機回到關閉。
     @MainActor
     func testTurningOffThisDeviceTurnsHostsOff() {
