@@ -20,10 +20,11 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);
 h1{font-size:20px;margin:0}
 .lede{color:var(--muted);margin:0;line-height:1.6;max-width:70ch;font-size:14px}
 .stage{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;justify-content:center}
-.col{display:flex;flex-direction:column;gap:8px;align-items:center;min-width:0}
+.col{display:flex;flex-direction:column;gap:8px;align-items:center;min-width:0;flex:0 1 360px;width:360px;max-width:100%}
+.col.now .phone{opacity:.92}
 .cap{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .cap b{color:var(--fg)}
-.phone{width:min(360px,100%);height:740px;border:8px solid var(--frame);border-radius:40px;background:var(--ground);overflow:hidden;display:flex;flex-direction:column}
+.phone{width:100%;height:740px;border:8px solid var(--frame);border-radius:40px;background:var(--ground);overflow:hidden;display:flex;flex-direction:column}
 .screen{flex:1;overflow-y:auto;padding:0 16px 24px;display:flex;flex-direction:column;gap:18px}
 .nav{display:grid;grid-template-columns:60px 1fr 60px;align-items:center;padding:14px 12px 6px;font-size:16px;flex:none}
 .nav .t{text-align:center;font-weight:600}
@@ -113,8 +114,8 @@ h1{font-size:20px;margin:0}
   <p class="lede">原型(拋棄式)。帳號頁點「Purrdr Plus」或深層連結 <code>purrdr://plus</code> 進入的那一頁。現況在已訂閱時只有一張卡片，下半頁空白，也沒說明訂閱包含什麼。底部切換版本與狀態。內容都是 app 真的知道或真的有的功能，數字是 UI 測試假後台的資料。</p>
   <p class="desc" id="desc"></p>
   <div class="stage">
-    <div class="col"><div class="cap"><b>現況</b></div><div class="phone" id="now"></div></div>
     <div class="col"><div class="cap" id="cap"></div><div class="phone" id="var"></div></div>
+    <div class="col now"><div class="cap"><b>現況</b>(對照)</div><div class="phone" id="now"></div></div>
   </div>
 </div>
 
