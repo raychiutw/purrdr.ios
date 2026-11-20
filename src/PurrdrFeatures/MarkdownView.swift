@@ -26,6 +26,28 @@ struct MarkdownView: View {
         return blocks.contains(where: structured)
     }
 
+    /// 有可點的主機路徑(#229):合併成一個元素時 iOS 27 不再把文字裡的連結交給 VoiceOver 與 UI 測試(#251)。
+    var hasHostPaths: Bool {
+        func inline(_ items: [MarkdownInline]) -> Bool {
+            items.contains { item in
+                switch item {
+                case .hostPath: true
+                case .strong(let children), .emphasis(let children), .link(let children, _): inline(children)
+                case .text, .code: false
+                }
+            }
+        }
+        func mentions(_ block: MarkdownBlock) -> Bool {
+            switch block {
+            case .paragraph(let items), .heading(_, let items): inline(items)
+            case .list(_, _, let items): items.contains(where: inline)
+            case .quote(let inner): inner.contains(where: mentions)
+            case .rule, .code, .table: false
+            }
+        }
+        return blocks.contains(where: mentions)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in

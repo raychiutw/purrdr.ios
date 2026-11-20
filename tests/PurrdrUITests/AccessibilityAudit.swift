@@ -58,7 +58,8 @@ final class AccessibilityAuditContext {
                 frames.append(CGRect(x: window.minX, y: top, width: window.width, height: window.maxY - top))
             }
         }
-        return frames.filter { !$0.isEmpty && $0.height < window.height / 2 }
+        // 軟體鍵盤出現時輸入列一路到視窗底約佔一半以上(iPhone 17 slash 選單：454／874pt);上限只是擋掉誤抓的整頁元素(#251)。
+        return frames.filter { !$0.isEmpty && $0.height < window.height * 0.7 }
     }()
 
     /// slash 選單(浮在輸入列上方的 `.bar` 材質):蓋住後面的訊息，但選單自己的列不算被蓋住。
@@ -67,7 +68,21 @@ final class AccessibilityAuditContext {
         return menu.exists ? menu.frame : nil
     }()
 
+    /// slash 選單自己的列與文字：完全落在選單範圍內、卻不是這些的元素，是整個被選單蓋住的訊息(#251)。
+    lazy var slashMenuContents: [CGRect] = {
+        let menu = app.descendants(matching: .any)["slash.menu"].firstMatch
+        return menu.exists ? menu.descendants(matching: .any).allElementsBoundByIndex.map(\.frame) : []
+    }()
+
     lazy var window: CGRect = app.windows.firstMatch.frame
+
+    /// 卡片裡的內層捲動區(slash 面板的選項清單，最高 240pt):裡面的列與它們的文字。捲出這一區的列被裁掉，
+    /// 無障礙樹仍回報它們疊在下方動作鈕上的位置(#251:AX5 的「Fastest for short answers」量到的是「Cancel」那一塊)。
+    lazy var innerScrollRegions: [(frame: CGRect, contents: [CGRect])] = ["panel.options"].compactMap { identifier in
+        let region = app.descendants(matching: .any)[identifier].firstMatch
+        guard region.exists else { return nil }
+        return (region.frame, region.descendants(matching: .any).allElementsBoundByIndex.map(\.frame))
+    }
 
     /// iPad 的側欄(系統 Liquid Glass 側欄，浮在內容上)。
     lazy var sidebar: CGRect? = {
@@ -96,7 +111,8 @@ final class AccessibilityAuditContext {
 
     /// 元素被系統的玻璃層或容器蓋住、裁掉：
     /// - 中線落在狀態列、導覽列與其下方 24pt 的 scroll edge effect、或底部玻璃層(搜尋欄、輸入列、按鍵列)底下;
-    /// - 有一部分在 slash 選單的範圍外(在選單後面的訊息，或選單裡捲到圓角外被裁掉的列);
+    /// - 有一部分在 slash 選單的範圍外(在選單後面的訊息，或選單裡捲到圓角外被裁掉的列),或整個在選單範圍內、卻不是選單的列(整個被蓋住的訊息);
+    /// - 是面板選項清單(內層捲動區)的列，卻在那一區外(捲出去被裁掉);
     /// - 超出視窗(例如可橫捲的 shell 輸出、捲到畫面外的列)。
     /// 只看中線：邊緣擦到玻璃的元素仍要受檢。
     func isCovered(_ frame: CGRect) -> Bool {
@@ -105,7 +121,11 @@ final class AccessibilityAuditContext {
         let middle = CGPoint(x: frame.midX, y: frame.midY)
         let tops = navigationBars.map { CGRect(x: $0.minX, y: window.minY, width: $0.width, height: $0.maxY + 24 - window.minY) }
         if (tops + bottomBars).contains(where: { $0.contains(middle) }) { return true }
-        if let slashMenu, slashMenu.intersects(frame), !slashMenu.contains(frame) { return true }
+        if let slashMenu, slashMenu.intersects(frame), !slashMenu.contains(frame) || !slashMenuContents.contains(frame) { return true }
+        // 內層捲動區裡、捲出那一區被裁掉的列(以 frame 對到該區的子元素)。
+        if innerScrollRegions.contains(where: { region in
+            region.contents.contains(frame) && !region.frame.insetBy(dx: -1, dy: -1).contains(frame)
+        }) { return true }
         return false
     }
 
@@ -153,7 +173,7 @@ enum AccessibilityAuditExclusions {
         Rule(
             types: [.contrast, .textClipped, .hitRegion],
             reason: "內容元素(以中線判斷)捲到導覽列、搜尋欄、輸入列或終端機按鍵列的 Liquid Glass 底下(scroll edge effect)、"
-                + "在 slash 選單後面，或捲出視窗外;audit 量到的是被玻璃模糊或裁掉的那一塊，捲到可見處時會另外受檢"
+                + "在 slash 選單後面、捲出 slash 面板選項清單被裁掉，或捲出視窗外;audit 量到的是被玻璃模糊或裁掉的那一塊，捲到可見處時會另外受檢"
         ) { issue, context in
             guard let element = issue.element else { return false }
             return context.isCovered(element.frame)
@@ -260,6 +280,15 @@ enum AccessibilityAuditExclusions {
             }
             let middle = CGPoint(x: element.frame.midX, y: element.frame.midY)
             return context.compactAccessories.contains { $0.contains(middle) }
+        },
+        Rule(
+            types: [.dynamicType, .textClipped],
+            reason: "AX 字級時 slash 選單開著、對應不到元素的 SwiftUI 節點:選單內捲到可見範圍外的列(audit 時有時無，master 上 10 輪約一半回報)。"
+                + "#249/#251 截圖(0.45.0 Mac mini,testSlashMenuAndPanels AX5)確認畫面上看得到的列都隨字級放大、未截斷;"
+                + "改成 LazyVStack 讓畫面外的列不進無障礙樹會使選單(fixedSize)排不出列，不可行。使用者同意此排除(2026-11-20)"
+        ) { issue, context in
+            context.isAccessibilitySize && context.slashMenu != nil && issue.element == nil
+                && issue.detailedDescription.contains("SwiftUI.AccessibilityNode")
         },
         Rule(
             types: .sufficientElementDescription,

@@ -27,6 +27,9 @@ final class AnswerPromptUITests: XCTestCase {
         field.tap()
         field.typeEnglish(text)
         element("composer.send", in: app).tap()
+        // 收起鍵盤：鍵盤開著時可見範圍很小，選項會被註記卡片與輸入列蓋住，點到的是註記的動作(#251)。
+        let hide = element("composer.hideKeyboard", in: app)
+        if hide.waitForExistence(timeout: 2) { hide.tap() }
     }
 
     /// weather-app 卡在 Bash 權限：卡片顯示問題、細節與選項(同尺寸、≥44pt);點「Yes」後清楚顯示選了什麼。

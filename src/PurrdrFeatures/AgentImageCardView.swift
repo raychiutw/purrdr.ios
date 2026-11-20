@@ -130,13 +130,13 @@ struct AgentImageCardView: View {
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("conversation.agentImage.note")
                 if imageDisplay.offersLoad {
-                    Button("Load Image") { Task { await load(userRequested: true) } }
-                        .frame(minHeight: 44)
+                    // 觸控目標 44pt 撐在 label 上(放在 Button 外只撐大外框，#251)。
+                    Button { Task { await load(userRequested: true) } } label: { HitTarget("Load Image") }
                         .accessibilityIdentifier("conversation.agentImage.load")
                 }
                 if imageDisplay.offersRetry {
-                    Button("Try Again") { Task { await load(userRequested: false) } }
-                        .frame(minHeight: 44)
+                    // 觸控目標 44pt 撐在 label 上(放在 Button 外只撐大外框，#251)。
+                    Button { Task { await load(userRequested: false) } } label: { HitTarget("Try Again") }
                         .accessibilityIdentifier("conversation.agentImage.retry")
                 }
             }
@@ -207,9 +207,11 @@ struct AgentImageViewer: View {
             } else {
                 ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            Button("Done") { dismiss() }
+            // 觸控目標 44pt:frame 放在 label 裡才撐得大玻璃按鈕(放在外面只撐大外框，按鈕仍是 34pt,#251)。
+            Button { dismiss() } label: {
+                Text("Done").frame(minWidth: 44, minHeight: 44)
+            }
                 .buttonStyle(.glass)
-                .frame(minWidth: 44, minHeight: 44)
                 .padding()
                 .accessibilityIdentifier("agentImage.viewer.done")
         }

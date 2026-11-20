@@ -117,8 +117,13 @@ final class PaneTerminalUITests: XCTestCase {
         let overlay = app.descendants(matching: .any)["terminal.composition"].firstMatch
         XCTAssertTrue(overlay.waitForExistence(timeout: 5), "組字時沒有浮層")
         XCTAssertEqual(overlay.value as? String, "ㄋㄧˇ")
-        XCTAssertEqual(overlay.frame.minX, input.frame.minX, accuracy: 1, "浮層要從游標格子開始")
-        XCTAssertEqual(overlay.frame.minY, input.frame.minY, accuracy: 1, "浮層要在游標那一列")
+        // 輸入元件的無障礙範圍以游標格子為中心撐到 44×44pt(#249),比對中心：游標格子的中心落在浮層第一格裡(#251)。
+        // 終端機畫面剛開時還在重排，輸入元件跟著游標移動：等它與浮層在同一列再量(完整跑時量到過移動前的位置)。
+        let sameRow = NSPredicate { _, _ in abs(overlay.frame.midY - input.frame.midY) <= 1 }
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sameRow, object: nil)], timeout: 5)
+        let cursorOffset = input.frame.midX - overlay.frame.minX
+        XCTAssertTrue((0...12).contains(cursorOffset), "浮層要從游標格子開始(游標中心在浮層左緣右邊 \(cursorOffset)pt)")
+        XCTAssertEqual(overlay.frame.midY, input.frame.midY, accuracy: 1, "浮層要在游標那一列")
         XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "確認前不能送出注音")
 
         // 模擬器的注音輸入法不會出候選字，改用按鍵列結束組字：先放棄組字(浮層消失)再送 Esc。

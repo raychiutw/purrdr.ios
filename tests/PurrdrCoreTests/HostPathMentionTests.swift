@@ -52,6 +52,15 @@ struct HostPathMentionTests {
         #expect(HostPathMention.path(fromLink: try #require(URL(string: "https://example.com/Users/demo/a.pdf"))) == nil)
     }
 
+    @Test("點連結時系統交回的是 NSURL 橋接的網址：沒有 `//` 的網址舊解析器讀不到 query,也要還原路徑")
+    func linkFromBridgedURL() throws {
+        // iPhone 17 實測(#251):SwiftUI 點文字連結交給 openURL 的網址 absoluteString 相同，`query` 卻是 nil,路徑沒開。
+        let path = "/Users/demo/ledger/docs/export-report.pdf"
+        let link = try #require(HostPathMention.linkURL(for: path))
+        let bridged = try #require(NSURL(string: link.absoluteString)) as URL
+        #expect(HostPathMention.path(fromLink: bridged) == path)
+    }
+
     @Test("對話紀錄出現過的路徑：檔案卡片的路徑，加上 Agent 訊息文字中的路徑(含工作目錄外)")
     func mentionedPathsIncludeMessageText() {
         let items: [ConversationItem] = [

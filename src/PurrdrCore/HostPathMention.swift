@@ -81,8 +81,11 @@ public enum HostPathMention {
 
     /// `linkURL(for:)` 的路徑;其他網址回 `nil`。
     public static func path(fromLink url: URL) -> String? {
-        guard url.scheme == linkScheme, let query = url.query(percentEncoded: true), query.hasPrefix("path=") else { return nil }
-        return query.dropFirst("path=".count).removingPercentEncoding
+        // 從 absoluteString 讀，不用 `query`:沒有 `//` 的網址經 NSURL 橋接(SwiftUI 點文字連結交回的就是)時舊解析器讀不到 query(#251)。
+        let prefix = "\(linkScheme):?path="
+        let string = url.absoluteString
+        guard string.hasPrefix(prefix) else { return nil }
+        return string.dropFirst(prefix.count).removingPercentEncoding
     }
 
     private static let linkScheme = "purrdr-host-path"

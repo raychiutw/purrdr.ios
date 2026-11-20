@@ -98,12 +98,29 @@ extension XCUIApplication {
     /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
     @MainActor
     func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
-        let account = buttons["toolbar.account"].firstMatch
-        XCTAssertTrue(account.waitForExistence(timeout: 10), "列表右上角沒有帳號鈕", file: file, line: line)
-        account.tap()
+        tapToolbarItem("toolbar.account", overflowLabel: "Account", file: file, line: line)
         let join = buttons["account.plusSetup.action"].firstMatch
         XCTAssertTrue(join.waitForExistence(timeout: 10), "帳號頁沒有「加入」", file: file, line: line)
         join.tap()
+    }
+
+    /// 點列表工具列右側的項目。AX 字級時系統把右側的「⋯」與帳號鈕收進工具列的溢出選單(More):
+    /// 選單項目沒有 identifier,以 VoiceOver 也會念的名稱找(名稱不對就是 a11y 問題)。
+    @MainActor
+    func tapToolbarItem(_ identifier: String, overflowLabel: String, file: StaticString = #filePath, line: UInt = #line) {
+        let item = buttons[identifier].firstMatch
+        let overflow = buttons["OverflowBarButtonItem"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 10) || overflow.exists, "工具列沒有 \(identifier) 也沒有溢出選單", file: file, line: line)
+        if item.exists {
+            item.tap()
+            return
+        }
+        overflow.tap()
+        // 溢出鈕自己的名稱也是「More」。
+        let overflowItem = buttons.matching(
+            NSPredicate(format: "label == %@ AND identifier != %@", overflowLabel, "OverflowBarButtonItem")).firstMatch
+        XCTAssertTrue(overflowItem.waitForExistence(timeout: 5), "溢出選單裡沒有「\(overflowLabel)」", file: file, line: line)
+        overflowItem.tap()
     }
 
     /// 付費牆不在「⋯」選單(#241),未加入會員時帳號頁也還沒有「開通」:以深層連結開(#246)。

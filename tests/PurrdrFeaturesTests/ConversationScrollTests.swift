@@ -196,10 +196,15 @@ struct ConversationScrollTests {
         var scroll = ConversationScroll()
         let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
         #expect(scroll.returnsToContent(pushedBeyond, at: now))
+        #expect(!scroll.returnsByOffset(pushedBeyond), "第一次捲到最後一列(讓 LazyVStack 排出那一列)")
         scroll.returnedToContent(pushedBeyond)
         #expect(!scroll.returnsToContent(Self.barelyTaller(offsetY: -110.33), at: now))
 
-        #expect(!scroll.returnsToContent(pushedBeyond, at: now), "同一個內容高度只捲回一次")
+        // 同一個排版又被推回內容之外：捲到最後一列會多捲一個底部 inset(#251),改以量到的底部位移再捲一次。
+        #expect(scroll.returnsToContent(pushedBeyond, at: now), "同一個排版第二次以位移捲回")
+        #expect(scroll.returnsByOffset(pushedBeyond))
+        scroll.returnedToContent(pushedBeyond)
+        #expect(!scroll.returnsToContent(pushedBeyond, at: now), "同一個排版最多兩次，不與系統來回搶")
         #expect(scroll.returnsToContent(Self.barelyTaller(offsetY: 600, contentHeight: 1200), at: now), "內容高度變了照樣捲回")
     }
 
@@ -259,7 +264,122 @@ struct ConversationScrollTests {
         #expect(refills == ConversationScroll.maximumRefills)
 
         scroll.visibleRowsChanged(count: 3)
-        #expect(scroll.refillsVisibleRange(Self.smallViewport(contentHeight: 29300), visibleRows: 0), "有列顯示過，之後又空白就再捲")
+        // 有列顯示過、可見範圍又變了(鍵盤收起、輸入列改變)之後空白就再捲;只有內容估算高度來回跳則受連續捲回上限限制(#251)。
+        let resized = ConversationScrollMetrics(contentHeight: 29300, containerHeight: 300, contentOffsetY: 29300 - 300 - 116, topInset: 116, bottomInset: 458)
+        #expect(scroll.refillsVisibleRange(resized, visibleRows: 0), "有列顯示過，可見範圍變了之後又空白就再捲")
+    }
+
+    @Test("捲回內容後兩種排版輪流出現、每次都在內容之外：捲回有次數上限;內容變了或使用者自己捲過就重新計算")
+    func returningToContentIsBoundedWhenTwoLayoutsAlternate() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#251,ledger 對話打 `!git status`,軟體鍵盤＋註記一行＋! 指令提示):LazyVStack 的內容高
+        // 在 618 與 664 之間來回跳，每次捲到最後一列後又停在內容之外;只記上一次的排版擋不住兩個排版輪流，主執行緒滿載。
+        let layoutA = ConversationScrollMetrics(contentHeight: 618, containerHeight: 195.33, contentOffsetY: 869.33, topInset: 116, bottomInset: 562.67)
+        let layoutB = ConversationScrollMetrics(contentHeight: 664, containerHeight: 195.33, contentOffsetY: 869.33, topInset: 116, bottomInset: 562.67)
+        var returns = 0
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() where scroll.returnsToContent(metrics, at: now) {
+            scroll.returnedToContent(metrics)
+            returns += 1
+        }
+        #expect(returns == ConversationScroll.maximumReturns)
+
+        // 另一個排版：不受「同一個排版只捲一次」影響，只看次數。
+        let layoutC = ConversationScrollMetrics(contentHeight: 710, containerHeight: 195.33, contentOffsetY: 869.33, topInset: 116, bottomInset: 562.67)
+        #expect(!scroll.returnsToContent(layoutC, at: now), "到了上限")
+        scroll.contentChanged(from: ["a"], to: ["a", "b"], at: now)
+        #expect(scroll.returnsToContent(layoutC, at: now), "有新的列：照樣捲回")
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() where scroll.returnsToContent(metrics, at: now) {
+            scroll.returnedToContent(metrics)
+        }
+        #expect(!scroll.returnsToContent(layoutC, at: now), "又到了上限")
+        scroll.userScrolled(distanceFromBottom: 0)
+        #expect(scroll.returnsToContent(layoutC, at: now), "使用者自己捲過：重新計算")
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() where scroll.returnsToContent(metrics, at: now) {
+            scroll.returnedToContent(metrics)
+        }
+        #expect(!scroll.returnsToContent(layoutC, at: now), "第三次到了上限")
+        // 不是對話項目的新內容(slash 面板卡片、需要你、工作中指示):畫面捲去跟隨時也重新計算，否則新的列排不出來(#251)。
+        scroll.followedNewContent()
+        #expect(scroll.returnsToContent(layoutC, at: now), "跟隨新內容：重新計算")
+    }
+
+    @Test("可見列數在 0 與有列之間來回跳：再捲也受連續捲回上限限制")
+    func refillingIsBoundedWhenRowsFlicker() {
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#251,`!git status` 後):每次捲到底，列長出來又消失，`visibleRowsChanged` 一直把再捲的次數歸零。
+        let layoutA = Self.smallViewport(contentHeight: 618)
+        let layoutB = Self.smallViewport(contentHeight: 664)
+        var refills = 0
+        for metrics in Array(repeating: [layoutA, layoutB], count: 10).joined() {
+            guard scroll.refillsVisibleRange(metrics, visibleRows: 0) else { continue }
+            scroll.returnedToContent(metrics)
+            scroll.visibleRowsChanged(count: 2)
+            refills += 1
+        }
+        #expect(refills == ConversationScroll.maximumReturns)
+    }
+
+    @Test("以位移捲到底：ScrollPosition 的 y 從內容頂端量起，不含頂部 inset")
+    func bottomScrollPosition() {
+        // iPhone 17 實測(#251,AX5 開啟需要你的對話):內容 927、可見範圍 616、頂部 inset 116,`scrollTo(y: 195)`
+        // 之後 contentOffset 是 79(少了一個頂部 inset,距底 116pt)。
+        let metrics = ConversationScrollMetrics(contentHeight: 927, containerHeight: 616, contentOffsetY: 337, topInset: 116, bottomInset: 140)
+        #expect(metrics.bottomScrollPositionY == 311, "捲到這裡 contentOffset 是 195,距底 0")
+        let short = ConversationScrollMetrics(contentHeight: 100, containerHeight: 215, contentOffsetY: 0, topInset: 116, bottomInset: 543)
+        #expect(short.bottomScrollPositionY == 0, "內容不用捲：停在頂端")
+    }
+
+    @Test("以位移捲回後內容高度又變、畫面不在底部：以新的底部位移再捲，次數有上限")
+    func followsByOffsetAfterReturningByOffset() {
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#251,AX5 開啟需要你的對話):以位移捲過後 ScrollPosition 停在那個位移，那裡的列排出實際高度、
+        // 內容從 927 一路變成 2866,畫面停在對話中間，需要你卡片一直在畫面外。
+        let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
+        let grown = Self.barelyTaller(offsetY: -110.33, contentHeight: 2000)
+        scroll.returnedToContent(pushedBeyond)
+        #expect(!scroll.followsByOffset(grown), "還沒以位移捲過")
+        scroll.returnedToContent(pushedBeyond)
+        #expect(!scroll.followsByOffset(Self.barelyTaller(offsetY: -200)), "內容高度沒變(捲動途中的位置)")
+        #expect(scroll.followsByOffset(grown), "內容長高、距底 1336pt")
+        scroll.followedByOffset(grown)
+        #expect(!scroll.followsByOffset(grown), "同一個內容高度只捲一次")
+        var follows = 1
+        for height in stride(from: 2100.0, through: 3000, by: 100) {
+            let metrics = Self.barelyTaller(offsetY: 0, contentHeight: height)
+            guard scroll.followsByOffset(metrics) else { continue }
+            scroll.followedByOffset(metrics)
+            follows += 1
+        }
+        #expect(follows == ConversationScroll.maximumOffsetFollows, "高度一直變也有上限")
+    }
+
+    @Test("以位移捲回後可見範圍變小(停止列出現、輸入卡片長高)、內容高度沒變：以新的底部位移再捲")
+    func followsByOffsetWhenContainerShrinks() {
+        var scroll = ConversationScroll()
+        // iPhone 17 實測(#251,AX5 開啟工作中的 Codex 對話):以位移捲到底後停止列出現，可見範圍變小、底部 inset 變大，
+        // 內容高度不變;ScrollPosition 停在原來的位移，「Writing…」被壓到輸入卡片底下。
+        let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
+        scroll.returnedToContent(pushedBeyond)
+        scroll.returnedToContent(pushedBeyond)
+        let shrunk = ConversationScrollMetrics(contentHeight: 664, containerHeight: 560, contentOffsetY: -110.33, topInset: 116, bottomInset: 198)
+        #expect(scroll.followsByOffset(shrunk), "距底 98pt,最後一列在輸入卡片底下")
+        scroll.followedByOffset(shrunk)
+        // 實測：停止列出現後內容 676、可見範圍 511.33、底部 inset 246.67,距底 36.67pt(比「在底部」的門檻 48pt 小),
+        // 「Writing…」下半被輸入卡片蓋住。以位移捲就是要貼齊底部，差 1pt 以上就再捲。
+        let slightlyShort = ConversationScrollMetrics(contentHeight: 676, containerHeight: 511.33, contentOffsetY: 12, topInset: 116, bottomInset: 246.67)
+        #expect(scroll.followsByOffset(slightlyShort), "距底 36.67pt")
+    }
+
+    @Test("以位移捲回後使用者自己捲走或內容在底部：不再以位移捲")
+    func doesNotFollowByOffsetAfterUserScrolledOrAtBottom() {
+        var scroll = ConversationScroll()
+        let pushedBeyond = Self.barelyTaller(offsetY: -10.59)
+        scroll.returnedToContent(pushedBeyond)
+        scroll.returnedToContent(pushedBeyond)
+        #expect(!scroll.followsByOffset(Self.barelyTaller(offsetY: 2000 - 658.33 - 116, contentHeight: 2000)), "已經在底部")
+        scroll.userScrolled(distanceFromBottom: 600)
+        #expect(!scroll.followsByOffset(Self.barelyTaller(offsetY: 0, contentHeight: 2000)))
     }
 
     @Test("可見範圍不到一列高(軟體鍵盤＋卡片擠掉)：不再捲，畫不出任何列")

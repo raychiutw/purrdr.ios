@@ -17,6 +17,7 @@ public struct PlusView: View {
     @State private var redeeming = false
     @State private var managing = false
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init(model: SubscriptionModel, member: MemberModel) {
         self.model = model
@@ -184,23 +185,24 @@ public struct PlusView: View {
     }
 
     private var legalLinks: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 20) { termsLink; privacyLink }
-            VStack(alignment: .leading, spacing: 12) { termsLink; privacyLink }
-        }
-        .font(.footnote)
+        // AX 字級時直排。不用 `ViewThatFits`:字級一變就換成另一份視圖，稽核看不出連結跟著字級放大(#251)。
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(spacing: 20))
+        return layout { termsLink; privacyLink }
+            .font(.footnote)
     }
 
     private var termsLink: some View {
         Link(destination: PurrdrLinks.termsOfUse) {
-            Text("Terms of Use").frame(minHeight: 44)
+            Text("Terms of Use").padding(.vertical, 13).frame(minHeight: 44)
         }
         .accessibilityIdentifier("plus.terms")
     }
 
     private var privacyLink: some View {
         Link(destination: PurrdrLinks.privacyPolicy) {
-            Text("Privacy Policy").frame(minHeight: 44)
+            Text("Privacy Policy").padding(.vertical, 13).frame(minHeight: 44)
         }
         .accessibilityIdentifier("plus.privacy")
     }
