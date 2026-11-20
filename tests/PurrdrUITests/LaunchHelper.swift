@@ -60,18 +60,24 @@ extension XCUIApplication {
 }
 
 extension XCUIApplication {
-    /// 聊天列表的 Agents／Spaces 分段控制(#268:沒有大標題，檢視只看這裡)。
-    var listModeControl: XCUIElement { segmentedControls["agentList.mode"].firstMatch }
+    /// 聊天列表最上面的 Agents／Spaces 切換(#268:沒有大標題，檢視只看這裡;#313:攤開成兩列勾選)。以「Agents」那一列代表。
+    /// inline Picker 的每一列都帶 Picker 的 identifier(`agentList.mode`),依順序取：第 0 列 Agents、第 1 列 Spaces(繁中介面也找得到)。
+    var listModeControl: XCUIElement { listModeRow(0) }
 
-    /// 分段控制目前選到的檢視(「Agents」或「Spaces」)。
-    var listModeSelection: XCUIElement { listModeControl.buttons.matching(NSPredicate(format: "isSelected == true")).firstMatch }
+    private func listModeRow(_ index: Int) -> XCUIElement {
+        buttons.matching(identifier: "agentList.mode").element(boundBy: index)
+    }
 
-    /// 點 Agents／Spaces 分段控制(#244、#268)。
+    /// 目前選到的檢視(「Agents」或「Spaces」那一列)。
+    var listModeSelection: XCUIElement {
+        buttons.matching(NSPredicate(format: "identifier == 'agentList.mode' AND isSelected == true")).firstMatch
+    }
+
+    /// 點 Agents／Spaces 那一列(#244、#268、#313)。
     @MainActor
     func switchListMode(to mode: String, file: StaticString = #filePath, line: UInt = #line) {
-        let control = listModeControl
-        XCTAssertTrue(control.waitForExistence(timeout: 15), "沒有 Agents／Spaces 切換", file: file, line: line)
-        control.buttons[mode].tap()
+        XCTAssertTrue(listModeControl.waitForExistence(timeout: 15), "沒有 Agents／Spaces 切換", file: file, line: line)
+        listModeRow(mode == "Spaces" ? 1 : 0).tap()
     }
 
     /// 左上角的主機篩選選了某一項(#244)。

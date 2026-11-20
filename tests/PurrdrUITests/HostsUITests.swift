@@ -99,10 +99,10 @@ final class HostsUITests: XCTestCase {
         openAddHost(app)
         chooseOpenSSH(app)
 
-        let signIn = app.buttons["hostEditor.signIn"]
-        XCTAssertTrue(signIn.waitForExistence(timeout: 5) || scrollTo(signIn, in: app))
-        signIn.tap()
-        app.buttons["Imported Key"].firstMatch.tap()
+        // 登入方式攤開成勾選列(#313):直接點「Imported Key」那一列。
+        let importedKey = app.buttons["Imported Key"].firstMatch
+        XCTAssertTrue(importedKey.waitForExistence(timeout: 5) || scrollTo(importedKey, in: app))
+        importedKey.tap()
         let keyField = app.textViews["hostEditor.privateKey"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 5))
         keyField.tap()

@@ -125,7 +125,7 @@ extension AgentListMode {
     }
 }
 
-/// 列表第一列的 Agents／Spaces 分段控制(#268):檢視切換只有這一個入口，沒有大標題、也不在任何選單裡。
+/// 列表最上面的 Agents／Spaces 切換(#268;#313:二選一也攤開成兩列勾選，不用分段):檢視切換只有這一個入口，沒有大標題、也不在任何選單裡。
 struct AgentListModeControl: View {
     @Binding var mode: AgentListMode
 
@@ -135,7 +135,8 @@ struct AgentListModeControl: View {
                 Text(mode.title).tag(mode)
             }
         }
-        .pickerStyle(.segmented)
+        .pickerStyle(.inline)
+        .labelsHidden()
         .accessibilityIdentifier("agentList.mode")
     }
 }

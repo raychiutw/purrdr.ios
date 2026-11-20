@@ -6163,6 +6163,17 @@
         }
       }
     },
+    "Remaining" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩餘"
+          }
+        }
+      }
+    },
     "Remove Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6922,17 +6933,6 @@
         }
       }
     },
-    "Show Remaining" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示剩餘"
-          }
-        }
-      }
-    },
     "Show Spaces" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6940,17 +6940,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示 Spaces"
-          }
-        }
-      }
-    },
-    "Show Used" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示已用"
           }
         }
       }
@@ -9734,6 +9723,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用這個資料夾"
+          }
+        }
+      }
+    },
+    "Used" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已用"
           }
         }
       }

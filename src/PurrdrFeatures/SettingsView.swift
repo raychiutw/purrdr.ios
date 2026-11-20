@@ -40,7 +40,8 @@ public struct SettingsView: View {
                         Text("Light").tag(AppearancePreference.light)
                         Text("Dark").tag(AppearancePreference.dark)
                     }
-                    .pickerStyle(.segmented)
+                    // 選項攤開成勾選列(#313)。
+                    .pickerStyle(.inline)
                     .labelsHidden()
                     .accessibilityIdentifier("settings.appearance")
                 } header: {

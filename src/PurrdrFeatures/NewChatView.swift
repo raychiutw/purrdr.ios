@@ -3,7 +3,7 @@ import PurrdrCore
 import PurrdrSSH
 import SwiftUI
 
-/// 新增對話(#272,原型 purrdr-screens 定案版):標題列中間是主機挑選鈕，下面是 Agent(分段控制)、資料夾、第一則訊息，
+/// 新增對話(#272,原型 purrdr-screens 定案版):標題列中間是主機挑選鈕，下面是 Agent(攤開的勾選列,#313)、資料夾、第一則訊息，
 /// 最下方「開始」。名稱由 herdr 用資料夾名，權限沿用 agent 自己的設定。
 ///
 /// 以 sheet 開啟;資料夾瀏覽在同一個 sheet 內 push(HIG 檢核清單 20.3「多步驟在同一個 sheet 內 push」)。
@@ -16,7 +16,7 @@ public struct NewChatView: View {
     /// 開始了：新 workspace 與沒送出的第一則訊息(agent 停在啟動問題時)。
     let onStarted: (CreatedWorkspace, String?) -> Void
 
-    /// 原型只有這兩種(分段控制);其他 agent 的啟動另議。
+    /// 原型只有這兩種;其他 agent 的啟動另議。
     private static let agents: [NewChatAgent] = [.claude, .codex]
 
     public init(
@@ -38,7 +38,9 @@ public struct NewChatView: View {
                             Text(verbatim: agent.displayName).tag(agent)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    // 選項攤開成勾選列(#313)。
+                    .pickerStyle(.inline)
+                    .labelsHidden()
                     .accessibilityIdentifier("newChat.agent")
                 } header: {
                     Text("Agent")

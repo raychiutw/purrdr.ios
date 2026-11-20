@@ -53,12 +53,13 @@ final class NewChatUITests: XCTestCase {
         XCTAssertTrue(start.isEnabled)
     }
 
-    /// 表單只有 Agent(分段控制)、資料夾、第一則訊息與「開始」,沒有名稱與權限欄位;資料夾與訊息都填才能開始。
+    /// 表單只有 Agent(攤開的勾選列,#313)、資料夾、第一則訊息與「開始」,沒有名稱與權限欄位;資料夾與訊息都填才能開始。
     /// Demo 主機拒絕開始，錯誤顯示在表單裡、sheet 不關。
     @MainActor
     func testFormFieldsAndDemoRejection() {
         let app = openNewChat()
-        XCTAssertTrue(app.segmentedControls["newChat.agent"].exists, "Agent 不是分段控制")
+        XCTAssertFalse(app.segmentedControls["newChat.agent"].exists, "Agent 不該是分段控制(#313 攤開)")
+        XCTAssertTrue(app.buttons["Claude Code"].exists && app.buttons["Codex"].exists, "Agent 選項沒有攤開")
         XCTAssertFalse(app.textFields["newChat.name"].exists, "不該有名稱欄位")
         XCTAssertFalse(app.buttons["newChat.permissionMode"].exists, "不該有權限欄位")
 

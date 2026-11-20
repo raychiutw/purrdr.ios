@@ -138,7 +138,7 @@ final class SlashMenuUITests: XCTestCase {
         tap(element("panel.action.enter", in: app), until: NSPredicate(format: "exists == false"), on: card, "選定後卡片沒有消失")
     }
 
-    /// 選定 `/effort` 後按送出 → 面板卡片有分段控制(#83);點層級送方向鍵，按「confirm」後卡片消失(#34)。
+    /// 選定 `/effort` 後按送出 → 面板卡片有攤開的層級列(#83、#313);點層級送方向鍵，按「confirm」後卡片消失(#34)。
     @MainActor
     func testEffortPanelCard() {
         let app = XCUIApplication.launchUITesting()
