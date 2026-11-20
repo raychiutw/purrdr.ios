@@ -14,3 +14,8 @@
 ## 結論
 
 **A 設定頁式**(2026-11-21 使用者選定)。實作票 raychiutw/purrdr.ios#323。
+
+## 方案卡的選取標示(#313 的例外，2026-11-21)
+
+- `plus-plan-cards.html`:現況(列前圓圈)、A(保留卡片，改右上角打勾)、B(改成「設定」式勾選列)。線上 https://claude.ai/artifact/PxF2baBNsBef7h82hWjwKy (私人)。
+- **結論：A**(使用者選定)。已實作在 PR #319 的 commit 12440d9;`plan-cards-implemented.png` 是實作後的淺色／深色截圖。

@@ -1,0 +1,128 @@
+<title>Purrdr Plus 方案卡</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 版面：說明在上，三支手機並排(窄螢幕上下排),每支下方一句差異說明 */
+:root{
+  --bg:#f2f3f1; --fg:#1c1d1b; --muted:#6b6f69; --phone:#f2f2f7; --card:#ffffff;
+  --tint:#2f9e55; --line:#d7d9d5; --frame:#1c1d1b; --sep:#c6c6c8;
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141514; --fg:#ecedeb; --muted:#9a9e98; --phone:#000000; --card:#1c1c1e;
+  --tint:#3cc26a; --line:#2c2e2b; --frame:#3a3c39; --sep:#38383a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141514; --fg:#ecedeb; --muted:#9a9e98; --phone:#000000; --card:#1c1c1e;
+  --tint:#3cc26a; --line:#2c2e2b; --frame:#3a3c39; --sep:#38383a; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+h1{font-size:22px;margin:0;text-wrap:balance}
+.lede{color:var(--muted);margin:0;max-width:65ch;line-height:1.6}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:24px;align-items:start}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.tag{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.tag b{color:var(--fg)}
+.phone{border:8px solid var(--frame);border-radius:36px;background:var(--phone);padding:18px 14px 20px;
+  display:flex;flex-direction:column;gap:12px;max-width:340px;width:100%;box-sizing:border-box}
+.nav{display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.nav .x{color:var(--tint)}
+.hero{font-size:24px;font-weight:700;margin:4px 0 0}
+.sub{font-size:13px;color:var(--muted);line-height:1.45;margin:0}
+.cards{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--card);border-radius:12px;padding:14px;display:flex;gap:12px;align-items:flex-start;border:2px solid transparent}
+.card.sel{border-color:var(--tint)}
+.card .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.name{font-size:15px;font-weight:600}
+.price{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.trial{font-size:13px;color:var(--muted)}
+.ic{width:24px;height:24px;flex:none}
+.btn{background:var(--tint);color:#fff;border-radius:12px;text-align:center;padding:13px;font-weight:600;font-size:16px}
+.links{display:flex;justify-content:center;gap:18px;font-size:12px;color:var(--tint)}
+/* 清單樣式 */
+.group-h{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;padding:0 16px;margin-bottom:-6px}
+.list{background:var(--card);border-radius:12px;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;padding:11px 16px;position:relative}
+.row+.row::before{content:"";position:absolute;left:16px;right:0;top:0;border-top:.5px solid var(--sep)}
+.row .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.row .name{font-weight:400;font-size:16px}
+.row .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.note{font-size:13.5px;line-height:1.6;color:var(--muted);margin:0}
+.note strong{color:var(--fg)}
+</style>
+
+<div class="wrap">
+  <h1>Purrdr Plus 方案卡：選取怎麼標示</h1>
+  <p class="lede">付費牆的兩張方案卡(Monthly、Yearly)。現況是列前的實心／空心圓圈，加上外框。其他畫面在 #313 之後都改成列尾打勾，這裡要不要跟著改，有三種做法。示意圖選取的都是 Yearly。</p>
+
+  <div class="grid">
+    <!-- 現況 -->
+    <div class="col">
+      <div class="tag"><b>現況</b> · 列前圓圈＋外框</div>
+      <div class="phone">
+        <div class="nav"><span></span><span class="x">Close</span></div>
+        <div class="hero">Purrdr Plus</div>
+        <p class="sub">Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.</p>
+        <div class="cards">
+          <div class="card">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--muted)" stroke-width="1.6"/></svg>
+            <div class="t"><span class="name">Purrdr Plus Monthly</span><span class="price">$4.99 / month</span></div>
+          </div>
+          <div class="card sel">
+            <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="var(--tint)"/><path d="M7 12.4l3.2 3.2L17 8.8" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="t"><span class="name">Purrdr Plus Yearly</span><span class="price">$39.99 / year</span><span class="trial">1 week free, then $39.99 / year</span></div>
+          </div>
+        </div>
+        <div class="btn">Start Free Trial</div>
+        <div class="links"><span>Terms of Use</span><span>Privacy Policy</span></div>
+      </div>
+      <p class="note">像 macOS 的單選鈕。守門測試目前把它列為例外。</p>
+    </div>
+
+    <!-- A -->
+    <div class="col">
+      <div class="tag"><b>A</b> · 保留卡片，改列尾打勾</div>
+      <div class="phone">
+        <div class="nav"><span></span><span class="x">Close</span></div>
+        <div class="hero">Purrdr Plus</div>
+        <p class="sub">Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.</p>
+        <div class="cards">
+          <div class="card">
+            <div class="t"><span class="name">Purrdr Plus Monthly</span><span class="price">$4.99 / month</span></div>
+          </div>
+          <div class="card sel">
+            <div class="t"><span class="name">Purrdr Plus Yearly</span><span class="price">$39.99 / year</span><span class="trial">1 week free, then $39.99 / year</span></div>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="var(--tint)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <div class="btn">Start Free Trial</div>
+        <div class="links"><span>Terms of Use</span><span>Privacy Policy</span></div>
+      </div>
+      <p class="note"><strong>改動最小。</strong>卡片、價格字級、外框都不變，只把圓圈拿掉，選中的那張在右上角打勾，沒選的什麼都不畫(同勾選列)。拿掉守門測試的例外。</p>
+    </div>
+
+    <!-- B -->
+    <div class="col">
+      <div class="tag"><b>B</b> · 改成「設定」式勾選列</div>
+      <div class="phone">
+        <div class="nav"><span></span><span class="x">Close</span></div>
+        <div class="hero">Purrdr Plus</div>
+        <p class="sub">Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.</p>
+        <div class="group-h">Plan</div>
+        <div class="list">
+          <div class="row">
+            <div class="t"><span class="name">Monthly</span><span class="meta">$4.99 / month</span></div>
+          </div>
+          <div class="row">
+            <div class="t"><span class="name">Yearly</span><span class="meta">$39.99 / year · 1 week free</span></div>
+            <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="var(--tint)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <div class="btn">Start Free Trial</div>
+        <div class="links"><span>Terms of Use</span><span>Privacy Policy</span></div>
+      </div>
+      <p class="note"><strong>和全 app 最一致</strong>，跟外觀、Agent 選擇是同一種列。但價格變成副標小字，付費牆的價格就不那麼顯眼。</p>
+    </div>
+  </div>
+
+  <p class="note">我的建議是 <strong>A</strong>:選取方式跟其他畫面一致(列尾打勾)，價格仍然是卡片上最大的字。Apple 自己的訂閱畫面也常用卡片呈現方案。</p>
+</div>
