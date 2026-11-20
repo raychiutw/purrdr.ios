@@ -17,6 +17,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case pairedDevices
     /// 主機服務代裝推播外掛 `push.*`。
     case pushPlugin
+    /// Agent 觀察者：「可能卡住」「仍在等你」推播、Send When Done(raychiutw/purrdr.host#25)。
+    case agentObserver
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -28,6 +30,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .hostServiceManagement: HostServiceVersion(0, 7, 0)
         case .pairedDevices: HostServiceVersion(0, 7, 0)
         case .pushPlugin: HostServiceVersion(0, 6, 0)
+        case .agentObserver: HostServiceVersion(0, 7, 0)
         }
     }
 
