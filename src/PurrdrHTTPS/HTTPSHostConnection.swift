@@ -397,6 +397,8 @@ public actor HTTPSHostConnection: HostConnection {
         case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
         case .updateInProgress: HostServiceManagementError.updateInProgress
         case .updateFailed: HostServiceManagementError.updateFailed(message.message)
+        // 主機服務 0.7.0 的新錯誤碼：對應的功能(#304 送出前比對、#305 佇列、#310 git)接上時各自換成專屬錯誤。
+        case .paneChanged, .cwdNotAllowed, .notGitRepository, .queueFull, .queueItemUnknown: HostServiceError.unexpectedResponse
         }
     }
 

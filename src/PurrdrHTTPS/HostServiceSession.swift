@@ -413,7 +413,11 @@ extension HostServiceProtocol.ServerMessage {
              .devicesRevokeResult,
              .hostServiceStatusResult,
              .hostServiceUpdateResult,
-             .hostServiceSetAutoUpdateResult: nil
+             .hostServiceSetAutoUpdateResult,
+             .paneReadResult, .sessionsListResult, .gitStatusResult, .gitDiffResult,
+             .queueListResult, .queueAddResult, .queueRemoveResult, .queueReorderResult,
+             // 不屬於任何串流的推送：接上 Send When Done(#305)時由連線另外處理。
+             .queueChanged: nil
         }
     }
 
@@ -463,7 +467,15 @@ extension HostServiceProtocol.ServerMessage {
         case .hostServiceStatusResult(let message): message.requestId
         case .hostServiceUpdateResult(let message): message.requestId
         case .hostServiceSetAutoUpdateResult(let message): message.requestId
-        case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed: nil
+        case .paneReadResult(let message): message.requestId
+        case .sessionsListResult(let message): message.requestId
+        case .gitStatusResult(let message): message.requestId
+        case .gitDiffResult(let message): message.requestId
+        case .queueListResult(let message): message.requestId
+        case .queueAddResult(let message): message.requestId
+        case .queueRemoveResult(let message): message.requestId
+        case .queueReorderResult(let message): message.requestId
+        case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed, .queueChanged: nil
         }
     }
 }
