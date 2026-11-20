@@ -91,6 +91,14 @@ public actor HTTPSHostConnection: HostConnection {
         try await hostServiceInfo().hostServiceVersion
     }
 
+    /// 主機服務版本不足時丟 `HostServiceError.hostServiceUpdateRequired`;門檻見 `HostServiceFeature.minimumVersion`。
+    public func requireHostService(_ feature: HostServiceFeature) async throws {
+        let installed = try await hostServiceVersion()
+        guard feature.isAvailable(onHostServiceVersion: installed) else {
+            throw HostServiceError.hostServiceUpdateRequired(feature, installedVersion: installed)
+        }
+    }
+
     // MARK: - Agent 事件串流
 
     /// `events.subscribe` → 主機服務的事件串流(herdr 接受後才回 ack)。事件換成 herdr 的事件行;

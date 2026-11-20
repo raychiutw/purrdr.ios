@@ -100,6 +100,10 @@ package enum HostErrorText {
             String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .unsupported:
             String(localized: "This isn’t available over HTTPS yet.")
+        case .hostServiceUpdateRequired(_, let installedVersion?):
+            String(localized: "This needs a newer Purrdr host service (this host has \(installedVersion)). Update the host service on the host; Hosts shows the command.")
+        case .hostServiceUpdateRequired(_, nil):
+            String(localized: "This needs a newer Purrdr host service. Update the host service on the host; Hosts shows the command.")
         case .hostNotFound:
             String(localized: "Couldn’t find this host name. Check the address and that this device is on your tailnet.")
         case .notOnTailnet:

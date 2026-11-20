@@ -2,11 +2,8 @@ import Foundation
 import PurrdrCore
 
 /// HTTPS 主機取檔(#227):主機服務的 `file.stat`／`file.read`。只送路徑：工作目錄由主機服務自己從 herdr snapshot 取，
-/// 存取規則以主機服務為準(`target.root` 不送)。0.4.0 之前的主機服務沒有這兩個訊息，回 `unsupported` 不送出。
+/// 存取規則以主機服務為準(`target.root` 不送)。主機服務沒有這兩個訊息(`HostServiceFeature.fileFetch`)時回 `unsupported` 不送出。
 extension HTTPSHostConnection: HostFileFetching {
-    /// 有取檔訊息的第一個主機服務版本。
-    static let firstFileFetchVersion = [0, 4, 0]
-
     public func status(of target: HostFileTarget) async throws -> HostFileStatus {
         try await requireFileFetch()
         let reply = try await withDeadline(HostCommandDeadline.standard) {
@@ -34,13 +31,13 @@ extension HTTPSHostConnection: HostFileFetching {
         return data
     }
 
+    /// 版本不足仍回 `HostFileFetchError.unsupported`:檔案卡片的說明不變。
     private func requireFileFetch() async throws {
-        guard let version = try await hostServiceVersion(), Self.supportsFileFetch(version) else { throw HostFileFetchError.unsupported }
-    }
-
-    static func supportsFileFetch(_ version: String) -> Bool {
-        let numbers = version.split(separator: ".").map { Int($0) ?? 0 }
-        return !numbers.lexicographicallyPrecedes(firstFileFetchVersion)
+        do {
+            try await requireHostService(.fileFetch)
+        } catch HostServiceError.hostServiceUpdateRequired {
+            throw HostFileFetchError.unsupported
+        }
     }
 
     private static func unavailableStatus(_ status: HostServiceProtocol.FileStatus, size: Int?) -> HostFileStatus {
