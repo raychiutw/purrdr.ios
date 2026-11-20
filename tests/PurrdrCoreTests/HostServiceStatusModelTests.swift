@@ -5,9 +5,9 @@ import PurrdrHTTPS
 import Synchronization
 import Testing
 
-/// 主機狀態頁的主機服務區塊(#290):經假主機服務 WebSocket 驗模型的狀態與送出的訊息。
+/// 主機頁(ⓘ)的主機服務區塊(#290):經假主機服務 WebSocket 驗模型的狀態與送出的訊息。
 @MainActor
-@Suite("主機狀態頁：主機服務")
+@Suite("主機頁：主機服務")
 struct HostServiceStatusModelTests {
     /// 0.7.0、有新版 0.7.1;上次(較早)試過 0.7.1 已退回。
     static let outdated = #"""

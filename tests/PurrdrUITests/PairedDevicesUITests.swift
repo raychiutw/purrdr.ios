@@ -1,6 +1,6 @@
 import XCTest
 
-/// 主機狀態頁的已配對裝置(#291)。UI 測試替身：這支 iPhone 與另一支唯讀的 iPad。
+/// 主機頁(ⓘ)下方的已配對裝置(#291)。UI 測試替身：這支 iPhone 與另一支唯讀的 iPad。
 final class PairedDevicesUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -85,13 +85,14 @@ final class PairedDevicesUITests: XCTestCase {
         XCTAssertTrue(more.waitForExistence(timeout: 10))
         more.tap()
         app.buttons["menu.hosts"].tap()
-        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "hosts.row.", "Studio")).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "主機清單沒有 Studio")
-        row.press(forDuration: 1)
-        let status = app.buttons["Status"]
-        XCTAssertTrue(status.waitForExistence(timeout: 5), "選單沒有「狀態」")
-        status.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["hostStatus"].firstMatch.waitForExistence(timeout: 5), "沒有開啟狀態頁")
+        // 主機狀態區塊在主機頁(列尾 ⓘ)最下方。
+        let info = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "hosts.info.", "Studio")).firstMatch
+        XCTAssertTrue(info.waitForExistence(timeout: 5), "主機清單沒有 Studio")
+        info.tap()
+        XCTAssertTrue(app.buttons["hostEditor.save"].waitForExistence(timeout: 5), "沒有開啟主機頁")
+        for _ in 0..<6 {
+            app.swipeUp()
+        }
     }
 
     /// 捲到元素出現且不在鍵盤底下(表單比畫面長):先往下，沒有再往上。

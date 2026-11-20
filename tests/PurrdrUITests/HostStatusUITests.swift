@@ -1,12 +1,12 @@
 import XCTest
 
-/// 主機狀態頁的主機服務區塊(#290)。UI 測試替身：主機服務有新版 0.7.1,立即更新後重新連線就是新版。
+/// 主機頁(ⓘ)下方的主機服務區塊(#290)。UI 測試替身：主機服務有新版 0.7.1,立即更新後重新連線就是新版。
 final class HostStatusUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// 主機清單長按 HTTPS 主機 →「狀態」:看到版本與最新版本;立即更新後顯示已更新;自動更新開關即時反映。
+    /// 主機清單 HTTPS 主機的 ⓘ:看到版本與最新版本;立即更新後顯示已更新;自動更新開關即時反映。
     @MainActor
     func testUpdateHostServiceAndToggleAutoUpdate() {
         let app = XCUIApplication.launchUITesting()
@@ -80,13 +80,14 @@ final class HostStatusUITests: XCTestCase {
         XCTAssertTrue(more.waitForExistence(timeout: 10))
         more.tap()
         app.buttons["menu.hosts"].tap()
-        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "hosts.row.", "Studio")).firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "主機清單沒有 Studio")
-        row.press(forDuration: 1)
-        let status = app.buttons["Status"]
-        XCTAssertTrue(status.waitForExistence(timeout: 5), "選單沒有「狀態」")
-        status.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["hostStatus"].firstMatch.waitForExistence(timeout: 5), "沒有開啟狀態頁")
+        // 主機狀態區塊在主機頁(列尾 ⓘ)最下方。
+        let info = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "hosts.info.", "Studio")).firstMatch
+        XCTAssertTrue(info.waitForExistence(timeout: 5), "主機清單沒有 Studio")
+        info.tap()
+        XCTAssertTrue(app.buttons["hostEditor.save"].waitForExistence(timeout: 5), "沒有開啟主機頁")
+        for _ in 0..<6 {
+            app.swipeUp()
+        }
     }
 
     /// 捲到元素出現且不在鍵盤底下(表單比畫面長):先往下，沒有再往上。

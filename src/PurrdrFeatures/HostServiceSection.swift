@@ -2,7 +2,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 主機狀態頁的主機服務區塊(#290):版本、最新版本、立即更新、自動更新、上次結果;唯讀裝置停用並在註腳說明。
+/// 主機頁(ⓘ)的主機服務區塊(#290):版本、最新版本、立即更新、自動更新、上次結果;唯讀裝置停用並在註腳說明。
 struct HostServiceSection: View {
     let model: HostServiceStatusModel
 

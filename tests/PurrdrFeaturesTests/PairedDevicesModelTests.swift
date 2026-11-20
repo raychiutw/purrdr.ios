@@ -4,7 +4,7 @@ import PurrdrFeatures
 import Synchronization
 import Testing
 
-/// 主機狀態頁的已配對裝置(#291):列出、撤銷前確認、唯讀裝置只能看、這支裝置不在這裡撤銷。
+/// 主機頁(ⓘ)的已配對裝置(#291):列出、撤銷前確認、唯讀裝置只能看、這支裝置不在這裡撤銷。
 @MainActor
 @Suite("已配對裝置")
 struct PairedDevicesModelTests {

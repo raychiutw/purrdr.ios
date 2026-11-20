@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import PurrdrCore
 
-/// 主機狀態頁的主機服務區塊(#290):版本、有沒有新版、自動更新與上次結果;立即更新後等重新連線，
+/// 主機頁(ⓘ)的主機服務區塊(#290):版本、有沒有新版、自動更新與上次結果;立即更新後等重新連線，
 /// 以 `welcome` 的版本判斷成功或已退回。
 @MainActor
 @Observable

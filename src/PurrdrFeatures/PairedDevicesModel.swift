@@ -3,7 +3,7 @@ import Observation
 import PurrdrAgentFeatures
 import PurrdrCore
 
-/// 主機狀態頁「已配對裝置」區塊的 model(#291):列出連線配對的裝置，撤銷別支裝置前先確認。
+/// 主機頁(ⓘ)「已配對裝置」區塊的 model(#291):列出連線配對的裝置，撤銷別支裝置前先確認。
 ///
 /// 唯讀裝置只能看;這支裝置不在這裡撤銷(移除主機時會撤銷自己的權杖)。
 @MainActor

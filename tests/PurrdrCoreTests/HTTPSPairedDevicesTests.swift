@@ -3,7 +3,7 @@ import PurrdrCore
 import PurrdrHTTPS
 import Testing
 
-/// 主機狀態頁的已配對裝置(#291):`HTTPSHostConnection` 以主機服務的 `devices.list`／`devices.revoke` 實作 `PairedDevicesManaging`。
+/// 主機頁(ⓘ)的已配對裝置(#291):`HTTPSHostConnection` 以主機服務的 `devices.list`／`devices.revoke` 實作 `PairedDevicesManaging`。
 @Suite("HTTPS 主機已配對裝置")
 struct HTTPSPairedDevicesTests {
     static let listReply = #"{"type":"devices.list.result","devices":[{"device_id":"3f9a1c0e7b2d4a58","name":"Ray 的 iPhone","read_only":false,"paired_at":"2026-11-01T08:30:00Z","current":true},{"device_id":"a07c55e19d3b6f21","name":"Ray 的 iPad","read_only":true,"paired_at":"2026-11-10T12:00:05Z","current":false}]}"#

@@ -1,7 +1,7 @@
 import PurrdrCore
 import SwiftUI
 
-/// 主機狀態頁的「已配對裝置」區塊(#291):列出連線配對的裝置，滑動或長按撤銷別支裝置(先確認)。
+/// 主機頁(ⓘ)的「已配對裝置」區塊(#291):列出連線配對的裝置，滑動或長按撤銷別支裝置(先確認)。
 /// 只有 HTTPS 主機有(`HTTPSHostConnection` 實作 `PairedDevicesManaging`)。
 struct PairedDevicesSection: View {
     @State private var model: PairedDevicesModel
