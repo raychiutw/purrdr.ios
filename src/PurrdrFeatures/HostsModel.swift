@@ -544,12 +544,17 @@ public final class HostsModel {
         hosts.first { $0.id == id }.map(HostShareLink.url(for:))
     }
 
-    /// 點了推播通知：開配對主機上該 Agent 的聊天。所有主機都在同一個列表，所以不改選取中主機。
+    /// 點了推播通知：開配對主機上該 Agent 的聊天;主機服務通知回傳要開編輯頁的主機。所有主機都在同一個列表，所以不改選取中主機。
     /// 不認得的配對(主機已移除)不動。
-    public func open(_ route: PushRoute, pairings: any PushPairingStore) {
+    @discardableResult
+    public func open(_ route: PushRoute, pairings: any PushPairingStore) -> PushDestination? {
         guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
-              hosts.contains(where: { $0.id == id }) else { return }
-        if let paneID = route.paneID { agentList.openedChat = ChatRoute(host: .host(id), paneID: paneID) }
+              hosts.contains(where: { $0.id == id }) else { return nil }
+        if route.event != nil { return .hostEditor(id) }
+        guard let paneID = route.paneID else { return nil }
+        let chat = ChatRoute(host: .host(id), paneID: paneID)
+        agentList.openedChat = chat
+        return .chat(chat)
     }
 
     /// 啟動時：這支裝置被別支關閉了就把「通知」區塊改回關閉，之後才補註冊(APNs token 換了、舊版 app 的配對)。
@@ -558,9 +563,10 @@ public final class HostsModel {
     }
 
     /// 點了推播通知(用 app 的推播紀錄)。
-    public func open(_ route: PushRoute) {
-        guard let pushService else { return }
-        open(route, pairings: pushService.store)
+    @discardableResult
+    public func open(_ route: PushRoute) -> PushDestination? {
+        guard let pushService else { return nil }
+        return open(route, pairings: pushService.store)
     }
 
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。
@@ -837,6 +843,14 @@ extension [HostPush] {
             return hostPush.model.state == .on
         }.map(\.name)
     }
+}
+
+/// 點通知後開了什麼。
+public enum PushDestination: Equatable, Sendable {
+    /// 開了這個 Agent 的聊天。
+    case chat(ChatRoute)
+    /// 要開這台主機的編輯頁(主機服務通知);由畫面開主機 sheet。
+    case hostEditor(UUID)
 }
 
 /// 一台主機的推播開關(帳號頁「通知」區塊的一列)。

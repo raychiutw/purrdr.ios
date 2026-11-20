@@ -26,6 +26,11 @@ final class HostListFlow {
         path.append(.edit(id))
     }
 
+    /// 從外部(主機服務通知)開那台主機的編輯器：換掉原本推入的畫面。
+    func openEditor(of id: UUID) {
+        path = [.edit(id)]
+    }
+
     /// 等確認的刪除;有值時顯示確認對話框。
     var pendingDeletion: HostDeletionRequest?
 

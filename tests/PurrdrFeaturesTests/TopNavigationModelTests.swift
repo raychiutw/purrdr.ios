@@ -39,6 +39,18 @@ struct TopNavigationModelTests {
         #expect(model.pendingHostImport == link)
     }
 
+    @Test("點主機服務通知(#293):開主機 sheet,帶著要開編輯頁的主機")
+    func hostServiceNotificationOpensHostEditor() {
+        let model = TopNavigationModel()
+        model.sheet = .settings
+        let hostID = UUID()
+
+        model.openHostEditor(hostID)
+
+        #expect(model.sheet == .hosts)
+        #expect(model.pendingHostEditor == hostID)
+    }
+
     @Test(
         "不認得的連結不改變畫面，開著的主機 sheet 保持不動",
         arguments: ["purrdr://unknown", "https://settings", "otherapp://settings", "purrdr:settings"]

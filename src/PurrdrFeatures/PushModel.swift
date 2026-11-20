@@ -589,19 +589,23 @@ public final class PushModel {
     }
 }
 
-/// 點通知時要開的 Agent:payload 根層的 `pairing`(配對密鑰雜湊 → 主機)與 `pane`(後台組的,`raychiutw/purrdr.server` 的 `src/push.ts`)。
+/// 點通知時要開的畫面:payload 根層的 `pairing`(配對密鑰雜湊 → 主機)、`pane` 或主機服務的 `event`(後台組的,`raychiutw/purrdr.server` 的 `src/push.ts`)。
 public struct PushRoute: Equatable, Sendable {
     public var keyHash: String
     public var paneID: String?
+    /// 主機服務事件(#293,如 `host_service_updated`);有值時開那台主機的編輯頁，不開聊天。
+    public var event: String?
 
-    public init(keyHash: String, paneID: String?) {
+    public init(keyHash: String, paneID: String?, event: String? = nil) {
         self.keyHash = keyHash
         self.paneID = paneID
+        self.event = event
     }
 
     public init?(userInfo: [AnyHashable: Any]) {
         guard let keyHash = userInfo["pairing"] as? String, !keyHash.isEmpty else { return nil }
-        self.init(keyHash: keyHash, paneID: userInfo["pane"] as? String)
+        let event = (userInfo["event"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        self.init(keyHash: keyHash, paneID: userInfo["pane"] as? String, event: event)
     }
 }
 

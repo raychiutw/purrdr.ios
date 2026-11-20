@@ -14,6 +14,8 @@ public final class TopNavigationModel {
     public var sheet: TopLevelSheet?
     /// 等著匯入的主機分享連結(`purrdr://host?d=…`)或主機配對連結(`purrdr://pair?…`)。主機 sheet 開啟時帶入新增主機編輯器，之後清掉。
     public var pendingHostImport: URL?
+    /// 等著開編輯頁的主機(點了主機服務通知,#293)。主機 sheet 開啟時推入它的編輯器，之後清掉。
+    public var pendingHostEditor: UUID?
 
     /// 對話欄顯示的 Agent(主機 + pane id,#39)。iPhone 與窄視窗時是推入的對話。
     public var selectedChat: ChatRoute? {
@@ -64,6 +66,12 @@ public final class TopNavigationModel {
 
     /// 歡迎頁的「新增主機」:換成主機 sheet。
     public func welcomeAddHost() {
+        sheet = .hosts
+    }
+
+    /// 點了主機服務通知：開主機 sheet 並推入那台主機的編輯頁(主機服務區塊在那裡)。
+    public func openHostEditor(_ id: UUID) {
+        pendingHostEditor = id
         sheet = .hosts
     }
 
