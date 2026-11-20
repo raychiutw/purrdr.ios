@@ -128,6 +128,13 @@ struct HostEditorView: View {
         // 捲動表單就收起鍵盤(#312):`.interactively` 只在手指拖進鍵盤時才收，往下捲看下面的按鈕時鍵盤仍擋著。
         // 數字鍵盤與多行私鑰沒有能收鍵盤的 return,另有鍵盤上方的「完成」。
         .scrollDismissesKeyboard(.immediately)
+        // 這個 Form(sheet 裡、有 refreshable)在 iOS 26 上 `.scrollDismissesKeyboard` 不起作用(UI 測試實測),
+        // 所以垂直拖動時自己清掉焦點;最短距離避開點按。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24).onChanged { drag in
+                guard focus != nil, abs(drag.translation.height) > abs(drag.translation.width) else { return }
+                focus = nil
+            })
         .modifier(PairedDevicesDialogs(model: hostStatus?.pairedDevices))
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }

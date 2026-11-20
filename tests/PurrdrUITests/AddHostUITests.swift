@@ -174,7 +174,10 @@ final class AddHostUITests: XCTestCase {
         username.typeEnglish("ray")
         XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現軟體鍵盤")
 
-        app.swipeUp()
+        // 從表單左側留白往上拖(不從輸入框開始，免得拖成選取文字)。
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.55)).press(
+            forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.15)))
 
         XCTAssertTrue(waitForKeyboardToHide(app), "捲動表單後鍵盤沒有收起")
     }
