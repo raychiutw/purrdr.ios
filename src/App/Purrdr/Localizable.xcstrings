@@ -2792,17 +2792,6 @@
         }
       }
     },
-    "Enclosing Folder" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上一層"
-          }
-        }
-      }
-    },
     "End" : {
       "extractionState" : "manual",
       "localizations" : {

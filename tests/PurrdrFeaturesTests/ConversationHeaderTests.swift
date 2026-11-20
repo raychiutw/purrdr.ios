@@ -523,20 +523,6 @@ struct ConversationHeaderTests {
     }
 
     /// HIG 20.4/20.2:Reduce Motion 時停用指示動畫(點陣固定不動，仍看得出是指示)。
-    @Test("工作中點陣:3×3;動畫時每一格亮度隨時間輪轉;Reduce Motion 時固定不變")
-    func workingDotsRespectReduceMotion() {
-        let first = WorkingDots.opacities(frame: 0, reduceMotion: false)
-        let next = WorkingDots.opacities(frame: 1, reduceMotion: false)
-        #expect(first.count == 9)
-        #expect(first != next)
-
-        let still = (0..<12).map { WorkingDots.opacities(frame: $0, reduceMotion: true) }
-        #expect(still.count == 12)
-        #expect(Set(still).count == 1)
-        #expect(still[0].count == 9)
-        #expect(still[0].allSatisfy { $0 > 0 })
-    }
-
     @Test("標題列放不下時從後面整段拿掉：最長的在前，最短的只剩狀態")
     func headerVariantsDropWholeSegments() {
         let header = ConversationHeader(title: "garden-journal", status: .working, segments: ["studio"])

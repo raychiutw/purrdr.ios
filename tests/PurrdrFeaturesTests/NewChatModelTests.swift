@@ -53,6 +53,24 @@ struct NewChatModelTests {
         #expect(!picker.canGoUp)
     }
 
+    @Test("資料夾瀏覽的路徑麵包屑(比照檔案頁，實機回報 2026-11-20):家目錄以「~」開頭，點一段回到那一層")
+    func pickerBreadcrumbs() async throws {
+        let host = FakeHost()
+        await host.expect(NewChatFolders.command(for: ""), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
+        await host.expect(NewChatFolders.command(for: "/Users/demo/ledger"), reply: Self.listing("/Users/demo/ledger", ["reports"]))
+        await host.expect(NewChatFolders.command(for: "/Users/demo"), reply: Self.listing("/Users/demo", ["ledger", "notes"]))
+        let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: nil)
+
+        await picker.load()
+        await picker.open("ledger")
+        #expect(picker.breadcrumbs.map(\.title) == ["~", "ledger"])
+        #expect(picker.breadcrumbs.first?.isHome == true)
+
+        await picker.go(to: try #require(picker.breadcrumbs.first))
+        #expect(picker.chosenPath == "/Users/demo")
+        #expect(await host.unmetExpectations.isEmpty)
+    }
+
     @Test("讀取錯誤與空資料夾是不同狀態：錯誤有說明、重試同一個資料夾")
     func errorIsNotEmpty() async {
         let host = FakeHost()

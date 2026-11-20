@@ -82,19 +82,3 @@ public enum WorkingElapsed {
         return "\(seconds / 3600)h \(seconds % 3600 / 60)m"
     }
 }
-
-/// 工作中指示的 3×3 點陣(行為規格 F5.11)。動畫時亮點沿對角線輪轉;Reduce Motion 時固定(HIG 20.2、20.4)。
-public enum WorkingDots {
-    public static let count = 9
-
-    /// 第 `frame` 格畫面時各點的不透明度(由左上往右下)。
-    public static func opacities(frame: Int, reduceMotion: Bool) -> [Double] {
-        (0..<count).map { index in
-            let diagonal = index / 3 + index % 3
-            if reduceMotion { return diagonal.isMultiple(of: 2) ? 0.9 : 0.4 }
-            // 對角線 0–4 共 5 條，每格亮一條，前後兩條半亮。
-            let distance = abs(((frame % 5) + 5) % 5 - diagonal)
-            return distance == 0 ? 1 : distance == 1 ? 0.55 : 0.25
-        }
-    }
-}
