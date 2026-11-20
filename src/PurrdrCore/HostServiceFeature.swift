@@ -37,12 +37,15 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case fileFetch
     /// 上傳圖片與檔案 `file.upload.start`／`file.upload.chunk`(#288)。
     case fileUpload
+    /// 列表預覽與 subagent／workflow／委派讀取(`transcript.previews`／`.subagent`／`.workflow`／`.delegation`,#289)。
+    case transcriptPreviewsAndDelegations
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
         switch self {
         case .fileFetch: HostServiceVersion(0, 4, 0)
         case .fileUpload: HostServiceVersion(0, 7, 0)
+        case .transcriptPreviewsAndDelegations: HostServiceVersion(0, 7, 0)
         }
     }
 

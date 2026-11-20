@@ -26,7 +26,7 @@ public enum ClaudeTranscript {
     }
 
     /// session id 只能含英數與 `-`(行為規格 §4.0、R-I12):不符合就拒絕，而不是引號化了事。
-    static func isSafeSessionID(_ id: String) -> Bool {
+    package static func isSafeSessionID(_ id: String) -> Bool {
         !id.isEmpty && id.utf8.allSatisfy { byte in
             switch byte {
             case UInt8(ascii: "0")...UInt8(ascii: "9"), UInt8(ascii: "A")...UInt8(ascii: "Z"),

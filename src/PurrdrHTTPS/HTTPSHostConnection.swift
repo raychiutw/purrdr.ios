@@ -27,6 +27,8 @@ public actor HTTPSHostConnection: HostConnection {
     var transcriptFollows: [String: TranscriptFollow] = [:]
     /// 追蹤串流(`followTranscript`,路徑 → 串流)。同一個路徑只有一個。
     var transcriptStreams: [String: TranscriptStream] = [:]
+    /// 列表預覽定位到的對話紀錄(主機服務只認得這條連線定位過的;連線結束時清空)。
+    var previewLocations: [TranscriptTarget.Location: PreviewLocation] = [:]
 
     /// 被拒的權杖與原因(同一個權杖不再撥號)。
     private struct RejectedToken {
@@ -251,6 +253,7 @@ public actor HTTPSHostConnection: HostConnection {
         welcome = nil
         // 主機服務在連線結束時停止這條連線的所有追蹤。
         transcriptFollows = [:]
+        previewLocations = [:]
         await current?.close()
     }
 

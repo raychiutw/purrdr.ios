@@ -78,6 +78,8 @@ final class FakeHostService: Sendable {
         var pairedToken = "token-paired"
         /// 對話紀錄訊息(`transcript.*`)的回應：訊息種類 → JSON 物件(不含 `request_id`;請求帶 `stream_id` 時換上請求的)。
         var transcriptReplies: [String: String] = [:]
+        /// 依序先回的對話紀錄回應(用完改回 `transcriptReplies`):訊息種類 → JSON 物件(不含 `request_id`)。
+        var queuedTranscriptReplies: [String: [String]] = [:]
         /// 主機取檔訊息(`file.stat`／`file.read`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
         var fileReplies: [String: [String]] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
@@ -348,7 +350,12 @@ final class FakeHostService: Sendable {
             state.withLock { $0.streams.removeAll { $0.socket === socket && $0.streamID == streamID } }
             return [.text(Self.json(["type": "events.unsubscribe.result", "request_id": requestID as Any]))]
         case let transcript where transcript.hasPrefix("transcript."):
-            guard let reply = settings.transcriptReplies[transcript],
+            let queued = state.withLock { state -> String? in
+                guard let queue = state.settings.queuedTranscriptReplies[transcript], let first = queue.first else { return nil }
+                state.settings.queuedTranscriptReplies[transcript] = Array(queue.dropFirst())
+                return first
+            }
+            guard let reply = queued ?? settings.transcriptReplies[transcript],
                   var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
                 return [.text(Self.error(requestID, "invalid_message"))]
             }

@@ -109,4 +109,18 @@ struct WorkflowModelTests {
         #expect(await host.shellCommands.isEmpty)
         #expect(model.run == nil)
     }
+
+    @Test("HTTPS 主機的主機服務太舊：說明需要更新主機服務並停止追蹤")
+    func outdatedHostServiceStopsWithReason() async throws {
+        let connection = FakeHostConnection()
+        await connection.answerTranscripts { _ in
+            throw HostServiceError.hostServiceUpdateRequired(.transcriptPreviewsAndDelegations, installedVersion: "0.6.2")
+        }
+        let model = WorkflowModel(transcripts: TranscriptReader(connection: connection), sessionFolder: "/Users/demo/s", card: Self.card, clock: TestClock().clock)
+
+        await model.poll()
+
+        #expect(model.unavailableReason?.contains("0.6.2") == true)
+        #expect(model.isTracking == false)
+    }
 }
