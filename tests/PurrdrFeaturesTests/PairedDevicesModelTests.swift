@@ -86,8 +86,8 @@ struct PairedDevicesModelTests {
     @Test("這支裝置那列導到移除主機的流程(POST /v1/revoke),不送 devices.revoke;唯讀裝置也可以")
     func currentDeviceRowOpensHostRemoval() async {
         let host = FakePairedDevicesHost(devices: [Self.thisPhone, Self.iPad], isReadOnly: true)
-        let removals = Mutex(0)
-        let model = PairedDevicesModel(host: host) { removals.withLock { $0 += 1 } }
+        let removals = RemovalCounter()
+        let model = PairedDevicesModel(host: host) { removals.count += 1 }
         await model.load()
 
         #expect(model.canRemoveHost(from: Self.thisPhone))
@@ -95,7 +95,7 @@ struct PairedDevicesModelTests {
         model.requestHostRemoval(from: Self.iPad)
         model.requestHostRemoval(from: Self.thisPhone)
 
-        #expect(removals.withLock { $0 } == 1)
+        #expect(removals.count == 1)
         #expect(host.revoked.isEmpty)
     }
 
@@ -165,4 +165,10 @@ private final class FakePairedDevicesHost: PairedDevicesManaging {
     }
 
     func isReadOnlyDevice() async throws -> Bool { readOnly }
+}
+
+/// 移除主機入口被叫了幾次。
+@MainActor
+final class RemovalCounter {
+    var count = 0
 }
