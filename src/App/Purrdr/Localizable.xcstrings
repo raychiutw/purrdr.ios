@@ -5405,7 +5405,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "那台電腦的密碼"
+            "value" : "那台主機的密碼"
           }
         }
       }
@@ -5812,7 +5812,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 會用這組密碼以 %@@%@ 登入一次，把這支裝置的公鑰加到 ~/.ssh/authorized_keys(Windows 管理員帳號是 administrators_authorized_keys),之後改用金鑰登入。密碼不會儲存。"
+            "value" : "Purrdr 會用這組密碼以 %@@%@ 登入一次，把這支裝置的公鑰加到 ~/.ssh/authorized_keys(Windows 的管理員是 administrators_authorized_keys),之後改用金鑰登入。密碼不會儲存。"
           }
         }
       }

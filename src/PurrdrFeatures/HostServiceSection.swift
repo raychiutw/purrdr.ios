@@ -99,13 +99,13 @@ struct HostServiceSection: View {
         case .waitingForRestart(let version):
             progress(Text("Updating to \(version). The host service restarts, then Purrdr reconnects…"))
         case .succeeded(let version):
-            outcome(Text("Updated to \(version)."), symbol: "checkmark.circle.fill", tint: .accentColor)
+            outcome(Text("Updated to \(version)."), symbol: "checkmark.circle.fill", tint: .tint)
         case .rolledBack(let version, let runningVersion):
             outcome(
-                Text("\(version) didn’t start, so the host put \(runningVersion) back."), symbol: "exclamationmark.triangle.fill",
+                Text("\(version) didn’t start, so the host put \(runningVersion) back."), symbol: "arrow.uturn.backward.circle.fill",
                 tint: .orange)
         case .upToDate(let version):
-            outcome(Text("Already up to date (\(version))."), symbol: "checkmark.circle.fill", tint: .accentColor)
+            outcome(Text("Already up to date (\(version))."), symbol: "checkmark.circle.fill", tint: .tint)
         case .unconfirmed(let version):
             outcome(
                 Text("Couldn’t confirm the update to \(version). Pull to refresh to check again."), symbol: "questionmark.circle.fill",
@@ -127,7 +127,7 @@ struct HostServiceSection: View {
     }
 
     /// 顏色只上在符號，文字用主要色(DESIGN.md 狀態色)。
-    private func outcome(_ text: Text, symbol: String, tint: Color) -> some View {
+    private func outcome(_ text: Text, symbol: String, tint: some ShapeStyle) -> some View {
         Label {
             text
         } icon: {
