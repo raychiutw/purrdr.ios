@@ -306,7 +306,7 @@ struct AccountView: View {
                     }
                     .accessibilityIdentifier("member.signInMethods")
                     Button("Sign Out") { Task { await model.signOut() } }
-                    Button("Delete Member…", role: .destructive) { confirmingDeletion = true }
+                    Button("Delete Member", role: .destructive) { confirmingDeletion = true }
                         .accessibilityIdentifier("member.delete")
                 } footer: {
                     Text("Deleting your member account removes it and its data from Purrdr right away. Subscriptions billed by Apple continue until you cancel them in Settings.")

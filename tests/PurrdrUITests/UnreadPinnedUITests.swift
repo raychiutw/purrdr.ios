@@ -30,7 +30,7 @@ final class UnreadPinnedUITests: XCTestCase {
         XCTAssertTrue(ledger.label.contains("Pinned"), "列沒有念出已釘選:\(ledger.label)")
     }
 
-    /// 有新回覆的聊天未讀;打開讀過、回到列表後變已讀。主機 sheet 的「完成」旁顯示需處理的 workspace 數。
+    /// 有新回覆的聊天未讀;打開讀過、回到列表後變已讀。主機與設定 sheet 的「完成」旁不放數字徽章(#322)。
     @MainActor
     func testOpeningChatMarksItRead() {
         let app = XCUIApplication.launchUITesting()
@@ -39,12 +39,17 @@ final class UnreadPinnedUITests: XCTestCase {
         expectation(for: NSPredicate(format: "value == %@", "Unread"), evaluatedWith: ledger)
         waitForExpectations(timeout: 10)
 
-        app.buttons["toolbar.more"].tap()
-        app.buttons["menu.hosts"].tap()
-        let badge = app.descendants(matching: .any)["attention.badge"].firstMatch
-        XCTAssertTrue(badge.waitForExistence(timeout: 5), "主機 sheet 的「完成」旁沒有數字")
-        XCTAssertTrue(badge.label.contains("2 workspaces need you"), "數字:\(badge.label)")
-        app.buttons["sheet.done"].tap()
+        // 有需要你的 workspace 時，主機與設定 sheet 的「完成」旁也不放數字徽章(#322)。
+        for (menuItem, sheet) in [("menu.hosts", "sheet.hosts"), ("menu.settings", "sheet.settings")] {
+            app.buttons["toolbar.more"].tap()
+            app.buttons[menuItem].tap()
+            let done = app.buttons["sheet.done"]
+            XCTAssertTrue(done.waitForExistence(timeout: 5), "\(sheet) 沒有「完成」")
+            XCTAssertTrue(app.descendants(matching: .any)[sheet].firstMatch.exists, "沒有開出 \(sheet)")
+            XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(sheet) 的「完成」旁有數字徽章")
+            XCTAssertEqual(done.label, "Done", "「完成」多念了徽章")
+            done.tap()
+        }
 
         ledger.tap()
         app.navigationBars.buttons.element(boundBy: 0).tap()
