@@ -104,7 +104,9 @@ final class HostToolsUITests: XCTestCase {
 
         openMenuItem("menu.files", in: app)
         XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForExistence(timeout: 10), "檔案沒有主機挑選鈕")
-        XCTAssertGreaterThanOrEqual(app.buttons["files.host"].firstMatch.frame.height, 44, "主機挑選鈕要跟兩旁的玻璃鈕一樣高")
+        // 工具列中間那格最高 36pt,挑選鈕的底色往外多畫 4pt(上下共 8pt),看起來跟 44pt 的返回鈕一樣高。
+        let back = app.navigationBars.buttons.element(boundBy: 0)
+        XCTAssertEqual(app.buttons["files.host"].firstMatch.frame.height + 8, back.frame.height, accuracy: 1, "主機挑選鈕看起來要跟返回鈕一樣高")
         XCTAssertTrue(app.buttons["files.host"].firstMatch.label.contains("Studio Mac"), "檔案不該沿用登入 Shell 的選擇")
     }
 

@@ -27,11 +27,12 @@ struct HostPickerButton: View {
                     .foregroundStyle(.secondaryText)
                     .accessibilityHidden(true)
             }
-            .padding(.leading, 10)
-            .padding(.trailing, 14)
-            // 跟兩旁的玻璃鈕(返回、＋)一樣 44pt 高(實機回報 2026-11-20)。
-            .frame(minHeight: 44)
-            .background(.fill.tertiary, in: Capsule())
+            .padding(.leading, 6)
+            .padding(.trailing, 10)
+            .padding(.vertical, 6)
+            // 跟兩旁的玻璃鈕(返回、＋)看起來一樣 44pt 高(實機回報 2026-11-20):工具列中間那格最高 36pt,
+            // 玻璃鈕也是 36pt 的 frame 外多畫一圈;底色同樣往外多畫 4pt。
+            .background { Capsule().fill(.fill.tertiary).padding(-4) }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

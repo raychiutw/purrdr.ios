@@ -35,7 +35,11 @@ struct StopBar: View {
     private var content: some View {
         switch model.stopPhase {
         case nil:
-            HStack(spacing: 8) {
+            // AX 字級時停止鈕換到下一行，文字不截斷。
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+                : AnyLayout(HStackLayout(spacing: 8))
+            layout {
                 workingStatus
                 stopButton
             }
@@ -47,23 +51,27 @@ struct StopBar: View {
     /// 主色圓點、「Working…」(有即時預覽時「Writing…」)與經過時間。
     private var workingStatus: some View {
         HStack(spacing: 6) {
+            // 圓點是裝飾，不跟文字合成一個元素(稽核量文字對比時不把圓點算進去)。
             Circle()
                 .fill(AgentStatus.working.tone.style)
                 .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
-            Text(model.livePreview == nil ? "Working…" : "Writing…")
-            if let since = model.workingSince {
-                TimelineView(.periodic(from: since, by: 1)) { context in
-                    Text(WorkingElapsed.text(seconds: Int(context.date.timeIntervalSince(since))))
-                        .monospacedDigit()
+            HStack(spacing: 6) {
+                Text(model.livePreview == nil ? "Working…" : "Writing…")
+                if let since = model.workingSince {
+                    TimelineView(.periodic(from: since, by: 1)) { context in
+                        Text(WorkingElapsed.text(seconds: Int(context.date.timeIntervalSince(since))))
+                            .monospacedDigit()
+                    }
                 }
             }
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("conversation.working")
         }
         .font(.footnote)
         .foregroundStyle(Color.primary)
-        .lineLimit(1)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("conversation.working")
     }
 
     // MARK: - 停止鈕

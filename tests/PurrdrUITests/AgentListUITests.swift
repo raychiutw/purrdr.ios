@@ -130,4 +130,4 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(account.waitForExistence(timeout: 10))
         XCTAssertEqual(account.frame.height, 44, accuracy: 1, "帳號圓圈 \(account.frame) 應與玻璃鈕一樣 44pt")
     }
-}}
+}
