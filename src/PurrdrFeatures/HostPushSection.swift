@@ -132,7 +132,7 @@ private struct HostPushRow: View {
     }
 }
 
-/// 開著通知的主機可展開選要收的種類(#292);新種類加進 `PushKind` 就會多一列。
+/// 開著通知的主機可展開選要收的種類(#292);新種類加進 `PushKind` 就會多一列(主機服務只在 HTTPS 主機)。
 private struct HostPushKindsRow: View {
     let push: HostPush
     @State private var isExpanded = false
@@ -141,7 +141,7 @@ private struct HostPushKindsRow: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $isExpanded) {
-            ForEach(PushKind.allCases, id: \.self) { kind in
+            ForEach(PushKind.choices(installsViaHostService: push.installsViaHostService), id: \.self) { kind in
                 Toggle(isOn: Binding(get: { model.kinds.contains(kind) }, set: { isOn in change(kind, to: isOn) })) {
                     Text(kind.title)
                 }
@@ -166,7 +166,13 @@ extension PushKind {
         switch self {
         case .blocked: "Needs You"
         case .done: "Finished"
+        case .hostService: "Host Service"
         }
+    }
+
+    /// 那台主機可選的種類：主機服務通知只有 HTTPS 主機(經主機服務)才有。
+    public static func choices(installsViaHostService: Bool) -> [PushKind] {
+        allCases.filter { $0 != .hostService || installsViaHostService }
     }
 }
 

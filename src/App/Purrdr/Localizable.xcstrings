@@ -642,6 +642,18 @@
         }
       }
     },
+    "A host service update is available." : {
+      "comment" : "主機服務推播內文：有新版(後台 APNs payload 的 loc-key)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務有新版本。"
+          }
+        }
+      }
+    },
     "About" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3647,6 +3659,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機名稱、位址、使用者名稱、連線方式、host key 指紋與主機圖示會透過你的 Purrdr 會員同步到你的其他裝置。密碼與私鑰永遠不會離開這台裝置。需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Host service" : {
+      "comment" : "主機服務推播標題(後台 APNs payload 的 title-loc-key)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務"
+          }
+        }
+      }
+    },
+    "Host service update" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務更新"
+          }
+        }
+      }
+    },
+    "Host service update failed and was rolled back." : {
+      "comment" : "主機服務推播內文：更新失敗已退回(後台 APNs payload 的 loc-key)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務更新失敗，已退回原本的版本。"
+          }
+        }
+      }
+    },
+    "Host service updated to %@." : {
+      "comment" : "主機服務推播內文：已更新到某版(後台 APNs payload 的 loc-key,%@ 是版本)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務已更新到 %@。"
           }
         }
       }

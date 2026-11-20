@@ -839,6 +839,68 @@ struct PushRouteTests {
         #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: "w2:p1"))
     }
 
+    // MARK: - 主機服務通知(#293)
+
+    @Test("主機服務通知的 payload:根層 pairing 與 event,沒有 pane")
+    func parsesHostServiceEvent() {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title-loc-key": "Host service", "loc-key": "Host service updated to %@.", "loc-args": ["0.7.0"]],
+                    "category": "HOST_SERVICE_EVENT"],
+            "pairing": "abc", "event": "host_service_updated", "version": "0.7.0",
+        ]
+
+        #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: nil, event: "host_service_updated"))
+    }
+
+    @Test("點主機服務通知：回傳要開那台主機的編輯頁，不開聊天",
+          arguments: ["host_service_update_available", "host_service_updated", "host_service_update_rolled_back"])
+    func hostServiceEventOpensHostEditor(event: String) {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+        model.select(.demo)
+
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: nil, event: event), pairings: pairings)
+
+        #expect(destination == .hostEditor(HostsModelTests.studio.id))
+        #expect(model.agentList.openedChat == nil)
+        #expect(model.selection == .demo)
+    }
+
+    @Test("主機服務通知的配對已不認得(主機已移除):不開任何畫面")
+    func hostServiceEventForUnknownPairingOpensNothing() {
+        let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)
+        model.load()
+
+        let destination = model.open(
+            PushRoute(keyHash: "nope", paneID: nil, event: "host_service_updated"), pairings: InMemoryPushPairingStore())
+
+        #expect(destination == nil)
+    }
+
+    @Test("Agent 通知仍回傳開了哪個聊天")
+    func agentNotificationReportsChat() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
+
+        #expect(destination == .chat(ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1")))
+    }
+
+    @Test("「主機服務」種類只給 HTTPS 主機選(SSH 主機沒有主機服務)")
+    func hostServiceKindOnlyForHTTPSHosts() {
+        #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
+        #expect(PushKind.choices(installsViaHostService: true) == [.blocked, .done, .hostService])
+    }
+
     @Test("不認得的配對(主機已移除)不切換")
     func unknownPairingIsIgnored() {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)

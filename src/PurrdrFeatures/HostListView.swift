@@ -10,14 +10,17 @@ public struct HostListView: View {
     let model: HostsModel
     /// 等著匯入的主機分享連結(深層連結帶進來的);開啟後清掉。
     @Binding var importURL: URL?
+    /// 等著開編輯頁的主機(點了主機服務通知);開啟後清掉。
+    @Binding var editHostID: UUID?
     @Environment(\.dismiss) private var dismiss
     @State private var flow = HostListFlow()
     @State private var renaming: HostRenaming?
     @State private var actionError: String?
 
-    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil)) {
+    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil)) {
         self.model = model
         _importURL = importURL
+        _editHostID = editHostID
     }
 
     public var body: some View {
@@ -104,6 +107,8 @@ public struct HostListView: View {
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
+        .onAppear(perform: openPendingEditor)
+        .onChange(of: editHostID) { openPendingEditor() }
     }
 
     private func hostRow(_ row: HostRow) -> some View {
@@ -283,6 +288,12 @@ public struct HostListView: View {
         guard let url = importURL else { return }
         importURL = nil
         flow.path = [.importLink(url)]
+    }
+
+    private func openPendingEditor() {
+        guard let id = editHostID else { return }
+        editHostID = nil
+        flow.openEditor(of: id)
     }
 }
 

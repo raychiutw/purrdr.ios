@@ -6,6 +6,8 @@ public enum PushKind: String, Sendable, CaseIterable, Hashable {
     case blocked
     /// 「完成」:Agent 進入 `done`。
     case done
+    /// 「主機服務」:主機服務的更新事件(有新版、已更新、已退回;raychiutw/purrdr.server#11)。
+    case hostService = "host_service"
 
     /// wire 上的陣列：依 `allCases` 的順序，讓同一組種類每次送出都一樣。
     public static func wireValues(_ kinds: Set<PushKind>) -> [String] {

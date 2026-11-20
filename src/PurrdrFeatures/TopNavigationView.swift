@@ -65,7 +65,7 @@ public struct TopNavigationView: View {
             .sheet(item: $navigation.sheet) { sheet in
                 switch sheet {
                 case .hosts:
-                    HostListView(model: hosts, importURL: $navigation.pendingHostImport)
+                    HostListView(model: hosts, importURL: $navigation.pendingHostImport, editHostID: $navigation.pendingHostEditor)
                 case .settings:
                     SettingsView(
                         model: settings,
@@ -130,13 +130,14 @@ public struct TopNavigationView: View {
             }
             // 推播：APNs token 換了就向後台重新註冊(不請求權限)。
             .task { await hosts.refreshPushRegistrations() }
-            // 點了通知：先收起 sheet(否則聊天會推到 sheet 下面),再切換主機、開該 Agent 的聊天。App 鎖定中等解鎖後才開(#284)。
+            // 點了通知：先收起 sheet(否則聊天會推到 sheet 下面),再開該 Agent 的聊天;主機服務通知開那台主機的編輯頁(#293)。
+            // App 鎖定中等解鎖後才開(#284)。
             .onChange(of: notifications?.pending, initial: true) { _, route in
                 guard let route else { return }
                 notifications?.pending = nil
                 openWhenUnlocked {
                     navigation.sheet = nil
-                    hosts.open(route)
+                    if case .hostEditor(let id) = hosts.open(route) { navigation.openHostEditor(id) }
                 }
             }
     }

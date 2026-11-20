@@ -92,6 +92,21 @@ struct MemberSessionPushDevicesTests {
         #expect(json["keyHash"] as? String == "hash-1")
     }
 
+    @Test("主機服務通知(#293)的種類在 wire 上是 host_service,排在「需要你」「完成」之後")
+    func registrationCarriesHostServiceKind() async throws {
+        let backend = FakeBackend([:])
+        let session = try makeSession(backend)
+
+        try await session.registerPushPairing(
+            keyHash: "hash-1", deviceToken: "token-1", environment: .production,
+            device: PushDeviceIdentity(id: PushDeviceID(rawValue: Self.thisDevice)!, name: "iPhone", model: .iPhone),
+            kinds: [.hostService, .blocked])
+
+        let body = try #require(backend.requests.first?.body)
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["kinds"] as? [String] == ["blocked", "host_service"])
+    }
+
     @Test("沒指定種類時不帶 kinds:後台保留既有偏好(新配對只收 blocked)")
     func registrationWithoutKindsOmitsField() async throws {
         let backend = FakeBackend([:])

@@ -17,6 +17,16 @@ struct HostListFlowTests {
         #expect(flow.path == [.edit(Self.studioID)])
     }
 
+    @Test("從通知開主機編輯頁(#293):換掉原本推入的畫面，只留那台主機的編輯器")
+    func openingEditorFromNotificationReplacesPath() {
+        let flow = HostListFlow()
+        flow.path = [.add]
+
+        flow.openEditor(of: Self.studioID)
+
+        #expect(flow.path == [.edit(Self.studioID)])
+    }
+
     @Test("刪除先跳確認：要求刪除不會刪，確認後才刪那台並收起確認")
     func deletionWaitsForConfirmation() async throws {
         let flow = HostListFlow()

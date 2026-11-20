@@ -44,7 +44,7 @@ final class PushSettingsUITests: XCTestCase {
         expectValue("Next Step", of: element("account.plusSetup.sync", in: app))
     }
 
-    /// 開著通知的主機可展開選種類(#292):預設「需要你」「完成」都開;關掉「完成」後只剩「需要你」,最後一個不能關。
+    /// 開著通知的主機可展開選種類(#292):預設「需要你」「完成」都開(SSH 主機沒有「主機服務」);關掉「完成」後只剩「需要你」,最後一個不能關。
     @MainActor
     func testChooseNotificationKindsPerHost() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
@@ -69,6 +69,8 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertEqual(done.label, "Finished")
         expectValue("1", of: blocked)
         expectValue("1", of: done)
+        // 主機服務通知(#293)只有 HTTPS 主機能選;這台是 SSH 主機。
+        XCTAssertFalse(app.switches["account.push.\(Self.seededHost).kind.host_service"].exists, "SSH 主機不該有「主機服務」種類")
 
         done.switches.firstMatch.tap()
         expectValue("0", of: done)
