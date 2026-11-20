@@ -88,14 +88,14 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
     }
 
-    /// 設定頁只有外觀、鍵盤與觸覺、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
+    /// 設定頁只有外觀、鍵盤與觸覺、App 鎖(#284)、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
     @MainActor
-    func testSettingsHasOnlyFourSections() {
+    func testSettingsHasOnlyAppWideSections() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
         XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
-        for header in ["Appearance", "Keyboard and Haptics", "Support", "About"] {
+        for header in ["Appearance", "Keyboard and Haptics", "App Lock", "Support", "About"] {
             let text = app.staticTexts[header].firstMatch
             scrollTo(text, in: app)
             XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
