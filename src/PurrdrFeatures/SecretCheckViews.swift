@@ -71,6 +71,8 @@ struct SecretCheckSheet: View {
         .padding(.bottom)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        // 容器自己一個 identifier,不蓋掉各列與按鈕的。
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("secretCheck.sheet")
     }
 
