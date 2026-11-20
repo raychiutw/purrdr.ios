@@ -78,7 +78,7 @@ final class SettingsUITests: XCTestCase {
 
         // 列表沒有導覽列標題(#268):看 Agents／Spaces 分段控制。
         XCTAssertTrue(app.listModeControl.waitForExistence(timeout: 10), "沒有看到列表")
-        XCTAssertTrue(app.staticTexts["需要你"].firstMatch.waitForExistence(timeout: 10), "列表不是繁體中文")
+        XCTAssertEqual(app.textFields["agentList.search"].firstMatch.placeholderValue, "搜尋", "列表不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 5), "設定頁標題不是繁體中文")
         // Codex 區在上面，評分列要捲動才出現。

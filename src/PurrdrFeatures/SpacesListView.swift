@@ -68,6 +68,10 @@ private struct SpacesSectionHeader: View {
             Text(verbatim: "\(section.hostName) · \(section.workspace)")
                 .fixedSize(horizontal: false, vertical: true)
         }
+        // 固定的次要文字色(系統 section header 的灰色對比不到 4.5:1,audit「nearly passed」);不轉大寫。
+        .font(.subheadline)
+        .foregroundStyle(Color.secondaryText)
+        .textCase(nil)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier("spaces.section.\(section.id)")
