@@ -39,6 +39,11 @@ public final class HostEditorModel {
         /// HTTPS 主機：配對(或用存著的權杖)後連上主機服務。
         case connected(HostServiceCheck)
         case failed(String)
+        /// 用密碼加入公鑰前，說明會寫什麼並等使用者同意(ADR-0002)。
+        case confirmKeyInstall
+        case installingKey
+        /// 用密碼加入公鑰失敗;手動指令仍可用。
+        case keyInstallFailed(String)
     }
 
     /// HTTPS 主機的連線測試結果。
@@ -103,9 +108,13 @@ public final class HostEditorModel {
     public var privateKeyText = ""
     /// HTTPS 主機的配對碼(主機配對指令顯示的)。編輯已配對的主機時留空 = 沿用存著的裝置權杖。
     public var pairingCode = ""
+    /// 用密碼加入這支裝置的公鑰時輸入的密碼(#285):只用來登入一次，不存。
+    public var keyInstallPassword = ""
     /// 主機圖示(#239)。只改圖示時不必重新測試連線就能儲存。
     public var icon: HostIcon
     public private(set) var phase: Phase = .editing
+    /// 最近一次用密碼加入公鑰的結果。
+    public private(set) var keyInstallOutcome: AuthorizedKeyInstallOutcome?
     /// 這支裝置的公鑰(含註解),`loadDeviceKey()` 之後才有。
     public private(set) var devicePublicKey: SSHPublicKey?
     /// 拿不到裝置金鑰時的說明。
@@ -139,6 +148,11 @@ public final class HostEditorModel {
     /// 儲存後套用圖示(主機 id 存好才知道)。
     private let saveIcon: @MainActor (HostIcon, UUID) -> Void
     private let credentials: HostCredentials
+    private let consent: any HostWriteConsentStore
+    /// 新主機在編輯時就決定 id:同意(以主機 id 記)要對得上儲存後的主機。
+    private let hostID: UUID
+    /// 確認 host key 後要繼續的是加入公鑰，不是連線測試。
+    private var resumesKeyInstall = false
     private let hostService: HostServiceAccess
     /// 編輯的 HTTPS 主機在這支裝置已有裝置權杖。
     private let hasStoredDeviceToken: Bool
@@ -154,12 +168,14 @@ public final class HostEditorModel {
 
     public init(
         store: any HostStore, editing: HostConfiguration? = nil, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(), icon: HostIcon = .default,
-        saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
+        hostService: HostServiceAccess = HostServiceAccess(), consent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
+        icon: HostIcon = .default, saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
         existing = editing
+        hostID = editing?.id ?? UUID()
+        self.consent = consent
         self.icon = icon
         originalIcon = icon
         self.saveIcon = saveIcon
@@ -188,11 +204,13 @@ public final class HostEditorModel {
     /// 所以連線測試只接受那一把 key(主機出示別的 key 時一樣阻擋);仍要測試通過才能儲存。
     public convenience init(
         store: any HostStore, importing shared: SharedHost, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(), saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
+        hostService: HostServiceAccess = HostServiceAccess(), consent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
+        saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.init(
-            store: store, editing: nil, credentials: credentials, hostService: hostService, saveIcon: saveIcon, makeChannel: makeChannel)
+            store: store, editing: nil, credentials: credentials, hostService: hostService, consent: consent, saveIcon: saveIcon,
+            makeChannel: makeChannel)
         name = shared.name
         chosenMethod = shared.connectionMethod
         if let hostService = shared.hostService {
@@ -210,11 +228,13 @@ public final class HostEditorModel {
     /// 從主機配對指令的 QR code(`purrdr://pair?…`)新增 HTTPS 主機：帶入位址與配對碼，名稱預設是主機名稱的第一段。
     public convenience init(
         store: any HostStore, pairing link: HostServicePairingLink, credentials: HostCredentials = HostCredentials(),
-        hostService: HostServiceAccess = HostServiceAccess(), saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
+        hostService: HostServiceAccess = HostServiceAccess(), consent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
+        saveIcon: @escaping @MainActor (HostIcon, UUID) -> Void = { _, _ in },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.init(
-            store: store, editing: nil, credentials: credentials, hostService: hostService, saveIcon: saveIcon, makeChannel: makeChannel)
+            store: store, editing: nil, credentials: credentials, hostService: hostService, consent: consent, saveIcon: saveIcon,
+            makeChannel: makeChannel)
         apply(link)
     }
 
@@ -250,7 +270,7 @@ public final class HostEditorModel {
 
     // MARK: - 狀態
 
-    public var canTest: Bool { draft != nil && phase != .testing && phase != .updating }
+    public var canTest: Bool { draft != nil && phase != .testing && phase != .updating && phase != .installingKey }
 
     /// 最近一次測試成功，而且之後沒有改過任何欄位。
     public var canSave: Bool {
@@ -301,6 +321,7 @@ public final class HostEditorModel {
     public func test() async {
         guard let draft else { return }
         guard case .ssh(let ssh) = draft.connection else { return await testHostService(draft) }
+        resumesKeyInstall = false
         attempt += 1
         let current = attempt
         phase = .testing
@@ -422,6 +443,73 @@ public final class HostEditorModel {
         }
     }
 
+    // MARK: - 用密碼加入公鑰(#285)
+
+    /// OpenSSH 選這支裝置的金鑰、公鑰已取得、連線欄位與密碼都填好時可以加入。
+    public var canInstallDeviceKey: Bool {
+        guard selectedAuthentication == .deviceKey, devicePublicKey != nil, !keyInstallPassword.isEmpty,
+              case .ssh = draft?.connection else { return false }
+        return phase != .testing && phase != .updating && phase != .installingKey
+    }
+
+    /// 先說明會寫什麼、等使用者同意;同意前不連主機。
+    public func requestKeyInstall() {
+        guard canInstallDeviceKey else { return }
+        phase = .confirmKeyInstall
+    }
+
+    /// 使用者同意：記下同意，用密碼登入一次把公鑰寫進主機，成功後改用金鑰測試連線。
+    public func confirmKeyInstall() async {
+        guard phase == .confirmKeyInstall else { return }
+        consent.grant(AuthorizedKeyInstaller.feature.id, host: hostID.uuidString)
+        await installDeviceKey()
+    }
+
+    private func installDeviceKey() async {
+        guard case .ssh(let ssh) = draft?.connection, let publicKey = devicePublicKey else { return }
+        resumesKeyInstall = false
+        attempt += 1
+        let current = attempt
+        phase = .installingKey
+        let password = keyInstallPassword
+        let base = makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin) { .password(password) }
+        let result: Result<AuthorizedKeyInstallOutcome, any Error>
+        do {
+            let channel = OperatingSystemDetectingChannel(base) { _ in }
+            result = .success(try await AuthorizedKeyInstaller(channel: channel).install(publicKey))
+        } catch {
+            result = .failure(error)
+        }
+        await base.disconnect()
+        guard current == attempt else { return }
+        switch result {
+        case .success(let outcome):
+            keyInstallOutcome = outcome
+            keyInstallPassword = ""
+            await test()
+        case .failure(SSHConnectionError.hostKeyUnverified(let presented)):
+            resumesKeyInstall = true
+            phase = .confirmHostKey(presented)
+        case .failure(SSHConnectionError.hostKeyChanged(let presented, let pinned)):
+            resumesKeyInstall = true
+            phase = .hostKeyChanged(presented: presented, pinned: pinned)
+        case .failure(let error):
+            phase = .keyInstallFailed(Self.keyInstallMessage(for: error))
+        }
+    }
+
+    private static func keyInstallMessage(for error: any Error) -> String {
+        switch error {
+        case AuthorizedKeyInstallError.failed(let reason):
+            return String(localized: "Couldn’t add the key on the host. \(reason)")
+        case HostFilesError.failed(_, let reason) where !reason.isEmpty:
+            return String(localized: "Couldn’t add the key on the host. \(reason)")
+        default:
+            break
+        }
+        return HostErrorText.message(for: error, connection: .openSSH, authentication: .password)
+    }
+
     /// 取消進行中的測試。
     public func cancelTest() {
         attempt += 1
@@ -437,11 +525,16 @@ public final class HostEditorModel {
         default: return
         }
         accepted = (presented, ssh.settings.endpoint)
-        await test()
+        if resumesKeyInstall {
+            await installDeviceKey()
+        } else {
+            await test()
+        }
     }
 
-    /// 不信任、不更新：回到編輯。
+    /// 不信任、不更新、不加入公鑰：回到編輯。
     public func dismissPrompt() {
+        resumesKeyInstall = false
         phase = .editing
     }
 
@@ -483,7 +576,7 @@ public final class HostEditorModel {
 
     private func saveSettings() -> HostConfiguration? {
         guard canSave, let tested else { return nil }
-        let id = existing?.id ?? UUID()
+        let id = hostID
         if case .https(let address, let pairingCode) = tested.draft.connection {
             return saveHostService(HostConfiguration(id: id, name: tested.draft.name, hostService: address), pairingCode: pairingCode)
         }

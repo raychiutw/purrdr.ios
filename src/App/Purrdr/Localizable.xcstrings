@@ -686,6 +686,50 @@
         }
       }
     },
+    "Add Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入公鑰"
+          }
+        }
+      }
+    },
+    "Add Key Using Password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用密碼加入公鑰"
+          }
+        }
+      }
+    },
+    "Add This Device’s Key?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入這支裝置的公鑰？"
+          }
+        }
+      }
+    },
+    "Adding the key to %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在把公鑰加到 %@…"
+          }
+        }
+      }
+    },
     "Address" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -903,6 +947,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個選項請在終端機回答。"
+          }
+        }
+      }
+    },
+    "App Lock" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 鎖"
+          }
+        }
+      }
+    },
+    "App Lock isn’t available on this device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置不能使用 App 鎖。"
           }
         }
       }
@@ -1369,6 +1435,17 @@
         }
       }
     },
+    "Choose File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇檔案"
+          }
+        }
+      }
+    },
     "Choose Folder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1703,6 +1780,17 @@
         }
       }
     },
+    "Confirm it’s you to turn on App Lock." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認是你本人以開啟 App 鎖。"
+          }
+        }
+      }
+    },
     "Connect to Wi-Fi or cellular data to see your agents. Purrdr reconnects automatically." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1890,6 +1978,17 @@
         }
       }
     },
+    "Copy Command Instead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用拷貝指令"
+          }
+        }
+      }
+    },
     "Copy Content" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1945,6 +2044,17 @@
         }
       }
     },
+    "Couldn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "t"
+          }
+        }
+      }
+    },
     "Couldn’t Finish" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1952,6 +2062,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法完成"
+          }
+        }
+      }
+    },
+    "Couldn’t add the key on the host. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在主機上加入公鑰。%@"
           }
         }
       }
@@ -2601,17 +2722,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開發板"
-          }
-        }
-      }
-    },
-    "Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "診斷資訊包含 app 版本、iOS 版本、主機數與 herdr 版本，絕不包含主機名稱、位址、使用者名稱或對話內容。"
           }
         }
       }
@@ -3635,6 +3745,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請至少保留一種登入方式。"
+          }
+        }
+      }
+    },
+    "Key added. Purrdr signs in with this device’s key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入公鑰。Purrdr 會用這支裝置的金鑰登入。"
           }
         }
       }
@@ -4948,6 +5069,17 @@
         }
       }
     },
+    "Password on that computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那台電腦的密碼"
+          }
+        }
+      }
+    },
     "Paste" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5179,6 +5311,17 @@
         }
       }
     },
+    "Purrdr Is Locked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 已鎖定"
+          }
+        }
+      }
+    },
     "Purrdr Member" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5329,6 +5472,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會以 %@ 讀取 ~/.config/herdr/config.toml 的主題，並新增參考檔 ~/.purrdr/theme/README.md。不會更動你的 herdr 設定;關閉後會移除這個檔案。"
+          }
+        }
+      }
+    },
+    "Purrdr signs in to %@@%@ once with this password and adds this device’s public key to ~/.ssh/authorized_keys (administrators_authorized_keys for a Windows administrator). After that it signs in with the key. The password isn’t saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會用這組密碼以 %@@%@ 登入一次，把這支裝置的公鑰加到 ~/.ssh/authorized_keys(Windows 管理員帳號是 administrators_authorized_keys),之後改用金鑰登入。密碼不會儲存。"
           }
         }
       }
@@ -5637,6 +5791,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取代"
+          }
+        }
+      }
+    },
+    "Require Face ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Face ID"
+          }
+        }
+      }
+    },
+    "Require Optic ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Optic ID"
+          }
+        }
+      }
+    },
+    "Require Passcode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要裝置密碼"
+          }
+        }
+      }
+    },
+    "Require Touch ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Touch ID"
           }
         }
       }
@@ -5956,6 +6154,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定 Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Set a device passcode in the Settings app to use App Lock." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到「設定」App 設定裝置密碼後才能使用 App 鎖。"
           }
         }
       }
@@ -7324,6 +7533,17 @@
         }
       }
     },
+    "The key was already on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上已經有這把公鑰。"
+          }
+        }
+      }
+    },
     "The name is only used on this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7617,6 +7837,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置的裝置權杖已在主機上撤銷。請編輯主機，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "This file is %@. Files sent to the host can be up to %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個檔案有 %1$@，傳到主機的檔案上限是 %2$@。"
           }
         }
       }
@@ -8413,6 +8644,28 @@
         }
       }
     },
+    "Unlock" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖"
+          }
+        }
+      }
+    },
+    "Unlock Purrdr to see your chats." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖 Purrdr 以查看聊天。"
+          }
+        }
+      }
+    },
     "Unmute" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8563,6 +8816,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在上傳「%@」"
+          }
+        }
+      }
+    },
+    "Uploading %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在上傳 %@…"
           }
         }
       }

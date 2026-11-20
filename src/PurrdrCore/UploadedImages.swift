@@ -6,7 +6,7 @@ import Foundation
 /// 讀回：Claude 把路徑行換成 `[Image #N]`,另記一個 `[Image: source: <路徑>]`;Codex 保留原行。
 /// 兩種都變成圖片，`[Image #N]` 移除，剩下的必須剛好是使用者打的字(回音才配得上)。
 public enum UploadedImages {
-    /// 主機上的上傳資料夾(相對家目錄;`ImageUploadCommand` 寫到這裡)。
+    /// 主機上的上傳資料夾(相對家目錄;`HostUploadCommand` 寫到這裡)。
     public static let folder = ".purrdr/uploads"
     static let extensions = ["jpg", "jpeg", "png", "heic", "webp"]
 

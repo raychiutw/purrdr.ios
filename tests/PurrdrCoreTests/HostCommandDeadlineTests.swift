@@ -127,13 +127,13 @@ struct HostCommandDeadlineTests {
     func uploadTimeLimitIsDeadline() async throws {
         let host = FakeHost()
         let data = Data("hello".utf8)
-        let name = try #require(UploadFileName("a.png"))
-        await host.expect(ImageUploadCommand.posix(name: name, size: data.count), reply: FakeReply(exitCode: 124))
+        let name = try #require(HostUploadName("a.png"))
+        await host.expect(HostUploadCommand.posix(name: name, size: data.count), reply: FakeReply(exitCode: 124))
         await host.expect(
             HostFolderCommand.upload(FolderUpload(folder: "/Users/demo", name: "a.txt", originalSize: data.count, encoding: .identity, transferSize: data.count)),
             reply: FakeReply(exitCode: 124))
 
-        await #expect(throws: ImageUploadError.deadlineExceeded) { _ = try await ImageUploader(channel: host).upload(data, named: name) }
+        await #expect(throws: HostUploadError.deadlineExceeded) { _ = try await SSHHostUploader(channel: host).upload(data, named: name) }
         await #expect(throws: HostFolderError.deadlineExceeded) { _ = try await HostFolders(channel: host).upload(data, named: "a.txt", to: "/Users/demo") }
     }
 
@@ -202,9 +202,9 @@ struct HostCommandDeadlineTests {
     static let openingOperations: [OpeningOperation] = [
         OpeningOperation(
             testDescription: "圖片上傳",
-            command: ImageUploadCommand.posix(name: UploadFileName("a.png")!, size: 5)
+            command: HostUploadCommand.posix(name: HostUploadName("a.png")!, size: 5)
         ) { channel in
-            _ = try await ImageUploader(channel: channel, sleep: RecordingSleeper().sleep).upload(Data("hello".utf8), named: UploadFileName("a.png")!)
+            _ = try await SSHHostUploader(channel: channel, sleep: RecordingSleeper().sleep).upload(Data("hello".utf8), named: HostUploadName("a.png")!)
         },
         OpeningOperation(
             testDescription: "檔案上傳",

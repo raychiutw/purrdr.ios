@@ -95,9 +95,29 @@ public actor FakeHost: HostChannel {
         disconnectCount += 1
     }
 
+    /// 家目錄裡的檔案(相對路徑 → 內容);`serveHomeFiles` 之後主機檔案的讀寫指令(`HostFiles`)由它回應。
+    public private(set) var homeFiles: [String: Data] = [:]
+    private var homeDirectories: Set<String> = []
+    private var servesHomeFiles = false
+    private var windowsHome: String?
+
+    /// 之後沒有預期的主機檔案指令(讀取、套用變更)以記憶體裡的家目錄回應，像主機上的腳本一樣做 compare-and-swap。
+    /// - Parameters:
+    ///   - directories: 已存在的資料夾(家目錄本身一定存在)。
+    ///   - windowsHome: 有值時讀取輸出帶 `home` 行(Windows 版腳本)。
+    public func serveHomeFiles(_ files: [String: Data] = [:], directories: Set<String> = [], windowsHome: String? = nil) {
+        homeFiles = files
+        homeDirectories = directories.union([""])
+        servesHomeFiles = true
+        self.windowsHome = windowsHome
+    }
+
     public func execute(_ command: String) async throws -> any ExecSession {
         if let connectionError { throw connectionError }
         guard let index = expectations.firstIndex(where: { $0.command == command }) else {
+            if servesHomeFiles, let request = HostFileRequest(command: command) {
+                return replyNow(to: command, with: handleHomeFiles(request))
+            }
             throw FakeHostError.unexpectedCommand(command)
         }
         let reply = expectations.remove(at: index).reply
@@ -182,6 +202,94 @@ public actor FakeHost: HostChannel {
             try? await Task.sleep(for: .milliseconds(5))
         }
         return false
+    }
+
+    // MARK: - 記憶體裡的家目錄
+
+    private func replyNow(to command: String, with reply: FakeReply) -> any ExecSession {
+        let id = executions.count
+        executions.append(Execution(command: command, stdin: Data(), closedStdin: false, closed: false))
+        let (stream, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()
+        emit(reply, to: continuation, for: id)
+        return FakeExecSession(host: self, id: id, output: stream)
+    }
+
+    private func handleHomeFiles(_ request: HostFileRequest) -> FakeReply {
+        switch request {
+        case .read(let paths):
+            var output = HostFileRequest.readOutput(user: "demo", files: paths.map(homeState))
+            if let windowsHome, let userLineEnd = output.firstRange(of: Data("user demo\n".utf8))?.upperBound {
+                output.insert(contentsOf: Data("home \(windowsHome)\n".utf8), at: userLineEnd)
+            }
+            return FakeReply(stdout: output)
+        case .apply(let changes):
+            var made: Set<String> = []
+            for change in changes {
+                if let failure = homeCheck(change, made: &made) { return failure }
+            }
+            changes.forEach(homeApply)
+            return FakeReply()
+        case .readIfChanged, .newest:
+            return FakeReply(stderr: Data("not supported by FakeHost\n".utf8), exitCode: 1)
+        }
+    }
+
+    private func homeState(_ path: HostPath) -> HostFileState {
+        if let data = homeFiles[path.relative] { return .file(data, version: Self.homeVersion(data)) }
+        if homeDirectoryExists(path.relative) { return .notRegularFile }
+        return homeDirectoryExists(Self.homeParent(path.relative)) ? .missing : .missingDirectory
+    }
+
+    private func homeCheck(_ change: HostFileChange, made: inout Set<String>) -> FakeReply? {
+        let expectation: HostFileExpectation
+        switch change {
+        case .write(_, _, _, let expected), .delete(_, let expected): expectation = expected
+        case .removeDirectory, .removeEmptyDirectory: return nil
+        case .makeDirectory(let path):
+            guard homeFiles[path.relative] == nil, !homeDirectoryExists(path.relative) else {
+                return FakeReply(stdout: HostFileRequest.changedSinceReadOutput(path), exitCode: HostFileRequest.ExitCode.changedSinceRead)
+            }
+            made.insert(path.relative)
+            return nil
+        }
+        let current = homeFiles[change.path.relative]
+        let matches = switch expectation {
+        case .anything: true
+        case .missing: current == nil
+        case .version(let version): current.map(Self.homeVersion) == version
+        }
+        guard matches else {
+            return FakeReply(stdout: HostFileRequest.changedSinceReadOutput(change.path), exitCode: HostFileRequest.ExitCode.changedSinceRead)
+        }
+        let parent = Self.homeParent(change.path.relative)
+        if case .write = change, !change.path.relative.hasPrefix(".purrdr/"), !homeDirectoryExists(parent), !made.contains(parent) {
+            return FakeReply(stdout: HostFileRequest.missingDirectoryOutput(change.path), exitCode: HostFileRequest.ExitCode.missingDirectory)
+        }
+        return nil
+    }
+
+    private func homeApply(_ change: HostFileChange) {
+        switch change {
+        case .write(let path, let data, _, _): homeFiles[path.relative] = data
+        case .delete(let path, _): homeFiles[path.relative] = nil
+        case .removeDirectory(let path): homeFiles = homeFiles.filter { !$0.key.hasPrefix(path.relative + "/") }
+        case .makeDirectory(let path): homeDirectories.insert(path.relative)
+        case .removeEmptyDirectory(let path):
+            let prefix = path.relative + "/"
+            if !homeFiles.keys.contains(where: { $0.hasPrefix(prefix) }) { homeDirectories.remove(path.relative) }
+        }
+    }
+
+    private func homeDirectoryExists(_ directory: String) -> Bool {
+        homeDirectories.contains(directory) || homeFiles.keys.contains { $0.hasPrefix(directory + "/") }
+    }
+
+    private static func homeParent(_ path: String) -> String {
+        path.split(separator: "/").dropLast().joined(separator: "/")
+    }
+
+    private static func homeVersion(_ data: Data) -> HostFileVersion {
+        HostFileVersion(checksum: "\(CRC32.checksum(data)):\(data.count)")
     }
 
     // MARK: - 給 session 回報

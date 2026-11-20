@@ -3,7 +3,7 @@ import PurrdrCore
 
 /// Windows 主機的主機通道(#26):包住真正的通道，把 app 送出的 POSIX 指令換成 PowerShell 方言。
 ///
-/// 呼叫端(`HerdrClient`、`TranscriptReader`、`ImageUploader`…)照常送 POSIX 指令，不知道主機是 Windows;
+/// 呼叫端(`HerdrClient`、`TranscriptReader`、`SSHHostUploader`…)照常送 POSIX 指令，不知道主機是 Windows;
 /// 換方言集中在這一層(`WindowsCommand`)。認不得的指令丟 `WindowsCommandError.unsupported`,不會把 POSIX
 /// 腳本送到 Windows 上執行。
 ///
@@ -104,8 +104,8 @@ enum WindowsCommand {
         if command == CodexPlanUsageHost.command { return try inline(codexAppServer) }
         if let script = transcript(command) { return viaStdin(script) }
         if let script = hostFiles(command) { return viaStdin(script) }
-        if let upload = ImageUploadCommand.parse(command) {
-            return try inline(WindowsScripts.upload(WindowsScripts.imageUpload, arguments: [upload.name.value, String(upload.size)]))
+        if let upload = HostUploadCommand.parse(command) {
+            return try inline(WindowsScripts.upload(WindowsScripts.hostUpload, arguments: [upload.name.value, String(upload.size)]))
         }
         if let upload = HostFolderCommand.parseUpload(command) {
             return try inline(WindowsScripts.upload(WindowsScripts.folderUpload, arguments: [
@@ -115,6 +115,7 @@ enum WindowsCommand {
         if let path = HostFolderCommand.parseList(command) {
             return viaStdin(WindowsScripts.folders(WindowsScripts.folderList, arguments: [path ?? ""]))
         }
+        if let script = AuthorizedKeyInstaller.administratorScript(for: command) { return try inline(script) }
         if let path = NewChatFolders.requestedPath(in: command) {
             return viaStdin(WindowsScripts.folders(WindowsScripts.newChatFolders, arguments: [path]))
         }

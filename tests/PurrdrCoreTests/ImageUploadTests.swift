@@ -8,7 +8,7 @@ import Testing
 /// 主機腳本在本機以真的 `/bin/sh` 跑，家目錄是暫存資料夾(`LocalShellHost`),絕不碰真正的家目錄。
 @Suite("圖片上傳")
 struct ImageUploadTests {
-    static let name = UploadFileName("mh1a2b3c-k9x2m4p7.jpg")!
+    static let name = HostUploadName("mh1a2b3c-k9x2m4p7.jpg")!
 
     @Test("檔名只接受 [A-Za-z0-9-]+.(jpg|png)")
     func validatesFileNames() {
@@ -36,7 +36,7 @@ struct ImageUploadTests {
 
     @Test("指令與腳本都不含反斜線(fish 會處理單引號內的反斜線)")
     func commandHasNoBackslash() {
-        #expect(!ImageUploadCommand.posix(name: Self.name, size: 12).contains("\\"))
+        #expect(!HostUploadCommand.posix(name: Self.name, size: 12).contains("\\"))
     }
 
     #if os(macOS)
@@ -45,7 +45,7 @@ struct ImageUploadTests {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         let bytes = Data((0..<300_000).map { UInt8(truncatingIfNeeded: $0 &* 7) })
 
-        let path = try await ImageUploader(channel: host).upload(bytes, named: Self.name)
+        let path = try await SSHHostUploader(channel: host).upload(bytes, named: Self.name)
 
         let home = host.home.path(percentEncoded: false)
         #expect(path == (home.hasSuffix("/") ? home : home + "/") + ".purrdr/uploads/\(Self.name.value)")
@@ -66,7 +66,7 @@ struct ImageUploadTests {
         try FileManager.default.createDirectory(at: host.url(".purrdr/uploads"), withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o755])
 
-        _ = try await ImageUploader(channel: host).upload(Data("x".utf8), named: Self.name)
+        _ = try await SSHHostUploader(channel: host).upload(Data("x".utf8), named: Self.name)
 
         #expect(try mode(of: host.url(".purrdr/uploads")) == 0o700)
     }
@@ -84,7 +84,7 @@ struct ImageUploadTests {
         try setModified(recent, to: now.addingTimeInterval(-6 * 86_400))
         try setModified(outside, to: now.addingTimeInterval(-30 * 86_400))
 
-        _ = try await ImageUploader(channel: host).upload(Data("new".utf8), named: Self.name)
+        _ = try await SSHHostUploader(channel: host).upload(Data("new".utf8), named: Self.name)
 
         let manager = FileManager.default
         #expect(!manager.fileExists(atPath: old.path(percentEncoded: false)))
@@ -99,8 +99,8 @@ struct ImageUploadTests {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         let channel = InterruptingChannel(base: host, failAfter: 100_000)
 
-        await #expect(throws: ImageUploadError.interrupted) {
-            try await ImageUploader(channel: channel).upload(Data(count: 300_000), named: Self.name)
+        await #expect(throws: HostUploadError.interrupted) {
+            try await SSHHostUploader(channel: channel).upload(Data(count: 300_000), named: Self.name)
         }
 
         await host.waitUntilFinished()
@@ -113,8 +113,8 @@ struct ImageUploadTests {
         let host = try LocalShellHost.temporary(feedsStdin: true)
         let existing = try host.write(Data("keep".utf8), to: ".purrdr/uploads/\(Self.name.value)")
 
-        await #expect(throws: ImageUploadError.self) {
-            try await ImageUploader(channel: host).upload(Data("new".utf8), named: Self.name)
+        await #expect(throws: HostUploadError.self) {
+            try await SSHHostUploader(channel: host).upload(Data("new".utf8), named: Self.name)
         }
         #expect(try Data(contentsOf: existing) == Data("keep".utf8))
     }
@@ -123,20 +123,20 @@ struct ImageUploadTests {
     @Test("回傳的路徑不是絕對路徑或不以 /<檔名> 結尾：主機把圖片存到意外的位置")
     func rejectsUnexpectedPath() async throws {
         let host = FakeHost()
-        await host.expect(ImageUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(stdout: Data("/tmp/other.jpg\n".utf8)))
+        await host.expect(HostUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(stdout: Data("/tmp/other.jpg\n".utf8)))
 
-        await #expect(throws: ImageUploadError.unexpectedPath("/tmp/other.jpg")) {
-            try await ImageUploader(channel: host).upload(Data("abc".utf8), named: Self.name)
+        await #expect(throws: HostUploadError.unexpectedPath("/tmp/other.jpg")) {
+            try await SSHHostUploader(channel: host).upload(Data("abc".utf8), named: Self.name)
         }
     }
 
     @Test("送完 bytes 後送 EOF;主機腳本失敗(非零 exit)丟 failed")
     func sendsEOFAndReportsFailure() async throws {
         let host = FakeHost()
-        await host.expect(ImageUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(stderr: Data("disk full\n".utf8), exitCode: 71))
+        await host.expect(HostUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(stderr: Data("disk full\n".utf8), exitCode: 71))
 
-        await #expect(throws: ImageUploadError.failed(exitCode: 71, message: "disk full")) {
-            try await ImageUploader(channel: host).upload(Data("abc".utf8), named: Self.name)
+        await #expect(throws: HostUploadError.failed(exitCode: 71, message: "disk full")) {
+            try await SSHHostUploader(channel: host).upload(Data("abc".utf8), named: Self.name)
         }
         let execution = try #require(await host.executions.first)
         #expect(execution.stdin == Data("abc".utf8))
@@ -146,25 +146,25 @@ struct ImageUploadTests {
     @Test("被訊號結束、或沒有結束狀態就斷了，都算中斷")
     func signalCountsAsInterrupted() async throws {
         let host = FakeHost()
-        await host.expect(ImageUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(keepsOpen: true))
-        let uploader = ImageUploader(channel: host)
+        await host.expect(HostUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(keepsOpen: true))
+        let uploader = SSHHostUploader(channel: host)
 
         let result = Task { try await uploader.upload(Data("abc".utf8), named: Self.name) }
         _ = await host.waitForExecutions(1)
         await host.send(.exit(code: 0, signal: "HUP"), toExecution: 0)
         await host.finish(execution: 0)
 
-        await #expect(throws: ImageUploadError.interrupted) { try await result.value }
+        await #expect(throws: HostUploadError.interrupted) { try await result.value }
     }
 
     @Test("期限到(預設 20 秒起跳)關閉通道並丟 deadlineExceeded")
     func deadline() async throws {
         let host = FakeHost()
-        await host.expect(ImageUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(keepsOpen: true))
+        await host.expect(HostUploadCommand.posix(name: Self.name, size: 3), reply: FakeReply(keepsOpen: true))
         let sleeper = RecordingSleeper(fires: { _ in true })
 
-        await #expect(throws: ImageUploadError.deadlineExceeded) {
-            try await ImageUploader(channel: host, sleep: sleeper.sleep).upload(Data("abc".utf8), named: Self.name)
+        await #expect(throws: HostUploadError.deadlineExceeded) {
+            try await SSHHostUploader(channel: host, sleep: sleeper.sleep).upload(Data("abc".utf8), named: Self.name)
         }
         #expect(await sleeper.requested.first.map { $0 >= .seconds(20) } == true)
         #expect(await host.executions.first?.closed == true)

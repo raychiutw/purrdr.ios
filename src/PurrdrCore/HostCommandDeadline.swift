@@ -71,7 +71,7 @@ public enum HostCommandDeadline {
 
 /// 一次性主機操作在期限內沒有結束(主機可能已經執行)。資源已經關閉，可以重試。
 ///
-/// 各功能的錯誤(`HerdrError`、`ImageUploadError`、`HostFolderError`)把它包成自己的 `deadlineExceeded`。
+/// 各功能的錯誤(`HerdrError`、`HostUploadError`、`HostFolderError`)把它包成自己的 `deadlineExceeded`。
 public enum HostCommandError: Error, Equatable {
     case deadlineExceeded
 }

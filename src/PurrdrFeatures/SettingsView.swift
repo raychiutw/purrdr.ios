@@ -6,7 +6,7 @@ import UIKit
 import AppKit
 #endif
 
-/// 設定 sheet(#274,原型 purrdr-settings C):外觀、鍵盤與觸覺、支援、關於四段。
+/// 設定 sheet(#274,原型 purrdr-settings C):外觀、鍵盤與觸覺、App 鎖(#284)、支援、關於。
 /// 主機主題、You should know、Codex 啟動器在各主機的主機頁(作用在那台主機)。
 ///
 /// 會員、Purrdr Plus、通知與主機同步在帳號頁(聊天列表右上角的帳號鈕)。
@@ -16,13 +16,16 @@ public struct SettingsView: View {
     let attention: () -> Int
     /// 再看一次歡迎頁(#34;HIG Onboarding:跳過後在設定找得到)。
     let openWelcome: () -> Void
+    /// App 鎖(#284);`nil` 時不顯示。
+    let appLock: AppLock?
     let done: () -> Void
 
     public init(
         model: SettingsModel, attention: @escaping () -> Int = { 0 },
-        openWelcome: @escaping () -> Void = {}, done: @escaping () -> Void
+        openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil, done: @escaping () -> Void
     ) {
         self.model = model
+        self.appLock = appLock
         self.attention = attention
         self.openWelcome = openWelcome
         self.done = done
@@ -58,6 +61,10 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondaryText)
                 }
 
+                if let appLock {
+                    AppLockSettingsSection(lock: appLock)
+                }
+
                 Section {
                     Button("Show Welcome", systemImage: "hand.wave") { openWelcome() }
                         .accessibilityIdentifier("settings.welcome")
@@ -72,10 +79,6 @@ public struct SettingsView: View {
                         .accessibilityIdentifier("settings.copyDiagnostics")
                 } header: {
                     Text("Support")
-                        .foregroundStyle(.secondaryText)
-                } footer: {
-                    // 隱私揭露(複製的診斷資料包含什麼)保留;其他功能說明依原型拿掉(#276)。
-                    Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
                         .foregroundStyle(.secondaryText)
                 }
 
@@ -104,6 +107,8 @@ public struct SettingsView: View {
             }
         }
         .task { await model.load() }
+        // 使用者可能剛到系統設定加上或移除裝置密碼。
+        .task { appLock?.refreshAvailability() }
     }
 
     private var herdrVersionText: Text {
