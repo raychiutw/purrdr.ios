@@ -6,11 +6,6 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
-    "%@" : {
-      "extractionState" : "manual",
-      "shouldTranslate" : false,
-      "localizations" : {}
-    },
     "%@ Details" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -40,17 +35,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 用 HTTPS 連線。請改選 SSH 主機查詢方案用量。"
-          }
-        }
-      }
-    },
-    "%@ effort" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ effort"
           }
         }
       }
@@ -203,17 +187,6 @@
         }
       }
     },
-    "%d failed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 個失敗"
-          }
-        }
-      }
-    },
     "%lld agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -324,17 +297,6 @@
         }
       }
     },
-    "%lld notes for you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 則註記"
-          }
-        }
-      }
-    },
     "%lld of %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -379,13 +341,13 @@
         }
       }
     },
-    "%lld terminals" : {
+    "%lld steps" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 個終端機"
+            "value" : "%lld 個步驟"
           }
         }
       }
@@ -538,24 +500,13 @@
         }
       }
     },
-    "1 note for you" : {
+    "1 step" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1 則註記"
-          }
-        }
-      }
-    },
-    "1 terminal" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 個終端機"
+            "value" : "1 個步驟"
           }
         }
       }
@@ -665,17 +616,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關於"
-          }
-        }
-      }
-    },
-    "Accept Edits" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動接受編輯"
           }
         }
       }
@@ -1033,39 +973,6 @@
         }
       }
     },
-    "Ask Every Time" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每次都詢問"
-          }
-        }
-      }
-    },
-    "Asked %d questions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "問了 %d 個問題"
-          }
-        }
-      }
-    },
-    "Asked 1 question" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "問了 1 個問題"
-          }
-        }
-      }
-    },
     "Attached image %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1073,17 +980,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "附加的第 %lld 張圖片"
-          }
-        }
-      }
-    },
-    "Auto" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自動"
           }
         }
       }
@@ -1139,28 +1035,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "內建"
-          }
-        }
-      }
-    },
-    "Called %d tools" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "呼叫了 %d 個工具"
-          }
-        }
-      }
-    },
-    "Called 1 tool" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "呼叫了 1 個工具"
           }
         }
       }
@@ -1539,39 +1413,6 @@
         }
       }
     },
-    "Claude Code asks before every tool it uses." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude Code 每次使用工具前都會詢問。"
-          }
-        }
-      }
-    },
-    "Claude Code decides which actions are safe to run without asking." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "由 Claude Code 判斷哪些動作安全、可以不詢問直接執行。"
-          }
-        }
-      }
-    },
-    "Claude Code edits files without asking, and asks before running commands." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude Code 編輯檔案時不詢問，執行指令前會詢問。"
-          }
-        }
-      }
-    },
     "Claude Code hasn’t reported plan usage yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1579,17 +1420,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Claude Code 還沒回報方案用量"
-          }
-        }
-      }
-    },
-    "Claude Code only plans. It doesn’t edit files or run commands." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude Code 只做規劃，不編輯檔案也不執行指令。"
           }
         }
       }
@@ -1605,17 +1435,6 @@
         }
       }
     },
-    "Claude Code runs commands and edits files without ever asking. Use this only in folders you trust." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude Code 執行指令與編輯檔案都完全不詢問。只在你信任的資料夾使用。"
-          }
-        }
-      }
-    },
     "Claude Code shares plan usage only with its status line. To show it here, Purrdr will change ~/.claude/settings.json on this host as the user “%@”: the status line command becomes ~/.purrdr/claude-usage/statusline.sh, which saves the usage and then runs your current status line. Turning this off restores your original settings." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1623,17 +1442,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Claude Code 只把方案用量交給它的 status line。為了在這裡顯示，Purrdr 會以使用者「%@」修改這台主機上的 ~/.claude/settings.json:status line 指令改成 ~/.purrdr/claude-usage/statusline.sh,它先存下方案用量，再執行你原本的 status line。關閉後會還原你原本的設定。"
-          }
-        }
-      }
-    },
-    "Claude Code uses the permission settings it already has on this host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude Code 沿用它在這台主機上既有的權限設定。"
           }
         }
       }
@@ -1649,13 +1457,13 @@
         }
       }
     },
-    "Claude Code’s Settings" : {
+    "Clear Search" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "沿用 Claude Code 的設定"
+            "value" : "清除搜尋"
           }
         }
       }
@@ -1818,17 +1626,6 @@
         }
       }
     },
-    "Codex reports its session after you send the first message." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Codex 在你送出第一則訊息後才會回報 session。"
-          }
-        }
-      }
-    },
     "Codex reports its session after you send the first message. Its messages appear here once it does." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1847,17 +1644,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這些數字是 Codex 回報的，屬於這台主機上 Codex 登入的 ChatGPT 方案。"
-          }
-        }
-      }
-    },
-    "Collapsed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已收合"
           }
         }
       }
@@ -2984,13 +2770,13 @@
         }
       }
     },
-    "Edited %d files" : {
+    "Edited %lld files" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "編輯了 %d 個檔案"
+            "value" : "已修改 %lld 個檔案"
           }
         }
       }
@@ -3105,17 +2891,6 @@
         }
       }
     },
-    "Expanded" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已展開"
-          }
-        }
-      }
-    },
     "Expired" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3145,28 +2920,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回答 Agent 時，以及回答是否送達時，會感覺到輕觸。"
-          }
-        }
-      }
-    },
-    "Fetched %d pages" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "擷取了 %d 個網頁"
-          }
-        }
-      }
-    },
-    "Fetched 1 page" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "擷取了 1 個網頁"
           }
         }
       }
@@ -3215,17 +2968,6 @@
         }
       }
     },
-    "Files travel over the same SSH connection. Uploads are limited to 25 MB per file and never replace an existing file." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檔案走同一條 SSH 連線傳送。上傳每個檔案上限 25 MB,且絕不會取代既有的檔案。"
-          }
-        }
-      }
-    },
     "Fill In" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3244,6 +2986,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "指紋"
+          }
+        }
+      }
+    },
+    "First Message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一則訊息"
           }
         }
       }
@@ -3336,17 +3089,6 @@
         }
       }
     },
-    "Full Access" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "完全存取"
-          }
-        }
-      }
-    },
     "Game Console" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3387,17 +3129,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 需要你時通知"
-          }
-        }
-      }
-    },
-    "Go to Chat" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前往聊天"
           }
         }
       }
@@ -3475,6 +3206,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Home"
+          }
+        }
+      }
+    },
+    "Home Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家目錄"
           }
         }
       }
@@ -5074,17 +4816,6 @@
         }
       }
     },
-    "Optional. Uses the folder name." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選填，預設使用資料夾名稱"
-          }
-        }
-      }
-    },
     "Options above 9 can’t be entered from here. Answer them in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5305,17 +5036,6 @@
         }
       }
     },
-    "Permissions" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "權限"
-          }
-        }
-      }
-    },
     "Photo Library" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5345,17 +5065,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已釘選"
-          }
-        }
-      }
-    },
-    "Plan Only" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只規劃"
           }
         }
       }
@@ -5745,28 +5454,6 @@
         }
       }
     },
-    "Ran %d commands" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行了 %d 個指令"
-          }
-        }
-      }
-    },
-    "Ran 1 command" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行了 1 個指令"
-          }
-        }
-      }
-    },
     "Rate Purrdr" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5785,28 +5472,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "讀取"
-          }
-        }
-      }
-    },
-    "Read %d files" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "讀取了 %d 個檔案"
-          }
-        }
-      }
-    },
-    "Read 1 file" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "讀取了 1 個檔案"
           }
         }
       }
@@ -6192,28 +5857,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋"
-          }
-        }
-      }
-    },
-    "Searched %d times" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋了 %d 次"
-          }
-        }
-      }
-    },
-    "Searched 1 time" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋了 1 次"
           }
         }
       }
@@ -6647,6 +6290,17 @@
         }
       }
     },
+    "Shows this tab’s layout." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示這個 Tab 的版面。"
+          }
+        }
+      }
+    },
     "Sign In" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7054,17 +6708,6 @@
         }
       }
     },
-    "Swipe a row left or right to pin, mute, rename, or close." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "左右滑動列可釘選、靜音、重新命名或關閉。"
-          }
-        }
-      }
-    },
     "Sync Host List" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7237,17 +6880,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終端機輸入"
-          }
-        }
-      }
-    },
-    "Terminals %lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "終端機 %lld"
           }
         }
       }
@@ -7446,28 +7078,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 正在工作，回覆會顯示在這裡。"
-          }
-        }
-      }
-    },
-    "The agent starts in this folder on the host, in a new workspace." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 會在主機上的這個資料夾、以新的 Workspace 啟動。"
-          }
-        }
-      }
-    },
-    "The agent uses its own settings on the host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 會沿用它在主機上的設定。"
           }
         }
       }
@@ -8517,28 +8127,6 @@
         }
       }
     },
-    "Thought %d times" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "思考了 %d 次"
-          }
-        }
-      }
-    },
-    "Thought 1 time" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "思考了 1 次"
-          }
-        }
-      }
-    },
     "Tilde" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8946,17 +8534,6 @@
         }
       }
     },
-    "Updated todos" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更新了待辦事項"
-          }
-        }
-      }
-    },
     "Updating herdr on %@…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9254,6 +8831,17 @@
         }
       }
     },
+    "What should the agent do?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要 Agent 做什麼?"
+          }
+        }
+      }
+    },
     "When off, Return adds a new line. Command-Return always sends, and Shift-Return always adds a new line." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9426,17 +9014,6 @@
     "You should know" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
-    },
-    "You: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你:%@"
-          }
-        }
-      }
     },
     "Your Purrdr Plus subscription has ended. Notifications and host sync are paused until you subscribe again. Chat and terminal keep working." : {
       "extractionState" : "manual",
