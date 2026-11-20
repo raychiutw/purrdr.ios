@@ -4788,6 +4788,17 @@
         }
       }
     },
+    "Notifications On · Other devices here: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已開啟 · 另有 %lld 支裝置在這台開啟通知"
+          }
+        }
+      }
+    },
     "Notifications and host sync need Purrdr Plus. Activate it next." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4894,6 +4905,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未開啟 · 透過 SSH 安裝"
+          }
+        }
+      }
+    },
+    "Off · Other devices here: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟 · 另有 %lld 支裝置在這台開啟通知"
           }
         }
       }
@@ -5723,13 +5745,13 @@
         }
       }
     },
-    "Purrdr will run “herdr plugin install” on this host as %@ and save a pairing key in ~/.purrdr. Turning notifications off removes both." : {
+    "Purrdr will run “herdr plugin install” on this host as %@ and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存一把配對密鑰。關閉通知時兩者都會移除。"
+            "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存這支裝置的配對密鑰。關閉通知只移除這支裝置的配對，最後一支裝置關閉時才移除外掛。"
           }
         }
       }
@@ -5939,17 +5961,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要從這部裝置移除「%@」嗎？"
-          }
-        }
-      }
-    },
-    "Removing the plugin…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在移除主機外掛…"
           }
         }
       }
@@ -7395,6 +7406,17 @@
         }
       }
     },
+    "The Purrdr plugin is already on this host. Purrdr will save a pairing key for this device in ~/.purrdr as %@. Turning notifications off removes only this device’s pairing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已裝好 Purrdr 外掛。Purrdr 會以 %@ 身分在 ~/.purrdr 存這支裝置的配對密鑰。關閉通知只移除這支裝置的配對。"
+          }
+        }
+      }
+    },
     "The Tailscale sign-in wasn’t finished in time. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8777,6 +8799,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要現在開啟通知和主機同步嗎？之後也可以在這裡開關。"
+          }
+        }
+      }
+    },
+    "Turning off notifications…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在關閉通知…"
           }
         }
       }

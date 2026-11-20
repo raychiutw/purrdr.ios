@@ -7,7 +7,7 @@ import PurrdrTestSupport
 import Testing
 
 /// 推播開關(行為規格 F14、ADR-0004):權限只在打開時請求、要有 Purrdr Plus、經 SSH 安裝外掛並建立推播配對，
-/// 關閉時移除外掛與設定並撤銷配對。
+/// 關閉時移除這支裝置的配對並撤銷，最後一支裝置關閉才移除外掛(#264)。
 ///
 /// Seam:主機是 `LocalShellHost`(暫存家目錄、真的 `/bin/sh`,herdr 換成 `FakeHerdrPluginCLI`);
 /// 後台是 `HTTPStub`(回應依 raychiutw/purrdr.server 的 README.md 契約手寫);通知權限與 APNs token 是 `FakePushPlatform`。
@@ -32,10 +32,10 @@ struct PushModelTests {
         platform.token = Self.token
     }
 
-    func service(plusActive: Bool = true) -> PushService {
+    func service(plusActive: Bool = true, store: (any PushPairingStore)? = nil) -> PushService {
         PushService(
             session: MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens),
-            platform: platform, store: store,
+            platform: platform, store: store ?? self.store,
             configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
             isPlusActive: { plusActive })
     }
@@ -293,6 +293,89 @@ struct PushModelTests {
         #expect(model.state == .off)
         #expect(pluginHost.pairing(deviceID: store.deviceID) == nil)
         #expect(!pluginHost.pluginInstalled)
+    }
+
+    // MARK: - 多支裝置共用一台主機(#264)
+
+    /// 另一支裝置(自己的裝置 id 與配對紀錄)在同一台假主機上的開關。
+    func otherDeviceModel(_ pluginHost: FakePushPluginHost, deviceID: String) -> PushModel {
+        PushModel(
+            service: service(store: InMemoryPushPairingStore(deviceID: deviceID)), hostID: "studio",
+            installer: pluginHost.installer(deviceID: deviceID), muted: { [] })
+    }
+
+    @Test("兩支裝置同主機都開：關一支另一支仍開、外掛還在;最後一支關閉外掛才移除")
+    func twoDevicesShareOneHost() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
+        platform.status = .authorized
+        let pluginHost = FakePushPluginHost()
+        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let pad = otherDeviceModel(pluginHost, deviceID: "fedcba9876543210")
+
+        await turnOn(phone)
+        await turnOn(pad)
+        #expect(pluginHost.calls.filter { $0.hasPrefix("install") }.count == 2)
+
+        await phone.turnOff()
+
+        #expect(phone.state == .off)
+        #expect(pad.state == .on)
+        #expect(pluginHost.pairing(deviceID: store.deviceID) == nil)
+        #expect(pluginHost.pairing(deviceID: "fedcba9876543210") != nil)
+        #expect(pluginHost.pluginInstalled)
+
+        await pad.turnOff()
+
+        #expect(!pluginHost.pluginInstalled)
+    }
+
+    @Test("關閉只撤銷這支裝置的後台配對")
+    func turningOffRevokesOnlyThisDevicesPairing() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
+        platform.status = .authorized
+        let pluginHost = FakePushPluginHost()
+        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        let pad = otherDeviceModel(pluginHost, deviceID: "fedcba9876543210")
+        await turnOn(phone)
+        await turnOn(pad)
+        let phoneHash = try #require(pluginHost.pairing(deviceID: store.deviceID)?.key.hash)
+        let padHash = try #require(pluginHost.pairing(deviceID: "fedcba9876543210")?.key.hash)
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(phoneHash)", .empty(204))
+
+        await phone.turnOff()
+
+        #expect(backend.requests(to: "/v1/members/me/push-pairings/\(phoneHash)").count == 1)
+        #expect(backend.requests(to: "/v1/members/me/push-pairings/\(padHash)").isEmpty)
+    }
+
+    @Test("另一支裝置已開：查狀態後顯示另有幾支裝置，確認時知道外掛已裝")
+    func showsOtherDevicesOnHost() async throws {
+        platform.status = .authorized
+        let pluginHost = FakePushPluginHost()
+        try await pluginHost.installer(deviceID: "fedcba9876543210").install(
+            PushPairingFile(endpoint: Self.endpoint, key: .generate(), muted: []))
+        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+        #expect(phone.otherDevices == 0)
+
+        await phone.refreshStatus()
+        #expect(phone.otherDevices == 1)
+
+        await phone.requestOn()
+        #expect(phone.state == .confirming(user: pluginHost.user))
+        #expect(phone.pluginAlreadyInstalled)
+    }
+
+    @Test("查狀態失敗：維持原本的狀態，不顯示錯誤")
+    func refreshStatusFailureIsQuiet() async {
+        let pluginHost = FakePushPluginHost()
+        pluginHost.setStatusFailure(.pluginListFailed("herdr server is not running"))
+        let phone = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+
+        await phone.refreshStatus()
+
+        #expect(phone.otherDevices == 0)
+        #expect(phone.problem == nil)
+        #expect(phone.state == .off)
     }
 
     @Test("每台主機各自一個推播狀態，不綁選取中主機")

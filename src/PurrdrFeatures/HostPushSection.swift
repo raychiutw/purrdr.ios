@@ -3,7 +3,8 @@ import SwiftUI
 
 /// 帳號頁的「通知」區塊(#263,spec #261 原型 A):每台主機一列，開關只管那台。
 ///
-/// 打開時才請求通知權限，確認後安裝主機外掛並建立推播配對;關閉時移除。不能開的主機寫出原因。
+/// 打開時才請求通知權限，確認後建立這支裝置的推播配對(外掛還沒裝才安裝);關閉只移除這支裝置的配對，
+/// 最後一支裝置關閉才移除外掛(#264)。不能開的主機寫出原因。
 struct HostPushSection: View {
     let pushes: [HostPush]
     /// 沒有 Purrdr Plus 時開付費牆。
@@ -54,6 +55,10 @@ private struct HostPushRow: View {
             .accessibilityValue(isOnOrPending ? Text("Notifications On") : Text("Notifications Off"))
             .accessibilityIdentifier("account.push.\(push.host.storedValue)")
         }
+        .task {
+            // 只查已開啟的主機：未開啟的不為了顯示裝置數另開連線。
+            if push.support == .supported, model.state == .on { await model.refreshStatus() }
+        }
     }
 
     @ViewBuilder
@@ -66,9 +71,13 @@ private struct HostPushRow: View {
         case .supported:
             switch model.state {
             case .on:
-                Text("Notifications On")
+                if model.otherDevices > 0 {
+                    Text("Notifications On · Other devices here: \(model.otherDevices)")
+                } else {
+                    Text("Notifications On")
+                }
             case .turningOff:
-                Text("Removing the plugin…")
+                Text("Turning off notifications…")
             case .checking, .confirming, .turningOn:
                 Text("Setting up notifications…")
             case .off:
@@ -78,6 +87,8 @@ private struct HostPushRow: View {
                     } icon: {
                         Image(systemName: "exclamationmark.triangle")
                     }
+                } else if model.otherDevices > 0 {
+                    Text("Off · Other devices here: \(model.otherDevices)")
                 } else {
                     Text("Off · Installs over SSH")
                 }
@@ -156,7 +167,7 @@ struct PushProblemRow: View {
 }
 
 extension View {
-    /// 開某台主機的通知前確認安裝外掛;對話框寫出主機名稱。
+    /// 開某台主機的通知前確認;對話框寫出主機名稱，外掛已裝時說明只新增這支裝置的配對。
     func hostPushConfirmation(_ pushes: [HostPush]) -> some View {
         let confirming = pushes.first { $0.model.confirmingUser != nil }
         return alert(
@@ -168,7 +179,12 @@ extension View {
                 .accessibilityIdentifier("settings.push.install")
             Button("Cancel", role: .cancel) { push.model.cancel() }
         } message: { push in
-            Text("Purrdr will run “herdr plugin install” on this host as \(push.model.confirmingUser ?? "") and save a pairing key in ~/.purrdr. Turning notifications off removes both.")
+            let user = push.model.confirmingUser ?? ""
+            if push.model.pluginAlreadyInstalled {
+                Text("The Purrdr plugin is already on this host. Purrdr will save a pairing key for this device in ~/.purrdr as \(user). Turning notifications off removes only this device’s pairing.")
+            } else {
+                Text("Purrdr will run “herdr plugin install” on this host as \(user) and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off.")
+            }
         }
     }
 }

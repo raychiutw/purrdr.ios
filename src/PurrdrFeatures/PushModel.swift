@@ -178,7 +178,7 @@ public final class PushService {
 ///
 /// 打開：Purrdr Plus → 通知權限(只有這裡會跳系統對話框)→ APNs token → 檢查主機並請使用者確認(以哪個使用者安裝)
 /// → 產生配對密鑰、向後台註冊雜湊 → 經推播外掛安裝寫配對並安裝主機外掛。主機失敗就撤銷剛註冊的配對。
-/// 關閉：移除主機上的配對(最後一支裝置時連外掛)→ 撤銷後台配對。
+/// 關閉：移除主機上這支裝置的配對(最後一支裝置時連外掛)→ 撤銷這支裝置的後台配對。
 @MainActor
 @Observable
 public final class PushModel {
@@ -206,6 +206,10 @@ public final class PushModel {
 
     public private(set) var state: State = .off
     public var problem: Problem?
+    /// 這台主機上另外幾支裝置開著通知(上次查狀態的結果;不列出是哪些裝置)。
+    public private(set) var otherDevices = 0
+    /// 上次查狀態時主機外掛已裝(別的裝置或使用者裝的):開啟只新增這支裝置的配對。
+    public private(set) var pluginAlreadyInstalled = false
 
     private let service: PushService?
     private let hostID: String?
@@ -253,7 +257,9 @@ public final class PushModel {
             return stop(.unsupportedDevice(error.localizedDescription))
         }
         do {
-            state = .confirming(user: try await installer.status().user)
+            let status = try await installer.status()
+            record(status)
+            state = .confirming(user: status.user)
         } catch {
             stop(.failed(Self.describe(error)))
         }
@@ -290,7 +296,7 @@ public final class PushModel {
         state = .on
     }
 
-    /// 使用者關閉開關：移除主機上的配對與外掛，撤銷後台配對。主機連不上時維持開啟並說明。
+    /// 使用者關閉開關：移除主機上這支裝置的配對(最後一支才連外掛),撤銷後台配對。主機連不上時維持開啟並說明。
     public func turnOff() async {
         guard state == .on, let service, let installer, let hostID else { return }
         problem = nil
@@ -311,6 +317,17 @@ public final class PushModel {
         }
         service.store.setKeyHash(nil, forHost: hostID)
         state = .off
+    }
+
+    /// 查這台主機的推播狀態(另有幾支裝置開著)。查不到就維持上次的結果，不顯示錯誤。
+    public func refreshStatus() async {
+        guard let installer, hostID != nil, let status = try? await installer.status() else { return }
+        record(status)
+    }
+
+    private func record(_ status: PushPluginStatus) {
+        otherDevices = status.otherPairedDevices
+        pluginAlreadyInstalled = status.pluginInstalled
     }
 
     /// 靜音清單改了：推播開著時改寫主機上的配對檔(iOS 在 app 能攔截前就顯示推播，靜音只能在主機端生效)。
