@@ -268,7 +268,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testSignIn() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            app.tapToolbarItem("toolbar.account", overflowLabel: "Account")
+            app.openAccount()
             XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10))
             try audit(app, "帳號", contentSize: size)
             app.buttons["account.plusSetup.action"].tap()

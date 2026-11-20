@@ -141,7 +141,6 @@ public final class HostsModel {
     ///   - preferences: 釘選、靜音等本機偏好(依主機分開：同一個 session 值在不同主機是不同的聊天)。
     ///   - hostIcons: 使用者替主機選的圖示。
     ///   - selectionStore: 選取中主機的存放處。
-    ///   - swipeHint: 列表滑動提示是否已經不用再顯示(使用者用過滑動面板的動作)。
     ///   - listMode: 列表檢視(Spaces／Agents)的存放處。
     ///   - credentials: OpenSSH 主機的祕密與這支裝置的金鑰。
     ///   - demoCompanions: Demo 的示範主機(#34);Demo 主機出現在列表時一起出現。
@@ -162,13 +161,12 @@ public final class HostsModel {
         hostServiceUpdates: HostServiceUpdates = HostServiceUpdates(store: InMemoryHostServiceUpdateStore()),
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
-        swipeHint: any SwipeHintStore = InMemorySwipeHintStore(),
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.store = store
-        agentList = MergedAgentListModel(swipeHint: swipeHint, modeStore: listMode)
+        agentList = MergedAgentListModel(modeStore: listMode)
         self.selectionStore = selectionStore
         self.planUsageSelection = planUsageSelection
         self.hostPickerStore = hostPickerStore

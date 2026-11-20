@@ -25,11 +25,6 @@ public struct AgentListView: View {
     /// 把 Agent 對話或終端機開在新視窗(支援多視窗時才有)。
     private let openInNewWindow: ((PaneWindow.Kind, AgentRow) -> Void)?
     @FocusState private var searchFocused: Bool
-    @State private var showingNotes = false
-    /// 列表第一列的大標題已經捲到導覽列底下(這時改顯示導覽列的小標題)。
-    @State private var largeTitleScrolledAway = false
-    /// 大標題那一列的高度(AX 字級會換行變高);捲過一半就算收合。
-    @State private var largeTitleHeight: CGFloat = 52
     /// 主機連線狀態行用的現在時間(有主機在連線時每秒更新，換成「仍在連線」)。
     @State private var now = Date()
 
@@ -78,12 +73,10 @@ public struct AgentListView: View {
                     }
             }
         }
-        // 標題是目前檢視名;大標題與其下的 Agents／Spaces 分段切換畫在列表第一列(#244)。
-        // iOS 26 的 `ToolbarItem(placement: .largeTitle)` 不在 accessibility tree、也不接觸控(#66 實測),所以不用系統大標題;
-        // 第一列在畫面上時以 `toolbar(removing: .title)` 收起小標題，捲上去後小標題(含標題選單)回來。
+        // 沒有大標題、也沒有標題選單(#268):導覽列只有主機篩選、「⋯」與帳號，檢視切換只用列表第一列的分段控制。
+        // 標題仍設定，給返回鈕與 VoiceOver 用，只是不畫在導覽列上。
         .navigationTitle(model.mode.title)
-        .toolbarTitleMenu { AgentListModePicker(mode: $model.mode) }
-        .toolbar(removing: showsLargeTitle ? .title : nil)
+        .toolbar(removing: .title)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -99,21 +92,10 @@ public struct AgentListView: View {
                 try? await Task.sleep(for: .seconds(1))
             }
         }
-        .sheet(isPresented: $showingNotes) {
-            YouShouldKnowListView(entries: model.notes) { model.openedChat = $0 }
-        }
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
             guard scenePhase == .active else { return }
             // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
             await model.run()
-        }
-    }
-
-    /// 列表第一列的大標題在畫面上(列表與載入中的骨架有;錯誤、離線、空狀態沿用導覽列的小標題與標題選單)。
-    private var showsLargeTitle: Bool {
-        switch model.content {
-        case .list, .loading: !largeTitleScrolledAway
-        default: false
         }
     }
 
@@ -192,7 +174,7 @@ public struct AgentListView: View {
     /// 第一次載入、還沒有任何列：大標題、各主機的連線狀態與列表骨架(不整頁轉圈,#221)。
     private var loadingList: some View {
         List {
-            largeTitleRow
+            modeRow
             hostStatusRows
             Section {
                 ForEach(0..<3, id: \.self) { index in
@@ -206,11 +188,6 @@ public struct AgentListView: View {
         .listStyle(.insetGrouped)
         #endif
         .contentMargins(.top, 0, for: .scrollContent)
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top > largeTitleHeight / 2
-        } action: { _, scrolledAway in
-            largeTitleScrolledAway = scrolledAway
-        }
         .accessibilityIdentifier("agentList.loading")
     }
 
@@ -241,35 +218,25 @@ public struct AgentListView: View {
             // split view 的內容欄：列是選取(持續高亮，HIG 20.9);獨立的 NavigationStack 裡則是推入。
             if window != nil {
                 List(selection: selection) {
-                    largeTitleRow
+                    modeRow
                     hostStatusRows
-                    notesRow
                     listRows(sections)
                 }
                 .environment(\.selectedChatRoute, window?.selectedChat)
             } else {
                 List {
-                    largeTitleRow
+                    modeRow
                     hostStatusRows
-                    notesRow
                     listRows(sections)
                 }
             }
         }
-        .environment(\.swipeHintList, model)
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
         .contentMargins(.top, 0, for: .scrollContent)
-        // 大標題捲過一半到導覽列底下，就換成導覽列的小標題(同系統大標題的收合)。
-        .onScrollGeometryChange(for: Bool.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top > largeTitleHeight / 2
-        } action: { _, scrolledAway in
-            largeTitleScrolledAway = scrolledAway
-        }
         // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。
         .id(model.mode)
-        .onChange(of: model.mode) { largeTitleScrolledAway = false }
         .overlay {
             if (model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty), !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
                 ContentUnavailableView(
@@ -286,41 +253,36 @@ public struct AgentListView: View {
             case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: host, paneID: paneID)
             }
         }
-        .searchable(text: $model.query, prompt: Text("Search"))
-        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點。
-        .searchFocused($searchFocused)
+        // Command-F(#31):視窗的導覽狀態要求搜尋欄取得焦點(搜尋欄只在 Agents 檢視，要求時先換過去)。
         .onChange(of: window?.isSearchFocused ?? false) { _, focused in
-            if focused { searchFocused = true }
+            guard focused else { return }
+            model.mode = .agents
+            searchFocused = true
         }
         .onChange(of: searchFocused) { _, focused in
             if !focused { window?.isSearchFocused = false }
         }
-        .autocorrectionDisabled()
-        #if os(iOS)
-        .textInputAutocapitalization(.never)
-        #endif
     }
 
-    /// 列表第一列：大標題與 Agents／Spaces 分段切換(#244)。
-    private var largeTitleRow: some View {
+    /// 列表第一列(#268,原型 purrdr-screens 定案版):Agents／Spaces 分段控制;Agents 檢視下方接著搜尋欄。
+    /// 沒有大標題。Spaces 檢視沒有搜尋(切過去時清掉搜尋字，不留看不見的篩選)。
+    private var modeRow: some View {
         Section {
-            AgentListLargeTitle(mode: $model.mode)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { largeTitleHeight = $0 }
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            VStack(spacing: 10) {
+                AgentListModeControl(mode: $model.mode)
+                if model.mode == .agents {
+                    AgentListSearchField(query: $model.query, focused: $searchFocused)
+                }
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
         }
         #if os(iOS)
-        // 跟系統大標題一樣貼著導覽列、跟下面的內容只隔一般間距(inset grouped 第一個 section 上方預設有一大段空白)。
+        // 貼著導覽列、跟下面的內容只隔一般間距(inset grouped 第一個 section 上方預設有一大段空白)。
         .listSectionSpacing(.compact)
         #endif
-    }
-
-    /// 列表最上方一行「✦ N 則註記」(#37 故事 49):所有主機、只算列表裡有的 Claude 聊天。
-    @ViewBuilder
-    private var notesRow: some View {
-        let count = model.notes.count
-        if count > 0 {
-            Section { YouShouldKnowListRow(count: count) { showingNotes = true } }
+        .onChange(of: model.mode) { _, mode in
+            if mode == .spaces { model.query = "" }
         }
     }
 
@@ -361,15 +323,6 @@ public struct AgentListView: View {
                     .accessibilityIdentifier("agentList.retry")
             } header: {
                 Text("Connection Lost")
-            }
-        }
-        if model.showsSwipeHint, !(model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty) {
-            // 第一次用滑動面板的動作之前，列表底部提示有哪些滑動動作(行為規格 F2.7)。
-            Section {
-                Label("Swipe a row left or right to pin, mute, rename, or close.", systemImage: "hand.draw")
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityIdentifier("agentList.swipeHint")
             }
         }
     }

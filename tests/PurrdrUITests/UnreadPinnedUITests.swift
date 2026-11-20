@@ -11,28 +11,6 @@ final class UnreadPinnedUITests: XCTestCase {
         app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
     }
 
-    /// 滑動提示在列表底部，第一次用了滑動面板的動作後消失(列出現在畫面上不算)。
-    @MainActor
-    func testSwipeHintDisappearsAfterFirstSwipe() {
-        let app = XCUIApplication.launchUITesting()
-        let ledger = row("w1:p1", in: app)
-        XCTAssertTrue(app.reveal(ledger))
-        // 提示在列表最底下(Claude 用量之後);列表是 lazy,捲到底才在 accessibility tree 裡。
-        let hint = app.descendants(matching: .any)["agentList.swipeHint"].firstMatch
-        app.collectionViews.firstMatch.swipeUp()
-        XCTAssertTrue(hint.waitForExistence(timeout: 5), "列表底部沒有滑動提示")
-        app.collectionViews.firstMatch.swipeDown()
-        app.reveal(ledger)
-
-        ledger.swipeRight()
-        let pin = app.buttons["Pin"].firstMatch
-        XCTAssertTrue(pin.waitForExistence(timeout: 5))
-        pin.tap()
-        app.collectionViews.firstMatch.swipeUp()
-
-        XCTAssertTrue(hint.waitForNonExistence(timeout: 5), "用過滑動動作後提示仍在")
-    }
-
     /// 釘選後列移到最上方的「已釘選」組(在主機組之前),組標題帶數量，列念出「已釘選」。
     @MainActor
     func testPinnedRowMovesToPinnedSection() {

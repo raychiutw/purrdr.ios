@@ -61,11 +61,6 @@ struct WorkspaceRowContext {
     }
 }
 
-extension EnvironmentValues {
-    /// 用了滑動面板的動作時要通知的列表(滑動提示到此為止，行為規格 F2.7)。由列表注入。
-    @Entry var swipeHintList: MergedAgentListModel?
-}
-
 extension View {
     /// 列的滑動與 context menu(行為規格 F2.7)。context menu 頂端的動作與滑動相同;破壞性的「關閉」放最後。
     ///
@@ -103,7 +98,7 @@ extension View {
     }
 }
 
-/// 列與群組標頭共用的 workspace 動作按鈕。`used` 在按下時先呼叫(滑動面板用來結束滑動提示)。
+/// 列與群組標頭共用的 workspace 動作按鈕。
 @MainActor
 private struct WorkspaceButtons {
     let target: WorkspaceTarget
@@ -112,18 +107,16 @@ private struct WorkspaceButtons {
     let presentation: WorkspacePresentation
 
     /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
-    func rename(title: LocalizedStringKey, used: @escaping () -> Void = {}) -> some View {
+    func rename(title: LocalizedStringKey) -> some View {
         Button(title, systemImage: "pencil") {
-            used()
             presentation.host = host
             presentation.sheet = .rename(workspaceID: target.workspaceID, label: target.label)
         }
         .tint(.gray)
     }
 
-    func close(title: LocalizedStringKey, role: ButtonRole?, used: @escaping () -> Void = {}) -> some View {
+    func close(title: LocalizedStringKey, role: ButtonRole?) -> some View {
         Button(title, systemImage: "xmark.circle", role: role) {
-            used()
             presentation.host = host
             presentation.closeRequest = .init(workspaceID: target.workspaceID, label: target.label, sessionIDs: target.sessionIDs)
         }
@@ -153,23 +146,20 @@ private struct WorkspaceRowActions: ViewModifier {
     let presentation: WorkspacePresentation
     let snapshot: HostSnapshot?
     let openInNewWindow: ((PaneWindow.Kind) -> Void)?
-    @Environment(\.swipeHintList) private var swipeHintList
 
     func body(content: Content) -> some View {
         if let context, let actions {
             let buttons = WorkspaceButtons(target: context.workspace, host: host, snapshot: snapshot, presentation: presentation)
             content
                 // 列表是根畫面，沒有返回手勢的邊緣，leading 滑動是安全的。
-                // 滑動面板裡的動作被使用 = 使用者學會了滑動，列表的滑動提示到此為止(`used`;context menu 不算)。
-                // 面板「滑開」本身 SwiftUI 沒有訊號:面板按鈕的 onAppear 在列出現時就會觸發(UI 測試實測)。
                 .swipeActions(edge: .leading) {
-                    chatButtons(context, actions: actions, fromSwipe: true)
+                    chatButtons(context, actions: actions)
                 }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     // 滑動上不用 `.destructive` role:List 會在確認前就把列移走;以系統紅標示，確認對話框裡才是 destructive。
-                    buttons.close(title: "Close", role: nil, used: swiped)
+                    buttons.close(title: "Close", role: nil)
                         .tint(WorkspaceSwipeAction.close.tint.style)
-                    buttons.rename(title: "Workspace", used: swiped)
+                    buttons.rename(title: "Workspace")
                         .tint(WorkspaceSwipeAction.workspace.tint.style)
                 }
                 .contextMenu {
@@ -194,25 +184,19 @@ private struct WorkspaceRowActions: ViewModifier {
 
     /// 釘選、靜音:只在 Agent 有 session 時提供(聊天以 session 識別)。
     @ViewBuilder
-    private func chatButtons(_ context: WorkspaceRowContext, actions: WorkspaceActionsModel, fromSwipe: Bool = false) -> some View {
+    private func chatButtons(_ context: WorkspaceRowContext, actions: WorkspaceActionsModel) -> some View {
         if let sessionID = context.agent.sessionID {
             let pinned = actions.isPinned(sessionID: sessionID)
             Button(pinned ? "Unpin" : "Pin", systemImage: pinned ? "pin.slash" : "pin") {
-                if fromSwipe { swiped() }
                 actions.togglePin(sessionID: sessionID)
             }
             .tint(WorkspaceSwipeAction.pin.tint.style)
             let muted = actions.isMuted(sessionID: sessionID)
             Button(muted ? "Unmute" : "Mute", systemImage: muted ? "bell" : "bell.slash") {
-                if fromSwipe { swiped() }
                 actions.toggleMute(sessionID: sessionID)
             }
             .tint(WorkspaceSwipeAction.mute.tint.style)
         }
-    }
-
-    private func swiped() {
-        swipeHintList?.swipeActionUsed()
     }
 }
 

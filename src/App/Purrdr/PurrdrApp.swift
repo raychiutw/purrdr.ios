@@ -78,8 +78,6 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                // 滑動提示每次啟動都顯示(只在記憶體)。
-                swipeHint: InMemorySwipeHintStore(),
                 listMode: Self.uiTestingListMode(arguments),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
                 makeChannel: { endpoint, _, _ in
@@ -103,7 +101,7 @@ struct PurrdrApp: App {
                     deviceName: UIDevice.current.model,
                     appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
                 hostServiceUpdates: HostServiceUpdates(store: UserDefaultsHostServiceUpdateStore()),
-                push: push, tailscaleCheck: tailscaleCheck, swipeHint: UserDefaultsSwipeHintStore(),
+                push: push, tailscaleCheck: tailscaleCheck,
                 listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in
                 SSHHostChannel(

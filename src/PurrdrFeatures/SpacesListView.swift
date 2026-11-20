@@ -430,40 +430,50 @@ extension AgentListMode {
     }
 }
 
-/// 列表的大標題與其下的 Agents／Spaces 切換(#244):標題是目前檢視名，切換用分段控制。AX 字級時標題換行，不截斷。
-struct AgentListLargeTitle: View {
-    @Binding var mode: AgentListMode
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(mode.title)
-                .font(.largeTitle.bold())
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("agentList.title")
-            Picker("View", selection: $mode) {
-                ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("agentList.mode")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.bottom, 4)
-    }
-}
-
-/// 檢視選單的內容(目前那個打勾)。
-struct AgentListModePicker: View {
+/// 列表第一列的 Agents／Spaces 分段控制(#268):檢視切換只有這一個入口，沒有大標題、也不在任何選單裡。
+struct AgentListModeControl: View {
     @Binding var mode: AgentListMode
 
     var body: some View {
         Picker("View", selection: $mode) {
-            ForEach(AgentListMode.allCases, id: \.self) { mode in
+            ForEach([AgentListMode.agents, .spaces], id: \.self) { mode in
                 Text(mode.title).tag(mode)
             }
         }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("agentList.mode")
+    }
+}
+
+/// Agents 檢視的搜尋欄(#268):放在分段控制下方(原型 purrdr-screens 定案版),不用 `.searchable`(iOS 26 會放到底部工具列)。
+struct AgentListSearchField: View {
+    @Binding var query: String
+    var focused: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondaryText)
+                .accessibilityHidden(true)
+            TextField("Search", text: $query)
+                .focused(focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+                .accessibilityIdentifier("agentList.search")
+            if !query.isEmpty {
+                Button("Clear Search", systemImage: "xmark.circle.fill") { query = "" }
+                    .labelStyle(.iconOnly)
+                    .foregroundStyle(.secondaryText)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+                    .accessibilityIdentifier("agentList.search.clear")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 44)
+        .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 10))
     }
 }

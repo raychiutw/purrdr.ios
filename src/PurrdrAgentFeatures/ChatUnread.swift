@@ -59,38 +59,3 @@ package enum ChatUnread {
         }
     }
 }
-
-// MARK: - 滑動提示
-
-/// 「使用者已經用過滑動面板的動作」的本機紀錄(滑動提示只到第一次為止，行為規格 F2.7)。
-@MainActor
-public protocol SwipeHintStore: AnyObject {
-    var isDismissed: Bool { get }
-    func dismiss()
-}
-
-/// 只在記憶體：測試與 UI 測試用(每次啟動都顯示提示)。
-@MainActor
-public final class InMemorySwipeHintStore: SwipeHintStore {
-    public private(set) var isDismissed: Bool
-
-    public init(isDismissed: Bool = false) { self.isDismissed = isDismissed }
-
-    public func dismiss() { isDismissed = true }
-}
-
-/// 存在 `UserDefaults`(只在這支裝置)。
-@MainActor
-public final class UserDefaultsSwipeHintStore: SwipeHintStore {
-    private let defaults: UserDefaults
-    private let key: String
-
-    public init(defaults: UserDefaults = .standard, key: String = "swipeHintDismissed") {
-        self.defaults = defaults
-        self.key = key
-    }
-
-    public var isDismissed: Bool { defaults.bool(forKey: key) }
-
-    public func dismiss() { defaults.set(true, forKey: key) }
-}

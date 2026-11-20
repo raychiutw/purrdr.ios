@@ -71,23 +71,23 @@ final class IPadLayoutUITests: XCTestCase {
         return (Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
     }
 
-    /// 列表欄也是大標題(#66):在列表欄裡;下方的分段切換切到 Agents,群組消失(#244)。
+    /// 列表欄沒有大標題(#268):分段切換在列表欄裡，切到 Agents 群組消失(#244)。
     @MainActor
-    func testListColumnLargeTitleSwitchesView() {
+    func testListColumnModeControlSwitchesView() {
         let app = launchInLandscape()
         let card = element("workspace.group.demo/w3", in: app)
         XCTAssertTrue(app.reveal(card), "沒有看到 Spaces 檢視")
 
-        let title = app.listLargeTitle
-        XCTAssertTrue(title.waitForExistence(timeout: 5), "列表欄沒有大標題")
-        XCTAssertEqual(title.label, "Spaces")
+        let control = app.listModeControl
+        XCTAssertTrue(control.waitForExistence(timeout: 5), "列表欄沒有 Agents／Spaces 切換")
+        XCTAssertEqual(app.listModeSelection.label, "Spaces")
         let list = app.collectionViews.matching(NSPredicate(format: "identifier != %@", "sidebar")).firstMatch.frame
-        XCTAssertTrue(list.insetBy(dx: -1, dy: -1).contains(title.frame), "大標題不在列表欄:\(title.frame) 列表 \(list)")
-        XCTAssertGreaterThanOrEqual(title.frame.height, 34, "標題字不夠大:\(title.frame)")
+        XCTAssertTrue(list.insetBy(dx: -1, dy: -1).contains(control.frame), "切換不在列表欄:\(control.frame) 列表 \(list)")
+        XCTAssertFalse(app.staticTexts["agentList.title"].exists, "列表欄不該有大標題(#268)")
 
         app.switchListMode(to: "Agents")
         XCTAssertTrue(card.waitForNonExistence(timeout: 5), "沒有切到 Agents 檢視")
-        XCTAssertEqual(app.listLargeTitle.label, "Agents")
+        XCTAssertEqual(app.listModeSelection.label, "Agents")
     }
 
     /// 側欄選 workspace:列表只留那個 workspace 的 Agent;選「All Workspaces」回到全部。

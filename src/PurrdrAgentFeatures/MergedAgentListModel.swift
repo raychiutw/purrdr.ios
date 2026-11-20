@@ -108,9 +108,6 @@ public final class MergedAgentListModel {
     /// (行為規格 F2.6、F2.8)。以次數記：同一個聊天開在兩個視窗，關掉一個仍算開著。
     private var visibleCounts: [ChatRoute: Int] = [:]
     public var visibleChats: Set<ChatRoute> { Set(visibleCounts.keys) }
-    /// 列表底部的滑動操作提示：第一次用滑動面板的動作之前顯示(行為規格 F2.7)。
-    public private(set) var showsSwipeHint: Bool
-    private let swipeHint: any SwipeHintStore
     /// 列表檢視(Spaces／Agents);改了就存起來，重新啟動後沿用。兩種檢視共用搜尋、分組、已讀與釘選。
     /// 版面事件只在 Spaces 檢視訂閱(#40),所以換檢視時每台主機的即時更新跟著換訂閱。
     public var mode: AgentListMode {
@@ -151,9 +148,7 @@ public final class MergedAgentListModel {
 
     private var isSearching: Bool { !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-    public init(swipeHint: any SwipeHintStore = InMemorySwipeHintStore(), modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
-        self.swipeHint = swipeHint
-        showsSwipeHint = !swipeHint.isDismissed
+    public init(modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
         self.modeStore = modeStore
         // 未知或缺值(新安裝)一律是 Agents。
         mode = modeStore.load() ?? .agents
@@ -175,13 +170,6 @@ public final class MergedAgentListModel {
     private func markOpened(_ route: ChatRoute) {
         guard let session = snapshot(for: route.host)?.agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return }
         actions(for: route.host)?.markOpened(sessionID: session, seen: list(for: route.host)?.previews[route.paneID]?.date)
-    }
-
-    /// 使用者第一次用了滑動面板的動作：之後不再顯示提示(SwiftUI 沒有「面板滑開」的訊號，以第一次使用代替)。
-    public func swipeActionUsed() {
-        guard showsSwipeHint else { return }
-        showsSwipeHint = false
-        swipeHint.dismiss()
     }
 
     /// 需要處理的 workspace 數(導覽入口的數字;不設 app 圖示徽章)。

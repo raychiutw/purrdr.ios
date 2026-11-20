@@ -60,14 +60,17 @@ extension XCUIApplication {
 }
 
 extension XCUIApplication {
-    /// 聊天列表的大標題(目前檢視名，#244 起是靜態文字)。
-    var listLargeTitle: XCUIElement { staticTexts["agentList.title"].firstMatch }
+    /// 聊天列表的 Agents／Spaces 分段控制(#268:沒有大標題，檢視只看這裡)。
+    var listModeControl: XCUIElement { segmentedControls["agentList.mode"].firstMatch }
 
-    /// 點大標題下的 Agents／Spaces 分段切換(#244)。
+    /// 分段控制目前選到的檢視(「Agents」或「Spaces」)。
+    var listModeSelection: XCUIElement { listModeControl.buttons.matching(NSPredicate(format: "isSelected == true")).firstMatch }
+
+    /// 點 Agents／Spaces 分段控制(#244、#268)。
     @MainActor
     func switchListMode(to mode: String, file: StaticString = #filePath, line: UInt = #line) {
-        let control = segmentedControls["agentList.mode"].firstMatch
-        XCTAssertTrue(control.waitForExistence(timeout: 15), "大標題下沒有 Agents／Spaces 切換", file: file, line: line)
+        let control = listModeControl
+        XCTAssertTrue(control.waitForExistence(timeout: 15), "沒有 Agents／Spaces 切換", file: file, line: line)
         control.buttons[mode].tap()
     }
 
@@ -98,10 +101,26 @@ extension XCUIApplication {
     /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
     @MainActor
     func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
-        tapToolbarItem("toolbar.account", overflowLabel: "Account", file: file, line: line)
+        openAccount(file: file, line: line)
         let join = buttons["account.plusSetup.action"].firstMatch
         XCTAssertTrue(join.waitForExistence(timeout: 10), "帳號頁沒有「加入」", file: file, line: line)
         join.tap()
+    }
+
+    /// 開帳號頁：一般字級點右上角的帳號鈕;AX 字級時帳號併在「⋯」選單裡(#268)。
+    @MainActor
+    func openAccount(file: StaticString = #filePath, line: UInt = #line) {
+        let account = buttons["toolbar.account"].firstMatch
+        if account.waitForExistence(timeout: 5) {
+            account.tap()
+            return
+        }
+        let more = buttons["toolbar.more"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "工具列沒有帳號鈕也沒有「⋯」", file: file, line: line)
+        more.tap()
+        let item = buttons["menu.account"].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "「⋯」選單沒有帳號", file: file, line: line)
+        item.tap()
     }
 
     /// 點列表工具列右側的項目。AX 字級時系統把右側的「⋯」與帳號鈕收進工具列的溢出選單(More):
