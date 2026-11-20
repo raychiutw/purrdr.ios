@@ -1,0 +1,568 @@
+<title>Purrdr 待定畫面</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* PROTOTYPE(拋棄式，第 2 版 2026-11-20:已決定的標 ✓;#306、#307 加定案版;#309、#313 重畫，第 1 版內容在 old 欄位與 purrdr-pending-designs-v1.html):#298 系列與 #295、#313 的畫面選項。#t300-a 之類的 hash 切換票與版本;底部列 ← → 換版本、「選這個」記下選擇;#picks 彙整。
+   沿用 prototypes/green-brand/purrdr-screens.html 的色票：B 翡翠綠、需要你＝系統橙、按壓灰、頁面只放標題。 */
+:root{--page:#f2f2f7;--surface:#fff;--fg:#000;--secondary:#3c3c4399;--tertiary:#3c3c434d;--separator:#3c3c4329;--press:#e5e5ea;--fill:#7878801f;
+  --accent:#0b7a5c;--on-accent:#fff;--accent-soft:#0b7a5c1f;--orange:#ff9500;--orange-soft:#ff95001f;--red:#ff3b30;--red-soft:#ff3b301a;--gray:#8e8e93;
+  --add:#0b7a5c1a;--del:#ff3b301a;--bar-bg:#111;--bar-fg:#fff;--claude:#a8674a;--codex:#4b6683;--shade:#0006;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--press:#2c2c2e;--fill:#7878805c;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--orange:#ff9f0a;--orange-soft:#ff9f0a29;--red:#ff453a;--red-soft:#ff453a29;--add:#3ccf9e24;--del:#ff453a29;--bar-bg:#f2f2f7;--bar-fg:#000;--claude:#b87658;--codex:#5a7898;--shade:#000a;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--tertiary:#ebebf54d;--separator:#54545899;--press:#2c2c2e;--fill:#7878805c;
+  --accent:#3ccf9e;--on-accent:#000;--accent-soft:#3ccf9e29;--orange:#ff9f0a;--orange-soft:#ff9f0a29;--red:#ff453a;--red-soft:#ff453a29;--add:#3ccf9e24;--del:#ff453a29;--bar-bg:#f2f2f7;--bar-fg:#000;--claude:#b87658;--codex:#5a7898;--shade:#000a;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 120px}
+.wrap{max-width:1280px;margin:0 auto}
+header.top{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+header.top h1{font-size:22px;margin:0}
+.tickets{display:flex;gap:6px;flex-wrap:wrap}
+.tk{border:0;background:var(--surface);color:var(--fg);border-radius:999px;padding:7px 12px;font:inherit;font-size:14px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.tk.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+.tk .picked{font-size:12px;font-weight:700;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:1px 7px}
+.tk.on .picked{background:#fff3;color:inherit}
+.qbox{background:var(--surface);border-radius:14px;padding:14px 16px;margin-bottom:14px;display:flex;flex-direction:column;gap:6px}
+.qbox h2{margin:0;font-size:18px;text-wrap:balance}
+.qbox .q{color:var(--secondary)}
+.qbox .vn{font-weight:600;color:var(--accent)}
+.qbox ul{margin:2px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:2px}
+.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start}
+.phone{background:var(--page);border:1px solid var(--separator);border-radius:30px;overflow:hidden;min-width:0;display:flex;flex-direction:column;min-height:600px;position:relative}
+.phone>h3{font-size:12px;color:var(--secondary);margin:10px 16px 0;font-weight:500}
+.common{margin-top:22px}
+.common>h4{font-size:14px;margin:0 0 10px;color:var(--secondary);font-weight:600}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 4px;gap:8px;min-height:44px}
+.nav .t{font-weight:600;font-size:17px;text-align:center;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn{color:var(--accent);background:none;border:0;font:inherit;font-weight:500;padding:6px;cursor:pointer;white-space:nowrap}
+.btn.red{color:var(--red)}
+.circle{width:32px;height:32px;border-radius:50%;background:var(--fill);border:0;color:var(--fg);display:grid;place-items:center;cursor:pointer;flex:none;font:inherit}
+.large{font-size:30px;font-weight:700;padding:0 16px 8px}
+.sect{font-size:13px;color:var(--secondary);padding:12px 28px 6px;display:flex;align-items:center;gap:8px}
+.foot{font-size:13px;color:var(--secondary);padding:0 28px 10px;margin-top:-4px}
+.group{background:var(--surface);border-radius:12px;margin:0 12px 10px;overflow:hidden}
+.row{display:flex;align-items:center;gap:11px;padding:10px 14px;position:relative;cursor:pointer}
+.row+.row::before{content:"";position:absolute;top:0;left:var(--inset,58px);right:0;border-top:.5px solid var(--separator)}
+.row.plain{--inset:14px}
+.row:active{background:var(--press)}
+.main{flex:1;min-width:0}
+.tp{display:flex;align-items:baseline;gap:6px}
+.name{font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.time{font-size:13px;color:var(--secondary);flex:none;font-variant-numeric:tabular-nums}
+.prev{color:var(--secondary);font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.sub{font-size:13px;color:var(--secondary)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+.needs{background:var(--orange)}.working{background:var(--accent)}.idle{background:var(--gray)}
+.av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:15px;flex:none;position:relative;color:#fff}
+.av.sm{width:28px;height:28px;font-size:12px}
+.av .dot{position:absolute;right:-1px;bottom:-1px;width:12px;height:12px;border:2px solid var(--surface)}
+.cl{background:var(--claude)}.cx{background:var(--codex)}
+.hi{width:16px;height:16px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:inline-grid;place-items:center;flex:none;vertical-align:-3px}
+.hi svg{width:10px;height:10px}
+.hib{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;flex:none}
+.hib svg{width:17px;height:17px}
+svg.g{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chat{flex:1;padding:6px 14px;display:flex;flex-direction:column;gap:10px}
+.me{align-self:flex-end;max-width:82%;background:var(--fill);padding:8px 12px;border-radius:18px}
+.tool{font-size:13px;color:var(--secondary)}
+.tool b{color:var(--fg);font-weight:500}
+.head{display:flex;flex-direction:column;align-items:center;flex:1;min-width:0}
+.head .t{font-weight:600;font-size:16px}
+.head .s{font-size:12px;color:var(--secondary);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.composer{margin:6px 12px 12px;background:var(--surface);border-radius:22px;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.composer .txt{min-height:22px}
+.composer .ph{color:var(--tertiary)}
+.tools{display:flex;align-items:center;gap:8px}
+.tools .sp{flex:1}
+.round{width:34px;height:34px;border-radius:50%;border:0;display:grid;place-items:center;font-size:16px;cursor:pointer;flex:none}
+.attach{background:var(--fill);color:var(--fg)}.send{background:var(--accent);color:var(--on-accent)}
+.pill{border:0;border-radius:999px;background:var(--accent);color:var(--on-accent);font:inherit;font-size:14px;font-weight:600;padding:6px 14px;cursor:pointer;white-space:nowrap}
+.pill.soft{background:var(--accent-soft);color:var(--accent)}
+.pill.gray{background:var(--fill);color:var(--fg)}
+.pill.sm{font-size:13px;padding:5px 11px}
+.chipx{display:inline-flex;align-items:center;gap:6px;border-radius:999px;background:var(--fill);padding:5px 11px;font-size:13px;font-weight:600;border:0;color:var(--fg);font-family:inherit;cursor:pointer;white-space:nowrap}
+.chipx.acc{background:var(--accent-soft);color:var(--accent)}
+.chipx.org{background:var(--orange-soft);color:var(--orange)}
+.chipx.red{background:var(--red-soft);color:var(--red)}
+.card{background:var(--surface);border-radius:14px;padding:12px;margin:0 12px 8px;display:flex;flex-direction:column;gap:8px}
+.card .h{display:flex;align-items:center;gap:8px;font-weight:600}
+.banner{margin:0 12px 8px;border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;font-size:14px}
+.banner.org{background:var(--orange-soft)}
+.banner.gray{background:var(--fill)}
+.banner.red{background:var(--red-soft)}
+.banner .main b{display:block}
+.ring{width:30px;height:30px;flex:none}
+.ring circle{fill:none;stroke-width:3}
+.ring .bg{stroke:var(--fill)}.ring .fgc{stroke:var(--accent);stroke-linecap:round;transform:rotate(-90deg);transform-origin:50% 50%}
+.ringtxt{font:600 11px/1 -apple-system,sans-serif;fill:var(--fg)}
+.pending{opacity:.6;outline:1.5px dashed var(--secondary);outline-offset:2px}
+.under{align-self:flex-end;font-size:13px;color:var(--secondary);display:flex;gap:10px;align-items:center;margin-top:-6px}
+.under a{color:var(--accent);font-weight:600;text-decoration:none;cursor:pointer}
+.ov{position:absolute;inset:0;background:var(--shade);z-index:4;display:flex;flex-direction:column;justify-content:flex-end}
+.ov.center{justify-content:center;align-items:center}
+.alert{width:270px;background:var(--surface);border-radius:14px;overflow:hidden;text-align:center}
+.alert .b{padding:16px 16px 14px}
+.alert .b b{display:block;font-size:17px;margin-bottom:4px}
+.alert .b span{font-size:13px}
+.alert button{display:block;width:100%;border:0;border-top:.5px solid var(--separator);background:none;color:var(--accent);font:inherit;font-size:17px;padding:11px;cursor:pointer}
+.alert button.bold{font-weight:600}
+.sheet{background:var(--page);border-radius:14px 14px 0 0;display:flex;flex-direction:column;padding-bottom:12px}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--tertiary);margin:6px auto 0}
+.big{margin:0 12px;border:0;border-radius:12px;background:var(--accent);color:var(--on-accent);font:inherit;font-weight:600;font-size:17px;min-height:50px;cursor:pointer}
+.big.gray{background:var(--fill);color:var(--fg)}
+.big+.big{margin-top:8px}
+.menu{position:absolute;background:var(--surface);border-radius:14px;box-shadow:0 10px 40px #0004;overflow:hidden;z-index:5;min-width:220px}
+.menu .row{padding:10px 14px;--inset:14px}
+.menu .row.sel{font-weight:600}
+.ck{color:var(--accent);font-weight:700;width:16px;flex:none}
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;gap:2px;margin:0 12px 10px}
+.seg span{flex:1;text-align:center;padding:6px 4px;border-radius:7px;font-size:13px;font-weight:500;white-space:nowrap}
+.seg span.on{background:var(--surface);box-shadow:0 1px 3px #0002;font-weight:600}
+.seg.in{margin:0}
+.bar{height:4px;border-radius:2px;background:var(--fill);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar i.o{background:var(--orange)}.bar i.r{background:var(--red)}
+.mini{display:inline-flex;align-items:center;gap:3px;font-size:12px;color:var(--secondary);font-variant-numeric:tabular-nums}
+.mini.o{color:var(--orange);font-weight:600}
+.todo{display:flex;flex-direction:column;gap:4px;font-size:14px}
+.todo div{display:flex;gap:8px;align-items:center}
+.todo .d{color:var(--secondary);text-decoration:line-through}
+.box{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--secondary);flex:none;display:grid;place-items:center;font-size:11px}
+.box.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.box.now{border-color:var(--accent)}
+.divider{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--secondary)}
+.divider::before,.divider::after{content:"";flex:1;border-top:.5px solid var(--separator)}
+.diff{font:12.5px/1.5 ui-monospace,Menlo,monospace;background:var(--surface);margin:0 12px 8px;border-radius:12px;overflow:hidden}
+.diff .fh{font:600 13px/1.3 -apple-system,sans-serif;padding:9px 12px;display:flex;gap:8px;align-items:center;border-bottom:.5px solid var(--separator)}
+.diff .ln{display:flex;white-space:pre;overflow:hidden}
+.diff .ln i{font-style:normal;width:30px;flex:none;text-align:right;padding-right:6px;color:var(--tertiary)}
+.diff .ln.a{background:var(--add)}.diff .ln.d{background:var(--del)}
+.diff .ln.sel{box-shadow:inset 3px 0 var(--accent)}
+.cmt{font:14px/1.4 -apple-system,"PingFang TC",sans-serif;margin:6px 10px 8px 36px;background:var(--page);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;white-space:normal}
+.cmt .who{font-size:12px;color:var(--secondary)}
+.stt{font:700 11px/1 ui-monospace,Menlo,monospace;width:20px;height:20px;border-radius:5px;display:grid;place-items:center;flex:none}
+.stt.M{background:var(--orange-soft);color:var(--orange)}.stt.A{background:var(--accent-soft);color:var(--accent)}.stt.D{background:var(--red-soft);color:var(--red)}
+.num{font-variant-numeric:tabular-nums;font-size:12px}
+.plus{color:var(--accent)}.minus{color:var(--red)}
+.mark{background:var(--orange-soft);border-bottom:2px solid var(--orange);border-radius:3px;padding:0 2px}
+.toggle{width:51px;height:31px;border-radius:16px;background:var(--fill);position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px #0003}
+.toggle.on{background:var(--accent)}.toggle.on::after{left:22px}
+.toggle.off{opacity:.4}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:12px}
+.grid span{aspect-ratio:1;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:12px}
+.grid span.on{outline:2.5px solid var(--accent);outline-offset:2px}
+.handle{color:var(--tertiary);font-size:18px;flex:none}
+.toast{position:absolute;left:12px;right:12px;top:58px;background:var(--surface);border-radius:14px;box-shadow:0 8px 30px #0003;padding:10px 12px;display:flex;gap:10px;align-items:center;font-size:14px;z-index:3}
+.chev{color:var(--tertiary);flex:none}
+.val{color:var(--secondary);font-size:15px;white-space:nowrap}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:2px;align-items:center;box-shadow:0 6px 24px #0005;z-index:9;max-width:calc(100% - 32px)}
+.switcher button{background:none;border:0;color:inherit;font:600 14px/1 -apple-system,sans-serif;padding:9px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.switcher .label{padding:0 6px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.switcher .choose{background:var(--accent);color:var(--on-accent)}
+.switcher .choose.done{background:transparent;outline:1.5px solid currentColor}
+.picks{background:var(--surface);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.picks textarea{width:100%;min-height:220px;font:13px/1.5 ui-monospace,Menlo,monospace;background:var(--page);color:var(--fg);border:.5px solid var(--separator);border-radius:10px;padding:10px}
+.picks .rowp{display:flex;gap:10px;align-items:baseline;border-bottom:.5px solid var(--separator);padding-bottom:8px}
+.picks .rowp b{width:54px;flex:none}
+.picks input{flex:1;min-width:0;font:inherit;background:var(--page);color:var(--fg);border:.5px solid var(--separator);border-radius:8px;padding:6px 8px}
+button:focus-visible,.row:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Purrdr 待定畫面</h1>
+    <nav class="tickets" id="tickets" aria-label="票"></nav>
+  </header>
+  <main id="stage"></main>
+</div>
+<div class="switcher" id="switcher">
+  <button id="prev" aria-label="上一個版本">←</button>
+  <span class="label" id="vlabel"></span>
+  <button id="next" aria-label="下一個版本">→</button>
+  <button class="choose" id="choose">選這個</button>
+</div>
+
+<script>
+const G = {
+  host:'<svg class="g" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="9" rx="1.5"/><path d="M7 16.5h6M10 13v3.5"/></svg>',
+  clock:'<svg class="g" viewBox="0 0 20 20" width="14" height="14"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 2"/></svg>',
+  warn:'<svg class="g" viewBox="0 0 20 20" width="18" height="18"><path d="M10 3 2.5 16.5h15z"/><path d="M10 8v4M10 14.2v.1"/></svg>',
+  key:'<svg class="g" viewBox="0 0 20 20" width="18" height="18"><circle cx="7" cy="12" r="3.5"/><path d="m9.5 9.5 6-6M13 6l2 2M15.5 3.5l1.5 1.5"/></svg>',
+  shield:'<svg class="g" viewBox="0 0 20 20" width="18" height="18"><path d="M10 2.5 4 5v5c0 3.6 2.6 6.4 6 7.5 3.4-1.1 6-3.9 6-7.5V5z"/><path d="M10 7v3.5M10 13v.1"/></svg>',
+  up:'↑', wifi:'<svg class="g" viewBox="0 0 20 20" width="18" height="18"><path d="M3 8a10 10 0 0 1 14 0M5.5 10.8a6.5 6.5 0 0 1 9 0M8 13.5a3 3 0 0 1 4 0"/><path d="M3 3l14 14"/></svg>',
+  cmt:'<svg class="g" viewBox="0 0 20 20" width="15" height="15"><path d="M4 4h12v9H9l-4 3v-3H4z"/></svg>',
+};
+const hi = () => `<span class="hi">${G.host}</span>`;
+const av = (k='C', s='', sm=false) => `<span class="av ${k==='C'?'cl':'cx'} ${sm?'sm':''}">${k}${s?`<span class="dot ${s}"></span>`:''}</span>`;
+const phone = (label, body, extra='') => `<section class="phone"${extra}><h3>${label}</h3>${body}</section>`;
+const chatNav = (sub='', right='<button class="circle" aria-label="更多">⋯</button>') =>
+  `<div class="nav"><button class="btn" aria-label="返回">‹ 聊天</button><div class="head"><span class="t">ledger</span><span class="s">${sub || `${hi()} Studio Mac · Claude Code`}</span></div>${right}</div>`;
+const convo = () => `<div class="me">CSV 匯出遇到逗號會壞掉，幫我修</div>
+  <div class="tool">讀取 <b>CSVExport.swift</b></div>
+  <div class="tool">編輯 <b>CSVExport.swift</b> · +12 −3</div>
+  <div>欄位裡有逗號、雙引號或換行時，現在會用雙引號包起來，裡面的雙引號改成兩個。測試也補上了，全部通過。</div>`;
+const composer = (text='', o={}) => `<div class="composer"${o.style?` style="${o.style}"`:''}>
+  <div class="txt">${text || `<span class="ph">${o.ph||'傳訊息給 Claude'}</span>`}</div>
+  <div class="tools"><button class="round attach" aria-label="附加">＋</button>${o.left||''}<span class="sp"></span>${o.send ?? `<button class="round send" aria-label="送出">${G.up}</button>`}</div></div>`;
+const ring = (frac, label, color) => `<svg class="ring" viewBox="0 0 30 30" aria-hidden="true"><circle class="bg" cx="15" cy="15" r="12"/><circle class="fgc" cx="15" cy="15" r="12" stroke-dasharray="${(2*Math.PI*12).toFixed(1)}" stroke-dashoffset="${(2*Math.PI*12*(1-frac)).toFixed(1)}"${color?` style="stroke:${color}"`:''}/>${label?`<text class="ringtxt" x="15" y="19" text-anchor="middle">${label}</text>`:''}</svg>`;
+const agentRow = (k, name, s, prev, time, tail='') => `<div class="row"><span>${av(k,s)}</span><div class="main"><div class="tp"><span class="name">${name}</span><span class="time">${time}</span></div><div class="prev">${hi()} ${prev}</div>${tail}</div></div>`;
+const listNav = () => `<div class="nav"><button class="chipx">${hi()} 所有主機 ▾</button><span></span><span style="display:flex;gap:8px"><button class="circle" aria-label="更多">⋯</button><button class="circle" style="background:var(--accent);color:var(--on-accent);font-weight:700">R</button></span></div><div class="large">聊天</div><div class="seg"><span class="on">Agents</span><span>Spaces</span></div>`;
+
+const T = [
+{ id:'300', name:'送出可撤回', q:'送出後的 3 秒倒數、「撤回」與「立即送出」放在哪裡？',
+  v:[
+  { n:'輸入列上方倒數條', pts:['輸入框立刻清空，倒數條在輸入列上方，跟「工作中」膠囊同一個位置','條上看得到要送出的前幾個字','撤回把文字放回輸入框'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}</div>
+      <div class="card" style="flex-direction:row;align-items:center;gap:10px;padding:8px 10px 8px 8px">${ring(.66,'2')}<div class="main"><div style="font-weight:600;font-size:14px">2 秒後送出</div><div class="sub" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">也幫 TSV 匯出做一樣的處理…</div></div><button class="btn">撤回</button><button class="pill sm">立即送出</button></div>`+composer()) },
+  { n:'訊息泡泡就地倒數', pts:['訊息先以虛線、半透明的泡泡出現在對話最下面','泡泡下方是倒數與兩個動作，視線停在剛送出的那則','倒數結束泡泡變實心，就是平常的訊息'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}<div class="me pending">也幫 TSV 匯出做一樣的處理，順便更新 README</div><div class="under">${G.clock} 2 秒後送出 <a>撤回</a><a>立即送出</a></div></div>`+composer()) },
+  { n:'送出鈕變倒數', pts:['文字留在輸入框裡變淡，送出鈕變成倒數圓環','再點一次圓環＝撤回(文字變回可編輯)','「立即送出」是圓環旁的小字按鈕；最省空間，但比較難發現'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}</div>`+composer('<span style="color:var(--secondary)">也幫 TSV 匯出做一樣的處理，順便更新 README</span>',{send:`<button class="btn" style="font-size:13px">立即送出</button><button class="round" style="background:none;padding:0;position:relative" aria-label="撤回，2 秒後送出">${ring(.66,'✕')}</button>`})) },
+  ],
+  common:()=>phone('設定 › 送出', `<div class="nav"><button class="btn">‹ 設定</button><span class="t">送出</span><span style="width:60px"></span></div>
+    <div class="sect">送出前可撤回</div><div class="group"><div class="row plain"><div class="main">撤回時間</div><span class="val">3 秒</span><button class="chipx">−</button><button class="chipx">＋</button></div></div>
+    <div class="foot">0 秒是關閉。倒數期間訊息只在這支裝置上。</div>`)
+},
+{ id:'301', name:'離線佇列', q:'沒有連線時送出的訊息排在哪裡、怎麼看、沒送出時怎麼告訴你？',
+  v:[
+  { n:'輸入列上方的佇列條', pts:['頂部一條「離線」狀態','輸入列上方「2 則等連線後送出」，點開 sheet 看內容、逐則取消','沒送出的改成橙色橫幅，可放回輸入框'],
+    h:()=>phone('聊天(離線)', chatNav(`<span class="dot idle"></span> Studio Mac · 離線，重新連線中…`)+`<div class="chat">${convo()}</div>
+      <div class="card" style="flex-direction:row;align-items:center;gap:10px">${G.clock}<div class="main"><b style="font-size:14px">2 則等連線後送出</b><div class="sub">連上後對象沒變才會送</div></div><span class="chev">›</span></div>`+composer())
+      + phone('沒送出', chatNav()+`<div class="chat">${convo()}</div><div class="banner org">${G.warn}<div class="main"><b>1 則沒有送出</b>這個 Pane 已經換了別的對話</div><button class="pill sm gray">放回輸入框</button></div>`+composer())
+      + phone('佇列 sheet', `<div class="ov"><div class="sheet"><div class="grab"></div><div class="nav"><span style="width:50px"></span><span class="t">等連線後送出</span><button class="btn">完成</button></div>
+        <div class="group"><div class="row plain"><div class="main"><div>也幫 TSV 匯出做一樣的處理</div><div class="sub">2 分鐘前</div></div><button class="btn red">取消</button></div><div class="row plain"><div class="main"><div>更新 README 的匯出章節</div><div class="sub">1 分鐘前</div></div><button class="btn red">取消</button></div></div>
+        <div class="foot">排隊超過 10 分鐘，或對象的對話換了，就不會送出。</div></div></div>`) },
+  { n:'泡泡上標「排隊中」', pts:['排隊的訊息直接出現在對話裡，帶時鐘與「排隊中」','左滑或長按取消','沒送出的泡泡變紅色驚嘆號，下面兩個動作'],
+    h:()=>phone('聊天(離線)', chatNav(`<span class="dot idle"></span> Studio Mac · 離線`)+`<div class="chat">${convo()}<div class="me" style="opacity:.75">也幫 TSV 匯出做一樣的處理</div><div class="under">${G.clock} 排隊中 · 連上後送出</div><div class="me" style="opacity:.75">更新 README 的匯出章節</div><div class="under">${G.clock} 排隊中</div></div>`+composer())
+      + phone('沒送出', chatNav()+`<div class="chat">${convo()}<div class="me" style="outline:1.5px solid var(--red)">也幫 TSV 匯出做一樣的處理</div><div class="under" style="color:var(--red)">沒有送出：排隊超過 10 分鐘 <a>放回輸入框</a><a style="color:var(--red)">刪除</a></div></div>`+composer()) },
+  { n:'列表層級彙整', pts:['聊天列表頂部依主機彙整「Studio Mac 離線 · 3 則排隊」','有排隊的列多一個時鐘徽章','點橫幅開 sheet，按主機與聊天分組；聊天內只有一行小字'],
+    h:()=>phone('聊天列表', listNav()+`<div class="banner gray">${G.wifi}<div class="main"><b>Studio Mac 離線</b>3 則訊息等連線後送出</div><span class="chev">›</span></div>
+      <div class="group">${agentRow('C','ledger','idle','Studio Mac · 測試也補上了，全部通過。','10:42',`<div class="mini" style="margin-top:3px">${G.clock} 2 則排隊</div>`)}${agentRow('X','notes','idle','Studio Mac · 已整理成三個段落','10:20',`<div class="mini" style="margin-top:3px">${G.clock} 1 則排隊</div>`)}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','09:58')}</div>`)
+      + phone('佇列 sheet', `<div class="ov"><div class="sheet"><div class="grab"></div><div class="nav"><span style="width:50px"></span><span class="t">等連線後送出</span><button class="btn">完成</button></div>
+        <div class="sect">${hi()} Studio Mac · ledger</div><div class="group"><div class="row plain"><div class="main">也幫 TSV 匯出做一樣的處理</div><button class="btn red">取消</button></div><div class="row plain"><div class="main">更新 README 的匯出章節</div><button class="btn red">取消</button></div></div>
+        <div class="sect">${hi()} Studio Mac · notes</div><div class="group"><div class="row plain"><div class="main">把第二段縮短</div><button class="btn red">取消</button></div></div></div></div>`) },
+  ]
+},
+{ id:'302', name:'機密偵測', q:'送出前偵測到像密鑰的內容時，怎麼擋、怎麼說明？(只說類別，不顯示內容)',
+  v:[
+  { n:'系統對話框', pts:['按送出才檢查，跳標準 alert','標題說類別，內文說後果','預設按鈕是「返回編輯」，「仍要送出」在下面'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}</div>`+composer('部署失敗，token 是 ghp_8f…(略)')+`<div class="ov center"><div class="alert"><div class="b"><b>這則訊息像是含有 GitHub token</b><span>送出後會留在 Agent 的對話紀錄裡。</span></div><button class="bold">返回編輯</button><button>仍要送出</button></div></div>`) },
+  { n:'底部說明 sheet', pts:['按送出才檢查，從底部升起 sheet','逐項列出偵測到的類別與在第幾行，可能不只一種','有「為什麼會偵測到」的說明列'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}</div>`+`<div class="ov"><div class="sheet"><div class="grab"></div>
+      <div style="padding:14px 16px 6px;display:flex;gap:10px;align-items:center;color:var(--orange)">${G.shield}<b style="color:var(--fg);font-size:17px">訊息裡有像密鑰的內容</b></div>
+      <div class="group"><div class="row plain">${G.key}<div class="main">GitHub token</div><span class="sub">第 2 行</span></div><div class="row plain">${G.key}<div class="main">password=</div><span class="sub">第 5 行</span></div></div>
+      <div class="foot">只在這支裝置上檢查，內容沒有送到任何地方。</div>
+      <button class="big">返回編輯</button><button class="big gray">仍要送出</button></div></div>`) },
+  { n:'輸入時就標出來', pts:['邊打邊檢查，像密鑰的片段加橙色底線','輸入列上方一條提示，可一鍵「移除」','送出鈕變成橙色盾牌，按下去還要再確認一次'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}</div>
+      <div class="banner org">${G.shield}<div class="main"><b>像是 GitHub token</b>送出後會留在對話紀錄</div><button class="pill sm gray">移除</button></div>`
+      +composer('部署失敗，token 是 <span class="mark">ghp_8f…(略)</span>',{send:`<button class="round" style="background:var(--orange);color:#fff" aria-label="送出(含像密鑰的內容)">${G.shield}</button>`})) },
+  ]
+},
+{ id:'305', name:'Send When Done', q:'「等 Agent 做完再送」怎麼排、排了幾則在哪裡看、暫停時怎麼說？',
+  v:[
+  { n:'長按送出＋輸入列上方堆疊', pts:['Agent 工作中時長按送出鈕：「立即送出／做完再送」','輸入列上方「做完後送出 · 2 則」，展開可拖曳排序、刪除','暫停原因寫在卡片標題'],
+    h:()=>phone('長按送出', chatNav(`${hi()} Studio Mac · <span class="dot working"></span> 工作中`)+`<div class="chat">${convo()}</div>`+composer('也幫 TSV 匯出做一樣的處理')+`<div class="menu" style="right:12px;bottom:66px"><div class="row">做完再送</div><div class="row">立即送出</div></div>`)
+      + phone('佇列展開', chatNav(`${hi()} Studio Mac · <span class="dot needs"></span> 需要你`)+`<div class="chat">${convo()}</div>
+        <div class="card"><div class="h">${G.clock} 做完後送出 · 2 則<span style="flex:1"></span><span class="chipx org">暫停：需要你</span></div>
+        <div class="row plain" style="padding:6px 0"><span class="handle">≡</span><div class="main">1. 也幫 TSV 匯出做一樣的處理</div><button class="btn red">刪除</button></div>
+        <div class="row plain" style="padding:6px 0"><span class="handle">≡</span><div class="main">2. 更新 README 的匯出章節</div><button class="btn red">刪除</button></div></div>`+composer()) },
+  { n:'輸入列的「做完再送」開關', pts:['輸入列工具列有「做完再送」膠囊，開著時送出就進佇列','排隊的訊息以編號虛線泡泡顯示在對話最下面','點泡泡可編輯、刪除；暫停原因在泡泡上方一行'],
+    h:()=>phone('聊天', chatNav(`${hi()} Studio Mac · <span class="dot working"></span> 工作中`)+`<div class="chat">${convo()}<div class="divider">做完後依序送出</div><div class="me pending">① 也幫 TSV 匯出做一樣的處理</div><div class="me pending">② 更新 README 的匯出章節</div></div>`+composer('',{left:`<button class="chipx acc">${G.clock} 做完再送</button>`,ph:'排進佇列'})) },
+  { n:'獨立佇列頁', pts:['聊天標題列右上「佇列 2」','推入佇列頁：完整清單、拖曳排序、刪除、新增','暫停原因是頁首橫幅，聊天畫面保持乾淨'],
+    h:()=>phone('聊天', chatNav(`${hi()} Studio Mac · <span class="dot working"></span> 工作中`, `<button class="chipx acc">${G.clock} 2</button>`)+`<div class="chat">${convo()}</div>`+composer('',{ph:'工作中，送出會排進佇列'}))
+      + phone('佇列', `<div class="nav"><button class="btn">‹ ledger</button><span class="t">做完後送出</span><button class="btn">編輯</button></div>
+        <div class="banner org">${G.warn}<div class="main"><b>暫停中</b>Agent 需要你回答，回答後繼續</div></div>
+        <div class="group"><div class="row plain"><span class="handle">≡</span><div class="main">也幫 TSV 匯出做一樣的處理</div></div><div class="row plain"><span class="handle">≡</span><div class="main">更新 README 的匯出章節</div></div><div class="row plain"><span style="color:var(--accent)">＋</span><div class="main" style="color:var(--accent)">新增</div></div></div>`) },
+  ],
+  common:()=>phone('SSH 主機', chatNav()+`<div class="chat">${convo()}</div>`+composer('',{left:`<button class="chipx" style="opacity:.5">${G.clock} 做完再送</button>`})+`<div class="toast">${G.host}<div class="main">做完再送需要主機服務。這台是 SSH 主機。</div></div>`)
+},
+{ id:'306', name:'Claude 權限模式', q:'目前權限模式顯示在哪裡、怎麼切？(一般／接受編輯／Plan／略過權限)',
+  v:[
+  { n:'標題下的膠囊選單', pts:['聊天標題下方一顆膠囊顯示目前模式','點開是選單，直接選目標模式，app 自己按 Shift+Tab 到位','切換中膠囊轉圈；跟 Claude Code 畫面一致的用詞'],
+    h:()=>phone('聊天', chatNav()+`<div style="display:flex;justify-content:center;margin:-2px 0 6px"><button class="chipx acc">✎ 接受編輯 ▾</button></div><div class="chat">${convo()}</div>`+composer()
+      +`<div class="menu" style="left:50%;transform:translateX(-50%);top:88px"><div class="row"><span class="ck"></span>一般</div><div class="row sel"><span class="ck">✓</span>接受編輯</div><div class="row"><span class="ck"></span>Plan</div><div class="row" style="color:var(--red)"><span class="ck"></span>略過權限</div></div>`) },
+  { n:'輸入列工具列的膠囊', pts:['跟電腦上 Claude Code 一樣，模式在輸入框下方','點一下切到下一個(像 Shift+Tab)，長按開選單','手指本來就在輸入列附近'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}</div>`+composer('',{left:`<button class="chipx acc">⏸ Plan</button>`}))
+      + phone('切換中', chatNav()+`<div class="chat">${convo()}</div>`+composer('',{left:`<button class="chipx" aria-busy="true">◌ 切換到接受編輯…</button>`})) },
+  { n:'輸入列上方分段', pts:['四個模式一次全部看得到','點哪個就切到哪個','四段在窄螢幕與繁中很擠，「略過權限」要醒目'],
+    h:()=>phone('聊天', chatNav()+`<div class="chat">${convo()}</div><div class="seg"><span>一般</span><span class="on">接受編輯</span><span>Plan</span><span style="color:var(--red)">略過</span></div>`+composer()) },
+  { n:'定案(B 修正)', fin:true, pts:['位置同 B：輸入列工具列，附加鈕右邊','膠囊高度與附加鈕一樣 34pt，底色同附加鈕(灰)，文字是一般文字色','只有「略過權限」用紅字；點一下切下一個，長按開選單'],
+    h:()=>{ const cap=(t,red)=>`<button class="chipx" style="height:34px;padding:0 12px;font-size:14px${red?';color:var(--red)':''}">${t}</button>`;
+      return phone('一般／接受編輯', chatNav()+`<div class="chat">${convo()}</div>`+composer('',{left:cap('接受編輯')}))
+      + phone('Plan(長按開選單)', chatNav()+`<div class="chat">${convo()}</div>`+composer('',{left:cap('Plan')})+`<div class="menu" style="left:58px;bottom:66px"><div class="row"><span class="ck"></span>一般</div><div class="row"><span class="ck"></span>接受編輯</div><div class="row sel"><span class="ck">✓</span>Plan</div><div class="row" style="color:var(--red)"><span class="ck"></span>略過權限</div></div>`)
+      + phone('略過權限', chatNav()+`<div class="chat">${convo()}</div>`+composer('',{left:cap('略過權限',true)})) } },
+  ],
+  common:()=>phone('切換失敗', chatNav()+`<div class="chat">${convo()}</div>`+composer()+`<div class="toast">${G.warn}<div class="main"><b>沒有切到 Plan</b><div class="sub">試了 4 次，畫面上沒有看到 Plan 模式。</div></div><button class="btn">再試一次</button></div>`)
+},
+{ id:'307', name:'context 與待辦進度', q:'列表每列與聊天頂列怎麼顯示 context 百分比(70% 醒目、85% 警示)與待辦完成數？',
+  v:[
+  { n:'時間下方小圓環', pts:['每列右側時間下方一個小圓環＋百分比，第二行尾端「☑ 3/7」','70% 起橙色、85% 起紅色','聊天副標「62% · 待辦 3/7」'],
+    h:()=>{ const tail=(p,c,t)=>`<div style="display:flex;justify-content:space-between;margin-top:3px"><span class="mini">${t}</span><span class="mini${c?' o':''}" ${c==='r'?'style="color:var(--red)"':''}>${ring(p/100,'',c==='r'?'var(--red)':c?'var(--orange)':'')} ${p}%</span></div>`;
+      return phone('聊天列表', listNav()+`<div class="group">${agentRow('C','ledger','working','Studio Mac · 正在補 TSV 的測試','10:42',tail(62,'','☑ 3/7'))}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','09:58',tail(78,'o','☑ 1/4'))}${agentRow('X','notes','idle','Studio Mac · 已整理成三個段落','09:20',tail(91,'r',''))}</div>`).replaceAll('class="ring"','class="ring" style="width:14px;height:14px;vertical-align:-2px"')
+      + phone('聊天', chatNav(`${hi()} Studio Mac · 62% · 待辦 3/7`)+`<div class="chat">${convo()}</div>`+composer()) } },
+  { n:'列底細條＋待辦抽屜', pts:['每列底部一條細細的 context 條','聊天頂部一條「待辦 3/7」，點開往下展開清單','條的顏色就是門檻'],
+    h:()=>{ const tail=(p,c,t)=>`<div style="display:flex;gap:8px;align-items:center;margin-top:6px"><div class="bar" style="flex:1"><i class="${c}" style="width:${p}%"></i></div><span class="mini${c?' o':''}">${p}%</span>${t?`<span class="mini">· 待辦 ${t}</span>`:''}</div>`;
+      return phone('聊天列表', listNav()+`<div class="group">${agentRow('C','ledger','working','Studio Mac · 正在補 TSV 的測試','10:42',tail(62,'','3/7'))}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','09:58',tail(78,'o','1/4'))}${agentRow('X','notes','idle','Studio Mac · 已整理成三個段落','09:20',tail(91,'r',''))}</div>`)
+      + phone('聊天', chatNav()+`<div class="card" style="gap:6px"><div class="h" style="font-size:14px">待辦 3/7 <span style="flex:1"></span><span class="mini">context 62%</span> ▴</div><div class="todo"><div class="d"><span class="box on">✓</span>找出逗號處理的位置</div><div class="d"><span class="box on">✓</span>改成用雙引號包欄位</div><div class="d"><span class="box on">✓</span>補 CSV 測試</div><div><span class="box now"></span>TSV 匯出同樣處理</div><div style="color:var(--secondary)"><span class="box"></span>…還有 3 項</div></div></div><div class="chat">${convo()}</div>`+composer()) } },
+  { n:'只在需要注意時出現', pts:['平常列上不顯示 context，70% 起才出現橙色徽章「context 78%」','待辦只寫「3/7」放在第二行尾','聊天點標題開 popover 看完整數字與待辦'],
+    h:()=>phone('聊天列表', listNav()+`<div class="group">${agentRow('C','ledger','working','Studio Mac · 正在補 TSV 的測試 · 3/7','10:42')}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','09:58',`<div style="margin-top:4px"><span class="chipx org" style="padding:2px 8px;font-size:12px">context 78%</span></div>`)}${agentRow('X','notes','idle','Studio Mac · 已整理成三個段落','09:20',`<div style="margin-top:4px"><span class="chipx red" style="padding:2px 8px;font-size:12px">context 91% · 該 compact 了</span></div>`)}</div>`)
+      + phone('聊天(點標題)', chatNav()+`<div class="chat">${convo()}</div>`+composer()+`<div class="menu" style="left:50%;transform:translateX(-50%);top:54px;padding:12px;min-width:240px;display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between"><b>context</b><span>62%</span></div><div class="bar"><i style="width:62%"></i></div><div style="display:flex;justify-content:space-between"><b>待辦</b><span>3/7</span></div><div class="todo"><div><span class="box now"></span>TSV 匯出同樣處理</div></div></div>`) },
+  { n:'定案(列表 A＋聊天底部 sheet)', fin:true, pts:['列表同 A：時間下方小圓環與百分比，第二行尾「☑ 3/7」','聊天點標題從底部升起 sheet：C 的 context 數字與條','下面是 B 的待辦清單，已完成(打勾、刪除線)與未完成(空框，進行中綠框)都列出'],
+    h:()=>{ const tail=(p,c,t)=>`<div style="display:flex;justify-content:space-between;margin-top:3px"><span class="mini">${t}</span><span class="mini${c?' o':''}" ${c==='r'?'style="color:var(--red)"':''}>${ring(p/100,'',c==='r'?'var(--red)':c?'var(--orange)':'')} ${p}%</span></div>`;
+      return phone('聊天列表', listNav()+`<div class="group">${agentRow('C','ledger','working','Studio Mac · 正在補 TSV 的測試','10:42',tail(62,'','☑ 3/7'))}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','09:58',tail(78,'o','☑ 1/4'))}${agentRow('X','notes','idle','Studio Mac · 已整理成三個段落','09:20',tail(91,'r',''))}</div>`).replaceAll('class="ring"','class="ring" style="width:14px;height:14px;vertical-align:-2px"')
+      + phone('聊天(點標題)', chatNav(`${hi()} Studio Mac · 62% · 待辦 3/7`)+`<div class="chat">${convo()}</div>`+composer()+`<div class="ov"><div class="sheet"><div class="grab"></div><div class="nav"><span style="width:50px"></span><span class="t">ledger</span><button class="btn">完成</button></div>
+        <div class="card"><div style="display:flex;justify-content:space-between"><b>context</b><span style="font-variant-numeric:tabular-nums">62%</span></div><div class="bar"><i style="width:62%"></i></div><div class="sub">70% 起橙色、85% 起紅色</div></div>
+        <div class="sect">待辦 3/7</div><div class="card"><div class="todo"><div class="d"><span class="box on">✓</span>找出逗號處理的位置</div><div class="d"><span class="box on">✓</span>改成用雙引號包欄位</div><div class="d"><span class="box on">✓</span>補 CSV 測試</div><div><span class="box now"></span>TSV 匯出同樣處理</div><div><span class="box"></span>更新 README 的匯出章節</div><div><span class="box"></span>跑完整測試</div><div><span class="box"></span>整理 commit</div></div></div></div></div>`) } },
+  ]
+},
+{ id:'308', name:'離開期間摘要', q:'離開超過 15 分鐘回到 app，期間摘要(完成幾輪、工作多久、最後一句)放哪裡、怎麼回覆？',
+  v:[
+  { n:'列表頂部摘要卡', pts:['聊天列表最上面一張卡「你離開了 42 分鐘」','每個有動靜的 Agent 一行：輪數、工作時間、最後一句','「回覆」直接進聊天；✕ 收起'],
+    h:()=>phone('聊天列表', listNav()+`<div class="card"><div class="h">你離開了 42 分鐘<span style="flex:1"></span><button class="btn" aria-label="收起">✕</button></div>
+      <div class="row plain" style="padding:4px 0;align-items:flex-start">${av('C','',true)}<div class="main"><div class="tp"><span class="name">ledger</span><span class="time">3 輪 · 18 分</span></div><div class="prev">測試也補上了，全部通過。</div></div><button class="pill sm soft">回覆</button></div>
+      <div class="row plain" style="padding:4px 0;align-items:flex-start">${av('C','needs',true)}<div class="main"><div class="tp"><span class="name">weather-app</span><span class="time">1 輪 · 4 分</span></div><div class="prev">要用哪個 API？</div></div><button class="pill sm soft">回覆</button></div></div>
+      <div class="group">${agentRow('C','ledger','idle','Studio Mac · 測試也補上了','10:42')}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','10:20')}</div>`) },
+  { n:'回來時跳出的 sheet', pts:['回到 app 時從底部跳出「離開期間」','一個 Agent 一張卡，左右滑換下一個','卡片下方就是輸入框，可以直接回覆；不想看就往下滑關掉'],
+    h:()=>phone('回到 app', listNav()+`<div class="ov"><div class="sheet"><div class="grab"></div><div class="nav"><span style="width:50px"></span><span class="t">離開期間 · 42 分鐘</span><button class="btn">完成</button></div>
+      <div class="card"><div class="h">${av('C','',true)} ledger <span style="flex:1"></span><span class="sub">1 / 2</span></div><div style="display:flex;gap:16px"><div><b style="font-size:22px">3</b><div class="sub">輪</div></div><div><b style="font-size:22px">18 分</b><div class="sub">工作時間</div></div></div><div class="prev" style="-webkit-line-clamp:3">欄位裡有逗號、雙引號或換行時，現在會用雙引號包起來。測試也補上了，全部通過。</div></div>
+      <div style="display:flex;justify-content:center;gap:6px;margin-bottom:8px"><span class="dot working"></span><span class="dot idle"></span></div>`+composer('',{ph:'回覆 ledger'})+`</div></div>`) },
+  { n:'聊天裡的分隔線', pts:['列表只在列上加「+3 輪」徽章','進聊天後，離開期間的開頭有一條分隔線摘要，可收合那段','不額外跳東西出來'],
+    h:()=>phone('聊天列表', listNav()+`<div class="group">${agentRow('C','ledger','idle','Studio Mac · 測試也補上了','10:42',`<div style="margin-top:4px"><span class="chipx acc" style="padding:2px 8px;font-size:12px">離開期間 +3 輪</span></div>`)}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','10:20',`<div style="margin-top:4px"><span class="chipx acc" style="padding:2px 8px;font-size:12px">+1 輪</span></div>`)}</div>`)
+      + phone('聊天', chatNav()+`<div class="chat"><div class="me">CSV 匯出遇到逗號會壞掉，幫我修</div><div class="divider">你離開期間 · 3 輪 · 工作 18 分鐘 · 收合 ▴</div><div class="tool">讀取 <b>CSVExport.swift</b></div><div class="tool">編輯 <b>CSVExport.swift</b> · +12 −3</div><div>欄位裡有逗號、雙引號或換行時，現在會用雙引號包起來。測試也補上了，全部通過。</div></div>`+composer()) },
+  ]
+},
+{ id:'309', name:'續接歷史 session', q:'(第 2 版)新增聊天時，一眼分得出「開新的」與「接著做以前的」嗎？每個版本都並排畫兩種狀態。',
+  v:[
+  { n:'先選要做哪一種', pts:['新增聊天第一屏是兩張大卡：「新的聊天」「接著做以前的 session」，各有圖示與一句說明','選了才出現下面的欄位；標題列跟著變成「新的聊天」或「續接」','主要按鈕的字也不同：「開始」與「續接」'],
+    h:()=>phone('第一屏', `<div class="nav"><button class="btn">取消</button><button class="chipx">${hi()} Studio Mac ▾</button><span style="width:50px"></span></div><div class="large" style="font-size:24px">要做什麼？</div>
+      <div class="card" style="flex-direction:row;align-items:center;gap:12px;padding:16px"><span class="hib" style="width:40px;height:40px;font-size:20px">＋</span><div class="main"><b>新的聊天</b><div class="sub">選資料夾，送出第一則訊息，開一個新 session</div></div><span class="chev">›</span></div>
+      <div class="card" style="flex-direction:row;align-items:center;gap:12px;padding:16px"><span class="hib" style="width:40px;height:40px;font-size:18px">↺</span><div class="main"><b>接著做以前的 session</b><div class="sub">從資料夾過去的 session 挑一個，帶著之前的對話繼續</div></div><span class="chev">›</span></div>`)
+      + phone('新的聊天', `<div class="nav"><button class="btn">‹ 返回</button><span class="t">新的聊天</span><span style="width:50px"></span></div>
+      <div class="seg"><span class="on">Claude Code</span><span>Codex</span></div><div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div></div>
+      <div style="background:var(--surface);border-radius:12px;margin:0 12px 8px;padding:12px 14px;color:var(--tertiary);min-height:90px">第一則訊息</div><button class="big" style="margin-top:auto;margin-bottom:14px">開始</button>`)
+      + phone('續接', `<div class="nav"><button class="btn">‹ 返回</button><span class="t">續接</span><span style="width:50px"></span></div>
+      <div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div></div>
+      <div class="sect">這個資料夾的 session</div><div class="group">
+      <div class="row plain"><span class="ck">✓</span>${av('C','',true)}<div class="main"><div>CSV 匯出遇到逗號會壞掉，幫我修</div><div class="sub">今天 10:12 · 6 輪 · 最後：測試全部通過</div></div></div>
+      <div class="row plain"><span class="ck"></span>${av('C','',true)}<div class="main"><div>把匯出的日期改成 ISO 8601</div><div class="sub">昨天 · 14 輪</div></div></div>
+      <div class="row plain"><span class="ck"></span>${av('X','',true)}<div class="main"><div>幫我看 README 有沒有過時</div><div class="sub">11/17 · 3 輪</div></div></div></div>
+      <button class="big" style="margin-top:auto;margin-bottom:14px">續接</button>`) },
+  { n:'新的聊天為主，續接是附加的', pts:['表單維持新增聊天；資料夾下面多一列「接著做以前的 session(12) ›」','選了某個 session 後，表單頂端出現綠色卡「續接：CSV 匯出遇到逗號…」＋✕，主按鈕變「續接」','按 ✕ 就回到新的聊天'],
+    h:()=>phone('新的聊天(預設)', `<div class="nav"><button class="btn">取消</button><button class="chipx">${hi()} Studio Mac ▾</button><span style="width:50px"></span></div>
+      <div class="seg"><span class="on">Claude Code</span><span>Codex</span></div><div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div><div class="row plain"><span style="color:var(--accent)">↺</span><div class="main" style="color:var(--accent)">接著做以前的 session</div><span class="val">12</span><span class="chev">›</span></div></div>
+      <div style="background:var(--surface);border-radius:12px;margin:0 12px 8px;padding:12px 14px;color:var(--tertiary);min-height:90px">第一則訊息</div><button class="big" style="margin-top:auto;margin-bottom:14px">開始新的聊天</button>`)
+      + phone('選了 session 之後', `<div class="nav"><button class="btn">取消</button><button class="chipx">${hi()} Studio Mac ▾</button><span style="width:50px"></span></div>
+      <div class="card" style="background:var(--accent-soft)"><div class="h" style="color:var(--accent)">↺ 續接這個 session<span style="flex:1"></span><button class="btn" aria-label="改成新的聊天">✕</button></div><div><b>CSV 匯出遇到逗號會壞掉，幫我修</b></div><div class="sub">今天 10:12 · 6 輪 · Claude Code · 最後：測試全部通過</div></div>
+      <div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span></div></div>
+      <div style="background:var(--surface);border-radius:12px;margin:0 12px 8px;padding:12px 14px;color:var(--tertiary);min-height:90px">接著說…(可留空)</div><button class="big" style="margin-top:auto;margin-bottom:14px">續接</button>`) },
+  { n:'清單裡第一列就是「新的」', pts:['選了資料夾後只有一份清單：第一列「＋ 新的聊天」，下面是過去的 session','選哪列就做哪件事，勾號只有一個','按鈕字跟著選擇變：「開始新的聊天」／「續接」'],
+    h:()=>phone('選「新的聊天」', `<div class="nav"><button class="btn">取消</button><button class="chipx">${hi()} Studio Mac ▾</button><span style="width:50px"></span></div>
+      <div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div></div>
+      <div class="group"><div class="row plain" style="background:var(--accent-soft)"><span class="ck">✓</span><span class="hib">＋</span><div class="main"><b>新的聊天</b><div class="sub">開一個新 session</div></div></div>
+      <div class="row plain"><span class="ck"></span>${av('C','',true)}<div class="main"><div>CSV 匯出遇到逗號會壞掉</div><div class="sub">續接 · 今天 10:12 · 6 輪</div></div></div>
+      <div class="row plain"><span class="ck"></span>${av('C','',true)}<div class="main"><div>把匯出的日期改成 ISO 8601</div><div class="sub">續接 · 昨天 · 14 輪</div></div></div></div>
+      <div class="seg"><span class="on">Claude Code</span><span>Codex</span></div><div style="background:var(--surface);border-radius:12px;margin:0 12px 8px;padding:12px 14px;color:var(--tertiary);min-height:70px">第一則訊息</div><button class="big" style="margin-top:auto;margin-bottom:14px">開始新的聊天</button>`)
+      + phone('選了過去的 session', `<div class="nav"><button class="btn">取消</button><button class="chipx">${hi()} Studio Mac ▾</button><span style="width:50px"></span></div>
+      <div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div></div>
+      <div class="group"><div class="row plain"><span class="ck"></span><span class="hib">＋</span><div class="main"><b>新的聊天</b><div class="sub">開一個新 session</div></div></div>
+      <div class="row plain" style="background:var(--accent-soft)"><span class="ck">✓</span>${av('C','',true)}<div class="main"><div>CSV 匯出遇到逗號會壞掉</div><div class="sub">續接 · 今天 10:12 · 6 輪</div></div></div>
+      <div class="row plain"><span class="ck"></span>${av('C','',true)}<div class="main"><div>把匯出的日期改成 ISO 8601</div><div class="sub">續接 · 昨天 · 14 輪</div></div></div></div>
+      <div style="background:var(--surface);border-radius:12px;margin:0 12px 8px;padding:12px 14px;color:var(--tertiary);min-height:70px">接著說…(可留空)</div><button class="big" style="margin-top:auto;margin-bottom:14px">續接</button>`) },
+  ],
+  old:[
+  { n:'新增聊天頂部分段', pts:['新增聊天 sheet 最上面「新的聊天／續接」','續接列出這個資料夾過去的 session：第一句、時間、輪數','選一個按「續接」'],
+    h:()=>phone('新增聊天', `<div class="nav"><button class="btn">取消</button><button class="chipx">${hi()} Studio Mac ▾</button><button class="btn" style="font-weight:600">續接</button></div><div class="seg"><span>新的聊天</span><span class="on">續接</span></div>
+      <div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div></div>
+      <div class="sect">過去的 session</div><div class="group">
+      <div class="row plain"><span class="ck">✓</span><div class="main"><div>CSV 匯出遇到逗號會壞掉，幫我修</div><div class="sub">今天 10:12 · 6 輪 · Claude Code</div></div></div>
+      <div class="row plain"><span class="ck"></span><div class="main"><div>把匯出的日期改成 ISO 8601</div><div class="sub">昨天 · 14 輪 · Claude Code</div></div></div>
+      <div class="row plain"><span class="ck"></span><div class="main"><div>幫我看 README 有沒有過時</div><div class="sub">11/17 · 3 輪 · Codex</div></div></div></div>`) },
+  { n:'選完資料夾就列最近的', pts:['不分模式：選了資料夾，下面出現「最近的 session」3 筆＋「全部 12 個」','點一筆就變成續接，第一則訊息可以留空','沒點就是新的聊天'],
+    h:()=>phone('新增聊天', `<div class="nav"><button class="btn">取消</button><button class="chipx">${hi()} Studio Mac ▾</button><span style="width:50px"></span></div>
+      <div class="sect">Agent</div><div class="seg"><span class="on">Claude Code</span><span>Codex</span></div>
+      <div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div></div>
+      <div class="sect">接著做之前的 session</div><div class="group">
+      <div class="row plain" style="background:var(--accent-soft)"><div class="main"><div>CSV 匯出遇到逗號會壞掉，幫我修</div><div class="sub">今天 10:12 · 6 輪</div></div><span class="ck">✓</span></div>
+      <div class="row plain"><div class="main"><div>把匯出的日期改成 ISO 8601</div><div class="sub">昨天 · 14 輪</div></div></div>
+      <div class="row plain"><div class="main" style="color:var(--accent)">全部 12 個</div><span class="chev">›</span></div></div>
+      <div class="field" style="background:var(--surface);border-radius:12px;margin:0 12px 8px;padding:12px 14px;color:var(--tertiary);min-height:70px">第一則訊息(可留空，直接續接)</div>
+      <button class="big" style="margin-top:auto;margin-bottom:14px">續接</button>`) },
+  { n:'資料夾列旁的 session 數', pts:['資料夾瀏覽時，每個資料夾右邊寫「3 個 session」','點數字推入 session 時間軸，依日期分組、有最後一句','適合常換資料夾的人'],
+    h:()=>phone('選資料夾', `<div class="nav"><button class="btn">‹ 新增聊天</button><span class="t">資料夾</span><span style="width:60px"></span></div><div style="font-size:13px;color:var(--secondary);padding:0 16px 8px">~ › Projects</div>
+      <div class="group"><div class="row plain">📁<div class="main">ledger</div><span class="chipx acc" style="font-size:12px;padding:2px 8px">3 個 session ›</span></div><div class="row plain">📁<div class="main">weather-app</div><span class="chipx acc" style="font-size:12px;padding:2px 8px">8 個 session ›</span></div><div class="row plain">📁<div class="main">notes</div></div></div>`)
+      + phone('session 時間軸', `<div class="nav"><button class="btn">‹ 資料夾</button><span class="t">ledger 的 session</span><span style="width:60px"></span></div>
+      <div class="sect">今天</div><div class="group"><div class="row plain">${av('C','',true)}<div class="main"><div>CSV 匯出遇到逗號會壞掉，幫我修</div><div class="prev" style="-webkit-line-clamp:1">最後：測試也補上了，全部通過。</div></div><button class="pill sm soft">續接</button></div></div>
+      <div class="sect">昨天</div><div class="group"><div class="row plain">${av('C','',true)}<div class="main"><div>把匯出的日期改成 ISO 8601</div><div class="prev" style="-webkit-line-clamp:1">最後：時區也統一成 UTC 了</div></div><button class="pill sm soft">續接</button></div></div>`) },
+  ]
+},
+{ id:'310', name:'變更頁與行內評論', q:'Agent 改了哪些檔案、diff 怎麼看、在行上寫評論後怎麼一次送出？',
+  v:[
+  { n:'清單 → 單檔 diff', pts:['先看變更清單(狀態、+/−)，點檔案推入 diff','點行號選行、寫評論','底部固定列「送出 2 則評論」'],
+    h:()=>phone('變更', `<div class="nav"><button class="btn">‹ ledger</button><span class="t">變更</span><span style="width:60px"></span></div><div style="font-size:13px;color:var(--secondary);padding:0 16px 8px">master · 3 個檔案</div>
+      <div class="group"><div class="row plain"><span class="stt M">M</span><div class="main">Sources/CSVExport.swift</div><span class="num"><span class="plus">+12</span> <span class="minus">−3</span></span><span class="chev">›</span></div><div class="row plain"><span class="stt A">A</span><div class="main">Tests/CSVQuotingTests.swift</div><span class="num"><span class="plus">+48</span></span><span class="chev">›</span></div><div class="row plain"><span class="stt D">D</span><div class="main">Fixtures/draft.csv</div><span class="num"><span class="minus">−20</span></span><span class="chev">›</span></div></div>`)
+      + phone('diff', `<div class="nav"><button class="btn">‹ 變更</button><span class="t">CSVExport.swift</span><span style="width:60px"></span></div>
+      <div class="diff"><div class="ln"><i>40</i>  func field(_ v: String) -> String {</div><div class="ln d"><i>41</i>-   return v</div><div class="ln a sel"><i>41</i>+   guard v.contains(where: needsQuote) else { return v }</div>
+      <div class="cmt"><span class="who">你的評論 · 第 41 行</span>換行 \\r 也要算進 needsQuote</div>
+      <div class="ln a"><i>42</i>+   return "\\"" + v.replacing("\\"", with: "\\"\\"") + "\\""</div><div class="ln"><i>43</i>  }</div></div>
+      <div style="margin-top:auto;padding:10px 12px 14px;display:flex;gap:10px;align-items:center;border-top:.5px solid var(--separator);background:var(--surface)"><span class="main sub">2 則評論，共 2 個檔案</span><button class="pill">送出評論</button></div>`) },
+  { n:'全部檔案一頁捲完', pts:['像 GitHub 的 Files changed：所有檔案的 diff 疊在一頁，可收合','評論卡片插在行下面','右下浮動「送出 2 則評論」'],
+    h:()=>phone('變更', `<div class="nav"><button class="btn">‹ ledger</button><span class="t">變更 · 3</span><span style="width:60px"></span></div>
+      <div class="diff"><div class="fh"><span class="stt M">M</span>CSVExport.swift<span style="flex:1"></span><span class="num"><span class="plus">+12</span> <span class="minus">−3</span></span> ▾</div>
+      <div class="ln d"><i>41</i>-   return v</div><div class="ln a sel"><i>41</i>+   guard v.contains(where: needsQuote) else { return v }</div><div class="cmt"><span class="who">你的評論</span>換行 \\r 也要算進 needsQuote</div><div class="ln a"><i>42</i>+   return "\\"" + v + "\\""</div></div>
+      <div class="diff"><div class="fh"><span class="stt A">A</span>CSVQuotingTests.swift<span style="flex:1"></span><span class="num"><span class="plus">+48</span></span> ▸</div></div>
+      <div class="diff"><div class="fh"><span class="stt D">D</span>draft.csv<span style="flex:1"></span><span class="sub">二進位或過大，不顯示</span> ▸</div></div>
+      <button class="pill" style="position:absolute;right:16px;bottom:18px;box-shadow:0 4px 14px #0003;padding:10px 16px">${G.cmt} 送出 2 則評論</button>`) },
+  { n:'評論先進輸入列', pts:['在 diff 寫的評論變成聊天輸入列上方的小卡「CSVExport.swift:41」','回到聊天可以再補一句話，跟評論一起送','送出前看得到組好的完整訊息'],
+    h:()=>phone('diff', `<div class="nav"><button class="btn">‹ 變更</button><span class="t">CSVExport.swift</span><span style="width:60px"></span></div>
+      <div class="diff"><div class="ln d"><i>41</i>-   return v</div><div class="ln a sel"><i>41</i>+   guard v.contains(where: needsQuote) else { return v }</div><div class="cmt"><span class="who">第 41 行</span>換行 \\r 也要算進 needsQuote<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn">取消</button><button class="pill sm">加到訊息</button></div></div></div>`)
+      + phone('聊天', chatNav()+`<div class="chat">${convo()}</div><div style="display:flex;gap:6px;padding:0 12px 4px;flex-wrap:wrap"><span class="chipx">${G.cmt} CSVExport.swift:41 ✕</span><span class="chipx">${G.cmt} CSVQuotingTests.swift:12 ✕</span></div>`+composer('改完再跑一次測試')) },
+  ]
+},
+{ id:'313', name:'選擇控制一致化', q:'(第 2 版，依 Apple HIG、盡量攤開)HIG:2–5 個短選項用分段；少量但要說明的用列表勾選(像「設定」app);視覺選項直接排出來；選項數量沒有上限的才用選單或另一層。三版差在「主機」與「⋯」攤開到什麼程度。',
+  v:[
+  { n:'HIG 規則，主機仍用選單', pts:['分段：方案用量的 Agent、剩餘／已用','勾選列：登入方式三列，選中那項下面一行說明(像「設定」app 的 footer)','主機數量沒有上限 → 維持彈出選單；按鈕上一行截斷，選單裡完整名稱＋位址兩行','「⋯」只放動作與工具入口：建立類(新增聊天、新增主機)開 sheet，工具類(方案用量、登入 Shell、檔案)推入，設定開 sheet'],
+    h:()=>phone('方案用量', `<div class="nav"><button class="btn">‹ 聊天</button><button class="chipx">${hi()} Studio Mac ▾</button><button class="circle">⋯</button></div><div class="seg"><span class="on">Claude Code</span><span>Codex</span></div><div class="seg"><span class="on">剩餘</span><span>已用</span></div>
+      <div class="card"><div class="h">5 小時 <span style="flex:1"></span>剩 64%</div><div class="bar"><i style="width:64%"></i></div><div class="h">本週 <span style="flex:1"></span>剩 41%</div><div class="bar"><i style="width:41%"></i></div></div>`)
+      + phone('編輯主機', `<div class="nav"><button class="btn">取消</button><span class="t">Studio Mac</span><button class="btn" style="font-weight:600">儲存</button></div><div class="sect">登入方式</div>
+      <div class="group"><div class="row plain"><div class="main">這台裝置的金鑰</div><span class="ck">✓</span></div><div class="row plain"><div class="main">匯入私鑰</div><span class="ck"></span></div><div class="row plain"><div class="main">密碼</div><span class="ck"></span></div></div><div class="foot">Purrdr 產生的金鑰，私鑰不離開這支裝置。</div>
+      <div class="sect">主機圖示</div><div class="group"><div class="grid"><span class="on">Mac</span><span>PC</span><span>伺服器</span><span>筆電</span><span>NAS</span><span>雲端</span><span>樹莓派</span><span>無</span></div></div>`)
+      + phone('主機選單', listNav().replace('所有主機 ▾','所有主機 ▾')+`<div class="menu" style="left:12px;top:52px;width:270px"><div class="row"><span class="ck">✓</span><div class="main">所有主機</div></div><div class="row"><span class="ck"></span>${hi()}<div class="main"><div>raychiu-build-server-windows-2025</div><div class="sub">build.tail1234.ts.net</div></div></div><div class="row"><span class="ck"></span>${hi()}<div class="main"><div>Studio Mac</div><div class="sub">studio.tail1234.ts.net</div></div></div></div>`)
+      + phone('「⋯」', listNav()+`<div class="menu" style="right:56px;top:52px"><div class="row">✎ 新增聊天</div><div class="row">＋ 新增主機</div><div style="height:8px;background:var(--page)"></div><div class="row">◔ 方案用量 <span style="flex:1"></span><span class="chev">›</span></div><div class="row">⌨ 登入 Shell <span style="flex:1"></span><span class="chev">›</span></div><div class="row">▤ 檔案 <span style="flex:1"></span><span class="chev">›</span></div><div style="height:8px;background:var(--page)"></div><div class="row">🖥 主機</div><div class="row">⚙ 設定</div></div>`) },
+  { n:'連主機也攤開', pts:['分段、勾選列、圖示格同 A','主機篩選改成分段下方一排可橫捲的膠囊：所有主機｜Studio Mac｜Build Box，選了就篩','新增聊天、登入 Shell、方案用量的主機也是同一排膠囊；主機超過一排時橫捲','「⋯」同 A'],
+    h:()=>phone('聊天列表', `<div class="nav"><span></span><span></span><span style="display:flex;gap:8px"><button class="circle">⋯</button><button class="circle" style="background:var(--accent);color:var(--on-accent);font-weight:700">R</button></span></div><div class="large">聊天</div><div class="seg"><span class="on">Agents</span><span>Spaces</span></div>
+      <div style="display:flex;gap:6px;padding:0 12px 10px;overflow:hidden"><button class="chipx acc">所有主機</button><button class="chipx">${hi()} Studio Mac</button><button class="chipx">${hi()} raychiu-build-ser…</button></div>
+      <div class="group">${agentRow('C','ledger','working','Studio Mac · 正在補 TSV 的測試','10:42')}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','09:58')}</div>`)
+      + phone('新增聊天', `<div class="nav"><button class="btn">取消</button><span class="t">新增聊天</span><span style="width:50px"></span></div><div class="sect">主機</div>
+      <div style="display:flex;gap:6px;padding:0 12px 10px;overflow:hidden"><button class="chipx">${hi()} Demo</button><button class="chipx acc">${hi()} Studio Mac</button><button class="chipx">${hi()} raychiu-build…</button></div>
+      <div class="sect">Agent</div><div class="seg"><span class="on">Claude Code</span><span>Codex</span></div><div class="group"><div class="row plain"><div class="main">資料夾</div><span class="val">~/Projects/ledger</span><span class="chev">›</span></div></div>`)
+      + phone('方案用量', `<div class="nav"><button class="btn">‹ 聊天</button><span class="t">方案用量</span><button class="circle">⋯</button></div>
+      <div style="display:flex;gap:6px;padding:0 12px 10px;overflow:hidden"><button class="chipx acc">${hi()} Studio Mac</button><button class="chipx">${hi()} Build Box</button></div><div class="seg"><span class="on">Claude Code</span><span>Codex</span></div><div class="seg"><span class="on">剩餘</span><span>已用</span></div>
+      <div class="card"><div class="h">5 小時 <span style="flex:1"></span>剩 64%</div><div class="bar"><i style="width:64%"></i></div></div>`) },
+  { n:'攤開＋主要動作不藏', pts:['分段、勾選列、圖示格同 A','主要動作「新增聊天」不放「⋯」，改成右上角常駐的撰寫鈕(像「郵件」「訊息」app)','主機按鈕點了開半高 sheet：完整清單，名稱與位址兩行，主機多時有搜尋','「⋯」只剩工具入口(推入)與設定'],
+    h:()=>phone('聊天列表', `<div class="nav"><button class="chipx">${hi()} 所有主機 ▾</button><span></span><span style="display:flex;gap:8px"><button class="circle">⋯</button><button class="circle" aria-label="新增聊天">✎</button><button class="circle" style="background:var(--accent);color:var(--on-accent);font-weight:700">R</button></span></div><div class="large">聊天</div><div class="seg"><span class="on">Agents</span><span>Spaces</span></div>
+      <div class="group">${agentRow('C','ledger','working','Studio Mac · 正在補 TSV 的測試','10:42')}${agentRow('C','weather-app','needs','Build Box · 要用哪個 API？','09:58')}</div>`)
+      + phone('主機(半高 sheet)', listNav()+`<div class="ov"><div class="sheet" style="min-height:55%"><div class="grab"></div><div class="nav"><span style="width:50px"></span><span class="t">主機</span><button class="btn">完成</button></div>
+      <div class="group"><div class="row plain"><span class="ck">✓</span><div class="main">所有主機</div></div><div class="row plain"><span class="ck"></span><span class="hib">${G.host}</span><div class="main"><div>raychiu-build-server-windows-2025</div><div class="sub">build.tail1234.ts.net</div></div></div><div class="row plain"><span class="ck"></span><span class="hib">${G.host}</span><div class="main"><div>Studio Mac</div><div class="sub">studio.tail1234.ts.net</div></div></div></div></div></div>`)
+      + phone('「⋯」', listNav()+`<div class="menu" style="right:56px;top:52px"><div class="row">◔ 方案用量 <span style="flex:1"></span><span class="chev">›</span></div><div class="row">⌨ 登入 Shell <span style="flex:1"></span><span class="chev">›</span></div><div class="row">▤ 檔案 <span style="flex:1"></span><span class="chev">›</span></div><div class="row">🖥 主機 <span style="flex:1"></span><span class="chev">›</span></div><div style="height:8px;background:var(--page)"></div><div class="row">⚙ 設定</div></div>`) },
+  ],
+  old:[
+  { n:'分段＋展開勾選列', pts:['方案用量：Agent、剩餘／已用都是分段；「⋯」只剩「關閉 Claude 方案用量」','登入方式直接展開三列勾選','主機下拉：一行、太長中間省略；「⋯」裡建立／設定類開 sheet，工具類推入'],
+    h:()=>phone('方案用量', `<div class="nav"><button class="btn">‹ 聊天</button><span class="t">方案用量</span><button class="circle">⋯</button></div><div class="seg"><span class="on">Claude Code</span><span>Codex</span></div><div class="seg"><span class="on">剩餘</span><span>已用</span></div>
+      <div class="card"><div class="h">5 小時 <span style="flex:1"></span>剩 64%</div><div class="bar"><i style="width:64%"></i></div><div class="h">本週 <span style="flex:1"></span>剩 41%</div><div class="bar"><i style="width:41%"></i></div></div>`)
+      + phone('編輯主機', `<div class="nav"><button class="btn">取消</button><span class="t">Studio Mac</span><button class="btn" style="font-weight:600">儲存</button></div><div class="sect">登入方式</div>
+      <div class="group"><div class="row plain"><span class="ck">✓</span><div class="main">這台裝置的金鑰</div></div><div class="row plain"><span class="ck"></span><div class="main">匯入私鑰</div></div><div class="row plain"><span class="ck"></span><div class="main">密碼</div></div></div>
+      <div class="sect">主機圖示</div><div class="group"><div class="grid"><span class="on">Mac</span><span>PC</span><span>伺服器</span><span>筆電</span></div></div>`)
+      + phone('主機下拉', listNav()+`<div class="menu" style="left:12px;top:52px;width:250px"><div class="row"><span class="ck">✓</span>所有主機</div><div class="row"><span class="ck"></span>${hi()}<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden">raychiu-build…-windows-2025</span></div><div class="row"><span class="ck"></span>${hi()}Studio Mac</div></div>`) },
+  { n:'分段＋推入選擇頁', pts:['方案用量同 A','登入方式是一列「登入方式 · 這台裝置的金鑰 ›」，推入選擇頁(欄位多時畫面短)','主機下拉：名稱最多兩行；「⋯」裡全部推入'],
+    h:()=>phone('編輯主機', `<div class="nav"><button class="btn">取消</button><span class="t">Studio Mac</span><button class="btn" style="font-weight:600">儲存</button></div>
+      <div class="group"><div class="row plain"><div class="main">登入方式</div><span class="val">這台裝置的金鑰</span><span class="chev">›</span></div><div class="row plain"><div class="main">主機圖示</div><span class="val">Mac</span><span class="chev">›</span></div></div>`)
+      + phone('登入方式(推入)', `<div class="nav"><button class="btn">‹ Studio Mac</button><span class="t">登入方式</span><span style="width:60px"></span></div><div class="group"><div class="row plain"><div class="main">這台裝置的金鑰</div><span class="ck">✓</span></div><div class="row plain"><div class="main">匯入私鑰</div><span class="ck"></span></div><div class="row plain"><div class="main">密碼</div><span class="ck"></span></div></div>`)
+      + phone('主機下拉', listNav()+`<div class="menu" style="left:12px;top:52px;width:250px"><div class="row"><span class="ck">✓</span>所有主機</div><div class="row" style="align-items:flex-start"><span class="ck"></span>${hi()}<span style="flex:1;min-width:0">raychiu-build-server-windows-2025</span></div><div class="row"><span class="ck"></span>${hi()}Studio Mac</div></div>`) },
+  { n:'能分段就分段', pts:['登入方式也用分段(金鑰／私鑰／密碼)','主機圖示展開成格子','主機下拉：名稱＋第二行位址；「⋯」裡全部開 sheet'],
+    h:()=>phone('編輯主機', `<div class="nav"><button class="btn">取消</button><span class="t">Studio Mac</span><button class="btn" style="font-weight:600">儲存</button></div><div class="sect">登入方式</div><div class="seg"><span class="on">金鑰</span><span>匯入私鑰</span><span>密碼</span></div>
+      <div class="sect">主機圖示</div><div class="group"><div class="grid"><span class="on">Mac</span><span>PC</span><span>伺服器</span><span>筆電</span></div></div>`)
+      + phone('主機下拉', listNav()+`<div class="menu" style="left:12px;top:52px;width:260px"><div class="row"><span class="ck">✓</span>所有主機</div><div class="row"><span class="ck"></span>${hi()}<div class="main"><div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">raychiu-build-server-windows-2025</div><div class="sub">build.tail1234.ts.net</div></div></div><div class="row"><span class="ck"></span>${hi()}<div class="main"><div>Studio Mac</div><div class="sub">studio.tail1234.ts.net</div></div></div></div>`) },
+  ],
+  common:()=>phone('主畫面「⋯」(三版共用的內容)', listNav()+`<div class="menu" style="right:56px;top:52px"><div class="row">新增聊天</div><div class="row">主機</div><div class="row">方案用量</div><div class="row">登入 Shell</div><div class="row">檔案</div><div class="row">設定</div></div>`)
+},
+{ id:'295', name:'未配對主機的通知列', q:'帳號頁「通知」裡，還沒在這支裝置配對的 HTTPS 主機怎麼說明、配對入口放哪？',
+  v:[
+  { n:'開關換成「配對」按鈕', pts:['那一列沒有開關，右邊是「配對」','副標寫原因「先在這支裝置配對，才能開通知」','配對完回來，按鈕變回開關'],
+    h:()=>phone('帳號 › 通知', `<div class="nav"><span style="width:50px"></span><span class="t">帳號</span><button class="btn">完成</button></div><div class="sect">通知</div>
+      <div class="group"><div class="row"><span class="hib">${G.host}</span><div class="main"><div>Studio Mac</div><div class="sub">需要你、完成</div></div><span class="toggle on"></span></div>
+      <div class="row"><span class="hib">${G.host}</span><div class="main"><div>Build Box</div><div class="sub">先在這支裝置配對，才能開通知</div></div><button class="pill sm">配對</button></div>
+      <div class="row"><span class="hib">${G.host}</span><div class="main"><div>Demo</div><div class="sub">Demo 主機不能發送通知</div></div><span class="toggle off"></span></div></div>`) },
+  { n:'開關停用＋整列可點', pts:['開關照樣顯示但停用','副標寫原因，列尾有 ›，點整列開配對','跟其他列長得一樣，最不突兀'],
+    h:()=>phone('帳號 › 通知', `<div class="nav"><span style="width:50px"></span><span class="t">帳號</span><button class="btn">完成</button></div><div class="sect">通知</div>
+      <div class="group"><div class="row"><span class="hib">${G.host}</span><div class="main"><div>Studio Mac</div><div class="sub">需要你、完成</div></div><span class="toggle on"></span></div>
+      <div class="row"><span class="hib">${G.host}</span><div class="main"><div>Build Box</div><div class="sub" style="color:var(--accent)">先配對這台主機 ›</div></div><span class="toggle off"></span></div>
+      <div class="row"><span class="hib">${G.host}</span><div class="main"><div>Demo</div><div class="sub">Demo 主機不能發送通知</div></div><span class="toggle off"></span></div></div>`) },
+  { n:'區塊上方彙整', pts:['「通知」區塊上方一張提示「1 台主機還沒在這支裝置配對」與「配對」','列上只寫「需要配對」','適合同步帶來很多主機的新裝置'],
+    h:()=>phone('帳號 › 通知', `<div class="nav"><span style="width:50px"></span><span class="t">帳號</span><button class="btn">完成</button></div><div class="sect">通知</div>
+      <div class="banner org" style="margin-bottom:8px">${G.host}<div class="main"><b>1 台主機還沒在這支裝置配對</b>配對後才能開通知</div><button class="pill sm">配對</button></div>
+      <div class="group"><div class="row"><span class="hib">${G.host}</span><div class="main"><div>Studio Mac</div><div class="sub">需要你、完成</div></div><span class="toggle on"></span></div>
+      <div class="row"><span class="hib">${G.host}</span><div class="main"><div>Build Box</div><div class="sub">需要配對</div></div><span class="toggle off"></span></div></div>`) },
+  ]
+},
+];
+
+const LETTERS = ['A','B','C','D'];
+const keyOf = (t, i) => t.v[i].fin ? 'D' : LETTERS[i];
+const keysOf = t => t.v.map((_, i) => keyOf(t, i));
+const vOf = (t, k) => t.v[keysOf(t).indexOf(k)];
+const vLabel = (t, k) => { const v = vOf(t, k); return v ? (v.fin ? `定案・${v.n}` : `${k}・${v.n}`) : k; };
+// 2026-11-20 使用者已決定的版本(#309、#313 重畫，待選)。
+const DECIDED = { '300':'B', '301':'B', '302':'B', '305':'B', '306':'D', '307':'D', '308':'C', '310':'A', '295':'B' };
+let picks = {};
+try { picks = JSON.parse(localStorage.getItem('purrdr-pending-picks-v2') || '{}'); } catch (e) { picks = {}; }
+const save = () => { try { localStorage.setItem('purrdr-pending-picks-v2', JSON.stringify(picks)); } catch (e) {} };
+const chosenKey = id => DECIDED[id] || picks[id]?.v;
+
+function parse() {
+  const h = location.hash.slice(1);
+  if (h === 'picks') return { picks:true };
+  const m = /^t(\d+)-([abcd])$/.exec(h);
+  const t = m && T.find(x => x.id === m[1]);
+  if (t && keysOf(t).includes(m[2].toUpperCase())) return { t:m[1], v:m[2].toUpperCase() };
+  const first = T.find(x => !DECIDED[x.id]) || T[0];
+  return { t:first.id, v:'A' };
+}
+function go(t, v) { location.hash = `t${t}-${v.toLowerCase()}`; }
+
+function render() {
+  const s = parse();
+  document.getElementById('tickets').innerHTML = T.map(t => {
+    const k = chosenKey(t.id);
+    return `<button class="tk ${s.t===t.id?'on':''}" data-t="${t.id}">#${t.id} ${t.name}${k?`<span class="picked">${DECIDED[t.id]?'✓ ':''}${k==='D'?'定案':k}</span>`:(t.old?'<span class="picked">待選</span>':'')}</button>`;
+  }).join('') + `<button class="tk ${s.picks?'on':''}" data-picks="1">彙整選擇</button>`;
+  const stage = document.getElementById('stage'), sw = document.getElementById('switcher');
+  if (s.picks) { sw.hidden = true; stage.innerHTML = picksView(); bindPicks(); return; }
+  sw.hidden = false;
+  const t = T.find(x => x.id === s.t), v = vOf(t, s.v);
+  const decided = DECIDED[t.id];
+  stage.innerHTML = `<section class="qbox"><h2>#${t.id} ${t.name}</h2><div class="q">${t.q}</div>
+    ${decided?`<div class="sub">已決定:<b style="color:var(--accent)">${vLabel(t, decided)}</b></div>`:''}
+    <div><span class="vn">${vLabel(t, s.v)}</span><ul>${v.pts.map(p=>`<li>${p}</li>`).join('')}</ul></div></section>
+    <div class="phones">${v.h()}</div>${t.common?`<div class="common"><h4>各版本共用</h4><div class="phones">${t.common()}</div></div>`:''}`;
+  document.getElementById('vlabel').textContent = `#${t.id} ${vLabel(t, s.v)}`;
+  const ch = document.getElementById('choose');
+  if (decided) { ch.textContent = decided === s.v ? '已決定 ✓' : '已決定其他版本'; ch.classList.add('done'); ch.disabled = true; }
+  else { const c = picks[t.id]?.v === s.v; ch.disabled = false; ch.textContent = c ? '已選 ✓' : '選這個'; ch.classList.toggle('done', c); }
+}
+function picksView() {
+  return `<section class="picks"><h2 style="margin:0">彙整選擇</h2><div class="sub">打勾的是已經決定的；#309、#313 是重畫的第 2 版，選好後可補一句想混搭的地方。複製下面的文字貼回對話。</div>
+    ${T.map(t=>{ const k = chosenKey(t.id); return `<div class="rowp"><b>#${t.id}</b><span style="width:130px;flex:none">${t.name}</span><span style="width:150px;flex:none;color:${k?'var(--accent)':'var(--secondary)'}">${k?`${DECIDED[t.id]?'✓ ':''}${vLabel(t,k)}`:'還沒選'}</span>${DECIDED[t.id]?'<span class="sub">已決定</span>':`<input id="note-${t.id}" data-note="${t.id}" placeholder="補充(可留空)" value="${(picks[t.id]?.note||'').replace(/"/g,'&quot;')}">`}</div>`; }).join('')}
+    <textarea id="summary" readonly aria-label="選擇彙整">${summary()}</textarea>
+    <div style="display:flex;gap:8px"><button class="pill" id="copy">複製</button><span class="sub" id="copied"></span></div></section>`;
+}
+function summary() {
+  return T.filter(t => !DECIDED[t.id]).map(t => { const p = picks[t.id]; const v = p?.v ? vLabel(t, p.v) : '未選'; return `#${t.id} ${t.name}:${v}${p?.note?` — ${p.note}`:''}`; }).join('\n');
+}
+function bindPicks() {
+  document.querySelectorAll('[data-note]').forEach(el => el.addEventListener('input', () => {
+    const id = el.dataset.note; picks[id] = { ...(picks[id]||{}), note: el.value }; save();
+    document.getElementById('summary').value = summary();
+  }));
+  document.getElementById('copy').addEventListener('click', () => {
+    const ta = document.getElementById('summary'), msg = document.getElementById('copied');
+    navigator.clipboard.writeText(ta.value).then(() => msg.textContent = '已複製', () => { ta.select(); msg.textContent = '已選取，請手動複製'; });
+  });
+}
+function step(d) { const s = parse(); if (s.picks) return; const t = T.find(x => x.id === s.t), ks = keysOf(t); go(s.t, ks[(ks.indexOf(s.v) + d + ks.length) % ks.length]); }
+document.getElementById('prev').onclick = () => step(-1);
+document.getElementById('next').onclick = () => step(1);
+document.getElementById('choose').onclick = () => { const s = parse(); if (DECIDED[s.t]) return; picks[s.t] = { ...(picks[s.t]||{}), v: picks[s.t]?.v === s.v ? undefined : s.v }; save(); render(); };
+document.getElementById('tickets').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.picks) { location.hash = 'picks'; return; }
+  go(b.dataset.t, chosenKey(b.dataset.t) || 'A');
+});
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input,textarea,[contenteditable]')) return;
+  if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
+});
+addEventListener('hashchange', () => { render(); scrollTo({ top: 0 }); });
+render();
+</script>
