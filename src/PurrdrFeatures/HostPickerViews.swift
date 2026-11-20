@@ -27,9 +27,10 @@ struct HostPickerButton: View {
                     .foregroundStyle(.secondaryText)
                     .accessibilityHidden(true)
             }
-            .padding(.leading, 4)
-            .padding(.trailing, 10)
-            .padding(.vertical, 4)
+            .padding(.leading, 10)
+            .padding(.trailing, 14)
+            // 跟兩旁的玻璃鈕(返回、＋)一樣 44pt 高(實機回報 2026-11-20)。
+            .frame(minHeight: 44)
             .background(.fill.tertiary, in: Capsule())
             .contentShape(Capsule())
         }

@@ -39,8 +39,10 @@ final class NewChatUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["folderPicker.empty"].firstMatch.waitForExistence(timeout: 5), "空資料夾沒有說明")
         XCTAssertFalse(app.descendants(matching: .any)["folderPicker.error"].firstMatch.exists, "空資料夾不是錯誤")
 
-        app.buttons["folderPicker.up"].tap()
-        XCTAssertTrue(app.buttons["folderPicker.row.reports"].waitForExistence(timeout: 5), "上一層沒有回到 ledger")
+        // 比照檔案頁：點麵包屑的上一段回到 ledger(沒有「上一層」按鈕)。
+        XCTAssertFalse(app.buttons["folderPicker.up"].exists)
+        app.buttons["folderPicker.crumb.1"].tap()
+        XCTAssertTrue(app.buttons["folderPicker.row.reports"].waitForExistence(timeout: 5), "點麵包屑沒有回到 ledger")
         app.buttons["folderPicker.row.reports"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["folderPicker.empty"].firstMatch.waitForExistence(timeout: 5))
         app.buttons["folderPicker.use"].tap()

@@ -104,6 +104,8 @@ public struct FolderBrowserView: View {
 /// 一個項目:圖示、名稱、檔案的大小與修改時間。資料夾與 symlink 可以點。
 struct FolderEntryRow: View {
     let entry: FolderEntry
+    /// UI 測試的識別字開頭(檔案頁 `files.row.`、新增聊天的資料夾瀏覽 `folderPicker.row.`)。
+    var identifierPrefix = "files.row."
     let open: () -> Void
 
     var body: some View {
@@ -120,10 +122,10 @@ struct FolderEntryRow: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier("files.row.\(entry.name)")
+            .accessibilityIdentifier("\(identifierPrefix)\(entry.name)")
         } else {
             label
-                .accessibilityIdentifier("files.row.\(entry.name)")
+                .accessibilityIdentifier("\(identifierPrefix)\(entry.name)")
         }
     }
 
@@ -185,6 +187,8 @@ struct FolderEntryRow: View {
 /// 每段是以資料夾命名的按鈕(VoiceOver 可以逐層往上);最後一段是目前的資料夾，不能點。
 struct FolderBreadcrumbBar: View {
     let crumbs: [FolderBreadcrumb]
+    /// UI 測試的識別字開頭(檔案頁 `files.crumb.`、資料夾瀏覽 `folderPicker.crumb.`)。
+    var identifierPrefix = "files.crumb."
     let go: (FolderBreadcrumb) -> Void
 
     var body: some View {
@@ -210,7 +214,7 @@ struct FolderBreadcrumbBar: View {
                         .buttonStyle(.pressableRow(cornerRadius: 8))
                         .disabled(isCurrent)
                         .accessibilityLabel(crumb.isHome ? Text("Home Folder") : Text(verbatim: crumb.title))
-                        .accessibilityIdentifier("files.crumb.\(index)")
+                        .accessibilityIdentifier("\(identifierPrefix)\(index)")
                         .id(index)
                     }
                 }

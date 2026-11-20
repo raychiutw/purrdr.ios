@@ -23,6 +23,8 @@ public final class FolderPickerModel {
     private let folders: NewChatFolders
     /// 正在讀或上次讀失敗的資料夾(重試讀它)。
     private var requested: String?
+    /// 家目錄(從家目錄開始時第一次列出的資料夾):麵包屑以「~」代表。
+    private var home: String?
 
     public init(folders: NewChatFolders, start: String?) {
         self.folders = folders
@@ -56,11 +58,21 @@ public final class FolderPickerModel {
         await list(parent)
     }
 
+    /// 路徑麵包屑(比照檔案頁，實機回報 2026-11-20)。
+    public var breadcrumbs: [FolderBreadcrumb] { FolderBreadcrumb.trail(to: chosenPath, home: home) }
+
+    /// 點麵包屑的一段：打開那一層。
+    public func go(to crumb: FolderBreadcrumb) async {
+        guard crumb.path != chosenPath else { return }
+        await list(crumb.path)
+    }
+
     private func list(_ path: String?) async {
         requested = path
         state = .loading
         do {
             let listing = try await folders.list(path)
+            if path == nil || path?.isEmpty == true, home == nil { home = listing.path }
             state = .loaded(listing)
         } catch {
             state = .failed(Self.message(for: error))

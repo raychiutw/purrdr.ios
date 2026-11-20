@@ -122,13 +122,12 @@ final class AgentListUITests: XCTestCase {
         }
     }
 
-    /// 右上角的帳號圓圈跟「⋯」一樣大(實機回報 2026-11-20:原本比較小)。
+    /// 右上角的帳號圓圈跟「⋯」看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來 44pt(XCUI 的 frame 只報內容 36pt)。
     @MainActor
     func testAccountButtonMatchesMoreButton() {
         let app = XCUIApplication.launchUITesting()
         let account = app.buttons["toolbar.account"].firstMatch
-        let more = app.buttons["toolbar.more"].firstMatch
         XCTAssertTrue(account.waitForExistence(timeout: 10))
-        XCTAssertEqual(account.frame.height, more.frame.height, accuracy: 2, "帳號 \(account.frame) 與「⋯」\(more.frame) 不一樣大")
+        XCTAssertEqual(account.frame.height, 44, accuracy: 1, "帳號圓圈 \(account.frame) 應與玻璃鈕一樣 44pt")
     }
-}
+}}

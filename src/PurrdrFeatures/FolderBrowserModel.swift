@@ -47,20 +47,7 @@ public final class FolderBrowserModel {
 
     /// 路徑麵包屑(#273,原型 purrdr-screens 定案版:「~ › Projects › ledger」):由上而下每一層一段，最後一段是目前的資料夾。
     /// 家目錄與它底下以「~」開頭;家目錄外從根目錄(`/`、`C:\`)開始。路徑依主機的語法切段(#26)。
-    public var breadcrumbs: [FolderBreadcrumb] {
-        guard let path else { return [] }
-        var chain = [path]
-        while let parent = HostPathSyntax.parent(of: chain[0]) { chain.insert(parent, at: 0) }
-        if let home, let start = chain.firstIndex(of: home) {
-            return [FolderBreadcrumb(title: "~", path: home, isHome: true)] + chain[(start + 1)...].map(Self.crumb)
-        }
-        return chain.map(Self.crumb)
-    }
-
-    private static func crumb(_ path: String) -> FolderBreadcrumb {
-        let title = HostPathSyntax.isRoot(path) ? path : (HostPathSyntax.lastComponent(path).map(String.init) ?? path)
-        return FolderBreadcrumb(title: title, path: path)
-    }
+    public var breadcrumbs: [FolderBreadcrumb] { FolderBreadcrumb.trail(to: path, home: home) }
 
     /// 點麵包屑的一段：打開那一層。
     public func go(to crumb: FolderBreadcrumb) async {
@@ -181,5 +168,21 @@ public struct FolderBreadcrumb: Equatable, Hashable, Sendable {
         self.title = title
         self.path = path
         self.isHome = isHome
+    }
+
+    /// 從根目錄(或家目錄)到 `path` 的每一層;家目錄與它底下以「~」開頭。檔案頁與資料夾瀏覽共用。
+    static func trail(to path: String?, home: String?) -> [FolderBreadcrumb] {
+        guard let path else { return [] }
+        var chain = [path]
+        while let parent = HostPathSyntax.parent(of: chain[0]) { chain.insert(parent, at: 0) }
+        if let home, let start = chain.firstIndex(of: home) {
+            return [FolderBreadcrumb(title: "~", path: home, isHome: true)] + chain[(start + 1)...].map(crumb)
+        }
+        return chain.map(crumb)
+    }
+
+    private static func crumb(_ path: String) -> FolderBreadcrumb {
+        let title = HostPathSyntax.isRoot(path) ? path : (HostPathSyntax.lastComponent(path).map(String.init) ?? path)
+        return FolderBreadcrumb(title: title, path: path)
     }
 }

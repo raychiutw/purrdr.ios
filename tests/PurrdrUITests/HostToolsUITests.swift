@@ -104,6 +104,7 @@ final class HostToolsUITests: XCTestCase {
 
         openMenuItem("menu.files", in: app)
         XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForExistence(timeout: 10), "檔案沒有主機挑選鈕")
+        XCTAssertGreaterThanOrEqual(app.buttons["files.host"].firstMatch.frame.height, 44, "主機挑選鈕要跟兩旁的玻璃鈕一樣高")
         XCTAssertTrue(app.buttons["files.host"].firstMatch.label.contains("Studio Mac"), "檔案不該沿用登入 Shell 的選擇")
     }
 
