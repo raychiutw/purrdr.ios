@@ -2638,17 +2638,6 @@
         }
       }
     },
-    "Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "診斷資訊包含 app 版本、iOS 版本、主機數與 herdr 版本，絕不包含主機名稱、位址、使用者名稱或對話內容。"
-          }
-        }
-      }
-    },
     "Discard Changes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5285,17 +5274,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會在這台主機加裝一個小型 herdr plugin。Agent 需要你時，主機會告知 Purrdr 後台，再由後台通知這支裝置。通知只顯示 Workspace 名稱，絕不包含 Agent 說的內容。Windows 主機的通知為盡力傳送，不保證送達。"
-          }
-        }
-      }
-    },
-    "Purrdr asks you to unlock when it opens and when you come back after more than a minute. Chats are hidden in the app switcher." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開啟 Purrdr 時，以及離開超過 1 分鐘再回來時要解鎖;多工切換畫面不顯示聊天內容。"
           }
         }
       }

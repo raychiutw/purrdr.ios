@@ -102,6 +102,18 @@ final class SettingsUITests: XCTestCase {
         }
     }
 
+    /// 設定頁只有原型有的段落說明(外觀下的「自動」),其他段落沒有功能說明(#276)。
+    @MainActor
+    func testSettingsShowsOnlyPrototypeFooter() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+        XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitForExistence(timeout: 5))
+        let privacy = element("settings.privacy", in: app)
+        scrollTo(privacy, in: app)
+        let paragraph = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Diagnostics include")).firstMatch
+        XCTAssertFalse(paragraph.exists, "支援段不該有功能說明段落")
+    }
+
     /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。
     /// 已存主機的通道是 Demo 主機，家目錄在記憶體。
     @MainActor

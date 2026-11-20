@@ -161,9 +161,12 @@ struct AppLockSettingsSection: View {
             Text("App Lock")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            footer
-                .foregroundStyle(.secondaryText)
-                .accessibilityIdentifier("settings.appLock.footer")
+            // 只說明不能用的原因(狀態訊息);功能說明依 #276 不放。
+            if let unavailableReason {
+                unavailableReason
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("settings.appLock.footer")
+            }
         }
     }
 
@@ -176,10 +179,10 @@ struct AppLockSettingsSection: View {
         }
     }
 
-    private var footer: Text {
+    private var unavailableReason: Text? {
         switch lock.availability {
         case .available:
-            Text("Purrdr asks you to unlock when it opens and when you come back after more than a minute. Chats are hidden in the app switcher.")
+            nil
         case .passcodeNotSet:
             Text("Set a device passcode in the Settings app to use App Lock.")
         case .unavailable:

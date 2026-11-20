@@ -47,6 +47,7 @@ final class AppLockUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有 App 鎖")
         XCTAssertEqual(toggle.label, "Require Face ID")
         XCTAssertEqual(toggle.value as? String, "0", "App 鎖預設應關閉")
+        XCTAssertFalse(app.descendants(matching: .any)["settings.appLock.footer"].exists, "能用時不放功能說明(#276)")
 
         toggle.switches.firstMatch.tap()
 
