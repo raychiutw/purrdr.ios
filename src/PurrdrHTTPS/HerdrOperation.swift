@@ -43,8 +43,59 @@ enum HerdrOperation {
                 guard case .agentPromptResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.prompted(id: id, delivery: result.delivery)
             }
+        case "workspace.create":
+            let params = try JSONDecoder().decode(WorkspaceCreateParams.self, from: line.params)
+            self = .request(make: { .workspaceCreate(.init(requestId: $0, cwd: params.cwd, label: params.label)) }) { id, reply, _ in
+                guard case .workspaceCreateResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.created(id: id, type: "workspace_created", workspaceID: result.workspaceId, rootPaneID: result.rootPaneId)
+            }
+        case "workspace.rename":
+            let params = try JSONDecoder().decode(WorkspaceRenameParams.self, from: line.params)
+            self = .request(make: { .workspaceRename(.init(requestId: $0, workspaceId: params.workspaceID, label: params.label)) }) { id, reply, _ in
+                guard case .workspaceRenameResult = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.ok(id: id)
+            }
+        case "workspace.close":
+            let params = try JSONDecoder().decode(WorkspaceIDParams.self, from: line.params)
+            self = .request(make: { .workspaceClose(.init(requestId: $0, workspaceId: params.workspaceID)) }) { id, reply, _ in
+                guard case .workspaceCloseResult = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.ok(id: id)
+            }
+        case "worktree.create":
+            let params = try JSONDecoder().decode(WorktreeCreateParams.self, from: line.params)
+            self = .request(make: { .worktreeCreate(.init(requestId: $0, workspaceId: params.workspaceID, branch: params.branch)) }) { id, reply, _ in
+                guard case .worktreeCreateResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.created(id: id, type: "worktree_created", workspaceID: result.workspaceId, rootPaneID: result.rootPaneId)
+            }
+        case "agent.start":
+            let params = try JSONDecoder().decode(AgentStartParams.self, from: line.params)
+            // 主機服務不收任意參數：只認得 Claude Code 的權限模式。
+            let permissionMode: HostServiceProtocol.ClaudePermissionMode?
+            switch params.args ?? [] {
+            case []: permissionMode = nil
+            case let args where args.count == 2 && args[0] == "--permission-mode":
+                guard let mode = HostServiceProtocol.ClaudePermissionMode(rawValue: args[1]) else { throw HostServiceError.unsupported(line.method) }
+                permissionMode = mode
+            default: throw HostServiceError.unsupported(line.method)
+            }
+            self = .request(make: {
+                .agentStart(.init(
+                    requestId: $0, paneId: params.paneID, name: params.name, kind: params.kind, permissionMode: permissionMode,
+                    timeoutMs: params.timeoutMs))
+            }) { id, reply, _ in
+                guard case .agentStartResult = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.ok(id: id)
+            }
         default:
             throw HostServiceError.unsupported(line.method)
+        }
+    }
+
+    /// 這個 herdr method 需要的主機服務功能(版本門檻);`nil` 是一開始就有的。
+    static func requiredFeature(forMethod method: String) -> HostServiceFeature? {
+        switch method {
+        case "workspace.create", "workspace.rename", "workspace.close", "worktree.create", "agent.start": .workspaceOperations
+        default: nil
         }
     }
 
@@ -90,6 +141,54 @@ enum HerdrOperation {
                 case until
                 case timeoutMs = "timeout_ms"
             }
+        }
+    }
+
+    private struct WorkspaceCreateParams: Decodable {
+        var cwd: String
+        var label: String?
+    }
+
+    private struct WorkspaceRenameParams: Decodable {
+        var workspaceID: String
+        var label: String
+
+        enum CodingKeys: String, CodingKey {
+            case workspaceID = "workspace_id"
+            case label
+        }
+    }
+
+    private struct WorkspaceIDParams: Decodable {
+        var workspaceID: String
+
+        enum CodingKeys: String, CodingKey {
+            case workspaceID = "workspace_id"
+        }
+    }
+
+    private struct WorktreeCreateParams: Decodable {
+        var workspaceID: String
+        var branch: String
+
+        enum CodingKeys: String, CodingKey {
+            case workspaceID = "workspace_id"
+            case branch
+        }
+    }
+
+    /// herdr `agent.start` 的 params(`HerdrClient` 送出的形狀)。
+    private struct AgentStartParams: Decodable {
+        var name: String
+        var kind: String
+        var paneID: String
+        var args: [String]?
+        var timeoutMs: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case name, kind, args
+            case paneID = "pane_id"
+            case timeoutMs = "timeout_ms"
         }
     }
 }

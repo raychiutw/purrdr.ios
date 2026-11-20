@@ -79,7 +79,7 @@ public final class FolderPickerModel {
         }
     }
 
-    static func message(for error: any Error) -> String {
+    package static func message(for error: any Error) -> String {
         switch error {
         case NewChatFolderError.notFound:
             String(localized: "This folder isn’t on the host, or you can’t open it.")
@@ -109,6 +109,8 @@ public final class NewChatModel {
     public private(set) var isStarting = false
     /// 開始失敗的原因(顯示在表單裡)。
     public private(set) var error: String?
+    /// 唯讀裝置不能新增聊天的說明(`loadAccess()` 讀到唯讀時才有)。
+    public private(set) var readOnlyReason: String?
 
     private let launcher: NewChatLauncher
     private let folders: NewChatFolders
@@ -122,7 +124,15 @@ public final class NewChatModel {
 
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    public var canStart: Bool { !trimmedFolder.isEmpty && !trimmedMessage.isEmpty && !isStarting }
+    public var canStart: Bool { !trimmedFolder.isEmpty && !trimmedMessage.isEmpty && !isStarting && readOnlyReason == nil }
+
+    /// 能不能在主機上瀏覽資料夾(HTTPS 主機不能，要輸入完整路徑)。
+    public var canBrowseFolders: Bool { folders.canBrowse }
+
+    /// 讀這支裝置是否唯讀(HTTPS 主機握手時回報)。
+    public func loadAccess() async {
+        readOnlyReason = await launcher.isReadOnlyDevice() ? HostErrorText.message(for: HostServiceError.readOnlyDevice) : nil
+    }
 
     /// 資料夾瀏覽，從表單目前的資料夾開始(空白 = 家目錄)。
     public func makeFolderPicker() -> FolderPickerModel {
@@ -153,10 +163,12 @@ public final class NewChatModel {
         }
     }
 
-    static func message(for error: any Error) -> String {
+    package static func message(for error: any Error) -> String {
         switch error {
-        case NewChatFolderError.notFound:
+        case NewChatFolderError.notFound, HerdrError.herdr(code: "folder_not_found", _):
             String(localized: "There’s no such folder on the host. Check the path, or choose a folder on the host.")
+        case NewChatFolderError.absolutePathRequired:
+            String(localized: "Enter the folder’s full path on the host, like /Users/you/project. This host can’t browse folders.")
         case NewChatFolderError.unexpectedResponse, NewChatFolderError.failed:
             FolderPickerModel.message(for: error)
         case HerdrError.herdr(code: "demo_unsupported", _):

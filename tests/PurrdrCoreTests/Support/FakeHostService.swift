@@ -84,6 +84,10 @@ final class FakeHostService: Sendable {
         var promptHerdrError: String?
         /// `welcome` 回報的主機服務版本;`nil` 是範例的值。
         var hostServiceVersion: String?
+        /// `workspace.create` 以 `invalid_message` 拒絕的資料夾(主機上不存在)。
+        var missingFolders: Set<String> = []
+        /// 結構操作(`workspace.*`、`worktree.create`、`agent.start`)以 `herdr_error` 失敗：訊息種類 → herdr 錯誤碼。
+        var structureHerdrErrors: [String: String] = [:]
     }
 
     let port: Int
@@ -318,6 +322,17 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
+        case "workspace.create", "workspace.rename", "workspace.close", "worktree.create", "agent.start":
+            if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+                return [.text(Self.error(requestID, "read_only_device"))]
+            }
+            if type == "workspace.create", let cwd = message["cwd"] as? String, settings.missingFolders.contains(cwd) || !cwd.hasPrefix("/") {
+                return [.text(Self.error(requestID, "invalid_message", message: "cwd must be an absolute path to an existing folder on this host"))]
+            }
+            if let herdrCode = settings.structureHerdrErrors[type] {
+                return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
+            }
+            return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
         case "pane.terminal.open":
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) == true
             return openTerminal(streamID: requestID ?? "", readOnly: readOnly, reply: settings.paneTerminalReply)

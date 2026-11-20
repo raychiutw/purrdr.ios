@@ -2946,6 +2946,28 @@
         }
       }
     },
+    "Enter the folder’s full path on the host, like /Users/you/project. This host can’t browse folders." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入資料夾在主機上的完整路徑，例如 /Users/you/project。這台主機無法瀏覽資料夾。"
+          }
+        }
+      }
+    },
+    "Enter the folder’s full path on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請輸入資料夾在主機上的完整路徑。"
+          }
+        }
+      }
+    },
     "Esc" : {
       "extractionState" : "manual",
       "localizations" : {

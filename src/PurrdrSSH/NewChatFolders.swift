@@ -21,6 +21,8 @@ public enum NewChatFolderError: Error, Equatable {
     case unexpectedResponse
     /// 其他失敗(腳本的 exit code 與 stderr)。
     case failed(exitCode: Int32?, stderr: String)
+    /// 不能瀏覽的主機(HTTPS)要給絕對路徑。帶使用者給的路徑。
+    case absolutePathRequired(String)
 }
 
 /// 新增對話用的主機資料夾：列出子資料夾，也用來在開始前把路徑解析成絕對路徑(F3.2 第 1 步)。
@@ -30,7 +32,8 @@ public enum NewChatFolderError: Error, Equatable {
 /// 指令是 `/bin/sh -c '<腳本>' purrdr-dirs '<路徑>'`:不依賴使用者的登入 shell(可能是 fish),
 /// 腳本與參數都不含反斜線(fish 在單引號內仍把 `\` 當特殊字元)。`~` 與 `~/…` 在主機上展開成 `$HOME`。
 public struct NewChatFolders: Sendable {
-    let channel: any HostChannel
+    /// `nil`:沒有主機通道(HTTPS 主機),不能瀏覽也不能展開 `~`。
+    let channel: (any HostChannel)?
     /// 指令期限的計時(測試注入)。
     let sleep: Sleep
 
@@ -39,8 +42,20 @@ public struct NewChatFolders: Sendable {
         self.sleep = sleep
     }
 
+    private init() {
+        channel = nil
+        sleep = Sleeping.task
+    }
+
+    /// HTTPS 主機(#287):主機服務沒有資料夾瀏覽，只收絕對路徑;資料夾存不存在由主機服務在建立 workspace 時檢查。
+    public static let absolutePathsOnly = NewChatFolders()
+
+    /// 能不能在主機上瀏覽資料夾。
+    public var canBrowse: Bool { channel != nil }
+
     /// 列出 `path` 的子資料夾;`nil` 或空白 = 家目錄。資料夾不存在丟 `NewChatFolderError.notFound`。
     public func list(_ path: String?) async throws -> NewChatFolderListing {
+        guard let channel else { throw HostServiceError.unsupported("folders") }
         let requested = path ?? ""
         let result = try await channel.runOnce(Self.command(for: requested), deadline: HostCommandDeadline.standard, sleep: sleep) { session in
             try await session.read()
@@ -57,7 +72,11 @@ public struct NewChatFolders: Sendable {
 
     /// 解析成主機上的絕對路徑(`~` 展開、`cd` 得進去)。
     public func resolve(_ path: String) async throws -> String {
-        try await list(path).path
+        guard canBrowse else {
+            guard HostPathSyntax.isAbsolute(path) else { throw NewChatFolderError.absolutePathRequired(path) }
+            return path
+        }
+        return try await list(path).path
     }
 
     // MARK: - 指令
