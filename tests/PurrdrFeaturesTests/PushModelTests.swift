@@ -678,48 +678,6 @@ struct PushModelTests {
         #expect(platform.tokenRequests == 0)
         #expect(platform.authorizationRequests == 0)
     }
-}
-
-/// 點通知：依 payload 的 `pairing`(配對密鑰雜湊)找到主機，切換過去並開該 Agent 的聊天。
-@MainActor
-@Suite("點通知")
-struct PushRouteTests {
-    @Test("payload 只讀 pairing 與 pane")
-    func parsesPayload() {
-        let route = PushRoute(userInfo: ["aps": ["alert": ["title": "weather-app"]], "pairing": "abc", "pane": "w2:p1", "status": "blocked"])
-        #expect(route == PushRoute(keyHash: "abc", paneID: "w2:p1"))
-        #expect(PushRoute(userInfo: ["aps": [:]]) == nil)
-    }
-
-    @Test("開配對主機上該 Agent 的聊天;所有主機都在同一個列表，不切換選取中主機(#39)")
-    func opensAgentOnPairedHost() {
-        let store = MemoryHostStore()
-        store.hosts = [HostsModelTests.studio]
-        let pairings = InMemoryPushPairingStore()
-        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
-        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
-        model.load()
-        model.select(.demo)
-
-        model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
-
-        #expect(model.selection == .demo)
-        #expect(model.agentList.openedChat == ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1"))
-    }
-
-    @Test("同一則通知(request id)只處理一次(冷啟動會收到兩次)")
-    func routerDeduplicates() {
-        let router = PushNotificationRouter()
-        let route = PushRoute(keyHash: "abc", paneID: "w2:p1")
-
-        router.receive(route, requestID: "n1")
-        #expect(router.pending == route)
-        router.pending = nil
-        router.receive(route, requestID: "n1")
-        #expect(router.pending == nil)
-        router.receive(route, requestID: "n2")
-        #expect(router.pending == route)
-    }
 
     // MARK: - 推播種類(#292)
 
@@ -827,6 +785,48 @@ struct PushRouteTests {
         await model.turnOff()
 
         #expect(store.kinds(forKeyHash: keyHash) == nil)
+    }
+}
+
+/// 點通知：依 payload 的 `pairing`(配對密鑰雜湊)找到主機，切換過去並開該 Agent 的聊天。
+@MainActor
+@Suite("點通知")
+struct PushRouteTests {
+    @Test("payload 只讀 pairing 與 pane")
+    func parsesPayload() {
+        let route = PushRoute(userInfo: ["aps": ["alert": ["title": "weather-app"]], "pairing": "abc", "pane": "w2:p1", "status": "blocked"])
+        #expect(route == PushRoute(keyHash: "abc", paneID: "w2:p1"))
+        #expect(PushRoute(userInfo: ["aps": [:]]) == nil)
+    }
+
+    @Test("開配對主機上該 Agent 的聊天;所有主機都在同一個列表，不切換選取中主機(#39)")
+    func opensAgentOnPairedHost() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+        model.select(.demo)
+
+        model.open(PushRoute(keyHash: "abc", paneID: "w2:p1"), pairings: pairings)
+
+        #expect(model.selection == .demo)
+        #expect(model.agentList.openedChat == ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1"))
+    }
+
+    @Test("同一則通知(request id)只處理一次(冷啟動會收到兩次)")
+    func routerDeduplicates() {
+        let router = PushNotificationRouter()
+        let route = PushRoute(keyHash: "abc", paneID: "w2:p1")
+
+        router.receive(route, requestID: "n1")
+        #expect(router.pending == route)
+        router.pending = nil
+        router.receive(route, requestID: "n1")
+        #expect(router.pending == nil)
+        router.receive(route, requestID: "n2")
+        #expect(router.pending == route)
     }
 
     @Test("點「完成」通知：payload 根層的 pairing 與 pane 一樣導到那個聊天")
