@@ -316,8 +316,8 @@ public final class HostsModel {
             hostName: { [weak self] in self?.name(of: route.host) },
             images: ComposerImages(uploader: member.uploader, store: attachmentStore),
             updates: member.list.updates,
-            // 送出管線(#299):撤回倒數(#300)。
-            sendSteps: [UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 })])
+            // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300)。
+            sendSteps: [SecretCheck(), UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 })])
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。

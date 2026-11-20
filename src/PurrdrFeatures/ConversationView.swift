@@ -57,6 +57,7 @@ public struct ConversationView: View {
             }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
+            .secretCheckSheet(model.secretCheck)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerImage = ViewerImage(url: $0) }

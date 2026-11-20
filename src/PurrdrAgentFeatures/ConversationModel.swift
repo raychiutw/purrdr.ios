@@ -365,6 +365,8 @@ public final class ConversationModel {
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
     public let undoSend: UndoSendCountdown?
+    /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
+    public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
