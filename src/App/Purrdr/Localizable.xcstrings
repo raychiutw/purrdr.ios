@@ -951,6 +951,28 @@
         }
       }
     },
+    "App Lock" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App 鎖"
+          }
+        }
+      }
+    },
+    "App Lock isn’t available on this device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置不能使用 App 鎖。"
+          }
+        }
+      }
+    },
     "App Settings…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1743,6 +1765,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認(Return)"
+          }
+        }
+      }
+    },
+    "Confirm it’s you to turn on App Lock." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認是你本人以開啟 App 鎖。"
           }
         }
       }
@@ -2667,17 +2700,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開發板"
-          }
-        }
-      }
-    },
-    "Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "診斷資訊包含 app 版本、iOS 版本、主機數與 herdr 版本，絕不包含主機名稱、位址、使用者名稱或對話內容。"
           }
         }
       }
@@ -5267,6 +5289,17 @@
         }
       }
     },
+    "Purrdr Is Locked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 已鎖定"
+          }
+        }
+      }
+    },
     "Purrdr Member" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5740,6 +5773,50 @@
         }
       }
     },
+    "Require Face ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Face ID"
+          }
+        }
+      }
+    },
+    "Require Optic ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Optic ID"
+          }
+        }
+      }
+    },
+    "Require Passcode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要裝置密碼"
+          }
+        }
+      }
+    },
+    "Require Touch ID" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Touch ID"
+          }
+        }
+      }
+    },
     "Required" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6055,6 +6132,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定 Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Set a device passcode in the Settings app to use App Lock." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到「設定」App 設定裝置密碼後才能使用 App 鎖。"
           }
         }
       }
@@ -8497,6 +8585,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解除連結 %@"
+          }
+        }
+      }
+    },
+    "Unlock" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖"
+          }
+        }
+      }
+    },
+    "Unlock Purrdr to see your chats." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖 Purrdr 以查看聊天。"
           }
         }
       }
