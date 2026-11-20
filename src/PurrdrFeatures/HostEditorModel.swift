@@ -139,6 +139,56 @@ public final class HostEditorModel {
         }
     }
 
+    /// 可以輸入文字的欄位(#312):鍵盤焦點與 return 的去向。
+    public enum InputField: Hashable, Sendable {
+        case name
+        case address
+        case port
+        case username
+        case pairingCode
+        /// 密碼登入的密碼。
+        case password
+        /// 匯入的私鑰(多行，return 是換行)。
+        case privateKey
+        /// 用密碼加入這支裝置公鑰的密碼(#285)。
+        case keyInstallPassword
+        case herdrPath
+        case herdrSession
+    }
+
+    /// 目前顯示中的輸入欄位，依畫面順序;隱藏的欄位不在內。
+    /// - Parameter showsAdvanced: 「進階」是否展開(展開狀態屬於畫面)。
+    public func inputFields(showsAdvanced: Bool) -> [InputField] {
+        var fields: [InputField] = [.name]
+        for field in connectionFields {
+            switch field {
+            case .address: fields.append(.address)
+            case .port: fields.append(.port)
+            case .username: fields.append(.username)
+            case .pairingCode: fields.append(.pairingCode)
+            case .signIn:
+                switch authentication {
+                case .password: fields.append(.password)
+                case .importedKey:
+                    if !keyCheck.isValid { fields.append(.privateKey) }
+                case .deviceKey:
+                    if devicePublicKey != nil { fields.append(.keyInstallPassword) }
+                }
+            case .advanced:
+                if showsAdvanced { fields += [.herdrPath, .herdrSession] }
+            }
+        }
+        return fields
+    }
+
+    /// 單行欄位按 return 要移到的欄位;最後一個(或不在顯示中)是 `nil`,收起鍵盤。
+    /// 不在 return 時執行寫入主機的動作(ADR-0002 的同意流程仍要按按鈕)。
+    public func inputField(after field: InputField, showsAdvanced: Bool) -> InputField? {
+        let fields = inputFields(showsAdvanced: showsAdvanced)
+        guard let index = fields.firstIndex(of: field), index + 1 < fields.count else { return nil }
+        return fields[index + 1]
+    }
+
     private var chosenMethod: HostConfiguration.ConnectionMethod?
     private var portText = ""
     private var isPortEdited = false
