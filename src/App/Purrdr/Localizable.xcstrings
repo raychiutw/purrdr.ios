@@ -686,6 +686,50 @@
         }
       }
     },
+    "Add Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入公鑰"
+          }
+        }
+      }
+    },
+    "Add Key Using Password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用密碼加入公鑰"
+          }
+        }
+      }
+    },
+    "Add This Device’s Key?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入這支裝置的公鑰？"
+          }
+        }
+      }
+    },
+    "Adding the key to %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在把公鑰加到 %@…"
+          }
+        }
+      }
+    },
     "Address" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1923,6 +1967,17 @@
         }
       }
     },
+    "Copy Command Instead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用拷貝指令"
+          }
+        }
+      }
+    },
     "Copy Content" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1985,6 +2040,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法完成"
+          }
+        }
+      }
+    },
+    "Couldn’t add the key on the host. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法在主機上加入公鑰。%@"
           }
         }
       }
@@ -3661,6 +3727,17 @@
         }
       }
     },
+    "Key added. Purrdr signs in with this device’s key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入公鑰。Purrdr 會用這支裝置的金鑰登入。"
+          }
+        }
+      }
+    },
     "Keyboard and Haptics" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4970,6 +5047,17 @@
         }
       }
     },
+    "Password on that computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那台電腦的密碼"
+          }
+        }
+      }
+    },
     "Paste" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5362,6 +5450,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會以 %@ 讀取 ~/.config/herdr/config.toml 的主題，並新增參考檔 ~/.purrdr/theme/README.md。不會更動你的 herdr 設定;關閉後會移除這個檔案。"
+          }
+        }
+      }
+    },
+    "Purrdr signs in to %@@%@ once with this password and adds this device’s public key to ~/.ssh/authorized_keys (administrators_authorized_keys for a Windows administrator). After that it signs in with the key. The password isn’t saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會用這組密碼以 %@@%@ 登入一次，把這支裝置的公鑰加到 ~/.ssh/authorized_keys(Windows 管理員帳號是 administrators_authorized_keys),之後改用金鑰登入。密碼不會儲存。"
           }
         }
       }
@@ -7408,6 +7507,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "金鑰在這支裝置的 Secure Enclave 裡產生，私鑰永遠不會離開它。請先把它的公鑰加到主機上。"
+          }
+        }
+      }
+    },
+    "The key was already on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上已經有這把公鑰。"
           }
         }
       }

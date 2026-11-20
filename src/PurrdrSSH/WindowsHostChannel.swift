@@ -115,6 +115,7 @@ enum WindowsCommand {
         if let path = HostFolderCommand.parseList(command) {
             return viaStdin(WindowsScripts.folders(WindowsScripts.folderList, arguments: [path ?? ""]))
         }
+        if let script = AuthorizedKeyInstaller.administratorScript(for: command) { return try inline(script) }
         if let path = NewChatFolders.requestedPath(in: command) {
             return viaStdin(WindowsScripts.folders(WindowsScripts.newChatFolders, arguments: [path]))
         }
