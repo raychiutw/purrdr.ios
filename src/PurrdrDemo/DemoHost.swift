@@ -131,8 +131,8 @@ public actor DemoHost: HostChannel {
         if command == CodexPlanUsageHost.command {
             return DemoCodexAppServer()
         }
-        if let upload = ImageUploadCommand.parse(command) {
-            return DemoImageUploadSession(name: upload.name, size: upload.size)
+        if let upload = HostUploadCommand.parse(command) {
+            return DemoHostUploadSession(name: upload.name, size: upload.size)
         }
         if let control = DemoPaneControl(command: command) {
             return openPane(control)
@@ -859,17 +859,17 @@ private actor DemoBridgeSession: ExecSession {
     }
 }
 
-/// 圖片上傳：收 stdin 到 EOF,大小相符就回上傳資料夾的路徑(內容不保存)。大小不符(上傳中斷)時失敗。
-private final class DemoImageUploadSession: ExecSession, @unchecked Sendable {
+/// 上傳到主機(圖片與一般檔案):收 stdin 到 EOF,大小相符就回上傳資料夾的路徑(內容不保存)。大小不符(上傳中斷)時失敗。
+private final class DemoHostUploadSession: ExecSession, @unchecked Sendable {
     let output: AsyncThrowingStream<ExecOutput, any Error>
     private let continuation: AsyncThrowingStream<ExecOutput, any Error>.Continuation
     private let lock = NSLock()
     private var received = 0
     private var finished = false
-    private let name: UploadFileName
+    private let name: HostUploadName
     private let size: Int
 
-    init(name: UploadFileName, size: Int) {
+    init(name: HostUploadName, size: Int) {
         self.name = name
         self.size = size
         (output, continuation) = AsyncThrowingStream<ExecOutput, any Error>.makeStream()

@@ -55,21 +55,32 @@ public struct FileAttachmentStore: AttachmentStore {
     }
 }
 
-/// 對話畫面的圖片功能：上傳器、手機上的副本、檔名產生器。沒有它(`nil`)時輸入列不能附加圖片。
+/// 對話畫面的附加功能：上傳到主機、圖片的手機副本、檔名產生器。沒有它(`nil`)時輸入列不能附加圖片或檔案。
 public struct ComposerImages: Sendable {
-    public let uploader: any ImageUploading
+    public let uploader: any HostUploading
     public let store: any AttachmentStore
     public let makeName: @Sendable () -> UploadFileName
+    /// 一般檔案(#286):原始檔名 → 上傳檔名。
+    public let makeFileName: @Sendable (String) -> HostUploadName
 
-    public init(uploader: any ImageUploading, store: any AttachmentStore, makeName: @escaping @Sendable () -> UploadFileName = ComposerImages.randomName) {
+    public init(
+        uploader: any HostUploading, store: any AttachmentStore, makeName: @escaping @Sendable () -> UploadFileName = ComposerImages.randomName,
+        makeFileName: @escaping @Sendable (String) -> HostUploadName = ComposerImages.randomFileName
+    ) {
         self.uploader = uploader
         self.store = store
         self.makeName = makeName
+        self.makeFileName = makeFileName
     }
 
     public static let randomName: @Sendable () -> UploadFileName = {
         var random = SystemRandomNumberGenerator()
         return UploadFileName.make(date: Date(), random: &random)
+    }
+
+    public static let randomFileName: @Sendable (String) -> HostUploadName = { original in
+        var random = SystemRandomNumberGenerator()
+        return HostUploadName.make(original: original, date: Date(), random: &random)
     }
 }
 

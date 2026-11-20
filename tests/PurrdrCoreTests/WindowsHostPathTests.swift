@@ -57,12 +57,12 @@ struct WindowsHostPathTests {
 
     @Test("圖片上傳：主機回 C:\\…\\.purrdr\\uploads\\<檔名> 就是成功")
     func imageUploadPath() async throws {
-        let name = UploadFileName("m3x-abc.jpg")!
+        let name = HostUploadName("m3x-abc.jpg")!
         let path = #"C:\Users\Demo User\.purrdr\uploads\m3x-abc.jpg"#
         let host = FakeHost()
-        await host.expect(ImageUploadCommand.posix(name: name, size: 3), reply: FakeReply(stdout: Data("\(path)\n".utf8)))
+        await host.expect(HostUploadCommand.posix(name: name, size: 3), reply: FakeReply(stdout: Data("\(path)\n".utf8)))
 
-        #expect(try await ImageUploader(channel: host).upload(Data([1, 2, 3]), named: name) == path)
+        #expect(try await SSHHostUploader(channel: host).upload(Data([1, 2, 3]), named: name) == path)
     }
 
     @Test("prompt 裡的 Windows 上傳路徑(使用者名稱可以有空白)認成圖片")

@@ -10,7 +10,7 @@ struct WindowsScriptRulesTests {
     @Test("腳本裡的 PowerShell 函式都以 P 開頭、名稱夠長：alias 優先於函式，`rd` 會變成 Remove-Item、`ls` 會變成 Get-ChildItem")
     func functionNamesAvoidAliases() throws {
         let scripts = [
-            WindowsScripts.prelude, WindowsScripts.transcriptFunctions, WindowsScripts.follow, WindowsScripts.receive, WindowsScripts.imageUpload,
+            WindowsScripts.prelude, WindowsScripts.transcriptFunctions, WindowsScripts.follow, WindowsScripts.receive, WindowsScripts.hostUpload,
             WindowsScripts.folderUpload, WindowsScripts.folderList, WindowsScripts.newChatFolders,
             WindowsScripts.hostFileFunctions, WindowsScripts.hostFileRead, WindowsScripts.hostFileFollow, WindowsScripts.hostFileApply, WindowsScripts.hostFileNewest,
             WindowsScripts.hostFileFetchScript,

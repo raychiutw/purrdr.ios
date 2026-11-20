@@ -292,8 +292,7 @@ public final class HostsModel {
             haptics: haptics,
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
-            // Windows 主機也能上傳(#68:`ImageUploader` 經 `WindowsHostChannel` 送 PowerShell 版)。
-            images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore),
+            images: ComposerImages(uploader: member.uploader, store: attachmentStore),
             updates: member.list.updates)
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
@@ -687,7 +686,8 @@ public final class HostsModel {
             return HostMember(
                 host: host, configuration: configuration, channel: UnsupportedHostChannel(), connection: connection,
                 // 主機取檔走同一條主機服務連線(#227);UI 測試的替身連線沒有取檔。
-                files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), preferences: preferences.store(for: host),
+                files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), uploads: connection as? any HostUploading,
+                preferences: preferences.store(for: host),
                 push: nil, consent: hostConsent)
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
             return HostMember(
@@ -773,17 +773,21 @@ final class HostMember {
     let hostFiles: HostFiles
     /// 聊天裡圖片卡片的縮圖(#225)與點開的檔案(#228),這台主機的聊天共用一份快取。
     let agentFiles: AgentFileLoads
+    /// 聊天附加的圖片與檔案上傳到主機(#286)。
+    let uploader: any HostUploading
 
     /// - Parameters:
     ///   - connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
     ///   - files: 主機取檔;`nil` 時經 `channel` 跑 SSH 的取檔腳本(主機跑不了時是 unsupported)。
+    ///   - uploads: 上傳到主機;`nil` 時經 `channel` 的 exec＋stdin(Windows 主機由 `WindowsHostChannel` 換成 PowerShell 版，#68)。
     init(
         host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
-        files: (any HostFileFetching)? = nil, preferences: any ChatPreferencesStore, push pushService: PushService?,
+        files: (any HostFileFetching)? = nil, uploads: (any HostUploading)? = nil, preferences: any ChatPreferencesStore, push pushService: PushService?,
         consent: any HostWriteConsentStore
     ) {
         self.host = host
         self.channel = channel
+        uploader = uploads ?? SSHHostUploader(channel: channel)
         let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
         let connection = connection ?? SSHHostConnection(
             channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))

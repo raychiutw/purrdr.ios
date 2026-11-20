@@ -24,19 +24,7 @@ public struct UploadFileName: Hashable, Sendable {
     }
 }
 
-public enum ImageUploadError: Error, Equatable {
-    /// 連線在上傳途中斷了(或主機上的程序被訊號結束):主機上不會留下這張圖。
-    case interrupted
-    /// 主機腳本失敗(非零 exit;例如磁碟滿、同名檔案已存在)。
-    case failed(exitCode: Int32, message: String)
-    /// 主機回傳的路徑不是絕對路徑或不以 `/<檔名>` 結尾:主機把圖片存到意外的位置。
-    case unexpectedPath(String)
-    case deadlineExceeded
-    /// 超過單張上限(`ImageUploader.maximumSize`)。
-    case tooLarge
-}
-
-/// 圖片上傳的主機指令(POSIX;Windows 主機由 `WindowsHostChannel` 換成 `WindowsScripts.imageUpload`)。
+/// 上傳到主機的指令(POSIX;Windows 主機由 `WindowsHostChannel` 換成 `WindowsScripts.hostUpload`)。圖片與一般檔案共用。
 ///
 /// - 指令只帶檔名與大小,bytes 走 exec 的 stdin(ADR-0003:沒有 SFTP;也避開 sshd 單一參數 128 KiB 的上限)。
 ///   app 送完 bytes 後送 EOF。
@@ -45,7 +33,7 @@ public enum ImageUploadError: Error, Equatable {
 /// - `umask 077`,上傳資料夾強制 700:只有本人可讀。
 /// - 成功後刪掉上傳資料夾裡 7 天(10,080 分鐘)前的檔案(含中斷留下的暫存檔),印出絕對路徑。
 /// - 腳本不含反斜線(fish 在單引號內仍處理 `\`)、不明確 `exit 0`(行為規格 §3.2)。
-public enum ImageUploadCommand {
+public enum HostUploadCommand {
     static let script = HostScriptTimeLimit.posixUpload("""
         PATH=/usr/bin:/bin:/usr/sbin:/sbin:$PATH
         LC_ALL=C
@@ -73,27 +61,22 @@ public enum ImageUploadCommand {
         ' "$d" "$name"
         """, transferSizeParameter: 2)
 
-    public static func posix(name: UploadFileName, size: Int) -> String {
+    public static func posix(name: HostUploadName, size: Int) -> String {
         ["/bin/sh", "-c", PosixShell.quote(script), "purrdr-upload", PosixShell.quote(name.value), PosixShell.quote(String(size))].joined(separator: " ")
     }
 
-    /// Demo 主機用：認得上傳指令就回傳檔名與大小。
-    public static func parse(_ command: String) -> (name: UploadFileName, size: Int)? {
+    /// Demo 主機與 Windows 通道用：認得上傳指令就回傳檔名與大小。
+    public static func parse(_ command: String) -> (name: HostUploadName, size: Int)? {
         let prefix = ["/bin/sh", "-c", PosixShell.quote(script), "purrdr-upload"].joined(separator: " ") + " "
         guard command.hasPrefix(prefix) else { return nil }
         let arguments = PosixShell.unquote(String(command.dropFirst(prefix.count))) ?? []
-        guard arguments.count == 2, let name = UploadFileName(arguments[0]), let size = Int(arguments[1]) else { return nil }
+        guard arguments.count == 2, let name = HostUploadName(arguments[0]), let size = Int(arguments[1]) else { return nil }
         return (name, size)
     }
 }
 
-/// 把圖片 bytes 放到主機上，回傳主機上的絕對路徑(行為規格 F7)。SSH 實作是 `PurrdrSSH.ImageUploader`。
-public protocol ImageUploading: Sendable {
-    func upload(_ data: Data, named name: UploadFileName) async throws -> String
-}
-
 /// 圖片上傳的限制。
 public enum ImageUploadLimit {
-    /// 單張上限。加入附件時以原始圖片判斷(`ConversationModel.addImages`);上傳時再擋一次實際送出的 bytes。
+    /// 單張上限，以使用者挑的原始圖片判斷(`ConversationModel.addImages`)。
     public static let maximumSize = 20 * 1024 * 1024
 }
