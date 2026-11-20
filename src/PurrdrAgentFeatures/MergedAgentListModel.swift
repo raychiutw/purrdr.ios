@@ -189,7 +189,7 @@ public final class MergedAgentListModel {
 
     /// Spaces 檢視(#275):每個「主機 · workspace」一段，段內每個 Tab 一列;套用主機篩選，沒有搜尋。
     public var spacesSections: [SpacesSection] {
-        AgentListProjection.spacesSections(sources: filteredProjectionSources)
+        AgentListProjection.spacesSections(sources: filteredProjectionSources, visible: visibleChats)
     }
 
     /// 任何一台主機有 Agent(不看搜尋)。沒有時不顯示搜尋欄。

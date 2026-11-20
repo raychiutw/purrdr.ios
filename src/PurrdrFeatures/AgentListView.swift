@@ -412,7 +412,7 @@ struct ConversationScreen: View {
     }
 }
 
-/// Agents 檢視的一列(#244 單一清單):列首是 agent 種類頭像，第一行狀態點、名稱與時間，第二行小主機圖示與「主機 · 最後一句」。
+/// Agents 檢視的一列(#244 單一清單):列首是 agent 種類頭像、右下角是狀態(#316),第一行名稱與時間，第二行小主機圖示與「主機 · 最後一句」。
 struct AgentRowView: View {
     let row: AgentRow
     /// 這列所在主機的名稱與圖示(選取中主機也有)。
@@ -423,7 +423,7 @@ struct AgentRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            AgentKindAvatar(kind: AgentKind(rawKind: row.kind), announcesKind: true)
+            AgentStatusAvatar(content: .agent(AgentKind(rawKind: row.kind)), status: row.status)
             VStack(alignment: .leading, spacing: 2) {
                 titleLine
                 previewLine
@@ -461,11 +461,6 @@ struct AgentRowView: View {
 
     private var titleLine: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            // 狀態點：形狀與顏色都依狀態(`StatusTone`),VoiceOver 念狀態字。
-            Image(systemName: row.status.symbol)
-                .imageScale(.small)
-                .foregroundStyle(row.status.tone.style)
-                .accessibilityLabel(Text(row.status.title))
             // 第一行是 workspace 名稱(#269,原型 B);聊天標題在對話裡。
             Text(row.workspace)
                 .lineLimit(lines(1))
