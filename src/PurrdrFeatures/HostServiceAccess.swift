@@ -217,21 +217,29 @@ extension UITestingHostServiceConnection: HostServiceManaging {
     }
 }
 
-/// UI 測試主機服務的版本與自動更新開關(同一台主機的連線共用)。
+/// UI 測試主機服務的版本、自動更新開關與撤銷過的裝置(每台主機一份)。
 final class UITestingHostServiceState: Sendable {
-    static let latestVersion = "0.7.1"
+    static let latest = HostServiceVersion(0, 7, 1)
+    static var latestVersion: String { latest.description }
 
     private let state: Mutex<(installed: String, autoUpdate: Bool)>
+    private let revokedDevices = Mutex<Set<String>>([])
 
     init(installedVersion: String) {
         state = Mutex((installedVersion, true))
+    }
+
+    var revoked: Set<String> { revokedDevices.withLock { $0 } }
+
+    func revoke(_ id: String) {
+        revokedDevices.withLock { _ = $0.insert(id) }
     }
 
     var installedVersion: String { state.withLock { $0.installed } }
 
     var status: HostServiceUpdateStatus {
         state.withLock { current in
-            let available = HostServiceVersion(current.installed).map { $0 < HostServiceVersion(Self.latestVersion)! } ?? false
+            let available = HostServiceVersion(current.installed).map { $0 < Self.latest } ?? false
             return HostServiceUpdateStatus(
                 installedVersion: current.installed, latestVersion: Self.latestVersion, updateAvailable: available,
                 autoUpdate: current.autoUpdate,
@@ -257,10 +265,8 @@ final class UITestingHostServiceState: Sendable {
 
 /// UI 測試的已配對裝置(#291):這支 iPhone 與另一支唯讀的 iPad;撤銷後從列表拿掉，唯讀權杖的撤銷被拒。
 extension UITestingHostServiceConnection: PairedDevicesManaging {
-    private static let revokedDevices = Mutex<Set<String>>([])
-
     func pairedDevices() async throws -> [PairedDeviceRecord] {
-        let revoked = Self.revokedDevices.withLock { $0 }
+        let revoked = hostService.revoked
         let thisDevice = PairedDeviceRecord(
             id: "ui-testing", name: "iPhone", isReadOnly: try await isReadOnlyDevice(),
             pairedAt: Date(timeIntervalSince1970: 1_793_521_800), isCurrentDevice: true)
@@ -272,6 +278,6 @@ extension UITestingHostServiceConnection: PairedDevicesManaging {
 
     func revokePairedDevice(_ id: String) async throws {
         if try await isReadOnlyDevice() { throw HostServiceError.readOnlyDevice }
-        Self.revokedDevices.withLock { _ = $0.insert(id) }
+        hostService.revoke(id)
     }
 }

@@ -18,7 +18,7 @@ public struct HostServiceUpdates {
         "irm https://github.com/raychiutw/purrdr.host/releases/latest/download/install.ps1 | iex"
 
     /// 主機服務能自己更新(`purrdr-host-service update`、自動更新)的第一個版本;更舊的要重跑一行安裝指令。
-    nonisolated public static let selfUpdatingVersion = "0.5.0"
+    nonisolated public static let selfUpdatingVersion = HostServiceVersion(0, 5, 0)
 
     /// 0.5.0 起在主機上立刻更新的指令：macOS、Linux(用安裝位置的完整路徑：0.6.0 以前的安裝與 `--no-path` 不在 PATH)。
     nonisolated public static let posixUpdateCommand = "~/.purrdr/host-service/bin/purrdr-host-service update"
@@ -28,7 +28,7 @@ public struct HostServiceUpdates {
 
     /// 回報 `installed` 的主機要用的更新指令。
     nonisolated public static func commands(installed: String) -> HostServiceUpdateCommands {
-        let canUpdateItself = HostServiceVersion.isAtLeast(installed, selfUpdatingVersion)
+        let canUpdateItself = HostServiceVersion(installed).map { $0 >= selfUpdatingVersion } ?? false
         return canUpdateItself
             ? HostServiceUpdateCommands(
                 installedVersion: installed, canUpdateItself: true, posix: posixUpdateCommand, windows: windowsUpdateCommand)

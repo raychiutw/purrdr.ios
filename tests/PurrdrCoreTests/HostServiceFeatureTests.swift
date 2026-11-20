@@ -44,4 +44,18 @@ struct HostServiceFeatureTests {
         #expect(HostServiceFeature.transcriptPreviewsAndDelegations.isAvailable(onHostServiceVersion: "0.7.0"))
         #expect(!HostServiceFeature.transcriptPreviewsAndDelegations.isAvailable(onHostServiceVersion: "0.6.9"))
     }
+
+    @Test("主機服務代裝推播外掛從 0.6.0 起可用;相同或更新的版本才算", arguments: [
+        ("0.6.0", true), ("0.6.1", true), ("1.0", true), ("0.10.0", true), ("0.6.0-beta.1", true),
+        ("0.5.9", false), ("0.5", false),
+    ])
+    func pushPluginStartsAtZeroSixZero(_ installed: String, _ supported: Bool) {
+        #expect(HostServiceFeature.pushPlugin.minimumVersion == HostServiceVersion(0, 6, 0))
+        #expect(HostServiceFeature.pushPlugin.isAvailable(onHostServiceVersion: installed) == supported)
+    }
+
+    @Test("看不懂的版本一律視為沒有推播外掛代裝", arguments: ["", "garbage", "0.x.0", "1.2.3.4", "..", "v0.6.0"])
+    func unreadableVersionHasNoPushPlugin(_ installed: String) {
+        #expect(!HostServiceFeature.pushPlugin.isAvailable(onHostServiceVersion: installed))
+    }
 }

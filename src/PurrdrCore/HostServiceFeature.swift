@@ -1,35 +1,5 @@
 import Foundation
 
-/// 主機服務的版本(`welcome` 的 `host_service_version`),依數字比較。
-///
-/// `1.2.3` 讀成三段數字;缺的段補 0(`1.2` 與 `1.2.0` 相同),預發行標記(`-beta`)之後不比。
-public struct HostServiceVersion: Sendable, Hashable, Comparable, CustomStringConvertible {
-    public let major: Int
-    public let minor: Int
-    public let patch: Int
-
-    public init(_ major: Int, _ minor: Int, _ patch: Int) {
-        self.major = major
-        self.minor = minor
-        self.patch = patch
-    }
-
-    /// 看不懂的版本字串回傳 `nil`。
-    public init?(_ text: String) {
-        let core = text.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
-        let parts = core.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
-        guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0 != nil }) else { return nil }
-        let numbers = parts.compactMap(\.self) + Array(repeating: 0, count: 3 - parts.count)
-        self.init(numbers[0], numbers[1], numbers[2])
-    }
-
-    public var description: String { "\(major).\(minor).\(patch)" }
-
-    public static func < (lhs: Self, rhs: Self) -> Bool {
-        [lhs.major, lhs.minor, lhs.patch].lexicographicallyPrecedes([rhs.major, rhs.minor, rhs.patch])
-    }
-}
-
 /// HTTPS 主機依主機服務版本啟用的功能(#283)。新功能在這裡加一個 case 並在 `minimumVersion` 登記門檻，
 /// 再於 `HTTPSHostConnection` 送出前呼叫 `requireHostService(_:)`;版本不足丟 `HostServiceError.hostServiceUpdateRequired`。
 public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
@@ -45,6 +15,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case hostServiceManagement
     /// 列出與撤銷已配對裝置 `devices.list`／`devices.revoke`(#291)。
     case pairedDevices
+    /// 主機服務代裝推播外掛 `push.*`。
+    case pushPlugin
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -55,6 +27,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .transcriptPreviewsAndDelegations: HostServiceVersion(0, 7, 0)
         case .hostServiceManagement: HostServiceVersion(0, 7, 0)
         case .pairedDevices: HostServiceVersion(0, 7, 0)
+        case .pushPlugin: HostServiceVersion(0, 6, 0)
         }
     }
 

@@ -58,9 +58,9 @@ public struct HostServicePushPluginInstaller: PushPluginInstalling {
     }
 
     private func requirePush() async throws {
-        let installed = try await connection.hostServiceVersion() ?? ""
-        guard HostServiceVersion.isAtLeast(installed, HostServiceVersion.pushPlugin) else {
-            throw PushPluginError.hostServiceOutdated(installed: installed)
+        let installed = try await connection.hostServiceVersion()
+        guard HostServiceFeature.pushPlugin.isAvailable(onHostServiceVersion: installed) else {
+            throw PushPluginError.hostServiceOutdated(installed: installed ?? "")
         }
     }
 

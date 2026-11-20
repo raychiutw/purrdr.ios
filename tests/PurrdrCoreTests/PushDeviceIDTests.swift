@@ -36,25 +36,3 @@ struct PushDeviceIDTests {
         #expect(PushDeviceID(rawValue: raw) == nil)
     }
 }
-
-/// 主機服務版本比較(審查 #8):app 各處共用一個函式與門檻常數。
-@Suite("主機服務版本比較")
-struct HostServiceVersionTests {
-    @Test("相同或更新的版本才算支援", arguments: [
-        ("0.6.0", true), ("0.6.1", true), ("1.0", true), ("0.10.0", true), ("0.6.0-beta.1", true),
-        ("0.5.9", false), ("0.5", false),
-    ])
-    func comparesNumerically(_ installed: String, _ supported: Bool) {
-        #expect(HostServiceVersion.isAtLeast(installed, HostServiceVersion.pushPlugin) == supported)
-    }
-
-    @Test("看不懂的版本一律視為不支援", arguments: ["", "garbage", "0.x.0", "1.2.3.4", "..", "v0.6.0"])
-    func unreadableVersionIsUnsupported(_ installed: String) {
-        #expect(!HostServiceVersion.isAtLeast(installed, HostServiceVersion.pushPlugin))
-    }
-
-    @Test("推播外掛代裝的門檻是 0.6.0")
-    func pushPluginThreshold() {
-        #expect(HostServiceVersion.pushPlugin == "0.6.0")
-    }
-}

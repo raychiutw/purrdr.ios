@@ -676,9 +676,10 @@ public final class HostsModel {
         guard members[host]?.push.isAvailable == true else { return .unsupported }
         // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
         guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
-              !HostServiceVersion.isAtLeast(installed, HostServiceVersion.pushPlugin)
+              !HostServiceFeature.pushPlugin.isAvailable(onHostServiceVersion: installed)
         else { return .supported }
-        return .needsHostService(version: HostServiceVersion.pushPlugin, update: HostServiceUpdates.commands(installed: installed))
+        return .needsHostService(
+            version: HostServiceFeature.pushPlugin.minimumVersion.description, update: HostServiceUpdates.commands(installed: installed))
     }
 
     private func usesHostService(_ host: HostSelection) -> Bool {

@@ -1,13 +1,31 @@
 import Foundation
 
-/// 各功能的最低主機服務版本與字串版本的比較;app 各處共用(型別本身在 `HostServiceFeature.swift`)。
-extension HostServiceVersion {
-    /// 主機服務代裝推播外掛(`push.*`)的第一個版本。
-    public static let pushPlugin = "0.6.0"
+/// 主機服務的版本(`welcome` 的 `host_service_version`),依數字比較。
+///
+/// `1.2.3` 讀成三段數字;缺的段補 0(`1.2` 與 `1.2.0` 相同),預發行標記(`-beta`)之後不比。
+public struct HostServiceVersion: Sendable, Hashable, Comparable, CustomStringConvertible {
+    public let major: Int
+    public let minor: Int
+    public let patch: Int
 
-    /// `installed` 是否是 `required` 或更新的版本;看不懂的版本一律當作不是。
-    public static func isAtLeast(_ installed: String, _ required: String) -> Bool {
-        guard let installed = HostServiceVersion(installed), let required = HostServiceVersion(required) else { return false }
-        return installed >= required
+    public init(_ major: Int, _ minor: Int, _ patch: Int) {
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+    }
+
+    /// 看不懂的版本字串回傳 `nil`。
+    public init?(_ text: String) {
+        let core = text.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+        let parts = core.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
+        guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0 != nil }) else { return nil }
+        let numbers = parts.compactMap(\.self) + Array(repeating: 0, count: 3 - parts.count)
+        self.init(numbers[0], numbers[1], numbers[2])
+    }
+
+    public var description: String { "\(major).\(minor).\(patch)" }
+
+    public static func < (lhs: Self, rhs: Self) -> Bool {
+        [lhs.major, lhs.minor, lhs.patch].lexicographicallyPrecedes([rhs.major, rhs.minor, rhs.patch])
     }
 }
