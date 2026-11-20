@@ -272,6 +272,7 @@ private struct FakePaneTerminalTransport: PaneTerminalTransport {
 
 extension FakeHostConnection: PushPluginInstallerProviding {
     public nonisolated func pushPluginInstallers() -> (@Sendable (PushDeviceID) -> any PushPluginInstalling)? {
-        pushPlugins.map { host in { host.installer(deviceID: $0) } }
+        guard let pushPlugins else { return nil }
+        return { deviceID in pushPlugins.installer(deviceID: deviceID) }
     }
 }
