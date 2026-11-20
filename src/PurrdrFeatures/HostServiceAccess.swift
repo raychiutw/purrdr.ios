@@ -118,12 +118,15 @@ extension HostServiceAccess {
     /// HTTPS 主機的連線是包住 `channel`(Demo 主機)的主機連線，畫面看到 Demo 的 Agent。
     /// - Parameters:
     ///   - hostServiceVersion: 連線回報的主機服務版本(UI 測試旗標 `-demoOutdatedHostService` 給舊版，#198)。
+    ///   - pairedHosts: 啟動時已配對好的主機。
     ///   - readOnlyHosts: 啟動時已用唯讀權杖配對好的主機。
     public static func uiTesting(
-        channel: any HostChannel, hostServiceVersion: String = HostServiceUpdates.latestKnownVersion, readOnlyHosts: [UUID] = []
+        channel: any HostChannel, hostServiceVersion: String = HostServiceUpdates.latestKnownVersion, pairedHosts: [UUID] = [],
+        readOnlyHosts: [UUID] = []
     ) -> HostServiceAccess {
-        let tokens = InMemoryDeviceTokenStore(
-            tokens: Dictionary(uniqueKeysWithValues: readOnlyHosts.map { ($0, UITestingHostServiceConnection.readOnlyToken) }))
+        let seededTokens = pairedHosts.map { ($0, UITestingHostServiceConnection.token) }
+            + readOnlyHosts.map { ($0, UITestingHostServiceConnection.readOnlyToken) }
+        let tokens = InMemoryDeviceTokenStore(tokens: Dictionary(seededTokens, uniquingKeysWith: { _, readOnly in readOnly }))
         let pairing = HostServicePairing(http: UITestingHostServiceHTTP())
         return HostServiceAccess(tokens: tokens, pairing: pairing, deviceName: "iPhone") { _, deviceToken in
             UITestingHostServiceConnection(
@@ -140,7 +143,7 @@ private struct UITestingHostServiceHTTP: HostServiceHTTPSending {
         let code = body.flatMap { try? JSONDecoder().decode(HostServiceProtocol.PairRequest.self, from: $0) }?.pairingCode
         switch code?.uppercased() {
         case "K7QM-2XPA":
-            let paired = HostServiceProtocol.PairResponse(deviceId: "ui-testing", deviceToken: "ui-testing-token", readOnly: false)
+            let paired = HostServiceProtocol.PairResponse(deviceId: "ui-testing", deviceToken: UITestingHostServiceConnection.token, readOnly: false)
             return HostServiceHTTPResponse(status: 200, body: try JSONEncoder().encode(paired))
         case UITestingHostServiceConnection.readOnlyPairingCode:
             let paired = HostServiceProtocol.PairResponse(
@@ -161,6 +164,7 @@ private struct UITestingHostServiceHTTP: HostServiceHTTPSending {
 
 /// UI 測試的 HTTPS 主機連線：轉給 Demo 主機;唯讀權杖時像主機服務一樣回報唯讀並拒絕寫入類操作。
 private struct UITestingHostServiceConnection: HostConnection {
+    static let token = "ui-testing-token"
     static let readOnlyPairingCode = "R3AD-0NLY"
     static let readOnlyToken = "ui-testing-read-only-token"
 

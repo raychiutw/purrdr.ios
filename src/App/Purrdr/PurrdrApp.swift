@@ -80,6 +80,7 @@ struct PurrdrApp: App {
                 hostService: .uiTesting(
                     channel: demo,
                     hostServiceVersion: arguments.contains("-demoOutdatedHostService") ? "0.0.1" : HostServiceUpdates.latestKnownVersion,
+                    pairedHosts: arguments.contains("-seedPairedHTTPSHost") ? [Self.pairedHTTPSHost.id] : [],
                     readOnlyHosts: arguments.contains("-seedReadOnlyHTTPSHost") ? [Self.readOnlyHTTPSHost.id] : []),
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
@@ -228,10 +229,16 @@ struct PurrdrApp: App {
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000005")!, name: "Studio",
         hostService: HostServiceAddress("studio.tail1234.ts.net")!)
 
+    /// UI 測試情境 `-seedPairedHTTPSHost`:這支裝置已配對好的 HTTPS 主機(主機頁的已配對裝置區塊,#291)。
+    private static let pairedHTTPSHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000006")!, name: "Studio",
+        hostService: HostServiceAddress("studio.tail1234.ts.net")!)
+
     private static func seededHosts(_ arguments: [String]) -> [HostConfiguration] {
         (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
             + (arguments.contains("-seedUnpairedHTTPSHost") ? [unpairedHTTPSHost] : [])
             + (arguments.contains("-seedReadOnlyHTTPSHost") ? [readOnlyHTTPSHost] : [])
+            + (arguments.contains("-seedPairedHTTPSHost") ? [pairedHTTPSHost] : [])
             + (arguments.contains("-seedSlowHost") ? [slowHost] : [])
     }
 

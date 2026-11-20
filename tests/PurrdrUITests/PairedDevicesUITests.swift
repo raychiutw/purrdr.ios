@@ -9,8 +9,7 @@ final class PairedDevicesUITests: XCTestCase {
     /// 滑動別支裝置「撤銷」→ 確認後從列表消失;這支裝置沒有撤銷動作。
     @MainActor
     func testRevokeOtherDeviceAfterConfirmation() {
-        let app = XCUIApplication.launchUITesting()
-        addHTTPSHost(app, code: "K7QM-2XPA")
+        let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
         openStatus(app)
 
         let otherDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing-ipad"].firstMatch
@@ -37,8 +36,7 @@ final class PairedDevicesUITests: XCTestCase {
     /// 「這支裝置」滑動是「移除主機」:回到主機清單跳出移除主機的確認(撤銷自己沿用移除主機流程)。
     @MainActor
     func testThisDeviceRowOpensHostRemoval() {
-        let app = XCUIApplication.launchUITesting()
-        addHTTPSHost(app, code: "K7QM-2XPA")
+        let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
         openStatus(app)
 
         let thisDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing"].firstMatch
@@ -65,34 +63,6 @@ final class PairedDevicesUITests: XCTestCase {
             "沒有說明唯讀")
         otherDevice.swipeLeft()
         XCTAssertFalse(app.buttons["Revoke"].waitForExistence(timeout: 2), "唯讀裝置不該能撤銷")
-    }
-
-    @MainActor
-    private func addHTTPSHost(_ app: XCUIApplication, code: String) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        app.buttons["menu.hosts"].tap()
-        let add = app.buttons["hosts.add"]
-        XCTAssertTrue(add.waitForExistence(timeout: 5))
-        add.tap()
-        let https = app.buttons["hostEditor.method.https"]
-        XCTAssertTrue(https.waitForExistence(timeout: 5) || scrollTo(https, in: app), "沒有 HTTPS 連線方式")
-        https.tap()
-        app.swipeDown()
-        for (identifier, text) in [("name", "Studio"), ("address", "studio.tail1234.ts.net"), ("pairingCode", code)] {
-            let field = app.textFields["hostEditor.\(identifier)"]
-            XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
-            field.tap()
-            field.typeEnglish(text)
-        }
-        let test = app.buttons["hostEditor.test"]
-        XCTAssertTrue(test.exists || scrollTo(test, in: app))
-        test.tap()
-        let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR label CONTAINS %@", "Connected", "Read-only"))
-            .firstMatch
-        XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
-        app.buttons["hostEditor.save"].tap()
     }
 
     @MainActor
