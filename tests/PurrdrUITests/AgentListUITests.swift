@@ -82,7 +82,7 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No Matching Agents"].waitForExistence(timeout: 5), "沒有「無符合結果」的說明")
     }
 
-    /// 聊天列表頂部(#268,原型 purrdr-screens 定案版):沒有大標題、沒有標題選單;導覽列下方直接是 Agents／Spaces 分段控制，
+    /// 聊天列表頂部(#268,原型 purrdr-screens 定案版):沒有大標題、沒有標題選單;導覽列下方直接是 Agents／Spaces 切換(#313 攤開成兩列勾選)，
     /// Agents 檢視的搜尋在它下方(Spaces 沒有搜尋);列表上沒有滑動提示與註記卡。
     @MainActor
     func testChatListTopHasNoLargeTitleAndSearchUnderModeControl() {
@@ -93,10 +93,10 @@ final class AgentListUITests: XCTestCase {
         let control = app.listModeControl
         XCTAssertTrue(control.exists)
         let bar = app.navigationBars.firstMatch.frame
-        XCTAssertLessThan(control.frame.minY - bar.maxY, 30, "分段控制不在導覽列正下方:\(control.frame) 導覽列 \(bar)")
+        XCTAssertLessThan(control.frame.minY - bar.maxY, 30, "Agents／Spaces 切換不在導覽列正下方:\(control.frame) 導覽列 \(bar)")
         let search = app.textFields["agentList.search"].firstMatch
         XCTAssertTrue(search.exists, "Agents 檢視沒有搜尋欄")
-        XCTAssertGreaterThan(search.frame.minY, control.frame.maxY, "搜尋欄不在分段控制下方")
+        XCTAssertGreaterThan(search.frame.minY, control.frame.maxY, "搜尋欄不在 Agents／Spaces 切換下方")
         XCTAssertFalse(app.searchFields.firstMatch.exists, "不該有系統搜尋欄(底部工具列)")
         XCTAssertFalse(app.descendants(matching: .any)["agentList.swipeHint"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["youShouldKnow.listRow"].exists)

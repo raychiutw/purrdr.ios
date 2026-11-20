@@ -260,11 +260,8 @@ struct PlanRow: View {
 
     var body: some View {
         Button(action: select) {
+            // 選中的卡片右上角打勾、沒選的不畫(同勾選列，DESIGN.md「選擇控制」),外框另外標示。
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.title2)
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
-                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(plan.displayName)
                         .font(.headline)
@@ -277,6 +274,11 @@ struct PlanRow: View {
                     }
                 }
                 Spacer(minLength: 0)
+                Image(systemName: "checkmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.tint)
+                    .opacity(isSelected ? 1 : 0)
+                    .accessibilityHidden(true)
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)

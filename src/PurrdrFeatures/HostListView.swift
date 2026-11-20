@@ -154,15 +154,7 @@ public struct HostListView: View {
             if row.hostServiceUpdate != nil {
                 Button("Update Host Service…", systemImage: "arrow.up.circle") { flow.path.append(.hostServiceUpdate(row.id)) }
             }
-            // 主機圖示(#37 故事 5、#239):讓多台主機的列一眼分得出來;編輯器也能改。
-            Picker(selection: iconBinding(row.id)) {
-                ForEach(HostIcon.allCases, id: \.self) { icon in
-                    Label(icon.title, systemImage: icon.pickerSymbol)
-                }
-            } label: {
-                Label("Icon", systemImage: row.icon.pickerSymbol)
-            }
-            .pickerStyle(.menu)
+            // 主機圖示在編輯器的圖示格子選(#313:選項不放進選單)。
             Divider()
             Button("Delete…", systemImage: "trash", role: .destructive) { flow.requestDeletion(of: row.id, name: row.title) }
         }
@@ -269,10 +261,6 @@ public struct HostListView: View {
             actionError = String(localized: "Couldn’t rename this host. \(error.localizedDescription)")
         }
         self.renaming = nil
-    }
-
-    private func iconBinding(_ id: UUID) -> Binding<HostIcon> {
-        Binding { model.icon(for: id) } set: { model.setIcon($0, for: id) }
     }
 
     private var renamingBinding: Binding<Bool> {

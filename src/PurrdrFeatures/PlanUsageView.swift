@@ -23,14 +23,34 @@ public struct PlanUsageView: View {
                     }
                 }
                 .accessibilityIdentifier("planUsage.host")
+            } footer: {
+                costNote
+            }
+            // Agent 與顯示方式攤開成勾選列(#313);顯示方式不再放在「⋯」裡。
+            Section {
                 Picker("Agent", selection: agentSelection) {
                     ForEach(PlanUsageAgent.allCases, id: \.self) { agent in
                         Text(verbatim: agent.name).tag(agent)
                     }
                 }
+                .pickerStyle(.inline)
+                .labelsHidden()
                 .accessibilityIdentifier("planUsage.agent")
-            } footer: {
-                costNote
+            } header: {
+                Text("Agent")
+                    .foregroundStyle(.secondaryText)
+            }
+            Section {
+                Picker("Show", selection: $model.display) {
+                    Text("Remaining").tag(PlanUsageModel.Display.remaining)
+                    Text("Used").tag(PlanUsageModel.Display.used)
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                .accessibilityIdentifier("planUsage.display")
+            } header: {
+                Text("Show")
+                    .foregroundStyle(.secondaryText)
             }
             Section {
                 content
@@ -155,21 +175,18 @@ public struct PlanUsageView: View {
 
     @ToolbarContentBuilder
     private var options: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Menu {
-                Picker("Show", selection: $model.display) {
-                    Text("Show Remaining").tag(PlanUsageModel.Display.remaining)
-                    Text("Show Used").tag(PlanUsageModel.Display.used)
-                }
-                if model.canTurnOff {
+        // 「⋯」只放這頁的動作(#313):沒有可關閉的就不顯示。
+        if model.canTurnOff {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
                     Button("Turn Off Claude Plan Usage", systemImage: "arrow.uturn.backward", role: .destructive) {
                         Task { await model.turnOff() }
                     }
+                } label: {
+                    Label("Plan Usage Options", systemImage: "ellipsis")
                 }
-            } label: {
-                Label("Plan Usage Options", systemImage: "ellipsis")
+                .accessibilityIdentifier("planUsage.menu")
             }
-            .accessibilityIdentifier("planUsage.menu")
         }
     }
 

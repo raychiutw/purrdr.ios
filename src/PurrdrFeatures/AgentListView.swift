@@ -264,18 +264,12 @@ public struct AgentListView: View {
         }
     }
 
-    /// 列表第一列(#268,原型 purrdr-screens 定案版):Agents／Spaces 分段控制;Agents 檢視下方接著搜尋欄。
+    /// 列表最上面(#268;#313 改成攤開):Agents／Spaces 兩列勾選;Agents 檢視下方接著搜尋欄。
     /// 沒有大標題。Spaces 檢視沒有搜尋(切過去時清掉搜尋字，不留看不見的篩選)。
+    @ViewBuilder
     private var modeRow: some View {
         Section {
-            VStack(spacing: 10) {
-                AgentListModeControl(mode: $model.mode)
-                if model.mode == .agents {
-                    AgentListSearchField(query: $model.query, focused: $searchFocused)
-                }
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            AgentListModeControl(mode: $model.mode)
         }
         #if os(iOS)
         // 貼著導覽列、跟下面的內容只隔一般間距(inset grouped 第一個 section 上方預設有一大段空白)。
@@ -283,6 +277,16 @@ public struct AgentListView: View {
         #endif
         .onChange(of: model.mode) { _, mode in
             if mode == .spaces { model.query = "" }
+        }
+        if model.mode == .agents {
+            Section {
+                AgentListSearchField(query: $model.query, focused: $searchFocused)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            }
+            #if os(iOS)
+            .listSectionSpacing(.compact)
+            #endif
         }
     }
 

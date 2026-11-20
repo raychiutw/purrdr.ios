@@ -190,7 +190,7 @@ struct HostEditorView: View {
 
     // MARK: - 連線方式(#250)
 
-    /// 三張卡片單選，各附一句說明;選了才出現下面的連線欄位。
+    /// 三列攤開單選(#313:同「設定」app 的勾選列，選中的列尾打勾),各附一句說明;選了才出現下面的連線欄位。
     private var connectionMethodSection: some View {
         Section {
             ForEach(HostConfiguration.ConnectionMethod.editorOrder, id: \.self) { method in
@@ -213,9 +213,6 @@ struct HostEditorView: View {
             model.connectionMethod = method
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondaryText))
-                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: method.title)
                         .font(.body.weight(.semibold))
@@ -223,6 +220,13 @@ struct HostEditorView: View {
                     Text(method.summary)
                         .font(.subheadline)
                         .foregroundStyle(.secondaryText)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -330,6 +334,9 @@ struct HostEditorView: View {
                 Text("Imported Key").tag(HostConfiguration.OpenSSHAuthentication.importedKey)
                 Text("Password").tag(HostConfiguration.OpenSSHAuthentication.password)
             }
+            // 選項攤開成勾選列(#313,原型 agent-observer 第 2 版 A)。
+            .pickerStyle(.inline)
+            .labelsHidden()
             .accessibilityIdentifier("hostEditor.signIn")
             switch model.authentication {
             case .deviceKey: deviceKeyRows
