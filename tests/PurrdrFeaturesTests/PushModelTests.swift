@@ -776,6 +776,29 @@ struct PushModelTests {
         #expect(request.json?["kinds"] as? [String] == ["blocked", "done"])
     }
 
+    @Test("新開啟的主機預設不收「可能卡住」「仍在等你」(#311)")
+    func stuckAndReminderAreOffByDefault() async {
+        let model = await turnedOnWithPluginHost()
+
+        #expect(!model.kinds.contains(.stuck))
+        #expect(!model.kinds.contains(.reminder))
+    }
+
+    @Test("打開「可能卡住」「仍在等你」:重送註冊的 kinds 帶 stuck、reminder(#311)")
+    func turningOnStuckAndReminderReRegisters() async throws {
+        let model = await turnedOnWithPluginHost()
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
+
+        await model.setKind(.stuck, isOn: true)
+        await model.setKind(.reminder, isOn: true)
+
+        #expect(model.kinds == [.blocked, .done, .stuck, .reminder])
+        let requests = backend.requests(to: "/v1/members/me/push-pairings")
+        #expect(requests.last?.json?["kinds"] as? [String] == ["blocked", "done", "stuck", "reminder"])
+        let reopened = self.model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        #expect(reopened.kinds == [.blocked, .done, .stuck, .reminder])
+    }
+
     @Test("關閉通知時一併忘記那組配對的種類")
     func turningOffForgetsKinds() async throws {
         let model = await turnedOnWithPluginHost()
@@ -898,7 +921,46 @@ struct PushRouteTests {
     @Test("「主機服務」種類只給 HTTPS 主機選(SSH 主機沒有主機服務)")
     func hostServiceKindOnlyForHTTPSHosts() {
         #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
-        #expect(PushKind.choices(installsViaHostService: true) == [.blocked, .done, .hostService])
+        #expect(PushKind.choices(installsViaHostService: true).contains(.hostService))
+    }
+
+    @Test("「可能卡住」「仍在等你」由主機服務的 Agent 觀察者偵測：只給 HTTPS 主機選(#311)")
+    func stuckAndReminderOnlyForHTTPSHosts() {
+        #expect(PushKind.choices(installsViaHostService: false) == [.blocked, .done])
+        #expect(PushKind.choices(installsViaHostService: true) == [.blocked, .done, .stuck, .reminder, .hostService])
+    }
+
+    @Test("「可能卡住」「仍在等你」要主機服務 0.7.0;版本未知時不擋(#311)")
+    func stuckAndReminderNeedHostService070() {
+        #expect(PushKind.stuck.needsHostServiceUpdate(installedVersion: "0.6.0"))
+        #expect(PushKind.reminder.needsHostServiceUpdate(installedVersion: "0.6.2"))
+        #expect(!PushKind.stuck.needsHostServiceUpdate(installedVersion: "0.7.0"))
+        #expect(!PushKind.reminder.needsHostServiceUpdate(installedVersion: nil))
+        #expect(!PushKind.blocked.needsHostServiceUpdate(installedVersion: "0.6.0"))
+        #expect(!PushKind.hostService.needsHostServiceUpdate(installedVersion: "0.6.0"))
+    }
+
+    @Test("點「可能卡住」「仍在等你」通知：依根層 pairing 與 pane 開那個聊天(#311)",
+          arguments: [("stuck", "AGENT_STUCK", "An agent may be stuck."),
+                      ("reminder", "AGENT_REMINDER", "An agent is still waiting for you.")])
+    func stuckAndReminderNotificationsOpenChat(status: String, category: String, body: String) {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title": "api", "loc-key": body], "category": category],
+            "pairing": "abc", "pane": "w2:p1", "status": status,
+        ]
+        let route = PushRoute(userInfo: userInfo)
+        #expect(route == PushRoute(keyHash: "abc", paneID: "w2:p1"))
+
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+
+        let destination = route.flatMap { model.open($0, pairings: pairings) }
+
+        #expect(destination == .chat(ChatRoute(host: .host(HostsModelTests.studio.id), paneID: "w2:p1")))
     }
 
     @Test("不認得的配對(主機已移除)不切換")
