@@ -470,7 +470,7 @@ enum WindowsScripts {
         $o.Flush()
         """#
 
-    /// `PushHost.otherPairingsScript`:`~\.purrdr\push-*\pairing`,每行 `push-<id>/pairing`。
+    /// `SSHPushPluginInstaller.otherPairingsScript`:`~\.purrdr\push-*\pairing`,每行 `push-<id>/pairing`。
     static let pushPairings = #"""
         $d=PPath '.purrdr'
         if([IO.Directory]::Exists($d)){foreach($e in @(Get-ChildItem -LiteralPath $d -Force -Directory|?{$_.Name -clike 'push-*'})){if([IO.File]::Exists((Join-Path $e.FullName 'pairing'))){PWrite "$($e.Name)/pairing`n"}}}

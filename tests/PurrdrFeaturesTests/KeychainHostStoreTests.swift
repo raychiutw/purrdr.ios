@@ -9,6 +9,8 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
     var items: [String: Data] = [:]
     var addedAttributes: [[String: Any]] = []
     var addStatus: OSStatus = errSecSuccess
+    /// 有值時讀取一律回這個狀態(例如還沒第一次解鎖)。
+    var copyStatus: OSStatus?
 
     func add(_ attributes: [String: Any]) -> OSStatus {
         guard addStatus == errSecSuccess else { return addStatus }
@@ -27,6 +29,7 @@ final class FakeKeychain: KeychainAPI, @unchecked Sendable {
     }
 
     func copyMatching(_ query: [String: Any]) -> (OSStatus, AnyObject?) {
+        if let copyStatus { return (copyStatus, nil) }
         if query[kSecMatchLimit as String] as? String == kSecMatchLimitOne as String {
             let account = query[kSecAttrAccount as String] as! String
             guard let data = items[account] else { return (errSecItemNotFound, nil) }

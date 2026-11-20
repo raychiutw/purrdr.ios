@@ -132,6 +132,8 @@ public final class HostsModel {
     private let hostConsent: any HostWriteConsentStore
     /// 推播(後台、權限、配對紀錄);`nil` 時沒有推播。
     private let pushService: PushService?
+    /// 帳號頁「通知裝置」(#266);沒有推播時是 `nil`。
+    public let pushDevices: PushDevicesModel?
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
@@ -184,6 +186,7 @@ public final class HostsModel {
         self.demoConsent = demoConsent
         self.hostConsent = hostConsent
         self.pushService = pushService
+        pushDevices = pushService.map(PushDevicesModel.init(service:))
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
@@ -198,6 +201,20 @@ public final class HostsModel {
     public var herdrClient: HerdrClient { member(for: selection).client }
     /// 選取中主機的推播開關(#29)。
     public var push: PushModel { member(for: selection).push }
+    /// 列表上每台主機的推播開關(依列表順序;spec #261:通知按主機管理，不綁選取中主機)。
+    public var hostPushes: [HostPush] {
+        listedHosts.compactMap { host in
+            members[host].map {
+                HostPush(
+                    host: host, name: name(of: host), icon: icon(of: host), support: pushSupport(of: host),
+                    installsViaHostService: usesHostService(host), model: $0.push)
+            }
+        }
+    }
+    /// 這支裝置已開啟通知的主機名稱(依列表順序);至少一台就算步驟卡的「開啟通知」完成。
+    public var notifyingHostNames: [String] {
+        hostPushes.notifyingHostNames
+    }
     /// 選取中主機的主機主題(#23;DESIGN.md:選取中主機決定套用誰的主題)。每台主機各自一份、同意以主機為單位記住;
     /// 換選取中主機就換成那台的(讀過的主題留著，切回來不必等下一次輪詢)。
     public var hostTheme: HostThemeModel { member(for: selection).hostTheme }
@@ -493,9 +510,9 @@ public final class HostsModel {
         try store.delete(id)
         if let removed, let settings = removed.ssh {
             forgetPush(of: removed, settings: settings, secret: secret)
-        } else if let address = removed?.hostService, let deviceToken {
-            // 主機離線時權杖留在主機上，可在主機上撤銷。
-            hostService.revokeWithoutWaiting(deviceToken, at: address)
+        } else if let removed, let address = removed.hostService, let deviceToken {
+            // 先刪推播配對再撤銷權杖;主機離線時權杖留在主機上，可在主機上撤銷。
+            forgetHostServicePush(of: removed, address: address, deviceToken: deviceToken)
         }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
@@ -527,9 +544,9 @@ public final class HostsModel {
         if let paneID = route.paneID { agentList.openedChat = ChatRoute(host: .host(id), paneID: paneID) }
     }
 
-    /// 啟動時：APNs token 換了就向後台重新註冊推播配對。
+    /// 啟動時：這支裝置被別支關閉了就把「通知」區塊改回關閉，之後才補註冊(APNs token 換了、舊版 app 的配對)。
     public func refreshPushRegistrations() async {
-        await pushService?.refreshRegistrations()
+        await pushService?.refreshAtLaunch()
     }
 
     /// 點了推播通知(用 app 的推播紀錄)。
@@ -637,6 +654,21 @@ public final class HostsModel {
         }
     }
 
+    private func pushSupport(of host: HostSelection) -> HostPushSupport {
+        guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
+        guard members[host]?.push.isAvailable == true else { return .unsupported }
+        // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
+        guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
+              !HostServiceVersion.isAtLeast(installed, HostServiceVersion.pushPlugin)
+        else { return .supported }
+        return .needsHostService(version: HostServiceVersion.pushPlugin, update: HostServiceUpdates.commands(installed: installed))
+    }
+
+    private func usesHostService(_ host: HostSelection) -> Bool {
+        guard case .host(let id) = host else { return false }
+        return hosts.first { $0.id == id }?.connectionMethod.usesHostService == true
+    }
+
     private func icon(of host: HostSelection) -> HostIcon {
         guard case .host(let id) = host else { return .default }
         return companion(id)?.icon ?? icon(for: id)
@@ -647,10 +679,15 @@ public final class HostsModel {
     }
 
     /// 列表上的主機：所有已存主機(依名稱);Demo 主機與它的示範主機(#34)只在沒有已存主機或選了 Demo 時。
-    /// 已有的成員沿用(連線、列、草稿不重建)。
-    private func rebuildMembers() {
+    private var listedHosts: [HostSelection] {
         var wanted: [HostSelection] = hosts.map { .host($0.id) }
         if hosts.isEmpty || selection == .demo { wanted.insert(contentsOf: [.demo] + demoCompanions.map { .host($0.id) }, at: 0) }
+        return wanted
+    }
+
+    /// 依列表上的主機重建成員;已有的成員沿用(連線、列、草稿不重建)。
+    private func rebuildMembers() {
+        let wanted = listedHosts
         members = members.filter { wanted.contains($0.key) }
         for host in wanted where members[host] == nil { members[host] = makeMember(host) }
         let sources = wanted.compactMap { host in
@@ -691,7 +728,7 @@ public final class HostsModel {
                 // 主機取檔走同一條主機服務連線(#227);UI 測試的替身連線沒有取檔。
                 files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), uploads: connection as? any HostUploading,
                 preferences: preferences.store(for: host),
-                push: nil, consent: hostConsent)
+                push: pushService, consent: hostConsent)
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
             return HostMember(
                 host: host, configuration: configuration, channel: channel(for: configuration, settings: settings),
@@ -736,8 +773,28 @@ public final class HostsModel {
         guard let pushService else { return }
         let provider = credentials.provider(
             method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
+        let channel = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
+        // 這條連線是刪除主機時另開的，不在任何地方重用：刪完配對就關閉。
         pushService.forget(
-            hostID: host.id.uuidString, channel: makeChannel(settings.endpoint, settings.hostKeyPin, provider), herdr: settings.herdr)
+            hostID: host.id.uuidString, installer: pushService.sshInstaller(channel: channel, herdr: settings.herdr)
+        ) {
+            await channel.disconnect()
+        }
+    }
+
+    /// HTTPS 主機的推播配對：以讀出的權杖另開一條連線刪掉配對，之後撤銷權杖並關閉連線。沒有配對時直接撤銷。
+    private func forgetHostServicePush(of host: HostConfiguration, address: HostServiceAddress, deviceToken: String) {
+        let pairing = hostService.pairing
+        guard let pushService, pushService.store.keyHash(forHost: host.id.uuidString) != nil,
+              let connection = hostService.makeConnection(address, { deviceToken }) as? HTTPSHostConnection
+        else {
+            hostService.revokeWithoutWaiting(deviceToken, at: address)
+            return
+        }
+        pushService.forget(hostID: host.id.uuidString, installer: pushService.hostServiceInstaller(connection: connection)) {
+            await connection.disconnect()
+            try? await pairing.revoke(address: address, deviceToken: deviceToken)
+        }
     }
 
     private func dropChannel(of id: UUID) {
@@ -749,6 +806,42 @@ public final class HostsModel {
             await connection?.disconnect()
         }
     }
+}
+
+/// 一台主機能不能開通知。
+public enum HostPushSupport: Equatable, Sendable {
+    case supported
+    /// Demo 主機與示範主機。
+    case demoHost
+    /// 這台主機沒有推播外掛安裝(例如 HTTPS 主機取不到主機服務連線)。
+    case unsupported
+    /// HTTPS 主機要這版以上的主機服務代裝外掛;附依已安裝版本的更新指令。
+    case needsHostService(version: String, update: HostServiceUpdateCommands)
+}
+
+@MainActor
+extension [HostPush] {
+    /// 已開啟通知的主機名稱(依列表順序)。
+    public var notifyingHostNames: [String] {
+        // `&&` 的右邊是 nonisolated autoclosure,不能讀 main actor 的 state。
+        filter { hostPush in
+            guard hostPush.support == .supported else { return false }
+            return hostPush.model.state == .on
+        }.map(\.name)
+    }
+}
+
+/// 一台主機的推播開關(帳號頁「通知」區塊的一列)。
+public struct HostPush: Identifiable {
+    public let host: HostSelection
+    public let name: String
+    public let icon: HostIcon
+    public let support: HostPushSupport
+    /// HTTPS 主機：由主機服務代裝外掛(不是 SSH)。
+    public let installsViaHostService: Bool
+    public let model: PushModel
+
+    public var id: HostSelection { host }
 }
 
 /// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿、推播開關、「You should know」註記與主機主題。
@@ -800,7 +893,13 @@ final class HostMember {
         let list = AgentListModel(client: client, transcripts: transcripts, host: host)
         self.list = list
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
-        let push = PushModel(service: pushService, hostID: configuration?.id.uuidString, channel: channel, herdr: herdr) {
+        // HTTPS 主機經主機服務代裝(取不到主機服務連線就沒有，列上標成不支援);其他經 SSH。
+        let installer: (any PushPluginInstalling)? = if configuration?.connectionMethod.usesHostService == true {
+            (connection as? any PushPluginInstallerProviding)?.pushPluginInstallers().flatMap { makeInstaller in pushService?.installer(makeInstaller) }
+        } else {
+            pushService?.sshInstaller(channel: channel, herdr: herdr)
+        }
+        let push = PushModel(service: pushService, hostID: configuration?.id.uuidString, installer: installer) {
             preferences.load().muted
         }
         self.push = push
@@ -814,6 +913,19 @@ final class HostMember {
             downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
+    }
+}
+
+extension PushService {
+    /// 這支裝置經主機服務(HTTPS 主機)的推播外掛安裝。
+    public func hostServiceInstaller(connection: HTTPSHostConnection) -> any PushPluginInstalling {
+        installer { HostServicePushPluginInstaller(connection: connection, deviceID: $0) }
+    }
+
+    /// 這支裝置經 SSH 的推播外掛安裝。
+    public func sshInstaller(channel: any HostChannel, herdr: HerdrInstallation) -> any PushPluginInstalling {
+        let pluginSource = configuration.pluginSource
+        return installer { SSHPushPluginInstaller(channel: channel, herdr: herdr, deviceID: $0, pluginSource: pluginSource) }
     }
 }
 

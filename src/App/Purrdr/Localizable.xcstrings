@@ -28,6 +28,17 @@
         }
       }
     },
+    "%@ Tap the switch to try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 點開關重試。"
+          }
+        }
+      }
+    },
     "%@ connects over HTTPS. Choose an SSH host to check plan usage." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -153,6 +164,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false,
       "localizations" : {}
+    },
+    "%@ · Hosts: %lld · Last used %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld 台主機 · 最後使用：%3$@"
+          }
+        }
+      }
     },
     "%@ · Not loaded automatically" : {
       "extractionState" : "manual",
@@ -627,6 +649,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "帳號"
+          }
+        }
+      }
+    },
+    "Actions for %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」的動作"
           }
         }
       }
@@ -1468,6 +1501,28 @@
         }
       }
     },
+    "Choose Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇主機"
+          }
+        }
+      }
+    },
+    "Choose hosts to notify" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇要通知的主機"
+          }
+        }
+      }
+    },
     "Choose how Purrdr connects, then fill in the connection details." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2297,6 +2352,17 @@
         }
       }
     },
+    "Couldn’t read this device’s ID from the keychain. Unlock this device and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法從鑰匙圈讀取這支裝置的識別碼。請解鎖這支裝置後再試一次。"
+          }
+        }
+      }
+    },
     "Couldn’t read this file." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2480,6 +2546,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法更新 herdr。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t update muted chats on this host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新這台主機上的靜音聊天:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t update notification devices. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新通知裝置，請再試一次。"
           }
         }
       }
@@ -2722,6 +2810,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開發板"
+          }
+        }
+      }
+    },
+    "Device Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裝置名稱"
           }
         }
       }
@@ -3232,17 +3331,6 @@
         }
       }
     },
-    "Get notified when an agent needs you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 需要你時通知"
-          }
-        }
-      }
-    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3452,6 +3540,17 @@
         }
       }
     },
+    "Hosts: %lld · Last used %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld 台主機 · 最後使用：%2$@"
+          }
+        }
+      }
+    },
     "House" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3657,17 +3756,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要安裝 Codex 啟動器嗎?"
-          }
-        }
-      }
-    },
-    "Install the Purrdr Plugin?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要安裝 Purrdr 主機外掛嗎?"
           }
         }
       }
@@ -4233,6 +4321,17 @@
         }
       }
     },
+    "Needs host service %@ or later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要主機服務 %@ 以上"
+          }
+        }
+      }
+    },
     "New Chat" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4383,6 +4482,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 沒有 Agent。"
+          }
+        }
+      }
+    },
+    "No devices receive notifications yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有裝置會收到通知。"
           }
         }
       }
@@ -4585,6 +4695,17 @@
         }
       }
     },
+    "Notification Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知裝置"
+          }
+        }
+      }
+    },
     "Notifications" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4607,13 +4728,35 @@
         }
       }
     },
-    "Notifications and host sync are on" : {
+    "Notifications Off" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "通知與同步都已開啟"
+            "value" : "通知未開啟"
+          }
+        }
+      }
+    },
+    "Notifications On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知已開啟"
+          }
+        }
+      }
+    },
+    "Notifications On · Other devices here: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已開啟 · 另有 %lld 支裝置在這台開啟通知"
           }
         }
       }
@@ -4684,17 +4827,6 @@
         }
       }
     },
-    "Notify When an Agent Needs You" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 需要你時通知"
-          }
-        }
-      }
-    },
     "Now" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4724,6 +4856,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉"
+          }
+        }
+      }
+    },
+    "Off · Installs over SSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟 · 透過 SSH 安裝"
+          }
+        }
+      }
+    },
+    "Off · Installs via the host service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟 · 由主機服務安裝"
+          }
+        }
+      }
+    },
+    "Off · Other devices here: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟 · 另有 %lld 支裝置在這台開啟通知"
           }
         }
       }
@@ -5399,13 +5564,13 @@
         }
       }
     },
-    "Purrdr adds a small herdr plugin to this host. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort." : {
+    "Purrdr adds a small herdr plugin to each host you turn on. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 會在這台主機加裝一個小型 herdr plugin。Agent 需要你時，主機會告知 Purrdr 後台，再由後台通知這支裝置。通知只顯示 Workspace 名稱，絕不包含 Agent 說的內容。Windows 主機的通知為盡力傳送，不保證送達。"
+            "value" : "Purrdr 會在你開啟的每台主機加裝一個小型 herdr plugin。Agent 需要你時，主機會告知 Purrdr 後台，再由後台通知這支裝置。通知只顯示 Workspace 名稱，絕不包含 Agent 說的內容。Windows 主機的通知為盡力傳送，不保證送達。"
           }
         }
       }
@@ -5553,13 +5718,13 @@
         }
       }
     },
-    "Purrdr will run “herdr plugin install” on this host as %@ and save a pairing key in ~/.purrdr. Turning notifications off removes both." : {
+    "Purrdr will run “herdr plugin install” on this host as %@ and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存一把配對密鑰。關閉通知時兩者都會移除。"
+            "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存這支裝置的配對密鑰。關閉通知只移除這支裝置的配對，最後一支裝置關閉時才移除外掛。"
           }
         }
       }
@@ -5729,17 +5894,6 @@
         }
       }
     },
-    "Removing the plugin…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在移除主機外掛…"
-          }
-        }
-      }
-    },
     "Rename" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5747,6 +5901,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名"
+          }
+        }
+      }
+    },
+    "Rename Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名裝置"
           }
         }
       }
@@ -5791,6 +5956,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名…"
+          }
+        }
+      }
+    },
+    "Renaming devices needs Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改裝置名稱需要 Purrdr Plus。"
           }
         }
       }
@@ -6873,17 +7049,6 @@
         }
       }
     },
-    "Subscription" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "訂閱"
-          }
-        }
-      }
-    },
     "Suggestion" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7137,6 +7302,17 @@
         }
       }
     },
+    "That device stops receiving notifications from all hosts. To get them again, turn notifications back on from that device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那支裝置將不再收到任何主機的通知。要再收到通知，請在那支裝置上重新開啟。"
+          }
+        }
+      }
+    },
     "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7210,6 +7386,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機上的 Purrdr 主機服務比這個版本的 Purrdr 舊。請在主機上更新主機服務。"
+          }
+        }
+      }
+    },
+    "The Purrdr plugin is already on this host. Purrdr will save a pairing key for this device in ~/.purrdr as %@. Turning notifications off removes only this device’s pairing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已裝好 Purrdr 外掛。Purrdr 會以 %@ 身分在 ~/.purrdr 存這支裝置的配對密鑰。關閉通知只移除這支裝置的配對。"
+          }
+        }
+      }
+    },
+    "The Purrdr plugin is already on this host. The host service will save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已有 Purrdr 外掛。主機服務會在 ~/.purrdr 存入這支裝置的配對金鑰。關閉通知只會移除這支裝置的配對。"
           }
         }
       }
@@ -7331,6 +7529,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "與這台主機的連線中斷了。重新連線會開啟新的 shell。"
+          }
+        }
+      }
+    },
+    "The demo host can’t send notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demo 主機無法通知"
           }
         }
       }
@@ -7544,6 +7753,17 @@
         }
       }
     },
+    "The host service will run “herdr plugin install” on this host as the user running the host service, and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務會以執行主機服務的使用者身分，在這台主機執行「herdr plugin install」，並在 ~/.purrdr 存入這支裝置的配對金鑰。關閉通知只會移除這支裝置的配對；最後一支裝置關閉時才會移除外掛。"
+          }
+        }
+      }
+    },
     "The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7753,6 +7973,17 @@
         }
       }
     },
+    "This Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置"
+          }
+        }
+      }
+    },
     "This Device’s Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7793,6 +8024,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置無法接收通知。%@"
+          }
+        }
+      }
+    },
+    "This device is paired read-only with the host service, so it can’t turn on notifications there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置以唯讀方式與主機服務配對，無法在這台主機開啟通知。"
           }
         }
       }
@@ -7848,6 +8090,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置還沒和這台主機完成連線配對。請編輯主機，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "This device stops receiving notifications from all hosts. You can turn hosts back on under Notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置將不再收到任何主機的通知。之後可以在「通知」逐台重新開啟。"
           }
         }
       }
@@ -7947,6 +8200,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機找不到 Codex。請在主機上安裝 Codex,或確認它在 PATH 裡。"
+          }
+        }
+      }
+    },
+    "This host can’t send notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機無法傳送通知。"
           }
         }
       }
@@ -8523,6 +8787,39 @@
         }
       }
     },
+    "Turn Off Notifications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉通知"
+          }
+        }
+      }
+    },
+    "Turn Off Notifications for “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要關閉「%@」的通知嗎？"
+          }
+        }
+      }
+    },
+    "Turn Off Notifications…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉通知…"
+          }
+        }
+      }
+    },
     "Turn On" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8567,6 +8864,17 @@
         }
       }
     },
+    "Turn On Notifications for “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「%@」開啟通知？"
+          }
+        }
+      }
+    },
     "Turn on notifications and host sync now? You can change them later." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8574,6 +8882,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要現在開啟通知和主機同步嗎？之後也可以在這裡開關。"
+          }
+        }
+      }
+    },
+    "Turning off a device stops its notifications from every host, even if it’s lost. Each host’s leftover pairing is removed the next time it tries to notify." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉裝置後，所有主機都不再通知它，遺失的裝置也適用。主機上殘留的配對會在下次嘗試通知時移除。"
+          }
+        }
+      }
+    },
+    "Turning off notifications…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在關閉通知…"
           }
         }
       }
@@ -8699,6 +9029,17 @@
         }
       }
     },
+    "Unnamed Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名裝置"
+          }
+        }
+      }
+    },
     "Unpin" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8739,6 +9080,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向上鍵"
+          }
+        }
+      }
+    },
+    "Up to 64 characters." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多 64 個字。"
           }
         }
       }
@@ -8805,6 +9157,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新 %@ 的主機服務"
+          }
+        }
+      }
+    },
+    "Update the host service to turn on notifications. Run this on the host:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請更新主機服務才能開啟通知。在主機上執行："
           }
         }
       }

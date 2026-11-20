@@ -56,7 +56,7 @@ Contact: lean.lean@gmail.com
 | `!git status` 顯示 shell 區塊 | `DemoTranscripts.reply`(`!` 開頭);截圖 07 |
 | notes 即時預覽，Esc 停止後完成 | `DemoAnswers`(`w3:p1`);`AGENTS.md` |
 | 終端機(回顯 shell、`demo@purrdr`)、Login Shell、Files | 截圖 08;`DemoFolders` |
-| Demo 不能開新聊天／建 workspace、不能推播 | `NewChatModel`(「The Demo host can’t start new chats…」)、`DemoHost.unsupportedMessage`、`PushSettingsSection`(`.demoHost`) |
+| Demo 不能開新聊天／建 workspace、不能推播 | `NewChatModel`(「The Demo host can’t start new chats…」)、`DemoHost.unsupportedMessage`、`HostPushSection`(`HostPushSupport.demoHost`:「The demo host can’t send notifications.」) |
 | 訂閱要先登入;Sign in with Apple 與 Google | `PlusView`(`Sign In to Subscribe`)、`MemberView` |
 | 價格、試用 | `src/App/Purrdr.storekit`、`subscriptions.md`(`StoreKitConfigurationTests` 檢查) |
 | 付費牆底部有使用條款與隱私權政策 | `PlusView`(`plus.terms`、`plus.privacy`),`PurrdrLinks` |

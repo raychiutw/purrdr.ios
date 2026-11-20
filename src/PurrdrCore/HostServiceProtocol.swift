@@ -525,7 +525,7 @@ extension HostServiceProtocol {
 
         public init(version: String, `protocol`: Int, capabilities: [String]) {
             self.version = version
-            self.protocol = `protocol`
+            self.`protocol` = `protocol`
             self.capabilities = capabilities
         }
 
@@ -1246,25 +1246,25 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 一個對話紀錄的預覽。lines 是剝除圖片後的行(同 SSH 預覽腳本，不帶原始長度):whole 是最後 48000 bytes(第一行可能被切在中間)、appended 是 known_version 之後附加的部分、unchanged 沒有內容。
+    /// 一個對話紀錄的預覽。records 同其他對話紀錄讀取，每行是原始長度與剝除圖片後的內容:whole 是最後 48000 bytes(第一行可能被切在中間，長度從切點算起)、appended 是 known_version 之後附加的部分、unchanged 沒有內容。
     public struct TranscriptPreview: Codable, Sendable, Equatable {
         public var key: String
         public var change: TranscriptPreviewChange
         public var version: String
-        public var lines: [String]
+        public var records: [TranscriptRecord]
 
-        public init(key: String, change: TranscriptPreviewChange, version: String, lines: [String]) {
+        public init(key: String, change: TranscriptPreviewChange, version: String, records: [TranscriptRecord]) {
             self.key = key
             self.change = change
             self.version = version
-            self.lines = lines
+            self.records = records
         }
 
         private enum CodingKeys: String, CodingKey {
             case key
             case change
             case version
-            case lines
+            case records
         }
     }
 }
@@ -2208,18 +2208,18 @@ extension HostServiceProtocol {
         /// 總 bytes。
         public var size: Int
         /// 主機檔名的副檔名(不含點):1–16 個英數字元，存成小寫;沒帶時不加副檔名。不合格回 invalid_message。
-        public var extension: String?
+        public var `extension`: String?
 
-        public init(requestId: String, size: Int, extension: String? = nil) {
+        public init(requestId: String, size: Int, `extension`: String? = nil) {
             self.requestId = requestId
             self.size = size
-            self.extension = extension
+            self.`extension` = `extension`
         }
 
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
             case size
-            case extension
+            case `extension`
         }
     }
 }
@@ -2333,17 +2333,14 @@ extension HostServiceProtocol {
         public var name: String
         public var readOnly: Bool
         public var pairedAt: String
-        /// 最後一次 WSS 連線的時間;還沒連過就沒有這欄。
-        public var lastConnectedAt: String?
         /// 是發出這個請求的裝置。
         public var current: Bool
 
-        public init(deviceId: String, name: String, readOnly: Bool, pairedAt: String, lastConnectedAt: String? = nil, current: Bool) {
+        public init(deviceId: String, name: String, readOnly: Bool, pairedAt: String, current: Bool) {
             self.deviceId = deviceId
             self.name = name
             self.readOnly = readOnly
             self.pairedAt = pairedAt
-            self.lastConnectedAt = lastConnectedAt
             self.current = current
         }
 
@@ -2352,14 +2349,13 @@ extension HostServiceProtocol {
             case name
             case readOnly = "read_only"
             case pairedAt = "paired_at"
-            case lastConnectedAt = "last_connected_at"
             case current
         }
     }
 }
 
 extension HostServiceProtocol {
-    /// 撤銷一支已配對的裝置：之後它的每個 WSS 訊息都以 device_token_revoked 與 close code 4401 拒絕。已撤銷的再撤銷一次也成功;不認得的 device_id 回 device_unknown。
+    /// 撤銷一支已配對的裝置：之後它的每個 WSS 訊息都以 device_token_revoked 與 close code 4401 拒絕。已撤銷的再撤銷一次也成功;不認得的 device_id 回 device_unknown;不能撤銷發出請求的這支裝置(回 invalid_message,撤銷自己用 POST /v1/revoke)。
     public struct DevicesRevoke: Codable, Sendable, Equatable {
         public var requestId: String
         /// devices.list.result 裡的 device_id。

@@ -57,21 +57,28 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(element("plus.benefits", in: app).waitForExistence(timeout: 10), "沒有推入付費牆")
     }
 
-    /// 開通後開主機同步：通知、同步都完成後，步驟卡收成「Purrdr Plus・已開通」一列，點進去兩個開關都開著。
+    /// 開通後開通知與主機同步：四步完成後步驟卡收成「Purrdr Plus・已開通」一列，通知(逐台)與主機同步開關仍在帳號頁(#263)。
     @MainActor
-    func testPlusMemberTurnsOnSyncAndCardCollapses() {
+    func testPlusMemberCompletesSetupAndTogglesStayOnAccount() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
         openAccount(in: app)
 
         let action = app.buttons["account.plusSetup.action"]
-        expectation(for: NSPredicate(format: "label == %@", "Turn On"), evaluatedWith: action)
+        expectation(for: NSPredicate(format: "label == %@", "Choose Hosts"), evaluatedWith: action)
         waitForExpectations(timeout: 10)
         action.tap()
+        let toggle = app.switches["account.push.5EED0000-0000-4000-8000-000000000001"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "沒有主機的通知開關")
+        toggle.tap()
         let install = app.alerts.buttons["settings.push.install"].firstMatch
         XCTAssertTrue(install.waitForExistence(timeout: 10), "開通知沒有先確認安裝外掛")
         install.tap()
 
+        // 「選擇主機」把列表捲到「通知」,步驟卡可能捲出畫面(lazy List 不在樹裡):捲回頂端。
         let sync = element("account.plusSetup.sync", in: app)
+        for _ in 0..<6 where !(sync.exists && sync.isHittable) {
+            element("sheet.account", in: app).swipeDown()
+        }
         expectation(for: NSPredicate(format: "value == %@", "Next Step"), evaluatedWith: sync)
         waitForExpectations(timeout: 10)
         app.buttons["account.plusSetup.action"].tap()
@@ -80,9 +87,17 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(collapsed.waitForExistence(timeout: 10), "四步完成後沒有收成一列")
         XCTAssertFalse(element("account.plusSetup", in: app).exists, "四步完成後仍顯示步驟卡")
         XCTAssertTrue(app.staticTexts["Purrdr Plus · Active"].exists)
-        collapsed.tap()
-        XCTAssertEqual(app.switches["settings.push"].value as? String, "1")
-        XCTAssertEqual(app.switches["settings.hostSync"].value as? String, "1")
+        XCTAssertEqual(toggle.value as? String, "Notifications On")
+
+        // 收合後仍可關閉那台主機的通知。
+        toggle.tap()
+        expectation(for: NSPredicate(format: "value == %@", "Notifications Off"), evaluatedWith: toggle)
+        waitForExpectations(timeout: 10)
+
+        // 主機同步在「通知裝置」之後，要往下捲才進畫面。
+        let hostSync = app.switches["settings.hostSync"]
+        XCTAssertTrue(scrollTo(hostSync, in: app), "收合後沒有主機同步開關")
+        XCTAssertEqual(hostSync.value as? String, "1")
     }
 
     /// 未開通時通知與同步不能開啟，畫面說明下一步。
@@ -94,7 +109,7 @@ final class AccountUITests: XCTestCase {
         let hint = element("account.lockedHint", in: app)
         XCTAssertTrue(hint.waitForExistence(timeout: 5), "沒有說明通知與同步要先做什麼")
         XCTAssertTrue(hint.label.contains("Join as a member first"), hint.label)
-        XCTAssertFalse(app.switches["settings.push"].exists, "未開通不該有通知開關")
+        XCTAssertFalse(app.switches["account.push.demo"].exists, "未開通不該有通知開關")
         XCTAssertFalse(app.switches["settings.hostSync"].exists, "未開通不該有主機同步開關")
     }
 
@@ -129,6 +144,15 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(account.waitForExistence(timeout: 10), "列表右上角沒有帳號鈕")
         account.tap()
         XCTAssertTrue(element("sheet.account", in: app).waitForExistence(timeout: 10), "沒有開出帳號頁")
+    }
+
+    /// 往下捲到元素出現(帳號頁比畫面長)。
+    @MainActor
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        for _ in 0..<6 where !element.isHittable {
+            app.swipeUp()
+        }
+        return element.exists
     }
 
     @MainActor

@@ -4,11 +4,11 @@ import PurrdrCore
 import PurrdrTestSupport
 import Testing
 
-/// 推播的主機端(ADR-0004、ADR-0002):經 SSH 安裝主機外掛、寫入推播配對，關閉時移除外掛與設定。
+/// 推播外掛安裝的 SSH 實作(ADR-0004、ADR-0002):經 SSH 安裝主機外掛、寫入推播配對，關閉時移除外掛與設定。
 ///
 /// 以 `LocalShellHost`(暫存家目錄、真的 `/bin/sh`)執行;`herdr` 換成家目錄 `bin/` 的假程式，
 /// 它記錄收到的 `plugin` 指令，並以 `fake/installed` 代表「herdr 已安裝 purrdr.push」。
-@Suite("推播(主機)")
+@Suite("推播外掛安裝(SSH)")
 struct PushHostTests {
     static let endpoint = URL(string: "https://backend.test/v1/push")!
     static let source = "raychiutw/purrdr.host/host-plugin"
@@ -20,8 +20,8 @@ struct PushHostTests {
         try FakeHerdrPluginCLI.install(on: host)
     }
 
-    func push(device: String = "0123456789abcdef") -> PushHost {
-        PushHost(channel: host, herdr: HerdrInstallation(), deviceID: device, pluginSource: Self.source)
+    func push(device: String = "0123456789abcdef") -> SSHPushPluginInstaller {
+        SSHPushPluginInstaller(channel: host, herdr: HerdrInstallation(), deviceID: PushDeviceID(rawValue: device)!, pluginSource: Self.source)
     }
 
     func pairing(_ key: PushPairingKey = .generate(), muted: Set<String> = []) -> PushPairingFile {
@@ -38,7 +38,7 @@ struct PushHostTests {
     func pairingInstallsPluginAndWritesPairing() async throws {
         let file = pairing(muted: ["session-1"])
 
-        try await push().pair(file)
+        try await push().install(file)
 
         #expect(pluginInstalled)
         #expect(try herdrCalls().contains("plugin install raychiutw/purrdr.host/host-plugin --yes"))
@@ -46,10 +46,10 @@ struct PushHostTests {
         #expect(PushPairingFile(contents: try Data(contentsOf: url)) == file)
         let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber
         #expect(mode?.intValue == 0o600)
-        let inspection = try await push().inspect()
-        #expect(inspection.isPaired)
-        #expect(inspection.pluginInstalled)
-        #expect(inspection.user == NSUserName())
+        let status = try await push().status()
+        #expect(status.isPaired)
+        #expect(status.pluginInstalled)
+        #expect(status.user == NSUserName())
     }
 
     @Test("關閉推播：移除外掛與配對，主機與配對前完全相同")
@@ -57,13 +57,13 @@ struct PushHostTests {
         try host.write(Data("keep me\n".utf8), to: "notes.txt")
         let before = try snapshot()
 
-        try await push().pair(pairing())
-        try await push().unpair()
+        try await push().install(pairing())
+        try await push().remove()
 
         #expect(try snapshot() == before)
         #expect(!pluginInstalled)
         #expect(try herdrCalls().contains("plugin uninstall purrdr.push"))
-        #expect(try await push().inspect().isPaired == false)
+        #expect(try await push().status().isPaired == false)
     }
 
     @Test("使用者自己裝的外掛：配對不重裝，關閉時也不移除")
@@ -71,8 +71,8 @@ struct PushHostTests {
         try host.write(Data(), to: "fake/installed")
         let before = try snapshot()
 
-        try await push().pair(pairing())
-        try await push().unpair()
+        try await push().install(pairing())
+        try await push().remove()
 
         #expect(pluginInstalled)
         let calls = try herdrCalls()
@@ -85,15 +85,15 @@ struct PushHostTests {
         let before = try snapshot()
         let phone = push(device: "aaaaaaaaaaaaaaaa")
         let pad = push(device: "bbbbbbbbbbbbbbbb")
-        try await phone.pair(pairing())
-        try await pad.pair(pairing())
+        try await phone.install(pairing())
+        try await pad.install(pairing())
         #expect(try herdrCalls().filter { $0.hasPrefix("plugin install") }.count == 1)
 
-        try await phone.unpair()
+        try await phone.remove()
         #expect(pluginInstalled)
-        #expect(try await pad.inspect().isPaired)
+        #expect(try await pad.status().isPaired)
 
-        try await pad.unpair()
+        try await pad.remove()
         #expect(!pluginInstalled)
         #expect(try snapshot() == before)
     }
@@ -103,8 +103,8 @@ struct PushHostTests {
         try host.write(Data(), to: "fake/install-fails")
         let before = try snapshot()
 
-        await #expect(throws: PushHostError.pluginInstallFailed("git clone failed")) {
-            try await push().pair(pairing())
+        await #expect(throws: PushPluginError.pluginInstallFailed("git clone failed")) {
+            try await push().install(pairing())
         }
 
         #expect(try snapshot() == before)
@@ -113,23 +113,15 @@ struct PushHostTests {
     @Test("靜音：只改配對檔的靜音清單，密鑰不變")
     func setMutedRewritesOnlyMutedList() async throws {
         let key = PushPairingKey.generate()
-        try await push().pair(pairing(key, muted: ["old"]))
+        try await push().install(pairing(key, muted: ["old"]))
 
-        try await push().setMuted(["session-1", "session-2"])
+        try await push().updateMuted(["session-1", "session-2"])
 
         let url = host.url(".purrdr/push-0123456789abcdef/pairing")
         let file = try #require(PushPairingFile(contents: try Data(contentsOf: url)))
         #expect(file.key == key)
         #expect(file.endpoint == Self.endpoint)
         #expect(file.muted == ["session-1", "session-2"])
-    }
-
-    @Test("裝置 id 只能是小寫英數與 -(會拼進路徑)")
-    func deviceIDIsValidated() {
-        #expect(PushHost.isValidDeviceID("0123456789abcdef"))
-        #expect(!PushHost.isValidDeviceID("../x"))
-        #expect(!PushHost.isValidDeviceID(""))
-        #expect(!PushHost.isValidDeviceID("plugin"))
     }
 }
 
