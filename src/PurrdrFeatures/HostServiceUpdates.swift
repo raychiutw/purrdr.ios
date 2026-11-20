@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 /// 主機服務的更新提示(#198):HTTPS 主機回報的主機服務版本比這版 app 已知的最新版舊時，在主機清單提示更新。
 ///
@@ -27,7 +28,10 @@ public struct HostServiceUpdates {
 
     /// 回報 `installed` 的主機要用的更新指令。
     nonisolated public static func commands(installed: String) -> HostServiceUpdateCommands {
-        let canUpdateItself = numbers(installed).map { !$0.lexicographicallyPrecedes(numbers(selfUpdatingVersion) ?? []) } ?? false
+        var canUpdateItself = false
+        if let installedVersion = HostServiceVersion(installed), let selfUpdating = HostServiceVersion(selfUpdatingVersion) {
+            canUpdateItself = installedVersion >= selfUpdating
+        }
         return canUpdateItself
             ? HostServiceUpdateCommands(
                 installedVersion: installed, canUpdateItself: true, posix: posixUpdateCommand, windows: windowsUpdateCommand)
@@ -45,16 +49,8 @@ public struct HostServiceUpdates {
 
     /// 回報 `installed` 的主機要提示更新到的版本;不用提示(已是最新、比 app 知道的新、看不懂的版本)時 `nil`。
     func offeredVersion(installed: String) -> String? {
-        guard let installed = Self.numbers(installed), let latest = Self.numbers(latestVersion) else { return nil }
-        return installed.lexicographicallyPrecedes(latest) ? latestVersion : nil
-    }
-
-    /// `1.2.3` → `[1, 2, 3]`(缺的段補 0,所以 `1.2` 與 `1.2.0` 相同);預發行標記(`-beta`)之後不比。
-    nonisolated private static func numbers(_ version: String) -> [Int]? {
-        let core = version.split(separator: "-", maxSplits: 1).first ?? ""
-        let parts = core.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
-        guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0 != nil }) else { return nil }
-        return parts.compactMap(\.self) + Array(repeating: 0, count: 3 - parts.count)
+        guard let installed = HostServiceVersion(installed), let latest = HostServiceVersion(latestVersion) else { return nil }
+        return installed < latest ? latestVersion : nil
     }
 }
 

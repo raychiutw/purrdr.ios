@@ -7918,6 +7918,28 @@
         }
       }
     },
+    "This needs a newer Purrdr host service (this host has %@). Update the host service on the host; Hosts shows the command." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這項功能需要較新的 Purrdr 主機服務(這台主機是 %@)。請更新主機上的主機服務，指令在「主機」列表。"
+          }
+        }
+      }
+    },
+    "This needs a newer Purrdr host service. Update the host service on the host; Hosts shows the command." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這項功能需要較新的 Purrdr 主機服務。請更新主機上的主機服務，指令在「主機」列表。"
+          }
+        }
+      }
+    },
     "This note changed on the host. Showing the latest one." : {
       "extractionState" : "manual",
       "localizations" : {

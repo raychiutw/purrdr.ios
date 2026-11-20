@@ -318,6 +318,24 @@ struct HTTPSHostConnectionTests {
         #expect(try await Self.connection(to: service).hostServiceVersion() == "0.0.9")
     }
 
+    @Test("主機服務版本不足：回「需要更新主機服務」的專屬錯誤，帶功能與已安裝的版本")
+    func olderHostServiceRequiresUpdate() async throws {
+        let service = try await FakeHostService.start(.init(hostServiceVersion: "0.3.0"))
+        defer { Task { await service.stop() } }
+
+        await #expect(throws: HostServiceError.hostServiceUpdateRequired(.fileFetch, installedVersion: "0.3.0")) {
+            try await Self.connection(to: service).requireHostService(.fileFetch)
+        }
+    }
+
+    @Test("主機服務版本達到門檻：功能可用")
+    func currentHostServiceProvidesFeature() async throws {
+        let service = try await FakeHostService.start(.init(hostServiceVersion: "0.4.0"))
+        defer { Task { await service.stop() } }
+
+        try await Self.connection(to: service).requireHostService(.fileFetch)
+    }
+
     @Test("Agent 事件串流：先回 ack,連線斷了以 connectionLost 結束(上層據此重連對帳)")
     func eventStreamEndsWithConnection() async throws {
         let service = try await FakeHostService.start()
