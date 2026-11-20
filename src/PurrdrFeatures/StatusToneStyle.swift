@@ -13,17 +13,6 @@ extension StatusTone {
     }
 }
 
-extension Color {
-    /// 狀態條的閒置段(系統 `systemGray3`),比完成段(`systemGray`)淺。
-    static var lightNeutralSegment: Color {
-        #if canImport(UIKit)
-        Color(uiColor: .systemGray3)
-        #else
-        Color.gray.opacity(0.5)
-        #endif
-    }
-}
-
 extension StatusTextEmphasis {
     /// 狀態字的顏色。`Color.primary` 是固定色：列是按鈕時，階層式 `.primary` 會被 tint 染色。
     var style: AnyShapeStyle {

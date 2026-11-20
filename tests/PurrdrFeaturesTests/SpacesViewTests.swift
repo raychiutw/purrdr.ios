@@ -5,7 +5,7 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// Spaces／Agents 兩種檢視與 workspace 群組(#40、#103)。
+/// Spaces／Agents 兩種檢視(#40);Spaces 檢視每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
 ///
 /// 錄製的 snapshot:`w1`(garden-journal)三個 Claude 各在一個 tab(`w1:t6` idle、`w1:tA`／`w1:tB` working);
 /// `w2`(scratch)只有一個 shell pane `w2:p1`(`/tmp/scratch`)。
@@ -32,18 +32,6 @@ struct SpacesViewTests {
         snapshot["panes"] = (snapshot["panes"] as? [[String: Any]] ?? []) + [pane]
         result["snapshot"] = snapshot
         response["result"] = result
-    }
-
-    static func groups(_ model: HostsModel) -> [WorkspaceGroup] {
-        model.agentList.spacesSections.flatMap(\.items).compactMap { item in
-            if case .group(let group) = item { group } else { nil }
-        }
-    }
-
-    static func chats(_ model: HostsModel) -> [AgentRow] {
-        model.agentList.spacesSections.flatMap(\.items).compactMap { item in
-            if case .chat(let row) = item { row } else { nil }
-        }
     }
 
     @Test("版面事件只在 Spaces 檢視訂閱：列表檢視決定每台主機的即時更新要不要訂閱(#40)")
@@ -73,88 +61,68 @@ struct SpacesViewTests {
 
         model.agentList.mode = .spaces
         #expect(model.agentList.content == .list, "只有終端機時 Spaces 檢視說成沒有 Agent")
-        #expect(!Self.groups(model).isEmpty)
+        #expect(model.agentList.spacesSections.map(\.workspaceID) == ["w2"])
         model.agentList.mode = .agents
         #expect(model.agentList.content == .noAgentsInAgentsView)
     }
 
-    @Test("有兩個以上 agent 的 workspace 是群組：Agent 數、各狀態數量，Agent 列依狀態(工作中在前),第三行是 Agent 種類")
-    func multiAgentWorkspaceIsGroup() async throws {
+    @Test("每個 workspace 一段：段落是主機與 workspace 名稱，依主機上的順序;段內每個 Tab 一列")
+    func sectionPerWorkspaceWithTabs() async throws {
         let model = await Self.model()
 
-        let group = try #require(Self.groups(model).first { $0.workspaceID == "w1" })
-        #expect(group.id == "demo/w1")
-        #expect(group.label == "garden-journal")
-        #expect(group.agentCount == 3)
-        #expect(group.terminalCount == 0)
-        #expect(group.counts == SpacesStatusCounts(working: 2, idle: 1))
-        #expect(group.rows.map(\.id) == ["demo/w1:pA", "demo/w1:pB", "demo/w1:p6"])
-        #expect(Self.agentRows(group).map(\.subtitle) == ["Claude Code", "Claude Code", "Claude Code"])
-        // 群組裡的 agent 不再單獨出現。
-        #expect(Self.chats(model).isEmpty)
+        let sections = model.agentList.spacesSections
+        #expect(sections.map(\.id) == ["demo/w1", "demo/w2"])
+        let garden = try #require(sections.first)
+        #expect(garden.hostName == "Demo")
+        #expect(garden.workspace == "garden-journal")
+        #expect(garden.tabs.map(\.id) == ["demo/w1:t6", "demo/w1:tA", "demo/w1:tB"])
+        #expect(sections.last?.workspace == "scratch")
     }
 
-    @Test("只有 shell 的 workspace 也是群組：沒有 Agent、終端機數 1,終端機列的副標是程式名與資料夾")
-    func shellOnlyWorkspaceListsTerminalRow() async throws {
+    @Test("Tab 名稱：herdr 的預設數字名稱與沒有名稱都顯示「Tab N」,人取的名稱照原文")
+    func tabTitles() async throws {
         let model = await Self.model { response in
-            // 錄製時 shell 沒有終端機標題;加上前景程式名。
-            SnapshotEdit.agent("w2:p1", in: &response) { $0["terminal_title_stripped"] = "npm run dev" }
+            SnapshotEdit.tab("w1:tA", in: &response) { $0["label"] = "CSV 匯出" }
+            SnapshotEdit.tab("w1:tB", in: &response) { $0["label"] = NSNull() }
         }
 
-        let group = try #require(Self.groups(model).first { $0.workspaceID == "w2" })
-        #expect(group.agentCount == 0)
-        #expect(group.terminalCount == 1)
-        #expect(group.counts == SpacesStatusCounts())
-        #expect(group.rows == [
-            .terminal(TerminalRow(host: .demo, paneID: "w2:p1", subtitle: "npm run dev · tmp/scratch", program: "npm run dev")),
-        ])
+        let tabs = try #require(model.agentList.spacesSections.first).tabs
+        #expect(tabs.map(\.title) == ["Tab 1", "CSV 匯出", "Tab 3"])
     }
 
-    @Test("沒有程式名的終端機列副標是「Shell · 資料夾」")
-    func terminalRowWithoutProgram() async throws {
-        let model = await Self.model()
-
-        let group = try #require(Self.groups(model).first { $0.workspaceID == "w2" })
-        guard case .terminal(let row)? = group.rows.first else {
-            Issue.record("w2 應該有終端機列")
-            return
-        }
-        #expect(row.subtitle == "Shell · tmp/scratch")
-    }
-
-    @Test("只有一個 agent、沒有其他 pane 的 workspace 是聊天列，第三行是 workspace 名稱")
-    func singleAgentWorkspaceIsChatRow() async throws {
+    @Test("點 Tab:只有一個 pane 直接開(Agent 開對話、終端機開 Pane 終端機);有多個 pane 開那個 Tab 的版面圖")
+    func tabTargets() async throws {
         let model = await Self.model { response in
-            SnapshotEdit.removeAgent("w1:pA", in: &response)
-            SnapshotEdit.removeAgent("w1:pB", in: &response)
+            // 改動：w1:t6 再加一個 shell pane。
+            Self.addShellPane(["pane_id": "w1:p7", "workspace_id": "w1", "tab_id": "w1:t6", "cwd": "/tmp"], to: &response)
         }
 
-        #expect(Self.chats(model).map(\.id) == ["demo/w1:p6"])
-        #expect(Self.chats(model).first?.subtitle == "garden-journal")
-        #expect(Self.groups(model).map(\.workspaceID) == ["w2"])
+        let sections = model.agentList.spacesSections
+        let garden = try #require(sections.first)
+        #expect(garden.tabs[0].target == .layout(workspaceID: "w1", tabID: "w1:t6"))
+        #expect(garden.tabs[1].target == .pane(ChatRoute(host: .demo, paneID: "w1:pA")))
+        #expect(sections.last?.tabs.first?.target == .pane(ChatRoute(host: .demo, paneID: "w2:p1")))
     }
 
-    @Test("一個 agent 加上一個 shell pane 的 workspace 是群組：agent 列在前、終端機列在後")
-    func agentWithShellIsGroup() async throws {
+    @Test("herdr 沒有回報 Tab 的 Agent 自成一列(標題是 Agent 標題),不會從列表消失")
+    func panesWithoutTabs() async throws {
         let model = await Self.model { response in
-            SnapshotEdit.removeAgent("w1:pA", in: &response)
-            SnapshotEdit.removeAgent("w1:pB", in: &response)
-            Self.addShellPane(
-                ["pane_id": "w1:pZ", "workspace_id": "w1", "tab_id": "w1:t6", "cwd": "/Users/demo/Projects/garden-journal",
-                 "label": "server"], to: &response)
+            // 改動：w1:pA 只出現在 agents、沒有 tab_id(pane 清單沒有它;pane 的 tab_id 是必填，缺了整份 snapshot 讀不了)。
+            var result = response["result"] as? [String: Any] ?? [:]
+            var snapshot = result["snapshot"] as? [String: Any] ?? [:]
+            snapshot["panes"] = (snapshot["panes"] as? [[String: Any]] ?? []).filter { $0["pane_id"] as? String != "w1:pA" }
+            snapshot["agents"] = (snapshot["agents"] as? [[String: Any]] ?? []).map { agent in
+                var agent = agent
+                if agent["pane_id"] as? String == "w1:pA" { agent["tab_id"] = NSNull() }
+                return agent
+            }
+            result["snapshot"] = snapshot
+            response["result"] = result
         }
 
-        #expect(Self.chats(model).isEmpty)
-        let group = try #require(Self.groups(model).first { $0.workspaceID == "w1" })
-        #expect(group.agentCount == 1)
-        #expect(group.terminalCount == 1)
-        #expect(group.rows.map(\.id) == ["demo/w1:p6", "demo/w1:pZ"])
-    }
-
-    static func agentRows(_ group: WorkspaceGroup) -> [AgentRow] {
-        group.rows.compactMap { row in
-            if case .agent(let agent) = row { agent } else { nil }
-        }
+        let garden = try #require(model.agentList.spacesSections.first)
+        let loose = try #require(garden.tabs.first { $0.target == .pane(ChatRoute(host: .demo, paneID: "w1:pA")) })
+        #expect(loose.title == "規劃天氣小工具")
     }
 
     @Test("Agents 檢視：每個 agent 一列，沒有群組也沒有終端機列;只有 shell 的 workspace 不出現")
@@ -178,23 +146,6 @@ struct SpacesViewTests {
         #expect(store.load() == .spaces)
         let second = await Self.model(modeStore: store)
         #expect(second.agentList.mode == .spaces)
-    }
-
-    @Test("搜尋：命中 workspace 名稱時群組列出全部;只命中 agent 時群組只留命中的列;都不命中則沒有群組")
-    func searchFiltersGroupRows() async throws {
-        let model = await Self.model()
-
-        model.agentList.query = "garden"
-        let byWorkspace = try #require(Self.groups(model).first)
-        #expect(byWorkspace.rows.count == 3)
-
-        model.agentList.query = "食譜"
-        let byAgent = try #require(Self.groups(model).first)
-        #expect(byAgent.workspaceID == "w1")
-        #expect(byAgent.rows.map(\.id) == ["demo/w1:pB"])
-
-        model.agentList.query = "nothing-matches"
-        #expect(model.agentList.spacesSections.isEmpty)
     }
 
     @Test("同一個 ChatRoute 導覽：agent 以外的 pane 開 Pane 終端機(標題是程式名),Agent 的 pane 開對話")

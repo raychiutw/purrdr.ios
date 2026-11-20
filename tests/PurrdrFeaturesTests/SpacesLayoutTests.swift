@@ -47,6 +47,14 @@ struct SpacesLayoutTests {
         ])
     }
 
+    @Test("從 Spaces 檢視點有多個 pane 的 Tab:版面圖只留那個 Tab;找不到時照原樣(#275)")
+    func onlyTab() async throws {
+        let layout = try #require(SpacesLayout(snapshot: try await Self.snapshot(), workspaceID: "w1"))
+
+        #expect(layout.onlyTab("w1:tA").tabs.map(\.id) == ["w1:tA"])
+        #expect(layout.onlyTab("w9:t1").tabs.map(\.id) == ["w1:t6", "w1:tA", "w1:tB"])
+    }
+
     @Test("分頁形狀：長寬比 = (欄 × 0.5) / 列,限制在 0.9–2.4")
     func aspectRatioIsClamped() async throws {
         let snapshot = try await Self.snapshot { response in

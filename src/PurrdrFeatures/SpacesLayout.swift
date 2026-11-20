@@ -31,6 +31,14 @@ public struct SpacesLayout: Equatable, Sendable {
         }
     }
 
+    /// 只留一個 Tab 的版面圖(從 Spaces 檢視點有多個 pane 的 Tab,#275);找不到時照原樣。
+    public func onlyTab(_ tabID: String) -> SpacesLayout {
+        guard tabs.contains(where: { $0.id == tabID }) else { return self }
+        var layout = self
+        layout.tabs = tabs.filter { $0.id == tabID }
+        return layout
+    }
+
     /// `w1:tA` → 10:herdr 的 tab 尾碼是十六進位。看不懂時排最後。
     private static func number(fromTabID id: String) -> Int {
         guard let range = id.range(of: ":t", options: .backwards) else { return .max }

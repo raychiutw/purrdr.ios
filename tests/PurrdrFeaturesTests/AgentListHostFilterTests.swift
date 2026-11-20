@@ -53,7 +53,8 @@ struct AgentListHostFilterTests {
         let rows = model.sections.flatMap(\.rows)
         #expect(rows.count == 3)
         #expect(rows.allSatisfy { $0.host == Self.lab })
-        #expect(model.spacesSections.compactMap(\.host?.host) == [Self.lab])
+        #expect(!model.spacesSections.isEmpty)
+        #expect(model.spacesSections.allSatisfy { $0.host == Self.lab })
     }
 
     @Test("篩選某台主機時，其他主機的連線錯誤不出現在列表下方")
