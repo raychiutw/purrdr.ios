@@ -9,8 +9,7 @@ final class HostStatusUITests: XCTestCase {
     /// 主機清單 HTTPS 主機的 ⓘ:看到版本與最新版本;立即更新後顯示已更新;自動更新開關即時反映。
     @MainActor
     func testUpdateHostServiceAndToggleAutoUpdate() {
-        let app = XCUIApplication.launchUITesting()
-        addHTTPSHost(app, code: "K7QM-2XPA")
+        let app = XCUIApplication.launchUITesting(flags: ["-seedPairedHTTPSHost"])
         openStatus(app)
 
         let version = app.descendants(matching: .any)["hostStatus.hostService.version"].firstMatch
@@ -46,34 +45,6 @@ final class HostStatusUITests: XCTestCase {
     }
 
     @MainActor
-    private func addHTTPSHost(_ app: XCUIApplication, code: String) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        app.buttons["menu.hosts"].tap()
-        let add = app.buttons["hosts.add"]
-        XCTAssertTrue(add.waitForExistence(timeout: 5))
-        add.tap()
-        let https = app.buttons["hostEditor.method.https"]
-        XCTAssertTrue(https.waitForExistence(timeout: 5) || scrollTo(https, in: app), "沒有 HTTPS 連線方式")
-        https.tap()
-        app.swipeDown()
-        for (identifier, text) in [("name", "Studio"), ("address", "studio.tail1234.ts.net"), ("pairingCode", code)] {
-            let field = app.textFields["hostEditor.\(identifier)"]
-            XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
-            field.tap()
-            field.typeEnglish(text)
-        }
-        let test = app.buttons["hostEditor.test"]
-        XCTAssertTrue(test.exists || scrollTo(test, in: app))
-        test.tap()
-        let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ OR label CONTAINS %@", "Connected", "Read-only"))
-            .firstMatch
-        XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollTo(connected, in: app), "沒有連上")
-        app.buttons["hostEditor.save"].tap()
-    }
-
-    @MainActor
     private func openStatus(_ app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))
@@ -87,22 +58,6 @@ final class HostStatusUITests: XCTestCase {
         for _ in 0..<6 {
             app.swipeUp()
         }
-    }
-
-    /// 捲到元素出現且不在鍵盤底下(表單比畫面長):先往下，沒有再往上。
-    @MainActor
-    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        let keyboard = app.keyboards.firstMatch
-        func isReachable() -> Bool {
-            element.isHittable && (!keyboard.exists || element.frame.maxY < keyboard.frame.minY)
-        }
-        for _ in 0..<6 where !isReachable() {
-            app.swipeUp()
-        }
-        for _ in 0..<6 where !isReachable() {
-            app.swipeDown()
-        }
-        return element.exists
     }
 }
 
