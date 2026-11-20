@@ -25,10 +25,10 @@ public actor FakeHostConnection: HostConnection {
     /// `hostServiceVersion()` 回報的版本(#198);`nil` 像 SSH 一樣沒有主機服務。
     private var reportedHostServiceVersion: String?
 
-    /// 主機服務代裝推播外掛時的假主機(`PushPluginInstallerProviding`)。
-    public nonisolated let pushPlugins: FakePushPluginHost
+    /// 主機服務代裝推播外掛時的假主機;`nil` 像取不到主機服務連線一樣不能代裝。
+    public nonisolated let pushPlugins: FakePushPluginHost?
 
-    public init(pushPlugins: FakePushPluginHost = FakePushPluginHost()) {
+    public init(pushPlugins: FakePushPluginHost? = nil) {
         self.pushPlugins = pushPlugins
     }
 
@@ -271,7 +271,7 @@ private struct FakePaneTerminalTransport: PaneTerminalTransport {
 }
 
 extension FakeHostConnection: PushPluginInstallerProviding {
-    public nonisolated func pushPluginInstaller(deviceID: PushDeviceID) -> any PushPluginInstalling {
-        pushPlugins.installer(deviceID: deviceID)
+    public nonisolated func pushPluginInstallers() -> (@Sendable (PushDeviceID) -> any PushPluginInstalling)? {
+        pushPlugins.map { host in { host.installer(deviceID: $0) } }
     }
 }

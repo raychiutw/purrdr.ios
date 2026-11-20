@@ -25,7 +25,7 @@ struct HostServiceUpdateTests {
     static func connections(reporting versions: [String]) async -> HostServiceConnections {
         let connections = HostServiceConnections()
         for version in versions {
-            let connection = FakeHostConnection()
+            let connection = FakeHostConnection(pushPlugins: FakePushPluginHost())
             await connection.setHostServiceVersion(version)
             connections.connections.append(connection)
         }
