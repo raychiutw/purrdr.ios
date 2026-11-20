@@ -226,8 +226,11 @@ public final class HostsModel {
     public func hostSettings(for id: UUID) -> HostSettings? {
         guard hosts.contains(where: { $0.id == id }) else { return nil }
         let member = member(for: .host(id))
-        let launcher = codexLaunchers[id] ?? CodexLauncherModel(
-            host: CodexLauncherHost(channel: member.channel), hostID: id.uuidString, consent: hostConsent)
+        // 畫面每次重繪都會呼叫：已有就不再寫回，否則改了被觀察的狀態會無限重繪。
+        if let launcher = codexLaunchers[id] {
+            return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
+        }
+        let launcher = CodexLauncherModel(host: CodexLauncherHost(channel: member.channel), hostID: id.uuidString, consent: hostConsent)
         codexLaunchers[id] = launcher
         return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
     }

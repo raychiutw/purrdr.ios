@@ -116,11 +116,16 @@ extension HostServiceAccess {
 
     /// UI 測試：不連網路、權杖只在記憶體。配對碼 `K7QM-2XPA` 換得權杖、`R3AD-0NLY` 換得唯讀權杖、`OLD0-CODE` 過期、其他不對;
     /// HTTPS 主機的連線是包住 `channel`(Demo 主機)的主機連線，畫面看到 Demo 的 Agent。
-    /// - Parameter hostServiceVersion: 連線回報的主機服務版本(UI 測試旗標 `-demoOutdatedHostService` 給舊版，#198)。
+    /// - Parameters:
+    ///   - hostServiceVersion: 連線回報的主機服務版本(UI 測試旗標 `-demoOutdatedHostService` 給舊版，#198)。
+    ///   - readOnlyHosts: 啟動時已用唯讀權杖配對好的主機。
     public static func uiTesting(
-        channel: any HostChannel, hostServiceVersion: String = HostServiceUpdates.latestKnownVersion
+        channel: any HostChannel, hostServiceVersion: String = HostServiceUpdates.latestKnownVersion, readOnlyHosts: [UUID] = []
     ) -> HostServiceAccess {
-        HostServiceAccess(pairing: HostServicePairing(http: UITestingHostServiceHTTP()), deviceName: "iPhone") { _, deviceToken in
+        let tokens = InMemoryDeviceTokenStore(
+            tokens: Dictionary(uniqueKeysWithValues: readOnlyHosts.map { ($0, UITestingHostServiceConnection.readOnlyToken) }))
+        let pairing = HostServicePairing(http: UITestingHostServiceHTTP())
+        return HostServiceAccess(tokens: tokens, pairing: pairing, deviceName: "iPhone") { _, deviceToken in
             UITestingHostServiceConnection(
                 base: SSHHostConnection(channel: channel), deviceToken: deviceToken,
                 hostService: UITestingHostServiceState(installedVersion: hostServiceVersion))

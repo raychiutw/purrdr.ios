@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
@@ -270,6 +271,24 @@ struct MultiHostTests {
         #expect(model.hostSettings(for: UUID()) == nil)
     }
 
+    /// 主機頁的 navigationDestination 每次重繪都會拿主機設定;拿的時候改了被觀察的狀態，SwiftUI 就無限重繪、主執行緒卡住。
+    @Test("再拿一次同一台主機的主機設定不改 model 的被觀察狀態")
+    func hostSettingsRepeatDoesNotMutateObservedState() {
+        let model = Self.model(ChannelsByAddress([:]))
+        model.load()
+        _ = model.hostSettings(for: Self.lab.id)
+
+        let changed = ObservedChange()
+        withObservationTracking {
+            _ = model.hostSettings(for: Self.lab.id)
+        } onChange: {
+            changed.happened = true
+        }
+        _ = model.hostSettings(for: Self.lab.id)
+
+        #expect(!changed.happened)
+    }
+
     @Test("主機圖示只存本機，以主機 id 為鍵;非選取中主機的列帶它的圖示")
     func hostIconsAreLocalPerHost() async {
         let defaults = UserDefaults(suiteName: "MultiHostTests.icons.\(UUID())")!
@@ -324,4 +343,9 @@ struct AgentKindSymbolTests {
         #expect(AgentKindSymbol.name(for: "something-new") == "terminal")
         #expect(!symbols.contains("terminal"))
     }
+}
+
+/// `withObservationTracking` 的 onChange 是 `@Sendable`,用來記有沒有被觸發。
+final class ObservedChange: @unchecked Sendable {
+    var happened = false
 }

@@ -79,7 +79,8 @@ struct PurrdrApp: App {
                 // HTTPS 主機：配對不連網路，連線是 Demo 主機。`-demoOutdatedHostService`:主機服務是舊版(更新提示,#198)。
                 hostService: .uiTesting(
                     channel: demo,
-                    hostServiceVersion: arguments.contains("-demoOutdatedHostService") ? "0.0.1" : HostServiceUpdates.latestKnownVersion),
+                    hostServiceVersion: arguments.contains("-demoOutdatedHostService") ? "0.0.1" : HostServiceUpdates.latestKnownVersion,
+                    readOnlyHosts: arguments.contains("-seedReadOnlyHTTPSHost") ? [Self.readOnlyHTTPSHost.id] : []),
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
@@ -222,9 +223,15 @@ struct PurrdrApp: App {
         id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000003")!, name: "Studio HTTPS",
         hostService: HostServiceAddress("studio.tail1234.ts.net")!)
 
+    /// UI 測試情境 `-seedReadOnlyHTTPSHost`:這支裝置已用唯讀權杖配對好的 HTTPS 主機(主機頁的主機服務區塊,#290)。
+    private static let readOnlyHTTPSHost = HostConfiguration(
+        id: UUID(uuidString: "5EED0000-0000-4000-8000-000000000005")!, name: "Studio",
+        hostService: HostServiceAddress("studio.tail1234.ts.net")!)
+
     private static func seededHosts(_ arguments: [String]) -> [HostConfiguration] {
         (arguments.contains("-seedHost") ? [seededHost] : []) + (arguments.contains("-seedUnreachableHost") ? [unreachableHost] : [])
             + (arguments.contains("-seedUnpairedHTTPSHost") ? [unpairedHTTPSHost] : [])
+            + (arguments.contains("-seedReadOnlyHTTPSHost") ? [readOnlyHTTPSHost] : [])
             + (arguments.contains("-seedSlowHost") ? [slowHost] : [])
     }
 

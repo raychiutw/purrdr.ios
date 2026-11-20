@@ -32,11 +32,10 @@ final class HostStatusUITests: XCTestCase {
         XCTAssertTrue(version.label.contains("0.7.1"), "版本沒有換成新版")
     }
 
-    /// 唯讀裝置(配對碼 `R3AD-0NLY`):看得到狀態，立即更新與自動更新停用並說明。
+    /// 唯讀裝置(啟動時已用唯讀權杖配對):看得到狀態，立即更新與自動更新停用並說明。
     @MainActor
     func testReadOnlyDeviceCannotUpdate() {
-        let app = XCUIApplication.launchUITesting()
-        addHTTPSHost(app, code: "R3AD-0NLY")
+        let app = XCUIApplication.launchUITesting(flags: ["-seedReadOnlyHTTPSHost"])
         openStatus(app)
 
         let version = app.descendants(matching: .any)["hostStatus.hostService.version"].firstMatch
