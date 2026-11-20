@@ -68,12 +68,9 @@ public actor HTTPSHostConnection: HostConnection {
     public func herdrRequest(_ request: Data, deadline: Duration) async throws -> Data {
         let line = try HerdrRequestLine(request)
         let operation = try HerdrOperation(line)
+        if let feature = HerdrMethod(rawValue: line.method)?.requiredFeature { try await requireHostService(feature) }
         return try await withDeadline(deadline) {
             let welcome = try await self.hostServiceInfo()
-            if let feature = HerdrOperation.requiredFeature(forMethod: line.method),
-               !feature.isAvailable(onHostServiceVersion: welcome.hostServiceVersion) {
-                throw HostServiceError.hostServiceUpdateRequired(feature, installedVersion: welcome.hostServiceVersion)
-            }
             switch operation {
             case .ping:
                 return try HerdrResponseLine.ping(id: line.id, herdr: welcome.herdr)
@@ -98,6 +95,7 @@ public actor HTTPSHostConnection: HostConnection {
     }
 
     /// 主機服務版本不足時丟 `HostServiceError.hostServiceUpdateRequired`;門檻見 `HostServiceFeature.minimumVersion`。
+    /// 一律在送出前、`withDeadline` 外呼叫(撥號與握手各有自己的期限)。
     public func requireHostService(_ feature: HostServiceFeature) async throws {
         let installed = try await hostServiceVersion()
         guard feature.isAvailable(onHostServiceVersion: installed) else {
@@ -112,7 +110,7 @@ public actor HTTPSHostConnection: HostConnection {
     /// 呼叫端不再讀時通知主機服務關掉那條串流，連線留給其他操作。
     public func herdrEvents(_ request: Data) async throws -> AsyncThrowingStream<Data, any Error> {
         let line = try HerdrRequestLine(request)
-        guard line.method == "events.subscribe" else { throw HostServiceError.unsupported(line.method) }
+        guard line.method == HerdrMethod.eventsSubscribe.rawValue else { throw HostServiceError.unsupported(line.method) }
         let subscriptions = try JSONDecoder().decode(SubscribeParams.self, from: line.params).subscriptions.map {
             HostServiceProtocol.EventSubscription(event: $0.type, paneId: $0.paneID)
         }
@@ -297,7 +295,7 @@ public actor HTTPSHostConnection: HostConnection {
 
     /// `workspace.create` 的 `invalid_message` 是資料夾不存在或不是絕對路徑(協定沒有專屬錯誤碼),換成 herdr 錯誤 `folder_not_found`。
     static func error(for message: HostServiceProtocol.ErrorMessage, herdrMethod: String?) -> any Error {
-        if herdrMethod == "workspace.create", message.code == .invalidMessage {
+        if herdrMethod == HerdrMethod.workspaceCreate.rawValue, message.code == .invalidMessage {
             return HerdrError.herdr(code: "folder_not_found", message: message.message)
         }
         return error(for: message)

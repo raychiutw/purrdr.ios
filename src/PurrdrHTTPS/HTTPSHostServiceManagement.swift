@@ -37,9 +37,7 @@ extension HTTPSHostConnection: HostServiceManaging {
     private func sendManagement(
         _ make: @escaping @Sendable (String) -> HostServiceProtocol.ClientMessage
     ) async throws -> HostServiceProtocol.ServerMessage {
-        try await withDeadline(HostCommandDeadline.standard) {
-            try await self.requireHostService(.hostServiceManagement)
-            return try await self.send(make)
-        }
+        try await requireHostService(.hostServiceManagement)
+        return try await withDeadline(HostCommandDeadline.standard) { try await self.send(make) }
     }
 }

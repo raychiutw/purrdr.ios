@@ -1,8 +1,32 @@
 import Foundation
 import PurrdrCore
 
-/// herdr 單次請求換成的主機服務操作。HTTPS 支援的 herdr method 只列在這裡;
-/// 後續票要支援新的 method,先在 schema 加訊息，再在 `init` 加一個 case。
+/// HTTPS 支援的 herdr method(method 字串只寫在這裡)。
+enum HerdrMethod: String {
+    case ping
+    case sessionSnapshot = "session.snapshot"
+    case paneSendKeys = "pane.send_keys"
+    case paneSendText = "pane.send_text"
+    case agentPrompt = "agent.prompt"
+    case workspaceCreate = "workspace.create"
+    case workspaceRename = "workspace.rename"
+    case workspaceClose = "workspace.close"
+    case worktreeCreate = "worktree.create"
+    case agentStart = "agent.start"
+    /// 事件串流，走 `herdrEvents`,不是單次請求。
+    case eventsSubscribe = "events.subscribe"
+
+    /// 這個 method 需要的主機服務功能(版本門檻);`nil` 是一開始就有的。
+    var requiredFeature: HostServiceFeature? {
+        switch self {
+        case .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart: .workspaceOperations
+        default: nil
+        }
+    }
+}
+
+/// herdr 單次請求換成的主機服務操作。後續票要支援新的 method,先在 schema 加訊息，
+/// 再在 `HerdrMethod` 與 `init` 各加一個 case。
 enum HerdrOperation {
     typealias Response = @Sendable (_ id: String?, _ reply: HostServiceProtocol.ServerMessage, _ welcome: HostServiceProtocol.Welcome) throws -> Data
 
@@ -13,27 +37,28 @@ enum HerdrOperation {
 
     /// 其他 method 丟 `HostServiceError.unsupported`(不送出)。
     init(_ line: HerdrRequestLine) throws {
-        switch line.method {
-        case "ping":
+        guard let method = HerdrMethod(rawValue: line.method) else { throw HostServiceError.unsupported(line.method) }
+        switch method {
+        case .ping:
             self = .ping
-        case "session.snapshot":
+        case .sessionSnapshot:
             self = .request(make: { .agentsList(.init(requestId: $0)) }) { id, reply, welcome in
                 guard case .agentsListResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.snapshot(id: id, version: welcome.herdr.version, result: result)
             }
-        case "pane.send_keys":
+        case .paneSendKeys:
             let keys = try JSONDecoder().decode(SendKeysParams.self, from: line.params)
             self = .request(make: { .paneSendKeys(.init(requestId: $0, paneId: keys.paneID, keys: keys.keys)) }) { id, reply, _ in
                 guard case .paneSendKeysResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
-        case "pane.send_text":
+        case .paneSendText:
             let text = try JSONDecoder().decode(SendTextParams.self, from: line.params)
             self = .request(make: { .paneSendText(.init(requestId: $0, paneId: text.paneID, text: text.text)) }) { id, reply, _ in
                 guard case .paneSendTextResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
-        case "agent.prompt":
+        case .agentPrompt:
             let prompt = try JSONDecoder().decode(PromptParams.self, from: line.params)
             let wait = prompt.wait.map { wait in
                 HostServiceProtocol.PromptWait(
@@ -43,31 +68,31 @@ enum HerdrOperation {
                 guard case .agentPromptResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.prompted(id: id, delivery: result.delivery)
             }
-        case "workspace.create":
+        case .workspaceCreate:
             let params = try JSONDecoder().decode(WorkspaceCreateParams.self, from: line.params)
             self = .request(make: { .workspaceCreate(.init(requestId: $0, cwd: params.cwd, label: params.label)) }) { id, reply, _ in
                 guard case .workspaceCreateResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.created(id: id, type: "workspace_created", workspaceID: result.workspaceId, rootPaneID: result.rootPaneId)
             }
-        case "workspace.rename":
+        case .workspaceRename:
             let params = try JSONDecoder().decode(WorkspaceRenameParams.self, from: line.params)
             self = .request(make: { .workspaceRename(.init(requestId: $0, workspaceId: params.workspaceID, label: params.label)) }) { id, reply, _ in
                 guard case .workspaceRenameResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
-        case "workspace.close":
+        case .workspaceClose:
             let params = try JSONDecoder().decode(WorkspaceIDParams.self, from: line.params)
             self = .request(make: { .workspaceClose(.init(requestId: $0, workspaceId: params.workspaceID)) }) { id, reply, _ in
                 guard case .workspaceCloseResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
-        case "worktree.create":
+        case .worktreeCreate:
             let params = try JSONDecoder().decode(WorktreeCreateParams.self, from: line.params)
             self = .request(make: { .worktreeCreate(.init(requestId: $0, workspaceId: params.workspaceID, branch: params.branch)) }) { id, reply, _ in
                 guard case .worktreeCreateResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.created(id: id, type: "worktree_created", workspaceID: result.workspaceId, rootPaneID: result.rootPaneId)
             }
-        case "agent.start":
+        case .agentStart:
             let params = try JSONDecoder().decode(AgentStartParams.self, from: line.params)
             // 主機服務不收任意參數：只認得 Claude Code 的權限模式。
             let permissionMode: HostServiceProtocol.ClaudePermissionMode?
@@ -86,16 +111,8 @@ enum HerdrOperation {
                 guard case .agentStartResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
-        default:
+        case .eventsSubscribe:
             throw HostServiceError.unsupported(line.method)
-        }
-    }
-
-    /// 這個 herdr method 需要的主機服務功能(版本門檻);`nil` 是一開始就有的。
-    static func requiredFeature(forMethod method: String) -> HostServiceFeature? {
-        switch method {
-        case "workspace.create", "workspace.rename", "workspace.close", "worktree.create", "agent.start": .workspaceOperations
-        default: nil
         }
     }
 
