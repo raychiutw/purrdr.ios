@@ -112,11 +112,24 @@ public actor FakeHost: HostChannel {
         self.windowsHome = windowsHome
     }
 
+    /// Windows 管理員的 `administrators_authorized_keys`(`nil` 是不存在);`serveAdministratorKeys` 之後由它回應管理員指令。
+    public private(set) var administratorKeys: Data?
+    private var servesAdministratorKeys = false
+
+    /// 之後沒有預期的 `AuthorizedKeyInstaller.AdministratorRequest` 以管理員身分、對記憶體裡的檔案回應(寫入是 compare-and-swap)。
+    public func serveAdministratorKeys(_ contents: Data?) {
+        administratorKeys = contents
+        servesAdministratorKeys = true
+    }
+
     public func execute(_ command: String) async throws -> any ExecSession {
         if let connectionError { throw connectionError }
         guard let index = expectations.firstIndex(where: { $0.command == command }) else {
             if servesHomeFiles, let request = HostFileRequest(command: command) {
                 return replyNow(to: command, with: handleHomeFiles(request))
+            }
+            if servesAdministratorKeys, let request = AuthorizedKeyInstaller.AdministratorRequest(command: command) {
+                return replyNow(to: command, with: handleAdministratorKeys(request))
             }
             throw FakeHostError.unexpectedCommand(command)
         }
@@ -231,6 +244,18 @@ public actor FakeHost: HostChannel {
             return FakeReply()
         case .readIfChanged, .newest:
             return FakeReply(stderr: Data("not supported by FakeHost\n".utf8), exitCode: 1)
+        }
+    }
+
+    private func handleAdministratorKeys(_ request: AuthorizedKeyInstaller.AdministratorRequest) -> FakeReply {
+        switch request {
+        case .read:
+            let output = administratorKeys.map { "file \($0.base64EncodedString())" } ?? "missing"
+            return FakeReply(stdout: Data((output + "\n").utf8))
+        case .write(let expected, let contents):
+            guard administratorKeys == expected else { return FakeReply(stdout: Data("changed\n".utf8)) }
+            administratorKeys = contents
+            return FakeReply(stdout: Data("written\n".utf8))
         }
     }
 

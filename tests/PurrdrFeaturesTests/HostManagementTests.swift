@@ -109,6 +109,47 @@ struct HostManagementTests {
         #expect(selection.load() == .host(Self.linux.id))
     }
 
+    @Test("刪除用密碼加入過公鑰的主機：另開連線拿掉這支裝置加入的那一行(ADR-0002 還原)")
+    func deleteRestoresInstalledDeviceKey() async throws {
+        let deviceKey = EphemeralDeviceKey(comment: "purrdr@iPhone")
+        let otherKeys = Data("ssh-ed25519 AAAAother laptop\n".utf8)
+        let target = FakeHost()
+        await target.serveHomeFiles([".ssh/authorized_keys": otherKeys], directories: [".ssh"])
+        try await AuthorizedKeyInstaller(channel: target).install(try deviceKey.publicKey())
+        let office = HostConfiguration(
+            name: "Office", endpoint: SSHEndpoint(host: "office", username: "demo"), openSSH: .deviceKey, operatingSystem: .linux)
+        let consent = InMemoryHostWriteConsentStore()
+        consent.grant(AuthorizedKeyInstaller.feature.id, host: office.id.uuidString)
+        let store = MemoryHostStore()
+        store.hosts = [office]
+        let model = HostsModel(
+            store: store, demoChannel: FakeHost(), hostConsent: consent, credentials: HostCredentials(deviceKey: deviceKey),
+            makeChannel: ChannelFactory(target, target).make)
+        model.load()
+
+        try await model.delete(office.id)
+
+        await LoginShellModelTests.eventually { await target.homeFiles == [".ssh/authorized_keys": otherKeys] }
+        #expect(await target.homeFiles == [".ssh/authorized_keys": otherKeys])
+    }
+
+    @Test("刪除沒同意加入公鑰的主機：不另開連線改 authorized_keys")
+    func deleteWithoutKeyConsentLeavesHostAlone() async throws {
+        let target = FakeHost()
+        await target.serveHomeFiles()
+        let factory = ChannelFactory(target, target)
+        let office = HostConfiguration(
+            name: "Office", endpoint: SSHEndpoint(host: "office", username: "demo"), openSSH: .deviceKey, operatingSystem: .linux)
+        let store = MemoryHostStore()
+        store.hosts = [office]
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: factory.make)
+        model.load()
+
+        try await model.delete(office.id)
+
+        #expect(await target.executions.isEmpty)
+    }
+
     @Test("刪除最後一台主機：改選 Demo 主機並存起來")
     func deleteLastHostSelectsDemo() async throws {
         let selection = InMemoryHostSelectionStore()

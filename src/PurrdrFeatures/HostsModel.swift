@@ -518,6 +518,9 @@ public final class HostsModel {
         try store.delete(id)
         if let removed, let settings = removed.ssh {
             forgetPush(of: removed, settings: settings, secret: secret)
+            if hostConsent.isGranted(AuthorizedKeyInstaller.feature.id, host: id.uuidString) {
+                restoreDeviceKey(on: removed, settings: settings, secret: secret)
+            }
         } else if let removed, let address = removed.hostService, let deviceToken {
             // 先刪推播配對再撤銷權杖;主機離線時權杖留在主機上，可在主機上撤銷。
             forgetHostServicePush(of: removed, address: address, deviceToken: deviceToken)
@@ -793,6 +796,24 @@ public final class HostsModel {
             hostID: host.id.uuidString, installer: pushService.sshInstaller(channel: channel, herdr: settings.herdr)
         ) {
             await channel.disconnect()
+        }
+    }
+
+    /// 用密碼加入的公鑰(#285):另開一條連線還原 `authorized_keys`(ADR-0002),不等待;主機離線時留在主機上。
+    private func restoreDeviceKey(on host: HostConfiguration, settings: HostConfiguration.SSHSettings, secret: HostSecret?) {
+        let deviceKey = credentials.deviceKey
+        let provider = credentials.provider(
+            method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
+        let base = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
+        let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { _ in }
+        let diagnostics = diagnostics
+        Task {
+            do {
+                try await AuthorizedKeyInstaller(channel: channel).restore(try deviceKey.publicKey())
+            } catch {
+                diagnostics.error("Couldn’t remove this device’s key from host \(host.id): \(error)")
+            }
+            await base.disconnect()
         }
     }
 
