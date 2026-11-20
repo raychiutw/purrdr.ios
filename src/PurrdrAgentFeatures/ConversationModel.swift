@@ -1567,14 +1567,9 @@ public final class ConversationModel {
 
     // MARK: - 標題列(#44)
 
-    /// 標題下一行的資訊(F5.7)。
+    /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
-        ConversationHeader(agent: currentAgent, title: title, metadata: metadata, status: agentStatus, isOffline: isOffline, hostName: hostName())
-    }
-
-    /// 標題列的動作鈕：一律「重新載入」(停止在停止列,#220);還沒輪詢過時沒有。
-    public var headerAction: HeaderAction? {
-        phase == .loading ? nil : .reload
+        ConversationHeader(agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName())
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。

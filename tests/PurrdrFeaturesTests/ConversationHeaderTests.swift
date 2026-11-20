@@ -63,22 +63,23 @@ struct ConversationHeaderTests {
 
     // MARK: - 標題列資訊
 
-    /// workspace 名稱與標題不同 → 列出;資料夾與 workspace 同名 → 不重複;模型取顯示名、effort 加「effort」。
-    @Test("標題列：狀態 + workspace、agent、模型、effort;資料夾與 workspace 重複時省略;選取中主機不列主機名")
-    func headerSegments() async throws {
+    /// #270(原型 purrdr-screens 定案版):標題是 workspace 名稱，副標只有狀態與主機名;模型、effort、資料夾不再放副標。
+    @Test("標題列：標題是 workspace 名稱，副標是狀態(沒有主機名時只有狀態)")
+    func headerShowsWorkspaceAndStatus() async throws {
         let setup = try Self.setup()
         await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
 
         await setup.model.poll()
 
         let header = setup.model.header
+        #expect(header.title == "garden-journal")
         #expect(header.status == .online)
-        #expect(header.segments == ["garden-journal", "Claude Code", "Opus 5.5", "medium effort"])
-        #expect(header.accessibilityText == "Online, garden-journal, Claude Code, Opus 5.5, medium effort")
+        #expect(header.segments == [])
+        #expect(header.accessibilityText == "garden-journal, Online")
     }
 
-    @Test("標題列：非選取中主機時主機名排第一段;資料夾與標題、workspace 都不同時列出")
-    func headerWithHostAndFolder() async throws {
+    @Test("標題列：副標是狀態與主機名;VoiceOver 念 workspace、狀態、主機")
+    func headerWithHost() async throws {
         let setup = try Self.setup(hostName: "studio")
         await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.snapshot {
             $0["agent_status"] = "done"
@@ -88,34 +89,14 @@ struct ConversationHeaderTests {
         await setup.model.poll()
 
         #expect(setup.model.header.status == .done)
-        #expect(setup.model.header.segments.first == "studio")
-        #expect(setup.model.header.segments.last == "web")
+        #expect(setup.model.header.segments == ["studio"])
+        #expect(setup.model.header.accessibilityText == "garden-journal, Done, studio")
     }
 
-    @Test("標題列:/effort、/model 改過之後下一次輪詢立刻反映")
-    func headerFollowsModelAndEffortCommands() async throws {
-        let setup = try Self.setup()
-        // 閒置的 Claude Code:每次輪詢都讀一次含 ANSI 的畫面找建議提示詞(#123),這裡沒有建議。
-        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
-        await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.noSuggestionScreen)
-        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "idle"))
-        await setup.host.bridge.expect(Self.bridge, reply: ConversationModelTests.noSuggestionScreen)
-        await setup.model.poll()
-
-        // 以 fixture 第 4 行(使用者行)為底，換成兩則本地指令輸出。
-        let lines = [
-            ("00000000-0000-4000-8000-0000000000e1", "Set effort level to high"),
-            ("00000000-0000-4000-8000-0000000000e2", "Set model to Sonnet 5 (claude-sonnet-5-0) for this session only"),
-        ].map { uuid, text in
-            Fixtures.transcriptLine(4) {
-                $0["uuid"] = uuid
-                $0["message"] = ["role": "user", "content": "<local-command-stdout>\(text)</local-command-stdout>"]
-            }
-        }
-        try setup.shell.append(Data((lines.joined(separator: "\n") + "\n").utf8), to: ConversationModelTests.transcriptPath)
-        await setup.model.poll()
-
-        #expect(setup.model.header.segments == ["garden-journal", "Claude Code", "Sonnet 5.0", "high effort"])
+    @Test("標題列：還沒讀到 Agent 時標題退回聊天標題")
+    func headerTitleBeforeFirstPoll() throws {
+        let setup = try Self.setup(hostName: "studio")
+        #expect(setup.model.header.title == setup.model.title)
     }
 
     @Test("標題列：連不上主機 → 離線")
@@ -175,25 +156,6 @@ struct ConversationHeaderTests {
     }
 
     // MARK: - 重新載入與停止
-
-    /// #220:停止在輸入卡片的停止列，標題列一律是重新載入。
-    @Test("標題列一律是「重新載入」(工作中、需要你也是)")
-    func headerAlwaysReloads() async throws {
-        let setup = try Self.setup()
-        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "done"))
-        await setup.model.poll()
-        #expect(setup.model.headerAction == .reload)
-
-        await Self.expectWorkingPoll(setup, screen: Self.writingScreen)
-        await setup.model.poll()
-        #expect(setup.model.headerAction == .reload)
-        #expect(setup.model.agentName == "Claude Code")
-
-        await setup.host.bridge.expect(Self.bridge, reply: Self.snapshot(status: "blocked"))
-        await setup.host.bridge.expect(Self.bridge, reply: PaneScreens.read("claude-bash"))
-        await setup.model.poll()
-        #expect(setup.model.headerAction == .reload)
-    }
 
     /// #220:強制結束只對 working 的 agent(「需要你」永不中斷);離線時斷線前的 working 已過時。
     @Test("強制結束：只在工作中可用，需要你、離線時不可用")
@@ -577,12 +539,7 @@ struct ConversationHeaderTests {
 
     @Test("標題列放不下時從後面整段拿掉：最長的在前，最短的只剩狀態")
     func headerVariantsDropWholeSegments() {
-        let header = ConversationHeader(status: .working, segments: ["studio", "garden-journal", "Claude Code"])
-        #expect(header.displayVariants == [
-            "Working · studio · garden-journal · Claude Code",
-            "Working · studio · garden-journal",
-            "Working · studio",
-            "Working",
-        ])
+        let header = ConversationHeader(title: "garden-journal", status: .working, segments: ["studio"])
+        #expect(header.displayVariants == ["Working · studio", "Working"])
     }
 }

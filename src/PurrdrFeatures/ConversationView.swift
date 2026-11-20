@@ -44,17 +44,9 @@ public struct ConversationView: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
+                // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
                 ToolbarItem(placement: .principal) {
                     ConversationTitleView(title: displayTitle, header: model.header)
-                }
-                if model.headerAction == .reload {
-                    ToolbarItem(placement: .primaryAction) {
-                        ReloadButton(model: model) {
-                            // 重新載入後切回跟隨尾端並捲到底(F5.12)。
-                            scroll.jumpToLatest()
-                            position.scrollTo(edge: .bottom)
-                        }
-                    }
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) { banner }
@@ -102,7 +94,7 @@ public struct ConversationView: View {
     }
 
     private var displayTitle: String {
-        model.title.isEmpty ? String(localized: "Chat") : model.title
+        model.header.title.isEmpty ? String(localized: "Chat") : model.header.title
     }
 
     @ViewBuilder
@@ -167,6 +159,12 @@ public struct ConversationView: View {
             scroll.visibleRowsChanged(count: ids.count)
         }
         .defaultScrollAnchor(.bottom)
+        // 下拉重新整理(#270,取代標題列的重新載入鈕):重讀後切回跟隨尾端並捲到底(F5.12)。
+        .refreshable {
+            await model.reload()
+            scroll.jumpToLatest()
+            position.scrollTo(edge: .bottom)
+        }
         .onScrollPhaseChange { _, phase in
             userIsScrolling = phase == .interacting || phase == .tracking || phase == .decelerating
             if phase == .interacting { userHasDragged = true }
@@ -387,23 +385,6 @@ public struct ConversationView: View {
 }
 
 /// 標題列的重新載入(F5.7)。停止與強制結束在輸入卡片的停止列(#220,`StopBar`)。
-private struct ReloadButton: View {
-    let model: ConversationModel
-    let didReload: () -> Void
-
-    var body: some View {
-        Button {
-            Task {
-                await model.reload()
-                didReload()
-            }
-        } label: {
-            Label("Reload", systemImage: "arrow.clockwise")
-        }
-        .accessibilityIdentifier("conversation.reload")
-    }
-}
-
 extension ConversationModel.Banner {
     var text: LocalizedStringKey {
         switch self {

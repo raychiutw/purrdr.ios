@@ -227,8 +227,8 @@ struct MultiHostTests {
         #expect(await model.conversationCache(for: .host(Self.studio.id)).load(chatKey: "w1:pA") == cached)
     }
 
-    @Test("非選取中主機的聊天，標題列第一段是主機名;選取中主機的不顯示")
-    func conversationHeaderNamesOtherHost() {
+    @Test("聊天標題列的副標一律是主機名(#270),選取中主機也是")
+    func conversationHeaderNamesHost() {
         let model = Self.model(ChannelsByAddress([:]))
         model.load()
         model.select(.host(Self.studio.id))
@@ -236,11 +236,11 @@ struct MultiHostTests {
         let other = model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
         let selected = model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
 
-        #expect(other.header.segments.first == "Lab")
-        #expect(!selected.header.segments.contains("Studio"))
+        #expect(other.header.segments == ["Lab"])
+        #expect(selected.header.segments == ["Studio"])
     }
 
-    @Test("已開啟的聊天：換選取中主機後，標題列的主機名跟著更新;主機改名也跟著改")
+    @Test("已開啟的聊天：換選取中主機後標題列仍是自己的主機名;主機改名跟著改")
     func openedConversationHeaderFollowsSelection() throws {
         let model = Self.model(ChannelsByAddress([:]))
         model.load()
@@ -250,7 +250,7 @@ struct MultiHostTests {
 
         model.select(.host(Self.lab.id))
 
-        #expect(!lab.header.segments.contains("Lab"), "換成選取中主機後不該再標示主機名")
+        #expect(lab.header.segments == ["Lab"])
         #expect(studio.header.segments.first == "Studio")
         try model.rename(Self.studio.id, to: "Studio 2")
         #expect(studio.header.segments.first == "Studio 2")

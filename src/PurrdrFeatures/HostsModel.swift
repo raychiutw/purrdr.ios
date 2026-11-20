@@ -280,10 +280,8 @@ public final class HostsModel {
             client: member.client, transcripts: member.transcripts, paneID: route.paneID, knownSessionID: sessionID,
             cache: conversationCache(for: route.host), drafts: member.drafts, slashDiscovery: ClaudeSlashDiscovery(channel: member.channel),
             haptics: haptics,
-            hostName: { [weak self] in
-                guard let self, route.host != self.selection else { return nil }
-                return self.name(of: route.host)
-            },
+            // 標題列副標一律是聊天所在主機的名稱(#270)。
+            hostName: { [weak self] in self?.name(of: route.host) },
             // Windows 主機也能上傳(#68:`ImageUploader` 經 `WindowsHostChannel` 送 PowerShell 版)。
             images: ComposerImages(uploader: ImageUploader(channel: member.channel), store: attachmentStore),
             updates: member.list.updates)
