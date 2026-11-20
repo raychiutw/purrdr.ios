@@ -19,6 +19,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case pushPlugin
     /// Agent 觀察者：「可能卡住」「仍在等你」推播、Send When Done(raychiutw/purrdr.host#25)。
     case agentObserver
+    /// 讀 Pane 畫面 `pane.read`(#303):提問卡、計畫卡、建議提示詞、slash 面板與即時預覽。
+    case paneRead
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -31,6 +33,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .pairedDevices: HostServiceVersion(0, 7, 0)
         case .pushPlugin: HostServiceVersion(0, 6, 0)
         case .agentObserver: HostServiceVersion(0, 7, 0)
+        case .paneRead: HostServiceVersion(0, 7, 0)
         }
     }
 
