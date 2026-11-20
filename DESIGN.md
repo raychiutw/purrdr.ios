@@ -4,7 +4,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 ## 選定方向
 
-- **App 圖示：貓掌泡泡(T3,ADR-0009)**。四顆圓形腳趾(中間兩顆大、外側兩顆小)加上一個帶尾巴的圓角對話泡泡當肉墊，泡泡裡是白色「…」:貓正在打字。淺色底、紅色貓掌(圖示重新設計另議，見 ADR-0011)。兩個圖層(貓掌、「…」),以 Icon Composer 製作，六種外觀(default、dark、clear light／dark、tinted light／dark)都要辨識得出;tinted 外觀貓掌為白色、「…」為深灰。不用紅色滿版底，因為「紅漸層底 + 白色圖形」跟 Apple Music 圖示太像。原型見 https://claude.ai/artifact/2P1YePb33dgAnAGgsWsoCT。
+- **App 圖示：貓掌泡泡(T3,ADR-0009)**。四顆圓形腳趾(中間兩顆大、外側兩顆小)加上一個帶尾巴的圓角對話泡泡當肉墊，泡泡裡是白色「…」:貓正在打字。淺色底、翡翠綠貓掌(#280,色值同 ADR-0011 主色：淺色 `#0B7A5C`、深色 `#3CCF9E`;tinted 仍是系統著色)。**光學置中**(#280):貓掌(含尾巴)與「…」的整體外框中心在 1024 畫布的 (526, 505),容許 ±4——比幾何中心略往右(尾巴在左下，視覺重量偏左)、略高(圓形腳趾上方較輕，置中時看起來偏下);「…」中心等於泡泡本體中心。`AppIconGeometryTests` 讀 SVG 與 icon.json 把關。兩個圖層(貓掌、「…」),以 Icon Composer 製作，六種外觀(default、dark、clear light／dark、tinted light／dark)都要辨識得出;tinted 外觀貓掌為白色、「…」為深灰。不用紅色滿版底，因為「紅漸層底 + 白色圖形」跟 Apple Music 圖示太像。原型見 https://claude.ai/artifact/2P1YePb33dgAnAGgsWsoCT。
 - **畫面：方向 A「系統清單風」**。Agent 列表是 iOS 標準 grouped list,依「需要你／工作中／閒置」分 section;對話用標準泡泡;終端機全螢幕，按鍵列是單一玻璃容器。
 
 ## 顏色(ADR-0011,取代 ADR-0008)
