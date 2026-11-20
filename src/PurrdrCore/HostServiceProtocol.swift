@@ -2205,7 +2205,7 @@ extension HostServiceProtocol {
     public struct FileUploadStart: Codable, Sendable, Equatable {
         /// 也是這次上傳的 upload_id。
         public var requestId: String
-        /// 總 bytes。
+        /// 總 bytes。0 時仍要送一塊 offset 0、內容為空的 chunk,收到後才存檔並回傳路徑。
         public var size: Int
         /// 主機檔名的副檔名(不含點):1–16 個英數字元，存成小寫;沒帶時不加副檔名。不合格回 invalid_message。
         public var `extension`: String?
