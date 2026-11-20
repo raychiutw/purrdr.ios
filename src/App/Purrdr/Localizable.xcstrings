@@ -1435,6 +1435,17 @@
         }
       }
     },
+    "Choose File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇檔案"
+          }
+        }
+      }
+    },
     "Choose Folder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2029,6 +2040,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝公鑰"
+          }
+        }
+      }
+    },
+    "Couldn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "t"
           }
         }
       }
@@ -7819,6 +7841,17 @@
         }
       }
     },
+    "This file is %@. Files sent to the host can be up to %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個檔案有 %1$@，傳到主機的檔案上限是 %2$@。"
+          }
+        }
+      }
+    },
     "This file is no longer on the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8761,6 +8794,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在上傳「%@」"
+          }
+        }
+      }
+    },
+    "Uploading %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在上傳 %@…"
           }
         }
       }

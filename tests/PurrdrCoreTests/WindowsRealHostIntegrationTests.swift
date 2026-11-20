@@ -230,13 +230,13 @@ struct WindowsRealHostIntegrationTests {
         var bytes = Data((0..<300_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
         bytes.append(contentsOf: [0x0D, 0x0A, 0x1A, 0x00])
 
-        let name = UploadFileName("purrdr-test-1.jpg")!
+        let name = HostUploadName("purrdr-test-1.jpg")!
         log("上傳圖片…")
-        let path = try await ImageUploader(channel: channel).upload(bytes, named: name)
+        let path = try await SSHHostUploader(channel: channel).upload(bytes, named: name)
         log("圖片:\(path)")
         #expect(path == home + #"\.purrdr\uploads\purrdr-test-1.jpg"#)
         #expect(try await temp.sha256(of: path) == SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined())
-        await #expect(throws: ImageUploadError.self) { _ = try await ImageUploader(channel: channel).upload(bytes, named: name) }
+        await #expect(throws: HostUploadError.self) { _ = try await SSHHostUploader(channel: channel).upload(bytes, named: name) }
 
         let files = HostFolders(channel: channel)
         log("上傳檔案…")

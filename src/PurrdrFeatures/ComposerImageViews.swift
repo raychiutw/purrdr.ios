@@ -2,6 +2,7 @@ import PhotosUI
 import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
+import UniformTypeIdentifiers
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -198,7 +199,7 @@ struct AttachmentStrip: View {
 /// 「加入圖片」(HIG 20.6:照片 symbol、系統 out-of-process PhotosPicker,不要求相簿權限)。
 ///
 /// 點一下：滿 4 張 → 提示;剪貼簿有圖 → 先問「相簿／貼上圖片」;否則直接開相簿(#37 故事 34)。
-/// 長按：完整選單(相簿、拍照、貼上圖片)。
+/// 長按：完整選單(相簿、拍照、貼上圖片、檔案;檔案上傳到主機後路徑插入輸入框，#286)。
 struct AddImageButton: View {
     let model: ConversationModel
     var identifier = "composer.addImage"
@@ -207,6 +208,7 @@ struct AddImageButton: View {
     @State private var showsLibrary = false
     @State private var showsCamera = false
     @State private var asksSource = false
+    @State private var showsFiles = false
     @State private var selection: [PhotosPickerItem] = []
 
     var body: some View {
@@ -217,6 +219,9 @@ struct AddImageButton: View {
             }
             if ImageSources.pasteboardHasImages {
                 Button("Paste Image", systemImage: "doc.on.clipboard") { open(.paste) }
+            }
+            if model.canAttachFiles {
+                Button("Choose File", systemImage: "doc") { showsFiles = true }
             }
         } label: {
             Image(systemName: "photo.badge.plus")
@@ -231,7 +236,7 @@ struct AddImageButton: View {
         .composerSecondaryButtonStyle(isInCard: isInCard)
         .buttonBorderShape(.circle)
         .frame(minWidth: 44, minHeight: 44)
-        .disabled(model.isSending)
+        .disabled(model.isSending || model.uploadingFileName != nil)
         .accessibilityLabel(Text("Add Image"))
         .accessibilityIdentifier(identifier)
         .photosPicker(
@@ -256,7 +261,14 @@ struct AddImageButton: View {
             if ImageSources.cameraAvailable {
                 Button("Take Photo") { open(.camera) }
             }
+            if model.canAttachFiles {
+                Button("Choose File") { showsFiles = true }
+            }
             Button("Cancel", role: .cancel) {}
+        }
+        .fileImporter(isPresented: $showsFiles, allowedContentTypes: [.item]) { result in
+            guard case .success(let url) = result else { return }
+            Task { await ComposerFiles.add(url, to: model) }
         }
         #if os(iOS)
         .fullScreenCover(isPresented: $showsCamera) {
@@ -282,6 +294,38 @@ struct AddImageButton: View {
             let images = ImageSources.pasteboardImages()
             Task { await model.addImages(images) }
         }
+    }
+}
+
+/// 從「檔案」挑的檔案(#286):在安全範圍存取期間讀大小與內容，交給對話 model 上傳。
+enum ComposerFiles {
+    @MainActor static func add(_ url: URL, to model: ConversationModel) async {
+        let isAccessing = url.startAccessingSecurityScopedResource()
+        defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize
+        await model.addFile(named: url.lastPathComponent, size: size) {
+            try Data(contentsOf: url, options: .mappedIfSafe)
+        }
+    }
+}
+
+/// 上傳中的檔案：輸入卡片上方一列，上傳完成(路徑插入輸入框)或失敗就消失。
+struct FileUploadProgressView: View {
+    let fileName: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+            Text("Uploading \(fileName)…")
+                .font(.footnote)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(.bar, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("composer.fileUpload")
     }
 }
 

@@ -95,10 +95,10 @@ struct WindowsHostScriptsTests {
 
     @Test("圖片上傳：腳本與參數在命令列(stdin 留給 bytes),stdin 只有圖片的 bytes")
     func imageUpload() async throws {
-        let name = UploadFileName("m3x-abc.jpg")!
+        let name = HostUploadName("m3x-abc.jpg")!
         let host = CapturingHost(reply: FakeReply(stdout: Data("C:\\Users\\demo\\.purrdr\\uploads\\m3x-abc.jpg\n".utf8)))
 
-        _ = try await ImageUploader(channel: WindowsHostChannel(host)).upload(Data([0, 0x0D, 0x0A, 0x1A]), named: name)
+        _ = try await SSHHostUploader(channel: WindowsHostChannel(host)).upload(Data([0, 0x0D, 0x0A, 0x1A]), named: name)
 
         let command = try #require(await host.fake.executions.first?.command)
         let script = try #require(PowerShell.script(inEncodedCommand: command))

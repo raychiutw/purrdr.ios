@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrCore
 
-/// Windows 主機的 PowerShell 腳本(行為規格 §11.2):與 POSIX 版本(`TranscriptCommand`、`ImageUploadCommand`、
+/// Windows 主機的 PowerShell 腳本(行為規格 §11.2):與 POSIX 版本(`TranscriptCommand`、`HostUploadCommand`、
 /// `HostFolderCommand`、`NewChatFolders`)**輸出格式與 exit code 相同**,client 的解析不分主機。
 ///
 /// 通則：
@@ -225,10 +225,10 @@ enum WindowsScripts {
 
     // MARK: - 上傳(bytes 走 stdin,ADR-0003)
 
-    /// 圖片上傳到 `%USERPROFILE%\.purrdr\uploads`:與 POSIX 版相同的檢查與 exit code(64 檔名、71 建立失敗、72 讀 stdin、
+    /// 上傳到主機(圖片與一般檔案)到 `%USERPROFILE%\.purrdr\uploads`:與 POSIX 版相同的檢查與 exit code(64 檔名、71 建立失敗、72 讀 stdin、
     /// 73 已存在、75 大小不符)。先寫隱藏的暫存檔，大小相同才改名(改名不覆寫);刪掉 7 天前的檔案。參數：檔名、大小。
     /// 上傳資料夾在使用者設定檔資料夾底下，繼承它的 ACL(只有本人、SYSTEM 與 Administrators)。
-    static let imageUpload = #"""
+    static let hostUpload = #"""
         $n=$a[0];$z=[long]$a[1]
         \#(uploadLimit(transferSizeArgument: 1))
         if($n -cnotmatch '^[A-Za-z0-9-][A-Za-z0-9.-]*$'){exit 64}
