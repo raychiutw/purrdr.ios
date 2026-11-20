@@ -173,14 +173,37 @@ private struct HostPushKindsRow: View {
                 Toggle(isOn: Binding(get: { model.kinds.contains(kind) }, set: { isOn in change(kind, to: isOn) })) {
                     Text(kind.title)
                 }
-                // 最後一個種類不能關：要不收通知就關閉那台主機。
-                .disabled(model.isUpdatingKinds || model.kinds == [kind])
+                // 最後一個種類不能關：要不收通知就關閉那台主機。主機服務太舊送不出的種類不能開(已開的仍可關)。
+                .disabled(model.isUpdatingKinds || model.kinds == [kind] || needsUpdate(kind))
                 .accessibilityIdentifier("account.push.\(push.host.storedValue).kind.\(kind.rawValue)")
+            }
+            if let version = outdatedObserverVersion {
+                Label("“May Be Stuck” and “Still Waiting for You” need host service \(version) or later.",
+                      systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds.needsHostService")
+            } else if !push.installsViaHostService {
+                Text("“May Be Stuck” and “Still Waiting for You” need the host service (HTTPS connection).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds.needsHostService")
             }
         } label: {
             Text("Notification Types")
                 .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds")
         }
+    }
+
+    private func needsUpdate(_ kind: PushKind) -> Bool {
+        !model.kinds.contains(kind) && kind.needsHostServiceUpdate(installedVersion: push.hostServiceVersion)
+    }
+
+    /// 主機服務太舊、送不出「可能卡住」「仍在等你」時要的最低版本。
+    private var outdatedObserverVersion: String? {
+        guard push.installsViaHostService, PushKind.stuck.needsHostServiceUpdate(installedVersion: push.hostServiceVersion)
+        else { return nil }
+        return HostServiceFeature.agentObserver.minimumVersion.description
     }
 
     private func change(_ kind: PushKind, to isOn: Bool) {
@@ -194,13 +217,15 @@ extension PushKind {
         switch self {
         case .blocked: "Needs You"
         case .done: "Finished"
+        case .stuck: "May Be Stuck"
+        case .reminder: "Still Waiting for You"
         case .hostService: "Host Service"
         }
     }
 
-    /// 那台主機可選的種類：主機服務通知只有 HTTPS 主機(經主機服務)才有。
+    /// 那台主機可選的種類：主機服務通知與 Agent 觀察者的「可能卡住」「仍在等你」只有 HTTPS 主機(經主機服務)才有。
     public static func choices(installsViaHostService: Bool) -> [PushKind] {
-        allCases.filter { $0 != .hostService || installsViaHostService }
+        allCases.filter { installsViaHostService || ($0 != .hostService && $0.requiredHostServiceFeature == nil) }
     }
 }
 

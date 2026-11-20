@@ -985,6 +985,52 @@
         }
       }
     },
+    "An agent is still waiting for you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 仍在等你"
+          }
+        }
+      }
+    },
+    "An agent is still waiting for you." : {
+      "extractionState" : "manual",
+      "comment" : "「仍在等你」推播內文(後台 APNs payload 的 loc-key)",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 仍在等你。"
+          }
+        }
+      }
+    },
+    "An agent may be stuck" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 可能卡住了"
+          }
+        }
+      }
+    },
+    "An agent may be stuck." : {
+      "extractionState" : "manual",
+      "comment" : "「可能卡住」推播內文(後台 APNs payload 的 loc-key)",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 可能卡住了。"
+          }
+        }
+      }
+    },
     "An agent needs you" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4447,6 +4493,17 @@
         }
       }
     },
+    "May Be Stuck" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能卡住"
+          }
+        }
+      }
+    },
     "Member Deleted" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7325,6 +7382,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "狀態"
+          }
+        }
+      }
+    },
+    "Still Waiting for You" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍在等你"
           }
         }
       }
@@ -10577,6 +10645,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機已經有 ~/.local/bin/codex,Purrdr 沒有更動它。"
+          }
+        }
+      }
+    },
+    "“May Be Stuck” and “Still Waiting for You” need host service %@ or later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「可能卡住」「仍在等你」需要主機服務 %@ 以上。"
+          }
+        }
+      }
+    },
+    "“May Be Stuck” and “Still Waiting for You” need the host service (HTTPS connection)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「可能卡住」「仍在等你」需要主機服務(HTTPS 連線)。"
           }
         }
       }

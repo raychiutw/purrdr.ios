@@ -361,6 +361,8 @@ public final class ConversationModel {
     private let knownSessionID: String?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
+    /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
+    private let sendPipeline: SendPipeline
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
@@ -443,6 +445,7 @@ public final class ConversationModel {
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
         updates: HostUpdates? = nil,
+        sendSteps: [any SendStep] = [],
         sleep: @escaping Sleep = Sleeping.task
     ) {
         self.updates = updates
@@ -460,6 +463,7 @@ public final class ConversationModel {
         self.hostName = hostName
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
+        sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
@@ -654,7 +658,7 @@ public final class ConversationModel {
         guard shouldRead else { return }
         // 這次輪詢找提示時已經讀過畫面就沿用，不再多一個主機指令。
         let read: String?
-        if let screenThisPoll { read = screenThisPoll } else { read = try? await client.readPane(paneID: paneID) }
+        if let screenThisPoll { read = screenThisPoll } else { read = await readScreen() }
         guard let screen = read else { return }
         agentsPane = AgentsPane.parse(screen: screen)
         agentsPaneReadAt = clock.now()
@@ -967,6 +971,7 @@ public final class ConversationModel {
 
     /// 送出輸入框的文字(F6.5)。
     ///
+    /// 先經過送出管線(`SendPipeline`,#299):步驟擋下時不碰主機，依步驟決定草稿放回或維持清空。
     /// 輸入框樂觀清空、立刻顯示回音;送出當下重讀**新鮮的** snapshot 重新確認目標 pane(2 秒前的 pane 可能已被回收,R-P06)。
     /// 什麼都沒送出(agent 不在、session 換了、在等回答、herdr 拒絕)→ 拿掉回音、草稿放回;
     /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
@@ -985,6 +990,19 @@ public final class ConversationModel {
         }
         notice = nil
         draft = ""
+        let outgoing = OutgoingPrompt(
+            text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now())
+        switch await sendPipeline.prepare(outgoing) {
+        case .proceed(let prepared):
+            await deliver(prepared)
+        case .halt(let halt):
+            if halt.restoresDraft { restoreDraft(text) }
+        }
+    }
+
+    /// 管線通過後交給主機：回音、上傳圖片、重新確認目標、送出。
+    private func deliver(_ outgoing: OutgoingPrompt) async {
+        let text = outgoing.text
         // 送出後舊建議已不適用;下次完成時重讀(herdr 可能來不及回報工作中,#123)。
         clearSuggestion()
         let sentImages = attachments
@@ -1248,7 +1266,7 @@ public final class ConversationModel {
             update(prompt: nil)
             return
         }
-        screenThisPoll = try? await client.readPane(paneID: agent.paneID)
+        screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
             if blocked, prompt == nil { prompt = .unrecognized }
@@ -1531,7 +1549,7 @@ public final class ConversationModel {
             return
         }
         guard watching || panel != nil || screenThisPoll != nil else { return }
-        if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+        if screenThisPoll == nil { screenThisPoll = await readScreen() }
         guard let screen = screenThisPoll else { return }
         let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
         if next != panel { panel = next }
@@ -1556,6 +1574,24 @@ public final class ConversationModel {
         guard let suggestion else { return false }
         draft = suggestion
         return true
+    }
+
+    /// HTTPS 主機的主機服務太舊、讀不了 Pane 畫面時的說明(#303):「需要你」卡只能給通用鈕，看不到選項、計畫與建議。
+    /// 讀得到畫面或是其他原因失敗時為 `nil`。
+    public private(set) var screenUpdateRequiredMessage: String?
+
+    /// 讀 pane 可見畫面;讀不到回 `nil`(呼叫端各自沿用上次或當成未知)。主機服務太舊時記下說明，讀得到就拿掉。
+    private func readScreen(format: PaneReadFormat = .text) async -> String? {
+        do {
+            let screen = try await client.readPane(paneID: paneID, format: format)
+            screenUpdateRequiredMessage = nil
+            return screen
+        } catch let error as HostServiceError {
+            if case .hostServiceUpdateRequired = error { screenUpdateRequiredMessage = HostErrorText.hostServiceMessage(error) }
+            return nil
+        } catch {
+            return nil
+        }
     }
 
     /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
@@ -1587,7 +1623,7 @@ public final class ConversationModel {
         guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, screenThisPoll == nil else { return nil }
         let epoch = suggestionEpoch
         suggestionReadsLeft -= 1
-        guard let screen = try? await client.readPane(paneID: paneID, format: .ansi), epoch == suggestionEpoch else { return nil }
+        guard let screen = await readScreen(format: .ansi), epoch == suggestionEpoch else { return nil }
         screenThisPoll = Self.plainText(ansi: screen)
         return SuggestionRead(suggestion: PromptSuggestion.detect(screen: screen), epoch: epoch)
     }
@@ -1652,7 +1688,7 @@ public final class ConversationModel {
     private func refreshLivePreview() async {
         if agentStatus == .working, prompt == nil {
             if workingScreenDue {
-                if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+                if screenThisPoll == nil { screenThisPoll = await readScreen() }
                 screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
             }
         } else {

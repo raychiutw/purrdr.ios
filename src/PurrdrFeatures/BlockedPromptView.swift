@@ -107,6 +107,14 @@ struct BlockedPromptView: View {
             Text("Couldn’t read the choices. These send common answers; check the terminal if you’re not sure.")
                 .font(.subheadline)
                 .foregroundStyle(.secondaryText)
+            if let update = model.screenUpdateRequiredMessage {
+                // HTTPS 主機的主機服務太舊、讀不了畫面(#303):說明更新後才看得到選項。
+                Label(update, systemImage: "arrow.down.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("prompt.hostServiceUpdate")
+            }
             VStack(spacing: 8) {
                 answerButton(.generic(.confirm), title: String(localized: "Confirm (Return)"), identifier: "prompt.generic.confirm")
                 answerButton(.generic(.one), title: String(localized: "Choose 1"), identifier: "prompt.generic.one")
