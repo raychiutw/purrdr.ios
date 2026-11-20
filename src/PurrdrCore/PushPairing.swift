@@ -70,7 +70,7 @@ public struct PushPairingFile: Sendable, Equatable {
 
     public var contents: Data {
         // session 值會被寫成一行;含換行或 `=` 以外的控制字元的值不寫(herdr 的 session 值是 id 或路徑)。
-        let mutedLines = muted.filter(Self.isSafeLine).sorted().map { "muted=\($0)" }
+        let mutedLines = writableMuted.map { "muted=\($0)" }
         let lines = [Self.header, "endpoint=\(endpoint.absoluteString)", "key=\(key.hex)"] + mutedLines
         return Data((lines.joined(separator: "\n") + "\n").utf8)
     }
@@ -95,6 +95,9 @@ public struct PushPairingFile: Sendable, Equatable {
         guard let endpoint, let key else { return nil }
         self.init(endpoint: endpoint, key: key, muted: muted)
     }
+
+    /// 寫得進配對檔的靜音清單(排序;含控制字元的值不寫)。
+    public var writableMuted: [String] { muted.filter(Self.isSafeLine).sorted() }
 
     static func isSafeLine(_ value: String) -> Bool {
         !value.isEmpty && !value.unicodeScalars.contains { $0.properties.generalCategory == .control }

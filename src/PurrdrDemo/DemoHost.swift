@@ -179,7 +179,7 @@ public actor DemoHost: HostChannel {
     /// `herdr plugin list／install／uninstall`:Demo 只認推播外掛。
     private func herdrPluginResponse(to command: String) -> Data? {
         if command.contains(" plugin list --plugin ") {
-            return Data((pushPluginInstalled ? #"[{"plugin_id":"\#(PushHost.pluginID)"}]"# : "[]").utf8)
+            return Data((pushPluginInstalled ? #"[{"plugin_id":"\#(SSHPushPluginInstaller.pluginID)"}]"# : "[]").utf8)
         }
         if command.contains(" plugin install ") {
             pushPluginInstalled = true

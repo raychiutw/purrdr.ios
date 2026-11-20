@@ -2,14 +2,14 @@ import PurrdrCore
 import SwiftUI
 
 extension PlusSetupProgress {
-    /// 由會員、訂閱、選取中主機的推播與主機同步的目前狀態組成(#246)。
+    /// 由會員、訂閱、通知(至少一台主機開啟)與主機同步的目前狀態組成(#246、#263)。
     @MainActor
-    init(member: MemberModel, plus: SubscriptionModel, push: PushModel?, hostSync: HostSyncModel?) {
+    init(member: MemberModel, plus: SubscriptionModel, isNotificationsOn: Bool, hostSync: HostSyncModel?) {
         let isMember = if case .signedIn = member.phase { true } else { false }
         self.init(
             isMember: isMember,
             isPlusActive: isMember && plus.isPlusActive,
-            isNotificationsOn: push?.state == .on,
+            isNotificationsOn: isNotificationsOn,
             isHostSyncOn: hostSync?.isEnabled == true)
     }
 }
@@ -17,6 +17,8 @@ extension PlusSetupProgress {
 /// 帳號頁的「設定 Purrdr Plus」步驟卡(#246):四步與進度條，只有目前那一步有按鈕。
 struct PlusSetupCard: View {
     let progress: PlusSetupProgress
+    /// 已開啟通知的主機名稱(第 ③ 步完成時的副標)。
+    let notifyingHostNames: [String]
     /// 目前步驟正在進行(登入、購買、安裝外掛)時停用按鈕。
     let isWorking: Bool
     let perform: (PlusSetupProgress.Step) -> Void
@@ -50,6 +52,13 @@ struct PlusSetupCard: View {
         .accessibilityHidden(true)
     }
 
+    private func detail(_ step: PlusSetupProgress.Step) -> Text {
+        if step == .turnOnNotifications, !notifyingHostNames.isEmpty {
+            return Text(verbatim: notifyingHostNames.formatted(.list(type: .and)))
+        }
+        return Text(step.detail)
+    }
+
     private func row(_ step: PlusSetupProgress.Step) -> some View {
         let state = progress.state(of: step)
         return HStack(spacing: 12) {
@@ -57,7 +66,7 @@ struct PlusSetupCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(step.title)
                     .fontWeight(state == .current ? .semibold : .regular)
-                Text(step.detail)
+                detail(step)
                     .font(.subheadline)
                     .foregroundStyle(.secondaryText)
             }
@@ -122,7 +131,7 @@ extension PlusSetupProgress.Step {
         switch self {
         case .joinMember: "Sign in with Apple or Google"
         case .activatePlus: "Free trial available"
-        case .turnOnNotifications: "Get notified when an agent needs you"
+        case .turnOnNotifications: "Choose hosts to notify"
         case .syncHosts: "Share hosts between iPhone and iPad"
         }
     }
@@ -131,7 +140,8 @@ extension PlusSetupProgress.Step {
         switch self {
         case .joinMember: "Join"
         case .activatePlus: "Activate"
-        case .turnOnNotifications, .syncHosts: "Turn On"
+        case .turnOnNotifications: "Choose Hosts"
+        case .syncHosts: "Turn On"
         }
     }
 
