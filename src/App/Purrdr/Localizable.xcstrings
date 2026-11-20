@@ -3375,6 +3375,17 @@
         }
       }
     },
+    "Host Service Update Needed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要更新主機服務"
+          }
+        }
+      }
+    },
     "Host Sync" : {
       "extractionState" : "manual",
       "localizations" : {
