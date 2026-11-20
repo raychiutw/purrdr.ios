@@ -4,7 +4,7 @@ import XCTest
 ///
 /// `scripts/screenshots.sh` 只跑這個類別，再從 result bundle 匯出截圖;完整 UI 套件也會跑它，
 /// 所以它同時是「Demo 演得出每個主要功能」的煙霧測試。每張圖一個測試，彼此獨立，其中一張壞了不影響其他張。
-/// 截圖名稱的數字是 App Store 截圖的建議順序。
+/// 截圖名稱的數字是 App Store 截圖的建議順序;`design-*` 是設計稿比對用(淺色／深色)。
 final class ScreenshotTourUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -36,7 +36,7 @@ final class ScreenshotTourUITests: XCTestCase {
     }
 
     @MainActor
-    func test01AgentListWithWorkspaceGroups() {
+    func test01AgentListSpaces() {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
         // Spaces 檢視(#275):每個「主機 · workspace」一段，列出 Tab。
@@ -153,5 +153,73 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
         XCTAssertTrue(element("sheet.welcome", in: app).waitForExistence(timeout: 10))
         capture("11-welcome", app)
+    }
+
+    // MARK: - 設計稿比對(#267、#276):重做的頁面各存淺色與深色，與原型並排確認
+
+    /// 以淺色、深色各啟動一次，打開同一頁後存成「design-<名稱>-light／dark」。
+    /// 外觀經啟動參數覆寫 `appearance`(只在這次啟動有效，不寫進 UserDefaults)。
+    @MainActor
+    private func captureDesign(_ name: String, open: @MainActor (XCUIApplication) -> Void) {
+        for appearance in ["light", "dark"] {
+            let app = XCUIApplication.launchUITesting(flags: ["-appearance", appearance])
+            open(app)
+            capture("design-\(name)-\(appearance)", app)
+            app.terminate()
+        }
+    }
+
+    @MainActor
+    func testDesign01AgentsView() {
+        captureDesign("01-agents") { app in
+            XCTAssertTrue(self.element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10), "沒有 Agents 列")
+        }
+    }
+
+    @MainActor
+    func testDesign02SpacesView() {
+        captureDesign("02-spaces") { app in
+            app.switchListMode(to: "Spaces")
+            XCTAssertTrue(self.element("spaces.section.demo/w3", in: app).waitForExistence(timeout: 10), "沒有 workspace 段落")
+        }
+    }
+
+    @MainActor
+    func testDesign03Chat() {
+        captureDesign("03-chat") { app in
+            _ = self.openChat("w1:p1", in: app)
+        }
+    }
+
+    @MainActor
+    func testDesign04NeedsYou() {
+        captureDesign("04-needs-you") { app in
+            _ = self.openChat("w2:p1", in: app)
+            XCTAssertTrue(app.staticTexts["Do you want to proceed?"].waitForExistence(timeout: 15), "沒有「需要你」的提問")
+        }
+    }
+
+    @MainActor
+    func testDesign05NewChat() {
+        captureDesign("05-new-chat") { app in
+            app.openMoreMenuItem("menu.newChat")
+            XCTAssertTrue(app.textFields["newChat.folder"].waitForExistence(timeout: 10), "沒有開出新增聊天")
+        }
+    }
+
+    @MainActor
+    func testDesign06Files() {
+        captureDesign("06-files") { app in
+            app.openMoreMenuItem("menu.files")
+            XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitForExistence(timeout: 10), "沒有列出家目錄")
+        }
+    }
+
+    @MainActor
+    func testDesign07Settings() {
+        captureDesign("07-settings") { app in
+            app.openMoreMenuItem("menu.settings")
+            XCTAssertTrue(self.element("sheet.settings", in: app).waitForExistence(timeout: 10), "沒有開出設定")
+        }
     }
 }

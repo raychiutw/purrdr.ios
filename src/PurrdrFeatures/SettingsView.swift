@@ -73,10 +73,6 @@ public struct SettingsView: View {
                 } header: {
                     Text("Support")
                         .foregroundStyle(.secondaryText)
-                } footer: {
-                    // 隱私揭露(複製的診斷資料包含什麼)保留;其他功能說明依原型拿掉(#276)。
-                    Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
-                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
