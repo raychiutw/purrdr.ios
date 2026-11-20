@@ -8737,13 +8737,13 @@
         }
       }
     },
-    "This host’s settings and keys are removed from this device, and this device’s pairing is revoked. The computer itself isn’t changed." : {
+    "This host’s settings and keys are removed from this device, and this device’s pairing is revoked. If Purrdr added this device’s public key to the host, that key is removed too; nothing else on the host changes." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這部裝置上的主機設定與金鑰會刪除，並撤銷這部裝置的配對；主機本身不受影響。"
+            "value" : "這部裝置上的主機設定與金鑰會刪除，並撤銷這部裝置的配對。Purrdr 曾把這部裝置的公鑰加到主機上的話，也會一併拿掉；主機上其他內容不受影響。"
           }
         }
       }

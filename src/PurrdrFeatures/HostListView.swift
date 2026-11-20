@@ -102,7 +102,7 @@ public struct HostListView: View {
                     .accessibilityIdentifier("hosts.delete.confirm")
                 Button("Cancel", role: .cancel) { flow.cancelDeletion() }
             } message: { _ in
-                Text("This host’s settings and keys are removed from this device, and this device’s pairing is revoked. The computer itself isn’t changed.")
+                Text("This host’s settings and keys are removed from this device, and this device’s pairing is revoked. If Purrdr added this device’s public key to the host, that key is removed too; nothing else on the host changes.")
             }
         }
         .onAppear(perform: openPendingImport)
