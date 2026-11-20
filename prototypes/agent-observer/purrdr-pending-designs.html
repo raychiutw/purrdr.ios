@@ -494,7 +494,7 @@ const keysOf = t => t.v.map((_, i) => keyOf(t, i));
 const vOf = (t, k) => t.v[keysOf(t).indexOf(k)];
 const vLabel = (t, k) => { const v = vOf(t, k); return v ? (v.fin ? `定案・${v.n}` : `${k}・${v.n}`) : k; };
 // 2026-11-20 使用者已決定的版本(#309、#313 重畫，待選)。
-const DECIDED = { '300':'B', '301':'B', '302':'B', '305':'B', '306':'D', '307':'D', '308':'C', '310':'A', '295':'B' };
+const DECIDED = { '300':'B', '301':'B', '302':'B', '305':'B', '306':'D', '307':'D', '308':'C', '309':'C', '310':'A', '313':'A', '295':'B' };
 let picks = {};
 try { picks = JSON.parse(localStorage.getItem('purrdr-pending-picks-v2') || '{}'); } catch (e) { picks = {}; }
 const save = () => { try { localStorage.setItem('purrdr-pending-picks-v2', JSON.stringify(picks)); } catch (e) {} };
