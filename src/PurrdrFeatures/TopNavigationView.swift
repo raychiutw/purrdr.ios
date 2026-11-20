@@ -75,7 +75,8 @@ public struct TopNavigationView: View {
                     }
                 case .member:
                     // 帳號頁(#246)自帶 NavigationStack 與「完成」。
-                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync)
+                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync,
+                        hosts: hosts)
                         // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
                         .task { await hosts.checkHostServiceVersions() }
                 case .plus:

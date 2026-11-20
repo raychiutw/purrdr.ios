@@ -220,6 +220,17 @@
         }
       }
     },
+    "%lld Images" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 張圖片"
+          }
+        }
+      }
+    },
     "%lld agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -370,6 +381,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個 Pane"
+          }
+        }
+      }
+    },
+    "%lld s" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒"
+          }
+        }
+      }
+    },
+    "%lld seconds" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒"
           }
         }
       }
@@ -654,6 +687,17 @@
         }
       }
     },
+    "AWS key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS 金鑰"
+          }
+        }
+      }
+    },
     "About" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -804,6 +848,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "進階"
+          }
+        }
+      }
+    },
+    "After you send, the message waits this long so you can undo it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出後訊息會先等這段時間，讓你可以撤回。"
           }
         }
       }
@@ -1230,6 +1285,17 @@
         }
       }
     },
+    "Back to Editing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回編輯"
+          }
+        }
+      }
+    },
     "Beginning of conversation" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1523,6 +1589,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請檢查連線後再試一次。"
+          }
+        }
+      }
+    },
+    "Checked only on this device. Nothing was sent anywhere." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只在這支裝置上檢查，內容沒有送到任何地方。"
           }
         }
       }
@@ -3522,6 +3599,28 @@
         }
       }
     },
+    "GitHub token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub token"
+          }
+        }
+      }
+    },
+    "Google API key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google API key"
+          }
+        }
+      }
+    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4053,6 +4152,17 @@
         }
       }
     },
+    "JWT" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JWT"
+          }
+        }
+      }
+    },
     "Join" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4295,6 +4405,17 @@
         }
       }
     },
+    "Line %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 行"
+          }
+        }
+      }
+    },
     "Link" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4533,6 +4654,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "訊息"
+          }
+        }
+      }
+    },
+    "Message May Contain a Secret" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訊息裡有像密鑰的內容"
           }
         }
       }
@@ -5131,6 +5263,17 @@
         }
       }
     },
+    "Notifications can be turned on after this device pairs with the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置配對這台主機後就能開啟通知。"
+          }
+        }
+      }
+    },
     "Notifications need Purrdr Plus." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5516,6 +5659,28 @@
         }
       }
     },
+    "Pair This Host First" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先配對這台主機"
+          }
+        }
+      }
+    },
+    "Pair This Host First %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先配對這台主機 %@"
+          }
+        }
+      }
+    },
     "Pair with the Purrdr host service. Login Shell and Files aren’t available." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5600,6 +5765,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼"
+          }
+        }
+      }
+    },
+    "Password (password=)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼(password=)"
           }
         }
       }
@@ -5792,6 +5968,17 @@
       }
     },
     "Private Key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰"
+          }
+        }
+      }
+    },
+    "Private key" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6693,6 +6880,28 @@
         }
       }
     },
+    "Send Anyway" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍要送出"
+          }
+        }
+      }
+    },
+    "Send Now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即送出"
+          }
+        }
+      }
+    },
     "Sending" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6700,6 +6909,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "送出中"
+          }
+        }
+      }
+    },
+    "Sending in %lld seconds. Undo is available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒後送出，可以撤回。"
+          }
+        }
+      }
+    },
+    "Sending in %llds" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒後送出"
           }
         }
       }
@@ -7228,6 +7459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已登出"
+          }
+        }
+      }
+    },
+    "Slack token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slack token"
           }
         }
       }
@@ -9432,6 +9674,17 @@
         }
       }
     },
+    "Undo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤回"
+          }
+        }
+      }
+    },
     "Undo Purrdr’s Changes to Notes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9439,6 +9692,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復原 Purrdr 對註記的變更"
+          }
+        }
+      }
+    },
+    "Undo Send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出可撤回"
           }
         }
       }
@@ -10243,6 +10507,17 @@
         }
       }
     },
+    "Your message, not sent yet. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訊息，還沒送出。%@"
+          }
+        }
+      }
+    },
     "Your message." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10535,6 +10810,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "my-mac.tailnet.ts.net"
+          }
+        }
+      }
+    },
+    "sk- key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sk- 金鑰"
           }
         }
       }

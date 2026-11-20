@@ -89,6 +89,8 @@ public final class HostsModel {
     public var haptics: any Haptics = SilentHaptics()
     /// 成功送出幾次 prompt 後請求評分(#34);`nil` 時不請求。所有主機、所有聊天共用一份計數。
     public var reviewPrompt: ReviewPrompt?
+    /// 送出可撤回的秒數(#300),每次送出時讀;預設讀本機偏好(設定頁改的那一個)。
+    @ObservationIgnored public var undoSendSeconds: @MainActor () -> Int = { UndoSendSettings.seconds(in: .standard) }
 
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
@@ -313,7 +315,9 @@ public final class HostsModel {
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
             images: ComposerImages(uploader: member.uploader, store: attachmentStore),
-            updates: member.list.updates)
+            updates: member.list.updates,
+            // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300)。
+            sendSteps: [SecretCheck(), UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 })])
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。
@@ -676,6 +680,8 @@ public final class HostsModel {
 
     private func pushSupport(of host: HostSelection) -> HostPushSupport {
         guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
+        // 沒有裝置權杖連不上主機服務：先說明要配對(#295),配對後才看得到能不能裝。
+        guard !unpairedHostIDs.contains(id) else { return .needsPairing }
         guard members[host]?.push.isAvailable == true else { return .unsupported }
         // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
         guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
@@ -857,6 +863,8 @@ public enum HostPushSupport: Equatable, Sendable {
     case supported
     /// Demo 主機與示範主機。
     case demoHost
+    /// 這支裝置還沒配對的 HTTPS 主機(例如主機同步帶來的,#295):配對後就能開。
+    case needsPairing
     /// 這台主機沒有推播外掛安裝(例如 HTTPS 主機取不到主機服務連線)。
     case unsupported
     /// HTTPS 主機要這版以上的主機服務代裝外掛;附依已安裝版本的更新指令。

@@ -57,6 +57,7 @@ public struct ConversationView: View {
             }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
+            .secretCheckSheet(model.secretCheck)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerImage = ViewerImage(url: $0) }
@@ -99,7 +100,7 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        if model.entries.isEmpty && model.undoSend?.pending == nil && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -134,6 +135,11 @@ public struct ConversationView: View {
                         }
                     }
                     .id(entry.id)
+                }
+                // 撤回倒數中的訊息(#300):還在本機，接在最後一則訊息後面;倒數結束換成一般的回音。
+                if let undoSend = model.undoSend, let pending = undoSend.pending {
+                    PendingSendBubbleView(pending: pending, imageCount: model.attachments.count, undo: undoSend.undo, sendNow: undoSend.sendNow)
+                        .id(ConversationFollowTarget.pendingSendRowID)
                 }
                 // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
                 BlockedPromptView(model: model)
@@ -246,6 +252,12 @@ public struct ConversationView: View {
         }
         .onChange(of: model.panel == nil) {
             if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
+        }
+        .onChange(of: model.undoSend?.pending == nil) {
+            // 倒數中的訊息出現：切到跟隨尾端並捲到它(同回音,F6.5)。
+            guard model.undoSend?.pending != nil else { return }
+            scroll.jumpToLatest()
+            withAnimation(scrollAnimation) { proxy.scrollTo(ConversationFollowTarget.pendingSendRowID, anchor: .bottom) }
         }
         .onChange(of: model.echoes.count) { old, new in
             // 送出前先切到跟隨尾端，讓回音落在視野內(F6.5)。

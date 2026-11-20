@@ -241,6 +241,19 @@ struct MultiHostTests {
         #expect(selected.header.segments == ["Studio"])
     }
 
+    @Test("聊天的送出管線有機密偵測(#302),每個聊天各一個")
+    func conversationChecksSecrets() {
+        let model = Self.model(ChannelsByAddress([:]))
+        model.load()
+
+        let first = model.conversation(ChatRoute(host: .host(Self.studio.id), paneID: "w1:pA"), sessionID: nil)
+        let second = model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil)
+
+        #expect(first.secretCheck != nil)
+        #expect(second.secretCheck != nil)
+        #expect(first.secretCheck !== second.secretCheck)
+    }
+
     @Test("已開啟的聊天：換選取中主機後標題列仍是自己的主機名;主機改名跟著改")
     func openedConversationHeaderFollowsSelection() throws {
         let model = Self.model(ChannelsByAddress([:]))
