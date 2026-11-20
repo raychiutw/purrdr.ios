@@ -1,0 +1,275 @@
+<title>Purrdr Plus 頁面原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 原型(拋棄式):Purrdr Plus 頁三種結構 × 已訂閱／未訂閱，左邊是現況，右邊是選中的版本；底部列切換 */
+:root{
+  --bg:#e9ebe8; --fg:#1c1d1b; --muted:#6c706a; --ground:#f2f2f7; --cell:#ffffff; --sep:#d1d1d6;
+  --tint:#0f7a55; --tint-soft:#e3f1ea; --on-tint:#ffffff; --fill:#e5e5ea; --frame:#1c1d1b; --warn:#b25d00;
+  --bar:#ffffffee; --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111211; --fg:#ecedeb; --muted:#9a9e98; --ground:#000; --cell:#1c1c1e; --sep:#38383a;
+  --tint:#34c27f; --tint-soft:#11301f; --on-tint:#04130b; --fill:#2c2c2e; --frame:#3a3c39; --warn:#ffa640; --bar:#1c1c1eee; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111211; --fg:#ecedeb; --muted:#9a9e98; --ground:#000; --cell:#1c1c1e; --sep:#38383a;
+  --tint:#34c27f; --tint-soft:#11301f; --on-tint:#04130b; --fill:#2c2c2e; --frame:#3a3c39; --warn:#ffa640; --bar:#1c1c1eee; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 120px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-size:20px;margin:0}
+.lede{color:var(--muted);margin:0;line-height:1.6;max-width:70ch;font-size:14px}
+.stage{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;justify-content:center}
+.col{display:flex;flex-direction:column;gap:8px;align-items:center;min-width:0}
+.cap{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.cap b{color:var(--fg)}
+.phone{width:min(360px,100%);height:740px;border:8px solid var(--frame);border-radius:40px;background:var(--ground);overflow:hidden;display:flex;flex-direction:column}
+.screen{flex:1;overflow-y:auto;padding:0 16px 24px;display:flex;flex-direction:column;gap:18px}
+.nav{display:grid;grid-template-columns:60px 1fr 60px;align-items:center;padding:14px 12px 6px;font-size:16px;flex:none}
+.nav .t{text-align:center;font-weight:600}
+.nav .d{justify-self:end;background:var(--fill);border-radius:16px;padding:5px 12px;font-size:15px}
+.nav .bk{color:var(--tint);font-size:22px;line-height:1}
+.note{font-size:12.5px;line-height:1.5;color:var(--muted);text-align:center;max-width:300px}
+/* 共用元件 */
+.group{display:flex;flex-direction:column;gap:6px}
+.gh{font-size:13px;color:var(--muted);padding:0 16px}
+.gf{font-size:12.5px;color:var(--muted);padding:0 16px;line-height:1.45}
+.list{background:var(--cell);border-radius:12px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:11px 16px;position:relative;font-size:16px;min-height:44px}
+.row+.row::before{content:"";position:absolute;left:56px;right:0;top:0;border-top:.5px solid var(--sep)}
+.list.plain .row+.row::before{left:16px}
+.row .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.row .s{font-size:13px;color:var(--muted);line-height:1.4}
+.row .v{color:var(--muted);font-size:15px;white-space:nowrap}
+.row .chev{color:var(--muted);font-size:18px}
+.row.link{color:var(--tint)}
+.ico{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--tint);color:var(--on-tint)}
+.ico svg{width:18px;height:18px}
+.ico.n{background:#e8873a;color:#fff}.ico.h{background:#3b7bd6;color:#fff}.ico.d{background:#8a63c9;color:#fff}.ico.f{background:var(--fill);color:var(--muted)}
+.btn{background:var(--tint);color:var(--on-tint);border-radius:12px;text-align:center;padding:13px;font-weight:600;font-size:16px}
+.btn2{background:var(--fill);border-radius:20px;padding:9px 14px;font-size:15px;display:inline-block}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+.legal{display:flex;gap:16px;font-size:12px;color:var(--tint);padding:0 4px}
+.small{font-size:12px;color:var(--muted);line-height:1.5}
+.ok{color:var(--tint)}
+/* 現況 */
+.card{background:var(--cell);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.plan{background:var(--cell);border-radius:12px;padding:14px;border:2px solid transparent;display:flex;gap:8px}
+.plan.sel{border-color:var(--tint)}
+.plan .tx{flex:1;display:flex;flex-direction:column;gap:3px}
+.plan .p{font-weight:700;font-size:19px}
+/* B:hero */
+.hero{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding-top:8px}
+.mark{width:64px;height:64px;border-radius:16px;background:linear-gradient(140deg,var(--tint),#0b5c40);display:grid;place-items:center;color:#fff}
+.mark svg{width:34px;height:34px}
+.hero h2{margin:4px 0 0;font-size:24px}
+.hero p{margin:0;font-size:14px;color:var(--muted);line-height:1.45}
+.feat{display:flex;gap:12px;align-items:flex-start}
+.feat .tx{display:flex;flex-direction:column;gap:3px}
+.feat b{font-size:15px}
+.feat span{font-size:13.5px;color:var(--muted);line-height:1.45}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chip{font-size:12px;background:var(--fill);border-radius:10px;padding:3px 8px;color:var(--fg)}
+.faq{background:var(--cell);border-radius:12px}
+.faq details{padding:12px 16px;border-top:.5px solid var(--sep)}
+.faq details:first-child{border-top:0}
+.faq summary{font-size:15px;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+.faq summary::after{content:"›";color:var(--muted);transform:rotate(90deg)}
+.faq p{font-size:13.5px;color:var(--muted);margin:8px 0 0;line-height:1.5}
+.status{display:flex;gap:10px;align-items:center;background:var(--tint-soft);border-radius:12px;padding:12px 14px}
+.status .tx{flex:1;display:flex;flex-direction:column;gap:2px;font-size:14px}
+.status .tx span{color:var(--muted);font-size:13px}
+/* C:會員卡 */
+.pass{border-radius:18px;padding:18px;color:#fff;background:linear-gradient(150deg,#0f7a55 0%,#0a4f39 70%,#083a2b 100%);display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden}
+.pass::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:#ffffff14}
+.pass .top{display:flex;justify-content:space-between;align-items:center;font-size:13px;opacity:.9}
+.pass .nm{font-size:22px;font-weight:700}
+.pass .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px}
+.pass .meta b{display:block;font-size:14px;margin-top:2px;font-variant-numeric:tabular-nums}
+.meter{height:6px;background:#ffffff33;border-radius:3px;overflow:hidden}
+.meter i{display:block;height:100%;width:12%;background:#fff}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--cell);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.tile .num{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.tile .lb{font-size:12px;color:var(--muted);line-height:1.3}
+.tile .ico{width:26px;height:26px;border-radius:7px}
+.tile .ico svg{width:15px;height:15px}
+.compare{background:var(--cell);border-radius:12px;overflow:hidden;font-size:13.5px}
+.compare .r{display:grid;grid-template-columns:1fr 54px 54px;padding:9px 14px;align-items:center;border-top:.5px solid var(--sep)}
+.compare .r:first-child{border-top:0;font-size:12px;color:var(--muted);font-weight:600}
+.compare .r span:not(:first-child){text-align:center}
+/* 底部列 */
+.bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--bar);backdrop-filter:blur(12px);border:1px solid var(--sep);border-radius:22px;padding:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 32px);box-shadow:0 6px 24px #0002}
+.seg{display:flex;background:var(--fill);border-radius:14px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:7px 12px;border-radius:11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--cell);font-weight:600;box-shadow:0 1px 3px #0002}
+.seg button:focus-visible{outline:2px solid var(--tint)}
+.desc{font-size:13.5px;line-height:1.6;color:var(--muted);max-width:70ch;margin:0 auto;text-align:left}
+.desc b{color:var(--fg)}
+</style>
+
+<div class="wrap">
+  <h1>Purrdr Plus 頁</h1>
+  <p class="lede">原型(拋棄式)。帳號頁點「Purrdr Plus」或深層連結 <code>purrdr://plus</code> 進入的那一頁。現況在已訂閱時只有一張卡片，下半頁空白，也沒說明訂閱包含什麼。底部切換版本與狀態。內容都是 app 真的知道或真的有的功能，數字是 UI 測試假後台的資料。</p>
+  <p class="desc" id="desc"></p>
+  <div class="stage">
+    <div class="col"><div class="cap"><b>現況</b></div><div class="phone" id="now"></div></div>
+    <div class="col"><div class="cap" id="cap"></div><div class="phone" id="var"></div></div>
+  </div>
+</div>
+
+<div class="bar" role="toolbar" aria-label="切換">
+  <div class="seg" id="segV"><button data-v="a">A 設定頁式</button><button data-v="b">B 說明式</button><button data-v="c">C 會員卡</button></div>
+  <div class="seg" id="segS"><button data-s="sub">已訂閱</button><button data-s="free">會員未訂閱</button></div>
+</div>
+
+<script>
+const I={
+  bell:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.4-1.8H9.6A2.5 2.5 0 0 0 12 22Zm7-5.5-1.6-1.9V10a5.4 5.4 0 0 0-4.2-5.3V4a1.2 1.2 0 0 0-2.4 0v.7A5.4 5.4 0 0 0 6.6 10v4.6L5 16.5V18h14Z"/></svg>',
+  sync:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 7h-9a5 5 0 0 0-5 5M4 17h9a5 5 0 0 0 5-5"/><path d="m17 4 3 3-3 3M7 20l-3-3 3-3"/></svg>',
+  dev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3" stroke-linecap="round"/></svg>',
+  term:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 4 4-4 4M12 17h7"/></svg>',
+  paw:'<svg viewBox="0 0 24 24" fill="currentColor"><ellipse cx="7" cy="9" rx="2" ry="2.6"/><ellipse cx="12" cy="6.5" rx="2" ry="2.6"/><ellipse cx="17" cy="9" rx="2" ry="2.6"/><path d="M12 11.5c-3 0-5.5 3.2-5.5 5.6 0 1.6 1.3 2.4 2.8 2.4 1.2 0 1.7-.6 2.7-.6s1.5.6 2.7.6c1.5 0 2.8-.8 2.8-2.4 0-2.4-2.5-5.6-5.5-5.6Z"/></svg>',
+  lock:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10V8a5 5 0 0 1 10 0v2h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Zm2 0h6V8a3 3 0 0 0-6 0Z"/></svg>'
+};
+const ico=(k,c)=>`<div class="ico ${c||''}">${I[k]}</div>`;
+const nav=(back)=>`<div class="nav">${back?'<span class="bk">‹</span>':'<span></span>'}<span class="t">Purrdr Plus</span><span class="d">完成</span></div>`;
+const legal=`<div class="legal"><span>使用條款</span><span>隱私權政策</span></div>`;
+const kinds=`<div class="chips"><span class="chip">需要你</span><span class="chip">完成</span><span class="chip">可能卡住</span><span class="chip">仍在等你</span><span class="chip">主機服務事件</span></div>`;
+const plans=`
+  <div class="plan sel"><div class="tx"><b>Purrdr Plus 月繳</b><span class="p">每月 US$4.99</span><span class="small">免費 2 週，之後每月 US$4.99</span></div><span class="ok">✓</span></div>
+  <div class="plan"><div class="tx"><b>Purrdr Plus 年繳</b><span class="p">每年 US$39.99</span><span class="small">免費 2 週，之後每年 US$39.99</span></div></div>`;
+const disclosure=`<p class="small">免費 2 週。試用結束後自動收取 US$4.99,除非在結束前至少 24 小時取消。Purrdr Plus 月繳會自動續訂…可隨時到「設定 › Apple 帳號 › 訂閱」管理或取消。</p>`;
+
+/* 現況 */
+const NOW={
+ sub:`${nav(true)}<div class="screen">
+   <p style="margin:6px 0 0;font-size:15px;line-height:1.45">每個訂閱期間包含 Agent 需要你時的通知，以及在你的裝置間同步主機清單。</p>
+   <div class="card"><b>✔︎ 你已訂閱</b><span>Purrdr Plus 年繳</span><span class="small" style="font-size:14px">將於 2027 年 1 月 1 日續訂。</span><span class="btn2" style="color:var(--tint);align-self:flex-start">管理訂閱</span></div>
+   <div class="btns"><span class="btn2">恢復購買</span><span class="btn2">兌換代碼</span></div>${legal}</div>`,
+ free:`${nav(false)}<div class="screen">
+   <p style="margin:6px 0 0;font-size:15px;line-height:1.45">每個訂閱期間包含 Agent 需要你時的通知，以及在你的裝置間同步主機清單。</p>
+   ${plans}<div class="btn">開始免費試用</div>${disclosure}
+   <div class="btns"><span class="btn2">恢復購買</span><span class="btn2">兌換代碼</span></div>${legal}</div>`
+};
+
+/* A:設定頁式 inset grouped,每項功能一列且帶目前狀態，點了去設定 */
+const A={
+ sub:`${nav(true)}<div class="screen">
+   <div class="group"><div class="list plain">
+     <div class="row"><div class="tx"><b style="font-weight:600">Purrdr Plus 年繳</b><span class="s">每年 US$39.99 · 2027 年 1 月 1 日續訂</span></div><span class="ok" style="font-size:13px;font-weight:600">使用中</span></div>
+     <div class="row link"><div class="tx">管理訂閱</div></div>
+   </div><div class="gf">由 Apple 收費。取消後可以用到 2027 年 1 月 1 日。</div></div>
+
+   <div class="group"><div class="gh">你的 Plus 包含</div><div class="list">
+     <div class="row">${ico('bell','n')}<div class="tx">通知<span class="s">Agent 需要你、完成、可能卡住時通知這支裝置</span></div><span class="v">2 台主機</span><span class="chev">›</span></div>
+     <div class="row">${ico('sync','h')}<div class="tx">主機同步<span class="s">主機清單在 iPhone 與 iPad 之間同步</span></div><span class="v">開啟</span><span class="chev">›</span></div>
+     <div class="row">${ico('dev','d')}<div class="tx">通知裝置<span class="s">改名、遠端關閉收通知的裝置</span></div><span class="v">2 支</span><span class="chev">›</span></div>
+   </div><div class="gf">私鑰、密碼與配對權杖永不上傳，同步只帶名稱、位址與連線方式。</div></div>
+
+   <div class="group"><div class="gh">不需要訂閱</div><div class="list">
+     <div class="row">${ico('term','f')}<div class="tx">聊天、終端機與 Demo 主機<span class="s">沒有會員或訂閱也能用</span></div></div>
+   </div></div>
+
+   <div class="group"><div class="list plain">
+     <div class="row link"><div class="tx">恢復購買</div></div>
+     <div class="row link"><div class="tx">兌換代碼</div></div>
+   </div></div>${legal}</div>`,
+ free:`${nav(false)}<div class="screen">
+   <div class="group"><div class="gh">Purrdr Plus 包含</div><div class="list">
+     <div class="row">${ico('bell','n')}<div class="tx">通知<span class="s">Agent 需要你、完成、可能卡住時通知這支裝置；逐台主機開關</span></div></div>
+     <div class="row">${ico('sync','h')}<div class="tx">主機同步<span class="s">在一支裝置新增主機，其他裝置也有</span></div></div>
+     <div class="row">${ico('dev','d')}<div class="tx">通知裝置<span class="s">改名、遠端關閉收通知的裝置</span></div></div>
+   </div><div class="gf">聊天、終端機與 Demo 主機不需要訂閱。</div></div>
+   <div class="group"><div class="gh">方案</div><div class="list plain">
+     <div class="row"><div class="tx">月繳<span class="s">每月 US$4.99 · 免費 2 週</span></div><span class="ok">✓</span></div>
+     <div class="row"><div class="tx">年繳<span class="s">每年 US$39.99 · 免費 2 週 · 約省 33%</span></div></div>
+   </div></div>
+   <div class="btn">開始免費試用</div>${disclosure}
+   <div class="group"><div class="list plain"><div class="row link"><div class="tx">恢復購買</div></div><div class="row link"><div class="tx">兌換代碼</div></div></div></div>${legal}</div>`
+};
+
+/* B:說明式。品牌標誌開頭，功能逐項解說，常見問題，動作放最後 */
+const featuresB=`
+   <div class="group" style="gap:14px">
+     <div class="feat">${ico('bell','n')}<div class="tx"><b>Agent 的事，第一時間知道</b><span>Agent 需要你回答、做完、看起來卡住或一直在等你時，推播到這支裝置。每台主機可以分開開關，也能選要收哪些。</span>${kinds}</div></div>
+     <div class="feat">${ico('sync','h')}<div class="tx"><b>主機清單跟著你</b><span>在 iPhone 加的主機，iPad 也有。只同步名稱、位址與連線方式，私鑰、密碼與配對權杖永不離開裝置。</span></div></div>
+     <div class="feat">${ico('dev','d')}<div class="tx"><b>管理收通知的裝置</b><span>看哪些裝置會收到通知，改名或遠端關閉遺失的裝置。</span></div></div>
+     <div class="feat">${ico('term','f')}<div class="tx"><b>免費的部分不變</b><span>聊天、終端機與 Demo 主機一直免費，不需要會員或訂閱。</span></div></div>
+   </div>`;
+const faqB=`<div class="group"><div class="gh">常見問題</div><div class="faq">
+   <details><summary>取消後會怎樣？</summary><p>用到這期結束。之後通知與主機同步暫停，主機清單留在各裝置上，聊天與終端機照常。</p></details>
+   <details><summary>在哪裡取消或換方案？</summary><p>「管理訂閱」開出 Apple 的訂閱畫面，也可以到「設定 › Apple 帳號 › 訂閱」。</p></details>
+   <details><summary>換新手機要重新訂閱嗎？</summary><p>不用。訂閱記在會員身上，用同一個 Apple 或 Google 帳號登入即可；需要時按「恢復購買」。</p></details>
+ </div></div>`;
+const B={
+ sub:`${nav(true)}<div class="screen">
+   <div class="hero"><div class="mark">${I.paw}</div><h2>Purrdr Plus</h2><p>ray@example.com</p></div>
+   <div class="status">${ico('bell')}<div class="tx"><b>年繳 · 使用中</b><span>每年 US$39.99 · 2027 年 1 月 1 日續訂</span></div></div>
+   <div class="btns" style="justify-content:center"><span class="btn2" style="color:var(--tint)">管理訂閱</span></div>
+   ${featuresB}${faqB}
+   <div class="btns"><span class="btn2">恢復購買</span><span class="btn2">兌換代碼</span></div>${legal}</div>`,
+ free:`${nav(false)}<div class="screen">
+   <div class="hero"><div class="mark">${I.paw}</div><h2>Purrdr Plus</h2><p>不用一直盯著 Agent。</p></div>
+   ${featuresB}
+   <div class="group"><div class="gh">選擇方案</div>${plans}</div>
+   <div class="btn">開始免費試用</div>${disclosure}${faqB}
+   <div class="btns"><span class="btn2">恢復購買</span><span class="btn2">兌換代碼</span></div>${legal}</div>`
+};
+
+/* C:會員卡。上方像票卡的會員卡帶期間進度，下面三格目前狀態，再一張免費／Plus 對照 */
+const compare=`<div class="group"><div class="gh">免費與 Plus</div><div class="compare">
+   <div class="r"><span></span><span>免費</span><span>Plus</span></div>
+   <div class="r"><span>聊天、終端機、Demo</span><span class="ok">✓</span><span class="ok">✓</span></div>
+   <div class="r"><span>多台主機合併列表</span><span class="ok">✓</span><span class="ok">✓</span></div>
+   <div class="r"><span>Agent 通知(5 種)</span><span>—</span><span class="ok">✓</span></div>
+   <div class="r"><span>主機清單同步</span><span>—</span><span class="ok">✓</span></div>
+   <div class="r"><span>通知裝置管理</span><span>—</span><span class="ok">✓</span></div>
+ </div><div class="gf">私鑰、密碼與配對權杖永不上傳。</div></div>`;
+const C={
+ sub:`${nav(true)}<div class="screen">
+   <div class="pass"><div class="top"><span>PURRDR PLUS</span><span>年繳</span></div>
+     <div class="nm">ray@example.com</div>
+     <div class="meter" aria-label="這期已過 12%"><i></i></div>
+     <div class="meta"><span>下次續訂<b>2027/1/1</b></span><span>金額<b>US$39.99 / 年</b></span></div></div>
+   <div class="btns"><span class="btn2" style="color:var(--tint);flex:1;text-align:center">管理訂閱</span></div>
+   <div class="group"><div class="gh">目前使用</div><div class="tiles">
+     <div class="tile">${ico('bell','n')}<span class="num">2</span><span class="lb">台主機開通知</span></div>
+     <div class="tile">${ico('sync','h')}<span class="num">3</span><span class="lb">台主機已同步</span></div>
+     <div class="tile">${ico('dev','d')}<span class="num">2</span><span class="lb">支裝置收通知</span></div>
+   </div><div class="gf">點一格到帳號頁對應的設定。</div></div>
+   ${compare}
+   <div class="btns"><span class="btn2">恢復購買</span><span class="btn2">兌換代碼</span></div>${legal}</div>`,
+ free:`${nav(false)}<div class="screen">
+   <div class="pass" style="background:linear-gradient(150deg,#3c4a44,#24302b)"><div class="top"><span>PURRDR PLUS</span><span>未訂閱</span></div>
+     <div class="nm">ray@example.com</div>
+     <div class="meta"><span>免費試用<b>2 週</b></span><span>最低<b>US$3.33 / 月(年繳)</b></span></div></div>
+   ${compare}
+   <div class="group"><div class="gh">選擇方案</div>${plans}</div>
+   <div class="btn">開始免費試用</div>${disclosure}
+   <div class="btns"><span class="btn2">恢復購買</span><span class="btn2">兌換代碼</span></div>${legal}</div>`
+};
+
+const V={a:A,b:B,c:C};
+const CAP={a:'<b>A</b> 設定頁式',b:'<b>B</b> 說明式',c:'<b>C</b> 會員卡'};
+const DESC={
+ a:'<b>A 設定頁式。</b>跟設定頁、主機頁一樣的 inset grouped 清單。上面是方案與「管理訂閱」，中間「你的 Plus 包含」每項功能一列，列尾顯示目前狀態(2 台主機、開啟、2 支)，點了到帳號頁對應的設定。最一致也最好實作，說明比較短。',
+ b:'<b>B 說明式。</b>品牌標誌開頭，狀態一行，然後每項功能一段完整說明(包含通知的 5 種種類、同步不帶私鑰)，接著常見問題(取消後會怎樣、在哪取消、換手機)。說明最多，像 Apple 的訂閱介紹頁；未訂閱時直接當付費牆。',
+ c:'<b>C 會員卡。</b>上方一張像錢包票卡的會員卡，顯示這期進度條與續訂日；下面三格目前使用量，再一張免費／Plus 對照表。最有「會員」的感覺，對照表一眼看出差在哪；卡片是自訂樣式，比較不像系統畫面。'
+};
+let st={v:'a',s:'sub'};
+function render(){
+  document.getElementById('now').innerHTML=NOW[st.s];
+  document.getElementById('var').innerHTML=V[st.v][st.s];
+  document.getElementById('cap').innerHTML=CAP[st.v]+(st.s==='sub'?' · 已訂閱':' · 會員未訂閱');
+  document.getElementById('desc').innerHTML=DESC[st.v];
+  document.querySelectorAll('#segV button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===st.v));
+  document.querySelectorAll('#segS button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===st.s));
+  const h=st.v+'-'+st.s; if(location.hash!=='#'+h) history.replaceState(null,'','#'+h);
+}
+function fromHash(){const m=(location.hash||'').match(/^#([abc])-(sub|free)$/); if(m){st.v=m[1];st.s=m[2];} render();}
+document.getElementById('segV').addEventListener('click',e=>{const b=e.target.closest('button');if(b){st.v=b.dataset.v;render();}});
+document.getElementById('segS').addEventListener('click',e=>{const b=e.target.closest('button');if(b){st.s=b.dataset.s;render();}});
+window.addEventListener('hashchange',fromHash);
+fromHash();
+</script>
