@@ -888,7 +888,7 @@ final class HostMember {
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
         // HTTPS 主機經主機服務代裝(取不到主機服務連線就沒有，列上標成不支援);其他經 SSH。
         let installer: (any PushPluginInstalling)? = if configuration?.connectionMethod.usesHostService == true {
-            (connection as? HTTPSHostConnection).flatMap { pushService?.hostServiceInstaller(connection: $0) }
+            (connection as? any PushPluginInstallerProviding).flatMap { pushService?.hostServiceInstaller(connection: $0) }
         } else {
             pushService?.sshInstaller(channel: channel, herdr: herdr)
         }
@@ -911,8 +911,8 @@ final class HostMember {
 
 extension PushService {
     /// 這支裝置經主機服務(HTTPS 主機)的推播外掛安裝。
-    public func hostServiceInstaller(connection: HTTPSHostConnection) -> any PushPluginInstalling {
-        installer { HostServicePushPluginInstaller(connection: connection, deviceID: $0) }
+    public func hostServiceInstaller(connection: any PushPluginInstallerProviding) -> any PushPluginInstalling {
+        installer { connection.pushPluginInstaller(deviceID: $0) }
     }
 
     /// 這支裝置經 SSH 的推播外掛安裝。

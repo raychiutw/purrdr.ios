@@ -38,7 +38,20 @@ struct HostServiceUpdateTests {
     ) -> HostsModel {
         HostsModel(
             store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens),
-            hostServiceUpdates: HostServiceUpdates(latestVersion: latest, store: dismissals), makeChannel: ChannelFactory().make)
+            hostServiceUpdates: HostServiceUpdates(latestVersion: latest, store: dismissals), push: pushService(), makeChannel: ChannelFactory().make)
+    }
+
+    /// 通知區塊要有推播服務才判斷各主機能不能開;這些測試不會真的送後台請求。
+    static func pushService() -> PushService {
+        PushService(
+            session: MemberSession(
+                transport: URLSessionBackendTransport(baseURL: URL(string: "https://backend.test")!), tokenStore: InMemoryTokenStore()),
+            platform: SilentPushPlatform(), store: InMemoryPushPairingStore(),
+            device: PushDeviceIdentity(id: PushDeviceID(rawValue: "0123456789abcdef")!, name: "iPhone", model: .iPhone),
+            configuration: PushConfiguration(
+                endpoint: URL(string: "https://backend.test/v1/push")!, environment: .production,
+                pluginSource: "raychiutw/purrdr.host/host-plugin"),
+            isPlusActive: { true })
     }
 
     static func updates(_ model: HostsModel) -> [String: String] {
@@ -158,4 +171,13 @@ struct HostServiceUpdateTests {
         #expect(HostServiceUpdates.posixInstallCommand == "curl -fsSL \(base)install.sh | sh")
         #expect(HostServiceUpdates.windowsInstallCommand == "irm \(base)install.ps1 | iex")
     }
+}
+
+/// 不跳權限、沒有 device token 的推播平台(只為了讓 `HostsModel` 有推播服務)。
+@MainActor
+private final class SilentPushPlatform: PushPlatform {
+    func authorization() async -> PushAuthorization { .notDetermined }
+    func requestAuthorization() async -> Bool { false }
+    func deviceToken() async throws -> Data { throw CancellationError() }
+    func openSettings() {}
 }

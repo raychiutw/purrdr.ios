@@ -80,6 +80,8 @@ struct HostServicePushPluginInstallerTests {
         let service = try await Self.start(settings)
         defer { Task { await service.stop() } }
         let installer = Self.installer(service)
+        // 移除外掛只發生在最後一支裝置、且外掛是 Purrdr 裝的。
+        try await installer.install(PushPairingFile(endpoint: Self.endpoint, key: .generate()))
 
         await #expect(throws: PushPluginError.pluginListFailed("herdr not running")) { try await installer.status() }
         await #expect(throws: PushPluginError.pluginUninstallFailed("uninstall failed")) { try await installer.remove() }

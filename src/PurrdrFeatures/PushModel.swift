@@ -217,9 +217,13 @@ public final class PushService {
         models.append(WeakPushModel(model: model))
     }
 
+    /// `forget` 刪完配對後不做任何事(預設值用常數，見 `AsyncDefaultArgumentTests`)。
+    nonisolated public static let nothingAfterRemoving: @Sendable () async -> Void = {}
+
     /// 移除主機時：不等待地刪掉那台主機上的配對並撤銷(行為規格 F14)。刪完配對後呼叫 `afterRemoving`(例如關閉為此另開的連線)。
     public func forget(
-        hostID: String, installer: any PushPluginInstalling, afterRemoving: @escaping @Sendable () async -> Void = {}
+        hostID: String, installer: any PushPluginInstalling,
+        afterRemoving: @escaping @Sendable () async -> Void = PushService.nothingAfterRemoving
     ) {
         guard let keyHash = store.keyHash(forHost: hostID) else { return }
         store.setKeyHash(nil, forHost: hostID)

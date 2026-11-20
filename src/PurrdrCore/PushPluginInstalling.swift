@@ -48,3 +48,9 @@ public protocol PushPluginInstalling: Sendable {
     /// 改寫這支裝置配對的靜音清單，其餘內容不變;沒有配對丟 `PushPluginError.notPaired`。
     func updateMuted(_ muted: Set<String>) async throws
 }
+
+/// 能代裝推播外掛的主機連線(主機服務 0.6.0 起，#265)。
+public protocol PushPluginInstallerProviding: Sendable {
+    /// 這支裝置經這條連線在這台主機的推播外掛安裝。
+    func pushPluginInstaller(deviceID: PushDeviceID) -> any PushPluginInstalling
+}
