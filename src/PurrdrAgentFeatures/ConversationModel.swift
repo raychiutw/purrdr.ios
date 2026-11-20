@@ -654,7 +654,7 @@ public final class ConversationModel {
         guard shouldRead else { return }
         // 這次輪詢找提示時已經讀過畫面就沿用，不再多一個主機指令。
         let read: String?
-        if let screenThisPoll { read = screenThisPoll } else { read = try? await client.readPane(paneID: paneID) }
+        if let screenThisPoll { read = screenThisPoll } else { read = await readScreen() }
         guard let screen = read else { return }
         agentsPane = AgentsPane.parse(screen: screen)
         agentsPaneReadAt = clock.now()
@@ -1248,7 +1248,7 @@ public final class ConversationModel {
             update(prompt: nil)
             return
         }
-        screenThisPoll = try? await client.readPane(paneID: agent.paneID)
+        screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
             if blocked, prompt == nil { prompt = .unrecognized }
@@ -1531,7 +1531,7 @@ public final class ConversationModel {
             return
         }
         guard watching || panel != nil || screenThisPoll != nil else { return }
-        if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+        if screenThisPoll == nil { screenThisPoll = await readScreen() }
         guard let screen = screenThisPoll else { return }
         let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
         if next != panel { panel = next }
@@ -1556,6 +1556,24 @@ public final class ConversationModel {
         guard let suggestion else { return false }
         draft = suggestion
         return true
+    }
+
+    /// HTTPS 主機的主機服務太舊、讀不了 Pane 畫面時的說明(#303):「需要你」卡只能給通用鈕，看不到選項、計畫與建議。
+    /// 讀得到畫面或是其他原因失敗時為 `nil`。
+    public private(set) var screenUpdateRequiredMessage: String?
+
+    /// 讀 pane 可見畫面;讀不到回 `nil`(呼叫端各自沿用上次或當成未知)。主機服務太舊時記下說明，讀得到就拿掉。
+    private func readScreen(format: PaneReadFormat = .text) async -> String? {
+        do {
+            let screen = try await client.readPane(paneID: paneID, format: format)
+            screenUpdateRequiredMessage = nil
+            return screen
+        } catch let error as HostServiceError {
+            if case .hostServiceUpdateRequired = error { screenUpdateRequiredMessage = HostErrorText.hostServiceMessage(error) }
+            return nil
+        } catch {
+            return nil
+        }
     }
 
     /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
@@ -1587,7 +1605,7 @@ public final class ConversationModel {
         guard awaitsNextPrompt(agent), suggestionReadsLeft > 0, screenThisPoll == nil else { return nil }
         let epoch = suggestionEpoch
         suggestionReadsLeft -= 1
-        guard let screen = try? await client.readPane(paneID: paneID, format: .ansi), epoch == suggestionEpoch else { return nil }
+        guard let screen = await readScreen(format: .ansi), epoch == suggestionEpoch else { return nil }
         screenThisPoll = Self.plainText(ansi: screen)
         return SuggestionRead(suggestion: PromptSuggestion.detect(screen: screen), epoch: epoch)
     }
@@ -1652,7 +1670,7 @@ public final class ConversationModel {
     private func refreshLivePreview() async {
         if agentStatus == .working, prompt == nil {
             if workingScreenDue {
-                if screenThisPoll == nil { screenThisPoll = try? await client.readPane(paneID: paneID) }
+                if screenThisPoll == nil { screenThisPoll = await readScreen() }
                 screenPreview = screenThisPoll.flatMap(LivePreview.extract(screen:))
             }
         } else {

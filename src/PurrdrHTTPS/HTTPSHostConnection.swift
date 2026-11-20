@@ -578,6 +578,20 @@ enum HerdrResponseLine {
         try encode(Envelope(id: id, result: Prompted(type: "agent_prompted", delivery: delivery)))
     }
 
+    /// `pane.read` 的結果:`HerdrClient` 只讀 `read.text`。
+    static func paneRead(id: String?, text: String) throws -> Data {
+        try encode(Envelope(id: id, result: PaneRead(type: "pane_read", read: .init(text: text))))
+    }
+
+    private struct PaneRead: Encodable {
+        var type: String
+        var read: Read
+
+        struct Read: Encodable {
+            var text: String
+        }
+    }
+
     static func subscriptionStarted(id: String?) throws -> Data {
         try encode(Envelope(id: id, result: Typed(type: "subscription_started")))
     }

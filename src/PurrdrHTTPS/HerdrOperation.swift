@@ -13,6 +13,7 @@ enum HerdrMethod: String {
     case workspaceClose = "workspace.close"
     case worktreeCreate = "worktree.create"
     case agentStart = "agent.start"
+    case paneRead = "pane.read"
     /// 事件串流，走 `herdrEvents`,不是單次請求。
     case eventsSubscribe = "events.subscribe"
 
@@ -20,6 +21,7 @@ enum HerdrMethod: String {
     var requiredFeature: HostServiceFeature? {
         switch self {
         case .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart: .workspaceOperations
+        case .paneRead: .paneRead
         default: nil
         }
     }
@@ -111,6 +113,19 @@ enum HerdrOperation {
                 guard case .agentStartResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
+        case .paneRead:
+            let params = try JSONDecoder().decode(PaneReadParams.self, from: line.params)
+            guard let source = HostServiceProtocol.PaneReadSource(rawValue: params.source) else { throw HostServiceError.unsupported(line.method) }
+            let format = try params.format.map { raw in
+                guard let format = HostServiceProtocol.PaneReadFormat(rawValue: raw) else { throw HostServiceError.unsupported(line.method) }
+                return format
+            }
+            self = .request(make: {
+                .paneRead(.init(requestId: $0, paneId: params.paneID, source: source, format: format, lines: params.lines))
+            }) { id, reply, _ in
+                guard case .paneReadResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.paneRead(id: id, text: result.text)
+            }
         case .eventsSubscribe:
             throw HostServiceError.unsupported(line.method)
         }
@@ -191,6 +206,19 @@ enum HerdrOperation {
         enum CodingKeys: String, CodingKey {
             case workspaceID = "workspace_id"
             case branch
+        }
+    }
+
+    /// herdr `pane.read` 的 params(`HerdrClient` 送出的形狀;`format` 沒帶是 text)。
+    private struct PaneReadParams: Decodable {
+        var paneID: String
+        var source: String
+        var lines: Int?
+        var format: String?
+
+        enum CodingKeys: String, CodingKey {
+            case paneID = "pane_id"
+            case source, lines, format
         }
     }
 

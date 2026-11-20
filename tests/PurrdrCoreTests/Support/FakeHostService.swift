@@ -114,6 +114,10 @@ final class FakeHostService: Sendable {
         var uploadedPath: String?
         /// 有值時 `file.upload.start` 以這個錯誤碼失敗。
         var uploadStartError: String?
+        /// `pane.read` 的畫面(#303):pane id → 畫面文字(`format` 是 `text` 或沒帶時);沒有的 pane 以 herdr 的 `pane_not_found` 失敗。
+        var paneScreens: [String: String] = [:]
+        /// `pane.read` 帶 `format: ansi` 時的畫面：pane id → 含 ANSI 的文字;沒有時回 `paneScreens` 的。
+        var ansiPaneScreens: [String: String] = [:]
     }
 
     /// 進行中的上傳(仿照主機服務的 `PendingUpload`)。
@@ -426,6 +430,11 @@ final class FakeHostService: Sendable {
             return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
         case "push.status", "push.install", "push.remove", "push.update_muted":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
+        case "pane.read":
+            let paneID = message["pane_id"] as? String ?? ""
+            let screen = message["format"] as? String == "ansi" ? settings.ansiPaneScreens[paneID] ?? settings.paneScreens[paneID] : settings.paneScreens[paneID]
+            guard let screen else { return [.text(Self.error(requestID, "herdr_error", message: "pane_not_found", herdrCode: "pane_not_found"))] }
+            return [.text(Self.example("server.pane-read-result.json", requestID: requestID, changing: ["text": screen]))]
         case "file.upload.start", "file.upload.chunk":
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
