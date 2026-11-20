@@ -54,6 +54,7 @@ struct PurrdrApp: App {
             session: session,
             platform: uiTesting ? UITestingPushPlatform(isAuthorized: Self.uiTestingMemberBackend(arguments) != nil) : PushAppDelegate.platform,
             store: uiTesting ? InMemoryPushPairingStore() : UserDefaultsPushPairingStore(),
+            device: Self.pushDevice(uiTesting: uiTesting),
             configuration: PushConfiguration(
                 endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource)
         ) {
@@ -239,6 +240,15 @@ struct PurrdrApp: App {
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
         return MemberSession(transport: URLSessionBackendTransport(baseURL: baseURL), tokenStore: tokenStore)
+    }
+
+    /// 「通知裝置」裡的這支裝置(#266):id 存 Keychain,名稱預設是系統的裝置名稱(使用者可在帳號頁改)。
+    /// UI 測試用固定的 id(與假後台一致),不碰 Keychain。
+    private static func pushDevice(uiTesting: Bool) -> PushDeviceIdentity {
+        let model: PushDeviceModel = UIDevice.current.userInterfaceIdiom == .pad ? .iPad : .iPhone
+        guard !uiTesting else { return PushDeviceIdentity(id: UITestingBackendTransport.thisDeviceID, name: model.rawValue, model: model) }
+        let name = PushDeviceIdentity.validName(UIDevice.current.name) ?? model.rawValue
+        return PushDeviceIdentity(id: KeychainPushDeviceID.load(), name: name, model: model)
     }
 
     private static func uiTestingMemberBackend(_ arguments: [String]) -> UITestingBackendTransport? {

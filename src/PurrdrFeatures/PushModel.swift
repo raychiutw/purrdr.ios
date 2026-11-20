@@ -29,6 +29,8 @@ public protocol PushPairingStore: AnyObject {
     /// 16 位 hex 亂數，首次產生後持久化(拼進主機路徑 `~/.purrdr/push-<id>/`,行為規格 F14)。
     var deviceID: String { get }
     var lastDeviceToken: String? { get set }
+    /// 配對上次以哪個裝置 id 向後台註冊(#266);舊版 app 註冊的是 `nil`,啟動時帶裝置欄位重新註冊。
+    var registeredDeviceID: String? { get set }
     func keyHash(forHost host: String) -> String?
     func host(forKeyHash keyHash: String) -> String?
     func setKeyHash(_ keyHash: String?, forHost host: String)
@@ -53,6 +55,7 @@ extension PushPairingStore {
 public final class InMemoryPushPairingStore: PushPairingStore {
     public let deviceID: String
     public var lastDeviceToken: String?
+    public var registeredDeviceID: String?
     public private(set) var pairings: [String: String] = [:]
 
     public init(deviceID: String = InMemoryPushPairingStore.newDeviceID()) {
@@ -69,6 +72,7 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
     static let deviceIDKey = "push.deviceID"
     static let pairingsKey = "push.pairings"
     static let tokenKey = "push.lastDeviceToken"
+    static let registeredDeviceIDKey = "push.registeredDeviceID"
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -84,6 +88,11 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
     public var lastDeviceToken: String? {
         get { defaults.string(forKey: Self.tokenKey) }
         set { defaults.set(newValue, forKey: Self.tokenKey) }
+    }
+
+    public var registeredDeviceID: String? {
+        get { defaults.string(forKey: Self.registeredDeviceIDKey) }
+        set { defaults.set(newValue, forKey: Self.registeredDeviceIDKey) }
     }
 
     public var pairings: [String: String] {
@@ -118,38 +127,79 @@ public final class PushService {
     let session: MemberSession
     let platform: any PushPlatform
     public let store: any PushPairingStore
+    /// 這支裝置(註冊配對時帶給後台，「通知裝置」以它標出這支)。
+    public let device: PushDeviceIdentity
     let configuration: PushConfiguration
     let isPlusActive: @MainActor () async -> Bool
+    private var models: [WeakPushModel] = []
 
-    /// - Parameter isPlusActive: 會員現在有沒有 Purrdr Plus(`SubscriptionModel` 重讀後台後的 `isPlusActive`)。
+    /// - Parameters:
+    ///   - device: 這支裝置的 id(Keychain 的 UUID)、預設名稱與型號。
+    ///   - isPlusActive: 會員現在有沒有 Purrdr Plus(`SubscriptionModel` 重讀後台後的 `isPlusActive`)。
     public init(
-        session: MemberSession, platform: any PushPlatform, store: any PushPairingStore, configuration: PushConfiguration,
-        isPlusActive: @escaping @MainActor () async -> Bool
+        session: MemberSession, platform: any PushPlatform, store: any PushPairingStore, device: PushDeviceIdentity,
+        configuration: PushConfiguration, isPlusActive: @escaping @MainActor () async -> Bool
     ) {
         self.session = session
         self.platform = platform
         self.store = store
+        self.device = device
         self.configuration = configuration
         self.isPlusActive = isPlusActive
     }
 
-    /// 每次啟動：有配對時取 token(不請求權限),跟上次不同(APNs token 輪替)就對每組配對向後台重新註冊。
-    /// 主機上的配對檔只有密鑰，不必改。盡力而為，失敗下次啟動再試。
+    /// 每次啟動：有配對時取 token(不請求權限),跟上次不同(APNs token 輪替)或還沒帶裝置 id 註冊過(舊版 app)
+    /// 就對每組配對向後台重新註冊。主機上的配對檔只有密鑰，不必改。盡力而為，失敗下次啟動再試。
     public func refreshRegistrations() async {
         let pairings = store.pairings
         guard !pairings.isEmpty, await platform.authorization() == .authorized,
               let token = try? await platform.deviceToken() else { return }
         let hex = Self.hex(token)
-        guard hex != store.lastDeviceToken else { return }
+        guard hex != store.lastDeviceToken || store.registeredDeviceID != device.id else { return }
         var allSucceeded = true
         for keyHash in pairings.values.sorted() {
             do {
-                try await session.registerPushPairing(keyHash: keyHash, deviceToken: hex, environment: configuration.environment)
+                try await session.registerPushPairing(
+                    keyHash: keyHash, deviceToken: hex, environment: configuration.environment, device: device)
             } catch {
                 allSucceeded = false
             }
         }
-        if allSucceeded { store.lastDeviceToken = hex }
+        if allSucceeded {
+            store.lastDeviceToken = hex
+            store.registeredDeviceID = device.id
+        }
+    }
+
+    /// 啟動時：這支裝置已不在後台的「通知裝置」(被別支裝置關閉)就清掉本機的配對，「通知」區塊回到關閉。
+    /// 讀不到清單(離線、沒有訂閱)或配對還沒帶裝置 id 註冊時不判斷。
+    public func reconcileRemoteRevocation() async {
+        guard !store.pairings.isEmpty, store.registeredDeviceID == device.id,
+              let devices = try? await session.pushDevices(currentDeviceID: device.id) else { return }
+        reconcile(with: devices)
+    }
+
+    /// 清單裡沒有這支裝置時清掉本機的配對。
+    func reconcile(with devices: [PushDevice]) {
+        guard !store.pairings.isEmpty, store.registeredDeviceID == device.id,
+              !devices.contains(where: { $0.isCurrent || $0.id == device.id }) else { return }
+        forgetAllPairings()
+    }
+
+    /// 這支裝置的後台配對已全部撤銷：清掉本機紀錄，主機上的殘留配對由外掛收到 410 時清掉。
+    func forgetAllPairings() {
+        for host in store.pairings.keys {
+            store.setKeyHash(nil, forHost: host)
+        }
+        models.removeAll { $0.model == nil }
+        for entry in models {
+            entry.model?.pairingRevoked()
+        }
+    }
+
+    func track(_ model: PushModel) {
+        models.removeAll { $0.model == nil }
+        models.append(WeakPushModel(model: model))
     }
 
     /// 移除主機時：不等待地刪掉那台主機上的配對並撤銷(行為規格 F14)。刪完配對後呼叫 `afterRemoving`(例如關閉為此另開的連線)。
@@ -172,6 +222,15 @@ public final class PushService {
     }
 
     static func hex(_ data: Data) -> String { data.map { String(format: "%02x", $0) }.joined() }
+}
+
+@MainActor
+private final class WeakPushModel {
+    weak var model: PushModel?
+
+    init(model: PushModel) {
+        self.model = model
+    }
 }
 
 /// 一台主機的推播開關(行為規格 F14、ADR-0004)。
@@ -229,6 +288,12 @@ public final class PushModel {
         self.installer = installer
         self.muted = muted
         if let hostID, service?.store.keyHash(forHost: hostID) != nil { state = .on }
+        service?.track(self)
+    }
+
+    /// 這支裝置被遠端關閉(配對已撤銷):回到關閉。
+    func pairingRevoked() {
+        if state == .on { state = .off }
     }
 
     public var isAvailable: Bool { service != nil && installer != nil }
@@ -274,9 +339,12 @@ public final class PushModel {
         guard case .confirming = state, let service, let installer, let hostID, let deviceToken else { return }
         state = .turningOn
         let key = PushPairingKey.generate()
+        // 已有其他配對時，它們是否帶裝置 id 註冊過仍由啟動時的重新註冊決定。
+        let isFirstPairing = service.store.pairings.isEmpty
         do {
             try await service.session.registerPushPairing(
-                keyHash: key.hash, deviceToken: PushService.hex(deviceToken), environment: service.configuration.environment)
+                keyHash: key.hash, deviceToken: PushService.hex(deviceToken), environment: service.configuration.environment,
+                device: service.device)
         } catch BackendError.backend(_, "subscription_required", _) {
             return stop(.needsSubscription)
         } catch BackendError.signedOut {
@@ -293,6 +361,7 @@ public final class PushModel {
         }
         service.store.setKeyHash(key.hash, forHost: hostID)
         service.store.lastDeviceToken = PushService.hex(deviceToken)
+        if isFirstPairing { service.store.registeredDeviceID = service.device.id }
         state = .on
     }
 

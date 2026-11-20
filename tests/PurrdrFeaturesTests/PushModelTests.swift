@@ -36,6 +36,7 @@ struct PushModelTests {
         PushService(
             session: MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens),
             platform: platform, store: store ?? self.store,
+            device: PushDeviceIdentity(id: "6f1c2a4e-3b7d-4c8e-9a10-2b3c4d5e6f70", name: "iPhone", model: .iPhone),
             configuration: PushConfiguration(endpoint: Self.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
             isPlusActive: { plusActive })
     }
@@ -497,6 +498,7 @@ struct PushModelTests {
     func unchangedTokenDoesNothing() async {
         store.setKeyHash(String(repeating: "1", count: 64), forHost: "studio")
         store.lastDeviceToken = Self.tokenHex
+        store.registeredDeviceID = "6f1c2a4e-3b7d-4c8e-9a10-2b3c4d5e6f70"
         platform.status = .authorized
 
         await service().refreshRegistrations()

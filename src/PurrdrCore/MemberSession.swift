@@ -112,10 +112,14 @@ public actor MemberSession {
     }
 
     /// 向後台註冊(或更新 device token)一組推播配對。只送配對密鑰的**雜湊**,密鑰本身不離開 app 與主機。
+    /// 帶上這支裝置(`device`),同一支裝置的配對在「通知裝置」歸成一台(#266)。
     /// 需要有效訂閱(否則 403 `subscription_required`)。
-    public func registerPushPairing(keyHash: String, deviceToken: String, environment: PushEnvironment) async throws {
+    public func registerPushPairing(
+        keyHash: String, deviceToken: String, environment: PushEnvironment, device: PushDeviceIdentity
+    ) async throws {
         let body = try JSONEncoder().encode([
             "keyHash": keyHash, "platform": "apns", "deviceToken": deviceToken, "environment": environment.rawValue,
+            "deviceId": device.id, "deviceName": device.name, "model": device.model.rawValue,
         ])
         _ = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/push-pairings", body: body))
     }
@@ -123,6 +127,28 @@ public actor MemberSession {
     /// 撤銷推播配對(只撤銷自己的;不存在也算成功)。
     public func revokePushPairing(keyHash: String) async throws {
         _ = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/push-pairings/\(keyHash)"))
+    }
+
+    // MARK: - 通知裝置(#266)
+
+    /// 會收到通知的裝置(至少開了一台主機),最新的在前;`currentDeviceID` 的那支標成 `isCurrent`。需要有效訂閱。
+    public func pushDevices(currentDeviceID: String) async throws -> [PushDevice] {
+        let response = try await authorized(BackendRequest(
+            method: "GET", path: "/v1/members/me/push-devices", query: Wire.currentDevice(currentDeviceID)))
+        return try Wire.decode(Wire.PushDevices.self, from: response).devices.map { try $0.domain() }
+    }
+
+    /// 裝置改名(需要有效訂閱)。不是自己的裝置或已沒有配對丟 404 `device_not_found`。
+    public func renamePushDevice(_ deviceID: String, to name: String, currentDeviceID: String) async throws -> PushDevice {
+        let response = try await authorized(BackendRequest(
+            method: "PATCH", path: "/v1/members/me/push-devices/\(deviceID)", query: Wire.currentDevice(currentDeviceID),
+            body: try JSONEncoder().encode(["name": name])))
+        return try Wire.decode(Wire.PushDeviceEnvelope.self, from: response).device.domain()
+    }
+
+    /// 遠端關閉裝置：撤銷它在所有主機的配對(不需要訂閱，到期也能關掉遺失的手機)。沒有配對丟 404 `device_not_found`。
+    public func revokePushDevice(_ deviceID: String) async throws {
+        _ = try await authorized(BackendRequest(method: "DELETE", path: "/v1/members/me/push-devices/\(deviceID)"))
     }
 
     // MARK: - 權杖
@@ -378,6 +404,34 @@ private enum Wire {
                     guard let id = UUID(uuidString: text) else { throw BackendError.invalidResponse }
                     return id
                 })
+        }
+    }
+
+    static func currentDevice(_ deviceID: String) -> [URLQueryItem] {
+        [URLQueryItem(name: "currentDeviceId", value: deviceID)]
+    }
+
+    struct PushDevices: Decodable {
+        var devices: [PushDeviceBody]
+    }
+
+    struct PushDeviceEnvelope: Decodable {
+        var device: PushDeviceBody
+    }
+
+    struct PushDeviceBody: Decodable {
+        var deviceId: String
+        var name: String?
+        var model: String?
+        var hostCount: Int
+        /// epoch 毫秒。
+        var lastRegisteredAt: Double
+        var current: Bool
+
+        func domain() throws -> PushDevice {
+            PushDevice(
+                id: deviceId, name: name, model: model.flatMap(PushDeviceModel.init(rawValue:)), hostCount: hostCount,
+                lastRegisteredAt: Date(timeIntervalSince1970: lastRegisteredAt / 1000), isCurrent: current)
         }
     }
 

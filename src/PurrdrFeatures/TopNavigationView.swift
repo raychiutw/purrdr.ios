@@ -71,7 +71,7 @@ public struct TopNavigationView: View {
                     }
                 case .member:
                     // 帳號頁(#246)自帶 NavigationStack 與「完成」。
-                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, hostSync: hostSync)
+                    MemberView(model: member, plus: plus, pushes: hosts.hostPushes, pushDevices: hosts.pushDevices, hostSync: hostSync)
                 case .plus:
                     if let plus {
                         PlusSheet(model: plus, member: member)

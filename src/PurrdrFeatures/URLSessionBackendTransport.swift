@@ -12,7 +12,9 @@ public struct URLSessionBackendTransport: BackendTransport {
     }
 
     public func send(_ request: BackendRequest) async throws -> BackendResponse {
-        var urlRequest = URLRequest(url: baseURL.appending(path: request.path))
+        var url = baseURL.appending(path: request.path)
+        if !request.query.isEmpty { url.append(queryItems: request.query) }
+        var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = request.method
         urlRequest.timeoutInterval = 30
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")

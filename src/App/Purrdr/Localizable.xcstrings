@@ -181,6 +181,17 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "%@ · Hosts: %lld · Last used %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld 台主機 · 最後使用：%3$@"
+          }
+        }
+      }
+    },
     "%@ · Not loaded automatically" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -698,6 +709,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "帳號"
+          }
+        }
+      }
+    },
+    "Actions for %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」的動作"
           }
         }
       }
@@ -2610,6 +2632,17 @@
         }
       }
     },
+    "Couldn’t update notification devices. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新通知裝置，請再試一次。"
+          }
+        }
+      }
+    },
     "Couldn’t update the conversation. Retrying…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2848,6 +2881,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開發板"
+          }
+        }
+      }
+    },
+    "Device Name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裝置名稱"
           }
         }
       }
@@ -3618,6 +3662,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機"
+          }
+        }
+      }
+    },
+    "Hosts: %lld · Last used %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld 台主機 · 最後使用：%2$@"
           }
         }
       }
@@ -4546,6 +4601,17 @@
         }
       }
     },
+    "No devices receive notifications yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有裝置會收到通知。"
+          }
+        }
+      }
+    },
     "No folders inside this one. You can still use it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4740,6 +4806,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有中斷任何東西。請直接回答它的問題。"
+          }
+        }
+      }
+    },
+    "Notification Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知裝置"
+          }
+        }
+      }
+    },
+    "Notification devices need Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知裝置需要 Purrdr Plus。"
           }
         }
       }
@@ -5972,6 +6060,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名"
+          }
+        }
+      }
+    },
+    "Rename Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名裝置"
           }
         }
       }
@@ -7329,6 +7428,17 @@
         }
       }
     },
+    "That device stops receiving notifications from all hosts. To get them again, turn notifications back on from that device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那支裝置將不再收到任何主機的通知。要再收到通知，請在那支裝置上重新開啟。"
+          }
+        }
+      }
+    },
     "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7978,6 +8088,17 @@
         }
       }
     },
+    "This Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置"
+          }
+        }
+      }
+    },
     "This Device’s Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8073,6 +8194,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置還沒和這台主機完成連線配對。請編輯主機，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "This device stops receiving notifications from all hosts. You can turn hosts back on under Notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置將不再收到任何主機的通知。之後可以在「通知」逐台重新開啟。"
           }
         }
       }
@@ -8737,6 +8869,39 @@
         }
       }
     },
+    "Turn Off Notifications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉通知"
+          }
+        }
+      }
+    },
+    "Turn Off Notifications for “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要關閉「%@」的通知嗎？"
+          }
+        }
+      }
+    },
+    "Turn Off Notifications…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉通知…"
+          }
+        }
+      }
+    },
     "Turn On" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8799,6 +8964,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要現在開啟通知和主機同步嗎？之後也可以在這裡開關。"
+          }
+        }
+      }
+    },
+    "Turning off a device stops its notifications from every host, even if it’s lost. Each host’s leftover pairing is removed the next time it tries to notify." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉裝置後，所有主機都不再通知它，遺失的裝置也適用。主機上殘留的配對會在下次嘗試通知時移除。"
           }
         }
       }
@@ -8913,6 +9089,17 @@
         }
       }
     },
+    "Unnamed Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名裝置"
+          }
+        }
+      }
+    },
     "Unpin" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8953,6 +9140,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "向上鍵"
+          }
+        }
+      }
+    },
+    "Up to 64 characters." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最多 64 個字。"
           }
         }
       }

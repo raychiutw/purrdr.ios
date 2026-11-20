@@ -132,6 +132,8 @@ public final class HostsModel {
     private let hostConsent: any HostWriteConsentStore
     /// 推播(後台、權限、配對紀錄);`nil` 時沒有推播。
     private let pushService: PushService?
+    /// 帳號頁「通知裝置」(#266);沒有推播時是 `nil`。
+    public let pushDevices: PushDevicesModel?
     /// 送出圖片的手機副本(泡泡顯示用;所有主機共用，檔名不重複)。
     private let attachmentStore: any AttachmentStore
     private let diagnostics: DiagnosticLog
@@ -186,6 +188,7 @@ public final class HostsModel {
         self.demoConsent = demoConsent
         self.hostConsent = hostConsent
         self.pushService = pushService
+        pushDevices = pushService.map(PushDevicesModel.init(service:))
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
@@ -530,9 +533,10 @@ public final class HostsModel {
         if let paneID = route.paneID { agentList.openedChat = ChatRoute(host: .host(id), paneID: paneID) }
     }
 
-    /// 啟動時：APNs token 換了就向後台重新註冊推播配對。
+    /// 啟動時：APNs token 換了就向後台重新註冊推播配對;這支裝置被別支關閉了就把「通知」區塊改回關閉。
     public func refreshPushRegistrations() async {
         await pushService?.refreshRegistrations()
+        await pushService?.reconcileRemoteRevocation()
     }
 
     /// 點了推播通知(用 app 的推播紀錄)。

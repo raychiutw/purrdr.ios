@@ -12,13 +12,16 @@ public struct BackendRequest: Sendable, Equatable {
     public var method: String
     /// 相對於後台網址的路徑，例如 `/v1/sessions`。
     public var path: String
+    /// 網址的 query(例如 `currentDeviceId`);空的不加 `?`。
+    public var query: [URLQueryItem]
     public var accessToken: String?
     /// JSON body。
     public var body: Data?
 
-    public init(method: String, path: String, accessToken: String? = nil, body: Data? = nil) {
+    public init(method: String, path: String, query: [URLQueryItem] = [], accessToken: String? = nil, body: Data? = nil) {
         self.method = method
         self.path = path
+        self.query = query
         self.accessToken = accessToken
         self.body = body
     }

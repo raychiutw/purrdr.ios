@@ -11,20 +11,26 @@ public struct MemberView: View {
     let plus: SubscriptionModel?
     /// 每台主機的推播開關(步驟三與「通知」區塊)。
     let pushes: [HostPush]
+    /// 會員名下收通知的裝置(「通知裝置」區塊)。
+    let pushDevices: PushDevicesModel?
     /// 主機同步(步驟四)。
     let hostSync: HostSyncModel?
     @Environment(\.dismiss) private var dismiss
 
-    public init(model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], hostSync: HostSyncModel? = nil) {
+    public init(
+        model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
+        hostSync: HostSyncModel? = nil
+    ) {
         self.model = model
         self.plus = plus
         self.pushes = pushes
+        self.pushDevices = pushDevices
         self.hostSync = hostSync
     }
 
     public var body: some View {
         NavigationStack {
-            MemberContent(model: model, plus: plus, pushes: pushes, hostSync: hostSync)
+            MemberContent(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -40,12 +46,17 @@ public struct MemberContent: View {
     @Bindable var model: MemberModel
     let plus: SubscriptionModel?
     let pushes: [HostPush]
+    let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
 
-    public init(model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], hostSync: HostSyncModel? = nil) {
+    public init(
+        model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
+        hostSync: HostSyncModel? = nil
+    ) {
         self.model = model
         self.plus = plus
         self.pushes = pushes
+        self.pushDevices = pushDevices
         self.hostSync = hostSync
     }
 
@@ -83,7 +94,7 @@ public struct MemberContent: View {
                 }
             }
         } else {
-            AccountView(model: model, plus: plus, pushes: pushes, hostSync: hostSync)
+            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
         }
     }
 
@@ -227,11 +238,12 @@ struct SignInButtons: View {
 
 // MARK: - 帳號頁
 
-/// 帳號頁：頭像、步驟卡(完成後收成一列)、每台主機的通知、主機同步、登入方式、登出、刪除會員。
+/// 帳號頁：頭像、步驟卡(完成後收成一列)、每台主機的通知、通知裝置、主機同步、登入方式、登出、刪除會員。
 struct AccountView: View {
     let model: MemberModel
     let plus: SubscriptionModel?
     let pushes: [HostPush]
+    let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
     @State private var confirmingDeletion = false
     @State private var signingIn = false
@@ -273,6 +285,9 @@ struct AccountView: View {
                 if progress.isPlusActive {
                     // 四步完成、步驟卡收合後，通知與主機同步仍可隨時開關(spec #261 原型 A)。
                     HostPushSection(pushes: pushes) { showingPlus = true }
+                    if let pushDevices {
+                        PushDevicesSection(model: pushDevices)
+                    }
                     if let hostSync, progress.state(of: .syncHosts) == .done {
                         HostSyncSection(model: hostSync, plus: plus, member: model)
                     }
@@ -318,6 +333,7 @@ struct AccountView: View {
         }
         .task(id: signedInMember?.id) { await plus?.refresh() }
         .hostPushConfirmation(pushes)
+        .pushDevicesDialogs(progress?.isPlusActive == true ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
         .alert("Purrdr Plus Is On", isPresented: $offeringFeatureSetup) {
             Button("Later", role: .cancel) {}
             Button("Turn On All") { turnOnAll() }
