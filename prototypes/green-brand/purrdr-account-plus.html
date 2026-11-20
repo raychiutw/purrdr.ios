@@ -1,0 +1,174 @@
+<title>帳號與 Purrdr Plus</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* PROTOTYPE（拋棄式）：帳號頁未登入動線、預設頭像、Purrdr Plus 頁、測試通知。#variant=A|B|C */
+/* Layout: 左側說明＋狀態，右側 iPhone 尺寸畫面；底部浮動切換列 */
+:root{--page:#f2f2f7;--surface:#fff;--grouped:#f2f2f7;--fg:#000;--secondary:#3c3c4399;--separator:#3c3c4329;--fill:#7878801f;--accent:#0b7a5c;--on-accent:#fff;--bar-bg:#111;--bar-fg:#fff;--danger:#d70015;--avatar:#8e8e93;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--grouped:#000;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--fill:#7878805c;--accent:#3ccf9e;--on-accent:#000;--bar-bg:#f2f2f7;--bar-fg:#000;--danger:#ff6961;--avatar:#636366;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--grouped:#000;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--fill:#7878805c;--accent:#3ccf9e;--on-accent:#000;--bar-bg:#f2f2f7;--bar-fg:#000;--danger:#ff6961;--avatar:#636366;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;padding-block:16px 130px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:24px;align-items:start}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr)}}
+h1{font-size:20px;margin:0 0 4px}.lede{color:var(--secondary);margin:0 0 12px;font-size:14px}
+.panel{background:var(--surface);border-radius:14px;padding:14px 16px;margin-bottom:12px}.panel h2{font-size:16px;margin:0 0 6px}.panel ul{margin:0;padding-left:20px}.panel li{margin:3px 0}
+.state{font:12px/1.5 ui-monospace,Menlo,monospace;background:var(--fill);border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:8px;overflow-x:auto}
+.toggles{display:flex;flex-wrap:wrap;gap:8px}
+.toggles button,.seg button{border:1px solid var(--separator);background:var(--surface);color:var(--fg);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.toggles button.on,.seg button.on{background:var(--accent);color:var(--on-accent);border-color:transparent;font-weight:600}
+.phone{width:100%;max-width:390px;height:760px;border-radius:36px;background:var(--grouped);border:1px solid var(--separator);overflow:hidden;display:flex;flex-direction:column;position:relative;justify-self:center}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 8px;min-height:56px}
+.nav .t{font-weight:600;font-size:17px}.navbtn{border:0;background:var(--fill);color:var(--fg);border-radius:999px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+.navbtn.ghost{background:none;color:transparent;pointer-events:none}
+.scroll{flex:1;overflow-y:auto;padding:4px 16px 24px}
+.hdr{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 0 18px;text-align:center}
+.avatar{width:84px;height:84px;border-radius:50%;background:var(--avatar);display:grid;place-items:center;color:#fff}
+.avatar.small{width:30px;height:30px}
+.avatar.photo{background:linear-gradient(135deg,#3ccf9e,#0b7a5c);font-size:34px;font-weight:700}
+.name{font-size:22px;font-weight:700}.sub{color:var(--secondary);font-size:14px}
+.group{background:var(--surface);border-radius:12px;overflow:hidden;margin-bottom:8px}
+.ghead{font-size:13px;color:var(--secondary);padding:14px 16px 6px;text-transform:none}
+.gfoot{font-size:12.5px;color:var(--secondary);padding:6px 16px 14px}
+.row{display:flex;align-items:center;gap:12px;padding:11px 16px;min-height:44px;border-top:.5px solid var(--separator)}
+.group .row:first-child{border-top:0}
+.row .grow{flex:1;min-width:0}.row .r2{font-size:13px;color:var(--secondary)}
+.chev{color:var(--secondary)}
+.sw{width:51px;height:31px;border-radius:999px;background:var(--fill);position:relative;flex:none;cursor:pointer;border:0}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0004;transition:left .15s}
+.sw.on{background:#34c759}.sw.on::after{left:22px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:12px;padding:14px;font:inherit;font-weight:600;font-size:16px;cursor:pointer;margin-top:10px}
+.btn.apple{background:var(--fg);color:var(--page)}.btn.google{background:var(--surface);color:var(--fg);border:1px solid var(--separator)}
+.btn.prim{background:var(--accent);color:var(--on-accent)}
+.link{color:var(--accent);background:none;border:0;font:inherit;cursor:pointer;padding:0}
+.pill{border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:600;background:var(--accent);color:var(--on-accent);cursor:pointer}
+.pill.tinted{background:var(--fill);color:var(--accent)}
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:28px 8px 12px}
+.logo{width:72px;height:72px;border-radius:18px;background:linear-gradient(160deg,#fff,#f1ece8);display:grid;place-items:center;box-shadow:0 2px 8px #0002}
+.badge{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.feat{display:flex;gap:12px;align-items:flex-start;padding:10px 16px;border-top:.5px solid var(--separator)}.group .feat:first-child{border-top:0}
+.feat svg{flex:none;margin-top:2px;color:var(--accent)}
+.plan{border:2px solid var(--separator);border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;margin-top:8px;cursor:pointer}
+.plan.sel{border-color:var(--accent)}
+.toast{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;background:var(--bar-bg);color:var(--bar-fg);padding:10px 16px;border-radius:999px;font-size:14px;box-shadow:0 4px 16px #0005;white-space:nowrap}
+.minor{display:flex;flex-wrap:wrap;gap:16px;justify-content:center;font-size:13px;padding:14px 0}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;box-shadow:0 6px 24px #0005;max-width:calc(100% - 32px);overflow-x:auto;z-index:9}
+.switcher button{border:0;background:none;color:inherit;font:inherit;font-size:14px;padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.switcher button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <div>
+    <h1>帳號與 Purrdr Plus</h1>
+    <p class="lede">拋棄式原型。底部切換 A／B／C；左邊的按鈕切換畫面與狀態（登入、訂閱、通知）。右邊是 iPhone 寬度的畫面，可以直接點。</p>
+    <div class="panel"><h2 id="vt"></h2><ul id="vn"></ul></div>
+    <div class="panel">
+      <h2>畫面</h2>
+      <div class="seg toggles" id="screens"></div>
+      <h2 style="margin-top:12px">狀態</h2>
+      <div class="toggles" id="flags"></div>
+      <div class="state" id="state"></div>
+    </div>
+    <div class="panel"><h2>三個版本都一樣的部分</h2><ul>
+      <li>未登入的頭像一律是系統人頭圖（person.crop.circle），不用問號。</li>
+      <li>未登入時步驟卡不會把「開啟通知」「同步主機名單」打勾（這兩步要先登入、開通才算）。</li>
+      <li>已訂閱時 Plus 頁不放「恢復購買項目」；「兌換代碼」與「恢復購買項目」只在還沒訂閱時出現。</li>
+      <li>通知開著的主機有「傳送測試通知」，送出後在畫面下方提示結果。</li>
+    </ul></div>
+  </div>
+  <div class="phone" id="phone"></div>
+</div>
+<div class="switcher"><button data-v="A">A 登入頁優先</button><button data-v="B">B 保留步驟卡</button><button data-v="C">C 頭像直接登入</button><button id="th">深淺色</button></div>
+
+<script>
+const ICON={person:'<svg width="56" height="56" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8.2" r="4"/><path d="M4 20.2c0-4.1 3.6-6.6 8-6.6s8 2.5 8 6.6z"/></svg>',
+personS:'<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8.2" r="4"/><path d="M4 20.2c0-4.1 3.6-6.6 8-6.6s8 2.5 8 6.6z"/></svg>',
+check:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+bell:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>',
+sync:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12a8 8 0 0 1 14-5.3L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15"/><path d="M4 20v-5h5"/></svg>',
+paw:'<svg width="40" height="40" viewBox="0 0 1024 1024"><g fill="#0B7A5C"><circle cx="300" cy="344" r="64"/><circle cx="434" cy="238" r="82"/><circle cx="618" cy="238" r="82"/><circle cx="752" cy="344" r="64"/><rect x="246" y="414" width="560" height="330" rx="165"/></g><g fill="#fff"><circle cx="434" cy="579" r="36"/><circle cx="526" cy="579" r="36"/><circle cx="618" cy="579" r="36"/></g></svg>',
+apple:'<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9s-1.8-.9-3-.8c-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.5-1-2.5-3.6zM14.1 5.6c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>',
+google:'<svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.6a4.8 4.8 0 0 1-2.1 3.1v2.6h3.4c2-1.8 3.1-4.5 3.1-7.5z"/><path fill="#34A853" d="M12 22c2.8 0 5.2-.9 6.9-2.5l-3.4-2.6c-.9.6-2.1 1-3.5 1-2.7 0-5-1.8-5.8-4.3H2.7v2.7A10 10 0 0 0 12 22z"/><path fill="#FBBC05" d="M6.2 13.6a6 6 0 0 1 0-3.8V7.1H2.7a10 10 0 0 0 0 9z"/><path fill="#EA4335" d="M12 6c1.5 0 2.9.5 4 1.5l3-3A10 10 0 0 0 2.7 7.1l3.5 2.7C7 7.8 9.3 6 12 6z"/></svg>'};
+const V={
+ A:{t:"A：登入頁優先",n:["沒登入時，帳號 sheet 直接是登入頁（Apple、Google 兩顆大按鈕），不出現步驟卡。","登入後才看到會員資料、Purrdr Plus、通知、通知裝置、主機同步。","Plus 頁已訂閱：上面狀態卡（方案、續訂日、管理訂閱），下面列出包含的功能；條款與隱私權放最下。"]},
+ B:{t:"B：保留步驟卡",n:["沒登入時保留「設定 Purrdr Plus」步驟卡，但頭像換人頭圖，第一步就是登入；3、4 步顯示鎖住，不打勾。","登入、開通、開通知、同步都完成後收成一列「Purrdr Plus・已開通」（現況行為）。","Plus 頁已訂閱改成系統 Form 列：方案、續訂日、管理訂閱一列一列。"]},
+ C:{t:"C：頭像直接登入",n:["右上角帳號鈕本身就是頭像；沒登入時點了直接開登入 sheet，不經過帳號頁。","登入後點頭像才開帳號頁。","Plus 頁已訂閱：大勾勾徽章＋一句話，功能清單，管理訂閱放在按鈕列。"]}};
+let v=(location.hash.match(/variant=([ABC])/)||[])[1]||"A";
+const S={screen:"account",signedIn:false,subscribed:true,pushOn:true,testSent:false,toast:""};
+{const q=new URLSearchParams(location.search);if(q.get("screen"))S.screen=q.get("screen");if(q.has("signedIn"))S.signedIn=q.get("signedIn")==="1";if(q.has("subscribed"))S.subscribed=q.get("subscribed")==="1";if(q.get("variant"))v=q.get("variant");}
+const SCREENS={account:"帳號",plus:"Purrdr Plus",top:"首頁右上角"};
+function sw(on,id){return `<button class="sw ${on?"on":""}" role="switch" aria-checked="${on}" data-act="${id}" aria-label="${id}"></button>`}
+function avatar(small){return S.signedIn?`<div class="avatar photo ${small?"small":""}" aria-label="Ray">${small?"R":"R"}</div>`:`<div class="avatar ${small?"small":""}" aria-label="未登入">${small?ICON.personS:ICON.person}</div>`}
+function signIn(extra){return `<div class="hero"><div class="logo">${ICON.paw}</div><div class="name" style="margin-top:8px">登入 Purrdr</div><div class="sub">登入後可以開通 Purrdr Plus，收 Agent 的通知、在 iPhone 和 iPad 之間同步主機。</div></div>
+<button class="btn apple" data-act="login">${ICON.apple} 使用 Apple 登入</button><button class="btn google" data-act="login">${ICON.google} 使用 Google 登入</button>
+<p class="sub" style="text-align:center;margin-top:16px">聊天與終端機不需要登入。</p>${extra||""}`}
+function pushGroup(){return `<div class="ghead">通知</div><div class="group">
+<div class="row"><div class="grow">Ray Mac Mini<div class="r2">${S.pushOn?"通知已開啟":"通知已關閉"}</div></div>${sw(S.pushOn,"push")}</div>
+${S.pushOn?`<div class="row"><button class="link" data-act="test">${S.testSent?"再傳一次測試通知":"傳送測試通知"}</button></div>`:""}
+<div class="row"><div class="grow">Studio PC<div class="r2">通知已關閉</div></div>${sw(false,"noop")}</div></div>
+<div class="gfoot">「傳送測試通知」會從這台主機經 Purrdr 伺服器送一則通知到這支裝置，確認整條路通。</div>`}
+function memberRows(){return `<div class="hdr">${avatar()}<div class="name">Ray Chiu</div><div class="sub">以 Google 登入</div></div>
+<div class="group"><div class="row" data-act="goPlus" style="cursor:pointer"><div class="grow">Purrdr Plus<div class="r2">${S.subscribed?"已開通・月繳":"未開通"}</div></div><span class="chev">›</span></div></div>
+${S.subscribed?pushGroup():`<div class="gfoot">開通 Purrdr Plus 後可以開通知與同步主機。</div>`}
+<div class="ghead">主機同步</div><div class="group"><div class="row"><div class="grow">同步主機</div>${sw(S.subscribed,"noop")}</div></div>
+<div class="group" style="margin-top:16px"><div class="row"><div class="grow">登入方式</div><span class="chev">›</span></div><div class="row"><button class="link" data-act="logout">登出</button></div></div>`}
+function stepCard(){const steps=[["加入會員","用 Apple 或 Google 登入",S.signedIn],["開通 Purrdr Plus","可免費試用",S.signedIn&&S.subscribed],["開啟通知",S.pushOn?"Ray Mac Mini":"選擇主機",S.signedIn&&S.subscribed&&S.pushOn],["同步主機名單","iPhone、iPad 共用主機",S.signedIn&&S.subscribed]];
+ const firstOpen=steps.findIndex(s=>!s[2]);const done=steps.filter(s=>s[2]).length;
+ return `<div class="group" style="padding:14px 16px"><div style="font-weight:700;font-size:17px">設定 Purrdr Plus</div><div class="sub">完成 ${done} / 4</div>
+ ${steps.map((s,i)=>{const locked=!s[2]&&i>firstOpen;return `<div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:.5px solid var(--separator);margin-top:${i?0:10}px">
+ <div style="width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex:none;${s[2]?"background:var(--accent);color:var(--on-accent)":i===firstOpen?"border:2px solid var(--accent);color:var(--accent);font-weight:700":"background:var(--fill);color:var(--secondary)"}">${s[2]?ICON.check:(locked?"🔒︎":i+1)}</div>
+ <div class="grow" style="${locked?"opacity:.55":""}"><div style="font-weight:600">${s[0]}</div><div class="r2">${s[1]}</div></div>
+ ${i===firstOpen?`<button class="pill" data-act="${i===0?"login":"goPlus"}">${i===0?"登入":"開通"}</button>`:""}</div>`}).join("")}</div>
+ <div class="gfoot">通知與主機同步需要 Purrdr Plus。聊天與終端機不需要會員或訂閱。</div>`}
+function account(){
+ if(v==="A"&&!S.signedIn)return signIn();
+ if(v==="B"&&!(S.signedIn&&S.subscribed))return `<div class="hdr">${avatar()}<div class="name">${S.signedIn?"Ray Chiu":"尚未登入"}</div>${S.signedIn?'<div class="sub">以 Google 登入</div>':""}</div>${stepCard()}${S.signedIn?memberRows().split('<div class="group"')[0]:""}`;
+ if(v==="C"&&!S.signedIn)return signIn('<p class="sub" style="text-align:center">（C 版不會走到這頁：沒登入時頭像直接開登入 sheet）</p>');
+ return memberRows();}
+const FEATS=[["bell","Agent 需要你、做完時通知你","每台主機分開開關，iPhone、iPad 同時收"],["sync","主機名單在各裝置同步","名稱、位址、連線方式；密碼與私鑰不離開裝置"]];
+function feats(){return `<div class="group">${FEATS.map(f=>`<div class="feat">${ICON[f[0]]}<div><div style="font-weight:600">${f[1]}</div><div class="r2">${f[2]}</div></div></div>`).join("")}</div>`}
+function plus(){
+ if(!S.subscribed){return `<div class="hero"><div class="name">Purrdr Plus</div><div class="sub">免費試用 7 天，之後自動續訂，可隨時取消。</div></div>${feats()}
+ <div class="plan sel"><div><b>月繳</b><div class="r2">NT$90／月</div></div><span style="color:var(--accent)">${ICON.check}</span></div><div class="plan"><div><b>年繳</b><div class="r2">NT$900／年・省 17%</div></div></div>
+ <button class="btn prim" data-act="subscribe">開始免費試用</button>
+ <div class="minor"><button class="link" data-act="noop">恢復購買項目</button><button class="link" data-act="noop">兌換代碼</button></div>
+ <div class="minor" style="padding-top:0"><button class="link">使用條款</button><button class="link">隱私權政策</button></div>`}
+ const manage=`<button class="pill tinted" data-act="noop">管理訂閱</button>`;
+ if(v==="A")return `<div class="group" style="padding:16px;margin-top:8px"><div class="badge" style="color:var(--accent)">${ICON.check}<span style="color:var(--fg)">Purrdr Plus 已開通</span></div><div style="margin-top:8px">月繳 NT$90</div><div class="r2">2026 年 11 月 21 日自動續訂</div><div style="margin-top:12px">${manage}</div></div>
+ <div class="ghead">包含</div>${feats()}<div class="minor"><button class="link">使用條款</button><button class="link">隱私權政策</button></div>`;
+ if(v==="B")return `<div class="ghead">你的訂閱</div><div class="group"><div class="row"><div class="grow">方案</div><span class="sub">月繳 NT$90</span></div><div class="row"><div class="grow">下次續訂</div><span class="sub">2026/11/21</span></div><div class="row"><button class="link" data-act="noop">管理訂閱</button></div></div>
+ <div class="ghead">包含</div>${feats()}<div class="minor"><button class="link">使用條款</button><button class="link">隱私權政策</button></div>`;
+ return `<div class="hero"><div style="width:64px;height:64px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center">${ICON.check.replace('width="20" height="20"','width="34" height="34"')}</div><div class="name" style="margin-top:8px">你已開通 Purrdr Plus</div><div class="sub">月繳・2026 年 11 月 21 日續訂</div><div style="margin-top:10px">${manage}</div></div>${feats()}<div class="minor"><button class="link">使用條款</button><button class="link">隱私權政策</button></div>`}
+function homeScreen(){return `<div class="scroll"><div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px"><button class="navbtn" style="font-weight:500">顯示：所有主機 ▾</button><div style="display:flex;gap:8px"><button class="navbtn">⋯</button><button data-act="${v==="C"&&!S.signedIn?"openLogin":"openAccount"}" style="border:0;background:none;padding:0;cursor:pointer" aria-label="帳號">${avatar(true).replace('avatar small','avatar small" style="width:44px;height:44px')}</button></div></div>
+<div class="group"><div class="row"><div class="grow"><b>Claude Code</b><div class="r2">weather-app・需要你</div></div></div><div class="row"><div class="grow"><b>Codex</b><div class="r2">notes・工作中</div></div></div></div>
+<p class="sub" style="text-align:center">點右上角頭像。${v==="C"&&!S.signedIn?"C 版沒登入時直接開登入 sheet。":"其他情況開帳號頁。"}</p></div>`}
+function render(){
+ document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+ document.getElementById("vt").textContent=V[v].t;document.getElementById("vn").innerHTML=V[v].n.map(x=>`<li>${x}</li>`).join("");
+ document.getElementById("screens").innerHTML=Object.entries(SCREENS).map(([k,l])=>`<button class="${S.screen===k?"on":""}" data-screen="${k}">${l}</button>`).join("");
+ document.getElementById("flags").innerHTML=[["signedIn","已登入"],["subscribed","已訂閱"],["pushOn","Ray Mac Mini 通知開"]].map(([k,l])=>`<button class="${S[k]?"on":""}" data-flag="${k}">${l}</button>`).join("");
+ const p=document.getElementById("phone");let body,title,left="";
+ if(S.screen==="top"){body=homeScreen();title=""}
+ else if(S.screen==="plus"){title="Purrdr Plus";left='<button class="navbtn" data-screen="account" aria-label="返回">‹</button>';body=`<div class="scroll">${plus()}</div>`}
+ else{title=(v!=="B"&&!S.signedIn)?"登入":"帳號";body=`<div class="scroll">${account()}</div>`}
+ p.innerHTML=(title?`<div class="nav">${left||'<button class="navbtn ghost">.</button>'}<div class="t">${title}</div><button class="navbtn" data-screen="top">完成</button></div>`:"")+body+(S.toast?`<div class="toast" role="status">${S.toast}</div>`:"");
+ document.getElementById("state").textContent=JSON.stringify({版本:v,畫面:SCREENS[S.screen],已登入:S.signedIn,已訂閱:S.subscribed,通知:S.pushOn?"Ray Mac Mini 開":"關",測試通知:S.testSent?"已送出":"未送"},null,2)}
+function toast(t){S.toast=t;render();clearTimeout(toast.h);toast.h=setTimeout(()=>{S.toast="";render()},2600)}
+document.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+ if(b.dataset.v){v=b.dataset.v;location.hash="variant="+v;return render()}
+ if(b.id==="th"){const r=document.documentElement,d=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=d?"light":"dark";return}
+ if(b.dataset.screen){S.screen=b.dataset.screen;return render()}
+ if(b.dataset.flag){S[b.dataset.flag]=!S[b.dataset.flag];if(b.dataset.flag==="signedIn"&&!S.signedIn)S.screen=S.screen==="top"?"top":"account";return render()}
+ const a=b.dataset.act;
+ if(a==="login"){S.signedIn=true;S.screen="account";return toast("已以 Google 登入")}
+ if(a==="logout"){S.signedIn=false;return render()}
+ if(a==="goPlus"){S.screen="plus";return render()}
+ if(a==="subscribe"){S.subscribed=true;return toast("已開通 Purrdr Plus")}
+ if(a==="push"){S.pushOn=!S.pushOn;S.testSent=false;return render()}
+ if(a==="test"){S.testSent=true;return toast("已送出測試通知，幾秒內會收到")}
+ if(a==="openAccount"){S.screen="account";return render()}
+ if(a==="openLogin"){S.screen="account";return render()}
+});
+addEventListener("hashchange",()=>{const m=location.hash.match(/variant=([ABC])/);if(m){v=m[1];render()}});
+render();
+</script>
