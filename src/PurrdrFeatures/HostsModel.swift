@@ -816,10 +816,15 @@ public enum HostPushSupport: Equatable, Sendable {
     case needsHostService(version: String, update: HostServiceUpdateCommands)
 }
 
+@MainActor
 extension [HostPush] {
     /// 已開啟通知的主機名稱(依列表順序)。
     public var notifyingHostNames: [String] {
-        filter { $0.support == .supported && $0.model.state == .on }.map(\.name)
+        // `&&` 的右邊是 nonisolated autoclosure,不能讀 main actor 的 state。
+        filter { hostPush in
+            guard hostPush.support == .supported else { return false }
+            return hostPush.model.state == .on
+        }.map(\.name)
     }
 }
 
