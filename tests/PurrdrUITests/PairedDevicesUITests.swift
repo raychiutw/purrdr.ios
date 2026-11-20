@@ -34,6 +34,23 @@ final class PairedDevicesUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 10), .completed, "撤銷後還在列表")
     }
 
+    /// 「這支裝置」滑動是「移除主機」:回到主機清單跳出移除主機的確認(撤銷自己沿用移除主機流程)。
+    @MainActor
+    func testThisDeviceRowOpensHostRemoval() {
+        let app = XCUIApplication.launchUITesting()
+        addHTTPSHost(app, code: "K7QM-2XPA")
+        openStatus(app)
+
+        let thisDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing"].firstMatch
+        XCTAssertTrue(thisDevice.waitForExistence(timeout: 10) || scrollTo(thisDevice, in: app), "沒有這支裝置")
+        thisDevice.swipeLeft()
+        let remove = app.buttons["pairedDevices.removeHost"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "這支裝置沒有移除主機")
+        remove.tap()
+
+        XCTAssertTrue(app.buttons["hosts.delete.confirm"].waitForExistence(timeout: 5), "沒有移除主機的確認")
+    }
+
     /// 唯讀裝置(配對碼 `R3AD-0NLY`):看得到列表，沒有撤銷動作並說明原因。
     @MainActor
     func testReadOnlyDeviceOnlyViews() {

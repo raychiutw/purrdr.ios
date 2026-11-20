@@ -83,6 +83,30 @@ struct PairedDevicesModelTests {
         #expect(host.revoked.isEmpty)
     }
 
+    @Test("這支裝置那列導到移除主機的流程(POST /v1/revoke),不送 devices.revoke;唯讀裝置也可以")
+    func currentDeviceRowOpensHostRemoval() async {
+        let host = FakePairedDevicesHost(devices: [Self.thisPhone, Self.iPad], isReadOnly: true)
+        let removals = Mutex(0)
+        let model = PairedDevicesModel(host: host) { removals.withLock { $0 += 1 } }
+        await model.load()
+
+        #expect(model.canRemoveHost(from: Self.thisPhone))
+        #expect(!model.canRemoveHost(from: Self.iPad))
+        model.requestHostRemoval(from: Self.iPad)
+        model.requestHostRemoval(from: Self.thisPhone)
+
+        #expect(removals.withLock { $0 } == 1)
+        #expect(host.revoked.isEmpty)
+    }
+
+    @Test("沒有移除主機的入口(例如新增主機時):這支裝置那列沒有動作")
+    func currentDeviceRowWithoutRemovalHasNoAction() async {
+        let model = PairedDevicesModel(host: FakePairedDevicesHost(devices: [Self.thisPhone]))
+        await model.load()
+
+        #expect(!model.canRemoveHost(from: Self.thisPhone))
+    }
+
     @Test("唯讀裝置只能看：不能撤銷任何裝置")
     func readOnlyDeviceOnlyViews() async {
         let host = FakePairedDevicesHost(devices: [Self.thisPhone, Self.iPad], isReadOnly: true)

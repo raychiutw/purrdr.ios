@@ -193,7 +193,8 @@ public struct HostListView: View {
                 HostEditorView(
                     model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }),
                     hostSettings: route.hostID.flatMap(model.hostSettings(for:)),
-                    hostStatusConnection: route.hostID.flatMap(model.hostStatusConnection(for:))
+                    hostStatusConnection: route.hostID.flatMap(model.hostStatusConnection(for:)),
+                    onRemoveHost: removeHostAction(for: route.hostID)
                 ) { host in
                     saved(host)
                 } onCancel: {
@@ -233,6 +234,13 @@ public struct HostListView: View {
         }
         // 主機編輯器的「測試連線」也可能遇到 check mode;sheet 蓋住 Agent 列表，所以這裡也要顯示。
         .tailscaleCheckPrompt(model.tailscaleCheck)
+    }
+
+    /// 主機頁已配對裝置「這支裝置」那列：回主機清單跳出移除確認(#291)。
+    private func removeHostAction(for id: UUID?) -> (@MainActor () -> Void)? {
+        guard let id, let host = model.hosts.first(where: { $0.id == id }) else { return nil }
+        let name = host.name
+        return { flow.requestDeletionFromEditor(of: id, name: name) }
     }
 
     private func saved(_ host: HostConfiguration) {

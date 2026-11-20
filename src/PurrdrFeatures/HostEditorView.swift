@@ -20,11 +20,15 @@ struct HostEditorView: View {
     let onIconSaved: () -> Void
     /// 已存主機的主機設定(#274):主機主題、You should know、Codex 啟動器，放在主機頁最下方;新增主機時沒有。
     let hostSettings: HostSettings?
-    /// 已配對 HTTPS 主機的連線：主機頁下方顯示主機服務與已配對裝置(#290、#291)。
-    let hostStatusConnection: (any HostConnection)?
+    /// 已配對 HTTPS 主機的主機服務與已配對裝置(#290、#291),在主機頁下方;可以下拉重新整理。
+    @State private var hostStatus: HostStatusModels?
 
+    /// - Parameters:
+    ///   - hostStatusConnection: 已配對 HTTPS 主機的連線。
+    ///   - onRemoveHost: 已配對裝置「這支裝置」那列走移除主機的流程。
     init(
         model: HostEditorModel, hostSettings: HostSettings? = nil, hostStatusConnection: (any HostConnection)? = nil,
+        onRemoveHost: (@MainActor () -> Void)? = nil,
         onSaved: @escaping (HostConfiguration) -> Void,
         onCancel: @escaping () -> Void, onIconSaved: @escaping () -> Void
     ) {
@@ -35,7 +39,13 @@ struct HostEditorView: View {
         self.onCancel = onCancel
         self.onIconSaved = onIconSaved
         self.hostSettings = hostSettings
-        self.hostStatusConnection = hostStatusConnection
+        _hostStatus = State(initialValue: hostStatusConnection.map { HostStatusModels(connection: $0, removeHost: onRemoveHost) })
+    }
+
+    /// 主機服務與已配對裝置的下拉重新整理;沒有這兩個區塊時不能下拉。
+    private var refreshHostStatus: (@Sendable () async -> Void)? {
+        guard let hostStatus else { return nil }
+        return { await hostStatus.refresh() }
     }
 
     var body: some View {
@@ -97,10 +107,11 @@ struct HostEditorView: View {
                 CodexLauncherSection(model: hostSettings.codexLauncher)
             }
 
-            if let hostStatusConnection {
-                HostStatusSections(connection: hostStatusConnection)
+            if let hostStatus {
+                HostStatusSections(models: hostStatus)
             }
         }
+        .refreshable(refreshHostStatus)
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
         }

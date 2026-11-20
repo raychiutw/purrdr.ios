@@ -6174,6 +6174,17 @@
         }
       }
     },
+    "Remove Host…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除主機…"
+          }
+        }
+      }
+    },
     "Remove Image %lld" : {
       "extractionState" : "manual",
       "localizations" : {

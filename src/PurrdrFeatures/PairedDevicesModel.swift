@@ -5,7 +5,7 @@ import PurrdrCore
 
 /// 主機頁(ⓘ)「已配對裝置」區塊的 model(#291):列出連線配對的裝置，撤銷別支裝置前先確認。
 ///
-/// 唯讀裝置只能看;這支裝置不在這裡撤銷(移除主機時會撤銷自己的權杖)。
+/// 唯讀裝置只能看;這支裝置不在這裡撤銷，那列導到移除主機(移除時以 POST /v1/revoke 撤銷自己的權杖)。
 @MainActor
 @Observable
 public final class PairedDevicesModel {
@@ -26,9 +26,22 @@ public final class PairedDevicesModel {
     public private(set) var revocationError: String?
 
     private let host: any PairedDevicesManaging
+    private let removeHost: (@MainActor () -> Void)?
 
-    public init(host: any PairedDevicesManaging) {
+    /// - Parameter removeHost: 開移除主機的確認(主機清單的流程);`nil` 時「這支裝置」那列沒有動作。
+    public init(host: any PairedDevicesManaging, removeHost: (@MainActor () -> Void)? = nil) {
         self.host = host
+        self.removeHost = removeHost
+    }
+
+    /// 「這支裝置」那列可以移除主機(唯讀裝置也可以)。
+    public func canRemoveHost(from device: PairedDeviceRecord) -> Bool {
+        device.isCurrentDevice && removeHost != nil
+    }
+
+    public func requestHostRemoval(from device: PairedDeviceRecord) {
+        guard canRemoveHost(from: device) else { return }
+        removeHost?()
     }
 
     public func load() async {

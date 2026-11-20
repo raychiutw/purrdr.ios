@@ -1,6 +1,6 @@
 import Foundation
-import PurrdrAgentFeatures
 import PurrdrCore
+import PurrdrFeatures
 import PurrdrHTTPS
 import Synchronization
 import Testing
@@ -115,6 +115,38 @@ struct HostServiceStatusModelTests {
         await model.refresh()
 
         await model.updateNow()
+
+        #expect(model.update == .unconfirmed(to: "0.7.1"))
+    }
+
+    @Test("無法確認後下拉重新整理：重讀狀態，主機已是新版就顯示成功")
+    func refreshAfterUnconfirmedShowsSuccess() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+        let model = Self.model(service)
+        await model.refresh()
+        await model.updateNow()
+        service.update {
+            $0.hostServiceVersion = "0.7.1"
+            $0.hostServiceStatusReply = Self.current
+        }
+
+        await model.refresh()
+
+        guard case .loaded(let status) = model.content else { Issue.record("沒有重讀狀態"); return }
+        #expect(status.installedVersion == "0.7.1")
+        #expect(model.update == .succeeded(version: "0.7.1"))
+    }
+
+    @Test("無法確認後下拉重新整理：主機仍是舊版就維持無法確認")
+    func refreshAfterUnconfirmedKeepsUnconfirmedOnOldVersion() async throws {
+        let service = try await Self.start()
+        defer { Task { await service.stop() } }
+        let model = Self.model(service)
+        await model.refresh()
+        await model.updateNow()
+
+        await model.refresh()
 
         #expect(model.update == .unconfirmed(to: "0.7.1"))
     }

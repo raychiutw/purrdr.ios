@@ -1,14 +1,10 @@
 import PurrdrCore
 import SwiftUI
 
-/// 主機頁(ⓘ)的「已配對裝置」區塊(#291):列出連線配對的裝置，滑動或長按撤銷別支裝置(先確認)。
-/// 只有 HTTPS 主機有(`HTTPSHostConnection` 實作 `PairedDevicesManaging`)。
+/// 主機頁(ⓘ)的「已配對裝置」區塊(#291):列出連線配對的裝置，滑動或長按撤銷別支裝置(先確認);
+/// 「這支裝置」那列改為移除主機。只有 HTTPS 主機有(`HTTPSHostConnection` 實作 `PairedDevicesManaging`)。
 struct PairedDevicesSection: View {
-    @State private var model: PairedDevicesModel
-
-    init(host: any PairedDevicesManaging) {
-        _model = State(initialValue: PairedDevicesModel(host: host))
-    }
+    let model: PairedDevicesModel
 
     var body: some View {
         Section {
@@ -72,15 +68,27 @@ struct PairedDevicesSection: View {
             if model.canRevoke(device) {
                 Button("Revoke", systemImage: "xmark.circle", role: .destructive) { model.requestRevocation(of: device) }
             }
+            if model.canRemoveHost(from: device) {
+                // 不用 destructive role:確認前列不該被移走(同主機清單的滑動刪除)。
+                Button("Remove Host", systemImage: "trash") { model.requestHostRemoval(from: device) }
+                    .tint(.red)
+                    .accessibilityIdentifier("pairedDevices.removeHost")
+            }
         }
         .contextMenu {
             if model.canRevoke(device) {
                 Button("Revoke…", systemImage: "xmark.circle", role: .destructive) { model.requestRevocation(of: device) }
             }
+            if model.canRemoveHost(from: device) {
+                Button("Remove Host…", systemImage: "trash", role: .destructive) { model.requestHostRemoval(from: device) }
+            }
         }
         .accessibilityActions {
             if model.canRevoke(device) {
                 Button("Revoke") { model.requestRevocation(of: device) }
+            }
+            if model.canRemoveHost(from: device) {
+                Button("Remove Host") { model.requestHostRemoval(from: device) }
             }
         }
     }

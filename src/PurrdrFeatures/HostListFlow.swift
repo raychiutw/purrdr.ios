@@ -39,6 +39,12 @@ final class HostListFlow {
         pendingDeletion = HostDeletionRequest(id: id, name: name)
     }
 
+    /// 主機頁已配對裝置的「這支裝置」(#291):回到主機清單，跳出同一個移除確認。
+    func requestDeletionFromEditor(of id: UUID, name: String) {
+        path.removeAll()
+        requestDeletion(of: id, name: name)
+    }
+
     func cancelDeletion() {
         pendingDeletion = nil
     }

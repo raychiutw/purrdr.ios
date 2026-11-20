@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 
 /// 主機頁(ⓘ)的主機服務區塊(#290):版本、有沒有新版、自動更新與上次結果;立即更新後等重新連線，
@@ -50,8 +51,7 @@ public final class HostServiceStatusModel {
     /// 改自動更新失敗的說明。
     public private(set) var autoUpdateError: String?
 
-    private let connection: any HostConnection
-    private let managing: any HostServiceManaging
+    private let connection: any HostConnection & HostServiceManaging
     private let sleep: Sleep
     private let restartPollInterval: Duration
     private let restartLimit: Duration
@@ -64,7 +64,6 @@ public final class HostServiceStatusModel {
         restartPollInterval: Duration = .seconds(3), restartLimit: Duration = .seconds(180)
     ) {
         self.connection = connection
-        managing = connection
         self.sleep = sleep
         self.restartPollInterval = restartPollInterval
         self.restartLimit = restartLimit
@@ -84,9 +83,13 @@ public final class HostServiceStatusModel {
     public func refresh() async {
         isReadOnly = (try? await connection.isReadOnlyDevice()) ?? false
         do {
-            content = .loaded(try await managing.hostServiceUpdateStatus())
+            content = .loaded(try await connection.hostServiceUpdateStatus())
         } catch {
             content = Self.content(for: error)
+        }
+        // 無法確認的更新：重讀時主機已是新版就算成功。
+        if case .unconfirmed(let target) = update, case .loaded(let status) = content, status.installedVersion == target {
+            update = .succeeded(version: target)
         }
     }
 
@@ -96,7 +99,7 @@ public final class HostServiceStatusModel {
         update = .starting
         let target: String
         do {
-            switch try await managing.updateHostService() {
+            switch try await connection.updateHostService() {
             case .upToDate(let version):
                 update = .upToDate(version: version)
                 await refresh()
@@ -120,7 +123,7 @@ public final class HostServiceStatusModel {
         autoUpdateError = nil
         defer { isChangingAutoUpdate = false }
         do {
-            status.autoUpdate = try await managing.setHostServiceAutoUpdate(enabled)
+            status.autoUpdate = try await connection.setHostServiceAutoUpdate(enabled)
             content = .loaded(status)
         } catch {
             autoUpdateError = Self.updateMessage(for: error)
@@ -136,10 +139,10 @@ public final class HostServiceStatusModel {
                 return .unconfirmed(to: target)
             }
             waited += restartPollInterval
-            guard let version = try? await managing.reconnectForHostServiceVersion() else { continue }
+            guard let version = try? await connection.reconnectForHostServiceVersion() else { continue }
             if version == target { return .succeeded(version: target) }
             // 重啟前的舊連線也回舊版本：要看到這次更新留下的退回紀錄才算退回。
-            if let status = try? await managing.hostServiceUpdateStatus(), status.rolledBack == target,
+            if let status = try? await connection.hostServiceUpdateStatus(), status.rolledBack == target,
                 status.lastUpdate != previousAttempt
             {
                 return .rolledBack(version: target, runningVersion: version)
