@@ -44,6 +44,22 @@ struct WindowsPathDisplayTests {
         #expect(await host.unmetExpectations.isEmpty)
     }
 
+    @Test("路徑麵包屑：Windows 家目錄以「~」開頭，家目錄外從磁碟機根目錄開始")
+    func breadcrumbs() async {
+        let host = FakeHost()
+        await host.expect(HostFolderCommand.list(nil), reply: FakeReply(stdout: Data(Self.home.utf8)))
+        await host.expect(HostFolderCommand.list(#"C:\Users\demo\ledger"#), reply: Self.listing(#"C:\Users\demo\ledger"#))
+        await host.expect(HostFolderCommand.list(#"C:\Users"#), reply: Self.listing(#"C:\Users"#))
+        let model = FolderBrowserModel(folders: HostFolders(channel: host), hostName: "PC")
+
+        await model.load()
+        await model.open(FolderEntry(name: "ledger", kind: .folder, size: 96))
+        #expect(model.breadcrumbs.map(\.title) == ["~", "ledger"])
+        await model.go(to: FolderBreadcrumb(title: "Users", path: #"C:\Users"#))
+        #expect(model.breadcrumbs.map(\.title) == [#"C:\"#, "Users"])
+        #expect(model.breadcrumbs.map(\.path) == [#"C:\"#, #"C:\Users"#])
+    }
+
     @Test("新增對話的資料夾選擇：子資料夾與上一層都用 Windows 路徑")
     func folderPicker() async {
         let host = FakeHost()

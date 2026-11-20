@@ -26,25 +26,10 @@ public struct FolderBrowserView: View {
             #endif
             .toolbar {
                 if let hostPicker {
-                    // 主機挑選鈕佔標題位置，資料夾名稱移到它下面。
+                    // 主機挑選鈕佔標題位置;目前在哪一層看下面的路徑麵包屑(#273)。
                     ToolbarItem(placement: .principal) {
-                        VStack(spacing: 2) {
-                            HostPickerButton(model: hostPicker, identifier: "files.host")
-                            Text(model.title)
-                                .font(.caption)
-                                .foregroundStyle(.secondaryText)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                                .accessibilityIdentifier("files.folder")
-                        }
+                        HostPickerButton(model: hostPicker, identifier: "files.host")
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Enclosing Folder", systemImage: "arrow.up") {
-                        Task { await model.goUp() }
-                    }
-                    .disabled(!model.canGoUp)
-                    .accessibilityIdentifier("files.up")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     if let name = model.uploading {
@@ -66,6 +51,12 @@ public struct FolderBrowserView: View {
                 Button("OK", role: .cancel) { model.notice = nil }
             } message: {
                 Text(model.notice ?? "")
+            }
+            // 路徑麵包屑(#273,原型):每段可點回那一層(取代「上一層」按鈕)。
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !model.breadcrumbs.isEmpty {
+                    FolderBreadcrumbBar(crumbs: model.breadcrumbs) { crumb in Task { await model.go(to: crumb) } }
+                }
             }
             .task {
                 if model.path == nil { await model.load() }
@@ -102,9 +93,6 @@ public struct FolderBrowserView: View {
                             Task { await model.open(entry) }
                         }
                     }
-                } footer: {
-                    Text("Files travel over the same SSH connection. Uploads are limited to 25 MB per file and never replace an existing file.")
-                        .foregroundStyle(.secondaryText)
                 }
             }
             .refreshable { await model.load() }
@@ -164,11 +152,13 @@ struct FolderEntryRow: View {
     private var symbol: String {
         switch entry.kind {
         case .folder: "folder.fill"
-        case .file: "doc"
+        case .file: Self.imageExtensions.contains((entry.name as NSString).pathExtension.lowercased()) ? "photo" : "doc"
         case .symlink: "arrow.up.forward.square"
         case .other: "questionmark.square.dashed"
         }
     }
+
+    private static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "webp", "tiff", "bmp"]
 
     private var kindLabel: Text {
         switch entry.kind {
@@ -190,5 +180,49 @@ struct FolderEntryRow: View {
         default:
             return date
         }
+    }
+}
+
+/// 檔案頁的路徑麵包屑(#273,原型 purrdr-screens 定案版:「~ › Projects › ledger」):可橫捲，捲到最後一段。
+/// 每段是以資料夾命名的按鈕(VoiceOver 可以逐層往上);最後一段是目前的資料夾，不能點。
+struct FolderBreadcrumbBar: View {
+    let crumbs: [FolderBreadcrumb]
+    let go: (FolderBreadcrumb) -> Void
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    ForEach(Array(crumbs.enumerated()), id: \.element) { index, crumb in
+                        if index > 0 {
+                            Image(systemName: "chevron.forward")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.secondaryText)
+                                .accessibilityHidden(true)
+                        }
+                        let isCurrent = index == crumbs.count - 1
+                        Button { go(crumb) } label: {
+                            Text(verbatim: crumb.title)
+                                .fontWeight(isCurrent ? .semibold : .regular)
+                                .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondaryText))
+                                .frame(minHeight: 44)
+                                .padding(.horizontal, 4)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isCurrent)
+                        .accessibilityLabel(crumb.title == "~" ? Text("Home Folder") : Text(verbatim: crumb.title))
+                        .accessibilityIdentifier("files.crumb.\(index)")
+                        .id(index)
+                    }
+                }
+                .font(.subheadline)
+                .padding(.horizontal, 16)
+            }
+            .onChange(of: crumbs, initial: true) { _, crumbs in proxy.scrollTo(crumbs.count - 1, anchor: .trailing) }
+        }
+        .background(.bar)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("files.breadcrumbs")
     }
 }
