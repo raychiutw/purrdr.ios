@@ -75,7 +75,7 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
     }
 
     public var deviceID: String {
-        if let id = defaults.string(forKey: Self.deviceIDKey), PushHost.isValidDeviceID(id) { return id }
+        if let id = defaults.string(forKey: Self.deviceIDKey), SSHPushPluginInstaller.isValidDeviceID(id) { return id }
         let id = Self.newDeviceID()
         defaults.set(id, forKey: Self.deviceIDKey)
         return id
@@ -152,22 +152,23 @@ public final class PushService {
         if allSucceeded { store.lastDeviceToken = hex }
     }
 
-    /// 移除主機時：不等待地刪掉那台主機上的配對並撤銷(行為規格 F14)。`channel` 是為此另開的連線，刪完就關閉。
-    public func forget(hostID: String, channel: any HostChannel, herdr: HerdrInstallation) {
+    /// 移除主機時：不等待地刪掉那台主機上的配對並撤銷(行為規格 F14)。刪完配對後呼叫 `afterRemoving`(例如關閉為此另開的連線)。
+    public func forget(
+        hostID: String, installer: any PushPluginInstalling, afterRemoving: @escaping @Sendable () async -> Void = {}
+    ) {
         guard let keyHash = store.keyHash(forHost: hostID) else { return }
         store.setKeyHash(nil, forHost: hostID)
-        let host = pushHost(channel: channel, herdr: herdr)
         let session = session
         Task {
-            try? await host.unpair()
-            // 這條連線是刪除主機時另開的，不在任何地方重用：刪完配對就關閉。
-            await channel.disconnect()
+            try? await installer.remove()
+            await afterRemoving()
             try? await session.revokePushPairing(keyHash: keyHash)
         }
     }
 
-    func pushHost(channel: any HostChannel, herdr: HerdrInstallation) -> PushHost {
-        PushHost(channel: channel, herdr: herdr, deviceID: store.deviceID, pluginSource: configuration.pluginSource)
+    /// 這支裝置經 SSH 的推播外掛安裝。
+    public func sshInstaller(channel: any HostChannel, herdr: HerdrInstallation) -> any PushPluginInstalling {
+        SSHPushPluginInstaller(channel: channel, herdr: herdr, deviceID: store.deviceID, pluginSource: configuration.pluginSource)
     }
 
     static func hex(_ data: Data) -> String { data.map { String(format: "%02x", $0) }.joined() }
@@ -176,7 +177,7 @@ public final class PushService {
 /// 一台主機的推播開關(行為規格 F14、ADR-0004)。
 ///
 /// 打開：Purrdr Plus → 通知權限(只有這裡會跳系統對話框)→ APNs token → 檢查主機並請使用者確認(以哪個使用者安裝)
-/// → 產生配對密鑰、向後台註冊雜湊 → 經 SSH 寫配對並安裝主機外掛。主機失敗就撤銷剛註冊的配對。
+/// → 產生配對密鑰、向後台註冊雜湊 → 經推播外掛安裝寫配對並安裝主機外掛。主機失敗就撤銷剛註冊的配對。
 /// 關閉：移除主機上的配對(最後一支裝置時連外掛)→ 撤銷後台配對。
 @MainActor
 @Observable
@@ -208,30 +209,29 @@ public final class PushModel {
 
     private let service: PushService?
     private let hostID: String?
-    private let channel: any HostChannel
-    private let herdr: HerdrInstallation
+    private let installer: (any PushPluginInstalling)?
     private let muted: @MainActor () -> Set<String>
     private var deviceToken: Data?
 
     /// - Parameters:
     ///   - service: `nil` 時這個 app 沒有推播(例如 UI 測試以外沒設定)。
     ///   - hostID: 主機 id;Demo 主機是 `nil`。
+    ///   - installer: 這支裝置在這台主機的推播外掛安裝;`nil` 時這台主機沒有推播。
     ///   - muted: 目前靜音的聊天(session 值),配對時寫進主機。
-    public init(service: PushService?, hostID: String?, channel: any HostChannel, herdr: HerdrInstallation,
+    public init(service: PushService?, hostID: String?, installer: (any PushPluginInstalling)?,
                 muted: @escaping @MainActor () -> Set<String>) {
         self.service = service
         self.hostID = hostID
-        self.channel = channel
-        self.herdr = herdr
+        self.installer = installer
         self.muted = muted
         if let hostID, service?.store.keyHash(forHost: hostID) != nil { state = .on }
     }
 
-    public var isAvailable: Bool { service != nil }
+    public var isAvailable: Bool { service != nil && installer != nil }
 
     /// 使用者打開開關。
     public func requestOn() async {
-        guard state == .off, let service else { return }
+        guard state == .off, let service, let installer else { return }
         problem = nil
         guard hostID != nil else {
             problem = .demoHost
@@ -253,8 +253,7 @@ public final class PushModel {
             return stop(.unsupportedDevice(error.localizedDescription))
         }
         do {
-            let inspection = try await service.pushHost(channel: channel, herdr: herdr).inspect()
-            state = .confirming(user: inspection.user)
+            state = .confirming(user: try await installer.status().user)
         } catch {
             stop(.failed(Self.describe(error)))
         }
@@ -266,7 +265,7 @@ public final class PushModel {
 
     /// 使用者確認安裝。
     public func confirm() async {
-        guard case .confirming = state, let service, let hostID, let deviceToken else { return }
+        guard case .confirming = state, let service, let installer, let hostID, let deviceToken else { return }
         state = .turningOn
         let key = PushPairingKey.generate()
         do {
@@ -281,7 +280,7 @@ public final class PushModel {
         }
         do {
             let file = PushPairingFile(endpoint: service.configuration.endpoint, key: key, muted: muted())
-            try await service.pushHost(channel: channel, herdr: herdr).pair(file)
+            try await installer.install(file)
         } catch {
             try? await service.session.revokePushPairing(keyHash: key.hash)
             return stop(.failed(Self.describe(error)))
@@ -293,12 +292,12 @@ public final class PushModel {
 
     /// 使用者關閉開關：移除主機上的配對與外掛，撤銷後台配對。主機連不上時維持開啟並說明。
     public func turnOff() async {
-        guard state == .on, let service, let hostID else { return }
+        guard state == .on, let service, let installer, let hostID else { return }
         problem = nil
         state = .turningOff
         do {
-            try await service.pushHost(channel: channel, herdr: herdr).unpair()
-        } catch PushHostError.pluginUninstallFailed(let message) {
+            try await installer.remove()
+        } catch PushPluginError.pluginUninstallFailed(let message) {
             // 配對已移除(外掛沒有配對就什麼都不送),當成已關閉並說明。
             problem = .failed(String(localized: "Notifications are off, but herdr couldn’t remove the Purrdr plugin: \(message)"))
         } catch {
@@ -316,8 +315,8 @@ public final class PushModel {
 
     /// 靜音清單改了：推播開著時改寫主機上的配對檔(iOS 在 app 能攔截前就顯示推播，靜音只能在主機端生效)。
     public func syncMuted(_ muted: Set<String>) async {
-        guard state == .on, let service else { return }
-        try? await service.pushHost(channel: channel, herdr: herdr).setMuted(muted)
+        guard state == .on, let installer else { return }
+        try? await installer.updateMuted(muted)
     }
 
     public func openSystemSettings() {
@@ -331,9 +330,9 @@ public final class PushModel {
 
     static func describe(_ error: any Error) -> String {
         switch error {
-        case PushHostError.pluginInstallFailed(let message):
+        case PushPluginError.pluginInstallFailed(let message):
             String(localized: "herdr couldn’t install the Purrdr plugin: \(message)")
-        case PushHostError.pluginListFailed(let message):
+        case PushPluginError.pluginListFailed(let message):
             String(localized: "Couldn’t ask herdr about plugins. Make sure herdr is running on the host. \(message)")
         case BackendError.unreachable:
             String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")

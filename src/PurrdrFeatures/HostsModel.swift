@@ -201,6 +201,10 @@ public final class HostsModel {
     public var herdrClient: HerdrClient { member(for: selection).client }
     /// 選取中主機的推播開關(#29)。
     public var push: PushModel { member(for: selection).push }
+    /// 列表上每台主機的推播開關(依列表順序;spec #261:通知按主機管理，不綁選取中主機)。
+    public var hostPushes: [HostPush] {
+        listedHosts.compactMap { host in members[host].map { HostPush(host: host, name: name(of: host), model: $0.push) } }
+    }
     /// 選取中主機的主機主題(#23;DESIGN.md:選取中主機決定套用誰的主題)。每台主機各自一份、同意以主機為單位記住;
     /// 換選取中主機就換成那台的(讀過的主題留著，切回來不必等下一次輪詢)。
     public var hostTheme: HostThemeModel { member(for: selection).hostTheme }
@@ -640,10 +644,15 @@ public final class HostsModel {
     }
 
     /// 列表上的主機：所有已存主機(依名稱);Demo 主機與它的示範主機(#34)只在沒有已存主機或選了 Demo 時。
-    /// 已有的成員沿用(連線、列、草稿不重建)。
-    private func rebuildMembers() {
+    private var listedHosts: [HostSelection] {
         var wanted: [HostSelection] = hosts.map { .host($0.id) }
         if hosts.isEmpty || selection == .demo { wanted.insert(contentsOf: [.demo] + demoCompanions.map { .host($0.id) }, at: 0) }
+        return wanted
+    }
+
+    /// 依列表上的主機重建成員;已有的成員沿用(連線、列、草稿不重建)。
+    private func rebuildMembers() {
+        let wanted = listedHosts
         members = members.filter { wanted.contains($0.key) }
         for host in wanted where members[host] == nil { members[host] = makeMember(host) }
         let sources = wanted.compactMap { host in
@@ -728,8 +737,13 @@ public final class HostsModel {
         guard let pushService else { return }
         let provider = credentials.provider(
             method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
+        let channel = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
+        // 這條連線是刪除主機時另開的，不在任何地方重用：刪完配對就關閉。
         pushService.forget(
-            hostID: host.id.uuidString, channel: makeChannel(settings.endpoint, settings.hostKeyPin, provider), herdr: settings.herdr)
+            hostID: host.id.uuidString, installer: pushService.sshInstaller(channel: channel, herdr: settings.herdr)
+        ) {
+            await channel.disconnect()
+        }
     }
 
     private func dropChannel(of id: UUID) {
@@ -741,6 +755,15 @@ public final class HostsModel {
             await connection?.disconnect()
         }
     }
+}
+
+/// 一台主機的推播開關(帳號頁「通知」區塊的一列)。
+public struct HostPush: Identifiable {
+    public let host: HostSelection
+    public let name: String
+    public let model: PushModel
+
+    public var id: HostSelection { host }
 }
 
 /// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿、推播開關、「You should know」註記與主機主題。
@@ -788,7 +811,10 @@ final class HostMember {
         let list = AgentListModel(client: client, transcripts: transcripts, host: host)
         self.list = list
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
-        let push = PushModel(service: pushService, hostID: configuration?.id.uuidString, channel: channel, herdr: herdr) {
+        let push = PushModel(
+            service: pushService, hostID: configuration?.id.uuidString,
+            installer: pushService?.sshInstaller(channel: channel, herdr: herdr)
+        ) {
             preferences.load().muted
         }
         self.push = push

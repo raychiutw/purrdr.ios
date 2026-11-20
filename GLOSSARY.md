@@ -181,6 +181,10 @@ _避免_:Watcher、Daemon、Agent(會跟 Agent 混淆)
 一台主機與一支裝置之間的推播授權，以配對密鑰識別。一台主機可以配對多支裝置，一支裝置也可以配對多台主機。
 _避免_:Registration、Pairing token
 
+**推播外掛安裝**(Push plugin installer):
+App 對「一支裝置 × 一台主機」的推播主機端操作：查狀態、安裝(寫推播配對，必要時裝主機外掛)、移除(刪這支裝置的配對，最後一支時移除 Purrdr 裝的外掛)。SSH 主機以 `herdr plugin install` 實作;HTTPS 主機由主機服務代為執行。
+_避免_:Push host、推播主機
+
 ## 會員
 
 **會員**(Member):

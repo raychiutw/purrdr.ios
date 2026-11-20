@@ -41,7 +41,9 @@ struct PushModelTests {
     }
 
     func model(_ service: PushService, hostID: String? = "studio", muted: Set<String> = []) -> PushModel {
-        PushModel(service: service, hostID: hostID, channel: host, herdr: HerdrInstallation(), muted: { muted })
+        PushModel(
+            service: service, hostID: hostID, installer: service.sshInstaller(channel: host, herdr: HerdrInstallation()),
+            muted: { muted })
     }
 
     var pairingURL: URL { host.url(".purrdr/push-0123456789abcdef/pairing") }
@@ -229,13 +231,83 @@ struct PushModelTests {
         backend.on("DELETE", "/v1/members/me/push-pairings/\(hash)", .empty(204))
         let channel = DisconnectCountingChannel(host)
 
-        service.forget(hostID: "studio", channel: channel, herdr: HerdrInstallation())
+        service.forget(hostID: "studio", installer: service.sshInstaller(channel: channel, herdr: HerdrInstallation())) {
+            await channel.disconnect()
+        }
 
         for _ in 0..<200 where await channel.disconnects == 0 {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(await channel.disconnects == 1, "刪配對另開的連線沒有關閉")
         #expect(!FakeHerdrPluginCLI.isPluginInstalled(on: host))
+    }
+
+    // MARK: - 推播外掛安裝介面(假實作)
+
+    func model(_ service: PushService, installer: any PushPluginInstalling) -> PushModel {
+        PushModel(service: service, hostID: "studio", installer: installer, muted: { [] })
+    }
+
+    @Test("確認對話框帶推播外掛安裝回報的主機使用者")
+    func confirmationNamesInstallerUser() async {
+        platform.status = .authorized
+        let pluginHost = FakePushPluginHost(user: "ray")
+        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+
+        await model.requestOn()
+
+        #expect(model.state == .confirming(user: "ray"))
+        #expect(!pluginHost.pluginInstalled)
+    }
+
+    @Test("查不到外掛狀態(herdr 沒在跑):說明，維持關閉")
+    func statusFailureIsExplained() async {
+        platform.status = .authorized
+        let pluginHost = FakePushPluginHost()
+        pluginHost.setStatusFailure(.pluginListFailed("herdr server is not running"))
+        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+
+        await model.requestOn()
+
+        #expect(model.state == .off)
+        guard case .failed(let message)? = model.problem else { Issue.record("沒有說明"); return }
+        #expect(message.contains("herdr server is not running"))
+    }
+
+    @Test("開啟與關閉經推播外掛安裝：配對寫到這支裝置，最後一支關閉時外掛移除")
+    func turningOnAndOffGoesThroughInstaller() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let pluginHost = FakePushPluginHost()
+        let service = service()
+        let model = model(service, installer: pluginHost.installer(deviceID: store.deviceID))
+
+        await turnOn(model)
+
+        #expect(model.state == .on)
+        let file = try #require(pluginHost.pairing(deviceID: store.deviceID))
+        #expect(store.keyHash(forHost: "studio") == file.key.hash)
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(file.key.hash)", .empty(204))
+
+        await model.turnOff()
+
+        #expect(model.state == .off)
+        #expect(pluginHost.pairing(deviceID: store.deviceID) == nil)
+        #expect(!pluginHost.pluginInstalled)
+    }
+
+    @Test("每台主機各自一個推播狀態，不綁選取中主機")
+    func eachHostHasItsOwnPushState() {
+        let hostStore = MemoryHostStore()
+        hostStore.hosts = [MultiHostTests.studio, MultiHostTests.lab]
+        store.setKeyHash(String(repeating: "0", count: 64), forHost: MultiHostTests.lab.id.uuidString)
+        let hosts = HostsModel(store: hostStore, demoChannel: FakeHost(), push: service(), makeChannel: ChannelsByAddress([:]).make)
+        hosts.load()
+        hosts.select(.host(MultiHostTests.studio.id))
+
+        #expect(hosts.hostPushes.map(\.host) == [.host(MultiHostTests.lab.id), .host(MultiHostTests.studio.id)])
+        #expect(hosts.hostPushes.map(\.name) == ["Lab", "Studio"])
+        #expect(hosts.hostPushes.map(\.model.state) == [.on, .off])
+        #expect(hosts.push.state == .off)
     }
 
     @Test("已配對的主機重新建立 model 時是開著的")
