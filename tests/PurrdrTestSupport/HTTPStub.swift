@@ -34,6 +34,8 @@ public final class HTTPStub: Sendable {
     public struct Request: Sendable {
         public var method: String
         public var path: String
+        /// 網址的 query(名稱 → 值)。
+        public var query: [String: String]
         public var headers: [String: String]
         public var body: Data
 
@@ -124,6 +126,9 @@ private final class StubURLProtocol: URLProtocol {
         let received = HTTPStub.Request(
             method: request.httpMethod ?? "GET",
             path: request.url?.path() ?? "",
+            query: Dictionary(
+                (request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []).map { ($0.name, $0.value ?? "") }
+            ) { _, last in last },
             headers: request.allHTTPHeaderFields ?? [:],
             body: Self.readBody(of: request) ?? Data()
         )

@@ -8,7 +8,7 @@ import PurrdrCore
 @MainActor
 public struct HostServiceUpdates {
     /// 這版 app 已知的最新主機服務版本。
-    nonisolated public static let latestKnownVersion = "0.5.0"
+    nonisolated public static let latestKnownVersion = "0.6.0"
 
     /// 在主機上更新(或安裝)主機服務的一行指令：macOS、Linux。
     nonisolated public static let posixInstallCommand =
@@ -20,7 +20,7 @@ public struct HostServiceUpdates {
     /// 主機服務能自己更新(`purrdr-host-service update`、自動更新)的第一個版本;更舊的要重跑一行安裝指令。
     nonisolated public static let selfUpdatingVersion = "0.5.0"
 
-    /// 0.5.0 起在主機上立刻更新的指令：macOS、Linux(安裝程式不改 PATH,用安裝位置的完整路徑)。
+    /// 0.5.0 起在主機上立刻更新的指令：macOS、Linux(用安裝位置的完整路徑：0.6.0 以前的安裝與 `--no-path` 不在 PATH)。
     nonisolated public static let posixUpdateCommand = "~/.purrdr/host-service/bin/purrdr-host-service update"
     /// Windows(PowerShell)。
     nonisolated public static let windowsUpdateCommand =
@@ -28,10 +28,7 @@ public struct HostServiceUpdates {
 
     /// 回報 `installed` 的主機要用的更新指令。
     nonisolated public static func commands(installed: String) -> HostServiceUpdateCommands {
-        var canUpdateItself = false
-        if let installedVersion = HostServiceVersion(installed), let selfUpdating = HostServiceVersion(selfUpdatingVersion) {
-            canUpdateItself = installedVersion >= selfUpdating
-        }
+        let canUpdateItself = HostServiceVersion.isAtLeast(installed, selfUpdatingVersion)
         return canUpdateItself
             ? HostServiceUpdateCommands(
                 installedVersion: installed, canUpdateItself: true, posix: posixUpdateCommand, windows: windowsUpdateCommand)

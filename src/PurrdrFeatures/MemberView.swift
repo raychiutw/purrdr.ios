@@ -9,22 +9,28 @@ public struct MemberView: View {
     @Bindable var model: MemberModel
     /// `nil` 時不顯示步驟卡與 Purrdr Plus。
     let plus: SubscriptionModel?
-    /// 選取中主機的推播(步驟三)。
-    let push: PushModel?
+    /// 每台主機的推播開關(步驟三與「通知」區塊)。
+    let pushes: [HostPush]
+    /// 會員名下收通知的裝置(「通知裝置」區塊)。
+    let pushDevices: PushDevicesModel?
     /// 主機同步(步驟四)。
     let hostSync: HostSyncModel?
     @Environment(\.dismiss) private var dismiss
 
-    public init(model: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil, hostSync: HostSyncModel? = nil) {
+    public init(
+        model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
+        hostSync: HostSyncModel? = nil
+    ) {
         self.model = model
         self.plus = plus
-        self.push = push
+        self.pushes = pushes
+        self.pushDevices = pushDevices
         self.hostSync = hostSync
     }
 
     public var body: some View {
         NavigationStack {
-            MemberContent(model: model, plus: plus, push: push, hostSync: hostSync)
+            MemberContent(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -39,13 +45,18 @@ public struct MemberView: View {
 public struct MemberContent: View {
     @Bindable var model: MemberModel
     let plus: SubscriptionModel?
-    let push: PushModel?
+    let pushes: [HostPush]
+    let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
 
-    public init(model: MemberModel, plus: SubscriptionModel? = nil, push: PushModel? = nil, hostSync: HostSyncModel? = nil) {
+    public init(
+        model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
+        hostSync: HostSyncModel? = nil
+    ) {
         self.model = model
         self.plus = plus
-        self.push = push
+        self.pushes = pushes
+        self.pushDevices = pushDevices
         self.hostSync = hostSync
     }
 
@@ -83,7 +94,7 @@ public struct MemberContent: View {
                 }
             }
         } else {
-            AccountView(model: model, plus: plus, push: push, hostSync: hostSync)
+            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
         }
     }
 
@@ -227,27 +238,42 @@ struct SignInButtons: View {
 
 // MARK: - 帳號頁
 
-/// 帳號頁：頭像、步驟卡(完成後收成一列)、登入方式、登出、刪除會員。
+/// 帳號頁：頭像、步驟卡(完成後收成一列)、每台主機的通知、通知裝置、主機同步、登入方式、登出、刪除會員。
 struct AccountView: View {
     let model: MemberModel
     let plus: SubscriptionModel?
-    let push: PushModel?
+    let pushes: [HostPush]
+    let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
     @State private var confirmingDeletion = false
     @State private var signingIn = false
     @State private var showingPlus = false
     @State private var offeringFeatureSetup = false
+    /// 每次加一：步驟卡「選擇主機」捲到「通知」區塊。
+    @State private var notificationsScrollRequest = 0
 
     private var signedInMember: Member? {
         if case .signedIn(let member) = model.phase { return member }
         return nil
     }
 
+    private var notifyingHostNames: [String] { pushes.notifyingHostNames }
+
     private var progress: PlusSetupProgress? {
-        plus.map { PlusSetupProgress(member: model, plus: $0, push: push, hostSync: hostSync) }
+        plus.map { PlusSetupProgress(member: model, plus: $0, isNotificationsOn: !notifyingHostNames.isEmpty, hostSync: hostSync) }
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            list
+                .onChange(of: notificationsScrollRequest) {
+                    guard let first = pushes.first else { return }
+                    withAnimation { proxy.scrollTo(first.id, anchor: .top) }
+                }
+        }
+    }
+
+    private var list: some View {
         List {
             Section {
                 AccountHeader(member: signedInMember)
@@ -256,6 +282,19 @@ struct AccountView: View {
 
             if let plus, let progress {
                 plusSection(plus: plus, progress: progress)
+                if progress.isPlusActive {
+                    // 四步完成、步驟卡收合後，通知與主機同步仍可隨時開關(spec #261 原型 A)。
+                    HostPushSection(pushes: pushes) { showingPlus = true }
+                }
+                if signedInMember != nil, let pushDevices {
+                    // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
+                    PushDevicesSection(model: pushDevices, canRename: progress.isPlusActive)
+                }
+                if progress.isPlusActive {
+                    if let hostSync, progress.state(of: .syncHosts) == .done {
+                        HostSyncSection(model: hostSync, plus: plus, member: model)
+                    }
+                }
             }
 
             if let member = signedInMember {
@@ -296,7 +335,8 @@ struct AccountView: View {
             offeringFeatureSetup = true
         }
         .task(id: signedInMember?.id) { await plus?.refresh() }
-        .modifier(OptionalPushConfirmation(push: push))
+        .hostPushConfirmation(pushes)
+        .pushDevicesDialogs(signedInMember != nil ? pushDevices : nil, notifyingHostNames: notifyingHostNames)
         .alert("Purrdr Plus Is On", isPresented: $offeringFeatureSetup) {
             Button("Later", role: .cancel) {}
             Button("Turn On All") { turnOnAll() }
@@ -316,25 +356,21 @@ struct AccountView: View {
         Section {
             if progress.isComplete {
                 NavigationLink {
-                    PlusFeaturesView(plus: plus, member: model, push: push, hostSync: hostSync)
+                    PlusView(model: plus, member: model)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Purrdr Plus · Active")
-                        Text("Notifications and host sync are on")
+                        Text(plus.statusText)
                             .font(.subheadline)
                             .foregroundStyle(.secondaryText)
                     }
                 }
                 .accessibilityIdentifier("member.plus")
             } else {
-                PlusSetupCard(progress: progress, isWorking: isStepWorking) { perform($0) }
-                if let push, let problem = push.problem, progress.currentStep == .turnOnNotifications {
-                    PushProblemRow(problem: problem, model: push) { showingPlus = true }
-                }
+                PlusSetupCard(progress: progress, notifyingHostNames: notifyingHostNames, isWorking: isStepWorking) { perform($0) }
                 if progress.isPlusActive {
-                    // 開通後還沒走完：訂閱狀態與通知、同步開關在這裡管理。
                     NavigationLink {
-                        PlusFeaturesView(plus: plus, member: model, push: push, hostSync: hostSync)
+                        PlusView(model: plus, member: model)
                     } label: {
                         LabeledContent("Purrdr Plus") { Text(plus.statusText) }
                     }
@@ -357,10 +393,11 @@ struct AccountView: View {
     }
 
     private var isStepWorking: Bool {
-        guard let push else { return false }
-        switch push.state {
-        case .checking, .turningOn, .confirming: return true
-        case .off, .on, .turningOff: return false
+        pushes.contains { push in
+            switch push.model.state {
+            case .checking, .turningOn, .confirming: true
+            case .off, .on, .turningOff: false
+            }
         }
     }
 
@@ -368,27 +405,19 @@ struct AccountView: View {
         switch step {
         case .joinMember: signingIn = true
         case .activatePlus: showingPlus = true
-        case .turnOnNotifications: Task { await push?.requestOn() }
+        case .turnOnNotifications: notificationsScrollRequest += 1
         case .syncHosts: Task { await hostSync?.setEnabled(true) }
         }
     }
 
-    /// 開通後的「全部開啟」:同步直接開，通知仍經過安裝外掛的確認。
+    /// 開通後的「全部開啟」:同步直接開;只有一台能開通知的主機時直接開(仍經安裝確認),否則捲到「通知」讓使用者挑。
     private func turnOnAll() {
         Task { await hostSync?.setEnabled(true) }
-        Task { await push?.requestOn() }
-    }
-}
-
-/// 推播可能沒有(`nil`)時才掛安裝確認。
-private struct OptionalPushConfirmation: ViewModifier {
-    let push: PushModel?
-
-    func body(content: Content) -> some View {
-        if let push {
-            content.pushInstallConfirmation(push)
+        let supported = pushes.filter { $0.support == .supported }
+        if supported.count == 1, let only = supported.first {
+            Task { await only.model.requestOn() }
         } else {
-            content
+            notificationsScrollRequest += 1
         }
     }
 }
@@ -444,41 +473,6 @@ struct AccountAvatar: View {
             .foregroundStyle(.onProminentFill)
         }
         .accessibilityHidden(true)
-    }
-}
-
-/// 開通後管理：訂閱狀態、選取中主機的通知、主機同步。
-struct PlusFeaturesView: View {
-    let plus: SubscriptionModel
-    let member: MemberModel
-    let push: PushModel?
-    let hostSync: HostSyncModel?
-    @State private var showingPlus = false
-
-    var body: some View {
-        List {
-            Section {
-                NavigationLink {
-                    PlusView(model: plus, member: member)
-                } label: {
-                    LabeledContent("Subscription") { Text(plus.statusText) }
-                }
-                .accessibilityIdentifier("member.subscription")
-            }
-            if let push, push.isAvailable {
-                PushSettingsSection(model: push) { showingPlus = true }
-            }
-            if let hostSync {
-                HostSyncSection(model: hostSync, plus: plus, member: member)
-            }
-        }
-        .navigationTitle("Purrdr Plus")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        .navigationDestination(isPresented: $showingPlus) {
-            PlusView(model: plus, member: member)
-        }
     }
 }
 
