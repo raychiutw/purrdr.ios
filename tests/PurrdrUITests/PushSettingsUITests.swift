@@ -37,6 +37,8 @@ final class PushSettingsUITests: XCTestCase {
         install.tap()
 
         expectValue("Notifications On", of: toggle)
+        // 「選擇主機」把列表捲到「通知」,步驟卡捲出畫面(lazy List 不在樹裡):捲回頂端再看步驟。
+        XCTAssertTrue(revealAbove(notifications, in: app), "捲回頂端後沒有步驟卡")
         expectValue("Done", of: notifications)
         XCTAssertTrue(notifications.label.contains("Studio Mac"), "步驟沒有列出開啟的主機:\(notifications.label)")
         expectValue("Next Step", of: element("account.plusSetup.sync", in: app))
@@ -56,7 +58,8 @@ final class PushSettingsUITests: XCTestCase {
         let https = app.switches["account.push.\(Self.httpsHost)"]
         XCTAssertTrue(reveal(https, in: app), "沒有 HTTPS 主機的通知列")
         XCTAssertFalse(https.isEnabled)
-        XCTAssertTrue(element("account.push.\(Self.httpsHost).status", in: app).label.contains("0.6.0"))
+        // 還沒配對的 HTTPS 主機沒有連線可裝外掛;主機服務太舊的說明由 HostServiceUpdateTests 涵蓋。
+        XCTAssertEqual(element("account.push.\(Self.httpsHost).status", in: app).label, "This host can’t send notifications.")
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "best-effort")).firstMatch.exists)
         // 沒有跳系統的通知權限對話框。
         XCTAssertFalse(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch.exists)
@@ -118,6 +121,16 @@ final class PushSettingsUITests: XCTestCase {
         let list = element("sheet.account", in: app)
         for _ in 0..<6 where !(target.exists && target.isHittable) {
             list.swipeUp()
+        }
+        return target.exists && target.isHittable
+    }
+
+    /// 往下拉(列表往回捲)到元素出現。
+    @MainActor
+    private func revealAbove(_ target: XCUIElement, in app: XCUIApplication) -> Bool {
+        let list = element("sheet.account", in: app)
+        for _ in 0..<6 where !(target.exists && target.isHittable) {
+            list.swipeDown()
         }
         return target.exists && target.isHittable
     }

@@ -29,7 +29,8 @@ final class PushDevicesUITests: XCTestCase {
 
         app.buttons["account.pushDevice.\(Self.studioIPad).actions"].tap()
         app.buttons["Rename…"].firstMatch.tap()
-        let field = app.alerts.textFields["account.pushDevices.name"].firstMatch
+        // SwiftUI 不把 identifier 帶到 alert 裡的 TextField。
+        let field = app.alerts.textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5), "沒有改名欄位")
         field.clearAndType("Desk iPad")
         app.alerts.buttons["account.pushDevices.save"].firstMatch.tap()

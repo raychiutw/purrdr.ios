@@ -74,7 +74,11 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(install.waitForExistence(timeout: 10), "開通知沒有先確認安裝外掛")
         install.tap()
 
+        // 「選擇主機」把列表捲到「通知」,步驟卡可能捲出畫面(lazy List 不在樹裡):捲回頂端。
         let sync = element("account.plusSetup.sync", in: app)
+        for _ in 0..<6 where !(sync.exists && sync.isHittable) {
+            element("sheet.account", in: app).swipeDown()
+        }
         expectation(for: NSPredicate(format: "value == %@", "Next Step"), evaluatedWith: sync)
         waitForExpectations(timeout: 10)
         app.buttons["account.plusSetup.action"].tap()
@@ -91,9 +95,9 @@ final class AccountUITests: XCTestCase {
         waitForExpectations(timeout: 10)
 
         // 主機同步在「通知裝置」之後，要往下捲才進畫面。
-        let sync = app.switches["settings.hostSync"]
-        XCTAssertTrue(scrollTo(sync, in: app), "收合後沒有主機同步開關")
-        XCTAssertEqual(sync.value as? String, "1")
+        let hostSync = app.switches["settings.hostSync"]
+        XCTAssertTrue(scrollTo(hostSync, in: app), "收合後沒有主機同步開關")
+        XCTAssertEqual(hostSync.value as? String, "1")
     }
 
     /// 未開通時通知與同步不能開啟，畫面說明下一步。
