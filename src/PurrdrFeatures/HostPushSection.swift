@@ -10,11 +10,13 @@ struct HostPushSection: View {
     let pushes: [HostPush]
     /// 沒有 Purrdr Plus 時開付費牆。
     let openPlus: () -> Void
+    /// 還沒配對的 HTTPS 主機：開那台主機的配對(#295)。
+    var pair: (UUID) -> Void = { _ in }
 
     var body: some View {
         Section {
             ForEach(pushes) { push in
-                HostPushRow(push: push)
+                HostPushRow(push: push, pair: pair)
                 if push.support == .supported, push.model.state == .on {
                     HostPushKindsRow(push: push)
                 }
@@ -36,8 +38,11 @@ struct HostPushSection: View {
 }
 
 /// 一台主機的通知列：圖示、名稱、狀態與開關。VoiceOver 念「主機名稱，通知已開啟／未開啟」。
+///
+/// 還沒配對的 HTTPS 主機(#295,原型 B):開關照樣顯示但停用，副標以強調色寫「先配對這台主機 ›」,點整列開配對。
 private struct HostPushRow: View {
     let push: HostPush
+    let pair: (UUID) -> Void
 
     private var model: PushModel { push.model }
 
@@ -47,10 +52,21 @@ private struct HostPushRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: push.name)
                     .accessibilityHidden(true)
-                status
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
-                    .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
+                if let pairingHost {
+                    Text("Pair This Host First \(Image(systemName: "chevron.forward"))")
+                        .font(.subheadline)
+                        .foregroundStyle(.tint)
+                        .accessibilityLabel(Text("Pair This Host First"))
+                        .accessibilityHint(Text("Notifications can be turned on after this device pairs with the host."))
+                        .accessibilityAddTraits(.isButton)
+                        .accessibilityAction { pair(pairingHost) }
+                        .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
+                } else {
+                    status
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
+                        .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             Toggle(isOn: Binding(get: { isOnOrPending }, set: { change(to: $0) })) {
@@ -62,15 +78,27 @@ private struct HostPushRow: View {
             .accessibilityValue(isOnOrPending ? Text("Notifications On") : Text("Notifications Off"))
             .accessibilityIdentifier("account.push.\(push.host.storedValue)")
         }
+        // 要先配對時整列可點(開關停用，點到開關也開配對);其他列不加手勢，開關照常回應。
+        .contentShape(.rect)
+        .gesture(TapGesture().onEnded { if let pairingHost { pair(pairingHost) } }, isEnabled: pairingHost != nil)
         .task {
             // 只查已開啟的主機：未開啟的不為了顯示裝置數另開連線。
             if push.support == .supported, model.state == .on { await model.refreshStatus() }
         }
     }
 
+    /// 要先配對才能開通知的主機。
+    private var pairingHost: UUID? {
+        guard push.support == .needsPairing, case .host(let id) = push.host else { return nil }
+        return id
+    }
+
     @ViewBuilder
     private var status: some View {
         switch push.support {
+        case .needsPairing:
+            // 由 `body` 另外畫成配對入口。
+            EmptyView()
         case .demoHost:
             Text("The demo host can’t send notifications.")
         case .unsupported:

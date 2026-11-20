@@ -130,7 +130,7 @@ extension HostServiceAccess {
         let pairing = HostServicePairing(http: UITestingHostServiceHTTP())
         return HostServiceAccess(tokens: tokens, pairing: pairing, deviceName: "iPhone") { _, deviceToken in
             UITestingHostServiceConnection(
-                base: SSHHostConnection(channel: channel), deviceToken: deviceToken,
+                base: SSHHostConnection(channel: channel), channel: channel, deviceToken: deviceToken,
                 hostService: UITestingHostServiceState(installedVersion: hostServiceVersion))
         }
     }
@@ -169,6 +169,8 @@ private struct UITestingHostServiceConnection: HostConnection {
     static let readOnlyToken = "ui-testing-read-only-token"
 
     let base: any HostConnection
+    /// Demo 主機的通道：推播外掛安裝在它的記憶體裡回應(#295,配對後通知開關能點)。
+    let channel: any HostChannel
     let deviceToken: @Sendable () throws -> String?
     let hostService: UITestingHostServiceState
 
@@ -200,6 +202,14 @@ private struct UITestingHostServiceConnection: HostConnection {
 
     func disconnect() async {
         await base.disconnect()
+    }
+}
+
+/// UI 測試的推播外掛安裝：主機服務代裝的替身，由 Demo 主機在記憶體回應(來源字串不影響 Demo 主機)。
+extension UITestingHostServiceConnection: PushPluginInstallerProviding {
+    func pushPluginInstallers() -> (@Sendable (PushDeviceID) -> any PushPluginInstalling)? {
+        let channel = channel
+        return { SSHPushPluginInstaller(channel: channel, herdr: HerdrInstallation(), deviceID: $0, pluginSource: "ui-testing/host-plugin") }
     }
 }
 
