@@ -357,6 +357,8 @@ public actor HTTPSHostConnection: HostConnection {
         case .transcriptNotAllowed: TranscriptReadError.invalidReference
         case .transcriptUnsupported: HostServiceError.unsupported("transcript")
         case .fileChanged: HostFileFetchError.changed
+        // 各操作再換成自己的失敗(`HostServicePushPluginInstaller`)。
+        case .pushPluginFailed: PushPluginError.pluginInstallFailed(message.message)
         case .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
         }
     }

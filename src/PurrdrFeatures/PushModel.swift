@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import PurrdrCore
+import PurrdrHTTPS
 import PurrdrSSH
 
 /// 通知權限(只讀現況時不跳系統對話框)。「暫時授權」視為已授權(行為規格 F14)。
@@ -216,6 +217,11 @@ public final class PushService {
         }
     }
 
+    /// 這支裝置經主機服務(HTTPS 主機)的推播外掛安裝。
+    public func hostServiceInstaller(connection: HTTPSHostConnection) -> any PushPluginInstalling {
+        HostServicePushPluginInstaller(connection: connection, deviceID: store.deviceID)
+    }
+
     /// 這支裝置經 SSH 的推播外掛安裝。
     public func sshInstaller(channel: any HostChannel, herdr: HerdrInstallation) -> any PushPluginInstalling {
         SSHPushPluginInstaller(channel: channel, herdr: herdr, deviceID: store.deviceID, pluginSource: configuration.pluginSource)
@@ -244,8 +250,8 @@ public final class PushModel {
     public enum State: Equatable {
         case off
         case checking
-        /// 等使用者確認：會以 `user` 在主機上安裝外掛。
-        case confirming(user: String)
+        /// 等使用者確認：會以 `user` 在主機上安裝外掛(主機服務不回報使用者，是 `nil`)。
+        case confirming(user: String?)
         case turningOn
         case on
         case turningOff
@@ -260,6 +266,8 @@ public final class PushModel {
         case permissionDenied
         /// 取不到 APNs token(模擬器、缺 entitlement);附原始錯誤。
         case unsupportedDevice(String)
+        /// 主機服務太舊，不能代裝外掛：附依已安裝版本的更新指令。
+        case hostServiceOutdated(HostServiceUpdateCommands)
         case failed(String)
     }
 
@@ -326,7 +334,7 @@ public final class PushModel {
             record(status)
             state = .confirming(user: status.user)
         } catch {
-            stop(.failed(Self.describe(error)))
+            stop(Self.problem(for: error))
         }
     }
 
@@ -357,7 +365,7 @@ public final class PushModel {
             try await installer.install(file)
         } catch {
             try? await service.session.revokePushPairing(keyHash: key.hash)
-            return stop(.failed(Self.describe(error)))
+            return stop(Self.problem(for: error))
         }
         service.store.setKeyHash(key.hash, forHost: hostID)
         service.store.lastDeviceToken = PushService.hex(deviceToken)
@@ -377,7 +385,7 @@ public final class PushModel {
             problem = .failed(String(localized: "Notifications are off, but herdr couldn’t remove the Purrdr plugin: \(message)"))
         } catch {
             state = .on
-            problem = .failed(Self.describe(error))
+            problem = Self.problem(for: error)
             return
         }
         if let keyHash = service.store.keyHash(forHost: hostID) {
@@ -414,12 +422,21 @@ public final class PushModel {
         self.problem = problem
     }
 
+    static func problem(for error: any Error) -> Problem {
+        if case PushPluginError.hostServiceOutdated(let installed) = error {
+            return .hostServiceOutdated(HostServiceUpdates.commands(installed: installed))
+        }
+        return .failed(describe(error))
+    }
+
     static func describe(_ error: any Error) -> String {
         switch error {
         case PushPluginError.pluginInstallFailed(let message):
             String(localized: "herdr couldn’t install the Purrdr plugin: \(message)")
         case PushPluginError.pluginListFailed(let message):
             String(localized: "Couldn’t ask herdr about plugins. Make sure herdr is running on the host. \(message)")
+        case HostServiceError.readOnlyDevice:
+            String(localized: "This device is paired read-only with the host service, so it can’t turn on notifications there.")
         case BackendError.unreachable:
             String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
         default:

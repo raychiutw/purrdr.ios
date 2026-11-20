@@ -14,6 +14,9 @@ struct HostPushSection: View {
         Section {
             ForEach(pushes) { push in
                 HostPushRow(push: push)
+                if case .needsHostService(_, let update) = push.support {
+                    HostServicePushUpdateRow(update: update)
+                }
                 if push.support == .supported, let problem = push.model.problem, problem.needsOwnRow {
                     PushProblemRow(problem: problem, model: push.model, openPlus: openPlus)
                 }
@@ -66,7 +69,7 @@ private struct HostPushRow: View {
         switch push.support {
         case .demoHost:
             Text("The demo host can’t send notifications.")
-        case .needsHostService(let version):
+        case .needsHostService(let version, _):
             Label("Needs host service \(version) or later", systemImage: "exclamationmark.triangle")
         case .supported:
             switch model.state {
@@ -89,6 +92,8 @@ private struct HostPushRow: View {
                     }
                 } else if model.otherDevices > 0 {
                     Text("Off · Other devices here: \(model.otherDevices)")
+                } else if push.installsViaHostService {
+                    Text("Off · Installs via the host service")
                 } else {
                     Text("Off · Installs over SSH")
                 }
@@ -126,7 +131,7 @@ extension PushModel.Problem {
     var needsOwnRow: Bool {
         switch self {
         case .failed, .demoHost: false
-        case .needsSubscription, .permissionDenied, .unsupportedDevice: true
+        case .needsSubscription, .permissionDenied, .unsupportedDevice, .hostServiceOutdated: true
         }
     }
 }
@@ -159,6 +164,9 @@ struct PushProblemRow: View {
         case .unsupportedDevice(let detail):
             Label("This device can’t receive notifications. \(detail)", systemImage: "exclamationmark.triangle")
                 .accessibilityIdentifier("settings.push.problem")
+        case .hostServiceOutdated(let update):
+            HostServicePushUpdateRow(update: update)
+                .accessibilityIdentifier("settings.push.problem")
         case .failed(let message):
             Label { Text(verbatim: message) } icon: { Image(systemName: "exclamationmark.triangle") }
                 .accessibilityIdentifier("settings.push.problem")
@@ -166,10 +174,37 @@ struct PushProblemRow: View {
     }
 }
 
+/// 主機服務太舊不能開通知：請更新主機服務，附依已安裝版本的指令(可選取、可拷貝)。
+struct HostServicePushUpdateRow: View {
+    let update: HostServiceUpdateCommands
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Update the host service to turn on notifications. Run this on the host:", systemImage: "arrow.down.circle")
+            command(String(localized: "macOS and Linux"), update.posix)
+            command(String(localized: "Windows (PowerShell)"), update.windows)
+        }
+        .accessibilityIdentifier("account.push.hostServiceUpdate")
+    }
+
+    private func command(_ title: String, _ command: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: title)
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+            Text(verbatim: command)
+                .font(.footnote.monospaced())
+                .textSelection(.enabled)
+            Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
+                .buttonStyle(.borderless)
+        }
+    }
+}
+
 extension View {
     /// 開某台主機的通知前確認;對話框寫出主機名稱，外掛已裝時說明只新增這支裝置的配對。
     func hostPushConfirmation(_ pushes: [HostPush]) -> some View {
-        let confirming = pushes.first { $0.model.confirmingUser != nil }
+        let confirming = pushes.first { $0.model.isConfirming }
         return alert(
             Text("Turn On Notifications for “\(confirming?.name ?? "")”?"),
             isPresented: Binding(get: { confirming != nil }, set: { _ in }),
@@ -179,10 +214,17 @@ extension View {
                 .accessibilityIdentifier("settings.push.install")
             Button("Cancel", role: .cancel) { push.model.cancel() }
         } message: { push in
-            let user = push.model.confirmingUser ?? ""
-            if push.model.pluginAlreadyInstalled {
+            if push.installsViaHostService {
+                if push.model.pluginAlreadyInstalled {
+                    Text("The Purrdr plugin is already on this host. The host service will save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing.")
+                } else {
+                    Text("The host service will run “herdr plugin install” on this host as the user running the host service, and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off.")
+                }
+            } else if push.model.pluginAlreadyInstalled {
+                let user = push.model.confirmingUser ?? ""
                 Text("The Purrdr plugin is already on this host. Purrdr will save a pairing key for this device in ~/.purrdr as \(user). Turning notifications off removes only this device’s pairing.")
             } else {
+                let user = push.model.confirmingUser ?? ""
                 Text("Purrdr will run “herdr plugin install” on this host as \(user) and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off.")
             }
         }
@@ -190,6 +232,11 @@ extension View {
 }
 
 extension PushModel {
+    var isConfirming: Bool {
+        if case .confirming = state { return true }
+        return false
+    }
+
     var confirmingUser: String? {
         if case .confirming(let user) = state { return user }
         return nil

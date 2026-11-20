@@ -4997,6 +4997,17 @@
         }
       }
     },
+    "Off · Installs via the host service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟 · 由主機服務安裝"
+          }
+        }
+      }
+    },
     "Off · Other devices here: %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7527,6 +7538,17 @@
         }
       }
     },
+    "The Purrdr plugin is already on this host. The host service will save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已有 Purrdr 外掛。主機服務會在 ~/.purrdr 存入這支裝置的配對金鑰。關閉通知只會移除這支裝置的配對。"
+          }
+        }
+      }
+    },
     "The Tailscale sign-in wasn’t finished in time. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7890,6 +7912,17 @@
         }
       }
     },
+    "The host service will run “herdr plugin install” on this host as the user running the host service, and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務會以執行主機服務的使用者身分，在這台主機執行「herdr plugin install」，並在 ~/.purrdr 存入這支裝置的配對金鑰。關閉通知只會移除這支裝置的配對；最後一支裝置關閉時才會移除外掛。"
+          }
+        }
+      }
+    },
     "The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8139,6 +8172,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置無法接收通知。%@"
+          }
+        }
+      }
+    },
+    "This device is paired read-only with the host service, so it can’t turn on notifications there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置以唯讀方式與主機服務配對，無法在這台主機開啟通知。"
           }
         }
       }
@@ -9217,6 +9261,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新 %@ 的主機服務"
+          }
+        }
+      }
+    },
+    "Update the host service to turn on notifications. Run this on the host:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請更新主機服務才能開啟通知。在主機上執行："
           }
         }
       }

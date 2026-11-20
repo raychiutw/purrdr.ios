@@ -2,8 +2,8 @@ import Foundation
 
 /// 這支裝置在一台主機上的推播狀態(推播外掛安裝的「查狀態」)。
 public struct PushPluginStatus: Sendable, Equatable {
-    /// 在主機上執行安裝的使用者(確認對話框說明以誰安裝)。
-    public var user: String
+    /// 在主機上執行安裝的使用者(確認對話框說明以誰安裝);主機服務不回報，是 `nil`(以執行主機服務的使用者安裝)。
+    public var user: String?
     /// 這支裝置在這台主機上已有推播配對。
     public var isPaired: Bool
     /// herdr 已安裝主機外掛(不論是誰裝的)。
@@ -11,7 +11,7 @@ public struct PushPluginStatus: Sendable, Equatable {
     /// 這台主機上其他裝置的推播配對數(不含這支)。
     public var otherPairedDevices: Int
 
-    public init(user: String, isPaired: Bool, pluginInstalled: Bool, otherPairedDevices: Int = 0) {
+    public init(user: String?, isPaired: Bool, pluginInstalled: Bool, otherPairedDevices: Int = 0) {
         self.user = user
         self.isPaired = isPaired
         self.pluginInstalled = pluginInstalled
@@ -29,6 +29,8 @@ public enum PushPluginError: Error, Equatable {
     case pluginListFailed(String)
     /// 主機上找不到這支裝置的配對檔。
     case notPaired
+    /// 主機服務比 0.6.0 舊，還不能代裝外掛;附主機回報的版本。
+    case hostServiceOutdated(installed: String)
 }
 
 /// 推播外掛安裝(spec #261 的單一接縫):一個實例代表「一支裝置 × 一台主機」。

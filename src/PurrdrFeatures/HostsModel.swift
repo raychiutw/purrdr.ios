@@ -207,7 +207,11 @@ public final class HostsModel {
     /// 列表上每台主機的推播開關(依列表順序;spec #261:通知按主機管理，不綁選取中主機)。
     public var hostPushes: [HostPush] {
         listedHosts.compactMap { host in
-            members[host].map { HostPush(host: host, name: name(of: host), icon: icon(of: host), support: pushSupport(of: host), model: $0.push) }
+            members[host].map {
+                HostPush(
+                    host: host, name: name(of: host), icon: icon(of: host), support: pushSupport(of: host),
+                    installsViaHostService: usesHostService(host), model: $0.push)
+            }
         }
     }
     /// 這支裝置已開啟通知的主機名稱(依列表順序);至少一台就算步驟卡的「開啟通知」完成。
@@ -499,9 +503,9 @@ public final class HostsModel {
         try store.delete(id)
         if let removed, let settings = removed.ssh {
             forgetPush(of: removed, settings: settings, secret: secret)
-        } else if let address = removed?.hostService, let deviceToken {
-            // 主機離線時權杖留在主機上，可在主機上撤銷。
-            hostService.revokeWithoutWaiting(deviceToken, at: address)
+        } else if let removed, let address = removed.hostService, let deviceToken {
+            // 先刪推播配對再撤銷權杖;主機離線時權杖留在主機上，可在主機上撤銷。
+            forgetHostServicePush(of: removed, address: address, deviceToken: deviceToken)
         }
         hostConsent.revokeAll(host: id.uuidString)
         hosts.removeAll { $0.id == id }
@@ -646,7 +650,16 @@ public final class HostsModel {
 
     private func pushSupport(of host: HostSelection) -> HostPushSupport {
         guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
-        return configuration.connectionMethod.usesHostService ? .needsHostService(version: HostPush.hostServiceVersion) : .supported
+        // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
+        guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
+              !HostServiceUpdates.isAtLeast(installed, HostPush.hostServiceVersion)
+        else { return .supported }
+        return .needsHostService(version: HostPush.hostServiceVersion, update: HostServiceUpdates.commands(installed: installed))
+    }
+
+    private func usesHostService(_ host: HostSelection) -> Bool {
+        guard case .host(let id) = host else { return false }
+        return hosts.first { $0.id == id }?.connectionMethod.usesHostService == true
     }
 
     private func icon(of host: HostSelection) -> HostIcon {
@@ -707,7 +720,7 @@ public final class HostsModel {
                 host: host, configuration: configuration, channel: UnsupportedHostChannel(), connection: connection,
                 // 主機取檔走同一條主機服務連線(#227);UI 測試的替身連線沒有取檔。
                 files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), preferences: preferences.store(for: host),
-                push: nil, consent: hostConsent)
+                push: pushService, consent: hostConsent)
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
             return HostMember(
                 host: host, configuration: configuration, channel: channel(for: configuration, settings: settings),
@@ -761,6 +774,21 @@ public final class HostsModel {
         }
     }
 
+    /// HTTPS 主機的推播配對：以讀出的權杖另開一條連線刪掉配對，之後撤銷權杖並關閉連線。沒有配對時直接撤銷。
+    private func forgetHostServicePush(of host: HostConfiguration, address: HostServiceAddress, deviceToken: String) {
+        let pairing = hostService.pairing
+        guard let pushService, pushService.store.keyHash(forHost: host.id.uuidString) != nil,
+              let connection = hostService.makeConnection(address, { deviceToken }) as? HTTPSHostConnection
+        else {
+            hostService.revokeWithoutWaiting(deviceToken, at: address)
+            return
+        }
+        pushService.forget(hostID: host.id.uuidString, installer: pushService.hostServiceInstaller(connection: connection)) {
+            await connection.disconnect()
+            try? await pairing.revoke(address: address, deviceToken: deviceToken)
+        }
+    }
+
     private func dropChannel(of id: UUID) {
         let channel = channels.removeValue(forKey: id)
         let connection = hostServiceConnections.removeValue(forKey: id)
@@ -777,8 +805,8 @@ public enum HostPushSupport: Equatable, Sendable {
     case supported
     /// Demo 主機與示範主機。
     case demoHost
-    /// HTTPS 主機要這版以上的主機服務代裝外掛(#265 接上)。
-    case needsHostService(version: String)
+    /// HTTPS 主機要這版以上的主機服務代裝外掛;附依已安裝版本的更新指令。
+    case needsHostService(version: String, update: HostServiceUpdateCommands)
 }
 
 extension [HostPush] {
@@ -797,6 +825,8 @@ public struct HostPush: Identifiable {
     public let name: String
     public let icon: HostIcon
     public let support: HostPushSupport
+    /// HTTPS 主機：由主機服務代裝外掛(不是 SSH)。
+    public let installsViaHostService: Bool
     public let model: PushModel
 
     public var id: HostSelection { host }
@@ -847,10 +877,13 @@ final class HostMember {
         let list = AgentListModel(client: client, transcripts: transcripts, host: host)
         self.list = list
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
-        let push = PushModel(
-            service: pushService, hostID: configuration?.id.uuidString,
-            installer: pushService?.sshInstaller(channel: channel, herdr: herdr)
-        ) {
+        // HTTPS 主機經主機服務代裝(UI 測試的替身連線沒有推播);其他經 SSH。
+        let installer: (any PushPluginInstalling)? = if configuration?.connectionMethod.usesHostService == true {
+            (connection as? HTTPSHostConnection).flatMap { pushService?.hostServiceInstaller(connection: $0) }
+        } else {
+            pushService?.sshInstaller(channel: channel, herdr: herdr)
+        }
+        let push = PushModel(service: pushService, hostID: configuration?.id.uuidString, installer: installer) {
             preferences.load().muted
         }
         self.push = push

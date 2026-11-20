@@ -84,6 +84,33 @@ final class FakeHostService: Sendable {
         var promptHerdrError: String?
         /// `welcome` 回報的主機服務版本;`nil` 是範例的值。
         var hostServiceVersion: String?
+        /// 有值時 `push.install` 安裝外掛失敗(`push_plugin_failed`,帶這個訊息);配對回到安裝前。
+        var pushInstallFailure: String?
+    }
+
+    /// 主機上的推播外掛與配對(`push.*`,規則同主機服務：最後一支裝置移除時才移除 Purrdr 裝的外掛)。
+    struct PushHost: Sendable {
+        /// 裝置 id → 配對的靜音清單。
+        var pairings: [String: [String]] = [:]
+        var pluginInstalled = false
+        var pluginInstalledByPurrdr = false
+
+        func result(_ type: String, requestID: String?, deviceID: String) -> [String: Any] {
+            [
+                "type": type, "request_id": requestID as Any, "plugin_installed": pluginInstalled,
+                "paired": pairings[deviceID] != nil, "other_devices": pairings.keys.filter { $0 != deviceID }.count,
+            ]
+        }
+    }
+
+    private let pushHost = Mutex(PushHost())
+
+    /// 主機上目前的推播外掛與配對。
+    var pushState: PushHost { pushHost.withLock { $0 } }
+
+    /// 使用者自己裝的外掛(主機服務不移除)。
+    func installPushPluginOutsidePurrdr() {
+        pushHost.withLock { $0.pluginInstalled = true }
     }
 
     let port: Int
@@ -318,6 +345,8 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
+        case "push.status", "push.install", "push.remove":
+            return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
         case "pane.terminal.open":
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) == true
             return openTerminal(streamID: requestID ?? "", readOnly: readOnly, reply: settings.paneTerminalReply)
@@ -333,6 +362,39 @@ final class FakeHostService: Sendable {
         default:
             return [.text(Self.error(requestID, "invalid_message"))]
         }
+    }
+
+    private func respondToPush(
+        _ type: String, message: [String: Any], requestID: String?, authorization: String?, settings: Settings
+    ) -> [Outgoing] {
+        guard let deviceID = message["device_id"] as? String else { return [.text(Self.error(requestID, "invalid_message"))] }
+        if type != "push.status", let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+            return [.text(Self.error(requestID, "read_only_device"))]
+        }
+        let muted = (message["pairing"] as? [String: Any])?["muted"] as? [String] ?? []
+        let reply = pushHost.withLock { host -> [String: Any] in
+            switch type {
+            case "push.install":
+                if !host.pluginInstalled {
+                    if let failure = settings.pushInstallFailure {
+                        return ["type": "error", "request_id": requestID as Any, "code": "push_plugin_failed", "message": failure]
+                    }
+                    host.pluginInstalled = true
+                    host.pluginInstalledByPurrdr = true
+                }
+                host.pairings[deviceID] = muted
+            case "push.remove":
+                host.pairings[deviceID] = nil
+                if host.pairings.isEmpty && host.pluginInstalledByPurrdr {
+                    host.pluginInstalled = false
+                    host.pluginInstalledByPurrdr = false
+                }
+            default:
+                break
+            }
+            return host.result(type + ".result", requestID: requestID, deviceID: deviceID)
+        }
+        return [.text(Self.json(reply))]
     }
 
     /// 主機服務對錄製的 herdr stdout 做的轉接:frame 欄位原樣、加上串流識別碼。
