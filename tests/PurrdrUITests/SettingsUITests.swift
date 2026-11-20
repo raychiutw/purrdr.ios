@@ -102,16 +102,16 @@ final class SettingsUITests: XCTestCase {
         }
     }
 
-    /// 設定頁只有原型有的段落說明(外觀下的「自動」),其他段落沒有功能說明(#276)。
+    /// 設定頁只有原型有的段落說明(外觀下的「自動」)與支援段的隱私揭露(#276 的例外)。
     @MainActor
-    func testSettingsShowsOnlyPrototypeFooter() {
+    func testSettingsShowsPrototypeFooterAndPrivacyDisclosure() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
         XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitForExistence(timeout: 5))
         let privacy = element("settings.privacy", in: app)
         scrollTo(privacy, in: app)
         let paragraph = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Diagnostics include")).firstMatch
-        XCTAssertFalse(paragraph.exists, "支援段不該有功能說明段落")
+        XCTAssertTrue(paragraph.exists, "支援段要保留診斷資訊的隱私揭露")
     }
 
     /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。

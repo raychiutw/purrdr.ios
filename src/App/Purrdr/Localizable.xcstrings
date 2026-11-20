@@ -2948,6 +2948,17 @@
         }
       }
     },
+    "Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "診斷資訊包含 app 版本、iOS 版本、主機數與 herdr 版本，絕不包含主機名稱、位址、使用者名稱或對話內容。"
+          }
+        }
+      }
+    },
     "Discard Changes" : {
       "extractionState" : "manual",
       "localizations" : {
