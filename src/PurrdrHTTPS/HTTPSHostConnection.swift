@@ -394,6 +394,8 @@ public actor HTTPSHostConnection: HostConnection {
         case .deviceUnknown: HostServiceError.deviceUnknown
         // 只回覆 `push.*`,由 `HostServicePushPluginInstaller` 依操作直接對應。
         case .pushPluginFailed, .pushNotPaired, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
+        // 主機服務 0.7.0 的新訊息(送出前比對、佇列、唯讀 git)才會回;app 還沒送這些訊息，接上時(#298)再給專屬錯誤。
+        case .paneChanged, .cwdNotAllowed, .notGitRepository, .queueFull, .queueItemUnknown: HostServiceError.unexpectedResponse
         case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
         case .updateInProgress: HostServiceManagementError.updateInProgress
         case .updateFailed: HostServiceManagementError.updateFailed(message.message)

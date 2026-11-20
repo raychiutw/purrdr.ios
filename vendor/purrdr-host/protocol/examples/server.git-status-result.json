@@ -1,0 +1,1 @@
+{"type":"git.status.result","request_id":"r40","branch":"main","files":[{"path":"README.md","change":"modified"},{"path":"logo.png","change":"modified"},{"path":"src/garden.rs","change":"untracked"}]}
