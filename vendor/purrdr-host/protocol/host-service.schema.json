@@ -502,15 +502,15 @@
       "required": ["type", "request_id", "previews"]
     },
     "TranscriptPreview": {
-      "description": "一個對話紀錄的預覽。lines 是剝除圖片後的行(同 SSH 預覽腳本，不帶原始長度):whole 是最後 48000 bytes(第一行可能被切在中間)、appended 是 known_version 之後附加的部分、unchanged 沒有內容。",
+      "description": "一個對話紀錄的預覽。records 同其他對話紀錄讀取，每行是原始長度與剝除圖片後的內容:whole 是最後 48000 bytes(第一行可能被切在中間，長度從切點算起)、appended 是 known_version 之後附加的部分、unchanged 沒有內容。",
       "type": "object",
       "properties": {
         "key": { "type": "string" },
         "change": { "$ref": "#/$defs/TranscriptPreviewChange" },
         "version": { "type": "string" },
-        "lines": { "type": "array", "items": { "type": "string" } }
+        "records": { "type": "array", "items": { "$ref": "#/$defs/TranscriptRecord" } }
       },
-      "required": ["key", "change", "version", "lines"]
+      "required": ["key", "change", "version", "records"]
     },
     "TranscriptPreviewChange": {
       "description": "這次讀到的範圍:unchanged 與 known_version 相同、appended 只有附加的部分、whole 整段檔尾。",
@@ -1063,13 +1063,12 @@
         "name": { "type": "string", "description": "配對時 app 給的裝置名稱。" },
         "read_only": { "type": "boolean" },
         "paired_at": { "type": "string" },
-        "last_connected_at": { "type": "string", "description": "最後一次 WSS 連線的時間;還沒連過就沒有這欄。" },
         "current": { "type": "boolean", "description": "是發出這個請求的裝置。" }
       },
       "required": ["device_id", "name", "read_only", "paired_at", "current"]
     },
     "DevicesRevoke": {
-      "description": "撤銷一支已配對的裝置：之後它的每個 WSS 訊息都以 device_token_revoked 與 close code 4401 拒絕。已撤銷的再撤銷一次也成功;不認得的 device_id 回 device_unknown。",
+      "description": "撤銷一支已配對的裝置：之後它的每個 WSS 訊息都以 device_token_revoked 與 close code 4401 拒絕。已撤銷的再撤銷一次也成功;不認得的 device_id 回 device_unknown;不能撤銷發出請求的這支裝置(回 invalid_message,撤銷自己用 POST /v1/revoke)。",
       "type": "object",
       "x-write": true,
       "properties": {

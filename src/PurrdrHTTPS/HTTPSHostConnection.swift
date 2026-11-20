@@ -264,6 +264,17 @@ public actor HTTPSHostConnection: HostConnection {
         try await send(on: liveSession(), make)
     }
 
+    /// 送出請求，主機服務的錯誤訊息原樣回傳(`.errorMessage`),由呼叫端依操作對應成自己的錯誤。
+    func sendKeepingErrors(_ make: @Sendable (String) -> HostServiceProtocol.ClientMessage) async throws -> HostServiceProtocol.ServerMessage {
+        let session = try await liveSession()
+        do {
+            return try await session.request(make)
+        } catch {
+            noteEnding(error, of: session)
+            throw error
+        }
+    }
+
     /// 在這條連線送出請求(呼叫端先在連線上準備好，例如開好串流)。
     func send(
         on session: HostServiceSession, _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage
@@ -368,9 +379,10 @@ public actor HTTPSHostConnection: HostConnection {
         case .transcriptNotAllowed: TranscriptReadError.invalidReference
         case .transcriptUnsupported: HostServiceError.unsupported("transcript")
         case .fileChanged: HostFileFetchError.changed
-        case .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
-        // 主機服務 0.6.0／0.7.0 新增的錯誤碼：各功能的票接上時從這裡拿走自己的碼、對應專屬錯誤。
-        case .pushPluginFailed, .pushNotPaired, .uploadTooLarge, .deviceUnknown, .hostServiceNotInstalled, .updateInProgress, .updateFailed:
+        // 只回覆 `push.*`,由 `HostServicePushPluginInstaller` 依操作直接對應。
+        case .pushPluginFailed, .pushNotPaired, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
+        // 主機服務 0.7.0 新增的錯誤碼：各功能的票接上時從這裡拿走自己的碼、對應專屬錯誤。
+        case .uploadTooLarge, .deviceUnknown, .hostServiceNotInstalled, .updateInProgress, .updateFailed:
             HostServiceError.unexpectedResponse
         }
     }

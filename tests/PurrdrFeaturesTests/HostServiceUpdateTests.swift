@@ -25,7 +25,7 @@ struct HostServiceUpdateTests {
     static func connections(reporting versions: [String]) async -> HostServiceConnections {
         let connections = HostServiceConnections()
         for version in versions {
-            let connection = FakeHostConnection()
+            let connection = FakeHostConnection(pushPlugins: FakePushPluginHost())
             await connection.setHostServiceVersion(version)
             connections.connections.append(connection)
         }
@@ -38,7 +38,20 @@ struct HostServiceUpdateTests {
     ) -> HostsModel {
         HostsModel(
             store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens),
-            hostServiceUpdates: HostServiceUpdates(latestVersion: latest, store: dismissals), makeChannel: ChannelFactory().make)
+            hostServiceUpdates: HostServiceUpdates(latestVersion: latest, store: dismissals), push: pushService(), makeChannel: ChannelFactory().make)
+    }
+
+    /// 通知區塊要有推播服務才判斷各主機能不能開;這些測試不會真的送後台請求。
+    static func pushService() -> PushService {
+        PushService(
+            session: MemberSession(
+                transport: URLSessionBackendTransport(baseURL: URL(string: "https://backend.test")!), tokenStore: InMemoryTokenStore()),
+            platform: SilentPushPlatform(), store: InMemoryPushPairingStore(),
+            device: PushDeviceIdentity(id: PushDeviceID(rawValue: "0123456789abcdef")!, name: "iPhone", model: .iPhone),
+            configuration: PushConfiguration(
+                endpoint: URL(string: "https://backend.test/v1/push")!, environment: .production,
+                pluginSource: "raychiutw/purrdr.host/host-plugin"),
+            isPlusActive: { true })
     }
 
     static func updates(_ model: HostsModel) -> [String: String] {
@@ -57,6 +70,23 @@ struct HostServiceUpdateTests {
         await model.checkHostServiceVersions()
 
         #expect(Self.updates(model) == ["A Older": "0.10.0"])
+    }
+
+    @Test("通知區塊：主機服務比 0.6.0 舊的 HTTPS 主機要更新(附依版本的更新指令),0.6.0 起與 SSH 主機可開")
+    func pushNeedsHostServiceWithPushMessages() async {
+        let (store, tokens) = Self.hosts()
+        let connections = await Self.connections(reporting: ["0.5.0", "0.6.0", "0.7.0"])
+        let model = Self.model(
+            latest: "0.7.0", store: store, tokens: tokens, connections: connections, dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
+
+        await model.checkHostServiceVersions()
+
+        let supportByName = Dictionary(uniqueKeysWithValues: model.hostPushes.map { ($0.name, $0.support) })
+        #expect(supportByName["A Older"] == .needsHostService(version: "0.6.0", update: HostServiceUpdates.commands(installed: "0.5.0")))
+        #expect(supportByName["B Same"] == .supported)
+        #expect(supportByName["C Newer"] == .supported)
+        #expect(supportByName["D SSH"] == .supported)
     }
 
     @Test("關閉提示後同一個新版本不再出現(存在這支裝置);app 知道更新的版本時再提示")
@@ -141,4 +171,13 @@ struct HostServiceUpdateTests {
         #expect(HostServiceUpdates.posixInstallCommand == "curl -fsSL \(base)install.sh | sh")
         #expect(HostServiceUpdates.windowsInstallCommand == "irm \(base)install.ps1 | iex")
     }
+}
+
+/// 不跳權限、沒有 device token 的推播平台(只為了讓 `HostsModel` 有推播服務)。
+@MainActor
+private final class SilentPushPlatform: PushPlatform {
+    func authorization() async -> PushAuthorization { .notDetermined }
+    func requestAuthorization() async -> Bool { false }
+    func deviceToken() async throws -> Data { throw CancellationError() }
+    func openSettings() {}
 }

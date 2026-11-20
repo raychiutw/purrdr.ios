@@ -442,15 +442,15 @@ extension HostServiceProtocol.ServerMessage {
         case .paneTerminalOpenResult(let message): message.requestId
         case .fileStatResult(let message): message.requestId
         case .fileReadResult(let message): message.requestId
+        case .pushStatusResult(let message): message.requestId
+        case .pushInstallResult(let message): message.requestId
+        case .pushRemoveResult(let message): message.requestId
+        case .pushUpdateMutedResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
         case .transcriptPreviewsResult(let message): message.requestId
         case .transcriptSubagentResult(let message): message.requestId
         case .transcriptWorkflowResult(let message): message.requestId
         case .transcriptDelegationResult(let message): message.requestId
-        case .pushStatusResult(let message): message.requestId
-        case .pushInstallResult(let message): message.requestId
-        case .pushRemoveResult(let message): message.requestId
-        case .pushUpdateMutedResult(let message): message.requestId
         case .workspaceCreateResult(let message): message.requestId
         case .workspaceRenameResult(let message): message.requestId
         case .workspaceCloseResult(let message): message.requestId
