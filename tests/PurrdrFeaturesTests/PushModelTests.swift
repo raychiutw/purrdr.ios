@@ -721,6 +721,124 @@ struct PushRouteTests {
         #expect(router.pending == route)
     }
 
+    // MARK: - 推播種類(#292)
+
+    /// 以 `FakePushPluginHost` 開啟一台主機的通知。
+    func turnedOnWithPluginHost() async -> PushModel {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#), .json(201, #"{"registered":true}"#))
+        let model = model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        await turnOn(model)
+        return model
+    }
+
+    @Test("新開啟的主機收「需要你」與「完成」,註冊時帶 kinds")
+    func turningOnRegistersDefaultKinds() async throws {
+        let model = await turnedOnWithPluginHost()
+
+        #expect(model.state == .on)
+        #expect(model.kinds == [.blocked, .done])
+        let request = try #require(backend.requests(to: "/v1/members/me/push-pairings").first)
+        #expect(request.json?["kinds"] as? [String] == ["blocked", "done"])
+    }
+
+    @Test("關掉「完成」:以同一組配對重送註冊，只帶 blocked;重開 app 仍記得")
+    func changingKindsReRegisters() async throws {
+        let model = await turnedOnWithPluginHost()
+        let keyHash = try #require(store.keyHash(forHost: "studio"))
+
+        await model.setKind(.done, isOn: false)
+
+        #expect(model.kinds == [.blocked])
+        #expect(model.problem == nil)
+        let requests = backend.requests(to: "/v1/members/me/push-pairings")
+        #expect(requests.count == 2)
+        #expect(requests.last?.json?["keyHash"] as? String == keyHash)
+        #expect(requests.last?.json?["kinds"] as? [String] == ["blocked"])
+        let reopened = self.model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        #expect(reopened.kinds == [.blocked])
+    }
+
+    @Test("改種類失敗：維持原本的種類並說明")
+    func failedKindsChangeKeepsPrevious() async throws {
+        platform.status = .authorized
+        backend.on(
+            "POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#),
+            .json(500, #"{"error":{"code":"internal","message":"boom"}}"#))
+        let model = model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        await turnOn(model)
+
+        await model.setKind(.done, isOn: false)
+
+        #expect(model.kinds == [.blocked, .done])
+        guard case .kindsUpdateFailed = model.problem else {
+            Issue.record("沒有說明改種類失敗:\(String(describing: model.problem))")
+            return
+        }
+        #expect(model.state == .on)
+    }
+
+    @Test("不能把最後一個種類也關掉(要不收通知就關閉那台主機)")
+    func lastKindCannotBeTurnedOff() async throws {
+        let model = await turnedOnWithPluginHost()
+        await model.setKind(.done, isOn: false)
+
+        await model.setKind(.blocked, isOn: false)
+
+        #expect(model.kinds == [.blocked])
+        #expect(backend.requests(to: "/v1/members/me/push-pairings").count == 2)
+    }
+
+    @Test("舊版 app 開的配對沒記種類：視為只收「需要你」,補註冊不帶 kinds(後台保留原偏好)")
+    func legacyPairingKeepsBackendKinds() async throws {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setRegisteredToken("old", forKeyHash: Self.studioHash)
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+
+        let model = model(service(), installer: FakePushPluginHost().installer(deviceID: Self.deviceID))
+        await service().refreshRegistrations()
+
+        #expect(model.kinds == [.blocked])
+        let request = try #require(backend.requests(to: "/v1/members/me/push-pairings").first)
+        #expect(request.json?["kinds"] == nil)
+    }
+
+    @Test("token 換了補註冊時帶這組配對記得的種類")
+    func tokenRotationCarriesStoredKinds() async throws {
+        store.setKeyHash(Self.studioHash, forHost: "studio")
+        store.setRegisteredToken("old", forKeyHash: Self.studioHash)
+        store.setKinds([.blocked, .done], forKeyHash: Self.studioHash)
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+
+        await service().refreshRegistrations()
+
+        let request = try #require(backend.requests(to: "/v1/members/me/push-pairings").first)
+        #expect(request.json?["kinds"] as? [String] == ["blocked", "done"])
+    }
+
+    @Test("關閉通知時一併忘記那組配對的種類")
+    func turningOffForgetsKinds() async throws {
+        let model = await turnedOnWithPluginHost()
+        let keyHash = try #require(store.keyHash(forHost: "studio"))
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(keyHash)", .empty(204))
+
+        await model.turnOff()
+
+        #expect(store.kinds(forKeyHash: keyHash) == nil)
+    }
+
+    @Test("點「完成」通知：payload 根層的 pairing 與 pane 一樣導到那個聊天")
+    func doneNotificationRoutesToChat() throws {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title": "api", "loc-key": "An agent finished."], "category": "AGENT_DONE"],
+            "pairing": "abc", "pane": "w2:p1", "status": "done",
+        ]
+
+        #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: "w2:p1"))
+    }
+
     @Test("不認得的配對(主機已移除)不切換")
     func unknownPairingIsIgnored() {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost()).make)

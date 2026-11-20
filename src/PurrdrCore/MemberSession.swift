@@ -113,14 +113,16 @@ public actor MemberSession {
 
     /// 向後台註冊(或更新 device token)一組推播配對。只送配對密鑰的**雜湊**,密鑰本身不離開 app 與主機。
     /// 帶上這支裝置(`device`),同一支裝置的配對在「通知裝置」歸成一台(#266)。
+    /// `kinds` 是要收的推播種類;`nil` 時不帶，後台保留既有偏好(新配對只收「需要你」)。
     /// 需要有效訂閱(否則 403 `subscription_required`)。
     public func registerPushPairing(
-        keyHash: String, deviceToken: String, environment: PushEnvironment, device: PushDeviceIdentity
+        keyHash: String, deviceToken: String, environment: PushEnvironment, device: PushDeviceIdentity,
+        kinds: Set<PushKind>? = nil
     ) async throws {
-        let body = try JSONEncoder().encode([
-            "keyHash": keyHash, "platform": "apns", "deviceToken": deviceToken, "environment": environment.rawValue,
-            "deviceId": device.id.backendValue, "deviceName": device.name, "model": device.model.rawValue,
-        ])
+        let body = try JSONEncoder().encode(Wire.PushPairingRegistration(
+            keyHash: keyHash, platform: "apns", deviceToken: deviceToken, environment: environment.rawValue,
+            deviceId: device.id.backendValue, deviceName: device.name, model: device.model.rawValue,
+            kinds: kinds.map(PushKind.wireValues)))
         _ = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/push-pairings", body: body))
     }
 
@@ -409,6 +411,18 @@ private enum Wire {
 
     static func currentDevice(_ deviceID: String) -> [URLQueryItem] {
         [URLQueryItem(name: "currentDeviceId", value: deviceID)]
+    }
+
+    /// 註冊推播配對的 body;`kinds` 是 `nil` 時整個欄位不送。
+    struct PushPairingRegistration: Encodable {
+        var keyHash: String
+        var platform: String
+        var deviceToken: String
+        var environment: String
+        var deviceId: String
+        var deviceName: String
+        var model: String
+        var kinds: [String]?
     }
 
     struct PushDevices: Decodable {

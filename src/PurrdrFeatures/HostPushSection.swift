@@ -1,4 +1,5 @@
 import PurrdrAgentFeatures
+import PurrdrCore
 import SwiftUI
 
 /// 帳號頁的「通知」區塊(#263,spec #261 原型 A):每台主機一列，開關只管那台。
@@ -14,6 +15,9 @@ struct HostPushSection: View {
         Section {
             ForEach(pushes) { push in
                 HostPushRow(push: push)
+                if push.support == .supported, push.model.state == .on {
+                    HostPushKindsRow(push: push)
+                }
                 if case .needsHostService(_, let update) = push.support {
                     HostServicePushUpdateRow(update: update)
                 }
@@ -128,12 +132,51 @@ private struct HostPushRow: View {
     }
 }
 
+/// 開著通知的主機可展開選要收的種類(#292);新種類加進 `PushKind` 就會多一列。
+private struct HostPushKindsRow: View {
+    let push: HostPush
+    @State private var isExpanded = false
+
+    private var model: PushModel { push.model }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            ForEach(PushKind.allCases, id: \.self) { kind in
+                Toggle(isOn: Binding(get: { model.kinds.contains(kind) }, set: { isOn in change(kind, to: isOn) })) {
+                    Text(kind.title)
+                }
+                // 最後一個種類不能關：要不收通知就關閉那台主機。
+                .disabled(model.isUpdatingKinds || model.kinds == [kind])
+                .accessibilityIdentifier("account.push.\(push.host.storedValue).kind.\(kind.rawValue)")
+            }
+        } label: {
+            Text("Notification Types")
+                .accessibilityIdentifier("account.push.\(push.host.storedValue).kinds")
+        }
+    }
+
+    private func change(_ kind: PushKind, to isOn: Bool) {
+        Task { await model.setKind(kind, isOn: isOn) }
+    }
+}
+
+extension PushKind {
+    /// 帳號頁通知種類的名稱。
+    var title: LocalizedStringResource {
+        switch self {
+        case .blocked: "Needs You"
+        case .done: "Finished"
+        }
+    }
+}
+
 extension PushModel.Problem {
     /// 要在主機列下另列一行(有下一步按鈕或與主機無關);安裝失敗寫在主機列的狀態。
     var needsOwnRow: Bool {
         switch self {
         case .failed, .demoHost: false
-        case .needsSubscription, .permissionDenied, .unsupportedDevice, .hostServiceOutdated, .deviceIDUnavailable, .mutedSyncFailed: true
+        case .needsSubscription, .permissionDenied, .unsupportedDevice, .hostServiceOutdated, .deviceIDUnavailable, .mutedSyncFailed,
+             .kindsUpdateFailed: true
         }
     }
 }
@@ -172,7 +215,7 @@ struct PushProblemRow: View {
         case .deviceIDUnavailable:
             Label("Couldn’t read this device’s ID from the keychain. Unlock this device and try again.", systemImage: "lock")
                 .accessibilityIdentifier("settings.push.problem")
-        case .failed(let message), .mutedSyncFailed(let message):
+        case .failed(let message), .mutedSyncFailed(let message), .kindsUpdateFailed(let message):
             Label { Text(verbatim: message) } icon: { Image(systemName: "exclamationmark.triangle") }
                 .accessibilityIdentifier("settings.push.problem")
         }

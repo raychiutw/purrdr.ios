@@ -76,6 +76,36 @@ struct MemberSessionPushDevicesTests {
         #expect(json["deviceId"] != legacy.rawValue)
     }
 
+    @Test("註冊配對帶要收的推播種類(raychiutw/purrdr.server#10):值是 blocked、done,順序固定")
+    func registrationCarriesKinds() async throws {
+        let backend = FakeBackend([:])
+        let session = try makeSession(backend)
+
+        try await session.registerPushPairing(
+            keyHash: "hash-1", deviceToken: "token-1", environment: .production,
+            device: PushDeviceIdentity(id: PushDeviceID(rawValue: Self.thisDevice)!, name: "iPhone", model: .iPhone),
+            kinds: [.done, .blocked])
+
+        let body = try #require(backend.requests.first?.body)
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["kinds"] as? [String] == ["blocked", "done"])
+        #expect(json["keyHash"] as? String == "hash-1")
+    }
+
+    @Test("沒指定種類時不帶 kinds:後台保留既有偏好(新配對只收 blocked)")
+    func registrationWithoutKindsOmitsField() async throws {
+        let backend = FakeBackend([:])
+        let session = try makeSession(backend)
+
+        try await session.registerPushPairing(
+            keyHash: "hash-1", deviceToken: "token-1", environment: .production,
+            device: PushDeviceIdentity(id: PushDeviceID(rawValue: Self.thisDevice)!, name: "iPhone", model: .iPhone))
+
+        let body = try #require(backend.requests.first?.body)
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["kinds"] == nil)
+    }
+
     @Test("清單帶 currentDeviceId,舊配對的名稱與型號是 nil")
     func listsDevices() async throws {
         let backend = FakeBackend(["GET /v1/members/me/push-devices": Self.json(200, #"""

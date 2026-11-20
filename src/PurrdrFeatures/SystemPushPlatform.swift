@@ -10,6 +10,8 @@ import UserNotifications
 public final class SystemPushPlatform: PushPlatform {
     /// 推播的通知類別：設定隱藏預覽時的通用文字(HIG)。後台的 payload 帶同一個 `category`。
     public static let blockedCategory = "AGENT_BLOCKED"
+    /// 「完成」的通知類別(raychiutw/purrdr.server#10)。
+    public static let doneCategory = "AGENT_DONE"
 
     private var waiting: [CheckedContinuation<Data, any Error>] = []
 
@@ -55,13 +57,17 @@ public final class SystemPushPlatform: PushPlatform {
     /// 推播內文：後台的 APNs payload 只送 `loc-key`,由系統以 app 的字串表翻譯。
     /// 寫在程式碼裡，`scripts/strings.sh` 才抽得到這個 key(否則會當成已不用而移除)。
     static let blockedBody = String(localized: "An agent needs you.", comment: "推播內文(後台 APNs payload 的 loc-key)")
+    static let doneBody = String(localized: "An agent finished.", comment: "「完成」推播內文(後台 APNs payload 的 loc-key)")
 
     /// 註冊通知類別(啟動時呼叫一次，不會請求權限)。
     public static func registerCategories() {
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(
                 identifier: blockedCategory, actions: [], intentIdentifiers: [],
-                hiddenPreviewsBodyPlaceholder: String(localized: "An agent needs you"), options: [])
+                hiddenPreviewsBodyPlaceholder: String(localized: "An agent needs you"), options: []),
+            UNNotificationCategory(
+                identifier: doneCategory, actions: [], intentIdentifiers: [],
+                hiddenPreviewsBodyPlaceholder: String(localized: "An agent finished"), options: []),
         ])
     }
 }
