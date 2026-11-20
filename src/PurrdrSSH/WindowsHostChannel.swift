@@ -216,7 +216,7 @@ enum WindowsCommand {
         (HostFileScript.readIfChanged, WindowsScripts.hostFileReadIfChanged),
         (HostFileScript.apply, WindowsScripts.hostFileApply),
         (HostFileScript.newest, WindowsScripts.hostFileNewest),
-        (PushHost.otherPairingsScript, WindowsScripts.pushPairings),
+        (SSHPushPluginInstaller.otherPairingsScript, WindowsScripts.pushPairings),
     ]
 
     static func inline(_ script: String) throws -> WindowsInvocation {

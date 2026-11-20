@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrCore
 
 /// 主機服務的更新提示(#198):HTTPS 主機回報的主機服務版本比這版 app 已知的最新版舊時，在主機清單提示更新。
 ///
@@ -7,7 +8,7 @@ import Foundation
 @MainActor
 public struct HostServiceUpdates {
     /// 這版 app 已知的最新主機服務版本。
-    nonisolated public static let latestKnownVersion = "0.5.0"
+    nonisolated public static let latestKnownVersion = "0.6.0"
 
     /// 在主機上更新(或安裝)主機服務的一行指令：macOS、Linux。
     nonisolated public static let posixInstallCommand =
@@ -19,7 +20,7 @@ public struct HostServiceUpdates {
     /// 主機服務能自己更新(`purrdr-host-service update`、自動更新)的第一個版本;更舊的要重跑一行安裝指令。
     nonisolated public static let selfUpdatingVersion = "0.5.0"
 
-    /// 0.5.0 起在主機上立刻更新的指令：macOS、Linux(安裝程式不改 PATH,用安裝位置的完整路徑)。
+    /// 0.5.0 起在主機上立刻更新的指令：macOS、Linux(用安裝位置的完整路徑：0.6.0 以前的安裝與 `--no-path` 不在 PATH)。
     nonisolated public static let posixUpdateCommand = "~/.purrdr/host-service/bin/purrdr-host-service update"
     /// Windows(PowerShell)。
     nonisolated public static let windowsUpdateCommand =
@@ -27,7 +28,7 @@ public struct HostServiceUpdates {
 
     /// 回報 `installed` 的主機要用的更新指令。
     nonisolated public static func commands(installed: String) -> HostServiceUpdateCommands {
-        let canUpdateItself = numbers(installed).map { !$0.lexicographicallyPrecedes(numbers(selfUpdatingVersion) ?? []) } ?? false
+        let canUpdateItself = HostServiceVersion.isAtLeast(installed, selfUpdatingVersion)
         return canUpdateItself
             ? HostServiceUpdateCommands(
                 installedVersion: installed, canUpdateItself: true, posix: posixUpdateCommand, windows: windowsUpdateCommand)
@@ -45,16 +46,9 @@ public struct HostServiceUpdates {
 
     /// 回報 `installed` 的主機要提示更新到的版本;不用提示(已是最新、比 app 知道的新、看不懂的版本)時 `nil`。
     func offeredVersion(installed: String) -> String? {
-        guard let installed = Self.numbers(installed), let latest = Self.numbers(latestVersion) else { return nil }
-        return installed.lexicographicallyPrecedes(latest) ? latestVersion : nil
-    }
-
-    /// `1.2.3` → `[1, 2, 3]`(缺的段補 0,所以 `1.2` 與 `1.2.0` 相同);預發行標記(`-beta`)之後不比。
-    nonisolated private static func numbers(_ version: String) -> [Int]? {
-        let core = version.split(separator: "-", maxSplits: 1).first ?? ""
-        let parts = core.split(separator: ".", omittingEmptySubsequences: false).map { Int($0) }
-        guard !parts.isEmpty, parts.count <= 3, parts.allSatisfy({ $0 != nil }) else { return nil }
-        return parts.compactMap(\.self) + Array(repeating: 0, count: 3 - parts.count)
+        guard HostServiceVersion.numbers(installed) != nil, HostServiceVersion.numbers(latestVersion) != nil,
+              !HostServiceVersion.isAtLeast(installed, latestVersion) else { return nil }
+        return latestVersion
     }
 }
 

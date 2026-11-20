@@ -94,10 +94,10 @@ struct HostCommandDeadlineTests {
         },
         StuckCommand(
             testDescription: "推播外掛：檢查是否已安裝",
-            command: HerdrCommand.pluginList(id: PushHost.pluginID, herdr: HerdrInstallation()),
+            command: HerdrCommand.pluginList(id: SSHPushPluginInstaller.pluginID, herdr: HerdrInstallation()),
             deadline: .seconds(20)
         ) { host, sleep in
-            let push = PushHost(channel: host, herdr: HerdrInstallation(), deviceID: "0123456789abcdef", pluginSource: "owner/repo", sleep: sleep)
+            let push = SSHPushPluginInstaller(channel: host, herdr: HerdrInstallation(), deviceID: PushDeviceID(rawValue: "0123456789abcdef")!, pluginSource: "owner/repo", sleep: sleep)
             _ = try await push.pluginInstalled()
         },
         StuckCommand(
