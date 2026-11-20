@@ -229,7 +229,7 @@ struct SuggestionFillInContrastTests {
     }
 
     @Test("主色字對淡綠底：四值 ≥ 4.5:1")
-    func fillInTextContrast() throws {
+    @MainActor func fillInTextContrast() throws {
         let accent = try AccentColorTests.accentColorAsset()
         let opacity = PromptSuggestionView.fillInTintOpacity
         let darkCards = [ThemeColor(red: 0x00, green: 0x00, blue: 0x00), ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E)]

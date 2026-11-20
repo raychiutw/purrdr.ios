@@ -10,21 +10,21 @@ import Testing
 @Suite("主機頁：主機服務")
 struct HostServiceStatusModelTests {
     /// 0.7.0、有新版 0.7.1;上次(較早)試過 0.7.1 已退回。
-    static let outdated = #"""
+    nonisolated static let outdated = #"""
         {"type":"host_service.status.result","installed_version":"0.7.0","latest_version":"0.7.1","update_available":true,"auto_update":true,
          "last_update":{"checked_at":"2026-11-19T09:00:00Z","result":"update failed: 0.7.0 was put back"},"rolled_back":"0.7.1"}
         """#
     /// 這次更新到 0.7.1 起不來、換回 0.7.0。
-    static let rolledBack = #"""
+    nonisolated static let rolledBack = #"""
         {"type":"host_service.status.result","installed_version":"0.7.0","latest_version":"0.7.1","update_available":true,"auto_update":true,
          "last_update":{"checked_at":"2026-11-20T09:00:00Z","result":"update failed: 0.7.0 was put back"},"rolled_back":"0.7.1"}
         """#
-    static let current = #"""
+    nonisolated static let current = #"""
         {"type":"host_service.status.result","installed_version":"0.7.1","latest_version":"0.7.1","update_available":false,"auto_update":true,
          "last_update":{"checked_at":"2026-11-20T09:00:00Z","result":"updated 0.7.0 -> 0.7.1"}}
         """#
     /// `host_service.update` 回 0.7.0 → 0.7.1。
-    static let started = #"""
+    nonisolated static let started = #"""
         {"type":"host_service.update.result","outcome":"started","from_version":"0.7.0","to_version":"0.7.1"}
         """#
 

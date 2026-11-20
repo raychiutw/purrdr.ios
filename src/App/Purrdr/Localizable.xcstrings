@@ -2143,17 +2143,6 @@
         }
       }
     },
-    "Couldn" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "t"
-          }
-        }
-      }
-    },
     "Couldn’t Check" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2392,6 +2381,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法讀取這台裝置上已儲存的主機。%@"
+          }
+        }
+      }
+    },
+    "Couldn’t read that file." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這個檔案。"
           }
         }
       }
@@ -2656,6 +2656,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法更新主機:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t upload the file to the host. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法把檔案上傳到主機，請再試一次。"
           }
         }
       }
@@ -3375,17 +3386,6 @@
         }
       }
     },
-    "Get notified when an agent needs you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 需要你時通知"
-          }
-        }
-      }
-    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3833,17 +3833,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要安裝 Codex 啟動器嗎?"
-          }
-        }
-      }
-    },
-    "Install the Purrdr Plugin?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "要安裝 Purrdr 主機外掛嗎?"
           }
         }
       }
@@ -4893,17 +4882,6 @@
         }
       }
     },
-    "Notifications and host sync are on" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知與同步都已開啟"
-          }
-        }
-      }
-    },
     "Notifications and host sync need Purrdr Plus. Activate it next." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4966,17 +4944,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在可以使用 Agent 需要你時的通知與主機同步。請在每台主機分別開啟。"
-          }
-        }
-      }
-    },
-    "Notify When an Agent Needs You" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 需要你時通知"
           }
         }
       }
@@ -5751,17 +5718,6 @@
         }
       }
     },
-    "Purrdr adds a small herdr plugin to this host. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Purrdr 會在這台主機加裝一個小型 herdr plugin。Agent 需要你時，主機會告知 Purrdr 後台，再由後台通知這支裝置。通知只顯示 Workspace 名稱，絕不包含 Agent 說的內容。Windows 主機的通知為盡力傳送，不保證送達。"
-          }
-        }
-      }
-    },
     "Purrdr can’t safely change ~/.claude/settings.json on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5912,17 +5868,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存這支裝置的配對密鑰。關閉通知只移除這支裝置的配對，最後一支裝置關閉時才移除外掛。"
-          }
-        }
-      }
-    },
-    "Purrdr will run “herdr plugin install” on this host as %@ and save a pairing key in ~/.purrdr. Turning notifications off removes both." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存一把配對密鑰。關閉通知時兩者都會移除。"
           }
         }
       }
@@ -6099,17 +6044,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要從這部裝置移除「%@」嗎？"
-          }
-        }
-      }
-    },
-    "Removing the plugin…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在移除主機外掛…"
           }
         }
       }
@@ -7303,17 +7237,6 @@
       }
     },
     "Subscribe" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "訂閱"
-          }
-        }
-      }
-    },
-    "Subscription" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
