@@ -153,7 +153,12 @@ extension AgentListProjection {
             guard let first = tabPanes.first else { return nil }
             let target: SpacesTab.Target = tabPanes.count == 1
                 ? .pane(ChatRoute(host: host, paneID: first.id)) : .layout(workspaceID: workspaceID, tabID: tab.id)
-            return SpacesTab(host: host, key: tab.id, title: tabTitle(tab.label, position: index + 1), target: target)
+            let tabAgents = tabPanes.compactMap { pane in agents.first { $0.paneID == pane.id } }
+            let contents = tabAgents.first.map { agent in
+                let title = AgentRowText.title(for: agent, siblings: agents)
+                return tabAgents.count > 1 ? "\(title) +\(tabAgents.count - 1)" : title
+            } ?? TerminalRow(pane: first, host: host, hostLabel: nil).program
+            return SpacesTab(host: host, key: tab.id, title: tabTitle(tab.label, contents: contents, position: index + 1), target: target)
         }
         let known = Set(tabs.map(\.id))
         for pane in panes where tabID(of: pane).map({ !known.contains($0) }) ?? true {
@@ -164,12 +169,14 @@ extension AgentListProjection {
         return rows
     }
 
-    /// Tab 名稱：人取的照原文;沒有名稱或是 herdr 的預設數字名稱時「Tab N」(N 是在 workspace 裡的順序)。
-    package static func tabTitle(_ label: String?, position: Int) -> String {
-        guard let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty, !label.allSatisfy(\.isNumber) else {
-            return String(localized: "Tab \(position)")
+    /// Tab 名稱：人取的照原文;沒有名稱或是 herdr 的預設數字名稱(「1」「2」…)時用 Tab 裡的內容
+    /// (第一個 Agent 的聊天標題，多個時加「+N」;只有終端機時是程式名);都沒有才是「Tab N」(N 是在 workspace 裡的順序)。
+    package static func tabTitle(_ label: String?, contents: String?, position: Int) -> String {
+        if let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty, !label.allSatisfy(\.isNumber) {
+            return label
         }
-        return label
+        if let contents, !contents.isEmpty { return contents }
+        return String(localized: "Tab \(position)")
     }
 }
 

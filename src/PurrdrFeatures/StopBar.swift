@@ -2,11 +2,12 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 輸入卡片最上面的停止列(#220):停止鈕(長按開強制結束選單)、停止中、停止的結果。
+/// 輸入卡片上方置中的工作中膠囊(原型 purrdr-screens 定案版:「● 工作中 0:42 [停止]」;實機回報 2026-11-20):
+/// 主色圓點、「Working…／Writing…」與經過時間、停止鈕(長按開強制結束選單);停止中與停止的結果也在這顆膠囊裡。
 ///
-/// 停止鈕是中性的淡填色鈕，送出維持輸入列唯一的主色主要動作。結果有前導符號與文字(不只靠顏色),
+/// 停止鈕是中性的淡填色膠囊，送出維持輸入列唯一的主色主要動作。結果有前導符號與文字(不只靠顏色),
 /// 顏色只上在符號(`StopPhase.tone`);出現時有觸覺回饋與 VoiceOver 公告;「已停止」由 model 2 秒後收起。
-/// 停止列就是輸入框上方「工作中」那一樣(`ComposerTopAccessory`)。
+/// 這顆膠囊就是輸入框上方「工作中」那一樣(`ComposerTopAccessory`),也是畫面上唯一的工作中指示。
 struct StopBar: View {
     let model: ConversationModel
     /// 鍵盤讓位時只留一行(#196、`ComposerKeyboardLayout`)。
@@ -15,7 +16,12 @@ struct StopBar: View {
 
     var body: some View {
         content
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 12)
+            .padding(.trailing, 4)
+            .padding(.vertical, 2)
+            .background(.background, in: Capsule())
+            .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+            .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("stopBar")
             .sensoryFeedback(trigger: model.stopPhase) { _, phase in phase?.feedback }
@@ -28,10 +34,44 @@ struct StopBar: View {
     @ViewBuilder
     private var content: some View {
         switch model.stopPhase {
-        case nil: stopButton
+        case nil:
+            // AX 字級時停止鈕換到下一行，文字不截斷。
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+                : AnyLayout(HStackLayout(spacing: 8))
+            layout {
+                workingStatus
+                stopButton
+            }
         case .stopping?: stoppingButton
         case let phase?: result(phase)
         }
+    }
+
+    /// 主色圓點、「Working…」(有即時預覽時「Writing…」)與經過時間。
+    private var workingStatus: some View {
+        HStack(spacing: 6) {
+            // 圓點是裝飾，不跟文字合成一個元素(稽核量文字對比時不把圓點算進去)。
+            Circle()
+                .fill(AgentStatus.working.tone.style)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+            HStack(spacing: 6) {
+                Text(model.livePreview == nil ? "Working…" : "Writing…")
+                if let since = model.workingSince {
+                    TimelineView(.periodic(from: since, by: 1)) { context in
+                        Text(WorkingElapsed.text(seconds: Int(context.date.timeIntervalSince(since))))
+                            .monospacedDigit()
+                    }
+                }
+            }
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("conversation.working")
+        }
+        .font(.footnote)
+        .foregroundStyle(Color.primary)
     }
 
     // MARK: - 停止鈕
@@ -52,8 +92,8 @@ struct StopBar: View {
                 }
             }
         } label: {
-            Label("Stop", systemImage: "stop.fill")
-                .font(.subheadline.weight(.semibold))
+            Text("Stop")
+                .font(.footnote.weight(.semibold))
                 .frame(minHeight: 44)
                 .contentShape(.rect)
         } primaryAction: {
@@ -200,10 +240,11 @@ extension View {
 /// 停止列的中性按鈕：淡填色底與主要文字色(玻璃上的 bordered tint 對比不足),destructive 用系統紅，按下變淡。
 private struct StopBarButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
+        // 看得到的是 32pt 高的淡填色膠囊(原型的「停止」),點擊範圍仍是 44pt。
         configuration.label
             .padding(.horizontal, 12)
             .foregroundStyle(configuration.role == .destructive ? Color.red : Color.primary)
-            .background(.fill.tertiary, in: Capsule())
+            .background(.fill.tertiary, in: Capsule().inset(by: 6))
             .opacity(configuration.isPressed ? 0.6 : 1)
             .contentShape(Capsule())
     }

@@ -132,6 +132,7 @@ public struct NewChatView: View {
 }
 
 /// 新增對話的資料夾瀏覽(行為規格 F3.3):只列子資料夾;錯誤與空資料夾分開顯示。
+/// 樣式比照檔案頁(實機回報 2026-11-20):上方路徑麵包屑(每段可點回那一層，取代「上一層」)、資料夾列同檔案頁。
 struct FolderPickerView: View {
     let model: FolderPickerModel
     let onChoose: (String) -> Void
@@ -143,12 +144,14 @@ struct FolderPickerView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Enclosing Folder", systemImage: "arrow.up") { Task { await model.goUp() } }
-                        .disabled(!model.canGoUp)
-                        .accessibilityIdentifier("folderPicker.up")
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if !model.breadcrumbs.isEmpty {
+                    FolderBreadcrumbBar(crumbs: model.breadcrumbs, identifierPrefix: "folderPicker.crumb.") { crumb in
+                        Task { await model.go(to: crumb) }
+                    }
                 }
+            }
+            .toolbar {
                 ToolbarItem(placement: Self.usePlacement) {
                     Button("Use This Folder") {
                         guard let path = model.chosenPath else { return }
@@ -195,23 +198,10 @@ struct FolderPickerView: View {
                             .accessibilityIdentifier("folderPicker.empty")
                     }
                     ForEach(listing.folders, id: \.self) { name in
-                        Button {
+                        FolderEntryRow(entry: FolderEntry(name: name, kind: .folder, size: 0), identifierPrefix: "folderPicker.row.") {
                             Task { await model.open(name) }
-                        } label: {
-                            Label {
-                                Text(verbatim: name).foregroundStyle(.primary)
-                            } icon: {
-                                Image(systemName: "folder")
-                            }
                         }
-                        .accessibilityIdentifier("folderPicker.row.\(name)")
                     }
-                } header: {
-                    Text(verbatim: listing.path)
-                        .font(.footnote.monospaced())
-                        .textCase(nil)
-                        .accessibilityIdentifier("folderPicker.path")
-                        .foregroundStyle(.secondaryText)
                 }
             }
             .accessibilityIdentifier("folderPicker.list")
