@@ -160,10 +160,13 @@ public struct HerdrClient: Sendable {
     ///
     /// herdr 的錯誤 envelope 丟 `HerdrError.herdr`;其他錯誤(通道失敗、沒有回應、期限到)都代表
     /// **不知道有沒有送到**,呼叫端絕不可重送(§7.3)。
-    public func prompt(target: String, text: String, wait: Duration?) async throws -> PromptReply {
+    ///
+    /// `expecting` 交給主機在送出前比對(`SendExpectation`);不符時丟 `HostServiceError.paneChanged`,什麼都沒送出。
+    public func prompt(target: String, text: String, wait: Duration?, expecting: SendExpectation = .none) async throws -> PromptReply {
         let params = PromptParams(
             target: target, text: text,
-            wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) }
+            wait: wait.map { PromptParams.Wait(until: ["working", "blocked"], timeoutMs: Self.milliseconds($0)) },
+            expected: await checked(expecting)
         )
         let result = try await request(
             method: "agent.prompt", params: params, as: PromptResult.self, deadline: (wait ?? .zero) + HostCommandDeadline.standard)
@@ -182,13 +185,19 @@ public struct HerdrClient: Sendable {
     }
 
     /// `pane.send_keys`(herdr 鍵名語法：`enter`、`esc`、`ctrl+c`,§3.4)。
-    public func sendKeys(paneID: String, keys: [String]) async throws {
-        _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys), as: TypedResult.self)
+    public func sendKeys(paneID: String, keys: [String], expecting: SendExpectation = .none) async throws {
+        _ = try await request(method: "pane.send_keys", params: SendKeysParams(paneID: paneID, keys: keys, expected: await checked(expecting)), as: TypedResult.self)
     }
 
     /// `pane.send_text`:把文字原樣打進 pane(不含 Enter)。用在 Claude 問題卡「Type something.」的自訂回答(#120)。
-    public func sendText(paneID: String, text: String) async throws {
-        _ = try await request(method: "pane.send_text", params: SendTextParams(paneID: paneID, text: text), as: TypedResult.self)
+    public func sendText(paneID: String, text: String, expecting: SendExpectation = .none) async throws {
+        _ = try await request(method: "pane.send_text", params: SendTextParams(paneID: paneID, text: text, expected: await checked(expecting)), as: TypedResult.self)
+    }
+
+    /// 主機會比對時才帶比對欄位;herdr(SSH 主機)與舊版主機服務不認得它們。
+    private func checked(_ expectation: SendExpectation) async -> SendExpectation {
+        guard !expectation.isEmpty, await connection.checksSendExpectations() else { return .none }
+        return expectation
     }
 
     private static func milliseconds(_ duration: Duration) -> Int {
@@ -260,6 +269,23 @@ private struct PromptParams: Encodable {
     var target: String
     var text: String
     var wait: Wait?
+    /// 送出前比對(#304);`nil` 不編碼。
+    var expectedSession: String?
+    var expectedScreen: String?
+
+    init(target: String, text: String, wait: Wait?, expected: SendExpectation) {
+        self.target = target
+        self.text = text
+        self.wait = wait
+        expectedSession = expected.session
+        expectedScreen = expected.screen
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case target, text, wait
+        case expectedSession = "expected_session"
+        case expectedScreen = "expected_screen"
+    }
 
     struct Wait: Encodable {
         var until: [String]
@@ -292,20 +318,42 @@ private struct WaitParams: Encodable {
 private struct SendKeysParams: Encodable {
     var paneID: String
     var keys: [String]
+    var expectedSession: String?
+    var expectedScreen: String?
+
+    init(paneID: String, keys: [String], expected: SendExpectation) {
+        self.paneID = paneID
+        self.keys = keys
+        expectedSession = expected.session
+        expectedScreen = expected.screen
+    }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case keys
+        case expectedSession = "expected_session"
+        case expectedScreen = "expected_screen"
     }
 }
 
 private struct SendTextParams: Encodable {
     var paneID: String
     var text: String
+    var expectedSession: String?
+    var expectedScreen: String?
+
+    init(paneID: String, text: String, expected: SendExpectation) {
+        self.paneID = paneID
+        self.text = text
+        expectedSession = expected.session
+        expectedScreen = expected.screen
+    }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case text
+        case expectedSession = "expected_session"
+        case expectedScreen = "expected_screen"
     }
 }
 

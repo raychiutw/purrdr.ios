@@ -1392,6 +1392,9 @@ public final class ConversationModel {
         case .readOnlyDevice:
             isReadOnly = true
             nothingSent = .readOnlyDevice
+        case .paneChanged:
+            // 主機送出前比對發現對話已變更(#304):與送前重讀 snapshot 發現 session 換了相同。
+            nothingSent = .superseded
         }
         notice = nothingSent
         if isRetry {
