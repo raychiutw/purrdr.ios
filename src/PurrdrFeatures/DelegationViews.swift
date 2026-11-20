@@ -162,7 +162,11 @@ struct WorkflowCardView: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondaryText)
                             }
-                            if model?.stoppedTracking == true {
+                            if let reason = model?.unavailableReason {
+                                Text(reason)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondaryText)
+                            } else if model?.stoppedTracking == true {
                                 Text("No longer tracking · Reload to check again")
                                     .font(.footnote)
                                     .foregroundStyle(.secondaryText)
@@ -325,6 +329,12 @@ struct SubagentScreen: View {
                 } description: {
                     Text("This subagent’s transcript isn’t on this host.")
                 }
+            case .unavailable(let reason):
+                ContentUnavailableView {
+                    Label("Host Service Update Needed", systemImage: "arrow.down.circle")
+                } description: {
+                    Text(reason)
+                }
             case .ready:
                 ContentUnavailableView("No Messages Yet", systemImage: "bubble.left.and.bubble.right")
             }
@@ -414,7 +424,13 @@ struct WorkflowScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .overlay {
-            if model.run == nil {
+            if model.run == nil, let reason = model.unavailableReason {
+                ContentUnavailableView {
+                    Label("Host Service Update Needed", systemImage: "arrow.down.circle")
+                } description: {
+                    Text(reason)
+                }
+            } else if model.run == nil {
                 ContentUnavailableView {
                     Label("Starting", systemImage: "hourglass")
                 } description: {

@@ -39,6 +39,12 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case workspaceOperations
     /// 上傳圖片與檔案 `file.upload.start`／`file.upload.chunk`(#288)。
     case fileUpload
+    /// 列表預覽與 subagent／workflow／委派讀取(`transcript.previews`／`.subagent`／`.workflow`／`.delegation`,#289)。
+    case transcriptPreviewsAndDelegations
+    /// 從 app 管理主機服務 `host_service.*`(#290)。
+    case hostServiceManagement
+    /// 列出與撤銷已配對裝置 `devices.list`／`devices.revoke`(#291)。
+    case pairedDevices
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -46,6 +52,9 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .fileFetch: HostServiceVersion(0, 4, 0)
         case .workspaceOperations: HostServiceVersion(0, 7, 0)
         case .fileUpload: HostServiceVersion(0, 7, 0)
+        case .transcriptPreviewsAndDelegations: HostServiceVersion(0, 7, 0)
+        case .hostServiceManagement: HostServiceVersion(0, 7, 0)
+        case .pairedDevices: HostServiceVersion(0, 7, 0)
         }
     }
 

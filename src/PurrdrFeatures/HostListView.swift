@@ -187,7 +187,8 @@ public struct HostListView: View {
             case .add, .edit:
                 HostEditorView(
                     model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }),
-                    hostSettings: route.hostID.flatMap(model.hostSettings(for:))
+                    hostSettings: route.hostID.flatMap(model.hostSettings(for:)),
+                    hostStatusConnection: route.hostID.flatMap(model.hostStatusConnection(for:))
                 ) { host in
                     saved(host)
                 } onCancel: {

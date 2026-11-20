@@ -98,6 +98,8 @@ package enum HostErrorText {
             String(localized: "The herdr server on this host is too old for this. Update herdr and restart its server.")
         case .readOnlyDevice:
             String(localized: "This device is paired read-only, so it can’t send anything to this host.")
+        case .deviceUnknown:
+            String(localized: "This host doesn’t have that device anymore. Refresh the list.")
         case .unsupported:
             String(localized: "This isn’t available over HTTPS yet.")
         case .hostServiceUpdateRequired(_, let installedVersion?):

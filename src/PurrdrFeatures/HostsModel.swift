@@ -370,6 +370,14 @@ public final class HostsModel {
         }
     }
 
+    /// 主機編輯頁的主機服務與已配對裝置區塊(#290、#291)用的連線：已配對的 HTTPS 主機才有。
+    public func hostStatusConnection(for id: UUID) -> (any HostConnection)? {
+        guard let host = hosts.first(where: { $0.id == id }), case .https(let address) = host.connection,
+            !unpairedHostIDs.contains(id)
+        else { return nil }
+        return hostServiceConnection(for: host, address: address)
+    }
+
     /// 不再提示這台主機更新到目前提示的版本(app 知道更新的版本時再提示)。
     public func dismissHostServiceUpdate(for id: UUID) {
         guard let offered = hostServiceUpdate(for: id) else { return }

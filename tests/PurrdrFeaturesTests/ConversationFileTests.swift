@@ -11,7 +11,7 @@ import Testing
 @MainActor
 @Suite("對話附加檔案")
 struct ConversationFileTests {
-    static let fileName = HostUploadName("mh1a2b3c-k9x2m4p7-server.log")!
+    nonisolated static let fileName = HostUploadName("mh1a2b3c-k9x2m4p7-server.log")!
     static let uploadedPath = "\(FakeHostUploader.folder)/mh1a2b3c-k9x2m4p7-server.log"
 
     struct Setup {

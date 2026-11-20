@@ -37,4 +37,11 @@ struct HostServiceFeatureTests {
         #expect(HostServiceFeature.fileUpload.isAvailable(onHostServiceVersion: "0.7.0"))
         #expect(!HostServiceFeature.fileUpload.isAvailable(onHostServiceVersion: "0.6.9"))
     }
+
+    @Test("列表預覽與 subagent／workflow／委派讀取從主機服務 0.7.0 起可用")
+    func transcriptPreviewsAndDelegationsStartAtZeroSevenZero() {
+        #expect(HostServiceFeature.transcriptPreviewsAndDelegations.minimumVersion == HostServiceVersion("0.7.0"))
+        #expect(HostServiceFeature.transcriptPreviewsAndDelegations.isAvailable(onHostServiceVersion: "0.7.0"))
+        #expect(!HostServiceFeature.transcriptPreviewsAndDelegations.isAvailable(onHostServiceVersion: "0.6.9"))
+    }
 }

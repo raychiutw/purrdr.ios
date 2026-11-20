@@ -78,8 +78,12 @@ final class FakeHostService: Sendable {
         var pairedToken = "token-paired"
         /// 對話紀錄訊息(`transcript.*`)的回應：訊息種類 → JSON 物件(不含 `request_id`;請求帶 `stream_id` 時換上請求的)。
         var transcriptReplies: [String: String] = [:]
+        /// 依序先回的對話紀錄回應(用完改回 `transcriptReplies`):訊息種類 → JSON 物件(不含 `request_id`)。
+        var queuedTranscriptReplies: [String: [String]] = [:]
         /// 主機取檔訊息(`file.stat`／`file.read`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
         var fileReplies: [String: [String]] = [:]
+        /// 已配對裝置訊息(`devices.list`／`devices.revoke`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
+        var deviceReplies: [String: [String]] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
@@ -90,6 +94,16 @@ final class FakeHostService: Sendable {
         var missingFolders: Set<String> = []
         /// 結構操作(`workspace.*`、`worktree.create`、`agent.start`)以 `herdr_error` 失敗：訊息種類 → herdr 錯誤碼。
         var structureHerdrErrors: [String: String] = [:]
+        /// `host_service.status` 回的範例檔(#290)。
+        var hostServiceStatusExample = "server.host-service-status-result.json"
+        /// 有值時 `host_service.status` 改回這個 JSON 物件(不含 `request_id`)。
+        var hostServiceStatusReply: String?
+        /// `host_service.update` 回的範例檔。
+        var hostServiceUpdateExample = "server.host-service-update-result.json"
+        /// 有值時 `host_service.update` 改回這個 JSON 物件(不含 `request_id`)。
+        var hostServiceUpdateReply: String?
+        /// 有值時 `host_service.*` 以這個錯誤碼失敗。
+        var hostServiceErrorCode: String?
         /// 有值時 `push.install` 安裝外掛失敗(`push_plugin_failed`,帶這個訊息);配對回到安裝前。
         var pushInstallFailure: String?
         /// 有值時 `push.status` 以 `push_plugin_failed` 失敗(herdr plugin list 失敗)。
@@ -352,7 +366,12 @@ final class FakeHostService: Sendable {
             state.withLock { $0.streams.removeAll { $0.socket === socket && $0.streamID == streamID } }
             return [.text(Self.json(["type": "events.unsubscribe.result", "request_id": requestID as Any]))]
         case let transcript where transcript.hasPrefix("transcript."):
-            guard let reply = settings.transcriptReplies[transcript],
+            let queued = state.withLock { state -> String? in
+                guard let queue = state.settings.queuedTranscriptReplies[transcript], let first = queue.first else { return nil }
+                state.settings.queuedTranscriptReplies[transcript] = Array(queue.dropFirst())
+                return first
+            }
+            guard let reply = queued ?? settings.transcriptReplies[transcript],
                   var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
                 return [.text(Self.error(requestID, "invalid_message"))]
             }
@@ -364,6 +383,17 @@ final class FakeHostService: Sendable {
             let reply = state.withLock { state -> String? in
                 guard let queue = state.settings.fileReplies[type], let first = queue.first else { return nil }
                 if queue.count > 1 { state.settings.fileReplies[type] = Array(queue.dropFirst()) }
+                return first
+            }
+            guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
+            return [.text(Self.json(object))]
+        case "devices.list", "devices.revoke":
+            let reply = state.withLock { state -> String? in
+                guard let queue = state.settings.deviceReplies[type], let first = queue.first else { return nil }
+                if queue.count > 1 { state.settings.deviceReplies[type] = Array(queue.dropFirst()) }
                 return first
             }
             guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
@@ -392,6 +422,8 @@ final class FakeHostService: Sendable {
                 return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
             }
             return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
+        case "host_service.status", "host_service.update", "host_service.set_auto_update":
+            return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
         case "push.status", "push.install", "push.remove", "push.update_muted":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
         case "file.upload.start", "file.upload.chunk":
@@ -414,6 +446,35 @@ final class FakeHostService: Sendable {
         default:
             return [.text(Self.error(requestID, "invalid_message"))]
         }
+    }
+
+    /// 管理主機服務(#290):寫入類(`update`、`set_auto_update`)唯讀裝置被拒。
+    private func hostServiceReply(
+        _ type: String, message: [String: Any], requestID: String?, authorization: String?, settings: Settings
+    ) -> String {
+        if type != "host_service.status", let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+            return Self.error(requestID, "read_only_device")
+        }
+        if let code = settings.hostServiceErrorCode { return Self.error(requestID, code) }
+        switch type {
+        case "host_service.status":
+            return Self.reply(settings.hostServiceStatusReply, requestID: requestID)
+                ?? Self.example(settings.hostServiceStatusExample, requestID: requestID)
+        case "host_service.update":
+            return Self.reply(settings.hostServiceUpdateReply, requestID: requestID)
+                ?? Self.example(settings.hostServiceUpdateExample, requestID: requestID)
+        default:
+            return Self.json([
+                "type": "host_service.set_auto_update.result", "request_id": requestID as Any, "auto_update": message["enabled"] as? Bool ?? false,
+            ])
+        }
+    }
+
+    /// 換上請求識別碼的 JSON 物件;`nil` 或讀不懂時 `nil`。
+    private static func reply(_ object: String?, requestID: String?) -> String? {
+        guard let object, var parsed = try? JSONSerialization.jsonObject(with: Data(object.utf8)) as? [String: Any] else { return nil }
+        parsed["request_id"] = requestID
+        return json(parsed)
     }
 
     private func respondToPush(

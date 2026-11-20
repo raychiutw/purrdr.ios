@@ -27,6 +27,8 @@ public actor HTTPSHostConnection: HostConnection {
     var transcriptFollows: [String: TranscriptFollow] = [:]
     /// 追蹤串流(`followTranscript`,路徑 → 串流)。同一個路徑只有一個。
     var transcriptStreams: [String: TranscriptStream] = [:]
+    /// 列表預覽定位到的對話紀錄(主機服務只認得這條連線定位過的;連線結束時清空)。
+    var previewLocations: [TranscriptTarget.Location: PreviewLocation] = [:]
 
     /// 被拒的權杖與原因(同一個權杖不再撥號)。
     private struct RejectedToken {
@@ -255,6 +257,7 @@ public actor HTTPSHostConnection: HostConnection {
         welcome = nil
         // 主機服務在連線結束時停止這條連線的所有追蹤。
         transcriptFollows = [:]
+        previewLocations = [:]
         await current?.close()
     }
 
@@ -390,11 +393,12 @@ public actor HTTPSHostConnection: HostConnection {
         case .transcriptUnsupported: HostServiceError.unsupported("transcript")
         case .fileChanged: HostFileFetchError.changed
         case .uploadTooLarge: HostUploadError.tooLarge
+        case .deviceUnknown: HostServiceError.deviceUnknown
         // 只回覆 `push.*`,由 `HostServicePushPluginInstaller` 依操作直接對應。
         case .pushPluginFailed, .pushNotPaired, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
-        // 主機服務 0.7.0 新增的錯誤碼：各功能的票接上時從這裡拿走自己的碼、對應專屬錯誤。
-        case .deviceUnknown, .hostServiceNotInstalled, .updateInProgress, .updateFailed:
-            HostServiceError.unexpectedResponse
+        case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
+        case .updateInProgress: HostServiceManagementError.updateInProgress
+        case .updateFailed: HostServiceManagementError.updateFailed(message.message)
         }
     }
 

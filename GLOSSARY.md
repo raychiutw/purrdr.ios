@@ -50,6 +50,10 @@ _避免_:PIN、OTP、密碼
 連線配對後，主機服務發給某支裝置的憑證;每台主機一組，存在該裝置的 Keychain,可撤銷、可設成唯讀，永不同步。
 _避免_:API key、Session token、Pairing token、APNs token(那是推播用的)
 
+**已配對裝置**(Paired device):
+和某台主機完成連線配對、持有那台主機裝置權杖的裝置;在主機狀態頁列出，可撤銷別支裝置。
+_避免_:通知裝置(那是推播配對的裝置)、Session、Client
+
 ## herdr
 
 **Workspace**／**Tab**／**Pane**:

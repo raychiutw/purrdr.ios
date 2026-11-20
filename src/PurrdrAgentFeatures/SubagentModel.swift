@@ -17,6 +17,8 @@ public final class SubagentModel {
         case starting
         /// 已結束卻找不到檔案(例如在別台主機跑的)。
         case notOnHost
+        /// 讀不了(HTTPS 主機的主機服務太舊);說明怎麼處理。
+        case unavailable(String)
         case ready
     }
 
@@ -127,6 +129,10 @@ public final class SubagentModel {
             phase = .ready
         } catch TranscriptReadError.absent {
             if file == nil { phase = ended ? .notOnHost : .starting }
+        } catch HostServiceError.hostServiceUpdateRequired(let feature, let installedVersion) {
+            phase = .unavailable(HostErrorText.hostServiceMessage(.hostServiceUpdateRequired(feature, installedVersion: installedVersion)))
+            finishedReading = true
+            return
         } catch {
             if file == nil, ended { phase = .notOnHost }
         }
@@ -177,6 +183,7 @@ public final class SubagentModel {
     /// 在父對話紀錄找指名此呼叫／agent 的行，用和卡片相同的規則判斷狀態;內容沒變時主機只回 checksum。
     public func checkEnd() async {
         guard status == .running, case .call(let parent, let callID, let agentID) = source, !callID.isEmpty else { return }
+        if case .unavailable = phase { return }
         guard let result = try? await transcripts.delegationLines(path: parent, callID: callID, agentID: agentID, knownChecksum: endChecksum) else { return }
         endChecksum = result.checksum
         guard let lines = result.lines else { return }
