@@ -361,6 +361,8 @@ public final class ConversationModel {
     private let knownSessionID: String?
     private let drafts: DraftStore
     private let delivery: PromptDelivery
+    /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
+    private let sendPipeline: SendPipeline
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
@@ -443,6 +445,7 @@ public final class ConversationModel {
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
         updates: HostUpdates? = nil,
+        sendSteps: [any SendStep] = [],
         sleep: @escaping Sleep = Sleeping.task
     ) {
         self.updates = updates
@@ -460,6 +463,7 @@ public final class ConversationModel {
         self.hostName = hostName
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
+        sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
@@ -967,6 +971,7 @@ public final class ConversationModel {
 
     /// 送出輸入框的文字(F6.5)。
     ///
+    /// 先經過送出管線(`SendPipeline`,#299):步驟擋下時不碰主機，依步驟決定草稿放回或維持清空。
     /// 輸入框樂觀清空、立刻顯示回音;送出當下重讀**新鮮的** snapshot 重新確認目標 pane(2 秒前的 pane 可能已被回收,R-P06)。
     /// 什麼都沒送出(agent 不在、session 換了、在等回答、herdr 拒絕)→ 拿掉回音、草稿放回;
     /// 送了但不確定(沒有反應、無法確認)→ 回音標示失敗，可重試，**不自動重送**(§7.3)。
@@ -985,6 +990,19 @@ public final class ConversationModel {
         }
         notice = nil
         draft = ""
+        let outgoing = OutgoingPrompt(
+            text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now())
+        switch await sendPipeline.prepare(outgoing) {
+        case .proceed(let prepared):
+            await deliver(prepared)
+        case .halt(let halt):
+            if halt.restoresDraft { restoreDraft(text) }
+        }
+    }
+
+    /// 管線通過後交給主機：回音、上傳圖片、重新確認目標、送出。
+    private func deliver(_ outgoing: OutgoingPrompt) async {
+        let text = outgoing.text
         // 送出後舊建議已不適用;下次完成時重讀(herdr 可能來不及回報工作中,#123)。
         clearSuggestion()
         let sentImages = attachments
