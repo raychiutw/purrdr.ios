@@ -14,9 +14,6 @@ struct SelectionControlUsageTests {
     /// 可以把 Picker 放在選單裡的檔案：主機篩選與主機挑選鈕。
     static let hostMenuFiles: Set = ["HostPickerViews.swift", "TopNavigationView.swift"]
 
-    /// 可以用列前圓圈(macOS 單選鈕樣式)標示選取的檔案：Purrdr Plus 方案卡(付費牆的卡片設計)。
-    static let leadingCircleFiles: Set = ["PlusView.swift"]
-
     /// SwiftUI 的 `Picker(`(前面不接英文字母：`hostPicker(`、`photosPicker(` 不算)。
     static func isPicker(_ line: Substring) -> Bool {
         line.contains(/(^|[^A-Za-z])Picker\(/)
@@ -40,11 +37,9 @@ struct SelectionControlUsageTests {
             if pickers - inline > allowed {
                 violations.append("\(name):\(pickers - inline) 個 Picker 不是 .inline(允許 \(allowed) 個)")
             }
-            // 手繪的選擇列一律列尾打勾(同 `.inline` Picker),不用列前的實心／空心圓圈。
-            if !Self.leadingCircleFiles.contains(name) {
-                for (index, line) in lines.enumerated() where line.contains(#""checkmark.circle.fill" : "circle""#) {
-                    violations.append("\(name):\(index + 1) 選擇列用列前圓圈，改成列尾打勾")
-                }
+            // 手繪的選擇列與卡片一律列尾打勾(同 `.inline` Picker),不用列前的實心／空心圓圈(含 Purrdr Plus 方案卡)。
+            for (index, line) in lines.enumerated() where line.contains(#""checkmark.circle.fill" : "circle""#) {
+                violations.append("\(name):\(index + 1) 選擇列用列前圓圈，改成列尾打勾")
             }
             guard !Self.hostMenuFiles.contains(name) else { continue }
             for (index, line) in lines.enumerated() where line.contains("Menu {") || line.contains(".contextMenu {") {
