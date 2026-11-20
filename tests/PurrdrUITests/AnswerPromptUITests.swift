@@ -46,6 +46,8 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(yes.exists)
         XCTAssertGreaterThanOrEqual(yes.frame.height, 44, "選項觸控目標不足 44pt")
         XCTAssertEqual(yes.frame.width, no.frame.width, accuracy: 1, "同一組選項應同尺寸")
+        // #271(原型 purrdr-screens 定案版):選項不編號。
+        XCTAssertEqual(yes.label, "Yes", "選項不該帶編號:\(yes.label)")
 
         yes.tap()
 

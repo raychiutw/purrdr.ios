@@ -46,7 +46,7 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "沒有使用者泡泡")
         XCTAssertTrue(app.staticTexts["Loaded skill: tdd"].exists, "skill 沒有顯示成「Loaded skill」")
-        XCTAssertTrue(app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"].exists, "工具串沒有收合成一行摘要")
+        XCTAssertTrue(app.staticTexts["Edited 1 file · 3 steps"].exists, "工具串沒有收合成一行摘要")
         XCTAssertTrue(element("conversation.table", in: app).exists, "沒有表格")
         XCTAssertTrue(element("conversation.beginning", in: app).exists, "頂端沒有「對話開頭」")
     }
@@ -84,7 +84,7 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testToolRunExpandsToShowCalls() {
         let app = openLedger()
-        let summary = app.staticTexts["Ran 1 command · Edited 1 file · Read 1 file"]
+        let summary = app.staticTexts["Edited 1 file · 3 steps"]
         XCTAssertTrue(summary.waitForExistence(timeout: 10))
         // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
         let window = app.windows.firstMatch

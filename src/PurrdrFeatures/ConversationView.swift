@@ -626,8 +626,13 @@ struct ToolRunView: View {
             .padding(.top, 6)
         } label: {
             HStack(spacing: 6) {
+                // 「✓ Edited N files · N steps」(#271,原型):勾是裝飾，VoiceOver 只念文字。
+                Image(systemName: "checkmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.secondaryText)
+                    .accessibilityHidden(true)
                 // `Color.secondaryText`(固定色):DisclosureGroup 的 label 是按鈕，階層式 `.secondary` 會變成淡化的 tint、對比不足(#35 audit)。
-                Text(run.summary.text)
+                Text(run.summary.text(steps: run.steps.count))
                     .font(.subheadline)
                     .foregroundStyle(Color.secondaryText)
                 if run.summary.failures > 0 {

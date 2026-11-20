@@ -4,9 +4,9 @@ import SwiftUI
 
 /// 對話中的「需要你」提示卡(行為規格 F8;DESIGN.md「agent 卡住時，選項以卡片放在該則提問下方」;HIG 20.7)。
 ///
-/// - 內容層：不用 Liquid Glass;選項是一般 bordered／borderedProminent 按鈕，同一組同尺寸，建議選項以樣式區分。
-/// - 「拒絕」不套 destructive 紅色;會結束 agent 的選項不設為建議(`PromptOptionStyle`)。
-/// - 編號 10 以上顯示但停用，並說明到終端機回答(R-Q04)。
+/// - 內容層：不用 Liquid Glass;選項是同尺寸的灰色 bordered 按鈕，不編號、不標預設選項(#271,原型 purrdr-screens 定案版)。
+/// - 「拒絕」不套 destructive 紅色。
+/// - 編號 10 以上的選項停用，並說明到終端機回答(R-Q04)。
 /// - 作答後選項全部停用、被點的列轉圈;送達後以文字顯示選了什麼(不只改顏色)。
 /// - Claude 的「Type something.」不送按鍵，改用底部輸入框打自訂答案(#120,`ConversationModel.beginTypedAnswer`)。
 struct BlockedPromptView: View {
@@ -127,10 +127,6 @@ struct BlockedPromptView: View {
             }
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if let number = option.number {
-                    Text(verbatim: "\(number).")
-                        .monospacedDigit()
-                }
                 if let checked = option.checked {
                     Image(systemName: checked ? "checkmark.square.fill" : "square")
                         .accessibilityHidden(true)
@@ -148,7 +144,7 @@ struct BlockedPromptView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
         }
-        .optionStyle(prominent: PromptOptionStyle.isRecommended(option))
+        .optionStyle()
         .disabled(typesAnswer ? !model.canBeginTypedAnswer(option) : !model.canAnswer(answer))
         .accessibilityLabel(optionAccessibilityLabel(option))
         .accessibilityHint(optionHint(option, typesAnswer: typesAnswer))
@@ -162,7 +158,7 @@ struct BlockedPromptView: View {
 
     private func optionAccessibilityLabel(_ option: PromptOption) -> Text {
         let checked = option.checked.map { $0 ? String(localized: "Selected") : String(localized: "Not Selected") }
-        let parts = [option.number.map(String.init), option.label, checked].compactMap { $0 }
+        let parts = [option.label, checked].compactMap { $0 }
         return Text(verbatim: parts.joined(separator: ", "))
     }
 
@@ -179,26 +175,20 @@ struct BlockedPromptView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
         }
-        .optionStyle(prominent: false)
+        .optionStyle()
         .disabled(!model.canAnswer(answer))
         .accessibilityIdentifier(identifier)
     }
 }
 
 private extension View {
-    /// 同一組選項同尺寸;建議選項用主色 prominent 樣式而非大小區分(HIG 20.7)。
+    /// 同一組選項同尺寸、同樣式(#271,原型 purrdr-screens 定案版):灰色圓角長方形，不編號、不標預設選項。
     /// 圓角長方形選項卡(#93):膠囊形像按鈕列，多行文字也不好讀。
-    @ViewBuilder
-    func optionStyle(prominent: Bool) -> some View {
-        if prominent {
-            filledProminentButtonStyle()
-                .buttonBorderShape(.roundedRectangle(radius: PromptOptionStyle.cornerRadius))
-        } else {
-            // 文字用主要色：bordered 預設是 tint 字配淡 tint 底，對比約 4:1、AX 字級下更低(#35 audit)。
-            buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle(radius: PromptOptionStyle.cornerRadius))
-                .foregroundStyle(Color.primary)
-        }
+    func optionStyle() -> some View {
+        // 文字用主要色：bordered 預設是 tint 字配淡 tint 底，對比約 4:1、AX 字級下更低(#35 audit)。
+        buttonStyle(.bordered)
+            .buttonBorderShape(.roundedRectangle(radius: PromptOptionStyle.cornerRadius))
+            .foregroundStyle(Color.primary)
     }
 }
 
