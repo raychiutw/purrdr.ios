@@ -3,6 +3,7 @@ import PurrdrCore
 import PurrdrHTTPS
 import PurrdrSSH
 import Security
+import Synchronization
 
 /// HTTPS 主機(主機服務，ADR-0010)要用的東西：裝置權杖、連線配對與主機連線的建立方式。
 public struct HostServiceAccess {
@@ -121,7 +122,8 @@ extension HostServiceAccess {
     ) -> HostServiceAccess {
         HostServiceAccess(pairing: HostServicePairing(http: UITestingHostServiceHTTP()), deviceName: "iPhone") { _, deviceToken in
             UITestingHostServiceConnection(
-                base: SSHHostConnection(channel: channel), deviceToken: deviceToken, reportedHostServiceVersion: hostServiceVersion)
+                base: SSHHostConnection(channel: channel), deviceToken: deviceToken,
+                hostService: UITestingHostServiceState(installedVersion: hostServiceVersion))
         }
     }
 }
@@ -159,9 +161,9 @@ private struct UITestingHostServiceConnection: HostConnection {
 
     let base: any HostConnection
     let deviceToken: @Sendable () throws -> String?
-    let reportedHostServiceVersion: String
+    let hostService: UITestingHostServiceState
 
-    func hostServiceVersion() async throws -> String? { reportedHostServiceVersion }
+    func hostServiceVersion() async throws -> String? { hostService.installedVersion }
 
     func isReadOnlyDevice() async throws -> Bool {
         try deviceToken() == Self.readOnlyToken
@@ -189,5 +191,87 @@ private struct UITestingHostServiceConnection: HostConnection {
 
     func disconnect() async {
         await base.disconnect()
+    }
+}
+
+/// UI 測試的主機服務管理(#290):有新版 `latestVersion`;立即更新後重新連線就是新版。唯讀權杖的寫入被拒。
+extension UITestingHostServiceConnection: HostServiceManaging {
+    func hostServiceUpdateStatus() async throws -> HostServiceUpdateStatus {
+        hostService.status
+    }
+
+    func updateHostService() async throws -> HostServiceUpdateStart {
+        if try await isReadOnlyDevice() { throw HostServiceError.readOnlyDevice }
+        let status = hostService.status
+        guard status.updateAvailable else { return .upToDate(version: status.installedVersion) }
+        return .started(from: status.installedVersion, to: UITestingHostServiceState.latestVersion)
+    }
+
+    func setHostServiceAutoUpdate(_ enabled: Bool) async throws -> Bool {
+        if try await isReadOnlyDevice() { throw HostServiceError.readOnlyDevice }
+        return hostService.setAutoUpdate(enabled)
+    }
+
+    func reconnectForHostServiceVersion() async throws -> String? {
+        hostService.finishUpdate()
+    }
+}
+
+/// UI 測試主機服務的版本與自動更新開關(同一台主機的連線共用)。
+final class UITestingHostServiceState: Sendable {
+    static let latestVersion = "0.7.1"
+
+    private let state: Mutex<(installed: String, autoUpdate: Bool)>
+
+    init(installedVersion: String) {
+        state = Mutex((installedVersion, true))
+    }
+
+    var installedVersion: String { state.withLock { $0.installed } }
+
+    var status: HostServiceUpdateStatus {
+        state.withLock { current in
+            let available = HostServiceVersion(current.installed).map { $0 < HostServiceVersion(Self.latestVersion)! } ?? false
+            return HostServiceUpdateStatus(
+                installedVersion: current.installed, latestVersion: Self.latestVersion, updateAvailable: available,
+                autoUpdate: current.autoUpdate,
+                lastUpdate: HostServiceLastUpdate(checkedAtText: "2026-11-20T08:00:00Z", result: "up to date"))
+        }
+    }
+
+    func setAutoUpdate(_ enabled: Bool) -> Bool {
+        state.withLock {
+            $0.autoUpdate = enabled
+            return enabled
+        }
+    }
+
+    /// 立即更新後重新連線：換成新版。
+    func finishUpdate() -> String {
+        state.withLock {
+            $0.installed = Self.latestVersion
+            return $0.installed
+        }
+    }
+}
+
+/// UI 測試的已配對裝置(#291):這支 iPhone 與另一支唯讀的 iPad;撤銷後從列表拿掉，唯讀權杖的撤銷被拒。
+extension UITestingHostServiceConnection: PairedDevicesManaging {
+    private static let revokedDevices = Mutex<Set<String>>([])
+
+    func pairedDevices() async throws -> [PairedDeviceRecord] {
+        let revoked = Self.revokedDevices.withLock { $0 }
+        let thisDevice = PairedDeviceRecord(
+            id: "ui-testing", name: "iPhone", isReadOnly: try await isReadOnlyDevice(),
+            pairedAt: Date(timeIntervalSince1970: 1_793_521_800), isCurrentDevice: true)
+        let otherDevice = PairedDeviceRecord(
+            id: "ui-testing-ipad", name: "iPad", isReadOnly: true, pairedAt: Date(timeIntervalSince1970: 1_794_312_005),
+            isCurrentDevice: false)
+        return [thisDevice, otherDevice].filter { !revoked.contains($0.id) }
+    }
+
+    func revokePairedDevice(_ id: String) async throws {
+        if try await isReadOnlyDevice() { throw HostServiceError.readOnlyDevice }
+        Self.revokedDevices.withLock { _ = $0.insert(id) }
     }
 }

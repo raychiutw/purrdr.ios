@@ -50,6 +50,17 @@
         }
       }
     },
+    "%@ didn’t start, so the host put %@ back." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 無法啟動，主機已換回 %2$@。"
+          }
+        }
+      }
+    },
     "%@ file %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -917,6 +928,17 @@
         }
       }
     },
+    "Already up to date (%@)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已是最新版本（%@）。"
+          }
+        }
+      }
+    },
     "Alt" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -958,6 +980,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「需要你」的 agent 不會被中斷。"
+          }
+        }
+      }
+    },
+    "An update of the host service is already in progress." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務已有更新正在進行。"
           }
         }
       }
@@ -1090,6 +1123,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動"
+          }
+        }
+      }
+    },
+    "Automatic Updates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動更新"
           }
         }
       }
@@ -2110,6 +2154,17 @@
         }
       }
     },
+    "Couldn’t Check" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法檢查"
+          }
+        }
+      }
+    },
     "Couldn’t Finish" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2172,6 +2227,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法確認是否已停止"
+          }
+        }
+      }
+    },
+    "Couldn’t confirm the update to %@. Pull to refresh to check again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認是否已更新到 %@。下拉重新整理再檢查一次。"
           }
         }
       }
@@ -3309,6 +3375,17 @@
         }
       }
     },
+    "Get notified when an agent needs you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 需要你時通知"
+          }
+        }
+      }
+    },
     "Google sign-in didn’t finish. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3437,6 +3514,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找不到主機"
+          }
+        }
+      }
+    },
+    "Host Service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務"
           }
         }
       }
@@ -3749,6 +3837,17 @@
         }
       }
     },
+    "Install the Purrdr Plugin?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要安裝 Purrdr 主機外掛嗎?"
+          }
+        }
+      }
+    },
     "Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3925,6 +4024,17 @@
         }
       }
     },
+    "Last Update" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次更新"
+          }
+        }
+      }
+    },
     "Later" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3932,6 +4042,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "稍後"
+          }
+        }
+      }
+    },
+    "Latest Version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新版本"
           }
         }
       }
@@ -4163,6 +4284,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "管理訂閱"
+          }
+        }
+      }
+    },
+    "Managing the host service from Purrdr needs host service %@ or later (this host has %@). Update it on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 Purrdr 管理主機服務需要主機服務 %1$@ 以上（這台主機是 %2$@）。請在主機上更新。"
+          }
+        }
+      }
+    },
+    "Managing the host service from Purrdr needs host service %@ or later. Update it on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從 Purrdr 管理主機服務需要主機服務 %@ 以上。請在主機上更新。"
           }
         }
       }
@@ -4750,6 +4893,17 @@
         }
       }
     },
+    "Notifications and host sync are on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知與同步都已開啟"
+          }
+        }
+      }
+    },
     "Notifications and host sync need Purrdr Plus. Activate it next." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4812,6 +4966,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "現在可以使用 Agent 需要你時的通知與主機同步。請在每台主機分別開啟。"
+          }
+        }
+      }
+    },
+    "Notify When an Agent Needs You" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 需要你時通知"
           }
         }
       }
@@ -5190,6 +5355,28 @@
         }
       }
     },
+    "Paired %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配對於 %@"
+          }
+        }
+      }
+    },
+    "Paired Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配對裝置"
+          }
+        }
+      }
+    },
     "Pairing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5564,6 +5751,17 @@
         }
       }
     },
+    "Purrdr adds a small herdr plugin to this host. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會在這台主機加裝一個小型 herdr plugin。Agent 需要你時，主機會告知 Purrdr 後台，再由後台通知這支裝置。通知只顯示 Workspace 名稱，絕不包含 Agent 說的內容。Windows 主機的通知為盡力傳送，不保證送達。"
+          }
+        }
+      }
+    },
     "Purrdr can’t safely change ~/.claude/settings.json on this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5718,6 +5916,17 @@
         }
       }
     },
+    "Purrdr will run “herdr plugin install” on this host as %@ and save a pairing key in ~/.purrdr. Turning notifications off removes both." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會以 %@ 身分在這台主機執行「herdr plugin install」,並在 ~/.purrdr 存一把配對密鑰。關閉通知時兩者都會移除。"
+          }
+        }
+      }
+    },
     "Puts the suggestion in the message box without sending it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5791,6 +6000,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 iPhone 或 iPad 上看、回覆、操作 herdr 在你主機上執行的 coding agent,也能開終端機進那台主機。"
+          }
+        }
+      }
+    },
+    "Read-Only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀"
           }
         }
       }
@@ -5879,6 +6099,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要從這部裝置移除「%@」嗎？"
+          }
+        }
+      }
+    },
+    "Removing the plugin…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在移除主機外掛…"
           }
         }
       }
@@ -6088,6 +6319,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按 Return 送出"
+          }
+        }
+      }
+    },
+    "Revoke" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤銷"
+          }
+        }
+      }
+    },
+    "Revoke “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要撤銷「%@」嗎?"
+          }
+        }
+      }
+    },
+    "Revoke…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤銷…"
           }
         }
       }
@@ -6917,6 +7181,17 @@
         }
       }
     },
+    "Starting the update…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在開始更新…"
+          }
+        }
+      }
+    },
     "Starting…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7028,6 +7303,17 @@
       }
     },
     "Subscribe" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱"
+          }
+        }
+      }
+    },
+    "Subscription" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7287,6 +7573,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字大小"
+          }
+        }
+      }
+    },
+    "That device can’t connect to this host until it’s paired again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那支裝置要重新配對才能再連到這台主機。"
           }
         }
       }
@@ -7573,6 +7870,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機無法儲存這個檔案。%@"
+          }
+        }
+      }
+    },
+    "The host couldn’t start the update. Check that it can reach GitHub, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機無法開始更新。請確認主機連得到 GitHub，再試一次。"
           }
         }
       }
@@ -8028,6 +8336,17 @@
         }
       }
     },
+    "This device is paired read-only, so it can’t revoke devices." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置配對成唯讀，不能撤銷裝置。"
+          }
+        }
+      }
+    },
     "This device is paired read-only, so it can’t send anything to this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8035,6 +8354,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置以唯讀方式配對，不能對這台主機送出任何內容。"
+          }
+        }
+      }
+    },
+    "This device is paired read-only, so it can’t update the host service or change automatic updates." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置配對成唯讀，不能更新主機服務或變更自動更新。"
           }
         }
       }
@@ -8226,6 +8556,17 @@
         }
       }
     },
+    "This host doesn’t have that device anymore. Refresh the list." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已經沒有那支裝置，請重新整理列表。"
+          }
+        }
+      }
+    },
     "This host has herdr %@. Purrdr needs %@ or later. Purrdr will update herdr as %@@%@." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8266,6 +8607,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機現在用了不同的 key 表明身分。重新安裝或重置主機會這樣，有人攔截連線也會。如果你沒有重新安裝或重置它，請停下來。\n\n目前出示的 key:\n%@\n\n已儲存的 key:\n%@"
+          }
+        }
+      }
+    },
+    "This host service isn’t the installed copy, so it can’t be managed from Purrdr." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機跑的不是安裝好的主機服務，無法從 Purrdr 管理。"
           }
         }
       }
@@ -9161,6 +9513,28 @@
         }
       }
     },
+    "Update to %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新到 %@"
+          }
+        }
+      }
+    },
+    "Updated to %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已更新到 %@。"
+          }
+        }
+      }
+    },
     "Updating herdr on %@…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9168,6 +9542,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在更新 %@ 上的 herdr…"
+          }
+        }
+      }
+    },
+    "Updating to %@. The host service restarts, then Purrdr reconnects…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在更新到 %@。主機服務會重新啟動，接著 Purrdr 重新連線…"
           }
         }
       }

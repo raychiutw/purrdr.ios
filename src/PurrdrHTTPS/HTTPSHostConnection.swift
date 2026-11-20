@@ -380,11 +380,12 @@ public actor HTTPSHostConnection: HostConnection {
         case .transcriptUnsupported: HostServiceError.unsupported("transcript")
         case .fileChanged: HostFileFetchError.changed
         case .uploadTooLarge: HostUploadError.tooLarge
+        case .deviceUnknown: HostServiceError.deviceUnknown
         // 只回覆 `push.*`,由 `HostServicePushPluginInstaller` 依操作直接對應。
         case .pushPluginFailed, .pushNotPaired, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
-        // 主機服務 0.7.0 新增的錯誤碼：各功能的票接上時從這裡拿走自己的碼、對應專屬錯誤。
-        case .deviceUnknown, .hostServiceNotInstalled, .updateInProgress, .updateFailed:
-            HostServiceError.unexpectedResponse
+        case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
+        case .updateInProgress: HostServiceManagementError.updateInProgress
+        case .updateFailed: HostServiceManagementError.updateFailed(message.message)
         }
     }
 

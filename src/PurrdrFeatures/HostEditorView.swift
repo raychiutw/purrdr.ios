@@ -20,9 +20,12 @@ struct HostEditorView: View {
     let onIconSaved: () -> Void
     /// 已存主機的主機設定(#274):主機主題、You should know、Codex 啟動器，放在主機頁最下方;新增主機時沒有。
     let hostSettings: HostSettings?
+    /// 已配對 HTTPS 主機的連線：主機頁下方顯示主機服務與已配對裝置(#290、#291)。
+    let hostStatusConnection: (any HostConnection)?
 
     init(
-        model: HostEditorModel, hostSettings: HostSettings? = nil, onSaved: @escaping (HostConfiguration) -> Void,
+        model: HostEditorModel, hostSettings: HostSettings? = nil, hostStatusConnection: (any HostConnection)? = nil,
+        onSaved: @escaping (HostConfiguration) -> Void,
         onCancel: @escaping () -> Void, onIconSaved: @escaping () -> Void
     ) {
         _model = State(initialValue: model)
@@ -32,6 +35,7 @@ struct HostEditorView: View {
         self.onCancel = onCancel
         self.onIconSaved = onIconSaved
         self.hostSettings = hostSettings
+        self.hostStatusConnection = hostStatusConnection
     }
 
     var body: some View {
@@ -91,6 +95,10 @@ struct HostEditorView: View {
                 HostThemeSettingsSection(model: hostSettings.hostTheme)
                 YouShouldKnowSettingsSection(model: hostSettings.youShouldKnow)
                 CodexLauncherSection(model: hostSettings.codexLauncher)
+            }
+
+            if let hostStatusConnection {
+                HostStatusSections(connection: hostStatusConnection)
             }
         }
         .sheet(isPresented: $scanning) {
