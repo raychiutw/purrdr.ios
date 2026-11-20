@@ -86,6 +86,15 @@ public final class SettingsModel {
         didSet { appearance.store(in: defaults) }
     }
 
+    /// 送出可撤回的秒數(#300;預設 3、0–10,0 為關閉)。存在 `UndoSendSettings.secondsKey`,下一則送出就生效。
+    public var undoSendSeconds: Int {
+        didSet {
+            let clamped = UndoSendSettings.clamped(undoSendSeconds)
+            if clamped != undoSendSeconds { undoSendSeconds = clamped }
+            defaults.set(clamped, forKey: UndoSendSettings.secondsKey)
+        }
+    }
+
     private let app: AppInfo
     /// 目前選取主機的 client(沒有主機時 `nil`)。每次讀版本都重新取，換主機後重開設定就是新主機。
     private let client: @MainActor () -> HerdrClient?
@@ -108,6 +117,7 @@ public final class SettingsModel {
         returnSends = defaults.object(forKey: ComposerSettings.returnSendsKey) as? Bool ?? true
         hapticsEnabled = HapticSettings.isEnabled(defaults)
         appearance = AppearancePreference.stored(in: defaults)
+        undoSendSeconds = UndoSendSettings.seconds(in: defaults)
     }
 
     public var appVersionText: String { "\(app.version) (\(app.build))" }
