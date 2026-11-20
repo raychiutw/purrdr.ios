@@ -21,7 +21,7 @@ final class HostStatusModels {
     }
 }
 
-/// 主機編輯頁下方的主機狀態區塊，各區塊出現時自己載入;下拉重新整理由編輯頁的 `Form` 呼叫 `HostStatusModels.refresh()`。
+/// 主機編輯頁下方的主機狀態區塊：主機服務出現時自己載入，已配對裝置由 `PairedDevicesDialogs` 載入;下拉重新整理由編輯頁的 `Form` 呼叫 `HostStatusModels.refresh()`。
 struct HostStatusSections: View {
     let models: HostStatusModels
 

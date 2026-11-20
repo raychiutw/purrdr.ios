@@ -112,6 +112,7 @@ struct HostEditorView: View {
             }
         }
         .refreshable(refreshHostStatus)
+        .modifier(PairedDevicesDialogs(model: hostStatus?.pairedDevices))
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
         }

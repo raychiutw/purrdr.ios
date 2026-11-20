@@ -18,16 +18,6 @@ struct PairedDevicesSection: View {
                     .foregroundStyle(.secondaryText)
             }
         }
-        .task { await model.load() }
-        .confirmationDialog(
-            confirmationTitle, isPresented: confirmingBinding, titleVisibility: .visible, presenting: model.confirmingRevocation
-        ) { _ in
-            Button("Revoke", role: .destructive) { Task { await model.confirmRevocation() } }
-                .accessibilityIdentifier("pairedDevices.confirmRevoke")
-            Button("Cancel", role: .cancel) { model.cancelRevocation() }
-        } message: { _ in
-            Text("That device can’t connect to this host until it’s paired again.")
-        }
     }
 
     @ViewBuilder
@@ -102,11 +92,31 @@ struct PairedDevicesSection: View {
         return parts.joined(separator: " · ")
     }
 
+}
+
+/// 已配對裝置的載入與撤銷確認，掛在主機頁的 `Form`:List 會把 Section 的修飾套到每一列，掛在 Section 上每列各有一個對話框。
+struct PairedDevicesDialogs: ViewModifier {
+    let model: PairedDevicesModel?
+
+    func body(content: Content) -> some View {
+        content
+            .task { await model?.load() }
+            .confirmationDialog(
+                confirmationTitle, isPresented: confirmingBinding, titleVisibility: .visible, presenting: model?.confirmingRevocation
+            ) { _ in
+                Button("Revoke", role: .destructive) { Task { await model?.confirmRevocation() } }
+                    .accessibilityIdentifier("pairedDevices.confirmRevoke")
+                Button("Cancel", role: .cancel) { model?.cancelRevocation() }
+            } message: { _ in
+                Text("That device can’t connect to this host until it’s paired again.")
+            }
+    }
+
     private var confirmationTitle: String {
-        model.confirmingRevocation.map { String(localized: "Revoke “\($0.name)”?") } ?? ""
+        model?.confirmingRevocation.map { String(localized: "Revoke “\($0.name)”?") } ?? ""
     }
 
     private var confirmingBinding: Binding<Bool> {
-        Binding(get: { model.confirmingRevocation != nil }, set: { if !$0 { model.cancelRevocation() } })
+        Binding(get: { model?.confirmingRevocation != nil }, set: { if !$0 { model?.cancelRevocation() } })
     }
 }
