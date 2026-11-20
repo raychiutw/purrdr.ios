@@ -1,64 +1,86 @@
 import XCTest
 
-/// 推播開關(#29;#246 起在帳號頁)。UI 測試不連網路：`-uiTestingPlusMember` 以假後台的已開通會員啟動，
+/// 帳號頁的「通知」區塊(#29、#246;#263 起每台主機一個開關)。UI 測試不連網路：`-uiTestingPlusMember` 以假後台的已開通會員啟動，
 /// 通知權限當作已允許;`-seedHost` 的主機以 Demo 主機回應，外掛安裝只在記憶體。
 final class PushSettingsUITests: XCTestCase {
+    static let seededHost = "5EED0000-0000-4000-8000-000000000001"
+    static let unreachableHost = "5EED0000-0000-4000-8000-000000000002"
+    static let httpsHost = "5EED0000-0000-4000-8000-000000000003"
+
     override func setUp() {
         continueAfterFailure = false
     }
 
-    /// 開通後：帳號頁步驟卡的「開啟」先確認安裝外掛，確認後通知那一步完成。
+    /// 步驟卡「選擇主機」捲到「通知」區塊;開那台主機先確認(對話框寫主機名稱),確認後步驟完成並列出主機名稱。
     @MainActor
-    func testTurningOnFromAccountAsksToInstallPluginThenCompletesStep() {
+    func testChooseHostsScrollsToNotificationsAndTurnsOnHost() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
         openAccount(app)
 
         let notifications = element("account.plusSetup.notifications", in: app)
         XCTAssertTrue(notifications.waitForExistence(timeout: 10))
         expectValue("Next Step", of: notifications)
-        app.buttons["account.plusSetup.action"].tap()
+        let action = app.buttons["account.plusSetup.action"]
+        XCTAssertEqual(action.label, "Choose Hosts")
+        action.tap()
+
+        let toggle = app.switches["account.push.\(Self.seededHost)"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "沒有主機的通知開關")
+        XCTAssertTrue(toggle.isHittable, "沒有捲到「通知」區塊")
+        XCTAssertEqual(toggle.label, "Studio Mac")
+        XCTAssertEqual(toggle.value as? String, "Notifications Off")
+        toggle.tap()
 
         let install = app.alerts.buttons["settings.push.install"].firstMatch
         XCTAssertTrue(install.waitForExistence(timeout: 10), "沒有先確認安裝外掛")
+        XCTAssertTrue(app.alerts.firstMatch.label.contains("Studio Mac"), "確認對話框沒寫主機名稱:\(app.alerts.firstMatch.label)")
         install.tap()
 
+        expectValue("Notifications On", of: toggle)
         expectValue("Done", of: notifications)
+        XCTAssertTrue(notifications.label.contains("Studio Mac"), "步驟沒有列出開啟的主機:\(notifications.label)")
         expectValue("Next Step", of: element("account.plusSetup.sync", in: app))
     }
 
-    /// 開通後的 Purrdr Plus 頁有通知開關，並標示 Windows 主機盡力而為。
+    /// Demo 主機與還不支援的 HTTPS 主機寫出原因，開關不能點;footer 標示 Windows 主機盡力而為。
     @MainActor
-    func testPushToggleIsInPlusPageAndMentionsWindowsBestEffort() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+    func testNotificationsExplainHostsThatCannotNotify() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedUnpairedHTTPSHost", "-selectDemo"])
         openAccount(app)
 
-        let plus = element("member.plus", in: app)
-        XCTAssertTrue(plus.waitForExistence(timeout: 10), "開通後帳號頁沒有 Purrdr Plus 列")
-        plus.tap()
+        let demo = app.switches["account.push.demo"]
+        XCTAssertTrue(reveal(demo, in: app), "沒有 Demo 主機的通知列")
+        XCTAssertFalse(demo.isEnabled)
+        XCTAssertEqual(element("account.push.demo.status", in: app).label, "The demo host can’t send notifications.")
 
-        let toggle = app.switches["settings.push"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        XCTAssertEqual(toggle.value as? String, "0")
+        let https = app.switches["account.push.\(Self.httpsHost)"]
+        XCTAssertTrue(reveal(https, in: app), "沒有 HTTPS 主機的通知列")
+        XCTAssertFalse(https.isEnabled)
+        XCTAssertTrue(element("account.push.\(Self.httpsHost).status", in: app).label.contains("0.6.0"))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "best-effort")).firstMatch.exists)
-    }
-
-    @MainActor
-    func testTurningOnWithDemoHostExplainsWithoutPermissionPrompt() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
-        openAccount(app)
-
-        let notifications = element("account.plusSetup.notifications", in: app)
-        XCTAssertTrue(notifications.waitForExistence(timeout: 10))
-        expectValue("Next Step", of: notifications)
-        app.buttons["account.plusSetup.action"].tap()
-
-        XCTAssertTrue(element("settings.push.problem", in: app).waitForExistence(timeout: 5), "Demo 主機沒有說明要先選自己的主機")
-        XCTAssertEqual(notifications.value as? String, "Next Step")
         // 沒有跳系統的通知權限對話框。
         XCTAssertFalse(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch.exists)
     }
 
-    /// 未開通時通知不能開啟：步驟卡上沒有通知的按鈕，畫面說明下一步。
+    /// 連不上的主機：開啟失敗寫出原因與「點開關重試」,開關仍可點。
+    @MainActor
+    func testFailedTurnOnExplainsAndCanRetry() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedUnreachableHost"])
+        openAccount(app)
+
+        let toggle = app.switches["account.push.\(Self.unreachableHost)"]
+        XCTAssertTrue(reveal(toggle, in: app), "沒有主機的通知開關")
+        toggle.tap()
+
+        let status = element("account.push.\(Self.unreachableHost).status", in: app)
+        let failed = NSPredicate(format: "label CONTAINS %@", "Tap the switch to try again.")
+        let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: failed, object: status)], timeout: 40)
+        XCTAssertEqual(result, .completed, "失敗沒有說明:\(status.label)")
+        XCTAssertEqual(toggle.value as? String, "Notifications Off")
+        XCTAssertTrue(toggle.isEnabled, "失敗後不能點開關重試")
+    }
+
+    /// 未開通時通知不能開啟：步驟卡上沒有通知的按鈕，也沒有主機的通知開關。
     @MainActor
     func testCannotTurnOnWithoutPlus() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember", "-seedHost"])
@@ -71,7 +93,7 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertEqual(app.buttons["account.plusSetup.action"].label, "Activate")
         XCTAssertEqual(element("account.plusSetup.notifications", in: app).value as? String, "Not Yet")
         XCTAssertTrue(element("account.lockedHint", in: app).label.contains("Activate it next"))
-        XCTAssertFalse(app.switches["settings.push"].exists)
+        XCTAssertFalse(app.switches["account.push.\(Self.seededHost)"].exists)
     }
 
     // MARK: - 輔助
@@ -89,7 +111,18 @@ final class PushSettingsUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
-    /// 步驟狀態跟著會員與訂閱讀回(非同步)更新。
+    /// 帳號頁是 lazy 的 List:往上捲到元素出現。
+    @MainActor
+    private func reveal(_ target: XCUIElement, in app: XCUIApplication) -> Bool {
+        if target.waitForExistence(timeout: 10), target.isHittable { return true }
+        let list = element("sheet.account", in: app)
+        for _ in 0..<6 where !(target.exists && target.isHittable) {
+            list.swipeUp()
+        }
+        return target.exists && target.isHittable
+    }
+
+    /// 狀態跟著會員、訂閱讀回與主機安裝(非同步)更新。
     @MainActor
     private func expectValue(_ value: String, of element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         let predicate = NSPredicate(format: "value == %@", value)

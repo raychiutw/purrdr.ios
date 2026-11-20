@@ -203,7 +203,13 @@ public final class HostsModel {
     public var push: PushModel { member(for: selection).push }
     /// 列表上每台主機的推播開關(依列表順序;spec #261:通知按主機管理，不綁選取中主機)。
     public var hostPushes: [HostPush] {
-        listedHosts.compactMap { host in members[host].map { HostPush(host: host, name: name(of: host), model: $0.push) } }
+        listedHosts.compactMap { host in
+            members[host].map { HostPush(host: host, name: name(of: host), icon: icon(of: host), support: pushSupport(of: host), model: $0.push) }
+        }
+    }
+    /// 這支裝置已開啟通知的主機名稱(依列表順序);至少一台就算步驟卡的「開啟通知」完成。
+    public var notifyingHostNames: [String] {
+        hostPushes.notifyingHostNames
     }
     /// 選取中主機的主機主題(#23;DESIGN.md:選取中主機決定套用誰的主題)。每台主機各自一份、同意以主機為單位記住;
     /// 換選取中主機就換成那台的(讀過的主題留著，切回來不必等下一次輪詢)。
@@ -634,6 +640,11 @@ public final class HostsModel {
         }
     }
 
+    private func pushSupport(of host: HostSelection) -> HostPushSupport {
+        guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
+        return configuration.connectionMethod.usesHostService ? .needsHostService(version: HostPush.hostServiceVersion) : .supported
+    }
+
     private func icon(of host: HostSelection) -> HostIcon {
         guard case .host(let id) = host else { return .default }
         return companion(id)?.icon ?? icon(for: id)
@@ -757,10 +768,31 @@ public final class HostsModel {
     }
 }
 
+/// 一台主機能不能開通知。
+public enum HostPushSupport: Equatable, Sendable {
+    case supported
+    /// Demo 主機與示範主機。
+    case demoHost
+    /// HTTPS 主機要這版以上的主機服務代裝外掛(#265 接上)。
+    case needsHostService(version: String)
+}
+
+extension [HostPush] {
+    /// 已開啟通知的主機名稱(依列表順序)。
+    public var notifyingHostNames: [String] {
+        filter { $0.support == .supported && $0.model.state == .on }.map(\.name)
+    }
+}
+
 /// 一台主機的推播開關(帳號頁「通知」區塊的一列)。
 public struct HostPush: Identifiable {
+    /// 主機服務開始支援 `push.*` 的版本。
+    public static let hostServiceVersion = "0.6.0"
+
     public let host: HostSelection
     public let name: String
+    public let icon: HostIcon
+    public let support: HostPushSupport
     public let model: PushModel
 
     public var id: HostSelection { host }

@@ -310,6 +310,60 @@ struct PushModelTests {
         #expect(hosts.push.state == .off)
     }
 
+    @Test("帳號頁通知區塊：SSH 主機可開，HTTPS 主機要新版主機服務，Demo 主機與示範主機不能通知")
+    func hostPushesExplainUnsupportedHosts() {
+        let hostStore = MemoryHostStore()
+        let https = HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)
+        hostStore.hosts = [MultiHostTests.studio, https]
+        let companion = DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: FakeHost())
+        let hosts = HostsModel(
+            store: hostStore, demoChannel: FakeHost(), demoCompanions: [companion], push: service(),
+            makeChannel: ChannelsByAddress([:]).make)
+        hosts.load()
+        hosts.select(.demo)
+
+        let supportByName = Dictionary(uniqueKeysWithValues: hosts.hostPushes.map { ($0.name, $0.support) })
+        #expect(supportByName["Studio"] == .supported)
+        #expect(supportByName["Box"] == .needsHostService(version: "0.6.0"))
+        #expect(supportByName["Demo"] == .demoHost)
+        #expect(supportByName["Studio Mac"] == .demoHost)
+        #expect(hosts.hostPushes.first { $0.name == "Studio Mac" }?.icon == .macMini)
+    }
+
+    @Test("至少一台主機開啟就算開啟通知，列出開著的主機名稱")
+    func notifyingHostsListsHostsThatAreOn() {
+        let hostStore = MemoryHostStore()
+        hostStore.hosts = [MultiHostTests.studio, MultiHostTests.lab]
+        let hosts = HostsModel(store: hostStore, demoChannel: FakeHost(), push: service(), makeChannel: ChannelsByAddress([:]).make)
+        hosts.load()
+        #expect(hosts.notifyingHostNames.isEmpty)
+
+        store.setKeyHash(String(repeating: "0", count: 64), forHost: MultiHostTests.studio.id.uuidString)
+        let reloaded = HostsModel(store: hostStore, demoChannel: FakeHost(), push: service(), makeChannel: ChannelsByAddress([:]).make)
+        reloaded.load()
+
+        #expect(reloaded.notifyingHostNames == ["Studio"])
+    }
+
+    @Test("安裝失敗後點開關重試：維持未開啟並說明，再開一次可以成功")
+    func failedInstallCanBeRetried() async throws {
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let pluginHost = FakePushPluginHost()
+        pluginHost.setInstallFailure("git not found")
+        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+
+        await turnOn(model)
+        #expect(model.state == .off)
+        guard case .failed(let message)? = model.problem else { Issue.record("沒有說明失敗"); return }
+        #expect(message.contains("git not found"))
+
+        pluginHost.setInstallFailure(nil)
+        await turnOn(model)
+
+        #expect(model.state == .on)
+        #expect(model.problem == nil)
+    }
+
     @Test("已配對的主機重新建立 model 時是開著的")
     func pairedHostStartsOn() {
         store.setKeyHash(String(repeating: "0", count: 64), forHost: "studio")
