@@ -220,6 +220,17 @@
         }
       }
     },
+    "%lld Images" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 張圖片"
+          }
+        }
+      }
+    },
     "%lld agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -370,6 +381,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個 Pane"
+          }
+        }
+      }
+    },
+    "%lld s" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒"
+          }
+        }
+      }
+    },
+    "%lld seconds" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒"
           }
         }
       }
@@ -804,6 +837,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "進階"
+          }
+        }
+      }
+    },
+    "After you send, the message waits this long so you can undo it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出後訊息會先等這段時間，讓你可以撤回。"
           }
         }
       }
@@ -6693,6 +6737,17 @@
         }
       }
     },
+    "Send Now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即送出"
+          }
+        }
+      }
+    },
     "Sending" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6700,6 +6755,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "送出中"
+          }
+        }
+      }
+    },
+    "Sending in %lld seconds. Undo is available." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒後送出，可以撤回。"
+          }
+        }
+      }
+    },
+    "Sending in %llds" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒後送出"
           }
         }
       }
@@ -9432,6 +9509,17 @@
         }
       }
     },
+    "Undo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤回"
+          }
+        }
+      }
+    },
     "Undo Purrdr’s Changes to Notes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9439,6 +9527,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "復原 Purrdr 對註記的變更"
+          }
+        }
+      }
+    },
+    "Undo Send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出可撤回"
           }
         }
       }
@@ -10239,6 +10338,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的會員、推播配對與同步的主機都會被刪除，且無法復原。Purrdr Plus 訂閱不會自動取消，請到「設定」›「Apple 帳號」›「訂閱項目」取消。"
+          }
+        }
+      }
+    },
+    "Your message, not sent yet. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訊息，還沒送出。%@"
           }
         }
       }

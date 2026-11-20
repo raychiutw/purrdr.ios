@@ -354,6 +354,39 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(element("conversation.echo", in: app).exists, "對話紀錄確認後回音應消失")
     }
 
+    /// 送出可撤回(#300):送出後訊息先以倒數泡泡出現，撤回把文字放回輸入框;再送一次按「立即送出」就變成回音。
+    @MainActor
+    func testUndoSendRestoresDraftAndSendNowDelivers() {
+        let app = open(paneID: "w1:p1", flags: ["-uiTestingUndoSend"])
+        let text = element("composer.text", in: app)
+        let send = element("composer.send", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
+        text.tap()
+        text.typeEnglish("Wait, not yet")
+        send.tap()
+        hideKeyboard(in: app)
+
+        let countdown = element("conversation.pendingSend.countdown", in: app)
+        XCTAssertTrue(countdown.waitForExistence(timeout: 5), "沒有倒數泡泡")
+        XCTAssertTrue(countdown.label.hasPrefix("Sending in"), "倒數文字：\(countdown.label)")
+        let undo = element("conversation.pendingSend.undo", in: app)
+        XCTAssertHitTarget(undo)
+        undo.tap()
+        XCTAssertFalse(element("conversation.pendingSend", in: app).exists, "撤回後倒數泡泡應消失")
+        XCTAssertEqual(text.value as? String, "Wait, not yet", "撤回應把文字放回輸入框")
+        XCTAssertFalse(element("conversation.echo", in: app).exists, "撤回後不應有回音")
+
+        send.tap()
+        let sendNow = element("conversation.pendingSend.sendNow", in: app)
+        XCTAssertTrue(sendNow.waitForExistence(timeout: 5), "沒有立即送出")
+        sendNow.tap()
+        let echoOrReply = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label CONTAINS %@ OR (identifier == 'conversation.agent' AND label CONTAINS 'This is the demo host')",
+            "Wait, not yet")).firstMatch
+        XCTAssertTrue(echoOrReply.waitForExistence(timeout: 5), "立即送出後沒有回音")
+        XCTAssertFalse(element("conversation.pendingSend", in: app).exists, "立即送出後倒數泡泡應消失")
+    }
+
     /// 建議提示詞(#123):ledger 完成時輸入列上方有 Claude Code 的建議;點了只填入輸入框、叫出鍵盤，不送出，
     /// 對話紀錄沒有新增。輸入框有字時建議不顯示。註記的完整卡片在時建議卡不同時出現，先略過註記。
     @MainActor

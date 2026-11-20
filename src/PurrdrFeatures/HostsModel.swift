@@ -89,6 +89,8 @@ public final class HostsModel {
     public var haptics: any Haptics = SilentHaptics()
     /// 成功送出幾次 prompt 後請求評分(#34);`nil` 時不請求。所有主機、所有聊天共用一份計數。
     public var reviewPrompt: ReviewPrompt?
+    /// 送出可撤回的秒數(#300),每次送出時讀;預設讀本機偏好(設定頁改的那一個)。
+    @ObservationIgnored public var undoSendSeconds: @MainActor () -> Int = { UndoSendSettings.seconds(in: .standard) }
 
     private let store: any HostStore
     private let selectionStore: any HostSelectionStore
@@ -313,7 +315,9 @@ public final class HostsModel {
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
             images: ComposerImages(uploader: member.uploader, store: attachmentStore),
-            updates: member.list.updates)
+            updates: member.list.updates,
+            // 送出管線(#299):撤回倒數(#300)。
+            sendSteps: [UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 })])
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。
