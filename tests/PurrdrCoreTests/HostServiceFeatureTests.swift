@@ -31,4 +31,10 @@ struct HostServiceFeatureTests {
         #expect(!HostServiceFeature.fileFetch.isAvailable(onHostServiceVersion: nil))
         #expect(!HostServiceFeature.fileFetch.isAvailable(onHostServiceVersion: "unknown"))
     }
+
+    @Test("上傳圖片與檔案從主機服務 0.7.0 起可用(#288)")
+    func fileUploadStartsAtZeroSevenZero() {
+        #expect(HostServiceFeature.fileUpload.isAvailable(onHostServiceVersion: "0.7.0"))
+        #expect(!HostServiceFeature.fileUpload.isAvailable(onHostServiceVersion: "0.6.9"))
+    }
 }

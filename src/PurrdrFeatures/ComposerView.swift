@@ -543,6 +543,8 @@ extension SendNotice {
             String(localized: "This file is \(Self.byteCount(size)). Files sent to the host can be up to \(Self.byteCount(limit)).")
         case .fileUnreadable: String(localized: "Couldn’t read that file.")
         case .fileUploadFailed: String(localized: "Couldn’t upload the file to the host. Try again.")
+        case .hostServiceUpdateRequired(let installedVersion):
+            HostErrorText.message(for: HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: installedVersion))
         }
     }
 
@@ -560,6 +562,7 @@ extension SendNotice {
         case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .fileTooLarge, .fileUnreadable: "doc"
         case .fileUploadFailed: "exclamationmark.triangle"
+        case .hostServiceUpdateRequired: "arrow.down.circle"
         case .unconfirmed: "questionmark.circle"
         }
     }

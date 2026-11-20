@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
-import PurrdrFeatures
+@testable import PurrdrFeatures
 import PurrdrSSH
 import PurrdrTestSupport
 import Synchronization
@@ -125,6 +125,24 @@ struct ConversationFileTests {
 
         #expect(setup.model.notice == .fileUploadFailed)
         #expect(setup.model.draft == "草稿")
+    }
+
+    @Test("HTTPS 主機的主機服務太舊：提示更新主機服務，輸入框不變(#288)")
+    func olderHostServiceAsksForUpdate() async throws {
+        let failure = HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: "0.6.2")
+        let setup = try await Self.opened(uploader: FakeHostUploader(failure: failure))
+        setup.model.draft = "草稿"
+
+        await setup.model.addFile(named: "server.log", size: 5) { Data("hello".utf8) }
+
+        #expect(setup.model.notice == .hostServiceUpdateRequired(installedVersion: "0.6.2"))
+        #expect(setup.model.draft == "草稿")
+    }
+
+    @Test("更新主機服務的提示沿用主機錯誤的說明")
+    func updateNoticeUsesHostErrorText() {
+        #expect(SendNotice.hostServiceUpdateRequired(installedVersion: "0.6.2").text
+            == HostErrorText.message(for: HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: "0.6.2")))
     }
 
     @Test("有上傳到主機的主機才能附加檔案")

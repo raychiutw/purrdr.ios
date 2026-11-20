@@ -108,6 +108,43 @@ struct ImagePreparationTests {
         #expect(prepared.height == 900)
     }
 
+    @Test("照片的位置、拍攝裝置與時間等中繼資料不帶到主機(#288)")
+    func stripsPhotoMetadata() throws {
+        let original = Self.photoWithMetadata()
+        let originalProperties = try #require(Self.properties(original))
+        #expect(originalProperties[kCGImagePropertyGPSDictionary] != nil, "樣本本身要帶位置")
+
+        let prepared = try #require(ImagePreparation.prepare(original))
+
+        let properties = try #require(Self.properties(prepared.jpeg))
+        #expect(properties[kCGImagePropertyGPSDictionary] == nil)
+        #expect((properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any])?[kCGImagePropertyTIFFMake] == nil)
+        #expect((properties[kCGImagePropertyExifDictionary] as? [CFString: Any])?[kCGImagePropertyExifDateTimeOriginal] == nil)
+    }
+
+    static func properties(_ data: Data) -> [CFString: Any]? {
+        CGImageSourceCreateWithData(data as CFData, nil).flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }
+    }
+
+    /// 帶 GPS、TIFF(拍攝裝置)與 Exif(拍攝時間)的 JPEG。
+    static func photoWithMetadata() -> Data {
+        let source = CGImageSourceCreateWithData(TestImage.png(width: 64, height: 48) as CFData, nil)!
+        let image = CGImageSourceCreateImageAtIndex(source, 0, nil)!
+        let data = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil)!
+        let metadata: [CFString: Any] = [
+            kCGImagePropertyGPSDictionary: [
+                kCGImagePropertyGPSLatitude: 25.0339, kCGImagePropertyGPSLatitudeRef: "N",
+                kCGImagePropertyGPSLongitude: 121.5645, kCGImagePropertyGPSLongitudeRef: "E",
+            ],
+            kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFMake: "Apple", kCGImagePropertyTIFFModel: "iPhone 17"],
+            kCGImagePropertyExifDictionary: [kCGImagePropertyExifDateTimeOriginal: "2026:11:20 09:30:00"],
+        ]
+        CGImageDestinationAddImage(destination, image, metadata as CFDictionary)
+        CGImageDestinationFinalize(destination)
+        return data as Data
+    }
+
     @Test("最難壓的內容(逐像素亂數):長邊仍不低於下限")
     func noiseImageStaysAboveMinimumSize() throws {
         let prepared = try #require(ImagePreparation.prepare(NoiseImage.png(width: 3000, height: 2000)))
