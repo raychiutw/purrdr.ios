@@ -70,11 +70,15 @@ public actor HTTPSHostConnection: HostConnection {
         let operation = try HerdrOperation(line)
         return try await withDeadline(deadline) {
             let welcome = try await self.hostServiceInfo()
+            if let feature = HerdrOperation.requiredFeature(forMethod: line.method),
+               !feature.isAvailable(onHostServiceVersion: welcome.hostServiceVersion) {
+                throw HostServiceError.hostServiceUpdateRequired(feature, installedVersion: welcome.hostServiceVersion)
+            }
             switch operation {
             case .ping:
                 return try HerdrResponseLine.ping(id: line.id, herdr: welcome.herdr)
             case .request(let make, let response):
-                return try response(line.id, try await self.send(make), welcome)
+                return try response(line.id, try await self.send(on: self.liveSession(), make, herdrMethod: line.method), welcome)
             }
         }
     }
@@ -276,8 +280,9 @@ public actor HTTPSHostConnection: HostConnection {
     }
 
     /// 在這條連線送出請求(呼叫端先在連線上準備好，例如開好串流)。
+    /// - Parameter herdrMethod: 換成這個訊息的 herdr method(錯誤依 method 解讀，見 `error(for:herdrMethod:)`)。
     func send(
-        on session: HostServiceSession, _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage
+        on session: HostServiceSession, _ make: @Sendable (String) -> HostServiceProtocol.ClientMessage, herdrMethod: String? = nil
     ) async throws -> HostServiceProtocol.ServerMessage {
         let reply: HostServiceProtocol.ServerMessage
         do {
@@ -286,8 +291,16 @@ public actor HTTPSHostConnection: HostConnection {
             noteEnding(error, of: session)
             throw error
         }
-        if case .errorMessage(let error) = reply { throw Self.error(for: error) }
+        if case .errorMessage(let error) = reply { throw Self.error(for: error, herdrMethod: herdrMethod) }
         return reply
+    }
+
+    /// `workspace.create` 的 `invalid_message` 是資料夾不存在或不是絕對路徑(協定沒有專屬錯誤碼),換成 herdr 錯誤 `folder_not_found`。
+    static func error(for message: HostServiceProtocol.ErrorMessage, herdrMethod: String?) -> any Error {
+        if herdrMethod == "workspace.create", message.code == .invalidMessage {
+            return HerdrError.herdr(code: "folder_not_found", message: message.message)
+        }
+        return error(for: message)
     }
 
     /// 心跳改用短間隔(聊天畫面可見時)。
@@ -525,6 +538,39 @@ enum HerdrResponseLine {
 
     static func ok(id: String?) throws -> Data {
         try encode(Envelope(id: id, result: Typed(type: "ok")))
+    }
+
+    /// `workspace.create`／`worktree.create` 成功:`HerdrClient` 只讀 workspace id 與 root pane id。
+    static func created(id: String?, type: String, workspaceID: String, rootPaneID: String) throws -> Data {
+        try encode(Envelope(id: id, result: Created(
+            type: type, workspace: .init(workspaceID: workspaceID), rootPane: .init(paneID: rootPaneID))))
+    }
+
+    private struct Created: Encodable {
+        var type: String
+        var workspace: Workspace
+        var rootPane: RootPane
+
+        struct Workspace: Encodable {
+            var workspaceID: String
+
+            enum CodingKeys: String, CodingKey {
+                case workspaceID = "workspace_id"
+            }
+        }
+
+        struct RootPane: Encodable {
+            var paneID: String
+
+            enum CodingKeys: String, CodingKey {
+                case paneID = "pane_id"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case type, workspace
+            case rootPane = "root_pane"
+        }
     }
 
     /// `agent.prompt` 成功;`delivery` 照主機回報(沒有就省略)。

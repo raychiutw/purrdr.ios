@@ -90,6 +90,10 @@ final class FakeHostService: Sendable {
         var promptHerdrError: String?
         /// `welcome` 回報的主機服務版本;`nil` 是範例的值。
         var hostServiceVersion: String?
+        /// `workspace.create` 以 `invalid_message` 拒絕的資料夾(主機上不存在)。
+        var missingFolders: Set<String> = []
+        /// 結構操作(`workspace.*`、`worktree.create`、`agent.start`)以 `herdr_error` 失敗：訊息種類 → herdr 錯誤碼。
+        var structureHerdrErrors: [String: String] = [:]
         /// `host_service.status` 回的範例檔(#290)。
         var hostServiceStatusExample = "server.host-service-status-result.json"
         /// 有值時 `host_service.status` 改回這個 JSON 物件(不含 `request_id`)。
@@ -407,6 +411,17 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
+        case "workspace.create", "workspace.rename", "workspace.close", "worktree.create", "agent.start":
+            if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+                return [.text(Self.error(requestID, "read_only_device"))]
+            }
+            if type == "workspace.create", let cwd = message["cwd"] as? String, settings.missingFolders.contains(cwd) || !cwd.hasPrefix("/") {
+                return [.text(Self.error(requestID, "invalid_message", message: "cwd must be an absolute path to an existing folder on this host"))]
+            }
+            if let herdrCode = settings.structureHerdrErrors[type] {
+                return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
+            }
+            return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
         case "host_service.status", "host_service.update", "host_service.set_auto_update":
             return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
         case "push.status", "push.install", "push.remove", "push.update_muted":

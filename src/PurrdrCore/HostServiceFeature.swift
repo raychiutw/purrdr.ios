@@ -35,6 +35,8 @@ public struct HostServiceVersion: Sendable, Hashable, Comparable, CustomStringCo
 public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     /// 主機取檔 `file.stat`／`file.read`(#227)。
     case fileFetch
+    /// 新增聊天(`agent.start`)與 workspace／worktree 操作(#287)。
+    case workspaceOperations
     /// 上傳圖片與檔案 `file.upload.start`／`file.upload.chunk`(#288)。
     case fileUpload
     /// 列表預覽與 subagent／workflow／委派讀取(`transcript.previews`／`.subagent`／`.workflow`／`.delegation`,#289)。
@@ -48,6 +50,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     public var minimumVersion: HostServiceVersion {
         switch self {
         case .fileFetch: HostServiceVersion(0, 4, 0)
+        case .workspaceOperations: HostServiceVersion(0, 7, 0)
         case .fileUpload: HostServiceVersion(0, 7, 0)
         case .transcriptPreviewsAndDelegations: HostServiceVersion(0, 7, 0)
         case .hostServiceManagement: HostServiceVersion(0, 7, 0)

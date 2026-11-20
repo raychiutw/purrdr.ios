@@ -105,6 +105,8 @@ private struct WorkspaceButtons {
     let host: HostSelection
     let snapshot: HostSnapshot?
     let presentation: WorkspacePresentation
+    /// 唯讀裝置：改到主機的操作(改名、建立 worktree、關閉)停用。
+    var isReadOnly = false
 
     /// 改的是 workspace 名稱，不一定是列標題，所以滑動上叫「Workspace」而不叫「重新命名」(行為規格 F2.7)。
     func rename(title: LocalizedStringKey) -> some View {
@@ -113,6 +115,7 @@ private struct WorkspaceButtons {
             presentation.sheet = .rename(workspaceID: target.workspaceID, label: target.label)
         }
         .tint(.gray)
+        .disabled(isReadOnly)
     }
 
     func close(title: LocalizedStringKey, role: ButtonRole?) -> some View {
@@ -120,6 +123,7 @@ private struct WorkspaceButtons {
             presentation.host = host
             presentation.closeRequest = .init(workspaceID: target.workspaceID, label: target.label, sessionIDs: target.sessionIDs)
         }
+        .disabled(isReadOnly)
     }
 
     func showLayout() -> some View {
@@ -136,6 +140,7 @@ private struct WorkspaceButtons {
             presentation.host = host
             presentation.sheet = .worktree(workspaceID: target.workspaceID, label: target.label)
         }
+        .disabled(isReadOnly)
     }
 }
 
@@ -149,7 +154,8 @@ private struct WorkspaceRowActions: ViewModifier {
 
     func body(content: Content) -> some View {
         if let context, let actions {
-            let buttons = WorkspaceButtons(target: context.workspace, host: host, snapshot: snapshot, presentation: presentation)
+            let buttons = WorkspaceButtons(
+                target: context.workspace, host: host, snapshot: snapshot, presentation: presentation, isReadOnly: actions.isReadOnly)
             content
                 // 列表是根畫面，沒有返回手勢的邊緣，leading 滑動是安全的。
                 .swipeActions(edge: .leading) {
@@ -176,7 +182,12 @@ private struct WorkspaceRowActions: ViewModifier {
                     buttons.newWorktree()
                     Divider()
                     buttons.close(title: "Close Workspace…", role: .destructive)
+                    if actions.isReadOnly {
+                        // 唯讀裝置(HTTPS 主機):說明上面的操作為什麼停用(#287)。
+                        Text(WorkspaceActionsModel.readOnlyMessage)
+                    }
                 }
+                .task(id: host) { await actions.loadAccess() }
         } else {
             content
         }

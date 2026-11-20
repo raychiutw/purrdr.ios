@@ -322,7 +322,10 @@ public final class HostsModel {
     /// 某台主機上的新增對話(#18;主機由新增聊天的主機挑選鈕決定，#245)。
     public func newChat(on host: HostSelection) -> NewChatModel {
         let member = member(for: host)
-        let folders = NewChatFolders(channel: member.channel)
+        // HTTPS 主機沒有主機通道：只收完整路徑(#287)。
+        var usesHostService = false
+        if case .host(let id) = host { usesHostService = hosts.first { $0.id == id }?.connectionMethod.usesHostService == true }
+        let folders = usesHostService ? NewChatFolders.absolutePathsOnly : NewChatFolders(channel: member.channel)
         return NewChatModel(launcher: NewChatLauncher(client: member.client, folders: folders), folders: folders)
     }
 
