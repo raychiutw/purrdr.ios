@@ -680,6 +680,8 @@ public final class HostsModel {
 
     private func pushSupport(of host: HostSelection) -> HostPushSupport {
         guard case .host(let id) = host, let configuration = hosts.first(where: { $0.id == id }) else { return .demoHost }
+        // 沒有裝置權杖連不上主機服務：先說明要配對(#295),配對後才看得到能不能裝。
+        guard !unpairedHostIDs.contains(id) else { return .needsPairing }
         guard members[host]?.push.isAvailable == true else { return .unsupported }
         // 版本還不知道(還沒連上)時先當可開：開啟時主機服務太舊會說明要更新。
         guard configuration.connectionMethod.usesHostService, let installed = hostServiceVersions[id],
@@ -861,6 +863,8 @@ public enum HostPushSupport: Equatable, Sendable {
     case supported
     /// Demo 主機與示範主機。
     case demoHost
+    /// 這支裝置還沒配對的 HTTPS 主機(例如主機同步帶來的,#295):配對後就能開。
+    case needsPairing
     /// 這台主機沒有推播外掛安裝(例如 HTTPS 主機取不到主機服務連線)。
     case unsupported
     /// HTTPS 主機要這版以上的主機服務代裝外掛;附依已安裝版本的更新指令。
