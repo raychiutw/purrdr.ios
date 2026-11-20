@@ -393,7 +393,7 @@ struct PushModelTests {
         #expect(hosts.push.state == .off)
     }
 
-    @Test("帳號頁通知區塊：SSH 主機可開，HTTPS 主機要新版主機服務，Demo 主機與示範主機不能通知")
+    @Test("帳號頁通知區塊：SSH 主機與版本未知的 HTTPS 主機可開，Demo 主機與示範主機不能通知")
     func hostPushesExplainUnsupportedHosts() {
         let hostStore = MemoryHostStore()
         let https = HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)
@@ -407,7 +407,7 @@ struct PushModelTests {
 
         let supportByName = Dictionary(uniqueKeysWithValues: hosts.hostPushes.map { ($0.name, $0.support) })
         #expect(supportByName["Studio"] == .supported)
-        #expect(supportByName["Box"] == .needsHostService(version: "0.6.0"))
+        #expect(supportByName["Box"] == .supported)
         #expect(supportByName["Demo"] == .demoHost)
         #expect(supportByName["Studio Mac"] == .demoHost)
         #expect(hosts.hostPushes.first { $0.name == "Studio Mac" }?.icon == .macMini)
@@ -445,6 +445,18 @@ struct PushModelTests {
 
         #expect(model.state == .on)
         #expect(model.problem == nil)
+    }
+
+    @Test("主機服務太舊：維持未開啟，說明要更新主機服務並附更新指令")
+    func outdatedHostServiceAsksForUpdate() async {
+        let pluginHost = FakePushPluginHost()
+        pluginHost.setStatusFailure(.hostServiceOutdated(installed: "0.5.0"))
+        let model = model(service(), installer: pluginHost.installer(deviceID: store.deviceID))
+
+        await model.requestOn()
+
+        #expect(model.state == .off)
+        #expect(model.problem == .hostServiceOutdated(HostServiceUpdates.commands(installed: "0.5.0")))
     }
 
     @Test("已配對的主機重新建立 model 時是開著的")

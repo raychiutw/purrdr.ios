@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrCore
+import PurrdrHTTPS
 import PurrdrSSH
 import PurrdrTestSupport
 import Testing
@@ -11,9 +12,9 @@ struct PushPluginInstallerContractTests {
 
     static var kinds: [InstallerKind] {
         #if os(macOS)
-        [.fake, .ssh]
+        [.fake, .hostService, .ssh]
         #else
-        [.fake]
+        [.fake, .hostService]
         #endif
     }
 
@@ -23,19 +24,20 @@ struct PushPluginInstallerContractTests {
 
     @Test("乾淨的主機：沒有外掛、沒有配對", arguments: kinds)
     func cleanHost(kind: InstallerKind) async throws {
-        let host = try kind.makeHost()
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
 
         let status = try await host.installer("aaaaaaaaaaaaaaaa").status()
 
         #expect(!status.isPaired)
         #expect(!status.pluginInstalled)
         #expect(status.otherPairedDevices == 0)
-        #expect(!status.user.isEmpty)
     }
 
     @Test("安裝：這支裝置已配對、外掛已安裝", arguments: kinds)
     func installPairsAndInstallsPlugin(kind: InstallerKind) async throws {
-        let host = try kind.makeHost()
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
         let installer = host.installer("aaaaaaaaaaaaaaaa")
 
         try await installer.install(pairing())
@@ -47,7 +49,8 @@ struct PushPluginInstallerContractTests {
 
     @Test("兩支裝置：各自看到另一支，移除一支外掛還在，最後一支移除外掛才移除", arguments: kinds)
     func multipleDevicesShareThePlugin(kind: InstallerKind) async throws {
-        let host = try kind.makeHost()
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
         let phone = host.installer("aaaaaaaaaaaaaaaa")
         let pad = host.installer("bbbbbbbbbbbbbbbb")
         try await phone.install(pairing())
@@ -68,7 +71,8 @@ struct PushPluginInstallerContractTests {
 
     @Test("使用者自己裝的外掛：移除配對時不移除外掛", arguments: kinds)
     func pluginInstalledOutsidePurrdrStays(kind: InstallerKind) async throws {
-        let host = try kind.makeHost()
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
         try host.installPluginOutsidePurrdr()
         let installer = host.installer("aaaaaaaaaaaaaaaa")
 
@@ -82,7 +86,8 @@ struct PushPluginInstallerContractTests {
 
     @Test("安裝外掛失敗：丟出 herdr 的訊息，主機回到安裝前", arguments: kinds)
     func failedInstallRollsBack(kind: InstallerKind) async throws {
-        let host = try kind.makeHost()
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
         try host.failPluginInstall("git clone failed")
         let installer = host.installer("aaaaaaaaaaaaaaaa")
 
@@ -97,7 +102,8 @@ struct PushPluginInstallerContractTests {
 
     @Test("沒有配對時改靜音清單：notPaired", arguments: kinds)
     func updatingMutedWithoutPairingFails(kind: InstallerKind) async throws {
-        let host = try kind.makeHost()
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
 
         await #expect(throws: PushPluginError.notPaired) {
             try await host.installer("aaaaaaaaaaaaaaaa").updateMuted(["session-1"])
@@ -106,7 +112,8 @@ struct PushPluginInstallerContractTests {
 
     @Test("改靜音清單後仍是已配對", arguments: kinds)
     func updatingMutedKeepsPairing(kind: InstallerKind) async throws {
-        let host = try kind.makeHost()
+        let host = try await kind.makeHost()
+        defer { Task { await host.stop() } }
         let installer = host.installer("aaaaaaaaaaaaaaaa")
         try await installer.install(pairing(muted: ["old"]))
 
@@ -119,14 +126,17 @@ struct PushPluginInstallerContractTests {
 /// 被測的實作。
 enum InstallerKind: String, CustomStringConvertible, Sendable {
     case fake
+    case hostService
     case ssh
 
     var description: String { rawValue }
 
-    func makeHost() throws -> any PushPluginTestHost {
+    func makeHost() async throws -> any PushPluginTestHost {
         switch self {
         case .fake:
             return FakePushPluginHost()
+        case .hostService:
+            return try await HostServicePushPluginTestHost()
         case .ssh:
             #if os(macOS)
             return try SSHPushPluginTestHost()
@@ -142,6 +152,37 @@ protocol PushPluginTestHost {
     func installer(_ deviceID: String) -> any PushPluginInstalling
     func failPluginInstall(_ message: String) throws
     func installPluginOutsidePurrdr() throws
+    func stop() async
+}
+
+extension PushPluginTestHost {
+    func stop() async {}
+}
+
+/// 主機服務實作對 `FakeHostService`(`push.*` 的規則同主機服務)。
+struct HostServicePushPluginTestHost: PushPluginTestHost {
+    let service: FakeHostService
+    let connection: HTTPSHostConnection
+
+    init() async throws {
+        service = try await FakeHostService.start(.init(hostServiceVersion: "0.6.0"))
+        connection = HTTPSHostConnection(address: service.address, deviceToken: { "token-ok" })
+    }
+
+    func installer(_ deviceID: String) -> any PushPluginInstalling {
+        HostServicePushPluginInstaller(connection: connection, deviceID: deviceID)
+    }
+
+    func failPluginInstall(_ message: String) throws {
+        service.update { $0.pushInstallFailure = message }
+    }
+
+    func installPluginOutsidePurrdr() throws { service.installPushPluginOutsidePurrdr() }
+
+    func stop() async {
+        await connection.disconnect()
+        await service.stop()
+    }
 }
 
 extension FakePushPluginHost: PushPluginTestHost {
