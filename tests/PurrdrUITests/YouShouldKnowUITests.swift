@@ -11,19 +11,15 @@ final class YouShouldKnowUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
-    /// 列表的「✦ 1 note for you」→ 註記清單 →「前往」→ 聊天的輸入列上方有註記 →「在聊天中討論」(先同意)
-    /// 把註記放進輸入框，註記消失。
+    /// 聊天的輸入列上方有註記 →「在聊天中討論」(先同意)把註記放進輸入框，註記消失。
+    /// 列表上不再有註記卡與註記清單(#268,原型沒有);註記只在聊天裡。
     @MainActor
-    func testNoteFromListToChatAndDiscuss() {
+    func testNoteInChatAndDiscuss() {
         let app = XCUIApplication.launchUITesting()
-        let summary = app.buttons["youShouldKnow.summary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 15), "列表沒有註記提示")
-        XCTAssertTrue(summary.label.contains("1 note for you"), "提示文字不對:\(summary.label)")
-        summary.tap()
-
-        let go = element("youShouldKnow.go.demo/w1:p1", in: app)
-        XCTAssertTrue(go.waitForExistence(timeout: 5), "註記清單沒有「前往」")
-        go.tap()
+        XCTAssertFalse(app.buttons["youShouldKnow.summary"].exists, "列表不該有註記卡")
+        let ledger = element("agent.row.demo/w1:p1", in: app)
+        XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
+        ledger.tap()
 
         let note = element("youShouldKnow.note", in: app)
         XCTAssertTrue(note.waitForExistence(timeout: 15), "聊天輸入列上方沒有註記")

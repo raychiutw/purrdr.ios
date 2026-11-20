@@ -17,9 +17,9 @@ final class AgentListUITests: XCTestCase {
 
         let row = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        XCTAssertTrue(row.label.contains("Tidy up the CSV export"), "列標題不對:\(row.label)")
-        // Spaces 檢視：單一 Agent 的聊天列第三行是 workspace 名稱。
+        // Agents 列第一行是 workspace 名稱(#269,原型 B)。
         XCTAssertTrue(row.label.contains("ledger"), "列沒有 workspace 名稱:\(row.label)")
+        XCTAssertFalse(row.label.contains("Tidy up the CSV export"), "列第一行不該是聊天標題:\(row.label)")
         XCTAssertTrue(row.label.contains("Done"), "列沒有狀態文字:\(row.label)")
     }
 
@@ -34,10 +34,10 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
         XCTAssertTrue(needsYou.label.contains("Needs You"), "沒有「需要你」文字:\(needsYou.label)")
         XCTAssertTrue(needsYou.label.contains("Waiting for your input"), "沒有等待輸入的預覽:\(needsYou.label)")
-        XCTAssertTrue(working.label.contains("Sync notes to Markdown"), "Codex 標題沒去掉資料夾:\(working.label)")
+        XCTAssertTrue(working.label.contains("notes"), "列沒有 workspace 名稱:\(working.label)")
         XCTAssertTrue(working.label.contains("Now"), "工作中的列沒有「Now」:\(working.label)")
         XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
-        // ledger 在 notes 群組下方，可能在畫面外(列表是 lazy)。
+        // ledger 在 notes 下方，可能在畫面外(列表是 lazy)。
         XCTAssertTrue(app.reveal(done))
         XCTAssertLessThan(working.frame.minY, done.frame.minY)
     }

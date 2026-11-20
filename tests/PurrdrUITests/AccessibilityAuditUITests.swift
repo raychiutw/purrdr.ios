@@ -37,7 +37,8 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testAgentListSpaces() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            XCTAssertTrue(app.reveal(element("workspace.group.demo/w3", in: app)))
+            app.switchListMode(to: "Spaces")
+            XCTAssertTrue(app.reveal(element("spaces.section.demo/w3", in: app)))
             try audit(app, "Agent 列表(Spaces)", contentSize: size)
             app.terminate()
         }
@@ -48,34 +49,23 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 15))
-            app.switchListMode(to: "Agents")
-            // AX5 時導覽列標題由系統縮成 Large Content Viewer 樣式，不以標題判斷：群組消失就是 Agents 檢視。
-            XCTAssertTrue(element("workspace.group.demo/w3", in: app).waitForNonExistence(timeout: 5), "沒有切到 Agents 檢視")
-            XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
             try audit(app, "Agent 列表(Agents)", contentSize: size)
             app.terminate()
         }
     }
 
+    /// 版面圖(Spaces 檢視點有多個 pane 的 Tab,#275)。
     @MainActor
-    func testNotesListAndLayout() throws {
+    func testLayout() throws {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
-            let summary = app.buttons["youShouldKnow.summary"]
-            XCTAssertTrue(summary.waitForExistence(timeout: 15))
-            summary.tap()
-            XCTAssertTrue(element("youShouldKnow.go.demo/w1:p1", in: app).waitForExistence(timeout: 5))
-            try audit(app, "You should know 清單", contentSize: size)
+            app.switchListMode(to: "Spaces")
+            let tab = element("spaces.tab.demo/w3:t1", in: app)
+            XCTAssertTrue(app.reveal(tab))
+            tab.tap()
+            XCTAssertTrue(app.buttons["layout.block.w3:p2"].waitForExistence(timeout: 5))
+            try audit(app, "版面圖", contentSize: size)
             app.terminate()
-
-            let again = XCUIApplication.launchUITesting(contentSize: size)
-            let group = element("workspace.group.demo/w3", in: again)
-            XCTAssertTrue(again.reveal(group))
-            group.press(forDuration: 1.2)
-            again.buttons["Show Layout"].tap()
-            XCTAssertTrue(again.buttons["layout.block.w3:p2"].waitForExistence(timeout: 5))
-            try audit(again, "版面圖", contentSize: size)
-            again.terminate()
         }
     }
 
@@ -83,16 +73,6 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     private func openChat(_ paneID: String, in app: XCUIApplication) -> XCUIElement {
-        if paneID == "w1:p1" {
-            // AX5 時 ledger 在閒置組很下面，捲不到：從註記清單的「Go to Chat」進去。
-            let summary = app.buttons["youShouldKnow.summary"]
-            XCTAssertTrue(summary.waitForExistence(timeout: 15))
-            summary.tap()
-            element("youShouldKnow.go.demo/w1:p1", in: app).tap()
-            let text = element("composer.text", in: app)
-            XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
-            return text
-        }
         let row = element("agent.row.demo/\(paneID)", in: app)
         XCTAssertTrue(app.reveal(row), "列表上沒有 \(paneID)")
         row.tap()

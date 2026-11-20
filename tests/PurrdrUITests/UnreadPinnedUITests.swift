@@ -11,25 +11,23 @@ final class UnreadPinnedUITests: XCTestCase {
         app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
     }
 
-    /// 釘選後列移到最上方的「已釘選」組(在主機組之前),組標題帶數量，列念出「已釘選」。
+    /// 釘選後列移到 Agents 檢視最上方(在「需要你」之前),列念出「已釘選」(#244 單一清單)。
     @MainActor
-    func testPinnedRowMovesToPinnedSection() {
+    func testPinnedRowMovesToTop() {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
-        let host = app.descendants(matching: .any)["spaces.host.demo"].firstMatch
-        XCTAssertTrue(host.waitForExistence(timeout: 10))
+        let needsYou = row("w2:p1", in: app)
+        XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
         XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeRight()
         app.buttons["Pin"].firstMatch.tap()
-        // 「已釘選」在最上方;捲回頂端。
+        // 已釘選在最上方;捲回頂端。
         app.collectionViews.firstMatch.swipeDown()
 
-        let pinned = app.descendants(matching: .any)["agentList.section.pinned"].firstMatch
-        XCTAssertTrue(pinned.waitForExistence(timeout: 5), "沒有「已釘選」組")
-        XCTAssertTrue(pinned.label.contains("Pinned") && pinned.label.contains("1"), "組標題:\(pinned.label)")
-        XCTAssertLessThan(pinned.frame.minY, host.frame.minY, "「已釘選」不在最上方")
-        XCTAssertTrue(row("w1:p1", in: app).label.contains("Pinned"), "列沒有念出已釘選:\(row("w1:p1", in: app).label)")
+        XCTAssertTrue(ledger.waitForExistence(timeout: 5))
+        XCTAssertLessThan(ledger.frame.minY, needsYou.frame.minY, "已釘選的列不在最上方")
+        XCTAssertTrue(ledger.label.contains("Pinned"), "列沒有念出已釘選:\(ledger.label)")
     }
 
     /// 有新回覆的聊天未讀;打開讀過、回到列表後變已讀。主機 sheet 的「完成」旁顯示需處理的 workspace 數。

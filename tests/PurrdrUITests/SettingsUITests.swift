@@ -76,8 +76,8 @@ final class SettingsUITests: XCTestCase {
     func testTraditionalChineseInterface() {
         let app = XCUIApplication.launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
 
-        // 列表預設是 Spaces 檢視(#40);「Spaces」繁中保留英文，改看分組標題。
-        XCTAssertTrue(app.navigationBars["Spaces"].waitForExistence(timeout: 10), "沒有看到列表")
+        // 列表沒有導覽列標題(#268):看 Agents／Spaces 分段控制。
+        XCTAssertTrue(app.listModeControl.waitForExistence(timeout: 10), "沒有看到列表")
         XCTAssertTrue(app.staticTexts["需要你"].firstMatch.waitForExistence(timeout: 10), "列表不是繁體中文")
         openSettings(in: app)
         XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 5), "設定頁標題不是繁體中文")

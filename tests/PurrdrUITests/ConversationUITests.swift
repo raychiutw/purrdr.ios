@@ -594,11 +594,9 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        // AX5 時 ledger 在閒置組很下面，捲不到：從註記清單的「Go to Chat」進去(同無障礙稽核)。
-        let summary = app.buttons["youShouldKnow.summary"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 15))
-        summary.tap()
-        element("youShouldKnow.go.demo/w1:p1", in: app).tap()
+        let ledger = element("agent.row.demo/w1:p1", in: app)
+        XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
+        ledger.tap()
         let text = element("composer.text", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         text.tap()

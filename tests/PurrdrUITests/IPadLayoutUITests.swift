@@ -75,7 +75,8 @@ final class IPadLayoutUITests: XCTestCase {
     @MainActor
     func testListColumnModeControlSwitchesView() {
         let app = launchInLandscape()
-        let card = element("workspace.group.demo/w3", in: app)
+        app.switchListMode(to: "Spaces")
+        let card = element("spaces.section.demo/w3", in: app)
         XCTAssertTrue(app.reveal(card), "沒有看到 Spaces 檢視")
 
         let control = app.listModeControl

@@ -1,7 +1,7 @@
 import XCTest
 
-/// Spaces／Agents 兩種檢視與 workspace 群組(#40、#103)。Demo 主機的 `notes`(w3)是 Codex(工作中)+ shell「npm run dev」,
-/// 所以在 Spaces 是群組(預設展開);`ledger`(w1)、`weather-app`(w2)只有一個 agent,是聊天列。
+/// Spaces／Agents 兩種檢視(#40);Spaces 檢視每個「主機 · workspace」一段、列出 Tab(#275,原型 purrdr-screens 定案版)。
+/// Demo 主機：`ledger`(w1)、`weather-app`(w2)各一個 Tab、一個 Agent;`notes`(w3)的 Tab 有 Codex 與 shell「npm run dev」兩個 pane。
 final class SpacesUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -12,68 +12,51 @@ final class SpacesUITests: XCTestCase {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
-    /// 預設是 Spaces:依主機分組，Demo 主機一組;多 pane 的 workspace 是群組，下方有 agent 列與終端機列;點終端機列開它的 Pane 終端機。
+    /// Spaces 檢視：每個 workspace 一段，標題是「主機 · workspace」,段內是 Tab 列;沒有 #103 的群組與狀態條。
     @MainActor
-    func testSpacesShowsGroupAndTerminalRowOpensTerminal() {
+    func testSpacesShowsWorkspaceSectionsWithTabs() {
         let app = XCUIApplication.launchUITesting()
-
-        let group = element("workspace.group.demo/w3", in: app)
-        XCTAssertTrue(group.waitForExistence(timeout: 10), "notes 沒有顯示成 workspace 群組")
-        XCTAssertTrue(app.navigationBars["Spaces"].exists, "大標題不是 Spaces")
-        let host = element("spaces.host.demo", in: app)
-        XCTAssertTrue(host.exists, "沒有 Demo 主機的分組標題")
-        XCTAssertTrue(host.label.contains("Demo"), "主機分組標題沒有主機名:\(host.label)")
-        XCTAssertLessThan(host.frame.minY, group.frame.minY)
-        let agent = element("agent.row.demo/w3:p1", in: app)
-        let terminal = element("terminal.row.demo/w3:p2", in: app)
-        XCTAssertTrue(agent.exists, "群組下方沒有 agent 列(工作中應預設展開)")
-        XCTAssertTrue(terminal.exists, "群組下方沒有終端機列")
-        XCTAssertTrue(terminal.label.contains("npm run dev"), "終端機列副標沒有程式名:\(terminal.label)")
-        XCTAssertLessThan(group.frame.minY, agent.frame.minY)
-        XCTAssertLessThan(agent.frame.minY, terminal.frame.minY)
-        XCTAssertTrue(app.reveal(element("agent.row.demo/w1:p1", in: app)), "單一 agent 的 workspace 沒有聊天列")
-
-        app.reveal(terminal)
-        terminal.tap()
-        let status = element("terminal.status", in: app)
-        XCTAssertTrue(status.waitForExistence(timeout: 10), "點終端機列沒有開 Pane 終端機")
-        XCTAssertTrue(status.label.contains("npm run dev"), "終端機標題不是程式名:\(status.label)")
+        app.switchListMode(to: "Spaces")
+        let notes = element("spaces.section.demo/w3", in: app)
+        XCTAssertTrue(app.reveal(notes), "沒有 notes 的段落")
+        XCTAssertTrue(notes.label.contains("Demo · notes"), "段落標題不是「主機 · workspace」:\(notes.label)")
+        XCTAssertTrue(notes.isHeader, "段落標題沒有標成 header")
+        let tab = element("spaces.tab.demo/w3:t1", in: app)
+        XCTAssertTrue(tab.exists)
+        XCTAssertTrue(tab.label.contains("Tab 1"), "Tab 列名稱不對:\(tab.label)")
+        XCTAssertGreaterThan(tab.frame.minY, notes.frame.minY, "Tab 列不在段落標題下方")
+        XCTAssertFalse(element("workspace.group.demo/w3", in: app).exists, "不該再有 workspace 群組")
     }
 
-    /// 群組標頭是按鈕，VoiceOver 念出名稱、Agent 數、各狀態數量與展開狀態;點了收合、再點展開。
+    /// 只有一個 pane 的 Tab:點了直接開那個聊天。
     @MainActor
-    func testGroupHeaderTogglesAndDescribesItself() {
+    func testTabWithOnePaneOpensChat() {
         let app = XCUIApplication.launchUITesting()
-        let header = app.buttons["workspace.group.demo/w3"]
-        XCTAssertTrue(header.waitForExistence(timeout: 10), "群組標頭不是按鈕")
-        for part in ["notes", "1 agent", "1 terminal", "Working 1", "Expanded"] {
-            XCTAssertTrue(header.label.contains(part), "標頭的 VoiceOver label 沒有「\(part)」:\(header.label)")
-        }
-        let agent = element("agent.row.demo/w3:p1", in: app)
-        XCTAssertTrue(agent.exists)
-
-        header.tap()
-        XCTAssertTrue(agent.waitForNonExistence(timeout: 5), "點標頭沒有收合")
-        XCTAssertTrue(app.buttons["workspace.group.demo/w3"].label.contains("Collapsed"), "收合後 label 沒有「Collapsed」")
-
-        app.buttons["workspace.group.demo/w3"].tap()
-        XCTAssertTrue(agent.waitForExistence(timeout: 5), "再點標頭沒有展開")
+        app.switchListMode(to: "Spaces")
+        let tab = element("spaces.tab.demo/w1:t1", in: app)
+        XCTAssertTrue(app.reveal(tab))
+        tab.tap()
+        XCTAssertTrue(element("composer.text", in: app).waitForExistence(timeout: 10), "點 Tab 沒有開聊天")
     }
 
-    /// 長按群組標頭：選單第一項是版面圖;版面圖的終端機方塊開該 Pane 的終端機(#40 補充)。
+    /// 有多個 pane 的 Tab:點了開那個 Tab 的版面圖，終端機方塊開它的 Pane 終端機;長按是 workspace 的動作(#40 補充)。
     @MainActor
-    func testGroupMenuOpensLayoutAndShellBlockOpensTerminal() {
+    func testTabWithSeveralPanesOpensLayout() {
         let app = XCUIApplication.launchUITesting()
-        let header = element("workspace.group.demo/w3", in: app)
-        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        app.switchListMode(to: "Spaces")
+        let tab = element("spaces.tab.demo/w3:t1", in: app)
+        XCTAssertTrue(app.reveal(tab))
 
-        header.press(forDuration: 1.2)
+        tab.press(forDuration: 1.2)
         for title in ["Show Layout", "Rename Workspace…", "Close Workspace…"] {
-            XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 5), "群組選單沒有「\(title)」")
+            XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 5), "長按選單沒有「\(title)」")
         }
-        app.buttons["Show Layout"].tap()
+        app.tap()
+        XCTAssertTrue(app.buttons["Show Layout"].waitForNonExistence(timeout: 5))
+
+        tab.tap()
         let shellBlock = app.buttons["layout.block.w3:p2"]
-        XCTAssertTrue(shellBlock.waitForExistence(timeout: 5), "選單沒有開版面圖")
+        XCTAssertTrue(shellBlock.waitForExistence(timeout: 5), "點 Tab 沒有開版面圖")
         shellBlock.tap()
 
         let status = element("terminal.status", in: app)
@@ -85,14 +68,15 @@ final class SpacesUITests: XCTestCase {
     @MainActor
     func testSwitchingToAgentsShowsOneRowPerAgent() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(element("workspace.group.demo/w3", in: app).waitForExistence(timeout: 10))
+        app.switchListMode(to: "Spaces")
+        XCTAssertTrue(element("spaces.section.demo/w3", in: app).waitForExistence(timeout: 10))
         XCTAssertEqual(app.listModeSelection.label, "Spaces")
 
         app.switchListMode(to: "Agents")
 
-        XCTAssertTrue(element("workspace.group.demo/w3", in: app).waitForNonExistence(timeout: 5), "Agents 檢視不該有群組")
+        XCTAssertTrue(element("spaces.section.demo/w3", in: app).waitForNonExistence(timeout: 5), "Agents 檢視不該有 workspace 段落")
         XCTAssertTrue(element("agent.row.demo/w3:p1", in: app).waitForExistence(timeout: 5))
-        XCTAssertFalse(element("terminal.row.demo/w3:p2", in: app).exists, "Agents 檢視不該有終端機列")
+        XCTAssertFalse(element("spaces.tab.demo/w3:t1", in: app).exists, "Agents 檢視不該有 Tab 列")
         XCTAssertFalse(element("agentList.section.needsYou", in: app).exists, "Agents 檢視是單一清單，不該有分段標題")
         XCTAssertEqual(app.listModeSelection.label, "Agents")
     }
@@ -106,33 +90,16 @@ final class SpacesUITests: XCTestCase {
         XCTAssertEqual(app.listModeSelection.label, "Agents", "沒有記錄時應該從 Agents 開始")
         XCTAssertTrue(element("agent.row.demo/w3:p1", in: app).waitForExistence(timeout: 10))
         app.switchListMode(to: "Spaces")
-        XCTAssertTrue(element("workspace.group.demo/w3", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("spaces.section.demo/w3", in: app).waitForExistence(timeout: 5))
         app.terminate()
 
         let again = XCUIApplication.launchUITesting(flags: ["-rememberListMode"])
         XCTAssertTrue(again.listModeControl.waitForExistence(timeout: 10))
         XCTAssertEqual(again.listModeSelection.label, "Spaces", "重新啟動後沒有記住 Spaces")
-        XCTAssertTrue(element("workspace.group.demo/w3", in: again).waitForExistence(timeout: 10))
+        XCTAssertTrue(element("spaces.section.demo/w3", in: again).waitForExistence(timeout: 10))
         again.terminate()
 
         // 清掉，不影響之後的測試。
         XCUIApplication.launchUITesting(flags: ["-rememberListMode", "-resetListMode"]).terminate()
-    }
-
-    /// 按壓回饋(#234):按住一下再放開(短於長按選單)，群組標頭仍收合;按住時的畫面附在結果裡。
-    @MainActor
-    func testHeldGroupHeaderStillActs() {
-        let app = XCUIApplication.launchUITesting()
-        let header = app.buttons["workspace.group.demo/w3"]
-        XCTAssertTrue(header.waitForExistence(timeout: 10), "群組標頭不是按鈕")
-        let agent = element("agent.row.demo/w3:p1", in: app)
-        XCTAssertTrue(agent.exists)
-
-        header.press(forDuration: 0.3)
-        XCTAssertTrue(agent.waitForNonExistence(timeout: 5), "按住後放開群組標頭沒有收合")
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "press-feedback-spaces"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
     }
 }
