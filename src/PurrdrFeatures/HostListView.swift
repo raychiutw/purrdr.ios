@@ -149,6 +149,9 @@ public struct HostListView: View {
             if row.hostServiceUpdate != nil {
                 Button("Update Host Service…", systemImage: "arrow.up.circle") { flow.path.append(.hostServiceUpdate(row.id)) }
             }
+            if model.hostStatusConnection(for: row.id) != nil {
+                Button("Status", systemImage: "waveform.path.ecg") { flow.path.append(.status(row.id)) }
+            }
             // 主機圖示(#37 故事 5、#239):讓多台主機的列一眼分得出來;編輯器也能改。
             Picker(selection: iconBinding(row.id)) {
                 ForEach(HostIcon.allCases, id: \.self) { icon in
@@ -203,6 +206,10 @@ public struct HostListView: View {
                         model.dismissHostServiceUpdate(for: id)
                         flow.path.removeLast()
                     }
+                }
+            case .status(let id):
+                if let connection = model.hostStatusConnection(for: id) {
+                    HostStatusView(connection: connection)
                 }
             case .share(let id):
                 if let host = model.hosts.first(where: { $0.id == id }), let link = model.shareLink(for: id) {

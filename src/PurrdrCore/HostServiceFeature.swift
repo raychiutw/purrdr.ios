@@ -35,6 +35,8 @@ public struct HostServiceVersion: Sendable, Hashable, Comparable, CustomStringCo
 public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     /// 主機取檔 `file.stat`／`file.read`(#227)。
     case fileFetch
+    /// 從 app 管理主機服務 `host_service.*`(#290)。
+    case hostServiceManagement
     /// 列出與撤銷已配對裝置 `devices.list`／`devices.revoke`(#291)。
     case pairedDevices
 
@@ -42,6 +44,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     public var minimumVersion: HostServiceVersion {
         switch self {
         case .fileFetch: HostServiceVersion(0, 4, 0)
+        case .hostServiceManagement: HostServiceVersion(0, 7, 0)
         case .pairedDevices: HostServiceVersion(0, 7, 0)
         }
     }
