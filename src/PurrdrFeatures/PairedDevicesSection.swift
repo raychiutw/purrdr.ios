@@ -55,11 +55,12 @@ struct PairedDevicesSection: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("pairedDevices.row.\(device.id)")
         .swipeActions {
+            // 不用 destructive role:確認前列不該被移走(同主機清單的滑動刪除)。
             if model.canRevoke(device) {
-                Button("Revoke", systemImage: "xmark.circle", role: .destructive) { model.requestRevocation(of: device) }
+                Button("Revoke", systemImage: "xmark.circle") { model.requestRevocation(of: device) }
+                    .tint(.red)
             }
             if model.canRemoveHost(from: device) {
-                // 不用 destructive role:確認前列不該被移走(同主機清單的滑動刪除)。
                 Button("Remove Host", systemImage: "trash") { model.requestHostRemoval(from: device) }
                     .tint(.red)
                     .accessibilityIdentifier("pairedDevices.removeHost")
