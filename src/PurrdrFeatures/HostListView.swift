@@ -185,7 +185,10 @@ public struct HostListView: View {
         Group {
             switch route {
             case .add, .edit:
-                HostEditorView(model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } })) { host in
+                HostEditorView(
+                    model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }),
+                    hostSettings: route.hostID.flatMap(model.hostSettings(for:))
+                ) { host in
                     saved(host)
                 } onCancel: {
                     flow.path.removeLast()

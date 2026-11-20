@@ -107,6 +107,19 @@ extension XCUIApplication {
         join.tap()
     }
 
+    /// 開已存主機(`-seedHost` 的 Studio Mac)的主機頁(#274:主機主題、You should know、Codex 啟動器在這裡)。
+    @MainActor
+    func openSeededHostPage(file: StaticString = #filePath, line: UInt = #line) {
+        let more = buttons["toolbar.more"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
+        more.tap()
+        buttons["menu.hosts"].firstMatch.tap()
+        let info = buttons["hosts.info.5EED0000-0000-4000-8000-000000000001"].firstMatch
+        XCTAssertTrue(info.waitForExistence(timeout: 10), "主機清單沒有 Studio Mac 的 ⓘ", file: file, line: line)
+        info.tap()
+        XCTAssertTrue(textFields["hostEditor.name"].firstMatch.waitForExistence(timeout: 10), "沒有開出主機頁", file: file, line: line)
+    }
+
     /// 開帳號頁：一般字級點右上角的帳號鈕;AX 字級時帳號併在「⋯」選單裡(#268)。
     @MainActor
     func openAccount(file: StaticString = #filePath, line: UInt = #line) {

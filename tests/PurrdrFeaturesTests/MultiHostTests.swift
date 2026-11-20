@@ -256,6 +256,19 @@ struct MultiHostTests {
         #expect(studio.header.segments.first == "Studio 2")
     }
 
+    @Test("主機頁的主機設定(#274):主機主題、You should know、Codex 啟動器依那台主機取得，不是選取中主機;沒有這台主機時沒有")
+    func hostSettingsFollowTheHost() {
+        let model = Self.model(ChannelsByAddress([:]))
+        model.load()
+        model.select(.host(Self.studio.id))
+
+        let lab = model.hostSettings(for: Self.lab.id)
+        #expect(lab != nil)
+        #expect(lab?.youShouldKnow === model.conversation(ChatRoute(host: .host(Self.lab.id), paneID: "w1:pA"), sessionID: nil).youShouldKnow)
+        #expect(lab?.youShouldKnow !== model.youShouldKnow, "不該是選取中主機的")
+        #expect(model.hostSettings(for: UUID()) == nil)
+    }
+
     @Test("主機圖示只存本機，以主機 id 為鍵;非選取中主機的列帶它的圖示")
     func hostIconsAreLocalPerHost() async {
         let defaults = UserDefaults(suiteName: "MultiHostTests.icons.\(UUID())")!

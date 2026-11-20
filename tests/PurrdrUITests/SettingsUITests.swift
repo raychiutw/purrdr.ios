@@ -88,15 +88,30 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
     }
 
-    /// Codex 啟動器(#24,ADR-0002):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。Demo 主機的家目錄在記憶體。
+    /// 設定頁只有外觀、鍵盤與觸覺、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
     @MainActor
-    func testCodexLauncherAsksConsentThenInstallsAndRemoves() {
+    func testSettingsHasOnlyFourSections() {
         let app = XCUIApplication.launchUITesting()
         openSettings(in: app)
+        XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
+        XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
+        for header in ["Appearance", "Keyboard and Haptics", "Support", "About"] {
+            let text = app.staticTexts[header].firstMatch
+            scrollTo(text, in: app)
+            XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
+        }
+    }
+
+    /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。
+    /// 已存主機的通道是 Demo 主機，家目錄在記憶體。
+    @MainActor
+    func testCodexLauncherAsksConsentThenInstallsAndRemoves() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        app.openSeededHostPage()
 
         let toggle = app.switches["settings.codexLauncher"]
         scrollTo(toggle, in: app)
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有 Codex 啟動器")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "主機頁沒有 Codex 啟動器")
         XCTAssertEqual(toggle.value as? String, "0")
         toggle.switches.firstMatch.tap()
 

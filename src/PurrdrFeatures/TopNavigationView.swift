@@ -64,8 +64,7 @@ public struct TopNavigationView: View {
                     HostListView(model: hosts, importURL: $navigation.pendingHostImport)
                 case .settings:
                     SettingsView(
-                        model: settings, hostTheme: hosts.hostTheme, youShouldKnow: hosts.youShouldKnow,
-                        codexLauncher: hosts.codexLauncher,
+                        model: settings,
                         attention: { hosts.agentList.attentionCount }, openWelcome: { navigation.showWelcome() }
                     ) {
                         navigation.sheet = nil

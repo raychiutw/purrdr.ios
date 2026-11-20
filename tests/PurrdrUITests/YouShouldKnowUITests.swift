@@ -74,16 +74,15 @@ final class YouShouldKnowUITests: XCTestCase {
         XCTAssertTrue(element("conversation.suggestion", in: app).waitForExistence(timeout: 10), "註記略過後建議卡沒有出現")
     }
 
-    /// 設定頁打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失。
+    /// 主機頁(#274)打開「Use Host Theme」:先同意，之後顯示主機的 herdr 主題名稱;關掉後名稱消失。
     @MainActor
     func testHostThemeToggle() {
-        let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.reveal(element("agent.row.demo/w1:p1", in: app), timeout: 15))
-        app.buttons["toolbar.more"].tap()
-        app.buttons["menu.settings"].tap()
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
+        app.openSeededHostPage()
 
         let toggle = app.switches["settings.hostTheme"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "設定頁沒有主機主題開關")
+        for _ in 0..<6 where !toggle.isHittable { app.swipeUp() }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "主機頁沒有主機主題開關")
         toggle.switches.firstMatch.tap()
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")

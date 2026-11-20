@@ -79,8 +79,6 @@ public final class HostsModel {
     }
     /// 所有主機合併的 Agent 列表。
     public let agentList: MergedAgentListModel
-    /// 選取中主機的 Codex 啟動器(設定頁，行為規格 §4.2)。同意以主機為單位記住。
-    public private(set) var codexLauncher: CodexLauncherModel
     /// 讀不到已存主機時的說明。
     public private(set) var loadError: String?
     /// Tailscale SSH check mode 的提示。所有主機通道共用;composition root 把它的 `observer` 交給主機通道。
@@ -187,7 +185,6 @@ public final class HostsModel {
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
-        codexLauncher = CodexLauncherModel(host: CodexLauncherHost(channel: demoChannel), hostID: Self.demoID, consent: demoConsent)
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
     }
@@ -204,6 +201,16 @@ public final class HostsModel {
     public var hostTheme: HostThemeModel { member(for: selection).hostTheme }
     /// 選取中主機的「You should know」註記(設定頁撤掉修改用，#23)。每台主機各自一份，寫回的同意以主機為單位記住。
     public var youShouldKnow: YouShouldKnowModel { member(for: selection).youShouldKnow }
+
+    /// 某台主機的主機設定(#274):主機頁(主機清單的 ⓘ)下方的主機主題、You should know、Codex 啟動器，作用在那台主機。
+    /// 沒有這台主機時是 `nil`。
+    public func hostSettings(for id: UUID) -> HostSettings? {
+        guard hosts.contains(where: { $0.id == id }) else { return nil }
+        let member = member(for: .host(id))
+        return HostSettings(
+            hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow,
+            codexLauncher: CodexLauncherModel(host: CodexLauncherHost(channel: member.channel), hostID: id.uuidString, consent: hostConsent))
+    }
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
     public func planUsage() -> PlanUsageModel {
@@ -406,19 +413,10 @@ public final class HostsModel {
     /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、推播設定讀哪台;
     /// 不關閉、不重建任何連線(#39)。
     public func select(_ selection: HostSelection) {
-        let host: HostConfiguration?
-        switch selection {
-        case .demo: host = nil
-        case .host(let id):
-            guard let found = hosts.first(where: { $0.id == id }) else { return }
-            host = found
-        }
+        if case .host(let id) = selection, !hosts.contains(where: { $0.id == id }) { return }
         self.selection = selection
         selectionStore.save(selection)
         rebuildMembers()
-        codexLauncher = CodexLauncherModel(
-            host: CodexLauncherHost(channel: member(for: selection).channel), hostID: host?.id.uuidString ?? Self.demoID,
-            consent: host == nil ? demoConsent : hostConsent)
     }
 
     /// 新增或編輯主機並儲存後：重讀清單並選取它。設定改了，那台主機的連線一律關閉重建。
@@ -803,5 +801,17 @@ final class HostMember {
             downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
+    }
+}
+
+/// 一台主機的主機設定(#274):在主機頁下方，作用在那台主機。
+@MainActor
+public struct HostSettings: Equatable {
+    public let hostTheme: HostThemeModel
+    public let youShouldKnow: YouShouldKnowModel
+    public let codexLauncher: CodexLauncherModel
+
+    public nonisolated static func == (lhs: HostSettings, rhs: HostSettings) -> Bool {
+        lhs.hostTheme === rhs.hostTheme && lhs.youShouldKnow === rhs.youShouldKnow && lhs.codexLauncher === rhs.codexLauncher
     }
 }
