@@ -84,12 +84,16 @@ final class AccountUITests: XCTestCase {
         XCTAssertFalse(element("account.plusSetup", in: app).exists, "四步完成後仍顯示步驟卡")
         XCTAssertTrue(app.staticTexts["Purrdr Plus · Active"].exists)
         XCTAssertEqual(toggle.value as? String, "Notifications On")
-        XCTAssertEqual(app.switches["settings.hostSync"].value as? String, "1")
 
         // 收合後仍可關閉那台主機的通知。
         toggle.tap()
         expectation(for: NSPredicate(format: "value == %@", "Notifications Off"), evaluatedWith: toggle)
         waitForExpectations(timeout: 10)
+
+        // 主機同步在「通知裝置」之後，要往下捲才進畫面。
+        let sync = app.switches["settings.hostSync"]
+        XCTAssertTrue(scrollTo(sync, in: app), "收合後沒有主機同步開關")
+        XCTAssertEqual(sync.value as? String, "1")
     }
 
     /// 未開通時通知與同步不能開啟，畫面說明下一步。
@@ -136,6 +140,15 @@ final class AccountUITests: XCTestCase {
         XCTAssertTrue(account.waitForExistence(timeout: 10), "列表右上角沒有帳號鈕")
         account.tap()
         XCTAssertTrue(element("sheet.account", in: app).waitForExistence(timeout: 10), "沒有開出帳號頁")
+    }
+
+    /// 往下捲到元素出現(帳號頁比畫面長)。
+    @MainActor
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        for _ in 0..<6 where !element.isHittable {
+            app.swipeUp()
+        }
+        return element.exists
     }
 
     @MainActor
