@@ -25,7 +25,7 @@ final class PairedDevicesUITests: XCTestCase {
         let revoke = app.buttons["Revoke"]
         XCTAssertTrue(revoke.waitForExistence(timeout: 5), "沒有撤銷鈕")
         revoke.tap()
-        let confirm = app.buttons["pairedDevices.confirmRevoke"]
+        let confirm = app.buttons["pairedDevices.confirmRevoke"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "沒有確認對話框")
         XCTAssertTrue(otherDevice.exists, "確認前就撤銷了")
         confirm.tap()
