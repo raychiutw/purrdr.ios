@@ -457,7 +457,8 @@ struct AgentRowView: View {
                 .imageScale(.small)
                 .foregroundStyle(row.status.tone.style)
                 .accessibilityLabel(Text(row.status.title))
-            Text(row.title)
+            // 第一行是 workspace 名稱(#269,原型 B);聊天標題在對話裡。
+            Text(row.workspace)
                 .lineLimit(lines(1))
             // 釘選、靜音：名稱後的小圖示，不只靠顏色(#37 故事 18)。
             if row.isPinned {

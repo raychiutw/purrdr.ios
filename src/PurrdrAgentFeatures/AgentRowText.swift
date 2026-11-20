@@ -31,6 +31,14 @@ package enum AgentRowText {
         return parts.joined(separator: " · ")
     }
 
+    /// Agents 列第一行與聊天標題的 workspace 名稱(#269、#270,原型 B):herdr 的 workspace 名稱(人取的或資料夾名);
+    /// 沒有時退回資料夾最後一段，再沒有是 workspace id。
+    package static func workspaceName(for agent: Agent) -> String {
+        if let label = agent.workspaceLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty { return label }
+        if let folder = agent.cwd.flatMap(HostPathSyntax.lastComponent).map(String.init), !folder.isEmpty { return folder }
+        return agent.workspaceID
+    }
+
     /// 人取的 workspace 名稱：不等於(不分大小寫)任何 pane 資料夾最後一段的名稱(依主機的路徑語法，#26)。
     package static func humanLabel(_ label: String?, siblings: [Agent]) -> String? {
         guard let label else { return nil }

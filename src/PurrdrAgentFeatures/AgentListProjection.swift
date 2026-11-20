@@ -177,7 +177,8 @@ extension AgentRow {
         // 非選取中主機：副標以主機名開頭(#37 故事 2)。
         if let label { subtitle = label.name + " · " + subtitle }
         self.init(
-            host: host, paneID: agent.paneID, kind: agent.kind, title: title, subtitle: subtitle, hostLabel: label,
+            host: host, paneID: agent.paneID, kind: agent.kind, title: title, workspace: AgentRowText.workspaceName(for: agent),
+            subtitle: subtitle, hostLabel: label,
             preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted
         )
     }
