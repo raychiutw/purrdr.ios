@@ -254,3 +254,24 @@ final class UITestingHostServiceState: Sendable {
         }
     }
 }
+
+/// UI 測試的已配對裝置(#291):這支 iPhone 與另一支唯讀的 iPad;撤銷後從列表拿掉，唯讀權杖的撤銷被拒。
+extension UITestingHostServiceConnection: PairedDevicesManaging {
+    private static let revokedDevices = Mutex<Set<String>>([])
+
+    func pairedDevices() async throws -> [PairedDeviceRecord] {
+        let revoked = Self.revokedDevices.withLock { $0 }
+        let thisDevice = PairedDeviceRecord(
+            id: "ui-testing", name: "iPhone", isReadOnly: try await isReadOnlyDevice(),
+            pairedAt: Date(timeIntervalSince1970: 1_793_521_800), isCurrentDevice: true)
+        let otherDevice = PairedDeviceRecord(
+            id: "ui-testing-ipad", name: "iPad", isReadOnly: true, pairedAt: Date(timeIntervalSince1970: 1_794_312_005),
+            isCurrentDevice: false)
+        return [thisDevice, otherDevice].filter { !revoked.contains($0.id) }
+    }
+
+    func revokePairedDevice(_ id: String) async throws {
+        if try await isReadOnlyDevice() { throw HostServiceError.readOnlyDevice }
+        Self.revokedDevices.withLock { _ = $0.insert(id) }
+    }
+}

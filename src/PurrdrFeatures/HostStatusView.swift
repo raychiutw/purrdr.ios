@@ -20,6 +20,9 @@ struct HostStatusView: View {
                 HostServiceSection(model: hostService)
             }
             // 已配對裝置(#291)
+            if let pairedDevices = connection as? any PairedDevicesManaging {
+                PairedDevicesSection(host: pairedDevices)
+            }
         }
         .refreshable { await hostService?.refresh() }
         .accessibilityIdentifier("hostStatus")
