@@ -69,39 +69,43 @@ svg.g{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 <script>
 const P={macMini:'<rect x="3" y="9" width="18" height="6" rx="2.5"/><path d="M7 15.5v1M17 15.5v1M15 12h2"/>',pc:'<rect x="7" y="2.5" width="10" height="19" rx="1.8"/><circle cx="12" cy="17" r="1.4"/><path d="M10 6h4M10 9h4"/>',cloud:'<path d="M7 18h10.5a3.5 3.5 0 0 0 .4-7A5.5 5.5 0 0 0 7.3 9.6 4.2 4.2 0 0 0 7 18Z"/>',desktop:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M9 20h6M12 16v4"/>'};
 const hi=k=>`<span class="hi"><svg class="g" viewBox="0 0 24 24">${P[k]}</svg></span>`;
-const H=[{id:"mini",n:"Mac mini",i:"macMini",via:"SSH",st:"on"},{id:"pc",n:"Ray PC",i:"pc",via:"HTTPS",st:"off"},{id:"studio",n:"Studio",i:"cloud",via:"HTTPS",st:"old"},{id:"demo",n:"Demo",i:"desktop",via:"Demo",st:"demo"}];
+const H=[{id:"mini",n:"Mac mini",i:"macMini",via:"SSH",st:"on",others:1},{id:"pc",n:"Ray PC",i:"pc",via:"HTTPS",st:"off"},{id:"studio",n:"Studio",i:"cloud",via:"HTTPS",st:"old"},{id:"demo",n:"Demo",i:"desktop",via:"Demo",st:"demo"}];
 const V={A:["A：帳號頁直接列出每台主機（使用者選定）","四步都完成、步驟卡收成「Purrdr Plus・已開通」後，「通知」區塊（每台主機開關）與「主機同步」開關仍留在帳號頁，隨時可開關。","「通知」區塊直接在帳號頁列所有主機與開關，一眼看完。","步驟卡第 ③ 步的按鈕捲到這個區塊。","主機多時帳號頁變長。"],
 B:["B：步驟卡按「開啟」開主機清單（推薦）","步驟卡第 ③ 步「選擇主機」打開 sheet，列主機與開關；至少一台開啟就完成。","開通後頁面的「通知」列也推入同一份清單。","第一次設定最清楚，平常不佔帳號頁空間。"],
 C:["C：一列摘要，點了推入清單","帳號頁只有一列「通知：Mac mini、Ray PC」，點進去才是清單。","最精簡；看不到哪台失敗，要點進去。",""]};
 let v=(location.hash.match(/variant=([ABC])/)||[])[1]||"A",sheet=false,alert=null,complete=false;
 const onCount=()=>H.filter(h=>h.st==="on").length;
-function status(h){return{on:["通知已開啟",""],off:[`未開啟 · ${h.via==="HTTPS"?"由主機服務安裝":"透過 SSH 安裝"}`,""],busy:["安裝中…",""],old:['<span class="ic">!</span>主機服務 0.4.0 太舊，請更新到 0.5.1 以上',"warn"],demo:["Demo 主機無法通知",""],fail:['<span class="icr">!</span>安裝失敗：herdr 沒回應。點開關重試',"warn"]}[h.st]}
+const DEV=[{id:"me",n:"這支 iPhone",m:"iPhone 17",hosts:1,last:"剛剛",me:1},{id:"ipad",n:"Ray 的 iPad",m:"iPad Pro",hosts:1,last:"昨天"}];
+function devices(){return `<div class="sect">通知裝置</div><div class="group">${DEV.filter(d=>!d.off).map(d=>`<div class="row" style="cursor:default"><span class="hi" style="background:var(--fill);color:var(--fg)"><svg class="g" viewBox="0 0 24 24"><rect x="${d.m.startsWith("iPad")?5:7}" y="3" width="${d.m.startsWith("iPad")?14:10}" height="18" rx="2"/><path d="M11 18h2"/></svg></span><span class="main">${d.n}${d.me?' <span class="chip">這支裝置</span>':""}<div class="sub">${d.m} · ${d.hosts} 台主機 · 最後使用 ${d.last}</div></span>${d.me?'<button class="btn r" style="min-width:auto">改名</button>':`<button class="btn r" data-dev="${d.id}" style="min-width:auto;color:var(--red)">關閉通知</button>`}</div>`).join("")}</div><div class="foot">關閉別支裝置會撤銷它在所有主機上的通知（例如遺失的手機）。</div>`}
+function status(h){return{on:[`通知已開啟${h.others?` · 另有 ${h.others} 支裝置`:""}`,""],off:[`未開啟 · ${h.via==="HTTPS"?"由主機服務安裝":"透過 SSH 安裝"}`,""],busy:["安裝中…",""],old:['<span class="ic">!</span>主機服務 0.4.0 太舊，請更新到 0.5.1 以上',"warn"],demo:["Demo 主機無法通知",""],fail:['<span class="icr">!</span>安裝失敗：herdr 沒回應。點開關重試',"warn"]}[h.st]}
 function row(h){const [s,c]=status(h);const dis=h.st==="old"||h.st==="demo";const right=h.st==="busy"?'<span class="spin"></span>':`<span class="toggle${h.st==="on"?" on":""}${dis?" dis":""}"></span>`;
  return `<button class="row" data-h="${h.id}" ${dis?'data-dis="1"':""} aria-label="${h.n}，${h.st==="on"?"通知已開啟":"通知未開啟"}">${hi(h.i)}<span class="main">${h.n}<div class="sub ${c}">${s}</div></span>${right}</button>`}
-function list(){return `<div class="group">${H.map(row).join("")}</div><div class="foot">Agent 需要你時通知這支 iPhone。關閉會移除那台主機上的 Purrdr 外掛與配對。只顯示 workspace 名稱，不含對話內容。</div>`}
+function list(){return `<div class="group">${H.map(row).join("")}</div><div class="foot">Agent 需要你時通知這支 iPhone。關閉只移除這支裝置在那台主機的配對。只顯示 workspace 名稱，不含對話內容。</div>`}
 function steps(){const done=onCount()>0;const s=[["加入會員",1],["開通 Purrdr Plus",1],["開啟通知",done],["同步主機名單",0]];const now=s.findIndex(x=>!x[1]);
  return `<div class="steps"><h3>設定 Purrdr Plus</h3><div class="sub">完成 ${s.filter(x=>x[1]).length}／4</div><div class="prog">${s.map(x=>`<i class="${x[1]?"done":""}"></i>`).join("")}</div>${s.map((x,i)=>`<div class="step ${x[1]?"done":i===now?"now":""}"><span class="num">${x[1]?"✓":i+1}</span><span class="main"><b style="font-weight:${i===now?600:400}">${x[0]}</b>${i===2?`<div class="sub">${done?H.filter(h=>h.st==="on").map(h=>h.n).join("、"):"選擇要通知的主機"}</div>`:""}</span>${i===now?`<button class="pill" data-act="${i===2?"sheet":"noop"}">${i===2?"選擇主機":"開啟"}</button>`:""}${i===2&&x[1]&&v!=="A"?`<button class="btn r" data-act="sheet" style="min-width:auto">管理</button>`:""}</div>`).join("")}</div>`}
 function render(){
  document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
  let h=`<div class="nav"><span class="btn"></span><span class="t">帳號</span><button class="btn r">完成</button></div>`+(complete?`<div class="group"><div class="row" style="cursor:default"><span class="main"><b>Purrdr Plus・已開通</b><div class="sub">年訂閱・下次扣款 2027/11/20</div></span></div></div>`:steps());
- if(v==="A")h+=`<div class="sect">通知</div>`+list()+(complete?`<div class="sect">主機同步</div><div class="group"><div class="row" style="cursor:default"><span class="main">同步主機名單<div class="sub">上次同步：剛剛</div></span><span class="toggle on"></span></div></div>`:"");
- h+=`<div style="padding:14px 30px 0"><button class="btn" data-act="complete" style="min-width:auto">（原型）${complete?"回到設定中":"切到四步都完成後"}</button></div>`;
+ if(v==="A")h+=`<div class="sect">通知</div>`+list()+devices()+(complete?`<div class="sect">主機同步</div><div class="group"><div class="row" style="cursor:default"><span class="main">同步主機名單<div class="sub">上次同步：剛剛</div></span><span class="toggle on"></span></div></div>`:"");
+ if(!document.body.classList.contains("shot"))h+=`<div style="padding:14px 30px 0"><button class="btn" data-act="complete" style="min-width:auto">（原型）${complete?"回到設定中":"切到四步都完成後"}</button></div>`;
  if(v==="C")h+=`<div class="sect">Purrdr Plus</div><div class="group"><button class="row" data-act="sheet" style="--x:0"><span class="main">通知<div class="sub">${onCount()?H.filter(x=>x.st==="on").map(x=>x.n).join("、"):"未開啟"}</div></span><span style="color:var(--tertiary)">›</span></button></div>`;
  h+=`<div class="sect">登入方式</div><div class="group"><div class="row" style="cursor:default"><span class="main">Google</span></div></div>`;
  document.getElementById("screen").innerHTML=h;
  let o="";if(sheet)o+=`<div class="ov"><div class="ovs"><div class="nav"><span class="btn"></span><span class="t">通知</span><button class="btn r" data-act="close">完成</button></div>${list()}</div></div>`;
- if(alert){const x=H.find(y=>y.id===alert);o+=`<div class="alert"><div class="b"><h4>在「${x.n}」開啟通知？</h4><p>${x.via==="HTTPS"?"Purrdr 會請這台的主機服務安裝 herdr 外掛":"Purrdr 會以 ray 身分執行「herdr plugin install」"}，並在 ~/.purrdr 存一組配對金鑰。關閉通知會移除兩者。</p></div><div class="acts"><button data-act="no">取消</button><button data-act="yes">安裝</button></div></div>`}
+ if(alert){const x=H.find(y=>y.id===alert);o+=`<div class="alert"><div class="b"><h4>在「${x.n}」開啟通知？</h4><p>${x.via==="HTTPS"?"Purrdr 會請這台的主機服務安裝 herdr 外掛":"Purrdr 會以 ray 身分執行「herdr plugin install」"}，並在 ~/.purrdr 存一組配對金鑰。關閉時只移除這支裝置的配對，最後一支裝置關閉才移除外掛。</p></div><div class="acts"><button data-act="no">取消</button><button data-act="yes">安裝</button></div></div>`}
  document.getElementById("ov").innerHTML=o;
  document.getElementById("t").textContent=V[v][0];document.getElementById("n").innerHTML=V[v].slice(1).filter(Boolean).map(x=>`<li>${x}</li>`).join("");
  document.getElementById("state").textContent=JSON.stringify(Object.fromEntries(H.map(x=>[x.n,x.st])),null,2);
 }
-document.addEventListener("click",e=>{const t=e.target.closest("[data-v],[data-act],[data-h]");if(!t)return;const d=t.dataset;
+document.addEventListener("click",e=>{const t=e.target.closest("[data-v],[data-act],[data-h],[data-dev]");if(!t)return;const d=t.dataset;
+ if(d.dev){DEV.find(x=>x.id===d.dev).off=1;render();return}
  if(d.v){v=d.v;sheet=false;location.hash="variant="+v}
  else if(d.h){if(d.dis)return;const x=H.find(y=>y.id===d.h);if(x.st==="on"){x.st="off"}else if(x.st==="off"||x.st==="fail"){alert=x.id}}
  else switch(d.act){case"sheet":sheet=true;break;case"close":sheet=false;break;case"complete":complete=!complete;break;case"no":alert=null;break;
   case"yes":{const x=H.find(y=>y.id===alert);alert=null;x.st="busy";render();setTimeout(()=>{x.st=x.id==="pc"&&!x.tried?(x.tried=1,"fail"):"on";render()},1200);return}}
  render()});
 document.getElementById("th").onclick=()=>{const r=document.documentElement,d=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=d?"light":"dark"};
+{const q=new URLSearchParams(location.search);if(q.get("complete"))complete=true;if(q.get("alert"))alert=q.get("alert");if(q.get("fail"))H[1].st="fail";if(q.get("theme"))document.documentElement.dataset.theme=q.get("theme");if(q.get("shot")){document.querySelector(".switcher").style.display="none";document.body.style.padding="0";document.querySelector(".notes").style.display="none";document.querySelector("h1").style.display="none";document.querySelector(".lede").style.display="none";document.querySelector(".grid").style.display="block";document.querySelector(".phone").style.minHeight="0";document.body.classList.add("shot");}}
 render();
 </script>
 </body>

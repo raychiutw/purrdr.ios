@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>App 圖示置中</title>
+<style>
+/* PROTOTYPE（拋棄式）：App 圖示貓掌置中與翡翠綠（#280）。#variant=A|B|C|D；可開關中心線。 */
+:root{--page:#f2f2f7;--surface:#fff;--fg:#000;--secondary:#3c3c4399;--separator:#3c3c4329;--fill:#7878801f;--accent:#0b7a5c;--on-accent:#fff;--bar-bg:#111;--bar-fg:#fff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--fill:#7878805c;--accent:#3ccf9e;--on-accent:#000;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#000;--surface:#1c1c1e;--fg:#fff;--secondary:#ebebf599;--separator:#54545899;--fill:#7878805c;--accent:#3ccf9e;--on-accent:#000;--bar-bg:#f2f2f7;--bar-fg:#000;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--fg);font:15px/1.4 -apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;padding:16px max(16px,env(safe-area-inset-right,0px)) 120px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1100px;margin:0 auto}h1{font-size:20px;margin:0 0 4px}.lede{color:var(--secondary);margin:0 0 16px;font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-end;margin-bottom:20px}
+.cell{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;color:var(--secondary)}
+.home{border-radius:28px;padding:22px;display:grid;grid-template-columns:repeat(4,64px);gap:20px 22px}
+.home.light{background:linear-gradient(160deg,#9fc4e8,#e9d4c3)}.home.dark{background:linear-gradient(160deg,#1b2433,#2b2320)}.home.tint{background:linear-gradient(160deg,#36424f,#20262c)}
+.app{width:64px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:#fff;text-shadow:0 1px 2px #0006}
+.ph{width:64px;height:64px;border-radius:15px;background:#ffffff40}
+.panel{background:var(--surface);border-radius:14px;padding:16px 18px;margin-bottom:16px}.panel h2{font-size:16px;margin:0 0 8px}.panel ul{margin:0;padding-left:20px}
+.state{font:13px/1.5 ui-monospace,Menlo,monospace;background:var(--fill);border-radius:10px;padding:10px 12px;white-space:pre-wrap;margin-top:10px}
+.switcher{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--bar-bg);color:var(--bar-fg);border-radius:999px;padding:6px;display:flex;gap:4px;box-shadow:0 6px 24px #0005;max-width:calc(100% - 32px);overflow-x:auto;z-index:9}
+.switcher button{border:0;background:none;color:inherit;font:inherit;font-size:14px;padding:8px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}.switcher button.on{background:var(--accent);color:var(--on-accent);font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>App 圖示：置中與翡翠綠（#280）</h1>
+<p class="lede">拋棄式原型。底部切 A／B／C／D 與「中心線」；同時顯示大圖、主畫面（淺色／深色／tinted）與小尺寸。貓掌改翡翠綠：淺色 #0B7A5C、深色 #3CCF9E。</p>
+<div class="panel"><h2 id="t"></h2><ul id="n"></ul><div class="state" id="state"></div></div>
+<div class="row" id="big"></div>
+<div class="row" id="homes"></div>
+<div class="row" id="small"></div>
+</div>
+<div class="switcher"><button data-v="A">A 現況（紅、偏下）</button><button data-v="B">B 幾何置中</button><button data-v="C">C 光學置中</button><button data-v="D">D 光學＋略高</button><button id="grid">中心線</button><button id="th">深淺色</button></div>
+<script>
+const V={A:{dx:0,dy:0,green:false,t:"A：現況",n:["外框中心 (512, 571)，偏下 59px；尾巴讓重心偏左。","貓掌仍是品牌紅。"]},
+B:{dx:0,dy:-59,green:true,t:"B：幾何置中",n:["外框（含尾巴）中心移到 (512, 512)。","尾巴在左下，看起來仍略偏左下。"]},
+C:{dx:14,dy:-66,green:true,t:"C：光學置中（推薦）",n:["外框中心 (526, 505)：往右 14px 抵銷尾巴重量，略高於幾何中心（視覺中心通常比幾何中心高）。","打字三點跟著泡泡本體移動，仍在正中。"]},
+D:{dx:18,dy:-80,green:true,t:"D：光學置中、再高一點",n:["外框中心 (530, 491)。","上方留白更少，貓掌腳趾較靠近圓角上緣。"]}};
+let v=(location.hash.match(/variant=([ABCD])/)||[])[1]||"C",grid=false;
+function icon(size,mode,o){const red=mode==="dark"?"#FF4D63":"#FA2D48",green=mode==="dark"?"#3CCF9E":"#0B7A5C";
+ const paw=mode==="tint"?"#ffffff":(o.green?green:red);const dots=mode==="tint"?"#333333":"#FFFFFF";
+ const bg=mode==="dark"?'<linearGradient id="g'+size+mode+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#282526"/><stop offset="1" stop-color="#191718"/></linearGradient>':mode==="tint"?'<linearGradient id="g'+size+mode+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a3c"/><stop offset="1" stop-color="#1c1c1e"/></linearGradient>':'<linearGradient id="g'+size+mode+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#F1ECE8"/></linearGradient>';
+ const lines=grid&&size>=200?'<line x1="512" y1="0" x2="512" y2="1024" stroke="#ff2d55" stroke-width="3" stroke-dasharray="12 10"/><line x1="0" y1="512" x2="1024" y2="512" stroke="#ff2d55" stroke-width="3" stroke-dasharray="12 10"/><rect x="'+(222+o.dx)+'" y="'+(222+o.dy)+'" width="580" height="698" fill="none" stroke="#007aff" stroke-width="3"/>':"";
+ return `<svg width="${size}" height="${size}" viewBox="0 0 1024 1024" style="border-radius:${size*0.2237}px;display:block;box-shadow:0 2px 8px #0002"><defs>${bg}</defs><rect width="1024" height="1024" fill="url(#g${size}${mode})"/><g transform="translate(${o.dx} ${o.dy})"><g fill="${paw}"><circle cx="286" cy="410" r="64"/><circle cx="420" cy="304" r="82"/><circle cx="604" cy="304" r="82"/><circle cx="738" cy="410" r="64"/><rect x="232" y="480" width="560" height="330" rx="165"/><path d="M350 760 Q 330 870 270 920 Q 420 895 500 800 Z"/></g><g fill="${dots}"><circle cx="420" cy="645" r="36"/><circle cx="512" cy="645" r="36"/><circle cx="604" cy="645" r="36"/></g></g>${lines}</svg>`}
+function home(mode,o){const ph='<div class="app"><div class="ph"></div>App</div>';return `<div class="cell"><div class="home ${mode}">${ph}${ph}<div class="app">${icon(64,mode,o)}Purrdr</div>${ph}${ph}${ph}${ph}${ph}</div>${{light:"淺色",dark:"深色",tint:"tinted"}[mode]}</div>`}
+function render(){const o=V[v];document.querySelectorAll("[data-v]").forEach(b=>b.classList.toggle("on",b.dataset.v===v));document.getElementById("grid").classList.toggle("on",grid);
+ document.getElementById("t").textContent=o.t;document.getElementById("n").innerHTML=o.n.map(x=>`<li>${x}</li>`).join("");
+ document.getElementById("big").innerHTML=["light","dark","tint"].map(m=>`<div class="cell">${icon(240,m,o)}${{light:"淺色",dark:"深色",tint:"tinted"}[m]} 240pt</div>`).join("");
+ document.getElementById("homes").innerHTML=["light","dark","tint"].map(m=>home(m,o)).join("");
+ document.getElementById("small").innerHTML=[40,29,20].map(s=>`<div class="cell">${icon(s,"light",o)}${s}pt</div><div class="cell">${icon(s,"dark",o)}${s}pt</div>`).join("");
+ document.getElementById("state").textContent=JSON.stringify({版本:v,平移:{x:o.dx,y:o.dy},外框中心:{x:512+o.dx,y:571+o.dy},貓掌色:o.green?{淺色:"#0B7A5C",深色:"#3CCF9E"}:"#FA2D48（舊）"},null,2)}
+document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{v=b.dataset.v;location.hash="variant="+v;render()});
+document.getElementById("grid").onclick=()=>{grid=!grid;render()};
+document.getElementById("th").onclick=()=>{const r=document.documentElement,d=r.dataset.theme==="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);r.dataset.theme=d?"light":"dark"};
+render();
+</script>
+</body>
+</html>
