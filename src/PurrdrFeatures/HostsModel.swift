@@ -313,7 +313,9 @@ public final class HostsModel {
             // 標題列副標一律是聊天所在主機的名稱(#270)。
             hostName: { [weak self] in self?.name(of: route.host) },
             images: ComposerImages(uploader: member.uploader, store: attachmentStore),
-            updates: member.list.updates)
+            updates: member.list.updates,
+            // 機密偵測在管線最前面(#302):只在本機判斷。
+            sendSteps: [SecretCheck()])
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。

@@ -363,6 +363,8 @@ public final class ConversationModel {
     private let delivery: PromptDelivery
     /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
     private let sendPipeline: SendPipeline
+    /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
+    public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
