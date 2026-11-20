@@ -51,11 +51,10 @@ final class PairedDevicesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["hosts.delete.confirm"].waitForExistence(timeout: 5), "沒有移除主機的確認")
     }
 
-    /// 唯讀裝置(配對碼 `R3AD-0NLY`):看得到列表，沒有撤銷動作並說明原因。
+    /// 唯讀裝置(啟動時已用唯讀權杖配對):看得到列表，沒有撤銷動作並說明原因。
     @MainActor
     func testReadOnlyDeviceOnlyViews() {
-        let app = XCUIApplication.launchUITesting()
-        addHTTPSHost(app, code: "R3AD-0NLY")
+        let app = XCUIApplication.launchUITesting(flags: ["-seedReadOnlyHTTPSHost"])
         openStatus(app)
 
         let otherDevice = app.descendants(matching: .any)["pairedDevices.row.ui-testing-ipad"].firstMatch

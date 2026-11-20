@@ -49,7 +49,7 @@ struct PairedDevicesModelTests {
         #expect(model.confirmingRevocation == Self.iPad)
         #expect(host.revoked.isEmpty)
 
-        await model.confirmRevocation()
+        await model.confirmRevocation(of: Self.iPad)
 
         #expect(host.revoked == [Self.iPad.id])
         #expect(model.confirmingRevocation == nil)
@@ -64,9 +64,24 @@ struct PairedDevicesModelTests {
 
         model.requestRevocation(of: Self.iPad)
         model.cancelRevocation()
-        await model.confirmRevocation()
 
+        #expect(model.confirmingRevocation == nil)
         #expect(host.revoked.isEmpty)
+    }
+
+    /// 確認對話框按下「撤銷」時先收起對話框(清掉確認中的裝置),按鈕裡的 Task 才執行。
+    @Test("對話框先收起再執行確認：仍撤銷按下確認的那支裝置")
+    func confirmAfterDialogDismissedStillRevokes() async {
+        let host = FakePairedDevicesHost(devices: [Self.thisPhone, Self.iPad])
+        let model = PairedDevicesModel(host: host)
+        await model.load()
+
+        model.requestRevocation(of: Self.iPad)
+        model.cancelRevocation()
+        await model.confirmRevocation(of: Self.iPad)
+
+        #expect(host.revoked == [Self.iPad.id])
+        #expect(model.state == .loaded([Self.thisPhone]))
     }
 
     @Test("這支裝置不能在列表撤銷(沿用移除主機的流程)")
@@ -77,7 +92,7 @@ struct PairedDevicesModelTests {
 
         #expect(!model.canRevoke(Self.thisPhone))
         model.requestRevocation(of: Self.thisPhone)
-        await model.confirmRevocation()
+        await model.confirmRevocation(of: Self.thisPhone)
 
         #expect(model.confirmingRevocation == nil)
         #expect(host.revoked.isEmpty)
@@ -116,7 +131,7 @@ struct PairedDevicesModelTests {
         #expect(model.isReadOnly)
         #expect(!model.canRevoke(Self.iPad))
         model.requestRevocation(of: Self.iPad)
-        await model.confirmRevocation()
+        await model.confirmRevocation(of: Self.iPad)
 
         #expect(host.revoked.isEmpty)
     }
@@ -128,7 +143,7 @@ struct PairedDevicesModelTests {
         await model.load()
 
         model.requestRevocation(of: Self.iPad)
-        await model.confirmRevocation()
+        await model.confirmRevocation(of: Self.iPad)
 
         #expect(model.revocationError != nil)
         #expect(model.state == .loaded([Self.thisPhone, Self.iPad]))

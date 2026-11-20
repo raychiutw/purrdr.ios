@@ -104,8 +104,8 @@ struct PairedDevicesDialogs: ViewModifier {
             .task { await model?.load() }
             .confirmationDialog(
                 confirmationTitle, isPresented: confirmingBinding, titleVisibility: .visible, presenting: model?.confirmingRevocation
-            ) { _ in
-                Button("Revoke", role: .destructive) { Task { await model?.confirmRevocation() } }
+            ) { device in
+                Button("Revoke", role: .destructive) { Task { await model?.confirmRevocation(of: device) } }
                     .accessibilityIdentifier("pairedDevices.confirmRevoke")
                 Button("Cancel", role: .cancel) { model?.cancelRevocation() }
             } message: { _ in

@@ -67,9 +67,9 @@ public final class PairedDevicesModel {
         confirmingRevocation = nil
     }
 
-    /// 送出撤銷，成功後重新列出。
-    public func confirmRevocation() async {
-        guard let device = confirmingRevocation else { return }
+    /// 確認後送出撤銷，成功後重新列出。以按下確認時的裝置為準：對話框收起時已清掉 `confirmingRevocation`。
+    public func confirmRevocation(of device: PairedDeviceRecord) async {
+        guard canRevoke(device) else { return }
         confirmingRevocation = nil
         revokingID = device.id
         defer { revokingID = nil }
