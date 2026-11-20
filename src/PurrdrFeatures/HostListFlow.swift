@@ -7,6 +7,8 @@ enum HostRoute: Hashable {
     case edit(UUID)
     case share(UUID)
     case hostServiceUpdate(UUID)
+    /// 主機狀態頁(#290)。
+    case status(UUID)
     case importLink(URL)
 
     var hostID: UUID? {

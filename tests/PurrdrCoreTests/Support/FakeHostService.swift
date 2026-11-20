@@ -84,6 +84,16 @@ final class FakeHostService: Sendable {
         var promptHerdrError: String?
         /// `welcome` 回報的主機服務版本;`nil` 是範例的值。
         var hostServiceVersion: String?
+        /// `host_service.status` 回的範例檔(#290)。
+        var hostServiceStatusExample = "server.host-service-status-result.json"
+        /// 有值時 `host_service.status` 改回這個 JSON 物件(不含 `request_id`)。
+        var hostServiceStatusReply: String?
+        /// `host_service.update` 回的範例檔。
+        var hostServiceUpdateExample = "server.host-service-update-result.json"
+        /// 有值時 `host_service.update` 改回這個 JSON 物件(不含 `request_id`)。
+        var hostServiceUpdateReply: String?
+        /// 有值時 `host_service.*` 以這個錯誤碼失敗。
+        var hostServiceErrorCode: String?
     }
 
     let port: Int
@@ -318,6 +328,8 @@ final class FakeHostService: Sendable {
             var result: [String: Any] = ["type": type + ".result", "request_id": requestID as Any]
             if type == "agent.prompt" { result["delivery"] = settings.promptDelivery }
             return [.text(Self.json(result))]
+        case "host_service.status", "host_service.update", "host_service.set_auto_update":
+            return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
         case "pane.terminal.open":
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) == true
             return openTerminal(streamID: requestID ?? "", readOnly: readOnly, reply: settings.paneTerminalReply)
@@ -333,6 +345,35 @@ final class FakeHostService: Sendable {
         default:
             return [.text(Self.error(requestID, "invalid_message"))]
         }
+    }
+
+    /// 管理主機服務(#290):寫入類(`update`、`set_auto_update`)唯讀裝置被拒。
+    private func hostServiceReply(
+        _ type: String, message: [String: Any], requestID: String?, authorization: String?, settings: Settings
+    ) -> String {
+        if type != "host_service.status", let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+            return Self.error(requestID, "read_only_device")
+        }
+        if let code = settings.hostServiceErrorCode { return Self.error(requestID, code) }
+        switch type {
+        case "host_service.status":
+            return Self.reply(settings.hostServiceStatusReply, requestID: requestID)
+                ?? Self.example(settings.hostServiceStatusExample, requestID: requestID)
+        case "host_service.update":
+            return Self.reply(settings.hostServiceUpdateReply, requestID: requestID)
+                ?? Self.example(settings.hostServiceUpdateExample, requestID: requestID)
+        default:
+            return Self.json([
+                "type": "host_service.set_auto_update.result", "request_id": requestID as Any, "auto_update": message["enabled"] as? Bool ?? false,
+            ])
+        }
+    }
+
+    /// 換上請求識別碼的 JSON 物件;`nil` 或讀不懂時 `nil`。
+    private static func reply(_ object: String?, requestID: String?) -> String? {
+        guard let object, var parsed = try? JSONSerialization.jsonObject(with: Data(object.utf8)) as? [String: Any] else { return nil }
+        parsed["request_id"] = requestID
+        return json(parsed)
     }
 
     /// 主機服務對錄製的 herdr stdout 做的轉接:frame 欄位原樣、加上串流識別碼。

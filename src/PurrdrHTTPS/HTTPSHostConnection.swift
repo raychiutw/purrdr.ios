@@ -367,8 +367,11 @@ public actor HTTPSHostConnection: HostConnection {
         case .fileChanged: HostFileFetchError.changed
         case .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
         // 主機服務 0.6.0／0.7.0 新增的錯誤碼：各功能的票接上時從這裡拿走自己的碼、對應專屬錯誤。
-        case .pushPluginFailed, .pushNotPaired, .uploadTooLarge, .deviceUnknown, .hostServiceNotInstalled, .updateInProgress, .updateFailed:
+        case .pushPluginFailed, .pushNotPaired, .uploadTooLarge, .deviceUnknown:
             HostServiceError.unexpectedResponse
+        case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
+        case .updateInProgress: HostServiceManagementError.updateInProgress
+        case .updateFailed: HostServiceManagementError.updateFailed(message.message)
         }
     }
 
