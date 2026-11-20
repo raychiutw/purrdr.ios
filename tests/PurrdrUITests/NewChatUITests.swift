@@ -1,6 +1,7 @@
 import XCTest
 
-/// 新增對話(行為規格 F3.1、F3.3;#18),走 Demo 主機：資料夾瀏覽在同一個 sheet 內 push,Demo 拒絕開始並說明。
+/// 新增對話(#272,原型 purrdr-screens 定案版:主機、Agent、資料夾、第一則訊息),走 Demo 主機：資料夾瀏覽在同一個 sheet 內 push,
+/// Demo 拒絕開始並說明。
 final class NewChatUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -20,6 +21,9 @@ final class NewChatUITests: XCTestCase {
         let app = openNewChat()
         let start = app.buttons["newChat.start"]
         XCTAssertFalse(start.isEnabled, "資料夾空白時不能開始")
+        let message = app.textViews["newChat.message"].exists ? app.textViews["newChat.message"] : app.textFields["newChat.message"]
+        message.tap()
+        message.typeEnglish("Fix the CSV quoting")
 
         app.buttons["newChat.chooseFolder"].tap()
         let ledger = app.buttons["folderPicker.row.ledger"]
@@ -47,18 +51,25 @@ final class NewChatUITests: XCTestCase {
         XCTAssertTrue(start.isEnabled)
     }
 
-    /// 權限模式預設沿用 Claude Code 自己的設定;Demo 主機拒絕開始，錯誤顯示在表單裡、sheet 不關。
+    /// 表單只有 Agent(分段控制)、資料夾、第一則訊息與「開始」,沒有名稱與權限欄位;資料夾與訊息都填才能開始。
+    /// Demo 主機拒絕開始，錯誤顯示在表單裡、sheet 不關。
     @MainActor
-    func testDefaultPermissionAndDemoRejection() {
+    func testFormFieldsAndDemoRejection() {
         let app = openNewChat()
-        let permission = app.buttons["newChat.permissionMode"]
-        XCTAssertTrue(permission.waitForExistence(timeout: 5), "Claude Code 沒有權限模式")
-        XCTAssertTrue(permission.label.contains("Claude Code’s Settings"), "預設權限模式不是沿用設定：\(permission.label)")
+        XCTAssertTrue(app.segmentedControls["newChat.agent"].exists, "Agent 不是分段控制")
+        XCTAssertFalse(app.textFields["newChat.name"].exists, "不該有名稱欄位")
+        XCTAssertFalse(app.buttons["newChat.permissionMode"].exists, "不該有權限欄位")
 
+        let start = app.buttons["newChat.start"]
         let folder = app.textFields["newChat.folder"]
         folder.tap()
         folder.typeEnglish("~/ledger")
-        app.buttons["newChat.start"].tap()
+        XCTAssertFalse(start.isEnabled, "沒有第一則訊息不能開始")
+        let message = app.textViews["newChat.message"].exists ? app.textViews["newChat.message"] : app.textFields["newChat.message"]
+        message.tap()
+        message.typeEnglish("Fix the CSV quoting")
+        XCTAssertTrue(start.isEnabled)
+        start.tap()
 
         let error = app.descendants(matching: .any)["newChat.error"].firstMatch
         XCTAssertTrue(error.waitForExistence(timeout: 10), "Demo 拒絕時沒有說明")

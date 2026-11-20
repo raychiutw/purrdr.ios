@@ -301,6 +301,11 @@ public final class HostsModel {
     }
 
     /// 新對話開始後：重讀列表，開那台主機上新 workspace 的 root pane 的聊天(行為規格 F3.2 第 5 步)。
+    /// 把文字放進某個聊天的輸入框(草稿):新增聊天沒送出的第一則訊息(#272)。
+    public func keepDraft(_ text: String, for route: ChatRoute) {
+        member(for: route.host).drafts.save(text, chatKey: route.paneID, session: nil)
+    }
+
     public func openStartedChat(_ workspace: CreatedWorkspace, on host: HostSelection) async {
         let list = agentList
         await list.load()

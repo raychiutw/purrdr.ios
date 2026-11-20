@@ -92,9 +92,11 @@ public struct TopNavigationView: View {
                 case .newChat:
                     NewChatSheet(hosts: hosts, picker: hosts.newChatHostPicker()) {
                         navigation.sheet = nil
-                    } onStarted: { workspace, host in
+                    } onStarted: { workspace, host, unsentMessage in
                         // 先收起 sheet,再打開新 workspace 的聊天(否則聊天會推到 sheet 下面)。
                         navigation.sheet = nil
+                        // agent 停在啟動問題時沒送的第一則訊息：放進聊天的輸入框，回答後自己送(#272)。
+                        if let unsentMessage { hosts.keepDraft(unsentMessage, for: ChatRoute(host: host, paneID: workspace.rootPaneID)) }
                         Task { await hosts.openStartedChat(workspace, on: host) }
                     }
                 }
@@ -334,11 +336,11 @@ private struct NewChatSheet: View {
     let hosts: HostsModel
     @State private var picker: HostPickerModel
     let onCancel: () -> Void
-    let onStarted: (CreatedWorkspace, HostSelection) -> Void
+    let onStarted: (CreatedWorkspace, HostSelection, String?) -> Void
 
     init(
         hosts: HostsModel, picker: @autoclosure () -> HostPickerModel, onCancel: @escaping () -> Void,
-        onStarted: @escaping (CreatedWorkspace, HostSelection) -> Void
+        onStarted: @escaping (CreatedWorkspace, HostSelection, String?) -> Void
     ) {
         self.hosts = hosts
         _picker = State(wrappedValue: picker())
@@ -348,7 +350,7 @@ private struct NewChatSheet: View {
 
     var body: some View {
         let host = picker.selection
-        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host) }
+        NewChatForm(model: hosts.newChat(on: host), picker: picker, onCancel: onCancel) { onStarted($0, host, $1) }
             .id(host)
     }
 }
@@ -358,11 +360,11 @@ private struct NewChatForm: View {
     @State private var model: NewChatModel
     let picker: HostPickerModel
     let onCancel: () -> Void
-    let onStarted: (CreatedWorkspace) -> Void
+    let onStarted: (CreatedWorkspace, String?) -> Void
 
     init(
         model: @autoclosure () -> NewChatModel, picker: HostPickerModel, onCancel: @escaping () -> Void,
-        onStarted: @escaping (CreatedWorkspace) -> Void
+        onStarted: @escaping (CreatedWorkspace, String?) -> Void
     ) {
         _model = State(wrappedValue: model())
         self.picker = picker

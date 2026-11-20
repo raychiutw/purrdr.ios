@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -90,44 +91,78 @@ struct NewChatModelTests {
 
     // MARK: - 表單
 
-    @Test("預設：Claude Code、權限模式沿用 agent 自己的設定(不是完全存取);資料夾空白不能開始")
+    static let created = #"{"id":"purrdr:workspace.create","result":{"type":"workspace_created","workspace":{"workspace_id":"w4","number":4,"label":"ledger","focused":false,"pane_count":1,"tab_count":1,"active_tab_id":"w4:t1","agent_status":"unknown"},"tab":{"tab_id":"w4:t1","workspace_id":"w4","number":1,"label":"1","focused":false,"pane_count":1,"agent_status":"unknown"},"root_pane":{"pane_id":"w4:p1","terminal_id":"term_0009","workspace_id":"w4","tab_id":"w4:t1","focused":false,"agent_status":"unknown","revision":0}}}"#
+
+    static func reply(_ json: String) -> FakeReply {
+        FakeReply(stdout: Data(json.utf8) + [0x0A], trigger: .afterStdinLine)
+    }
+
+    @Test("預設 Claude Code(#272,原型):資料夾與第一則訊息都填了才能開始")
     func defaults() {
         let model = Self.model(FakeHost())
 
         #expect(model.agent == .claude)
-        #expect(model.permissionMode == .agentDefault)
-        #expect(model.showsPermissionMode)
-        #expect(!model.canStart)
-
-        model.folder = "  "
         #expect(!model.canStart)
         model.folder = "~/ledger"
+        #expect(!model.canStart, "沒有第一則訊息不能開始")
+        model.message = "  "
+        #expect(!model.canStart)
+        model.message = "Fix the CSV quoting"
         #expect(model.canStart)
-
-        model.agent = .codex
-        #expect(!model.showsPermissionMode)
+        model.folder = "  "
+        #expect(!model.canStart, "沒有資料夾不能開始")
     }
 
-    @Test("開始：以預設權限模式送出(沒有 --permission-mode),名稱修剪後空白就不帶 label,回傳新 workspace")
-    func startsWithDefaults() async {
+    @Test("開始：建立 workspace(名稱由 herdr 用資料夾名)、以 agent 自己的權限設定啟動，就緒後送出第一則訊息")
+    func startsAndSendsFirstMessage() async {
         let host = FakeHost()
         await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
-        let created = #"{"id":"purrdr:workspace.create","result":{"type":"workspace_created","workspace":{"workspace_id":"w4","number":4,"label":"ledger","focused":false,"pane_count":1,"tab_count":1,"active_tab_id":"w4:t1","agent_status":"unknown"},"tab":{"tab_id":"w4:t1","workspace_id":"w4","number":1,"label":"1","focused":false,"pane_count":1,"agent_status":"unknown"},"root_pane":{"pane_id":"w4:p1","terminal_id":"term_0009","workspace_id":"w4","tab_id":"w4:t1","focused":false,"agent_status":"unknown","revision":0}}}"#
-        await host.expect(Self.bridge, reply: FakeReply(stdout: Data(created.utf8) + [0x0A], trigger: .afterStdinLine))
-        let started = #"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#
-        await host.expect(Self.bridge, reply: FakeReply(stdout: Data(started.utf8) + [0x0A], trigger: .afterStdinLine))
+        await host.expect(Self.bridge, reply: Self.reply(Self.created))
+        await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.start","result":{"type":"agent_started","agent":{"pane_id":"w4:p1"},"argv":["claude"]}}"#))
+        await host.expect(Self.bridge, reply: Self.reply(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted","delivery":"submitted"}}"#))
         let model = Self.model(host)
         model.folder = " ~/ledger "
-        model.name = "   "
+        model.message = " Fix the CSV quoting "
 
         let workspace = await model.start()
 
         #expect(workspace == CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"))
         #expect(model.error == nil)
+        #expect(model.unsentMessage == nil)
         #expect(!model.isStarting)
         let executions = await host.executions
         #expect(!executions[1].stdinText.contains("label"))
         #expect(!executions[2].stdinText.contains("permission-mode"))
+        #expect(executions[3].stdinText.contains(#""method":"agent.prompt""#))
+        #expect(executions[3].stdinText.contains(#""text":"Fix the CSV quoting""#))
+        #expect(executions[3].stdinText.contains(#""target":"w4:p1""#))
+    }
+
+    @Test("agent 停在啟動問題(例如資料夾信任):不送第一則訊息，留給聊天的輸入框")
+    func keepsMessageWhenAgentNotReady() async {
+        let host = FakeHost()
+        await host.expect(NewChatFolders.command(for: "~/ledger"), reply: Self.listing("/Users/demo/ledger", []))
+        await host.expect(Self.bridge, reply: Self.reply(Self.created))
+        await host.expect(Self.bridge, reply: Self.herdrError("agent.start", code: "agent_not_ready", message: "trust prompt"))
+        let model = Self.model(host)
+        model.folder = "~/ledger"
+        model.message = "Fix the CSV quoting"
+
+        let workspace = await model.start()
+
+        #expect(workspace == CreatedWorkspace(workspaceID: "w4", rootPaneID: "w4:p1"))
+        #expect(model.unsentMessage == "Fix the CSV quoting")
+        #expect(await host.executions.count == 3, "不該送 agent.prompt")
+    }
+
+    @Test("沒送出的第一則訊息放進新聊天的輸入框(草稿)")
+    func unsentMessageBecomesDraft() {
+        let hosts = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: { _, _, _ in FakeHost() })
+        let route = ChatRoute(host: .demo, paneID: "w4:p1")
+
+        hosts.keepDraft("Fix the CSV quoting", for: route)
+
+        #expect(hosts.conversation(route, sessionID: nil).draft == "Fix the CSV quoting")
     }
 
     @Test("主機上沒有這個資料夾：說明並建議用資料夾瀏覽")
@@ -137,6 +172,7 @@ struct NewChatModelTests {
         let model = Self.model(host)
         model.folder = "~/nope"
 
+        model.message = "Fix the CSV quoting"
         #expect(await model.start() == nil)
         #expect(model.error == String(localized: "There’s no such folder on the host. Check the path, or choose a folder on the host."))
     }
@@ -149,6 +185,7 @@ struct NewChatModelTests {
         let model = Self.model(host)
         model.folder = "~/ledger"
 
+        model.message = "Fix the CSV quoting"
         #expect(await model.start() == nil)
         #expect(model.error == String(localized: "The Demo host can’t start new chats. Add your own host to try this."))
     }
@@ -161,6 +198,7 @@ struct NewChatModelTests {
         let model = Self.model(host)
         model.folder = "~/ledger"
 
+        model.message = "Fix the CSV quoting"
         #expect(await model.start() == nil)
         #expect(model.error == "herdr says no")
     }

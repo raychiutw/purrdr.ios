@@ -81,18 +81,19 @@ public final class FolderPickerModel {
     }
 }
 
-/// 新增對話的表單(行為規格 F3.1;#18):資料夾、名稱、agent、權限模式。
+/// 新增對話的表單(#272,原型 purrdr-screens 定案版):主機(畫面的標題列)、agent、資料夾、第一則訊息。
 ///
-/// 權限模式預設沿用 agent 自己的設定，不預設成完全不詢問(`bypassPermissions`)。
+/// 名稱由 herdr 用資料夾名;權限模式沿用 agent 自己的設定，不預設成完全不詢問(`bypassPermissions`)。
 @MainActor
 @Observable
 public final class NewChatModel {
     /// 主機上的資料夾(可以打 `~/…`,或從資料夾瀏覽挑)。
     public var folder = ""
-    /// workspace 名稱(選填;空白時由 herdr 用資料夾名)。
-    public var name = ""
     public var agent: NewChatAgent = .claude
-    public var permissionMode: ClaudePermissionMode = .agentDefault
+    /// agent 就緒後送出的第一則訊息。
+    public var message = ""
+    /// agent 停在啟動問題時沒送出的第一則訊息(開聊天時放進輸入框)。
+    public private(set) var unsentMessage: String?
     public private(set) var isStarting = false
     /// 開始失敗的原因(顯示在表單裡)。
     public private(set) var error: String?
@@ -107,10 +108,9 @@ public final class NewChatModel {
 
     private var trimmedFolder: String { folder.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    public var canStart: Bool { !trimmedFolder.isEmpty && !isStarting }
+    private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// 權限模式只有 Claude Code 有。
-    public var showsPermissionMode: Bool { agent == .claude }
+    public var canStart: Bool { !trimmedFolder.isEmpty && !trimmedMessage.isEmpty && !isStarting }
 
     /// 資料夾瀏覽，從表單目前的資料夾開始(空白 = 家目錄)。
     public func makeFolderPicker() -> FolderPickerModel {
@@ -126,15 +126,15 @@ public final class NewChatModel {
     /// 開始。成功回傳新 workspace(聊天開在它的 root pane);失敗時原因放在 `error`。
     public func start() async -> CreatedWorkspace? {
         guard canStart else { return nil }
-        let label = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let request = NewChatRequest(
-            folder: trimmedFolder, label: label.isEmpty ? nil : label, agent: agent,
-            permissionMode: agent == .claude ? permissionMode : .agentDefault)
+        let request = NewChatRequest(folder: trimmedFolder, agent: agent, message: trimmedMessage)
         isStarting = true
         error = nil
+        unsentMessage = nil
         defer { isStarting = false }
         do {
-            return try await launcher.start(request)
+            let started = try await launcher.start(request)
+            if !started.sentMessage { unsentMessage = trimmedMessage }
+            return started.workspace
         } catch {
             self.error = Self.message(for: error)
             return nil

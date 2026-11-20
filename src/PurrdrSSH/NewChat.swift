@@ -35,12 +35,17 @@ public struct NewChatRequest: Sendable, Equatable {
     public var agent: NewChatAgent
     /// 只有 Claude Code 會用到。
     public var permissionMode: ClaudePermissionMode
+    /// agent 就緒後送出的第一則訊息(#272);空白時不送。
+    public var message: String
 
-    public init(folder: String, label: String? = nil, agent: NewChatAgent, permissionMode: ClaudePermissionMode = .agentDefault) {
+    public init(
+        folder: String, label: String? = nil, agent: NewChatAgent, permissionMode: ClaudePermissionMode = .agentDefault, message: String = ""
+    ) {
         self.folder = folder
         self.label = label
         self.agent = agent
         self.permissionMode = permissionMode
+        self.message = message
     }
 
     /// 交給 agent 的參數(`herdr agent start … -- <參數>`)。權限模式只給 Claude Code,而且只在使用者選了的時候。
@@ -71,7 +76,19 @@ public struct NewChatRequest: Sendable, Equatable {
     }
 }
 
-/// 開始新對話(行為規格 F3.2):在主機上解析資料夾 → 建立 workspace → 在它的 root pane 啟動 agent。
+/// 新對話開始的結果。
+public struct NewChatStarted: Sendable, Equatable {
+    public var workspace: CreatedWorkspace
+    /// 第一則訊息已經送出;agent 停在啟動問題(例如資料夾信任)時沒送，留給聊天的輸入框。
+    public var sentMessage: Bool
+
+    public init(workspace: CreatedWorkspace, sentMessage: Bool) {
+        self.workspace = workspace
+        self.sentMessage = sentMessage
+    }
+}
+
+/// 開始新對話(行為規格 F3.2):在主機上解析資料夾 → 建立 workspace → 在它的 root pane 啟動 agent → 送出第一則訊息(#272)。
 ///
 /// 重試語意：啟動失敗後再按一次，若資料夾相同就沿用上次建立的 workspace、只重跑啟動;資料夾換了先盡力關掉上次的
 /// workspace(不留孤兒)再新建。
@@ -98,8 +115,8 @@ public actor NewChatLauncher {
         self.sleep = sleep
     }
 
-    /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)。
-    public func start(_ request: NewChatRequest) async throws -> CreatedWorkspace {
+    /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
+    public func start(_ request: NewChatRequest) async throws -> NewChatStarted {
         let folder = try await folders.resolve(request.folder)
         let workspace: CreatedWorkspace
         if let pending, pending.folder == folder {
@@ -113,22 +130,27 @@ public actor NewChatLauncher {
             pending = (folder, workspace)
         }
         let name = NewChatRequest.agentName(for: request.label ?? Self.lastComponent(of: folder))
-        try await startAgent(request, name: name, in: workspace)
+        let ready = try await startAgent(request, name: name, in: workspace)
         pending = nil
-        return workspace
+        let message = request.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard ready, !message.isEmpty else { return NewChatStarted(workspace: workspace, sentMessage: false) }
+        // 不等 agent 開始工作：送出後聊天畫面自己跟上(送不到時丟錯誤，不重送，§7.3)。
+        _ = try await client.prompt(target: workspace.rootPaneID, text: message, wait: nil)
+        return NewChatStarted(workspace: workspace, sentMessage: true)
     }
 
-    private func startAgent(_ request: NewChatRequest, name: String, in workspace: CreatedWorkspace) async throws {
+    /// 啟動 agent;回傳它是否已就緒(停在啟動問題時是 `false`)。
+    private func startAgent(_ request: NewChatRequest, name: String, in workspace: CreatedWorkspace) async throws -> Bool {
         var retries = 0
         while true {
             do {
                 try await client.startAgent(
                     name: name, kind: request.agent.rawValue, paneID: workspace.rootPaneID,
                     arguments: request.agentArguments, timeout: Self.agentTimeout)
-                return
+                return true
             } catch HerdrError.herdr(code: "agent_not_ready", _) {
                 // agent 已經起來，但停在啟動問題(例如資料夾信任):在聊天裡回答。
-                return
+                return false
             } catch HerdrError.herdr(code: "agent_pane_busy", let message) {
                 guard retries < Self.busyRetries else { throw HerdrError.herdr(code: "agent_pane_busy", message: message) }
                 retries += 1
