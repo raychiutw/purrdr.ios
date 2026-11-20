@@ -82,6 +82,7 @@ public struct HostServicePushPluginInstaller: PushPluginInstalling {
 
 extension HTTPSHostConnection: PushPluginInstallerProviding {
     public nonisolated func pushPluginInstallers() -> (@Sendable (PushDeviceID) -> any PushPluginInstalling)? {
-        { HostServicePushPluginInstaller(connection: self, deviceID: $0) }
+        let connection = self
+        return { deviceID in HostServicePushPluginInstaller(connection: connection, deviceID: deviceID) }
     }
 }

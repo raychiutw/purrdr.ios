@@ -888,7 +888,7 @@ final class HostMember {
         actions = WorkspaceActionsModel(client: client, preferences: preferences, refresh: { await list.load() })
         // HTTPS 主機經主機服務代裝(取不到主機服務連線就沒有，列上標成不支援);其他經 SSH。
         let installer: (any PushPluginInstalling)? = if configuration?.connectionMethod.usesHostService == true {
-            (connection as? any PushPluginInstallerProviding)?.pushPluginInstallers().flatMap { pushService?.installer($0) }
+            (connection as? any PushPluginInstallerProviding)?.pushPluginInstallers().flatMap { makeInstaller in pushService?.installer(makeInstaller) }
         } else {
             pushService?.sshInstaller(channel: channel, herdr: herdr)
         }
