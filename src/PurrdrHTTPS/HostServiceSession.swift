@@ -413,7 +413,16 @@ extension HostServiceProtocol.ServerMessage {
              .devicesRevokeResult,
              .hostServiceStatusResult,
              .hostServiceUpdateResult,
-             .hostServiceSetAutoUpdateResult: nil
+             .hostServiceSetAutoUpdateResult,
+             .paneReadResult,
+             .sessionsListResult,
+             .gitStatusResult,
+             .gitDiffResult,
+             .queueListResult,
+             .queueAddResult,
+             .queueRemoveResult,
+             .queueReorderResult,
+             .queueChanged: nil
         }
     }
 
@@ -463,7 +472,16 @@ extension HostServiceProtocol.ServerMessage {
         case .hostServiceStatusResult(let message): message.requestId
         case .hostServiceUpdateResult(let message): message.requestId
         case .hostServiceSetAutoUpdateResult(let message): message.requestId
-        case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed: nil
+        case .paneReadResult(let message): message.requestId
+        case .sessionsListResult(let message): message.requestId
+        case .gitStatusResult(let message): message.requestId
+        case .gitDiffResult(let message): message.requestId
+        case .queueListResult(let message): message.requestId
+        case .queueAddResult(let message): message.requestId
+        case .queueRemoveResult(let message): message.requestId
+        case .queueReorderResult(let message): message.requestId
+        // `queue.changed` 是這條連線的廣播，不對應請求也不屬於串流。
+        case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed, .queueChanged: nil
         }
     }
 }
