@@ -26,6 +26,10 @@ extension HostServiceProtocol {
         case transcriptWindow(TranscriptWindow)
         case transcriptFollow(TranscriptFollow)
         case transcriptUnfollow(TranscriptUnfollow)
+        case transcriptPreviews(TranscriptPreviews)
+        case transcriptSubagent(TranscriptSubagent)
+        case transcriptWorkflow(TranscriptWorkflow)
+        case transcriptDelegation(TranscriptDelegation)
         case paneSendText(PaneSendText)
         case agentPrompt(AgentPrompt)
         case eventsSubscribe(EventsSubscribe)
@@ -37,6 +41,22 @@ extension HostServiceProtocol {
         case paneTerminalClose(PaneTerminalClose)
         case fileStat(FileStat)
         case fileRead(FileRead)
+        case pushStatus(PushStatus)
+        case pushInstall(PushInstall)
+        case pushRemove(PushRemove)
+        case pushUpdateMuted(PushUpdateMuted)
+        case workspaceCreate(WorkspaceCreate)
+        case workspaceRename(WorkspaceRename)
+        case workspaceClose(WorkspaceClose)
+        case worktreeCreate(WorktreeCreate)
+        case agentStart(AgentStart)
+        case fileUploadStart(FileUploadStart)
+        case fileUploadChunk(FileUploadChunk)
+        case devicesList(DevicesList)
+        case devicesRevoke(DevicesRevoke)
+        case hostServiceStatus(HostServiceStatus)
+        case hostServiceUpdate(HostServiceUpdate)
+        case hostServiceSetAutoUpdate(HostServiceSetAutoUpdate)
 
         private enum TypeKey: String, CodingKey {
             case type
@@ -53,6 +73,10 @@ extension HostServiceProtocol {
             case "transcript.window": self = .transcriptWindow(try TranscriptWindow(from: decoder))
             case "transcript.follow": self = .transcriptFollow(try TranscriptFollow(from: decoder))
             case "transcript.unfollow": self = .transcriptUnfollow(try TranscriptUnfollow(from: decoder))
+            case "transcript.previews": self = .transcriptPreviews(try TranscriptPreviews(from: decoder))
+            case "transcript.subagent": self = .transcriptSubagent(try TranscriptSubagent(from: decoder))
+            case "transcript.workflow": self = .transcriptWorkflow(try TranscriptWorkflow(from: decoder))
+            case "transcript.delegation": self = .transcriptDelegation(try TranscriptDelegation(from: decoder))
             case "pane.send_text": self = .paneSendText(try PaneSendText(from: decoder))
             case "agent.prompt": self = .agentPrompt(try AgentPrompt(from: decoder))
             case "events.subscribe": self = .eventsSubscribe(try EventsSubscribe(from: decoder))
@@ -64,6 +88,22 @@ extension HostServiceProtocol {
             case "pane.terminal.close": self = .paneTerminalClose(try PaneTerminalClose(from: decoder))
             case "file.stat": self = .fileStat(try FileStat(from: decoder))
             case "file.read": self = .fileRead(try FileRead(from: decoder))
+            case "push.status": self = .pushStatus(try PushStatus(from: decoder))
+            case "push.install": self = .pushInstall(try PushInstall(from: decoder))
+            case "push.remove": self = .pushRemove(try PushRemove(from: decoder))
+            case "push.update_muted": self = .pushUpdateMuted(try PushUpdateMuted(from: decoder))
+            case "workspace.create": self = .workspaceCreate(try WorkspaceCreate(from: decoder))
+            case "workspace.rename": self = .workspaceRename(try WorkspaceRename(from: decoder))
+            case "workspace.close": self = .workspaceClose(try WorkspaceClose(from: decoder))
+            case "worktree.create": self = .worktreeCreate(try WorktreeCreate(from: decoder))
+            case "agent.start": self = .agentStart(try AgentStart(from: decoder))
+            case "file.upload.start": self = .fileUploadStart(try FileUploadStart(from: decoder))
+            case "file.upload.chunk": self = .fileUploadChunk(try FileUploadChunk(from: decoder))
+            case "devices.list": self = .devicesList(try DevicesList(from: decoder))
+            case "devices.revoke": self = .devicesRevoke(try DevicesRevoke(from: decoder))
+            case "host_service.status": self = .hostServiceStatus(try HostServiceStatus(from: decoder))
+            case "host_service.update": self = .hostServiceUpdate(try HostServiceUpdate(from: decoder))
+            case "host_service.set_auto_update": self = .hostServiceSetAutoUpdate(try HostServiceSetAutoUpdate(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
             }
@@ -92,6 +132,18 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .transcriptUnfollow(let message):
                 try container.encode("transcript.unfollow", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptPreviews(let message):
+                try container.encode("transcript.previews", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptSubagent(let message):
+                try container.encode("transcript.subagent", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptWorkflow(let message):
+                try container.encode("transcript.workflow", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptDelegation(let message):
+                try container.encode("transcript.delegation", forKey: .type)
                 try message.encode(to: encoder)
             case .paneSendText(let message):
                 try container.encode("pane.send_text", forKey: .type)
@@ -126,13 +178,61 @@ extension HostServiceProtocol {
             case .fileRead(let message):
                 try container.encode("file.read", forKey: .type)
                 try message.encode(to: encoder)
+            case .pushStatus(let message):
+                try container.encode("push.status", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushInstall(let message):
+                try container.encode("push.install", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushRemove(let message):
+                try container.encode("push.remove", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushUpdateMuted(let message):
+                try container.encode("push.update_muted", forKey: .type)
+                try message.encode(to: encoder)
+            case .workspaceCreate(let message):
+                try container.encode("workspace.create", forKey: .type)
+                try message.encode(to: encoder)
+            case .workspaceRename(let message):
+                try container.encode("workspace.rename", forKey: .type)
+                try message.encode(to: encoder)
+            case .workspaceClose(let message):
+                try container.encode("workspace.close", forKey: .type)
+                try message.encode(to: encoder)
+            case .worktreeCreate(let message):
+                try container.encode("worktree.create", forKey: .type)
+                try message.encode(to: encoder)
+            case .agentStart(let message):
+                try container.encode("agent.start", forKey: .type)
+                try message.encode(to: encoder)
+            case .fileUploadStart(let message):
+                try container.encode("file.upload.start", forKey: .type)
+                try message.encode(to: encoder)
+            case .fileUploadChunk(let message):
+                try container.encode("file.upload.chunk", forKey: .type)
+                try message.encode(to: encoder)
+            case .devicesList(let message):
+                try container.encode("devices.list", forKey: .type)
+                try message.encode(to: encoder)
+            case .devicesRevoke(let message):
+                try container.encode("devices.revoke", forKey: .type)
+                try message.encode(to: encoder)
+            case .hostServiceStatus(let message):
+                try container.encode("host_service.status", forKey: .type)
+                try message.encode(to: encoder)
+            case .hostServiceUpdate(let message):
+                try container.encode("host_service.update", forKey: .type)
+                try message.encode(to: encoder)
+            case .hostServiceSetAutoUpdate(let message):
+                try container.encode("host_service.set_auto_update", forKey: .type)
+                try message.encode(to: encoder)
             }
         }
 
         /// 寫入類訊息(schema 的 `x-write`);唯讀裝置送出時被拒絕。
         public var isWrite: Bool {
             switch self {
-            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll: return true
+            case .paneSendKeys, .paneSendText, .agentPrompt, .paneTerminalInput, .paneTerminalResize, .paneTerminalScroll, .pushInstall, .pushRemove, .pushUpdateMuted, .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart, .fileUploadStart, .fileUploadChunk, .devicesRevoke, .hostServiceUpdate, .hostServiceSetAutoUpdate: return true
             default: return false
             }
         }
@@ -150,6 +250,10 @@ extension HostServiceProtocol {
         case transcriptFollowResult(TranscriptFollowResult)
         case transcriptUpdate(TranscriptUpdate)
         case transcriptUnfollowResult(TranscriptUnfollowResult)
+        case transcriptPreviewsResult(TranscriptPreviewsResult)
+        case transcriptSubagentResult(TranscriptSubagentResult)
+        case transcriptWorkflowResult(TranscriptWorkflowResult)
+        case transcriptDelegationResult(TranscriptDelegationResult)
         case paneSendTextResult(PaneSendTextResult)
         case agentPromptResult(AgentPromptResult)
         case eventsSubscribeResult(EventsSubscribeResult)
@@ -161,6 +265,22 @@ extension HostServiceProtocol {
         case paneTerminalClosed(PaneTerminalClosed)
         case fileStatResult(FileStatResult)
         case fileReadResult(FileReadResult)
+        case pushStatusResult(PushStatusResult)
+        case pushInstallResult(PushInstallResult)
+        case pushRemoveResult(PushRemoveResult)
+        case pushUpdateMutedResult(PushUpdateMutedResult)
+        case workspaceCreateResult(WorkspaceCreateResult)
+        case workspaceRenameResult(WorkspaceRenameResult)
+        case workspaceCloseResult(WorkspaceCloseResult)
+        case worktreeCreateResult(WorktreeCreateResult)
+        case agentStartResult(AgentStartResult)
+        case fileUploadStartResult(FileUploadStartResult)
+        case fileUploadChunkResult(FileUploadChunkResult)
+        case devicesListResult(DevicesListResult)
+        case devicesRevokeResult(DevicesRevokeResult)
+        case hostServiceStatusResult(HostServiceStatusResult)
+        case hostServiceUpdateResult(HostServiceUpdateResult)
+        case hostServiceSetAutoUpdateResult(HostServiceSetAutoUpdateResult)
         case errorMessage(ErrorMessage)
 
         private enum TypeKey: String, CodingKey {
@@ -179,6 +299,10 @@ extension HostServiceProtocol {
             case "transcript.follow.result": self = .transcriptFollowResult(try TranscriptFollowResult(from: decoder))
             case "transcript.update": self = .transcriptUpdate(try TranscriptUpdate(from: decoder))
             case "transcript.unfollow.result": self = .transcriptUnfollowResult(try TranscriptUnfollowResult(from: decoder))
+            case "transcript.previews.result": self = .transcriptPreviewsResult(try TranscriptPreviewsResult(from: decoder))
+            case "transcript.subagent.result": self = .transcriptSubagentResult(try TranscriptSubagentResult(from: decoder))
+            case "transcript.workflow.result": self = .transcriptWorkflowResult(try TranscriptWorkflowResult(from: decoder))
+            case "transcript.delegation.result": self = .transcriptDelegationResult(try TranscriptDelegationResult(from: decoder))
             case "pane.send_text.result": self = .paneSendTextResult(try PaneSendTextResult(from: decoder))
             case "agent.prompt.result": self = .agentPromptResult(try AgentPromptResult(from: decoder))
             case "events.subscribe.result": self = .eventsSubscribeResult(try EventsSubscribeResult(from: decoder))
@@ -190,6 +314,22 @@ extension HostServiceProtocol {
             case "pane.terminal.closed": self = .paneTerminalClosed(try PaneTerminalClosed(from: decoder))
             case "file.stat.result": self = .fileStatResult(try FileStatResult(from: decoder))
             case "file.read.result": self = .fileReadResult(try FileReadResult(from: decoder))
+            case "push.status.result": self = .pushStatusResult(try PushStatusResult(from: decoder))
+            case "push.install.result": self = .pushInstallResult(try PushInstallResult(from: decoder))
+            case "push.remove.result": self = .pushRemoveResult(try PushRemoveResult(from: decoder))
+            case "push.update_muted.result": self = .pushUpdateMutedResult(try PushUpdateMutedResult(from: decoder))
+            case "workspace.create.result": self = .workspaceCreateResult(try WorkspaceCreateResult(from: decoder))
+            case "workspace.rename.result": self = .workspaceRenameResult(try WorkspaceRenameResult(from: decoder))
+            case "workspace.close.result": self = .workspaceCloseResult(try WorkspaceCloseResult(from: decoder))
+            case "worktree.create.result": self = .worktreeCreateResult(try WorktreeCreateResult(from: decoder))
+            case "agent.start.result": self = .agentStartResult(try AgentStartResult(from: decoder))
+            case "file.upload.start.result": self = .fileUploadStartResult(try FileUploadStartResult(from: decoder))
+            case "file.upload.chunk.result": self = .fileUploadChunkResult(try FileUploadChunkResult(from: decoder))
+            case "devices.list.result": self = .devicesListResult(try DevicesListResult(from: decoder))
+            case "devices.revoke.result": self = .devicesRevokeResult(try DevicesRevokeResult(from: decoder))
+            case "host_service.status.result": self = .hostServiceStatusResult(try HostServiceStatusResult(from: decoder))
+            case "host_service.update.result": self = .hostServiceUpdateResult(try HostServiceUpdateResult(from: decoder))
+            case "host_service.set_auto_update.result": self = .hostServiceSetAutoUpdateResult(try HostServiceSetAutoUpdateResult(from: decoder))
             case "error": self = .errorMessage(try ErrorMessage(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(forKey: .type, in: container, debugDescription: "unknown message type \(type)")
@@ -223,6 +363,18 @@ extension HostServiceProtocol {
             case .transcriptUnfollowResult(let message):
                 try container.encode("transcript.unfollow.result", forKey: .type)
                 try message.encode(to: encoder)
+            case .transcriptPreviewsResult(let message):
+                try container.encode("transcript.previews.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptSubagentResult(let message):
+                try container.encode("transcript.subagent.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptWorkflowResult(let message):
+                try container.encode("transcript.workflow.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .transcriptDelegationResult(let message):
+                try container.encode("transcript.delegation.result", forKey: .type)
+                try message.encode(to: encoder)
             case .paneSendTextResult(let message):
                 try container.encode("pane.send_text.result", forKey: .type)
                 try message.encode(to: encoder)
@@ -255,6 +407,54 @@ extension HostServiceProtocol {
                 try message.encode(to: encoder)
             case .fileReadResult(let message):
                 try container.encode("file.read.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushStatusResult(let message):
+                try container.encode("push.status.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushInstallResult(let message):
+                try container.encode("push.install.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushRemoveResult(let message):
+                try container.encode("push.remove.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .pushUpdateMutedResult(let message):
+                try container.encode("push.update_muted.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .workspaceCreateResult(let message):
+                try container.encode("workspace.create.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .workspaceRenameResult(let message):
+                try container.encode("workspace.rename.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .workspaceCloseResult(let message):
+                try container.encode("workspace.close.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .worktreeCreateResult(let message):
+                try container.encode("worktree.create.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .agentStartResult(let message):
+                try container.encode("agent.start.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .fileUploadStartResult(let message):
+                try container.encode("file.upload.start.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .fileUploadChunkResult(let message):
+                try container.encode("file.upload.chunk.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .devicesListResult(let message):
+                try container.encode("devices.list.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .devicesRevokeResult(let message):
+                try container.encode("devices.revoke.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .hostServiceStatusResult(let message):
+                try container.encode("host_service.status.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .hostServiceUpdateResult(let message):
+                try container.encode("host_service.update.result", forKey: .type)
+                try message.encode(to: encoder)
+            case .hostServiceSetAutoUpdateResult(let message):
+                try container.encode("host_service.set_auto_update.result", forKey: .type)
                 try message.encode(to: encoder)
             case .errorMessage(let message):
                 try container.encode("error", forKey: .type)
@@ -989,6 +1189,241 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
+    /// 列表預覽(raychiutw/purrdr.host#17):一次讀多個對話紀錄的檔尾。path 必須是這條連線定位過的，任一個不是就整個請求回 transcript_not_allowed。
+    public struct TranscriptPreviews: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var entries: [TranscriptPreviewEntry]
+
+        public init(requestId: String, entries: [TranscriptPreviewEntry]) {
+            self.requestId = requestId
+            self.entries = entries
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case entries
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 一個要讀預覽的對話紀錄。known_version 是上次這個主機服務回的 version(app 原樣帶回，不解讀)。
+    public struct TranscriptPreviewEntry: Codable, Sendable, Equatable {
+        public var key: String
+        public var path: String
+        public var knownVersion: String?
+
+        public init(key: String, path: String, knownVersion: String? = nil) {
+            self.key = key
+            self.path = path
+            self.knownVersion = knownVersion
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case key
+            case path
+            case knownVersion = "known_version"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 每個讀得到的對話紀錄一項(讀不到的不在結果裡，同 SSH 的預覽腳本)。
+    public struct TranscriptPreviewsResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var previews: [TranscriptPreview]
+
+        public init(requestId: String, previews: [TranscriptPreview]) {
+            self.requestId = requestId
+            self.previews = previews
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case previews
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 一個對話紀錄的預覽。lines 是剝除圖片後的行(同 SSH 預覽腳本，不帶原始長度):whole 是最後 48000 bytes(第一行可能被切在中間)、appended 是 known_version 之後附加的部分、unchanged 沒有內容。
+    public struct TranscriptPreview: Codable, Sendable, Equatable {
+        public var key: String
+        public var change: TranscriptPreviewChange
+        public var version: String
+        public var lines: [String]
+
+        public init(key: String, change: TranscriptPreviewChange, version: String, lines: [String]) {
+            self.key = key
+            self.change = change
+            self.version = version
+            self.lines = lines
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case key
+            case change
+            case version
+            case lines
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 這次讀到的範圍:unchanged 與 known_version 相同、appended 只有附加的部分、whole 整段檔尾。
+    public enum TranscriptPreviewChange: String, Codable, Sendable, CaseIterable {
+        case unchanged
+        case appended
+        case whole
+    }
+}
+
+extension HostServiceProtocol {
+    /// 找呼叫 call_id 啟動的 subagent 對話紀錄(raychiutw/purrdr.host#17):在 path 的 session 資料夾的 subagents/ 下找 toolUseId 完全等於 call_id 的 agent-*.meta.json。path 必須是這條連線可讀的對話紀錄。沒有 meta 回 transcript_absent,不只一個回 transcript_ambiguous。
+    public struct TranscriptSubagent: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var path: String
+        public var callId: String
+
+        public init(requestId: String, path: String, callId: String) {
+            self.requestId = requestId
+            self.path = path
+            self.callId = callId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+            case callId = "call_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// subagent 對話紀錄的路徑。session 資料夾 subagents/ 底下的 .jsonl 都可以讀視窗與追蹤。
+    public struct TranscriptSubagentResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var path: String
+
+        public init(requestId: String, path: String) {
+            self.requestId = requestId
+            self.path = path
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 讀 workflow 進度(raychiutw/purrdr.host#17):path 的 session 資料夾的 workflows/<run_id>.json(結束才寫)優先，否則 subagents/workflows/<run_id>/journal.jsonl。兩個都沒有回 transcript_absent。
+    public struct TranscriptWorkflow: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var path: String
+        public var runId: String
+        /// 上次回的 checksum;相同時不回內容。
+        public var knownChecksum: String?
+
+        public init(requestId: String, path: String, runId: String, knownChecksum: String? = nil) {
+            self.requestId = requestId
+            self.path = path
+            self.runId = runId
+            self.knownChecksum = knownChecksum
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+            case runId = "run_id"
+            case knownChecksum = "known_checksum"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// kind 是讀到哪個檔(run 或 journal);content 是檔案原樣內容，checksum 等於 known_checksum 時省略。
+    public struct TranscriptWorkflowResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var kind: TranscriptWorkflowKind
+        public var checksum: String
+        public var content: String?
+
+        public init(requestId: String, kind: TranscriptWorkflowKind, checksum: String, content: String? = nil) {
+            self.requestId = requestId
+            self.kind = kind
+            self.checksum = checksum
+            self.content = content
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case kind
+            case checksum
+            case content
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// run:workflows/<run_id>.json;journal:subagents/workflows/<run_id>/journal.jsonl。
+    public enum TranscriptWorkflowKind: String, Codable, Sendable, CaseIterable {
+        case run
+        case journal
+    }
+}
+
+extension HostServiceProtocol {
+    /// 父對話紀錄中含 call_id 或 agent_id 的行(委派是否結束，raychiutw/purrdr.host#17)。path 必須是這條連線可讀的對話紀錄。
+    public struct TranscriptDelegation: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var path: String
+        public var callId: String
+        public var agentId: String?
+        /// 上次回的 checksum;相同時不回內容。
+        public var knownChecksum: String?
+
+        public init(requestId: String, path: String, callId: String, agentId: String? = nil, knownChecksum: String? = nil) {
+            self.requestId = requestId
+            self.path = path
+            self.callId = callId
+            self.agentId = agentId
+            self.knownChecksum = knownChecksum
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case path
+            case callId = "call_id"
+            case agentId = "agent_id"
+            case knownChecksum = "known_checksum"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 這些行(剝除圖片後)的 checksum 與行;checksum 等於 known_checksum 時省略 records。
+    public struct TranscriptDelegationResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var checksum: String
+        public var records: [TranscriptRecord]?
+
+        public init(requestId: String, checksum: String, records: [TranscriptRecord]? = nil) {
+            self.requestId = requestId
+            self.checksum = checksum
+            self.records = records
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case checksum
+            case records
+        }
+    }
+}
+
+extension HostServiceProtocol {
     /// 對 Pane 送出文字(herdr pane.send_text),不補 Enter。
     public struct PaneSendText: Codable, Sendable, Equatable {
         public var requestId: String
@@ -1081,6 +1516,227 @@ extension HostServiceProtocol {
         private enum CodingKeys: String, CodingKey {
             case requestId = "request_id"
             case delivery
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 在主機上的資料夾建立 workspace(herdr workspace.create,不搶桌機焦點)。cwd 必須是主機上存在的絕對路徑資料夾(herdr 遇到不存在的資料夾會改開家目錄，所以主機服務先檢查)。新增聊天 = workspace.create 後對 root pane 送 agent.start。
+    public struct WorkspaceCreate: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 主機上的絕對路徑。
+        public var cwd: String
+        /// workspace 名稱;省略時由 herdr 以資料夾名命名。
+        public var label: String?
+
+        public init(requestId: String, cwd: String, label: String? = nil) {
+            self.requestId = requestId
+            self.cwd = cwd
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case cwd
+            case label
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// workspace 已建立;聊天開在 root_pane_id。
+    public struct WorkspaceCreateResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var workspaceId: String
+        public var rootPaneId: String
+
+        public init(requestId: String, workspaceId: String, rootPaneId: String) {
+            self.requestId = requestId
+            self.workspaceId = workspaceId
+            self.rootPaneId = rootPaneId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case workspaceId = "workspace_id"
+            case rootPaneId = "root_pane_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 重新命名 workspace(herdr workspace.rename)。
+    public struct WorkspaceRename: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var workspaceId: String
+        /// 新名稱，不可空白。
+        public var label: String
+
+        public init(requestId: String, workspaceId: String, label: String) {
+            self.requestId = requestId
+            self.workspaceId = workspaceId
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case workspaceId = "workspace_id"
+            case label
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 已重新命名。
+    public struct WorkspaceRenameResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// herdr 實際保存的名稱(可能經正規化);沒有時省略。
+        public var label: String?
+
+        public init(requestId: String, label: String? = nil) {
+            self.requestId = requestId
+            self.label = label
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case label
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 關閉 workspace(herdr workspace.close):裡面的 tab、pane 與程序都會停止。不連同 worktree 群組一起關，同 repo 的 worktree workspace 還開著時以 herdr_error 回報(herdr_code workspace_group_close_required)。
+    public struct WorkspaceClose: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var workspaceId: String
+
+        public init(requestId: String, workspaceId: String) {
+            self.requestId = requestId
+            self.workspaceId = workspaceId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case workspaceId = "workspace_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 已關閉。
+    public struct WorkspaceCloseResult: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 以 workspace 所在的 git repo 建立 worktree 與分支，開成新的 workspace(herdr worktree.create,不搶桌機焦點)。分支已存在時 herdr 直接 checkout。不在 git repo 裡時以 herdr_error 回報(herdr_code not_git_worktree)。
+    public struct WorktreeCreate: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 以這個 workspace 的 repo 為底。
+        public var workspaceId: String
+        /// 分支名稱：不能以 - 開頭，不含空白、控制字元或 ..。
+        public var branch: String
+
+        public init(requestId: String, workspaceId: String, branch: String) {
+            self.requestId = requestId
+            self.workspaceId = workspaceId
+            self.branch = branch
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case workspaceId = "workspace_id"
+            case branch
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// worktree 已建立並開成新的 workspace;聊天開在 root_pane_id。
+    public struct WorktreeCreateResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var workspaceId: String
+        public var rootPaneId: String
+
+        public init(requestId: String, workspaceId: String, rootPaneId: String) {
+            self.requestId = requestId
+            self.workspaceId = workspaceId
+            self.rootPaneId = rootPaneId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case workspaceId = "workspace_id"
+            case rootPaneId = "root_pane_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 在 pane 的 shell 啟動 Agent(herdr agent.start)。新增聊天 = workspace.create 或 worktree.create 後對 root pane 送這個。不接受任意參數：只有 Claude Code 可帶 permission_mode(轉成 --permission-mode)。主機服務等 herdr 的時間隨 timeout_ms 延長;Agent 停在啟動問題、pane 不在 shell 提示字元等以 herdr_error 回報(herdr_code 如 agent_not_ready、agent_pane_busy、agent_name_taken)。
+    public struct AgentStart: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var paneId: String
+        /// herdr 的 Agent 名稱：英數字、-、_、.,不能以 - 開頭。
+        public var name: String
+        /// herdr 的 Agent 種類(herdr agent start --kind,例如 claude、codex),只有小寫英文字母與數字。
+        public var kind: String
+        public var permissionMode: ClaudePermissionMode?
+        /// 等 Agent 就緒的時間;省略時用 herdr 的預設(30 秒)。
+        public var timeoutMs: Int?
+
+        public init(requestId: String, paneId: String, name: String, kind: String, permissionMode: ClaudePermissionMode? = nil, timeoutMs: Int? = nil) {
+            self.requestId = requestId
+            self.paneId = paneId
+            self.name = name
+            self.kind = kind
+            self.permissionMode = permissionMode
+            self.timeoutMs = timeoutMs
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case paneId = "pane_id"
+            case name
+            case kind
+            case permissionMode = "permission_mode"
+            case timeoutMs = "timeout_ms"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// Claude Code 的 --permission-mode。省略時沿用使用者在主機上的設定。
+    public enum ClaudePermissionMode: String, Codable, Sendable, CaseIterable {
+        case manual
+        case acceptEdits
+        case plan
+        case auto
+        case bypassPermissions
+    }
+}
+
+extension HostServiceProtocol {
+    /// Agent 已在 pane 啟動。
+    public struct AgentStartResult: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
         }
     }
 }
@@ -1339,6 +1995,569 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
+    /// 推播外掛代裝(raychiutw/purrdr.ios#261,0.6.0 起):查 herdr 是否已安裝推播外掛(purrdr.push)、這支裝置在這台主機是否已有推播配對(~/.purrdr/push-<device_id>/pairing)、其他已配對裝置數。唯讀，唯讀裝置也可用。
+    public struct PushStatus: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// app 的推播裝置 id(與 SSH 路徑相同):1–64 個小寫英數與 -,不能是 plugin。不合格回 invalid_message。
+        public var deviceId: String
+
+        public init(requestId: String, deviceId: String) {
+            self.requestId = requestId
+            self.deviceId = deviceId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case deviceId = "device_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 開啟這支裝置在這台主機的通知：寫入推播配對(與 SSH 路徑相同的 ~/.purrdr/push-<device_id>/pairing,已有就覆寫),外掛還沒安裝就以本機使用者身分執行 herdr plugin install raychiutw/purrdr.host/host-plugin --yes(來源固定，app 不能指定)。安裝失敗時還原成寫入前的樣子(原有的配對保留)並回 push_plugin_failed。重送一律代表「以這把 key 重新配對」(覆寫配對檔;外掛已裝就不重裝)。只改靜音請用 push.update_muted。
+    public struct PushInstall: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// app 的推播裝置 id(與 SSH 路徑相同):1–64 個小寫英數與 -,不能是 plugin。不合格回 invalid_message。
+        public var deviceId: String
+        public var pairing: PushPairing
+
+        public init(requestId: String, deviceId: String, pairing: PushPairing) {
+            self.requestId = requestId
+            self.deviceId = deviceId
+            self.pairing = pairing
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case deviceId = "device_id"
+            case pairing
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 關閉這支裝置在這台主機的通知：只移除這支裝置的配對資料夾;沒有其他裝置的配對、且外掛是 Purrdr 裝的(~/.purrdr/push-plugin/ 的紀錄)才執行 herdr plugin uninstall purrdr.push。使用者自己裝的外掛不動。外掛移除失敗回 push_plugin_failed(配對已移除)。
+    public struct PushRemove: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// app 的推播裝置 id(與 SSH 路徑相同):1–64 個小寫英數與 -,不能是 plugin。不合格回 invalid_message。
+        public var deviceId: String
+
+        public init(requestId: String, deviceId: String) {
+            self.requestId = requestId
+            self.deviceId = deviceId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case deviceId = "device_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 推播配對檔的內容(app 的 PushPairingFile):主機服務寫成 purrdr-push 1、endpoint=、key=、muted= 各一行。endpoint 必須是 https:// 開頭、不含空白與控制字元;key 是 64 位小寫 hex;muted 不能含控制字元。不合格回 invalid_message。
+    public struct PushPairing: Codable, Sendable, Equatable {
+        /// 後台 /v1/push 的網址。
+        public var endpoint: String
+        /// 推播配對密鑰(64 位小寫 hex);只寫進主機上的配對檔，不記進稽核紀錄。
+        public var key: String
+        /// 這支裝置靜音的聊天(Agent 的 session 值)。
+        public var muted: [String]?
+
+        public init(endpoint: String, key: String, muted: [String]? = nil) {
+            self.endpoint = endpoint
+            self.key = key
+            self.muted = muted
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case endpoint
+            case key
+            case muted
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 這台主機的推播狀態。
+    public struct PushStatusResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// herdr 已安裝 purrdr.push(不論是誰裝的)。
+        public var pluginInstalled: Bool
+        /// 這支裝置在這台主機有推播配對。
+        public var paired: Bool
+        /// 其他已配對裝置數(不含這支;不提供其他裝置的識別資訊)。
+        public var otherDevices: Int
+
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+            self.requestId = requestId
+            self.pluginInstalled = pluginInstalled
+            self.paired = paired
+            self.otherDevices = otherDevices
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case pluginInstalled = "plugin_installed"
+            case paired
+            case otherDevices = "other_devices"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 開啟完成，帶完成後的推播狀態(欄位同 push.status.result)。
+    public struct PushInstallResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var pluginInstalled: Bool
+        public var paired: Bool
+        public var otherDevices: Int
+
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+            self.requestId = requestId
+            self.pluginInstalled = pluginInstalled
+            self.paired = paired
+            self.otherDevices = otherDevices
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case pluginInstalled = "plugin_installed"
+            case paired
+            case otherDevices = "other_devices"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 關閉完成，帶完成後的推播狀態(欄位同 push.status.result)。
+    public struct PushRemoveResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var pluginInstalled: Bool
+        public var paired: Bool
+        public var otherDevices: Int
+
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+            self.requestId = requestId
+            self.pluginInstalled = pluginInstalled
+            self.paired = paired
+            self.otherDevices = otherDevices
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case pluginInstalled = "plugin_installed"
+            case paired
+            case otherDevices = "other_devices"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 同步這支裝置在這台主機的靜音清單(app 不保存配對密鑰，不能重送 push.install):只以原子方式改寫配對檔的 muted 行，保留 key 與 endpoint,不呼叫 herdr。沒有配對檔回 push_not_paired;muted 含控制字元或空字串回 invalid_message。
+    public struct PushUpdateMuted: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 同 push.install 的 device_id。
+        public var deviceId: String
+        /// 靜音的聊天(Agent 的 session 值),整份取代;空陣列表示取消全部靜音。
+        public var muted: [String]
+
+        public init(requestId: String, deviceId: String, muted: [String]) {
+            self.requestId = requestId
+            self.deviceId = deviceId
+            self.muted = muted
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case deviceId = "device_id"
+            case muted
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 靜音已更新。不問 herdr,plugin_installed 一律是 true(要確認外掛請用 push.status)。
+    public struct PushUpdateMutedResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var pluginInstalled: Bool
+        public var paired: Bool
+        public var otherDevices: Int
+
+        public init(requestId: String, pluginInstalled: Bool, paired: Bool, otherDevices: Int) {
+            self.requestId = requestId
+            self.pluginInstalled = pluginInstalled
+            self.paired = paired
+            self.otherDevices = otherDevices
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case pluginInstalled = "plugin_installed"
+            case paired
+            case otherDevices = "other_devices"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 上傳圖片或檔案(raychiutw/purrdr.host#16):開始一次分塊上傳。主機服務在家目錄的 .purrdr/uploads/ 建暫存檔，檔名由主機服務產生(不採用 app 給的名稱),超過 7 天的上傳檔定期刪除。size 超過 x-maximum-file-size 回 upload_too_large。中繼資料剝除在 app 端做，主機服務不解析內容。
+    public struct FileUploadStart: Codable, Sendable, Equatable {
+        /// 也是這次上傳的 upload_id。
+        public var requestId: String
+        /// 總 bytes。
+        public var size: Int
+        /// 主機檔名的副檔名(不含點):1–16 個英數字元，存成小寫;沒帶時不加副檔名。不合格回 invalid_message。
+        public var extension: String?
+
+        public init(requestId: String, size: Int, extension: String? = nil) {
+            self.requestId = requestId
+            self.size = size
+            self.extension = extension
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case size
+            case extension
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 上傳已開始，之後以 upload_id 送分塊。
+    public struct FileUploadStartResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var uploadId: String
+
+        public init(requestId: String, uploadId: String) {
+            self.requestId = requestId
+            self.uploadId = uploadId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case uploadId = "upload_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 依序送一塊內容(解碼後最多 x-maximum-file-chunk bytes,超過回 upload_too_large)。offset 必須等於已收到的 bytes,超過 size 或 upload_id 不是這條連線開始的都回 invalid_message,失敗後這次上傳作廢。收滿 size 時存成正式檔。連線結束時未完成的上傳刪掉。
+    public struct FileUploadChunk: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var uploadId: String
+        public var offset: Int
+        /// 標準 base64。
+        public var bytes: String
+
+        public init(requestId: String, uploadId: String, offset: Int, bytes: String) {
+            self.requestId = requestId
+            self.uploadId = uploadId
+            self.offset = offset
+            self.bytes = bytes
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case uploadId = "upload_id"
+            case offset
+            case bytes
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 分塊已寫入。收滿 size 時帶 path:主機上的絕對路徑，app 放進 prompt。
+    public struct FileUploadChunkResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var uploadId: String
+        /// 目前已收到的 bytes。
+        public var received: Int
+        public var path: String?
+
+        public init(requestId: String, uploadId: String, received: Int, path: String? = nil) {
+            self.requestId = requestId
+            self.uploadId = uploadId
+            self.received = received
+            self.path = path
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case uploadId = "upload_id"
+            case received
+            case path
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 列出這台主機已配對的裝置(raychiutw/purrdr.host#19;不含已撤銷的)。唯讀，唯讀裝置也可用。
+    public struct DevicesList: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 已配對的裝置，依配對先後。不含權杖或其雜湊。
+    public struct DevicesListResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var devices: [PairedDevice]
+
+        public init(requestId: String, devices: [PairedDevice]) {
+            self.requestId = requestId
+            self.devices = devices
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case devices
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 一支已配對的裝置。時間是 RFC 3339 UTC(到秒)。
+    public struct PairedDevice: Codable, Sendable, Equatable {
+        public var deviceId: String
+        /// 配對時 app 給的裝置名稱。
+        public var name: String
+        public var readOnly: Bool
+        public var pairedAt: String
+        /// 最後一次 WSS 連線的時間;還沒連過就沒有這欄。
+        public var lastConnectedAt: String?
+        /// 是發出這個請求的裝置。
+        public var current: Bool
+
+        public init(deviceId: String, name: String, readOnly: Bool, pairedAt: String, lastConnectedAt: String? = nil, current: Bool) {
+            self.deviceId = deviceId
+            self.name = name
+            self.readOnly = readOnly
+            self.pairedAt = pairedAt
+            self.lastConnectedAt = lastConnectedAt
+            self.current = current
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case deviceId = "device_id"
+            case name
+            case readOnly = "read_only"
+            case pairedAt = "paired_at"
+            case lastConnectedAt = "last_connected_at"
+            case current
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 撤銷一支已配對的裝置：之後它的每個 WSS 訊息都以 device_token_revoked 與 close code 4401 拒絕。已撤銷的再撤銷一次也成功;不認得的 device_id 回 device_unknown。
+    public struct DevicesRevoke: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// devices.list.result 裡的 device_id。
+        public var deviceId: String
+
+        public init(requestId: String, deviceId: String) {
+            self.requestId = requestId
+            self.deviceId = deviceId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case deviceId = "device_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 已撤銷。
+    public struct DevicesRevokeResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var deviceId: String
+
+        public init(requestId: String, deviceId: String) {
+            self.requestId = requestId
+            self.deviceId = deviceId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case deviceId = "device_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 從 app 管理主機服務(raychiutw/purrdr.host#18):查已安裝版本、最新版本(問 Release 來源)、自動更新開關、上次檢查或更新的結果與退回過的版本。唯讀，唯讀裝置也可用。沒有安裝(開發中直接執行)時回 host_service_not_installed。
+    public struct HostServiceStatus: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 主機服務的更新狀態(同主機上的 update --check 與 version)。
+    public struct HostServiceStatusResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        /// 安裝好的執行檔回報的版本;更新後重啟前可能比 welcome 的 host_service_version 新。
+        public var installedVersion: String
+        /// Release 來源的最新版本;取不到時沒有這欄，改帶 latest_error。
+        public var latestVersion: String?
+        /// 取不到最新版本的原因(給開發者看)。
+        public var latestError: String?
+        /// 最新版本比已安裝的大(只往更大的版本更新)。
+        public var updateAvailable: Bool
+        /// 安裝紀錄的自動更新開關。
+        public var autoUpdate: Bool
+        public var lastUpdate: HostServiceUpdateRecord?
+        /// 上次更新後起不來、已換回舊版的版本;背景自動更新不再重試它，host_service.update 仍會再試。更新成功後清掉。
+        public var rolledBack: String?
+
+        public init(requestId: String, installedVersion: String, latestVersion: String? = nil, latestError: String? = nil, updateAvailable: Bool, autoUpdate: Bool, lastUpdate: HostServiceUpdateRecord? = nil, rolledBack: String? = nil) {
+            self.requestId = requestId
+            self.installedVersion = installedVersion
+            self.latestVersion = latestVersion
+            self.latestError = latestError
+            self.updateAvailable = updateAvailable
+            self.autoUpdate = autoUpdate
+            self.lastUpdate = lastUpdate
+            self.rolledBack = rolledBack
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case installedVersion = "installed_version"
+            case latestVersion = "latest_version"
+            case latestError = "latest_error"
+            case updateAvailable = "update_available"
+            case autoUpdate = "auto_update"
+            case lastUpdate = "last_update"
+            case rolledBack = "rolled_back"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 上一次檢查或更新的時間與結果(update.json)。
+    public struct HostServiceUpdateRecord: Codable, Sendable, Equatable {
+        /// RFC 3339(UTC,到秒)。
+        public var checkedAt: String
+        /// 主機上 version 顯示的同一句話，例如 updated 0.5.0 -> 0.5.1、update failed: …(給人看，不解析)。
+        public var result: String
+
+        public init(checkedAt: String, result: String) {
+            self.checkedAt = checkedAt
+            self.result = result
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case checkedAt = "checked_at"
+            case result
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 立即更新：有更大的版本就以獨立程序執行安裝好的 update --yes(與主機上手動更新同一條流程：update.lock、核對 SHA256SUMS、起不來就換回),回應在重啟前送出。主機服務接著重啟、連線中斷，app 重新連線後以 welcome 的 host_service_version 確認結果，失敗退回時 host_service.status 看得到 rolled_back 與 last_update。已有更新在進行回 update_in_progress;取不到最新版本或啟動不了更新程序回 update_failed。
+    public struct HostServiceUpdate: Codable, Sendable, Equatable {
+        public var requestId: String
+
+        public init(requestId: String) {
+            self.requestId = requestId
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// started:更新程序已啟動，from_version → to_version;up_to_date:已是最新，沒有更新(不重啟)。
+    public struct HostServiceUpdateResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var outcome: HostServiceUpdateOutcome
+        /// 已安裝的版本。
+        public var fromVersion: String
+        /// 最新版本(started 時是要更新到的版本)。
+        public var toVersion: String
+
+        public init(requestId: String, outcome: HostServiceUpdateOutcome, fromVersion: String, toVersion: String) {
+            self.requestId = requestId
+            self.outcome = outcome
+            self.fromVersion = fromVersion
+            self.toVersion = toVersion
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case outcome
+            case fromVersion = "from_version"
+            case toVersion = "to_version"
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 立即更新的結果。
+    public enum HostServiceUpdateOutcome: String, Codable, Sendable, CaseIterable {
+        case started
+        case upToDate = "up_to_date"
+    }
+}
+
+extension HostServiceProtocol {
+    /// 開關背景自動更新(同主機上的 auto-update on|off,改安裝紀錄的 auto_update);背景服務下一次檢查時就照新的設定。
+    public struct HostServiceSetAutoUpdate: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var enabled: Bool
+
+        public init(requestId: String, enabled: Bool) {
+            self.requestId = requestId
+            self.enabled = enabled
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case enabled
+        }
+    }
+}
+
+extension HostServiceProtocol {
+    /// 已改好，帶改完後的開關。
+    public struct HostServiceSetAutoUpdateResult: Codable, Sendable, Equatable {
+        public var requestId: String
+        public var autoUpdate: Bool
+
+        public init(requestId: String, autoUpdate: Bool) {
+            self.requestId = requestId
+            self.autoUpdate = autoUpdate
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case requestId = "request_id"
+            case autoUpdate = "auto_update"
+        }
+    }
+}
+
+extension HostServiceProtocol {
     /// POST /v1/pair 的本文：以配對碼換裝置權杖。QR code 的內容是 purrdr://pair?address=<HTTPS 位址>&code=<配對碼>。
     public struct PairRequest: Codable, Sendable, Equatable {
         /// 大小寫與連字號不拘，例如 K7QM-2XPA。
@@ -1411,7 +2630,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的;transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
+    /// 錯誤種類。WSS 收到 device_token_invalid／device_token_revoked 後，主機服務以 close code 4401 關閉連線;HTTPS 請求回 401。transcript_not_allowed:session 不是 herdr 目前回報的，或路徑不是這條連線定位過的(或其 session 資料夾 subagents/ 底下的 .jsonl);transcript_unsupported:這種 agent 的對話紀錄主機服務還讀不了;file_changed:file.read 時檔案已不是要求的版本;push_plugin_failed:herdr plugin list／install／uninstall 失敗(message 是 herdr 的輸出);push_not_paired:push.update_muted 時這支裝置在這台主機沒有推播配對;device_unknown:devices.revoke 的 device_id 不是這台主機配對過的裝置;upload_too_large:上傳的總大小或分塊超過 x-maximum-file-size／x-maximum-file-chunk;host_service_not_installed:主機服務不是安裝好的那份，不能從 app 管理;update_in_progress:已有另一個更新在進行;update_failed:取不到最新版本、改不了設定或啟動不了更新程序(message 是原因);其他 transcript_* 對應行為規格 §4.7 的缺席、不可讀、有歧義、已壓縮。
     public enum ErrorCode: String, Codable, Sendable, CaseIterable {
         case invalidMessage = "invalid_message"
         case handshakeRequired = "handshake_required"
@@ -1431,6 +2650,13 @@ extension HostServiceProtocol {
         case transcriptAmbiguous = "transcript_ambiguous"
         case transcriptCompressed = "transcript_compressed"
         case fileChanged = "file_changed"
+        case pushPluginFailed = "push_plugin_failed"
+        case pushNotPaired = "push_not_paired"
+        case uploadTooLarge = "upload_too_large"
+        case deviceUnknown = "device_unknown"
+        case hostServiceNotInstalled = "host_service_not_installed"
+        case updateInProgress = "update_in_progress"
+        case updateFailed = "update_failed"
         case internalError = "internal_error"
     }
 }

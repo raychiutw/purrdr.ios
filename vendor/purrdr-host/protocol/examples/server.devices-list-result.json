@@ -1,0 +1,1 @@
+{"type":"devices.list.result","request_id":"r40","devices":[{"device_id":"3f9a1c0e7b2d4a58","name":"Ray 的 iPhone","read_only":false,"paired_at":"2026-11-01T08:30:00Z","last_connected_at":"2026-11-20T02:15:42Z","current":true},{"device_id":"a07c55e19d3b6f21","name":"Ray 的 iPad","read_only":true,"paired_at":"2026-11-10T12:00:05Z","current":false}]}

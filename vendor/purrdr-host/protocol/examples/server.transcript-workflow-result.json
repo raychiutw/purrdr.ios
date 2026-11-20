@@ -1,0 +1,1 @@
+{"type":"transcript.workflow.result","request_id":"r8","kind":"journal","checksum":"0b4f2a1c9e8d7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a","content":"{\"type\":\"workflow_started\",\"runId\":\"run_7f3a\"}\n{\"type\":\"agent_started\",\"agentId\":\"w1\",\"label\":\"查詢天氣\"}\n"}

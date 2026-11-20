@@ -1,0 +1,1 @@
+{"type":"host_service.status.result","request_id":"r41","installed_version":"0.6.0","latest_error":"https://api.github.com/repos/raychiutw/purrdr.host/releases/latest: connection refused","update_available":false,"auto_update":false}
