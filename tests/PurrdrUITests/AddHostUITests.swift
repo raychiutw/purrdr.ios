@@ -16,12 +16,13 @@ final class AddHostUITests: XCTestCase {
         choose("tailscaleSSH", in: app)
         XCTAssertEqual(field("port", in: app).value as? String, "22")
         XCTAssertTrue(field("username", in: app).exists)
-        XCTAssertFalse(app.buttons["hostEditor.signIn"].exists, "Tailscale SSH 不該有登入方式")
+        XCTAssertFalse(app.buttons["This Device’s Key"].exists, "Tailscale SSH 不該有登入方式")
         XCTAssertFalse(app.secureTextFields["hostEditor.password"].exists, "Tailscale SSH 不該有密碼")
 
         choose("openSSH", in: app)
         XCTAssertEqual(field("port", in: app).value as? String, "22")
-        let signIn = app.buttons["hostEditor.signIn"]
+        // 登入方式攤開成勾選列(#313)。
+        let signIn = app.buttons["This Device’s Key"]
         XCTAssertTrue(signIn.exists || scrollTo(signIn, in: app), "OpenSSH 沒有登入方式")
 
         choose("https", in: app)

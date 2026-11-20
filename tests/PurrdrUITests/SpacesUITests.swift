@@ -50,7 +50,8 @@ final class SpacesUITests: XCTestCase {
         for title in ["Show Layout", "Rename Workspace…", "Close Workspace…"] {
             XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 5), "長按選單沒有「\(title)」")
         }
-        app.tap()
+        // 點螢幕下方的空白處關選單(列變高後選單位置會移動，點正中央可能點到選單項目)。
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.92)).tap()
         XCTAssertTrue(app.buttons["Show Layout"].waitForNonExistence(timeout: 5))
 
         tab.tap()
