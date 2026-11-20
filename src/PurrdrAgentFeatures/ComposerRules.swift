@@ -464,3 +464,15 @@ public enum ComposerKeyboardLayout {
         }
     }
 }
+
+/// 開頭的 skill／slash 指令(「/名稱」到第一個空白為止):輸入框與聊天裡用系統綠色標出(實機回報 2026-11-20)。
+/// 名稱裡有第二個「/」的是路徑(`/Users/demo`),不算。
+public enum SlashToken {
+    public static func range(in text: String) -> Range<String.Index>? {
+        guard text.hasPrefix("/") else { return nil }
+        let end = text.firstIndex(where: \.isWhitespace) ?? text.endIndex
+        let name = text[text.index(after: text.startIndex)..<end]
+        guard !name.isEmpty, !name.contains("/") else { return nil }
+        return text.startIndex..<end
+    }
+}

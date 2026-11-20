@@ -47,61 +47,24 @@ struct ConversationHeaderLine: View {
     }
 }
 
-/// 對話底部的工作中指示(F5.11):即時預覽(次要色)+ 3×3 點陣 +「Working…」／「Writing…」+ 經過時間。
-/// 內容層，不用玻璃。Reduce Motion 時點陣不動。
+/// 對話底部的即時預覽(F5.11):工作中擷取到的散文(次要色)。狀態字、經過時間與停止在輸入卡片上方的工作中膠囊(`StopBar`),
+/// 畫面上只有一個工作中指示(原型 purrdr-screens 定案版)。內容層，不用玻璃。
 struct WorkingIndicatorView: View {
-    let since: Date
     let preview: String?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let preview {
-                Text(preview)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
-                    // AX 字級不限行數(DESIGN.md:支援到 AX5 不截斷,#35)。
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("conversation.livePreview")
-            }
-            HStack(spacing: 8) {
-                WorkingDotsView(reduceMotion: reduceMotion)
-                Text(preview == nil ? "Working…" : "Writing…")
-                TimelineView(.periodic(from: since, by: 1)) { context in
-                    Text(WorkingElapsed.text(seconds: Int(context.date.timeIntervalSince(since))))
-                        .monospacedDigit()
-                }
-            }
-            .font(.footnote)
-            .foregroundStyle(.secondaryText)
+        if let preview {
+            Text(preview)
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+                // AX 字級不限行數(DESIGN.md:支援到 AX5 不截斷,#35)。
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("conversation.livePreview")
+        } else {
+            // 捲動跟隨的目標列(`ConversationFollowTarget.workingRowID`)要在;沒有預覽時不佔空間。
+            Color.clear.frame(height: 1).accessibilityHidden(true)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("conversation.working")
-    }
-}
-
-struct WorkingDotsView: View {
-    let reduceMotion: Bool
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.18)) { context in
-            let frame = Int(context.date.timeIntervalSinceReferenceDate / 0.18)
-            let opacities = WorkingDots.opacities(frame: frame, reduceMotion: reduceMotion)
-            Grid(horizontalSpacing: 2, verticalSpacing: 2) {
-                ForEach(0..<3, id: \.self) { row in
-                    GridRow {
-                        ForEach(0..<3, id: \.self) { column in
-                            Circle()
-                                .frame(width: 3.5, height: 3.5)
-                                .opacity(opacities[row * 3 + column])
-                        }
-                    }
-                }
-            }
-        }
-        .foregroundStyle(AgentStatus.working.tone.style)
-        .accessibilityHidden(true)
     }
 }

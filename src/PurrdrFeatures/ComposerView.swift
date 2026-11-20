@@ -130,17 +130,16 @@ struct ComposerBar: View {
                     }
             }
             // 上下版面(#187):一張玻璃卡片，整寬輸入框在上、按鈕列在下;卡片內的按鈕不再疊玻璃。
+            // 工作中膠囊(原型 purrdr-screens 定案版):輸入卡片上方置中，不在卡片裡。
+            if model.showsStopBar {
+                let isCompact = arrangement.stopBar == .compact
+                StopBar(model: model, isCompact: isCompact)
+                    .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
+                        if isCompact { stopBarHeights.compact = height } else { stopBarHeights.full = height }
+                    }
+            }
             GlassEffectContainer {
                 VStack(spacing: 0) {
-                    if model.showsStopBar {
-                        let isCompact = arrangement.stopBar == .compact
-                        StopBar(model: model, isCompact: isCompact)
-                            .padding(.horizontal, 6)
-                            .padding(.top, 6)
-                            .onGeometryChange(for: Double.self) { $0.size.height } action: { height in
-                                if isCompact { stopBarHeights.compact = height } else { stopBarHeights.full = height }
-                            }
-                    }
                     editor
                         .padding(.horizontal, 4)
                         .padding(.top, 4)
@@ -675,6 +674,7 @@ struct ComposerTextEditor: UIViewRepresentable {
         view.accessibilityIdentifier = options.identifier
         view.accessibilityLabel = options.placeholder
         view.text = text
+        view.highlightSlashToken()
         // 可能在排版中回報：等這次更新結束再寫狀態。
         let availableHeight = availableHeight
         view.onAvailableHeightChange = { height in
@@ -892,8 +892,33 @@ final class KeyHandlingTextView: UITextView {
     /// 打字、組字、程式改寫草稿或移動游標後呼叫。
     func contentDidChange() {
         needsCaretFollow = true
+        highlightSlashToken()
         setNeedsLayout()
     }
+
+    /// 開頭的 skill／slash 指令用系統綠(實機回報 2026-11-20),其餘是主要文字色。組字中不動(改屬性會打斷組字)。
+    func highlightSlashToken() {
+        guard markedTextRange == nil else { return }
+        let storage = textStorage
+        let whole = NSRange(location: 0, length: storage.length)
+        let token = SlashToken.range(in: text).map { NSRange($0, in: text) }
+        var current: NSRange?
+        if storage.length > 0 {
+            var effective = NSRange()
+            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == Self.skillColor {
+                current = effective
+            }
+        }
+        guard current != token else { return }
+        storage.beginEditing()
+        storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
+        if let token { storage.addAttribute(.foregroundColor, value: Self.skillColor, range: token) }
+        storage.endEditing()
+        // 接著打的字照一般顏色，不延續指令的綠色。
+        typingAttributes[.foregroundColor] = UIColor.label
+    }
+
+    private static let skillColor = UIColor(Color.skillName)
 
     override func layoutSubviews() {
         super.layoutSubviews()

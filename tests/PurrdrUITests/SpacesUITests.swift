@@ -22,7 +22,7 @@ final class SpacesUITests: XCTestCase {
         XCTAssertTrue(notes.label.contains("Demo · notes"), "段落標題不是「主機 · workspace」:\(notes.label)")
         let tab = element("spaces.tab.demo/w3:t1", in: app)
         XCTAssertTrue(tab.exists)
-        XCTAssertTrue(tab.label.contains("Tab 1"), "Tab 列名稱不對:\(tab.label)")
+        XCTAssertTrue(tab.label.contains("Sync notes to Markdown"), "Tab 列名稱應是 Tab 裡的聊天標題:\(tab.label)")
         XCTAssertGreaterThan(tab.frame.minY, notes.frame.minY, "Tab 列不在段落標題下方")
         XCTAssertFalse(element("workspace.group.demo/w3", in: app).exists, "不該再有 workspace 群組")
     }

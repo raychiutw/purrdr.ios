@@ -121,4 +121,14 @@ final class AgentListUITests: XCTestCase {
             XCTAssertTrue(app.buttons[item].firstMatch.waitForExistence(timeout: 5), "選單沒有直接列出 \(item)")
         }
     }
+
+    /// 右上角的帳號圓圈跟「⋯」一樣大(實機回報 2026-11-20:原本比較小)。
+    @MainActor
+    func testAccountButtonMatchesMoreButton() {
+        let app = XCUIApplication.launchUITesting()
+        let account = app.buttons["toolbar.account"].firstMatch
+        let more = app.buttons["toolbar.more"].firstMatch
+        XCTAssertTrue(account.waitForExistence(timeout: 10))
+        XCTAssertEqual(account.frame.height, more.frame.height, accuracy: 2, "帳號 \(account.frame) 與「⋯」\(more.frame) 不一樣大")
+    }
 }

@@ -143,9 +143,9 @@ public struct ConversationView: View {
                     SlashPanelCard(model: model, panel: panel)
                         .id(ConversationFollowTarget.panelRowID)
                 }
-                // 工作中指示在列表最底下;agent 停止工作就消失(F5.11)。
-                if model.showsWorkingIndicator, let since = model.workingSince {
-                    WorkingIndicatorView(since: since, preview: model.livePreview)
+                // 即時預覽在列表最底下(工作中狀態在輸入卡片上方的膠囊);agent 停止工作就消失(F5.11)。
+                if model.showsWorkingIndicator, model.workingSince != nil {
+                    WorkingIndicatorView(preview: model.livePreview)
                         .id(ConversationFollowTarget.workingRowID)
                 }
             }
@@ -421,7 +421,8 @@ struct ConversationItemView: View {
         case .toolRun(let run):
             ToolRunView(run: run)
         case .skill(let skill):
-            CapsuleNote(text: String(localized: "Loaded skill: \(skill.name)"), symbol: "book.closed")
+            // skill 名稱用系統綠(實機回報 2026-11-20)。
+            CapsuleNote(text: Text("Loaded skill: \(Text(verbatim: skill.name).foregroundStyle(Color.skillName))"), symbol: "book.closed")
                 .accessibilityIdentifier("conversation.skill")
         case .note(let note):
             CapsuleNote(text: note.text, symbol: "info.circle")
@@ -561,6 +562,17 @@ struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
 
+    /// 開頭的 skill／slash 指令用系統綠(實機回報 2026-11-20),其餘照泡泡的文字色。
+    static func highlighted(_ text: String) -> AttributedString {
+        var attributed = AttributedString(text)
+        if let range = SlashToken.range(in: text),
+           let start = AttributedString.Index(range.lowerBound, within: attributed),
+           let end = AttributedString.Index(range.upperBound, within: attributed) {
+            attributed[start..<end].foregroundColor = .skillName
+        }
+        return attributed
+    }
+
     var body: some View {
         HStack {
             Spacer(minLength: 44)
@@ -571,7 +583,7 @@ struct UserBubbleView: View {
                     BubbleImagesView(images: known + Array(repeating: nil, count: max(0, bubble.imageCount - known.count)))
                 }
                 if !bubble.text.isEmpty {
-                    Text(bubble.text)
+                    Text(Self.highlighted(bubble.text))
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
@@ -597,11 +609,20 @@ struct UserBubbleView: View {
 
 /// 置中的系統註記膠囊。
 struct CapsuleNote: View {
-    let text: String
+    let text: Text
     let symbol: String
 
+    init(text: Text, symbol: String) {
+        self.text = text
+        self.symbol = symbol
+    }
+
+    init(text: String, symbol: String) {
+        self.init(text: Text(verbatim: text), symbol: symbol)
+    }
+
     var body: some View {
-        Label(text, systemImage: symbol)
+        Label { text } icon: { Image(systemName: symbol) }
             .font(.footnote)
             .foregroundStyle(.secondaryText)
             .padding(.horizontal, 12)

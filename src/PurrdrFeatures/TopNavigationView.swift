@@ -304,7 +304,8 @@ enum HostTool: Hashable {
 struct AccountButton: View {
     let member: MemberModel
     let action: () -> Void
-    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 28
+    // 跟旁邊「⋯」的玻璃圓鈕(36pt)一樣大(實機回報 2026-11-20:原本 28pt 看起來比較小)。
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 36
 
     var body: some View {
         // 名稱放在 Label 標題與無障礙表示:AX 字級時系統把這顆收進工具列的溢出選單。

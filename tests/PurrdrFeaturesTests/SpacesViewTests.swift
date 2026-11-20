@@ -79,15 +79,30 @@ struct SpacesViewTests {
         #expect(sections.last?.workspace == "scratch")
     }
 
-    @Test("Tab 名稱：herdr 的預設數字名稱與沒有名稱都顯示「Tab N」,人取的名稱照原文")
+    @Test("Tab 名稱：人取的照原文;herdr 的預設數字名稱或沒有名稱時用 Tab 裡的內容(Agent 的聊天標題、終端機的程式名)")
     func tabTitles() async throws {
         let model = await Self.model { response in
             SnapshotEdit.tab("w1:tA", in: &response) { $0["label"] = "CSV 匯出" }
             SnapshotEdit.tab("w1:tB", in: &response) { $0["label"] = NSNull() }
         }
 
+        let sections = model.agentList.spacesSections
+        let tabs = try #require(sections.first).tabs
+        // 實機回報(2026-11-20):SSH 主機的 Tab 都是 herdr 的預設名稱「1」「2」…,只顯示「Tab N」分不出來。
+        #expect(tabs.map(\.title) == ["整理植物照片的標籤", "CSV 匯出", "重構食譜匯入"])
+        #expect(sections.last?.tabs.map(\.title) == ["Shell"], "只有 shell 的 Tab 用程式名")
+    }
+
+    @Test("Tab 裡有多個 Agent:第一個的聊天標題加「+N」;什麼都沒有才是「Tab N」")
+    func tabTitleWithSeveralAgents() async throws {
+        let model = await Self.model { response in
+            // 改動：w1:pB 移到 w1:t6(和 w1:p6 同一個 Tab)。
+            SnapshotEdit.agent("w1:pB", in: &response) { $0["tab_id"] = "w1:t6" }
+        }
+
         let tabs = try #require(model.agentList.spacesSections.first).tabs
-        #expect(tabs.map(\.title) == ["Tab 1", "CSV 匯出", "Tab 3"])
+        #expect(tabs.first?.title == "整理植物照片的標籤 +1")
+        #expect(AgentListProjection.tabTitle(nil, contents: nil, position: 3) == "Tab 3")
     }
 
     @Test("點 Tab:只有一個 pane 直接開(Agent 開對話、終端機開 Pane 終端機);有多個 pane 開那個 Tab 的版面圖")
