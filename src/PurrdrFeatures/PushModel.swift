@@ -471,7 +471,8 @@ public final class PushModel {
         if case .kindsUpdateFailed = problem { problem = nil }
         do {
             let device = try service.device()
-            let tokenHex = PushService.hex(try await service.platform.deviceToken())
+            let token = try await service.platform.deviceToken()
+            let tokenHex = PushService.hex(token)
             try await service.session.registerPushPairing(
                 keyHash: keyHash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
                 kinds: updated)
