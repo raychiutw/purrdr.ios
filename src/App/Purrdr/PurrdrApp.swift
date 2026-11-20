@@ -25,6 +25,10 @@ struct PurrdrApp: App {
     private let welcome: WelcomeModel
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
+    /// App 鎖(#284):所有視窗共用一份鎖定狀態。
+    private let appLock: AppLock
+    /// 所有場景合併的生命週期(App 鎖依它判斷離開多久)。
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
@@ -124,6 +128,19 @@ struct PurrdrApp: App {
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
+        appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
+    }
+
+    /// App 鎖：設定存在本機偏好(預設關閉、不同步)。UI 測試用替身與另一個 UserDefaults suite,
+    /// `-uiTestingAppLock` 以已開啟啟動，`-uiTestingNoPasscode` 模擬沒有裝置密碼。
+    private static func makeAppLock(uiTesting: Bool, arguments: [String]) -> AppLock {
+        guard uiTesting else { return AppLock(authenticator: SystemDeviceOwnerAuthenticator(), defaults: .standard) }
+        let suiteName = "uiTesting.appLock"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defaults.set(arguments.contains("-uiTestingAppLock"), forKey: AppLock.enabledKey)
+        return AppLock(
+            authenticator: UITestingDeviceOwnerAuthenticator(hasPasscode: !arguments.contains("-uiTestingNoPasscode")), defaults: defaults)
     }
 
     /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。
@@ -251,16 +268,21 @@ struct PurrdrApp: App {
         WindowGroup(id: PurrdrCommands.mainWindowID) {
             TopNavigationView(
                 hosts: hosts, member: member, settings: settings, plus: plus, hostSync: hostSync, notifications: PushAppDelegate.router,
-                welcome: welcome)
+                welcome: welcome, appLock: appLock)
             .appAppearance()
+            .appLockCover(appLock)
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
         }
         .commands { PurrdrCommands() }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            appLock.scenePhaseChanged(to: AppLockPhase(phase), at: .now)
+        }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in
             if let window {
                 PaneWindowView(window: window, hosts: hosts)
                     .appAppearance()
+                    .appLockCover(appLock)
             }
         }
     }
