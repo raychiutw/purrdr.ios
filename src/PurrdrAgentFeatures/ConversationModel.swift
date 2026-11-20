@@ -284,13 +284,22 @@ public final class ConversationModel {
             let path = try await images.uploader.upload(data, named: images.makeFileName(originalName))
             insertIntoDraft(path)
         } catch {
-            notice = .fileUploadFailed
+            notice = Self.uploadNotice(for: error, otherwise: .fileUploadFailed)
         }
     }
 
-    /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗回傳 `nil`:整則不送(F6.5)。
-    private func uploadAttachments() async -> [String]? {
-        guard let images else { return attachments.isEmpty ? [] : nil }
+    /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
+    private static func uploadNotice(for error: any Error, otherwise: SendNotice) -> SendNotice {
+        guard case .hostServiceUpdateRequired(_, let installedVersion)? = error as? HostServiceError else { return otherwise }
+        return .hostServiceUpdateRequired(installedVersion: installedVersion)
+    }
+
+    /// 依序上傳還沒上傳的附件(已上傳的沿用路徑)。任何一張失敗丟出那個錯誤：整則不送(F6.5)。
+    private func uploadAttachments() async throws -> [String] {
+        guard let images else {
+            guard attachments.isEmpty else { throw HostServiceError.unsupported("upload") }
+            return []
+        }
         var paths: [String] = []
         for index in attachments.indices {
             if let path = attachments[index].uploadedPath {
@@ -298,8 +307,9 @@ public final class ConversationModel {
                 continue
             }
             let name = attachments[index].fileName
-            guard let url = images.store.url(of: name.value), let data = try? Data(contentsOf: url),
-                  let path = try? await images.uploader.upload(data, named: HostUploadName(name)) else { return nil }
+            guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
+            let data = try Data(contentsOf: url)
+            let path = try await images.uploader.upload(data, named: HostUploadName(name))
             if let current = attachments.firstIndex(where: { $0.fileName == name }) {
                 attachments[current].uploadedPath = path
             }
@@ -985,10 +995,13 @@ public final class ConversationModel {
         echoes.append(echo)
         rebuildEntries()
         // 圖片先逐張上傳;任何一張失敗 → 整則不送，草稿與圖片保留(F6.5、F7)。
-        guard let paths = await uploadAttachments() else {
+        let paths: [String]
+        do {
+            paths = try await uploadAttachments()
+        } catch {
             removeEcho(echo.id)
             restoreDraft(text)
-            notice = .uploadFailed
+            notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
             return
         }
         if let index = echoes.firstIndex(where: { $0.id == echo.id }) { echoes[index].imagePaths = paths }
@@ -1760,6 +1773,8 @@ public enum SendNotice: Sendable, Equatable {
     case fileUnreadable
     /// 檔案上傳到主機失敗，路徑沒有插入。
     case fileUploadFailed
+    /// HTTPS 主機的主機服務太舊、還不能上傳圖片或檔案(#288):提示更新主機服務。
+    case hostServiceUpdateRequired(installedVersion: String?)
     /// 送不出 slash 面板的按鍵(#45)。
     case panelKeysFailed
     /// 這支裝置配對成唯讀，什麼都沒送出。

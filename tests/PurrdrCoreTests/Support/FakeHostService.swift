@@ -58,6 +58,8 @@ final class FakeHostService: Sendable {
         var pings = 0
         /// 送給 app 的 WebSocket 文字訊息(回應與推送)。
         var sent: [String] = []
+        /// 收滿而存成正式檔的上傳內容。
+        var storedUploads: [Data] = []
     }
 
     struct Settings: Sendable {
@@ -94,6 +96,17 @@ final class FakeHostService: Sendable {
         var pushStatusFailure: String?
         /// 有值時 `push.remove` 移除外掛失敗(`push_plugin_failed`);配對已移除。
         var pushRemoveFailure: String?
+        /// 上傳收滿時回報的路徑;`nil` 時是 `/Users/demo/.purrdr/uploads/<主機產生的名稱>[.<副檔名>]`。
+        var uploadedPath: String?
+        /// 有值時 `file.upload.start` 以這個錯誤碼失敗。
+        var uploadStartError: String?
+    }
+
+    /// 進行中的上傳(仿照主機服務的 `PendingUpload`)。
+    private struct PendingUpload {
+        var size: Int
+        var fileExtension: String?
+        var received = Data()
     }
 
     /// 主機上的推播外掛與配對(`push.*`,規則同主機服務：最後一支裝置移除時才移除 Purrdr 裝的外掛)。
@@ -134,6 +147,8 @@ final class FakeHostService: Sendable {
     private let state: Mutex<(log: Log, settings: Settings, sockets: [any Channel], streams: [EventStream])>
     /// 等 app 關閉才送出的 `terminal.closed`(以串流識別碼為 key)。
     private let pendingTerminalClosings = Mutex<[String: String]>([:])
+    /// 進行中的上傳(以 upload_id 為 key)。
+    private let pendingUploads = Mutex<[String: PendingUpload]>([:])
 
     /// 開著的事件串流。
     private struct EventStream {
@@ -198,6 +213,8 @@ final class FakeHostService: Sendable {
             .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
                 let upgrader = NIOWebSocketServerUpgrader(
+                    // 上傳的一塊(1 MiB)base64 後超過預設的 16 KiB。
+                    maxFrameSize: 4 * 1024 * 1024, automaticErrorHandling: true,
                     shouldUpgrade: { channel, head in
                         guard head.uri == "/v1/ws" else { return channel.eventLoop.makeSucceededFuture(nil) }
                         // 升級前先移除 HTTP handler,升級後的 WebSocket 位元組才不會流到它。
@@ -206,6 +223,9 @@ final class FakeHostService: Sendable {
                     upgradePipelineHandler: { channel, head in
                         let authorization = head.headers.first(name: "Authorization")
                         return channel.eventLoop.makeCompletedFuture {
+                            // 分段送來的大訊息(上傳的分塊)併成一個 frame 再處理。
+                            try channel.pipeline.syncOperations.addHandler(NIOWebSocketFrameAggregator(
+                                minNonFinalFragmentSize: 0, maxAccumulatedFrameCount: 1024, maxAccumulatedFrameSize: 4 * 1024 * 1024))
                             try channel.pipeline.syncOperations.addHandler(
                                 WebSocketHandler(server: box.server!, authorization: authorization))
                         }
@@ -374,6 +394,11 @@ final class FakeHostService: Sendable {
             return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
         case "push.status", "push.install", "push.remove", "push.update_muted":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
+        case "file.upload.start", "file.upload.chunk":
+            if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
+                return [.text(Self.error(requestID, "read_only_device"))]
+            }
+            return [.text(upload(type, message, requestID: requestID ?? "", settings: settings))]
         case "pane.terminal.open":
             let readOnly = Self.token(authorization).map(settings.readOnlyTokens.contains) == true
             return openTerminal(streamID: requestID ?? "", readOnly: readOnly, reply: settings.paneTerminalReply)
@@ -430,6 +455,42 @@ final class FakeHostService: Sendable {
             return host.result(type + ".result", requestID: requestID, deviceID: deviceID)
         }
         return [.text(Self.json(reply))]
+    }
+
+    /// 分塊上傳：大小、分塊上限與 offset 的檢查照主機服務的 `uploads.rs`;失敗後這次上傳作廢。
+    private func upload(_ type: String, _ message: [String: Any], requestID: String, settings: Settings) -> String {
+        if type == "file.upload.start" {
+            let size = message["size"] as? Int ?? -1
+            guard size <= HostServiceProtocol.maximumFileSize else {
+                return Self.error(requestID, "upload_too_large", message: "upload is larger than \(HostServiceProtocol.maximumFileSize) bytes")
+            }
+            guard size >= 0 else { return Self.error(requestID, "invalid_message") }
+            if let code = settings.uploadStartError { return Self.error(requestID, code) }
+            pendingUploads.withLock { $0[requestID] = PendingUpload(size: size, fileExtension: message["extension"] as? String) }
+            return Self.json(["type": "file.upload.start.result", "request_id": requestID, "upload_id": requestID])
+        }
+        let uploadID = message["upload_id"] as? String ?? ""
+        guard var pending = pendingUploads.withLock({ $0.removeValue(forKey: uploadID) }),
+              let bytes = (message["bytes"] as? String).flatMap({ Data(base64Encoded: $0) }) else {
+            return Self.error(requestID, "invalid_message")
+        }
+        guard bytes.count <= HostServiceProtocol.maximumFileChunk else { return Self.error(requestID, "upload_too_large") }
+        guard message["offset"] as? Int == pending.received.count, pending.received.count + bytes.count <= pending.size else {
+            return Self.error(requestID, "invalid_message")
+        }
+        pending.received.append(bytes)
+        var result: [String: Any] = [
+            "type": "file.upload.chunk.result", "request_id": requestID, "upload_id": uploadID, "received": pending.received.count,
+        ]
+        if pending.received.count < pending.size {
+            pendingUploads.withLock { $0[uploadID] = pending }
+        } else {
+            let stored = pending.received
+            state.withLock { $0.log.storedUploads.append(stored) }
+            let name = "mh1a2b3c-k9x2m4p7" + (pending.fileExtension.map { ".\($0.lowercased())" } ?? "")
+            result["path"] = settings.uploadedPath ?? "/Users/demo/.purrdr/uploads/\(name)"
+        }
+        return Self.json(result)
     }
 
     /// 主機服務對錄製的 herdr stdout 做的轉接:frame 欄位原樣、加上串流識別碼。
