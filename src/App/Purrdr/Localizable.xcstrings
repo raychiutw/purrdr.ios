@@ -950,6 +950,29 @@
         }
       }
     },
+    "An agent finished" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 Agent 完成了"
+          }
+        }
+      }
+    },
+    "An agent finished." : {
+      "comment" : "「完成」推播內文(後台 APNs payload 的 loc-key)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 Agent 完成了。"
+          }
+        }
+      }
+    },
     "An agent needs you" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2187,6 +2210,17 @@
         }
       }
     },
+    "Couldn’t change which notifications this host sends: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法變更這台主機要送的通知:%@"
+          }
+        }
+      }
+    },
     "Couldn’t check %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3272,6 +3306,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "指紋"
+          }
+        }
+      }
+    },
+    "Finished" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
           }
         }
       }
@@ -4845,6 +4890,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通知裝置"
+          }
+        }
+      }
+    },
+    "Notification Types" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知種類"
           }
         }
       }

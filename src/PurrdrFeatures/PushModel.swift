@@ -34,6 +34,9 @@ public protocol PushPairingStore: AnyObject {
     /// 帶裝置 id 向後台註冊成功的配對(雜湊 → 當時的 device token);舊版 app 註冊的配對不在裡面。
     var registeredTokens: [String: String] { get }
     func setRegisteredToken(_ token: String?, forKeyHash keyHash: String)
+    /// 這組配對要收的推播種類;沒記過(舊版 app 開的)是 `nil`。
+    func kinds(forKeyHash keyHash: String) -> Set<PushKind>?
+    func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String)
 }
 
 extension PushPairingStore {
@@ -49,15 +52,23 @@ extension PushPairingStore {
 public final class InMemoryPushPairingStore: PushPairingStore {
     public private(set) var pairings: [String: String] = [:]
     public private(set) var registeredTokens: [String: String] = [:]
+    private var kindsByKeyHash: [String: Set<PushKind>] = [:]
 
     public init() {}
 
     public func setKeyHash(_ keyHash: String?, forHost host: String) {
-        if keyHash == nil, let old = pairings[host] { registeredTokens[old] = nil }
+        if keyHash == nil, let old = pairings[host] {
+            registeredTokens[old] = nil
+            kindsByKeyHash[old] = nil
+        }
         pairings[host] = keyHash
     }
 
     public func setRegisteredToken(_ token: String?, forKeyHash keyHash: String) { registeredTokens[keyHash] = token }
+
+    public func kinds(forKeyHash keyHash: String) -> Set<PushKind>? { kindsByKeyHash[keyHash] }
+
+    public func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String) { kindsByKeyHash[keyHash] = kinds }
 }
 
 /// 存在 `UserDefaults` 的紀錄(只在這支裝置，不同步;雜湊不是祕密)。
@@ -66,6 +77,7 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
     private let defaults: UserDefaults
     static let pairingsKey = "push.pairings"
     static let registeredTokensKey = "push.registeredTokens"
+    static let kindsKey = "push.kinds"
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -77,7 +89,10 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
 
     public func setKeyHash(_ keyHash: String?, forHost host: String) {
         var pairings = pairings
-        if keyHash == nil, let old = pairings[host] { setRegisteredToken(nil, forKeyHash: old) }
+        if keyHash == nil, let old = pairings[host] {
+            setRegisteredToken(nil, forKeyHash: old)
+            setKinds(nil, forKeyHash: old)
+        }
         pairings[host] = keyHash
         defaults.set(pairings, forKey: Self.pairingsKey)
     }
@@ -90,6 +105,18 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
         var tokens = registeredTokens
         tokens[keyHash] = token
         defaults.set(tokens, forKey: Self.registeredTokensKey)
+    }
+
+    /// 存成「雜湊 → 種類原始值陣列」;不認得的值略過。
+    public func kinds(forKeyHash keyHash: String) -> Set<PushKind>? {
+        guard let stored = (defaults.dictionary(forKey: Self.kindsKey) as? [String: [String]])?[keyHash] else { return nil }
+        return Set(stored.compactMap(PushKind.init(rawValue:)))
+    }
+
+    public func setKinds(_ kinds: Set<PushKind>?, forKeyHash keyHash: String) {
+        var stored = defaults.dictionary(forKey: Self.kindsKey) as? [String: [String]] ?? [:]
+        stored[keyHash] = kinds.map(PushKind.wireValues)
+        defaults.set(stored, forKey: Self.kindsKey)
     }
 }
 
@@ -168,8 +195,10 @@ public final class PushService {
         let hex = Self.hex(token)
         for keyHash in store.pairings.values.sorted() where store.registeredTokens[keyHash] != hex {
             do {
+                // 沒記過種類(舊版 app 開的)不帶，後台保留原本的偏好。
                 try await session.registerPushPairing(
-                    keyHash: keyHash, deviceToken: hex, environment: configuration.environment, device: device)
+                    keyHash: keyHash, deviceToken: hex, environment: configuration.environment, device: device,
+                    kinds: store.kinds(forKeyHash: keyHash))
                 store.setRegisteredToken(hex, forKeyHash: keyHash)
             } catch {
                 continue
@@ -304,6 +333,8 @@ public final class PushModel {
         case deviceIDUnavailable
         /// 通知開著，但主機上的靜音清單沒改成;附原因。
         case mutedSyncFailed(String)
+        /// 通知開著，但要收的種類沒改成(維持原本的);附原因。
+        case kindsUpdateFailed(String)
         case failed(String)
     }
 
@@ -313,6 +344,15 @@ public final class PushModel {
     public private(set) var otherDevices = 0
     /// 上次查狀態時主機外掛已裝(別的裝置或使用者裝的):開啟只新增這支裝置的配對。
     public private(set) var pluginAlreadyInstalled = false
+    /// 這台主機要收的推播種類(開著時才有意義)。
+    public private(set) var kinds: Set<PushKind> = PushModel.defaultKinds
+    /// 正在向後台改種類。
+    public private(set) var isUpdatingKinds = false
+
+    /// 新開啟的主機預設收的種類。
+    public static let defaultKinds: Set<PushKind> = [.blocked, .done]
+    /// 舊版 app 開的配對沒記種類：後台當成只收「需要你」。
+    static let legacyKinds: Set<PushKind> = [.blocked]
 
     private let service: PushService?
     private let hostID: String?
@@ -331,7 +371,10 @@ public final class PushModel {
         self.hostID = hostID
         self.installer = installer
         self.muted = muted
-        if let hostID, service?.store.keyHash(forHost: hostID) != nil { state = .on }
+        if let hostID, let store = service?.store, let keyHash = store.keyHash(forHost: hostID) {
+            state = .on
+            kinds = store.kinds(forKeyHash: keyHash) ?? Self.legacyKinds
+        }
         service?.track(self)
     }
 
@@ -389,7 +432,8 @@ public final class PushModel {
         let tokenHex = PushService.hex(deviceToken)
         do {
             try await service.session.registerPushPairing(
-                keyHash: key.hash, deviceToken: tokenHex, environment: service.configuration.environment, device: device)
+                keyHash: key.hash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
+                kinds: Self.defaultKinds)
         } catch BackendError.backend(_, "subscription_required", _) {
             return stop(.needsSubscription)
         } catch BackendError.signedOut {
@@ -406,7 +450,42 @@ public final class PushModel {
         }
         service.store.setKeyHash(key.hash, forHost: hostID)
         service.store.setRegisteredToken(tokenHex, forKeyHash: key.hash)
+        service.store.setKinds(Self.defaultKinds, forKeyHash: key.hash)
+        kinds = Self.defaultKinds
         state = .on
+    }
+
+    /// 使用者改這台主機要收的種類：以同一組配對向後台重送註冊。失敗維持原本的種類並說明;最後一個種類不能關。
+    public func setKind(_ kind: PushKind, isOn: Bool) async {
+        guard state == .on, !isUpdatingKinds, let service, let hostID,
+              let keyHash = service.store.keyHash(forHost: hostID) else { return }
+        var updated = kinds
+        if isOn {
+            updated.insert(kind)
+        } else {
+            updated.remove(kind)
+        }
+        guard updated != kinds, !updated.isEmpty else { return }
+        isUpdatingKinds = true
+        defer { isUpdatingKinds = false }
+        if case .kindsUpdateFailed = problem { problem = nil }
+        do {
+            let device = try service.device()
+            let token = try await service.platform.deviceToken()
+            let tokenHex = PushService.hex(token)
+            try await service.session.registerPushPairing(
+                keyHash: keyHash, deviceToken: tokenHex, environment: service.configuration.environment, device: device,
+                kinds: updated)
+            service.store.setKinds(updated, forKeyHash: keyHash)
+            service.store.setRegisteredToken(tokenHex, forKeyHash: keyHash)
+            kinds = updated
+        } catch BackendError.backend(_, "subscription_required", _) {
+            problem = .needsSubscription
+        } catch BackendError.signedOut {
+            problem = .needsSubscription
+        } catch {
+            problem = .kindsUpdateFailed(Self.describeKindsFailure(error))
+        }
     }
 
     /// 使用者關閉開關：移除主機上這支裝置的配對(最後一支才連外掛),撤銷後台配對。主機連不上時維持開啟並說明。
@@ -429,6 +508,7 @@ public final class PushModel {
             try? await service.session.revokePushPairing(keyHash: keyHash)
         }
         service.store.setKeyHash(nil, forHost: hostID)
+        kinds = Self.defaultKinds
         state = .off
     }
 
@@ -479,6 +559,17 @@ public final class PushModel {
             .deviceIDUnavailable
         default:
             .failed(describe(error))
+        }
+    }
+
+    static func describeKindsFailure(_ error: any Error) -> String {
+        switch error {
+        case BackendError.unreachable:
+            describe(error)
+        case is PushDeviceIDError:
+            String(localized: "Couldn’t read this device’s ID from the keychain. Unlock this device and try again.")
+        default:
+            String(localized: "Couldn’t change which notifications this host sends: \(error.localizedDescription)")
         }
     }
 
