@@ -5014,6 +5014,28 @@
         }
       }
     },
+    "Paired %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配對於 %@"
+          }
+        }
+      }
+    },
+    "Paired Devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已配對裝置"
+          }
+        }
+      }
+    },
     "Pairing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5619,6 +5641,17 @@
         }
       }
     },
+    "Read-Only" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀"
+          }
+        }
+      }
+    },
     "Read-only" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5901,6 +5934,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按 Return 送出"
+          }
+        }
+      }
+    },
+    "Revoke" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤銷"
+          }
+        }
+      }
+    },
+    "Revoke “%@”?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要撤銷「%@」嗎?"
+          }
+        }
+      }
+    },
+    "Revoke…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤銷…"
           }
         }
       }
@@ -7115,6 +7181,17 @@
         }
       }
     },
+    "That device can’t connect to this host until it’s paired again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那支裝置要重新配對才能再連到這台主機。"
+          }
+        }
+      }
+    },
     "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7731,6 +7808,17 @@
         }
       }
     },
+    "This Device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置"
+          }
+        }
+      }
+    },
     "This Device’s Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7771,6 +7859,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置無法接收通知。%@"
+          }
+        }
+      }
+    },
+    "This device is paired read-only, so it can’t revoke devices." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置配對成唯讀，不能撤銷裝置。"
           }
         }
       }
@@ -7947,6 +8046,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機不接受以密碼透過 SSH 登入。請改用金鑰，或在主機的 sshd 設定裡開啟 PasswordAuthentication。"
+          }
+        }
+      }
+    },
+    "This host doesn’t have that device anymore. Refresh the list." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機已經沒有那支裝置，請重新整理列表。"
           }
         }
       }
