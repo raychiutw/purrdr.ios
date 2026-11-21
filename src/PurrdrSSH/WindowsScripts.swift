@@ -494,6 +494,7 @@ enum WindowsScripts {
         $c=0
         try{$r=Invoke-WebRequest -UseBasicParsing -Uri $e -Method Post -ContentType 'application/json' -Body ('{"key":"'+$k+'","event":"test"'+$n+'}') -TimeoutSec 10;$c=[int]$r.StatusCode}
         catch{if($_.Exception.Response){$c=[int]$_.Exception.Response.StatusCode}else{[Console]::Error.Write($_.Exception.Message);exit 70}}
+        if($c -eq 410){$cur=$null;foreach($l in [IO.File]::ReadAllLines($f)){if($l.StartsWith('key=')){$cur=$l.Substring(4)}};if($cur -ceq $k){Remove-Item -LiteralPath ([IO.Path]::GetDirectoryName($f)) -Recurse -Force -ErrorAction SilentlyContinue}}
         PWrite "$c`\n"
         $o.Flush()
         """#

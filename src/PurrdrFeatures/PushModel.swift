@@ -428,6 +428,16 @@ public final class PushModel {
         do {
             try await sender.sendTest(hostID: hostID)
             testNotification = .sent
+        } catch PushTestNotificationError.notPaired {
+            // 主機上已沒有有效配對(被刪、後台已撤銷):與改靜音遇到 notPaired 相同，這台回到未開啟並撤銷後台配對，使用者重新開啟。
+            testNotification = .failed(Self.describeTestFailure(PushTestNotificationError.notPaired))
+            if let service, let keyHash = service.store.keyHash(forHost: hostID) {
+                service.store.setKeyHash(nil, forHost: hostID)
+                let session = service.session
+                Task { try? await session.revokePushPairing(keyHash: keyHash) }
+            }
+            state = .off
+            problem = nil
         } catch {
             testNotification = .failed(Self.describeTestFailure(error))
         }
@@ -627,7 +637,7 @@ public final class PushModel {
         case BackendError.signedOut:
             String(localized: "Couldn’t send the test notification because you’re signed out. Sign in again and try once more.")
         case PushTestNotificationError.notPaired:
-            String(localized: "This device isn’t paired with the host for notifications. Turn notifications off and on again.")
+            String(localized: "This device isn’t paired with the host for notifications any more, so they’re now off. Turn them on again.")
         case PushTestNotificationError.subscriptionRequired:
             String(localized: "Test notifications need Purrdr Plus.")
         case PushTestNotificationError.rateLimited:

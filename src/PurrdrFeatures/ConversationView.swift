@@ -74,6 +74,11 @@ public struct ConversationView: View {
                 guard scenePhase == .active else { return }
                 await model.run()
             }
+            // 離開期間摘要(#308):app 進背景再回來也算離開。
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { model.scenePhaseChanged(isBackground: true) }
+                if phase == .active { model.scenePhaseChanged(isBackground: false) }
+            }
             // Send When Done 佇列跟著主機的推送(#305);回到前景時重新讀回。
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }

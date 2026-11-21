@@ -114,6 +114,42 @@ struct AwayTrackingTests {
         #expect(row?.isAway == false)
     }
 
+    @Test("離開期間徽章帶「+N 輪」:離開超過 15 分鐘的列去算輪數，同一個開啟時間只算一次(#308)")
+    func badgeCountsTurns() async {
+        let model = await Self.model(leftAgo: 3600)
+        let counter = TurnCounter(turns: 3)
+        model.awayTurnCounter = { route, openedAt in await counter.count(route, openedAt) }
+        #expect(UnreadPinnedTests.row("w1:p6", in: model)?.awayTurns == nil, "還沒算")
+
+        await model.refreshAwayTurns()
+        #expect(UnreadPinnedTests.row("w1:p6", in: model)?.awayTurns == 3)
+
+        await model.refreshAwayTurns()
+        #expect(await counter.calls == 1, "沒變就不重算")
+    }
+
+    @Test("離開不到 15 分鐘的列(沒有徽章):不算輪數")
+    func noCountWithoutBadge() async {
+        let model = await Self.model(leftAgo: 300)
+        let counter = TurnCounter(turns: 3)
+        model.awayTurnCounter = { route, openedAt in await counter.count(route, openedAt) }
+
+        await model.refreshAwayTurns()
+
+        #expect(await counter.calls == 0)
+        #expect(UnreadPinnedTests.row("w1:p6", in: model)?.awayTurns == nil)
+    }
+
+    actor TurnCounter {
+        let turns: Int
+        private(set) var calls = 0
+        init(turns: Int) { self.turns = turns }
+        func count(_ route: ChatRoute, _ openedAt: Date) -> Int? {
+            calls += 1
+            return turns
+        }
+    }
+
     @Test("聊天出現時記下上次離開的時間，開著期間(含自己更新的開啟時間)不變，離開後清掉")
     func awayStartIsLatchedWhileVisible() async {
         let model = await Self.model(leftAgo: 3600)

@@ -528,6 +528,22 @@ public final class ConversationModel {
         return entries.filter { !hidden.contains($0.id) }
     }
 
+    /// app 進背景的時間(聊天一直開著時的離開起點，#308)。
+    private var backgroundedAt: Date?
+
+    /// app 進背景或回到前景(由畫面的 scenePhase 回報):進背景記起點，回來時離開起點與這次進來的時間重新定下來，
+    /// 之後的摘要規則同進出聊天畫面(離開 15 分鐘以上才出現)。
+    public func scenePhaseChanged(isBackground: Bool) {
+        if isBackground {
+            if backgroundedAt == nil { backgroundedAt = clock.now() }
+            return
+        }
+        guard let from = backgroundedAt else { return }
+        backgroundedAt = nil
+        awayLatch = (from, clock.now())
+        updateAwaySummary()
+    }
+
     private func updateAwaySummary() {
         if awayLatch == nil, !items.isEmpty, let from = awayStart?() { awayLatch = (from, clock.now()) }
         awaySummary = awayLatch.flatMap { AwaySummary.make(items: items, awayFrom: $0.from, cutoff: $0.cutoff) }

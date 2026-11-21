@@ -40,6 +40,47 @@ struct ConversationAwayTests {
         #expect(fresh.model.awaySummary == summary, "定下來之後不隨離開起點改變")
     }
 
+    @Test("app 進背景超過 15 分鐘再回來(聊天一直開著)：離開起點是進背景的時間，回來時出現摘要(#308)")
+    func backgroundingTheAppStartsAnAwayPeriod() async throws {
+        let probe = try ConversationModelTests.setup()
+        await probe.host.bridge.expect(ConversationModelTests.bridge, reply: ConversationModelTests.snapshot())
+        await probe.model.poll()
+        let dates = probe.model.items.compactMap(\.date)
+        let first = try #require(dates.min())
+        let last = try #require(dates.max())
+
+        let fresh = try ConversationModelTests.setup()
+        await fresh.host.bridge.expect(ConversationModelTests.bridge, reply: ConversationModelTests.snapshot())
+        await fresh.model.poll()
+        #expect(fresh.model.awaySummary == nil, "一直開著、沒進過背景")
+
+        fresh.clock.advance(by: first.addingTimeInterval(-3600).timeIntervalSince(fresh.clock.now))
+        fresh.model.scenePhaseChanged(isBackground: true)
+        fresh.clock.advance(by: last.timeIntervalSince(fresh.clock.now) + 60)
+        fresh.model.scenePhaseChanged(isBackground: false)
+
+        let summary = try #require(fresh.model.awaySummary)
+        #expect(summary.turns >= 1)
+    }
+
+    @Test("app 只進背景一下(不到 15 分鐘)：沒有摘要")
+    func shortBackgroundingHasNoSummary() async throws {
+        let probe = try ConversationModelTests.setup()
+        await probe.host.bridge.expect(ConversationModelTests.bridge, reply: ConversationModelTests.snapshot())
+        await probe.model.poll()
+        let last = try #require(probe.model.items.compactMap(\.date).max())
+
+        let fresh = try ConversationModelTests.setup()
+        await fresh.host.bridge.expect(ConversationModelTests.bridge, reply: ConversationModelTests.snapshot())
+        await fresh.model.poll()
+        fresh.clock.advance(by: last.addingTimeInterval(-60).timeIntervalSince(fresh.clock.now))
+        fresh.model.scenePhaseChanged(isBackground: true)
+        fresh.clock.advance(by: 120)
+        fresh.model.scenePhaseChanged(isBackground: false)
+
+        #expect(fresh.model.awaySummary == nil)
+    }
+
     @Test("沒有離開起點(沒開過的聊天)：沒有摘要")
     func noAwayStart() async throws {
         let setup = try ConversationModelTests.setup()

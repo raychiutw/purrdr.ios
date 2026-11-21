@@ -11217,13 +11217,13 @@
         }
       }
     },
-    "This device isn’t paired with the host for notifications. Turn notifications off and on again." : {
+    "This device isn’t paired with the host for notifications any more, so they’re now off. Turn them on again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這支裝置尚未與電腦配對通知。請把通知關掉再重新開啟。"
+            "value" : "這支裝置在這台電腦上已不再配對通知，所以通知已關閉。請重新開啟。"
           }
         }
       }
@@ -13117,6 +13117,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "離開期間"
+          }
+        }
+      }
+    },
+    "While away · +%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離開期間 · +%@"
           }
         }
       }

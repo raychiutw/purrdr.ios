@@ -11,6 +11,8 @@ package enum ChatUnread {
         package var isUnread = false
         /// 離開超過 15 分鐘後才有的未讀(列表列的「離開期間」徽章，#308)。
         package var isAway = false
+        /// 離開期間的輪數(已算出才有;只在 `isAway` 時有意義)。
+        package var awayTurns: Int?
         package var pinnedAt: Date?
         package var isMuted = false
 
@@ -22,6 +24,7 @@ package enum ChatUnread {
                 session: agent.sessionID, preview: source.previews[agent.paneID], opened: source.preferences.opened, isVisible: isVisible)
             if let session = agent.sessionID {
                 isAway = AwaySummary.rowIsAway(isUnread: isUnread, openedAt: source.preferences.opened[session], now: source.now)
+                awayTurns = isAway ? source.awayTurns[agent.paneID] : nil
                 pinnedAt = source.preferences.pinned[session]
                 isMuted = source.preferences.muted.contains(session)
             }

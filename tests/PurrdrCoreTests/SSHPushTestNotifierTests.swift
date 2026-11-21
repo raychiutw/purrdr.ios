@@ -141,7 +141,7 @@ struct SSHPushTestNotifierTests {
     }
 
     @Test("後台錯誤碼對應畫面說明的錯誤", arguments: [
-        (404, PushTestNotificationError.notPaired), (410, .notPaired), (403, .subscriptionRequired),
+        (404, PushTestNotificationError.notPaired), (403, .subscriptionRequired),
         (429, .rateLimited), (502, .apnsFailed), (500, .backendRejected(statusCode: 500)),
     ])
     func backendStatusMapsToError(status: Int, expected: PushTestNotificationError) async throws {
@@ -150,6 +150,18 @@ struct SSHPushTestNotifierTests {
 
         await #expect(throws: expected) { try await notifier().send() }
         #expect(FileManager.default.fileExists(atPath: host.url(".purrdr/push-0123456789abcdef/pairing").path), "不刪配對檔")
+    }
+
+    @Test("後台回 410(配對已撤銷):比照主機外掛，刪掉這支裝置的配對資料夾，再回 notPaired;其他裝置的配對不動")
+    func revokedPairingIsDeletedOnTheHost() async throws {
+        let backend = try await FakePushBackend(status: 410)
+        _ = try pair("0123456789abcdef", endpoint: "http://127.0.0.1:\(backend.port)/v1/push")
+        _ = try pair(Self.otherID, endpoint: "http://127.0.0.1:\(backend.port)/v1/push")
+
+        await #expect(throws: PushTestNotificationError.notPaired) { try await notifier().send() }
+
+        #expect(!FileManager.default.fileExists(atPath: host.url(".purrdr/push-0123456789abcdef").path), "整個配對資料夾刪掉")
+        #expect(FileManager.default.fileExists(atPath: host.url(".purrdr/push-\(Self.otherID)/pairing").path))
     }
 
     @Test("後台錯誤碼字串與狀態碼對應一致(HTTPS 的 push_send_failed 共用)")
@@ -185,6 +197,7 @@ struct SSHPushTestNotifierTests {
         #expect(script.contains("Invoke-WebRequest"))
         #expect(script.contains("push-0123456789abcdef"))
         #expect(script.contains("host_name"))
+        #expect(script.contains("410") && script.contains("Remove-Item"), "410 時刪掉配對")
     }
 }
 #endif

@@ -16,6 +16,18 @@ public final class AgentListModel {
     /// 這台主機的主機更新來源。
     public let updates: HostUpdates
     private let transcripts: TranscriptReader?
+
+    /// 離開期間的輪數(#308):讀這個 Agent 對話紀錄最後一小段(`openingLines`／`openingMaxBytes`),數 `openedAt` 之後的輪數。
+    /// 讀不到或沒有對話紀錄回 `nil`。
+    public func awayTurns(paneID: String, openedAt: Date, now: Date = Date()) async -> Int? {
+        guard let transcripts, let target = snapshot?.agents.first(where: { $0.paneID == paneID })?.transcriptTarget,
+              let file = try? await transcripts.locate(target),
+              let chunk = try? await transcripts.window(
+                  path: file.path, endingAt: file.size, lines: 400, maxBytes: 256 << 10)
+        else { return nil }
+        let items = Conversation.items(from: chunk.lines.flatMap(target.format.messages(in:)))
+        return AwaySummary.make(items: items, awayFrom: openedAt, cutoff: now)?.turns
+    }
     private let sleep: Sleep
 
     /// 所在的主機(列的身分)。
@@ -253,6 +265,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public var isUnread: Bool
     /// 離開超過 15 分鐘後有新回覆(列表列的「離開期間」徽章，#308)。
     public var isAway: Bool
+    /// 離開期間的輪數(徽章的「+N 輪」);還沒算出或沒有徽章時 `nil`。
+    public var awayTurns: Int?
     /// 已釘選、已靜音(標題後的小圖示)。
     public var isPinned: Bool
     public var isMuted: Bool
@@ -266,7 +280,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public init(
         host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, workspace: String? = nil, subtitle: String,
         hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
-        isUnread: Bool = false, isAway: Bool = false, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil
+        isUnread: Bool = false, isAway: Bool = false, awayTurns: Int? = nil, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil
     ) {
         self.host = host
         self.paneID = paneID
@@ -280,6 +294,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
         self.status = status
         self.isUnread = isUnread
         self.isAway = isAway
+        self.awayTurns = awayTurns
         self.isPinned = isPinned
         self.isMuted = isMuted
         self.progress = progress
