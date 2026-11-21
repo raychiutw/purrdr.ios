@@ -19,7 +19,7 @@ public actor FakeHostConnection: HostConnection {
     public private(set) var subscriptionsClosed: [Bool] = []
     public private(set) var disconnectCount = 0
 
-    private var expectations: [(method: String, reply: Data)] = []
+    private var expectations: [(method: String, reply: Result<Data, any Error>)] = []
     private var subscriptions: [AsyncThrowingStream<Data, any Error>.Continuation] = []
 
     /// `hostServiceVersion()` 回報的版本(#198);`nil` 像 SSH 一樣沒有主機服務。
@@ -38,10 +38,24 @@ public actor FakeHostConnection: HostConnection {
 
     public func hostServiceVersion() async throws -> String? { reportedHostServiceVersion }
 
+    /// `checksSendExpectations()` 的回答(#304);`true` 像 0.7.0 起的主機服務，送出請求帶比對欄位。
+    private var checksExpectations = false
+
+    public func setChecksSendExpectations(_ checks: Bool) {
+        checksExpectations = checks
+    }
+
+    public func checksSendExpectations() async -> Bool { checksExpectations }
+
     /// 預期 app 會送出 `method` 的請求，以 `reply`(錄製的回應)回應。同一 method 可預期多次，依序消耗。
     /// `events.subscribe` 的回應送完後串流保持開著，之後用 `send(event:toSubscription:)` 推事件。
     public func expect(_ method: String, reply: Data) {
-        expectations.append((method, reply))
+        expectations.append((method, .success(reply)))
+    }
+
+    /// 預期 app 會送出 `method` 的請求，以 `failure` 失敗(例如主機服務的 `HostServiceError.paneChanged`)。
+    public func expect(_ method: String, failure: any Error) {
+        expectations.append((method, .failure(failure)))
     }
 
     /// 還沒被送出的預期請求(method)。
@@ -217,7 +231,7 @@ public actor FakeHostConnection: HostConnection {
         guard let index = expectations.firstIndex(where: { $0.method == method }) else {
             throw FakeHostConnectionError.unexpectedRequest(method)
         }
-        return expectations.remove(at: index).reply
+        return try expectations.remove(at: index).reply.get()
     }
 
     private func closeSubscription(_ index: Int) {
