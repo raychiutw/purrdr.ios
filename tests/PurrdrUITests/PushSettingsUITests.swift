@@ -139,7 +139,7 @@ final class PushSettingsUITests: XCTestCase {
         let pair = element("account.push.\(Self.httpsHost).status", in: app)
         XCTAssertEqual(pair.label, "Pair This Host First")
         XCTAssertTrue(pair.isHittable)
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "best-effort")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "may be delayed")).firstMatch.exists)
         // 沒有跳系統的通知權限對話框。
         XCTAssertFalse(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch.exists)
     }
@@ -175,10 +175,14 @@ final class PushSettingsUITests: XCTestCase {
     /// 主機編輯器是 Form:畫面外的列不建立，往上捲到元素出現。
     @MainActor
     private func scrollToEditor(_ target: XCUIElement, in app: XCUIApplication) -> Bool {
-        for _ in 0..<6 where !(target.exists && target.isHittable) {
-            app.swipeUp()
+        // 軟體鍵盤擋住下半部時，元素要在鍵盤上緣之上才算點得到。
+        let keyboard = app.keyboards.firstMatch
+        func isReachable() -> Bool {
+            target.exists && target.isHittable && (!keyboard.exists || target.frame.maxY < keyboard.frame.minY)
         }
-        return target.exists && target.isHittable
+        for _ in 0..<6 where !isReachable() { app.swipeUp() }
+        for _ in 0..<6 where !isReachable() { app.swipeDown() }
+        return target.exists
     }
 
     /// 連不上的主機：開啟失敗寫出原因與「點開關重試」,開關仍可點。

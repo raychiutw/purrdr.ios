@@ -137,7 +137,7 @@ final class HostsUITests: XCTestCase {
 
         let problem = app.descendants(matching: .any)["hostEditor.keyProblem"].firstMatch
         XCTAssertTrue(problem.waitForExistence(timeout: 5) || scrollTo(problem, in: app))
-        XCTAssertTrue(problem.label.contains("RSA"))
+        XCTAssertTrue(problem.label.contains("isn’t supported"))
         let useDeviceKey = app.buttons["hostEditor.useDeviceKey"]
         XCTAssertTrue(useDeviceKey.exists || scrollTo(useDeviceKey, in: app))
         useDeviceKey.tap()
@@ -166,9 +166,13 @@ final class HostsUITests: XCTestCase {
     /// 往下捲到元素出現(表單比畫面長)。
     @MainActor
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        for _ in 0..<6 where !element.isHittable {
-            app.swipeUp()
+        // 軟體鍵盤擋住下半部時，元素要在鍵盤上緣之上才算點得到。
+        let keyboard = app.keyboards.firstMatch
+        func isReachable() -> Bool {
+            element.isHittable && (!keyboard.exists || element.frame.maxY < keyboard.frame.minY)
         }
+        for _ in 0..<6 where !isReachable() { app.swipeUp() }
+        for _ in 0..<6 where !isReachable() { app.swipeDown() }
         return element.exists
     }
 
