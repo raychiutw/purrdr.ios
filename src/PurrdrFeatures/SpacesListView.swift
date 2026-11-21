@@ -112,14 +112,21 @@ struct AgentKindAvatar: View {
     let kind: AgentKind
     static let baseSide: CGFloat = 36
     // 方塊隨字級放大但有上限(#314、使用者決定);字母用實際字級(固定字級的字母會被稽核判為 Dynamic Type 不支援)。
+    private let compact: Bool
+
+    /// `compact` 是對話裡每輪開頭的小頭像(#351,20pt)。
+    init(kind: AgentKind, compact: Bool = false) {
+        self.kind = kind
+        self.compact = compact
+    }
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
-        AvatarBox(fill: style.palette.color)
+        AvatarBox(fill: style.palette.color, compact: compact)
             .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
             .overlay {
                 Text(verbatim: style.letter)
-                    .font(.subheadline.bold())
+                    .font(compact ? .caption2.bold() : .subheadline.bold())
                     .foregroundStyle(.white)
             }
     }

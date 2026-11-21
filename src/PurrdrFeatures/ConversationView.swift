@@ -145,8 +145,14 @@ public struct ConversationView: View {
         }
     }
 
+    /// 每輪開頭的頭像與名稱(#351)。
+    private var agentTurnHeader: AgentTurnHeader {
+        AgentTurnHeader(kind: AgentKind(rawKind: model.agentKind ?? ""), name: model.agentName)
+    }
+
     private func messageList(_ proxy: ScrollViewProxy) -> some View {
-        ScrollView {
+        let turnStarts = ConversationEntry.turnStartTextIDs(in: model.visibleEntries)
+        return ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 olderRow
                 ForEach(model.visibleEntries) { entry in
@@ -156,7 +162,7 @@ public struct ConversationView: View {
                     Group {
                         switch entry {
                         case .item(let item):
-                            ConversationItemView(item: item)
+                            ConversationItemView(item: item, turnHeader: turnStarts.contains(item.id) ? agentTurnHeader : nil)
                         case .echo(let echo):
                             EchoBubbleView(echo: echo) {
                                 Task { await model.retry(echoID: echo.id) }
@@ -518,13 +524,15 @@ extension ConversationModel.Banner {
 
 struct ConversationItemView: View {
     let item: ConversationItem
+    /// 這則是每輪第一則 Agent 文字時帶頭像與名稱(#351)。
+    var turnHeader: AgentTurnHeader?
 
     var body: some View {
         switch item {
         case .user(let bubble):
             UserBubbleView(bubble: bubble)
         case .agentText(let text):
-            AgentMessageView(text: text)
+            AgentMessageView(text: text, turnHeader: turnHeader)
         case .toolRun(let run):
             ToolRunView(run: run)
         case .skill(let skill):
@@ -554,6 +562,7 @@ struct ConversationItemView: View {
 /// 文字中的主機路徑可點(#229):在 app 內沿用檔案卡片的開啟流程(圖片看大圖、其他用 QuickLook),不交給系統;點之前不讀檔。
 struct AgentMessageView: View {
     let text: AgentText
+    var turnHeader: AgentTurnHeader?
     @Environment(\.agentImages) private var context
     /// 點了的主機路徑：開啟中或開不了時在訊息下方顯示狀態。
     @State private var openedPath: String?
@@ -563,6 +572,9 @@ struct AgentMessageView: View {
     var body: some View {
         let markdown = MarkdownView(text.markdown)
         VStack(alignment: .leading, spacing: 6) {
+            if let turnHeader {
+                AgentTurnHeaderView(header: turnHeader, date: text.date)
+            }
             markdown
                 .accessibilityElement(children: markdown.hasStructuredBlocks || markdown.hasHostPaths ? .contain : .combine)
                 .accessibilityLabel { label in
@@ -601,6 +613,34 @@ struct AgentMessageView: View {
             }
             if openedPath == path { openedPath = nil }
         }
+    }
+}
+
+/// 每輪開頭的頭像與名稱(#351)。
+struct AgentTurnHeader: Equatable {
+    var kind: AgentKind
+    var name: String
+}
+
+/// Agent 回覆不包泡泡，每輪開頭一列小頭像、名稱與時間(原型 A1 的 `.who`)。時間跟著 Dynamic Type 放大(#258)。
+/// VoiceOver 念在訊息的標籤裡(「Agent:」),這一列隱藏、不重複。
+struct AgentTurnHeaderView: View {
+    let header: AgentTurnHeader
+    let date: Date?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            AgentKindAvatar(kind: header.kind, compact: true)
+            Text(verbatim: header.name)
+                .fontWeight(.semibold)
+            if let date {
+                Text(date, format: .dateTime.hour().minute())
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondaryText)
+        .accessibilityHidden(true)
+        .accessibilityIdentifier("conversation.agent.header")
     }
 }
 
