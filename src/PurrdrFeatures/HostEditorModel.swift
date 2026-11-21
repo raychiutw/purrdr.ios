@@ -64,6 +64,10 @@ public final class HostEditorModel {
     public var herdrPath = ""
     /// 空白為預設 session。
     public var herdrSession = ""
+    /// 「詳細資訊」(指紋、herdr Path、Session)一打開是否展開:預設收合，主機已有自訂 herdr 設定才展開(#359)。
+    public var detailsExpandedInitially: Bool { !(herdrPath.isEmpty && herdrSession.isEmpty) }
+    /// HTTPS 主機要使用者在電腦上執行的配對指令(畫面給拷貝鈕)。
+    public static let hostServicePairCommand = "purrdr-host-service pair"
     /// 新主機還沒選是 `nil`,這時不出現連線欄位。換方式時，沒手動改過的 Port 換成新方式的預設。
     public var connectionMethod: HostConfiguration.ConnectionMethod? {
         get { chosenMethod }

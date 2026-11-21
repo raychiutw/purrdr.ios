@@ -123,7 +123,14 @@ public struct PlanUsageView: View {
                 detail: "\(hostName) can’t show plan usage. Choose another host.")
         case .failed(let failure):
             PlanUsageMessage(
-                systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(failure.text) Pull down to try again.")
+                systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(failure.text) Pull down to try again."
+            ) {
+                // 要使用者在主機上執行的指令一律有拷貝鈕(#359)。
+                if failure == .codexNotSignedIn {
+                    InstructionView(instruction: AddHostGuideInstruction(text: String(localized: "Run this on the host:"), command: "codex login"))
+                        .padding(.horizontal)
+                }
+            }
         }
         if let message = model.message {
             Label(message, systemImage: "exclamationmark.triangle")
@@ -220,7 +227,7 @@ extension PlanUsageFailure {
         case .codexNotFound:
             String(localized: "This host can’t find Codex. Install Codex there first.")
         case .codexNotSignedIn:
-            String(localized: "Codex isn’t signed in on this host. On the host, run: codex login")
+            String(localized: "Codex isn’t signed in on this host. Sign in there with the command below.")
         case .codexUnreadableResponse:
             String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help.")
         case .codexTimedOut:

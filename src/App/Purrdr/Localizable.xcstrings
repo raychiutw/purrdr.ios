@@ -1172,17 +1172,6 @@
         }
       }
     },
-    "Advanced" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "進階"
-          }
-        }
-      }
-    },
     "After you send, the message waits this long so you can undo it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2511,13 +2500,13 @@
         }
       }
     },
-    "Codex isn’t signed in on this host. On the host, run: codex login" : {
+    "Codex isn’t signed in on this host. Sign in there with the command below." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台電腦的 Codex 還沒登入。請在那台電腦執行：codex login"
+            "value" : "這台電腦上的 Codex 還沒登入。請在那台電腦執行下面的指令登入。"
           }
         }
       }
@@ -6859,13 +6848,13 @@
         }
       }
     },
-    "On the host, install the Purrdr host service and run purrdr-host-service pair. Then scan the QR code it shows. Login Shell and Files aren’t available this way." : {
+    "On the host, install the Purrdr host service and run the command below. Then scan the QR code it shows. Login Shell and Files aren’t available this way." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在那台電腦安裝 Purrdr 連線助理並執行 purrdr-host-service pair，再掃描它顯示的 QR code。這種方式不能用登入 Shell 與檔案。"
+            "value" : "在電腦上安裝 Purrdr 連線助理，並執行下面的指令，再掃描它顯示的 QR code。這種連線方式沒有登入 Shell 與檔案。"
           }
         }
       }
@@ -8648,6 +8637,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請以 %@ 登入電腦，在「終端機」執行這段指令。如果是 Mac,還要到「系統設定」›「一般」›「共享」開啟「遠端登入」。"
+          }
+        }
+      }
+    },
+    "Run this on the host:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在電腦上執行這個指令："
           }
         }
       }
@@ -11017,13 +11017,13 @@
         }
       }
     },
-    "This computer is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>" : {
+    "This computer is identified by the code below." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台電腦用下面這組代碼表明身分。想自己確認的話，在那台電腦執行下面的指令再比對：ssh-keygen -lf <host key 檔>"
+            "value" : "這台電腦以下面的代碼辨識。"
           }
         }
       }
@@ -11827,6 +11827,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "迄"
+          }
+        }
+      }
+    },
+    "To check it yourself, run this on that computer and compare:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想自己確認的話，請在那台電腦執行下面的指令並比對："
+          }
+        }
+      }
+    },
+    "To compare, run this on that computer:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要比對的話，請在那台電腦執行："
           }
         }
       }

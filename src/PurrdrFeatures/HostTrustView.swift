@@ -18,12 +18,16 @@ struct HostTrustView: View {
                 }
                 Section {
                     DisclosureGroup("Details") {
-                        Text("This computer is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>")
+                        Text("This computer is identified by the code below.")
                             .foregroundStyle(.secondaryText)
                         Text(verbatim: fingerprint.description)
                             .font(.body.monospaced())
                             .textSelection(.enabled)
                             .accessibilityIdentifier("hostTrust.fingerprint")
+                        InstructionView(
+                            instruction: AddHostGuideInstruction(
+                                text: String(localized: "To check it yourself, run this on that computer and compare:"),
+                                command: HostKeyFingerprint.compareCommand))
                     }
                     .accessibilityIdentifier("hostTrust.details")
                 }

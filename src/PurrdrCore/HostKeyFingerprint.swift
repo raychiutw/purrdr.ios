@@ -5,6 +5,9 @@ import Foundation
 ///
 /// 與 `ssh-keygen -lf` 印出的 `SHA256:` 之後完全相同。儲存時不含前綴(`stored`),顯示時加上 `SHA256:`。
 public struct HostKeyFingerprint: Sendable, Hashable, CustomStringConvertible {
+    /// 使用者在那台電腦上自己比對指紋的指令(OpenSSH 預設的 ed25519 host key;畫面給拷貝鈕)。
+    public static let compareCommand = "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"
+
     /// 不含 `SHA256:` 前綴、不補等號的 base64。
     public let stored: String
 
