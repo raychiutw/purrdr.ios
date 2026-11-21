@@ -17,7 +17,7 @@ final class UnreadPinnedUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         let needsYou = row("w2:p1", in: app)
-        XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
+        XCTAssertTrue(needsYou.waitUntilExists(timeout: 10))
         XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeRight()
@@ -25,7 +25,7 @@ final class UnreadPinnedUITests: XCTestCase {
         // 已釘選在最上方;捲回頂端。
         app.collectionViews.firstMatch.swipeDown()
 
-        XCTAssertTrue(ledger.waitForExistence(timeout: 5))
+        XCTAssertTrue(ledger.waitUntilExists(timeout: 5))
         XCTAssertLessThan(ledger.frame.minY, needsYou.frame.minY, "已釘選的列不在最上方")
         XCTAssertTrue(ledger.label.contains("Pinned"), "列沒有念出已釘選:\(ledger.label)")
     }
@@ -44,7 +44,7 @@ final class UnreadPinnedUITests: XCTestCase {
             app.buttons["toolbar.more"].tap()
             app.buttons[menuItem].tap()
             let done = app.buttons["sheet.done"]
-            XCTAssertTrue(done.waitForExistence(timeout: 5), "\(sheet) 沒有「完成」")
+            XCTAssertTrue(done.waitUntilExists(timeout: 5), "\(sheet) 沒有「完成」")
             XCTAssertTrue(app.descendants(matching: .any)[sheet].firstMatch.exists, "沒有開出 \(sheet)")
             XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(sheet) 的「完成」旁有數字徽章")
             XCTAssertEqual(done.label, "Done", "「完成」多念了徽章")

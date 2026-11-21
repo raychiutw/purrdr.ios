@@ -13,7 +13,7 @@ final class HostStatusUITests: XCTestCase {
         openStatus(app)
 
         let version = app.descendants(matching: .any)["hostStatus.hostService.version"].firstMatch
-        XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有主機服務版本")
+        XCTAssertTrue(version.waitUntilExists(timeout: 10), "沒有主機服務版本")
         XCTAssertTrue(app.descendants(matching: .any)["hostStatus.hostService.latest"].firstMatch.label.contains("1.0.1"))
 
         let autoUpdate = app.switches["hostStatus.hostService.autoUpdate"]
@@ -26,7 +26,7 @@ final class HostStatusUITests: XCTestCase {
         XCTAssertTrue(update.isEnabled)
         update.tap()
         let updated = app.descendants(matching: .any)["hostStatus.hostService.updateResult"].firstMatch
-        XCTAssertTrue(updated.waitForExistence(timeout: 20), "沒有更新結果")
+        XCTAssertTrue(updated.waitUntilExists(timeout: 20), "沒有更新結果")
         XCTAssertTrue(updated.label.contains("Updated to 1.0.1"), updated.label)
         XCTAssertTrue(version.label.contains("1.0.1"), "版本沒有換成新版")
     }
@@ -38,7 +38,7 @@ final class HostStatusUITests: XCTestCase {
         openStatus(app)
 
         let version = app.descendants(matching: .any)["hostStatus.hostService.version"].firstMatch
-        XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有主機服務版本")
+        XCTAssertTrue(version.waitUntilExists(timeout: 10), "沒有主機服務版本")
         XCTAssertFalse(app.buttons["hostStatus.hostService.update"].isEnabled, "唯讀裝置不能立即更新")
         XCTAssertFalse(app.switches["hostStatus.hostService.autoUpdate"].isEnabled, "唯讀裝置不能改自動更新")
         XCTAssertTrue(app.descendants(matching: .any)["hostStatus.hostService.readOnly"].firstMatch.exists, "沒有說明唯讀")
@@ -47,14 +47,14 @@ final class HostStatusUITests: XCTestCase {
     @MainActor
     private func openStatus(_ app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        XCTAssertTrue(more.waitUntilExists(timeout: 10))
         more.tap()
         app.buttons["menu.hosts"].tap()
         // 主機狀態區塊在主機頁(列尾 ⓘ)最下方。
         let info = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "hosts.info.", "Studio")).firstMatch
-        XCTAssertTrue(info.waitForExistence(timeout: 5), "主機清單沒有 Studio")
+        XCTAssertTrue(info.waitUntilExists(timeout: 5), "主機清單沒有 Studio")
         info.tap()
-        XCTAssertTrue(app.buttons["hostEditor.save"].waitForExistence(timeout: 5), "沒有開啟主機頁")
+        XCTAssertTrue(app.buttons["hostEditor.save"].waitUntilExists(timeout: 5), "沒有開啟主機頁")
         // 表單是 lazy 的,欄位愈來愈多(#274、#346):一次捲一點,直到最後一個區塊(已配對裝置)出現。
         let last = app.descendants(matching: .any)["hostStatus.hostService.autoUpdate"].firstMatch
         for _ in 0..<14 where !last.exists || !last.isHittable {
@@ -64,10 +64,3 @@ final class HostStatusUITests: XCTestCase {
     }
 }
 
-private extension XCUIElement {
-    /// 等到 `value` 變成 `expected`。
-    func waitForValue(_ expected: String, timeout: TimeInterval) -> Bool {
-        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", expected), object: self)
-        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
-    }
-}

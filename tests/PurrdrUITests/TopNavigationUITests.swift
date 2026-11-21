@@ -37,13 +37,13 @@ final class TopNavigationUITests: XCTestCase {
 
         openMoreMenuItem("menu.newChat", in: app)
         // 新增對話是表單：左上「Cancel」,不是「完成」(HIG 檢核清單 20.3)。
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.newChat"].firstMatch.waitForExistence(timeout: 10), "沒有開出新增對話")
+        XCTAssertTrue(app.descendants(matching: .any)["sheet.newChat"].firstMatch.waitUntilExists(timeout: 10), "沒有開出新增對話")
         let cancel = app.buttons["newChat.cancel"]
         XCTAssertTrue(cancel.exists, "新增對話沒有「Cancel」")
         XCTAssertFalse(app.buttons["sheet.done"].exists, "新增對話不該同時有「完成」")
 
         cancel.tap()
-        XCTAssertTrue(cancel.waitForNonExistence(timeout: 5), "sheet 沒有關閉")
+        XCTAssertTrue(cancel.waitUntilGone(timeout: 5), "sheet 沒有關閉")
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch), "沒有回到 Agent 列表")
     }
 
@@ -53,7 +53,7 @@ final class TopNavigationUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
 
         let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」")
+        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」")
         XCTAssertEqual(more.label, "More")
     }
 
@@ -63,12 +63,12 @@ final class TopNavigationUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
 
         let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」")
+        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」")
         XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "工具列不該再有獨立的「+」")
         more.tap()
 
         let newChat = app.buttons["menu.newChat"]
-        XCTAssertTrue(newChat.waitForExistence(timeout: 5), "選單沒有新增聊天")
+        XCTAssertTrue(newChat.waitUntilExists(timeout: 5), "選單沒有新增聊天")
         let hosts = app.buttons["menu.hosts"]
         let settings = app.buttons["menu.settings"]
         XCTAssertTrue(hosts.exists && settings.exists)
@@ -91,7 +91,7 @@ final class TopNavigationUITests: XCTestCase {
     @MainActor
     func testSettingsDeepLinkFromBackground() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.buttons["toolbar.more"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["toolbar.more"].waitUntilExists(timeout: 10))
         XCUIDevice.shared.press(.home)
         XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10), "app 沒有進背景")
 
@@ -105,23 +105,23 @@ final class TopNavigationUITests: XCTestCase {
     @MainActor
     private func openMoreMenuItem(_ identifier: String, in app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10), "列表工具列沒有「⋯」")
+        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」")
         more.tap()
         let item = app.buttons[identifier]
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "「⋯」選單沒有 \(identifier)")
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "「⋯」選單沒有 \(identifier)")
         item.tap()
     }
 
     @MainActor
     private func assertSheet(_ identifier: String, isShownIn app: XCUIApplication) {
         let sheet = app.descendants(matching: .any)[identifier].firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 10), "沒有開出 \(identifier)")
+        XCTAssertTrue(sheet.waitUntilExists(timeout: 10), "沒有開出 \(identifier)")
         XCTAssertTrue(app.buttons["sheet.done"].exists, "\(identifier) 沒有「完成」")
     }
 
     @MainActor
     private func assertBackOnAgentList(_ app: XCUIApplication) {
-        XCTAssertTrue(app.buttons["sheet.done"].waitForNonExistence(timeout: 5), "sheet 沒有關閉")
+        XCTAssertTrue(app.buttons["sheet.done"].waitUntilGone(timeout: 5), "sheet 沒有關閉")
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch), "沒有回到 Agent 列表")
     }
 }

@@ -14,16 +14,16 @@ final class HTTPSHostUITests: XCTestCase {
         pairManually(app, code: "K7QM-2XPA")
 
         let save = app.buttons["guide.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 15), "沒有通過連線測試")
+        XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有通過連線測試")
         save.tap()
         app.buttons["guide.done"].tapWhenReady()
 
         let row = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT (identifier BEGINSWITH %@)", "agent.row.", "agent.row.demo/"))
             .firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
+        XCTAssertTrue(row.waitUntilExists(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
         app.buttons["toolbar.more"].tap()
-        XCTAssertTrue(app.buttons["menu.hosts"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["menu.hosts"].waitUntilExists(timeout: 5))
         XCTAssertTrue(app.buttons["menu.loginShell"].exists, "選取中主機是 HTTPS 時，Demo 仍能開登入 Shell")
     }
 
@@ -33,7 +33,7 @@ final class HTTPSHostUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         pairManually(app, code: "R3AD-0NLY")
         let save = app.buttons["guide.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 15), "沒有通過連線測試")
+        XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有通過連線測試")
         save.tap()
         app.buttons["guide.done"].tapWhenReady()
 
@@ -45,12 +45,12 @@ final class HTTPSHostUITests: XCTestCase {
         row.tap()
 
         let card = app.descendants(matching: .any)["prompt.card"].firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 10), "沒有提示卡")
+        XCTAssertTrue(card.waitUntilExists(timeout: 10), "沒有提示卡")
         XCTAssertFalse(app.descendants(matching: .any)["prompt.readOnly"].firstMatch.exists, "提示卡不該再重複說明唯讀(只在橫幅，#349)")
         XCTAssertFalse(app.descendants(matching: .any)["prompt.option.1"].firstMatch.exists, "唯讀裝置不應該有回答選項")
         // 唯讀只在頂部浮動橫幅說明一次(#348):輸入列不再重複，橫幅浮在內容上(不貼齊螢幕邊緣)。
         let banners = app.descendants(matching: .any).matching(identifier: "conversation.banner")
-        XCTAssertTrue(banners.firstMatch.waitForExistence(timeout: 5), "沒有唯讀橫幅")
+        XCTAssertTrue(banners.firstMatch.waitUntilExists(timeout: 5), "沒有唯讀橫幅")
         XCTAssertEqual(banners.count, 1, "唯讀橫幅應只出現一次")
         XCTAssertFalse(app.descendants(matching: .any)["composer.readOnly"].firstMatch.exists, "輸入列不該再重複說明唯讀")
         let screen = app.windows.firstMatch.frame
@@ -67,26 +67,26 @@ final class HTTPSHostUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-demoOutdatedHostService"])
         pairManually(app, code: "K7QM-2XPA")
         let save = app.buttons["guide.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 15), "沒有通過連線測試")
+        XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有通過連線測試")
         save.tap()
         app.buttons["guide.done"].tapWhenReady()
 
         app.buttons["toolbar.more"].tap()
         app.buttons["menu.hosts"].tap()
         let update = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "hosts.update.")).firstMatch
-        XCTAssertTrue(update.waitForExistence(timeout: 10), "主機清單沒有更新提示")
+        XCTAssertTrue(update.waitUntilExists(timeout: 10), "主機清單沒有更新提示")
         XCTAssertTrue(app.descendants(matching: .any)["hosts.row.hostServiceUpdate"].firstMatch.exists, "主機列沒有標示可更新")
         update.tap()
 
         let posix = app.staticTexts["hostServiceUpdate.command.posix"]
-        XCTAssertTrue(posix.waitForExistence(timeout: 5), "沒有 macOS／Linux 的更新指令")
+        XCTAssertTrue(posix.waitUntilExists(timeout: 5), "沒有 macOS／Linux 的更新指令")
         XCTAssertTrue(posix.label.contains("install.sh | sh"), posix.label)
         XCTAssertTrue(app.staticTexts["hostServiceUpdate.command.windows"].label.contains("install.ps1 | iex"))
         let dismiss = app.buttons["hostServiceUpdate.dismiss"]
-        XCTAssertTrue(dismiss.waitForExistence(timeout: 5))
+        XCTAssertTrue(dismiss.waitUntilExists(timeout: 5))
         dismiss.tap()
 
-        XCTAssertTrue(app.buttons["hosts.add"].waitForExistence(timeout: 5), "沒有回到主機清單")
+        XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機清單")
         XCTAssertFalse(update.exists, "關閉後仍有更新提示")
         XCTAssertFalse(app.descendants(matching: .any)["hosts.row.hostServiceUpdate"].firstMatch.exists, "關閉後主機列仍標示可更新")
     }
@@ -98,7 +98,7 @@ final class HTTPSHostUITests: XCTestCase {
         pairManually(app, code: "OLD0-CODE")
 
         let expired = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "pairing code expired")).firstMatch
-        XCTAssertTrue(expired.waitForExistence(timeout: 15), "沒有說明配對碼過期")
+        XCTAssertTrue(expired.waitUntilExists(timeout: 15), "沒有說明配對碼過期")
         XCTAssertFalse(app.buttons["guide.save"].exists, "配對失敗不能儲存")
     }
 
@@ -110,7 +110,7 @@ final class HTTPSHostUITests: XCTestCase {
         app.buttons["Enter It Manually"].firstMatch.tapWhenReady()
 
         let code = app.textFields["guide.field.pairingCode"]
-        XCTAssertTrue(code.waitForExistence(timeout: 5))
+        XCTAssertTrue(code.waitUntilExists(timeout: 5))
         code.tap()
         code.typeEnglish("k7qm-2xpa")
         XCTAssertEqual(code.value as? String, "K7QM-2XPA")
@@ -121,17 +121,17 @@ final class HTTPSHostUITests: XCTestCase {
     func testUnpairedHTTPSHostOpensPairing() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedUnpairedHTTPSHost"])
         let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        XCTAssertTrue(more.waitUntilExists(timeout: 10))
         more.tap()
         app.buttons["menu.hosts"].tap()
 
         let row = app.buttons["hosts.row.5EED0000-0000-4000-8000-000000000003"]
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitUntilExists(timeout: 5))
         XCTAssertTrue(row.label.contains("Not Paired on This Device"), "沒有標示要配對：\(row.label)")
         row.tap()
 
         let address = app.textFields["guide.field.pairAddress"]
-        XCTAssertTrue(address.waitForExistence(timeout: 5), "沒有開配對")
+        XCTAssertTrue(address.waitUntilExists(timeout: 5), "沒有開配對")
         XCTAssertEqual(address.value as? String, "studio.tail1234.ts.net")
         let next = app.buttons["guide.next"]
         XCTAssertFalse(next.isEnabled, "沒有配對碼不能往下")
@@ -140,13 +140,13 @@ final class HTTPSHostUITests: XCTestCase {
         code.typeEnglish("K7QM-2XPA")
         next.tap()
         let save = app.buttons["guide.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 15), "沒有連上")
+        XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有連上")
         save.tap()
         app.buttons["guide.done"].tapWhenReady()
 
         more.tap()
         app.buttons["menu.hosts"].tap()
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitUntilExists(timeout: 5))
         XCTAssertFalse(row.label.contains("Not Paired on This Device"), "配對後不應該再標示")
     }
 
@@ -156,17 +156,17 @@ final class HTTPSHostUITests: XCTestCase {
     @MainActor
     private func openPairStep(_ app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        XCTAssertTrue(more.waitUntilExists(timeout: 10))
         more.tap()
         app.buttons["menu.hosts"].tap()
         let add = app.buttons["hosts.add"]
-        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertTrue(add.waitUntilExists(timeout: 5))
         add.tap()
         app.buttons["guide.option.https"].tapWhenReady()
         app.buttons["guide.next"].tapWhenReady()
         app.buttons["guide.option.linux"].tapWhenReady()
         app.buttons["guide.next"].tapWhenReady()
-        XCTAssertTrue(app.buttons["Enter It Manually"].firstMatch.waitForExistence(timeout: 5), "沒有到配對那一頁")
+        XCTAssertTrue(app.buttons["Enter It Manually"].firstMatch.waitUntilExists(timeout: 5), "沒有到配對那一頁")
     }
 
     /// 手動輸入位址與配對碼，按下一步開始測試連線。
@@ -184,11 +184,3 @@ final class HTTPSHostUITests: XCTestCase {
     }
 }
 
-private extension XCUIElement {
-    /// 等元素出現(換頁動畫)再點。
-    @MainActor
-    func tapWhenReady() {
-        XCTAssertTrue(waitForExistence(timeout: 5), "\(identifier) 沒有出現")
-        tap()
-    }
-}

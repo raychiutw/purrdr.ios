@@ -8,19 +8,14 @@ final class PermissionModeUITests: XCTestCase {
     }
 
     @MainActor
-    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)[identifier].firstMatch
-    }
-
-    @MainActor
     func testCapsuleSitsBesideAttachButtonAndSheetSwitchesMode() {
         let app = XCUIApplication.launchUITesting()
-        let row = element("agent.row.demo/w1:p1", in: app)
+        let row = app.element("agent.row.demo/w1:p1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
-        let capsule = element("composer.permissionMode", in: app)
-        let attach = element("composer.attach", in: app)
-        XCTAssertTrue(capsule.waitForExistence(timeout: 10), "沒有權限模式膠囊")
+        let capsule = app.element("composer.permissionMode")
+        let attach = app.element("composer.attach")
+        XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有權限模式膠囊")
         XCTAssertGreaterThan(capsule.frame.minX, attach.frame.maxX - 1, "膠囊應在附加鈕右邊")
         XCTAssertEqual(capsule.frame.midY, attach.frame.midY, accuracy: 2, "膠囊應與附加鈕同一列")
 
@@ -30,7 +25,7 @@ final class PermissionModeUITests: XCTestCase {
 
         capsule.tap()
         let accept = app.buttons["Accept Edits"].firstMatch
-        XCTAssertTrue(accept.waitForExistence(timeout: 10), "sheet 裡沒有 Accept Edits 勾選列")
+        XCTAssertTrue(accept.waitUntilExists(timeout: 10), "sheet 裡沒有 Accept Edits 勾選列")
         accept.tap()
         let switched = NSPredicate(format: "value == 'Accept Edits'")
         expectation(for: switched, evaluatedWith: capsule)
@@ -39,7 +34,7 @@ final class PermissionModeUITests: XCTestCase {
 
         capsule.tap()
         let plan = app.buttons["Plan"].firstMatch
-        XCTAssertTrue(plan.waitForExistence(timeout: 10))
+        XCTAssertTrue(plan.waitUntilExists(timeout: 10))
         plan.tap()
         let planValue = NSPredicate(format: "value == 'Plan'")
         expectation(for: planValue, evaluatedWith: capsule)
@@ -50,23 +45,23 @@ final class PermissionModeUITests: XCTestCase {
     @MainActor
     func testModelCapsuleOpensSheetAndSwitchesModel() {
         let app = XCUIApplication.launchUITesting()
-        let row = element("agent.row.demo/w1:p1", in: app)
+        let row = app.element("agent.row.demo/w1:p1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
-        let capsule = element("composer.model", in: app)
-        let attach = element("composer.attach", in: app)
-        let permission = element("composer.permissionMode", in: app)
-        XCTAssertTrue(capsule.waitForExistence(timeout: 10), "沒有模型膠囊")
+        let capsule = app.element("composer.model")
+        let attach = app.element("composer.attach")
+        let permission = app.element("composer.permissionMode")
+        XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
         XCTAssertGreaterThan(capsule.frame.minX, attach.frame.maxX - 1, "模型膠囊應在附加鈕右邊")
         XCTAssertLessThan(capsule.frame.maxX, permission.frame.minX + 1, "模型膠囊應在權限膠囊左邊")
         XCTAssertEqual(capsule.frame.midY, attach.frame.midY, accuracy: 2, "模型膠囊應與附加鈕同一列")
         XCTAssertFalse((capsule.value as? String ?? "").isEmpty, "膠囊應顯示目前的模型")
 
         capsule.tap()
-        let picker = element("model.picker", in: app)
-        XCTAssertTrue(picker.waitForExistence(timeout: 15), "sheet 裡沒有模型勾選列")
+        let picker = app.element("model.picker")
+        XCTAssertTrue(picker.waitUntilExists(timeout: 15), "sheet 裡沒有模型勾選列")
         let quick = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Quick'")).firstMatch
-        XCTAssertTrue(quick.waitForExistence(timeout: 10), "sheet 裡沒有 Quick 勾選列")
+        XCTAssertTrue(quick.waitUntilExists(timeout: 10), "sheet 裡沒有 Quick 勾選列")
         quick.tap()
         let gone = NSPredicate(format: "exists == false")
         expectation(for: gone, evaluatedWith: picker)
