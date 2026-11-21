@@ -48,8 +48,9 @@ public struct ConversationView: View {
                 ToolbarItem(placement: .principal) {
                     ConversationTitleView(title: displayTitle, header: model.statusSummary.header)
                 }
+                .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
             }
-            .safeAreaInset(edge: .top, spacing: 0) { banner }
+            .safeAreaBar(edge: .top) { banner }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let pane = model.agentsPane, !pane.rows.isEmpty {
                     AgentsBarView(pane: pane, readAt: model.agentsPaneReadAt, conversation: model)
@@ -431,25 +432,27 @@ public struct ConversationView: View {
     }
 
     /// 非干擾式標示：不在進入畫面時跳 alert,也不只用自動消失的 toast(HIG 20.5)。
+    /// 頂列下方唯一的一條浮動橫幅(#348):斷線、對話紀錄問題、唯讀與主機服務版本都在這裡，輸入列與卡片不再重複。
     @ViewBuilder
     private var banner: some View {
-        if let banner = model.statusSummary.banner.flatMap(\.transcriptBanner) {
+        if let kind = model.statusSummary.banner {
+            let isOffline = if case .offline = kind { true } else { false }
             HStack {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(banner.text)
+                        kind.text
                         // 斷線前在工作：停止列已收起，說明為什麼不能停(#220)。
-                        if banner == .offline && model.statusSummary.banner == .offline(needsReconnectToStop: true) {
+                        if kind == .offline(needsReconnectToStop: true) {
                             Text("You can stop the agent after reconnecting.")
                         }
                     }
                 } icon: {
-                    Image(systemName: banner.symbol)
+                    Image(systemName: kind.symbol)
                 }
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
                 Spacer(minLength: 8)
-                if banner == .offline {
+                if isOffline {
                     // 中斷標示留在畫面上直到重新連上;也可以手動立刻重試(輪詢本身仍會每幾秒重試)。
                     Button { Task { await model.poll() } } label: {
                         HitTarget("Try Again")
@@ -458,22 +461,33 @@ public struct ConversationView: View {
                     .accessibilityIdentifier("conversation.retry")
                 }
             }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(.bar)
+                .floatingGlass(in: RoundedRectangle(cornerRadius: 20))
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("conversation.banner")
         }
     }
 }
 
 extension ConversationStatusSummary.Banner {
-    /// 目前畫面上方橫幅仍只畫對話紀錄與離線(唯讀與主機服務版本各在原處，#348 起併進這條橫幅)。
-    var transcriptBanner: ConversationModel.Banner? {
+    var text: Text {
         switch self {
-        case .offline: .offline
-        case .transcript(let banner): banner
-        case .readOnly, .hostServiceUpdateRequired: nil
+        case .offline: Text("Offline — showing the last loaded conversation.")
+        case .transcript(let banner): Text(banner.text)
+        case .readOnly: Text("This device is paired read-only, so it can’t send anything to this host.")
+        case .hostServiceUpdateRequired(let message): Text(verbatim: message)
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .offline: "wifi.slash"
+        case .transcript(let banner): banner.symbol
+        case .readOnly: "lock"
+        case .hostServiceUpdateRequired: "arrow.down.circle"
         }
     }
 }

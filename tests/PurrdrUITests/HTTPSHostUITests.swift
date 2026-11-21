@@ -62,7 +62,14 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 10), "沒有提示卡")
         XCTAssertTrue(app.descendants(matching: .any)["prompt.readOnly"].firstMatch.exists, "提示卡沒有說明唯讀")
         XCTAssertFalse(app.descendants(matching: .any)["prompt.option.1"].firstMatch.exists, "唯讀裝置不應該有回答選項")
-        XCTAssertTrue(app.descendants(matching: .any)["composer.readOnly"].firstMatch.exists, "輸入列沒有說明唯讀")
+        // 唯讀只在頂部浮動橫幅說明一次(#348):輸入列不再重複，橫幅浮在內容上(不貼齊螢幕邊緣)。
+        let banners = app.descendants(matching: .any).matching(identifier: "conversation.banner")
+        XCTAssertTrue(banners.firstMatch.waitForExistence(timeout: 5), "沒有唯讀橫幅")
+        XCTAssertEqual(banners.count, 1, "唯讀橫幅應只出現一次")
+        XCTAssertFalse(app.descendants(matching: .any)["composer.readOnly"].firstMatch.exists, "輸入列不該再重複說明唯讀")
+        let screen = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(banners.firstMatch.frame.minX, 8, "橫幅應浮在內容上，不貼齊左緣")
+        XCTAssertLessThanOrEqual(banners.firstMatch.frame.maxX, screen.maxX - 8, "橫幅應浮在內容上，不貼齊右緣")
         XCTAssertFalse(app.descendants(matching: .any)["composer.text"].firstMatch.exists, "唯讀裝置不應該有輸入框")
         XCTAssertFalse(app.descendants(matching: .any)["composer.send"].firstMatch.exists, "唯讀裝置不應該有送出鈕")
     }
