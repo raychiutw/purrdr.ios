@@ -112,15 +112,23 @@ struct AgentKindAvatar: View {
     let kind: AgentKind
     static let baseSide: CGFloat = 36
     // 方塊與字母一起隨字級放大(#314:固定字級的字母會被稽核判為 Dynamic Type 不支援)。
-    @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = baseSide
+    @ScaledMetric private var side: CGFloat
+    private let compact: Bool
+
+    /// `compact` 是對話裡每輪開頭的小頭像(#351,20pt)。
+    init(kind: AgentKind, compact: Bool = false) {
+        self.kind = kind
+        self.compact = compact
+        _side = ScaledMetric(wrappedValue: compact ? 20 : Self.baseSide, relativeTo: compact ? .caption : .subheadline)
+    }
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
         Text(verbatim: style.letter)
-            .font(.subheadline.bold())
+            .font(compact ? .caption2.bold() : .subheadline.bold())
             .foregroundStyle(.white)
             .frame(width: side, height: side)
-            .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
+            .background(RoundedRectangle(cornerRadius: compact ? 6 : 10).fill(style.palette.color))
     }
 }
 

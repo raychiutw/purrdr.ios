@@ -102,7 +102,7 @@ private struct BlockView: View {
     }
 }
 
-/// 行內文字：連結只會是 http(s)(解析時已過濾)與主機路徑(#229);行內 code 用等寬字、**沒有底色**(iOS 換行時底色會畫成一條)。
+/// 行內文字：連結只會是 http(s)(解析時已過濾)與主機路徑(#229);行內 code 用等寬字加中性淡底(#351;原型的 `.md code`)。
 struct InlineText: View {
     let inlines: [MarkdownInline]
 
@@ -128,6 +128,7 @@ struct InlineText: View {
             case .code(let code):
                 var run = AttributedString(code)
                 run.inlinePresentationIntent = intent(bold: bold, italic: italic).union(.code)
+                run.backgroundColor = Color.primary.opacity(0.08)
                 result += run
             case .strong(let children):
                 result += attributed(children, bold: true, italic: italic)
@@ -191,17 +192,19 @@ struct CodeBlockView: View {
                 }
             }
             .padding(.leading, 12)
+            Divider()
             ScrollView(.horizontal) {
                 Text(code)
                     .font(.callout.monospaced())
                     .fixedSize(horizontal: true, vertical: false)
                     .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    .padding(12)
             }
             .accessibilityIdentifier("conversation.code")
         }
-        .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 10))
+        .background(.fill.quaternary, in: ContentFrame.shape)
+        .clipShape(ContentFrame.shape)
+        .overlay(ContentFrame.shape.strokeBorder(.separator))
     }
 
     /// 複製的程式碼去掉結尾換行、CRLF 轉 LF。
@@ -218,26 +221,33 @@ struct TableView: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
                 GridRow {
                     ForEach(Array(table.header.enumerated()), id: \.offset) { column, cell in
                         InlineText(cell)
-                            .font(.subheadline.bold())
+                            .font(.footnote.bold())
+                            .foregroundStyle(.secondaryText)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(.fill.quaternary)
                             .gridColumnAlignment(alignment(column))
                     }
                 }
-                Divider()
                 ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
+                    Divider()
                     GridRow {
                         ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                             InlineText(cell)
-                                .font(.subheadline)
+                                .font(.footnote.monospacedDigit())
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
                         }
                     }
                 }
             }
-            .padding(.vertical, 4)
         }
+        .clipShape(ContentFrame.shape)
+        .overlay(ContentFrame.shape.strokeBorder(.separator))
         .accessibilityIdentifier("conversation.table")
     }
 
@@ -249,6 +259,11 @@ struct TableView: View {
         case .trailing: return .trailing
         }
     }
+}
+
+/// 表格與程式碼區塊共用的圓角框(#351):12pt 圓角加分隔線描邊。
+enum ContentFrame {
+    static let shape = RoundedRectangle(cornerRadius: 12)
 }
 
 /// 系統剪貼簿。

@@ -79,6 +79,31 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.scrollViews["conversation.code"].exists, "程式碼區塊不在自己的橫捲容器內")
     }
 
+    /// 表格與程式碼區塊不讓畫面橫捲(#351):框不超出視窗寬度，內容寬了在框內橫捲。
+    @MainActor
+    func testTableAndCodeStayWithinScreenWidth() {
+        let app = openLedger()
+        let window = app.windows.firstMatch
+        let table = element("conversation.table", in: app)
+        XCTAssertTrue(revealInConversation(table, in: app), "沒有表格")
+        XCTAssertLessThanOrEqual(table.frame.maxX, window.frame.maxX + 1, "表格超出畫面右緣")
+        XCTAssertGreaterThanOrEqual(table.frame.minX, window.frame.minX - 1, "表格超出畫面左緣")
+
+        let code = app.scrollViews["conversation.code"]
+        XCTAssertTrue(revealInConversation(code, in: app), "沒有程式碼區塊")
+        XCTAssertLessThanOrEqual(code.frame.maxX, window.frame.maxX + 1, "程式碼區塊超出畫面右緣")
+        XCTAssertGreaterThanOrEqual(code.frame.minX, window.frame.minX - 1, "程式碼區塊超出畫面左緣")
+    }
+
+    /// Agent 回覆每輪開頭有頭像與名稱，不包泡泡(#351);時間文字跟著 Dynamic Type(#258)。
+    @MainActor
+    func testAgentTurnStartsWithAvatarAndName() {
+        let app = openLedger()
+        let header = element("conversation.agent.header", in: app)
+        XCTAssertTrue(header.waitForExistence(timeout: 10), "Agent 回覆開頭沒有頭像與名稱")
+        XCTAssertTrue(app.staticTexts["Claude Code"].exists, "開頭沒有 Agent 名稱")
+    }
+
     /// 工具串點開看每個呼叫。
     @MainActor
     func testToolRunExpandsToShowCalls() {

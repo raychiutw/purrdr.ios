@@ -310,6 +310,26 @@ public enum ConversationEntry: Sendable, Equatable, Identifiable {
     }
 }
 
+extension ConversationEntry {
+    /// 每一輪第一則 Agent 文字的 id(#351):使用者訊息或回音之後的第一則;只有這一則顯示頭像、名稱與時間。
+    public static func turnStartTextIDs(in entries: [ConversationEntry]) -> Set<String> {
+        var ids: Set<String> = []
+        var turnHasText = false
+        for entry in entries {
+            switch entry {
+            case .echo, .item(.user):
+                turnHasText = false
+            case .item(.agentText(let text)):
+                if !turnHasText { ids.insert(text.id) }
+                turnHasText = true
+            case .item:
+                break
+            }
+        }
+        return ids
+    }
+}
+
 extension ConversationItem {
     /// 項目的時間(沒有時間的種類回傳 `nil`)。
     package var date: Date? {
