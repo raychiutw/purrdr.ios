@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrSSH
 
@@ -126,6 +127,8 @@ public final class AddHostGuideModel {
     public var privateKey = ""
     /// 這支裝置的公鑰(金鑰路徑;`loadDeviceKey()` 取得)。
     public private(set) var devicePublicKey: SSHPublicKey?
+    /// 拿不到裝置金鑰時的說明。
+    public private(set) var deviceKeyProblem: String?
     public var address = ""
     public var port = "22"
     /// HTTPS:主機服務的位址(主機名稱)、Port 與配對碼。
@@ -200,7 +203,7 @@ public final class AddHostGuideModel {
                 address = shared.endpoint.host
                 port = String(shared.endpoint.port)
                 username = shared.endpoint.username
-                if let pin = shared.hostKeyPin { flow.accepted = (pin, shared.endpoint) }
+                flow.acceptSharedPin(of: shared)
                 step = .test
             case .openSSH:
                 throw ShortcutError.needsEditor
@@ -336,26 +339,19 @@ public final class AddHostGuideModel {
     /// 金鑰路徑:把這支裝置的公鑰加進電腦(三步裡的第二步)。公鑰還沒取得時是空的。
     public var keyInstructions: [AddHostGuideInstruction] {
         guard let key = devicePublicKey else { return [] }
-        let terminal = system == .windows
-            ? String(localized: "On that computer, open PowerShell, paste this line, then press Enter.")
-            : String(localized: "On that computer, open Terminal, paste this line, then press Enter.")
-        if system == .windows {
-            return [
-                AddHostGuideInstruction(text: terminal, command: AuthorizedKeyCommand.command(adding: key, on: .windows)),
-                AddHostGuideInstruction(
-                    text: String(localized: "If this account is an administrator, open PowerShell as an administrator and paste this line instead."),
-                    command: AuthorizedKeyCommand.command(adding: key, on: .windowsAdministrator)),
-            ]
-        }
-        return [AddHostGuideInstruction(text: terminal, command: AuthorizedKeyCommand.command(adding: key, on: .macOSAndLinux))]
+        return DeviceKeyOnboarding.commands(for: key, system: system)
     }
 
-    /// 取得這支裝置的公鑰(第一次會在 Secure Enclave 產生金鑰)。
+    /// 取得這支裝置的公鑰(第一次會在 Secure Enclave 產生金鑰)。拿不到時 `deviceKeyProblem` 說明原因。
     public func loadDeviceKey() async {
         guard devicePublicKey == nil else { return }
-        let deviceKey = credentials.deviceKey
-        let result = await Task.detached { Result { try deviceKey.publicKey() } }.value
-        if case .success(let key) = result { devicePublicKey = key }
+        switch await DeviceKeyOnboarding.load(from: credentials) {
+        case .success(let key):
+            devicePublicKey = key
+            deviceKeyProblem = nil
+        case .failure(let error):
+            deviceKeyProblem = HostErrorText.message(for: error)
+        }
     }
 
     /// 密碼頁的提示。密碼路徑不提到金鑰;匯入私鑰才說。
@@ -393,13 +389,10 @@ public final class AddHostGuideModel {
     /// 在電腦上裝主機服務:一行安裝指令。
     public var installInstructions: [AddHostGuideInstruction] {
         let isWindows = system == .windows
-        let terminal = isWindows
-            ? String(localized: "On that computer, open PowerShell, paste this line, then press Enter.")
-            : String(localized: "On that computer, open Terminal, paste this line, then press Enter.")
         let command = isWindows
             ? "irm \(Self.hostServiceReleases)install.ps1 | iex"
             : "curl -fsSL \(Self.hostServiceReleases)install.sh | sh"
-        return [AddHostGuideInstruction(text: terminal, command: command)]
+        return [AddHostGuideInstruction(text: DeviceKeyOnboarding.pasteLineText(onWindows: isWindows), command: command)]
     }
 
     /// 配對:讓電腦顯示 QR code。
@@ -422,9 +415,7 @@ public final class AddHostGuideModel {
 
     /// 欄位旁「怎麼查」:在電腦上做的一步與可拷貝的指令。
     public func help(for field: Field) -> AddHostGuideInstruction? {
-        let terminal = system == .windows
-            ? String(localized: "On that computer, open PowerShell, paste this line, then press Enter.")
-            : String(localized: "On that computer, open Terminal, paste this line, then press Enter.")
+        let isWindows = system == .windows
         switch field {
         case .address:
             let command: String
@@ -439,11 +430,16 @@ public final class AddHostGuideModel {
             default: return nil
             }
             return AddHostGuideInstruction(
-                text: String(localized: "\(terminal) Type the numbers that appear here."), command: command)
+                text: isWindows
+                    ? String(localized: "On that computer, open PowerShell, paste this line, press Enter, and type the numbers that appear here.")
+                    : String(localized: "On that computer, open Terminal, paste this line, press Enter, and type the numbers that appear here."),
+                command: command)
         case .username:
             return AddHostGuideInstruction(
-                text: String(localized: "\(terminal) Type the name that appears here."),
-                command: system == .windows ? "$env:USERNAME" : "whoami")
+                text: isWindows
+                    ? String(localized: "On that computer, open PowerShell, paste this line, press Enter, and type the name that appears here.")
+                    : String(localized: "On that computer, open Terminal, paste this line, press Enter, and type the name that appears here."),
+                command: isWindows ? "$env:USERNAME" : "whoami")
         case .port, .pairAddress, .pairPort, .pairingCode:
             return nil
         }

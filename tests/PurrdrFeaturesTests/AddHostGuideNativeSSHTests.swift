@@ -156,6 +156,42 @@ struct AddHostGuideNativeSSHTests {
         #expect(windowsCommands[1].contains("administrators_authorized_keys"))
     }
 
+    private struct BrokenDeviceKey: DeviceKey {
+        struct Failure: Error {}
+        func publicKey() throws -> SSHPublicKey { throw Failure() }
+        func signingKey() throws -> SSHPrivateKey { throw Failure() }
+    }
+
+    @Test("金鑰路徑:拿不到裝置金鑰時像編輯頁一樣說明原因,不是一直轉圈")
+    func deviceKeyFailureIsExplained() async {
+        let model = AddHostGuideModel(
+            store: MemoryHostStore(), credentials: HostCredentials(deviceKey: BrokenDeviceKey()), makeChannel: ChannelFactory().make)
+        Self.atLogin(model)
+        model.choose(authentication: .deviceKey)
+        await model.loadDeviceKey()
+        #expect(model.devicePublicKey == nil)
+        #expect(model.deviceKeyProblem != nil)
+        #expect(!model.canAdvance)
+    }
+
+    @Test("給 Windows 複製的指令只含 ASCII:裝置名稱含中文時,引導與編輯頁的金鑰指令都一樣")
+    func windowsKeyCommandsAreASCII() async throws {
+        let credentials = HostCredentials(deviceKey: EphemeralDeviceKey(comment: "purrdr@我的 iPhone"))
+        let guide = AddHostGuideModel(store: MemoryHostStore(), credentials: credentials, makeChannel: ChannelFactory().make)
+        Self.atLogin(guide, system: .windows)
+        guide.choose(authentication: .deviceKey)
+        await guide.loadDeviceKey()
+        let editor = HostEditorModel(store: MemoryHostStore(), credentials: credentials, makeChannel: ChannelFactory().make)
+        await editor.loadDeviceKey()
+        // 引導在 Windows 上的每一個指令(含啟用 SSH、金鑰、欄位說明)。
+        let guideCommands = (guide.keyInstructions + guide.enableInstructions + [guide.help(for: .address), guide.help(for: .username)].compactMap { $0 })
+            .compactMap(\.command)
+        #expect(guideCommands.count >= 4)
+        for command in guideCommands + editor.deviceKeySteps.compactMap(\.command).filter({ $0.contains("USERPROFILE") || $0.contains("ProgramData") }) {
+            #expect(command.unicodeScalars.allSatisfy { $0.isASCII }, "\(command)")
+        }
+    }
+
     @Test("金鑰路徑存成裝置金鑰主機")
     func deviceKeyPathSavesHost() async throws {
         let store = MemoryHostStore()

@@ -344,7 +344,11 @@ struct AddHostGuideView: View {
     /// 金鑰三步:打開終端機並貼上指令,回來測試連線。
     @ViewBuilder
     private var keySetup: some View {
-        if model.devicePublicKey == nil {
+        if let problem = model.deviceKeyProblem, model.devicePublicKey == nil {
+            ErrorLabel(problem)
+                .padding(.top, 24)
+                .accessibilityIdentifier("guide.deviceKeyProblem")
+        } else if model.devicePublicKey == nil {
             ProgressView()
                 .controlSize(.large)
                 .padding(.top, 24)

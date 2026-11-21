@@ -255,6 +255,11 @@ package final class HostConnectionFlow {
         }
     }
 
+    /// 匯入的分享連結附了 host key 指紋:視為已確認,連線測試只接受那一把(主機出示別的 key 時一樣阻擋)。
+    package func acceptSharedPin(of shared: SharedHost) {
+        if let pin = shared.hostKeyPin { accepted = (pin, shared.endpoint) }
+    }
+
     /// 信任主機剛剛出示的那一把 key,記在這次流程裡(呼叫端接著重新測試)。
     /// 只有第一次連線(`confirmHostKey`)能信任;指紋變了(`hostKeyChanged`)一律不行、不能一鍵略過。
     /// 永遠不清空 pin 然後信任下一個回應者(行為規格 §8.2)。沒有待確認的 key 或不是 SSH 時回 `false`。
