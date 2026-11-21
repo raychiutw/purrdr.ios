@@ -66,7 +66,7 @@
 | 4.1 | 網頁草稿 `docs/site/purrdr/`(首頁、`privacy/`、`support/`、`style.css`),純靜態、無外部資源 | 本 repo | ✅ |
 | 4.2 | 把 `REPLACE_ME@example.com`(隱私權政策、支援頁、`review-notes.md`)換成正式聯絡信箱 | 主 session | ✅ lean.lean@gmail.com |
 | 4.3 | 複製到 `raychiutw/raychiutw.github.io` 的 `purrdr/` 資料夾並發佈;確認 `https://raychiutw.github.io/purrdr/privacy/` 與 `/support/` 打得開(app 的 `PurrdrLinks` 已指向這兩個網址) | 主 session | ✅ 已上線 https://raychiutw.github.io/purrdr/ |
-| 4.5 | 本 repo 的 `docs/site/purrdr/` 改過後要再同步到網站(2026-11-16:支援頁改成不支援有 passphrase 的私鑰;`style.css` 已與網站上 Prettier 格式化的版本一致;2026-11-18:新增 `host-service/` 主機服務安裝說明，app 的 `PurrdrLinks.hostServiceGuide` 指向它;2026-11-19:主機端搬到 `raychiutw/purrdr.host`,安裝指令與 Releases 連結、隱私權政策與支援頁的外掛來源改指向它，macOS 版改寫成「以 Developer ID 簽章」(目前不公證)) | 主 session | ⬜ |
+| 4.5 | 本 repo 的 `docs/site/purrdr/` 改過後要再同步到網站(2026-11-16:支援頁改成不支援有 passphrase 的私鑰;`style.css` 已與網站上 Prettier 格式化的版本一致;2026-11-18:新增 `host-service/` 主機服務安裝說明，app 的 `PurrdrLinks.hostServiceGuide` 指向它;2026-11-19:主機端搬到 `raychiutw/purrdr.host`,安裝指令與 Releases 連結、隱私權政策與支援頁的外掛來源改指向它，macOS 版改寫成「以 Developer ID 簽章」(目前不公證)) | 主 session | ⬜(2026-11-21:隱私權政策第 5 節補「傳送測試通知時電腦名稱只用在通知標題、不保存」,隱私標籤不變,見 `privacy-labels.md`) |
 | 4.4 | 隱私權政策的生效日期改成實際發佈日 | 主 session | ⬜ |
 
 ## 5. 送審

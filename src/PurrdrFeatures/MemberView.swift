@@ -132,8 +132,6 @@ struct SignedOutAccountView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
-                SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
-                    .padding(.top, 12)
                 Text("Chat and terminal don’t need a member account.")
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
@@ -142,7 +140,14 @@ struct SignedOutAccountView: View {
             }
             .padding(.horizontal)
         }
+        // 識別碼要掛在 ScrollView 本身:掛在 safeAreaInset 外層會蓋掉登入鈕自己的識別碼。
         .accessibilityIdentifier("account.signedOut")
+        // 登入鈕固定在底部:AX 字級時也不必捲動才看得到(HIG:Sign in with Apple 要一眼看得到)。
+        .safeAreaInset(edge: .bottom) {
+            SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
+                .padding()
+                .background(.bar)
+        }
     }
 }
 
@@ -390,15 +395,13 @@ struct AccountView: View {
         }
         .navigationDestination(item: $pairingHost) { id in
             if let hosts, let host = hosts.hosts.first(where: { $0.id == id }) {
-                // 與主機頁點「還沒配對」的主機開的是同一個編輯器;存好回到帳號頁，那台主機的開關就能用。
-                HostEditorView(model: hosts.makeEditor(editing: host)) { saved in
-                    hosts.didSave(saved)
-                    pairingHost = nil
-                } onCancel: {
-                    pairingHost = nil
-                } onIconSaved: {
-                    pairingHost = nil
-                }
+                // 與主機頁點「還沒配對」的主機開的是同一個引導(直接到配對那一步);存好回到帳號頁，那台主機的開關就能用。
+                AddHostGuideScreen(
+                    make: { (try? hosts.makePairingGuide(for: host)) ?? hosts.makeAddHostGuide() },
+                    onSaved: { _ in pairingHost = nil },
+                    onCancel: { pairingHost = nil },
+                    onAdded: { hosts.didSave($0) },
+                    hostPush: { id in hosts.hostPushes.first { $0.host == .host(id) } })
             }
         }
         .onChange(of: signedInMember?.id) { _, id in

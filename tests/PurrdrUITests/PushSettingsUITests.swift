@@ -139,7 +139,7 @@ final class PushSettingsUITests: XCTestCase {
         let pair = element("account.push.\(Self.httpsHost).status", in: app)
         XCTAssertEqual(pair.label, "Pair This Host First")
         XCTAssertTrue(pair.isHittable)
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "best-effort")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "may be delayed")).firstMatch.exists)
         // 沒有跳系統的通知權限對話框。
         XCTAssertFalse(XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch.exists)
     }
@@ -155,30 +155,22 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertFalse(https.isEnabled)
         element("account.push.\(Self.httpsHost).status", in: app).tap()
 
-        let code = app.textFields["hostEditor.pairingCode"]
-        XCTAssertTrue(app.textFields["hostEditor.name"].waitForExistence(timeout: 5), "沒有開配對")
-        XCTAssertTrue(scrollToEditor(code, in: app), "沒有配對碼欄位")
+        // 直接到引導的配對那一步:位址已帶入，輸入配對碼、測試通過後加入。
+        XCTAssertTrue(app.textFields["guide.field.pairAddress"].waitForExistence(timeout: 5), "沒有開配對")
+        let code = app.textFields["guide.field.pairingCode"]
         code.tap()
         code.typeEnglish("K7QM-2XPA")
-        let test = app.buttons["hostEditor.test"]
-        XCTAssertTrue(scrollToEditor(test, in: app))
-        test.tap()
-        let connected = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Connected")).firstMatch
-        XCTAssertTrue(connected.waitForExistence(timeout: 10) || scrollToEditor(connected, in: app), "沒有連上")
-        app.buttons["hostEditor.save"].tap()
+        app.buttons["guide.next"].tap()
+        let save = app.buttons["guide.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 15), "沒有連上")
+        save.tap()
+        let done = app.buttons["guide.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        done.tap()
 
         XCTAssertTrue(reveal(https, in: app), "沒有回到帳號頁的通知列")
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: https)
         XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 10), .completed, "配對後開關仍不能點")
-    }
-
-    /// 主機編輯器是 Form:畫面外的列不建立，往上捲到元素出現。
-    @MainActor
-    private func scrollToEditor(_ target: XCUIElement, in app: XCUIApplication) -> Bool {
-        for _ in 0..<6 where !(target.exists && target.isHittable) {
-            app.swipeUp()
-        }
-        return target.exists && target.isHittable
     }
 
     /// 連不上的主機：開啟失敗寫出原因與「點開關重試」,開關仍可點。

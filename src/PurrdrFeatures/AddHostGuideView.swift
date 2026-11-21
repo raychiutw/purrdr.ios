@@ -6,7 +6,6 @@ struct AddHostGuideScreen: View {
     @State private var model: AddHostGuideModel
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
-    let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
     /// 存好主機的當下(還在最後一頁):讓 app 先登記這台主機,最後一頁才拿得到它的通知開關。
     let onAdded: (HostConfiguration) -> Void
     /// 這台主機的推播開關(最後一頁用)。
@@ -14,20 +13,18 @@ struct AddHostGuideScreen: View {
 
     init(
         make: () -> AddHostGuideModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
-        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil },
-        onOpenEditor: @escaping (HostConfiguration.ConnectionMethod) -> Void
+        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil }
     ) {
         _model = State(initialValue: make())
         self.onAdded = onAdded
         self.hostPush = hostPush
         self.onSaved = onSaved
         self.onCancel = onCancel
-        self.onOpenEditor = onOpenEditor
     }
 
     var body: some View {
         AddHostGuideView(
-            model: model, onSaved: onSaved, onCancel: onCancel, onOpenEditor: onOpenEditor, onAdded: onAdded, hostPush: hostPush)
+            model: model, onSaved: onSaved, onCancel: onCancel, onAdded: onAdded, hostPush: hostPush)
     }
 }
 
@@ -39,7 +36,6 @@ struct AddHostGuideView: View {
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
-    let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
     var onAdded: (HostConfiguration) -> Void = { _ in }
     var hostPush: (UUID) -> HostPush? = { _ in nil }
     @Environment(\.openURL) private var openURL
@@ -82,9 +78,6 @@ struct AddHostGuideView: View {
         #endif
         .toolbar { toolbar }
         .interactiveDismissDisabled()
-        .onChange(of: model.handoff) { _, handoff in
-            if case .editor(let method)? = handoff { onOpenEditor(method) }
-        }
         // 進到測試連線那頁就開始測;失敗後按「再試一次」。
         .task(id: model.step) {
             if model.step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }
@@ -103,6 +96,14 @@ struct AddHostGuideView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        #if os(iOS)
+        // 數字鍵盤(Port)與多行私鑰沒有能收鍵盤的 return,所以鍵盤上方放「完成」(#312,同主機編輯頁)。
+        ToolbarItemGroup(placement: .keyboard) {
+            Spacer()
+            Button("Done") { focus = nil }
+                .accessibilityIdentifier("guide.keyboardDone")
+        }
+        #endif
         ToolbarItem(placement: .cancellationAction) {
             if model.canGoBack {
                 Button("Back", systemImage: "chevron.backward") { back() }
@@ -275,6 +276,12 @@ struct AddHostGuideView: View {
                 #endif
                 .autocorrectionDisabled()
                 .focused($focus, equals: field)
+                .submitLabel(field.next == nil ? .done : .next)
+                .onSubmit { focus = field.next }
+                // 配對碼是大寫字母(#236、HIG TF-1):小寫鍵入的字變成大寫。
+                .onChange(of: text.wrappedValue) { _, value in
+                    if uppercase, value != value.uppercased() { text.wrappedValue = value.uppercased() }
+                }
                 .accessibilityIdentifier("guide.field.\(identifier(field))")
         }
     }
@@ -328,11 +335,23 @@ struct AddHostGuideView: View {
                     #if os(iOS)
                     .textInputAutocapitalization(.never)
                     #endif
+                    .focused($focus, equals: .privateKey)
                     .accessibilityIdentifier("guide.field.privateKey")
+                if let problem = model.privateKeyProblem {
+                    ErrorLabel(problem)
+                        .accessibilityIdentifier("guide.keyProblem")
+                    if model.privateKeyOffersDeviceKey {
+                        Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
+                            .accessibilityIdentifier("guide.useDeviceKey")
+                    }
+                }
             } else {
                 SecureField("Password", text: $model.password)
                     .font(.title3)
                     .textContentType(.password)
+                    .focused($focus, equals: .password)
+                    .submitLabel(.done)
+                    .onSubmit { focus = nil }
                     .accessibilityIdentifier("guide.field.password")
             }
         }
@@ -374,7 +393,8 @@ struct AddHostGuideView: View {
                 #endif
                 .autocorrectionDisabled()
                 .focused($focus, equals: field)
-                .submitLabel(.next)
+                .submitLabel(field.next == nil ? .done : .next)
+                .onSubmit { focus = field.next }
                 .accessibilityIdentifier("guide.field.\(identifier(field))")
             if let help = model.help(for: field) {
                 DisclosureGroup(
@@ -402,6 +422,8 @@ struct AddHostGuideView: View {
         case .pairAddress: "pairAddress"
         case .pairPort: "pairPort"
         case .pairingCode: "pairingCode"
+        case .password: "password"
+        case .privateKey: "privateKey"
         }
     }
 
@@ -437,6 +459,16 @@ struct AddHostGuideView: View {
             VStack(alignment: .leading, spacing: 10) {
                 ErrorLabel(message)
                     .accessibilityIdentifier("guide.result")
+                if let details = model.failureDetails {
+                    DisclosureGroup("Details") {
+                        Text(verbatim: details)
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("guide.details")
+                    }
+                    .font(.footnote)
+                }
                 ForEach(model.failureReminders, id: \.self) { reminder in
                     Label(reminder, systemImage: "lightbulb")
                         .font(.footnote)

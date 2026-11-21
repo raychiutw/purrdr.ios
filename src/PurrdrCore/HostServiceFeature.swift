@@ -27,6 +27,10 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case sendExpectations
     /// 變更頁的唯讀 git 讀取 `git.status`／`git.diff`(#310)。
     case gitChanges
+    /// 測試通知 `push.test`(raychiutw/purrdr.host#60)。
+    case pushTest
+    /// 對話紀錄視窗的位元組上限 `transcript.window` 的 `max_bytes`(#356、raychiutw/purrdr.host#52)。
+    case transcriptWindowMaxBytes
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -43,6 +47,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .sessionResume: HostServiceVersion(0, 7, 0)
         case .sendExpectations: HostServiceVersion(0, 7, 0)
         case .gitChanges: HostServiceVersion(0, 7, 0)
+        case .pushTest: HostServiceVersion(0, 11, 0)
+        case .transcriptWindowMaxBytes: HostServiceVersion(0, 11, 0)
         }
     }
 

@@ -19,7 +19,7 @@ public struct SSHPushTestNotifier: Sendable {
     /// 主機上的腳本(經 `HostFileScript.command`,有自我時限):讀這支裝置的配對檔,對配對檔記的後台 endpoint
     /// POST `{"key":…,"event":"test","host_name":…}`(與主機服務的 `push.test` 同一個 payload);密鑰經 stdin 交給 curl,不出現在指令參數。
     /// 第二個參數是主機名稱已跳脫成 ASCII 的 JSON 字串內容(`jsonStringContent`),空的不帶 `host_name`。
-    /// 輸出一行 HTTP 狀態碼;exit 66 沒有(完整的)配對、69 沒有 curl、70 連不上。
+    /// 輸出一行 HTTP 狀態碼(410 時先刪掉這支裝置的配對資料夾，同主機外掛);exit 66 沒有(完整的)配對、69 沒有 curl、70 連不上。
     /// Windows 版是 `WindowsScripts.pushTest`(`WindowsHostChannel.hostFileScripts` 登記)。
     static let script = #"""
         file="$HOME/.purrdr/$1/pairing"
@@ -36,6 +36,10 @@ public struct SSHPushTestNotifier: Sendable {
         code=$(printf '{"key":"%s","event":"test"%s}' "$key" "$name" |
           curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST -H 'content-type: application/json' \
             --data-binary @- "$endpoint") || exit 70
+        # Backend 410 (pairing revoked): delete this device's pairing folder like the host plugin; keep it if re-paired meanwhile.
+        if [ "$code" = "410" ] && [ "$(sed -n 's/^key=//p' "$file" | head -n 1)" = "$key" ]; then
+          rm -rf "${file%/pairing}"
+        fi
         printf '%s\n' "$code"
         """#
 

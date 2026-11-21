@@ -8,7 +8,7 @@ final class AgentListNoHostsUITests: XCTestCase {
 
     @MainActor
     func testNoHostsShowsAddHostButtonThatOpensGuide() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts", "-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"])
 
         XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitForExistence(timeout: 10), "沒有看到沒有主機的空狀態")
         XCTAssertFalse(app.descendants(matching: .any)["agent.row.demo/w1:p1"].exists, "沒有主機時不該直接列出 Demo 的 Agent")

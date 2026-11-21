@@ -153,16 +153,20 @@ final class SettingsUITests: XCTestCase {
         openSettings(in: app)
         XCTAssertFalse(app.switches["settings.hostTheme"].exists, "主機主題應在主機頁")
         XCTAssertFalse(app.switches["settings.codexLauncher"].exists, "Codex 啟動器應在主機頁")
-        for header in ["Appearance", "Keyboard and Haptics", "App Lock", "Support", "About"] {
-            let text = app.staticTexts[header].firstMatch
-            scrollTo(text, in: app)
-            XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
+        func expectHeaders(_ headers: [String]) {
+            for header in headers {
+                let text = app.staticTexts[header].firstMatch
+                scrollTo(text, in: app)
+                XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
+            }
         }
-        // 送出可撤回(#300):0–10 秒的 Stepper,說明在註腳。
+        // 由上而下的順序捲:外觀、鍵盤與觸覺 → 送出可撤回(#300,0–10 秒的 Stepper,說明在註腳)→ App 鎖、支援、關於。
+        expectHeaders(["Appearance", "Keyboard and Haptics"])
         let undoSend = app.steppers["settings.undoSend"].firstMatch
         scrollTo(undoSend, in: app)
         XCTAssertTrue(undoSend.exists, "設定頁沒有送出可撤回")
         XCTAssertTrue(app.staticTexts["After you send, the message waits this long so you can undo it."].firstMatch.exists)
+        expectHeaders(["App Lock", "Support", "About"])
     }
 
     /// 設定頁只有原型有的段落說明(外觀下的「自動」、送出可撤回的秒數說明)與支援段的隱私揭露(#276 的例外)。
@@ -193,7 +197,7 @@ final class SettingsUITests: XCTestCase {
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
         let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
-        XCTAssertTrue(message.contains("~/.local/bin/codex"), "沒說明會加什麼:\(message)")
+        XCTAssertTrue(message.contains("Codex launcher"), "沒說明會加什麼:\(message)")
         XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
         alert.buttons["Install"].tap()
 

@@ -28,9 +28,9 @@ public struct HostServiceAccess {
     }
 
     /// 不等待地請主機服務撤銷這個權杖(失敗也不影響：主機離線時可在主機上撤銷)。
-    func revokeWithoutWaiting(_ deviceToken: String, at address: HostServiceAddress) {
+    func revokeWithoutWaiting(_ deviceToken: String, at address: HostServiceAddress, traffic: TrafficRecording? = nil) {
         let pairing = pairing
-        Task { try? await pairing.revoke(address: address, deviceToken: deviceToken) }
+        Task { try? await pairing.revoke(address: address, deviceToken: deviceToken, traffic: traffic) }
     }
 
     /// 已存的 HTTPS 主機的連線。
@@ -312,7 +312,7 @@ extension UITestingHostServiceConnection: HostServiceManaging {
 
 /// UI 測試主機服務的版本、自動更新開關與撤銷過的裝置(每台主機一份)。
 final class UITestingHostServiceState: Sendable {
-    static let latest = HostServiceVersion(0, 7, 1)
+    static let latest = HostServiceVersion(1, 0, 1)  // 比 UI 測試預設安裝的版本(`FixedHostServiceReleases.uiTestingLatestVersion`,1.0.0)新，主機頁才有更新鈕
     static var latestVersion: String { latest.description }
 
     private let state: Mutex<(installed: String, autoUpdate: Bool)>

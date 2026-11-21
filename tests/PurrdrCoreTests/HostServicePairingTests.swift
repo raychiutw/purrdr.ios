@@ -30,6 +30,38 @@ struct HostServicePairingTests {
         #expect(HostServiceAddress(text) == nil)
     }
 
+    @Test("配對與撤銷的 HTTP 請求回報位元組(數據用量,#353):送出的是請求本文，收到的是回應本文")
+    func pairingAndRevokeReportTraffic() async throws {
+        let address = try #require(HostServiceAddress("studio.tail1234.ts.net"))
+        let http = StubHTTP(response: HostServiceHTTPResponse(
+            status: 200, body: Data(#"{"device_id":"d1","device_token":"token","read_only":false}"#.utf8)))
+        let recorded = Recorded()
+        let recording: TrafficRecording = { direction, bytes in recorded.add(direction, bytes) }
+
+        let paired = try await HostServicePairing(http: http).pair(
+            address: address, pairingCode: "K7QM-2XPA", deviceName: "iPhone", traffic: recording)
+        try await HostServicePairing(http: StubHTTP(response: HostServiceHTTPResponse(status: 204, body: Data()))).revoke(
+            address: address, deviceToken: paired.deviceToken, traffic: recording)
+
+        #expect(recorded.sent > 0)
+        #expect(recorded.received == Data(#"{"device_id":"d1","device_token":"token","read_only":false}"#.utf8).count)
+    }
+
+    struct StubHTTP: HostServiceHTTPSending {
+        var response: HostServiceHTTPResponse
+        func post(_ url: URL, bearerToken: String?, body: Data?) async throws -> HostServiceHTTPResponse { response }
+    }
+
+    final class Recorded: @unchecked Sendable {
+        private let lock = NSLock()
+        private var totals = (sent: 0, received: 0)
+        var sent: Int { lock.withLock { totals.sent } }
+        var received: Int { lock.withLock { totals.received } }
+        func add(_ direction: TrafficDirection, _ bytes: Int) {
+            lock.withLock { if direction == .sent { totals.sent += bytes } else { totals.received += bytes } }
+        }
+    }
+
     @Test("WebSocket、配對、撤銷的網址")
     func endpoints() throws {
         let address = try #require(HostServiceAddress("studio.tail1234.ts.net"))

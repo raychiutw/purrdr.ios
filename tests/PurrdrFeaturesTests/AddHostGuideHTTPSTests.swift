@@ -49,7 +49,6 @@ struct AddHostGuideHTTPSTests {
         let model = try await Self.rig().model
         model.choose(.https)
         #expect(model.step == .tailscale)
-        #expect(model.handoff == nil)
         let links = model.tailscaleInstructions.compactMap(\.link)
         #expect(links.contains(AddHostGuideModel.tailscaleAppStore))
         #expect(links.contains(AddHostGuideModel.tailscaleDownload))
@@ -167,6 +166,19 @@ struct AddHostGuideHTTPSTests {
         #expect(try rig.tokens.deviceToken(for: saved.id) == "token-paired")
     }
 
+    @Test("新增主機時的配對與撤銷也計入數據用量:記在即將儲存的那台主機底下(#353)")
+    func pairingAndRevokeAreMetered() async throws {
+        let rig = try await Self.rig(shortcut: .importLink(Self.pairingURL))
+        let meter = TrafficMeter(store: InMemoryTrafficStore())
+        rig.model.attachTraffic { meter.recorder(for: $0.uuidString) }
+
+        await rig.model.testConnection()
+        let saved = try #require(rig.model.save())
+
+        let usage = try #require(meter.today()[saved.id.uuidString]?[.other])
+        #expect(usage.sent > 0 && usage.received > 0, "配對請求送出的與收到的位元組")
+    }
+
     @Test("匯入 HTTPS 主機分享連結:沒有配對碼，到配對那一步，位址已帶入")
     func httpsShareLinkGoesToPair() async throws {
         let shared = SharedHost(
@@ -202,14 +214,40 @@ struct AddHostGuideHTTPSTests {
         #expect(saved.ssh?.endpoint == SSHEndpoint(host: "studio-mac", port: 22, username: "ray"))
     }
 
-    @Test("匯入原生 SSH 分享連結或壞連結:引導接不了，丟錯讓畫面改開主機編輯頁")
+    @Test("匯入原生 SSH 分享連結:位址、Port、帳號與名稱已帶入，問完電腦種類就到登入方式(不用重填，也不離開引導)")
+    func openSSHShareLinkContinuesInGuide() async throws {
+        let pin = HostEditorModelTests.fingerprint
+        let shared = SharedHost(
+            name: "Box", endpoint: SSHEndpoint(host: "box.example.com", port: 2222, username: "ray"), connectionMethod: .openSSH,
+            hostKeyPin: pin)
+        let store = MemoryHostStore()
+        let model = try AddHostGuideModel(
+            store: store, makeChannel: ChannelFactory(await HostEditorModelTests.healthyHost()).make,
+            shortcut: .importLink(HostShareLink.url(for: shared)))
+
+        #expect(model.step == .system)
+        #expect(model.kind == .ssh)
+        #expect(model.sshMethod == .native)
+        #expect(model.address == "box.example.com")
+        #expect(model.port == "2222")
+        #expect(model.username == "ray")
+
+        model.choose(.macOS)
+        #expect(model.step == .login, "已知是原生 SSH，不再問連線方式與位址")
+        model.choose(authentication: .password)
+        model.password = "secret"
+        model.advance()
+        #expect(model.step == .test)
+        await model.testConnection()
+        let saved = try #require(model.save())
+        #expect(saved.name == "Box")
+        #expect(saved.connectionMethod == .openSSH)
+        #expect(saved.ssh?.endpoint == SSHEndpoint(host: "box.example.com", port: 2222, username: "ray"))
+        #expect(saved.ssh?.hostKeyPin == pin)
+    }
+
+    @Test("壞連結:引導接不了，丟錯")
     func unsupportedLinksThrow() async throws {
-        let openSSH = SharedHost(
-            name: "Box", endpoint: SSHEndpoint(host: "box", port: 22, username: "ray"), connectionMethod: .openSSH)
-        #expect(throws: AddHostGuideModel.ShortcutError.needsEditor) {
-            try AddHostGuideModel(
-                store: MemoryHostStore(), makeChannel: ChannelFactory().make, shortcut: .importLink(HostShareLink.url(for: openSSH)))
-        }
         #expect(throws: (any Error).self) {
             try AddHostGuideModel(
                 store: MemoryHostStore(), makeChannel: ChannelFactory().make,

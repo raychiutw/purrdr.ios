@@ -179,7 +179,7 @@ final class PaneTerminalUITests: XCTestCase {
 
         let capsule = app.buttons["terminal.size"].firstMatch
         XCTAssertTrue(capsule.waitForExistence(timeout: 10), "沒有大小膠囊")
-        XCTAssertEqual(capsule.value as? String, "Keep Computer Layout")
+        XCTAssertEqual(capsule.value as? String, "Keep Host Layout")
         capsule.tap()
         let fit = app.buttons["Fit This Phone"].firstMatch
         XCTAssertTrue(fit.waitForExistence(timeout: 5), "sheet 裡沒有「Fit This Phone」")
@@ -189,7 +189,7 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertTrue(note.label.contains("layout on your computer changes"), "沒有說明會影響電腦版面:\(note.label)")
 
         // 還原偏好,不影響其他測試。
-        app.buttons["Keep Computer Layout"].firstMatch.tap()
+        app.buttons["Keep Host Layout"].firstMatch.tap()
         app.buttons["Done"].firstMatch.tap()
     }
 

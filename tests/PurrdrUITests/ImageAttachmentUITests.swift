@@ -106,8 +106,8 @@ final class ImageAttachmentUITests: XCTestCase {
 
         element("composer.text", in: app).tap()
         element("composer.expand", in: app).tap()
-        let add = element("composer.expanded.addImage", in: app)
-        XCTAssertTrue(add.waitForExistence(timeout: 5), "展開畫面沒有「加入圖片」")
+        let add = element("composer.expanded.attach", in: app)
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "展開畫面沒有「＋附加」")
         add.tap()
         XCTAssertTrue(element("attach.paste", in: app).waitForExistence(timeout: 5))
         element("attach.paste", in: app).tap()

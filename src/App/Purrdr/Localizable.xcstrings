@@ -3325,6 +3325,17 @@
         }
       }
     },
+    "Couldn’t read this pane’s size on your computer, so it opened at this phone’s size. Open it again once herdr is running there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀不到這個 Pane 在電腦上的大小，所以改用這支手機的大小開啟。等電腦上的 herdr 開著之後再開一次。"
+          }
+        }
+      }
+    },
     "Couldn’t remove this host from this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3358,35 +3369,35 @@
         }
       }
     },
-    "Couldn’t save this host on this device. %@" : {
+    "Couldn’t save this host on this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法在這台裝置上儲存這台電腦。%@"
+            "value" : "無法在這台裝置上儲存這台電腦。"
           }
         }
       }
     },
-    "Couldn’t save this host’s pairing on this device. %@" : {
+    "Couldn’t save this host’s pairing on this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法在這支裝置上儲存這台電腦的配對。%@"
+            "value" : "無法在這支裝置上儲存這台電腦的配對。"
           }
         }
       }
     },
-    "Couldn’t save this host’s sign-in details on this device. %@" : {
+    "Couldn’t save this host’s sign-in details on this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法在這支裝置上儲存這台電腦的登入資料。%@"
+            "value" : "無法在這支裝置上儲存這台電腦的登入資料。"
           }
         }
       }
@@ -3501,13 +3512,13 @@
         }
       }
     },
-    "Couldn’t update herdr. %@" : {
+    "Couldn’t update herdr. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法更新 herdr。%@"
+            "value" : "無法更新 herdr。請再試一次。"
           }
         }
       }
@@ -5352,17 +5363,6 @@
         }
       }
     },
-    "Keep Computer Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保留電腦版面"
-          }
-        }
-      }
-    },
     "Keep Editing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5370,6 +5370,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "繼續編輯"
+          }
+        }
+      }
+    },
+    "Keep Host Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留電腦版面"
           }
         }
       }
@@ -11206,13 +11217,13 @@
         }
       }
     },
-    "This device isn’t paired with the host for notifications. Turn notifications off and on again." : {
+    "This device isn’t paired with the host for notifications any more, so they’re now off. Turn them on again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這支裝置尚未與電腦配對通知。請把通知關掉再重新開啟。"
+            "value" : "這支裝置在這台電腦上已不再配對通知，所以通知已關閉。請重新開啟。"
           }
         }
       }
@@ -13110,6 +13121,17 @@
         }
       }
     },
+    "While away · +%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離開期間 · +%@"
+          }
+        }
+      }
+    },
     "While you were away · %@ · worked %lld min" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13117,6 +13139,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你離開期間 · %@ · 工作 %lld 分鐘"
+          }
+        }
+      }
+    },
+    "While you’re connected, the pane keeps this size, even if you resize the window on your computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線期間，這個 Pane 會維持這個大小，就算你在電腦上調整視窗也一樣。"
           }
         }
       }
@@ -13746,6 +13779,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台電腦上的 herdr 太舊，不支援這項功能。請更新 herdr，然後重新啟動它。"
+          }
+        }
+      }
+    },
+    "herdr on this host reported a problem. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦上的 herdr 回報了問題。請再試一次。"
           }
         }
       }

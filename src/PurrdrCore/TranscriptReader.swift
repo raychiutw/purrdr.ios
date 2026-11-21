@@ -140,7 +140,7 @@ public struct TranscriptReader: Sendable {
     /// 讀以 `end` 為終點的最後 `lines` 行(開啟時與往上翻頁)。
     ///
     /// `maxBytes` 有值時範圍最多往前取那麼多 bytes(只含完整的行，可能少於 `lines` 行，也可能一行都放不下而是空的;
-    /// 呼叫端自己決定要不要放寬)。HTTPS 主機服務的 `transcript.window`(0.9.0 schema)沒有 byte 上限,只照行數。
+    /// 呼叫端自己決定要不要放寬)。HTTPS 主機服務 0.11.0 起的 `transcript.window` 有 `max_bytes`(`HostServiceFeature.transcriptWindowMaxBytes`),更舊的只照行數。
     public func window(path: String, endingAt end: Int, lines: Int, maxBytes: Int? = nil) async throws -> TranscriptChunk {
         guard Self.isValidPath(path), end >= 0, lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
         let output = try await run(.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes, maxBytes: maxBytes ?? 0))

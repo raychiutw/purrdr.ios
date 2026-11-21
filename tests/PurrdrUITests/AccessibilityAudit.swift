@@ -44,11 +44,16 @@ final class AccessibilityAuditContext {
     lazy var navigationBars: [CGRect] = app.navigationBars.allElementsBoundByIndex.map(\.frame)
         .filter { !$0.isEmpty && $0.height < window.height / 2 }
 
-    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、終端機按鍵列。
+    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、終端機按鍵列、新增主機引導的底部玻璃面板(使用者同意，2026-11-21)。
     lazy var bottomBars: [CGRect] = {
         // 搜尋欄：元素只有文字欄位本身，外面的玻璃膠囊與 scroll edge effect 再往上約 24pt,一路到視窗底。
         var frames = app.searchFields.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }.map { field in
             CGRect(x: window.minX, y: field.minY - 24, width: window.width, height: window.maxY - field.minY + 24)
+        }
+        // 新增主機引導的底部玻璃面板(`guide.panel`):表單內容捲到面板下時同樣是被玻璃模糊的那一塊(使用者同意列入，2026-11-21)。
+        let guidePanel = app.descendants(matching: .any)["guide.panel"].firstMatch
+        if guidePanel.exists, !guidePanel.frame.isEmpty {
+            frames.append(CGRect(x: window.minX, y: guidePanel.frame.minY, width: window.width, height: window.maxY - guidePanel.frame.minY))
         }
         for identifier in ["composer.text", "terminal.key.esc"] {
             let element = app.descendants(matching: .any)[identifier].firstMatch
@@ -172,7 +177,7 @@ enum AccessibilityAuditExclusions {
         },
         Rule(
             types: [.contrast, .textClipped, .hitRegion],
-            reason: "內容元素(以中線判斷)捲到導覽列、搜尋欄、輸入列或終端機按鍵列的 Liquid Glass 底下(scroll edge effect)、"
+            reason: "內容元素(以中線判斷)捲到導覽列、搜尋欄、輸入列、終端機按鍵列或新增主機引導底部面板的 Liquid Glass 底下(scroll edge effect)、"
                 + "在 slash 選單後面、捲出 slash 面板選項清單被裁掉，或捲出視窗外;audit 量到的是被玻璃模糊或裁掉的那一塊，捲到可見處時會另外受檢"
         ) { issue, context in
             guard let element = issue.element else { return false }
@@ -280,6 +285,15 @@ enum AccessibilityAuditExclusions {
             }
             let middle = CGPoint(x: element.frame.midX, y: element.frame.midY)
             return context.compactAccessories.contains { $0.contains(middle) }
+        },
+        Rule(
+            types: [.dynamicType, .textClipped],
+            reason: "AX 字級時 slash 選單開著、對應不到元素的 SwiftUI 節點:選單內捲到可見範圍外的列(audit 時有時無，master 上 10 輪約一半回報)。"
+                + "#249/#251 截圖(0.45.0 Mac mini,testSlashMenuAndPanels AX5)確認畫面上看得到的列都隨字級放大、未截斷;"
+                + "改成 LazyVStack 讓畫面外的列不進無障礙樹會使選單(fixedSize)排不出列，不可行。使用者同意此排除(2026-11-20)"
+        ) { issue, context in
+            context.isAccessibilitySize && context.slashMenu != nil && issue.element == nil
+                && issue.detailedDescription.contains("SwiftUI.AccessibilityNode")
         },
         Rule(
             types: .sufficientElementDescription,

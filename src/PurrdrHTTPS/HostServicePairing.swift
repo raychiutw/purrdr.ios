@@ -10,9 +10,14 @@ public struct HostServicePairing: Sendable {
     }
 
     /// 以配對碼換這台主機的裝置權杖。`deviceName` 顯示在主機的裝置列表。
-    public func pair(address: HostServiceAddress, pairingCode: String, deviceName: String) async throws -> PairedDevice {
+    /// `traffic` 有值時回報這次請求的位元組(數據用量,#353)。
+    public func pair(
+        address: HostServiceAddress, pairingCode: String, deviceName: String, traffic: TrafficRecording? = nil
+    ) async throws -> PairedDevice {
         let body = try JSONEncoder().encode(HostServiceProtocol.PairRequest(pairingCode: pairingCode, deviceName: deviceName))
+        traffic?(.sent, body.count)
         let response = try await http.post(address.pairURL, bearerToken: nil, body: body)
+        traffic?(.received, response.body.count)
         guard response.status == 200 else { throw Self.error(from: response) }
         guard let paired = try? JSONDecoder().decode(HostServiceProtocol.PairResponse.self, from: response.body) else {
             throw HostServiceError.unexpectedResponse
@@ -21,8 +26,9 @@ public struct HostServicePairing: Sendable {
     }
 
     /// 請主機服務撤銷這支裝置的權杖(刪除主機時)。權杖已失效也算成功。
-    public func revoke(address: HostServiceAddress, deviceToken: String) async throws {
+    public func revoke(address: HostServiceAddress, deviceToken: String, traffic: TrafficRecording? = nil) async throws {
         let response = try await http.post(address.revokeURL, bearerToken: deviceToken, body: nil)
+        traffic?(.received, response.body.count)
         guard (200..<300).contains(response.status) else {
             let error = Self.error(from: response)
             if (error as? HostServiceError)?.requiresPairing == true { return }

@@ -20,7 +20,7 @@ struct HostPushSection: View {
                 if push.support == .supported, push.model.state == .on {
                     HostPushKindsRow(push: push)
                 }
-                if push.model.canSendTestNotification {
+                if push.model.canSendTestNotification, push.supportsTestNotification {
                     HostPushTestRow(push: push)
                 }
                 if case .needsHostService(_, let update) = push.support {

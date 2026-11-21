@@ -408,7 +408,7 @@ public actor HTTPSHostConnection: HostConnection {
         case .uploadTooLarge: HostUploadError.tooLarge
         case .deviceUnknown: HostServiceError.deviceUnknown
         // 只回覆 `push.*`,由 `HostServicePushPluginInstaller` 依操作直接對應。
-        case .pushPluginFailed, .pushNotPaired, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
+        case .pushPluginFailed, .pushNotPaired, .pushSendFailed, .invalidMessage, .handshakeRequired, .internalError: HostServiceError.unexpectedResponse
         case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
         case .updateInProgress: HostServiceManagementError.updateInProgress
         case .updateFailed: HostServiceManagementError.updateFailed(message.message)

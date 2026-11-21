@@ -93,6 +93,20 @@ struct HTTPSTranscriptTests {
         #expect(sent["lines"] as? Int == 300)
     }
 
+    @Test("視窗帶位元組上限：主機服務 0.11.0 起送 max_bytes,舊版只限行數(#356)")
+    func windowSendsMaxBytesOnlyWhenHostSupportsIt() async throws {
+        let reply = #"{"type":"transcript.window.result","start":100,"end":130,"records":[{"length":20,"text":"{\"n\":1}"},{"length":8,"text":"{\"n\":2}"}]}"#
+        for (version, expected) in [("0.11.0", 65_536), ("0.10.0", nil)] as [(String, Int?)] {
+            let service = try await FakeHostService.start(.init(transcriptReplies: ["transcript.window": reply], hostServiceVersion: version))
+            defer { Task { await service.stop() } }
+
+            _ = try await Self.reader(for: service).0.window(path: Self.path, endingAt: 140, lines: 300, maxBytes: 65_536)
+
+            let sent = try #require(service.messages(ofType: "transcript.window").first)
+            #expect(sent["max_bytes"] as? Int == expected, "主機服務 \(version)")
+        }
+    }
+
     @Test("追蹤：第一次讀開始追蹤;之後主機推送的新行直接讀到，不再送請求")
     func tailReadsPushedLinesWithoutRequests() async throws {
         let service = try await Self.start([

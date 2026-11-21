@@ -1,6 +1,6 @@
 import XCTest
 
-/// 主機頁(ⓘ)下方的主機服務區塊(#290)。UI 測試替身：主機服務有新版 0.7.1,立即更新後重新連線就是新版。
+/// 主機頁(ⓘ)下方的主機服務區塊(#290)。UI 測試替身：主機服務有新版 1.0.1,立即更新後重新連線就是新版。
 final class HostStatusUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -14,7 +14,7 @@ final class HostStatusUITests: XCTestCase {
 
         let version = app.descendants(matching: .any)["hostStatus.hostService.version"].firstMatch
         XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有主機服務版本")
-        XCTAssertTrue(app.descendants(matching: .any)["hostStatus.hostService.latest"].firstMatch.label.contains("0.7.1"))
+        XCTAssertTrue(app.descendants(matching: .any)["hostStatus.hostService.latest"].firstMatch.label.contains("1.0.1"))
 
         let autoUpdate = app.switches["hostStatus.hostService.autoUpdate"]
         XCTAssertTrue(autoUpdate.exists)
@@ -27,8 +27,8 @@ final class HostStatusUITests: XCTestCase {
         update.tap()
         let updated = app.descendants(matching: .any)["hostStatus.hostService.updateResult"].firstMatch
         XCTAssertTrue(updated.waitForExistence(timeout: 20), "沒有更新結果")
-        XCTAssertTrue(updated.label.contains("Updated to 0.7.1"), updated.label)
-        XCTAssertTrue(version.label.contains("0.7.1"), "版本沒有換成新版")
+        XCTAssertTrue(updated.label.contains("Updated to 1.0.1"), updated.label)
+        XCTAssertTrue(version.label.contains("1.0.1"), "版本沒有換成新版")
     }
 
     /// 唯讀裝置(啟動時已用唯讀權杖配對):看得到狀態，立即更新與自動更新停用並說明。
@@ -55,9 +55,12 @@ final class HostStatusUITests: XCTestCase {
         XCTAssertTrue(info.waitForExistence(timeout: 5), "主機清單沒有 Studio")
         info.tap()
         XCTAssertTrue(app.buttons["hostEditor.save"].waitForExistence(timeout: 5), "沒有開啟主機頁")
-        for _ in 0..<6 {
+        // 表單是 lazy 的,欄位愈來愈多(#274、#346):一次捲一點,直到最後一個區塊(已配對裝置)出現。
+        let last = app.descendants(matching: .any)["hostStatus.hostService.autoUpdate"].firstMatch
+        for _ in 0..<14 where !last.exists || !last.isHittable {
             app.swipeUp()
         }
+        app.swipeUp()
     }
 }
 

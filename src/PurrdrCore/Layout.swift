@@ -30,11 +30,14 @@ public struct Pane: Sendable, Equatable, Identifiable {
     public var terminalTitle: String?
     /// herdr 重啟後無法還原這個 pane 的原因。
     public var restoreError: String?
+    /// 這個 pane 的 PTY 列數(snapshot 的 `scroll.viewport_rows`);保留電腦版面的 Pane 終端機用(#357)。
+    public var viewportRows: Int?
 
     public init(
         id: String, workspaceID: String, tabID: String, agentKind: String? = nil, cwd: String? = nil,
-        label: String? = nil, terminalTitle: String? = nil, restoreError: String? = nil
+        label: String? = nil, terminalTitle: String? = nil, restoreError: String? = nil, viewportRows: Int? = nil
     ) {
+        self.viewportRows = viewportRows
         self.id = id
         self.workspaceID = workspaceID
         self.tabID = tabID

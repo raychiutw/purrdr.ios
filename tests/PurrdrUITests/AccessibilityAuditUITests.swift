@@ -160,7 +160,9 @@ final class AccessibilityAuditUITests: XCTestCase {
             element("composer.send", in: app).tap()
             let panel = element("panel.card", in: app)
             XCTAssertTrue(panel.waitForExistence(timeout: 10))
-            element("composer.hideKeyboard", in: app).tap()
+            // 送出就收起鍵盤(#329);還聚焦才點。
+            let hide = element("composer.hideKeyboard", in: app)
+            if hide.waitForExistence(timeout: 1) { hide.tap() }
             // 收起鍵盤後對話還在捲回最新一列：等版面停下再稽核(#251:AX5 量到捲動中的舊位置，截圖是另一塊)。
             XCTAssertTrue(waitForSettledLayout([panel, element("composer.text", in: app)], timeout: 5), "版面沒有停下")
             try audit(app, "/model 面板卡片", contentSize: size)
@@ -177,7 +179,9 @@ final class AccessibilityAuditUITests: XCTestCase {
             text.typeEnglish("!git status")
             element("composer.send", in: app).tap()
             XCTAssertTrue(element("conversation.shell", in: app).waitForExistence(timeout: 15))
-            element("composer.hideKeyboard", in: app).tap()
+            // 送出就收起鍵盤(#329);還聚焦才點。
+            let hide = element("composer.hideKeyboard", in: app)
+            if hide.waitForExistence(timeout: 1) { hide.tap() }
             try audit(app, "! 指令", contentSize: size)
             app.terminate()
         }
@@ -225,8 +229,7 @@ final class AccessibilityAuditUITests: XCTestCase {
 
             XCTAssertTrue(app.buttons["hosts.add"].waitForExistence(timeout: 5))
             app.buttons["hosts.add"].tap()
-            // AX5 時「Test Connection」在畫面外(Form 是 lazy),以第一個欄位判斷表單已開。
-            XCTAssertTrue(app.textFields["hostEditor.name"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["guide.option.ssh"].waitForExistence(timeout: 5))
             try audit(app, "新增主機", contentSize: size)
             app.terminate()
         }
@@ -249,7 +252,9 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             app.openPlusPaywall()
-            XCTAssertTrue(element("plus.plan.com.raychiu.purrdr.plus.monthly", in: app).waitForExistence(timeout: 15))
+            // AX5 時方案卡在畫面外(List 是 lazy,不在無障礙樹),先等頁面出來再捲到方案卡。
+            XCTAssertTrue(app.collectionViews.firstMatch.waitForExistence(timeout: 15), "沒有開出付費牆")
+            XCTAssertTrue(app.reveal(element("plus.plan.com.raychiu.purrdr.plus.monthly", in: app), timeout: 15), "找不到月方案")
             try audit(app, "付費牆", contentSize: size)
             app.terminate()
         }
@@ -260,9 +265,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             app.openAccount()
-            XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10))
-            try audit(app, "帳號", contentSize: size)
-            app.buttons["account.plusSetup.action"].tap()
+            // 沒登入時帳號頁直接是登入頁(#328)。
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10))
             try audit(app, "登入", contentSize: size)
             app.terminate()

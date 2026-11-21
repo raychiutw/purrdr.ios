@@ -29,6 +29,62 @@ struct PaneTerminalSizeModeTests {
         _ = await host.waitForStdin(ofExecution: 0, timeout: Base.timeout) { $0.stdinText.contains("\"bytes\"") }
     }
 
+    /// 以 `native` 當電腦上 Pane 的格數開連線(保留模式在 handshake 帶它)。
+    static func connect(_ host: FakeHost, mode: TerminalSizeMode, native: TerminalGridSize?, lookups: Counter = Counter()) async -> PaneTerminalModel {
+        let defaults = freshDefaults()
+        TerminalSizeSettings.setMode(mode, in: defaults)
+        let model = PaneTerminalModel(
+            client: PaneTerminalClient(channel: host), paneID: "w1:p1", title: "t", sleep: RecordingSleeper().sleep, defaults: defaults,
+            nativeSize: { lookups.increment(); return native })
+        model.viewDidResize(columns: 40, rows: 12)
+        _ = await host.waitForExecutions(1, timeout: Base.timeout)
+        return model
+    }
+
+    final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+        func increment() { lock.withLock { value += 1 } }
+        var count: Int { lock.withLock { value } }
+    }
+
+    @Test("保留模式:handshake 帶 Pane 在電腦上的格數,不是手機的格數,接上期間不送 resize")
+    func keepModeHandshakesWithDesktopSize() async {
+        let host = FakeHost()
+        await host.expect(Base.control(columns: 133, rows: 49), reply: FakeReply(keepsOpen: true))
+
+        let model = await Self.connect(host, mode: .keepDesktop, native: TerminalGridSize(columns: 133, rows: 49))
+        await Self.flush(model, host)
+
+        #expect(await host.unmetExpectations.isEmpty)
+        #expect(await Base.sentResizes(host) == [])
+        #expect(!model.keepDesktopFallback)
+    }
+
+    @Test("保留模式:讀不到電腦上的格數(電腦沒開 herdr 等)退回手機的格數,並說明")
+    func keepModeFallsBackToPhoneSize() async {
+        let host = FakeHost()
+        await host.expect(Base.control(columns: 40, rows: 12), reply: FakeReply(keepsOpen: true))
+
+        let model = await Self.connect(host, mode: .keepDesktop, native: nil)
+
+        #expect(await host.unmetExpectations.isEmpty)
+        #expect(model.keepDesktopFallback)
+    }
+
+    @Test("配合手機:handshake 帶手機的格數,不去查電腦上的格數")
+    func fitModeIgnoresDesktopSize() async {
+        let host = FakeHost()
+        await host.expect(Base.control(columns: 40, rows: 12), reply: FakeReply(keepsOpen: true))
+        let lookups = Counter()
+
+        let model = await Self.connect(host, mode: .fitPhone, native: TerminalGridSize(columns: 133, rows: 49), lookups: lookups)
+
+        #expect(await host.unmetExpectations.isEmpty)
+        #expect(lookups.count == 0)
+        #expect(!model.keepDesktopFallback)
+    }
+
     @Test("預設是保留電腦版面")
     func defaultsToKeepDesktopLayout() {
         let model = Self.bareModel(Self.freshDefaults())

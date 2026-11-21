@@ -89,6 +89,7 @@
       <li>後台保存：配對密鑰的 SHA-256 雜湊、APNs device token、平台(APNs)與環境(production／sandbox)、建立與更新時間，以及每組密鑰每分鐘的速率限制計數。</li>
     </ul>
     <p>Agent 需要你時，主機外掛只送出 <strong>workspace 名稱、狀態與 pane id</strong>。後台據此組成通知(標題是 workspace 名稱，內文固定是「An agent needs you.」)交給 Apple Push Notification service(APNs)送到你的裝置。這些內容只在轉送當下處理，<strong>後台不保存</strong>;對話內容不會經過後台或 APNs。關閉推播或刪除主機時，App 會撤銷配對並移除主機上的配對檔。</p>
+    <p>你在 App 按「傳送測試通知」時，電腦名稱(你在主機清單替它取的名稱)會經後台與 Apple 推播服務送到你的裝置，<strong>只用在這則通知的標題，後台不保存</strong>。</p>
 
     <h2>6. 主機同步(Purrdr Plus)</h2>
     <p>開啟主機同步後，後台保存你每台主機的：名稱、位址與埠、使用者名稱、連線方式(Tailscale SSH／OpenSSH／HTTPS)、host key 指紋、HTTPS 主機的位址與修改時間(HTTPS 主機的裝置權杖永不上傳);刪除的主機只留 ID 與刪除時間，避免其他裝置把它同步回來。</p>
@@ -204,6 +205,7 @@
       <li>Our backend keeps the SHA-256 hash of the pairing key, the APNs device token, the platform (APNs) and environment (production or sandbox), when it was created and updated, and a per-minute rate-limit counter for that key.</li>
     </ul>
     <p>When an agent needs you, the host plugin sends only the <strong>workspace name, the status, and the pane ID</strong>. Our backend builds the notification (the title is the workspace name; the text is always “An agent needs you.”) and hands it to the Apple Push Notification service (APNs) for delivery. This is processed only while it’s being relayed and <strong>is not stored</strong>; conversation content never goes through our backend or APNs. When you turn notifications off or remove the host, the app revokes the pairing and removes the pairing file from the host.</p>
+    <p>When you tap “Send Test Notification” in the app, the computer’s name (the name you gave it in the host list) goes through our backend and the Apple Push Notification service to your device. <strong>It’s used only in the title of that one notification and is not stored.</strong></p>
 
     <h2>6. Host sync (Purrdr Plus)</h2>
     <p>With host sync on, our backend keeps, for each host: its name, address and port, user name, connection method (Tailscale SSH, OpenSSH, or HTTPS), host key fingerprint, the HTTPS address of an HTTPS host, and when it was modified. An HTTPS host’s device token is never uploaded. For a deleted host it keeps only the ID and deletion time, so other devices don’t sync it back.</p>

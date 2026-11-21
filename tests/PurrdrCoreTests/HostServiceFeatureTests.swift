@@ -32,6 +32,15 @@ struct HostServiceFeatureTests {
         #expect(!HostServiceFeature.fileFetch.isAvailable(onHostServiceVersion: "unknown"))
     }
 
+    @Test("測試通知與對話紀錄視窗位元組上限從主機服務 0.11.0 起可用")
+    func pushTestAndWindowMaxBytesStartAtZeroEleven() {
+        for feature in [HostServiceFeature.pushTest, .transcriptWindowMaxBytes] {
+            #expect(feature.minimumVersion == HostServiceVersion("0.11.0"), "\(feature)")
+            #expect(feature.isAvailable(onHostServiceVersion: "0.11.0"), "\(feature)")
+            #expect(!feature.isAvailable(onHostServiceVersion: "0.10.0"), "\(feature)")
+        }
+    }
+
     @Test("上傳圖片與檔案從主機服務 0.7.0 起可用(#288)")
     func fileUploadStartsAtZeroSevenZero() {
         #expect(HostServiceFeature.fileUpload.isAvailable(onHostServiceVersion: "0.7.0"))

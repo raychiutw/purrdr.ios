@@ -21,6 +21,8 @@ package enum AgentListProjection {
         package var preferences = ChatPreferences()
         /// 投影當下的時間(離開期間徽章用，#308)。
         package var now = Date()
+        /// 離開期間的輪數(pane id → 輪數;已算出才有，#308)。
+        package var awayTurns: [String: Int] = [:]
     }
 
     package static func sections(
@@ -181,7 +183,7 @@ extension AgentRow {
         self.init(
             host: host, paneID: agent.paneID, kind: agent.kind, title: title, workspace: AgentRowText.workspaceName(for: agent),
             subtitle: subtitle, hostLabel: label,
-            preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isAway: chat.isAway, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted,
+            preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isAway: chat.isAway, awayTurns: chat.awayTurns, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted,
             progress: preview?.progress
         )
     }

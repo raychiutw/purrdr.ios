@@ -74,6 +74,11 @@ public struct ConversationView: View {
                 guard scenePhase == .active else { return }
                 await model.run()
             }
+            // 離開期間摘要(#308):app 進背景再回來也算離開。
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background { model.scenePhaseChanged(isBackground: true) }
+                if phase == .active { model.scenePhaseChanged(isBackground: false) }
+            }
             // Send When Done 佇列跟著主機的推送(#305);回到前景時重新讀回。
             .task(id: scenePhase == .active) {
                 guard scenePhase == .active else { return }
@@ -208,7 +213,7 @@ public struct ConversationView: View {
             scroll.visibleRowsChanged(count: ids.count)
         }
         .defaultScrollAnchor(.bottom)
-        // 可見範圍改變(鍵盤收放、輸入框長高)時留在底部，不靠位移補救(#255、#315)。
+        // 可見範圍改變(鍵盤收放、輸入框長高)時留在底部:收起鍵盤後面板卡片的按鈕不會掉到輸入列底下(#255)。
         .defaultScrollAnchor(.bottom, for: .sizeChanges)
         // 重新載入、換 session 讀取中:舊訊息留著，頂端只放一條不遮擋的細進度條(#329)。
         .overlay(alignment: .top) {
@@ -245,12 +250,26 @@ public struct ConversationView: View {
             }
             // 內容剛被重建、停在內容之外(內容突然縮短)就切回跟隨並捲到底，不留空白;一般排版變化不介入(#130)。
             // 可見範圍小時 LazyVStack 可能停在底部卻一列都沒長出來(#191),同樣再捲一次。
+            // 面板卡片(`/model`、`/effort`)在最後:以位移算出的底部不含卡片下半，所以開著時不以位移捲，一律捲到最後一列。
+            let byOffsetAllowed = model.panel == nil
             if !userIsScrolling,
-               scroll.returnsToContent(metrics, at: .now) || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
-                // 捲到最後一列(LazyVStack 才排出那一列);不再以位移補救(#255):A1 版面的上下留白是 safeAreaBar,
-                // 邊緣錨定的 ScrollPosition 會跟著底部。
-                scroll.returnedToContent(metrics)
-                scrollToLastRow(proxy, isNewContent: false)
+               scroll.returnsToContent(metrics, at: .now, byOffsetAllowed: byOffsetAllowed)
+                || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
+                // 先捲到最後一列(LazyVStack 才排出那一列);同一個排版又停在內容之外時，捲到最後一列多捲了一個底部 inset
+                // (可見範圍小、底部 inset 大),改以量到的底部位移再捲一次(#251)。
+                let byOffset = byOffsetAllowed && scroll.returnsByOffset(metrics)
+                scroll.returnedToContent(metrics, byOffsetAllowed: byOffsetAllowed)
+                if byOffset {
+                    // d92584fb 誤刪了這一行:分支是空的，以位移捲回時什麼都沒捲，對話停在中間(最後一列在輸入列底下)。
+                    position.scrollTo(y: metrics.bottomScrollPositionY)
+                } else {
+                    scrollToLastRow(proxy, isNewContent: false)
+                }
+            }
+            // 以位移捲過後 ScrollPosition 停在那個位移、不跟著底部：內容變高(列排出實際高度)或可見範圍變了(停止列、鍵盤)就以新的底部位移再捲(#251)。
+            if !userIsScrolling, model.panel == nil, scroll.followsByOffset(metrics) {
+                scroll.followedByOffset(metrics)
+                position.scrollTo(y: metrics.bottomScrollPositionY)
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
             if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
@@ -294,8 +313,11 @@ public struct ConversationView: View {
         .onChange(of: model.prompt?.signature) {
             if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
         }
-        .onChange(of: model.panel == nil) {
-            if model.panel != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
+        // 面板出現時捲到它;內容更新(選項排出、游標移動)讓卡片長高時也再捲，按鈕不留在輸入列底下。
+        .onChange(of: model.panel) { old, new in
+            // 面板一出現就切回跟隨(使用者剛送出指令，要看的就是這張卡片)。
+            if new != nil, old == nil { scroll.jumpToLatest() }
+            if new != nil, scroll.autoScrollsOnNewContent { scrollToPanel(proxy, appearing: old == nil) }
         }
         .onChange(of: model.undoSend?.pending == nil) {
             // 倒數中的訊息出現：切到跟隨尾端並捲到它(同回音,F6.5)。
@@ -329,6 +351,14 @@ public struct ConversationView: View {
     /// 指定列則由 LazyVStack 實際排出那一列(#191)。
     /// `isNewContent`:跟隨新出現的內容(訊息、面板、需要你、工作中指示、回音)時重新計算連續捲回的次數;
     /// 停在內容之外而捲回時不算，否則兩個排版輪流時連續捲回沒有上限(#251)。
+    private func scrollToPanel(_ proxy: ScrollViewProxy, appearing: Bool) {
+        if appearing {
+            withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
+        } else {
+            scrollToLastRow(proxy)
+        }
+    }
+
     private func scrollToLastRow(_ proxy: ScrollViewProxy, isNewContent: Bool = true) {
         if isNewContent { scroll.followedNewContent() }
         let target = ConversationFollowTarget.target(

@@ -659,6 +659,28 @@ struct PushModelTests {
         #expect(!message.isEmpty)
     }
 
+    @Test("測試通知：這支裝置在主機上已沒有有效配對(notPaired)：開關回到未開啟、本機配對紀錄清掉、後台配對撤銷")
+    func testNotificationNotPairedTurnsHostOff() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        backend.on("DELETE", "/v1/members/me/push-pairings", .json(200, "{}"))
+        let service = service()
+        service.testNotifications = TestSender(failure: PushTestNotificationError.notPaired, sent: Recorder())
+        let model = model(service)
+        await turnOn(model)
+        #expect(model.state == .on)
+
+        await model.sendTestNotification()
+
+        #expect(model.state == .off)
+        #expect(store.keyHash(forHost: "studio") == nil)
+        guard case .failed(let message) = model.testNotification else {
+            Issue.record("預期失敗,實際 \(model.testNotification)")
+            return
+        }
+        #expect(!message.isEmpty)
+    }
+
     struct InternalDetail: Error, LocalizedError {
         var errorDescription: String? { "SQLITE_CONSTRAINT: foreign key mismatch at 0x7fff" }
     }
