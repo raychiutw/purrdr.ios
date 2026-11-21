@@ -318,6 +318,7 @@ struct ComposerBar: View {
                 AddImageButton(model: model, isInCard: true)
             }
             if model.supportsPermissionMode && model.typedAnswer == nil {
+                ModelCapsule(model: model)
                 PermissionModeCapsule(model: model)
             }
             Spacer(minLength: 0)
