@@ -317,6 +317,9 @@ struct ComposerBar: View {
             if model.canAttachImages && model.typedAnswer == nil {
                 AddImageButton(model: model, isInCard: true)
             }
+            if let sendWhenDone = model.sendWhenDone, model.typedAnswer == nil {
+                SendWhenDoneToggle(model: sendWhenDone)
+            }
             Spacer(minLength: 0)
             if isFocused {
                 hideKeyboardButton

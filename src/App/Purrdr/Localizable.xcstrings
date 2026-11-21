@@ -5428,6 +5428,17 @@
         }
       }
     },
+    "On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟"
+          }
+        }
+      }
+    },
     "Online" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5556,6 +5567,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機目前還不能開啟檔案。"
+          }
+        }
+      }
+    },
+    "Opens options to edit or delete." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟選項,可編輯或刪除。"
           }
         }
       }
@@ -5875,6 +5897,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "路徑：%@"
+          }
+        }
+      }
+    },
+    "Paused: this chat changed on the host. Edit or delete the first message to continue." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已暫停:這個聊天在主機上已變更。編輯或刪除第一則才會繼續。"
           }
         }
       }
@@ -6341,6 +6374,17 @@
         }
       }
     },
+    "Queued message %lld: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排隊中的第 %lld 則訊息:%@"
+          }
+        }
+      }
+    },
     "Queued · Sends when reconnected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6348,6 +6392,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "排隊中 · 連上後送出"
+          }
+        }
+      }
+    },
+    "Queues your message and sends it when the agent is done." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把訊息排入佇列,等 Agent 做完再送出。"
           }
         }
       }
@@ -7012,6 +7067,28 @@
         }
       }
     },
+    "Send When Done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "做完再送"
+          }
+        }
+      }
+    },
+    "Send When Done needs the Purrdr host service (0.7.0 or later) on this host. Hosts connected over SSH can’t use it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「做完再送」需要主機上有 Purrdr 主機服務(0.7.0 以上)。以 SSH 連線的主機無法使用。"
+          }
+        }
+      }
+    },
     "Sending" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7063,6 +7140,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已送出"
+          }
+        }
+      }
+    },
+    "Sent in order when done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "做完後依序送出"
           }
         }
       }
@@ -8101,6 +8189,17 @@
         }
       }
     },
+    "That message already left the queue. Refreshing the list." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那則訊息已不在佇列裡,正在重新整理。"
+          }
+        }
+      }
+    },
     "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8196,6 +8295,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機已有 Purrdr 外掛。主機服務會在 ~/.purrdr 存入這支裝置的配對金鑰。關閉通知只會移除這支裝置的配對。"
+          }
+        }
+      }
+    },
+    "The Send When Done queue is full (20 messages). Wait for some to send or delete one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「做完再送」佇列已滿(20 則)。等部分送出或刪除一則。"
           }
         }
       }
@@ -8827,6 +8937,17 @@
         }
       }
     },
+    "This chat isn’t ready yet, so the message can’t be queued. Try again in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天還沒準備好,暫時無法排入佇列。請稍後再試。"
+          }
+        }
+      }
+    },
     "This device can’t create a key in the Secure Enclave. Import a key or use a password." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8856,6 +8977,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置以唯讀方式與主機服務配對，無法在這台主機開啟通知。"
+          }
+        }
+      }
+    },
+    "This device is paired read-only, so it can’t queue messages." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置配對為唯讀,無法排入訊息。"
           }
         }
       }

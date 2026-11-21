@@ -75,6 +75,11 @@ public struct ConversationView: View {
                 guard scenePhase == .active else { return }
                 await model.run()
             }
+            // Send When Done 佇列跟著主機的推送(#305);回到前景時重新讀回。
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else { return }
+                await model.sendWhenDone?.run()
+            }
             .onChange(of: ConversationAnnouncer.Input(items: model.items, status: model.agentStatus, title: displayTitle), initial: true) { _, input in
                 announce(announcer.observe(input, now: .now))
             }
@@ -100,7 +105,7 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.undoSend?.pending == nil && model.queuedPrompts.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        if model.entries.isEmpty && model.undoSend?.pending == nil && model.queuedPrompts.isEmpty && (model.sendWhenDone?.items.isEmpty ?? true) && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -140,6 +145,17 @@ public struct ConversationView: View {
                 ForEach(model.queuedPrompts) { queued in
                     QueuedPromptBubbleView(
                         prompt: queued, putBack: { model.putBack(queued.id) }, delete: { model.deleteQueued(queued.id) })
+                }
+                // Send When Done 的佇列(#305):在主機上排隊、Agent 做完後依序送出，接在最後一則訊息後面。
+                if let sendWhenDone = model.sendWhenDone {
+                    if !sendWhenDone.items.isEmpty {
+                        SendWhenDoneQueueView(conversation: model, model: sendWhenDone)
+                    }
+                    if let notice = sendWhenDone.notice {
+                        ErrorLabel(notice)
+                            .font(.footnote)
+                            .accessibilityIdentifier("conversation.sendWhenDone.notice")
+                    }
                 }
                 // 撤回倒數中的訊息(#300):還在本機，接在最後一則訊息後面;倒數結束換成一般的回音。
                 if let undoSend = model.undoSend, let pending = undoSend.pending {
