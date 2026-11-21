@@ -127,7 +127,7 @@ public struct PlusView: View {
         }
         featuresSection(showsStatus: true)
         Section {
-            PlusFeatureRow(symbol: "terminal", title: "Chat, Terminal, and the Demo Computer",
+            PlusFeatureRow(symbol: "terminal", title: "Chat, Terminal, and the Demo Host",
                 detail: "Work without a member account or subscription.", value: nil, isLink: false)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("plus.free")
@@ -154,7 +154,7 @@ public struct PlusView: View {
             if showsStatus {
                 Text("Private keys, passwords, and pairing tokens are never uploaded. Sync only carries names, addresses, and connection methods.")
             } else {
-                Text("Chat, terminal, and the Demo computer don’t need a subscription.")
+                Text("Chat, terminal, and the Demo host don’t need a subscription.")
             }
         }
     }
@@ -403,7 +403,7 @@ struct PlusFeatureRow: View {
 struct RenewalPrompt: View {
     var body: some View {
         Label {
-            Text("Your Purrdr Plus subscription has ended. Notifications and computer sync are paused until you subscribe again. Chat and terminal keep working.")
+            Text("Your Purrdr Plus subscription has ended. Notifications and host sync are paused until you subscribe again. Chat and terminal keep working.")
         } icon: {
             Image(systemName: "exclamationmark.circle")
         }
@@ -508,7 +508,7 @@ extension SubscriptionNotice {
     var message: String {
         switch self {
         case .welcome:
-            String(localized: "Notifications when an agent needs you and computer sync are now available. Turn them on for each computer.")
+            String(localized: "Notifications when an agent needs you and host sync are now available. Turn them on for each host.")
         case .restored:
             String(localized: "Your Purrdr Plus subscription is active on this member account.")
         case .nothingToRestore:

@@ -310,7 +310,7 @@ package final class HostConnectionFlow {
                 wroteSecret = false
             }
         } catch {
-            phase = .failed(String(localized: "Couldn’t save this computer’s sign-in details on this device. \(error.localizedDescription)"))
+            phase = .failed(String(localized: "Couldn’t save this host’s sign-in details on this device. \(error.localizedDescription)"))
             return nil
         }
         do {
@@ -319,7 +319,7 @@ package final class HostConnectionFlow {
         } catch {
             // 新主機沒存成：不要留下沒有主機的祕密。
             if wroteSecret, existing == nil { try? credentials.secrets.setSecret(nil, for: host.id) }
-            phase = .failed(String(localized: "Couldn’t save this computer on this device. \(error.localizedDescription)"))
+            phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
             return nil
         }
     }
@@ -332,14 +332,14 @@ package final class HostConnectionFlow {
             if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
             if existing != nil { try credentials.secrets.setSecret(nil, for: host.id) }
         } catch {
-            phase = .failed(String(localized: "Couldn’t save this computer’s pairing on this device. \(error.localizedDescription)"))
+            phase = .failed(String(localized: "Couldn’t save this host’s pairing on this device. \(error.localizedDescription)"))
             return nil
         }
         do {
             try store.save(host)
         } catch {
             if newToken != nil { try? hostService.tokens.setDeviceToken(previousToken, for: host.id) }
-            phase = .failed(String(localized: "Couldn’t save this computer on this device. \(error.localizedDescription)"))
+            phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
             return nil
         }
         if newToken != nil { pairing?.isSaved = true }

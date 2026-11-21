@@ -352,7 +352,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(revealInConversation(open, in: app), "沒有 draft.csv 的「Open」")
         open.tap()
 
-        XCTAssertTrue(app.staticTexts["This file is no longer on the computer."].waitForExistence(timeout: 10), "沒有缺檔說明")
+        XCTAssertTrue(app.staticTexts["This file is no longer on the host."].waitForExistence(timeout: 10), "沒有缺檔說明")
     }
 
     /// 訊息內主機路徑(#229):回覆提到報告 PDF 與預覽圖，路徑是連結;點 PDF 在 app 內以 QuickLook 開，

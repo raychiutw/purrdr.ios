@@ -260,7 +260,7 @@ struct DelegationDestination: View {
     }
 
     private var unavailable: some View {
-        ContentUnavailableView("Not on This Computer", systemImage: "questionmark.folder")
+        ContentUnavailableView("Not on This Host", systemImage: "questionmark.folder")
     }
 }
 
@@ -275,7 +275,7 @@ private struct SubagentScreenHolder: View {
         if let model {
             SubagentScreen(model: model)
         } else {
-            ContentUnavailableView("Not on This Computer", systemImage: "questionmark.folder")
+            ContentUnavailableView("Not on This Host", systemImage: "questionmark.folder")
         }
     }
 }
@@ -325,9 +325,9 @@ struct SubagentScreen: View {
                 }
             case .notOnHost:
                 ContentUnavailableView {
-                    Label("Not on This Computer", systemImage: "questionmark.folder")
+                    Label("Not on This Host", systemImage: "questionmark.folder")
                 } description: {
-                    Text("This subagent’s messages aren’t on this computer.")
+                    Text("This subagent’s messages aren’t on this host.")
                 }
             case .unavailable(let reason):
                 ContentUnavailableView {

@@ -128,7 +128,7 @@ extension PermissionModeFailure {
         case .unreadable:
             String(localized: "Couldn’t read the current mode from the screen. Try again, or check the terminal.")
         case .keysFailed:
-            String(localized: "Couldn’t send the keys to the computer. Try again, or check the terminal.")
+            String(localized: "Couldn’t send the keys to the host. Try again, or check the terminal.")
         case .paneChanged:
             String(localized: "This pane is running a different chat now, so the mode wasn’t changed.")
         }

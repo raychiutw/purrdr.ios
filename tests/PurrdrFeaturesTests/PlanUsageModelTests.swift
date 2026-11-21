@@ -133,7 +133,7 @@ struct PlanUsageModelTests {
 
         model.appeared()
         await model.untilIdle()
-        #expect(model.state == .failed(.connection("The computer didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices.")))
+        #expect(model.state == .failed(.connection("The host didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices.")))
 
         await gate.connect()
         await model.refresh()

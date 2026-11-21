@@ -343,15 +343,15 @@ public final class PlanUsageModel {
     static func describe(_ error: any Error) -> String {
         switch error {
         case ClaudeUsageError.settingsNotJSON:
-            String(localized: "Claude Code’s settings on this computer are damaged, so Purrdr left them unchanged. Fix them there and try again.")
+            String(localized: "Claude Code’s settings on this host are damaged, so Purrdr left them unchanged. Fix them there and try again.")
         case ClaudeUsageError.claudeNotFound:
-            String(localized: "Claude Code isn’t set up on this computer. Set it up there first.")
+            String(localized: "Claude Code isn’t set up on this host. Set it up there first.")
         case HostFilesError.changedSinceRead:
             String(localized: "Claude Code’s settings changed while Purrdr was updating them. Nothing was changed; try again.")
         case HostWriteError.unusableFile, HostFilesError.tooLarge:
-            String(localized: "Purrdr can’t safely change Claude Code’s settings on this computer.")
+            String(localized: "Purrdr can’t safely change Claude Code’s settings on this host.")
         default:
-            String(localized: "Couldn’t update the computer: \(error.localizedDescription)")
+            String(localized: "Couldn’t update the host: \(error.localizedDescription)")
         }
     }
 

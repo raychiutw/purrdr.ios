@@ -23,21 +23,21 @@ public struct WelcomeView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Read, answer, and steer the coding agents that herdr runs on your computer, and open a terminal into it, from your iPhone or iPad.")
+                    Text("Read, answer, and steer the coding agents that herdr runs on your host, and open a terminal into it, from your iPhone or iPad.")
                         .font(.body)
                         .accessibilityIdentifier("welcome.summary")
                 }
 
                 Section {
                     requirement(
-                        "A Computer Running Your Agents", systemImage: "desktopcomputer", id: "host",
-                        detail: "A Mac, Linux, or Windows computer with your agents running in herdr.")
+                        "A Host Running Your Agents", systemImage: "desktopcomputer", id: "host",
+                        detail: "A Mac, Linux, or Windows host with your agents running in herdr.")
                     requirement(
                         "SSH Access", systemImage: "lock.shield", id: "ssh",
-                        detail: "Tailscale needs no password or key. Otherwise, Purrdr makes a key on this iPhone or iPad for you to add to the computer.")
+                        detail: "Tailscale needs no password or key. Otherwise, Purrdr makes a key on this iPhone or iPad for you to add to the host.")
                     requirement(
                         "Notifications Are Optional", systemImage: "bell.badge", id: "notifications",
-                        detail: "With Purrdr Plus, a small helper on your computer tells you when an agent needs you. Chat and the terminal work without it.")
+                        detail: "With Purrdr Plus, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it.")
                 } header: {
                     Text("What You Need")
                         .foregroundStyle(.secondaryText)
@@ -48,10 +48,10 @@ public struct WelcomeView: View {
                         .filledProminentButtonStyle()
                         .frame(maxWidth: .infinity)
                         .accessibilityIdentifier("welcome.demo")
-                    Button("Add Computer", systemImage: "plus", action: addHost)
+                    Button("Add Host", systemImage: "plus", action: addHost)
                         .accessibilityIdentifier("welcome.addHost")
                 } footer: {
-                    Text("The Demo computer has sample conversations, so you can try every screen before you add a computer.")
+                    Text("The Demo host has sample conversations, so you can try every screen before you add a host.")
                         .foregroundStyle(.secondaryText)
                 }
 

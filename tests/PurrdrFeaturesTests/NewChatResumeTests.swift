@@ -122,7 +122,7 @@ struct NewChatResumeTests {
         let workspace = await model.start()
 
         #expect(workspace == nil)
-        #expect(model.error?.contains("no longer on the computer") == true, "error: \(model.error ?? "nil")")
+        #expect(model.error?.contains("no longer on the host") == true, "error: \(model.error ?? "nil")")
     }
 
     @Test("續接時第一則訊息可以留空;全新的聊天仍要訊息")

@@ -221,7 +221,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             XCTAssertTrue(element("hostShare.qr", in: app).waitForExistence(timeout: 5))
             try audit(app, "分享主機", contentSize: size)
             // 返回鈕:AX5 時系統只留箭頭，不以標題找。
-            app.navigationBars["Share Computer"].buttons.firstMatch.tap()
+            app.navigationBars["Share Host"].buttons.firstMatch.tap()
 
             XCTAssertTrue(app.buttons["hosts.add"].waitForExistence(timeout: 5))
             app.buttons["hosts.add"].tap()

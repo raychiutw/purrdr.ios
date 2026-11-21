@@ -33,9 +33,9 @@ struct HostServiceUpdateView: View {
 
     private var explanation: Text {
         if commands.canUpdateItself {
-            Text("Purrdr host service \(version) is ready for \(hostName). To update now, run this on that computer:")
+            Text("Purrdr host service \(version) is ready for \(hostName). To update now, run this on the host:")
         } else {
-            Text("Purrdr host service \(version) is ready for \(hostName) (now \(commands.installedVersion)). Run the install command on that computer once; after that it updates itself.")
+            Text("Purrdr host service \(version) is ready for \(hostName) (now \(commands.installedVersion)). Run the install command on the host once; after that it updates itself.")
         }
     }
 

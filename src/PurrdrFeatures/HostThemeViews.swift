@@ -73,7 +73,7 @@ struct HostThemeSettingsSection: View {
 
     var body: some View {
         Section {
-            Toggle("Use Computer Theme", isOn: Binding(
+            Toggle("Use Host Theme", isOn: Binding(
                 get: { model.state == .on || model.state == .installing || model.isConfirming },
                 set: { on in Task { on ? await model.requestTheme() : await model.turnOff() } }
             ))
@@ -92,15 +92,15 @@ struct HostThemeSettingsSection: View {
             Text("Appearance")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Use this computer’s colors in chats and the terminal.")
+            Text("Use this host’s colors in chats and the terminal.")
                 .foregroundStyle(.secondaryText)
         }
-        .alert("Use Computer Theme?", isPresented: Binding(get: { model.isConfirming }, set: { _ in })) {
+        .alert("Use Host Theme?", isPresented: Binding(get: { model.isConfirming }, set: { _ in })) {
             Button("Cancel", role: .cancel) { model.cancelConsent() }
             Button("Use Theme") { Task { await model.confirm() } }
                 .accessibilityIdentifier("hostTheme.confirm")
         } message: {
-            Text("Purrdr reads this computer’s colors and adds a small note file, signed in as \(model.confirmingUser). It never changes your settings. Turning this off removes the file.")
+            Text("Purrdr reads this host’s colors and adds a small note file, signed in as \(model.confirmingUser). It never changes your settings. Turning this off removes the file.")
         }
     }
 }
@@ -135,7 +135,7 @@ struct YouShouldKnowSettingsSection: View {
                 Text("You Should Know")
                     .foregroundStyle(.secondaryText)
             } footer: {
-                Text("Purrdr updates Claude Code’s notes file on this computer when you act on a note. Undo puts back what Purrdr changed and asks again next time.")
+                Text("Purrdr updates Claude Code’s notes file on this host when you act on a note. Undo puts back what Purrdr changed and asks again next time.")
                     .foregroundStyle(.secondaryText)
             }
         }

@@ -16,16 +16,16 @@ package enum HostErrorText {
         case SSHConnectionError.authenticationMethodNotAccepted:
             switch authentication {
             case .password?:
-                String(localized: "This computer doesn’t accept password sign-in. Use a key instead, or turn on password sign-in on that computer.")
+                String(localized: "This host doesn’t accept password sign-in. Use a key instead, or turn on password sign-in on the host.")
             default:
-                String(localized: "This computer doesn’t accept key sign-in. Use a password instead, or turn on key sign-in on that computer.")
+                String(localized: "This host doesn’t accept key sign-in. Use a password instead, or turn on key sign-in on the host.")
             }
         case SSHConnectionError.connectionRefused:
             connection == .openSSH
-                ? String(localized: "The computer refused the connection. Check that Remote Login is on.")
-                : String(localized: "The computer refused the connection. Check that Tailscale is on, on that computer.")
+                ? String(localized: "The host refused the connection. Check that Remote Login is on.")
+                : String(localized: "The host refused the connection. Check that Tailscale is on, on the host.")
         case HostCredentialError.missingSecret:
-            String(localized: "This computer’s password or key isn’t on this device. Edit the computer and enter it again.")
+            String(localized: "This host’s password or key isn’t on this device. Edit the host and enter it again.")
         case DeviceKeyError.secureEnclaveUnavailable:
             String(localized: "This device can’t create a key. Import a key or use a password.")
         case let error as SSHKeyImportError:
@@ -63,13 +63,13 @@ package enum HostErrorText {
         case (.tailscaleSSH?, _):
             String(localized: "Tailscale didn’t let this account sign in. Check the account name and your Tailscale settings.")
         case (.openSSH?, .password?):
-            String(localized: "The computer didn’t accept this account name and password.")
+            String(localized: "The host didn’t accept this account name and password.")
         case (.openSSH?, .deviceKey?):
-            String(localized: "The computer didn’t accept this device. Add this device’s key to the computer again, and check the account name.")
+            String(localized: "The host didn’t accept this device. Add this device’s key to the host again, and check the account name.")
         case (.openSSH?, _):
-            String(localized: "The computer didn’t accept this key. Make sure it was added to the computer, and check the account name.")
+            String(localized: "The host didn’t accept this key. Make sure it was added to the host, and check the account name.")
         case (nil, _), (.https?, _):
-            String(localized: "The computer didn’t let this account sign in. Edit the computer to check the account name and sign-in method.")
+            String(localized: "The host didn’t let this account sign in. Edit the host to check the account name and sign-in method.")
         }
     }
 
@@ -77,49 +77,49 @@ package enum HostErrorText {
     package static func hostServiceMessage(_ error: HostServiceError) -> String {
         switch error {
         case .notPaired:
-            String(localized: "This device isn’t paired with this computer. Edit the computer and pair again with a new pairing code.")
+            String(localized: "This device isn’t paired with this host. Edit the host and pair again with a new pairing code.")
         case .deviceTokenInvalid:
-            String(localized: "The computer doesn’t recognize this device anymore. Edit the computer and pair again with a new pairing code.")
+            String(localized: "The host doesn’t recognize this device anymore. Edit the host and pair again with a new pairing code.")
         case .deviceTokenRevoked:
-            String(localized: "This device was removed from the computer. Edit the computer and pair again with a new code.")
+            String(localized: "This device was removed from the host. Edit the host and pair again with a new code.")
         case .pairingCodeInvalid:
-            String(localized: "This pairing code isn’t valid or was already used. On that computer, run purrdr-host-service pair again for a new code.")
+            String(localized: "This pairing code isn’t valid or was already used. On the host, run purrdr-host-service pair again for a new code.")
         case .pairingCodeExpired:
-            String(localized: "This pairing code expired. On that computer, run purrdr-host-service pair again for a new code.")
+            String(localized: "This pairing code expired. On the host, run purrdr-host-service pair again for a new code.")
         case .protocolVersionUnsupported(let supported) where supported.max().map({ $0 < HostServiceProtocol.version }) == true:
-            String(localized: "The Purrdr host service on this computer is older than this version of Purrdr. Update the host service on the computer.")
+            String(localized: "The Purrdr host service on this host is older than this version of Purrdr. Update the host service on the host.")
         case .protocolVersionUnsupported(let supported) where supported.min().map({ $0 > HostServiceProtocol.version }) == true:
-            String(localized: "The Purrdr host service on this computer is newer than this version of Purrdr. Update Purrdr.")
+            String(localized: "The Purrdr host service on this host is newer than this version of Purrdr. Update Purrdr.")
         case .protocolVersionUnsupported:
-            String(localized: "The Purrdr host service on this computer doesn’t match this version of Purrdr. Update Purrdr and the host service.")
+            String(localized: "The Purrdr host service on this host doesn’t match this version of Purrdr. Update Purrdr and the host service.")
         case .herdrUnavailable:
-            String(localized: "The host service can’t reach herdr. Start herdr on the computer, then try again.")
+            String(localized: "The host service can’t reach herdr. Start herdr on the host, then try again.")
         case .herdrCapabilityMissing:
-            String(localized: "herdr on this computer is too old for this. Update herdr, then restart it.")
+            String(localized: "herdr on this host is too old for this. Update herdr, then restart it.")
         case .readOnlyDevice:
-            String(localized: "This device is paired read-only, so it can’t send anything to this computer.")
+            String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .deviceUnknown:
-            String(localized: "This computer doesn’t have that device anymore. Refresh the list.")
+            String(localized: "This host doesn’t have that device anymore. Refresh the list.")
         case .unsupported:
             String(localized: "This isn’t available over HTTPS yet.")
         case .hostServiceUpdateRequired(_, let installedVersion?):
-            String(localized: "This needs a newer Purrdr host service (this computer has \(installedVersion)). Update the host service on the computer; Computers shows the command.")
+            String(localized: "This needs a newer Purrdr host service (this host has \(installedVersion)). Update the host service on the host; Hosts shows the command.")
         case .hostServiceUpdateRequired(_, nil):
-            String(localized: "This needs a newer Purrdr host service. Update the host service on the computer; Computers shows the command.")
+            String(localized: "This needs a newer Purrdr host service. Update the host service on the host; Hosts shows the command.")
         case .hostNotFound:
-            String(localized: "Couldn’t find this computer. Check the address, and that Tailscale is on for this device.")
+            String(localized: "Couldn’t find this host. Check the address, and that Tailscale is on for this device.")
         case .notOnTailnet:
             String(localized: "Tailscale is off on this device. Turn it on, then try again.")
         case .unreachable:
-            String(localized: "The computer didn’t answer. Make sure it’s awake and connected to Tailscale.")
+            String(localized: "The host didn’t answer. Make sure it’s awake and connected to Tailscale.")
         case .hostServiceNotRunning:
-            String(localized: "The computer is reachable, but the Purrdr host service isn’t running. Start it on the computer, then try again.")
+            String(localized: "The host is reachable, but the Purrdr host service isn’t running. Start it on the host, then try again.")
         case .connectionLost:
             String(localized: "The connection dropped. Try again.")
         case .unexpectedResponse:
             String(localized: "The host service sent a response Purrdr doesn’t understand. Update Purrdr and the host service.")
         case .paneChanged:
-            String(localized: "This chat changed on the computer, so nothing was sent.")
+            String(localized: "This chat changed on the host, so nothing was sent.")
         case .queueFull:
             String(localized: "The Send When Done queue is full (20 messages). Wait for some to send or delete one.")
         case .queueItemUnknown:
@@ -130,15 +130,15 @@ package enum HostErrorText {
     private static func commonMessage(for error: any Error) -> String {
         switch error {
         case SSHConnectionError.hostKeyChanged:
-            String(localized: "This computer looks different from before. If you didn’t reinstall or reset it, stop and check it in Computers.")
+            String(localized: "This host looks different from before. If you didn’t reinstall or reset it, stop and check it in Hosts.")
         case SSHConnectionError.hostKeyUnverified:
-            String(localized: "This computer hasn’t been confirmed yet. Test the connection in Computers.")
+            String(localized: "This host hasn’t been confirmed yet. Test the connection in Hosts.")
         case SSHConnectionError.hostNotFound:
-            String(localized: "Couldn’t find this computer. Check the address, and that Tailscale is on for this device.")
+            String(localized: "Couldn’t find this host. Check the address, and that Tailscale is on for this device.")
         case SSHConnectionError.timedOut:
-            String(localized: "The computer didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices.")
+            String(localized: "The host didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices.")
         case SSHConnectionError.unreachable:
-            String(localized: "Couldn’t reach this computer. Make sure Tailscale is on for both devices.")
+            String(localized: "Couldn’t reach this host. Make sure Tailscale is on for both devices.")
         case SSHConnectionError.tailscaleCheckCancelled:
             String(localized: "Tailscale sign-in was canceled. Try again when you’re ready to sign in.")
         case SSHConnectionError.tailscaleCheckTimedOut:
@@ -146,23 +146,23 @@ package enum HostErrorText {
         case SSHConnectionError.connectionLost, SSHConnectionError.channelRejected:
             String(localized: "The connection dropped. Try again.")
         case HostProbeError.herdrNotInstalled:
-            String(localized: "herdr isn’t installed on this computer, or it isn’t at the saved location.")
+            String(localized: "herdr isn’t installed on this host, or it isn’t at the saved location.")
         case HostProbeError.notHerdr:
             String(localized: "The herdr path runs a different program. Check the herdr path.")
         case HostProbeError.serverNotRunning:
-            String(localized: "herdr isn’t running on this computer. Open herdr there, then test again.")
+            String(localized: "herdr isn’t running on this host. Open herdr there, then test again.")
         case HostProbeError.unsupportedOperatingSystem:
-            String(localized: "Purrdr supports macOS, Linux, and Windows computers.")
+            String(localized: "Purrdr supports macOS, Linux, and Windows hosts.")
         case WindowsCommandError.unsupported:
-            String(localized: "This isn’t available on Windows computers yet.")
+            String(localized: "This isn’t available on Windows hosts yet.")
         case WindowsCommandError.commandTooLong:
-            String(localized: "This request is too long for a Windows computer.")
+            String(localized: "This request is too long for a Windows host.")
         case HostProbeError.herdr(let message):
             message
         case HostProbeError.updateFailed(let message):
             String(localized: "Couldn’t update herdr. \(message)")
         default:
-            String(localized: "Couldn’t reach this computer. Try again.")
+            String(localized: "Couldn’t reach this host. Try again.")
         }
     }
 }

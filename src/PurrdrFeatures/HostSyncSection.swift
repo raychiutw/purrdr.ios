@@ -8,14 +8,14 @@ struct HostSyncSection: View {
 
     var body: some View {
         Section {
-            Toggle("Sync Computers", isOn: Binding(get: { model.isEnabled }, set: { enabled in Task { await model.setEnabled(enabled) } }))
+            Toggle("Sync Hosts", isOn: Binding(get: { model.isEnabled }, set: { enabled in Task { await model.setEnabled(enabled) } }))
                 .accessibilityIdentifier("settings.hostSync")
             statusRow
         } header: {
-            Text("Computer Sync")
+            Text("Host Sync")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Your computers’ names, addresses, accounts, and icons sync to your other devices through your Purrdr member account. Passwords and keys never leave this device. Requires Purrdr Plus.")
+            Text("Your hosts’ names, addresses, accounts, and icons sync to your other devices through your Purrdr member account. Passwords and keys never leave this device. Requires Purrdr Plus.")
                 .foregroundStyle(.secondaryText)
         }
     }
@@ -36,11 +36,11 @@ struct HostSyncSection: View {
                 NavigationLink {
                     PlusView(model: plus, member: member)
                 } label: {
-                    Label("Computer sync needs Purrdr Plus", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Host sync needs Purrdr Plus", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .accessibilityIdentifier("settings.hostSync.plus")
             } else {
-                Text("Computer sync needs Purrdr Plus")
+                Text("Host sync needs Purrdr Plus")
                     .accessibilityIdentifier("settings.hostSync.plus")
             }
         case .failed(let message):

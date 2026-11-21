@@ -516,7 +516,7 @@ struct HTTPSDeviceTokenRejectionTests {
         let hostOffline = HostErrorText.message(for: HostServiceError.unreachable)
 
         #expect(notOnTailnet == String(localized: "Tailscale is off on this device. Turn it on, then try again."))
-        #expect(hostOffline == String(localized: "The computer didn’t answer. Make sure it’s awake and connected to Tailscale."))
+        #expect(hostOffline == String(localized: "The host didn’t answer. Make sure it’s awake and connected to Tailscale."))
     }
 
     @Test("協定版本不相容：說明要更新的是主機服務還是 Purrdr;herdr 太舊時說明更新 herdr")
@@ -525,8 +525,8 @@ struct HTTPSDeviceTokenRejectionTests {
         let newerHostService = HostErrorText.message(for: HostServiceError.protocolVersionUnsupported(supported: [HostServiceProtocol.version + 1]))
         let olderHerdr = HostErrorText.message(for: HostServiceError.herdrCapabilityMissing)
 
-        #expect(olderHostService == String(localized: "The Purrdr host service on this computer is older than this version of Purrdr. Update the host service on the computer."))
-        #expect(newerHostService == String(localized: "The Purrdr host service on this computer is newer than this version of Purrdr. Update Purrdr."))
+        #expect(olderHostService == String(localized: "The Purrdr host service on this host is older than this version of Purrdr. Update the host service on the host."))
+        #expect(newerHostService == String(localized: "The Purrdr host service on this host is newer than this version of Purrdr. Update Purrdr."))
         #expect(olderHerdr.contains("Update herdr"))
     }
 
@@ -534,7 +534,7 @@ struct HTTPSDeviceTokenRejectionTests {
     func outdatedHostServiceAsksForUpdate() {
         let message = HostErrorText.message(for: HostServiceError.hostServiceUpdateRequired(.fileFetch, installedVersion: "0.3.0"))
 
-        #expect(message == String(localized: "This needs a newer Purrdr host service (this computer has 0.3.0). Update the host service on the computer; Computers shows the command."))
+        #expect(message == String(localized: "This needs a newer Purrdr host service (this host has 0.3.0). Update the host service on the host; Hosts shows the command."))
         #expect(message != HostErrorText.message(for: HostServiceError.unsupported("file.stat")))
     }
 
@@ -542,7 +542,7 @@ struct HTTPSDeviceTokenRejectionTests {
     func outdatedHostServiceWithoutVersion() {
         let message = HostErrorText.message(for: HostServiceError.hostServiceUpdateRequired(.fileFetch, installedVersion: nil))
 
-        #expect(message == String(localized: "This needs a newer Purrdr host service. Update the host service on the computer; Computers shows the command."))
+        #expect(message == String(localized: "This needs a newer Purrdr host service. Update the host service on the host; Hosts shows the command."))
     }
 }
 

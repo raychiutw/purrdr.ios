@@ -61,7 +61,7 @@ struct PairedDevicesSection: View {
                     .tint(.red)
             }
             if model.canRemoveHost(from: device) {
-                Button("Remove Computer", systemImage: "trash") { model.requestHostRemoval(from: device) }
+                Button("Remove Host", systemImage: "trash") { model.requestHostRemoval(from: device) }
                     .tint(.red)
                     .accessibilityIdentifier("pairedDevices.removeHost")
             }
@@ -71,7 +71,7 @@ struct PairedDevicesSection: View {
                 Button("Revoke…", systemImage: "xmark.circle", role: .destructive) { model.requestRevocation(of: device) }
             }
             if model.canRemoveHost(from: device) {
-                Button("Remove Computer…", systemImage: "trash", role: .destructive) { model.requestHostRemoval(from: device) }
+                Button("Remove Host…", systemImage: "trash", role: .destructive) { model.requestHostRemoval(from: device) }
             }
         }
         .accessibilityActions {
@@ -79,7 +79,7 @@ struct PairedDevicesSection: View {
                 Button("Revoke") { model.requestRevocation(of: device) }
             }
             if model.canRemoveHost(from: device) {
-                Button("Remove Computer") { model.requestHostRemoval(from: device) }
+                Button("Remove Host") { model.requestHostRemoval(from: device) }
             }
         }
     }
@@ -109,7 +109,7 @@ struct PairedDevicesDialogs: ViewModifier {
                     .accessibilityIdentifier("pairedDevices.confirmRevoke")
                 Button("Cancel", role: .cancel) { model?.cancelRevocation() }
             } message: { _ in
-                Text("That device can’t connect to this computer until it’s paired again.")
+                Text("That device can’t connect to this host until it’s paired again.")
             }
     }
 

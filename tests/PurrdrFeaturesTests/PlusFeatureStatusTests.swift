@@ -5,7 +5,7 @@ import Testing
 struct PlusFeatureStatusTests {
     @Test("通知列尾是開啟通知的主機數，沒有主機時是關閉")
     func notificationsValue() {
-        #expect(PlusFeatureStatus(notifyingHostCount: 2, isHostSyncOn: false, deviceCount: nil).value(for: .notifications) == "2 computers")
+        #expect(PlusFeatureStatus(notifyingHostCount: 2, isHostSyncOn: false, deviceCount: nil).value(for: .notifications) == "2 hosts")
         #expect(PlusFeatureStatus(notifyingHostCount: 0, isHostSyncOn: false, deviceCount: nil).value(for: .notifications) == "Off")
     }
 

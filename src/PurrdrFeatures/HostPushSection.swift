@@ -34,7 +34,7 @@ struct HostPushSection: View {
             Text("Notifications")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Purrdr adds a small helper to each computer you turn on. When an agent needs you, this device gets a notification. Notifications show only the workspace name, never what the agent said. On Windows computers, notifications may be delayed.")
+            Text("Purrdr adds a small helper to each host you turn on. When an agent needs you, this device gets a notification. Notifications show only the workspace name, never what the agent said. On Windows hosts, notifications may be delayed.")
                 .foregroundStyle(.secondaryText)
         }
     }
@@ -56,11 +56,11 @@ struct HostPushRow: View {
                 Text(verbatim: push.name)
                     .accessibilityHidden(true)
                 if let pairingHost {
-                    Text("Pair This Computer First \(Image(systemName: "chevron.forward"))")
+                    Text("Pair This Host First \(Image(systemName: "chevron.forward"))")
                         .font(.subheadline)
                         .foregroundStyle(.tint)
-                        .accessibilityLabel(Text("Pair This Computer First"))
-                        .accessibilityHint(Text("Notifications can be turned on after this device pairs with the computer."))
+                        .accessibilityLabel(Text("Pair This Host First"))
+                        .accessibilityHint(Text("Notifications can be turned on after this device pairs with the host."))
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { pair(pairingHost) }
                         .accessibilityIdentifier("account.push.\(push.host.storedValue).status")
@@ -103,9 +103,9 @@ struct HostPushRow: View {
             // 由 `body` 另外畫成配對入口。
             EmptyView()
         case .demoHost:
-            Text("The demo computer can’t send notifications.")
+            Text("The demo host can’t send notifications.")
         case .unsupported:
-            Text("This computer can’t send notifications.")
+            Text("This host can’t send notifications.")
         case .needsHostService(let version, _):
             Label("Needs host service \(version) or later", systemImage: "exclamationmark.triangle")
         case .supported:
@@ -301,7 +301,7 @@ struct PushProblemRow: View {
     var body: some View {
         switch problem {
         case .demoHost:
-            Label("Choose your own computer first. The demo computer can’t send notifications.", systemImage: "info.circle")
+            Label("Choose your own host first. The demo host can’t send notifications.", systemImage: "info.circle")
                 .accessibilityIdentifier("settings.push.problem")
         case .needsSubscription:
             VStack(alignment: .leading, spacing: 8) {
@@ -339,7 +339,7 @@ struct HostServicePushUpdateRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Update the host service to turn on notifications. Run this on the computer:", systemImage: "arrow.down.circle")
+            Label("Update the host service to turn on notifications. Run this on the host:", systemImage: "arrow.down.circle")
             command(String(localized: "macOS and Linux"), update.posix)
             command(String(localized: "Windows (PowerShell)"), update.windows)
         }
@@ -375,16 +375,16 @@ extension View {
         } message: { push in
             if push.installsViaHostService {
                 if push.model.pluginAlreadyInstalled {
-                    Text("The Purrdr notification helper is already on this computer. The host service will add this device to it. Turning notifications off removes only this device.")
+                    Text("The Purrdr notification helper is already on this host. The host service will add this device to it. Turning notifications off removes only this device.")
                 } else {
-                    Text("The host service will install a small notification helper on this computer. Turning notifications off removes only this device; the helper is removed when the last device turns off.")
+                    Text("The host service will install a small notification helper on this host. Turning notifications off removes only this device; the helper is removed when the last device turns off.")
                 }
             } else if push.model.pluginAlreadyInstalled {
                 let user = push.model.confirmingUser ?? ""
-                Text("The Purrdr notification helper is already on this computer. Purrdr will add this device to it, as \(user). Turning notifications off removes only this device.")
+                Text("The Purrdr notification helper is already on this host. Purrdr will add this device to it, as \(user). Turning notifications off removes only this device.")
             } else {
                 let user = push.model.confirmingUser ?? ""
-                Text("Purrdr will install a small notification helper on this computer, as \(user). Turning notifications off removes only this device; the helper is removed when the last device turns off.")
+                Text("Purrdr will install a small notification helper on this host, as \(user). Turning notifications off removes only this device; the helper is removed when the last device turns off.")
             }
         }
     }

@@ -406,7 +406,7 @@ public struct ConversationView: View {
             ContentUnavailableView {
                 Label("Can’t Identify This Chat", systemImage: "questionmark.bubble")
             } description: {
-                Text("This chat can’t be shown yet. Update this agent’s herdr integration on the computer, then open the chat again.")
+                Text("This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again.")
             }
         case .unsupported:
             ContentUnavailableView {
@@ -475,7 +475,7 @@ extension ConversationStatusSummary.Banner {
         switch self {
         case .offline: Text("Offline — showing the last loaded conversation.")
         case .transcript(let banner): Text(banner.text)
-        case .readOnly: Text("This device is paired read-only, so it can’t send anything to this computer.")
+        case .readOnly: Text("This device is paired read-only, so it can’t send anything to this host.")
         case .hostServiceUpdateRequired(let message): Text(verbatim: message)
         }
     }
@@ -495,10 +495,10 @@ extension ConversationModel.Banner {
     var text: LocalizedStringKey {
         switch self {
         case .offline: "Offline — showing the last loaded conversation."
-        case .unreadable: "Couldn’t open this chat’s record on the computer."
+        case .unreadable: "Couldn’t open this chat’s record on the host."
         case .readFailed: "Couldn’t update the conversation. Retrying…"
         case .ambiguous: "More than one saved chat matches this one, so none is shown."
-        case .compressed: "Codex shortened this chat, so it can’t be shown here. Open the chat on the computer to see it."
+        case .compressed: "Codex shortened this chat, so it can’t be shown here. Open the chat on the host to see it."
         }
     }
 

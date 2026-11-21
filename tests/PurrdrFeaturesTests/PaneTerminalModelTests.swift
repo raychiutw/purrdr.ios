@@ -274,7 +274,7 @@ struct PaneTerminalModelTests {
         await Self.replay("13-not-found-control.stdout.ndjson", on: host)
         await Self.eventually { if case .unavailable = model.status { true } else { false } }
 
-        #expect(model.status == .unavailable("This pane no longer exists on the computer."))
+        #expect(model.status == .unavailable("This pane no longer exists on the host."))
         #expect(!model.canReconnect)
     }
 

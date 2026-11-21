@@ -54,7 +54,7 @@ struct BubbleImagesView: View {
                     Label("Image", systemImage: "photo")
                         .font(.caption)
                         .foregroundStyle(.secondaryText)
-                        .accessibilityLabel(Text("Image on the computer"))
+                        .accessibilityLabel(Text("Image on the host"))
                 }
             }
         }

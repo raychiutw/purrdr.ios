@@ -44,7 +44,7 @@ struct HostShareView: View {
                 .accessibilityIdentifier("hostShare.link")
             }
         }
-        .navigationTitle("Share Computer")
+        .navigationTitle("Share Host")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

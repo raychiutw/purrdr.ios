@@ -235,7 +235,7 @@ enum AccessibilityAuditExclusions {
             reason: "截圖確認完整顯示(Label 的圖示 + 文字，預設字級與 AX5 都看過);audit 以單行寬度判定的誤報"
         ) { issue, _ in
             guard let label = issue.element?.label else { return false }
-            return ["Choose Folder on Computer", "1 note for you", "Go to Chat"].contains(label)
+            return ["Choose Folder on Host", "1 note for you", "Go to Chat"].contains(label)
         },
         Rule(
             types: .contrast,

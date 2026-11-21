@@ -135,10 +135,10 @@ struct AgentFileOpenDisplay {
     var note: String? {
         switch state {
         case .tooLarge(let size):
-            String(localized: "Too large to open here (\(Int64(size).formatted(.byteCount(style: .file)))). Open it on the computer.")
-        case .missing: String(localized: "This file is no longer on the computer.")
+            String(localized: "Too large to open here (\(Int64(size).formatted(.byteCount(style: .file)))). Open it on the host.")
+        case .missing: String(localized: "This file is no longer on the host.")
         case .denied: String(localized: "Purrdr doesn’t open files in this location.")
-        case .unsupported: String(localized: "Opening files isn’t available for this computer yet.")
+        case .unsupported: String(localized: "Opening files isn’t available for this host yet.")
         case .failed: String(localized: "Couldn’t download the file.")
         case .downloading, .ready, nil: nil
         }
@@ -165,7 +165,7 @@ struct AgentFileCardView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { if openDisplay.offersOpen { open() } }
                 .accessibilityAddTraits(context.loads == nil ? [] : .isButton)
-                .accessibilityHint(context.loads == nil ? Text(verbatim: "") : Text("Downloads the file from the computer and shows a preview."))
+                .accessibilityHint(context.loads == nil ? Text(verbatim: "") : Text("Downloads the file from the host and shows a preview."))
                 .accessibilityAction { if openDisplay.offersOpen { open() } }
             AgentFileCardDetails(card: card, display: display, identifier: "conversation.agentFile")
             if context.loads != nil {
@@ -280,7 +280,7 @@ struct AgentFileOpenRow: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(Text("Open \(card.file.name)"))
-                .accessibilityHint(Text("Downloads the file from the computer and shows a preview."))
+                .accessibilityHint(Text("Downloads the file from the host and shows a preview."))
                 .accessibilityIdentifier("conversation.agentFile.open")
                 if let file = display.shareableFile {
                     ShareLink(item: file) {

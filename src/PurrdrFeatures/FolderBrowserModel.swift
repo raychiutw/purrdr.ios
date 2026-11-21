@@ -132,7 +132,7 @@ public final class FolderBrowserModel {
     static func message(for error: any Error) -> String {
         switch error {
         case HostFolderError.notAFolderListing:
-            String(localized: "The computer didn’t respond with a folder listing.")
+            String(localized: "The host didn’t respond with a folder listing.")
         case HostFolderError.cannotOpen(let detail):
             detail.isEmpty
                 ? String(localized: "Couldn’t open this folder.")
@@ -140,17 +140,17 @@ public final class FolderBrowserModel {
         case HostFolderError.tooLarge:
             String(localized: "Files over 25 MB can’t be uploaded.")
         case HostFolderError.invalidName:
-            String(localized: "This file name can’t be used on the computer.")
+            String(localized: "This file name can’t be used on the host.")
         case HostFolderError.alreadyExists:
             String(localized: "There’s already an item with this name in this folder.")
         case HostFolderError.interrupted, HostFolderError.deadlineExceeded:
-            String(localized: "The upload was interrupted. Nothing was saved on the computer.")
+            String(localized: "The upload was interrupted. Nothing was saved on the host.")
         case HostFolderError.unexpectedPath:
-            String(localized: "The computer saved the file somewhere unexpected.")
+            String(localized: "The host saved the file somewhere unexpected.")
         case HostFolderError.failed(_, let detail):
             detail.isEmpty
-                ? String(localized: "The computer couldn’t save the file.")
-                : String(localized: "The computer couldn’t save the file. \(detail)")
+                ? String(localized: "The host couldn’t save the file.")
+                : String(localized: "The host couldn’t save the file. \(detail)")
         default:
             HostErrorText.message(for: error)
         }

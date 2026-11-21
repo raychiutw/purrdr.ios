@@ -13,7 +13,7 @@ struct HostPickerButton: View {
                     HostMenuLabel(option.name, icon: option.icon).tag(option.id)
                 }
             } label: {
-                Text("Computer")
+                Text("Host")
             }
             .pickerStyle(.inline)
         } label: {
@@ -37,7 +37,7 @@ struct HostPickerButton: View {
         }
         .buttonStyle(.plain)
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,主機名放進 label(同選取中主機鈕)。
-        .accessibilityLabel(Text("Computer: \(name)"))
+        .accessibilityLabel(Text("Host: \(name)"))
         .accessibilityIdentifier(identifier)
     }
 

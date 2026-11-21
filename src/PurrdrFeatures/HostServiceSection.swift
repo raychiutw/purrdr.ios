@@ -140,8 +140,8 @@ struct HostServiceSection: View {
     private func needsNewerText(_ installedVersion: String?) -> String {
         let required = HostServiceFeature.hostServiceManagement.minimumVersion.description
         if let installedVersion {
-            return String(localized: "Managing the host service from Purrdr needs host service \(required) or later (this computer has \(installedVersion)). Update it on the computer.")
+            return String(localized: "Managing the host service from Purrdr needs host service \(required) or later (this host has \(installedVersion)). Update it on the host.")
         }
-        return String(localized: "Managing the host service from Purrdr needs host service \(required) or later. Update it on the computer.")
+        return String(localized: "Managing the host service from Purrdr needs host service \(required) or later. Update it on the host.")
     }
 }

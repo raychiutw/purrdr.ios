@@ -39,7 +39,7 @@ struct TailscaleCheckCard: View {
                 Image(systemName: "person.badge.key")
             }
             .accessibilityAddTraits(.isHeader)
-            Text("This computer asks you to sign in to Tailscale again. Purrdr continues on its own after you sign in.")
+            Text("This host asks you to sign in to Tailscale again. Purrdr continues on its own after you sign in.")
                 .font(.subheadline)
                 .foregroundStyle(.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

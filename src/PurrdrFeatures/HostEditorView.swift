@@ -68,7 +68,7 @@ struct HostEditorView: View {
             Section {
                 field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name", focus: .name)
             } header: {
-                Text("Computer")
+                Text("Host")
                     .foregroundStyle(.secondaryText)
             }
 
@@ -98,7 +98,7 @@ struct HostEditorView: View {
                 Section {
                     testStatus
                 } footer: {
-                    Text("Purrdr tests the connection before saving the computer.")
+                    Text("Purrdr tests the connection before saving the host.")
                         .foregroundStyle(.secondaryText)
                 }
             }
@@ -145,7 +145,7 @@ struct HostEditorView: View {
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
         }
-        .navigationTitle(model.isEditing ? "Edit Computer" : "Add Computer")
+        .navigationTitle(model.isEditing ? "Edit Host" : "Add Host")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -163,7 +163,7 @@ struct HostEditorView: View {
                 Button("Cancel") {
                     if model.hasChanges { confirmingDiscard = true } else { cancel() }
                 }
-                .confirmationDialog("Discard your changes to this computer?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                .confirmationDialog("Discard your changes to this host?", isPresented: $confirmingDiscard, titleVisibility: .visible) {
                     Button("Discard Changes", role: .destructive) { cancel() }
                     Button("Keep Editing", role: .cancel) {}
                 }
@@ -190,7 +190,7 @@ struct HostEditorView: View {
             Button("OK", role: .cancel) { model.dismissPrompt() }
         } message: {
             if case .hostKeyChanged(let presented, let pinned) = model.phase {
-                Text("Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this computer and add it again.\n\nKey now:\n\(presented.description)\n\nKey you trusted:\n\(pinned.description)")
+                Text("Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n\(presented.description)\n\nKey you trusted:\n\(pinned.description)")
             }
         }
         .alert("Update herdr?", isPresented: presenting(\.isOutdated)) {
@@ -203,9 +203,9 @@ struct HostEditorView: View {
         } message: {
             if case .needsUpdate(let version) = model.phase {
                 if model.canUpdateHerdr {
-                    Text("herdr on this computer is \(version.description); Purrdr needs \(HerdrVersion.minimumSupported.description) or newer. Purrdr will update it, signed in as \(model.username)@\(model.address).")
+                    Text("herdr on this host is \(version.description); Purrdr needs \(HerdrVersion.minimumSupported.description) or newer. Purrdr will update it, signed in as \(model.username)@\(model.address).")
                 } else {
-                    Text("This computer has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Update herdr on the computer, then test the connection again.")
+                    Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Update herdr on the host, then test the connection again.")
                 }
             }
         }
@@ -297,7 +297,7 @@ struct HostEditorView: View {
             EmptyView()
         case .https:
             VStack(alignment: .leading, spacing: 8) {
-                Text("On that computer, install the Purrdr host service and run purrdr-host-service pair. Then scan the QR code it shows. Login Shell and Files aren’t available this way.")
+                Text("On the host, install the Purrdr host service and run purrdr-host-service pair. Then scan the QR code it shows. Login Shell and Files aren’t available this way.")
                 Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
                     .accessibilityIdentifier("hostEditor.hostServiceGuide")
             }
@@ -548,7 +548,7 @@ struct HostEditorView: View {
             case .restartServerRequired:
                 // Windows 沒有 live handoff:更新只換了執行檔。
                 Label {
-                    Text("herdr is updated. Restart herdr on this computer to use the new version, then test the connection again.")
+                    Text("herdr is updated. Restart herdr on this host to use the new version, then test the connection again.")
                 } icon: {
                     Image(systemName: "arrow.clockwise.circle.fill").foregroundStyle(.orange)
                 }
@@ -628,7 +628,7 @@ extension HostConfiguration.ConnectionMethod {
     var summary: LocalizedStringKey {
         switch self {
         case .tailscaleSSH: "Tailscale confirms who you are. No password or key needed."
-        case .openSSH: "Sign in to the computer with a password or key."
+        case .openSSH: "Sign in to the host with a password or key."
         case .https: "Pair with the Purrdr host service. Login Shell and Files aren’t available."
         }
     }

@@ -63,7 +63,7 @@ final class AccountUITests: XCTestCase {
         openAccount(in: app)
 
         let action = app.buttons["account.plusSetup.action"]
-        expectation(for: NSPredicate(format: "label == %@", "Choose Computers"), evaluatedWith: action)
+        expectation(for: NSPredicate(format: "label == %@", "Choose Hosts"), evaluatedWith: action)
         waitForExpectations(timeout: 10)
         action.tap()
         let toggle = app.switches["account.push.5EED0000-0000-4000-8000-000000000001"]

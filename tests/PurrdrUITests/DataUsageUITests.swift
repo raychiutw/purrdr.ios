@@ -95,7 +95,7 @@ final class DataUsageUITests: XCTestCase {
     func testHostCapsuleFiltersAndPersistsCurrentHost() {
         let app = openDataUsage()
         let capsule = app.buttons["dataUsage.host"]
-        XCTAssertTrue(capsule.label.contains("All Computers"), capsule.label)
+        XCTAssertTrue(capsule.label.contains("All Hosts"), capsule.label)
         capsule.tap()
         let studio = app.buttons["Studio Mac"]
         XCTAssertTrue(studio.waitForExistence(timeout: 5))

@@ -142,13 +142,13 @@ public final class YouShouldKnowModel {
     package static func describe(_ error: any Error) -> String {
         switch error {
         case YouShouldKnowError.noteChanged:
-            String(localized: "This note changed on the computer. Showing the latest one.")
+            String(localized: "This note changed on the host. Showing the latest one.")
         case YouShouldKnowError.storeNotFound, YouShouldKnowError.invalidStore, HostWriteError.unusableFile, HostFilesError.tooLarge:
-            String(localized: "Purrdr can’t safely update the notes file on this computer.")
+            String(localized: "Purrdr can’t safely update the notes file on this host.")
         case HostFilesError.changedSinceRead:
             String(localized: "Claude Code was updating the notes at the same time. Nothing was changed; try again.")
         default:
-            String(localized: "Couldn’t update the computer: \(error.localizedDescription)")
+            String(localized: "Couldn’t update the host: \(error.localizedDescription)")
         }
     }
 }

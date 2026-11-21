@@ -61,7 +61,7 @@
         }
       }
     },
-    "%@ can’t show plan usage. Choose another computer." : {
+    "%@ can’t show plan usage. Choose another host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -209,7 +209,7 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
-    "%@ · Computers: %lld · Last used %@" : {
+    "%@ · Hosts: %lld · Last used %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -378,41 +378,6 @@
         }
       }
     },
-    "%lld computers" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld computer"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld computers"
-                }
-              }
-            }
-          }
-        },
-        "zh-Hant" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld 台電腦"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "%lld days" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -509,6 +474,41 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld 個檔案"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld host"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld hosts"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 台電腦"
                 }
               }
             }
@@ -918,7 +918,7 @@
         }
       }
     },
-    "A Codex launcher that Purrdr didn’t add is already on this computer, so Purrdr left it unchanged." : {
+    "A Codex launcher that Purrdr didn’t add is already on this host, so Purrdr left it unchanged." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -929,7 +929,7 @@
         }
       }
     },
-    "A Computer Running Your Agents" : {
+    "A Host Running Your Agents" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -940,7 +940,7 @@
         }
       }
     },
-    "A Mac, Linux, or Windows computer with your agents running in herdr." : {
+    "A Mac, Linux, or Windows host with your agents running in herdr." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -951,7 +951,7 @@
         }
       }
     },
-    "A computer needs a name." : {
+    "A host needs a name." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -969,7 +969,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務有新版本。"
+            "value" : "Purrdr 連線助理有新版本。"
           }
         }
       }
@@ -1095,7 +1095,7 @@
         }
       }
     },
-    "Add Computer" : {
+    "Add Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1238,7 +1238,7 @@
         }
       }
     },
-    "Agents you start in herdr on your computers appear here." : {
+    "Agents you start in herdr on your hosts appear here." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1249,7 +1249,7 @@
         }
       }
     },
-    "All Computers" : {
+    "All Hosts" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1468,7 +1468,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務已有更新正在進行。"
+            "value" : "Purrdr 連線助理已有更新正在進行。"
           }
         }
       }
@@ -1594,7 +1594,7 @@
         }
       }
     },
-    "As of %@, when Claude Code last reported on this computer." : {
+    "As of %@, when Claude Code last reported on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1605,7 +1605,7 @@
         }
       }
     },
-    "As of %@. Codex reports these numbers for the ChatGPT plan Codex is signed in with on this computer." : {
+    "As of %@. Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1858,7 +1858,7 @@
         }
       }
     },
-    "Can’t Add This Computer" : {
+    "Can’t Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1957,7 +1957,7 @@
         }
       }
     },
-    "Can’t reach the computer. Your message wasn’t sent." : {
+    "Can’t reach the host. Your message wasn’t sent." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2045,7 +2045,7 @@
         }
       }
     },
-    "Changing the computer’s Claude settings…" : {
+    "Changing the host’s Claude settings…" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2100,7 +2100,7 @@
         }
       }
     },
-    "Chat, Terminal, and the Demo Computer" : {
+    "Chat, Terminal, and the Demo Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2111,7 +2111,7 @@
         }
       }
     },
-    "Chat, terminal, and the Demo computer don’t need a subscription." : {
+    "Chat, terminal, and the Demo host don’t need a subscription." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2188,7 +2188,7 @@
         }
       }
     },
-    "Checking the computer…" : {
+    "Checking the host…" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2232,17 +2232,6 @@
         }
       }
     },
-    "Choose Computers" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇電腦"
-          }
-        }
-      }
-    },
     "Choose Folder" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2254,7 +2243,7 @@
         }
       }
     },
-    "Choose Folder on Computer" : {
+    "Choose Folder on Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2265,7 +2254,18 @@
         }
       }
     },
-    "Choose computers to notify" : {
+    "Choose Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇電腦"
+          }
+        }
+      }
+    },
+    "Choose hosts to notify" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2287,7 +2287,7 @@
         }
       }
     },
-    "Choose your own computer first. The demo computer can’t send notifications." : {
+    "Choose your own host first. The demo host can’t send notifications." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2309,7 +2309,7 @@
         }
       }
     },
-    "Claude Code isn’t set up on this computer. Set it up there first." : {
+    "Claude Code isn’t set up on this host. Set it up there first." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2320,7 +2320,7 @@
         }
       }
     },
-    "Claude Code reports these numbers while it runs on this computer." : {
+    "Claude Code reports these numbers while it runs on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2353,7 +2353,7 @@
         }
       }
     },
-    "Claude Code’s settings on this computer are damaged, so Purrdr left them unchanged. Fix them there and try again." : {
+    "Claude Code’s settings on this host are damaged, so Purrdr left them unchanged. Fix them there and try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2511,7 +2511,7 @@
         }
       }
     },
-    "Codex isn’t signed in on this computer. On that computer, run: codex login" : {
+    "Codex isn’t signed in on this host. On the host, run: codex login" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2522,7 +2522,7 @@
         }
       }
     },
-    "Codex reports these numbers for the ChatGPT plan Codex is signed in with on this computer." : {
+    "Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2533,7 +2533,7 @@
         }
       }
     },
-    "Codex shortened this chat, so it can’t be shown here. Open the chat on the computer to see it." : {
+    "Codex shortened this chat, so it can’t be shown here. Open the chat on the host to see it." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2610,39 +2610,6 @@
         }
       }
     },
-    "Computer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦"
-          }
-        }
-      }
-    },
-    "Computer Not Available" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "找不到電腦"
-          }
-        }
-      }
-    },
-    "Computer Sync" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦同步"
-          }
-        }
-      }
-    },
     "Computer address" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2661,83 +2628,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "電腦名稱或 IP"
-          }
-        }
-      }
-    },
-    "Computer sync needs Purrdr Plus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦同步需要 Purrdr Plus"
-          }
-        }
-      }
-    },
-    "Computer: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦：%@"
-          }
-        }
-      }
-    },
-    "Computers" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦"
-          }
-        }
-      }
-    },
-    "Computers · 30 Days" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦 · 30 天"
-          }
-        }
-      }
-    },
-    "Computers · 7 Days" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦 · 7 天"
-          }
-        }
-      }
-    },
-    "Computers · Today" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦 · 今天"
-          }
-        }
-      }
-    },
-    "Computers: %lld · Last used %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld 台電腦 · 最後使用：%2$@"
           }
         }
       }
@@ -3094,7 +2984,7 @@
         }
       }
     },
-    "Couldn’t change which notifications this computer sends: %@" : {
+    "Couldn’t change which notifications this host sends: %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3116,7 +3006,7 @@
         }
       }
     },
-    "Couldn’t check notifications on this computer. Make sure herdr is running there. %@" : {
+    "Couldn’t check notifications on this host. Make sure herdr is running there. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3182,7 +3072,7 @@
         }
       }
     },
-    "Couldn’t find this computer. Check the address, and that Tailscale is on for this device." : {
+    "Couldn’t find this host. Check the address, and that Tailscale is on for this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3237,7 +3127,7 @@
         }
       }
     },
-    "Couldn’t open the terminal on this computer. %@" : {
+    "Couldn’t open the terminal on this host. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3259,7 +3149,7 @@
         }
       }
     },
-    "Couldn’t open this chat’s record on the computer." : {
+    "Couldn’t open this chat’s record on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3325,7 +3215,7 @@
         }
       }
     },
-    "Couldn’t reach this computer. Make sure Tailscale is on for both devices." : {
+    "Couldn’t reach this host. Make sure Tailscale is on for both devices." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3336,7 +3226,7 @@
         }
       }
     },
-    "Couldn’t reach this computer. Try again." : {
+    "Couldn’t reach this host. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3347,7 +3237,7 @@
         }
       }
     },
-    "Couldn’t reach your agents on this computer. Make sure herdr is running there." : {
+    "Couldn’t reach your agents on this host. Make sure herdr is running there." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3369,7 +3259,7 @@
         }
       }
     },
-    "Couldn’t read saved computers on this device. %@" : {
+    "Couldn’t read saved hosts on this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3424,28 +3314,6 @@
         }
       }
     },
-    "Couldn’t read this computer’s layout." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法讀取這台電腦的版面。"
-          }
-        }
-      }
-    },
-    "Couldn’t read this computer’s status." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法讀取這台電腦的狀態。"
-          }
-        }
-      }
-    },
     "Couldn’t read this device’s ID. Unlock this device and try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3468,7 +3336,7 @@
         }
       }
     },
-    "Couldn’t read this folder on the computer." : {
+    "Couldn’t read this folder on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3479,7 +3347,29 @@
         }
       }
     },
-    "Couldn’t remove this computer from this device. %@" : {
+    "Couldn’t read this host’s layout." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這台電腦的版面。"
+          }
+        }
+      }
+    },
+    "Couldn’t read this host’s status." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取這台電腦的狀態。"
+          }
+        }
+      }
+    },
+    "Couldn’t remove this host from this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3490,7 +3380,7 @@
         }
       }
     },
-    "Couldn’t rename this computer. %@" : {
+    "Couldn’t rename this host. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3501,7 +3391,7 @@
         }
       }
     },
-    "Couldn’t save synced computers on this device. %@" : {
+    "Couldn’t save synced hosts on this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3512,7 +3402,7 @@
         }
       }
     },
-    "Couldn’t save this computer on this device. %@" : {
+    "Couldn’t save this host on this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3523,7 +3413,7 @@
         }
       }
     },
-    "Couldn’t save this computer’s pairing on this device. %@" : {
+    "Couldn’t save this host’s pairing on this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3534,7 +3424,7 @@
         }
       }
     },
-    "Couldn’t save this computer’s sign-in details on this device. %@" : {
+    "Couldn’t save this host’s sign-in details on this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3567,7 +3457,7 @@
         }
       }
     },
-    "Couldn’t send the answer to the computer." : {
+    "Couldn’t send the answer to the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3578,7 +3468,7 @@
         }
       }
     },
-    "Couldn’t send the keys to the computer. Check the panel in the terminal." : {
+    "Couldn’t send the keys to the host. Check the panel in the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3589,7 +3479,7 @@
         }
       }
     },
-    "Couldn’t send the keys to the computer. Try again, or check the terminal." : {
+    "Couldn’t send the keys to the host. Try again, or check the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3633,7 +3523,7 @@
         }
       }
     },
-    "Couldn’t sync computers. Check your connection and try again." : {
+    "Couldn’t sync hosts. Check your connection and try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3666,7 +3556,7 @@
         }
       }
     },
-    "Couldn’t update muted chats on this computer: %@" : {
+    "Couldn’t update muted chats on this host: %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3688,17 +3578,6 @@
         }
       }
     },
-    "Couldn’t update the computer: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法更新電腦:%@"
-          }
-        }
-      }
-    },
     "Couldn’t update the conversation. Retrying…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3710,7 +3589,18 @@
         }
       }
     },
-    "Couldn’t upload the file to the computer. Try again." : {
+    "Couldn’t update the host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新電腦:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t upload the file to the host. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3721,7 +3611,7 @@
         }
       }
     },
-    "Couldn’t upload the image to the computer. Your message wasn’t sent; try again." : {
+    "Couldn’t upload the image to the host. Your message wasn’t sent; try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3732,7 +3622,7 @@
         }
       }
     },
-    "Counts only the data Purrdr sends to and receives from your computers." : {
+    "Counts only the data Purrdr sends to and receives from your hosts." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -3930,7 +3820,7 @@
         }
       }
     },
-    "Deleted Computer" : {
+    "Deleted Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4018,7 +3908,7 @@
         }
       }
     },
-    "Diagnostics include the app version, iOS version, and number of computers — never computer names, addresses, account names, or conversations." : {
+    "Diagnostics include the app version, iOS version, and number of hosts — never host names, addresses, account names, or conversations." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4051,7 +3941,7 @@
         }
       }
     },
-    "Discard your changes to this computer?" : {
+    "Discard your changes to this host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4161,7 +4051,7 @@
         }
       }
     },
-    "Downloads the file from the computer and shows a preview." : {
+    "Downloads the file from the host and shows a preview." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4194,7 +4084,7 @@
         }
       }
     },
-    "Edit Computer" : {
+    "Edit Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4315,7 +4205,7 @@
         }
       }
     },
-    "Everything running in this workspace will stop, including its agents. Chat history stays on the computer." : {
+    "Everything running in this workspace will stop, including its agents. Chat history stays on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4392,7 +4282,7 @@
         }
       }
     },
-    "Files on the computer changed while Purrdr was updating them. Nothing was changed; try again." : {
+    "Files on the host changed while Purrdr was updating them. Nothing was changed; try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4728,7 +4618,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "HTTPS(電腦端服務)"
+            "value" : "HTTPS(Purrdr 連線助理)"
           }
         }
       }
@@ -4799,6 +4689,17 @@
         }
       }
     },
+    "Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦"
+          }
+        }
+      }
+    },
     "Host Key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4810,13 +4711,24 @@
         }
       }
     },
+    "Host Not Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到電腦"
+          }
+        }
+      }
+    },
     "Host Service" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務"
+            "value" : "Purrdr 連線助理"
           }
         }
       }
@@ -4827,7 +4739,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務 %@ 可更新"
+            "value" : "Purrdr 連線助理 %@ 可更新"
           }
         }
       }
@@ -4838,7 +4750,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務說明"
+            "value" : "Purrdr 連線助理說明"
           }
         }
       }
@@ -4849,7 +4761,18 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要更新電腦端服務"
+            "value" : "需要更新Purrdr 連線助理"
+          }
+        }
+      }
+    },
+    "Host Sync" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦同步"
           }
         }
       }
@@ -4861,7 +4784,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務"
+            "value" : "Purrdr 連線助理"
           }
         }
       }
@@ -4872,7 +4795,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務更新"
+            "value" : "Purrdr 連線助理更新"
           }
         }
       }
@@ -4884,7 +4807,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務更新失敗，已退回原本的版本。"
+            "value" : "Purrdr 連線助理更新失敗，已退回原本的版本。"
           }
         }
       }
@@ -4896,7 +4819,84 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務已更新到 %@。"
+            "value" : "Purrdr 連線助理已更新到 %@。"
+          }
+        }
+      }
+    },
+    "Host sync needs Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦同步需要 Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Host: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦：%@"
+          }
+        }
+      }
+    },
+    "Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦"
+          }
+        }
+      }
+    },
+    "Hosts · 30 Days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦 · 30 天"
+          }
+        }
+      }
+    },
+    "Hosts · 7 Days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦 · 7 天"
+          }
+        }
+      }
+    },
+    "Hosts · Today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦 · 今天"
+          }
+        }
+      }
+    },
+    "Hosts: %lld · Last used %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld 台電腦 · 最後使用：%2$@"
           }
         }
       }
@@ -4945,7 +4945,7 @@
         }
       }
     },
-    "How much data Purrdr uses to talk to your computers." : {
+    "How much data Purrdr uses to talk to your hosts." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4962,7 +4962,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "如何安裝電腦端服務"
+            "value" : "如何安裝Purrdr 連線助理"
           }
         }
       }
@@ -5066,7 +5066,7 @@
         }
       }
     },
-    "Image on the computer" : {
+    "Image on the host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -5077,7 +5077,7 @@
         }
       }
     },
-    "Image previews aren’t available for this computer yet." : {
+    "Image previews aren’t available for this host yet." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -5215,7 +5215,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "安裝 Purrdr 電腦端服務"
+            "value" : "安裝 Purrdr 連線助理"
           }
         }
       }
@@ -5226,7 +5226,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在電腦裝 Purrdr 電腦端服務，可用「做完再送」與卡住提醒"
+            "value" : "在電腦裝 Purrdr 連線助理，可用「做完再送」與卡住提醒"
           }
         }
       }
@@ -5787,7 +5787,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "確認那台電腦已經裝好 Purrdr 電腦端服務，而且正在執行。"
+            "value" : "確認那台電腦已經裝好 Purrdr 連線助理，而且正在執行。"
           }
         }
       }
@@ -5814,24 +5814,24 @@
         }
       }
     },
-    "Managing the host service from Purrdr needs host service %@ or later (this computer has %@). Update it on the computer." : {
+    "Managing the host service from Purrdr needs host service %@ or later (this host has %@). Update it on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從 Purrdr 管理電腦端服務需要電腦端服務 %1$@ 以上（這台電腦是 %2$@）。請在電腦上更新。"
+            "value" : "從 Purrdr 管理Purrdr 連線助理需要Purrdr 連線助理 %1$@ 以上（這台電腦是 %2$@）。請在電腦上更新。"
           }
         }
       }
     },
-    "Managing the host service from Purrdr needs host service %@ or later. Update it on the computer." : {
+    "Managing the host service from Purrdr needs host service %@ or later. Update it on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從 Purrdr 管理電腦端服務需要電腦端服務 %@ 以上。請在電腦上更新。"
+            "value" : "從 Purrdr 管理Purrdr 連線助理需要Purrdr 連線助理 %@ 以上。請在電腦上更新。"
           }
         }
       }
@@ -6051,7 +6051,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要電腦端服務 %@ 以上"
+            "value" : "需要Purrdr 連線助理 %@ 以上"
           }
         }
       }
@@ -6166,17 +6166,6 @@
         }
       }
     },
-    "No Computer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有電腦"
-          }
-        }
-      }
-    },
     "No Computers Yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6184,6 +6173,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有電腦"
+          }
+        }
+      }
+    },
+    "No Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有電腦"
           }
         }
       }
@@ -6342,7 +6342,7 @@
         }
       }
     },
-    "No workspace on your computers is running an agent. Spaces also shows their terminals." : {
+    "No workspace on your hosts is running an agent. Spaces also shows their terminals." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6386,7 +6386,7 @@
         }
       }
     },
-    "Not Available on This Computer" : {
+    "Not Available on This Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6496,7 +6496,7 @@
         }
       }
     },
-    "Not on This Computer" : {
+    "Not on This Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6639,7 +6639,7 @@
         }
       }
     },
-    "Notifications and computer sync need Purrdr Plus. Activate it next." : {
+    "Notifications and host sync need Purrdr Plus. Activate it next." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6650,7 +6650,7 @@
         }
       }
     },
-    "Notifications and computer sync need Purrdr Plus. Join as a member first." : {
+    "Notifications and host sync need Purrdr Plus. Join as a member first." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6683,7 +6683,7 @@
         }
       }
     },
-    "Notifications can be turned on after this device pairs with the computer." : {
+    "Notifications can be turned on after this device pairs with the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6705,7 +6705,7 @@
         }
       }
     },
-    "Notifications when an agent needs you and computer sync are now available. Turn them on for each computer." : {
+    "Notifications when an agent needs you and host sync are now available. Turn them on for each host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6837,17 +6837,6 @@
         }
       }
     },
-    "On that computer, install the Purrdr host service and run purrdr-host-service pair. Then scan the QR code it shows. Login Shell and Files aren’t available this way." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在那台電腦安裝 Purrdr 電腦端服務並執行 purrdr-host-service pair，再掃描它顯示的 QR code。這種方式不能用登入 Shell 與檔案。"
-          }
-        }
-      }
-    },
     "On that computer, open PowerShell as an administrator (right-click it and choose Run as administrator)." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6899,6 +6888,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在那台電腦打開「終端機」。Windows 請打開 PowerShell。"
+          }
+        }
+      }
+    },
+    "On the host, install the Purrdr host service and run purrdr-host-service pair. Then scan the QR code it shows. Login Shell and Files aren’t available this way." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦安裝 Purrdr 連線助理並執行 purrdr-host-service pair，再掃描它顯示的 QR code。這種方式不能用登入 Shell 與檔案。"
           }
         }
       }
@@ -7079,7 +7079,7 @@
         }
       }
     },
-    "Opening files isn’t available for this computer yet." : {
+    "Opening files isn’t available for this host yet." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7101,7 +7101,7 @@
         }
       }
     },
-    "Opens pairing for this computer." : {
+    "Opens pairing for this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7288,7 +7288,7 @@
         }
       }
     },
-    "Pair This Computer First" : {
+    "Pair This Host First" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7299,7 +7299,7 @@
         }
       }
     },
-    "Pair This Computer First %@" : {
+    "Pair This Host First %@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7327,7 +7327,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦裝 Purrdr 電腦端服務後配對;不能用登入 Shell 與檔案。"
+            "value" : "電腦裝 Purrdr 連線助理後配對;不能用登入 Shell 與檔案。"
           }
         }
       }
@@ -7497,7 +7497,7 @@
         }
       }
     },
-    "Paused: this chat changed on the computer. Edit or delete the first message to continue." : {
+    "Paused: this chat changed on the host. Edit or delete the first message to continue." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7860,7 +7860,7 @@
         }
       }
     },
-    "Purrdr adds a small helper to each computer you turn on. When an agent needs you, this device gets a notification. Notifications show only the workspace name, never what the agent said. On Windows computers, notifications may be delayed." : {
+    "Purrdr adds a small helper to each host you turn on. When an agent needs you, this device gets a notification. Notifications show only the workspace name, never what the agent said. On Windows hosts, notifications may be delayed." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7871,7 +7871,7 @@
         }
       }
     },
-    "Purrdr can’t safely change Claude Code’s settings on this computer." : {
+    "Purrdr can’t safely change Claude Code’s settings on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7882,7 +7882,7 @@
         }
       }
     },
-    "Purrdr can’t safely update the notes file on this computer." : {
+    "Purrdr can’t safely update the notes file on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7904,7 +7904,7 @@
         }
       }
     },
-    "Purrdr couldn’t read Codex’s answer. Updating Codex on the computer may help." : {
+    "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7926,29 +7926,29 @@
         }
       }
     },
-    "Purrdr host service %@ is ready for %@ (now %@). Run the install command on that computer once; after that it updates itself." : {
+    "Purrdr host service %@ is ready for %@ (now %@). Run the install command on the host once; after that it updates itself." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%2$@ 有新版的 Purrdr 電腦端服務 %1$@(目前 %3$@)。請在那台電腦執行一次下面的安裝指令，之後它會自己更新。"
+            "value" : "%2$@ 有新版的 Purrdr 連線助理 %1$@(目前 %3$@)。請在那台電腦執行一次下面的安裝指令，之後它會自己更新。"
           }
         }
       }
     },
-    "Purrdr host service %@ is ready for %@. To update now, run this on that computer:" : {
+    "Purrdr host service %@ is ready for %@. To update now, run this on the host:" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%2$@ 有新版的 Purrdr 電腦端服務 %1$@。要立刻更新，請在那台電腦執行："
+            "value" : "%2$@ 有新版的 Purrdr 連線助理 %1$@。要立刻更新，請在那台電腦執行："
           }
         }
       }
     },
-    "Purrdr reads this computer’s colors and adds a small note file, signed in as %@. It never changes your settings. Turning this off removes the file." : {
+    "Purrdr reads this host’s colors and adds a small note file, signed in as %@. It never changes your settings. Turning this off removes the file." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7959,7 +7959,7 @@
         }
       }
     },
-    "Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this computer and add it again.\n\nKey now:\n%@\n\nKey you trusted:\n%@" : {
+    "Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n%@\n\nKey you trusted:\n%@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7970,7 +7970,7 @@
         }
       }
     },
-    "Purrdr supports macOS, Linux, and Windows computers." : {
+    "Purrdr supports macOS, Linux, and Windows hosts." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7981,7 +7981,7 @@
         }
       }
     },
-    "Purrdr tests the connection before saving the computer." : {
+    "Purrdr tests the connection before saving the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7992,7 +7992,7 @@
         }
       }
     },
-    "Purrdr updates Claude Code’s notes file on this computer when you act on a note. Undo puts back what Purrdr changed and asks again next time." : {
+    "Purrdr updates Claude Code’s notes file on this host when you act on a note. Undo puts back what Purrdr changed and asks again next time." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8003,7 +8003,7 @@
         }
       }
     },
-    "Purrdr will add a small Codex launcher on this computer, as “%@”. It changes nothing else. You can turn it off here at any time." : {
+    "Purrdr will add a small Codex launcher on this host, as “%@”. It changes nothing else. You can turn it off here at any time." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8014,7 +8014,7 @@
         }
       }
     },
-    "Purrdr will install a small notification helper on this computer, as %@. Turning notifications off removes only this device; the helper is removed when the last device turns off." : {
+    "Purrdr will install a small notification helper on this host, as %@. Turning notifications off removes only this device; the helper is removed when the last device turns off." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8135,7 +8135,7 @@
         }
       }
     },
-    "Read, answer, and steer the coding agents that herdr runs on your computer, and open a terminal into it, from your iPhone or iPad." : {
+    "Read, answer, and steer the coding agents that herdr runs on your host, and open a terminal into it, from your iPhone or iPad." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8300,7 +8300,7 @@
         }
       }
     },
-    "Remove Computer" : {
+    "Remove Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8311,7 +8311,7 @@
         }
       }
     },
-    "Remove Computer…" : {
+    "Remove Host…" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8366,17 +8366,6 @@
         }
       }
     },
-    "Rename Computer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新命名電腦"
-          }
-        }
-      }
-    },
     "Rename Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8384,6 +8373,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名裝置"
+          }
+        }
+      }
+    },
+    "Rename Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名電腦"
           }
         }
       }
@@ -8564,7 +8564,7 @@
         }
       }
     },
-    "Restoring the computer’s Claude settings…" : {
+    "Restoring the host’s Claude settings…" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8586,13 +8586,13 @@
         }
       }
     },
-    "Resuming a past chat needs the Purrdr host service on the computer. This computer doesn’t have it." : {
+    "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "續接過去的聊天需要電腦上有 Purrdr 電腦端服務，這台電腦沒有。"
+            "value" : "續接過去的聊天需要電腦上有 Purrdr 連線助理，這台電腦沒有。"
           }
         }
       }
@@ -8663,7 +8663,7 @@
         }
       }
     },
-    "Run this in PowerShell on the computer, signed in as %@." : {
+    "Run this in PowerShell on the host, signed in as %@." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8674,7 +8674,7 @@
         }
       }
     },
-    "Run this in Terminal on the computer, signed in as %@. On a Mac, also turn on Remote Login in System Settings › General › Sharing." : {
+    "Run this in Terminal on the host, signed in as %@. On a Mac, also turn on Remote Login in System Settings › General › Sharing." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8905,13 +8905,13 @@
         }
       }
     },
-    "Send When Done needs the Purrdr host service on this computer. Install or update it first." : {
+    "Send When Done needs the Purrdr host service on this host. Install or update it first." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「做完再送」需要這台電腦裝有 Purrdr 電腦端服務。請先安裝或更新。"
+            "value" : "「做完再送」需要這台電腦裝有 Purrdr 連線助理。請先安裝或更新。"
           }
         }
       }
@@ -8993,7 +8993,7 @@
         }
       }
     },
-    "Sent to Codex, but Codex hasn’t confirmed it yet. Check the computer before trying again." : {
+    "Sent to Codex, but Codex hasn’t confirmed it yet. Check the host before trying again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9114,7 +9114,7 @@
         }
       }
     },
-    "Share Computer" : {
+    "Share Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9147,7 +9147,7 @@
         }
       }
     },
-    "Share computers between iPhone and iPad" : {
+    "Share hosts between iPhone and iPad" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9235,7 +9235,7 @@
         }
       }
     },
-    "Show Claude plan usage on this computer?" : {
+    "Show Claude plan usage on this host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9323,7 +9323,7 @@
         }
       }
     },
-    "Showing: All Computers" : {
+    "Showing: All Hosts" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9466,7 +9466,7 @@
         }
       }
     },
-    "Sign in to the computer with a password or key." : {
+    "Sign in to the host with a password or key." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9477,7 +9477,7 @@
         }
       }
     },
-    "Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync computers between iPhone and iPad." : {
+    "Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync hosts between iPhone and iPad." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9895,7 +9895,7 @@
         }
       }
     },
-    "Sync Computer List" : {
+    "Sync Host List" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9906,7 +9906,7 @@
         }
       }
     },
-    "Sync Computers" : {
+    "Sync Hosts" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9917,7 +9917,7 @@
         }
       }
     },
-    "Sync your computer list between your iPhone and iPad" : {
+    "Sync your host list between your iPhone and iPad" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10016,7 +10016,7 @@
         }
       }
     },
-    "Tailscale needs no password or key. Otherwise, Purrdr makes a key on this iPhone or iPad for you to add to the computer." : {
+    "Tailscale needs no password or key. Otherwise, Purrdr makes a key on this iPhone or iPad for you to add to the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10170,7 +10170,7 @@
         }
       }
     },
-    "That chat’s record is no longer on the computer, so it can’t be resumed. Pick another chat, or start a new one." : {
+    "That chat’s record is no longer on the host, so it can’t be resumed. Pick another chat, or start a new one." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10181,7 +10181,7 @@
         }
       }
     },
-    "That device can’t connect to this computer until it’s paired again." : {
+    "That device can’t connect to this host until it’s paired again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10192,7 +10192,7 @@
         }
       }
     },
-    "That device stops receiving notifications from all computers. To get them again, turn notifications back on from that device." : {
+    "That device stops receiving notifications from all hosts. To get them again, turn notifications back on from that device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10214,7 +10214,7 @@
         }
       }
     },
-    "That sign-in method belongs to another member with a subscription or synced computers. Sign in with it, delete that member, then link it here." : {
+    "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10247,7 +10247,7 @@
         }
       }
     },
-    "The Demo computer can’t start new chats. Add your own computer to try this." : {
+    "The Demo host can’t start new chats. Add your own host to try this." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10258,7 +10258,7 @@
         }
       }
     },
-    "The Demo computer has sample conversations, so you can try every screen before you add a computer." : {
+    "The Demo host has sample conversations, so you can try every screen before you add a host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10269,40 +10269,40 @@
         }
       }
     },
-    "The Purrdr host service on this computer doesn’t match this version of Purrdr. Update Purrdr and the host service." : {
+    "The Purrdr host service on this host doesn’t match this version of Purrdr. Update Purrdr and the host service." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台電腦上的 Purrdr 電腦端服務與這個版本的 Purrdr 不相容。請更新 Purrdr 與電腦端服務。"
+            "value" : "這台電腦上的 Purrdr 連線助理與這個版本的 Purrdr 不相容。請更新 Purrdr 與 Purrdr 連線助理。"
           }
         }
       }
     },
-    "The Purrdr host service on this computer is newer than this version of Purrdr. Update Purrdr." : {
+    "The Purrdr host service on this host is newer than this version of Purrdr. Update Purrdr." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台電腦上的 Purrdr 電腦端服務比這個版本的 Purrdr 新。請更新 Purrdr。"
+            "value" : "這台電腦上的 Purrdr 連線助理比這個版本的 Purrdr 新。請更新 Purrdr。"
           }
         }
       }
     },
-    "The Purrdr host service on this computer is older than this version of Purrdr. Update the host service on the computer." : {
+    "The Purrdr host service on this host is older than this version of Purrdr. Update the host service on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台電腦上的 Purrdr 電腦端服務比這個版本的 Purrdr 舊。請在電腦上更新電腦端服務。"
+            "value" : "這台電腦上的 Purrdr 連線助理比這個版本的 Purrdr 舊。請在電腦上更新Purrdr 連線助理。"
           }
         }
       }
     },
-    "The Purrdr notification helper is already on this computer. Purrdr will add this device to it, as %@. Turning notifications off removes only this device." : {
+    "The Purrdr notification helper is already on this host. Purrdr will add this device to it, as %@. Turning notifications off removes only this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10313,13 +10313,13 @@
         }
       }
     },
-    "The Purrdr notification helper is already on this computer. The host service will add this device to it. Turning notifications off removes only this device." : {
+    "The Purrdr notification helper is already on this host. The host service will add this device to it. Turning notifications off removes only this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台電腦已有 Purrdr 通知幫手。電腦端服務會把這支裝置加進去。關閉通知只會移除這支裝置。"
+            "value" : "這台電腦已有 Purrdr 通知幫手。Purrdr 連線助理會把這支裝置加進去。關閉通知只會移除這支裝置。"
           }
         }
       }
@@ -10423,193 +10423,6 @@
         }
       }
     },
-    "The computer couldn’t save the file." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦無法儲存這個檔案。"
-          }
-        }
-      }
-    },
-    "The computer couldn’t save the file. %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦無法儲存這個檔案。%@"
-          }
-        }
-      }
-    },
-    "The computer couldn’t start the update. Make sure it’s online, then try again." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦無法開始更新。請確認它有連上網路，再試一次。"
-          }
-        }
-      }
-    },
-    "The computer didn’t accept this account name and password." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦不接受這組帳號與密碼。"
-          }
-        }
-      }
-    },
-    "The computer didn’t accept this device. Add this device’s key to the computer again, and check the account name." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦沒有接受這支裝置。請重新把這支裝置的金鑰加到電腦，並檢查帳號名稱。"
-          }
-        }
-      }
-    },
-    "The computer didn’t accept this key. Make sure it was added to the computer, and check the account name." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦沒有接受這把金鑰。請確認它已加到電腦上，並檢查帳號名稱。"
-          }
-        }
-      }
-    },
-    "The computer didn’t accept this message." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦沒有接受這則訊息。"
-          }
-        }
-      }
-    },
-    "The computer didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦沒有及時回應。請確認它沒有睡眠，且兩台裝置都開著 Tailscale。"
-          }
-        }
-      }
-    },
-    "The computer didn’t answer with a list of folders." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦回應的不是資料夾清單。"
-          }
-        }
-      }
-    },
-    "The computer didn’t answer. Make sure it’s awake and connected to Tailscale." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦沒有回應。請確認電腦沒有睡眠，並且連上 Tailscale。"
-          }
-        }
-      }
-    },
-    "The computer didn’t let this account sign in. Edit the computer to check the account name and sign-in method." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦不允許這個帳號登入。請編輯電腦，檢查帳號名稱與登入方式。"
-          }
-        }
-      }
-    },
-    "The computer didn’t respond with a folder listing." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦回應的不是資料夾清單。"
-          }
-        }
-      }
-    },
-    "The computer doesn’t recognize this device anymore. Edit the computer and pair again with a new pairing code." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦已經不認得這支裝置。請編輯電腦，用新的配對碼重新配對。"
-          }
-        }
-      }
-    },
-    "The computer is reachable, but the Purrdr host service isn’t running. Start it on the computer, then try again." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連得到電腦，但 Purrdr 電腦端服務沒有在執行。請在電腦上啟動它後再試一次。"
-          }
-        }
-      }
-    },
-    "The computer refused the connection. Check that Remote Login is on." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦拒絕了連線。請確認已開啟「遠端登入」。"
-          }
-        }
-      }
-    },
-    "The computer refused the connection. Check that Tailscale is on, on that computer." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦拒絕了連線。請確認那台電腦開著 Tailscale。"
-          }
-        }
-      }
-    },
-    "The computer saved the file somewhere unexpected." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦把檔案存到了意外的位置。"
-          }
-        }
-      }
-    },
     "The connection dropped while sending. The message may have arrived; check the chat before sending again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10632,7 +10445,7 @@
         }
       }
     },
-    "The connection to this computer was lost. Reconnect to start again." : {
+    "The connection to this host was lost. Reconnect to start again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10654,7 +10467,7 @@
         }
       }
     },
-    "The demo computer can’t send notifications." : {
+    "The demo host can’t send notifications." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10676,13 +10489,200 @@
         }
       }
     },
-    "The host service can’t reach herdr. Start herdr on the computer, then try again." : {
+    "The host couldn’t save the file." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務連不到 herdr。請在電腦上啟動 herdr 後再試一次。"
+            "value" : "電腦無法儲存這個檔案。"
+          }
+        }
+      }
+    },
+    "The host couldn’t save the file. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦無法儲存這個檔案。%@"
+          }
+        }
+      }
+    },
+    "The host couldn’t start the update. Make sure it’s online, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦無法開始更新。請確認它有連上網路，再試一次。"
+          }
+        }
+      }
+    },
+    "The host didn’t accept this account name and password." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦不接受這組帳號與密碼。"
+          }
+        }
+      }
+    },
+    "The host didn’t accept this device. Add this device’s key to the host again, and check the account name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦沒有接受這支裝置。請重新把這支裝置的金鑰加到電腦，並檢查帳號名稱。"
+          }
+        }
+      }
+    },
+    "The host didn’t accept this key. Make sure it was added to the host, and check the account name." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦沒有接受這把金鑰。請確認它已加到電腦上，並檢查帳號名稱。"
+          }
+        }
+      }
+    },
+    "The host didn’t accept this message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦沒有接受這則訊息。"
+          }
+        }
+      }
+    },
+    "The host didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦沒有及時回應。請確認它沒有睡眠，且兩台裝置都開著 Tailscale。"
+          }
+        }
+      }
+    },
+    "The host didn’t answer with a list of folders." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦回應的不是資料夾清單。"
+          }
+        }
+      }
+    },
+    "The host didn’t answer. Make sure it’s awake and connected to Tailscale." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦沒有回應。請確認電腦沒有睡眠，並且連上 Tailscale。"
+          }
+        }
+      }
+    },
+    "The host didn’t let this account sign in. Edit the host to check the account name and sign-in method." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦不允許這個帳號登入。請編輯電腦，檢查帳號名稱與登入方式。"
+          }
+        }
+      }
+    },
+    "The host didn’t respond with a folder listing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦回應的不是資料夾清單。"
+          }
+        }
+      }
+    },
+    "The host doesn’t recognize this device anymore. Edit the host and pair again with a new pairing code." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦已經不認得這支裝置。請編輯電腦，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "The host is reachable, but the Purrdr host service isn’t running. Start it on the host, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連得到電腦，但 Purrdr 連線助理沒有在執行。請在電腦上啟動它後再試一次。"
+          }
+        }
+      }
+    },
+    "The host refused the connection. Check that Remote Login is on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦拒絕了連線。請確認已開啟「遠端登入」。"
+          }
+        }
+      }
+    },
+    "The host refused the connection. Check that Tailscale is on, on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦拒絕了連線。請確認那台電腦開著 Tailscale。"
+          }
+        }
+      }
+    },
+    "The host saved the file somewhere unexpected." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦把檔案存到了意外的位置。"
+          }
+        }
+      }
+    },
+    "The host service can’t reach herdr. Start herdr on the host, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 連線助理連不到 herdr。請在電腦上啟動 herdr 後再試一次。"
           }
         }
       }
@@ -10693,23 +10693,23 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務回傳了 Purrdr 看不懂的回應。請更新 Purrdr 與電腦端服務。"
+            "value" : "Purrdr 連線助理回傳了 Purrdr 看不懂的回應。請更新 Purrdr 與 Purrdr 連線助理。"
           }
         }
       }
     },
-    "The host service will install a small notification helper on this computer. Turning notifications off removes only this device; the helper is removed when the last device turns off." : {
+    "The host service will install a small notification helper on this host. Turning notifications off removes only this device; the helper is removed when the last device turns off." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "電腦端服務會在這台電腦安裝一個小型通知幫手。關閉通知只會移除這支裝置；最後一支裝置關閉時才會移除幫手。"
+            "value" : "Purrdr 連線助理會在這台電腦安裝一個小型通知幫手。關閉通知只會移除這支裝置；最後一支裝置關閉時才會移除幫手。"
           }
         }
       }
     },
-    "The key stays on this device and never leaves it. Add its public key to each computer you sign in to." : {
+    "The key stays on this device and never leaves it. Add its public key to each host you sign in to." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10797,7 +10797,7 @@
         }
       }
     },
-    "The question changed on the computer, so the answer wasn’t sent. Check it, then try again." : {
+    "The question changed on the host, so the answer wasn’t sent. Check it, then try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10852,7 +10852,7 @@
         }
       }
     },
-    "The upload was interrupted. Nothing was saved on the computer." : {
+    "The upload was interrupted. Nothing was saved on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10907,7 +10907,7 @@
         }
       }
     },
-    "There’s no such folder on the computer. Check the location, or choose a folder on the computer." : {
+    "There’s no such folder on the host. Check the location, or choose a folder on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11006,7 +11006,7 @@
         }
       }
     },
-    "This chat can’t be shown yet. Update this agent’s herdr integration on the computer, then open the chat again." : {
+    "This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11017,7 +11017,7 @@
         }
       }
     },
-    "This chat changed on the computer, so nothing was sent." : {
+    "This chat changed on the host, so nothing was sent." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11050,72 +11050,6 @@
         }
       }
     },
-    "This computer asks you to sign in to Tailscale again. Purrdr continues on its own after you sign in." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦要求你重新登入 Tailscale。登入後 Purrdr 會自動繼續。"
-          }
-        }
-      }
-    },
-    "This computer can’t find Codex. Install Codex there first." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦找不到 Codex。請先在那台電腦安裝 Codex。"
-          }
-        }
-      }
-    },
-    "This computer can’t send notifications." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦無法傳送通知。"
-          }
-        }
-      }
-    },
-    "This computer can’t show git changes yet." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦目前還看不到 git 變更。"
-          }
-        }
-      }
-    },
-    "This computer doesn’t accept key sign-in. Use a password instead, or turn on key sign-in on that computer." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦不接受用金鑰登入。請改用密碼，或在那台電腦開啟金鑰登入。"
-          }
-        }
-      }
-    },
-    "This computer doesn’t accept password sign-in. Use a key instead, or turn on password sign-in on that computer." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦不接受用密碼登入。請改用金鑰，或在那台電腦開啟密碼登入。"
-          }
-        }
-      }
-    },
     "This computer doesn’t have git yet. After you install it, tap Try Again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11123,39 +11057,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台電腦還沒有 git。安裝後請點「再試一次」。"
-          }
-        }
-      }
-    },
-    "This computer doesn’t have that device anymore. Refresh the list." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦已經沒有那支裝置，請重新整理列表。"
-          }
-        }
-      }
-    },
-    "This computer has herdr %@. Purrdr needs %@ or later. Update herdr on the computer, then test the connection again." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦的 herdr 是 %@,Purrdr 需要 %@ 以上。請在電腦上更新 herdr,然後再測試連線。"
-          }
-        }
-      }
-    },
-    "This computer hasn’t been confirmed yet. Test the connection in Computers." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有確認這台電腦，請到「電腦」測試連線。"
           }
         }
       }
@@ -11171,17 +11072,6 @@
         }
       }
     },
-    "This computer is removed from this device, and this device is signed out of it. Nothing else on the computer changes." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦會從這支裝置移除，這支裝置也會登出它。電腦上其他內容不受影響。"
-          }
-        }
-      }
-    },
     "This computer looks different" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11193,17 +11083,6 @@
         }
       }
     },
-    "This computer looks different from before. If you didn’t reinstall or reset it, stop and check it in Computers." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦看起來和之前不一樣。如果你沒有重新安裝或重置它，請停下來，到「電腦」檢查。"
-          }
-        }
-      }
-    },
     "This computer’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this computer yourself." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11211,17 +11090,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台電腦的身分和你之前信任的不同，可能有人在攔截連線。除非是你自己重設了這台電腦，否則不要繼續。"
-          }
-        }
-      }
-    },
-    "This computer’s password or key isn’t on this device. Edit the computer and enter it again." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這支裝置上沒有這台電腦的密碼或金鑰。請編輯電腦並重新輸入。"
           }
         }
       }
@@ -11254,7 +11122,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這支裝置以唯讀方式與電腦端服務配對，無法在這台電腦開啟通知。"
+            "value" : "這支裝置以唯讀方式與 Purrdr 連線助理配對，無法在這台電腦開啟通知。"
           }
         }
       }
@@ -11281,7 +11149,7 @@
         }
       }
     },
-    "This device is paired read-only, so it can’t send anything to this computer." : {
+    "This device is paired read-only, so it can’t send anything to this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11298,7 +11166,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這支裝置配對成唯讀，不能更新電腦端服務或變更自動更新。"
+            "value" : "這支裝置配對成唯讀，不能更新Purrdr 連線助理或變更自動更新。"
           }
         }
       }
@@ -11314,7 +11182,7 @@
         }
       }
     },
-    "This device isn’t paired with this computer. Edit the computer and pair again with a new pairing code." : {
+    "This device isn’t paired with this host. Edit the host and pair again with a new pairing code." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11325,7 +11193,7 @@
         }
       }
     },
-    "This device stops receiving notifications from all computers. You can turn computers back on under Notifications." : {
+    "This device stops receiving notifications from all hosts. You can turn hosts back on under Notifications." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11336,7 +11204,7 @@
         }
       }
     },
-    "This device was removed from the computer. Edit the computer and pair again with a new code." : {
+    "This device was removed from the host. Edit the host and pair again with a new code." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11358,7 +11226,7 @@
         }
       }
     },
-    "This file is %@. Files sent to the computer can be up to %@." : {
+    "This file is %@. Files sent to the host can be up to %@." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11369,7 +11237,7 @@
         }
       }
     },
-    "This file is no longer on the computer." : {
+    "This file is no longer on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11402,7 +11270,7 @@
         }
       }
     },
-    "This file name can’t be used on the computer." : {
+    "This file name can’t be used on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11424,7 +11292,7 @@
         }
       }
     },
-    "This folder isn’t on the computer, or you can’t open it." : {
+    "This folder isn’t on the host, or you can’t open it." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11446,13 +11314,145 @@
         }
       }
     },
+    "This host asks you to sign in to Tailscale again. Purrdr continues on its own after you sign in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦要求你重新登入 Tailscale。登入後 Purrdr 會自動繼續。"
+          }
+        }
+      }
+    },
+    "This host can’t find Codex. Install Codex there first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦找不到 Codex。請先在那台電腦安裝 Codex。"
+          }
+        }
+      }
+    },
+    "This host can’t send notifications." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦無法傳送通知。"
+          }
+        }
+      }
+    },
+    "This host can’t show git changes yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦目前還看不到 git 變更。"
+          }
+        }
+      }
+    },
+    "This host doesn’t accept key sign-in. Use a password instead, or turn on key sign-in on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦不接受用金鑰登入。請改用密碼，或在那台電腦開啟金鑰登入。"
+          }
+        }
+      }
+    },
+    "This host doesn’t accept password sign-in. Use a key instead, or turn on password sign-in on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦不接受用密碼登入。請改用金鑰，或在那台電腦開啟密碼登入。"
+          }
+        }
+      }
+    },
+    "This host doesn’t have that device anymore. Refresh the list." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦已經沒有那支裝置，請重新整理列表。"
+          }
+        }
+      }
+    },
+    "This host has herdr %@. Purrdr needs %@ or later. Update herdr on the host, then test the connection again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦的 herdr 是 %@,Purrdr 需要 %@ 以上。請在電腦上更新 herdr,然後再測試連線。"
+          }
+        }
+      }
+    },
+    "This host hasn’t been confirmed yet. Test the connection in Hosts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有確認這台電腦，請到「電腦」測試連線。"
+          }
+        }
+      }
+    },
+    "This host is removed from this device, and this device is signed out of it. Nothing else on the host changes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦會從這支裝置移除，這支裝置也會登出它。電腦上其他內容不受影響。"
+          }
+        }
+      }
+    },
+    "This host looks different from before. If you didn’t reinstall or reset it, stop and check it in Hosts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦看起來和之前不一樣。如果你沒有重新安裝或重置它，請停下來，到「電腦」檢查。"
+          }
+        }
+      }
+    },
     "This host service isn’t the installed copy, so it can’t be managed from Purrdr." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台電腦跑的不是安裝好的電腦端服務，無法從 Purrdr 管理。"
+            "value" : "這台電腦跑的不是安裝好的Purrdr 連線助理，無法從 Purrdr 管理。"
+          }
+        }
+      }
+    },
+    "This host’s password or key isn’t on this device. Edit the host and enter it again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置上沒有這台電腦的密碼或金鑰。請編輯電腦並重新輸入。"
           }
         }
       }
@@ -11512,7 +11512,7 @@
         }
       }
     },
-    "This isn’t available on Windows computers yet." : {
+    "This isn’t available on Windows hosts yet." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11567,7 +11567,7 @@
         }
       }
     },
-    "This link isn’t a Purrdr computer, or it was made by a newer version of Purrdr." : {
+    "This link isn’t a Purrdr host, or it was made by a newer version of Purrdr." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11578,7 +11578,7 @@
         }
       }
     },
-    "This list may be incomplete. The computer took too long to list every command." : {
+    "This list may be incomplete. The host took too long to list every command." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11622,29 +11622,29 @@
         }
       }
     },
-    "This needs a newer Purrdr host service (this computer has %@). Update the host service on the computer; Computers shows the command." : {
+    "This needs a newer Purrdr host service (this host has %@). Update the host service on the host; Hosts shows the command." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這項功能需要較新的 Purrdr 電腦端服務(這台電腦是 %@)。請更新電腦上的電腦端服務，指令在「電腦」列表。"
+            "value" : "這項功能需要較新的 Purrdr 連線助理(這台電腦是 %@)。請更新電腦上的Purrdr 連線助理，指令在「電腦」列表。"
           }
         }
       }
     },
-    "This needs a newer Purrdr host service. Update the host service on the computer; Computers shows the command." : {
+    "This needs a newer Purrdr host service. Update the host service on the host; Hosts shows the command." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這項功能需要較新的 Purrdr 電腦端服務。請更新電腦上的電腦端服務，指令在「電腦」列表。"
+            "value" : "這項功能需要較新的 Purrdr 連線助理。請更新電腦上的Purrdr 連線助理，指令在「電腦」列表。"
           }
         }
       }
     },
-    "This note changed on the computer. Showing the latest one." : {
+    "This note changed on the host. Showing the latest one." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11655,7 +11655,7 @@
         }
       }
     },
-    "This pairing code expired. On that computer, run purrdr-host-service pair again for a new code." : {
+    "This pairing code expired. On the host, run purrdr-host-service pair again for a new code." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11666,7 +11666,7 @@
         }
       }
     },
-    "This pairing code isn’t valid or was already used. On that computer, run purrdr-host-service pair again for a new code." : {
+    "This pairing code isn’t valid or was already used. On the host, run purrdr-host-service pair again for a new code." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11699,7 +11699,7 @@
         }
       }
     },
-    "This pane no longer exists on the computer." : {
+    "This pane no longer exists on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11754,7 +11754,7 @@
         }
       }
     },
-    "This renames the workspace on the computer too." : {
+    "This renames the workspace on the host too." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11776,7 +11776,7 @@
         }
       }
     },
-    "This request is too long for a Windows computer." : {
+    "This request is too long for a Windows host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11787,7 +11787,7 @@
         }
       }
     },
-    "This runs on the computer and won’t be sent to Claude." : {
+    "This runs on the host and won’t be sent to Claude." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11809,7 +11809,7 @@
         }
       }
     },
-    "This subagent’s messages aren’t on this computer." : {
+    "This subagent’s messages aren’t on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11831,7 +11831,7 @@
         }
       }
     },
-    "This window’s computer was removed from this device." : {
+    "This window’s host was removed from this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11886,7 +11886,7 @@
         }
       }
     },
-    "To mark notes, Purrdr updates Claude Code’s notes on this computer, as %@. You can undo Purrdr’s changes in Settings." : {
+    "To mark notes, Purrdr updates Claude Code’s notes on this host, as %@. You can undo Purrdr’s changes in Settings." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11897,7 +11897,7 @@
         }
       }
     },
-    "To show plan usage, Purrdr changes one Claude Code setting on this computer (signed in as %@). Turning this off puts it back." : {
+    "To show plan usage, Purrdr changes one Claude Code setting on this host (signed in as %@). Turning this off puts it back." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11941,7 +11941,7 @@
         }
       }
     },
-    "Too large to open here (%@). Open it on the computer." : {
+    "Too large to open here (%@). Open it on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11952,7 +11952,7 @@
         }
       }
     },
-    "Too large to preview here (%@). Open it on the computer." : {
+    "Too large to preview here (%@). Open it on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12029,7 +12029,7 @@
         }
       }
     },
-    "Try a different name, agent, folder, or computer." : {
+    "Try a different name, agent, folder, or host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12161,7 +12161,7 @@
         }
       }
     },
-    "Turn on notifications and computer sync now? You can change them later." : {
+    "Turn on notifications and host sync now? You can change them later." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12172,7 +12172,7 @@
         }
       }
     },
-    "Turning off a device stops its notifications from every computer, even if it’s lost. Each computer’s leftover pairing is removed the next time it tries to notify." : {
+    "Turning off a device stops its notifications from every host, even if it’s lost. Each host’s leftover pairing is removed the next time it tries to notify." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12194,7 +12194,7 @@
         }
       }
     },
-    "Type the folder’s location on the computer, like /Users/you/project. This computer can’t show a folder list." : {
+    "Type the folder’s location on the host, like /Users/you/project. This host can’t show a folder list." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12205,7 +12205,7 @@
         }
       }
     },
-    "Type the folder’s location on the computer." : {
+    "Type the folder’s location on the host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12414,7 +12414,7 @@
         }
       }
     },
-    "Untested. Adds a small Codex launcher on the selected computer so each Codex chat shows up correctly. Turning it off removes everything Purrdr added." : {
+    "Untested. Adds a small Codex launcher on the selected host so each Codex chat shows up correctly. Turning it off removes everything Purrdr added." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12475,7 +12475,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更新電腦端服務"
+            "value" : "更新Purrdr 連線助理"
           }
         }
       }
@@ -12486,12 +12486,12 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更新電腦端服務…"
+            "value" : "更新Purrdr 連線助理…"
           }
         }
       }
     },
-    "Update Notes on This Computer?" : {
+    "Update Notes on This Host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12519,7 +12519,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請更新電腦端服務"
+            "value" : "請更新Purrdr 連線助理"
           }
         }
       }
@@ -12530,7 +12530,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更新 %@ 的電腦端服務"
+            "value" : "更新 %@ 的Purrdr 連線助理"
           }
         }
       }
@@ -12541,7 +12541,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更新 Purrdr 電腦端服務才能續接過去的聊天。請在電腦上執行："
+            "value" : "更新 Purrdr 連線助理才能續接過去的聊天。請在電腦上執行："
           }
         }
       }
@@ -12552,18 +12552,18 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "更新 Purrdr 電腦端服務才能查看變更。請在電腦上執行："
+            "value" : "更新 Purrdr 連線助理才能查看變更。請在電腦上執行："
           }
         }
       }
     },
-    "Update the host service to turn on notifications. Run this on the computer:" : {
+    "Update the host service to turn on notifications. Run this on the host:" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請更新電腦端服務才能開啟通知。在電腦上執行："
+            "value" : "請更新Purrdr 連線助理才能開啟通知。在電腦上執行："
           }
         }
       }
@@ -12607,7 +12607,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "正在更新到 %@。電腦端服務會重新啟動，接著 Purrdr 重新連線…"
+            "value" : "正在更新到 %@。Purrdr 連線助理會重新啟動，接著 Purrdr 重新連線…"
           }
         }
       }
@@ -12645,7 +12645,7 @@
         }
       }
     },
-    "Use Computer Theme" : {
+    "Use Host Theme" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12656,7 +12656,7 @@
         }
       }
     },
-    "Use Computer Theme?" : {
+    "Use Host Theme?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12722,7 +12722,7 @@
         }
       }
     },
-    "Use this computer’s colors in chats and the terminal." : {
+    "Use this host’s colors in chats and the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12904,7 +12904,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "想用「做完再送」和卡住提醒？也可以在那台電腦裝電腦端服務。"
+            "value" : "想用「做完再送」和卡住提醒？也可以在那台電腦裝Purrdr 連線助理。"
           }
         }
       }
@@ -13096,7 +13096,7 @@
         }
       }
     },
-    "With Purrdr Plus, a small helper on your computer tells you when an agent needs you. Chat and the terminal work without it." : {
+    "With Purrdr Plus, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13280,7 +13280,7 @@
         }
       }
     },
-    "Your Purrdr Plus subscription has ended. Notifications and computer sync are paused until you subscribe again. Chat and terminal keep working." : {
+    "Your Purrdr Plus subscription has ended. Notifications and host sync are paused until you subscribe again. Chat and terminal keep working." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13324,7 +13324,7 @@
         }
       }
     },
-    "Your computers’ names, addresses, accounts, and icons sync to your other devices through your Purrdr member account. Passwords and keys never leave this device. Requires Purrdr Plus." : {
+    "Your hosts’ names, addresses, accounts, and icons sync to your other devices through your Purrdr member account. Passwords and keys never leave this device. Requires Purrdr Plus." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13346,7 +13346,7 @@
         }
       }
     },
-    "Your member account, push pairings, and synced computers will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions." : {
+    "Your member account, push pairings, and synced hosts will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13423,7 +13423,7 @@
         }
       }
     },
-    "Your subscription has ended. Notifications and computer sync are paused until you subscribe again." : {
+    "Your subscription has ended. Notifications and host sync are paused until you subscribe again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13560,7 +13560,7 @@
         }
       }
     },
-    "herdr is updated. Restart herdr on this computer to use the new version, then test the connection again." : {
+    "herdr is updated. Restart herdr on this host to use the new version, then test the connection again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13571,7 +13571,7 @@
         }
       }
     },
-    "herdr isn’t installed on this computer, or it isn’t at the saved location." : {
+    "herdr isn’t installed on this host, or it isn’t at the saved location." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13582,7 +13582,7 @@
         }
       }
     },
-    "herdr isn’t installed on this computer." : {
+    "herdr isn’t installed on this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13593,7 +13593,7 @@
         }
       }
     },
-    "herdr isn’t running on this computer. Open herdr there, then test again." : {
+    "herdr isn’t running on this host. Open herdr there, then test again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13604,7 +13604,7 @@
         }
       }
     },
-    "herdr on Computer" : {
+    "herdr on Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13626,7 +13626,7 @@
         }
       }
     },
-    "herdr on this computer is %@; Purrdr needs %@ or newer. Purrdr will update it, signed in as %@@%@." : {
+    "herdr on this host is %@; Purrdr needs %@ or newer. Purrdr will update it, signed in as %@@%@." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13637,7 +13637,7 @@
         }
       }
     },
-    "herdr on this computer is too old for this. Update herdr, then restart it." : {
+    "herdr on this host is too old for this. Update herdr, then restart it." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -13758,7 +13758,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「可能卡住」「仍在等你」需要電腦端服務 %@ 以上。"
+            "value" : "「可能卡住」「仍在等你」需要Purrdr 連線助理 %@ 以上。"
           }
         }
       }
@@ -13769,7 +13769,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「可能卡住」「仍在等你」需要電腦端服務(HTTPS 連線)。"
+            "value" : "「可能卡住」「仍在等你」需要Purrdr 連線助理(HTTPS 連線)。"
           }
         }
       }

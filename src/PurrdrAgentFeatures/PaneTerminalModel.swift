@@ -231,7 +231,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
             finish(.disconnected, generation: generation)
         case .failed(_, let message):
             finish(.unavailable(message.contains("command not found")
-                ? String(localized: "herdr isn’t installed on this computer.")
+                ? String(localized: "herdr isn’t installed on this host.")
                 : (message.isEmpty ? String(localized: "Couldn’t open this Pane.") : message)), generation: generation)
         }
     }
@@ -241,7 +241,7 @@ public final class PaneTerminalModel: TerminalSessionModel {
         case .detached: .disconnected
         case .takenOver: .takenOver
         case .alreadyAttached: .inUse
-        case .notFound: .unavailable(String(localized: "This pane no longer exists on the computer."))
+        case .notFound: .unavailable(String(localized: "This pane no longer exists on the host."))
         case .exited: .ended
         case .other: .disconnected
         }

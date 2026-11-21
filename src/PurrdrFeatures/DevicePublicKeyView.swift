@@ -24,7 +24,7 @@ struct DevicePublicKeyView: View {
                 Text("Public Key")
                     .foregroundStyle(.secondaryText)
             } footer: {
-                Text("The key stays on this device and never leaves it. Add its public key to each computer you sign in to.")
+                Text("The key stays on this device and never leaves it. Add its public key to each host you sign in to.")
                     .foregroundStyle(.secondaryText)
             }
 
@@ -84,9 +84,9 @@ extension AuthorizedKeyCommand.Platform {
         let user = username.isEmpty ? String(localized: "the account Purrdr signs in as") : username
         return switch self {
         case .macOSAndLinux:
-            String(localized: "Run this in Terminal on the computer, signed in as \(user). On a Mac, also turn on Remote Login in System Settings › General › Sharing.")
+            String(localized: "Run this in Terminal on the host, signed in as \(user). On a Mac, also turn on Remote Login in System Settings › General › Sharing.")
         case .windows:
-            String(localized: "Run this in PowerShell on the computer, signed in as \(user).")
+            String(localized: "Run this in PowerShell on the host, signed in as \(user).")
         case .windowsAdministrator:
             String(localized: "If \(user) is an administrator account, run this instead, in PowerShell opened as administrator.")
         }

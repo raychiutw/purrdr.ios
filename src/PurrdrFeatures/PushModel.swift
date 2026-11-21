@@ -579,7 +579,7 @@ public final class PushModel {
             let session = service.session
             Task { try? await session.revokePushPairing(keyHash: keyHash) }
         } catch {
-            problem = .mutedSyncFailed(String(localized: "Couldn’t update muted chats on this computer: \(error.localizedDescription)"))
+            problem = .mutedSyncFailed(String(localized: "Couldn’t update muted chats on this host: \(error.localizedDescription)"))
         }
     }
 
@@ -610,7 +610,7 @@ public final class PushModel {
         case is PushDeviceIDError:
             String(localized: "Couldn’t read this device’s ID. Unlock this device and try again.")
         default:
-            String(localized: "Couldn’t change which notifications this computer sends: \(error.localizedDescription)")
+            String(localized: "Couldn’t change which notifications this host sends: \(error.localizedDescription)")
         }
     }
 
@@ -631,7 +631,7 @@ public final class PushModel {
         case PushPluginError.pluginInstallFailed(let message):
             String(localized: "Couldn’t install the notification helper: \(message)")
         case PushPluginError.pluginListFailed(let message):
-            String(localized: "Couldn’t check notifications on this computer. Make sure herdr is running there. \(message)")
+            String(localized: "Couldn’t check notifications on this host. Make sure herdr is running there. \(message)")
         case HostServiceError.readOnlyDevice:
             String(localized: "This device is paired read-only with the host service, so it can’t turn on notifications there.")
         case BackendError.unreachable:

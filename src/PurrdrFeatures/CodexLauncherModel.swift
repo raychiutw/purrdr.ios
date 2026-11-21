@@ -97,11 +97,11 @@ public final class CodexLauncherModel {
     static func describe(_ error: any Error) -> String {
         switch error {
         case CodexLauncherError.codexAlreadyThere:
-            String(localized: "A Codex launcher that Purrdr didn’t add is already on this computer, so Purrdr left it unchanged.")
+            String(localized: "A Codex launcher that Purrdr didn’t add is already on this host, so Purrdr left it unchanged.")
         case HostFilesError.changedSinceRead:
-            String(localized: "Files on the computer changed while Purrdr was updating them. Nothing was changed; try again.")
+            String(localized: "Files on the host changed while Purrdr was updating them. Nothing was changed; try again.")
         default:
-            String(localized: "Couldn’t update the computer: \(error.localizedDescription)")
+            String(localized: "Couldn’t update the host: \(error.localizedDescription)")
         }
     }
 }

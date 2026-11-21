@@ -70,8 +70,8 @@ public final class LoginShellModel: TerminalSessionModel {
         switch status {
         case .waitingForSize, .connecting, .connected: nil
         case .disconnected, .inUse, .takenOver:
-            failure.map { String(localized: "Couldn’t open the terminal on this computer. \($0)") }
-                ?? String(localized: "The connection to this computer was lost. Reconnect to start again.")
+            failure.map { String(localized: "Couldn’t open the terminal on this host. \($0)") }
+                ?? String(localized: "The connection to this host was lost. Reconnect to start again.")
         case .ended: String(localized: "The terminal session has ended.")
         case .unavailable(let reason): reason
         }

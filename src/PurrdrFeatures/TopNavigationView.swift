@@ -282,7 +282,7 @@ public struct TopNavigationView: View {
         case .newChat:
             Button("New Chat", systemImage: "plus") { navigation.sheet = .newChat }
         case .hosts:
-            Button("Computers", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
+            Button("Hosts", systemImage: "desktopcomputer") { navigation.sheet = .hosts }
         case .planUsage:
             // 方案用量(#177):獨立畫面，選主機與 Agent 後查詢。
             Button("Plan Usage", systemImage: "gauge.with.dots.needle.33percent") { hostTool = .planUsage(hosts.planUsage()) }
@@ -409,14 +409,14 @@ struct HostFilterMenu: View {
         let current = list.currentHost.flatMap { list.hostLabel(of: $0) }
         Menu {
             Picker(selection: $list.currentHost) {
-                Label("All Computers", systemImage: "square.grid.2x2")
+                Label("All Hosts", systemImage: "square.grid.2x2")
                     .tag(HostSelection?.none)
                 ForEach(list.hostFilterOptions) { option in
                     HostMenuLabel(option.name, icon: option.icon)
                         .tag(HostSelection?.some(option.id))
                 }
             } label: {
-                Text("Computers")
+                Text("Hosts")
             }
             .accessibilityIdentifier("currentHost.picker")
         } label: {
@@ -427,7 +427,7 @@ struct HostFilterMenu: View {
                     if let current {
                         Text(verbatim: current.name)
                     } else {
-                        Text("All Computers")
+                        Text("All Hosts")
                     }
                 }
                 .font(.subheadline.weight(.semibold))
@@ -441,7 +441,7 @@ struct HostFilterMenu: View {
             .padding(.trailing, 4)
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
-        .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Computers"))
+        .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))
         .accessibilityIdentifier("toolbar.currentHost")
     }
 }
