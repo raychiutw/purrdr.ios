@@ -177,7 +177,7 @@ struct DemoHostTests {
         let host = DemoHost()
         let name = try #require(HostUploadName("mh1a2b3c-k9x2m4p7.jpg"))
         let path = try await SSHHostUploader(channel: host).upload(Data(count: 200_000), named: name)
-        #expect(path == "/Users/demo/.purrdr/uploads/mh1a2b3c-k9x2m4p7.jpg")
+        #expect(path == "/var/folders/zz/demo/T/purrdr-uploads-501/mh1a2b3c-k9x2m4p7.jpg")
         // 大小不符(上傳中斷)時 Demo 也失敗。
         let short = try await host.execute(HostUploadCommand.posix(name: name, size: 10))
         try await short.write(Data(count: 3))

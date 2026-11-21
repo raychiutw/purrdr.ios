@@ -81,8 +81,8 @@ public actor DemoHost: HostChannel {
     /// 推播外掛是否已安裝(只在記憶體;帳號頁開通知的 UI 測試,#246)。
     private var pushPluginInstalled = false
 
-    /// Demo 家目錄的上傳資料夾。
-    static let uploadFolder = "/Users/demo/" + UploadedImages.folder
+    /// Demo 主機的上傳資料夾(暫存目錄底下,Unix 後接 uid)。
+    static let uploadFolder = "/var/folders/zz/demo/T/" + UploadedImages.folder + "-501"
 
     /// 這個情境的 Claude Code 對話紀錄。
     private var transcripts: [DemoTranscripts.Session] {

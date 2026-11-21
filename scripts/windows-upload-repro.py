@@ -21,7 +21,7 @@ shell:`bash` 直接執行(主機預設 shell,這台是 Git Bash);`cmd` 包成 `c
     python -I scripts/windows-upload-repro.py [大小…] [--kind image|folder|gzip|stub|limit|all] [--shell bash|cmd|all] [--timeout 秒]
   預設大小 100、300000、2500000,kind all,shell all。全部綠 exit 0。
 
-每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(圖片上傳以 `$env:USERPROFILE` 指過去，檔案上傳的目的資料夾也在裡面),
+每個案例在主機 `%TEMP%\\purrdr-repro-<亂數>` 裡進行(圖片上傳以 `$env:USERPROFILE` 與 `$env:TEMP` 指過去，檔案上傳的目的資料夾也在裡面),
 結束就刪掉。逾時時只結束開著本案例暫存檔的程序(卡住的 PowerShell)。
 """
 import argparse
@@ -218,11 +218,11 @@ def on_disk_bytes(folder):
 
 
 def upload_script(source, kind, arguments, workspace, overrides=None):
-    """照 `WindowsScripts.upload` 組成上傳腳本;圖片上傳以 `$env:USERPROFILE` 指到 `workspace`。"""
+    """照 `WindowsScripts.upload` 組成上傳腳本;圖片上傳以 `$env:USERPROFILE`、`$env:TEMP` 指到 `workspace`。"""
     prelude = swift_literal(source, "prelude")
     receive = resolve(swift_literal(source, "receive"), source, overrides)
     if kind == "image":
-        body = "$env:USERPROFILE=" + quote(workspace) + "\n" + resolve(swift_literal(source, "imageUpload"), source, overrides)
+        body = "$env:USERPROFILE=" + quote(workspace) + "\n$env:TEMP=" + quote(workspace) + "\n" + resolve(swift_literal(source, "imageUpload"), source, overrides)
     else:
         body = resolve(swift_literal(source, "folderUpload"), source, overrides)
     # `$a` 是 `WindowsScripts.arguments` 的參數陣列，所有 Windows 腳本共用;上傳腳本在 cmd 命令列(8,191 字元)裡，名稱維持短。
@@ -294,7 +294,7 @@ def run_limit_case(source, case, timeout, shell):
         name = uuid.uuid4().hex[:12] + (".jpg" if case == "image-stall" else ".bin")
         if case == "image-stall":
             arguments = [name, str(size)]
-            check_folder = workspace + "\\.purrdr\\uploads"
+            check_folder = workspace + "\\purrdr-uploads"
         else:
             check_folder = workspace + "\\files"
             arguments = [check_folder, name, str(size), "identity", str(size)]
@@ -362,7 +362,7 @@ def run_case(source, kind, size, timeout, shell, variant=None):
     else:
         if kind == "image":
             arguments = [name, str(size)]
-            expected_output = workspace + "\\.purrdr\\uploads\\" + name
+            expected_output = workspace + "\\purrdr-uploads\\" + name
         else:
             if kind == "gzip":
                 sent = gzip.compress(payload, mtime=0)

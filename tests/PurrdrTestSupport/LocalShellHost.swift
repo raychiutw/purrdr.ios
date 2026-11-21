@@ -29,6 +29,7 @@ public struct LocalShellHost: HostChannel {
     public static func temporary(feedsStdin: Bool = false) throws -> LocalShellHost {
         let home = FileManager.default.temporaryDirectory.appending(path: "purrdr-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: home.appending(path: "tmp"), withIntermediateDirectories: true)
         let realHome = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path
         precondition(home.resolvingSymlinksInPath().path != realHome, "暫存家目錄不能是真正的家目錄")
         return LocalShellHost(home: home, feedsStdin: feedsStdin)
@@ -41,6 +42,9 @@ public struct LocalShellHost: HostChannel {
             try? await Task.sleep(for: .milliseconds(10))
         }
     }
+
+    /// 腳本看到的 `TMPDIR`(家目錄底下的 `tmp`;上傳等寫暫存目錄的腳本不碰真正的 `/tmp`)。
+    public var temporaryDirectory: URL { home.appending(path: "tmp") }
 
     /// 家目錄裡的路徑。
     public func url(_ relativePath: String) -> URL { home.appending(path: relativePath) }
@@ -70,7 +74,9 @@ public struct LocalShellHost: HostChannel {
         let process = Process()
         process.executableURL = URL(filePath: "/bin/sh")
         process.arguments = ["-c", command]
-        process.environment = ["HOME": home.path(percentEncoded: false), "PATH": "/usr/bin:/bin"]
+        process.environment = [
+            "HOME": home.path(percentEncoded: false), "PATH": "/usr/bin:/bin", "TMPDIR": temporaryDirectory.path(percentEncoded: false),
+        ]
         let stdout = Pipe()
         let stderr = Pipe()
         process.standardOutput = stdout
