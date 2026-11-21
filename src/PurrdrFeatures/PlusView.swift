@@ -151,11 +151,15 @@ public struct PlusView: View {
         } header: {
             Text(showsStatus ? "Your Plus Includes" : "Purrdr Plus Includes")
         } footer: {
-            if showsStatus {
-                Text("Private keys, passwords, and pairing tokens are never uploaded. Sync only carries names, addresses, and connection methods.")
-            } else {
-                Text("Chat, terminal, and the Demo host don’t need a subscription.")
+            Group {
+                if showsStatus {
+                    Text("Private keys, passwords, and pairing tokens are never uploaded. Sync only carries names, addresses, and connection methods.")
+                } else {
+                    Text("Chat, terminal, and the Demo host don’t need a subscription.")
+                }
             }
+            // 系統預設的 footer 顏色在這頁的底色上對比不足(稽核「Contrast nearly passed」),改用 App 的次要文字色。
+            .foregroundStyle(.secondaryText)
         }
     }
 
