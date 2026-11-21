@@ -33,6 +33,7 @@ struct AddHostGuideView: View {
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
     let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
     @State private var expandedHelp: AddHostGuideModel.Field?
+    @State private var showOtherWays = false
     @State private var scanning = false
     @State private var manualExpanded = false
     @Environment(\.pairingCodeScanSource) private var scanSource
@@ -77,6 +78,7 @@ struct AddHostGuideView: View {
         .task(id: model.step) {
             if model.step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }
             if model.step == .test, model.phase == .editing { await model.testConnection() }
+            if model.step == .keySetup { await model.loadDeviceKey() }
         }
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
@@ -145,6 +147,10 @@ struct AddHostGuideView: View {
         case .system: "desktopcomputer"
         case .sshMethod: "lock.shield"
         case .enable: "terminal"
+        case .location: "wifi"
+        case .login: "person.crop.circle"
+        case .credential: "lock"
+        case .keySetup: "key"
         case .details: "text.cursor"
         case .test: "antenna.radiowaves.left.and.right"
         case .finished: "checkmark.circle.fill"
@@ -161,6 +167,10 @@ struct AddHostGuideView: View {
         case .sshMethod: model.system == .windows ? "Windows uses OpenSSH" : "Pick a kind of SSH"
         case .enable: "Let the computer accept connections"
         case .details: "Which computer and which account?"
+        case .location: "Where will you connect from?"
+        case .login: "How do you sign in?"
+        case .credential: model.authentication == .importedKey ? "Paste your private key" : "Type your password"
+        case .keySetup: "Let this device in"
         case .test: testTitle
         case .finished: "You’re connected"
         }
@@ -203,9 +213,13 @@ struct AddHostGuideView: View {
             instructions(model.enableInstructions)
         case .details:
             detailsFields
+        case .credential:
+            credentialField
+        case .keySetup:
+            keySetup
         case .test:
             testContent
-        case .kind, .system, .sshMethod, .finished:
+        case .kind, .system, .sshMethod, .location, .login, .finished:
             EmptyView()
         }
     }
@@ -268,9 +282,57 @@ struct AddHostGuideView: View {
 
     private var detailsFields: some View {
         VStack(spacing: 12) {
+            if let notice = model.detailsNotice {
+                Text(notice)
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("guide.notice")
+            }
             detailField(.address, label: "Computer name or IP", text: $model.address, prompt: "studio-mac", numeric: false)
             detailField(.port, label: "Port", text: $model.port, prompt: "22", numeric: true)
             detailField(.username, label: "Account", text: $model.username, prompt: "ray", numeric: false)
+        }
+    }
+
+    @ViewBuilder
+    private var credentialField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(model.credentialPrompt)
+                .font(.body)
+            if model.authentication == .importedKey {
+                TextEditor(text: $model.privateKey)
+                    .font(.footnote.monospaced())
+                    .frame(minHeight: 140)
+                    .scrollContentBackground(.hidden)
+                    .autocorrectionDisabled()
+                    #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                    #endif
+                    .accessibilityIdentifier("guide.field.privateKey")
+            } else {
+                SecureField("Password", text: $model.password)
+                    .font(.title3)
+                    .textContentType(.password)
+                    .accessibilityIdentifier("guide.field.password")
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background.secondary, in: .rect(cornerRadius: 18))
+    }
+
+    /// 金鑰三步:打開終端機並貼上指令,回來測試連線。
+    @ViewBuilder
+    private var keySetup: some View {
+        if model.devicePublicKey == nil {
+            ProgressView()
+                .controlSize(.large)
+                .padding(.top, 24)
+        } else {
+            instructions(
+                model.keyInstructions
+                    + [AddHostGuideInstruction(text: String(localized: "Come back here and tap Test Connection."))])
         }
     }
 
@@ -454,6 +516,37 @@ struct AddHostGuideView: View {
             }
         case .enable:
             primary("I’ve Turned It On", id: "guide.next", enabled: model.canAdvance) { model.advance() }
+        case .location:
+            option("home", "Only at home", detail: "On the same Wi-Fi as that computer", symbol: "house") { model.choose(.home) }
+            option(
+                "tailscale", "Anywhere, with Tailscale", detail: "Recommended when you’re away from home",
+                symbol: "sparkles") { model.choose(.viaTailscale) }
+            option(
+                "outside", "Anywhere, with a public address", detail: "A public IP or domain name of that computer",
+                symbol: "globe") { model.choose(.outside) }
+        case .login:
+            option("password", "Password", detail: "The password you use to sign in to that computer", symbol: "textformat.abc") {
+                model.choose(authentication: .password)
+            }
+            option("deviceKey", "Key", detail: "Use a key made by this device", symbol: "key") {
+                model.choose(authentication: .deviceKey)
+            }
+            Button {
+                withAnimation { showOtherWays.toggle() }
+            } label: {
+                Label("Other Ways", systemImage: showOtherWays ? "chevron.down" : "chevron.forward")
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("guide.otherWays")
+            if showOtherWays {
+                Button("Import a Key You Already Have") { model.choose(authentication: .importedKey) }
+                    .buttonStyle(.glass)
+                    .accessibilityIdentifier("guide.option.importedKey")
+            }
+        case .credential, .keySetup:
+            primary("Test Connection", id: "guide.next", enabled: model.canAdvance) { model.advance() }
         case .details:
             primary("Next", id: "guide.next", enabled: model.canAdvance) {
                 focus = nil
