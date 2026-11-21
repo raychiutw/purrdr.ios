@@ -358,8 +358,6 @@ public final class ConversationModel {
 
     /// 畫面上正在等回答的提示。
     public private(set) var prompt: BlockedPrompt?
-    /// 最近一次找出 `prompt` 的畫面指紋;回答時交給主機比對(#304)。讀不到畫面時為 `nil`。
-    @ObservationIgnored private var promptScreen: String?
     /// 已送出、還在等結果的回答(選項全部鎖住)。
     public private(set) var answerInFlight: PromptAnswer?
     /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213,`AnsweredCardAnchor`)。
@@ -1246,16 +1244,13 @@ public final class ConversationModel {
         answerSent = nil
         answerNotice = nil
         haptics.play(.selection)
-        // 第一個輸入另帶看到的畫面：之後的輸入送出時畫面已因前一個輸入改變(#304)。
-        let session = SendExpectation(session: boundSessionID ?? knownSessionID)
-        var expectation = SendExpectation(session: session.session, screen: promptScreen)
+        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
         do {
             for input in inputs {
                 switch input {
                 case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys, expecting: expectation)
                 case .text(let text): try await client.sendText(paneID: paneID, text: text, expecting: expectation)
                 }
-                expectation = session
             }
         } catch {
             guard answerInFlight == answer else { return }
@@ -1394,13 +1389,11 @@ public final class ConversationModel {
         screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
-            promptScreen = nil
             if blocked, prompt == nil { prompt = .unrecognized }
             if prompt != nil { agentStatus = .blocked }
             checkAnswerDeadline()
             return
         }
-        promptScreen = SendExpectation.fingerprint(ofScreen: screen)
         let parsed = BlockedPromptParser.parse(screen: screen, agentKind: agent.kind)
         let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
         if next != nil { agentStatus = .blocked }

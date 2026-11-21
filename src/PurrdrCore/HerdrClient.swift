@@ -290,20 +290,17 @@ private struct PromptParams: Encodable {
     var wait: Wait?
     /// 送出前比對(#304);`nil` 不編碼。
     var expectedSession: String?
-    var expectedScreen: String?
 
     init(target: String, text: String, wait: Wait?, expected: SendExpectation) {
         self.target = target
         self.text = text
         self.wait = wait
         expectedSession = expected.session
-        expectedScreen = expected.screen
     }
 
     enum CodingKeys: String, CodingKey {
         case target, text, wait
         case expectedSession = "expected_session"
-        case expectedScreen = "expected_screen"
     }
 
     struct Wait: Encodable {
@@ -338,20 +335,17 @@ private struct SendKeysParams: Encodable {
     var paneID: String
     var keys: [String]
     var expectedSession: String?
-    var expectedScreen: String?
 
     init(paneID: String, keys: [String], expected: SendExpectation) {
         self.paneID = paneID
         self.keys = keys
         expectedSession = expected.session
-        expectedScreen = expected.screen
     }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case keys
         case expectedSession = "expected_session"
-        case expectedScreen = "expected_screen"
     }
 }
 
@@ -359,20 +353,17 @@ private struct SendTextParams: Encodable {
     var paneID: String
     var text: String
     var expectedSession: String?
-    var expectedScreen: String?
 
     init(paneID: String, text: String, expected: SendExpectation) {
         self.paneID = paneID
         self.text = text
         expectedSession = expected.session
-        expectedScreen = expected.screen
     }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case text
         case expectedSession = "expected_session"
-        case expectedScreen = "expected_screen"
     }
 }
 
