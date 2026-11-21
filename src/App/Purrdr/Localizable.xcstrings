@@ -3324,6 +3324,17 @@
         }
       }
     },
+    "Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細資訊"
+          }
+        }
+      }
+    },
     "Dev Board" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5600,6 +5611,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未開始"
+          }
+        }
+      }
+    },
+    "Not zoomed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未放大"
           }
         }
       }
@@ -11691,6 +11713,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已放大"
+          }
+        }
+      }
+    },
+    "Zoomed in %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已放大 %@"
           }
         }
       }
