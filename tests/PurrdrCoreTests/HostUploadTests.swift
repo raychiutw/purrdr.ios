@@ -65,7 +65,7 @@ struct HostUploadTests {
     func sshUploadsFiles() async throws {
         let name = try #require(HostUploadName("mh1a2b3c-k9x2m4p7-server.log"))
         let host = FakeHost()
-        let path = "/home/me/.purrdr/uploads/\(name.value)"
+        let path = "/tmp/purrdr-uploads-1000/\(name.value)"
         await host.expect(HostUploadCommand.posix(name: name, size: 5), reply: FakeReply(stdout: Data("\(path)\n".utf8)))
 
         let uploaded = try await SSHHostUploader(channel: host).upload(Data("hello".utf8), named: name)
@@ -94,6 +94,6 @@ struct HostUploadTests {
     func demoAcceptsFiles() async throws {
         let name = try #require(HostUploadName("mh1a2b3c-k9x2m4p7-notes.md"))
         let path = try await SSHHostUploader(channel: DemoHost()).upload(Data("# notes".utf8), named: name)
-        #expect(path == "/Users/demo/.purrdr/uploads/mh1a2b3c-k9x2m4p7-notes.md")
+        #expect(path == "/var/folders/zz/demo/T/purrdr-uploads-501/mh1a2b3c-k9x2m4p7-notes.md")
     }
 }
