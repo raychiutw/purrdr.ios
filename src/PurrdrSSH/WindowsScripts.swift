@@ -88,15 +88,16 @@ enum WindowsScripts {
         """
     }
 
-    /// 視窗：以 `end` 為終點往前取恰好 `lines` 行完整的行(演算法與 POSIX 版相同)。參數：路徑、終點、行數、區塊大小。
+    /// 視窗：以 `end` 為終點往前取恰好 `lines` 行完整的行(演算法與 POSIX 版相同)。參數：路徑、終點、行數、區塊大小、(選用)byte 上限(#356,大於 0 時不放大區塊)。
     static let window = #"""
         PRunBlock {
-        $f=$a[0];$e=[long]$a[1];$n=[int]$a[2];$c=[long]$a[3]
+        $f=$a[0];$e=[long]$a[1];$n=[int]$a[2];$c=[long]$a[3];$g=$false
+        if($a.Count -gt 4 -and [long]$a[4] -gt 0){$c=[long]$a[4];$g=$true}
         try{$h=POpen $f}catch{PFail 5}
         while($true){
         $s=[Math]::Max([long]0,$e-$c);$st=New-Object Collections.Generic.List[long];$z=[long]0
         if($e -gt $s){$b=PRead $h $s ($e-$s);$q=0;$known=($s -eq 0);$i=0;while($i -lt $b.Length){$j=[Array]::IndexOf($b,[byte]10,$i);if($j -lt 0){break};if($known){$st.Add($q)};$known=$true;$z=$j+1;$q=$j+1;$i=$j+1}}
-        if($st.Count -lt $n -and $s -gt 0){$c=$c*4;continue}
+        if($st.Count -lt $n -and $s -gt 0 -and -not $g){$c=$c*4;continue}
         $k=[Math]::Max(0,$st.Count-$n);if($st.Count -gt 0){$x=$s+$st[$k]}else{$x=$s+$z};$y=$s+$z
         break
         }

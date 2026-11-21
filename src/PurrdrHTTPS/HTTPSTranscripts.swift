@@ -14,7 +14,7 @@ extension HTTPSHostConnection {
             return try await withDeadline(HostCommandDeadline.standard) {
                 try await self.locate(Self.sessionReference(location), header: readsHeader)
             }
-        case .window(let path, let end, let lines, _):
+        case .window(let path, let end, let lines, _, _):
             return try await withDeadline(HostCommandDeadline.maximumRead) {
                 try await self.window(path: path, end: end, lines: lines)
             }

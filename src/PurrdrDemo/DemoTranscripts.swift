@@ -34,9 +34,9 @@ enum DemoTranscripts {
             if command == TranscriptCommand.locate(sessionID: session.sessionID, projectFolder: ClaudeTranscript.projectFolder(forCWD: session.cwd)) {
                 return Data("\(session.path)\n\(size)\n".utf8)
             }
-            if command == TranscriptCommand.window(path: session.path, end: size, lines: 300) {
-                // 視窗起點是最後 300 行之前的 byte 數(行數超過 300 時不是 0)。
-                let window = Array(session.lines.suffix(300))
+            if let lineLimit = windowLineLimit(command, path: session.path, end: size) {
+                // 視窗起點是最後 N 行之前的 byte 數(行數超過 N 時不是 0)。
+                let window = Array(session.lines.suffix(lineLimit))
                 let start = size - window.reduce(0) { $0 + $1.utf8.count + 1 }
                 return Data("\(start) \(size)\n".utf8) + records(window)
             }
@@ -377,6 +377,15 @@ enum DemoTranscripts {
     static let journalChecksum = "journal 2718281828 412"
 
     /// subagent 定位、附屬檔案的大小與視窗、workflow journal。
+    /// 開啟視窗的指令(聊天第一次的短視窗，或 Subagent 的 300 行)要讀幾行;不是視窗指令時是 `nil`。
+    /// Demo 的對話都很短，byte 上限不會截到。
+    private static func windowLineLimit(_ command: String, path: String, end: Int) -> Int? {
+        if command == TranscriptCommand.window(path: path, end: end, lines: 300) { return 300 }
+        let lines = TranscriptReader.openingLines
+        if command == TranscriptCommand.window(path: path, end: end, lines: lines, maxBytes: TranscriptReader.openingMaxBytes) { return lines }
+        return nil
+    }
+
     static func respondToDelegation(_ command: String) -> Data? {
         if command == TranscriptCommand.findSubagent(sessionFolder: weatherFolder, callID: subagentCall) {
             return Data("\(weatherFolder)/subagents/agent-\(subagentID).meta.json\n\(subagentMeta)\n".utf8)
@@ -386,7 +395,7 @@ enum DemoTranscripts {
             if command == TranscriptCommand.tail(path: file.path, from: TranscriptReader.probeCursor, limit: 64 << 10) {
                 return Data("\(size)\n".utf8)
             }
-            if command == TranscriptCommand.window(path: file.path, end: size, lines: 300) {
+            if windowLineLimit(command, path: file.path, end: size) != nil {
                 return Data("0 \(size)\n".utf8) + records(file.lines)
             }
             if command == TranscriptCommand.tail(path: file.path, from: size, limit: 64 << 10)

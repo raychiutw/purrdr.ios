@@ -70,8 +70,8 @@ public enum TranscriptRequest: Sendable, Equatable {
     case locateClaude(sessionID: String, projectFolder: String)
     /// 任一種 agent 的對話紀錄位置與大小;`readsHeader` 時多印檔案開頭(header 檢查)。
     case locate(TranscriptTarget.Location, readsHeader: Bool)
-    /// 以 `end` 為終點的最後 `lines` 行。
-    case window(path: String, end: Int, lines: Int, chunkBytes: Int)
+    /// 以 `end` 為終點的最後 `lines` 行;`maxBytes` 大於 0 時範圍不超過該 byte 數(只回範圍內完整的行，#356)。
+    case window(path: String, end: Int, lines: Int, chunkBytes: Int, maxBytes: Int)
     /// 游標之後新增的完整行。
     case tail(path: String, from: Int, limit: Int)
     /// 從游標讀最多 `limit` bytes 的完整行，即使後面還有(即時追蹤的分段追趕，#130)。
