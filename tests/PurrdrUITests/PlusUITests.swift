@@ -17,20 +17,23 @@ final class PlusUITests: XCTestCase {
             let app = XCUIApplication.launchUITesting(contentSize: contentSize)
             openPlus(in: app)
 
+            // 每期內容在最上面(App Store 3.1.2);大字級時方案在畫面外,下面再捲過去。
+            let benefits = app.descendants(matching: .any)["plus.benefits"].firstMatch
+            XCTAssertTrue(benefits.waitForExistence(timeout: 15), "沒有每期內容(\(size))")
+            XCTAssertTrue(benefits.label.contains("agent needs you"), benefits.label)
+
             let monthly = app.descendants(matching: .any)[Self.monthly].firstMatch
-            XCTAssertTrue(monthly.waitForExistence(timeout: 15), "沒有月繳方案(\(size))")
+            scrollTo(monthly, in: app)
+            XCTAssertTrue(monthly.exists, "沒有月繳方案(\(size))")
             XCTAssertTrue(monthly.label.contains("Purrdr Plus Monthly"), monthly.label)
             XCTAssertTrue(monthly.label.contains("$4.99"), monthly.label)
             XCTAssertTrue(monthly.label.contains("month"), monthly.label)
             XCTAssertTrue(monthly.label.contains("2 weeks free"), monthly.label)
             let yearly = app.descendants(matching: .any)[Self.yearly].firstMatch
+            scrollTo(yearly, in: app)
             XCTAssertTrue(yearly.label.contains("Purrdr Plus Yearly"), yearly.label)
             XCTAssertTrue(yearly.label.contains("$39.99"), yearly.label)
             XCTAssertTrue(yearly.label.contains("year"), yearly.label)
-
-            let benefits = app.staticTexts["plus.benefits"]
-            XCTAssertTrue(benefits.exists)
-            XCTAssertTrue(benefits.label.contains("agent needs you"), benefits.label)
 
             let disclosure = app.staticTexts["plus.disclosure"]
             scrollTo(disclosure, in: app)
@@ -110,6 +113,54 @@ final class PlusUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Chat and terminal are free and never need a subscription."].exists, "頁首仍有說明文字")
     }
 
+    /// 已訂閱(#323):方案區塊有「管理訂閱」,「你的 Plus 包含」逐項帶目前狀態,點了到帳號頁;不再只有一張卡片。
+    @MainActor
+    func testSubscribedPageListsFeaturesWithStatus() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
+        openPlus(in: app)
+
+        XCTAssertTrue(app.buttons["plus.manage"].waitForExistence(timeout: 15), "沒有管理訂閱")
+        XCTAssertTrue(app.staticTexts["plus.summary"].exists)
+        for feature in ["notifications", "hostSync", "devices"] {
+            let row = app.descendants(matching: .any)["plus.feature.\(feature)"].firstMatch
+            scrollTo(row, in: app)
+            XCTAssertTrue(row.exists, "沒有 \(feature) 功能列")
+        }
+        let notifications = app.descendants(matching: .any)["plus.feature.notifications"].firstMatch
+        XCTAssertTrue(notifications.label.contains("Off"), "還沒開通知時列尾該是關閉:\(notifications.label)")
+        XCTAssertTrue(app.descendants(matching: .any)["plus.free"].firstMatch.exists, "沒有「不需要訂閱」")
+
+        // 已訂閱時不顯示恢復購買與兌換代碼(#325);往下捲到條款,確認整頁都沒有。
+        scrollTo(app.descendants(matching: .any)["plus.terms"].firstMatch, in: app)
+        XCTAssertFalse(app.descendants(matching: .any)["plus.restore"].firstMatch.exists, "已訂閱不該有恢復購買")
+        XCTAssertFalse(app.descendants(matching: .any)["plus.redeem"].firstMatch.exists, "已訂閱不該有兌換代碼")
+        for _ in 0..<4 { app.swipeDown() }
+
+        notifications.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["sheet.account"].firstMatch.waitForExistence(timeout: 10), "點功能列沒有到帳號頁")
+    }
+
+    /// 截圖(淺色、深色 × 已訂閱、付費牆),附件給人工確認。
+    @MainActor
+    func testPlusPageScreenshots() {
+        for (appearance, member) in [("light", "-uiTestingPlusMember"), ("dark", "-uiTestingPlusMember"), ("light", "-uiTestingMember"), ("dark", "-uiTestingMember")] {
+            let app = XCUIApplication.launchUITesting(flags: [member, "-seedHost", "-appearance", appearance])
+            openPlus(in: app)
+            _ = app.descendants(matching: .any)[member == "-uiTestingPlusMember" ? "plus.manage" : Self.monthly].firstMatch.waitForExistence(timeout: 15)
+            let name = "plus-\(member == "-uiTestingPlusMember" ? "subscribed" : "paywall")-\(appearance)"
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            app.swipeUp()
+            let second = XCTAttachment(screenshot: app.screenshot())
+            second.name = name + "-2"
+            second.lifetime = .keepAlways
+            add(second)
+            app.terminate()
+        }
+    }
+
     @MainActor
     private func openPlus(in app: XCUIApplication) {
         app.openPlusPaywall()
@@ -117,9 +168,10 @@ final class PlusUITests: XCTestCase {
 
     @MainActor
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) {
-        XCTAssertTrue(element.waitForExistence(timeout: 5), "找不到 \(element)")
-        for _ in 0..<12 where !element.isHittable {
+        // List 是 lazy,畫面外的列不在樹裡:邊捲邊找。
+        for _ in 0..<12 where !(element.exists && element.isHittable) {
             app.swipeUp()
         }
+        XCTAssertTrue(element.waitForExistence(timeout: 5), "找不到 \(element)")
     }
 }

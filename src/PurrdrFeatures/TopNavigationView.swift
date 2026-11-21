@@ -81,7 +81,13 @@ public struct TopNavigationView: View {
                         .task { await hosts.checkHostServiceVersions() }
                 case .plus:
                     if let plus {
-                        PlusSheet(model: plus, member: member)
+                        PlusSheet(model: plus, member: member, features: PlusFeatureLinks(
+                            status: PlusFeatureStatus(
+                                notifyingHostCount: hosts.hostPushes.notifyingHostNames.count,
+                                isHostSyncOn: hostSync?.isEnabled ?? false,
+                                deviceCount: hosts.pushDevices.flatMap { $0.hasLoaded ? $0.devices.count : nil }),
+                            // 前往帳號頁:換成帳號 sheet(捲到對應區塊留給帳號頁自己)。
+                            open: { _ in navigation.sheet = .member }))
                     }
                 case .welcome:
                     WelcomeView {
