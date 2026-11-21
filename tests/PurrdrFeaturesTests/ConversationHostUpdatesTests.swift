@@ -100,8 +100,8 @@ struct ConversationHostUpdatesTests {
 
         await connection.send(event: HostUpdatesTests.statusChanged(Self.paneID, status: "blocked"), toSubscription: 0)
 
-        try await waitUntil { await MainActor.run { model.agentStatus == .blocked } }
-        #expect(model.prompt != nil)
+        // 提問卡的畫面讀取排在讀對話紀錄之後(#356),狀態變了之後才出現。
+        try await waitUntil { await MainActor.run { model.agentStatus == .blocked && model.prompt != nil } }
         #expect(await Self.count("session.snapshot", in: connection) == 3)
     }
 
