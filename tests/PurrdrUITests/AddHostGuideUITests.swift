@@ -297,6 +297,42 @@ final class AddHostGuideUITests: XCTestCase {
     }
 
     @MainActor
+    /// 最後一頁的通知(#345):Plus 會員看得到這台主機的開關;沒有 Plus 只有一行加入提示。
+    @MainActor
+    func testFinishedPageOffersNotificationsToPlusMember() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide", "-uiTestingPlusMember"])
+        finishTailscalePath(app)
+        XCTAssertTrue(app.otherElements["guide.notifications"].waitForExistence(timeout: 10), "Plus 會員看不到通知開關")
+        XCTAssertFalse(app.buttons["guide.joinPlus"].exists)
+    }
+
+    @MainActor
+    func testFinishedPageOffersJoinPlusToNonMember() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        finishTailscalePath(app)
+        XCTAssertTrue(app.buttons["guide.joinPlus"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.otherElements["guide.notifications"].exists)
+    }
+
+    private func finishTailscalePath(_ app: XCUIApplication) {
+        openGuide(app)
+        app.buttons["guide.option.ssh"].tap()
+        app.buttons["guide.option.macOS"].tapWhenReady()
+        app.buttons["guide.option.tailscale"].tapWhenReady()
+        app.buttons["guide.next"].tapWhenReady()
+        let address = app.textFields["guide.field.address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 5))
+        address.tap()
+        address.typeEnglish("studio-mac")
+        let username = app.textFields["guide.field.username"]
+        username.tap()
+        username.typeEnglish("ray")
+        app.buttons["guide.next"].tap()
+        let save = app.buttons["guide.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 15))
+        save.tap()
+    }
+
     private func openGuide(_ app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))

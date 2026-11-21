@@ -1,5 +1,6 @@
 import Foundation
 import PurrdrFeatures
+import PurrdrTestSupport
 import Testing
 
 /// 第一次開啟的歡迎頁(#34;HIG Onboarding:短、可跳過，跳過後不再出現但在設定找得到)。
@@ -45,7 +46,20 @@ struct WelcomeTests {
         #expect(navigation.sheet == .welcome)
     }
 
-    @Test("歡迎頁的「新增主機」換成主機 sheet(同一時間只開一個 sheet)")
+    @Test("歡迎頁的「Try the Demo」走 enterDemo():空列表(尚未進入 Demo)下也進得去,並收起 sheet")
+    func tryDemoEntersDemo() {
+        let hosts = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
+        hosts.demoEntered = false
+        let navigation = TopNavigationModel()
+        navigation.sheet = .welcome
+
+        navigation.welcomeTryDemo(hosts: hosts)
+
+        #expect(hosts.demoEntered)
+        #expect(navigation.sheet == nil)
+    }
+
+    @Test("歡迎頁的「新增主機」換成主機 sheet 並直接進新增主機引導(同一時間只開一個 sheet)")
     func addHostOpensHosts() {
         let navigation = TopNavigationModel()
         navigation.launched(welcome: WelcomeModel(store: InMemoryWelcomeStore()))
@@ -53,5 +67,6 @@ struct WelcomeTests {
         navigation.welcomeAddHost()
 
         #expect(navigation.sheet == .hosts)
+        #expect(navigation.pendingAddHost)
     }
 }
