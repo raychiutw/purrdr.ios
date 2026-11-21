@@ -19,3 +19,12 @@ final class UITestingPushPlatform: PushPlatform {
     }
     func openSettings() {}
 }
+
+/// UI 測試(`-uiTesting`)的測試通知替身(#328):不連後台。`-uiTestingPushTestFails` 時一律失敗。
+struct UITestingPushTestSender: PushTestNotificationSending {
+    let fails: Bool
+
+    func sendTest(hostID: String) async throws {
+        if fails { throw CocoaError(.fileReadUnknown) }
+    }
+}

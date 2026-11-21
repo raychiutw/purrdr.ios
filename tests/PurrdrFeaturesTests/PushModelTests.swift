@@ -584,6 +584,65 @@ struct PushModelTests {
         #expect(model.state == .confirming(user: pluginHost.user))
     }
 
+    // MARK: - 測試通知(#328)
+
+    struct TestSender: PushTestNotificationSending {
+        var failure: (any Error)?
+        let sent: Recorder
+        func sendTest(hostID: String) async throws {
+            await sent.record(hostID)
+            if let failure { throw failure }
+        }
+    }
+
+    actor Recorder {
+        private(set) var hostIDs: [String] = []
+        func record(_ id: String) { hostIDs.append(id) }
+    }
+
+    @Test("測試通知：沒有送出管道時不提供")
+    func testNotificationUnavailableWithoutSender() {
+        let model = model(service())
+
+        #expect(!model.canSendTestNotification)
+    }
+
+    @Test("測試通知：通知開著才能送，成功記下結果")
+    func testNotificationSentWhenOn() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let recorder = Recorder()
+        let service = service()
+        service.testNotifications = TestSender(sent: recorder)
+        let model = model(service)
+        #expect(!model.canSendTestNotification, "通知還沒開不能送")
+        await turnOn(model)
+
+        #expect(model.canSendTestNotification)
+        await model.sendTestNotification()
+
+        #expect(model.testNotification == .sent)
+        #expect(await recorder.hostIDs == ["studio"])
+    }
+
+    @Test("測試通知：失敗時說明原因")
+    func testNotificationFailureIsExplained() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let service = service()
+        service.testNotifications = TestSender(failure: BackendError.unreachable, sent: Recorder())
+        let model = model(service)
+        await turnOn(model)
+
+        await model.sendTestNotification()
+
+        guard case .failed(let message) = model.testNotification else {
+            Issue.record("預期失敗,實際 \(model.testNotification)")
+            return
+        }
+        #expect(!message.isEmpty)
+    }
+
     static let studioHash = String(repeating: "1", count: 64)
     static let linuxHash = String(repeating: "2", count: 64)
 

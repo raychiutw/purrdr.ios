@@ -8,6 +8,7 @@ Purrdr:在 iPhone／iPad 上看、回覆、操作電腦上由 herdr 管理的 co
 - **clean-room**(ADR-0001):不閱讀、不複製 herdrchat 原始碼;只依據 `docs/research/herdrchat-behavior-spec.md`、herdr 官方文件與真實主機實測。
 - 舊名 Drover Chat 已改為 Purrdr(ADR-0009);ADR-0001～0008 與 `docs/research/` 保留舊名，對照表見 ADR-0009。
 - 設計原型保存在 `prototype/design-directions` 分支，不合併。
+- **畫面文字給沒有電腦概念的人看(全 app 貫徹)**:使用者不懂 SSH、金鑰、路徑、協定。要使用者在電腦上做事時，只給一步一步的動作和可以直接「拷貝」(或分享到電腦)的指令，一步一句;不解釋原理、不寫技術名詞的說明、不列「為什麼」。進階資訊預設收起，點開才顯示(HIG Disclosure controls)。新畫面與改畫面的文字都照這條寫;既有畫面由全 app 檢視票逐頁修正。
 
 ## 常用指令
 
