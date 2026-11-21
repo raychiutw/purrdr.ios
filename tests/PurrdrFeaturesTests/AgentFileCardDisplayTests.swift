@@ -21,10 +21,10 @@ struct AgentFileCardDisplayTests {
         #expect(display.summary == "Edited · Code · +1 −1")
     }
 
-    @Test("VoiceOver 標題念動作、檔名、類型、增刪行數與路徑")
+    @Test("VoiceOver 標題念動作、檔名、類型、增刪行數(路徑在揭露控制)")
     func accessibilityLabel() {
         #expect(AgentFileCardDisplay(file: Self.edit).accessibilityLabel
-            == "Edited file CSVExport.swift, Code, 1 lines added, 1 removed, Path: /Users/demo/ledger/Sources/CSVExport.swift")
+            == "Edited file CSVExport.swift, Code, 1 lines added, 1 removed")
     }
 
     @Test("寫入內容超過 8 行折疊，展開後全部顯示;截斷的內容有說明")

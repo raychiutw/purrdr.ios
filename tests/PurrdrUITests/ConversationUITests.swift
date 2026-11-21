@@ -197,7 +197,18 @@ final class ConversationUITests: XCTestCase {
         let edited = element(header, labelPrefix: "Edited file CSVExport.swift, Code", in: app)
         XCTAssertTrue(revealInConversation(edited, in: app), "修改卡片標題不對")
         XCTAssertTrue(edited.label.contains("1 lines added, 1 removed"), "\(edited.label)")
-        XCTAssertTrue(edited.label.hasSuffix("Path: /Users/demo/ledger/Sources/Ledger/CSVExport.swift"), "\(edited.label)")
+        XCTAssertFalse(edited.label.contains("Path:"), "路徑是進階資訊，收合時標題不念：\(edited.label)")
+
+        // #330:路徑預設收起，點「Details」揭露控制才看到，再點收起。
+        let path = "/Users/demo/ledger/Sources/Ledger/CSVExport.swift"
+        let pathText = app.staticTexts[path]
+        XCTAssertFalse(pathText.exists, "路徑不該預設顯示")
+        let disclosures = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.disclosure")
+        let disclosure = disclosures.element(boundBy: 0)
+        XCTAssertTrue(revealInConversation(disclosure, in: app), "沒有「Details」揭露控制")
+        XCTAssertGreaterThanOrEqual(disclosure.frame.height, 43.9)
+        disclosure.tap()
+        XCTAssertTrue(element("conversation.agentFile.path", in: app).waitForExistence(timeout: 3), "展開後沒有路徑")
 
         let toggle = element("conversation.agentFile.toggle", in: app)
         XCTAssertTrue(revealInConversation(toggle, in: app), "新建的測試檔超過 8 行，應該可以展開")
@@ -224,12 +235,37 @@ final class ConversationUITests: XCTestCase {
         let thumbnail = element("conversation.agentImage.thumbnail", labelPrefix: "Image export-preview.png", in: app)
         XCTAssertTrue(thumbnail.waitForExistence(timeout: 15), "預覽圖沒有自動載入縮圖")
         XCTAssertTrue(revealInConversation(thumbnail, in: app))
+        XCTAssertFalse(app.staticTexts["docs/export-preview.png"].exists)
         thumbnail.tap()
         XCTAssertTrue(element("agentImage.viewer", in: app).waitForExistence(timeout: 5), "沒有全螢幕檢視")
         let done = element("agentImage.viewer.done", in: app)
         XCTAssertGreaterThanOrEqual(done.frame.height, 44)
-        done.tap()
+
+        // #330:雙點兩下放大、再雙點兩下縮回;1× 下滑關閉。
+        let image = element("agentImage.viewer.image", in: app)
+        XCTAssertEqual(image.value as? String, "Not zoomed")
+        image.doubleTap()
+        let zoomed = waitForValue(of: image, beginning: "Zoomed in")
+        XCTAssertTrue(zoomed?.hasPrefix("Zoomed in") == true, "雙點兩下沒有放大：\(String(describing: zoomed))")
+        image.doubleTap()
+        _ = waitForValue(of: image, beginning: "Not zoomed")
+        XCTAssertEqual(image.value as? String, "Not zoomed", "再雙點兩下沒有縮回")
+        let start = image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
+        XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5), "1× 下滑沒有關閉")
+
+        // 「Done」照舊可關閉。
+        XCTAssertTrue(revealInConversation(thumbnail, in: app))
+        thumbnail.tap()
+        XCTAssertTrue(element("agentImage.viewer.done", in: app).waitForExistence(timeout: 5))
+        element("agentImage.viewer.done", in: app).tap()
         XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5))
+
+        // 路徑收在揭露控制裡。
+        let disclosure = element("conversation.agentImage.disclosure", in: app)
+        XCTAssertTrue(revealInConversation(disclosure, in: app))
+        disclosure.tap()
+        XCTAssertTrue(element("conversation.agentImage.path", in: app).waitForExistence(timeout: 3), "展開後沒有路徑")
 
         let load = element("conversation.agentImage.load", in: app)
         XCTAssertTrue(revealInConversation(load, in: app), "超過 8 MiB 的掃描檔應該等點擊")
@@ -920,5 +956,16 @@ final class ConversationUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 10), "斷網後點返回沒有回到列表")
+    }
+
+    /// 等元素的 accessibility value 以指定文字開頭(縮放有動畫)。
+    @MainActor
+    private func waitForValue(of element: XCUIElement, beginning prefix: String, timeout: TimeInterval = 3) -> String? {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let value = element.value as? String, value.hasPrefix(prefix) { return value }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return element.value as? String
     }
 }

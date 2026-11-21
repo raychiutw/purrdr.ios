@@ -83,6 +83,7 @@ struct AgentImageCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             AgentFileCardHeader(card: card, display: display, identifier: "conversation.agentImage.header")
+            AgentFileCardDetails(card: card, display: display, identifier: "conversation.agentImage")
             preview
                 .frame(maxWidth: .infinity, minHeight: Self.thumbnailHeight, maxHeight: Self.thumbnailHeight)
                 .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 8))
@@ -94,6 +95,7 @@ struct AgentImageCardView: View {
             Button("Copy Path", systemImage: "document.on.document") { Clipboard.copy(card.file.path) }
         }
         .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text("Copy Path")) { Clipboard.copy(card.file.path) }
         .accessibilityIdentifier("conversation.agentImage")
         .task(id: card.file.path) { await load(userRequested: false) }
         .task(id: loadedVersion) { await decodeThumbnail() }
@@ -174,36 +176,54 @@ struct AgentImageViewerItem: Identifiable {
     let name: String
 }
 
-/// 全螢幕檢視：兩指縮放、拖曳移動、點兩下放大或還原;右上角「Done」關閉。VoiceOver 有「Close」動作與 escape。
+/// 全螢幕檢視(#330,照 HIG 手勢表與「照片」app):兩指縮放(1× 到 8×,放開夾回範圍)、
+/// 雙點兩下以點的位置放大或縮回、放大後單指平移(夾在圖邊界內)、1× 時向下滑關閉;
+/// 規則在 `ImageViewerZoom`。右上角「Done」與 Esc 關閉;VoiceOver 有放大／縮小與「Close」動作，並念出目前倍率。
 struct AgentImageViewer: View {
     let item: AgentImageViewerItem
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var image: AgentImageDecoder.Decoded?
     @State private var zoom: CGFloat = 1
-    @State private var settledZoom: CGFloat = 1
     @State private var offset: CGSize = .zero
-    @State private var settledOffset: CGSize = .zero
+    /// 手勢開始時的值(手勢進行中 `zoom`／`offset` 會跟著變)。
+    @State private var pinchStart: CGFloat?
+    @State private var panStart: CGSize?
+    /// 1× 時下滑關閉的拖動量(只影響畫面，放開才判斷)。
+    @State private var dismissDrag: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
+            Color.black.opacity(1 - min(0.5, dismissDrag / 600)).ignoresSafeArea()
             if let image {
-                Image(decorative: image.image, scale: 1)
-                    .resizable()
-                    .scaledToFit()
-                    .scaleEffect(zoom)
-                    .offset(offset)
-                    .gesture(MagnifyGesture()
-                        .onChanged { zoom = max(1, min(8, settledZoom * $0.magnification)) }
-                        .onEnded { _ in settledZoom = zoom })
-                    .simultaneousGesture(DragGesture()
-                        .onChanged { offset = CGSize(width: settledOffset.width + $0.translation.width, height: settledOffset.height + $0.translation.height) }
-                        .onEnded { _ in settledOffset = offset })
-                    .onTapGesture(count: 2) { toggleZoom() }
-                    .accessibilityLabel(Text("Image \(item.name)"))
-                    .accessibilityAddTraits(.isImage)
-                    .accessibilityAction(named: zoom > 1 ? Text("Zoom Out") : Text("Zoom In")) { toggleZoom() }
-                    .accessibilityIdentifier("agentImage.viewer.image")
+                GeometryReader { proxy in
+                    let rules = rules(for: image, in: proxy.size)
+                    Image(decorative: image.image, scale: 1)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .scaleEffect(zoom)
+                        .offset(x: offset.width, y: offset.height + dismissDrag)
+                        .contentShape(Rectangle())
+                        .gesture(pinch(rules))
+                        .simultaneousGesture(drag(rules))
+                        .gesture(SpatialTapGesture(count: 2).onEnded { event in
+                            let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                            let tap = CGPoint(x: event.location.x - center.x, y: event.location.y - center.y)
+                            apply(rules.doubleTap(at: tap, zoom: zoom))
+                        })
+                        .onChange(of: proxy.size) {
+                            // 旋轉或改視窗大小:倍率夾回範圍、平移夾進新邊界。
+                            let next = self.rules(for: image, in: proxy.size)
+                            offset = next.clampedOffset(offset, zoom: zoom)
+                        }
+                        .accessibilityLabel(Text("Image \(item.name)"))
+                        .accessibilityValue(Text(zoom > 1 ? "Zoomed in \(Self.zoomText(zoom))" : "Not zoomed"))
+                        .accessibilityAddTraits(.isImage)
+                        .accessibilityAction(named: Text("Zoom In")) { zoomTo(max(zoom * 2, ImageViewerZoom.doubleTapZoom), rules) }
+                        .accessibilityAction(named: Text("Zoom Out")) { zoomTo(zoom / 2, rules) }
+                        .accessibilityIdentifier("agentImage.viewer.image")
+                }
             } else {
                 ProgressView().tint(.white).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -212,6 +232,7 @@ struct AgentImageViewer: View {
                 Text("Done").frame(minWidth: 44, minHeight: 44)
             }
                 .buttonStyle(.glass)
+                .keyboardShortcut(.cancelAction)
                 .padding()
                 .accessibilityIdentifier("agentImage.viewer.done")
         }
@@ -225,13 +246,68 @@ struct AgentImageViewer: View {
         #endif
     }
 
-    private func toggleZoom() {
-        zoom = zoom > 1 ? 1 : 2.5
-        settledZoom = zoom
-        if zoom == 1 {
-            offset = .zero
-            settledOffset = .zero
+    /// 圖在 1× 時等比縮進容器的尺寸。
+    private func rules(for image: AgentImageDecoder.Decoded, in container: CGSize) -> ImageViewerZoom {
+        let size = CGSize(width: image.image.width, height: image.image.height)
+        guard size.width > 0, size.height > 0, container.width > 0, container.height > 0 else {
+            return ImageViewerZoom(container: container, fitted: container)
         }
+        let scale = min(container.width / size.width, container.height / size.height)
+        return ImageViewerZoom(container: container, fitted: CGSize(width: size.width * scale, height: size.height * scale))
+    }
+
+    private func pinch(_ rules: ImageViewerZoom) -> some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                let start = pinchStart ?? zoom
+                pinchStart = start
+                // 進行中可略超出範圍(橡皮筋感),放開時夾回。
+                zoom = min(max(start * value.magnification, 0.8), ImageViewerZoom.maximumZoom * 1.2)
+            }
+            .onEnded { _ in
+                pinchStart = nil
+                settle { zoom = rules.clampedZoom(zoom); offset = rules.clampedOffset(offset, zoom: zoom) }
+            }
+    }
+
+    private func drag(_ rules: ImageViewerZoom) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                if rules.allowsPan(zoom: zoom) {
+                    let start = panStart ?? offset
+                    panStart = start
+                    offset = rules.clampedOffset(
+                        CGSize(width: start.width + value.translation.width, height: start.height + value.translation.height), zoom: zoom)
+                } else if value.translation.height > 0 {
+                    dismissDrag = value.translation.height
+                }
+            }
+            .onEnded { value in
+                panStart = nil
+                if rules.shouldDismiss(translation: value.translation, zoom: zoom) {
+                    dismiss()
+                } else {
+                    settle { dismissDrag = 0 }
+                }
+            }
+    }
+
+    private func apply(_ result: (zoom: CGFloat, offset: CGSize)) {
+        settle { zoom = result.zoom; offset = result.offset }
+    }
+
+    /// VoiceOver 的放大／縮小動作:以中心縮放。
+    private func zoomTo(_ target: CGFloat, _ rules: ImageViewerZoom) {
+        settle { zoom = rules.clampedZoom(target); offset = rules.clampedOffset(offset, zoom: zoom) }
+    }
+
+    /// 「減少動態效果」時不做彈簧動畫。
+    private func settle(_ changes: () -> Void) {
+        if reduceMotion { changes() } else { withAnimation(.smooth(duration: 0.25), changes) }
+    }
+
+    private static func zoomText(_ zoom: CGFloat) -> String {
+        Double(zoom).formatted(.number.precision(.fractionLength(0...1))) + "×"
     }
 }
 
