@@ -174,11 +174,4 @@ struct AddHostGuideModelTests {
         model.address = "other-mac"
         #expect(model.save() == nil)
     }
-
-    @Test("HTTPS 目前交給主機編輯頁(#344 接手)")
-    func httpsHandsOffToEditor() {
-        let https = Self.model()
-        https.choose(.https)
-        #expect(https.handoff == .editor(.https))
-    }
 }

@@ -34,6 +34,9 @@ struct AddHostGuideView: View {
     let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
     @State private var expandedHelp: AddHostGuideModel.Field?
     @State private var showOtherWays = false
+    @State private var scanning = false
+    @State private var manualExpanded = false
+    @Environment(\.pairingCodeScanSource) private var scanSource
     @FocusState private var focus: AddHostGuideModel.Field?
 
     var body: some View {
@@ -73,8 +76,12 @@ struct AddHostGuideView: View {
         }
         // 進到測試連線那頁就開始測;失敗後按「再試一次」。
         .task(id: model.step) {
+            if model.step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }
             if model.step == .test, model.phase == .editing { await model.testConnection() }
             if model.step == .keySetup { await model.loadDeviceKey() }
+        }
+        .sheet(isPresented: $scanning) {
+            PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("guide")
@@ -134,6 +141,9 @@ struct AddHostGuideView: View {
     private var heroSymbol: String {
         switch model.step {
         case .kind: "link"
+        case .tailscale: "network"
+        case .install: "square.and.arrow.down"
+        case .pair: "qrcode.viewfinder"
         case .system: "desktopcomputer"
         case .sshMethod: "lock.shield"
         case .enable: "terminal"
@@ -150,7 +160,10 @@ struct AddHostGuideView: View {
     private var title: LocalizedStringKey {
         switch model.step {
         case .kind: "How do you want to connect to your computer?"
+        case .tailscale: "Get Tailscale on both devices"
         case .system: "What kind of computer is it?"
+        case .install: "Install the Purrdr host service"
+        case .pair: "Pair this iPhone with the computer"
         case .sshMethod: model.system == .windows ? "Windows uses OpenSSH" : "Pick a kind of SSH"
         case .enable: "Let the computer accept connections"
         case .details: "Which computer and which account?"
@@ -187,6 +200,15 @@ struct AddHostGuideView: View {
     @ViewBuilder
     private var content: some View {
         switch model.step {
+        case .tailscale:
+            instructions(model.tailscaleInstructions)
+        case .install:
+            instructions(model.installInstructions)
+        case .pair:
+            VStack(spacing: 12) {
+                instructions(model.pairInstructions)
+                manualPairing
+            }
         case .enable:
             instructions(model.enableInstructions)
         case .details:
@@ -199,6 +221,42 @@ struct AddHostGuideView: View {
             testContent
         case .kind, .system, .sshMethod, .location, .login, .finished:
             EmptyView()
+        }
+    }
+
+    private var manualPairing: some View {
+        DisclosureGroup(isExpanded: $manualExpanded) {
+            VStack(spacing: 12) {
+                pairField(.pairAddress, label: "Computer address", text: $model.pairAddress, prompt: "studio.tail1234.ts.net")
+                pairField(.pairPort, label: "Port", text: $model.pairPort, prompt: "443", numeric: true)
+                pairField(.pairingCode, label: "Pairing Code", text: $model.pairingCode, prompt: "K7QM-2XPA", uppercase: true)
+            }
+            .padding(.top, 10)
+        } label: {
+            Text("Enter It Manually").foregroundStyle(.primary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background.secondary, in: .rect(cornerRadius: 18))
+    }
+
+    private func pairField(
+        _ field: AddHostGuideModel.Field, label: LocalizedStringKey, text: Binding<String>, prompt: String, numeric: Bool = false,
+        uppercase: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+            TextField(label, text: text, prompt: Text(verbatim: prompt))
+                .font(.title3)
+                #if os(iOS)
+                .keyboardType(numeric ? .numberPad : .asciiCapable)
+                .textInputAutocapitalization(uppercase ? .characters : .never)
+                #endif
+                .autocorrectionDisabled()
+                .focused($focus, equals: field)
+                .accessibilityIdentifier("guide.field.\(identifier(field))")
         }
     }
 
@@ -318,6 +376,9 @@ struct AddHostGuideView: View {
         case .address: "address"
         case .port: "port"
         case .username: "username"
+        case .pairAddress: "pairAddress"
+        case .pairPort: "pairPort"
+        case .pairingCode: "pairingCode"
         }
     }
 
@@ -362,8 +423,11 @@ struct AddHostGuideView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondaryText)
                 .accessibilityIdentifier("guide.result")
-        case .connected:
-            EmptyView()
+        case .connected(let check):
+            Text(verbatim: "herdr \(check.herdrVersion)")
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+                .accessibilityIdentifier("guide.result")
         default:
             ProgressView()
                 .controlSize(.large)
@@ -407,6 +471,32 @@ struct AddHostGuideView: View {
             option(
                 "https", "HTTPS (Host Service)", detail: "Install the Purrdr host service for send-when-done and stuck alerts",
                 symbol: "lock.shield") { model.choose(.https) }
+        case .tailscale:
+            primary("I’ve Got Tailscale on Both", id: "guide.next", enabled: true) { model.advance() }
+        case .install:
+            primary("I’ve Installed It", id: "guide.next", enabled: true) { model.advance() }
+        case .pair:
+            if scanSource.isAvailable {
+                primary("Scan QR Code", id: "guide.scan", enabled: true) {
+                    focus = nil
+                    scanning = true
+                }
+                Button {
+                    focus = nil
+                    model.advance()
+                } label: {
+                    Text("Use What I Typed").frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .disabled(!model.canAdvance)
+                .accessibilityIdentifier("guide.next")
+            } else {
+                primary("Next", id: "guide.next", enabled: model.canAdvance) {
+                    focus = nil
+                    model.advance()
+                }
+            }
         case .system:
             option("macOS", "Mac", symbol: "laptopcomputer") { model.choose(.macOS) }
             option("linux", "Linux", symbol: "server.rack") { model.choose(.linux) }

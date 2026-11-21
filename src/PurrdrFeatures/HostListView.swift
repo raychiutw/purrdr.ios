@@ -127,7 +127,7 @@ public struct HostListView: View {
         // context menu 頂端的動作與滑動動作一致;刪除放最後並標 destructive(HIG 20.3)。
         .swipeActions(edge: .leading) {
             if row.needsPairing {
-                Button("Pair", systemImage: "link") { flow.showDetails(of: row.id) }
+                Button("Pair", systemImage: "link") { openPairing(of: row) }
             } else {
                 Button("Edit", systemImage: "pencil") { flow.showDetails(of: row.id) }
             }
@@ -141,7 +141,7 @@ public struct HostListView: View {
         }
         .contextMenu {
             if row.needsPairing {
-                Button("Pair…", systemImage: "link") { flow.showDetails(of: row.id) }
+                Button("Pair…", systemImage: "link") { openPairing(of: row) }
             } else {
                 Button("Edit", systemImage: "pencil") { flow.showDetails(of: row.id) }
             }
@@ -160,7 +160,7 @@ public struct HostListView: View {
         Button {
             // 還沒配對的 HTTPS 主機連不上：點它直接去配對。
             if row.needsPairing {
-                flow.showDetails(of: row.id)
+                openPairing(of: row)
             } else {
                 model.select(.host(row.id))
                 dismiss()
@@ -184,6 +184,26 @@ public struct HostListView: View {
                     flow.path.removeLast()
                 } onOpenEditor: { method in
                     // 引導還沒涵蓋這種連線方式:換成主機編輯頁(預選該方式)。
+                    flow.path = [.addInEditor(method)]
+                }
+            case .importGuide(let url):
+                AddHostGuideScreen(make: { (try? model.makeImportGuide(url)) ?? model.makeAddHostGuide() }) { host in
+                    saved(host)
+                } onCancel: {
+                    flow.path.removeLast()
+                } onOpenEditor: { method in
+                    flow.path = [.addInEditor(method)]
+                }
+            case .pairGuide(let id):
+                AddHostGuideScreen(
+                    make: {
+                        model.hosts.first { $0.id == id }.flatMap { try? model.makePairingGuide(for: $0) } ?? model.makeAddHostGuide()
+                    }
+                ) { host in
+                    saved(host)
+                } onCancel: {
+                    flow.path.removeLast()
+                } onOpenEditor: { method in
                     flow.path = [.addInEditor(method)]
                 }
             case .addInEditor, .edit:
@@ -286,10 +306,15 @@ public struct HostListView: View {
         Binding { renaming?.name ?? "" } set: { renaming?.name = $0 }
     }
 
+    /// 還沒配對的 HTTPS 主機:新增主機引導直接到配對步驟(UI 測試預設仍開主機編輯頁)。
+    private func openPairing(of row: HostRow) {
+        flow.path.append(model.usesAddHostGuide ? .pairGuide(row.id) : .edit(row.id))
+    }
+
     private func openPendingImport() {
         guard let url = importURL else { return }
         importURL = nil
-        flow.path = [.importLink(url)]
+        flow.path = [model.usesAddHostGuide && (try? model.makeImportGuide(url)) != nil ? .importGuide(url) : .importLink(url)]
     }
 
     private func openPendingEditor() {

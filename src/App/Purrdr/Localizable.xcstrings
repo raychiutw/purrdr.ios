@@ -1495,6 +1495,17 @@
         }
       }
     },
+    "App Store" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store"
+          }
+        }
+      }
+    },
     "Appearance" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2529,6 +2540,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "組字中"
+          }
+        }
+      }
+    },
+    "Computer address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦位址"
           }
         }
       }
@@ -4007,6 +4029,17 @@
         }
       }
     },
+    "Enter It Manually" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動輸入"
+          }
+        }
+      }
+    },
     "Enter Manually" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4355,6 +4388,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "產生"
+          }
+        }
+      }
+    },
+    "Get Tailscale on both devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩邊都裝好 Tailscale"
           }
         }
       }
@@ -5044,6 +5088,17 @@
         }
       }
     },
+    "Install the Purrdr host service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安裝 Purrdr 主機服務"
+          }
+        }
+      }
+    },
     "Install the Purrdr host service for send-when-done and stuck alerts" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5106,6 +5161,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Windows 內建，只要打開就好。"
+          }
+        }
+      }
+    },
+    "I’ve Got Tailscale on Both" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩邊都裝好了"
+          }
+        }
+      }
+    },
+    "I’ve Installed It" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我已經裝好了"
           }
         }
       }
@@ -6584,6 +6661,17 @@
         }
       }
     },
+    "On that computer, install Tailscale and sign in with the same account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦裝 Tailscale,用同一個帳號登入。"
+          }
+        }
+      }
+    },
     "On that computer, open PowerShell as an administrator (right-click it and choose Run as administrator)." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6635,6 +6723,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "和那台電腦連同一個 Wi-Fi"
+          }
+        }
+      }
+    },
+    "On this iPhone, install Tailscale and sign in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在這支 iPhone 裝 Tailscale 並登入。"
           }
         }
       }
@@ -7013,6 +7112,17 @@
         }
       }
     },
+    "Pair this iPhone with the computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓這支 iPhone 與電腦配對"
+          }
+        }
+      }
+    },
     "Pair with the Purrdr host service. Login Shell and Files aren’t available." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7152,6 +7262,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上你原本用來登入那台電腦的私鑰。"
+          }
+        }
+      }
+    },
+    "Paste this line too. A QR code appears on that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再貼上這一行。那台電腦的畫面會出現 QR code。"
           }
         }
       }
@@ -12311,6 +12432,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用這個資料夾"
+          }
+        }
+      }
+    },
+    "Use What I Typed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用我輸入的內容"
           }
         }
       }

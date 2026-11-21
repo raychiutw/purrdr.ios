@@ -12,6 +12,9 @@ enum HostRoute: Hashable {
     case share(UUID)
     case hostServiceUpdate(UUID)
     case importLink(URL)
+    /// 新增主機引導的捷徑(#344):匯入連結直接到測試連線／配對,同步來還沒配對的主機直接到配對。
+    case importGuide(URL)
+    case pairGuide(UUID)
 
     var addMethod: HostConfiguration.ConnectionMethod? {
         if case .addInEditor(let method) = self { return method }
