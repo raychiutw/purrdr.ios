@@ -118,9 +118,11 @@ extension ConversationScroll {
     /// 可見範圍停在內容之外時要不要切回跟隨並捲到底。跟隨尾端時一律要(開啟時 LazyVStack 的估算高度收斂，
     /// 可見範圍會落在內容之外);閱讀中只在內容剛被重建後(`rebuildSettleTime` 內、使用者之後沒有自己捲過),
     /// 一般排版變化(估算高度變小、reflow、鍵盤)不介入，閱讀中的讀者不被拉走。
-    public func returnsToContent(_ metrics: ConversationScrollMetrics, at now: Date) -> Bool {
+    public func returnsToContent(_ metrics: ConversationScrollMetrics, at now: Date, byOffsetAllowed: Bool = true) -> Bool {
         // 同一個排版最多兩次：第一次捲到最後一列，又被推回內容之外(捲到最後一列多捲一個底部 inset)再以位移捲一次(#251)。
-        guard metrics.isBeyondContent, metrics.containerHeight >= Self.minimumRowHeight, metrics.layout != offsetReturnedAtLayout,
+        // 不能以位移捲時(面板卡片開著)只受連續次數上限約束，每次都捲到最後一列。
+        guard metrics.isBeyondContent, metrics.containerHeight >= Self.minimumRowHeight,
+              !byOffsetAllowed || metrics.layout != offsetReturnedAtLayout,
               canReturnAgain(metrics) else {
             return false
         }
@@ -157,9 +159,9 @@ extension ConversationScroll {
     }
 
     /// `returnsToContent` 或 `refillsVisibleRange` 成立、畫面捲回內容時呼叫：切回跟隨，記下這次的排版。
-    public mutating func returnedToContent(_ metrics: ConversationScrollMetrics) {
+    public mutating func returnedToContent(_ metrics: ConversationScrollMetrics, byOffsetAllowed: Bool = true) {
         jumpToLatest()
-        if metrics.layout == returnedAtLayout {
+        if byOffsetAllowed, metrics.layout == returnedAtLayout {
             offsetReturnedAtLayout = metrics.layout
             offsetFollowedLayout = metrics.layout
             offsetFollows = 0
