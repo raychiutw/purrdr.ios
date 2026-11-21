@@ -58,7 +58,7 @@ struct SlashMenuView: View {
                         }
                     }
                     if menu.isIncomplete {
-                        Label("This list may be incomplete. The host took too long to list every command.", systemImage: "exclamationmark.circle")
+                        Label("This list may be incomplete. The computer took too long to list every command.", systemImage: "exclamationmark.circle")
                             .font(.footnote)
                             .foregroundStyle(.secondaryText)
                             .padding(12)

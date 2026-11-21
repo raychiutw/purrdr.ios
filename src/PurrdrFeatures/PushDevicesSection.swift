@@ -39,7 +39,7 @@ struct PushDevicesSection: View {
             Text("Notification Devices")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Turning off a device stops its notifications from every host, even if it’s lost. Each host’s leftover pairing is removed the next time it tries to notify.")
+            Text("Turning off a device stops its notifications from every computer, even if it’s lost. Each computer’s leftover pairing is removed the next time it tries to notify.")
                 .foregroundStyle(.secondaryText)
         }
     }
@@ -103,9 +103,9 @@ private struct PushDevicesDialogs: ViewModifier {
                     .accessibilityIdentifier("account.pushDevices.confirmTurnOff")
             } message: { device in
                 if device.isCurrent {
-                    Text("This device stops receiving notifications from all hosts. You can turn hosts back on under Notifications.")
+                    Text("This device stops receiving notifications from all computers. You can turn computers back on under Notifications.")
                 } else {
-                    Text("That device stops receiving notifications from all hosts. To get them again, turn notifications back on from that device.")
+                    Text("That device stops receiving notifications from all computers. To get them again, turn notifications back on from that device.")
                 }
             }
     }
@@ -169,9 +169,9 @@ private struct PushDeviceRow: View {
     private var details: Text {
         let lastUsed = device.lastRegisteredAt.formatted(.relative(presentation: .named))
         if let model = device.model {
-            return Text("\(model.rawValue) · Hosts: \(device.hostCount) · Last used \(lastUsed)")
+            return Text("\(model.rawValue) · Computers: \(device.hostCount) · Last used \(lastUsed)")
         }
-        return Text("Hosts: \(device.hostCount) · Last used \(lastUsed)")
+        return Text("Computers: \(device.hostCount) · Last used \(lastUsed)")
     }
 }
 

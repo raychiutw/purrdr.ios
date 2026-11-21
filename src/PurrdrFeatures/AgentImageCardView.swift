@@ -25,10 +25,10 @@ struct AgentImageCardDisplay {
         case .overAutomaticLimit(let size):
             String(localized: "\(Self.size(size)) · Not loaded automatically")
         case .tooLarge(let size):
-            String(localized: "Too large to preview here (\(Self.size(size))). Open it on the host.")
-        case .missing: String(localized: "This file is no longer on the host.")
+            String(localized: "Too large to preview here (\(Self.size(size))). Open it on the computer.")
+        case .missing: String(localized: "This file is no longer on the computer.")
         case .denied: String(localized: "Purrdr doesn’t open files in this location.")
-        case .unsupported: String(localized: "Image previews aren’t available for this host yet.")
+        case .unsupported: String(localized: "Image previews aren’t available for this computer yet.")
         case .failed: String(localized: "Couldn’t load the image.")
         case .loaded, .loading, nil: nil
         }

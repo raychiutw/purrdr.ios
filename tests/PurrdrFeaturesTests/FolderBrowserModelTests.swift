@@ -78,7 +78,7 @@ struct FolderBrowserModelTests {
 
         await model.load()
 
-        #expect(model.phase == .failed("The host didn’t respond with a folder listing."))
+        #expect(model.phase == .failed("The computer didn’t respond with a folder listing."))
     }
 
     @Test("打開資料夾、回上一層")

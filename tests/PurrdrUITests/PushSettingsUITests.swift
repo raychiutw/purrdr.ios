@@ -21,7 +21,7 @@ final class PushSettingsUITests: XCTestCase {
         XCTAssertTrue(notifications.waitForExistence(timeout: 10))
         expectValue("Next Step", of: notifications)
         let action = app.buttons["account.plusSetup.action"]
-        XCTAssertEqual(action.label, "Choose Hosts")
+        XCTAssertEqual(action.label, "Choose Computers")
         action.tap()
 
         let toggle = app.switches["account.push.\(Self.seededHost)"]
@@ -130,14 +130,14 @@ final class PushSettingsUITests: XCTestCase {
         let demo = app.switches["account.push.demo"]
         XCTAssertTrue(reveal(demo, in: app), "沒有 Demo 主機的通知列")
         XCTAssertFalse(demo.isEnabled)
-        XCTAssertEqual(element("account.push.demo.status", in: app).label, "The demo host can’t send notifications.")
+        XCTAssertEqual(element("account.push.demo.status", in: app).label, "The demo computer can’t send notifications.")
 
         let https = app.switches["account.push.\(Self.httpsHost)"]
         XCTAssertTrue(reveal(https, in: app), "沒有 HTTPS 主機的通知列")
         XCTAssertFalse(https.isEnabled)
         // 還沒配對的 HTTPS 主機說明要先配對(#295);主機服務太舊的說明由 HostServiceUpdateTests 涵蓋。
         let pair = element("account.push.\(Self.httpsHost).status", in: app)
-        XCTAssertEqual(pair.label, "Pair This Host First")
+        XCTAssertEqual(pair.label, "Pair This Computer First")
         XCTAssertTrue(pair.isHittable)
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "best-effort")).firstMatch.exists)
         // 沒有跳系統的通知權限對話框。

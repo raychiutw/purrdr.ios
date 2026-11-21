@@ -270,8 +270,8 @@ extension AnswerNotice {
     var text: String {
         switch self {
         case .mayNotHaveArrived: String(localized: "The answer may not have arrived. Check the agent, then try again.")
-        case .sendFailed: String(localized: "Couldn’t send the answer to the host.")
-        case .questionChanged: String(localized: "The question changed on the host, so the answer wasn’t sent. Check it, then try again.")
+        case .sendFailed: String(localized: "Couldn’t send the answer to the computer.")
+        case .questionChanged: String(localized: "The question changed on the computer, so the answer wasn’t sent. Check it, then try again.")
         }
     }
 }

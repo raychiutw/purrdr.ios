@@ -70,21 +70,21 @@ public struct HostListView: View {
             }
             .accessibilityIdentifier("sheet.hosts")
             .task { await model.checkHostServiceVersions() }
-            .navigationTitle("Hosts")
+            .navigationTitle("Computers")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .accessibilityIdentifier("sheet.done")
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Add Host", systemImage: "plus") { flow.path.append(model.usesAddHostGuide ? .add : .addInEditor(nil)) }
+                    Button("Add Computer", systemImage: "plus") { flow.path.append(model.usesAddHostGuide ? .add : .addInEditor(nil)) }
                         .accessibilityIdentifier("hosts.add")
                 }
             }
             .navigationDestination(for: HostRoute.self) { route in
                 destination(route)
             }
-            .alert("Rename Host", isPresented: renamingBinding, presenting: renaming) { _ in
+            .alert("Rename Computer", isPresented: renamingBinding, presenting: renaming) { _ in
                 TextField("Name", text: renameText)
                     .accessibilityIdentifier("hosts.rename.name")
                 Button("Cancel", role: .cancel) {}
@@ -97,11 +97,11 @@ public struct HostListView: View {
             .confirmationDialog(
                 deletionTitle, isPresented: deletionBinding, titleVisibility: .visible, presenting: flow.pendingDeletion
             ) { request in
-                Button("Remove Host", role: .destructive) { confirmDeletion(request) }
+                Button("Remove Computer", role: .destructive) { confirmDeletion(request) }
                     .accessibilityIdentifier("hosts.delete.confirm")
                 Button("Cancel", role: .cancel) { flow.cancelDeletion() }
             } message: { _ in
-                Text("This host’s settings and keys are removed from this device, and this device’s pairing is revoked. If Purrdr added this device’s public key to the host, that key is removed too; nothing else on the host changes.")
+                Text("This computer is removed from this device, and this device is signed out of it. Nothing else on the computer changes.")
             }
         }
         .onAppear(perform: openPendingImport)
@@ -176,7 +176,7 @@ public struct HostListView: View {
                 needsPairing: row.needsPairing, hostServiceUpdate: row.hostServiceUpdate)
         }
         .accessibilityIdentifier("hosts.row.\(row.id.uuidString)")
-        .accessibilityHint(row.needsPairing ? Text("Opens pairing for this host.") : Text(verbatim: ""))
+        .accessibilityHint(row.needsPairing ? Text("Opens pairing for this computer.") : Text(verbatim: ""))
     }
 
     private func destination(_ route: HostRoute) -> some View {
@@ -255,8 +255,8 @@ public struct HostListView: View {
                     }
                 } else {
                     ContentUnavailableView(
-                        "Can’t Add This Host", systemImage: "qrcode",
-                        description: Text("This link isn’t a Purrdr host, or it was made by a newer version of Purrdr."))
+                        "Can’t Add This Computer", systemImage: "qrcode",
+                        description: Text("This link isn’t a Purrdr computer, or it was made by a newer version of Purrdr."))
                         .accessibilityIdentifier("hosts.importFailed")
                 }
             }
@@ -283,7 +283,7 @@ public struct HostListView: View {
                 try await flow.confirmDeletion(of: request) { try await model.delete($0) }
                 actionError = nil
             } catch {
-                actionError = String(localized: "Couldn’t remove this host from this device. \(error.localizedDescription)")
+                actionError = String(localized: "Couldn’t remove this computer from this device. \(error.localizedDescription)")
             }
         }
     }
@@ -293,9 +293,9 @@ public struct HostListView: View {
             try model.rename(renaming.id, to: renaming.name)
             actionError = nil
         } catch HostManagementError.emptyName {
-            actionError = String(localized: "A host needs a name.")
+            actionError = String(localized: "A computer needs a name.")
         } catch {
-            actionError = String(localized: "Couldn’t rename this host. \(error.localizedDescription)")
+            actionError = String(localized: "Couldn’t rename this computer. \(error.localizedDescription)")
         }
         self.renaming = nil
     }

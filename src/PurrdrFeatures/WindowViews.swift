@@ -19,7 +19,7 @@ struct WindowSidebar: View {
 
     var body: some View {
         List(selection: selection) {
-            Section("Hosts") {
+            Section("Computers") {
                 ForEach(hosts.rows) { row in
                     hostButton(.host(row.id), title: row.title, icon: row.icon, isSelected: row.isSelected)
                 }
@@ -232,9 +232,9 @@ public struct PaneWindowView: View {
                 PaneWindowContent(window: window, route: route, hosts: hosts)
             } else {
                 ContentUnavailableView(
-                    "Host Not Available",
+                    "Computer Not Available",
                     systemImage: "desktopcomputer",
-                    description: Text("This window’s host was removed from this device.")
+                    description: Text("This window’s computer was removed from this device.")
                 )
                 .navigationTitle(window.title)
             }

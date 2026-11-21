@@ -220,7 +220,7 @@ final class HostsUITests: XCTestCase {
 
         info.tap()
 
-        XCTAssertTrue(app.navigationBars["Edit Host"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Edit Computer"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["hostEditor.name"].value as? String, "Studio Mac")
     }
 
@@ -306,7 +306,7 @@ final class HostsUITests: XCTestCase {
         // `.accessibilityElement()` 讓 QR code 以 Other(而非 Image)出現在 accessibility tree。
         XCTAssertTrue(app.descendants(matching: .any)["hostShare.qr"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["hostShare.link"].exists)
-        app.navigationBars["Share Host"].buttons["Hosts"].tap()
+        app.navigationBars["Share Computer"].buttons["Computers"].tap()
 
         // 重新命名。
         if !row.waitForExistence(timeout: 5) { print(app.debugDescription) }
@@ -314,7 +314,7 @@ final class HostsUITests: XCTestCase {
         row.press(forDuration: 1)
         app.buttons["Rename…"].firstMatch.tap()
         // alert 裡的 TextField 不會帶上 SwiftUI 的 accessibilityIdentifier,改從 alert 找。
-        let field = app.alerts["Rename Host"].textFields.firstMatch
+        let field = app.alerts["Rename Computer"].textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.clearAndType("Office Mac")
         app.buttons["hosts.rename.confirm"].firstMatch.tap()

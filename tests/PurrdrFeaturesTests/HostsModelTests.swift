@@ -315,7 +315,7 @@ struct HostsModelTests {
         await model.agentList.load()
 
         #expect(model.agentList.list(for: model.selection)?.phase == .failed(
-            "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."))
+            "The computer didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices."))
     }
 
     static let httpsStudio = HostConfiguration(

@@ -21,7 +21,7 @@ final class PushDevicesUITests: XCTestCase {
         let ipad = element("account.pushDevice.\(Self.studioIPad)", in: app)
         XCTAssertTrue(reveal(ipad, in: app), "沒有 Studio iPad 的列")
         XCTAssertTrue(ipad.label.contains("Studio iPad"), ipad.label)
-        XCTAssertTrue(ipad.label.contains("Hosts: 2"), ipad.label)
+        XCTAssertTrue(ipad.label.contains("Computers: 2"), ipad.label)
         XCTAssertFalse(ipad.label.contains("This Device"), ipad.label)
         let legacy = element("account.pushDevice.\(Self.legacyDevice)", in: app)
         XCTAssertTrue(reveal(legacy, in: app), "沒有舊版 app 的裝置列")

@@ -152,12 +152,12 @@ struct YouShouldKnowCompactNoteView: View {
 extension View {
     /// 第一次對註記動作時的同意(ADR-0002):說明會改哪個檔、以哪個使用者，可在設定撤掉。
     func youShouldKnowConsent(_ model: YouShouldKnowModel) -> some View {
-        alert("Update Notes on This Host?", isPresented: Binding(get: { model.pendingConsent != nil }, set: { _ in })) {
+        alert("Update Notes on This Computer?", isPresented: Binding(get: { model.pendingConsent != nil }, set: { _ in })) {
             Button("Cancel", role: .cancel) { model.cancelConsent() }
             Button("Allow") { Task { await model.confirmConsent() } }
                 .accessibilityIdentifier("youShouldKnow.allow")
         } message: {
-            Text("To mark notes, Purrdr updates Claude Code’s notes file in ~/.claude/plugins/store as \(model.pendingConsent?.user ?? ""). You can undo Purrdr’s changes in Settings.")
+            Text("To mark notes, Purrdr updates Claude Code’s notes on this computer, as \(model.pendingConsent?.user ?? ""). You can undo Purrdr’s changes in Settings.")
         }
     }
 }

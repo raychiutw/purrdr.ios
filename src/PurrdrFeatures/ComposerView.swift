@@ -446,7 +446,7 @@ extension View {
 /// Shell 模式提示(F6.4):Claude 聊天的草稿以 `!` 開頭時，說明這會在 agent 的 shell 執行，不會送給 Claude。
 struct ShellModeHint: View {
     var body: some View {
-        Label("This runs in the agent’s shell and won’t be sent to Claude.", systemImage: "terminal")
+        Label("This runs on the computer and won’t be sent to Claude.", systemImage: "terminal")
             .font(.footnote)
             .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -529,22 +529,22 @@ extension SendNotice {
         case .needsAnswer: String(localized: "The agent is waiting for an answer. Answer it first, then send.")
         case .agentGone: String(localized: "This pane no longer has an agent. Your message wasn’t sent.")
         case .superseded: String(localized: "This pane is running a different chat now. Your message wasn’t sent.")
-        case .offline: String(localized: "Can’t reach the host. Your message wasn’t sent.")
+        case .offline: String(localized: "Can’t reach the computer. Your message wasn’t sent.")
         case .rejected(let message): String(localized: "Couldn’t send: \(message)")
         case .noResponse: String(localized: "The agent didn’t pick up the message. It may be stuck on a prompt; check the terminal, then try again.")
         case .unconfirmed(.connectionLost): String(localized: "The connection dropped while sending. The message may have arrived; check the chat before sending again.")
         case .unconfirmed(.mayBeInTerminal): String(localized: "Couldn’t confirm delivery. The message may be stuck in the terminal.")
-        case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
-        case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
-        case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
+        case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but Codex hasn’t confirmed it yet. Check the computer before trying again.")
+        case .panelKeysFailed: String(localized: "Couldn’t send the keys to the computer. Check the panel in the terminal.")
+        case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this computer.")
         case .attachmentLimit: String(localized: "You can attach up to 10 items to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
-        case .uploadFailed: String(localized: "Couldn’t upload the image to the host. Your message wasn’t sent; try again.")
+        case .uploadFailed: String(localized: "Couldn’t upload the image to the computer. Your message wasn’t sent; try again.")
         case .fileTooLarge(let size, let limit):
-            String(localized: "This file is \(Self.byteCount(size)). Files sent to the host can be up to \(Self.byteCount(limit)).")
+            String(localized: "This file is \(Self.byteCount(size)). Files sent to the computer can be up to \(Self.byteCount(limit)).")
         case .fileUnreadable: String(localized: "Couldn’t read that file.")
-        case .fileUploadFailed: String(localized: "Couldn’t upload the file to the host. Try again.")
+        case .fileUploadFailed: String(localized: "Couldn’t upload the file to the computer. Try again.")
         case .hostServiceUpdateRequired(let installedVersion):
             HostErrorText.message(for: HostServiceError.hostServiceUpdateRequired(.fileUpload, installedVersion: installedVersion))
         }
@@ -746,7 +746,7 @@ extension QueuedPrompt.Problem {
         case .expired: String(localized: "This message waited more than 10 minutes, so it wasn’t sent.")
         case .conversationChanged: String(localized: "The conversation changed, so this message wasn’t sent.")
         case .needsAnswer: String(localized: "The agent is waiting for your answer, so this message wasn’t sent.")
-        case .notDelivered: String(localized: "The host didn’t accept this message.")
+        case .notDelivered: String(localized: "The computer didn’t accept this message.")
         case .mayHaveBeenSent: String(localized: "This message may have arrived. Check the chat before sending it again.")
         }
     }

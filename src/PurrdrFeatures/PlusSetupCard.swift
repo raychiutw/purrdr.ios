@@ -123,7 +123,7 @@ extension PlusSetupProgress.Step {
         case .joinMember: "Join as a Member"
         case .activatePlus: "Activate Purrdr Plus"
         case .turnOnNotifications: "Turn On Notifications"
-        case .syncHosts: "Sync Host List"
+        case .syncHosts: "Sync Computer List"
         }
     }
 
@@ -131,8 +131,8 @@ extension PlusSetupProgress.Step {
         switch self {
         case .joinMember: "Sign in with Apple or Google"
         case .activatePlus: "Free trial available"
-        case .turnOnNotifications: "Choose hosts to notify"
-        case .syncHosts: "Share hosts between iPhone and iPad"
+        case .turnOnNotifications: "Choose computers to notify"
+        case .syncHosts: "Share computers between iPhone and iPad"
         }
     }
 
@@ -140,7 +140,7 @@ extension PlusSetupProgress.Step {
         switch self {
         case .joinMember: "Join"
         case .activatePlus: "Activate"
-        case .turnOnNotifications: "Choose Hosts"
+        case .turnOnNotifications: "Choose Computers"
         case .syncHosts: "Turn On"
         }
     }
@@ -168,8 +168,8 @@ extension PlusSetupProgress.StepState {
 extension PlusSetupProgress.LockedFeatureHint {
     var text: LocalizedStringKey {
         switch self {
-        case .joinMemberFirst: "Notifications and host sync need Purrdr Plus. Join as a member first."
-        case .activatePlusFirst: "Notifications and host sync need Purrdr Plus. Activate it next."
+        case .joinMemberFirst: "Notifications and computer sync need Purrdr Plus. Join as a member first."
+        case .activatePlusFirst: "Notifications and computer sync need Purrdr Plus. Activate it next."
         }
     }
 }

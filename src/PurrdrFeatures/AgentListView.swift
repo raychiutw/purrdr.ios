@@ -138,7 +138,7 @@ public struct AgentListView: View {
                 Text("Add the computer where your agents run, and they show up here. Or look around with sample conversations first.")
             } actions: {
                 if let window {
-                    Button("Add Host") { window.openAddHost() }
+                    Button("Add Computer") { window.openAddHost() }
                         .filledProminentButtonStyle()
                         .buttonBorderShape(.capsule)
                         .controlSize(.large)
@@ -178,13 +178,13 @@ public struct AgentListView: View {
             ContentUnavailableView(
                 "No Agents",
                 systemImage: "bubble.left.and.text.bubble.right",
-                description: Text("Agents you start in herdr on your hosts appear here.")
+                description: Text("Agents you start in herdr on your computers appear here.")
             )
         case .noAgentsInAgentsView:
             ContentUnavailableView {
                 Label("No Agents", systemImage: "bubble.left.and.text.bubble.right")
             } description: {
-                Text("No workspace on your hosts is running an agent. Spaces also shows their terminals.")
+                Text("No workspace on your computers is running an agent. Spaces also shows their terminals.")
             } actions: {
                 Button("Show Spaces") { model.mode = .spaces }
                     .accessibilityIdentifier("agentList.showSpaces")
@@ -265,7 +265,7 @@ public struct AgentListView: View {
                 ContentUnavailableView(
                     "No Matching Agents",
                     systemImage: "magnifyingglass",
-                    description: Text("Try a different name, agent, folder, or host.")
+                    description: Text("Try a different name, agent, folder, or computer.")
                 )
             }
         }

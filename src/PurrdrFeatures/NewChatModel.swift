@@ -82,11 +82,11 @@ public final class FolderPickerModel {
     package static func message(for error: any Error) -> String {
         switch error {
         case NewChatFolderError.notFound:
-            String(localized: "This folder isn’t on the host, or you can’t open it.")
+            String(localized: "This folder isn’t on the computer, or you can’t open it.")
         case NewChatFolderError.unexpectedResponse:
-            String(localized: "The host didn’t answer with a list of folders.")
+            String(localized: "The computer didn’t answer with a list of folders.")
         case NewChatFolderError.failed:
-            String(localized: "Couldn’t read this folder on the host.")
+            String(localized: "Couldn’t read this folder on the computer.")
         default:
             HostErrorText.message(for: error)
         }
@@ -193,7 +193,7 @@ public final class NewChatModel {
         }
         switch support {
         case .needsHostService:
-            sessions = .unavailable(String(localized: "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it."))
+            sessions = .unavailable(String(localized: "Resuming a past chat needs the Purrdr host service on the computer. This computer doesn’t have it."))
         case .updateRequired(let installed):
             sessions = .updateRequired(HostServiceUpdates.commands(installed: installed ?? "0.0.0"))
         case .available:
@@ -255,19 +255,19 @@ public final class NewChatModel {
     package static func message(for error: any Error) -> String {
         switch error {
         case NewChatFolderError.notFound, HerdrError.herdr(code: "folder_not_found", _):
-            String(localized: "There’s no such folder on the host. Check the path, or choose a folder on the host.")
+            String(localized: "There’s no such folder on the computer. Check the location, or choose a folder on the computer.")
         case NewChatFolderError.absolutePathRequired:
-            String(localized: "Enter the folder’s full path on the host, like /Users/you/project. This host can’t browse folders.")
+            String(localized: "Type the folder’s location on the computer, like /Users/you/project. This computer can’t show a folder list.")
         case NewChatFolderError.unexpectedResponse, NewChatFolderError.failed:
             FolderPickerModel.message(for: error)
         case TranscriptReadError.absent:
-            String(localized: "That chat’s record is no longer on the host, so it can’t be resumed. Pick another chat, or start a new one.")
+            String(localized: "That chat’s record is no longer on the computer, so it can’t be resumed. Pick another chat, or start a new one.")
         case HerdrError.herdr(code: "demo_unsupported", _):
-            String(localized: "The Demo host can’t start new chats. Add your own host to try this.")
+            String(localized: "The Demo computer can’t start new chats. Add your own computer to try this.")
         case HerdrError.herdr(_, let message):
             message
         case HerdrError.noResponse, HerdrError.malformedResponse, HerdrError.deadlineExceeded:
-            String(localized: "Couldn’t reach herdr on this host.")
+            String(localized: "Couldn’t reach your agents on this computer. Make sure herdr is running there.")
         default:
             HostErrorText.message(for: error)
         }

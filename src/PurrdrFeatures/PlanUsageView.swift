@@ -17,7 +17,7 @@ public struct PlanUsageView: View {
     public var body: some View {
         List {
             Section {
-                Picker("Host", selection: hostSelection) {
+                Picker("Computer", selection: hostSelection) {
                     ForEach(model.hosts) { option in
                         HostMenuLabel(option.name, icon: option.icon).tag(option.id)
                     }
@@ -104,7 +104,7 @@ public struct PlanUsageView: View {
             noData
         case .needsConsent, .confirming:
             PlanUsageMessage(
-                systemImage: "lock", title: "Show Claude plan usage on this host?",
+                systemImage: "lock", title: "Show Claude plan usage on this computer?",
                 detail: "Purrdr changes the Claude Code status line on \(hostName) so it saves plan usage. You can turn it off and restore the original anytime."
             ) {
                 Button("Check and Show") { Task { await model.requestConsent() } }
@@ -112,15 +112,15 @@ public struct PlanUsageView: View {
                     .accessibilityIdentifier("planUsage.consent")
             }
         case .checking:
-            PlanUsageMessage(systemImage: nil, title: "Checking the host…", detail: nil)
+            PlanUsageMessage(systemImage: nil, title: "Checking the computer…", detail: nil)
         case .installing:
-            PlanUsageMessage(systemImage: nil, title: "Changing the host’s Claude settings…", detail: nil)
+            PlanUsageMessage(systemImage: nil, title: "Changing the computer’s Claude settings…", detail: nil)
         case .turningOff:
-            PlanUsageMessage(systemImage: nil, title: "Restoring the host’s Claude settings…", detail: nil)
+            PlanUsageMessage(systemImage: nil, title: "Restoring the computer’s Claude settings…", detail: nil)
         case .unsupportedConnection:
             PlanUsageMessage(
                 systemImage: "nosign", title: "Plan usage isn’t available for this connection method",
-                detail: "\(hostName) connects over HTTPS. Choose an SSH host to check plan usage.")
+                detail: "\(hostName) can’t show plan usage. Choose another computer.")
         case .failed(let failure):
             PlanUsageMessage(
                 systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(failure.text) Pull down to try again.")
@@ -160,13 +160,13 @@ public struct PlanUsageView: View {
             Group {
                 switch (model.agent, PlanUsagePresentation.asOf(usage, now: .now)) {
                 case (.claudeCode, let asOf?):
-                    Text("As of \(asOf, format: .dateTime.hour().minute()), when Claude Code last reported on this host.")
+                    Text("As of \(asOf, format: .dateTime.hour().minute()), when Claude Code last reported on this computer.")
                 case (.claudeCode, nil):
-                    Text("Claude Code reports these numbers while it runs on this host.")
+                    Text("Claude Code reports these numbers while it runs on this computer.")
                 case (.codex, let asOf?):
-                    Text("As of \(asOf, format: .dateTime.hour().minute()). Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
+                    Text("As of \(asOf, format: .dateTime.hour().minute()). Codex reports these numbers for the ChatGPT plan Codex is signed in with on this computer.")
                 case (.codex, nil):
-                    Text("Codex reports these numbers for the ChatGPT plan Codex is signed in with on this host.")
+                    Text("Codex reports these numbers for the ChatGPT plan Codex is signed in with on this computer.")
                 }
             }
             .foregroundStyle(.secondaryText)
@@ -209,12 +209,7 @@ public struct PlanUsageView: View {
 
     private var consentMessage: String {
         guard case .confirming(let user) = model.state else { return "" }
-        return String(localized: """
-            Claude Code shares plan usage only with its status line. To show it here, Purrdr will change \
-            ~/.claude/settings.json on this host as the user “\(user)”: the status line command becomes \
-            ~/.purrdr/claude-usage/statusline.sh, which saves the usage and then runs your current status line. \
-            Turning this off restores your original settings.
-            """)
+        return String(localized: "To show plan usage, Purrdr changes one Claude Code setting on this computer (signed in as \(user)). Turning this off puts it back.")
     }
 }
 
@@ -223,11 +218,11 @@ extension PlanUsageFailure {
     var text: String {
         switch self {
         case .codexNotFound:
-            String(localized: "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH.")
+            String(localized: "This computer can’t find Codex. Install Codex there first.")
         case .codexNotSignedIn:
-            String(localized: "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first.")
+            String(localized: "Codex isn’t signed in on this computer. On that computer, run: codex login")
         case .codexUnreadableResponse:
-            String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help.")
+            String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the computer may help.")
         case .codexTimedOut:
             String(localized: "Codex didn’t answer in time.")
         case .codexRequestFailed(let message):

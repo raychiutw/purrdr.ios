@@ -214,7 +214,7 @@ struct HostEditorModelTests {
         await model.test()
 
         guard case .failed(let message) = model.phase else { Issue.record("\(model.phase)"); return }
-        #expect(message.contains("SSH"))
+        #expect(message.contains("Tailscale"))
     }
 
     @Test("儲存失敗(例如 Keychain 拒絕)時留在編輯器並說明原因")

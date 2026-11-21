@@ -79,7 +79,7 @@ public struct HostThemeHost: Sendable {
         # Purrdr host theme
 
         Purrdr (the iPhone and iPad app for herdr) colors its chat and terminal with this
-        host's herdr theme. This file was added by Purrdr when you turned on "Use Host Theme";
+        host's herdr theme. This file was added by Purrdr when you turned on "Use Computer Theme";
         turning it off in Purrdr removes this folder. Purrdr never changes config.toml.
 
         ## Where the colors come from

@@ -113,6 +113,6 @@ public final class HostThemeModel {
     }
 
     static func describe(_ error: any Error) -> String {
-        String(localized: "Couldn’t update the host: \(error.localizedDescription)")
+        String(localized: "Couldn’t update the computer: \(error.localizedDescription)")
     }
 }

@@ -80,7 +80,7 @@ struct NewChatModelTests {
         let picker = FolderPickerModel(folders: NewChatFolders(channel: host), start: "~/gone")
 
         await picker.load()
-        #expect(picker.state == .failed(String(localized: "This folder isn’t on the host, or you can’t open it.")))
+        #expect(picker.state == .failed(String(localized: "This folder isn’t on the computer, or you can’t open it.")))
         #expect(picker.chosenPath == nil)
 
         await picker.load()
@@ -192,7 +192,7 @@ struct NewChatModelTests {
 
         model.message = "Fix the CSV quoting"
         #expect(await model.start() == nil)
-        #expect(model.error == String(localized: "There’s no such folder on the host. Check the path, or choose a folder on the host."))
+        #expect(model.error == String(localized: "There’s no such folder on the computer. Check the location, or choose a folder on the computer."))
     }
 
     @Test("Demo 主機拒絕建立 workspace:說明要用自己的主機(翻譯過的文字，不是 herdr 原文)")
@@ -205,7 +205,7 @@ struct NewChatModelTests {
 
         model.message = "Fix the CSV quoting"
         #expect(await model.start() == nil)
-        #expect(model.error == String(localized: "The Demo host can’t start new chats. Add your own host to try this."))
+        #expect(model.error == String(localized: "The Demo computer can’t start new chats. Add your own computer to try this."))
     }
 
     @Test("其他 herdr 錯誤保留原文")

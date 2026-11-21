@@ -232,7 +232,7 @@ private struct WorkspaceActionsPresenter: ViewModifier {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
-                Text("Every tab, pane, and process in this workspace will stop. Transcripts stay on the host, but the agents stop running.")
+                Text("Everything running in this workspace will stop, including its agents. Chat history stays on the computer.")
             }
             .alert("Couldn’t Finish", isPresented: errorShown, presenting: actions?.actionError) { _ in
                 Button("OK", role: .cancel) {}
@@ -311,7 +311,7 @@ struct RenameWorkspaceSheet: View {
                         .onSubmit(save)
                         .accessibilityIdentifier("workspace.rename.field")
                 } footer: {
-                    Text("This renames the workspace on the host. herdr shows the new name too.")
+                    Text("This renames the workspace on the computer too.")
                         .foregroundStyle(.secondaryText)
                 }
                 if let error = actions.renameError {

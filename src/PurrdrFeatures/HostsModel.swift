@@ -475,7 +475,7 @@ public final class HostsModel {
             refreshPairing()
             loadError = nil
         } catch {
-            loadError = String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)")
+            loadError = String(localized: "Couldn’t read saved computers on this device. \(error.localizedDescription)")
         }
         select(validSelection(selectionStore.load()))
         // 存的目前主機已不在列表上(刪除或同步移除)就維持所有主機。

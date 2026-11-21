@@ -100,9 +100,38 @@ struct StringCatalogTests {
         }
     }
 
+    /// 畫面文字給沒有電腦概念的人看(#331,AGENTS.md):繁中對使用者說「電腦」「帳號」,不留「主機」「使用者名稱」。
+    @Test("繁體中文畫面文字不用「主機」「使用者名稱」(畫面稱電腦、帳號)")
+    func chineseUsesComputerAndAccountWording() throws {
+        for entry in try Self.entries() {
+            for chinese in entry.chinese {
+                for word in ["主機", "使用者名稱"] {
+                    #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」，畫面請說電腦／帳號")
+                }
+            }
+        }
+    }
+
+    /// 不該出現在一般使用者看得到的文字裡的技術細節(路徑、sshd、tailnet、Secure Enclave…);
+    /// 要給使用者的指令請寫成獨立的可拷貝指令,不要夾在說明裡。
+    static let technicalDetails = ["~/", "authorized_keys", "sshd", "tailnet", "Secure Enclave", "PATH", "keychain", "passphrase protect"]
+    /// 只是輸入欄的範例文字，不是說明。
+    static let technicalDetailExemptKeys: Set<String> = ["my-mac.tailnet.ts.net"]
+
+    @Test("畫面說明不帶路徑、sshd、tailnet 等技術細節")
+    func noTechnicalDetailsInExplanations() throws {
+        for entry in try Self.entries() where !Self.technicalDetailExemptKeys.contains(entry.key) {
+            for text in [entry.key] + entry.chinese {
+                for word in Self.technicalDetails {
+                    #expect(!text.contains(word), "「\(entry.key)」含技術細節「\(word)」")
+                }
+            }
+        }
+    }
+
     /// 帶數量、單數與複數寫法不同的字串:英文要有 plural 變化(`one`／`other`),不能寫「1 images」。
     static let pluralKeys = [
-        "%lld Attachments", "%lld comments", "%lld files", "%lld devices", "%lld hosts", "%lld turns",
+        "%lld Attachments", "%lld comments", "%lld files", "%lld devices", "%lld computers", "%lld turns",
     ]
 
     @Test("帶數量的字串用 plural 變化，不寫死複數(1 images)")

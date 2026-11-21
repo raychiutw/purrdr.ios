@@ -32,7 +32,7 @@ struct CodexLauncherSection: View {
             Text("Codex")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Untested. Adds ~/.local/bin/codex on the selected host so herdr can report which session each Codex chat is in. ~/.local/bin must come before Codex on your PATH. Turning it off removes everything Purrdr added.")
+            Text("Untested. Adds a small Codex launcher on the selected computer so each Codex chat shows up correctly. Turning it off removes everything Purrdr added.")
                 .foregroundStyle(.secondaryText)
         }
         .alert("Install Codex Launcher?", isPresented: Binding(get: { isConfirming }, set: { _ in })) {
@@ -40,7 +40,7 @@ struct CodexLauncherSection: View {
             Button("Install") { Task { await model.confirm() } }
             Button("Cancel", role: .cancel) { model.cancelConsent() }
         } message: {
-            Text("Purrdr will add ~/.local/bin/codex on this host as “\(confirmingUser)”. It starts Codex with this pane’s herdr identity and changes nothing else. You can turn it off here at any time.")
+            Text("Purrdr will add a small Codex launcher on this computer, as “\(confirmingUser)”. It changes nothing else. You can turn it off here at any time.")
         }
     }
 

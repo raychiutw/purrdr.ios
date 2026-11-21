@@ -19,7 +19,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     var title: LocalizedStringKey {
         switch self {
         case .notifications: "Notifications"
-        case .hostSync: "Host Sync"
+        case .hostSync: "Computer Sync"
         case .devices: "Notification Devices"
         }
     }
@@ -27,7 +27,7 @@ enum PlusFeature: String, CaseIterable, Identifiable {
     var detail: LocalizedStringKey {
         switch self {
         case .notifications: "Get notified when an agent needs you, finishes, or may be stuck"
-        case .hostSync: "Sync your host list between your iPhone and iPad"
+        case .hostSync: "Sync your computer list between your iPhone and iPad"
         case .devices: "Rename or turn off the devices that get notifications"
         }
     }
@@ -43,7 +43,7 @@ struct PlusFeatureStatus: Equatable {
     func value(for feature: PlusFeature) -> String? {
         switch feature {
         case .notifications:
-            notifyingHostCount == 0 ? String(localized: "Off") : String(localized: "\(notifyingHostCount) hosts")
+            notifyingHostCount == 0 ? String(localized: "Off") : String(localized: "\(notifyingHostCount) computers")
         case .hostSync:
             isHostSyncOn ? String(localized: "On") : String(localized: "Off")
         case .devices:

@@ -205,7 +205,7 @@ private struct ChangesProblemView: View {
 
     private var title: LocalizedStringKey {
         switch problem {
-        case .unsupported: "Not Available on This Host"
+        case .unsupported: "Not Available on This Computer"
         case .notGitRepository: "Not a Git Repository"
         case .agentMoved: "The Agent Moved"
         case .gitNotInstalled: "Git Isn’t Installed"
@@ -216,7 +216,7 @@ private struct ChangesProblemView: View {
 
     private var message: String {
         switch problem {
-        case .unsupported: String(localized: "This host can’t show git changes yet.")
+        case .unsupported: String(localized: "This computer can’t show git changes yet.")
         case .notGitRepository: String(localized: "This folder isn’t tracked by git, so there are no changes to show.")
         case .agentMoved: String(localized: "The agent is no longer working in this folder. Go back and open the changes again.")
         case .gitNotInstalled: String(localized: "This computer doesn’t have git yet. After you install it, tap Try Again.")

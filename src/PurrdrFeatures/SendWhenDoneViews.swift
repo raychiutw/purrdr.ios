@@ -40,7 +40,7 @@ struct SendWhenDoneToggle: View {
         switch availability {
         case .available: ""
         case .needsHostService:
-            "Send When Done needs the Purrdr host service (0.7.0 or later) on this host. Hosts connected over SSH can’t use it."
+            "Send When Done needs the Purrdr host service on this computer. Install or update it first."
         case .readOnlyDevice:
             "This device is paired read-only, so it can’t queue messages."
         }
@@ -57,7 +57,7 @@ struct SendWhenDoneQueueView: View {
         VStack(alignment: .trailing, spacing: 8) {
             divider
             if model.pause == .sessionChanged {
-                Label("Paused: this chat changed on the host. Edit or delete the first message to continue.", systemImage: "pause.circle")
+                Label("Paused: this chat changed on the computer. Edit or delete the first message to continue.", systemImage: "pause.circle")
                     .font(.caption)
                     .foregroundStyle(.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .trailing)

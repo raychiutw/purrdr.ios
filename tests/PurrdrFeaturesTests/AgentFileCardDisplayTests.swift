@@ -49,7 +49,7 @@ struct AgentFileCardDisplayTests {
         let over = AgentImageCardDisplay(state: .overAutomaticLimit(size: 9 * 1024 * 1024))
         #expect(over.note == "9.4 MB · Not loaded automatically")
         #expect(over.offersLoad)
-        #expect(AgentImageCardDisplay(state: .missing).note == "This file is no longer on the host.")
+        #expect(AgentImageCardDisplay(state: .missing).note == "This file is no longer on the computer.")
         #expect(AgentImageCardDisplay(state: .failed).offersRetry)
         #expect(AgentImageCardDisplay(state: .loading).note == nil)
     }
@@ -62,9 +62,9 @@ struct AgentFileCardDisplayTests {
         #expect(!downloading.offersOpen)
         #expect(AgentFileOpenDisplay(state: .downloading(received: 0, total: 0)).progress == nil)
 
-        #expect(AgentFileOpenDisplay(state: .tooLarge(size: 30 * 1024 * 1024)).note == "Too large to open here (31.5 MB). Open it on the host.")
-        #expect(AgentFileOpenDisplay(state: .missing).note == "This file is no longer on the host.")
-        #expect(AgentFileOpenDisplay(state: .unsupported).note == "Opening files isn’t available for this host yet.")
+        #expect(AgentFileOpenDisplay(state: .tooLarge(size: 30 * 1024 * 1024)).note == "Too large to open here (31.5 MB). Open it on the computer.")
+        #expect(AgentFileOpenDisplay(state: .missing).note == "This file is no longer on the computer.")
+        #expect(AgentFileOpenDisplay(state: .unsupported).note == "Opening files isn’t available for this computer yet.")
         #expect(AgentFileOpenDisplay(state: .failed).offersRetry)
         #expect(AgentFileOpenDisplay(state: nil).offersOpen)
 

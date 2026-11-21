@@ -188,7 +188,7 @@ public struct DataUsageView: View {
 
     private var footnote: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Counts only data sent and received between Purrdr and your hosts over SSH or HTTPS — not other programs on your host.")
+            Text("Counts only the data Purrdr sends to and receives from your computers.")
             if let since = model.countingSince {
                 Text("Stored on this device only, counting since \(since.formatted(date: .abbreviated, time: .omitted)).")
             } else {
@@ -215,12 +215,12 @@ private struct HostCapsule: View {
     var body: some View {
         Menu {
             Picker(selection: selection) {
-                Text("All Hosts").tag(HostSelection?.none)
+                Text("All Computers").tag(HostSelection?.none)
                 ForEach(model.hosts) { option in
                     HostMenuLabel(option.name, icon: option.icon).tag(HostSelection?.some(option.id))
                 }
             } label: {
-                Text("Host")
+                Text("Computer")
             }
             .pickerStyle(.inline)
         } label: {
@@ -238,12 +238,12 @@ private struct HostCapsule: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text("Host: \(name)"))
+        .accessibilityLabel(Text("Computer: \(name)"))
         .accessibilityIdentifier("dataUsage.host")
     }
 
     private var name: String {
-        model.hosts.first { $0.id == model.host }?.name ?? String(localized: "All Hosts")
+        model.hosts.first { $0.id == model.host }?.name ?? String(localized: "All Computers")
     }
 
     private var selection: Binding<HostSelection?> {
@@ -306,7 +306,7 @@ private struct HostUsageRow: View {
             HostIconBadge(row.icon, diameter: 32)
             VStack(alignment: .leading, spacing: 1) {
                 if row.isDeleted {
-                    Text("Deleted Host")
+                    Text("Deleted Computer")
                 } else {
                     Text(verbatim: row.name)
                 }
@@ -390,7 +390,7 @@ private struct DataUsageHostSheet: View {
             }
             .monospacedDigit()
             .accessibilityIdentifier("dataUsage.hostDetail")
-            .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
+            .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Computer") : (row?.name ?? ""))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -520,9 +520,9 @@ extension DataUsagePeriod {
 
     var hostsHeader: LocalizedStringKey {
         switch self {
-        case .today: "Hosts · Today"
-        case .week: "Hosts · 7 Days"
-        case .month: "Hosts · 30 Days"
+        case .today: "Computers · Today"
+        case .week: "Computers · 7 Days"
+        case .month: "Computers · 30 Days"
         }
     }
 }

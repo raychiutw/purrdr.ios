@@ -409,7 +409,7 @@ struct AddHostGuideView: View {
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
                             .accessibilityIdentifier("guide.fingerprint")
-                        Text("To compare, run ssh-keygen -lf on a host key file on that computer.")
+                        Text("To compare, run this on that computer: ssh-keygen -lf <host key file>")
                             .font(.footnote)
                             .foregroundStyle(.secondaryText)
                     }
@@ -439,7 +439,7 @@ struct AddHostGuideView: View {
             ErrorLabel(String(localized: "herdr on that computer is too old. Update herdr there, then try again."))
                 .accessibilityIdentifier("guide.result")
         case .restartServerRequired:
-            ErrorLabel(String(localized: "herdr is updated. Restart the herdr server on that computer, then try again."))
+            ErrorLabel(String(localized: "herdr is updated. Restart herdr on that computer, then try again."))
                 .accessibilityIdentifier("guide.result")
         case .tested(let report):
             Text("herdr \(report.herdrVersion.description) · \(report.operatingSystem.displayName)")

@@ -60,7 +60,7 @@ public struct NewChatView: View {
                         NavigationLink {
                             FolderPickerView(model: model.makeFolderPicker()) { model.choose($0) }
                         } label: {
-                            Label("Choose Folder on Host", systemImage: "folder")
+                            Label("Choose Folder on Computer", systemImage: "folder")
                         }
                         .accessibilityIdentifier("newChat.chooseFolder")
                     }
@@ -70,7 +70,7 @@ public struct NewChatView: View {
                 } footer: {
                     if !model.canBrowseFolders {
                         // HTTPS 主機沒有資料夾瀏覽(#287)。
-                        Text("Enter the folder’s full path on the host.")
+                        Text("Type the folder’s location on the computer.")
                             .accessibilityIdentifier("newChat.fullPathHint")
                     }
                 }

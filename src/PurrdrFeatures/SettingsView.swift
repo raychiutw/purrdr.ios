@@ -92,7 +92,7 @@ public struct SettingsView: View {
                         }
                         .accessibilityIdentifier("settings.dataUsage")
                     } footer: {
-                        Text("How much data Purrdr uses to talk to your hosts.")
+                        Text("How much data Purrdr uses to talk to your computers.")
                             .foregroundStyle(.secondaryText)
                     }
                 }
@@ -114,14 +114,14 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondaryText)
                 } footer: {
                     // 隱私揭露(複製的診斷資料包含什麼)保留;其他功能說明依原型拿掉(#276)。
-                    Text("Diagnostics include the app version, iOS version, number of hosts, and herdr version — never host names, addresses, user names, or conversations.")
+                    Text("Diagnostics include the app version, iOS version, and number of computers — never computer names, addresses, account names, or conversations.")
                         .foregroundStyle(.secondaryText)
                 }
 
                 Section {
                     LabeledContent("Version", value: model.appVersionText)
                         .accessibilityIdentifier("settings.version")
-                    LabeledContent("herdr on Host") { herdrVersionText }
+                    LabeledContent("herdr on Computer") { herdrVersionText }
                         .accessibilityIdentifier("settings.herdrVersion")
                     Button("Privacy Policy", systemImage: "hand.raised") { model.openPrivacyPolicy() }
                         .accessibilityIdentifier("settings.privacy")
@@ -146,7 +146,7 @@ public struct SettingsView: View {
 
     private var herdrVersionText: Text {
         switch model.herdrVersion {
-        case .noHost: Text("No Host")
+        case .noHost: Text("No Computer")
         case .loading: Text("Checking…")
         case .reported(let version): Text(verbatim: version)
         case .unavailable: Text("Not Available")

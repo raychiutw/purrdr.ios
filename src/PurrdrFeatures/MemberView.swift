@@ -128,7 +128,7 @@ struct SignedOutAccountView: View {
                 Text("Sign In to Purrdr")
                     .font(.title2.bold())
                     .multilineTextAlignment(.center)
-                Text("Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync hosts between iPhone and iPad.")
+                Text("Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync computers between iPhone and iPad.")
                     .font(.subheadline)
                     .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
@@ -421,12 +421,12 @@ struct AccountView: View {
             Button("Turn On All") { turnOnAll() }
                 .accessibilityIdentifier("account.turnOnAll")
         } message: {
-            Text("Turn on notifications and host sync now? You can change them later.")
+            Text("Turn on notifications and computer sync now? You can change them later.")
         }
         .confirmationDialog("Delete your member account?", isPresented: $confirmingDeletion, titleVisibility: .visible) {
             Button("Delete Member", role: .destructive) { Task { await model.deleteMember() } }
         } message: {
-            Text("Your member account, push pairings, and synced hosts will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions.")
+            Text("Your member account, push pairings, and synced computers will be deleted. This can’t be undone. A Purrdr Plus subscription isn’t canceled automatically — cancel it in Settings › Apple Account › Subscriptions.")
         }
     }
 
@@ -463,7 +463,7 @@ struct AccountView: View {
                         .accessibilityIdentifier("account.lockedHint")
                 }
                 if plus.needsRenewal {
-                    Text("Your subscription has ended. Notifications and host sync are paused until you subscribe again.")
+                    Text("Your subscription has ended. Notifications and computer sync are paused until you subscribe again.")
                 }
                 Text("Chat and terminal don’t need a member account or subscription.")
             }
@@ -633,7 +633,7 @@ extension MemberNotice {
         case .failed(let message):
             message
         case .identityInUse:
-            String(localized: "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here.")
+            String(localized: "That sign-in method belongs to another member with a subscription or synced computers. Sign in with it, delete that member, then link it here.")
         case .methodAlreadyLinked:
             String(localized: "This member already has that kind of sign-in method. Unlink it first.")
         case .merged:

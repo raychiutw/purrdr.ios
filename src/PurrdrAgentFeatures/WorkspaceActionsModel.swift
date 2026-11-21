@@ -161,7 +161,7 @@ public final class WorkspaceActionsModel {
         case HerdrError.herdr(_, let message): message
         // HTTPS 主機：主機服務版本不足、唯讀裝置等(#287)。
         case let error as HostServiceError: HostErrorText.hostServiceMessage(error)
-        default: String(localized: "Couldn’t reach herdr on this host.")
+        default: String(localized: "Couldn’t reach your agents on this computer. Make sure herdr is running there.")
         }
     }
 }

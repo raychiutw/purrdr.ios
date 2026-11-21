@@ -10,7 +10,7 @@ herdr 自己的概念(Workspace、Tab、Pane、Agent 狀態)沿用 herdr 官方�
 使用者的一台電腦，上面跑著 herdr,app 透過某種連線方式連進去。一台主機有一種作業系統(macOS、Linux 或 Windows)和一種連線方式。
 _避免_:伺服器、機器、Device、Computer
 
-用詞對應(2026-11-21 使用者決定):畫面文字對使用者說「電腦」「帳號」,全 app 適用;文件、程式與型別用「主機」「使用者名稱」(`username`)。
+用詞對應(2026-11-21 使用者決定):畫面文字對使用者說「電腦」「帳號」,全 app 適用;文件、程式與型別用「主機」「使用者名稱」(`username`)。英文畫面文字同樣說 computer/account(#331);主機服務在畫面稱「電腦端服務」(英文 host service)、推播用的主機外掛稱「通知幫手」。`StringCatalogTests` 擋繁中出現「主機」「使用者名稱」。
 
 **連線方式**:
 app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。

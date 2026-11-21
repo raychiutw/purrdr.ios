@@ -158,7 +158,7 @@ public final class HostSyncModel: HostChangeRecorder {
             self.status = .needsPlus
             return
         } catch {
-            status = .failed(String(localized: "Couldn’t sync hosts. Check your connection and try again."))
+            status = .failed(String(localized: "Couldn’t sync computers. Check your connection and try again."))
             return
         }
         // 同步途中的修改已記在 store 的紀錄裡;以最新的紀錄併回。
@@ -168,7 +168,7 @@ public final class HostSyncModel: HostChangeRecorder {
         do {
             try await hosts.applySynced(outcome)
         } catch {
-            status = .failed(String(localized: "Couldn’t save synced hosts on this device. \(error.localizedDescription)"))
+            status = .failed(String(localized: "Couldn’t save synced computers on this device. \(error.localizedDescription)"))
             return
         }
         status = .upToDate(now())
