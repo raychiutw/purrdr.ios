@@ -9,15 +9,15 @@ public protocol GitChangesReading: Sendable {
     func gitStatus(cwd: String) async throws -> GitWorkingTreeStatus
     /// 變更檔案的 diff;`path`(相對 repo 根目錄)有值時只回那個檔案。
     func gitDiff(cwd: String, path: String?) async throws -> GitDiffSet
-    /// 變更頁第一次載入:清單加全部 diff。預設是兩個請求並行;一次要跑指令的連線方式(SSH)覆寫成最少的指令數。
+    /// 變更頁第一次載入:清單加全部 diff。預設是先讀清單、再讀 diff(依序:請求順序確定,清單失敗就不讀 diff;
+    /// 同一條連線上多一個來回而已);一次要跑指令的連線方式(SSH)覆寫成最少的指令數。
     func gitChanges(cwd: String) async throws -> (status: GitWorkingTreeStatus, diffs: GitDiffSet)
 }
 
 extension GitChangesReading {
     public func gitChanges(cwd: String) async throws -> (status: GitWorkingTreeStatus, diffs: GitDiffSet) {
-        async let status = gitStatus(cwd: cwd)
-        async let diffs = gitDiff(cwd: cwd, path: nil)
-        return try await (status, diffs)
+        let status = try await gitStatus(cwd: cwd)
+        return (status, try await gitDiff(cwd: cwd, path: nil))
     }
 }
 
