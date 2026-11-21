@@ -13,8 +13,8 @@ public enum AgentPermissionMode: String, CaseIterable, Sendable {
     /// 略過權限(完全不詢問)。
     case bypassPermissions
 
-    /// 點一下切到的下一個:一般 → 接受編輯 → Plan → 一般。略過權限不在預設輪替裡
-    /// (啟動時沒開就按不出來),所以點一下從它回到一般;要切進去只能從長按選單選(主機沒開時會失敗並說明)。
+    /// 按一次 Shift+Tab 到的下一個:一般 → 接受編輯 → Plan → 一般。略過權限不在預設輪替裡
+    /// (啟動時沒開就按不出來),所以從它回到一般;要切進去只能從 sheet 選(主機沒開時會失敗並說明)。
     public func next() -> AgentPermissionMode {
         switch self {
         case .normal: .acceptEdits

@@ -93,4 +93,20 @@ struct ConversationSendExpectationTests {
         #expect(model.canAnswer(.option(option)))
         #expect(await connection.unmetExpectations.isEmpty)
     }
+
+    @Test("切換權限模式的 Shift+Tab 帶 session;主機回對話已變更就不再按、說明切換失敗")
+    func permissionModeKeysCarrySession() async throws {
+        let (connection, model) = await Self.opened()
+        await model.poll()
+        let ok = Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8)
+        await connection.expect("pane.read", reply: Self.paneRead(text: "> \n  ? for shortcuts\n"))
+        await connection.expect("pane.send_keys", failure: HostServiceError.paneChanged)
+
+        await model.setPermissionMode(.plan)
+
+        let sent = try await Self.params(of: "pane.send_keys", in: connection)
+        #expect(sent["expected_session"] as? String == Self.session)
+        #expect(model.permissionModeFailure == .paneChanged(target: .plan))
+        _ = ok
+    }
 }

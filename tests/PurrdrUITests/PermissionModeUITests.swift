@@ -1,6 +1,6 @@
 import XCTest
 
-/// Claude 權限模式膠囊(#306):輸入列工具列、附加鈕右邊;高度同附加鈕,點一下切到下一個模式。
+/// Claude 權限模式膠囊(#306):輸入列工具列、附加鈕右邊;高度同附加鈕,點一下開 sheet 選模式(勾選列)。
 /// Demo 主機的 Claude 畫面會隨 Shift+Tab 輪替模式標示。
 final class PermissionModeUITests: XCTestCase {
     override func setUp() {
@@ -13,7 +13,7 @@ final class PermissionModeUITests: XCTestCase {
     }
 
     @MainActor
-    func testCapsuleSitsBesideAttachButtonAndCyclesOnTap() {
+    func testCapsuleSitsBesideAttachButtonAndSheetSwitchesMode() {
         let app = XCUIApplication.launchUITesting()
         let row = element("agent.row.demo/w1:p1", in: app)
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
@@ -29,13 +29,20 @@ final class PermissionModeUITests: XCTestCase {
         waitForExpectations(timeout: 10)
 
         capsule.tap()
-        let accept = NSPredicate(format: "value == 'Accept Edits'")
-        expectation(for: accept, evaluatedWith: capsule)
+        let accept = app.buttons["Accept Edits"].firstMatch
+        XCTAssertTrue(accept.waitForExistence(timeout: 10), "sheet 裡沒有 Accept Edits 勾選列")
+        accept.tap()
+        let switched = NSPredicate(format: "value == 'Accept Edits'")
+        expectation(for: switched, evaluatedWith: capsule)
         waitForExpectations(timeout: 10)
+        XCTAssertFalse(app.buttons["permissionMode.done"].exists, "切換成功後 sheet 應收起")
 
         capsule.tap()
-        let plan = NSPredicate(format: "value == 'Plan'")
-        expectation(for: plan, evaluatedWith: capsule)
+        let plan = app.buttons["Plan"].firstMatch
+        XCTAssertTrue(plan.waitForExistence(timeout: 10))
+        plan.tap()
+        let planValue = NSPredicate(format: "value == 'Plan'")
+        expectation(for: planValue, evaluatedWith: capsule)
         waitForExpectations(timeout: 10)
     }
 }

@@ -543,8 +543,6 @@ extension SendNotice {
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
-        case .permissionModeFailed(let attempts, let target):
-            String(localized: "Tried \(attempts) times, but the screen doesn’t show \(PermissionModeCapsule.name(of: target)) mode. Try again, or check the terminal.")
         case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
@@ -568,7 +566,7 @@ extension SendNotice {
         case .agentGone, .superseded: "xmark.bubble"
         case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
-        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed, .permissionModeFailed: "exclamationmark.triangle"
+        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
         case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .fileTooLarge, .fileUnreadable: "doc"
         case .fileUploadFailed: "exclamationmark.triangle"

@@ -1748,44 +1748,61 @@ public final class ConversationModel {
         await refreshPermissionMode()
     }
 
-    /// 點一下:切到輪替的下一個模式。
-    public func cyclePermissionMode() async {
-        guard let current = permissionMode else { return }
-        await setPermissionMode(current.next())
+    /// 最近一次切換失敗的原因(#306);切換成功、再試或換 Agent 時清掉。膠囊的 sheet 顯示說明與「再試一次」。
+    public private(set) var permissionModeFailure: PermissionModeFailure?
+
+    /// 對上次失敗的目標再切一次。
+    public func retryPermissionMode() async {
+        guard let target = permissionModeFailure?.target else { return }
+        await setPermissionMode(target)
     }
 
     /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
-    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面。失敗以提示說明,可再試。
+    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面;按鍵帶 `expected_session`,對話已換掉就不按。
+    /// 目標是略過權限時,輪替一圈回到看過的模式就停(這個 session 啟動時沒開,再按也不會出現)。
+    /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
     public func setPermissionMode(_ target: AgentPermissionMode) async {
         guard supportsPermissionMode, !isSwitchingPermissionMode else { return }
         guard !isReadOnly else {
             notice = .readOnlyDevice
             return
         }
+        permissionModeFailure = nil
         switchingPermissionMode = target
         defer { switchingPermissionMode = nil }
         guard var current = await readPermissionMode() else {
-            notice = .permissionModeFailed(attempts: 0, target: target)
+            permissionModeFailure = .unreadable(target: target)
             return
         }
         permissionMode = current
+        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
+        var visited: Set<AgentPermissionMode> = [current]
         var attempts = 0
         while current != target, attempts < AgentPermissionMode.maximumSwitchAttempts {
             do {
-                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"])
+                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"], expecting: expectation)
+            } catch is CancellationError {
+                return
             } catch {
-                notice = .panelKeysFailed
+                permissionModeFailure = error as? HostServiceError == .paneChanged
+                    ? .paneChanged(target: target) : .keysFailed(target: target)
                 haptics.play(.error)
                 return
             }
             attempts += 1
-            try? await sleep(.milliseconds(300))
+            do { try await sleep(.milliseconds(300)) } catch { return }
             guard let read = await readPermissionMode() else { break }
+            let wrapped = read != current && !visited.insert(read).inserted
             current = read
             permissionMode = read
+            if wrapped, target == .bypassPermissions, current != target {
+                permissionModeFailure = .bypassUnavailable
+                haptics.play(.error)
+                return
+            }
         }
         if current != target {
-            notice = .permissionModeFailed(attempts: attempts, target: target)
+            permissionModeFailure = .notReached(attempts: attempts, target: target)
             haptics.play(.error)
         } else {
             haptics.play(.selection)
@@ -2029,6 +2046,26 @@ public enum SendNotice: Sendable, Equatable {
     case panelKeysFailed
     /// 這支裝置配對成唯讀，什麼都沒送出。
     case readOnlyDevice
-    /// 切換權限模式試了 `attempts` 次，畫面上沒有看到 `target`(#306)。
-    case permissionModeFailed(attempts: Int, target: AgentPermissionMode)
+}
+
+/// 切換權限模式失敗的原因(#306)。
+public enum PermissionModeFailure: Equatable, Sendable {
+    /// 試了 `attempts` 次，畫面上沒有看到 `target`。
+    case notReached(attempts: Int, target: AgentPermissionMode)
+    /// 輪替一圈沒有出現略過權限:這個 session 啟動時沒有開。
+    case bypassUnavailable
+    /// 讀不到畫面，不知道目前是哪個模式。
+    case unreadable(target: AgentPermissionMode)
+    /// 按鍵沒送到主機。
+    case keysFailed(target: AgentPermissionMode)
+    /// 對話已被換成別的(送出前比對不符)，什麼都沒按。
+    case paneChanged(target: AgentPermissionMode)
+
+    /// 再試一次要切到的模式;略過權限沒開時再試沒有意義。
+    public var target: AgentPermissionMode? {
+        switch self {
+        case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
+        case .bypassUnavailable: nil
+        }
+    }
 }
