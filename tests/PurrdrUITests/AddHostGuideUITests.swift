@@ -296,7 +296,6 @@ final class AddHostGuideUITests: XCTestCase {
         }
     }
 
-    @MainActor
     /// 最後一頁的通知(#345):Plus 會員看得到這台主機的開關;沒有 Plus 只有一行加入提示。
     @MainActor
     func testFinishedPageOffersNotificationsToPlusMember() {
@@ -314,6 +313,7 @@ final class AddHostGuideUITests: XCTestCase {
         XCTAssertFalse(app.otherElements["guide.notifications"].exists)
     }
 
+    @MainActor
     private func finishTailscalePath(_ app: XCUIApplication) {
         openGuide(app)
         app.buttons["guide.option.ssh"].tap()
