@@ -92,6 +92,33 @@ final class HostsUITests: XCTestCase {
         }
     }
 
+    /// #346:編輯頁欄位由上而下是 連線方式 → 位址／Port／帳號 → 登入方式;金鑰三步在同一頁，沒有用密碼加公鑰的入口。
+    @MainActor
+    func testOpenSSHFieldOrderAndKeySteps() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        chooseOpenSSH(app)
+
+        let ids = ["hostEditor.method.openSSH", "hostEditor.address", "hostEditor.port", "hostEditor.username", "hostEditor.signIn"]
+        // 只往下捲:順序錯的話，前面的欄位捲過就找不到。每一項捲到可點，並與上一項(還在畫面上時)比座標。
+        var previous: XCUIElement?
+        for id in ids {
+            let element = app.descendants(matching: .any)[id].firstMatch
+            XCTAssertTrue(element.isHittable || scrollTo(element, in: app), "沒有 \(id)")
+            if let previous, previous.isHittable {
+                XCTAssertLessThan(previous.frame.minY, element.frame.minY, "\(id) 應在上一項之後")
+            }
+            previous = element
+        }
+
+        for step in 1...3 {
+            let element = app.descendants(matching: .any)["hostEditor.keyStep.\(step)"].firstMatch
+            XCTAssertTrue(element.waitForExistence(timeout: 5) || scrollTo(element, in: app), "沒有金鑰第 \(step) 步")
+        }
+        XCTAssertFalse(app.secureTextFields["hostEditor.keyInstallPassword"].exists, "不該再有用密碼加入公鑰的入口")
+        XCTAssertFalse(app.buttons["hostEditor.installKey"].exists)
+    }
+
     /// 匯入 RSA 私鑰：說明不支援，並可一鍵改用這支裝置的金鑰。
     @MainActor
     func testImportingRSAKeyOffersDeviceKey() {

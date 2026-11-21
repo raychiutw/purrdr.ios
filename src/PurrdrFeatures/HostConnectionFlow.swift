@@ -22,11 +22,6 @@ public enum HostConnectionPhase: Equatable {
     /// HTTPS 主機：配對(或用存著的權杖)後連上主機服務。
     case connected(HostServiceCheck)
     case failed(String)
-    /// 用密碼加入公鑰前，說明會寫什麼並等使用者同意(ADR-0002)。
-    case confirmKeyInstall
-    case installingKey
-    /// 用密碼加入公鑰失敗;手動指令仍可用。
-    case keyInstallFailed(String)
 }
 
 /// HTTPS 主機的連線測試結果。

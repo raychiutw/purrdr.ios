@@ -637,7 +637,7 @@ struct AddHostGuideView: View {
 }
 
 /// 一步的說明:一句話，可帶指令(拷貝、分享到電腦)或連結(開啟、分享到電腦)。
-private struct InstructionView: View {
+struct InstructionView: View {
     let instruction: AddHostGuideInstruction
 
     var body: some View {
