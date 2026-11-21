@@ -1,14 +1,13 @@
 import Foundation
 import PurrdrCore
 
-/// 主機服務的更新提示(#198):HTTPS 主機回報的主機服務版本比這版 app 已知的最新版舊時，在主機清單提示更新。
+/// 主機服務的更新提示(#198):HTTPS 主機回報的主機服務版本比最新版舊時，在主機清單提示更新。
 ///
-/// 最新版是 app 內的常數(不連網路查 GitHub),發行新的主機服務(raychiutw/purrdr.host)時一起遞增，並跑
-/// `scripts/sync-purrdr-host.sh` 更新 `vendor/purrdr-host/VERSION`(`HostServiceUpdateTests` 核對兩邊一致)。使用者關閉某台主機的提示後，同一個新版本不再提示。
+/// 最新版在執行時從 `releases` 取得(正式 app 是 purrdr.host 的最新 GitHub Release,#362),主機服務發版時 app 不用改版號;
+/// 取不到時不提示。功能需要的最低版本另由 `HostServiceFeature.minimumVersion` 判斷，跟著 app 發行。
+/// 使用者關閉某台主機的提示後，同一個新版本不再提示。
 @MainActor
 public struct HostServiceUpdates {
-    /// 這版 app 已知的最新主機服務版本。
-    nonisolated public static let latestKnownVersion = "0.9.0"
 
     /// 在主機上更新(或安裝)主機服務的一行指令：macOS、Linux。
     nonisolated public static let posixInstallCommand =
@@ -36,18 +35,20 @@ public struct HostServiceUpdates {
                 installedVersion: installed, canUpdateItself: false, posix: posixInstallCommand, windows: windowsInstallCommand)
     }
 
-    public let latestVersion: String
+    let releases: any HostServiceReleaseSource
     let store: any HostServiceUpdateStore
 
-    public init(latestVersion: String = Self.latestKnownVersion, store: any HostServiceUpdateStore) {
-        self.latestVersion = latestVersion
+    /// - Parameter releases: 最新版本的來源;預設不連網路、永遠取不到(不提示更新)。
+    public init(releases: any HostServiceReleaseSource = FixedHostServiceReleases(nil), store: any HostServiceUpdateStore) {
+        self.releases = releases
         self.store = store
     }
 
-    /// 回報 `installed` 的主機要提示更新到的版本;不用提示(已是最新、比 app 知道的新、看不懂的版本)時 `nil`。
-    func offeredVersion(installed: String) -> String? {
-        guard let installed = HostServiceVersion(installed), let latest = HostServiceVersion(latestVersion) else { return nil }
-        return installed < latest ? latestVersion : nil
+    /// 回報 `installed` 的主機要提示更新到的版本;不用提示(已是最新、比最新版還新、版本看不懂、取不到最新版)時 `nil`。
+    nonisolated static func offeredVersion(installed: String, latest: String?) -> String? {
+        guard let latest, let installedVersion = HostServiceVersion(installed), let latestVersion = HostServiceVersion(latest)
+        else { return nil }
+        return installedVersion < latestVersion ? latest : nil
     }
 }
 

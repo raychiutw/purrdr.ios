@@ -203,7 +203,7 @@ final class AddHostGuideUITests: XCTestCase {
         XCTAssertTrue(app.buttons["guide.share"].exists)
         app.buttons["guide.next"].tap()
 
-        XCTAssertTrue(app.staticTexts["purrdr-host-service pair"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["purrdr pair"].waitForExistence(timeout: 5))
         app.buttons["guide.scan"].tapWhenReady()
 
         // 掃到後自動測試連線(UI 測試的連線是 Demo 主機)。

@@ -74,7 +74,7 @@ final class HTTPSHostUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["composer.send"].firstMatch.exists, "唯讀裝置不應該有送出鈕")
     }
 
-    /// 主機服務比 app 已知的舊(`-demoOutdatedHostService`,#198):主機清單標示可更新，點進去有兩種作業系統的更新指令;
+    /// 主機服務比最新版舊(`-demoOutdatedHostService`,#198;UI 測試的最新版固定，不連 GitHub,#362):主機清單標示可更新，點進去有兩種作業系統的更新指令;
     /// 選「這個版本不再提醒」後標示消失。
     @MainActor
     func testOutdatedHostServiceOffersUpdate() {

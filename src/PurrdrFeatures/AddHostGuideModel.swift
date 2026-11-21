@@ -398,7 +398,7 @@ public final class AddHostGuideModel {
     /// 配對:讓電腦顯示 QR code。
     public var pairInstructions: [AddHostGuideInstruction] {
         [AddHostGuideInstruction(
-            text: String(localized: "Paste this line too. A QR code appears on that computer."), command: "purrdr-host-service pair")]
+            text: String(localized: "Paste this line too. A QR code appears on that computer."), command: "purrdr pair")]
     }
 
     /// 掃到的 QR code:是配對連結就帶入位址與配對碼並直接測試連線;不是就不動。
