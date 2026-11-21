@@ -66,9 +66,15 @@ public final class TopNavigationModel {
         sheet = .welcome
     }
 
-    /// 歡迎頁的「新增主機」:換成主機 sheet。
+    /// 歡迎頁的「Try the Demo」:進入 Demo 主機(空列表時才看得到)並回到列表。
+    public func welcomeTryDemo(hosts: HostsModel) {
+        hosts.enterDemo()
+        sheet = nil
+    }
+
+    /// 歡迎頁的「新增主機」:換成主機 sheet 並直接進新增主機引導(#332:各入口都走引導)。
     public func welcomeAddHost() {
-        sheet = .hosts
+        openAddHost()
     }
 
     /// Agent 列表空狀態的「新增主機」:開主機 sheet 並直接進新增主機引導。

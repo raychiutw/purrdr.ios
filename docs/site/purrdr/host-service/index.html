@@ -45,7 +45,7 @@
     <p>安裝失敗時，訊息會說明發生什麼與原因，最後一行 <code>Next:</code> 是下一步要執行的完整指令。</p>
     <p>也可以從 <a href="https://github.com/raychiutw/purrdr.host/releases">GitHub Releases</a> 手動下載壓縮檔(附 <code>SHA256SUMS</code>),解壓後執行 <code>purrdr-host-service install</code>。</p>
 
-    <h2>配對 iPhone／iPad</h2>
+    <h2 id="pair">配對 iPhone／iPad</h2>
     <ol>
       <li>在電腦上執行 <code>purrdr-host-service pair</code>。0.6.0 以前的安裝(或加了 <code>--no-path</code>)不在 PATH,要用完整路徑:macOS／Linux 是 <code>~/.purrdr/host-service/bin/purrdr-host-service pair</code>,Windows PowerShell 是 <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; pair</code>。畫面會顯示 QR code、HTTPS 位址與一次性配對碼。</li>
       <li>用 iPhone 的「相機」App 掃 QR code,或在 Purrdr 的「⋯ → Hosts → +」選 HTTPS,輸入位址與配對碼。</li>
@@ -101,7 +101,7 @@
     <p>If the install fails, the message says what happened and why, and its last <code>Next:</code> line is the full command to run next.</p>
     <p>You can also download an archive from <a href="https://github.com/raychiutw/purrdr.host/releases">GitHub Releases</a> (with <code>SHA256SUMS</code>), extract it, and run <code>purrdr-host-service install</code>.</p>
 
-    <h2>Pairing your iPhone or iPad</h2>
+    <h2 id="pair-en">Pairing your iPhone or iPad</h2>
     <ol>
       <li>On the computer, run <code>purrdr-host-service pair</code>. Installs older than 0.6.0 (or with <code>--no-path</code>) aren’t on PATH, so use the full path: <code>~/.purrdr/host-service/bin/purrdr-host-service pair</code> on macOS and Linux, or <code>&amp; &quot;$HOME\.purrdr\host-service\bin\purrdr-host-service.exe&quot; pair</code> in Windows PowerShell. It shows a QR code, the HTTPS address, and a one-time pairing code.</li>
       <li>Scan the QR code with the iPhone Camera app, or in Purrdr go to “⋯ → Hosts → +”, choose HTTPS, and enter the address and pairing code.</li>

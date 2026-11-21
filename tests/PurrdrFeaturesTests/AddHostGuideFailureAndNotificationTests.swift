@@ -149,4 +149,23 @@ struct AddHostGuideFailureAndNotificationTests {
         #expect(model.notificationOffer == nil)
         #expect(!model.suggestsHostService)
     }
+
+    @Test("HostsModel 建的引導接上推播服務的 Plus 判斷:有 Plus 的會員在最後一頁看得到開關")
+    func hostsModelGuideKnowsPlus() async throws {
+        let hosts = HostsModel(
+            store: MemoryHostStore(), demoChannel: FakeHost(), push: HostServiceUpdateTests.pushService(),
+            makeChannel: ChannelFactory(await HostEditorModelTests.healthyHost()).make)
+        let model = hosts.makeAddHostGuide()
+        model.choose(.ssh)
+        model.choose(.macOS)
+        model.choose(.tailscale)
+        model.advance()
+        model.address = "studio-mac"
+        model.username = "ray"
+        model.advance()
+        await model.testConnection()
+        _ = try #require(model.save())
+        await model.loadNotificationOffer()
+        #expect(model.notificationOffer == .toggle)
+    }
 }

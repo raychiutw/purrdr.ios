@@ -59,6 +59,16 @@ public struct SSHPublicKey: Sendable, Hashable {
         return SSHPublicKey(openSSH: cleaned.isEmpty ? fields : fields + " " + cleaned)
     }
 
+    /// 註解只留 ASCII 字元(沒有可留的就用 `purrdr`)。給使用者貼到 Windows 主控台的指令用:CP950 主控台會把非 ASCII 讀壞。
+    public var asciiOnly: SSHPublicKey {
+        let fields = openSSH.split(separator: " ", omittingEmptySubsequences: true)
+        guard fields.count > 2 else { return self }
+        let comment = fields.dropFirst(2).joined(separator: " ")
+        guard !comment.unicodeScalars.allSatisfy(\.isASCII) else { return self }
+        let kept = String(String.UnicodeScalarView(comment.unicodeScalars.filter(\.isASCII))).trimmingCharacters(in: .whitespaces)
+        return SSHPublicKey(openSSH: fields.prefix(2).joined(separator: " ") + " " + (kept.isEmpty ? "purrdr" : kept))
+    }
+
     /// 演算法名稱，例如 `ecdsa-sha2-nistp256`。
     public var algorithm: String { String(openSSH.split(separator: " ").first ?? "") }
 

@@ -92,9 +92,8 @@ public struct TopNavigationView: View {
                     }
                 case .welcome:
                     WelcomeView {
-                        // 選 Demo 主機(已有主機時 Demo 也會出現在列表上)並回到列表。
-                        hosts.select(.demo)
-                        navigation.sheet = nil
+                        // 進入 Demo 主機(空列表也進得去)並回到列表。
+                        navigation.welcomeTryDemo(hosts: hosts)
                     } addHost: {
                         navigation.welcomeAddHost()
                     } rate: {

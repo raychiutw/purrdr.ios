@@ -105,27 +105,43 @@ public final class DataUsageModel {
     private var selectedDay: String?
     /// 讓畫面定期重讀計量(計量本身不是被觀察的)。
     private var revision = 0
+    /// 定期重讀的次數(測試觀察用)。
+    public private(set) var refreshCount = 0
 
     private let meter: TrafficMeter
     private let currentHostChanged: (HostSelection?) -> Void
     private let now: () -> Date
     private let calendar: Calendar
+    private let sleep: Sleep
 
     public init(
         meter: TrafficMeter, hosts: [HostOption], currentHost: HostSelection?,
         currentHostChanged: @escaping (HostSelection?) -> Void = { _ in },
-        now: @escaping () -> Date = Date.init, calendar: Calendar = .current
+        now: @escaping () -> Date = Date.init, calendar: Calendar = .current, sleep: @escaping Sleep = Sleeping.task
     ) {
         self.meter = meter
         self.hosts = hosts
         self.currentHostChanged = currentHostChanged
         self.now = now
         self.calendar = calendar
+        self.sleep = sleep
         host = currentHost.flatMap { current in hosts.contains { $0.id == current } ? current : nil }
     }
 
     /// 重讀計量(畫面開著時定期呼叫)。
-    public func refresh() { revision += 1 }
+    public func refresh() {
+        revision += 1
+        refreshCount += 1
+    }
+
+    /// 畫面開著時每 2 秒重讀一次,直到 task 取消。等待時間由注入的 `sleep` 決定(測試手動推進)。
+    public func run() async {
+        while !Task.isCancelled {
+            do { try await sleep(.seconds(2)) } catch { return }
+            guard !Task.isCancelled else { return }
+            refresh()
+        }
+    }
 
     /// 改看某台主機(`nil` 是所有主機);同時改全 app 的目前主機。
     public func selectHost(_ selection: HostSelection?) {

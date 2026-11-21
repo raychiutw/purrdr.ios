@@ -4,7 +4,7 @@ import CoreGraphics
 /// `content` 是電腦 Pane 的欄列數乘上 1× 的格子大小;內容左上角在容器內的位置是 `origin`(≤ 0)。
 /// `zoom` 是相對「整寬放得下」的倍率,1 = 整寬放得下。
 struct TerminalViewportZoom: Equatable {
-    static let maximumZoom: CGFloat = 8
+    static let maximumZoom = ZoomMath.maximumZoom
 
     var container: CGSize
     var content: CGSize
@@ -18,7 +18,7 @@ struct TerminalViewportZoom: Equatable {
     func scale(zoom: CGFloat) -> CGFloat { fitScale * zoom }
 
     /// 放大不超過上限，也不小於整寬放得下。
-    func clampedZoom(_ zoom: CGFloat) -> CGFloat { min(max(zoom, 1), Self.maximumZoom) }
+    func clampedZoom(_ zoom: CGFloat) -> CGFloat { ZoomMath.clampedZoom(zoom) }
 
     /// 內容比容器小的那一軸貼齊左上;超出的那一軸夾在邊界內，不會拖出空白。
     func clampedOrigin(_ origin: CGPoint, zoom: CGFloat) -> CGPoint {
@@ -45,9 +45,8 @@ struct TerminalViewportZoom: Equatable {
     /// 捏合:以手指中心為不動點縮放。`clamped` 為 false 時進行中可略超出範圍(放開再夾回)。
     func pinched(zoom: CGFloat, origin: CGPoint, magnification: CGFloat, at anchor: CGPoint, clamped: Bool = false)
         -> (zoom: CGFloat, origin: CGPoint) {
-        let next = clamped ? clampedZoom(zoom * magnification) : min(max(zoom * magnification, 0.8), Self.maximumZoom * 1.2)
-        let ratio = scale(zoom: next) / scale(zoom: zoom)
-        let moved = CGPoint(x: anchor.x - ratio * (anchor.x - origin.x), y: anchor.y - ratio * (anchor.y - origin.y))
+        let next = clamped ? clampedZoom(zoom * magnification) : ZoomMath.rubberBandedZoom(zoom * magnification)
+        let moved = ZoomMath.anchored(origin: origin, anchor: anchor, ratio: scale(zoom: next) / scale(zoom: zoom))
         return (next, clamped ? clampedOrigin(moved, zoom: next) : moved)
     }
 

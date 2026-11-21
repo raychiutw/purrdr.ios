@@ -33,4 +33,14 @@ struct HostEditorDetailsTests {
         #expect(HostKeyFingerprint.compareCommand.hasPrefix("ssh-keygen -lf "))
         #expect(!HostKeyFingerprint.compareCommand.contains("<"), "不能留佔位符,拷貝後才能直接執行")
     }
+
+    @Test("比對指紋的指令依作業系統:Windows 的 host key 在 ProgramData\\ssh,指令純 ASCII")
+    func compareCommandPerSystem() {
+        #expect(HostKeyFingerprint.compareCommand(on: .macOS) == "ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub")
+        #expect(HostKeyFingerprint.compareCommand(on: .linux) == HostKeyFingerprint.compareCommand)
+        #expect(HostKeyFingerprint.compareCommand(on: nil) == HostKeyFingerprint.compareCommand)
+        let windows = HostKeyFingerprint.compareCommand(on: .windows)
+        #expect(windows == #"ssh-keygen -lf C:\ProgramData\ssh\ssh_host_ed25519_key.pub"#)
+        #expect(windows.unicodeScalars.allSatisfy { $0.isASCII })
+    }
 }

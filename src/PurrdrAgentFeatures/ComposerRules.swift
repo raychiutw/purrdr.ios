@@ -161,21 +161,9 @@ public enum ComposerPaste {
         case system
     }
 
-    public enum AddImageAction: Sendable, Equatable {
-        case openLibrary
-        case askSource
-        case showLimit
-    }
-
     /// Command-V:剪貼簿只有圖片、沒有文字，且還能加圖片時才當附件;其他一律系統貼上。
     public static func action(hasImages: Bool, hasStrings: Bool, remainingSlots: Int) -> Action {
         hasImages && !hasStrings && remainingSlots > 0 ? .attachImages : .system
-    }
-
-    /// 點「加入圖片」:滿了提示;剪貼簿有圖時先問「相簿／貼上圖片」;否則直接開相簿。
-    public static func addImageAction(pasteboardHasImages: Bool, remainingSlots: Int) -> AddImageAction {
-        if remainingSlots <= 0 { return .showLimit }
-        return pasteboardHasImages ? .askSource : .openLibrary
     }
 }
 

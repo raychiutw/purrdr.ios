@@ -171,14 +171,14 @@ struct AddHostGuideView: View {
 
     private var title: LocalizedStringKey {
         switch model.step {
-        case .kind: "How do you want to connect to your computer?"
+        case .kind: "How do you want to connect to your host?"
         case .tailscale: "Get Tailscale on both devices"
-        case .system: "What kind of computer is it?"
+        case .system: "What kind of host is it?"
         case .install: "Install the Purrdr host service"
-        case .pair: "Pair this iPhone with the computer"
-        case .sshMethod: model.system == .windows ? "Windows uses OpenSSH" : "Pick a kind of SSH"
-        case .enable: "Let the computer accept connections"
-        case .details: "Which computer and which account?"
+        case .pair: "Pair this iPhone with the host"
+        case .sshMethod: model.system == .windows ? "Windows uses built-in SSH" : "Pick a kind of SSH"
+        case .enable: "Let the host accept connections"
+        case .details: "Which host and which account?"
         case .location: "Where will you connect from?"
         case .login: "How do you sign in?"
         case .credential: model.authentication == .importedKey ? "Paste your private key" : "Type your password"
@@ -190,9 +190,9 @@ struct AddHostGuideView: View {
 
     private var testTitle: LocalizedStringKey {
         switch model.phase {
-        case .confirmHostKey: "First time connecting to this computer"
+        case .confirmHostKey: "First time connecting to this host"
         case .failed, .needsUpdate, .restartServerRequired: "Couldn’t connect"
-        case .hostKeyChanged: "This computer looks different"
+        case .hostKeyChanged: "This host looks different"
         case .tested, .connected: "Connected"
         default: "Connecting…"
         }
@@ -200,7 +200,7 @@ struct AddHostGuideView: View {
 
     private var subtitle: LocalizedStringKey? {
         switch model.step {
-        case .system: "Pick the computer your agents run on."
+        case .system: "Pick the host your agents run on."
         case .sshMethod where model.system == .windows: "It’s built into Windows. You only need to turn it on."
         case .finished: "\(model.savedHost?.name ?? "") was added."
         default: nil
@@ -220,6 +220,11 @@ struct AddHostGuideView: View {
             VStack(spacing: 12) {
                 instructions(model.pairInstructions)
                 manualPairing
+                Link(destination: PurrdrLinks.hostServicePairing(prefersChinese: Locale.current.language.languageCode?.identifier == "zh")) {
+                    Label("Full Instructions on the Website", systemImage: "safari")
+                        .font(.footnote)
+                }
+                .accessibilityIdentifier("guide.pairingHelp")
             }
         case .enable:
             instructions(model.enableInstructions)
@@ -241,7 +246,7 @@ struct AddHostGuideView: View {
     private var manualPairing: some View {
         DisclosureGroup(isExpanded: $manualExpanded) {
             VStack(spacing: 12) {
-                pairField(.pairAddress, label: "Computer address", text: $model.pairAddress, prompt: "studio.tail1234.ts.net")
+                pairField(.pairAddress, label: "Host address", text: $model.pairAddress, prompt: "studio.tail1234.ts.net")
                 pairField(.pairPort, label: "Port", text: $model.pairPort, prompt: "443", numeric: true)
                 pairField(.pairingCode, label: "Pairing Code", text: $model.pairingCode, prompt: "K7QM-2XPA", uppercase: true)
             }
@@ -303,7 +308,7 @@ struct AddHostGuideView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("guide.notice")
             }
-            detailField(.address, label: "Computer name or IP", text: $model.address, prompt: "studio-mac", numeric: false)
+            detailField(.address, label: "Host name or IP", text: $model.address, prompt: "studio-mac", numeric: false)
             detailField(.port, label: "Port", text: $model.port, prompt: "22", numeric: true)
             detailField(.username, label: "Account", text: $model.username, prompt: "ray", numeric: false)
         }
@@ -339,7 +344,11 @@ struct AddHostGuideView: View {
     /// 金鑰三步:打開終端機並貼上指令,回來測試連線。
     @ViewBuilder
     private var keySetup: some View {
-        if model.devicePublicKey == nil {
+        if let problem = model.deviceKeyProblem, model.devicePublicKey == nil {
+            ErrorLabel(problem)
+                .padding(.top, 24)
+                .accessibilityIdentifier("guide.deviceKeyProblem")
+        } else if model.devicePublicKey == nil {
             ProgressView()
                 .controlSize(.large)
                 .padding(.top, 24)
@@ -401,7 +410,7 @@ struct AddHostGuideView: View {
         switch model.phase {
         case .confirmHostKey(let fingerprint):
             VStack(alignment: .leading, spacing: 12) {
-                Text("Purrdr will warn you if this computer’s identity ever changes.")
+                Text("Purrdr will warn you if this host’s identity ever changes.")
                     .font(.body)
                 DisclosureGroup("Details") {
                     VStack(alignment: .leading, spacing: 8) {
@@ -409,9 +418,10 @@ struct AddHostGuideView: View {
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
                             .accessibilityIdentifier("guide.fingerprint")
-                        Text("To compare, run this on that computer: ssh-keygen -lf <host key file>")
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
+                        InstructionView(
+                            instruction: AddHostGuideInstruction(
+                                text: String(localized: "To compare, run this on that computer:"),
+                                command: HostKeyFingerprint.compareCommand(on: model.system)))
                     }
                     .padding(.top, 6)
                 }
@@ -421,7 +431,7 @@ struct AddHostGuideView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.background.secondary, in: .rect(cornerRadius: 18))
         case .hostKeyChanged:
-            ErrorLabel(String(localized: "This computer’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this computer yourself."))
+            ErrorLabel(String(localized: "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself."))
                 .accessibilityIdentifier("guide.result")
         case .failed(let message):
             VStack(alignment: .leading, spacing: 10) {
@@ -525,7 +535,7 @@ struct AddHostGuideView: View {
     private var panelContent: some View {
         switch model.step {
         case .kind:
-            option("ssh", "SSH", detail: "Recommended · works on most computers", symbol: "terminal") { model.choose(.ssh) }
+            option("ssh", "SSH", detail: "Recommended · works on most hosts", symbol: "terminal") { model.choose(.ssh) }
             option(
                 "https", "HTTPS (Host Service)", detail: "Install the Purrdr host service for send-when-done and stuck alerts",
                 symbol: "lock.shield") { model.choose(.https) }
@@ -568,7 +578,7 @@ struct AddHostGuideView: View {
                         symbol: "sparkles") { model.choose(.tailscale) }
                 case .native:
                     option(
-                        "native", model.system == .windows ? "OpenSSH" : "Built-in SSH",
+                        "native", "Built-in SSH",
                         detail: "Sign in with an account and password or key", symbol: "terminal") { model.choose(.native) }
                 }
             }
@@ -623,14 +633,14 @@ struct AddHostGuideView: View {
     private var testPanel: some View {
         switch model.phase {
         case .confirmHostKey:
-            Text("Trust this computer?")
+            Text("Trust this host?")
                 .font(.headline)
             primary("Trust", id: "guide.trust", enabled: true) { Task { await model.trustHostKey() } }
             Button("Cancel") { back() }
                 .buttonStyle(.glass)
                 .accessibilityIdentifier("guide.trustCancel")
         case .tested, .connected:
-            primary("Add This Computer", id: "guide.save", enabled: true) {
+            primary("Add This Host", id: "guide.save", enabled: true) {
                 if let host = model.save() { onAdded(host) }
             }
         case .hostKeyChanged:
@@ -718,7 +728,7 @@ struct InstructionView: View {
                         .accessibilityLabel(Text("Copy \(command)"))
                         .accessibilityIdentifier("guide.copy")
                     ShareLink(item: command) {
-                        Label("Share to Computer", systemImage: "square.and.arrow.up")
+                        Label("Share to Host", systemImage: "square.and.arrow.up")
                     }
                     .accessibilityIdentifier("guide.share")
                 }
@@ -733,7 +743,7 @@ struct InstructionView: View {
                     }
                     .accessibilityIdentifier("guide.link")
                     ShareLink(item: link) {
-                        Label("Share to Computer", systemImage: "square.and.arrow.up")
+                        Label("Share to Host", systemImage: "square.and.arrow.up")
                     }
                     .accessibilityIdentifier("guide.shareLink")
                 }

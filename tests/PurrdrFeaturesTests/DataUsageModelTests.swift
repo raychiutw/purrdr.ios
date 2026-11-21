@@ -239,5 +239,27 @@ struct DataUsageModelTests {
         clock.now = clock.now.addingTimeInterval(3 * 86_400)
         #expect(model.countingSince.map { calendar.dateComponents([.month, .day], from: $0) }?.day == 18)
     }
+
+    @Test("畫面開著時每 2 秒重讀一次(等待由注入的 sleep 決定),取消後停止")
+    func refreshesEveryTwoSecondsUntilCancelled() async {
+        let sleeper = SteppingSleeper()
+        let usage = DataUsageModel(
+            meter: meter(), hosts: Self.options, currentHost: nil, now: { [clock] in clock.now }, calendar: calendar,
+            sleep: sleeper.sleep)
+        let task = Task { await usage.run() }
+
+        await sleeper.advance()
+        await UndoSendTests.until { usage.refreshCount == 1 }
+        await sleeper.advance()
+        await UndoSendTests.until { usage.refreshCount == 2 }
+        #expect(await sleeper.requested.allSatisfy { $0 == .seconds(2) })
+        #expect(usage.refreshCount == 2)
+
+        // 第三次等待還在進行:取消後讓它結束,迴圈看到取消就停,不再重讀。
+        task.cancel()
+        await sleeper.advance()
+        await task.value
+        #expect(usage.refreshCount == 2)
+    }
 }
 #endif

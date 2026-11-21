@@ -6,6 +6,8 @@ import SwiftUI
 struct HostTrustView: View {
     let address: String
     let fingerprint: HostKeyFingerprint
+    /// 主機的作業系統(決定比對指令的路徑);不知道時給 macOS／Linux 的。
+    var operatingSystem: HostOperatingSystem?
     let trust: () -> Void
     let cancel: () -> Void
 
@@ -13,12 +15,12 @@ struct HostTrustView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("This is the first time Purrdr connects to \(address). Trust this computer?")
+                    Text("This is the first time Purrdr connects to \(address). Trust this host?")
                         .accessibilityIdentifier("hostTrust.question")
                 }
                 Section {
                     DisclosureGroup("Details") {
-                        Text("This computer is identified by the code below.")
+                        Text("This host is identified by the code below.")
                             .foregroundStyle(.secondaryText)
                         Text(verbatim: fingerprint.description)
                             .font(.body.monospaced())
@@ -27,12 +29,12 @@ struct HostTrustView: View {
                         InstructionView(
                             instruction: AddHostGuideInstruction(
                                 text: String(localized: "To check it yourself, run this on that computer and compare:"),
-                                command: HostKeyFingerprint.compareCommand))
+                                command: HostKeyFingerprint.compareCommand(on: operatingSystem)))
                     }
                     .accessibilityIdentifier("hostTrust.details")
                 }
             }
-            .navigationTitle("Trust This Computer?")
+            .navigationTitle("Trust This Host?")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

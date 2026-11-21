@@ -44,13 +44,13 @@ final class AccessibilityAuditContext {
     lazy var navigationBars: [CGRect] = app.navigationBars.allElementsBoundByIndex.map(\.frame)
         .filter { !$0.isEmpty && $0.height < window.height / 2 }
 
-    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、終端機按鍵列、新增主機引導的底部面板。
+    /// 畫面底部蓋在內容上的玻璃層：搜尋欄(Agent 列表)、輸入列(對話)、終端機按鍵列。
     lazy var bottomBars: [CGRect] = {
         // 搜尋欄：元素只有文字欄位本身，外面的玻璃膠囊與 scroll edge effect 再往上約 24pt,一路到視窗底。
         var frames = app.searchFields.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }.map { field in
             CGRect(x: window.minX, y: field.minY - 24, width: window.width, height: window.maxY - field.minY + 24)
         }
-        for identifier in ["composer.text", "terminal.key.esc", "guide.panel"] {
+        for identifier in ["composer.text", "terminal.key.esc"] {
             let element = app.descendants(matching: .any)[identifier].firstMatch
             if element.exists {
                 // 輸入列／按鍵列整條：元素上緣往下到視窗底。

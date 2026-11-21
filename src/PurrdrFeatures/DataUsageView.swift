@@ -72,12 +72,7 @@ public struct DataUsageView: View {
         } message: {
             Text("This clears all data usage recorded on this device.")
         }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(2))
-                model.refresh()
-            }
-        }
+        .task { await model.run() }
         .accessibilityIdentifier("dataUsage.page")
     }
 

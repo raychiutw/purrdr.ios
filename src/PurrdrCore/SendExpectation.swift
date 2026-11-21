@@ -17,4 +17,14 @@ public struct SendExpectation: Sendable, Equatable {
     public static let none = SendExpectation()
 
     public var isEmpty: Bool { session == nil }
+
+    private enum WireKey: String, CodingKey {
+        case session = "expected_session"
+    }
+
+    /// 把比對欄位(`expected_session`)編進請求參數;沒有要比對的就什麼都不加。
+    package func encode(into encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: WireKey.self)
+        try container.encodeIfPresent(session, forKey: .session)
+    }
 }

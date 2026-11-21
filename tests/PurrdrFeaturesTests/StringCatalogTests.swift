@@ -112,6 +112,26 @@ struct StringCatalogTests {
         }
     }
 
+    /// GLOSSARY「新增主機引導」:畫面上 OpenSSH 稱「原生 SSH」,不另外叫「內建 SSH」。
+    @Test("繁體中文稱「原生 SSH」,不用「內建 SSH」")
+    func chineseCallsOpenSSHNative() throws {
+        for entry in try Self.entries() {
+            for chinese in entry.chinese {
+                #expect(!chinese.contains("內建 SSH"), "「\(entry.key)」→「\(chinese)」請改稱原生 SSH")
+            }
+        }
+    }
+
+    /// 英文畫面文字維持 Host(GLOSSARY「用詞對應」):不用 Computer 稱呼主機。
+    /// 日常語意(「that computer」、電腦版面)與 Pane 終端機大小模式的 Keep Computer Layout 不在此限。
+    @Test("英文畫面文字不用 Computer 稱呼主機(日常語意的小寫 computer 除外)")
+    func englishUsesHostWording() throws {
+        let exempt: Set<String> = ["Keep Computer Layout"]
+        for entry in try Self.entries() where !exempt.contains(entry.key) {
+            #expect(!entry.key.contains("Computer"), "「\(entry.key)」用了 Computer,英文請說 host")
+        }
+    }
+
     /// 不該出現在一般使用者看得到的文字裡的技術細節(路徑、sshd、tailnet、Secure Enclave…);
     /// 要給使用者的指令請寫成獨立的可拷貝指令,不要夾在說明裡。
     static let technicalDetails = ["~/", "authorized_keys", "sshd", "tailnet", "Secure Enclave", "PATH", "keychain", "passphrase protect"]

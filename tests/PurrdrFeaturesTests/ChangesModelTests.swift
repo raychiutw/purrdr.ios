@@ -44,6 +44,18 @@ struct ChangesModelTests {
         #expect(await reader.requests == [.status(cwd: Self.cwd), .diff(cwd: Self.cwd, path: nil)])
     }
 
+    @Test("第一次載入固定先讀清單、再讀 diff(不並行,請求順序是確定的);清單失敗就不讀 diff")
+    func loadReadsStatusThenDiffDeterministically() async {
+        for _ in 0..<300 {
+            let reader = FakeGitChanges(status: Self.status, diffs: Self.diffs)
+            await Self.model(reader).load()
+            #expect(await reader.requests == [.status(cwd: Self.cwd), .diff(cwd: Self.cwd, path: nil)])
+        }
+        let failing = FakeGitChanges(failing: GitChangesError.notGitRepository)
+        await Self.model(failing).load()
+        #expect(await failing.requests == [.status(cwd: Self.cwd)])
+    }
+
     @Test("單檔 diff:已讀過的直接用;二進位顯示原因;總量截斷而過大的檔案單獨再讀一次")
     func fileDiffs() async {
         let reader = FakeGitChanges(status: Self.status, diffs: Self.diffs)

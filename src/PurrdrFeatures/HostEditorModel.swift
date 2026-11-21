@@ -98,6 +98,9 @@ public final class HostEditorModel {
     /// 是否是編輯既有主機。
     public var isEditing: Bool { existing != nil }
 
+    /// 已存主機的作業系統(新增時還不知道是 `nil`);決定給使用者比對 host key 的指令。
+    public var hostOperatingSystem: HostOperatingSystem? { existing?.operatingSystem }
+
     /// herdr 過舊時能不能由 Purrdr 更新(SSH 才能;HTTPS 請使用者在主機上更新)。
     public var canUpdateHerdr: Bool { connectionMethod?.usesHostService != true }
 
@@ -234,7 +237,7 @@ public final class HostEditorModel {
         username = shared.endpoint.username
         herdrPath = shared.herdr.path == "herdr" ? "" : shared.herdr.path
         herdrSession = shared.herdr.session ?? ""
-        if let pin = shared.hostKeyPin { flow.accepted = (pin, shared.endpoint) }
+        flow.acceptSharedPin(of: shared)
     }
 
     /// 從主機配對指令的 QR code(`purrdr://pair?…`)新增 HTTPS 主機：帶入位址與配對碼，名稱預設是主機名稱的第一段。
@@ -354,9 +357,7 @@ public final class HostEditorModel {
     /// 取得這支裝置的公鑰(第一次會在 Secure Enclave 產生金鑰)。
     public func loadDeviceKey() async {
         guard devicePublicKey == nil else { return }
-        let deviceKey = credentials.deviceKey
-        let result = await Task.detached { Result { try deviceKey.publicKey() } }.value
-        switch result {
+        switch await DeviceKeyOnboarding.load(from: credentials) {
         case .success(let key):
             devicePublicKey = key
             deviceKeyProblem = nil
@@ -371,19 +372,9 @@ public final class HostEditorModel {
     /// 公鑰還沒取得時是空的。不需要密碼。
     public var deviceKeySteps: [AddHostGuideInstruction] {
         guard let key = devicePublicKey else { return [] }
-        return [
-            AddHostGuideInstruction(text: String(localized: "On that computer, open Terminal. On Windows, open PowerShell.")),
-            AddHostGuideInstruction(
-                text: String(localized: "On a Mac or Linux, paste this line and press Enter."),
-                command: AuthorizedKeyCommand.command(adding: key, on: .macOSAndLinux)),
-            AddHostGuideInstruction(
-                text: String(localized: "On Windows, paste this line instead and press Enter."),
-                command: AuthorizedKeyCommand.command(adding: key, on: .windows)),
-            AddHostGuideInstruction(
-                text: String(localized: "On Windows, if this account is an administrator, open PowerShell as an administrator and paste this line instead."),
-                command: AuthorizedKeyCommand.command(adding: key, on: .windowsAdministrator)),
-            AddHostGuideInstruction(text: String(localized: "Come back here and tap Test Connection.")),
-        ]
+        return [AddHostGuideInstruction(text: String(localized: "On that computer, open Terminal. On Windows, open PowerShell."))]
+            + DeviceKeyOnboarding.commands(for: key, system: nil)
+            + [AddHostGuideInstruction(text: String(localized: "Come back here and tap Test Connection."))]
     }
 
     /// 取消進行中的測試。

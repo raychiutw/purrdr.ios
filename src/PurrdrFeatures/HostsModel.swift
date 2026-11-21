@@ -626,21 +626,32 @@ public final class HostsModel {
         return editor
     }
 
+    /// 引導最後一頁判斷有沒有 Purrdr Plus 用的檢查(同推播開關:重讀後台後的結果)。沒有推播服務就當沒有。
+    private var guidePlusCheck: @MainActor () async -> Bool {
+        { [pushService] in
+            guard let pushService else { return false }
+            return await pushService.isPlusActive()
+        }
+    }
+
     /// 所有新增入口(歡迎頁、主機清單「＋」、「⋯」選單)開的新增主機引導(#341)。
     public func makeAddHostGuide() -> AddHostGuideModel {
-        AddHostGuideModel(store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+        AddHostGuideModel(
+            store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel)
     }
 
     /// 匯入連結(主機分享連結、配對 QR code)開的引導,資料已齊時直接到測試連線(#344);引導接不了(原生 SSH、壞連結)時丟錯。
     public func makeImportGuide(_ url: URL) throws -> AddHostGuideModel {
         try AddHostGuideModel(
-            store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel, shortcut: .importLink(url))
+            store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
+            shortcut: .importLink(url))
     }
 
     /// 同步來、這支裝置還沒配對的 HTTPS 主機:直接到配對步驟(#344)。
     public func makePairingGuide(for host: HostConfiguration) throws -> AddHostGuideModel {
         try AddHostGuideModel(
-            store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel, shortcut: .needsPairing(host))
+            store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
+            shortcut: .needsPairing(host))
     }
 
     /// 新增入口開引導還是舊的主機編輯頁。正式一律是引導;UI 測試預設走編輯頁(原生 SSH、HTTPS 的欄位流程測試還沒改寫,
