@@ -39,28 +39,6 @@
         }
       }
     },
-    "%@ Type the name that appears here." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 把出現的名稱填進來。"
-          }
-        }
-      }
-    },
-    "%@ Type the numbers that appear here." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 把出現的數字填進來。"
-          }
-        }
-      }
-    },
     "%@ can’t show plan usage. Choose another host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2610,28 +2588,6 @@
         }
       }
     },
-    "Host address" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦位址"
-          }
-        }
-      }
-    },
-    "Host name or IP" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "電腦名稱或 IP"
-          }
-        }
-      }
-    },
     "Confirm" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4480,6 +4436,17 @@
         }
       }
     },
+    "Full Instructions on the Website" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網站上的完整說明"
+          }
+        }
+      }
+    },
     "Game Console" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4773,6 +4740,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "電腦同步"
+          }
+        }
+      }
+    },
+    "Host address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦位址"
+          }
+        }
+      }
+    },
+    "Host name or IP" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦名稱或 IP"
           }
         }
       }
@@ -6166,17 +6155,6 @@
         }
       }
     },
-    "No Hosts Yet" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有電腦"
-          }
-        }
-      }
-    },
     "No Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6184,6 +6162,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有電腦"
+          }
+        }
+      }
+    },
+    "No Hosts Yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有電腦"
           }
         }
       }
@@ -6848,6 +6837,28 @@
         }
       }
     },
+    "On that computer, open PowerShell, paste this line, press Enter, and type the name that appears here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開 PowerShell，貼上這行，按 Enter，把出現的名稱填進來。"
+          }
+        }
+      }
+    },
+    "On that computer, open PowerShell, paste this line, press Enter, and type the numbers that appear here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開 PowerShell，貼上這行，按 Enter，把出現的數字填進來。"
+          }
+        }
+      }
+    },
     "On that computer, open PowerShell, paste this line, then press Enter." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6866,6 +6877,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在那台電腦打開「系統設定」，進入「一般」，再進入「共享」，打開「遠端登入」。"
+          }
+        }
+      }
+    },
+    "On that computer, open Terminal, paste this line, press Enter, and type the name that appears here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開「終端機」，貼上這行，按 Enter，把出現的名稱填進來。"
+          }
+        }
+      }
+    },
+    "On that computer, open Terminal, paste this line, press Enter, and type the numbers that appear here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開「終端機」，貼上這行，按 Enter，把出現的數字填進來。"
           }
         }
       }
@@ -7064,17 +7097,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在新視窗打開"
-          }
-        }
-      }
-    },
-    "OpenSSH" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OpenSSH"
           }
         }
       }
@@ -10951,17 +10973,6 @@
         }
       }
     },
-    "This Host’s Identity Changed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦的身分變了"
-          }
-        }
-      }
-    },
     "This Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10980,6 +10991,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置的金鑰"
+          }
+        }
+      }
+    },
+    "This Host’s Identity Changed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦的身分變了"
           }
         }
       }
@@ -11057,39 +11079,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台電腦還沒有 git。安裝後請點「再試一次」。"
-          }
-        }
-      }
-    },
-    "This host is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦用下面這組代碼表明身分。想自己確認的話，在那台電腦執行下面的指令再比對：ssh-keygen -lf <host key 檔>"
-          }
-        }
-      }
-    },
-    "This host looks different" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦看起來不一樣"
-          }
-        }
-      }
-    },
-    "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這台電腦的身分和你之前信任的不同，可能有人在攔截連線。除非是你自己重設了這台電腦，否則不要繼續。"
           }
         }
       }
@@ -11413,6 +11402,17 @@
         }
       }
     },
+    "This host is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦用下面這組代碼表明身分。想自己確認的話，在那台電腦執行下面的指令再比對：ssh-keygen -lf <host key 檔>"
+          }
+        }
+      }
+    },
     "This host is removed from this device, and this device is signed out of it. Nothing else on the host changes." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11420,6 +11420,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台電腦會從這支裝置移除，這支裝置也會登出它。電腦上其他內容不受影響。"
+          }
+        }
+      }
+    },
+    "This host looks different" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦看起來不一樣"
           }
         }
       }
@@ -11442,6 +11453,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台電腦跑的不是安裝好的Purrdr 連線助理，無法從 Purrdr 管理。"
+          }
+        }
+      }
+    },
+    "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦的身分和你之前信任的不同，可能有人在攔截連線。除非是你自己重設了這台電腦，否則不要繼續。"
           }
         }
       }
