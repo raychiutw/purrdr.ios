@@ -3974,13 +3974,13 @@
         }
       }
     },
-    "Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
+    "Install the Purrdr host service on the host and run purrdr pair (purrdr-host-service pair before 0.10.0), then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在主機安裝 Purrdr 主機服務並執行 purrdr-host-service pair,再掃描它顯示的 QR code,或輸入它顯示的位址、Port 與配對碼。HTTPS 不能用登入 Shell 與檔案。"
+            "value" : "在主機安裝 Purrdr 主機服務並執行 purrdr pair(0.10.0 以前是 purrdr-host-service pair),再掃描它顯示的 QR code,或輸入它顯示的位址、Port 與配對碼。HTTPS 不能用登入 Shell 與檔案。"
           }
         }
       }
@@ -5690,13 +5690,13 @@
         }
       }
     },
-    "Point the camera at the QR code shown by purrdr-host-service pair." : {
+    "Point the camera at the QR code shown by purrdr pair." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把相機對準 purrdr-host-service pair 顯示的 QR code。"
+            "value" : "把相機對準 purrdr pair 顯示的 QR code。"
           }
         }
       }

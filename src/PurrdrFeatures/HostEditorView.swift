@@ -263,7 +263,7 @@ struct HostEditorView: View {
             EmptyView()
         case .https:
             VStack(alignment: .leading, spacing: 8) {
-                Text("Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS.")
+                Text("Install the Purrdr host service on the host and run purrdr pair (purrdr-host-service pair before 0.10.0), then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS.")
                 Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
                     .accessibilityIdentifier("hostEditor.hostServiceGuide")
             }
