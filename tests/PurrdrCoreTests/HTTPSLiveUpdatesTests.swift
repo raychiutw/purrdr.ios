@@ -15,6 +15,9 @@ struct HTTPSLiveUpdatesTests {
 
     static let shortHeartbeat = HostServiceHeartbeat(interval: .milliseconds(100), timeout: .milliseconds(300))
 
+    /// 連線與訂閱完成前不能逾時:整批測試很忙時握手可能超過 300 毫秒(曾讓整批跑時穩定失敗),所以逾時放寬到 2 秒。
+    static let timeoutHeartbeat = HostServiceHeartbeat(interval: .milliseconds(100), timeout: .seconds(2))
+
     @Test("主機服務推送的事件轉成 herdr 事件;訂閱內容原樣送到主機服務")
     func pushedEventsReachHerdrClient() async throws {
         let service = try await FakeHostService.start()
@@ -111,7 +114,7 @@ struct HTTPSLiveUpdatesTests {
     func heartbeatTimeoutDropsConnection() async throws {
         let service = try await FakeHostService.start(.init(answersPings: false))
         defer { Task { await service.stop() } }
-        let events = try await HerdrClient(connection: Self.connection(to: service, heartbeat: Self.shortHeartbeat)).subscribe([])
+        let events = try await HerdrClient(connection: Self.connection(to: service, heartbeat: Self.timeoutHeartbeat)).subscribe([])
 
         let read = await Self.read(events)
 

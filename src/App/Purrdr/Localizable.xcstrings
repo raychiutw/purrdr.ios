@@ -5275,6 +5275,28 @@
         }
       }
     },
+    "Move Down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下移"
+          }
+        }
+      }
+    },
+    "Move Up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上移"
+          }
+        }
+      }
+    },
     "Moves the panel’s selection to this option." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6221,13 +6243,13 @@
         }
       }
     },
-    "Opens options to edit or delete." : {
+    "Opens options to edit, reorder, or delete." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟選項,可編輯或刪除。"
+            "value" : "開啟選項,可編輯、調整順序或刪除。"
           }
         }
       }
