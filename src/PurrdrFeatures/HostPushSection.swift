@@ -43,7 +43,7 @@ struct HostPushSection: View {
 /// 一台主機的通知列：圖示、名稱、狀態與開關。VoiceOver 念「主機名稱，通知已開啟／未開啟」。
 ///
 /// 還沒配對的 HTTPS 主機(#295,原型 B):開關照樣顯示但停用，副標以強調色寫「先配對這台主機 ›」,點整列開配對。
-private struct HostPushRow: View {
+struct HostPushRow: View {
     let push: HostPush
     let pair: (UUID) -> Void
 

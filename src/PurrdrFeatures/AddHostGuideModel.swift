@@ -56,6 +56,12 @@ public final class AddHostGuideModel {
         case finished
     }
 
+    /// 最後一頁的通知選項:有 Purrdr Plus 給這台主機的開關,沒有就一行加入提示。
+    public enum NotificationOffer: Equatable, Sendable {
+        case toggle
+        case joinPlus
+    }
+
     public enum Kind: Hashable, Sendable {
         case ssh
         case https
@@ -130,20 +136,24 @@ public final class AddHostGuideModel {
     public private(set) var handoff: Handoff?
     /// 儲存完成的主機。
     public private(set) var savedHost: HostConfiguration?
+    /// 最後一頁的通知選項(`loadNotificationOffer()` 之後才有)。
+    public private(set) var notificationOffer: NotificationOffer?
     public var phase: HostConnectionPhase { flow.phase }
 
     @ObservationIgnored private let flow: HostConnectionFlow
     @ObservationIgnored private let credentials: HostCredentials
+    @ObservationIgnored private let isPlusActive: @MainActor () async -> Bool
     /// 匯入或待配對時沿用的主機名稱。
     @ObservationIgnored private var presetName: String?
     @ObservationIgnored private var history: [Step] = []
 
     public init(
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
-        existing: HostConfiguration? = nil,
+        existing: HostConfiguration? = nil, isPlusActive: @escaping @MainActor () async -> Bool = { false },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
         self.credentials = credentials
+        self.isPlusActive = isPlusActive
         flow = HostConnectionFlow(
             store: store, existing: existing, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
     }
@@ -151,13 +161,16 @@ public final class AddHostGuideModel {
     /// 帶著資料進來:匯入(資料已齊直接到測試連線;HTTPS 分享連結沒有配對碼，到配對)或待配對(直接到配對)。
     public convenience init(
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
+        isPlusActive: @escaping @MainActor () async -> Bool = { false },
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel,
         shortcut: Shortcut
     ) throws {
         switch shortcut {
         case .needsPairing(let host):
             guard let address = host.hostService else { throw ShortcutError.needsEditor }
-            self.init(store: store, credentials: credentials, hostService: hostService, existing: host, makeChannel: makeChannel)
+            self.init(
+                store: store, credentials: credentials, hostService: hostService, existing: host, isPlusActive: isPlusActive,
+                makeChannel: makeChannel)
             kind = .https
             presetName = host.name
             load(address)
@@ -165,7 +178,7 @@ public final class AddHostGuideModel {
         case .importLink(let url):
             if HostServicePairingLink.isPairingLink(url) {
                 let link = try HostServicePairingLink(url: url)
-                self.init(store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+                self.init(store: store, credentials: credentials, hostService: hostService, isPlusActive: isPlusActive, makeChannel: makeChannel)
                 kind = .https
                 load(link.address)
                 pairingCode = link.pairingCode
@@ -173,7 +186,7 @@ public final class AddHostGuideModel {
                 return
             }
             let shared = try HostShareLink.decode(url)
-            self.init(store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+            self.init(store: store, credentials: credentials, hostService: hostService, isPlusActive: isPlusActive, makeChannel: makeChannel)
             presetName = shared.name
             switch shared.connectionMethod {
             case .https:
@@ -495,6 +508,41 @@ public final class AddHostGuideModel {
         history.removeAll()
         step = .finished
         return host
+    }
+
+    // MARK: - 失敗提醒與最後一頁
+
+    /// 連線失敗(`phase == .failed`)時依前面的選擇給的提醒:同一個 Wi-Fi?Tailscale 兩邊開著且同帳號?對外位址與路由器?
+    /// 在外面連時另加建議用 Tailscale。主機身分變了、herdr 太舊等不是連線問題,不提醒。
+    public var failureReminders: [String] {
+        guard case .failed = phase else { return [] }
+        let tailscale = String(localized: "Make sure Tailscale is turned on, on both this iPhone and that computer, and signed in with the same account.")
+        let preferTailscale = String(localized: "When you’re away from home, Tailscale is the easiest way to connect.")
+        if kind == .https {
+            return [tailscale, String(localized: "Make sure the Purrdr host service is installed and running on that computer.")]
+        }
+        switch (sshMethod, location) {
+        case (.native?, .home?):
+            return [String(localized: "This iPhone and that computer must be on the same Wi-Fi."), preferTailscale]
+        case (.native?, .outside?):
+            return [
+                String(localized: "Check that the address is the one the outside world uses, and that your router lets connections reach that computer."),
+                preferTailscale,
+            ]
+        default:
+            return [tailscale]
+        }
+    }
+
+    /// 最後一頁:有 Purrdr Plus 就給這台主機的開啟通知開關,沒有就一行加入提示。儲存完成前不提供。
+    public func loadNotificationOffer() async {
+        guard step == .finished else { return }
+        notificationOffer = await isPlusActive() ? .toggle : .joinPlus
+    }
+
+    /// 最後一頁:用 SSH 連的主機,提示可以再裝主機服務(做完再送、卡住提醒)。
+    public var suggestsHostService: Bool {
+        step == .finished && savedHost?.ssh != nil
     }
 
     // MARK: - 內部

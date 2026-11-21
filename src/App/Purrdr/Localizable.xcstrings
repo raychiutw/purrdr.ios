@@ -2078,6 +2078,17 @@
         }
       }
     },
+    "Check that the address is the one the outside world uses, and that your router lets connections reach that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認這個位址是外面連得到的位址，而且路由器有讓外面的連線進得到那台電腦。"
+          }
+        }
+      }
+    },
     "Check the connection and try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5667,6 +5678,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mac mini"
+          }
+        }
+      }
+    },
+    "Make sure Tailscale is turned on, on both this iPhone and that computer, and signed in with the same account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認這支 iPhone 和那台電腦都開著 Tailscale，而且登入同一個帳號。"
+          }
+        }
+      }
+    },
+    "Make sure the Purrdr host service is installed and running on that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認那台電腦已經裝好 Purrdr 主機服務，而且正在執行。"
           }
         }
       }
@@ -11358,6 +11391,17 @@
         }
       }
     },
+    "This iPhone and that computer must be on the same Wi-Fi." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支 iPhone 和那台電腦要連同一個 Wi-Fi。"
+          }
+        }
+      }
+    },
     "This image is over 20 MB." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12722,6 +12766,28 @@
         }
       }
     },
+    "Want notifications? Join Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想收到通知？加入 Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Want send-when-done and stuck alerts? You can also install the host service on that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想用「做完再送」和卡住提醒？也可以在那台電腦裝主機服務。"
+          }
+        }
+      }
+    },
     "Weekly" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12784,6 +12850,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要 Agent 做什麼?"
+          }
+        }
+      }
+    },
+    "When you’re away from home, Tailscale is the easiest way to connect." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在外面連線時，用 Tailscale 最簡單。"
           }
         }
       }
