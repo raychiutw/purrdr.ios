@@ -484,17 +484,6 @@
         }
       }
     },
-    "%lld workspaces need you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 個 workspace 需要你處理"
-          }
-        }
-      }
-    },
     "%lld years" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -639,17 +628,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 週"
-          }
-        }
-      }
-    },
-    "1 workspace needs you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 個 workspace 需要你處理"
           }
         }
       }
@@ -3122,17 +3100,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除會員"
-          }
-        }
-      }
-    },
-    "Delete Member…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除會員…"
           }
         }
       }
@@ -8849,6 +8816,17 @@
         }
       }
     },
+    "The question changed on the host, so the answer wasn’t sent. Check it, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上的題目已變更，回答沒有送出。請確認題目後再試一次。"
+          }
+        }
+      }
+    },
     "The shell has exited." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9021,6 +8999,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前還無法讀取這個 Agent 的對話紀錄，請用主機的終端機查看。"
+          }
+        }
+      }
+    },
+    "This chat changed on the host, so nothing was sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機上的對話已變更，沒有送出任何內容。"
           }
         }
       }

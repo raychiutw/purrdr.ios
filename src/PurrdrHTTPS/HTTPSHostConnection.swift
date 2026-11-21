@@ -94,6 +94,12 @@ public actor HTTPSHostConnection: HostConnection {
         try await hostServiceInfo().hostServiceVersion
     }
 
+    /// 主機服務 0.7.0 起在送出前比對(`HostServiceFeature.sendExpectations`);更舊的不認得這些欄位，不帶。
+    /// 連不上時回 `false`:接著的送出自己會回報連線錯誤。
+    public func checksSendExpectations() async -> Bool {
+        HostServiceFeature.sendExpectations.isAvailable(onHostServiceVersion: (try? await hostServiceVersion()) ?? nil)
+    }
+
     /// 主機服務版本不足時丟 `HostServiceError.hostServiceUpdateRequired`;門檻見 `HostServiceFeature.minimumVersion`。
     /// 一律在送出前、`withDeadline` 外呼叫(撥號與握手各有自己的期限)。
     public func requireHostService(_ feature: HostServiceFeature) async throws {
@@ -397,11 +403,12 @@ public actor HTTPSHostConnection: HostConnection {
         case .hostServiceNotInstalled: HostServiceManagementError.notInstalledCopy
         case .updateInProgress: HostServiceManagementError.updateInProgress
         case .updateFailed: HostServiceManagementError.updateFailed(message.message)
+        case .paneChanged: HostServiceError.paneChanged
         // 變更頁(#310):Agent 已換資料夾或結束、工作目錄不在 git repo 裡。
         case .cwdNotAllowed: GitChangesError.cwdNotAllowed
         case .notGitRepository: GitChangesError.notGitRepository
-        // 主機服務 0.7.0 的新錯誤碼：對應的功能(#304 送出前比對、#305 佇列)接上時各自換成專屬錯誤。
-        case .paneChanged, .queueFull, .queueItemUnknown: HostServiceError.unexpectedResponse
+        // 主機服務 0.7.0 的新錯誤碼：對應的功能(#305 佇列)接上時換成專屬錯誤。
+        case .queueFull, .queueItemUnknown: HostServiceError.unexpectedResponse
         }
     }
 

@@ -18,6 +18,8 @@ public enum AnswerNotice: Sendable, Equatable {
     case mayNotHaveArrived
     /// 按鍵送不出去。
     case sendFailed
+    /// 主機送出前比對發現題目(畫面)或對話已變更，什麼都沒送出(#304)。
+    case questionChanged
 }
 
 /// 選項的樣式(HIG 20.7)。

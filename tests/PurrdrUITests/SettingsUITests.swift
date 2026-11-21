@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// 設定頁(#32、#246):外觀、Return 送出、觸覺回饋、評分、支援、診斷資訊、關於(版本、主機 herdr 版本、隱私權政策);
@@ -55,6 +56,53 @@ final class SettingsUITests: XCTestCase {
         openSettings(in: relaunched)
         XCTAssertTrue(relaunched.buttons["Dark"].waitForExistence(timeout: 5))
         XCTAssertTrue(relaunched.buttons["Dark"].isSelected, "重開 app 後沒有保留深色")
+    }
+
+    /// 外觀即時生效(#322):設定 sheet 開著時切換，sheet 本身立刻變深或變淺;切回自動回到系統的深淺色。
+    /// 以 sheet 截圖的平均亮度判斷(accessibility 樹看不到深淺色)。
+    @MainActor
+    func testAppearanceChoiceRecolorsOpenSettingsSheet() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+        addTeardownBlock { @MainActor in
+            let cleanup = XCUIApplication.launchUITesting()
+            self.openSettings(in: cleanup)
+            cleanup.buttons["Automatic"].tap()
+            cleanup.terminate()
+        }
+        let sheet = element("sheet.settings", in: app)
+        XCTAssertTrue(app.buttons["Automatic"].waitForExistence(timeout: 5))
+        let system = luminance(of: sheet)
+
+        app.buttons["Dark"].tap()
+        XCTAssertTrue(waitForLuminance(of: sheet) { $0 < 0.3 }, "選深色後設定 sheet 不是深色(亮度 \(luminance(of: sheet)))")
+        app.buttons["Light"].tap()
+        XCTAssertTrue(waitForLuminance(of: sheet) { $0 > 0.7 }, "選淺色後設定 sheet 不是淺色(亮度 \(luminance(of: sheet)))")
+        app.buttons["Dark"].tap()
+        XCTAssertTrue(waitForLuminance(of: sheet) { $0 < 0.3 }, "再選深色後設定 sheet 不是深色(亮度 \(luminance(of: sheet)))")
+        app.buttons["Automatic"].tap()
+        XCTAssertTrue(
+            waitForLuminance(of: sheet) { abs($0 - system) < 0.1 },
+            "切回自動後設定 sheet 沒有回到系統的深淺色(亮度 \(luminance(of: sheet)),系統 \(system))")
+    }
+
+    /// 刪除會員(#322):按鈕寫「Delete Member」不帶刪節號，按下仍先跳確認。
+    @MainActor
+    func testDeleteMemberButtonHasNoEllipsisAndConfirms() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
+        let account = app.buttons["toolbar.account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 10))
+        account.tap()
+        let delete = app.buttons["member.delete"]
+        scrollTo(delete, in: app)
+        XCTAssertTrue(delete.waitForExistence(timeout: 10), "帳號頁沒有刪除會員")
+        XCTAssertEqual(delete.label, "Delete Member")
+        delete.tap()
+        let confirm = app.sheets.buttons["Delete Member"].firstMatch
+        XCTAssertTrue(
+            confirm.waitForExistence(timeout: 5) || app.buttons["Delete Member"].firstMatch.waitForExistence(timeout: 1),
+            "按下刪除會員沒有先跳確認")
+        XCTAssertTrue(app.staticTexts["Delete your member account?"].exists, "沒有確認的標題")
     }
 
     @MainActor
@@ -159,6 +207,35 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(item.waitForExistence(timeout: 5))
         item.tap()
         XCTAssertTrue(element("sheet.settings", in: app).waitForExistence(timeout: 10), "沒有開出設定")
+    }
+
+    /// 元素截圖的平均亮度(0 黑～1 白)。
+    @MainActor
+    private func luminance(of element: XCUIElement) -> Double {
+        guard let image = element.screenshot().image.cgImage else { return -1 }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let drawn = pixel.withUnsafeMutableBytes { buffer -> Bool in
+            guard
+                let context = CGContext(
+                    data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return false }
+            context.interpolationQuality = .medium
+            context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+        guard drawn else { return -1 }
+        return (0.2126 * Double(pixel[0]) + 0.7152 * Double(pixel[1]) + 0.0722 * Double(pixel[2])) / 255
+    }
+
+    /// 深淺色切換有動畫：等亮度符合條件(最多約 3 秒)。
+    @MainActor
+    private func waitForLuminance(of element: XCUIElement, _ condition: (Double) -> Bool) -> Bool {
+        for _ in 0..<10 {
+            if condition(luminance(of: element)) { return true }
+            Thread.sleep(forTimeInterval: 0.3)
+        }
+        return false
     }
 
     @MainActor

@@ -118,6 +118,8 @@ package enum HostErrorText {
             String(localized: "The connection dropped. Try again.")
         case .unexpectedResponse:
             String(localized: "The host service sent a response Purrdr doesn’t understand. Update Purrdr and the host service.")
+        case .paneChanged:
+            String(localized: "This chat changed on the host, so nothing was sent.")
         }
     }
 

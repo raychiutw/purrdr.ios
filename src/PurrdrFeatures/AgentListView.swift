@@ -626,24 +626,6 @@ struct AgentSectionHeader: View {
     }
 }
 
-/// 導覽入口旁的數字：需要處理的 workspace 數(行為規格 F2.8)。0 不畫;超過 99 顯示「99+」。不設 app 圖示徽章。
-struct AttentionBadge: View {
-    let count: Int
-
-    var body: some View {
-        if count > 0 {
-            Text(verbatim: count > 99 ? "99+" : "\(count)")
-                .font(.footnote.weight(.semibold))
-                .monospacedDigit()
-                .padding(.horizontal, 7)
-                .padding(.vertical, 2)
-                .hostFill(in: Capsule())
-                .accessibilityLabel(count == 1 ? Text("1 workspace needs you") : Text("\(count) workspaces need you"))
-                .accessibilityIdentifier("attention.badge")
-        }
-    }
-}
-
 extension AgentGroup {
     var title: LocalizedStringKey {
         switch self {

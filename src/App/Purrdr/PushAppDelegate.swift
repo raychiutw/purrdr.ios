@@ -25,17 +25,27 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
 
     /// app 在前景時，新的「需要你」只出現在 Agent 列表，不跳系統通知(HIG 檢核清單)。
     nonisolated func userNotificationCenter(
-        _ center: UNUserNotificationCenter, willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        []
+        _ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping @Sendable (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([])
     }
 
     /// 點通知：開該 Agent 的聊天。
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        let content = response.notification.request.content
+    /// 不用 async 版:async 版的 completion 會在 cooperative 背景 thread 結束，UIKit 的 snapshot／state
+    /// restoration 在 main-thread assertion 上 abort(#327)。這裡明確在 main actor 上才呼叫 `completionHandler`。
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping @Sendable () -> Void
+    ) {
         let requestID = response.notification.request.identifier
-        guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
-              let route = PushRoute(userInfo: content.userInfo) else { return }
-        await MainActor.run { Self.router.receive(route, requestID: requestID) }
+        let route = response.actionIdentifier == UNNotificationDefaultActionIdentifier
+            ? PushRoute(userInfo: response.notification.request.content.userInfo) : nil
+        Task { @MainActor in
+            if let route {
+                Self.router.receive(route, requestID: requestID)
+            }
+            completionHandler()
+        }
     }
 }
