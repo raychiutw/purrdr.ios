@@ -34,7 +34,7 @@ public actor DemoHost: HostChannel {
         case workingAfterPrompt(for: Duration)
         /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
         case agentFiles
-        /// 聊天中斷網(#219):第一個主機指令(app 啟動)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
+        /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
     }
@@ -117,7 +117,8 @@ public actor DemoHost: HostChannel {
     public func execute(_ command: String) async throws -> any ExecSession {
         try await passTailscaleCheck()
         try await failIfOffline()
-        scheduleOfflineIfDue()
+        // 對話載入完成(第一次定位對話紀錄)才開始計時斷網，不是 app 啟動(#371)。
+        if DemoTranscripts.isLocate(command) { scheduleOfflineIfDue() }
         if command == HerdrCommand.bridge() {
             let bridge = DemoBridgeSession { [weak self] line in
                 guard let self else { return (Data(), false) }
@@ -207,31 +208,10 @@ public actor DemoHost: HostChannel {
         return DemoEchoShell()
     }
 
-    /// UI 測試的觸發(#371):把情境裡「過一段時間才發生」的事立刻發生(斷網、大量輸出、工作結束、驗證完成)。
-    public func trigger() async {
-        triggered = true
-        switch scenario {
-        case .goesOffline:
-            offlineScheduled = true
-            await goOffline()
-        case .workingAfterPrompt:
-            pendingReplies = pendingReplies.map {
-                PendingReply(paneID: $0.paneID, sessionID: $0.sessionID, due: now(), lines: $0.lines)
-            }
-        case .tailscaleCheck:
-            checkRelease?.yield()
-        default:
-            break
-        }
-    }
-
-    private var triggered = false
-
     // MARK: - Tailscale check mode 情境
 
     private var checkPassed = false
     private var checkWait: Task<Void, any Error>?
-    private var checkRelease: AsyncStream<Void>.Continuation?
 
     /// check mode 情境：還沒驗證過就回報驗證網址並等待(`completesAfter` 後視為驗證完成;`nil` = 等到取消)。
     /// 同時的指令一起等同一次驗證;取消後下一個指令重新要求驗證。
@@ -242,17 +222,10 @@ public actor DemoHost: HostChannel {
             wait = checkWait
         } else {
             let cancel: @Sendable () async -> Void = { [weak self] in await self?.cancelTailscaleCheck() }
-            let (release, continuation) = AsyncStream<Void>.makeStream()
-            checkRelease = continuation
-            // 驗證完成：過了 `completesAfter`,或被 `trigger()`(UI 測試)放行。
-            let timer = completesAfter.map { delay in
-                Task { try? await Task.sleep(for: delay); continuation.yield() }
-            }
             wait = Task { [tailscaleCheck] in
                 tailscaleCheck?(TailscaleCheckPrompt(url: Self.tailscaleCheckURL, cancel: cancel))
-                defer { tailscaleCheck?(nil); timer?.cancel() }
-                for await _ in release { break }
-                try Task.checkCancellation()
+                defer { tailscaleCheck?(nil) }
+                try await Task.sleep(for: completesAfter ?? .seconds(60 * 60))
             }
             checkWait = wait
         }
@@ -323,7 +296,7 @@ public actor DemoHost: HostChannel {
     /// 斷網時要以連線中斷結束的請求與訂閱。
     private var openBridges: [DemoBridgeSession] = []
 
-    /// 斷網情境：第一個主機指令時排定斷網。
+    /// 斷網情境：第一次定位對話紀錄(對話載入完成)時排定斷網。
     private func scheduleOfflineIfDue() {
         guard case .goesOffline(let delay, _) = scenario, !offlineScheduled else { return }
         offlineScheduled = true
@@ -396,7 +369,7 @@ public actor DemoHost: HostChannel {
             largeOutputAt = now() + delay
             return
         }
-        guard let due = largeOutputAt, triggered || now() >= due else { return }
+        guard let due = largeOutputAt, now() >= due else { return }
         largeOutputWritten = true
         appended[ledger.sessionID, default: []] += DemoTranscripts.largeOutput(at: Date())
     }

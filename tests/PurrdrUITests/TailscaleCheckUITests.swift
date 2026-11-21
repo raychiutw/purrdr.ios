@@ -37,7 +37,6 @@ final class TailscaleCheckUITests: XCTestCase {
 
         let prompt = element("tailscaleCheck.prompt", in: app)
         XCTAssertTrue(prompt.waitForExistence(timeout: 10), "沒有出現 Tailscale 驗證提示")
-        app.triggerDemoScenario()
 
         XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 15), "驗證完成後沒有自動載入 Agent")
         XCTAssertFalse(prompt.exists, "驗證完成後提示沒有收起")

@@ -23,9 +23,6 @@ struct PurrdrApp: App {
     private let hostSync: HostSyncModel
     /// 第一次開啟的歡迎頁(#34)。
     private let welcome: WelcomeModel
-    /// Demo 情境的觸發(#371):只有 UI 測試、且情境的事件要由測試觸發時才有畫面上的觸發鈕。
-    private let demoHost: DemoHost
-    private let demoTriggerEnabled: Bool
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
     private let recentPhotoSource: RecentPhotoSource
@@ -45,9 +42,6 @@ struct PurrdrApp: App {
         // Tailscale SSH check mode 的提示：所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
-        demoHost = demo
-        // 這幾個情境的事件由 UI 測試點觸發鈕才發生(#371),不靠牆鐘。
-        demoTriggerEnabled = uiTesting && Self.demoScenarioUsesTrigger(arguments)
         // 對話快取(#356):存在這支裝置的本機 SQLite(Caches,排除備份),重開 app 與從推播冷啟動打開聊天都先顯示。
         // UI 測試只放記憶體，不讀寫這台模擬器的檔案。
         let cache: any ConversationCache = uiTesting
@@ -315,32 +309,21 @@ struct PurrdrApp: App {
             + (arguments.contains("-seedSlowHost") ? [slowHost] : [])
     }
 
-    /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等，測試點觸發鈕才視為驗證完成);
-    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話後、測試點觸發鈕 agent 一次寫出大量輸出(#130);
-    /// 每次送出 prompt 後 agent 一次寫出大量輸出;送出後工作中，測試點觸發鈕才完成;
-    /// 聊天中斷網(測試點觸發鈕才斷網，立刻失敗，或每個指令等 10 秒才失敗,#219);啟動就沒有網路(每個指令等 10 秒才失敗,#221)。
-    /// 觸發鈕(`uiTesting.demoTrigger`)只在這些需要觸發的情境出現(#371)，不靠牆鐘。
+    /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成);
+    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話 5 秒後、或每次送出 prompt 後 agent 一次寫出大量輸出(#130);
+    /// 對話載入完成 1 秒後斷網(立刻失敗，或每個指令等 10 秒才失敗,#219);啟動就沒有網路(每個指令等 10 秒才失敗,#221)。
     /// 情境只能選一個：旗標互斥，同時帶多個時只採用下面順序中的第一個。
-    /// 等觸發才發生的事件，延遲設成實際上不會到(UI 測試點觸發鈕才提前發生)。
-    private static let untilTriggered: Duration = .seconds(60 * 60)
-
-    /// 事件由 UI 測試觸發的情境旗標(`DemoHost.trigger()`)。
-    private static func demoScenarioUsesTrigger(_ arguments: [String]) -> Bool {
-        ["-demoTailscaleCheck", "-demoTailscaleCheckCompletes", "-demoLargeOutput", "-demoWorkingAfterPrompt",
-         "-demoGoesOffline", "-demoGoesOfflineHanging"].contains { arguments.contains($0) }
-    }
-
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
         if arguments.contains("-demoTailscaleCheck") { return .tailscaleCheck(completesAfter: nil) }
-        if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: nil) }
+        if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: .seconds(3)) }
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
-        if arguments.contains("-demoLargeOutput") { return .largeOutput(after: Self.untilTriggered) }
+        if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(5)) }
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
-        if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: Self.untilTriggered) }
+        if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
-        if arguments.contains("-demoGoesOffline") { return .goesOffline(after: Self.untilTriggered, hangs: false) }
-        if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: Self.untilTriggered, hangs: true) }
+        if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(1), hangs: false) }
+        if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(1), hangs: true) }
         if arguments.contains("-demoNoNetwork") { return .goesOffline(after: .zero, hangs: true) }
         return .standard
     }
@@ -386,13 +369,6 @@ struct PurrdrApp: App {
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
-            .overlay(alignment: .topLeading) {
-                if demoTriggerEnabled {
-                    Button { Task { await demoHost.trigger() } } label: { Color.clear.frame(width: 2, height: 2) }
-                        .accessibilityLabel(Text(verbatim: "Demo trigger"))
-                        .accessibilityIdentifier("uiTesting.demoTrigger")
-                }
-            }
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in

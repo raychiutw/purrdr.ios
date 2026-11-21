@@ -575,76 +575,20 @@ struct DemoHostTailscaleCheckTests {
     }
 }
 
-/// UI 測試的觸發(#371):情境的事件不靠牆鐘，由測試在畫面準備好之後觸發。
-@Suite("Demo 主機:情境觸發")
-struct DemoHostTriggerTests {
-    @Test("送出後工作中:觸發立刻接上回覆，不必等工作時間")
-    func triggerFinishesWorkingAfterPrompt() async throws {
-        let clock = ManualDemoClock()
-        let host = DemoHost(scenario: .workingAfterPrompt(for: .seconds(3600)), now: clock.now)
-        let client = HerdrClient(channel: host)
-        let reader = TranscriptReader(channel: host)
-        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
-        let ledger = try #require(try await client.snapshot().agents.first { $0.paneID == "w1:p1" })
-        _ = await PromptDelivery(client: client, sleep: { _ in }).send("Add a header row too?", to: ledger)
-        guard case .appended(let sent) = try await reader.tail(path: before.path, from: before.size) else {
-            Issue.record("對話紀錄應先接上使用者那一行")
-            return
-        }
-        #expect(try await reader.tail(path: before.path, from: sent.end) == .unchanged)
-
-        await host.trigger()
-
-        guard case .appended(let reply) = try await reader.tail(path: before.path, from: sent.end) else {
-            Issue.record("觸發後應接上回覆")
-            return
-        }
-        #expect(reply.lines.count == 1)
-        #expect(try await client.snapshot().agents.first { $0.paneID == "w1:p1" }?.status != .working)
-    }
-
-    @Test("大量輸出:定位後觸發才寫出，沒觸發不寫")
-    func triggerWritesLargeOutput() async throws {
-        let host = DemoHost(scenario: .largeOutput(after: .seconds(3600)))
-        let reader = TranscriptReader(channel: host)
-        let before = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
-        #expect(try await reader.tail(path: before.path, from: before.size) == .unchanged)
-
-        await host.trigger()
-
-        guard case .tooFarBehind = try await reader.tail(path: before.path, from: before.size) else {
-            Issue.record("觸發後 agent 應一次寫出大量的行")
-            return
-        }
-    }
-
-    @Test("Tailscale 驗證:觸發視為驗證完成，等待中的指令繼續")
-    func triggerCompletesTailscaleCheck() async throws {
-        let prompts = PromptLog()
-        let host = DemoHost(scenario: .tailscaleCheck(completesAfter: nil), tailscaleCheck: prompts.observe)
-        let pending = Task { try await HerdrClient(channel: host).snapshot() }
-        _ = try await prompts.firstPrompt()
-
-        await host.trigger()
-
-        _ = try await pending.value
-        #expect(prompts.urls == [DemoHost.tailscaleCheckURL, nil])
-    }
-
-    @Test("斷網:觸發前正常，觸發後每個指令都失敗")
-    func triggerGoesOffline() async throws {
-        let host = DemoHost(scenario: .goesOffline(after: .seconds(3600), hangs: false))
+/// 斷網情境的計時從「對話載入完成」(第一次定位對話紀錄)起算，不是從 app 啟動(#371)。
+@Suite("Demo 主機:斷網的起算點")
+struct DemoHostOfflineStartTests {
+    @Test("斷網從第一次定位對話紀錄起算：定位前一直連得上，定位後過了延遲才斷網")
+    func offlineCountsFromTranscriptLocate() async throws {
+        let host = DemoHost(scenario: .goesOffline(after: .milliseconds(1), hangs: false))
+        _ = try await HerdrClient(channel: host).snapshot()
+        try await Task.sleep(for: .milliseconds(100))
         _ = try await HerdrClient(channel: host).snapshot()
 
-        await host.trigger()
+        let reader = TranscriptReader(channel: host)
+        _ = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        try await Task.sleep(for: .milliseconds(100))
 
-        await #expect(throws: SSHConnectionError.timedOut) { _ = try await HerdrClient(channel: host).snapshot() }
-    }
-
-    @Test("斷網:還沒有任何指令就觸發也會斷網")
-    func triggerBeforeFirstCommandGoesOffline() async throws {
-        let host = DemoHost(scenario: .goesOffline(after: .seconds(3600), hangs: false))
-        await host.trigger()
         await #expect(throws: SSHConnectionError.timedOut) { _ = try await HerdrClient(channel: host).snapshot() }
     }
 }
