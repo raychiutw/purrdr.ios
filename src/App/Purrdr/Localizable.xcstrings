@@ -3314,6 +3314,17 @@
         }
       }
     },
+    "Couldn’t read this pane’s size on your computer, so it opened at this phone’s size. Open it again once herdr is running there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀不到這個 Pane 在電腦上的大小，所以改用這支手機的大小開啟。等電腦上的 herdr 開著之後再開一次。"
+          }
+        }
+      }
+    },
     "Couldn’t remove this host from this device. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5341,17 +5352,6 @@
         }
       }
     },
-    "Keep Computer Layout" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保留電腦版面"
-          }
-        }
-      }
-    },
     "Keep Editing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5359,6 +5359,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "繼續編輯"
+          }
+        }
+      }
+    },
+    "Keep Host Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留電腦版面"
           }
         }
       }
@@ -13070,6 +13081,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你離開期間 · %@ · 工作 %lld 分鐘"
+          }
+        }
+      }
+    },
+    "While you’re connected, the pane keeps this size, even if you resize the window on your computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線期間，這個 Pane 會維持這個大小，就算你在電腦上調整視窗也一樣。"
           }
         }
       }

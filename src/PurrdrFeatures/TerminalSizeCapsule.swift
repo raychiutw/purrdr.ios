@@ -4,7 +4,7 @@ import SwiftUI
 extension TerminalSizeMode {
     var title: String {
         switch self {
-        case .keepDesktop: String(localized: "Keep Computer Layout")
+        case .keepDesktop: String(localized: "Keep Host Layout")
         case .fitPhone: String(localized: "Fit This Phone")
         }
     }
@@ -70,10 +70,20 @@ private struct TerminalSizeSheet: View {
                     .labelsHidden()
                     .accessibilityIdentifier("terminal.size.picker")
                 } footer: {
-                    Text(model.sizeMode == .fitPhone
-                         ? "The layout on your computer changes to match this phone, and returns when you leave."
-                         : "This phone shows the pane at your computer’s size, so the layout on your computer doesn’t change.")
-                        .accessibilityIdentifier("terminal.size.note")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(model.sizeMode == .fitPhone
+                             ? "The layout on your computer changes to match this phone, and returns when you leave."
+                             : "This phone shows the pane at your computer’s size, so the layout on your computer doesn’t change.")
+                            .accessibilityIdentifier("terminal.size.note")
+                        if model.sizeMode == .keepDesktop {
+                            if model.keepDesktopFallback {
+                                Text("Couldn’t read this pane’s size on your computer, so it opened at this phone’s size. Open it again once herdr is running there.")
+                                    .accessibilityIdentifier("terminal.size.fallback")
+                            } else {
+                                Text("While you’re connected, the pane keeps this size, even if you resize the window on your computer.")
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle("Size")

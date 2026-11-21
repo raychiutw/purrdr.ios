@@ -298,7 +298,13 @@ public final class HostsModel {
 
     /// 某台主機上某個 Pane 的終端機 model(標題)。
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
-        PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
+        let member = member(for: route.host)
+        let client = member.client
+        let paneID = route.paneID
+        // 保留電腦版面時接上的格數:herdr 一接上就把 Pane 改成 handshake 的尺寸，所以要帶 Pane 目前的格數(#357)。
+        return PaneTerminalModel(client: member.terminals, paneID: paneID, title: title, nativeSize: {
+            (try? await client.snapshot())?.nativeSize(ofPane: paneID).map { TerminalGridSize(columns: $0.columns, rows: $0.rows) }
+        })
     }
 
     /// 「⋯」選單要不要有登入 Shell 與檔案：有任何一台支援就有(挑選鈕能選;HTTPS 主機沒有，ADR-0010)。

@@ -2,7 +2,8 @@ import Foundation
 
 /// Pane 終端機的大小模式(#357)。
 public enum TerminalSizeMode: String, Sendable, CaseIterable {
-    /// 預設:不送 `terminal.resize`,以電腦上 Pane 目前的欄列數顯示(整寬縮放),電腦的 herdr 版面不變。
+    /// 預設:handshake 帶 Pane 在電腦上目前的欄列數(herdr 接上就把 Pane 改成 handshake 的尺寸，所以帶原尺寸才不動版面),
+    /// 不送 `terminal.resize`,以那個欄列數顯示(整寬縮放)。讀不到(電腦沒開 herdr)時退回手機的格數(`keepDesktopFallback`)。
     case keepDesktop
     /// 照手機的格數送 `terminal.resize`:字比較大、比較好打字，但電腦上的版面會跟著變(離開後恢復)。
     case fitPhone
