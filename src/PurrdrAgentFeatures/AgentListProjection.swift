@@ -19,6 +19,8 @@ package enum AgentListProjection {
         package var previews: [String: MessagePreview]
         /// 這台主機的釘選、靜音與開啟紀錄(以 session 為鍵)。
         package var preferences = ChatPreferences()
+        /// 投影當下的時間(離開期間徽章用，#308)。
+        package var now = Date()
     }
 
     package static func sections(
@@ -179,7 +181,7 @@ extension AgentRow {
         self.init(
             host: host, paneID: agent.paneID, kind: agent.kind, title: title, workspace: AgentRowText.workspaceName(for: agent),
             subtitle: subtitle, hostLabel: label,
-            preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted,
+            preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isAway: chat.isAway, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted,
             progress: preview?.progress
         )
     }

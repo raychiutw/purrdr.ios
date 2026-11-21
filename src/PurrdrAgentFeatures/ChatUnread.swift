@@ -9,6 +9,8 @@ package enum ChatUnread {
     /// 一列在本機的聊天狀態。
     package struct State {
         package var isUnread = false
+        /// 離開超過 15 分鐘後才有的未讀(列表列的「離開期間」徽章，#308)。
+        package var isAway = false
         package var pinnedAt: Date?
         package var isMuted = false
 
@@ -19,6 +21,7 @@ package enum ChatUnread {
             isUnread = ChatUnread.isUnread(
                 session: agent.sessionID, preview: source.previews[agent.paneID], opened: source.preferences.opened, isVisible: isVisible)
             if let session = agent.sessionID {
+                isAway = AwaySummary.rowIsAway(isUnread: isUnread, openedAt: source.preferences.opened[session], now: source.now)
                 pinnedAt = source.preferences.pinned[session]
                 isMuted = source.preferences.muted.contains(session)
             }

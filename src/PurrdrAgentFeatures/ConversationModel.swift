@@ -459,6 +459,29 @@ public final class ConversationModel {
     /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
     @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
     private var lastPresenceSeq: UInt64 = 0
+
+    // MARK: 離開期間摘要(#308)
+
+    /// 上次離開這個聊天的時間(由 `MergedAgentListModel.awayStart(for:)` 接上;沒開過的聊天是 `nil`)。
+    @ObservationIgnored public var awayStart: (@MainActor () -> Date?)?
+    /// 第一次讀到離開起點時定下來的(離開起點，進來的時間);之後不變，聊天開著時發生的項目不會被算進去。
+    private var awayLatch: (from: Date, cutoff: Date)?
+    /// 離開超過 15 分鐘回來時的摘要;其餘為 `nil`。
+    package private(set) var awaySummary: AwaySummary?
+    /// 離開期間那段是否收合(只留最後一句)。
+    package var isAwayCollapsed = false
+
+    /// 畫面上要畫的列:收合時藏起離開期間那段(最後一句留著)。
+    package var visibleEntries: [ConversationEntry] {
+        guard isAwayCollapsed, let awaySummary else { return entries }
+        let hidden = awaySummary.hiddenIDs(in: entries.map(\.id))
+        return entries.filter { !hidden.contains($0.id) }
+    }
+
+    private func updateAwaySummary() {
+        if awayLatch == nil, !items.isEmpty, let from = awayStart?() { awayLatch = (from, clock.now()) }
+        awaySummary = awayLatch.flatMap { AwaySummary.make(items: items, awayFrom: $0.from, cutoff: $0.cutoff) }
+    }
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
     private var generation = 0
 
@@ -1508,6 +1531,7 @@ public final class ConversationModel {
         let merged = EchoTimeline.merge(items: items, echoes: echoes)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
+        updateAwaySummary()
         refreshAnsweredCard()
     }
 
