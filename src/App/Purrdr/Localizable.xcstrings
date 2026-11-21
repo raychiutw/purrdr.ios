@@ -440,17 +440,6 @@
         }
       }
     },
-    "%lld workspaces need you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 個 workspace 需要你處理"
-          }
-        }
-      }
-    },
     "%lld years" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -595,17 +584,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 週"
-          }
-        }
-      }
-    },
-    "1 workspace needs you" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 個 workspace 需要你處理"
           }
         }
       }
@@ -3023,17 +3001,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除會員"
-          }
-        }
-      }
-    },
-    "Delete Member…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除會員…"
           }
         }
       }
@@ -7679,17 +7646,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Spaces"
-          }
-        }
-      }
-    },
-    "Start" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開始"
           }
         }
       }
