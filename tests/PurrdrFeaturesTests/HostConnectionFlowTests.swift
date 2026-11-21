@@ -14,28 +14,31 @@ struct HostConnectionFlowTests {
     static let otherFingerprint = HostEditorModelTests.otherFingerprint
     static let endpoint = SSHEndpoint(host: "studio-mac", port: 22, username: "demo")
 
-    static func sshDraft(pin: HostKeyFingerprint? = nil) -> HostConnectionDraft {
+    /// 預設是 Tailscale SSH;`openSSH` 為 `true` 時是以密碼登入的 OpenSSH。
+    static func sshDraft(pin: HostKeyFingerprint? = nil, openSSH: Bool = false) -> HostConnectionDraft {
         let settings = HostConfiguration.SSHSettings(endpoint: endpoint, herdr: HerdrInstallation(), hostKeyPin: pin)
-        return HostConnectionDraft(name: "Studio", connection: .ssh(SSHConnectionDraft(settings: settings)))
+        let authentication: HostConfiguration.OpenSSHAuthentication? = openSSH ? .password : nil
+        return HostConnectionDraft(name: "Studio", connection: .ssh(SSHConnectionDraft(settings: settings, authentication: authentication)))
     }
 
     static func flow(store: MemoryHostStore = MemoryHostStore(), factory: ChannelFactory) -> HostConnectionFlow {
         HostConnectionFlow(store: store, credentials: HostCredentials(), hostService: HostServiceAccess(), makeChannel: factory.make)
     }
 
-    @Test("第一次連線停在主機身分確認;信任後以那把 key 為 pin 重測、通過後儲存帶 pin 與作業系統")
+    @Test("OpenSSH 第一次連線停在主機身分確認;信任後以那把 key 為 pin 重測、通過後儲存帶 pin 與作業系統")
     func confirmsIdentityThenSaves() async throws {
         let store = MemoryHostStore()
         let healthy = await HostEditorModelTests.healthyHost()
         let factory = ChannelFactory(await HostEditorModelTests.unverifiedHost(), healthy)
         let flow = Self.flow(store: store, factory: factory)
+        let draft = Self.sshDraft(openSSH: true)
 
-        await flow.test(Self.sshDraft())
+        await flow.test(draft)
         #expect(flow.phase == .confirmHostKey(Self.fingerprint))
-        #expect(!flow.canSave(Self.sshDraft()))
+        #expect(!flow.canSave(draft))
 
-        #expect(flow.trustPresentedHostKey(for: Self.sshDraft()))
-        let trusted = Self.sshDraft(pin: Self.fingerprint)
+        #expect(flow.trustPresentedHostKey(for: draft))
+        let trusted = Self.sshDraft(pin: Self.fingerprint, openSSH: true)
         await flow.test(trusted)
         guard case .tested = flow.phase else { Issue.record("應該通過測試:\(flow.phase)"); return }
         #expect(factory.pins == [nil, Self.fingerprint])
@@ -46,17 +49,39 @@ struct HostConnectionFlowTests {
         #expect(store.hosts == [saved])
     }
 
-    @Test("指紋變了就阻擋;沒有出示的 key 時不能信任")
-    func changedKeyBlocks() async throws {
-        let changed = FakeHost()
-        await changed.failConnection(with: SSHConnectionError.hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
-        let flow = Self.flow(factory: ChannelFactory(changed))
-        let draft = Self.sshDraft(pin: Self.fingerprint)
+    @Test("Tailscale SSH 第一次連線不問,自動記住出示的 key(仍 pin),重測通過後儲存帶 pin")
+    func tailscaleRemembersFirstKeyWithoutAsking() async throws {
+        let store = MemoryHostStore()
+        let factory = ChannelFactory(await HostEditorModelTests.unverifiedHost(), await HostEditorModelTests.healthyHost())
+        let flow = Self.flow(store: store, factory: factory)
 
-        #expect(!flow.trustPresentedHostKey(for: draft))
-        await flow.test(draft)
-        #expect(flow.phase == .hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
-        #expect(!flow.canSave(draft))
+        await flow.test(Self.sshDraft())
+
+        guard case .tested = flow.phase else { Issue.record("不該停在確認:\(flow.phase)"); return }
+        #expect(factory.pins == [nil, Self.fingerprint])
+        let remembered = Self.sshDraft(pin: Self.fingerprint)
+        let saved = try #require(flow.save(remembered))
+        #expect(saved.ssh?.hostKeyPin == Self.fingerprint)
+    }
+
+    @Test("指紋變了就阻擋、不能信任新 key;兩種連線方式都一樣")
+    func changedKeyBlocks() async throws {
+        for openSSH in [false, true] {
+            let changed = FakeHost()
+            await changed.failConnection(with: SSHConnectionError.hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
+            let factory = ChannelFactory(changed, await HostEditorModelTests.healthyHost())
+            let flow = Self.flow(factory: factory)
+            let draft = Self.sshDraft(pin: Self.fingerprint, openSSH: openSSH)
+
+            #expect(!flow.trustPresentedHostKey(for: draft))
+            await flow.test(draft)
+            #expect(flow.phase == .hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
+            #expect(!flow.canSave(draft))
+            // 一鍵略過的路:信任出示的 key 後重測,不能成立。
+            #expect(!flow.trustPresentedHostKey(for: draft), "指紋變了不能信任新 key")
+            #expect(flow.accepted == nil)
+            #expect(factory.pins == [Self.fingerprint], "不該以新 key 重測")
+        }
     }
 
     @Test("改了草稿之後要重測才能儲存")
