@@ -65,6 +65,8 @@ public final class ConversationModel {
     public private(set) var title = ""
     public private(set) var agentStatus: AgentStatus?
     public private(set) var metadata = TranscriptMetadata()
+    /// context 百分比與待辦進度(#307),由讀到的對話紀錄推得;標題列與待辦 sheet 用。
+    public private(set) var progress = AgentProgress()
     /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
     public private(set) var agentsPane: AgentsPane?
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
@@ -796,6 +798,7 @@ public final class ConversationModel {
         segments = [(chunk.start, recent.count)]
         olderMessages = []
         metadata = format.latestMetadata(in: chunk.lines)
+        progress = AgentProgress.latest(in: chunk.lines, format: format)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
     }
@@ -805,7 +808,10 @@ public final class ConversationModel {
         let added = parse(chunk.lines).filter { !known.contains($0.id) }
         recent += added
         if !added.isEmpty { segments.append((chunk.start, added.count)) }
-        for line in chunk.lines { format.updateMetadata(&metadata, with: line) }
+        for line in chunk.lines {
+            format.updateMetadata(&metadata, with: line)
+            progress.update(with: line, format: format)
+        }
         trimIfFollowing()
         rebuild()
     }
@@ -1660,7 +1666,8 @@ public final class ConversationModel {
 
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
-        ConversationHeader(agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName())
+        ConversationHeader(
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: progress)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
@@ -1728,6 +1735,7 @@ public final class ConversationModel {
         segments = []
         olderMessages = []
         metadata = TranscriptMetadata()
+        progress = AgentProgress()
         older = .reachedStart
         rebuild()
     }

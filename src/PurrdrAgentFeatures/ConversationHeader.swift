@@ -20,18 +20,32 @@ public struct ConversationHeader: Equatable, Sendable {
     public var status: Status
     /// 狀態之後的段落：主機名(有的話)。
     public var segments: [String]
+    /// context 百分比與待辦進度(#307);空的時候不顯示。
+    public var progress: AgentProgress
 
-    public init(title: String, status: Status, segments: [String]) {
+    public init(title: String, status: Status, segments: [String], progress: AgentProgress = AgentProgress()) {
         self.title = title
         self.status = status
         self.segments = segments
+        self.progress = progress
+    }
+
+    /// 副標尾端的進度：「62% · 待辦 3/7」;兩者都沒有時為 `nil`。
+    public var progressText: String? {
+        var parts: [String] = []
+        if let percent = progress.contextPercent { parts.append("\(percent)%") }
+        if progress.todoTotal > 0 { parts.append(String(localized: "Todos \(progress.todoDone)/\(progress.todoTotal)")) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// 畫面寬度不夠時依序嘗試的文字：最長的在前，每次從後面整段拿掉，最後只剩狀態。
     public var displayVariants: [String] {
-        (0...segments.count).reversed().map { count in
+        let plain = (0...segments.count).reversed().map { count in
             ([status.title] + segments.prefix(count)).joined(separator: " · ")
         }
+        // 有進度時先試帶進度的(「Working · studio · 62% · Todos 3/7」),放不下再整段拿掉主機名，最後才拿掉進度(#307)。
+        guard let progressText else { return plain }
+        return plain.map { "\($0) · \(progressText)" } + plain
     }
 
     /// 完整內容(VoiceOver):workspace、狀態、主機。
@@ -44,7 +58,8 @@ public struct ConversationHeader: Equatable, Sendable {
         ([status.title] + segments).joined(separator: ", ")
     }
 
-    package init(agent: Agent?, title: String, status: AgentStatus?, isOffline: Bool, hostName: String?) {
+    package init(agent: Agent?, title: String, status: AgentStatus?, isOffline: Bool, hostName: String?, progress: AgentProgress = AgentProgress()) {
+        self.progress = progress
         self.title = agent.map(AgentRowText.workspaceName) ?? title
         self.status = if isOffline {
             .offline

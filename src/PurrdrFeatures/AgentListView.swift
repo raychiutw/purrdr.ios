@@ -433,7 +433,7 @@ struct AgentRowView: View {
                 previewLine
                     .font(.subheadline)
                     .lineLimit(lines(2))
-                if dynamicTypeSize.isAccessibilitySize { timeText }
+                if dynamicTypeSize.isAccessibilitySize { trailingColumn }
             }
         }
         // 一句念完(#269,spec #267 故事 14):agent、workspace、狀態、主機 · 最後一句、時間;畫面的排列順序不同，不用 `.combine`。
@@ -454,6 +454,8 @@ struct AgentRowView: View {
             AgentKind(rawKind: row.kind).displayName, row.workspace, String(localized: row.status.title),
             row.isPinned ? String(localized: "Pinned") : nil, row.isMuted ? String(localized: "Muted") : nil,
             preview.isEmpty ? nil : preview, row.time?.text(),
+            row.progress?.contextPercent.map { String(localized: "Context \($0)%") },
+            row.progress.flatMap { $0.todoTotal > 0 ? String(localized: "Todos \($0.todoDone) of \($0.todoTotal) done") : nil },
         ]
         return parts.compactMap { $0 }.joined(separator: ", ")
     }
@@ -483,7 +485,7 @@ struct AgentRowView: View {
             }
             if !dynamicTypeSize.isAccessibilitySize {
                 Spacer(minLength: 8)
-                timeText
+                trailingColumn
             }
         }
         .font(.body)
@@ -496,6 +498,10 @@ struct AgentRowView: View {
                 HostIconBadge(icon, diameter: 18)
             }
             previewText
+            if let todos = row.progress, todos.todoTotal > 0 {
+                Spacer(minLength: 4)
+                TodoCount(done: todos.todoDone, total: todos.todoTotal)
+            }
         }
     }
 
@@ -512,6 +518,16 @@ struct AgentRowView: View {
             }
         }
         .foregroundStyle(secondary)
+    }
+
+    /// 右欄：時間，下方是 context 小圓環與百分比(#307;對 VoiceOver 隱藏，念在整列句子裡)。
+    private var trailingColumn: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            timeText
+            if let percent = row.progress?.contextPercent {
+                ContextMeter(percent: percent)
+            }
+        }
     }
 
     @ViewBuilder
