@@ -5,13 +5,11 @@ import SwiftUI
 struct FloatingGlass<S: InsettableShape>: ViewModifier {
     let shape: S
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-
-    /// UI 測試用:啟動參數 `-uiTestingReduceTransparency YES` 強制走不透明(模擬器無法用啟動參數開系統設定)。
-    private static var forcesOpaque: Bool { UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency") }
+    @Environment(\.forcesOpaqueGlass) private var forcesOpaque
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if reduceTransparency || Self.forcesOpaque {
+        if reduceTransparency || forcesOpaque {
             content
                 .background(.background, in: shape)
                 .overlay { shape.strokeBorder(.separator, lineWidth: 1) }
@@ -19,6 +17,12 @@ struct FloatingGlass<S: InsettableShape>: ViewModifier {
             content.glassEffect(.regular, in: shape)
         }
     }
+}
+
+extension EnvironmentValues {
+    /// UI 測試用:強制玻璃走不透明(模擬器無法用啟動參數開系統的「減少透明度」)。由 app 的 composition root 依啟動參數
+    /// `-uiTestingReduceTransparency YES` 注入,畫面不自己讀 `UserDefaults`。
+    @Entry public var forcesOpaqueGlass = false
 }
 
 extension View {
