@@ -12,15 +12,18 @@ public struct HostListView: View {
     @Binding var importURL: URL?
     /// 等著開編輯頁的主機(點了主機服務通知);開啟後清掉。
     @Binding var editHostID: UUID?
+    /// 要直接開新增主機引導(Agent 列表空狀態的「新增主機」);開啟後清掉。
+    @Binding var addHost: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var flow = HostListFlow()
     @State private var renaming: HostRenaming?
     @State private var actionError: String?
 
-    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil)) {
+    public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil), addHost: Binding<Bool> = .constant(false)) {
         self.model = model
         _importURL = importURL
         _editHostID = editHostID
+        _addHost = addHost
     }
 
     public var body: some View {
@@ -47,7 +50,7 @@ public struct HostListView: View {
                 }
                 Section {
                     Button {
-                        model.select(.demo)
+                        model.enterDemo()
                         dismiss()
                     } label: {
                         HostRowView(
@@ -105,6 +108,8 @@ public struct HostListView: View {
         .onChange(of: importURL) { openPendingImport() }
         .onAppear(perform: openPendingEditor)
         .onChange(of: editHostID) { openPendingEditor() }
+        .onAppear(perform: openPendingAdd)
+        .onChange(of: addHost) { openPendingAdd() }
     }
 
     private func hostRow(_ row: HostRow) -> some View {
@@ -290,6 +295,12 @@ public struct HostListView: View {
         guard let url = importURL else { return }
         importURL = nil
         flow.path = [.importLink(url)]
+    }
+
+    private func openPendingAdd() {
+        guard addHost else { return }
+        addHost = false
+        flow.path = [model.usesAddHostGuide ? .add : .addInEditor(nil)]
     }
 
     private func openPendingEditor() {

@@ -131,6 +131,8 @@ struct PurrdrApp: App {
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
         // 新增主機引導(#341):UI 測試預設仍開主機編輯頁(還沒改寫的編輯頁測試),`-uiTestingAddHostGuide` 才開引導。
         if uiTesting { hosts.usesAddHostGuide = arguments.contains("-uiTestingAddHostGuide") }
+        // 沒有主機時的空狀態(#332):正式啟動一律從空狀態開始;UI 測試預設直接列 Demo,`-uiTestingNoHosts` 才看空狀態。
+        hosts.demoEntered = uiTesting && !arguments.contains("-uiTestingNoHosts")
         hosts.haptics = SystemHaptics()
         // 流量計量(#353):存在 Application Support(只在這支裝置;UI 測試只放記憶體)。
         let trafficStore: any TrafficStore = uiTesting
