@@ -731,6 +731,17 @@
         }
       }
     },
+    "Accept Edits" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接受編輯"
+          }
+        }
+      }
+    },
     "Account" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1380,6 +1391,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "內建"
+          }
+        }
+      }
+    },
+    "Bypass Permissions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "略過權限"
           }
         }
       }
@@ -5318,6 +5340,17 @@
         }
       }
     },
+    "Normal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般"
+          }
+        }
+      }
+    },
     "Not Available" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6220,6 +6253,17 @@
         }
       }
     },
+    "Permission Mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權限模式"
+          }
+        }
+      }
+    },
     "Photo Library" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6249,6 +6293,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已釘選"
+          }
+        }
+      }
+    },
+    "Plan" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan"
           }
         }
       }
@@ -8365,6 +8420,17 @@
         }
       }
     },
+    "Tap to switch to the next mode. Touch and hold to choose one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下切換到下一個模式,長按選擇模式。"
+          }
+        }
+      }
+    },
     "Terminal" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10011,6 +10077,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檔案太大，無法在這裡預覽(%@)。請在主機上開啟。"
+          }
+        }
+      }
+    },
+    "Tried %lld times, but the screen doesn’t show %@ mode. Try again, or check the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試了 %lld 次,畫面上沒有看到「%@」模式。請再試一次,或到終端機確認。"
           }
         }
       }

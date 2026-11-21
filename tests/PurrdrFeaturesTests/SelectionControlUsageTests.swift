@@ -2,7 +2,7 @@ import Foundation
 import Testing
 
 /// 選擇控制(#313,DESIGN.md「選擇控制」):選項一律像「設定」app 的勾選列上下攤開(`.pickerStyle(.inline)`),
-/// 不用點開才看得到的下拉、分段，也不把選項切換藏進選單。例外只有數量沒有上限的主機選擇，與頁面層級的 Agents／Spaces 切換。
+/// 不用點開才看得到的下拉、分段，也不把選項切換藏進選單。例外只有數量沒有上限的主機選擇、頁面層級的 Agents／Spaces 切換，與使用者選定的權限模式膠囊長按選單(#306)。
 @Suite("選擇控制用法")
 struct SelectionControlUsageTests {
     /// 每個檔案可以有幾個不是 `.inline` 的 Picker(例外)。
@@ -11,8 +11,9 @@ struct SelectionControlUsageTests {
         "PlanUsageView.swift": 1,
         "TopNavigationView.swift": 1,
     ]
-    /// 可以把 Picker 放在選單裡的檔案：主機篩選與主機挑選鈕。
-    static let hostMenuFiles: Set = ["HostPickerViews.swift", "TopNavigationView.swift"]
+    /// 可以把 Picker 放在選單裡的檔案：主機篩選與主機挑選鈕;權限模式膠囊(#306,使用者選定的設計:點一下輪替、
+    /// 長按開選單,選單內仍是 `.inline` 勾選列)。
+    static let hostMenuFiles: Set = ["HostPickerViews.swift", "TopNavigationView.swift", "PermissionModeCapsule.swift"]
 
     /// SwiftUI 的 `Picker(`(前面不接英文字母：`hostPicker(`、`photosPicker(` 不算)。
     static func isPicker(_ line: Substring) -> Bool {

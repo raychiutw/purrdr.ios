@@ -605,6 +605,7 @@ public final class ConversationModel {
             }
             while !Task.isCancelled {
                 await poll()
+                await probePermissionModeIfNeeded()
                 do {
                     // 輪詢期間被叫醒就不等。
                     try await pollDue.wait(atMost: pollInterval)
@@ -1706,6 +1707,85 @@ public final class ConversationModel {
         }
     }
 
+    // MARK: - 權限模式(#306)
+
+    /// 從畫面讀到的 Claude 權限模式;還沒讀到或認不出是 `nil`。
+    public private(set) var permissionMode: AgentPermissionMode?
+    /// 正在切到這個模式(膠囊顯示進行中)。
+    public private(set) var switchingPermissionMode: AgentPermissionMode?
+    public var isSwitchingPermissionMode: Bool { switchingPermissionMode != nil }
+    @ObservationIgnored private var permissionModeProbed = false
+
+    /// 只有 Claude Code 有權限模式。
+    public var supportsPermissionMode: Bool { currentAgent?.kind == "claude" }
+
+    /// 膠囊可以操作:讀到目前模式、沒在切換、沒離線;唯讀裝置不行(畫面說明)。
+    public var canSwitchPermissionMode: Bool {
+        supportsPermissionMode && permissionMode != nil && !isSwitchingPermissionMode && !isReadOnly && !isOffline
+    }
+
+    /// 讀一次畫面更新目前模式;認不出沿用上次。
+    public func refreshPermissionMode() async {
+        guard supportsPermissionMode, let screen = await readScreen() else { return }
+        if let mode = PermissionModeScreen.parse(screen) { permissionMode = mode }
+    }
+
+    /// 每次 `run` 第一輪輪詢後讀一次(平常的輪詢不讀畫面,指令預算)。
+    private func probePermissionModeIfNeeded() async {
+        guard !permissionModeProbed, supportsPermissionMode, !isReadOnly, !isOffline else { return }
+        permissionModeProbed = true
+        await refreshPermissionMode()
+    }
+
+    /// 點一下:切到輪替的下一個模式。
+    public func cyclePermissionMode() async {
+        guard let current = permissionMode else { return }
+        await setPermissionMode(current.next())
+    }
+
+    /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
+    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面。失敗以提示說明,可再試。
+    public func setPermissionMode(_ target: AgentPermissionMode) async {
+        guard supportsPermissionMode, !isSwitchingPermissionMode else { return }
+        guard !isReadOnly else {
+            notice = .readOnlyDevice
+            return
+        }
+        switchingPermissionMode = target
+        defer { switchingPermissionMode = nil }
+        guard var current = await readPermissionMode() else {
+            notice = .permissionModeFailed(attempts: 0, target: target)
+            return
+        }
+        permissionMode = current
+        var attempts = 0
+        while current != target, attempts < AgentPermissionMode.maximumSwitchAttempts {
+            do {
+                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"])
+            } catch {
+                notice = .panelKeysFailed
+                haptics.play(.error)
+                return
+            }
+            attempts += 1
+            try? await sleep(.milliseconds(300))
+            guard let read = await readPermissionMode() else { break }
+            current = read
+            permissionMode = read
+        }
+        if current != target {
+            notice = .permissionModeFailed(attempts: attempts, target: target)
+            haptics.play(.error)
+        } else {
+            haptics.play(.selection)
+        }
+    }
+
+    private func readPermissionMode() async -> AgentPermissionMode? {
+        guard let screen = await readScreen() else { return nil }
+        return PermissionModeScreen.parse(screen)
+    }
+
     /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。
     private var detectedSuggestion: String?
     /// 這段完成期間還能讀幾次畫面找建議。Claude Code 回完之後才另外產生建議，第一次讀常常還沒有，
@@ -1929,4 +2009,6 @@ public enum SendNotice: Sendable, Equatable {
     case panelKeysFailed
     /// 這支裝置配對成唯讀，什麼都沒送出。
     case readOnlyDevice
+    /// 切換權限模式試了 `attempts` 次，畫面上沒有看到 `target`(#306)。
+    case permissionModeFailed(attempts: Int, target: AgentPermissionMode)
 }
