@@ -39,6 +39,28 @@
         }
       }
     },
+    "%@ Type the name that appears here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 把出現的名稱填進來。"
+          }
+        }
+      }
+    },
+    "%@ Type the numbers that appear here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 把出現的數字填進來。"
+          }
+        }
+      }
+    },
     "%@ connects over HTTPS. Choose an SSH host to check plan usage." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -167,6 +189,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ tokens"
+          }
+        }
+      }
+    },
+    "%@ was added." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入「%@」。"
           }
         }
       }
@@ -1040,6 +1073,17 @@
         }
       }
     },
+    "Add This Computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入這台電腦"
+          }
+        }
+      }
+    },
     "Add This Device’s Key?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1539,6 +1583,17 @@
         }
       }
     },
+    "Back" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回"
+          }
+        }
+      }
+    },
     "Back to Editing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1601,6 +1656,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "內建"
+          }
+        }
+      }
+    },
+    "Built-in SSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內建 SSH"
           }
         }
       }
@@ -2434,6 +2500,17 @@
         }
       }
     },
+    "Computer name or IP" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦名稱或 IP"
+          }
+        }
+      }
+    },
     "Confirm" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2654,6 +2731,17 @@
         }
       }
     },
+    "Copy %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝 %@"
+          }
+        }
+      }
+    },
     "Copy Code" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2859,6 +2947,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法確認是否已更新到 %@。下拉重新整理再檢查一次。"
+          }
+        }
+      }
+    },
+    "Couldn’t connect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連不上"
           }
         }
       }
@@ -3765,6 +3864,17 @@
         }
       }
     },
+    "Download Page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載頁"
+          }
+        }
+      }
+    },
     "Downloading %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4084,6 +4194,17 @@
         }
       }
     },
+    "First time connecting to this computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一次連到這台電腦"
+          }
+        }
+      }
+    },
     "Focused" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4249,6 +4370,17 @@
         }
       }
     },
+    "Go Back" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回"
+          }
+        }
+      }
+    },
     "Google API key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4278,6 +4410,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "了解"
+          }
+        }
+      }
+    },
+    "HTTPS (Host Service)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTPS(主機服務)"
           }
         }
       }
@@ -4593,6 +4736,28 @@
         }
       }
     },
+    "How do I find this?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "怎麼查？"
+          }
+        }
+      }
+    },
+    "How do you want to connect to your computer?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用什麼方式連到電腦？"
+          }
+        }
+      }
+    },
     "How much data Purrdr uses to talk to your hosts." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4824,6 +4989,28 @@
         }
       }
     },
+    "Install Tailscale on that computer and sign in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦安裝 Tailscale 並登入。"
+          }
+        }
+      }
+    },
+    "Install the Purrdr host service for send-when-done and stuck alerts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在電腦裝 Purrdr 主機服務，可用「做完再送」與卡住提醒"
+          }
+        }
+      }
+    },
     "Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4864,6 +5051,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "稍後這支裝置就會收到。"
+          }
+        }
+      }
+    },
+    "It’s built into Windows. You only need to turn it on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows 內建，只要打開就好。"
+          }
+        }
+      }
+    },
+    "I’ve Turned It On" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我已經開好了"
           }
         }
       }
@@ -5110,6 +5319,17 @@
         }
       }
     },
+    "Let the computer accept connections" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓電腦接受連線"
+          }
+        }
+      }
+    },
     "Level" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5172,6 +5392,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連結另一種登入方式後，用任一種都能登入同一個會員。請至少保留一種。"
+          }
+        }
+      }
+    },
+    "Linux" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linux"
           }
         }
       }
@@ -5271,6 +5502,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登入 Shell"
+          }
+        }
+      }
+    },
+    "Mac" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac"
           }
         }
       }
@@ -5590,6 +5832,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "離開期間有新回覆"
+          }
+        }
+      }
+    },
+    "Next" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一步"
           }
         }
       }
@@ -6265,6 +6518,28 @@
         }
       }
     },
+    "On that computer, open PowerShell, paste this line, then press Enter." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開 PowerShell，貼上這行，按 Enter。"
+          }
+        }
+      }
+    },
+    "On that computer, open Terminal, paste this line, then press Enter." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開終端機，貼上這行，按 Enter。"
+          }
+        }
+      }
+    },
     "Online" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6364,6 +6639,17 @@
         }
       }
     },
+    "Open Terminal, paste this line, then press Enter." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開終端機，貼上這行，按 Enter。"
+          }
+        }
+      }
+    },
     "Open Workflow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6382,6 +6668,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在新視窗打開"
+          }
+        }
+      }
+    },
+    "OpenSSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenSSH"
           }
         }
       }
@@ -6811,6 +7108,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "照片圖庫"
+          }
+        }
+      }
+    },
+    "Pick a kind of SSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一種 SSH"
+          }
+        }
+      }
+    },
+    "Pick the computer your agents run on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選 Agent 所在的那台電腦。"
           }
         }
       }
@@ -7255,6 +7574,17 @@
         }
       }
     },
+    "Purrdr will warn you if this computer’s identity ever changes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "之後如果這台電腦的身分變了，Purrdr 會擋下來提醒你。"
+          }
+        }
+      }
+    },
     "Put Back" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7405,6 +7735,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "收到"
+          }
+        }
+      }
+    },
+    "Recommended · no password or key, works anywhere" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議 · 不用密碼也不用金鑰，在哪裡都連得到"
+          }
+        }
+      }
+    },
+    "Recommended · works on most computers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議 · 大多數電腦都能用"
           }
         }
       }
@@ -7871,6 +8223,17 @@
         }
       }
     },
+    "SSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH"
+          }
+        }
+      }
+    },
     "SSH Access" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8300,6 +8663,17 @@
         }
       }
     },
+    "Share to Computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享到電腦"
+          }
+        }
+      }
+    },
     "Share…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8674,6 +9048,17 @@
         }
       }
     },
+    "Sign in with an account and password or key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用帳號與密碼或金鑰登入"
+          }
+        }
+      }
+    },
     "Sign-In Methods" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8824,6 +9209,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "狀態"
+          }
+        }
+      }
+    },
+    "Step %lld of %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 步，共 %lld 步"
           }
         }
       }
@@ -9055,6 +9451,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab %lld"
+          }
+        }
+      }
+    },
+    "Tailscale SSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tailscale SSH"
           }
         }
       }
@@ -10159,6 +10566,28 @@
         }
       }
     },
+    "This computer looks different" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦看起來不一樣"
+          }
+        }
+      }
+    },
+    "This computer’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this computer yourself." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦的身分和你之前信任的不同，可能有人在攔截連線。除非是你自己重設了這台電腦，否則不要繼續。"
+          }
+        }
+      }
+    },
     "This device can’t create a key in the Secure Enclave. Import a key or use a password." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11061,6 +11490,17 @@
         }
       }
     },
+    "Trust this computer?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要信任這台電腦嗎？"
+          }
+        }
+      }
+    },
     "Try Again" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11919,6 +12359,17 @@
         }
       }
     },
+    "What kind of computer is it?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那台電腦是？"
+          }
+        }
+      }
+    },
     "What should the agent do?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11926,6 +12377,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要 Agent 做什麼?"
+          }
+        }
+      }
+    },
+    "Which computer and which account?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連到哪台、用哪個帳號？"
           }
         }
       }
@@ -12003,6 +12465,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Windows 管理員使用者"
+          }
+        }
+      }
+    },
+    "Windows uses OpenSSH" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Windows 用 OpenSSH"
           }
         }
       }
@@ -12334,6 +12807,17 @@
         }
       }
     },
+    "You’re connected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連上了"
+          }
+        }
+      }
+    },
     "You’ve paid, but Purrdr couldn’t be reached to turn on Purrdr Plus. It will finish automatically next time you open Purrdr online." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12405,6 +12889,17 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "herdr %@ · %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr %@ · %@"
+          }
+        }
+      }
+    },
     "herdr Path" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12445,6 +12940,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "herdr 無法開啟這個 Pane。"
+          }
+        }
+      }
+    },
+    "herdr is updated. Restart the herdr server on that computer, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "herdr 已更新。請在那台電腦重新啟動 herdr server，再試一次。"
           }
         }
       }
@@ -12500,6 +13006,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上的 herdr"
+          }
+        }
+      }
+    },
+    "herdr on that computer is too old. Update herdr there, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那台電腦的 herdr 太舊了。請在那台電腦更新 herdr，再試一次。"
           }
         }
       }

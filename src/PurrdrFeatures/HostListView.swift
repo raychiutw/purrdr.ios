@@ -74,7 +74,7 @@ public struct HostListView: View {
                         .accessibilityIdentifier("sheet.done")
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
+                    Button("Add Host", systemImage: "plus") { flow.path.append(model.usesAddHostGuide ? .add : .addInEditor(nil)) }
                         .accessibilityIdentifier("hosts.add")
                 }
             }
@@ -177,9 +177,19 @@ public struct HostListView: View {
     private func destination(_ route: HostRoute) -> some View {
         Group {
             switch route {
-            case .add, .edit:
+            case .add:
+                AddHostGuideScreen(make: model.makeAddHostGuide) { host in
+                    saved(host)
+                } onCancel: {
+                    flow.path.removeLast()
+                } onOpenEditor: { method in
+                    // 引導還沒涵蓋這種連線方式:換成主機編輯頁(預選該方式)。
+                    flow.path = [.addInEditor(method)]
+                }
+            case .addInEditor, .edit:
                 HostEditorView(
-                    model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }),
+                    model: model.makeEditor(
+                        editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }, method: route.addMethod),
                     hostSettings: route.hostID.flatMap(model.hostSettings(for:)),
                     hostStatusConnection: route.hostID.flatMap(model.hostStatusConnection(for:)),
                     onRemoveHost: removeHostAction(for: route.hostID)
