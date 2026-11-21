@@ -199,6 +199,8 @@ public enum HostServiceError: Error, Equatable, Sendable {
     case connectionLost
     /// 主機服務的回應讀不懂。
     case unexpectedResponse
+    /// 送出前比對(`expected_session`／`expected_screen`)不符：對象的對話或畫面已變更，什麼都沒送出(#304)。
+    case paneChanged
 
     /// 要重新配對才能再連(權杖無效或已撤銷);不自動重連。
     public var requiresPairing: Bool {

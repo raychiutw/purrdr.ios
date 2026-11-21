@@ -16,6 +16,8 @@ public enum PromptOutcome: Sendable, Equatable {
     case rejected(message: String)
     /// 這支裝置配對成唯讀，主機服務拒絕寫入：什麼都沒送出。
     case readOnlyDevice
+    /// 主機送出前比對發現對象的對話已變更(`pane_changed`,#304):什麼都沒送出。
+    case paneChanged
 }
 
 /// 無法確認的原因。
@@ -71,15 +73,19 @@ public struct PromptDelivery: Sendable {
     }
 
     /// 送出 `text` 給 `agent`(呼叫端已用新鮮的 snapshot 確認過目標)。
-    public func send(_ text: String, to agent: Agent) async -> PromptOutcome {
+    /// `expectedSession` 是 app 看到的 session,交給主機在送出前比對(HTTPS 主機;SSH 主機由呼叫端的新鮮 snapshot 確認)。
+    public func send(_ text: String, to agent: Agent, expectedSession: String? = nil) async -> PromptOutcome {
+        let expectation = SendExpectation(session: expectedSession)
         if Self.isSlashCommand(text, kind: agent.kind) || Self.isShellCommand(text, kind: agent.kind) {
-            return await sendSlashCommand(text, to: agent)
+            return await sendSlashCommand(text, to: agent, expecting: expectation)
         }
         let reply: PromptReply
         do {
-            reply = try await client.prompt(target: agent.paneID, text: text, wait: .seconds(8))
+            reply = try await client.prompt(target: agent.paneID, text: text, wait: .seconds(8), expecting: expectation)
         } catch HostServiceError.readOnlyDevice {
             return .readOnlyDevice
+        } catch HostServiceError.paneChanged {
+            return .paneChanged
         } catch let error as HerdrError {
             return outcome(of: error, agent: agent)
         } catch {
@@ -89,17 +95,19 @@ public struct PromptDelivery: Sendable {
         if agent.kind == "codex" { return .unconfirmed(.codexNoReceipt) }
         // agent 原本就在工作:prompt 只會排隊，不等(F6.5)。
         if agent.status == .working { return .delivered }
-        return await confirmWrittenPrompt(paneID: agent.paneID)
+        return await confirmWrittenPrompt(paneID: agent.paneID, expecting: expectation)
     }
 
     /// Slash 指令與 `!` 指令：不帶 wait、絕不補 Enter(R-P15)。`!` 指令在 agent 的 shell 執行，agent 不會進入 working,
     /// 等待只會逾時(#43);確認靠對話紀錄出現 shell 區塊。
-    private func sendSlashCommand(_ text: String, to agent: Agent) async -> PromptOutcome {
+    private func sendSlashCommand(_ text: String, to agent: Agent, expecting expectation: SendExpectation) async -> PromptOutcome {
         do {
-            _ = try await client.prompt(target: agent.paneID, text: text, wait: nil)
+            _ = try await client.prompt(target: agent.paneID, text: text, wait: nil, expecting: expectation)
             return .submittedCommand
         } catch HostServiceError.readOnlyDevice {
             return .readOnlyDevice
+        } catch HostServiceError.paneChanged {
+            return .paneChanged
         } catch let error as HerdrError {
             if case .herdr = error { return outcome(of: error, agent: agent) }
             return .unconfirmed(.connectionLost)
@@ -125,7 +133,8 @@ public struct PromptDelivery: Sendable {
 
     /// 主機只知道文字寫進了終端機：等 3.5 秒看 agent 有沒有開始工作;沒有，就新鮮地讀一次狀態，
     /// **只有主機明確回報 `idle` 或 `done`** 才補一個 Enter,再等 2.5 秒(F6.5、R-P03)。
-    private func confirmWrittenPrompt(paneID: String) async -> PromptOutcome {
+    /// 補的 Enter 也帶同樣的比對：這段時間 pane 換了對話就不送。
+    private func confirmWrittenPrompt(paneID: String, expecting expectation: SendExpectation) async -> PromptOutcome {
         let reacting: [AgentStatus] = [.working, .blocked]
         switch try? await client.waitForAgent(target: paneID, until: reacting, timeout: .milliseconds(3500)) {
         case true?: return .delivered
@@ -137,7 +146,7 @@ public struct PromptDelivery: Sendable {
             return .unconfirmed(.mayBeInTerminal)
         }
         do {
-            try await client.sendKeys(paneID: paneID, keys: ["enter"])
+            try await client.sendKeys(paneID: paneID, keys: ["enter"], expecting: expectation)
         } catch {
             return .unconfirmed(.mayBeInTerminal)
         }

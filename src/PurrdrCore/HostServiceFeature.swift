@@ -21,6 +21,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case agentObserver
     /// 讀 Pane 畫面 `pane.read`(#303):提問卡、計畫卡、建議提示詞、slash 面板與即時預覽。
     case paneRead
+    /// 送出前比對 `expected_session`／`expected_screen`,不符回 `pane_changed`(#304、raychiutw/purrdr.host#29)。
+    case sendExpectations
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -34,6 +36,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .pushPlugin: HostServiceVersion(0, 6, 0)
         case .agentObserver: HostServiceVersion(0, 7, 0)
         case .paneRead: HostServiceVersion(0, 7, 0)
+        case .sendExpectations: HostServiceVersion(0, 7, 0)
         }
     }
 
