@@ -219,6 +219,11 @@ final class HTTPSHostUITests: XCTestCase {
             XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
             field.typeEnglish(text)
+            // 表單捲動會收鍵盤(#312),鍵盤上方的「Done」收起後再找下一個欄位，不靠捲動時鍵盤還在不在。
+            let done = app.buttons["hostEditor.keyboardDone"]
+            if done.waitForExistence(timeout: 3) { done.tap() }
+            let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.keyboards.firstMatch)
+            _ = XCTWaiter().wait(for: [hidden], timeout: 3)
         }
     }
 
