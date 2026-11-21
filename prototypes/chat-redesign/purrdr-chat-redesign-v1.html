@@ -1,0 +1,211 @@
+<title>Purrdr 聊天畫面原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 原型(拋棄式):聊天畫面三種呈現 × 三種狀態;左邊手機是選中的版本，右邊說明這版的重點。底部列切換。 */
+:root{
+  --page:#e8ebe9; --fg:#17201c; --muted:#66706b; --ground:#ffffff; --surface:#f3f4f3; --surface2:#e9ecea;
+  --line:#dde2df; --accent:#0b7a5c; --accent-soft:#e2f2ec; --on-accent:#ffffff; --warn:#c2410c; --red:#d92d20;
+  --code:#f5f6f5; --frame:#17201c; --bar:#ffffffee; --glass:rgba(255,255,255,.58); --glass-edge:rgba(255,255,255,.75); --glass-shadow:rgba(0,0,0,.12);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000000; --surface:#151817; --surface2:#1f2321;
+  --line:#2a2f2c; --accent:#3ccf9e; --accent-soft:#10291f; --on-accent:#03140d; --warn:#fb923c; --red:#ff6b5e;
+  --code:#121514; --frame:#333836; --bar:#1a1d1cee; --glass:rgba(38,42,40,.55); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.45); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000000; --surface:#151817; --surface2:#1f2321;
+  --line:#2a2f2c; --accent:#3ccf9e; --accent-soft:#10291f; --on-accent:#03140d; --warn:#fb923c; --red:#ff6b5e;
+  --code:#121514; --frame:#333836; --bar:#1a1d1cee; --glass:rgba(38,42,40,.55); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.45); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font-family:var(--sans);margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 120px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:20px;margin:0}
+.lede{color:var(--muted);margin:0;font-size:14px;line-height:1.6;max-width:70ch}
+.stage{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.col{flex:0 1 380px;width:380px;max-width:100%;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cap{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:center}
+.notes{flex:1 1 300px;min-width:0;font-size:14px;line-height:1.6;color:var(--muted)}
+.notes b{color:var(--fg)} .notes ul{padding-left:18px;margin:6px 0}
+/* 手機 */
+.phone{width:100%;height:780px;border:8px solid var(--frame);border-radius:42px;background:var(--ground);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.hdr{flex:none;display:grid;grid-template-columns:36px 1fr 36px;align-items:center;padding:12px 12px 8px;border-bottom:.5px solid var(--line);background:var(--ground)}
+.back{width:32px;height:32px;border-radius:16px;background:var(--surface);display:grid;place-items:center;color:var(--fg)}
+.ttl{text-align:center;min-width:0;cursor:pointer}
+.ttl b{display:block;font-size:16px}
+.ttl span{font-size:12px;color:var(--muted);display:inline-flex;gap:5px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent)} .dot.warn{background:var(--warn)} .dot.idle{background:var(--muted)}
+.banner{flex:none;font-size:12.5px;padding:8px 16px;background:var(--surface);color:var(--fg);display:flex;gap:8px;align-items:center;border-bottom:.5px solid var(--line)}
+.banner b{color:var(--warn)}
+.list{flex:1;overflow-y:auto;padding:14px 16px 10px;display:flex;flex-direction:column;gap:16px}
+.list>*{flex:none}
+/* 訊息共用 */
+.md{font-size:15px;line-height:1.55;min-width:0}
+.md p{margin:0 0 8px} .md h3{font-size:15px;margin:12px 0 6px} .md ul{margin:0 0 8px;padding-left:20px} .md li{margin:2px 0}
+.md code{font-family:var(--mono);font-size:13px;background:var(--surface2);padding:1px 5px;border-radius:5px}
+.md a{color:var(--accent);text-decoration:none;border-bottom:1px solid currentColor}
+.codeblk{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:6px 0 10px;background:var(--code)}
+.codeblk .bar{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--line)}
+.codeblk pre{margin:0;padding:10px;font-family:var(--mono);font-size:12px;line-height:1.5;overflow-x:auto}
+.kw{color:var(--accent)} .str{color:var(--warn)}
+.tbl{overflow-x:auto;margin:6px 0 10px;border:1px solid var(--line);border-radius:12px}
+.tbl table{border-collapse:collapse;width:100%;font-size:13px}
+.tbl th{text-align:left;font-weight:600;color:var(--muted);font-size:12px;background:var(--surface);padding:7px 10px}
+.tbl td{padding:7px 10px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.add{color:var(--accent)} .del{color:var(--red)}
+.thumb{border-radius:12px;overflow:hidden;border:1px solid var(--line);margin:4px 0 8px;max-width:240px}
+.thumb .img{height:130px;background:linear-gradient(135deg,var(--accent-soft),var(--surface2));display:grid;place-items:center;color:var(--muted);font-size:12px}
+.thumb .cap2{font-size:12px;color:var(--muted);padding:6px 10px}
+.file{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin:4px 0 8px;background:var(--surface)}
+.file .ic{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-size:11px;font-weight:700;font-family:var(--mono)}
+.file .tx{flex:1;min-width:0} .file .tx b{font-size:14px;display:block} .file .tx span{font-size:12px;color:var(--muted)}
+.file .chev{color:var(--muted);font-size:12px}
+.steps{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:4px 0}
+.steps .ok{color:var(--accent)}
+/* 需要你 */
+.ask{border:1.5px solid var(--warn);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.ask .q{font-size:14.5px;font-weight:600} .ask .lbl{font-size:12px;color:var(--warn);font-weight:700}
+.opt{border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px;background:var(--surface)}
+/* 待送 */
+.pending{align-self:flex-end;max-width:85%;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pending .b{border:1.5px dashed var(--accent);color:var(--fg);border-radius:18px;padding:9px 13px;font-size:15px;background:transparent}
+.pending .tag{font-size:12px;color:var(--muted)} .pending .tag a{color:var(--accent);margin-left:8px}
+/* 工作中膠囊與輸入框 */
+.dock{flex:none;padding:6px 16px 14px;display:flex;flex-direction:column;gap:8px;background:var(--ground)}
+.pill{align-self:center;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 12px;font-size:13px}
+.pill .stop{background:var(--surface2);border-radius:999px;padding:4px 10px;font-weight:600}
+.composer{border:1px solid var(--line);border-radius:22px;background:var(--surface);padding:10px 10px 8px;display:flex;flex-direction:column;gap:8px}
+.composer .ph{font-size:15px;color:var(--muted);padding:2px 4px;min-height:22px}
+.composer .row{display:flex;align-items:center;gap:6px}
+.cbtn{width:32px;height:32px;border-radius:16px;display:grid;place-items:center;background:var(--surface2);font-size:18px;color:var(--fg)}
+.chip{height:32px;border-radius:16px;padding:0 10px;display:inline-flex;align-items:center;gap:4px;font-size:13px;background:var(--surface2);color:var(--fg);white-space:nowrap}
+.chip.red{color:var(--red)}
+.send{margin-left:auto;width:32px;height:32px;border-radius:16px;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font-weight:700}
+/* 狀態 sheet */
+.sheet{position:absolute;inset:auto 0 0 0;background:var(--ground);border-top-left-radius:22px;border-top-right-radius:22px;box-shadow:0 -10px 30px #0003;padding:10px 16px 20px;display:flex;flex-direction:column;gap:12px;max-height:72%;overflow-y:auto}
+.scrim{position:absolute;inset:0;background:#0006}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--line);align-self:center}
+.sec{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em}
+.meter{height:8px;border-radius:4px;background:var(--surface2);overflow:hidden}.meter i{display:block;height:100%;width:62%;background:var(--accent)}
+.todo{display:flex;gap:8px;font-size:14px;align-items:center}.todo .bx{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--muted);flex:none}
+.todo.done .bx{background:var(--accent);border-color:var(--accent)} .todo.done span{text-decoration:line-through;color:var(--muted)} .todo.now .bx{border-color:var(--accent)}
+.srow{display:flex;justify-content:space-between;align-items:center;font-size:14px;background:var(--surface);border-radius:12px;padding:10px 12px}
+.tog{width:44px;height:26px;border-radius:13px;background:var(--accent);position:relative}.tog::after{content:"";position:absolute;right:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff}
+/* A 泡泡 */
+.A .user{align-self:flex-end;max-width:82%;background:var(--surface2);border-radius:20px 20px 6px 20px;padding:9px 13px;font-size:15px;line-height:1.45}
+.A .agent{display:flex;flex-direction:column;gap:2px}
+.A .who{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:4px}
+.av{width:20px;height:20px;border-radius:6px;background:#7b5a44;color:#fff;font-size:11px;display:grid;place-items:center;font-weight:700}
+/* B 文件式 */
+.B .list{gap:20px}
+.B .user{background:var(--accent-soft);border-radius:14px;padding:10px 13px;font-size:15px;line-height:1.5}
+.B .user .lab{font-size:11.5px;font-weight:700;color:var(--accent);letter-spacing:.04em;display:block;margin-bottom:2px}
+.B .agent .md{font-size:15.5px;line-height:1.6}
+.B .agent .md h3{font-size:17px}
+.B .composer{border-radius:26px;padding:12px 12px 10px}
+.B .composer .ph{min-height:44px}
+/* C 時間軸 */
+.C .list{gap:12px;padding-left:12px}
+.C .turn{position:relative;padding-left:20px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.C .turn::before{content:"";position:absolute;left:-6px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--ground);border:2px solid var(--accent)}
+.C .turn.u::before{border-color:var(--muted)}
+.C .user{font-size:15px;line-height:1.45;font-weight:600}
+.C .meta{font-size:11.5px;color:var(--muted)}
+.C .md{font-size:14.5px}
+/* G:A + 液態玻璃。HIG Materials:玻璃只在控制與導覽層，浮在內容上，內容從底下捲過去;內容層不用玻璃。 */
+.G .list{position:absolute;inset:0;padding:78px 16px 168px}
+.G .hdr{position:absolute;left:0;right:0;top:0;border:0;background:linear-gradient(var(--ground) 0%,transparent 100%);z-index:3;padding:12px 12px 22px}
+.G .back,.G .ttl,.G .pill,.G .composer{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border:1px solid var(--glass-edge);box-shadow:0 6px 24px var(--glass-shadow)}
+.G .ttl{justify-self:center;border-radius:999px;padding:5px 16px}
+.G .banner{position:absolute;top:64px;left:12px;right:12px;border-radius:14px;z-index:3;background:var(--glass);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--glass-edge)}
+.G .dock{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent 0%,var(--ground) 85%);padding:24px 12px 14px;z-index:3}
+.G .composer{border-radius:26px}
+.G .composer .cbtn,.G .composer .chip{background:transparent;border:1px solid var(--line)}
+.G .user{background:var(--surface2)}
+/* 底部列 */
+.ctrl{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--bar);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:22px;padding:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 32px);box-shadow:0 6px 24px #0002;z-index:5}
+.seg{display:flex;background:var(--surface2);border-radius:14px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:7px 11px;border-radius:11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ground);font-weight:600;box-shadow:0 1px 3px #0002}
+.seg button:focus-visible{outline:2px solid var(--accent)}
+</style>
+
+<div class="wrap">
+  <h1>聊天畫面</h1>
+  <p class="lede">原型(拋棄式)。照降噪原則：頂列一行狀態(點開是狀態 sheet)、對話區只放對話、輸入列上方只留工作中膠囊、待送訊息同一種樣式、錯誤集中一條橫幅。模型與權限模式放進輸入框，輸入框和訊息左右對齊同一條邊。三種訊息呈現 × 三種狀態，點頂列標題開狀態 sheet。內容是示意。</p>
+  <div class="stage">
+    <div class="col"><div class="cap" id="cap"></div><div class="phone" id="phone"></div></div>
+    <div class="notes" id="notes"></div>
+  </div>
+</div>
+
+<div class="ctrl" role="toolbar" aria-label="切換">
+  <div class="seg" id="segV"><button data-v="A">A 對話泡泡</button><button data-v="B">B 文件式</button><button data-v="C">C 時間軸</button><button data-v="G">A＋液態玻璃</button></div>
+  <div class="seg" id="segS"><button data-s="work">工作中</button><button data-s="ask">需要你</button><button data-s="pend">待送＋斷線</button></div>
+</div>
+
+<script>
+const S={v:'A',s:'work',sheet:false};
+const NOTES={
+A:'<b>A 對話泡泡</b>(像「訊息」與多數 AI 聊天 app):你的訊息是右邊的灰色泡泡;Agent 的回覆不包泡泡、佔滿寬度，每一輪開頭有小頭像與名稱。<ul><li>最熟悉，一眼分得出誰說的。</li><li>長回覆、表格、程式碼有完整寬度。</li></ul>',
+B:'<b>B 文件式</b>(像 Claude、ChatGPT 的閱讀版面):沒有泡泡，你的訊息是一塊淡綠底的引用，Agent 的回覆像一份文件，標題字級更大、行距更寬。<ul><li>最適合讀長回覆與 Markdown。</li><li>輸入框比較高，像在寫文件。</li></ul>',
+G:'<b>A＋液態玻璃</b>(使用者選 A,並依 HIG 加強液態玻璃):頂列與輸入框不再是實心的一條，改成浮在內容上的玻璃;訊息從它們底下捲過去，可視區域多了大約頂列加底部各一條的高度。<ul><li>只有控制與導覽用玻璃(返回鈕、標題膠囊、工作中膠囊、輸入框);訊息、卡片、表格是內容層，不用玻璃(HIG:Don’t use Liquid Glass in the content layer)。</li><li>頂部與底部各一段漸層淡出，玻璃後面的字不會干擾閱讀。</li><li>斷線橫幅也浮成一片玻璃。</li></ul>',
+ C:'<b>C 時間軸</b>:每一輪掛在左邊一條線上，你的訊息是粗體一行、Agent 的回覆接在下面，步驟收成一行在線上。<ul><li>最精簡，一個畫面看得到最多輪。</li><li>適合常常回頭看 Agent 做了什麼。</li></ul>'
+};
+const COMMON='<p><b>三版共通</b></p><ul><li>頂列只有標題與一行狀態;點開是狀態 sheet:context、待辦、背景子 Agent、做完再送。</li><li>輸入框裡：左邊「＋」附加、模型、權限模式(略過權限是紅字),右邊送出;寬度與訊息同一條邊(左右 16pt)。</li><li>步驟收成一行「✓ 5 個步驟 · 編輯 2 個檔案」,點開才看。</li><li>檔案卡片只顯示檔名與動作，路徑收在詳細資訊(#330)。</li><li>待送(撤回倒數、排隊、做完再送)都是同一種虛線泡泡，下方一行標籤。</li><li>斷線、主機服務版本、唯讀只用頂列下方一條橫幅。</li></ul>';
+
+const md=`<p>已經把 CSV 匯出改成依 RFC 4180 加引號，並補上測試。</p>
+<h3>改了什麼</h3>
+<ul><li><code>CSVExport.swift</code>:欄位有逗號、換行或引號時整欄加 <code>"</code>,引號改成兩個。</li><li>新增 <code>CSVQuotingTests.swift</code>,共 6 個案例。</li></ul>
+<div class="tbl"><table><tr><th>檔案</th><th>變更</th><th>行數</th></tr><tr><td>CSVExport.swift</td><td>編輯</td><td><span class="add">+18</span> <span class="del">−4</span></td></tr><tr><td>CSVQuotingTests.swift</td><td>新增</td><td><span class="add">+52</span></td></tr></table></div>
+<div class="codeblk"><div class="bar"><span>swift</span><span>拷貝</span></div><pre><span class="kw">func</span> quoted(_ field: <span class="kw">String</span>) -&gt; <span class="kw">String</span> {
+  <span class="kw">guard</span> field.contains(where: { <span class="str">",\\n\\""</span>.contains($0) })
+  <span class="kw">else</span> { <span class="kw">return</span> field }
+  <span class="kw">return</span> <span class="str">"\\""</span> + field.replacing(<span class="str">"\\""</span>, with: <span class="str">"\\"\\""</span>) + <span class="str">"\\""</span>
+}</pre></div>
+<p>預覽圖在 <a href="#">docs/export-preview.png</a>:</p>`;
+const thumb='<div class="thumb"><div class="img">export-preview.png</div><div class="cap2">export-preview.png · 420 KB</div></div>';
+const file='<div class="file"><div class="ic">SW</div><div class="tx"><b>CSVExport.swift</b><span>已編輯 · +18 −4</span></div><span class="chev">詳細資訊 ▾</span></div>';
+const steps='<div class="steps"><span class="ok">✓</span> 5 個步驟 · 編輯 2 個檔案 ›</div>';
+const userText='幫我把 CSV 匯出加上引號處理，並補測試';
+const ask='<div class="ask"><span class="lbl">! 需要你</span><span class="q">要直接覆寫 history.csv 嗎?</span><div class="opt">1. 覆寫</div><div class="opt">2. 另存成 history-quoted.csv</div><div class="opt">3. 先不要</div></div>';
+const pend='<div class="pending"><div class="b">順便把 TSV 也一起處理</div><div class="tag">排隊中 · 連上後送出<a href="#">取消</a></div></div><div class="pending"><div class="b">做完後跑一次全部測試</div><div class="tag">做完再送 #1<a href="#">編輯</a></div></div>';
+
+const earlier='<div class="user">先看一下匯出的程式在哪</div><div class="agent"><div class="md"><p>匯出在 <code>Sources/Ledger/CSVExport.swift</code>,由 <code>ExportView</code> 呼叫。目前欄位直接用逗號串起來，含逗號的備註會讓欄位錯位。</p></div></div>';
+function turns(v){
+  const agentBody=`${steps}<div class="md">${md}</div>${thumb}${file}`;
+  if(v==='A'||v==='G') return (v==='G'?earlier:'')+`<div class="user">${userText}</div><div class="agent"><div class="who"><span class="av">C</span>Claude Code · 10:42</div>${agentBody}</div>`;
+  if(v==='B') return `<div class="user"><span class="lab">你</span>${userText}</div><div class="agent">${agentBody}</div>`;
+  return `<div class="turn u"><span class="meta">你 · 10:41</span><div class="user">${userText}</div></div><div class="turn"><span class="meta">Claude Code · 10:42</span>${agentBody}</div>`;
+}
+function render(){
+  const st={work:['工作中','dot'],ask:['需要你','dot warn'],pend:['閒置','dot idle']}[S.s];
+  const banner=S.s==='pend'?'<div class="banner"><b>⚠︎</b>連不到 Studio Mac,訊息會排隊，連上後送出。</div>':'';
+  let extra=''; if(S.s==='ask') extra=(S.v==='C'?'<div class="turn">'+ask+'</div>':ask); if(S.s==='pend') extra=pend;
+  const pill=S.s==='work'?'<div class="pill"><span class="dot"></span>工作中 1:42 · 2 個子 Agent<span class="stop">停止</span></div>':'';
+  const sheet=S.sheet?`<div class="scrim" data-close></div><div class="sheet"><div class="grab"></div>
+    <div class="sec">CONTEXT</div><div style="display:flex;justify-content:space-between;font-size:14px"><span>124k / 200k</span><b>62%</b></div><div class="meter"><i></i></div>
+    <div class="sec">待辦 3/5</div><div class="todo done"><span class="bx"></span><span>讀 CSVExport</span></div><div class="todo done"><span class="bx"></span><span>加引號處理</span></div><div class="todo done"><span class="bx"></span><span>寫測試</span></div><div class="todo now"><span class="bx"></span><span>跑全部測試</span></div><div class="todo"><span class="bx"></span><span>更新文件</span></div>
+    <div class="sec">背景子 Agent</div><div class="srow"><span>● 檢查 TSV 相容性</span><span style="color:var(--muted)">0:38 ›</span></div><div class="srow"><span>● 掃描其他匯出</span><span style="color:var(--muted)">1:05 ›</span></div>
+    <div class="srow"><span>做完再送</span><span class="tog"></span></div></div>`:'';
+  document.getElementById('phone').className='phone '+(S.v==='G'?'A G':S.v);
+  document.getElementById('phone').innerHTML=`
+    <div class="hdr"><span class="back">‹</span><div class="ttl" data-open><b>garden-journal</b><span><span class="${st[1]}"></span>${st[0]} · Studio Mac · 62% ›</span></div><span></span></div>
+    ${banner}
+    <div class="list">${turns(S.v)}${extra}</div>
+    <div class="dock">${pill}<div class="composer"><div class="ph">${S.s==='ask'?'輸入你的回答…':'訊息'}</div>
+      <div class="row"><span class="cbtn">＋</span><span class="chip">Opus 4.1 ▾</span><span class="chip">接受編輯 ▾</span><span class="send">↑</span></div></div></div>
+    ${sheet}`;
+  document.getElementById('cap').innerHTML={A:'A 對話泡泡',B:'B 文件式',C:'C 時間軸',G:'A＋液態玻璃'}[S.v]+' · '+{work:'工作中',ask:'需要你',pend:'待送＋斷線'}[S.s];
+  document.getElementById('notes').innerHTML=NOTES[S.v]+COMMON;
+  document.querySelectorAll('#segV button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.v));
+  document.querySelectorAll('#segS button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===S.s));
+  const h=S.v.toLowerCase()+'-'+S.s; if(location.hash!=='#'+h){try{history.replaceState(null,'','#'+h)}catch(e){}}
+}
+function fromHash(){const m=(location.hash||'').match(/^#([abcg])-(work|ask|pend)$/);if(m){S.v=m[1].toUpperCase();S.s=m[2];}render();}
+document.getElementById('segV').onclick=e=>{const b=e.target.closest('button');if(b){S.v=b.dataset.v;render();}};
+document.getElementById('segS').onclick=e=>{const b=e.target.closest('button');if(b){S.s=b.dataset.s;render();}};
+document.getElementById('phone').onclick=e=>{if(e.target.closest('[data-open]')){S.sheet=true;render();}else if(e.target.closest('[data-close]')){S.sheet=false;render();}};
+window.addEventListener('hashchange',fromHash);fromHash();
+</script>
