@@ -30,14 +30,24 @@ extension XCUIElement {
     @MainActor
     @discardableResult
     func waitUntilExists(timeout: TimeInterval) -> Bool {
-        UITestWait.until(timeout: timeout) { exists }
+        UITestWait.until(timeout: timeout) { existsWithoutIdle }
     }
+
+    /// 不等 app idle 的存在檢查(`waitForExistence` 內部用的 `existsNoRetry`)。
+    /// 一般的 `exists` 會先等 app 閒置：畫面有持續動畫時一次就卡 60 秒，輪詢就變成輪流卡 60 秒。
+    /// 等待用這個;已經確定畫面穩定、要斷言時才用 `exists`。
+    @MainActor
+    var existsWithoutIdle: Bool {
+        Self.existsNoRetry.evaluate(with: self)
+    }
+
+    private static let existsNoRetry = NSPredicate(format: "existsNoRetry == 1")
 
     /// 等元素消失。
     @MainActor
     @discardableResult
     func waitUntilGone(timeout: TimeInterval) -> Bool {
-        UITestWait.until(timeout: timeout) { !exists }
+        UITestWait.until(timeout: timeout) { !existsWithoutIdle }
     }
 
     /// 等元素出現且可點。
