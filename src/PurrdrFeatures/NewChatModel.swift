@@ -101,7 +101,9 @@ public final class FolderPickerModel {
 public final class NewChatModel {
     /// 主機上的資料夾(可以打 `~/…`,或從資料夾瀏覽挑)。
     public var folder = ""
-    public var agent: NewChatAgent = .claude
+    public var agent: NewChatAgent = .claude {
+        didSet { if agent != oldValue { choice = .new } }
+    }
     /// agent 就緒後送出的第一則訊息。
     public var message = ""
     /// agent 停在啟動問題時沒送出的第一則訊息(開聊天時放進輸入框)。
@@ -112,8 +114,31 @@ public final class NewChatModel {
     /// 唯讀裝置不能新增聊天的說明(`loadAccess()` 讀到唯讀時才有)。
     public private(set) var readOnlyReason: String?
 
+    /// 清單的選擇(#309):只有一個勾號，第一列是全新的聊天，其餘是過去的 session。
+    public enum Choice: Hashable, Sendable {
+        case new
+        case resume(String)
+    }
+
+    /// 這個資料夾過去的 session 清單狀態。
+    public enum SessionsState: Equatable {
+        /// 還沒有資料夾、這個 agent 不能續接，或還沒讀。
+        case idle
+        case loading
+        /// 新到舊;空陣列表示沒有過去的 session(清單只有「新的聊天」)。
+        case loaded([ResumableSession])
+        /// 這台主機不能續接,原因給畫面顯示。
+        case unavailable(String)
+        case failed(String)
+    }
+
+    public var choice: Choice = .new
+    public private(set) var sessions: SessionsState = .idle
+
     private let launcher: NewChatLauncher
     private let folders: NewChatFolders
+    /// 讀過的續接支援(整個表單只問一次)。
+    private var resumeSupport: ResumeSupport?
 
     public init(launcher: NewChatLauncher, folders: NewChatFolders) {
         self.launcher = launcher
@@ -124,7 +149,56 @@ public final class NewChatModel {
 
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    public var canStart: Bool { !trimmedFolder.isEmpty && !trimmedMessage.isEmpty && !isStarting && readOnlyReason == nil }
+    /// 選了續接。
+    public var isResuming: Bool {
+        if case .resume = choice { return true }
+        return false
+    }
+
+    /// 續接時第一則訊息可以留空;全新的聊天一定要有。
+    public var canStart: Bool {
+        !trimmedFolder.isEmpty && (isResuming || !trimmedMessage.isEmpty) && !isStarting && readOnlyReason == nil
+    }
+
+    /// 讀清單的條件變了(資料夾或 agent)就重讀;畫面以它當 `.task(id:)`。
+    public var sessionsKey: String { "\(agent.rawValue)|\(trimmedFolder)" }
+
+    /// 讀這個資料夾過去的 session(#309)。換了資料夾或 agent 時選擇回到「新的聊天」。
+    public func refreshSessions() async {
+        choice = .new
+        guard agent.supportsResume, !trimmedFolder.isEmpty else {
+            sessions = .idle
+            return
+        }
+        let folder = trimmedFolder
+        let agent = agent
+        let support: ResumeSupport
+        if let resumeSupport {
+            support = resumeSupport
+        } else {
+            support = await launcher.resumeSupport()
+            resumeSupport = support
+        }
+        switch support {
+        case .needsHostService:
+            sessions = .unavailable(String(localized: "Resuming a past chat needs the Purrdr host service. This host connects over SSH."))
+        case .updateRequired:
+            sessions = .unavailable(String(localized: "Resuming a past chat needs a newer Purrdr host service. Update it on the host."))
+        case .available:
+            sessions = .loading
+            do {
+                let found = try await launcher.resumableSessions(folder: folder, agent: agent)
+                // 讀的途中資料夾或 agent 又換了:丟掉這份舊結果。
+                guard folder == trimmedFolder, agent == self.agent else { return }
+                sessions = .loaded(found)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard folder == trimmedFolder, agent == self.agent else { return }
+                sessions = .failed(Self.message(for: error))
+            }
+        }
+    }
 
     /// 能不能在主機上瀏覽資料夾(HTTPS 主機不能，要輸入完整路徑)。
     public var canBrowseFolders: Bool { folders.canBrowse }
@@ -148,14 +222,17 @@ public final class NewChatModel {
     /// 開始。成功回傳新 workspace(聊天開在它的 root pane);失敗時原因放在 `error`。
     public func start() async -> CreatedWorkspace? {
         guard canStart else { return nil }
-        let request = NewChatRequest(folder: trimmedFolder, agent: agent, message: trimmedMessage)
+        var resumeSession: String?
+        if case .resume(let id) = choice { resumeSession = id }
+        let request = NewChatRequest(folder: trimmedFolder, agent: agent, message: trimmedMessage, resumeSession: resumeSession)
         isStarting = true
         error = nil
         unsentMessage = nil
         defer { isStarting = false }
         do {
             let started = try await launcher.start(request)
-            if !started.sentMessage { unsentMessage = trimmedMessage }
+            // 續接時訊息可以留空:沒有訊息就沒有「沒送出的訊息」。
+            if !started.sentMessage, !trimmedMessage.isEmpty { unsentMessage = trimmedMessage }
             return started.workspace
         } catch {
             self.error = Self.message(for: error)

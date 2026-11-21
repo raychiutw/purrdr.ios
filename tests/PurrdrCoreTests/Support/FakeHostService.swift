@@ -442,6 +442,10 @@ final class FakeHostService: Sendable {
             return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
         case "push.status", "push.install", "push.remove", "push.update_muted":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
+        case "sessions.list":
+            // 範例(兩個 session);`cwd` 為 `/empty` 表示資料夾沒有過去的 session(#309)。
+            if message["cwd"] as? String == "/empty" { return [.text(Self.example("server.sessions-list-result.json", requestID: requestID, changing: ["sessions": [Any]()]))] }
+            return [.text(Self.example("server.sessions-list-result.json", requestID: requestID))]
         case "pane.read":
             let paneID = message["pane_id"] as? String ?? ""
             let screen = message["format"] as? String == "ansi" ? settings.ansiPaneScreens[paneID] ?? settings.paneScreens[paneID] : settings.paneScreens[paneID]
