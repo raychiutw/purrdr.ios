@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 import NIOCore
 import NIOHTTP1
@@ -118,6 +119,9 @@ final class FakeHostService: Sendable {
         var paneScreens: [String: String] = [:]
         /// `pane.read` 帶 `format: ansi` 時的畫面：pane id → 含 ANSI 的文字;沒有時回 `paneScreens` 的。
         var ansiPaneScreens: [String: String] = [:]
+        /// 送出前比對(#304)用的 pane → Agent session id;預設同 `server.agents-list-result.json`。
+        /// 送出訊息帶 `expected_session`／`expected_screen` 時照主機服務的規則比對，不符回 `pane_changed`、不送。
+        var paneSessions: [String: String] = ["w1:p6": "00000000-0000-0000-0000-000000000001"]
     }
 
     /// 進行中的上傳(仿照主機服務的 `PendingUpload`)。
@@ -409,6 +413,14 @@ final class FakeHostService: Sendable {
             if let token = Self.token(authorization), settings.readOnlyTokens.contains(token) {
                 return [.text(Self.error(requestID, "read_only_device"))]
             }
+            let target = message["pane_id"] as? String ?? ""
+            if let expected = message["expected_session"] as? String, settings.paneSessions[target] != expected {
+                return [.text(Self.error(requestID, "pane_changed", message: "pane \(target) is no longer session \(expected)"))]
+            }
+            if let expected = message["expected_screen"] as? String,
+               Self.fingerprint(settings.paneScreens[target] ?? "") != expected {
+                return [.text(Self.error(requestID, "pane_changed", message: "the screen of pane \(target) has changed"))]
+            }
             if type == "agent.prompt", let herdrCode = settings.promptHerdrError {
                 return [.text(Self.error(requestID, "herdr_error", message: herdrCode, herdrCode: herdrCode))]
             }
@@ -692,6 +704,11 @@ final class FakeHostService: Sendable {
         object["request_id"] = requestID
         object["herdr_code"] = herdrCode
         return json(object)
+    }
+
+    /// 主機服務的畫面指紋：文字 UTF-8 bytes 的 SHA-256(小寫 hex)。
+    private static func fingerprint(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     private static func json(_ object: [String: Any]) -> String {

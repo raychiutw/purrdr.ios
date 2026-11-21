@@ -12,8 +12,6 @@ import AppKit
 /// 會員、Purrdr Plus、通知與主機同步在帳號頁(聊天列表右上角的帳號鈕)。
 public struct SettingsView: View {
     @Bindable var model: SettingsModel
-    /// 需要處理的 workspace 數(「完成」旁的數字，行為規格 F2.8)。
-    let attention: () -> Int
     /// 再看一次歡迎頁(#34;HIG Onboarding:跳過後在設定找得到)。
     let openWelcome: () -> Void
     /// App 鎖(#284);`nil` 時不顯示。
@@ -21,12 +19,11 @@ public struct SettingsView: View {
     let done: () -> Void
 
     public init(
-        model: SettingsModel, attention: @escaping () -> Int = { 0 },
+        model: SettingsModel,
         openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil, done: @escaping () -> Void
     ) {
         self.model = model
         self.appLock = appLock
-        self.attention = attention
         self.openWelcome = openWelcome
         self.done = done
     }
@@ -119,11 +116,8 @@ public struct SettingsView: View {
             .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    HStack(spacing: 6) {
-                        AttentionBadge(count: attention())
-                        Button("Done", action: done)
-                            .accessibilityIdentifier("sheet.done")
-                    }
+                    Button("Done", action: done)
+                        .accessibilityIdentifier("sheet.done")
                 }
             }
         }

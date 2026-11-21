@@ -23,6 +23,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case paneRead
     /// 列出資料夾過去的 session 與以 `resume_session` 續接(`sessions.list`／`agent.start`,#309)。
     case sessionResume
+    /// 送出前比對 `expected_session`／`expected_screen`,不符回 `pane_changed`(#304、raychiutw/purrdr.host#29)。
+    case sendExpectations
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -37,6 +39,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .agentObserver: HostServiceVersion(0, 7, 0)
         case .paneRead: HostServiceVersion(0, 7, 0)
         case .sessionResume: HostServiceVersion(0, 7, 0)
+        case .sendExpectations: HostServiceVersion(0, 7, 0)
         }
     }
 
