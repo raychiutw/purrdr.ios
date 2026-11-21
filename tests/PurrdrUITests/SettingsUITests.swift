@@ -33,6 +33,16 @@ final class SettingsUITests: XCTestCase {
         XCTAssertFalse(element("settings.hostSync", in: app).exists, "設定頁不該有主機同步")
     }
 
+    /// 各頁不放功能說明段落(#276):數據用量那一列下方沒有說明。
+    @MainActor
+    func testDataUsageRowHasNoExplanation() {
+        let app = XCUIApplication.launchUITesting()
+        openSettings(in: app)
+        let entry = element("settings.dataUsage", in: app)
+        scrollTo(entry, in: app)
+        XCTAssertFalse(app.staticTexts["How much data Purrdr uses to talk to your hosts."].exists, "數據用量列下方不該有說明")
+    }
+
     /// 外觀(#246):自動／淺色／深色，預設自動;選了立即生效，重開 app 後保留。
     @MainActor
     func testAppearanceChoicePersistsAcrossLaunches() {

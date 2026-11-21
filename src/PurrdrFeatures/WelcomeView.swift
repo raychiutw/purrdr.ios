@@ -50,9 +50,6 @@ public struct WelcomeView: View {
                         .accessibilityIdentifier("welcome.demo")
                     Button("Add Host", systemImage: "plus", action: addHost)
                         .accessibilityIdentifier("welcome.addHost")
-                } footer: {
-                    Text("The Demo host has sample conversations, so you can try every screen before you add a host.")
-                        .foregroundStyle(.secondaryText)
                 }
 
                 Section {
