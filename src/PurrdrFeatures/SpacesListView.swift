@@ -110,15 +110,16 @@ private struct SpacesSectionHeader: View {
 /// Agent 種類頭像：36pt 圓角方塊，白色字母。種類由列的 VoiceOver 句子念(`AgentStatusAvatar` 整個隱藏)。
 struct AgentKindAvatar: View {
     let kind: AgentKind
+    static let baseSide: CGFloat = 36
+    // 方塊與字母一起隨字級放大(#314:固定字級的字母會被稽核判為 Dynamic Type 不支援)。
+    @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = baseSide
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
         Text(verbatim: style.letter)
             .font(.subheadline.bold())
             .foregroundStyle(.white)
-            // 方塊固定大小，字母跟著放大會超出方塊。
-            .dynamicTypeSize(...DynamicTypeSize.xLarge)
-            .frame(width: 36, height: 36)
+            .frame(width: side, height: side)
             .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
     }
 }
