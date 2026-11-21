@@ -252,7 +252,9 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             app.openPlusPaywall()
-            XCTAssertTrue(element("plus.plan.com.raychiu.purrdr.plus.monthly", in: app).waitForExistence(timeout: 15))
+            // AX5 時方案卡在畫面外(List 是 lazy,不在無障礙樹),先等頁面出來再捲到方案卡。
+            XCTAssertTrue(app.collectionViews.firstMatch.waitForExistence(timeout: 15), "沒有開出付費牆")
+            XCTAssertTrue(app.reveal(element("plus.plan.com.raychiu.purrdr.plus.monthly", in: app), timeout: 15), "找不到月方案")
             try audit(app, "付費牆", contentSize: size)
             app.terminate()
         }
