@@ -90,7 +90,20 @@ package struct HostConnectionDraft: Equatable {
 @MainActor
 @Observable
 package final class HostConnectionFlow {
-    package var phase: HostConnectionPhase = .editing
+    package var phase: HostConnectionPhase = .editing {
+        didSet { if case .failed = phase {} else { failureDetails = nil } }
+    }
+    /// 失敗說明裡不放的原始內容(函式庫的錯誤字串、herdr 的回覆):畫面收進預設收合的「詳細資訊」(#359)。
+    package private(set) var failureDetails: String?
+
+    private func fail(_ error: any Error, connection: HostConfiguration.ConnectionMethod, authentication: HostConfiguration.OpenSSHAuthentication? = nil) {
+        fail(HostErrorText.message(for: error, connection: connection, authentication: authentication), details: HostErrorText.details(for: error))
+    }
+
+    private func fail(_ message: String, details: String?) {
+        phase = .failed(message)
+        failureDetails = details
+    }
 
     @ObservationIgnored private let store: any HostStore
     @ObservationIgnored private let existing: HostConfiguration?
@@ -188,7 +201,7 @@ package final class HostConnectionFlow {
         case .failure(HostProbeError.herdrOutdated(let version)):
             phase = .needsUpdate(version)
         case .failure(let error):
-            phase = .failed(HostErrorText.message(for: error, connection: ssh.method, authentication: ssh.authentication))
+            fail(error, connection: ssh.method, authentication: ssh.authentication)
         }
     }
 
@@ -225,7 +238,7 @@ package final class HostConnectionFlow {
         case .failure(HostProbeError.herdrOutdated(let version)):
             phase = .needsUpdate(version)
         case .failure(let error):
-            phase = .failed(HostErrorText.message(for: error, connection: .https))
+            fail(error, connection: .https)
         }
     }
 
@@ -293,7 +306,7 @@ package final class HostConnectionFlow {
             await channel.disconnect()
         } catch {
             await channel.disconnect()
-            phase = .failed(HostErrorText.message(for: error, connection: ssh.method, authentication: ssh.authentication))
+            fail(error, connection: ssh.method, authentication: ssh.authentication)
             return false
         }
         guard outcome == .handedOff else {
@@ -326,7 +339,7 @@ package final class HostConnectionFlow {
                 wroteSecret = false
             }
         } catch {
-            phase = .failed(String(localized: "Couldn’t save this host’s sign-in details on this device. \(error.localizedDescription)"))
+            fail(String(localized: "Couldn’t save this host’s sign-in details on this device."), details: error.localizedDescription)
             return nil
         }
         do {
@@ -335,7 +348,7 @@ package final class HostConnectionFlow {
         } catch {
             // 新主機沒存成：不要留下沒有主機的祕密。
             if wroteSecret, existing == nil { try? credentials.secrets.setSecret(nil, for: host.id) }
-            phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
+            fail(String(localized: "Couldn’t save this host on this device."), details: error.localizedDescription)
             return nil
         }
     }
@@ -348,14 +361,14 @@ package final class HostConnectionFlow {
             if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
             if existing != nil { try credentials.secrets.setSecret(nil, for: host.id) }
         } catch {
-            phase = .failed(String(localized: "Couldn’t save this host’s pairing on this device. \(error.localizedDescription)"))
+            fail(String(localized: "Couldn’t save this host’s pairing on this device."), details: error.localizedDescription)
             return nil
         }
         do {
             try store.save(host)
         } catch {
             if newToken != nil { try? hostService.tokens.setDeviceToken(previousToken, for: host.id) }
-            phase = .failed(String(localized: "Couldn’t save this host on this device. \(error.localizedDescription)"))
+            fail(String(localized: "Couldn’t save this host on this device."), details: error.localizedDescription)
             return nil
         }
         if newToken != nil { pairing?.isSaved = true }

@@ -3369,35 +3369,35 @@
         }
       }
     },
-    "Couldn’t save this host on this device. %@" : {
+    "Couldn’t save this host on this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法在這台裝置上儲存這台電腦。%@"
+            "value" : "無法在這台裝置上儲存這台電腦。"
           }
         }
       }
     },
-    "Couldn’t save this host’s pairing on this device. %@" : {
+    "Couldn’t save this host’s pairing on this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法在這支裝置上儲存這台電腦的配對。%@"
+            "value" : "無法在這支裝置上儲存這台電腦的配對。"
           }
         }
       }
     },
-    "Couldn’t save this host’s sign-in details on this device. %@" : {
+    "Couldn’t save this host’s sign-in details on this device." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法在這支裝置上儲存這台電腦的登入資料。%@"
+            "value" : "無法在這支裝置上儲存這台電腦的登入資料。"
           }
         }
       }
@@ -3512,13 +3512,13 @@
         }
       }
     },
-    "Couldn’t update herdr. %@" : {
+    "Couldn’t update herdr. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法更新 herdr。%@"
+            "value" : "無法更新 herdr。請再試一次。"
           }
         }
       }
@@ -13779,6 +13779,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台電腦上的 herdr 太舊，不支援這項功能。請更新 herdr，然後重新啟動它。"
+          }
+        }
+      }
+    },
+    "herdr on this host reported a problem. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台電腦上的 herdr 回報了問題。請再試一次。"
           }
         }
       }

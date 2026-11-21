@@ -1,4 +1,5 @@
 import Foundation
+import PurrdrAgentFeatures
 import PurrdrCore
 import PurrdrFeatures
 import PurrdrTestSupport
@@ -227,7 +228,21 @@ struct HostEditorModelTests {
 
         await model.test()
         #expect(model.save() == nil)
-        guard case .failed = model.phase else { Issue.record("\(model.phase)"); return }
+        guard case .failed(let message) = model.phase else { Issue.record("\(model.phase)"); return }
+        // 函式庫的原文不放在說明裡，收進「詳細資訊」(#359)。
+        #expect(!message.contains("SaveFailed"), "說明不直接帶錯誤原文:\(message)")
+        #expect(model.failureDetails?.isEmpty == false)
+    }
+
+    @Test("herdr 回的錯誤原文收進詳細資訊，說明只說 herdr 回報了問題(#359)")
+    func herdrMessageGoesToDetails() {
+        let error = HostProbeError.herdr("unexpected end of JSON input at line 1 column 7")
+
+        let message = HostErrorText.message(for: error)
+
+        #expect(!message.contains("JSON"))
+        #expect(HostErrorText.details(for: error) == "unexpected end of JSON input at line 1 column 7")
+        #expect(HostErrorText.details(for: SSHConnectionError.connectionRefused) == nil)
     }
 
     @Test("必填欄位(名稱、位址、使用者名稱)與埠 1–65535 才能測試")

@@ -228,6 +228,9 @@ public final class AddHostGuideModel {
         }
     }
 
+    /// 失敗說明的「詳細資訊」(原始錯誤內容;沒有時 `nil`,#359)。
+    public var failureDetails: String? { flow.failureDetails }
+
     /// 接上數據用量計量(#353):連線測試與配對的流量記在這台新主機底下。
     package func attachTraffic(_ provider: @escaping (UUID) -> TrafficRecording) {
         flow.traffic = provider

@@ -447,6 +447,16 @@ struct AddHostGuideView: View {
             VStack(alignment: .leading, spacing: 10) {
                 ErrorLabel(message)
                     .accessibilityIdentifier("guide.result")
+                if let details = model.failureDetails {
+                    DisclosureGroup("Details") {
+                        Text(verbatim: details)
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("guide.details")
+                    }
+                    .font(.footnote)
+                }
                 ForEach(model.failureReminders, id: \.self) { reminder in
                     Label(reminder, systemImage: "lightbulb")
                         .font(.footnote)
