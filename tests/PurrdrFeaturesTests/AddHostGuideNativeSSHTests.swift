@@ -235,3 +235,18 @@ struct AddHostGuideNativeSSHTests {
         #expect(tailscale.progress.total == 6)
     }
 }
+
+@Suite("新增主機引導：return 鍵的下一欄")
+struct AddHostGuideFieldOrderTests {
+    @Test("位址 → Port → 帳號;配對的位址 → Port → 配對碼;最後一欄與密碼、私鑰沒有下一欄(收鍵盤,#312)")
+    func returnKeyOrder() {
+        #expect(AddHostGuideModel.Field.address.next == .port)
+        #expect(AddHostGuideModel.Field.port.next == .username)
+        #expect(AddHostGuideModel.Field.username.next == nil)
+        #expect(AddHostGuideModel.Field.pairAddress.next == .pairPort)
+        #expect(AddHostGuideModel.Field.pairPort.next == .pairingCode)
+        #expect(AddHostGuideModel.Field.pairingCode.next == nil)
+        #expect(AddHostGuideModel.Field.password.next == nil)
+        #expect(AddHostGuideModel.Field.privateKey.next == nil)
+    }
+}

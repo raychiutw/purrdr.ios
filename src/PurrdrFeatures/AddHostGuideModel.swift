@@ -93,6 +93,20 @@ public final class AddHostGuideModel {
         case pairAddress
         case pairPort
         case pairingCode
+        /// 原生 SSH 的密碼、匯入的私鑰(多行)。
+        case password
+        case privateKey
+
+        /// return 鍵移到的下一欄;最後一欄或沒有 return 的欄位是 `nil`(收鍵盤，#312)。
+        public var next: Field? {
+            switch self {
+            case .address: .port
+            case .port: .username
+            case .pairAddress: .pairPort
+            case .pairPort: .pairingCode
+            case .username, .pairingCode, .password, .privateKey: nil
+            }
+        }
     }
 
     /// 從別處帶著資料進來的捷徑(#344):跳過前面的步驟。
@@ -448,7 +462,7 @@ public final class AddHostGuideModel {
                     ? String(localized: "On that computer, open PowerShell, paste this line, press Enter, and type the name that appears here.")
                     : String(localized: "On that computer, open Terminal, paste this line, press Enter, and type the name that appears here."),
                 command: isWindows ? "$env:USERNAME" : "whoami")
-        case .port, .pairAddress, .pairPort, .pairingCode:
+        case .port, .pairAddress, .pairPort, .pairingCode, .password, .privateKey:
             return nil
         }
     }

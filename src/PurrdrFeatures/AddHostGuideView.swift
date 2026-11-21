@@ -96,6 +96,14 @@ struct AddHostGuideView: View {
 
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
+        #if os(iOS)
+        // 數字鍵盤(Port)與多行私鑰沒有能收鍵盤的 return,所以鍵盤上方放「完成」(#312,同主機編輯頁)。
+        ToolbarItemGroup(placement: .keyboard) {
+            Spacer()
+            Button("Done") { focus = nil }
+                .accessibilityIdentifier("guide.keyboardDone")
+        }
+        #endif
         ToolbarItem(placement: .cancellationAction) {
             if model.canGoBack {
                 Button("Back", systemImage: "chevron.backward") { back() }
@@ -268,6 +276,8 @@ struct AddHostGuideView: View {
                 #endif
                 .autocorrectionDisabled()
                 .focused($focus, equals: field)
+                .submitLabel(field.next == nil ? .done : .next)
+                .onSubmit { focus = field.next }
                 .accessibilityIdentifier("guide.field.\(identifier(field))")
         }
     }
@@ -321,11 +331,15 @@ struct AddHostGuideView: View {
                     #if os(iOS)
                     .textInputAutocapitalization(.never)
                     #endif
+                    .focused($focus, equals: .privateKey)
                     .accessibilityIdentifier("guide.field.privateKey")
             } else {
                 SecureField("Password", text: $model.password)
                     .font(.title3)
                     .textContentType(.password)
+                    .focused($focus, equals: .password)
+                    .submitLabel(.done)
+                    .onSubmit { focus = nil }
                     .accessibilityIdentifier("guide.field.password")
             }
         }
@@ -367,7 +381,8 @@ struct AddHostGuideView: View {
                 #endif
                 .autocorrectionDisabled()
                 .focused($focus, equals: field)
-                .submitLabel(.next)
+                .submitLabel(field.next == nil ? .done : .next)
+                .onSubmit { focus = field.next }
                 .accessibilityIdentifier("guide.field.\(identifier(field))")
             if let help = model.help(for: field) {
                 DisclosureGroup(
@@ -395,6 +410,8 @@ struct AddHostGuideView: View {
         case .pairAddress: "pairAddress"
         case .pairPort: "pairPort"
         case .pairingCode: "pairingCode"
+        case .password: "password"
+        case .privateKey: "privateKey"
         }
     }
 
