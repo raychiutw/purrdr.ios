@@ -30,7 +30,7 @@ final class MultiHostUITests: XCTestCase {
 
         app.collectionViews.firstMatch.swipeDown()
         app.filterHosts("Studio Mac")
-        XCTAssertTrue(app.buttons["toolbar.hostFilter"].firstMatch.waitForLabel("Showing: Studio Mac", timeout: 5))
+        XCTAssertTrue(app.buttons["toolbar.currentHost"].firstMatch.waitForLabel("Showing: Studio Mac", timeout: 5))
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertTrue(error.waitForNonExistence(timeout: 5), "篩選 Studio Mac 時不該顯示 Build Box 的錯誤")
 
@@ -42,7 +42,7 @@ final class MultiHostUITests: XCTestCase {
     @MainActor
     func testHostFilterShowsIconNameAndChevron() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-        let filter = app.buttons["toolbar.hostFilter"].firstMatch
+        let filter = app.buttons["toolbar.currentHost"].firstMatch
         XCTAssertTrue(filter.waitForExistence(timeout: 15))
         // 只有圖示的工具列鈕是 36～44pt 寬;帶「All Hosts」與 ▾ 才會超過 100pt。
         XCTAssertGreaterThan(filter.frame.width, 100, "主機篩選只有圖示，沒有名稱與 ▾:\(filter.frame)")
@@ -59,7 +59,7 @@ final class MultiHostUITests: XCTestCase {
         let demoHeader = element("spaces.section.demo/w1", in: app)
         let studioHeader = element("spaces.section.DE300000-0000-4000-8000-000000000001/w1", in: app)
         XCTAssertTrue(demoHeader.waitForExistence(timeout: 20))
-        XCTAssertEqual(app.buttons["toolbar.hostFilter"].firstMatch.label, "Showing: All Hosts")
+        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: All Hosts")
 
         app.filterHosts("Studio Mac")
 
@@ -82,7 +82,7 @@ final class MultiHostUITests: XCTestCase {
         let error = element("agentList.error.DE300000-0000-4000-8000-000000000002", in: app)
         XCTAssertTrue(app.reveal(error, timeout: 20), "沒有連不上的示範主機")
         XCTAssertTrue(error.label.hasPrefix("Build Box: "), error.label)
-        XCTAssertEqual(app.buttons["toolbar.hostFilter"].firstMatch.label, "Showing: All Hosts")
+        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: All Hosts")
     }
 
     /// 兩台主機有相同的 pane id:各自一列;開非選取中主機的聊天，標題列帶主機名。

@@ -83,24 +83,24 @@ struct HostPickerModelTests {
 
     @Test("新增聊天：預設聊天列表篩選的主機")
     func newChatDefaultsToListFilter() {
-        let picker = HostPickerModel.newChat(options: Self.options, listFilter: Self.linux, selection: Self.mac)
+        let picker = HostPickerModel.newChat(options: Self.options, currentHost: Self.linux, selection: Self.mac)
 
         #expect(picker.selection == Self.linux)
     }
 
     @Test("新增聊天：篩選是所有主機時用選取中主機")
     func newChatAllHostsUsesSelectedHost() {
-        let picker = HostPickerModel.newChat(options: Self.options, listFilter: nil, selection: Self.mac)
+        let picker = HostPickerModel.newChat(options: Self.options, currentHost: nil, selection: Self.mac)
 
         #expect(picker.selection == Self.mac)
     }
 
     @Test("新增聊天換電腦不記住：下次仍從篩選或選取中主機開始")
     func newChatDoesNotRemember() {
-        let picker = HostPickerModel.newChat(options: Self.options, listFilter: nil, selection: Self.mac)
+        let picker = HostPickerModel.newChat(options: Self.options, currentHost: nil, selection: Self.mac)
         picker.select(Self.linux)
 
         #expect(picker.selection == Self.linux)
-        #expect(HostPickerModel.newChat(options: Self.options, listFilter: nil, selection: Self.mac).selection == Self.mac)
+        #expect(HostPickerModel.newChat(options: Self.options, currentHost: nil, selection: Self.mac).selection == Self.mac)
     }
 }

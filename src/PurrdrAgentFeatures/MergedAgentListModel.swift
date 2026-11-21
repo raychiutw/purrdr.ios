@@ -106,13 +106,18 @@ public final class MergedAgentListModel {
         }
     }
 
-    /// 主機篩選(#244);`nil` 是所有主機。選某台主機時同時設成選取中主機，選回所有主機時選取中主機不變。
-    public var hostFilter: HostSelection? {
+    /// 目前主機(#334):全 app 共用的主機範圍，`nil` 是所有主機;列表的主機篩選只是改它的控制。
+    /// 選某台主機時同時設成選取中主機，選回所有主機時選取中主機不變。
+    public var currentHost: HostSelection? {
         didSet {
-            if let hostFilter, hostFilter != oldValue { selectHost?(hostFilter) }
+            guard currentHost != oldValue else { return }
+            currentHostDidChange?(currentHost)
+            if let currentHost { selectHost?(currentHost) }
         }
     }
-    /// 篩選選了某台主機時，把它設成選取中主機(主機清單接上)。
+    /// 目前主機改變時通知(主機清單接上，存到本機)。
+    public var currentHostDidChange: (@MainActor (HostSelection?) -> Void)?
+    /// 目前主機是某台主機時，把它設成選取中主機(主機清單接上)。
     public var selectHost: (@MainActor (HostSelection) -> Void)?
 
     /// 篩選選單的主機項目(依列表的主機順序)。
@@ -173,7 +178,7 @@ public final class MergedAgentListModel {
     package func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
         self.sources = sources.filter { $0.host == selected } + sources.filter { $0.host != selected }
-        if let hostFilter, !sources.contains(where: { $0.host == hostFilter }) { self.hostFilter = nil }
+        if let currentHost, !sources.contains(where: { $0.host == currentHost }) { self.currentHost = nil }
         applyLayoutSubscription()
     }
 
@@ -188,8 +193,8 @@ public final class MergedAgentListModel {
 
     /// 套用主機篩選後的來源。
     private var filteredProjectionSources: [AgentListProjection.Source] {
-        guard let hostFilter else { return projectionSources }
-        return projectionSources.filter { $0.host == hostFilter }
+        guard let currentHost else { return projectionSources }
+        return projectionSources.filter { $0.host == currentHost }
     }
 
     private var projectionSources: [AgentListProjection.Source] {
@@ -211,7 +216,7 @@ public final class MergedAgentListModel {
     /// 讀不到的主機(保留它最後的列)。
     public var failures: [HostFailure] {
         sources.compactMap { source in
-            guard hostFilter == nil || source.host == hostFilter, case .failed(let message) = source.list.phase else { return nil }
+            guard currentHost == nil || source.host == currentHost, case .failed(let message) = source.list.phase else { return nil }
             return HostFailure(host: source.host, name: source.name, message: message)
         }
     }
@@ -226,7 +231,7 @@ public final class MergedAgentListModel {
     public func hostStatuses(at now: Date) -> [HostLoadStatus] {
         sources.compactMap { source in
             // 沒網路時連不上是確定的：列表只顯示離線，不逐台顯示連線中。
-            guard isNetworkAvailable, hostFilter == nil || source.host == hostFilter, source.list.phase == .loading else { return nil }
+            guard isNetworkAvailable, currentHost == nil || source.host == currentHost, source.list.phase == .loading else { return nil }
             let elapsed = now.timeIntervalSince(source.list.updates.connectingSince)
             let state: HostLoadStatus.State = elapsed >= Self.slowConnectionThreshold ? .stillConnecting : .connecting
             return HostLoadStatus(host: source.host, name: source.name, icon: source.icon, state: state)

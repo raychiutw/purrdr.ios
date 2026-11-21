@@ -40,7 +40,7 @@ struct AgentListHostFilterTests {
     func defaultShowsAllHosts() async {
         let model = await Self.loadedModel()
 
-        #expect(model.hostFilter == nil)
+        #expect(model.currentHost == nil)
         #expect(model.sections.flatMap(\.rows).count == 6)
     }
 
@@ -49,7 +49,7 @@ struct AgentListHostFilterTests {
         let model = await Self.loadedModel()
         #expect(Set(model.spacesSections.map(\.host)) == [Self.studio, Self.lab], "沒篩選時 Spaces 有兩台主機的段落")
 
-        model.hostFilter = Self.lab
+        model.currentHost = Self.lab
 
         let rows = model.sections.flatMap(\.rows)
         #expect(rows.count == 3)
@@ -63,7 +63,7 @@ struct AgentListHostFilterTests {
         let model = await Self.loadedModel(labFails: true)
         #expect(model.failures.map(\.host) == [Self.lab])
 
-        model.hostFilter = Self.studio
+        model.currentHost = Self.studio
 
         #expect(model.failures.isEmpty)
     }
@@ -84,7 +84,7 @@ struct AgentListHostFilterTests {
         var selected: [HostSelection] = []
         model.selectHost = { selected.append($0) }
 
-        model.hostFilter = Self.lab
+        model.currentHost = Self.lab
 
         #expect(selected == [Self.lab])
     }
@@ -92,11 +92,11 @@ struct AgentListHostFilterTests {
     @Test("篩選選回所有主機：選取中主機不變")
     func filteringAllHostsKeepsSelection() async {
         let model = await Self.loadedModel()
-        model.hostFilter = Self.lab
+        model.currentHost = Self.lab
         var selected: [HostSelection] = []
         model.selectHost = { selected.append($0) }
 
-        model.hostFilter = nil
+        model.currentHost = nil
 
         #expect(selected.isEmpty)
     }
@@ -104,11 +104,11 @@ struct AgentListHostFilterTests {
     @Test("篩選中的主機被刪除：回到所有主機")
     func removedFilteredHostFallsBackToAll() async {
         let model = await Self.loadedModel()
-        model.hostFilter = Self.lab
+        model.currentHost = Self.lab
 
         model.update(sources: [await Self.source(Self.studio, name: "Studio")], selected: Self.studio)
 
-        #expect(model.hostFilter == nil)
+        #expect(model.currentHost == nil)
     }
 
     @Test("單一清單：所有列依「已釘選／需要你／工作中／閒置」的順序排成一份")

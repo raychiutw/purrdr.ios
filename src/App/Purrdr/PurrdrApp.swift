@@ -105,7 +105,7 @@ struct PurrdrApp: App {
             hosts = HostsModel(
                 store: KeychainHostStore(), demoChannel: demo, demoFiles: DemoHostFileFetcher(), demoCompanions: Self.demoCompanions(demo),
                 conversationCache: cache, preferences: preferences, hostIcons: hostIcons,
-                selectionStore: UserDefaultsHostSelectionStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
+                selectionStore: UserDefaultsHostSelectionStore(), currentHost: UserDefaultsCurrentHostStore(), planUsageSelection: UserDefaultsPlanUsageSelectionStore(),
                 hostPicker: UserDefaultsHostPickerStore(),
                 hostConsent: UserDefaultsHostWriteConsentStore(), credentials: credentials,
                 // 裝置名稱只帶裝置種類(同公鑰註解),顯示在主機的裝置列表。

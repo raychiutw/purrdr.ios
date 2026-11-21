@@ -99,6 +99,7 @@ public final class HostsModel {
     private let offlineQueueStore: any OfflineQueueStore
     private var offlineQueues: [HostSelection: OfflineQueue] = [:]
     private let selectionStore: any HostSelectionStore
+    private let currentHostStore: any CurrentHostStore
     /// 方案用量畫面上次選的主機與 Agent。
     private let planUsageSelection: any PlanUsageSelectionStore
     /// 登入 Shell、檔案上次選的電腦(#245)。
@@ -162,6 +163,7 @@ public final class HostsModel {
         preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),
         hostIcons: any HostIconStore = InMemoryHostIconStore(),
         selectionStore: any HostSelectionStore = InMemoryHostSelectionStore(),
+        currentHost currentHostStore: any CurrentHostStore = InMemoryCurrentHostStore(),
         planUsageSelection: any PlanUsageSelectionStore = InMemoryPlanUsageSelectionStore(),
         hostPicker hostPickerStore: any HostPickerStore = InMemoryHostPickerStore(),
         demoConsent: any HostWriteConsentStore = InMemoryHostWriteConsentStore(),
@@ -178,6 +180,7 @@ public final class HostsModel {
         self.store = store
         agentList = MergedAgentListModel(modeStore: listMode)
         self.selectionStore = selectionStore
+        self.currentHostStore = currentHostStore
         self.planUsageSelection = planUsageSelection
         self.hostPickerStore = hostPickerStore
         self.demoChannel = demoChannel
@@ -201,6 +204,7 @@ public final class HostsModel {
         offlineQueueStore = offlineQueues
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
+        agentList.currentHostDidChange = { [weak self] host in self?.currentHostStore.save(host) }
     }
 
     /// Demo 主機在同意紀錄裡的主機 id。
@@ -246,7 +250,10 @@ public final class HostsModel {
 
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
     public func planUsage() -> PlanUsageModel {
-        PlanUsageModel(hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection) { [weak self] host, agent in
+        PlanUsageModel(
+            hosts: hostOptions { _ in true }, fallback: selection, store: planUsageSelection, currentHost: agentList.currentHost,
+            currentHostChanged: { [weak self] in self?.agentList.currentHost = $0 }
+        ) { [weak self] host, agent in
             self?.planUsageSource(host, agent)
         }
     }
@@ -291,7 +298,7 @@ public final class HostsModel {
 
     /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表目前篩選的主機(#244),所有主機時用選取中主機。
     public func newChatHostPicker() -> HostPickerModel {
-        .newChat(options: hostOptions { _ in true }, listFilter: agentList.hostFilter, selection: selection)
+        .newChat(options: hostOptions { _ in true }, currentHost: agentList.currentHost, selection: selection)
     }
 
     /// Demo 主機加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
@@ -463,6 +470,8 @@ public final class HostsModel {
             loadError = String(localized: "Couldn’t read saved hosts on this device. \(error.localizedDescription)")
         }
         select(validSelection(selectionStore.load()))
+        // 存的目前主機已不在列表上(刪除或同步移除)就維持所有主機。
+        if let stored = currentHostStore.load(), agentList.hostLabel(of: stored) != nil { agentList.currentHost = stored }
     }
 
     /// 選取主機並存起來。只改新聊天開在哪裡、列表排序與主機名標示、推播設定讀哪台;

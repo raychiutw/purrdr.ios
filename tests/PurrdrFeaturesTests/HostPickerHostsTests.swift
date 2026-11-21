@@ -75,10 +75,10 @@ struct HostPickerHostsTests {
         model.select(.host(Self.ssh.id))
         #expect(model.newChatHostPicker().selection == .host(Self.ssh.id))
 
-        model.agentList.hostFilter = .host(Self.https.id)
+        model.agentList.currentHost = .host(Self.https.id)
         #expect(model.newChatHostPicker().selection == .host(Self.https.id))
 
-        model.agentList.hostFilter = nil
+        model.agentList.currentHost = nil
         #expect(model.newChatHostPicker().selection == .host(Self.https.id))
     }
 
@@ -87,10 +87,10 @@ struct HostPickerHostsTests {
         let model = Self.model()
         model.select(.host(Self.ssh.id))
 
-        model.agentList.hostFilter = .host(Self.https.id)
+        model.agentList.currentHost = .host(Self.https.id)
         #expect(model.selection == .host(Self.https.id))
 
-        model.agentList.hostFilter = nil
+        model.agentList.currentHost = nil
         #expect(model.selection == .host(Self.https.id))
     }
 }
