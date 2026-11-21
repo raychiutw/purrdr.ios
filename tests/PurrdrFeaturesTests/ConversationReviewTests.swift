@@ -62,12 +62,17 @@ struct ConversationReviewTests {
         let changes = try #require(setup.model.makeChanges())
 
         await changes.load()
+        // 變更清單與 diff 並行讀取(`async let`),送達順序不固定(#324):只檢查兩個請求都帶 Agent 的工作目錄。
         let requests = await reader.requests
-        guard case .status(let cwd) = requests.first else {
-            Issue.record("沒有讀變更清單")
-            return
+        var cwds: [String] = []
+        for request in requests {
+            switch request {
+            case .status(let cwd): cwds.append(cwd)
+            case .diff(let cwd, _): cwds.append(cwd)
+            }
         }
-        #expect(cwd.hasPrefix("/"))
+        #expect(requests.contains { if case .status = $0 { true } else { false } }, "沒有讀變更清單")
+        #expect(cwds.count == 2 && cwds.allSatisfy { $0.hasPrefix("/") })
         #expect(changes.canSendReview)
     }
 }
