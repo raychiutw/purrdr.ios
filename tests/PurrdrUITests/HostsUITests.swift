@@ -197,6 +197,42 @@ final class HostsUITests: XCTestCase {
         XCTAssertEqual(app.textFields["hostEditor.name"].value as? String, "Studio Mac")
     }
 
+    /// #333:編輯既有主機、點名稱欄叫出鍵盤後，點左上角的 Cancel(iOS 26 顯示成 ×)不能閃退。
+    /// 沒改動時直接關閉;改了名稱時先出現放棄確認，確認後回到主機清單。
+    @MainActor
+    func testCancelEditingSeededHostWithKeyboardUpDoesNotCrash() {
+        for flags in [[String](), ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"]] {
+            for edits in [false, true] {
+                let app = XCUIApplication.launchUITesting(flags: ["-seedHost"] + flags)
+                openHosts(app)
+                let info = app.buttons[Self.seededInfo]
+                XCTAssertTrue(info.waitForExistence(timeout: 5))
+                info.tap()
+                let name = app.textFields["hostEditor.name"]
+                XCTAssertTrue(name.waitForExistence(timeout: 5))
+                name.tap()
+                XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "沒有叫出鍵盤")
+                if edits { name.typeEnglish("2") }
+
+                let cancel = app.navigationBars.buttons.matching(identifier: "Cancel").firstMatch.exists
+                    ? app.navigationBars.buttons.matching(identifier: "Cancel").firstMatch
+                    : app.navigationBars.buttons.element(boundBy: 0)
+                cancel.tap()
+
+                XCTAssertTrue(app.wait(for: .runningForeground, timeout: 3), "點取消後 app 不在前景(閃退) flags=\(flags) edits=\(edits)")
+                if edits {
+                    let discard = app.buttons["Discard Changes"].firstMatch
+                    let discardZh = app.buttons["放棄變更"].firstMatch
+                    XCTAssertTrue(discard.waitForExistence(timeout: 5) || discardZh.exists, "沒有放棄確認")
+                    (discard.exists ? discard : discardZh).tap()
+                }
+                XCTAssertTrue(app.buttons[Self.seededInfo].waitForExistence(timeout: 5), "沒有回到主機清單")
+                XCTAssertEqual(app.state, .runningForeground)
+                app.terminate()
+            }
+        }
+    }
+
     /// 編輯器的圖示欄位：11 種加「無」;只改圖示不必重新測試連線就能儲存，再開編輯器仍是選的那個。
     @MainActor
     func testEditorChangesHostIconWithoutRetesting() {
