@@ -91,9 +91,6 @@ public struct SettingsView: View {
                             Label("Data Usage", systemImage: "chart.bar")
                         }
                         .accessibilityIdentifier("settings.dataUsage")
-                    } footer: {
-                        Text("How much data Purrdr uses to talk to your hosts.")
-                            .foregroundStyle(.secondaryText)
                     }
                 }
 

@@ -3842,17 +3842,6 @@
         }
       }
     },
-    "Deleting your member account removes it and its data from Purrdr right away. Subscriptions billed by Apple continue until you cancel them in Settings." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除會員會立即從 Purrdr 移除會員與它的資料。由 Apple 收費的訂閱會持續，直到你在「設定」中取消。"
-          }
-        }
-      }
-    },
     "Demo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4945,17 +4934,6 @@
         }
       }
     },
-    "How much data Purrdr uses to talk to your hosts." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Purrdr 與你的電腦之間用了多少資料。"
-          }
-        }
-      }
-    },
     "How to Install the Host Service" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5623,17 +5601,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連結其他登入方式"
-          }
-        }
-      }
-    },
-    "Link another sign-in method to reach the same member from either. Keep at least one." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連結另一種登入方式後，用任一種都能登入同一個會員。請至少保留一種。"
           }
         }
       }
@@ -10254,17 +10221,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Demo 電腦無法開始新對話。請新增你自己的電腦再試。"
-          }
-        }
-      }
-    },
-    "The Demo host has sample conversations, so you can try every screen before you add a host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Demo 電腦有範例對話，新增電腦前就能試用每個畫面。"
           }
         }
       }
