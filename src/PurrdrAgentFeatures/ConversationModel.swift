@@ -342,6 +342,8 @@ public final class ConversationModel {
 
     /// 畫面上正在等回答的提示。
     public private(set) var prompt: BlockedPrompt?
+    /// 最近一次找出 `prompt` 的畫面指紋;回答時交給主機比對(#304)。讀不到畫面時為 `nil`。
+    @ObservationIgnored private var promptScreen: String?
     /// 已送出、還在等結果的回答(選項全部鎖住)。
     public private(set) var answerInFlight: PromptAnswer?
     /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213,`AnsweredCardAnchor`)。
@@ -1038,7 +1040,9 @@ public final class ConversationModel {
         let prompt = UploadedImages.prompt(text: text, paths: paths)
         switch await freshTarget() {
         case .success(let agent):
-            apply(await delivery.send(prompt, to: agent), toEcho: echo.id, text: text, isRetry: false)
+            apply(
+                await delivery.send(prompt, to: agent, expectedSession: outgoing.expectedSession), toEcho: echo.id, text: text,
+                isRetry: false)
             // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
             if !Self.nothingSent(notice) {
                 attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
@@ -1067,7 +1071,9 @@ public final class ConversationModel {
         notice = nil
         switch await freshTarget() {
         case .success(let agent):
-            apply(await delivery.send(prompt, to: agent), toEcho: echoID, text: text, isRetry: true)
+            apply(
+                await delivery.send(prompt, to: agent, expectedSession: boundSessionID ?? knownSessionID), toEcho: echoID, text: text,
+                isRetry: true)
         case .failure(let targetFailure):
             setEcho(echoID, state: .failed(failure))
             notice = targetFailure.notice
@@ -1145,16 +1151,28 @@ public final class ConversationModel {
         answerSent = nil
         answerNotice = nil
         haptics.play(.selection)
+        // 第一個輸入另帶看到的畫面：之後的輸入送出時畫面已因前一個輸入改變(#304)。
+        let session = SendExpectation(session: boundSessionID ?? knownSessionID)
+        var expectation = SendExpectation(session: session.session, screen: promptScreen)
         do {
             for input in inputs {
                 switch input {
-                case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys)
-                case .text(let text): try await client.sendText(paneID: paneID, text: text)
+                case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys, expecting: expectation)
+                case .text(let text): try await client.sendText(paneID: paneID, text: text, expecting: expectation)
                 }
+                expectation = session
             }
         } catch {
             guard answerInFlight == answer else { return }
             clearAnswer()
+            if error as? HostServiceError == .paneChanged {
+                // 什麼都沒送出：題目或對話已變，立刻重讀畫面換上目前的題目。
+                answerNotice = .questionChanged
+                haptics.play(.error)
+                probeScreen = true
+                await poll()
+                return
+            }
             if error as? HostServiceError == .readOnlyDevice {
                 // 卡片改顯示唯讀說明，不另外提示。
                 isReadOnly = true
@@ -1247,7 +1265,7 @@ public final class ConversationModel {
         guard canAnswer(answer) else { return }
         endTypedAnswer()
         await self.answer(answer)
-        if answerNotice == .sendFailed, isTypedAnswerOption(option) {
+        if answerNotice == .sendFailed || answerNotice == .questionChanged, isTypedAnswerOption(option) {
             beginTypedAnswer(option)
             draft = text
         }
@@ -1281,11 +1299,13 @@ public final class ConversationModel {
         screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
+            promptScreen = nil
             if blocked, prompt == nil { prompt = .unrecognized }
             if prompt != nil { agentStatus = .blocked }
             checkAnswerDeadline()
             return
         }
+        promptScreen = SendExpectation.fingerprint(ofScreen: screen)
         let parsed = BlockedPromptParser.parse(screen: screen, agentKind: agent.kind)
         let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
         if next != nil { agentStatus = .blocked }
@@ -1398,6 +1418,9 @@ public final class ConversationModel {
         case .readOnlyDevice:
             isReadOnly = true
             nothingSent = .readOnlyDevice
+        case .paneChanged:
+            // 主機送出前比對發現對話已變更(#304):與送前重讀 snapshot 發現 session 換了相同。
+            nothingSent = .superseded
         }
         notice = nothingSent
         if isRetry {

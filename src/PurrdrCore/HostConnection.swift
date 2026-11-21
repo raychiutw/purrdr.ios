@@ -35,6 +35,9 @@ public protocol HostConnection: Sendable {
     /// 主機上 Purrdr 主機服務的版本(畫面據此提示更新，#198);沒有主機服務的連線方式(SSH)是 `nil`。
     func hostServiceVersion() async throws -> String?
 
+    /// 主機會不會在送出前比對 `SendExpectation`(#304)。`false` 時 herdr 請求不帶比對欄位(SSH 主機、舊版主機服務)。
+    func checksSendExpectations() async -> Bool
+
     /// 開始快速偵測斷線(聊天畫面可見時;每次開始對應一次結束)。
     func beginQuickDisconnectDetection() async
 
@@ -52,6 +55,9 @@ extension HostConnection {
     public func isReadOnlyDevice() async throws -> Bool { false }
 
     public func hostServiceVersion() async throws -> String? { nil }
+
+    /// herdr 不認得比對欄位：SSH 主機的對象由送出前重讀的 snapshot 確認。
+    public func checksSendExpectations() async -> Bool { false }
 }
 
 extension HostConnection {
