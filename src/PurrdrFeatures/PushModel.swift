@@ -135,8 +135,8 @@ public struct PushConfiguration: Sendable {
     }
 }
 
-/// 「傳送測試通知」(#328):請後端或主機對這支裝置送一則測試通知。
-/// 目前後台與主機外掛都沒有這條路徑(`POST /v1/push` 要配對密鑰、只在主機上),所以正式 app 沒有注入實作。
+/// 「傳送測試通知」(#328)的另外注入管道(UI 測試的替身)。正式 app 經推播外掛安裝的
+/// `PushPluginInstalling.sendTestNotification(hostName:)`:HTTPS 主機是主機服務的 `push.test`(0.11.0 起)。
 public protocol PushTestNotificationSending: Sendable {
     func sendTest(hostID: String) async throws
 }
@@ -364,6 +364,7 @@ public final class PushModel {
 
     private let service: PushService?
     private let hostID: String?
+    private let hostName: String?
     private let installer: (any PushPluginInstalling)?
     private let muted: @MainActor () -> Set<String>
     private var deviceToken: Data?
@@ -372,12 +373,14 @@ public final class PushModel {
     ///   - service: `nil` 時這個 app 沒有推播(例如 UI 測試以外沒設定)。
     ///   - hostID: 主機 id;Demo 主機是 `nil`。
     ///   - installer: 這支裝置在這台主機的推播外掛安裝;`nil` 時這台主機沒有推播。
+    ///   - hostName: 主機清單上的名稱,測試通知的標題用(送出前清理，見 `PushTestHostName`)。
     ///   - muted: 目前靜音的聊天(session 值,存在本機的聊天偏好),配對時寫進主機。
-    public init(service: PushService?, hostID: String?, installer: (any PushPluginInstalling)?,
+    public init(service: PushService?, hostID: String?, installer: (any PushPluginInstalling)?, hostName: String? = nil,
                 muted: @escaping @MainActor () -> Set<String>) {
         self.service = service
         self.hostID = hostID
         self.installer = installer
+        self.hostName = hostName
         self.muted = muted
         if let hostID, let store = service?.store, let keyHash = store.keyHash(forHost: hostID) {
             state = .on
@@ -404,9 +407,9 @@ public final class PushModel {
 
     public private(set) var testNotification: TestNotification = .idle
 
-    /// 通知開著、而且有送出管道時才能送測試通知。
+    /// 通知開著、而且有送出管道(這台主機的安裝能送,或另外注入的)時才能送測試通知。
     public var canSendTestNotification: Bool {
-        state == .on && hostID != nil && service?.testNotifications != nil
+        state == .on && hostID != nil && (installer?.sendsTestNotifications == true || service?.testNotifications != nil)
     }
 
     /// 使用者看過結果提示(或重新開始)。
@@ -416,11 +419,14 @@ public final class PushModel {
 
     /// 送測試通知;結果在 `testNotification`(失敗附原因)。
     public func sendTestNotification() async {
-        guard canSendTestNotification, testNotification != .sending,
-              let sender = service?.testNotifications, let hostID else { return }
+        guard canSendTestNotification, testNotification != .sending, let hostID else { return }
         testNotification = .sending
         do {
-            try await sender.sendTest(hostID: hostID)
+            if let installer, installer.sendsTestNotifications {
+                try await installer.sendTestNotification(hostName: hostName)
+            } else if let sender = service?.testNotifications {
+                try await sender.sendTest(hostID: hostID)
+            }
             testNotification = .sent
         } catch {
             testNotification = .failed(Self.describeTestFailure(error))
@@ -614,12 +620,22 @@ public final class PushModel {
         }
     }
 
-    static func describeTestFailure(_ error: any Error) -> String {
+    package static func describeTestFailure(_ error: any Error) -> String {
         switch error {
         case BackendError.unreachable:
             String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
         case BackendError.signedOut:
             String(localized: "Couldn’t send the test notification because you’re signed out. Sign in again and try once more.")
+        case PushTestError.notPaired:
+            String(localized: "This device isn’t set up for notifications on this host any more. Turn notifications off and on again, then try once more.")
+        case PushTestError.subscriptionRequired:
+            String(localized: "Notifications need Purrdr Plus. Check your membership, then try again.")
+        case PushTestError.rateLimited:
+            String(localized: "You’ve sent several test notifications in a row. Wait a minute and try again.")
+        case PushTestError.hostServiceOutdated:
+            String(localized: "Update the host service on this host to send a test notification, then try again.")
+        case PushTestError.readOnlyDevice:
+            String(localized: "This device is paired read-only, so it can’t send a test notification.")
         default:
             // 系統或後台的原文使用者看不懂也幫不上忙:只說沒送出、稍後再試。
             String(localized: "Couldn’t send the test notification. Try again in a moment.")

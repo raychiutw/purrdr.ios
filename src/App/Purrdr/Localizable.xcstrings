@@ -6661,6 +6661,17 @@
         }
       }
     },
+    "Notifications need Purrdr Plus. Check your membership, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知需要 Purrdr Plus。請確認你的會員資格後再試一次。"
+          }
+        }
+      }
+    },
     "Notifications when an agent needs you and host sync are now available. Turn them on for each host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11105,6 +11116,17 @@
         }
       }
     },
+    "This device is paired read-only, so it can’t send a test notification." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置是唯讀連線，無法傳送測試通知。"
+          }
+        }
+      }
+    },
     "This device is paired read-only, so it can’t send anything to this host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11145,6 +11167,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置還沒和這台電腦完成連線配對。請編輯電腦，用新的配對碼重新配對。"
+          }
+        }
+      }
+    },
+    "This device isn’t set up for notifications on this host any more. Turn notifications off and on again, then try once more." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置在這台電腦上已不再收通知。請把通知關掉再開啟，然後再試一次。"
           }
         }
       }
@@ -12557,6 +12590,17 @@
         }
       }
     },
+    "Update the host service on this host to send a test notification, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先在這台電腦更新 Purrdr 連線助理，才能傳送測試通知，然後再試一次。"
+          }
+        }
+      }
+    },
     "Update the host service to turn on notifications. Run this on the host:" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13452,6 +13496,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你已付款，但無法連上 Purrdr 來開啟 Purrdr Plus。下次在連網狀態下開啟 Purrdr 時會自動完成。"
+          }
+        }
+      }
+    },
+    "You’ve sent several test notifications in a row. Wait a minute and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你連續傳了好幾則測試通知。請等一分鐘再試。"
           }
         }
       }

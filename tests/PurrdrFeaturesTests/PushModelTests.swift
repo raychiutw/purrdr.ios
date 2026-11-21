@@ -643,6 +643,36 @@ struct PushModelTests {
         #expect(!message.isEmpty)
     }
 
+    @Test("測試通知：安裝能送時經它送出，帶主機名稱，不需要另外注入管道")
+    func testNotificationGoesThroughInstaller() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let pluginHost = FakePushPluginHost()
+        let model = PushModel(
+            service: service(), hostID: "studio", installer: pluginHost.installer(deviceID: Self.deviceID), hostName: "Studio Mac", muted: { [] })
+        #expect(!model.canSendTestNotification, "通知還沒開不能送")
+        await turnOn(model)
+
+        #expect(model.canSendTestNotification)
+        await model.sendTestNotification()
+
+        #expect(model.testNotification == .sent)
+        #expect(pluginHost.testNotificationHostNames == ["Studio Mac"])
+    }
+
+    @Test("測試通知：各種失敗原因各有說明，不顯示原文")
+    func testNotificationFailuresHaveOwnMessages() {
+        let errors: [any Error] = [
+            PushTestError.notPaired, PushTestError.subscriptionRequired, PushTestError.rateLimited,
+            PushTestError.deliveryFailed("apns_failed"), PushTestError.hostServiceOutdated(installed: "0.10.0"), PushTestError.readOnlyDevice,
+        ]
+        let messages = errors.map(PushModel.describeTestFailure)
+
+        #expect(Set(messages).count == errors.count, "每種原因的說明不同:\(messages)")
+        #expect(messages.allSatisfy { !$0.contains("apns_failed") && !$0.contains("PushTestError") })
+        #expect(messages[4].localizedCaseInsensitiveContains("host service"), "要更新時說明是主機服務")
+    }
+
     struct InternalDetail: Error, LocalizedError {
         var errorDescription: String? { "SQLITE_CONSTRAINT: foreign key mismatch at 0x7fff" }
     }

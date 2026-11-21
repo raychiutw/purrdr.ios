@@ -426,6 +426,7 @@ extension HostServiceProtocol.ServerMessage {
              .pushInstallResult,
              .pushRemoveResult,
              .pushUpdateMutedResult,
+             .pushTestResult,
              .workspaceCreateResult,
              .workspaceRenameResult,
              .workspaceCloseResult,
@@ -480,6 +481,7 @@ extension HostServiceProtocol.ServerMessage {
         case .pushInstallResult(let message): message.requestId
         case .pushRemoveResult(let message): message.requestId
         case .pushUpdateMutedResult(let message): message.requestId
+        case .pushTestResult(let message): message.requestId
         case .errorMessage(let message): message.requestId
         case .transcriptPreviewsResult(let message): message.requestId
         case .transcriptSubagentResult(let message): message.requestId

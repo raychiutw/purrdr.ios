@@ -57,6 +57,33 @@ public struct HostServicePushPluginInstaller: PushPluginInstalling {
         guard case .pushUpdateMutedResult = reply else { throw HostServiceError.unexpectedResponse }
     }
 
+    public var sendsTestNotifications: Bool { true }
+
+    /// 測試通知(`push.test`,主機服務 0.11.0 起):只送給這支裝置，不經主機外掛。
+    public func sendTestNotification(hostName: String?) async throws {
+        let installed = try await connection.hostServiceVersion()
+        guard HostServiceFeature.pushTest.isAvailable(onHostServiceVersion: installed) else {
+            throw PushTestError.hostServiceOutdated(installed: installed ?? "")
+        }
+        let deviceID = deviceID.rawValue
+        let name = PushTestHostName.sanitized(hostName)
+        let connection = connection
+        let reply = try await connection.withDeadline(HostCommandDeadline.standard) {
+            try await connection.sendKeepingErrors { .pushTest(.init(requestId: $0, deviceId: deviceID, hostName: name)) }
+        }
+        switch reply {
+        case .pushTestResult: return
+        case .errorMessage(let error):
+            switch error.code {
+            case .pushNotPaired: throw PushTestError.notPaired
+            case .pushSendFailed: throw PushTestError(backendCode: error.message)
+            case .readOnlyDevice: throw PushTestError.readOnlyDevice
+            default: throw HTTPSHostConnection.error(for: error)
+            }
+        default: throw HostServiceError.unexpectedResponse
+        }
+    }
+
     private func requirePush() async throws {
         let installed = try await connection.hostServiceVersion()
         guard HostServiceFeature.pushPlugin.isAvailable(onHostServiceVersion: installed) else {

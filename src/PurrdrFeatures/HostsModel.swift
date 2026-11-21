@@ -1027,6 +1027,12 @@ public struct HostPush: Identifiable {
     public let model: PushModel
 
     public var id: HostSelection { host }
+
+    /// 這台主機能不能送測試通知:HTTPS 主機要主機服務 0.11.0 以上(版本還不知道就先不提供)。
+    public var supportsTestNotification: Bool {
+        guard installsViaHostService else { return true }
+        return hostServiceVersion.map { $0 >= HostServiceFeature.pushTest.minimumVersion } ?? false
+    }
 }
 
 /// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿、推播開關、「You should know」註記與主機主題。
@@ -1092,7 +1098,7 @@ final class HostMember {
         } else {
             pushService?.sshInstaller(channel: channel, herdr: herdr)
         }
-        let push = PushModel(service: pushService, hostID: configuration?.id.uuidString, installer: installer) {
+        let push = PushModel(service: pushService, hostID: configuration?.id.uuidString, installer: installer, hostName: configuration?.name) {
             preferences.load().muted
         }
         self.push = push

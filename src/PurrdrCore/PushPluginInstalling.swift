@@ -47,6 +47,15 @@ public protocol PushPluginInstalling: Sendable {
     func remove() async throws
     /// 改寫這支裝置配對的靜音清單，其餘內容不變;沒有配對丟 `PushPluginError.notPaired`。
     func updateMuted(_ muted: Set<String>) async throws
+    /// 這個安裝能不能送測試通知(#328);預設不能。
+    var sendsTestNotifications: Bool { get }
+    /// 對這支裝置送一則測試通知(標題帶 `hostName`,先經 `PushTestHostName.sanitized`);失敗丟 `PushTestError`。
+    func sendTestNotification(hostName: String?) async throws
+}
+
+extension PushPluginInstalling {
+    public var sendsTestNotifications: Bool { false }
+    public func sendTestNotification(hostName: String?) async throws { throw PushTestError.unsupported }
 }
 
 /// 可能代裝推播外掛的主機連線(主機服務 0.6.0 起，#265)。
