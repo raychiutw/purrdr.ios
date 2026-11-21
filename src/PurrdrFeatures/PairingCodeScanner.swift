@@ -73,7 +73,7 @@ struct PairingCodeScannerView: View {
             VStack(spacing: 0) {
                 viewfinder
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Text("Point the camera at the QR code shown by purrdr-host-service pair.")
+                Text("Point the camera at the QR code shown by purrdr pair.")
                     .font(.subheadline)
                     .multilineTextAlignment(.center)
                     .padding()
