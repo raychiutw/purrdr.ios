@@ -58,6 +58,11 @@ public final class ConversationModel {
     public private(set) var phase: Phase = .loading
     /// 重新載入、換 session 的讀取進行中:畫面保留舊訊息，只顯示不遮擋的更新指示(#329)。
     public private(set) var isRefreshing = false
+    /// 載入超過這麼久才出現系統進度指示(HIG〈Loading〉:內容理想上立刻出現，等待超過一兩秒才用進度指示)。
+    nonisolated public static let loadingIndicatorDelay: Duration = .seconds(1.5)
+    private var loadingIndicatorArmed = false
+    /// 還沒有任何內容、載入已超過 `loadingIndicatorDelay`:畫面在骨架下方加系統進度指示。有快取或內容先到就不會出現。
+    public var showsLoadingIndicator: Bool { loadingIndicatorArmed && phase == .loading && items.isEmpty }
     public private(set) var items: [ConversationItem] = []
     /// 畫面上是快取的內容(離線)。
     public private(set) var isOffline = false
@@ -374,6 +379,7 @@ public final class ConversationModel {
     private let cache: any ConversationCache
     private let clock: ConversationClock
     private let openLines: Int
+    private let openMaxBytes: Int
     private let pageLines: Int
     /// 列表傳來的 session:快取只在與它相同時秒開或離線顯示(F5.3、#97)。
     private let knownSessionID: String?
@@ -510,7 +516,8 @@ public final class ConversationModel {
 
     public init(
         client: HerdrClient, transcripts: TranscriptReader, paneID: String, knownSessionID: String?,
-        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = 300, pageLines: Int = 200,
+        cache: any ConversationCache, clock: ConversationClock = ConversationClock(), openLines: Int = TranscriptReader.openingLines,
+        openMaxBytes: Int = TranscriptReader.openingMaxBytes, pageLines: Int = 200,
         drafts: DraftStore = DraftStore(), slashDiscovery: (any SlashDiscovering)? = nil, haptics: any Haptics = SilentHaptics(),
         hostName: @escaping @MainActor () -> String? = { nil },
         images: ComposerImages? = nil,
@@ -527,6 +534,7 @@ public final class ConversationModel {
         self.cache = cache
         self.clock = clock
         self.openLines = openLines
+        self.openMaxBytes = openMaxBytes
         self.pageLines = pageLines
         self.drafts = drafts
         self.haptics = haptics
@@ -577,10 +585,12 @@ public final class ConversationModel {
     }
 
     /// 列表傳來的 session 與快取相同時，立刻顯示快取並從游標續讀(F5.3 第 1 點)。
+    /// 列表還沒給 session(冷啟動、從推播打開)時也先顯示這個聊天上次的快取(#356):之後快照回報的 session 不同，
+    /// 輪詢綁定新 session 時丟掉快取，舊內容留著到新內容讀回來(#329)。
     public func restoreFromCache() async {
-        guard let knownSessionID, items.isEmpty, let cached = await cache.load(chatKey: chatKey),
-              cached.matches(sessionID: knownSessionID) else { return }
-        boundSessionID = knownSessionID
+        guard items.isEmpty, let cached = await cache.load(chatKey: chatKey),
+              knownSessionID.map({ cached.matches(sessionID: $0) }) ?? (cached.parserVersion == CachedConversation.parserVersion) else { return }
+        boundSessionID = cached.sessionID
         file = (cached.path, TranscriptFollow(cursor: cached.cursor, isLive: false), cached.windowStart)
         recent = cached.messages
         segments = [(cached.windowStart, cached.messages.count)]
@@ -607,6 +617,7 @@ public final class ConversationModel {
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
+            group.addTask { await self.armLoadingIndicator(sleep: sleep) }
             if let updates {
                 group.addTask { await updates.liveUpdates.attach() }
                 group.addTask { await self.wakeOnChanges(from: updates) }
@@ -634,6 +645,14 @@ public final class ConversationModel {
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
+    }
+
+    /// 載入超過 `loadingIndicatorDelay` 還沒有內容才開啟進度指示。
+    private func armLoadingIndicator(sleep: Sleep) async {
+        loadingIndicatorArmed = false
+        guard phase == .loading, items.isEmpty else { return }
+        do { try await sleep(Self.loadingIndicatorDelay) } catch { return }
+        loadingIndicatorArmed = true
     }
 
     /// 目前的 `run()`;舊的 run 晚於新的結束時據此不收新的資源。
@@ -688,20 +707,26 @@ public final class ConversationModel {
         settleStopResult()
         screenThisPoll = nil
         workingScreenDue = workingScreenReads.allowsRead(isWorking: agentStatus == .working, at: clock.now())
-        await refreshPrompt(agent)
-        let suggestionRead = await readSuggestion(agent)
-        await refreshPanel(agent)
-        applySuggestion(suggestionRead, agent: agent)
-        await refreshLivePreview()
         title = AgentRowText.title(for: agent, siblings: snapshot.agents.filter { $0.workspaceID == agent.workspaceID })
+        // 讀 Pane 畫面(提問卡、建議提示詞、面板、即時預覽、背景 agents 窗格)排在讀對話紀錄之後(#356):
+        // 慢網路下對話內容先出來，不等這幾個依序的請求。沒有對話紀錄可讀的情況(不支援、還沒有 session)照舊先讀畫面。
+        let readScreens = { [self] in
+            await refreshPrompt(agent)
+            let suggestionRead = await readSuggestion(agent)
+            await refreshPanel(agent)
+            applySuggestion(suggestionRead, agent: agent)
+            await refreshLivePreview()
+            // 背景 agents 窗格只有 Claude 有。
+            if agent.kind == "claude", TranscriptFormat(agentKind: agent.kind) != nil { await readAgentsPaneIfNeeded() }
+        }
         guard TranscriptFormat(agentKind: agent.kind) != nil else {
+            await readScreens()
             unbind()
             phase = .unsupported
             return
         }
-        // 背景 agents 窗格只有 Claude 有。
-        if agent.kind == "claude" { await readAgentsPaneIfNeeded() }
         guard let target = agent.transcriptTarget else {
+            await readScreens()
             if isRefreshing { clearDisplay() }
             waitForSession(agent)
             return
@@ -716,6 +741,7 @@ public final class ConversationModel {
         format = target.format
         followPace?.interval = pollInterval
         await read(target)
+        await readScreens()
     }
 
     /// 背景 agents 窗格的讀取時機(F10、R-W05):工作中約每 6 秒讀(#204);問題開著時沿用上次;閒置時只在上次有窗格、
@@ -862,8 +888,13 @@ public final class ConversationModel {
     /// 讀最後 `openLines` 行並**取代**目前的訊息。
     private func openWindow(path: String, size: Int, generation: Int) async throws {
         // 以剛探測到的大小為上限:agent 同時在寫也不會變成無上限的補讀(§4.7)。
-        let chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines)
+        var chunk = try await transcripts.window(path: path, endingAt: size, lines: openLines, maxBytes: openMaxBytes > 0 ? openMaxBytes : nil)
         guard generation == self.generation else { return }
+        if chunk.lines.isEmpty, chunk.start > 0 {
+            // 最後一行比 byte 上限還大：放寬成只讀那一行(上限的目的是慢網路下別讀太多，但一行都沒有就沒東西可看)。
+            chunk = try await transcripts.window(path: path, endingAt: size, lines: 1)
+            guard generation == self.generation else { return }
+        }
         file = (path, TranscriptFollow(cursor: chunk.end, isLive: true), chunk.start)
         recent = parse(chunk.lines)
         segments = [(chunk.start, recent.count)]

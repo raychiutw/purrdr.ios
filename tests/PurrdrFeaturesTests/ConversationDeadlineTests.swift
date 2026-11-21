@@ -52,7 +52,7 @@ struct ConversationDeadlineTests {
         await host.expect(Self.bridge, reply: .recorded("session.snapshot.ndjson"))
         await host.expect(Self.locate, reply: FakeReply(stdout: Data("\(Self.transcriptPath)\n\(transcript.count)\n".utf8)))
         await host.expect(
-            TranscriptCommand.window(path: Self.transcriptPath, end: transcript.count, lines: 300),
+            TranscriptCommand.window(path: Self.transcriptPath, end: transcript.count, lines: TranscriptReader.openingLines, maxBytes: TranscriptReader.openingMaxBytes),
             reply: FakeReply(stdout: Self.windowOutput(of: transcript)))
 
         await model.poll()

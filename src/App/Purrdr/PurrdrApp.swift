@@ -39,8 +39,11 @@ struct PurrdrApp: App {
         // Tailscale SSH check mode 的提示：所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
-        // 對話快取。目前存在記憶體(app 執行期間);持久化(SwiftData)在之後的票。
-        let cache = InMemoryConversationCache()
+        // 對話快取(#356):存在這支裝置的本機 SQLite(Caches,排除備份),重開 app 與從推播冷啟動打開聊天都先顯示。
+        // UI 測試只放記憶體，不讀寫這台模擬器的檔案。
+        let cache: any ConversationCache = uiTesting
+            ? InMemoryConversationCache()
+            : SQLiteConversationCache(file: URL.cachesDirectory.appending(path: "Purrdr/conversations.sqlite"))
         // UI 測試每次啟動都從空白的釘選、靜音與主機圖示開始，不讀寫這台模擬器的 UserDefaults。
         // 釘選、靜音依主機分開(#39);舊版沒有主機身分的資料在第一次啟動時丟棄。
         let preferences: any HostChatPreferencesStore = uiTesting
@@ -126,6 +129,8 @@ struct PurrdrApp: App {
         }
         // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
+        // 新增主機引導(#341):UI 測試預設仍開主機編輯頁(還沒改寫的編輯頁測試),`-uiTestingAddHostGuide` 才開引導。
+        if uiTesting { hosts.usesAddHostGuide = arguments.contains("-uiTestingAddHostGuide") }
         hosts.haptics = SystemHaptics()
         // 流量計量(#353):存在 Application Support(只在這支裝置;UI 測試只放記憶體)。
         let trafficStore: any TrafficStore = uiTesting

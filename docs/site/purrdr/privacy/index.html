@@ -45,7 +45,7 @@
       <li><strong>裝置 SSH 金鑰</strong>:Purrdr 在裝置的 Secure Enclave 產生一把 P-256 金鑰，私鑰無法離開 Secure Enclave;Keychain 只存它的加密參照(僅此裝置)。公鑰附註解 <code>purrdr@iPhone</code>／<code>purrdr@iPad</code>,由你自己加到主機的 <code>authorized_keys</code>。</li>
       <li><strong>會員登入權杖</strong>:登入後的更新權杖存在 Keychain(第一次解鎖後可讀、僅此裝置)。</li>
       <li><strong>App 偏好與狀態</strong>(存在 App 的 UserDefaults):選取中的主機、列表檢視模式、聊天偏好、Return 鍵與觸覺回饋設定、是否看過歡迎頁、評分提示的計數、主機寫入的同意紀錄、推播配對紀錄(隨機裝置代號、配對密鑰的 SHA-256 雜湊、上次的 APNs device token)與主機同步的版本紀錄。</li>
-      <li><strong>對話快取</strong>:只放在記憶體裡，關掉 App 就消失。</li>
+      <li><strong>對話快取</strong>:最近的對話內容會快取在這支裝置的本機資料庫，讓你下次打開聊天時立刻看到;不會備份、不會上傳，在 App 裡刪除主機會一併清掉那台主機的快取，刪除 App 也會移除。</li>
     </ul>
 
     <h2>2. 直接在你的裝置與你的電腦之間傳輸的資料</h2>
@@ -160,7 +160,7 @@
       <li><strong>Device SSH key</strong>: Purrdr creates a P-256 key in the device’s Secure Enclave; the private key can’t leave the Secure Enclave, and the Keychain only holds its encrypted reference (this device only). The public key, with the comment <code>purrdr@iPhone</code> or <code>purrdr@iPad</code>, is what you add to your host’s <code>authorized_keys</code>.</li>
       <li><strong>Member sign-in token</strong>: after you sign in, the refresh token is kept in the Keychain (after first unlock, this device only).</li>
       <li><strong>App preferences and state</strong> (the app’s UserDefaults): selected host, list view mode, chat preferences, Return key and haptics settings, whether you’ve seen the welcome screen, review prompt counts, your consent to host writes, push pairing records (a random device code, SHA-256 hashes of pairing keys, the last APNs device token), and host sync bookkeeping.</li>
-      <li><strong>Conversation cache</strong>: kept in memory only and gone when the app quits.</li>
+      <li><strong>Conversation cache</strong>: recent conversation content is cached in a local database on this device so a chat appears instantly the next time you open it. It is not backed up or uploaded; removing a host in the app clears that host’s cache, and deleting the app removes it.</li>
     </ul>
 
     <h2>2. Data sent directly between your device and your computer</h2>

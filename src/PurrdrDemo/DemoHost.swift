@@ -172,6 +172,13 @@ public actor DemoHost: HostChannel {
         if let stdout = herdrPluginResponse(to: command) {
             return DemoFinishedSession(events: [.stdout(stdout), .exit(code: 0)])
         }
+        // 連線測試(新增主機)探測的作業系統與 herdr 版本:Demo 主機是 macOS 上的 herdr 0.9.5。
+        if command == HerdrCommand.operatingSystem {
+            return DemoFinishedSession(events: [.stdout(Data("Darwin\n".utf8)), .exit(code: 0)])
+        }
+        if command == HerdrCommand.version(HerdrInstallation()) {
+            return DemoFinishedSession(events: [.stdout(Data("herdr 0.9.5\n".utf8)), .exit(code: 0)])
+        }
         let program = command.split(separator: " ").first.map(String.init) ?? command
         return DemoFinishedSession(events: [
             .stderr(Data("sh: \(program): command not found\n".utf8)),
@@ -717,6 +724,15 @@ enum DemoSnapshot {
         switch method {
         case "session.snapshot":
             return (result(id: id, ["type": "session_snapshot", "snapshot": snapshot(applying: state)]), false)
+        // 連線測試(新增主機)的探測:herdr 版本與 agent 整合。
+        case "ping":
+            return (result(id: id, ["type": "pong", "version": "0.9.5", "protocol": 22]), false)
+        case "integration.list":
+            let integrations: [[String: Any]] = [
+                ["target": "claude", "label": "claude", "command": "claude", "available": true, "state": "current"],
+                ["target": "codex", "label": "codex", "command": "codex", "available": true, "state": "current"],
+            ]
+            return (result(id: id, ["type": "integration_list", "integrations": integrations]), false)
         case "workspace.rename", "workspace.close":
             guard let workspaceID = params["workspace_id"] as? String, workspaceIDs.contains(workspaceID),
                   !state.closed.contains(workspaceID) else {

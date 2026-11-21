@@ -88,6 +88,22 @@ struct StringCatalogTests {
         "信息", "默認", "設置", "文件夾", "屏幕", "軟件", "網絡", "登錄", "用戶", "視頻", "粘貼", "復制", "鏈接",
     ]
 
+    /// 新增主機引導(#341)給沒有電腦概念的人看，指「帳號」用口語(GLOSSARY「新增主機引導」),
+    /// 這些字串的「帳號」不算避免用詞(「電腦」全 app 都可用);其餘用詞照常檢查。
+    static let addHostGuideKeys: Set<String> = [
+        "Add This Computer", "Computer name or IP", "First time connecting to this computer",
+        "herdr is updated. Restart the herdr server on that computer, then try again.",
+        "herdr on that computer is too old. Update herdr there, then try again.",
+        "How do you want to connect to your computer?", "Install Tailscale on that computer and sign in.",
+        "Install the Purrdr host service for send-when-done and stuck alerts", "Let the computer accept connections",
+        "On that computer, open PowerShell, paste this line, then press Enter.",
+        "On that computer, open Terminal, paste this line, then press Enter.", "Pick the computer your agents run on.",
+        "Purrdr will warn you if this computer’s identity ever changes.", "Recommended · works on most computers",
+        "Share to Computer", "Sign in with an account and password or key", "This computer looks different",
+        "This computer’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this computer yourself.",
+        "Trust this computer?", "What kind of computer is it?", "Which computer and which account?",
+    ]
+
     @Test("繁體中文不用 GLOSSARY 避免的詞與中國大陸用語")
     func usesGlossaryTerms() throws {
         for entry in try Self.entries() {
@@ -96,6 +112,7 @@ struct StringCatalogTests {
             let texts = entry.chinese.filter { $0 != "帳號" }
             for chinese in texts.map({ $0.replacingOccurrences(of: "Apple 帳號", with: "") }) {
                 for word in Self.avoidedWords {
+                    if Self.addHostGuideKeys.contains(entry.key), word == "帳號" { continue }
                     #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」")
                 }
             }

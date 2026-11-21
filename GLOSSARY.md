@@ -8,9 +8,7 @@ herdr 自己的概念(Workspace、Tab、Pane、Agent 狀態)沿用 herdr 官方�
 
 **主機**(Host):
 使用者的一台電腦，上面跑著 herdr,app 透過某種連線方式連進去。一台主機有一種作業系統(macOS、Linux 或 Windows)和一種連線方式。
-_避免_:伺服器、機器、Device、Computer
-
-畫面文字對使用者說「電腦」(2026-11-21 使用者決定);文件、程式與型別用「主機」。
+_避免_:伺服器、機器、Device、Computer(畫面文字對使用者說「電腦」,2026-11-21 使用者決定,全 app 適用;文件、程式與型別用「主機」。「帳號」只在新增主機引導(#341)口語使用)
 
 **連線方式**:
 app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。

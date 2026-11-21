@@ -138,9 +138,12 @@ public struct TranscriptReader: Sendable {
     }
 
     /// 讀以 `end` 為終點的最後 `lines` 行(開啟時與往上翻頁)。
-    public func window(path: String, endingAt end: Int, lines: Int) async throws -> TranscriptChunk {
-        guard Self.isValidPath(path), end >= 0, lines > 0 else { throw TranscriptReadError.invalidReference }
-        let output = try await run(.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes))
+    ///
+    /// `maxBytes` 有值時範圍最多往前取那麼多 bytes(只含完整的行，可能少於 `lines` 行，也可能一行都放不下而是空的;
+    /// 呼叫端自己決定要不要放寬)。HTTPS 主機服務還沒有 byte 上限(`HostServiceFeature.transcriptWindowMaxBytes`),只照行數。
+    public func window(path: String, endingAt end: Int, lines: Int, maxBytes: Int? = nil) async throws -> TranscriptChunk {
+        guard Self.isValidPath(path), end >= 0, lines > 0, (maxBytes ?? 1) > 0 else { throw TranscriptReadError.invalidReference }
+        let output = try await run(.window(path: path, end: end, lines: lines, chunkBytes: windowChunkBytes, maxBytes: maxBytes ?? 0))
         guard let newline = output.stdout.firstIndex(of: 0x0A) else { throw TranscriptReadError.changed }
         let header = String(decoding: output.stdout[..<newline], as: UTF8.self).split(separator: " ").compactMap { Int($0) }
         guard header.count == 2, header[0] <= header[1], header[1] <= end else { throw TranscriptReadError.changed }
@@ -159,6 +162,10 @@ public struct TranscriptReader: Sendable {
     }
 
     public static let probeCursor = 1 << 50
+
+    /// 聊天第一次從主機讀的短視窗(#356):最後 40 行且不超過 64 KiB，取較小者;更早的訊息往上捲才一段一段載入。數值只在這裡。
+    public static let openingLines = 40
+    public static let openingMaxBytes = 64 << 10
 
     /// 不再追蹤 `path`(對話關閉或換了 session;見 `HostConnection.stopFollowingTranscript`)。
     public func stopFollowing(path: String) async {
