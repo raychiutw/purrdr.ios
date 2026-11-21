@@ -3463,7 +3463,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只計算 Purrdr 與你的主機之間經 SSH 或 HTTPS 送出與收到的資料，不含主機上其他程式的用量。"
+            "value" : "只計算 Purrdr 與你的主機之間經 SSH 或 HTTPS 送出與收到的資料，不含電腦上其他程式的用量。"
           }
         }
       }
@@ -7514,7 +7514,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 已停止連線，因為這台主機看起來不是你之前信任的那一台。主機重灌或重設過會這樣，有人攔截連線也會。如果你沒有重灌或重設過，請不要連線。\n\n如果有，請刪除這台主機再重新新增。\n\n現在的指紋：\n%@\n\n你先前信任的指紋：\n%@"
+            "value" : "Purrdr 已停止連線，因為這台電腦看起來不是你之前信任的那一台。電腦重灌或重設過會這樣，有人攔截連線也會。如果你沒有重灌或重設過，請不要連線。\n\n如果有，請刪除這台主機再重新新增。\n\n現在的指紋：\n%@\n\n你先前信任的指紋：\n%@"
           }
         }
       }
@@ -10462,7 +10462,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台主機的身分變了"
+            "value" : "這台電腦的身分變了"
           }
         }
       }
@@ -10561,7 +10561,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台主機用下面這組指紋表明身分。想自己確認的話，在那台主機對主機金鑰檔執行 ssh-keygen -lf，再比對。"
+            "value" : "這台電腦用下面這組指紋表明身分。想自己確認的話，在那台電腦對主機金鑰檔執行 ssh-keygen -lf，再比對。"
           }
         }
       }
@@ -11023,7 +11023,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 第一次連到 %@，要信任這台主機嗎？"
+            "value" : "Purrdr 第一次連到 %@，要信任這台電腦嗎？"
           }
         }
       }
@@ -11375,7 +11375,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要比對的話，在那台主機上對 host key 檔執行 ssh-keygen -lf。"
+            "value" : "要比對的話，在那台電腦上對 host key 檔執行 ssh-keygen -lf。"
           }
         }
       }
@@ -11485,7 +11485,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要信任這台主機嗎？"
+            "value" : "要信任這台電腦嗎？"
           }
         }
       }
