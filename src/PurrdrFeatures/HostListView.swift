@@ -180,7 +180,7 @@ public struct HostListView: View {
         } label: {
             HostRowView(
                 title: row.title, subtitle: row.subtitle, session: row.session, isSelected: row.isSelected, icon: row.icon,
-                needsPairing: row.needsPairing, hostServiceUpdate: row.hostServiceUpdate)
+                needsPairing: row.needsPairing, hostServiceVersion: row.hostServiceVersion, hostServiceUpdate: row.hostServiceUpdate)
         }
         .accessibilityIdentifier("hosts.row.\(row.id.uuidString)")
         .accessibilityHint(row.needsPairing ? Text("Opens pairing for this host.") : Text(verbatim: ""))
@@ -318,6 +318,8 @@ struct HostRowView: View {
     let icon: HostIcon
     /// 還沒配對的 HTTPS 主機(主機同步或分享連結帶來的):標示要先配對。
     var needsPairing = false
+    /// 這台主機目前的主機服務版本(#362)。
+    var hostServiceVersion: String?
     /// 主機服務可更新到的版本(#198)。
     var hostServiceUpdate: String?
 
@@ -346,6 +348,12 @@ struct HostRowView: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.secondaryText)
                         .accessibilityIdentifier("hosts.row.needsPairing")
+                }
+                if let hostServiceVersion {
+                    Text("Host Service \(hostServiceVersion)")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.secondaryText)
+                        .accessibilityIdentifier("hosts.row.hostServiceVersion")
                 }
                 if let hostServiceUpdate {
                     Label("Host Service \(hostServiceUpdate) Available", systemImage: "arrow.up.circle")

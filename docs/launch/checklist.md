@@ -55,7 +55,7 @@
 |---|---|---|---|
 | 3A.1 | Account Holder 在 Apple Developer 建立 **Developer ID Application** 憑證，匯出 `.p12`(含私鑰) | 主 session | ✅ 2026-11-19,G2 Sub-CA,到期 2027-12-18;私鑰與 `.p12` 在使用者本機 `~/.config/purrdr-developer-id/` |
 | 3A.2 | purrdr.host 的 GitHub environment `release`(部署分支限定 `master`)加變數 `APPLE_TEAM_ID`、secret `DEVELOPER_ID_P12`(`base64 -i cert.p12` 的內容)、`DEVELOPER_ID_P12_PASSWORD`;要公證再加 `ASC_KEY_ID`／`ASC_ISSUER_ID`／`ASC_PRIVATE_KEY`(三個都有才公證，目前沒有、只簽章) | 主 session | ✅ 2026-11-19 已在 purrdr.host 設定 `release`(變數與兩個 Developer ID secret);ASC 三個 secret 尚未設定，所以只簽章。`host-service-v0.2.0` 已從 purrdr.host 發佈 |
-| 3A.3 | 第一次發行：在 purrdr.host `gh workflow run host-service-release.yml --ref master`(之後在那裡遞增 `host-service/service/Cargo.toml` 的 version 並合併就自動發行;app 端的 `HostServiceUpdates.latestKnownVersion` 一起遞增，並跑 `scripts/sync-purrdr-host.sh`);確認 Release `host-service-v<版本>` 有 5 個壓縮檔、`SHA256SUMS`、`install.sh`、`install.ps1`,且標為 Latest | 主 session | ⬜ |
+| 3A.3 | 第一次發行：在 purrdr.host `gh workflow run host-service-release.yml --ref master`(之後在那裡遞增 `host-service/service/Cargo.toml` 的 version 並合併就自動發行;app 不用跟著改版號，更新提示從 GitHub Release 取最新版,#362);確認 Release `host-service-v<版本>` 有 5 個壓縮檔、`SHA256SUMS`、`install.sh`、`install.ps1`,且標為 Latest | 主 session | ⬜ |
 | 3A.4 | 驗收：乾淨的 macOS(從瀏覽器下載壓縮檔，有 quarantine;沒公證時 Gatekeeper 的反應也記下來，一行安裝以 curl 下載不帶 quarantine;`codesign -dv --verbose=4`、`spctl -a -vv -t install` 的結果記下來)、Linux、Windows 各跑一次一行安裝 → `pair` → app 掃 QR 連上;再跑一次一行安裝確認是更新、配對保留 | 主 session | ⬜ |
 | 3A.5 | 網站加上 `host-service/` 頁(見 4.5) | 主 session | ⬜ |
 

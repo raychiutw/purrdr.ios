@@ -79,9 +79,12 @@ struct PurrdrApp: App {
                 // HTTPS 主機：配對不連網路，連線是 Demo 主機。`-demoOutdatedHostService`:主機服務是舊版(更新提示,#198)。
                 hostService: .uiTesting(
                     channel: demo,
-                    hostServiceVersion: arguments.contains("-demoOutdatedHostService") ? "0.0.1" : HostServiceUpdates.latestKnownVersion,
+                    hostServiceVersion: arguments.contains("-demoOutdatedHostService")
+                        ? "0.0.1" : FixedHostServiceReleases.uiTestingLatestVersion,
                     pairedHosts: arguments.contains("-seedPairedHTTPSHost") ? [Self.pairedHTTPSHost.id] : [],
                     readOnlyHosts: arguments.contains("-seedReadOnlyHTTPSHost") ? [Self.readOnlyHTTPSHost.id] : []),
+                // 最新的主機服務版本固定，不連 GitHub(#362)。
+                hostServiceUpdates: HostServiceUpdates(releases: FixedHostServiceReleases.uiTesting, store: InMemoryHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
@@ -107,7 +110,8 @@ struct PurrdrApp: App {
                 hostService: .system(
                     deviceName: UIDevice.current.model,
                     appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
-                hostServiceUpdates: HostServiceUpdates(store: UserDefaultsHostServiceUpdateStore()),
+                // 最新的主機服務版本從 purrdr.host 的 GitHub Release 取得，主機服務發版時 app 不用改版號(#362)。
+                hostServiceUpdates: HostServiceUpdates(releases: GitHubHostServiceReleases(), store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
                 listMode: UserDefaultsAgentListModeStore()
             ) { endpoint, pin, credential in
