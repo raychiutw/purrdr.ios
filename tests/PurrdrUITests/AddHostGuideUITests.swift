@@ -335,7 +335,7 @@ final class AddHostGuideUITests: XCTestCase {
     func testFinishedPageOffersNotificationsToPlusMember() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
         finishTailscalePath(app)
-        XCTAssertTrue(app.otherElements["guide.notifications"].waitForExistence(timeout: 10), "Plus 會員看不到通知開關")
+        XCTAssertTrue(app.descendants(matching: .any)["guide.notifications"].waitForExistence(timeout: 10), "Plus 會員看不到通知開關")
         XCTAssertFalse(app.buttons["guide.joinPlus"].exists)
     }
 
@@ -344,7 +344,7 @@ final class AddHostGuideUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: [])
         finishTailscalePath(app)
         XCTAssertTrue(app.buttons["guide.joinPlus"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.otherElements["guide.notifications"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["guide.notifications"].exists)
     }
 
     @MainActor
