@@ -1373,6 +1373,17 @@
         }
       }
     },
+    "Cancel Sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消送出"
+          }
+        }
+      }
+    },
     "Can’t Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5120,6 +5131,17 @@
         }
       }
     },
+    "Not sent: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有送出：%@"
+          }
+        }
+      }
+    },
     "Nothing to Restore" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6231,6 +6253,17 @@
         }
       }
     },
+    "Put Back" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放回輸入框"
+          }
+        }
+      }
+    },
     "Puts the suggestion in the message box without sending it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6249,6 +6282,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 的 QR code"
+          }
+        }
+      }
+    },
+    "Queued · Sends when reconnected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排隊中 · 連上後送出"
           }
         }
       }
@@ -10485,6 +10529,28 @@
         }
       }
     },
+    "Your message, not sent: %@. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訊息，沒有送出：%1$@。%2$@"
+          }
+        }
+      }
+    },
+    "Your message, queued until reconnected. %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訊息，排隊中，連上後送出。%@"
+          }
+        }
+      }
+    },
     "Your message." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10732,6 +10798,17 @@
         }
       }
     },
+    "it may have arrived, check the chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能已經送到，請看一下聊天"
+          }
+        }
+      }
+    },
     "left" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10781,6 +10858,17 @@
         }
       }
     },
+    "queued for more than 10 minutes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排隊超過 10 分鐘"
+          }
+        }
+      }
+    },
     "sk- key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10788,6 +10876,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "sk- 金鑰"
+          }
+        }
+      }
+    },
+    "the agent is waiting for your answer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 在等你回答"
+          }
+        }
+      }
+    },
+    "the conversation changed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對話已變更"
+          }
+        }
+      }
+    },
+    "the host didn’t accept it" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機沒有接受"
           }
         }
       }

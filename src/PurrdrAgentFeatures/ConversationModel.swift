@@ -365,6 +365,22 @@ public final class ConversationModel {
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
     public let undoSend: UndoSendCountdown?
+    /// 管線裡的離線佇列(#301):離線時送出的訊息排在這台主機的佇列;沒有這個步驟時離線不能送出。
+    public var offlineQueue: OfflineQueue? { sendPipeline.steps.lazy.compactMap { ($0 as? OfflineQueueStep)?.queue }.first }
+    /// 這個聊天(pane)排隊中與沒送出的訊息，畫在對話最下面。
+    public var queuedPrompts: [QueuedPrompt] { offlineQueue?.entries(forPane: paneID) ?? [] }
+
+    /// 放回輸入框：拿出佇列，文字接在目前的草稿前面(不蓋掉新打的)。
+    public func putBack(_ id: QueuedPrompt.ID) {
+        guard let text = offlineQueue?.takeBack(id) else { return }
+        draft = draft.isEmpty ? text : text + "\n" + draft
+    }
+
+    /// 取消排隊中的訊息，或刪除沒送出的。
+    public func deleteQueued(_ id: QueuedPrompt.ID) {
+        offlineQueue?.remove(id)
+    }
+
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
     public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
     private let slashDiscovery: (any SlashDiscovering)?
@@ -605,6 +621,8 @@ public final class ConversationModel {
         isOffline = false
         stopNeedsReconnect = false
         if banner == .offline { banner = nil }
+        // 重連後的 Agent 列表交給離線佇列比對、補送(#301;主機更新來源讀到的也會交給它)。
+        offlineQueue?.receive(snapshot)
         // 送出時被拒過就維持唯讀。
         if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
@@ -905,8 +923,11 @@ public final class ConversationModel {
     /// 可送 = 不是唯讀裝置、修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     /// 自訂回答時改看回答在途與否，而且不能只送圖片(#120)。
     public var canSend: Bool {
-        guard hasTarget, !isReadOnly else { return false }
+        guard !isReadOnly else { return false }
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // 離線時排進離線佇列(#301):只排文字(圖片要上傳到主機)、不排自訂回答。
+        if canQueueOffline { return !isSending && hasText && attachments.isEmpty }
+        guard hasTarget else { return false }
         if typedAnswer != nil { return answerInFlight == nil && hasText }
         return !isSending && uploadingFileName == nil && (hasText || !attachments.isEmpty)
     }
@@ -970,6 +991,11 @@ public final class ConversationModel {
     /// 強制結束同停止，只對 working 的 agent;唯讀、離線時不可用(#220)。
     public var canForceQuit: Bool { agentStatus == .working && !isReadOnly && !isOffline }
 
+    /// 離線，但知道對象(上次讀到的 Agent),送出會排進離線佇列。
+    public var canQueueOffline: Bool {
+        isOffline && offlineQueue != nil && currentAgent != nil && typedAnswer == nil && phase != .agentGone
+    }
+
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
     }
@@ -996,7 +1022,8 @@ public final class ConversationModel {
         notice = nil
         draft = ""
         let outgoing = OutgoingPrompt(
-            text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now())
+            text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now(),
+            workspaceID: currentAgent?.workspaceID, isHostReachable: !isOffline)
         switch await sendPipeline.prepare(outgoing) {
         case .proceed(let prepared):
             await deliver(prepared)

@@ -93,6 +93,9 @@ public final class HostsModel {
     @ObservationIgnored public var undoSendSeconds: @MainActor () -> Int = { UndoSendSettings.seconds(in: .standard) }
 
     private let store: any HostStore
+    /// 離線佇列存放處(#301);每台主機一份佇列，同一台的聊天共用。
+    private let offlineQueueStore: any OfflineQueueStore
+    private var offlineQueues: [HostSelection: OfflineQueue] = [:]
     private let selectionStore: any HostSelectionStore
     /// 方案用量畫面上次選的主機與 Agent。
     private let planUsageSelection: any PlanUsageSelectionStore
@@ -166,6 +169,7 @@ public final class HostsModel {
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
+        offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
@@ -192,6 +196,7 @@ public final class HostsModel {
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
+        offlineQueueStore = offlineQueues
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
     }
@@ -316,8 +321,12 @@ public final class HostsModel {
             hostName: { [weak self] in self?.name(of: route.host) },
             images: ComposerImages(uploader: member.uploader, store: attachmentStore),
             updates: member.list.updates,
-            // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300)。
-            sendSteps: [SecretCheck(), UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 })])
+            // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300),
+            // 倒數結束時離線就排進那台主機的離線佇列(#301)。
+            sendSteps: [
+                SecretCheck(), UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 }),
+                OfflineQueueStep(queue: offlineQueue(for: route.host)),
+            ])
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。
@@ -533,6 +542,9 @@ public final class HostsModel {
             forgetHostServicePush(of: removed, address: address, deviceToken: deviceToken)
         }
         hostConsent.revokeAll(host: id.uuidString)
+        // 刪除主機也清掉它的離線佇列(#301)。
+        offlineQueues[.host(id)] = nil
+        offlineQueueStore.save([], host: HostSelection.host(id).storedValue)
         hosts.removeAll { $0.id == id }
         let channel = channels.removeValue(forKey: id)
         let connection = hostServiceConnections.removeValue(forKey: id)
@@ -730,12 +742,32 @@ public final class HostsModel {
         agentList.update(sources: sources, selected: selection)
     }
 
+    /// 某台主機的離線佇列(#301):第一次用到時從本機讀回。補送前以新鮮的快照確認 Agent 目前的狀態。
+    public func offlineQueue(for host: HostSelection) -> OfflineQueue {
+        if let queue = offlineQueues[host] { return queue }
+        let queue = OfflineQueue(host: host.storedValue, store: offlineQueueStore) { [weak self] text, agent in
+            guard let client = self?.member(for: host).client else { return .rejected(message: "") }
+            let fresh = (try? await client.snapshot())?.agents.first { $0.paneID == agent.paneID } ?? agent
+            return await PromptDelivery(client: client).send(text, to: fresh)
+        }
+        offlineQueues[host] = queue
+        return queue
+    }
+
     /// 某台主機的成員;不在列表上時(例如剛刪除的主機還開著的畫面)暫時建一個不保留的。
     private func member(for host: HostSelection) -> HostMember {
         members[host] ?? makeMember(host)
     }
 
     private func makeMember(_ host: HostSelection) -> HostMember {
+        let member = makeMemberConnections(host)
+        // 主機更新來源讀到的 Agent 列表交給離線佇列(#301):重連後的第一份就補送。
+        let queue = offlineQueue(for: host)
+        member.list.updates.onSnapshot = { [weak queue] snapshot in queue?.receive(snapshot) }
+        return member
+    }
+
+    private func makeMemberConnections(_ host: HostSelection) -> HostMember {
         if case .host(let id) = host, let companion = companion(id) {
             return HostMember(
                 host: host, configuration: nil, channel: companion.channel, preferences: preferences.store(for: host),
