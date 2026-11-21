@@ -46,7 +46,7 @@ public struct ConversationView: View {
             .toolbar {
                 // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
                 ToolbarItem(placement: .principal) {
-                    ConversationTitleView(title: displayTitle, header: model.header)
+                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header)
                 }
             }
             .safeAreaInset(edge: .top, spacing: 0) { banner }
@@ -100,12 +100,12 @@ public struct ConversationView: View {
     }
 
     private var displayTitle: String {
-        model.header.title.isEmpty ? String(localized: "Chat") : model.header.title
+        model.statusSummary.header.title.isEmpty ? String(localized: "Chat") : model.statusSummary.header.title
     }
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.undoSend?.pending == nil && model.queuedPrompts.isEmpty && (model.sendWhenDone?.items.isEmpty ?? true) && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        if model.entries.isEmpty && model.pendingItems.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -116,6 +116,28 @@ public struct ConversationView: View {
     }
 
     // MARK: - 訊息
+
+    /// 一個待送項目:依種類用既有的泡泡元件畫(外觀不變，#348 起再統一樣式)。
+    @ViewBuilder
+    private func pendingRow(_ item: PendingItem) -> some View {
+        switch item.kind {
+        case .offlineQueued, .offlineProblem:
+            if let queued = model.queuedPrompts.first(where: { "queued-\($0.id.uuidString)" == item.id }) {
+                QueuedPromptBubbleView(
+                    prompt: queued, putBack: { model.putBack(queued.id) }, delete: { model.deleteQueued(queued.id) })
+            }
+        case .sendWhenDone(let position):
+            // 做完再送的佇列是一個元件畫全部項目，只在第一項處畫一次。
+            if position == 1, let sendWhenDone = model.sendWhenDone {
+                SendWhenDoneQueueView(conversation: model, model: sendWhenDone)
+            }
+        case .undoCountdown:
+            if let undoSend = model.undoSend, let pending = undoSend.pending {
+                PendingSendBubbleView(pending: pending, imageCount: model.attachments.count, undo: undoSend.undo, sendNow: undoSend.sendNow)
+                    .id(ConversationFollowTarget.pendingSendRowID)
+            }
+        }
+    }
 
     private var messages: some View {
         // 捲到最底下那一列用 `ScrollViewProxy`:每次呼叫都會捲;`position` 的值沒變時 SwiftUI 不再捲(#191)。
@@ -144,26 +166,14 @@ public struct ConversationView: View {
                     }
                     .id(entry.id)
                 }
-                // 離線佇列裡的訊息(#301):排隊中與沒送出的，接在最後一則訊息後面。
-                ForEach(model.queuedPrompts) { queued in
-                    QueuedPromptBubbleView(
-                        prompt: queued, putBack: { model.putBack(queued.id) }, delete: { model.deleteQueued(queued.id) })
+                // 待送項目(#347):離線排隊、做完再送、撤回倒數統一從 `pendingItems` 讀，接在最後一則訊息後面。
+                ForEach(model.pendingItems) { item in
+                    pendingRow(item)
                 }
-                // Send When Done 的佇列(#305):在主機上排隊、Agent 做完後依序送出，接在最後一則訊息後面。
-                if let sendWhenDone = model.sendWhenDone {
-                    if !sendWhenDone.items.isEmpty {
-                        SendWhenDoneQueueView(conversation: model, model: sendWhenDone)
-                    }
-                    if let notice = sendWhenDone.notice {
-                        ErrorLabel(notice)
-                            .font(.footnote)
-                            .accessibilityIdentifier("conversation.sendWhenDone.notice")
-                    }
-                }
-                // 撤回倒數中的訊息(#300):還在本機，接在最後一則訊息後面;倒數結束換成一般的回音。
-                if let undoSend = model.undoSend, let pending = undoSend.pending {
-                    PendingSendBubbleView(pending: pending, imageCount: model.attachments.count, undo: undoSend.undo, sendNow: undoSend.sendNow)
-                        .id(ConversationFollowTarget.pendingSendRowID)
+                if let notice = model.sendWhenDone?.notice {
+                    ErrorLabel(notice)
+                        .font(.footnote)
+                        .accessibilityIdentifier("conversation.sendWhenDone.notice")
                 }
                 // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
                 BlockedPromptView(model: model)
@@ -397,13 +407,13 @@ public struct ConversationView: View {
     /// 非干擾式標示：不在進入畫面時跳 alert,也不只用自動消失的 toast(HIG 20.5)。
     @ViewBuilder
     private var banner: some View {
-        if let banner = model.banner {
+        if let banner = model.statusSummary.banner.flatMap(\.transcriptBanner) {
             HStack {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(banner.text)
                         // 斷線前在工作：停止列已收起，說明為什麼不能停(#220)。
-                        if banner == .offline && model.stopNeedsReconnect {
+                        if banner == .offline && model.statusSummary.banner == .offline(needsReconnectToStop: true) {
                             Text("You can stop the agent after reconnecting.")
                         }
                     }
@@ -427,6 +437,17 @@ public struct ConversationView: View {
                 .padding(.vertical, 8)
                 .background(.bar)
                 .accessibilityIdentifier("conversation.banner")
+        }
+    }
+}
+
+extension ConversationStatusSummary.Banner {
+    /// 目前畫面上方橫幅仍只畫對話紀錄與離線(唯讀與主機服務版本各在原處，#348 起併進這條橫幅)。
+    var transcriptBanner: ConversationModel.Banner? {
+        switch self {
+        case .offline: .offline
+        case .transcript(let banner): banner
+        case .readOnly, .hostServiceUpdateRequired: nil
         }
     }
 }
