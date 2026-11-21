@@ -278,6 +278,10 @@ struct AddHostGuideView: View {
                 .focused($focus, equals: field)
                 .submitLabel(field.next == nil ? .done : .next)
                 .onSubmit { focus = field.next }
+                // 配對碼是大寫字母(#236、HIG TF-1):小寫鍵入的字變成大寫。
+                .onChange(of: text.wrappedValue) { _, value in
+                    if uppercase, value != value.uppercased() { text.wrappedValue = value.uppercased() }
+                }
                 .accessibilityIdentifier("guide.field.\(identifier(field))")
         }
     }
