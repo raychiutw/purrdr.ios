@@ -8,6 +8,7 @@ import SwiftUI
 struct ConversationTitleView: View {
     let title: String
     let header: ConversationHeader
+    @State private var showsProgress = false
 
     var body: some View {
         VStack(spacing: 1) {
@@ -16,6 +17,13 @@ struct ConversationTitleView: View {
                 .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
             ConversationHeaderLine(header: header)
+        }
+        // 點標題由下方升起 sheet:上方 context、下方待辦清單(#307)。沒有進度時不可點。
+        .contentShape(Rectangle())
+        .onTapGesture { if !header.progress.isEmpty { showsProgress = true } }
+        .accessibilityAction(named: Text("Show Context and Todos")) { if !header.progress.isEmpty { showsProgress = true } }
+        .sheet(isPresented: $showsProgress) {
+            AgentProgressSheet(title: title, progress: header.progress)
         }
     }
 }
@@ -40,7 +48,7 @@ struct ConversationHeaderLine: View {
         .font(.caption)
         .foregroundStyle(.secondaryText)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(header.lineAccessibilityText))
+        .accessibilityLabel(Text(([header.lineAccessibilityText] + [header.progressText].compactMap { $0 }).joined(separator: ", ")))
         // 只是文字、不能點(#35:沒有這個 trait 時 audit 把它當成觸控目標，報 hit region 太小)。
         .accessibilityAddTraits(.isStaticText)
         .accessibilityIdentifier("conversation.header")

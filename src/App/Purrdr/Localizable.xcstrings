@@ -1982,6 +1982,17 @@
         }
       }
     },
+    "Completed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已完成"
+          }
+        }
+      }
+    },
     "Composing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2132,6 +2143,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "內容超過 20,000 字，已截斷"
+          }
+        }
+      }
+    },
+    "Context" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context"
+          }
+        }
+      }
+    },
+    "Context %lld%%" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context %lld%%"
           }
         }
       }
@@ -4031,6 +4064,17 @@
         }
       }
     },
+    "In progress" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進行中"
+          }
+        }
+      }
+    },
     "Includes the address, user name, herdr settings, and host key fingerprint. Passwords and private keys are never shared." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5083,6 +5127,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不在這台主機上"
+          }
+        }
+      }
+    },
+    "Not started" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開始"
           }
         }
       }
@@ -7195,6 +7250,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要在這台主機顯示 Claude 的方案用量嗎？"
+          }
+        }
+      }
+    },
+    "Show Context and Todos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示 Context 與待辦"
           }
         }
       }
@@ -9428,6 +9494,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為了標記註記，Purrdr 會以 %@ 更新 ~/.claude/plugins/store 裡 Claude Code 的註記檔。可以在設定中復原 Purrdr 的變更。"
+          }
+        }
+      }
+    },
+    "Todos %lld of %lld done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待辦已完成 %1$lld／%2$lld"
+          }
+        }
+      }
+    },
+    "Todos %lld/%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待辦 %1$lld/%2$lld"
           }
         }
       }
