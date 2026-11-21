@@ -25,6 +25,8 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
     case sessionResume
     /// 送出前比對 `expected_session`／`expected_screen`,不符回 `pane_changed`(#304、raychiutw/purrdr.host#29)。
     case sendExpectations
+    /// 變更頁的唯讀 git 讀取 `git.status`／`git.diff`(#310)。
+    case gitChanges
 
     /// 有這個功能的第一個主機服務版本。
     public var minimumVersion: HostServiceVersion {
@@ -40,6 +42,7 @@ public enum HostServiceFeature: String, Sendable, Hashable, CaseIterable {
         case .paneRead: HostServiceVersion(0, 7, 0)
         case .sessionResume: HostServiceVersion(0, 7, 0)
         case .sendExpectations: HostServiceVersion(0, 7, 0)
+        case .gitChanges: HostServiceVersion(0, 7, 0)
         }
     }
 

@@ -231,6 +231,17 @@
         }
       }
     },
+    "%lld added, %lld removed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增 %lld 行、刪除 %lld 行"
+          }
+        }
+      }
+    },
     "%lld agents" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -264,6 +275,28 @@
         }
       }
     },
+    "%lld comments" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 則評論"
+          }
+        }
+      }
+    },
+    "%lld comments in %lld files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 則評論，共 %lld 個檔案"
+          }
+        }
+      }
+    },
     "%lld days" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -293,6 +326,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個失敗"
+          }
+        }
+      }
+    },
+    "%lld files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個檔案"
           }
         }
       }
@@ -797,6 +841,17 @@
         }
       }
     },
+    "Added" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增"
+          }
+        }
+      }
+    },
     "Adding the key to %@…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -815,6 +870,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "位址"
+          }
+        }
+      }
+    },
+    "Adds a comment on this line." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在這一行寫評論。"
           }
         }
       }
@@ -1285,6 +1351,17 @@
         }
       }
     },
+    "Binary File" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "二進位檔案"
+          }
+        }
+      }
+    },
     "Branch" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1501,6 +1578,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更改設定"
+          }
+        }
+      }
+    },
+    "Changes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更"
+          }
+        }
+      }
+    },
+    "Changes need host service %@ or later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更頁需要主機服務 %@ 以上。"
+          }
+        }
+      }
+    },
+    "Changes need host service %@ or later. This host has %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "變更頁需要主機服務 %@ 以上，這台主機是 %@。"
           }
         }
       }
@@ -2004,6 +2114,17 @@
         }
       }
     },
+    "Comment" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "評論"
+          }
+        }
+      }
+    },
     "Completed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2352,6 +2473,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法完成"
+          }
+        }
+      }
+    },
+    "Couldn’t Load Changes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀不到變更"
           }
         }
       }
@@ -3005,6 +3137,17 @@
         }
       }
     },
+    "Delete Comment" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除評論"
+          }
+        }
+      }
+    },
     "Delete Member" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3023,6 +3166,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要刪除你的會員嗎?"
+          }
+        }
+      }
+    },
+    "Deleted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已刪除"
           }
         }
       }
@@ -3100,6 +3254,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "診斷資訊包含 app 版本、iOS 版本、主機數與 herdr 版本，絕不包含主機名稱、位址、使用者名稱或對話內容。"
+          }
+        }
+      }
+    },
+    "Diff Too Large" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "diff 太大"
           }
         }
       }
@@ -3467,6 +3632,17 @@
         }
       }
     },
+    "Files that may hold credentials aren’t read." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能含有憑證的檔案不讀取。"
+          }
+        }
+      }
+    },
     "Fill In" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3628,6 +3804,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "產生"
+          }
+        }
+      }
+    },
+    "Git Isn’t Installed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機沒有 git"
           }
         }
       }
@@ -4170,6 +4357,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要安裝 Codex 啟動器嗎?"
+          }
+        }
+      }
+    },
+    "Install git on the host to see the agent’s changes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主機上安裝 git 才看得到 Agent 的變更。"
           }
         }
       }
@@ -4735,6 +4933,17 @@
         }
       }
     },
+    "Modified" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已修改"
+          }
+        }
+      }
+    },
     "More" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4922,6 +5131,17 @@
         }
       }
     },
+    "No Changes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有變更"
+          }
+        }
+      }
+    },
     "No Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4984,6 +5204,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有訊息"
+          }
+        }
+      }
+    },
+    "No Text Changes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有文字變更"
           }
         }
       }
@@ -5098,6 +5329,17 @@
         }
       }
     },
+    "Not Available on This Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機不支援"
+          }
+        }
+      }
+    },
     "Not Confirmed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5142,6 +5384,17 @@
         }
       }
     },
+    "Not Shown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不顯示"
+          }
+        }
+      }
+    },
     "Not Subscribed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5160,6 +5413,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒到"
+          }
+        }
+      }
+    },
+    "Not a Git Repository" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是 git repo"
           }
         }
       }
@@ -5479,6 +5743,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "線上"
+          }
+        }
+      }
+    },
+    "Only the file mode or an empty file changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只改了檔案權限，或是空檔案。"
           }
         }
       }
@@ -6572,6 +6847,17 @@
         }
       }
     },
+    "Removed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除"
+          }
+        }
+      }
+    },
     "Rename" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7041,6 +7327,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仍要送出"
+          }
+        }
+      }
+    },
+    "Send Comments" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出評論"
           }
         }
       }
@@ -8178,6 +8475,17 @@
         }
       }
     },
+    "The Agent Moved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 已換資料夾"
+          }
+        }
+      }
+    },
     "The Demo host can’t start new chats. Add your own host to try this." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8299,6 +8607,17 @@
         }
       }
     },
+    "The agent is no longer working in this folder. Go back and open the changes again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 已不在這個資料夾工作，請返回後重新打開變更頁。"
+          }
+        }
+      }
+    },
     "The agent is waiting for an answer. Answer it first, then send." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8328,6 +8647,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 正在工作，回覆會顯示在這裡。"
+          }
+        }
+      }
+    },
+    "The agent’s working directory isn’t inside a git repository." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 的工作目錄不在 git repo 裡。"
           }
         }
       }
@@ -8772,6 +9102,17 @@
         }
       }
     },
+    "The working directory matches the last commit." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作目錄與最後一次 commit 相同。"
+          }
+        }
+      }
+    },
     "There’s already an item named “%@” in this folder. Rename the file and try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9014,6 +9355,17 @@
         }
       }
     },
+    "This diff is too large to show on this device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 diff 太大，無法在這台裝置上顯示。"
+          }
+        }
+      }
+    },
     "This file is %@. Files sent to the host can be up to %@." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9043,6 +9395,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個檔案不是 Purrdr 能顯示的圖片。"
+          }
+        }
+      }
+    },
+    "This file isn’t text, so there’s no diff to show." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個檔案不是文字，沒有 diff 可以顯示。"
           }
         }
       }
@@ -9109,6 +9472,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機無法傳送通知。"
+          }
+        }
+      }
+    },
+    "This host can’t show git changes yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機目前還看不到 git 變更。"
           }
         }
       }
@@ -10037,6 +10411,17 @@
         }
       }
     },
+    "Untracked" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未追蹤"
+          }
+        }
+      }
+    },
     "Up Arrow" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10110,6 +10495,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要更新 herdr 嗎?"
+          }
+        }
+      }
+    },
+    "Update the Host Service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請更新主機服務"
           }
         }
       }
@@ -10679,6 +11075,17 @@
         }
       }
     },
+    "You can’t send to this agent right now." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在無法送給這個 Agent。"
+          }
+        }
+      }
+    },
     "You chose: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10701,6 +11108,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你:%@"
+          }
+        }
+      }
+    },
+    "Your Comment · Line %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的評論 · 第 %lld 行"
           }
         }
       }

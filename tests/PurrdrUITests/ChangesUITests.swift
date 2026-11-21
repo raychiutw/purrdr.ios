@@ -1,0 +1,62 @@
+import XCTest
+
+/// 變更頁(#310):Demo 主機 ledger 的 git 變更清單 → 單檔 diff,在行上寫評論後送給 Agent。
+final class ChangesUITests: XCTestCase {
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
+    @MainActor
+    private func openChanges(_ app: XCUIApplication) {
+        let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
+        row.tap()
+        let button = app.buttons["changes.open"].firstMatch
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "對話標題列沒有變更鈕")
+        button.tap()
+    }
+
+    @MainActor
+    func testChangeListShowsBranchAndFiles() {
+        let app = XCUIApplication.launchUITesting()
+        openChanges(app)
+
+        let summary = app.descendants(matching: .any)["changes.summary"].firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), "沒有變更清單")
+        XCTAssertTrue(summary.label.contains("master"), "分支不對:\(summary.label)")
+        for path in ["Fixtures/draft.csv", "Sources/CSVExport.swift", "Tests/CSVQuotingTests.swift"] {
+            XCTAssertTrue(app.buttons["changes.file.\(path)"].firstMatch.exists, "沒有 \(path)")
+        }
+        let csv = app.buttons["changes.file.Sources/CSVExport.swift"].firstMatch
+        XCTAssertTrue(csv.label.contains("3 added, 1 removed"), "+/− 不對:\(csv.label)")
+    }
+
+    @MainActor
+    func testCommentOnLineAndSendToAgent() {
+        let app = XCUIApplication.launchUITesting()
+        openChanges(app)
+        let file = app.buttons["changes.file.Sources/CSVExport.swift"].firstMatch
+        XCTAssertTrue(file.waitForExistence(timeout: 10))
+        file.tap()
+
+        let diff = app.descendants(matching: .any)["changes.diff"].firstMatch
+        XCTAssertTrue(diff.waitForExistence(timeout: 10), "沒有打開 diff")
+        let line = app.descendants(matching: .any)["changes.line.5"].firstMatch
+        XCTAssertTrue(line.waitForExistence(timeout: 10), "沒有 diff 的行")
+        line.tap()
+        let field = app.textFields["changes.comment.field"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "沒有評論輸入框")
+        field.typeText("Count carriage returns too")
+        app.buttons["changes.comment.save"].firstMatch.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["changes.comment.5"].firstMatch.waitForExistence(timeout: 5), "評論卡片沒有出現")
+        let send = app.buttons["changes.review.send"].firstMatch
+        XCTAssertTrue(send.waitForExistence(timeout: 5), "沒有送出評論鈕")
+        send.tap()
+
+        // 回到聊天，評論組成的訊息出現在對話裡。
+        let echo = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Count carriage returns too")).firstMatch
+        XCTAssertTrue(echo.waitForExistence(timeout: 10), "評論沒有送到聊天")
+        XCTAssertTrue(app.buttons["changes.open"].firstMatch.exists, "沒有回到聊天")
+    }
+}

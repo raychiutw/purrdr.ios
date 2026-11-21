@@ -167,6 +167,20 @@ public final class ConversationModel {
     public var youShouldKnow: YouShouldKnowModel?
     /// 圖片卡片的縮圖載入(#225):聊天所在主機的那份，由 `HostsModel` 接上;沒有時卡片不載入縮圖。
     public var agentFiles: AgentFileLoads?
+    /// 變更頁的 git 讀取(#310):聊天所在主機的連線方式，由 `HostsModel` 接上;沒有時不顯示變更鈕。
+    public var gitChanges: (any GitChangesReading)?
+
+    /// 這個 Agent 工作目錄的變更頁;沒有 git 讀取或還不知道工作目錄時是 `nil`。
+    public func makeChanges() -> ChangesModel? {
+        guard let gitChanges, let cwd = currentAgent?.cwd else { return nil }
+        return ChangesModel(reader: gitChanges, cwd: cwd) { [weak self] in self?.canSendReview ?? false }
+    }
+
+    /// 能不能開變更頁(有 git 讀取、知道 Agent 的工作目錄)。
+    public var canOpenChanges: Bool { gitChanges != nil && currentAgent?.cwd != nil }
+
+    /// 能不能送出變更頁的評論：與輸入列相同的目標條件(唯讀、離線、送出中都不行)。
+    public var canSendReview: Bool { hasTarget && !isReadOnly && !isSending && typedAnswer == nil }
 
     /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229),與對話紀錄本身(附檔資料夾)。
     public var fileAccessScope: HostFileAccessScope {
@@ -1044,6 +1058,19 @@ public final class ConversationModel {
             return
         }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = ""
+        await submit(text)
+    }
+
+    /// 變更頁組好的評論訊息送給 Agent(#310):與輸入列同一條送出管線;輸入框裡打到一半的字留著，
+    /// 擋下而要放回時評論接在草稿前面。
+    public func sendReview(_ text: String) async {
+        guard canSendReview else { return }
+        await submit(text)
+    }
+
+    /// 送出一段文字：送出管線 → 主機。呼叫端已清空(或不動)輸入框。
+    private func submit(_ text: String) async {
         isSending = true
         updateWorkingSince()
         defer {
@@ -1051,7 +1078,6 @@ public final class ConversationModel {
             updateWorkingSince()
         }
         notice = nil
-        draft = ""
         let outgoing = OutgoingPrompt(
             text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now(),
             workspaceID: currentAgent?.workspaceID, isHostReachable: !isOffline)

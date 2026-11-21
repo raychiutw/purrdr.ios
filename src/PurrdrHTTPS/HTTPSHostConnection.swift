@@ -404,8 +404,11 @@ public actor HTTPSHostConnection: HostConnection {
         case .updateInProgress: HostServiceManagementError.updateInProgress
         case .updateFailed: HostServiceManagementError.updateFailed(message.message)
         case .paneChanged: HostServiceError.paneChanged
-        // 主機服務 0.7.0 的新錯誤碼：對應的功能(#305 佇列、#310 git)接上時各自換成專屬錯誤。
-        case .cwdNotAllowed, .notGitRepository, .queueFull, .queueItemUnknown: HostServiceError.unexpectedResponse
+        // 變更頁(#310):Agent 已換資料夾或結束、工作目錄不在 git repo 裡。
+        case .cwdNotAllowed: GitChangesError.cwdNotAllowed
+        case .notGitRepository: GitChangesError.notGitRepository
+        // 主機服務 0.7.0 的新錯誤碼：對應的功能(#305 佇列)接上時換成專屬錯誤。
+        case .queueFull, .queueItemUnknown: HostServiceError.unexpectedResponse
         }
     }
 
