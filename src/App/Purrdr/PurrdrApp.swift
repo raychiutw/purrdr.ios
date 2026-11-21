@@ -109,7 +109,9 @@ struct PurrdrApp: App {
                     appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String),
                 hostServiceUpdates: HostServiceUpdates(store: UserDefaultsHostServiceUpdateStore()),
                 push: push, tailscaleCheck: tailscaleCheck,
-                listMode: UserDefaultsAgentListModeStore()
+                listMode: UserDefaultsAgentListModeStore(),
+                // 離線佇列存在本機，App 重開仍在(#301)。
+                offlineQueues: UserDefaultsOfflineQueueStore()
             ) { endpoint, pin, credential in
                 SSHHostChannel(
                     endpoint: endpoint, hostKeyPin: pin, credential: credential, tailscaleCheck: tailscaleCheck.observer,
