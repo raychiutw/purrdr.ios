@@ -100,7 +100,7 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.undoSend?.pending == nil && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        if model.entries.isEmpty && model.undoSend?.pending == nil && model.queuedPrompts.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -138,6 +138,11 @@ public struct ConversationView: View {
                         }
                     }
                     .id(entry.id)
+                }
+                // 離線佇列裡的訊息(#301):排隊中與沒送出的，接在最後一則訊息後面。
+                ForEach(model.queuedPrompts) { queued in
+                    QueuedPromptBubbleView(
+                        prompt: queued, putBack: { model.putBack(queued.id) }, delete: { model.deleteQueued(queued.id) })
                 }
                 // 撤回倒數中的訊息(#300):還在本機，接在最後一則訊息後面;倒數結束換成一般的回音。
                 if let undoSend = model.undoSend, let pending = undoSend.pending {
