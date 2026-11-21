@@ -405,9 +405,9 @@ struct HostFilterMenu: View {
     @Bindable var list: MergedAgentListModel
 
     var body: some View {
-        let current = list.hostFilter.flatMap { list.hostLabel(of: $0) }
+        let current = list.currentHost.flatMap { list.hostLabel(of: $0) }
         Menu {
-            Picker(selection: $list.hostFilter) {
+            Picker(selection: $list.currentHost) {
                 Label("All Hosts", systemImage: "square.grid.2x2")
                     .tag(HostSelection?.none)
                 ForEach(list.hostFilterOptions) { option in
@@ -417,7 +417,7 @@ struct HostFilterMenu: View {
             } label: {
                 Text("Hosts")
             }
-            .accessibilityIdentifier("hostFilter.picker")
+            .accessibilityIdentifier("currentHost.picker")
         } label: {
             // 工具列的 Label 只畫圖示，自己排「主機圖示＋名稱＋▾」(原型 purrdr-screens.html);膠囊由工具列玻璃提供。
             HStack(spacing: 6) {
@@ -441,6 +441,6 @@ struct HostFilterMenu: View {
         }
         // 工具列的 Menu 不會把 accessibilityValue 帶給 VoiceOver,篩選放進 label。
         .accessibilityLabel(current.map { Text("Showing: \($0.name)") } ?? Text("Showing: All Hosts"))
-        .accessibilityIdentifier("toolbar.hostFilter")
+        .accessibilityIdentifier("toolbar.currentHost")
     }
 }

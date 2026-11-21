@@ -301,7 +301,7 @@ public struct AgentListView: View {
                 ForEach(sections.flatMap(\.rows)) { row in agentRow(row) }
             }
         }
-        if let filtered = model.hostFilter.flatMap({ model.hostLabel(of: $0) }),
+        if let filtered = model.currentHost.flatMap({ model.hostLabel(of: $0) }),
            model.query.trimmingCharacters(in: .whitespaces).isEmpty,
            model.mode == .spaces ? spacesSections.isEmpty : sections.isEmpty {
             // 篩選的主機沒有東西：留在列表裡說明，篩選鈕仍在左上角可改回所有主機。

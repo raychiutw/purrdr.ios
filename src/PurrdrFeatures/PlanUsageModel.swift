@@ -194,15 +194,18 @@ public final class PlanUsageModel {
 
     private let source: (HostSelection, PlanUsageAgent) -> PlanUsageSource?
     private let store: any PlanUsageSelectionStore
+    private let currentHostChanged: (HostSelection) -> Void
     private let now: () -> Date
     private let sleep: Sleep
 
     /// - Parameters:
+    ///   - currentHost: 目前主機(#334);有值就優先，在這裡改主機也回寫。
     ///   - fallback: 沒有上次選擇(或那台主機已刪除)時選的主機。
     ///   - sleep: 定期重整的等待;測試注入假的。
     ///   - source: 某台主機某種 Agent 的來源;`nil` 表示這種連線方式不支援。
     public init(
         hosts: [HostOption], fallback: HostSelection, store: any PlanUsageSelectionStore,
+        currentHost: HostSelection? = nil, currentHostChanged: @escaping (HostSelection) -> Void = { _ in },
         now: @escaping () -> Date = Date.init,
         sleep: @escaping Sleep = Sleeping.task,
         source: @escaping (HostSelection, PlanUsageAgent) -> PlanUsageSource?
@@ -210,10 +213,13 @@ public final class PlanUsageModel {
         self.hosts = hosts
         self.source = source
         self.store = store
+        self.currentHostChanged = currentHostChanged
         self.now = now
         self.sleep = sleep
         let savedSelection = store.load()
-        host = savedSelection.map(\.host).flatMap { savedHost in hosts.contains { $0.id == savedHost } ? savedHost : nil } ?? fallback
+        let remembered = savedSelection.map(\.host).flatMap { savedHost in hosts.contains { $0.id == savedHost } ? savedHost : nil }
+        // 目前主機有值就優先(#334);所有主機時用上次在這裡選的。
+        host = currentHost.flatMap { current in hosts.contains { $0.id == current } ? current : nil } ?? remembered ?? fallback
         agent = savedSelection?.agent ?? .claudeCode
     }
 
@@ -354,6 +360,7 @@ public final class PlanUsageModel {
         guard host != self.host else { return }
         self.host = host
         store.save(PlanUsageSelection(host: host, agent: agent))
+        currentHostChanged(host)
         restart()
     }
 

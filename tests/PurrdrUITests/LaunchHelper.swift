@@ -83,7 +83,7 @@ extension XCUIApplication {
     /// 左上角的主機篩選選了某一項(#244)。
     @MainActor
     func filterHosts(_ name: String, file: StaticString = #filePath, line: UInt = #line) {
-        let filter = buttons["toolbar.hostFilter"].firstMatch
+        let filter = buttons["toolbar.currentHost"].firstMatch
         XCTAssertTrue(filter.waitForExistence(timeout: 10), "左上角沒有主機篩選", file: file, line: line)
         filter.tap()
         let item = buttons[name].firstMatch
