@@ -16,12 +16,16 @@ public struct SettingsView: View {
     let openWelcome: () -> Void
     /// App 鎖(#284);`nil` 時不顯示。
     let appLock: AppLock?
+    /// 數據用量頁(#354)的 model 工廠;`nil` 時不顯示入口。
+    let dataUsage: (@MainActor () -> DataUsageModel)?
     let done: () -> Void
 
     public init(
         model: SettingsModel,
-        openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil, done: @escaping () -> Void
+        openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil,
+        dataUsage: (@MainActor () -> DataUsageModel)? = nil, done: @escaping () -> Void
     ) {
+        self.dataUsage = dataUsage
         self.model = model
         self.appLock = appLock
         self.openWelcome = openWelcome
@@ -77,6 +81,20 @@ public struct SettingsView: View {
 
                 if let appLock {
                     AppLockSettingsSection(lock: appLock)
+                }
+
+                if let dataUsage {
+                    Section {
+                        NavigationLink {
+                            DataUsageScreen(make: dataUsage)
+                        } label: {
+                            Label("Data Usage", systemImage: "chart.bar")
+                        }
+                        .accessibilityIdentifier("settings.dataUsage")
+                    } footer: {
+                        Text("How much data Purrdr uses to talk to your hosts.")
+                            .foregroundStyle(.secondaryText)
+                    }
                 }
 
                 Section {
