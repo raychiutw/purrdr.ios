@@ -81,3 +81,10 @@
 - `purrdr-app-icon.html`：線上 https://claude.ai/artifact/TVdENu7ZXpfeGaa7nr6HJJ （私人）
 - 選 **C 光學置中**：整體平移 (+14, -66)，外框中心 (526, 505)；貓掌翡翠綠（淺色 #0B7A5C、深色 #3CCF9E）。
 - `purrdr-push-hosts.html` 同步更新為含「通知裝置」區塊的版本（#266）。
+
+## 帳號未登入動線、預設頭像、Purrdr Plus 頁、測試通知(2026-11-21,#325)
+
+- `purrdr-account-plus.html`、`account-plus/`(三版截圖)。
+- 選 **A 登入頁優先**:沒登入時帳號 sheet 直接是登入頁(Apple／Google),不出現步驟卡;已登入顯示帳號頁(含通知開著的主機「傳送測試通知」)。
+- 三版共通的部分一起採用：未登入頭像用系統人頭圖(不用問號);未登入時步驟卡不把「開啟通知」「同步主機名單」打勾;已訂閱時不顯示恢復購買與兌換代碼;通知開著的主機有「傳送測試通知」。
+- Plus 頁與 #323(`prototypes/plus-page/` 的 A 設定頁式)一致：已訂閱時拿掉恢復購買與兌換代碼。
