@@ -32,8 +32,9 @@ struct SpacesSectionsContent: View {
         switch tab.target {
         case .pane(let route):
             NavigationLink(value: route) {
-                Text(verbatim: tab.title)
+                SpacesTabLabel(tab: tab)
             }
+            .accessibilityLabel(Text(verbatim: SpacesTabLabel.accessibilityText(tab)))
             .selectionFill(for: route)
         case .layout(let workspaceID, let tabID):
             Button {
@@ -43,8 +44,7 @@ struct SpacesSectionsContent: View {
                 presentation.sheet = .layout(workspaceLabel: tab.title, layout: layout?.onlyTab(tabID))
             } label: {
                 HStack {
-                    Text(verbatim: tab.title)
-                        .foregroundStyle(.primary)
+                    SpacesTabLabel(tab: tab)
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
@@ -53,8 +53,37 @@ struct SpacesSectionsContent: View {
                 }
                 .contentShape(Rectangle())
             }
+            .accessibilityLabel(Text(verbatim: SpacesTabLabel.accessibilityText(tab)))
             .accessibilityHint(Text("Shows this tab’s layout."))
         }
+    }
+}
+
+/// Tab 列的內容(#316):頭像＋右下角狀態與 Tab 名稱。頭像對 VoiceOver 隱藏;列(按鈕本身)念 `accessibilityText`。
+struct SpacesTabLabel: View {
+    let tab: SpacesTab
+
+    var body: some View {
+        HStack(spacing: 12) {
+            switch tab.avatar {
+            case .agent(let kind, let status):
+                AgentStatusAvatar(content: .agent(AgentKind(rawKind: kind)), status: status)
+            case .terminal:
+                AgentStatusAvatar(content: .terminal, status: nil)
+            }
+            // 按鈕列(多個 pane)的 label 會被 tint 染成主色;`.primary` 在按鈕裡解析成 tint,要用 `Color.primary`。
+            Text(verbatim: tab.title)
+                .foregroundStyle(Color.primary)
+        }
+    }
+
+    /// 「名稱, 種類, 狀態」;只有終端機時「名稱, 終端機」。
+    static func accessibilityText(_ tab: SpacesTab) -> String {
+        let parts: [String?] = switch tab.avatar {
+        case .agent(let kind, let status): [tab.title, AgentKind(rawKind: kind).displayName, String(localized: status.title)]
+        case .terminal: [tab.title, String(localized: "Terminal")]
+        }
+        return parts.compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -78,11 +107,9 @@ private struct SpacesSectionHeader: View {
     }
 }
 
-/// Agent 種類頭像：36pt 圓角方塊，白色字母。
+/// Agent 種類頭像：36pt 圓角方塊，白色字母。種類由列的 VoiceOver 句子念(`AgentStatusAvatar` 整個隱藏)。
 struct AgentKindAvatar: View {
     let kind: AgentKind
-    /// VoiceOver 念出種類名稱(Agents 列的文字裡沒有種類);Spaces 列的第三行已有，維持隱藏。
-    var announcesKind = false
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
@@ -93,8 +120,6 @@ struct AgentKindAvatar: View {
             .dynamicTypeSize(...DynamicTypeSize.xLarge)
             .frame(width: 36, height: 36)
             .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
-            .accessibilityLabel(Text(verbatim: kind.displayName ?? ""))
-            .accessibilityHidden(!announcesKind || kind.displayName == nil)
     }
 }
 

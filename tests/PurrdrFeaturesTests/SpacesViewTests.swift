@@ -105,6 +105,32 @@ struct SpacesViewTests {
         #expect(AgentListProjection.tabTitle(nil, contents: nil, position: 3) == "Tab 3")
     }
 
+    @Test("Tab 列的頭像(#316):Agent 的種類與狀態;只有終端機的 Tab 是終端機頭像、沒有狀態")
+    func tabAvatars() async throws {
+        let model = await Self.model()
+
+        let sections = model.agentList.spacesSections
+        let garden = try #require(sections.first)
+        #expect(garden.tabs[1].avatar == .agent(kind: "claude", status: .working))
+        #expect(garden.tabs[2].avatar == .agent(kind: "claude", status: .working))
+        #expect(sections.last?.tabs.first?.avatar == .terminal)
+    }
+
+    @Test("Tab 裡有多個 Agent(#316):頭像是第一個 Agent 的種類，狀態取最需要處理的(需要你 > 工作中 > 未讀 > 閒置)")
+    func tabAvatarUsesMostUrgentStatus() async throws {
+        let model = await Self.model { response in
+            // 改動：w1:pA、w1:pB 移到 w1:t6(和 idle 的 w1:p6 同一個 Tab),w1:pB 改成需要你。
+            SnapshotEdit.agent("w1:pA", in: &response) { $0["tab_id"] = "w1:t6" }
+            SnapshotEdit.agent("w1:pB", in: &response) {
+                $0["tab_id"] = "w1:t6"
+                $0["agent_status"] = "blocked"
+            }
+        }
+
+        let tab = try #require(model.agentList.spacesSections.first?.tabs.first)
+        #expect(tab.avatar == .agent(kind: "claude", status: .blocked))
+    }
+
     @Test("點 Tab:只有一個 pane 直接開(Agent 開對話、終端機開 Pane 終端機);有多個 pane 開那個 Tab 的版面圖")
     func tabTargets() async throws {
         let model = await Self.model { response in
