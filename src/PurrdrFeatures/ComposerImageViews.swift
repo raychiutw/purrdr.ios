@@ -314,16 +314,13 @@ struct AttachButton: View {
         case .camera: showsCamera = true
         case .library: showsLibrary = true
         case .files: showsFiles = true
-        case .paste:
-            let images = ImageSources.pasteboardImages()
-            Task { await model.addImages(images) }
         }
     }
 }
 
 /// 「＋」升起的面板:上方最近的照片(可多選)，下方相機、所有照片、檔案、貼上。沒有相簿權限時只有按鈕。
 struct AttachPanel: View {
-    enum Choice { case camera, library, files, paste }
+    enum Choice { case camera, library, files }
 
     let model: ConversationModel
     let source: RecentPhotoSource
@@ -350,8 +347,7 @@ struct AttachPanel: View {
                 if ImageSources.cameraAvailable { action("Take Photo", symbol: "camera", id: "camera", .camera) }
                 action("All Photos", symbol: "photo.on.rectangle", id: "photos", .library)
                 if model.canAttachFiles { action("Files", symbol: "doc", id: "files", .files) }
-                action("Paste", symbol: "doc.on.clipboard", id: "paste", .paste)
-                    .disabled(!ImageSources.pasteboardHasImages)
+                pasteTile
             }
             if !selected.isEmpty {
                 Button {
@@ -399,6 +395,31 @@ struct AttachPanel: View {
         .accessibilityLabel(Text("Photo \(index + 1)"))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("attach.recent.\(index)")
+    }
+
+    /// 貼上用系統的 `PasteButton`(HIG):使用者按的就是系統按鈕，不會跳「允許貼上」的詢問;剪貼簿沒有圖片時系統自己停用。
+    private var pasteTile: some View {
+        VStack(spacing: 6) {
+            #if canImport(UIKit)
+            PasteButton(supportedContentTypes: [.image]) { providers in
+                Task { @MainActor in
+                    let images = await ImageSources.imageData(from: providers)
+                    dismiss()
+                    await model.addImages(images)
+                }
+            }
+            .labelStyle(.iconOnly)
+            .buttonBorderShape(.roundedRectangle(radius: 16))
+            .tint(.secondary)
+            .frame(width: 52, height: 52)
+            .accessibilityIdentifier("attach.paste")
+            #endif
+            Text("Paste")
+                .font(.caption)
+                .multilineTextAlignment(.center)
+                .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 44)
     }
 
     private func action(_ title: LocalizedStringKey, symbol: String, id: String, _ choice: Choice) -> some View {
@@ -529,6 +550,18 @@ enum ImageSources {
     @MainActor static var pasteboardHasImages: Bool { UIPasteboard.general.hasImages }
     @MainActor static var pasteboardHasStrings: Bool { UIPasteboard.general.hasStrings || UIPasteboard.general.hasURLs }
     @MainActor static var cameraAvailable: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
+
+    /// 從系統 `PasteButton` 交來的項目讀出圖片(PNG)。讀不出來的略過。
+    @MainActor static func imageData(from providers: [NSItemProvider]) async -> [Data] {
+        var images: [Data] = []
+        for provider in providers {
+            let data: Data? = await withCheckedContinuation { continuation in
+                _ = provider.loadDataRepresentation(for: .image) { data, _ in continuation.resume(returning: data) }
+            }
+            if let data, let png = UIImage(data: data)?.pngData() { images.append(png) }
+        }
+        return images
+    }
 
     /// 讀剪貼簿裡的圖片(使用者明確要求貼上時才呼叫)。
     @MainActor static func pasteboardImages() -> [Data] {
