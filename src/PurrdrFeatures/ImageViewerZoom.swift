@@ -38,6 +38,16 @@ struct ImageViewerZoom: Equatable {
         return (target, clampedOffset(offset, zoom: target))
     }
 
+    /// 捏合進行中:以手指中心(`anchor`,相對容器中心)為不動點縮放——手指下的那一點縮放後仍在手指下。
+    /// 進行中可略超出範圍(橡皮筋感),放開時再以 `clampedZoom`／`clampedOffset` 夾回。
+    func pinched(zoom start: CGFloat, offset: CGSize, magnification: CGFloat, at anchor: CGPoint) -> (zoom: CGFloat, offset: CGSize) {
+        let zoom = min(max(start * magnification, 0.8), Self.maximumZoom * 1.2)
+        let ratio = zoom / start
+        // 手指下的圖上的點 p = (anchor - offset) / start;縮放後仍要在 anchor,所以新的 offset = anchor - zoom * p。
+        return (zoom, CGSize(
+            width: anchor.x - ratio * (anchor.x - offset.width), height: anchor.y - ratio * (anchor.y - offset.height)))
+    }
+
     /// 放大後才能單指平移。
     func allowsPan(zoom: CGFloat) -> Bool { zoom > 1.001 }
 

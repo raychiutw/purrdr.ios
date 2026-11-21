@@ -10,17 +10,9 @@ enum PlusFeature: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .notifications: "bell.badge.fill"
+        case .notifications: "bell.badge"
         case .hostSync: "arrow.triangle.2.circlepath"
         case .devices: "iphone"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .notifications: .orange
-        case .hostSync: .blue
-        case .devices: .green
         }
     }
 
