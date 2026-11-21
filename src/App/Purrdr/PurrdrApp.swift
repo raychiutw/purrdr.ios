@@ -27,6 +27,9 @@ struct PurrdrApp: App {
     private let pairingCodeScanSource: PairingCodeScanSource
     /// App 鎖(#284):所有視窗共用一份鎖定狀態。
     private let appLock: AppLock
+    /// 數據用量的流量計量(#353)與網路類型監看(監看物件要活著)。
+    private let trafficMeter: TrafficMeter
+    private let trafficNetwork: TrafficNetworkMonitor
     /// 所有場景合併的生命週期(App 鎖依它判斷離開多久)。
     @Environment(\.scenePhase) private var scenePhase
 
@@ -124,6 +127,14 @@ struct PurrdrApp: App {
         // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
         hosts.haptics = SystemHaptics()
+        // 流量計量(#353):存在 Application Support(只在這支裝置;UI 測試只放記憶體)。
+        let trafficStore: any TrafficStore = uiTesting
+            ? InMemoryTrafficStore()
+            : FileTrafficStore(url: URL.applicationSupportDirectory.appending(path: "traffic-usage.json"))
+        let trafficMeter = TrafficMeter(store: trafficStore)
+        trafficNetwork = TrafficNetworkMonitor(meter: trafficMeter)
+        self.trafficMeter = trafficMeter
+        hosts.trafficMeter = trafficMeter
         hosts.reviewPrompt = Self.makeReviewPrompt(uiTesting: uiTesting)
         // 送出可撤回(#300):UI 測試預設關閉(其他測試送出不等倒數);`-uiTestingUndoSend` 開 10 秒倒數(來得及點撤回)。
         if uiTesting { hosts.undoSendSeconds = { arguments.contains("-uiTestingUndoSend") ? 10 : 0 } }
@@ -310,6 +321,7 @@ struct PurrdrApp: App {
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in
             appLock.scenePhaseChanged(to: AppLockPhase(phase), at: .now)
+            if phase != .active { trafficMeter.flush() }
         }
         // 「在新視窗開啟」的 Agent 對話或 Pane 終端機(#31)。
         WindowGroup(for: PaneWindow.self) { $window in
