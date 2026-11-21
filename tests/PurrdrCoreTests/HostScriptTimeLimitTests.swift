@@ -19,6 +19,7 @@ struct HostScriptTimeLimitTests {
             HostFolderCommand.upload(folder: "/f", name: "n", size: 3),
             NewChatFolders.command(for: "~"),
             HostUploadCommand.posix(name: uploadName, size: 3),
+            GitChangesCommand.status(cwd: "/w"),
         ]
         for command in oneShot {
             #expect(command.contains(HostScriptTimeLimit.posixMarker), "\(command.prefix(120))")

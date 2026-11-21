@@ -93,6 +93,9 @@ public final class HostsModel {
     @ObservationIgnored public var undoSendSeconds: @MainActor () -> Int = { UndoSendSettings.seconds(in: .standard) }
 
     private let store: any HostStore
+    /// 離線佇列存放處(#301);每台主機一份佇列，同一台的聊天共用。
+    private let offlineQueueStore: any OfflineQueueStore
+    private var offlineQueues: [HostSelection: OfflineQueue] = [:]
     private let selectionStore: any HostSelectionStore
     /// 方案用量畫面上次選的主機與 Agent。
     private let planUsageSelection: any PlanUsageSelectionStore
@@ -166,6 +169,7 @@ public final class HostsModel {
         push pushService: PushService? = nil, tailscaleCheck: TailscaleCheckModel? = nil,
         attachmentStore: any AttachmentStore = FileAttachmentStore.app(),
         listMode: any AgentListModeStore = InMemoryAgentListModeStore(),
+        offlineQueues: any OfflineQueueStore = InMemoryOfflineQueueStore(),
         diagnostics: DiagnosticLog = .system(category: "hosts"),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
@@ -192,6 +196,7 @@ public final class HostsModel {
         self.tailscaleCheck = tailscaleCheck ?? TailscaleCheckModel()
         self.attachmentStore = attachmentStore
         self.diagnostics = diagnostics
+        offlineQueueStore = offlineQueues
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
     }
@@ -316,13 +321,21 @@ public final class HostsModel {
             hostName: { [weak self] in self?.name(of: route.host) },
             images: ComposerImages(uploader: member.uploader, store: attachmentStore),
             updates: member.list.updates,
-            // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300)。
-            sendSteps: [SecretCheck(), UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 })])
+            // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300),
+            // 倒數結束時離線就排進那台主機的離線佇列(#301)。
+            sendSteps: [
+                SecretCheck(), UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 }),
+                OfflineQueueStep(queue: offlineQueue(for: route.host)),
+            ])
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。
         model.agentFiles = member.agentFiles
+        // 變更頁讀聊天所在主機的 git(#310)。
+        model.gitChanges = member.gitChanges
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
+        // 離開期間摘要(#308):上次離開這個聊天的時間。
+        model.awayStart = { [weak self] in self?.agentList.awayStart(for: route) }
         return model
     }
 
@@ -533,6 +546,9 @@ public final class HostsModel {
             forgetHostServicePush(of: removed, address: address, deviceToken: deviceToken)
         }
         hostConsent.revokeAll(host: id.uuidString)
+        // 刪除主機也清掉它的離線佇列(#301)。
+        offlineQueues[.host(id)] = nil
+        offlineQueueStore.save([], host: HostSelection.host(id).storedValue)
         hosts.removeAll { $0.id == id }
         let channel = channels.removeValue(forKey: id)
         let connection = hostServiceConnections.removeValue(forKey: id)
@@ -732,12 +748,32 @@ public final class HostsModel {
         agentList.update(sources: sources, selected: selection)
     }
 
+    /// 某台主機的離線佇列(#301):第一次用到時從本機讀回。補送前以新鮮的快照確認 Agent 目前的狀態。
+    public func offlineQueue(for host: HostSelection) -> OfflineQueue {
+        if let queue = offlineQueues[host] { return queue }
+        let queue = OfflineQueue(host: host.storedValue, store: offlineQueueStore) { [weak self] text, agent in
+            guard let client = self?.member(for: host).client else { return .rejected(message: "") }
+            let fresh = (try? await client.snapshot())?.agents.first { $0.paneID == agent.paneID } ?? agent
+            return await PromptDelivery(client: client).send(text, to: fresh)
+        }
+        offlineQueues[host] = queue
+        return queue
+    }
+
     /// 某台主機的成員;不在列表上時(例如剛刪除的主機還開著的畫面)暫時建一個不保留的。
     private func member(for host: HostSelection) -> HostMember {
         members[host] ?? makeMember(host)
     }
 
     private func makeMember(_ host: HostSelection) -> HostMember {
+        let member = makeMemberConnections(host)
+        // 主機更新來源讀到的 Agent 列表交給離線佇列(#301):重連後的第一份就補送。
+        let queue = offlineQueue(for: host)
+        member.list.updates.onSnapshot = { [weak queue] snapshot in queue?.receive(snapshot) }
+        return member
+    }
+
+    private func makeMemberConnections(_ host: HostSelection) -> HostMember {
         if case .host(let id) = host, let companion = companion(id) {
             return HostMember(
                 host: host, configuration: nil, channel: companion.channel, preferences: preferences.store(for: host),
@@ -759,6 +795,8 @@ public final class HostsModel {
                 host: host, configuration: configuration, channel: UnsupportedHostChannel(), connection: connection,
                 // 主機取檔走同一條主機服務連線(#227);UI 測試的替身連線沒有取檔。
                 files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), uploads: connection as? any HostUploading,
+                // 變更頁走主機服務的 git.status／git.diff(#310);UI 測試的替身連線沒有。
+                git: (connection as? any GitChangesReading) ?? UnsupportedGitChanges(),
                 preferences: preferences.store(for: host),
                 push: pushService, consent: hostConsent)
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
@@ -933,19 +971,24 @@ final class HostMember {
     let agentFiles: AgentFileLoads
     /// 聊天附加的圖片與檔案上傳到主機(#286)。
     let uploader: any HostUploading
+    /// 變更頁的唯讀 git 讀取(#310)。
+    let gitChanges: any GitChangesReading
 
     /// - Parameters:
     ///   - connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
     ///   - files: 主機取檔;`nil` 時經 `channel` 跑 SSH 的取檔腳本(主機跑不了時是 unsupported)。
+    ///   - git: 變更頁的 git 讀取;`nil` 時經 `channel` 跑唯讀 git 指令(#310)。
     ///   - uploads: 上傳到主機;`nil` 時經 `channel` 的 exec＋stdin(Windows 主機由 `WindowsHostChannel` 換成 PowerShell 版，#68)。
     init(
         host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
-        files: (any HostFileFetching)? = nil, uploads: (any HostUploading)? = nil, preferences: any ChatPreferencesStore, push pushService: PushService?,
+        files: (any HostFileFetching)? = nil, uploads: (any HostUploading)? = nil, git: (any GitChangesReading)? = nil,
+        preferences: any ChatPreferencesStore, push pushService: PushService?,
         consent: any HostWriteConsentStore
     ) {
         self.host = host
         self.channel = channel
         uploader = uploads ?? SSHHostUploader(channel: channel)
+        gitChanges = git ?? SSHGitChanges(channel: channel)
         let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
         let connection = connection ?? SSHHostConnection(
             channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))

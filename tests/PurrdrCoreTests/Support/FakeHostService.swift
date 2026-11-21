@@ -85,6 +85,8 @@ final class FakeHostService: Sendable {
         var fileReplies: [String: [String]] = [:]
         /// 已配對裝置訊息(`devices.list`／`devices.revoke`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
         var deviceReplies: [String: [String]] = [:]
+        /// git 讀取訊息(`git.status`／`git.diff`,#310)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
+        var gitReplies: [String: [String]] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
@@ -398,6 +400,17 @@ final class FakeHostService: Sendable {
             }
             object["request_id"] = requestID
             return [.text(Self.json(object))]
+        case "git.status", "git.diff":
+            let reply = state.withLock { state -> String? in
+                guard let queue = state.settings.gitReplies[type], let first = queue.first else { return nil }
+                if queue.count > 1 { state.settings.gitReplies[type] = Array(queue.dropFirst()) }
+                return first
+            }
+            guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
+            return [.text(Self.json(object))]
         case "devices.list", "devices.revoke":
             let reply = state.withLock { state -> String? in
                 guard let queue = state.settings.deviceReplies[type], let first = queue.first else { return nil }
@@ -442,6 +455,10 @@ final class FakeHostService: Sendable {
             return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
         case "push.status", "push.install", "push.remove", "push.update_muted":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
+        case "sessions.list":
+            // 範例(兩個 session);`cwd` 為 `/empty` 表示資料夾沒有過去的 session(#309)。
+            if message["cwd"] as? String == "/empty" { return [.text(Self.example("server.sessions-list-result.json", requestID: requestID, changing: ["sessions": [Any]()]))] }
+            return [.text(Self.example("server.sessions-list-result.json", requestID: requestID))]
         case "pane.read":
             let paneID = message["pane_id"] as? String ?? ""
             let screen = message["format"] as? String == "ansi" ? settings.ansiPaneScreens[paneID] ?? settings.paneScreens[paneID] : settings.paneScreens[paneID]

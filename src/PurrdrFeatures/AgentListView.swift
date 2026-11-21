@@ -371,6 +371,8 @@ struct ConversationScreen: View {
     let window: TopNavigationModel?
     let route: ChatRoute?
     @State private var terminal: PaneTerminalModel?
+    /// 推入中的變更頁(#310)。
+    @State private var changes: ChangesModel?
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
@@ -389,6 +391,21 @@ struct ConversationScreen: View {
                     // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
                     ToolbarItem(placement: .primaryAction) {
                         PaneTerminalButton { openTerminal() }
+                    }
+                }
+                // 變更鈕(#310):知道 Agent 的工作目錄、連線方式讀得了 git 才顯示。
+                if model.canOpenChanges {
+                    ToolbarItem(placement: .primaryAction) {
+                        ChangesButton { changes = model.makeChanges() }
+                    }
+                }
+            }
+            .navigationDestination(isPresented: Binding(get: { changes != nil }, set: { if !$0 { changes = nil } })) {
+                if let changes {
+                    ChangesView(model: changes) { message in
+                        // 先回到聊天再送：撤回倒數與機密偵測的確認都在聊天畫面。
+                        self.changes = nil
+                        Task { await model.sendReview(message) }
                     }
                 }
             }
@@ -433,7 +450,7 @@ struct AgentRowView: View {
                 previewLine
                     .font(.subheadline)
                     .lineLimit(lines(2))
-                if dynamicTypeSize.isAccessibilitySize { timeText }
+                if dynamicTypeSize.isAccessibilitySize { trailingColumn }
             }
         }
         // 一句念完(#269,spec #267 故事 14):agent、workspace、狀態、主機 · 最後一句、時間;畫面的排列順序不同，不用 `.combine`。
@@ -453,7 +470,10 @@ struct AgentRowView: View {
         let parts: [String?] = [
             AgentKind(rawKind: row.kind).displayName, row.workspace, String(localized: row.status.title),
             row.isPinned ? String(localized: "Pinned") : nil, row.isMuted ? String(localized: "Muted") : nil,
+            row.isAway ? String(localized: "New since you were away") : nil,
             preview.isEmpty ? nil : preview, row.time?.text(),
+            row.progress?.contextPercent.map { String(localized: "Context \($0)%") },
+            row.progress.flatMap { $0.todoTotal > 0 ? String(localized: "Todos \($0.todoDone) of \($0.todoTotal) done") : nil },
         ]
         return parts.compactMap { $0 }.joined(separator: ", ")
     }
@@ -481,9 +501,19 @@ struct AgentRowView: View {
                     .foregroundStyle(secondary)
                     .accessibilityLabel(Text("Muted"))
             }
+            // 離開超過 15 分鐘後有新回覆(#308):名稱後的小標籤，文字說明、不只靠顏色。
+            if row.isAway {
+                Text("While away")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondaryText)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.fill.tertiary, in: Capsule())
+                    .accessibilityHidden(true)
+            }
             if !dynamicTypeSize.isAccessibilitySize {
                 Spacer(minLength: 8)
-                timeText
+                trailingColumn
             }
         }
         .font(.body)
@@ -496,6 +526,10 @@ struct AgentRowView: View {
                 HostIconBadge(icon, diameter: 18)
             }
             previewText
+            if let todos = row.progress, todos.todoTotal > 0 {
+                Spacer(minLength: 4)
+                TodoCount(done: todos.todoDone, total: todos.todoTotal)
+            }
         }
     }
 
@@ -512,6 +546,16 @@ struct AgentRowView: View {
             }
         }
         .foregroundStyle(secondary)
+    }
+
+    /// 右欄：時間，下方是 context 小圓環與百分比(#307;對 VoiceOver 隱藏，念在整列句子裡)。
+    private var trailingColumn: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            timeText
+            if let percent = row.progress?.contextPercent {
+                ContextMeter(percent: percent)
+            }
+        }
     }
 
     @ViewBuilder

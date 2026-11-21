@@ -100,7 +100,7 @@ public struct ConversationView: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.entries.isEmpty && model.undoSend?.pending == nil && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
+        if model.entries.isEmpty && model.undoSend?.pending == nil && model.queuedPrompts.isEmpty && model.prompt == nil && model.lastAnswer == nil && model.panel == nil && !model.showsWorkingIndicator {
             // 撐滿可用空間：輸入列(底部的 safeAreaBar)才會貼在畫面底部，不跟著佔位內容置中(#114)。
             placeholder
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -123,7 +123,10 @@ public struct ConversationView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 olderRow
-                ForEach(model.entries) { entry in
+                ForEach(model.visibleEntries) { entry in
+                    if let away = model.awaySummary, away.anchorID == entry.id {
+                        AwayDividerView(summary: away, isCollapsed: Binding(get: { model.isAwayCollapsed }, set: { model.isAwayCollapsed = $0 }))
+                    }
                     Group {
                         switch entry {
                         case .item(let item):
@@ -135,6 +138,11 @@ public struct ConversationView: View {
                         }
                     }
                     .id(entry.id)
+                }
+                // 離線佇列裡的訊息(#301):排隊中與沒送出的，接在最後一則訊息後面。
+                ForEach(model.queuedPrompts) { queued in
+                    QueuedPromptBubbleView(
+                        prompt: queued, putBack: { model.putBack(queued.id) }, delete: { model.deleteQueued(queued.id) })
                 }
                 // 撤回倒數中的訊息(#300):還在本機，接在最後一則訊息後面;倒數結束換成一般的回音。
                 if let undoSend = model.undoSend, let pending = undoSend.pending {
@@ -616,6 +624,49 @@ struct UserBubbleView: View {
             label
         }
         .accessibilityIdentifier("conversation.user")
+    }
+}
+
+/// 離開期間的分隔線(#308):「你離開期間 · N 輪 · 工作 M 分鐘」,點一下收合或展開那一段(收合時留最後一句)。
+struct AwayDividerView: View {
+    let summary: AwaySummary
+    @Binding var isCollapsed: Bool
+
+    var body: some View {
+        Button {
+            withAnimation { isCollapsed.toggle() }
+        } label: {
+            HStack(spacing: 8) {
+                line
+                HStack(spacing: 4) {
+                    Text(Self.text(summary))
+                    Image(systemName: "chevron.down")
+                        .imageScale(.small)
+                        .rotationEffect(.degrees(isCollapsed ? -90 : 0))
+                        .accessibilityHidden(true)
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+                line
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(Self.text(summary)))
+        .accessibilityValue(isCollapsed ? Text("Collapsed") : Text("Expanded"))
+        .accessibilityHint(isCollapsed ? Text("Shows the messages from while you were away") : Text("Hides the messages from while you were away"))
+        .accessibilityIdentifier("conversation.away")
+    }
+
+    private var line: some View {
+        Rectangle().fill(.separator).frame(height: 1)
+    }
+
+    static func text(_ summary: AwaySummary) -> String {
+        summary.turns == 1
+            ? String(localized: "While you were away · 1 turn · worked \(summary.workMinutes) min")
+            : String(localized: "While you were away · \(summary.turns) turns · worked \(summary.workMinutes) min")
     }
 }
 

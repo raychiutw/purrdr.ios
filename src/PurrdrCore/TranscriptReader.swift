@@ -412,7 +412,11 @@ extension TranscriptReader {
                 }
             }
             // 檔尾的第一行多半被切在中間，解析時自然略過。
-            let preview = change == .unchanged ? nil : Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
+            var preview = change == .unchanged ? nil : Conversation.preview(of: lines.flatMap(request.target.format.messages(in:)))
+            if preview != nil {
+                let progress = AgentProgress.latest(in: lines, format: request.target.format)
+                preview?.progress = progress.isEmpty ? nil : progress
+            }
             readings[request.key] = PreviewReading(version: range?.version, change: change, preview: preview)
         }
         return readings

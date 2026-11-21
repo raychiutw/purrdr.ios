@@ -65,6 +65,8 @@ public final class ConversationModel {
     public private(set) var title = ""
     public private(set) var agentStatus: AgentStatus?
     public private(set) var metadata = TranscriptMetadata()
+    /// context 百分比與待辦進度(#307),由讀到的對話紀錄推得;標題列與待辦 sheet 用。
+    public private(set) var progress = AgentProgress()
     /// Claude 的背景 agents 窗格(F10「背景 agents 列」),從 pane 畫面解析;沒有窗格是 `nil`。
     public private(set) var agentsPane: AgentsPane?
     /// 上次讀到窗格的時間：執行中列的經過時間 = 畫面值 + 之後經過的秒數。
@@ -165,6 +167,20 @@ public final class ConversationModel {
     public var youShouldKnow: YouShouldKnowModel?
     /// 圖片卡片的縮圖載入(#225):聊天所在主機的那份，由 `HostsModel` 接上;沒有時卡片不載入縮圖。
     public var agentFiles: AgentFileLoads?
+    /// 變更頁的 git 讀取(#310):聊天所在主機的連線方式，由 `HostsModel` 接上;沒有時不顯示變更鈕。
+    public var gitChanges: (any GitChangesReading)?
+
+    /// 這個 Agent 工作目錄的變更頁;沒有 git 讀取或還不知道工作目錄時是 `nil`。
+    public func makeChanges() -> ChangesModel? {
+        guard let gitChanges, let cwd = currentAgent?.cwd else { return nil }
+        return ChangesModel(reader: gitChanges, cwd: cwd) { [weak self] in self?.canSendReview ?? false }
+    }
+
+    /// 能不能開變更頁(有 git 讀取、知道 Agent 的工作目錄)。
+    public var canOpenChanges: Bool { gitChanges != nil && currentAgent?.cwd != nil }
+
+    /// 能不能送出變更頁的評論：與輸入列相同的目標條件(唯讀、離線、送出中都不行)。
+    public var canSendReview: Bool { hasTarget && !isReadOnly && !isSending && typedAnswer == nil }
 
     /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229),與對話紀錄本身(附檔資料夾)。
     public var fileAccessScope: HostFileAccessScope {
@@ -367,6 +383,22 @@ public final class ConversationModel {
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
     public let undoSend: UndoSendCountdown?
+    /// 管線裡的離線佇列(#301):離線時送出的訊息排在這台主機的佇列;沒有這個步驟時離線不能送出。
+    public var offlineQueue: OfflineQueue? { sendPipeline.steps.lazy.compactMap { ($0 as? OfflineQueueStep)?.queue }.first }
+    /// 這個聊天(pane)排隊中與沒送出的訊息，畫在對話最下面。
+    public var queuedPrompts: [QueuedPrompt] { offlineQueue?.entries(forPane: paneID) ?? [] }
+
+    /// 放回輸入框：拿出佇列，文字接在目前的草稿前面(不蓋掉新打的)。
+    public func putBack(_ id: QueuedPrompt.ID) {
+        guard let text = offlineQueue?.takeBack(id) else { return }
+        draft = draft.isEmpty ? text : text + "\n" + draft
+    }
+
+    /// 取消排隊中的訊息，或刪除沒送出的。
+    public func deleteQueued(_ id: QueuedPrompt.ID) {
+        offlineQueue?.remove(id)
+    }
+
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
     public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
     private let slashDiscovery: (any SlashDiscovering)?
@@ -441,6 +473,29 @@ public final class ConversationModel {
     /// 卡片在 body 中取用時才建立，所以不參與觀察(避免在畫面更新中改變被觀察的狀態)。
     @ObservationIgnored private var workflowModels: [String: WorkflowModel] = [:]
     private var lastPresenceSeq: UInt64 = 0
+
+    // MARK: 離開期間摘要(#308)
+
+    /// 上次離開這個聊天的時間(由 `MergedAgentListModel.awayStart(for:)` 接上;沒開過的聊天是 `nil`)。
+    @ObservationIgnored public var awayStart: (@MainActor () -> Date?)?
+    /// 第一次讀到離開起點時定下來的(離開起點，進來的時間);之後不變，聊天開著時發生的項目不會被算進去。
+    private var awayLatch: (from: Date, cutoff: Date)?
+    /// 離開超過 15 分鐘回來時的摘要;其餘為 `nil`。
+    package private(set) var awaySummary: AwaySummary?
+    /// 離開期間那段是否收合(只留最後一句)。
+    package var isAwayCollapsed = false
+
+    /// 畫面上要畫的列:收合時藏起離開期間那段(最後一句留著)。
+    package var visibleEntries: [ConversationEntry] {
+        guard isAwayCollapsed, let awaySummary else { return entries }
+        let hidden = awaySummary.hiddenIDs(in: entries.map(\.id))
+        return entries.filter { !hidden.contains($0.id) }
+    }
+
+    private func updateAwaySummary() {
+        if awayLatch == nil, !items.isEmpty, let from = awayStart?() { awayLatch = (from, clock.now()) }
+        awaySummary = awayLatch.flatMap { AwaySummary.make(items: items, awayFrom: $0.from, cutoff: $0.cutoff) }
+    }
     /// 每次綁定新 session 遞增;晚到的舊 session 結果直接丟棄(R-B07)。
     private var generation = 0
 
@@ -607,6 +662,8 @@ public final class ConversationModel {
         isOffline = false
         stopNeedsReconnect = false
         if banner == .offline { banner = nil }
+        // 重連後的 Agent 列表交給離線佇列比對、補送(#301;主機更新來源讀到的也會交給它)。
+        offlineQueue?.receive(snapshot)
         // 送出時被拒過就維持唯讀。
         if (try? await client.isReadOnlyDevice()) == true { isReadOnly = true }
         currentAgent = snapshot.agents.first { $0.paneID == paneID }
@@ -798,6 +855,7 @@ public final class ConversationModel {
         segments = [(chunk.start, recent.count)]
         olderMessages = []
         metadata = format.latestMetadata(in: chunk.lines)
+        progress = AgentProgress.latest(in: chunk.lines, format: format)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
     }
@@ -807,7 +865,10 @@ public final class ConversationModel {
         let added = parse(chunk.lines).filter { !known.contains($0.id) }
         recent += added
         if !added.isEmpty { segments.append((chunk.start, added.count)) }
-        for line in chunk.lines { format.updateMetadata(&metadata, with: line) }
+        for line in chunk.lines {
+            format.updateMetadata(&metadata, with: line)
+            progress.update(with: line, format: format)
+        }
         trimIfFollowing()
         rebuild()
     }
@@ -907,8 +968,11 @@ public final class ConversationModel {
     /// 可送 = 不是唯讀裝置、修剪後非空或有圖片、沒有送出進行中、目標可用(載入完、有 agent、連得上)(F6.1)。
     /// 自訂回答時改看回答在途與否，而且不能只送圖片(#120)。
     public var canSend: Bool {
-        guard hasTarget, !isReadOnly else { return false }
+        guard !isReadOnly else { return false }
         let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // 離線時排進離線佇列(#301):只排文字(圖片要上傳到主機)、不排自訂回答。
+        if canQueueOffline { return !isSending && hasText && attachments.isEmpty }
+        guard hasTarget else { return false }
         if typedAnswer != nil { return answerInFlight == nil && hasText }
         return !isSending && uploadingFileName == nil && (hasText || !attachments.isEmpty)
     }
@@ -972,6 +1036,11 @@ public final class ConversationModel {
     /// 強制結束同停止，只對 working 的 agent;唯讀、離線時不可用(#220)。
     public var canForceQuit: Bool { agentStatus == .working && !isReadOnly && !isOffline }
 
+    /// 離線，但知道對象(上次讀到的 Agent),送出會排進離線佇列。
+    public var canQueueOffline: Bool {
+        isOffline && offlineQueue != nil && currentAgent != nil && typedAnswer == nil && phase != .agentGone
+    }
+
     private var hasTarget: Bool {
         phase != .loading && phase != .agentGone && !isOffline && currentAgent != nil
     }
@@ -989,6 +1058,19 @@ public final class ConversationModel {
             return
         }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        draft = ""
+        await submit(text)
+    }
+
+    /// 變更頁組好的評論訊息送給 Agent(#310):與輸入列同一條送出管線;輸入框裡打到一半的字留著，
+    /// 擋下而要放回時評論接在草稿前面。
+    public func sendReview(_ text: String) async {
+        guard canSendReview else { return }
+        await submit(text)
+    }
+
+    /// 送出一段文字：送出管線 → 主機。呼叫端已清空(或不動)輸入框。
+    private func submit(_ text: String) async {
         isSending = true
         updateWorkingSince()
         defer {
@@ -996,9 +1078,9 @@ public final class ConversationModel {
             updateWorkingSince()
         }
         notice = nil
-        draft = ""
         let outgoing = OutgoingPrompt(
-            text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now())
+            text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now(),
+            workspaceID: currentAgent?.workspaceID, isHostReachable: !isOffline)
         switch await sendPipeline.prepare(outgoing) {
         case .proceed(let prepared):
             await deliver(prepared)
@@ -1475,6 +1557,7 @@ public final class ConversationModel {
         let merged = EchoTimeline.merge(items: items, echoes: echoes)
         if !merged.map(\.id).elementsEqual(entries.map(\.id)) { entriesRevision &+= 1 }
         entries = merged
+        updateAwaySummary()
         refreshAnsweredCard()
     }
 
@@ -1683,7 +1766,8 @@ public final class ConversationModel {
 
     /// 標題列(#270):workspace 名稱、狀態與主機名。
     public var header: ConversationHeader {
-        ConversationHeader(agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName())
+        ConversationHeader(
+            agent: currentAgent, title: title, status: agentStatus, isOffline: isOffline, hostName: hostName(), progress: progress)
     }
 
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
@@ -1751,6 +1835,7 @@ public final class ConversationModel {
         segments = []
         olderMessages = []
         metadata = TranscriptMetadata()
+        progress = AgentProgress()
         older = .reachedStart
         rebuild()
     }
