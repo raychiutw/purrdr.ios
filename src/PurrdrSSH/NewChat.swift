@@ -37,10 +37,14 @@ public struct NewChatRequest: Sendable, Equatable {
     public var permissionMode: ClaudePermissionMode
     /// agent 就緒後送出的第一則訊息(#272);空白時不送。
     public var message: String
+    /// 續接的 session id(#309);`nil` 是全新的聊天。續接時第一則訊息可以留空。
+    public var resumeSession: String?
 
     public init(
-        folder: String, label: String? = nil, agent: NewChatAgent, permissionMode: ClaudePermissionMode = .agentDefault, message: String = ""
+        folder: String, label: String? = nil, agent: NewChatAgent, permissionMode: ClaudePermissionMode = .agentDefault, message: String = "",
+        resumeSession: String? = nil
     ) {
+        self.resumeSession = resumeSession
         self.folder = folder
         self.label = label
         self.agent = agent
@@ -74,6 +78,20 @@ public struct NewChatRequest: Sendable, Equatable {
         while slug.hasSuffix("-") { slug.removeLast() }
         return slug.isEmpty ? "chat" : slug
     }
+}
+
+/// 這台主機能不能續接過去的 session(#309)。
+public enum ResumeSupport: Sendable, Equatable {
+    case available
+    /// SSH 主機:列出與續接都要主機服務。
+    case needsHostService
+    /// 主機服務版本不足(`installed` 是它回報的版本)。
+    case updateRequired(installed: String?)
+}
+
+extension NewChatAgent {
+    /// 主機服務能續接的 Agent(只有 Claude Code 與 Codex)。
+    public var supportsResume: Bool { self == .claude || self == .codex }
 }
 
 /// 新對話開始的結果。
@@ -120,6 +138,19 @@ public actor NewChatLauncher {
         (try? await client.isReadOnlyDevice()) == true
     }
 
+    /// 這台主機能不能續接(#309):沒有主機服務(SSH)或版本不足都不能,畫面據此說明。
+    public func resumeSupport() async -> ResumeSupport {
+        guard let version = try? await client.hostServiceVersion() else { return .needsHostService }
+        return HostServiceFeature.sessionResume.isAvailable(onHostServiceVersion: version) ? .available : .updateRequired(installed: version)
+    }
+
+    /// `folder` 過去的 session(新到舊;`~` 先在主機上解析)。只在 `resumeSupport() == .available` 時呼叫。
+    public func resumableSessions(folder: String, agent: NewChatAgent) async throws -> [ResumableSession] {
+        guard agent.supportsResume else { return [] }
+        let resolved = try await folders.resolve(folder)
+        return try await client.listSessions(cwd: resolved, agent: agent.rawValue)
+    }
+
     /// 開始新對話，回傳新 workspace(聊天開在它的 root pane)與第一則訊息送了沒有。
     public func start(_ request: NewChatRequest) async throws -> NewChatStarted {
         let folder = try await folders.resolve(request.folder)
@@ -151,7 +182,7 @@ public actor NewChatLauncher {
             do {
                 try await client.startAgent(
                     name: name, kind: request.agent.rawValue, paneID: workspace.rootPaneID,
-                    arguments: request.agentArguments, timeout: Self.agentTimeout)
+                    arguments: request.agentArguments, resumeSession: request.resumeSession, timeout: Self.agentTimeout)
                 return true
             } catch HerdrError.herdr(code: "agent_not_ready", _) {
                 // agent 已經起來，但停在啟動問題(例如資料夾信任):在聊天裡回答。

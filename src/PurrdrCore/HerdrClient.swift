@@ -12,6 +12,10 @@ public struct HerdrClient: Sendable {
     }
 
     /// 這支裝置是否配對成唯讀(HTTPS 連線方式;唯讀時送 prompt、文字與按鍵都會被拒絕)。
+    public func hostServiceVersion() async throws -> String? {
+        try await connection.hostServiceVersion()
+    }
+
     public func isReadOnlyDevice() async throws -> Bool {
         try await connection.isReadOnlyDevice()
     }
@@ -147,10 +151,25 @@ public struct HerdrClient: Sendable {
 
     /// 在 pane 的 shell 啟動 agent(`agent.start`)。`arguments` 是交給 agent 的參數(CLI 的 `--` 之後)。
     /// 我方期限 = herdr 的等待 + 60 秒：絕不比 herdr 先放棄，否則重試會在同一個 pane 再啟動一個 agent。
-    public func startAgent(name: String, kind: String, paneID: String, arguments: [String], timeout: Duration) async throws {
+    /// `resumeSession`(#309)是要續接的 session id;只有主機服務(HTTPS)認得，herdr 本身沒有這個參數。
+    public func startAgent(
+        name: String, kind: String, paneID: String, arguments: [String], resumeSession: String? = nil, timeout: Duration
+    ) async throws {
         let params = AgentStartParams(
-            name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, timeoutMs: Self.milliseconds(timeout))
+            name: name, kind: kind, paneID: paneID, args: arguments.isEmpty ? nil : arguments, resumeSession: resumeSession,
+            timeoutMs: Self.milliseconds(timeout))
         _ = try await request(method: "agent.start", params: params, as: TypedResult.self, deadline: timeout + .seconds(60))
+    }
+
+    /// 資料夾 `cwd` 過去的 `agent`(`claude`／`codex`)session,新到舊(#309)。只有主機服務(HTTPS)提供;
+    /// 其他主機丟 herdr 的未知 method 錯誤，呼叫端先以主機服務版本判斷。
+    public func listSessions(cwd: String, agent: String) async throws -> [ResumableSession] {
+        let result = try await request(method: "sessions.list", params: SessionsListParams(cwd: cwd, agentKind: agent), as: SessionsListResult.self)
+        return result.sessions.map { entry in
+            ResumableSession(
+                id: entry.id, modified: try? Date(entry.modified, strategy: .iso8601),
+                summary: entry.summary.flatMap { $0.isEmpty ? nil : $0 })
+        }
     }
 
     // MARK: - 送出 prompt 與按鍵(行為規格 F6.5、§3.6)
@@ -350,13 +369,35 @@ private struct AgentStartParams: Encodable {
     var kind: String
     var paneID: String
     var args: [String]?
+    var resumeSession: String?
     var timeoutMs: Int
 
     enum CodingKeys: String, CodingKey {
         case name, kind, args
         case paneID = "pane_id"
+        case resumeSession = "resume_session"
         case timeoutMs = "timeout_ms"
     }
+}
+
+private struct SessionsListParams: Encodable {
+    var cwd: String
+    var agentKind: String
+
+    enum CodingKeys: String, CodingKey {
+        case cwd
+        case agentKind = "agent_kind"
+    }
+}
+
+private struct SessionsListResult: Decodable {
+    struct Entry: Decodable {
+        var id: String
+        var modified: String
+        var summary: String?
+    }
+
+    var sessions: [Entry]
 }
 
 /// `workspace_created` 與 `worktree_created` 共用:都有 workspace 與 root_pane。

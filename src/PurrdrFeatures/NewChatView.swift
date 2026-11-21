@@ -75,12 +75,16 @@ public struct NewChatView: View {
                     }
                 }
 
+                sessionsSection
+
                 Section {
-                    TextField("First Message", text: $model.message, prompt: Text("What should the agent do?"), axis: .vertical)
+                    TextField(
+                        "First Message", text: $model.message,
+                        prompt: model.isResuming ? Text("Say what’s next…") : Text("What should the agent do?"), axis: .vertical)
                         .lineLimit(3...8)
                         .accessibilityIdentifier("newChat.message")
                 } header: {
-                    Text("First Message")
+                    Text(model.isResuming ? "Message" : "First Message")
                         .foregroundStyle(.secondaryText)
                 }
 
@@ -107,7 +111,7 @@ public struct NewChatView: View {
                                     .accessibilityLabel(Text("Starting…"))
                                     .accessibilityIdentifier("newChat.starting")
                             } else {
-                                Text("Start")
+                                Text(model.isResuming ? "Resume" : "Start New Chat")
                             }
                         }
                         .frame(maxWidth: .infinity, minHeight: 44)
@@ -126,6 +130,12 @@ public struct NewChatView: View {
             #endif
             .interactiveDismissDisabled(model.isStarting)
             .task(id: ObjectIdentifier(model)) { await model.loadAccess() }
+            // 資料夾或 agent 變了就重讀過去的 session;打字時等一下再讀(#309)。
+            .task(id: model.sessionsKey) {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled else { return }
+                await model.refreshSessions()
+            }
             .toolbar {
                 if let hostPicker {
                     // 主機挑選鈕佔標題位置(原型);頁面只顯示標題，不放說明。
@@ -141,6 +151,69 @@ public struct NewChatView: View {
                 }
             }
         }
+    }
+
+    /// 一份清單(#309,選定版 C):第一列「新的聊天」,下面是這個資料夾過去的 session;勾號只有一個。
+    @ViewBuilder
+    private var sessionsSection: some View {
+        switch model.sessions {
+        case .idle:
+            EmptyView()
+        case .loading:
+            Section {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("newChat.sessions.loading")
+            } header: {
+                Text("Chat").foregroundStyle(.secondaryText)
+            }
+        case .unavailable(let reason):
+            Section {
+                Text(reason)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("newChat.sessions.unavailable")
+            } header: {
+                Text("Chat").foregroundStyle(.secondaryText)
+            }
+        case .failed(let message):
+            Section {
+                ErrorLabel(message)
+                    .accessibilityIdentifier("newChat.sessions.error")
+            } header: {
+                Text("Chat").foregroundStyle(.secondaryText)
+            }
+        case .loaded(let sessions):
+            Section {
+                Picker("Chat", selection: $model.choice) {
+                    Label("New Chat", systemImage: "plus")
+                        .tag(NewChatModel.Choice.new)
+                        .accessibilityIdentifier("newChat.session.new")
+                    ForEach(sessions) { session in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(verbatim: session.summary ?? String(session.id.prefix(8)))
+                                .lineLimit(2)
+                            Text(verbatim: Self.subtitle(for: session))
+                                .font(.footnote)
+                                .foregroundStyle(.secondaryText)
+                        }
+                        .tag(NewChatModel.Choice.resume(session.id))
+                        .accessibilityIdentifier("newChat.session.\(session.id)")
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+                .accessibilityIdentifier("newChat.sessions")
+            } header: {
+                Text("Chat").foregroundStyle(.secondaryText)
+            }
+        }
+    }
+
+    /// 「續接 · 時間」。主機服務的清單沒有輪數,所以副標只有時間。
+    private static func subtitle(for session: ResumableSession) -> String {
+        let resume = String(localized: "Resume")
+        guard let modified = session.modified else { return resume }
+        return "\(resume) · \(modified.formatted(.relative(presentation: .named)))"
     }
 
     private func start() {

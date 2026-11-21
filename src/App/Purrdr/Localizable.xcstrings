@@ -6649,6 +6649,39 @@
         }
       }
     },
+    "Resume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續接"
+          }
+        }
+      }
+    },
+    "Resuming a past chat needs a newer Purrdr host service. Update it on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續接過去的聊天需要較新的 Purrdr 主機服務，請在主機上更新。"
+          }
+        }
+      }
+    },
+    "Resuming a past chat needs the Purrdr host service. This host connects over SSH." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續接過去的聊天需要 Purrdr 主機服務；這台主機是以 SSH 連線。"
+          }
+        }
+      }
+    },
     "Retry" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6788,6 +6821,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存"
+          }
+        }
+      }
+    },
+    "Say what’s next…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接著說…"
           }
         }
       }
@@ -7529,17 +7573,6 @@
         }
       }
     },
-    "Start" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開始"
-          }
-        }
-      }
-    },
     "Start Free Trial" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7547,6 +7580,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始免費試用"
+          }
+        }
+      }
+    },
+    "Start New Chat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始新的聊天"
           }
         }
       }
