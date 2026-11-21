@@ -76,6 +76,16 @@ public final class SystemPushPlatform: PushPlatform {
     static let hostServiceRolledBackBody = String(
         localized: "Host service update failed and was rolled back.", comment: "主機服務推播內文：更新失敗已退回(後台 APNs payload 的 loc-key)")
 
+    /// 測試通知(#328,`event: "test"`):標題 `title-loc-key` 帶主機名稱(`loc-args`),沒有名稱時用不帶參數的版本。
+    static func testTitle(hostName: String) -> String {
+        String(localized: "Test: \(hostName) needs you", comment: "測試通知標題(後台 APNs payload 的 title-loc-key,%@ 是主機清單上的主機名稱)")
+    }
+    static let testTitleWithoutHost = String(
+        localized: "Test: Purrdr needs you", comment: "測試通知標題(沒帶主機名稱時;後台 APNs payload 的 title-loc-key)")
+    static let testBody = String(
+        localized: "This is a test. When an agent needs your reply or finishes, you'll get a notice like this.",
+        comment: "測試通知內文(後台 APNs payload 的 loc-key)")
+
     /// 註冊通知類別(啟動時呼叫一次，不會請求權限)。
     public static func registerCategories() {
         UNUserNotificationCenter.current().setNotificationCategories([

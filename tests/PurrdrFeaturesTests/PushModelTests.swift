@@ -625,6 +625,22 @@ struct PushModelTests {
         #expect(await recorder.hostIDs == ["studio"])
     }
 
+    @Test("測試通知:這台主機自己的送出管道(SSH)讓按鈕出現")
+    func perHostSenderEnablesTestNotification() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let recorder = Recorder()
+        let model = model(service())
+        model.testSender = TestSender(sent: recorder)
+        await turnOn(model)
+
+        #expect(model.canSendTestNotification)
+        await model.sendTestNotification()
+
+        #expect(model.testNotification == .sent)
+        #expect(await recorder.hostIDs == ["studio"])
+    }
+
     @Test("測試通知：失敗時說明原因")
     func testNotificationFailureIsExplained() async throws {
         platform.status = .authorized
@@ -988,6 +1004,46 @@ struct PushRouteTests {
             PushRoute(keyHash: "nope", paneID: nil, event: "host_service_updated"), pairings: InMemoryPushPairingStore())
 
         #expect(destination == nil)
+    }
+
+    @Test("測試通知的 payload:根層 pairing 與 event=test,沒有 pane")
+    func parsesTestNotification() {
+        let userInfo: [AnyHashable: Any] = [
+            "aps": ["alert": ["title-loc-key": "Purrdr", "loc-key": "This is a test notification from Purrdr."]],
+            "pairing": "abc", "event": "test",
+        ]
+
+        #expect(PushRoute(userInfo: userInfo) == PushRoute(keyHash: "abc", paneID: nil, event: "test"))
+    }
+
+    @Test("點測試通知:只開 app,不開主機編輯頁也不開聊天")
+    func testNotificationOpensNothing() {
+        let store = MemoryHostStore()
+        store.hosts = [HostsModelTests.studio]
+        let pairings = InMemoryPushPairingStore()
+        pairings.setKeyHash("abc", forHost: HostsModelTests.studio.id.uuidString)
+        let model = HostsModel(store: store, demoChannel: FakeHost(), makeChannel: ChannelFactory(FakeHost(), FakeHost()).make)
+        model.load()
+        model.select(.demo)
+
+        let destination = model.open(PushRoute(keyHash: "abc", paneID: nil, event: "test"), pairings: pairings)
+
+        #expect(destination == nil)
+        #expect(model.agentList.openedChat == nil)
+        #expect(model.selection == .demo)
+    }
+
+    @Test("測試通知失敗:各種原因有各自的說明,需要 Plus 時說明要 Plus")
+    func testNotificationFailuresAreExplainedSeparately() {
+        let errors: [PushTestNotificationError] = [
+            .notPaired, .subscriptionRequired, .rateLimited, .apnsFailed, .curlMissing,
+            .backendUnreachable("curl: (7)"), .backendRejected(statusCode: 500), .failed("x"),
+        ]
+        let messages = errors.map { PushModel.describeTestFailure($0) }
+
+        #expect(messages.allSatisfy { !$0.isEmpty && !$0.contains("curl: (7)") })
+        #expect(Set(messages.prefix(5)).count == 5, "前五種各有專屬說明")
+        #expect(messages[1].contains("Plus"))
     }
 
     @Test("Agent 通知仍回傳開了哪個聊天")
