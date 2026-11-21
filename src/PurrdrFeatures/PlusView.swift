@@ -170,7 +170,7 @@ public struct PlusView: View {
                 PlusFeatureRow(symbol: feature.symbol, color: feature.color, title: feature.title,
                     detail: feature.detail, value: value, isLink: true)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressableRow())
             .accessibilityIdentifier("plus.feature.\(feature.rawValue)")
         } else {
             PlusFeatureRow(symbol: feature.symbol, color: feature.color, title: feature.title,
@@ -352,7 +352,7 @@ struct PlanRow: View {
             .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressableRow())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(plan.accessibilityLabel))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
