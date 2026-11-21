@@ -308,6 +308,17 @@
         }
       }
     },
+    "%lld devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 支"
+          }
+        }
+      }
+    },
     "%lld done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -337,6 +348,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 個檔案"
+          }
+        }
+      }
+    },
+    "%lld hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 台主機"
           }
         }
       }
@@ -566,6 +588,17 @@
         }
       }
     },
+    "1 device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 支"
+          }
+        }
+      }
+    },
     "1 failed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -573,6 +606,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個失敗"
+          }
+        }
+      }
+    },
+    "1 host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 台主機"
           }
         }
       }
@@ -1362,6 +1406,17 @@
         }
       }
     },
+    "Billed by Apple. If you cancel, you can use Purrdr Plus until the end of the current period." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由 Apple 收費。取消後仍可使用 Purrdr Plus，直到目前期間結束。"
+          }
+        }
+      }
+    },
     "Binary File" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1688,6 +1743,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聊天與終端機不需要會員或訂閱。"
+          }
+        }
+      }
+    },
+    "Chat, Terminal, and the Demo Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天、終端機與 Demo 主機"
+          }
+        }
+      }
+    },
+    "Chat, terminal, and the Demo host don’t need a subscription." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天、終端機與 Demo 主機不需要訂閱。"
           }
         }
       }
@@ -3401,17 +3478,6 @@
         }
       }
     },
-    "Each subscription period includes notifications when an agent needs you, and your host list synced across your devices." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "每個訂閱週期都包含 Agent 需要你時的通知，以及在你的各裝置之間同步主機清單。"
-          }
-        }
-      }
-    },
     "Edit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3826,6 +3892,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "產生"
+          }
+        }
+      }
+    },
+    "Get notified when an agent needs you, finishes, or may be stuck" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 需要你、完成或可能卡住時通知你"
           }
         }
       }
@@ -4302,6 +4379,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯入的金鑰"
+          }
+        }
+      }
+    },
+    "In Use" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用中"
           }
         }
       }
@@ -5226,6 +5314,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有訊息"
+          }
+        }
+      }
+    },
+    "No Subscription Needed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不需要訂閱"
           }
         }
       }
@@ -6440,6 +6539,17 @@
         }
       }
     },
+    "Private keys, passwords, and pairing tokens are never uploaded. Sync only carries names, addresses, and connection methods." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰、密碼與配對權杖永不上傳；同步只帶名稱、位址與連線方式。"
+          }
+        }
+      }
+    },
     "Project" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6513,6 +6623,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr Plus"
+          }
+        }
+      }
+    },
+    "Purrdr Plus Includes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr Plus 包含"
           }
         }
       }
@@ -7019,6 +7140,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新命名 Workspace…"
+          }
+        }
+      }
+    },
+    "Rename or turn off the devices that get notifications" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新命名或關閉會收到通知的裝置"
           }
         }
       }
@@ -8372,6 +8504,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同步主機"
+          }
+        }
+      }
+    },
+    "Sync your host list between your iPhone and iPad" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 iPhone 與 iPad 之間同步主機清單"
           }
         }
       }
@@ -11181,6 +11324,17 @@
         }
       }
     },
+    "Work without a member account or subscription." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有會員或訂閱也能使用。"
+          }
+        }
+      }
+    },
     "Working" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11328,6 +11482,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的評論 · 第 %lld 行"
+          }
+        }
+      }
+    },
+    "Your Plus Includes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 Plus 包含"
           }
         }
       }
@@ -11482,17 +11647,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你在那台主機上的使用者"
-          }
-        }
-      }
-    },
-    "You’re subscribed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你已訂閱"
           }
         }
       }

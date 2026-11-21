@@ -259,6 +259,8 @@ struct AccountView: View {
     @State private var offeringFeatureSetup = false
     /// 每次加一：步驟卡「選擇主機」捲到「通知」區塊。
     @State private var notificationsScrollRequest = 0
+    /// Purrdr Plus 頁點功能列後捲到帳號頁對應的區塊(#323)。
+    @State private var featureScrollRequest: PlusFeature?
 
     private var signedInMember: Member? {
         if case .signedIn(let member) = model.phase { return member }
@@ -267,6 +269,16 @@ struct AccountView: View {
 
     private var notifyingHostNames: [String] { pushes.notifyingHostNames }
 
+    private var plusFeatures: PlusFeatureLinks {
+        PlusFeatureLinks(
+            status: PlusFeatureStatus(
+                notifyingHostCount: notifyingHostNames.count,
+                isHostSyncOn: hostSync?.isEnabled ?? false,
+                deviceCount: pushDevices.flatMap { $0.hasLoaded ? $0.devices.count : nil }),
+            dismissesOnOpen: true,
+            open: { featureScrollRequest = $0 })
+    }
+
     private var progress: PlusSetupProgress? {
         plus.map { PlusSetupProgress(member: model, plus: $0, isNotificationsOn: !notifyingHostNames.isEmpty, hostSync: hostSync) }
     }
@@ -274,6 +286,11 @@ struct AccountView: View {
     var body: some View {
         ScrollViewReader { proxy in
             list
+                .onChange(of: featureScrollRequest) { _, feature in
+                    guard let feature else { return }
+                    featureScrollRequest = nil
+                    withAnimation { proxy.scrollTo(feature, anchor: .top) }
+                }
                 .onChange(of: notificationsScrollRequest) {
                     guard let first = pushes.first else { return }
                     withAnimation { proxy.scrollTo(first.id, anchor: .top) }
@@ -293,14 +310,17 @@ struct AccountView: View {
                 if progress.isPlusActive {
                     // 四步完成、步驟卡收合後，通知與主機同步仍可隨時開關(spec #261 原型 A)。
                     HostPushSection(pushes: pushes, openPlus: { showingPlus = true }, pair: { pairingHost = $0 })
+                        .id(PlusFeature.notifications)
                 }
                 if signedInMember != nil, let pushDevices {
                     // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
                     PushDevicesSection(model: pushDevices, canRename: progress.isPlusActive)
+                        .id(PlusFeature.devices)
                 }
                 if progress.isPlusActive {
                     if let hostSync, progress.state(of: .syncHosts) == .done {
                         HostSyncSection(model: hostSync, plus: plus, member: model)
+                            .id(PlusFeature.hostSync)
                     }
                 }
             }
@@ -330,7 +350,7 @@ struct AccountView: View {
         }
         .navigationDestination(isPresented: $showingPlus) {
             if let plus {
-                PlusView(model: plus, member: model)
+                PlusView(model: plus, member: model, features: plusFeatures)
             }
         }
         .navigationDestination(item: $pairingHost) { id in
@@ -377,7 +397,7 @@ struct AccountView: View {
         Section {
             if progress.isComplete {
                 NavigationLink {
-                    PlusView(model: plus, member: model)
+                    PlusView(model: plus, member: model, features: plusFeatures)
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Purrdr Plus · Active")
@@ -391,7 +411,7 @@ struct AccountView: View {
                 PlusSetupCard(progress: progress, notifyingHostNames: notifyingHostNames, isWorking: isStepWorking) { perform($0) }
                 if progress.isPlusActive {
                     NavigationLink {
-                        PlusView(model: plus, member: model)
+                        PlusView(model: plus, member: model, features: plusFeatures)
                     } label: {
                         LabeledContent("Purrdr Plus") { Text(plus.statusText) }
                     }

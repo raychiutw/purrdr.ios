@@ -12,16 +12,23 @@ import SwiftUI
 public struct PlusView: View {
     let model: SubscriptionModel
     let member: MemberModel
+    /// 「你的 Plus 包含」列尾的目前狀態與點擊去向;沒有時(例如設定頁開的付費牆)只列說明。
+    let features: PlusFeatureLinks?
     @State private var selectedPlanID: String?
     @State private var signingIn = false
     @State private var redeeming = false
     @State private var managing = false
     @Environment(\.openURL) private var openURL
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
 
     public init(model: SubscriptionModel, member: MemberModel) {
+        self.init(model: model, member: member, features: nil)
+    }
+
+    init(model: SubscriptionModel, member: MemberModel, features: PlusFeatureLinks?) {
         self.model = model
         self.member = member
+        self.features = features
     }
 
     private var signedInMember: Member? {
@@ -34,24 +41,23 @@ public struct PlusView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header
-                if let subscription = model.subscription, subscription.isActive {
-                    SubscriptionSummary(subscription: subscription, plans: model.plans) { managing = true }
-                } else {
-                    if model.needsRenewal {
-                        RenewalPrompt()
-                    }
-                    storefront
+        List {
+            if let subscription = model.subscription, subscription.isActive {
+                subscribedSections(subscription)
+            } else {
+                if model.needsRenewal {
+                    Section { RenewalPrompt() }
                 }
-                otherActions
-                legalLinks
+                featuresSection(showsStatus: false)
+                storefront
             }
-            .frame(maxWidth: 560, alignment: .leading)
-            .frame(maxWidth: .infinity)
-            .padding()
+            if model.subscription?.isActive != true {
+                // 已訂閱時不顯示恢復購買與兌換代碼(#325)。
+                otherActionsSection
+            }
+            legalSection
         }
+        .accessibilityIdentifier("plus.list")
         .disabled(model.isWorking)
         .navigationTitle("Purrdr Plus")
         #if os(iOS)
@@ -89,49 +95,128 @@ public struct PlusView: View {
 
     // MARK: - 區塊
 
-    /// 每期提供的內容(App Store 3.1.2);頁首只有導覽列標題，不再重複標題與說明(#236)。
-    private var header: some View {
-        Text("Each subscription period includes notifications when an agent needs you, and your host list synced across your devices.")
-            .accessibilityIdentifier("plus.benefits")
+    /// 已訂閱：方案(含「管理訂閱」)、Plus 包含的功能與目前狀態、不需要訂閱的功能。
+    @ViewBuilder
+    private func subscribedSections(_ subscription: MemberSubscription) -> some View {
+        Section {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.plans.first { $0.id == subscription.productID }?.displayName ?? String(localized: "Purrdr Plus"))
+                        .font(.headline)
+                    Text(planDetail(subscription))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondaryText)
+                        .accessibilityIdentifier("plus.summary")
+                }
+                Spacer(minLength: 8)
+                Text("In Use")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tint)
+            }
+            .accessibilityElement(children: .combine)
+            if subscription.store == .appStore {
+                Button("Manage Subscription") { managing = true }
+                    .accessibilityIdentifier("plus.manage")
+            }
+        } footer: {
+            if subscription.store == .appStore {
+                Text("Billed by Apple. If you cancel, you can use Purrdr Plus until the end of the current period.")
+            } else {
+                Text("This subscription is billed through Google Play. Manage it there.")
+            }
+        }
+        featuresSection(showsStatus: true)
+        Section {
+            PlusFeatureRow(symbol: "terminal.fill", color: .gray, title: "Chat, Terminal, and the Demo Host",
+                detail: "Work without a member account or subscription.", value: nil, isLink: false)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("plus.free")
+        } header: {
+            Text("No Subscription Needed")
+        }
+    }
+
+    /// 每期價格與續訂(或結束)日期,例如「$39.99 per year · Renews on …」。
+    private func planDetail(_ subscription: MemberSubscription) -> String {
+        guard let plan = model.plans.first(where: { $0.id == subscription.productID }) else { return subscription.summary }
+        return "\(plan.pricePerPeriod) · \(subscription.summary)"
+    }
+
+    /// 功能列:已訂閱時帶目前狀態、點了去帳號頁對應設定;付費牆只列說明(每期提供的內容,App Store 3.1.2)。
+    private func featuresSection(showsStatus: Bool) -> some View {
+        Section {
+            ForEach(PlusFeature.allCases) { feature in
+                featureRow(feature, showsStatus: showsStatus)
+            }
+        } header: {
+            Text(showsStatus ? "Your Plus Includes" : "Purrdr Plus Includes")
+        } footer: {
+            if showsStatus {
+                Text("Private keys, passwords, and pairing tokens are never uploaded. Sync only carries names, addresses, and connection methods.")
+            } else {
+                Text("Chat, terminal, and the Demo host don’t need a subscription.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func featureRow(_ feature: PlusFeature, showsStatus: Bool) -> some View {
+        let value = showsStatus ? features?.status.value(for: feature) : nil
+        if showsStatus, let features {
+            Button {
+                if features.dismissesOnOpen { dismiss() }
+                features.open(feature)
+            } label: {
+                PlusFeatureRow(symbol: feature.symbol, color: feature.color, title: feature.title,
+                    detail: feature.detail, value: value, isLink: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("plus.feature.\(feature.rawValue)")
+        } else {
+            PlusFeatureRow(symbol: feature.symbol, color: feature.color, title: feature.title,
+                detail: feature.detail, value: value, isLink: false)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier(feature == .notifications && !showsStatus ? "plus.benefits" : "plus.feature.\(feature.rawValue)")
+        }
     }
 
     @ViewBuilder
     private var storefront: some View {
         switch model.storefront {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity)
+            Section { ProgressView().frame(maxWidth: .infinity) }
         case .paymentsDisabled:
-            Label {
-                Text("Purchases aren’t allowed on this device, for example because of Screen Time. You can still restore a subscription you already have.")
-            } icon: {
-                Image(systemName: "lock")
+            Section {
+                Label {
+                    Text("Purchases aren’t allowed on this device, for example because of Screen Time. You can still restore a subscription you already have.")
+                } icon: {
+                    Image(systemName: "lock")
+                }
+                .accessibilityIdentifier("plus.paymentsDisabled")
             }
-            .accessibilityIdentifier("plus.paymentsDisabled")
         case .unavailable:
-            VStack(alignment: .leading, spacing: 8) {
+            Section {
                 Text("Couldn’t load subscription options. Check your connection and try again.")
                 Button("Try Again") { Task { await model.loadPlans() } }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
             }
         case .available:
-            plans
-        }
-    }
-
-    private var plans: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(model.plans) { plan in
-                PlanRow(plan: plan, isSelected: plan.id == selectedPlan?.id) { selectedPlanID = plan.id }
+            Section {
+                ForEach(model.plans) { plan in
+                    PlanRow(plan: plan, isSelected: plan.id == selectedPlan?.id) { selectedPlanID = plan.id }
+                }
+            } header: {
+                Text("Plan")
             }
-            subscribeButton
-            if let plan = selectedPlan {
-                Text(plan.disclosure)
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("plus.disclosure")
+            Section {
+                subscribeButton
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            } footer: {
+                if let plan = selectedPlan {
+                    Text(plan.disclosure)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("plus.disclosure")
+                }
             }
         }
     }
@@ -159,69 +244,54 @@ public struct PlusView: View {
     }
 
     /// 恢復購買與兌換代碼：權限記在會員身上，所以也要先登入。
-    private var otherActions: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) { restoreButton; redeemButton }
-            VStack(alignment: .leading, spacing: 12) { restoreButton; redeemButton }
+    private var otherActionsSection: some View {
+        Section {
+            Button("Restore Purchases") {
+                if signedInMember == nil { signingIn = true } else { Task { await model.restore() } }
+            }
+            .accessibilityIdentifier("plus.restore")
+            Button("Redeem Code") {
+                if signedInMember == nil { signingIn = true } else { redeeming = true }
+            }
+            .accessibilityIdentifier("plus.redeem")
         }
-        .buttonStyle(.bordered)
-        // 中性色：主色字在 bordered 的灰底上不到 4.5:1(audit「Contrast nearly passed」);主色留給訂閱鈕。
-        .tint(.primary)
-        .controlSize(.large)
     }
 
-    private var restoreButton: some View {
-        Button("Restore Purchases") {
-            if signedInMember == nil { signingIn = true } else { Task { await model.restore() } }
+    private var legalSection: some View {
+        Section {
+            Link(destination: PurrdrLinks.termsOfUse) {
+                Text("Terms of Use").frame(minHeight: 44, alignment: .leading)
+            }
+            .accessibilityIdentifier("plus.terms")
+            Link(destination: PurrdrLinks.privacyPolicy) {
+                Text("Privacy Policy").frame(minHeight: 44, alignment: .leading)
+            }
+            .accessibilityIdentifier("plus.privacy")
         }
-        .accessibilityIdentifier("plus.restore")
     }
 
-    private var redeemButton: some View {
-        Button("Redeem Code") {
-            if signedInMember == nil { signingIn = true } else { redeeming = true }
-        }
-        .accessibilityIdentifier("plus.redeem")
-    }
-
-    private var legalLinks: some View {
-        // AX 字級時直排。不用 `ViewThatFits`:字級一變就換成另一份視圖，稽核看不出連結跟著字級放大(#251)。
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
-            : AnyLayout(HStackLayout(spacing: 20))
-        return layout { termsLink; privacyLink }
-            .font(.footnote)
-    }
-
-    private var termsLink: some View {
-        Link(destination: PurrdrLinks.termsOfUse) {
-            Text("Terms of Use").padding(.vertical, 13).frame(minHeight: 44)
-        }
-        .accessibilityIdentifier("plus.terms")
-    }
-
-    private var privacyLink: some View {
-        Link(destination: PurrdrLinks.privacyPolicy) {
-            Text("Privacy Policy").padding(.vertical, 13).frame(minHeight: 44)
-        }
-        .accessibilityIdentifier("plus.privacy")
-    }
 }
 
 /// 從頂層選單開啟的 Purrdr Plus sheet:付費牆加上「完成」(付費牆一律可以關閉)。
 public struct PlusSheet: View {
     let model: SubscriptionModel
     let member: MemberModel
+    let features: PlusFeatureLinks?
     @Environment(\.dismiss) private var dismiss
 
     public init(model: SubscriptionModel, member: MemberModel) {
+        self.init(model: model, member: member, features: nil)
+    }
+
+    init(model: SubscriptionModel, member: MemberModel, features: PlusFeatureLinks?) {
         self.model = model
         self.member = member
+        self.features = features
     }
 
     public var body: some View {
         NavigationStack {
-            PlusView(model: model, member: member)
+            PlusView(model: model, member: member, features: features)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -250,9 +320,9 @@ public enum PurrdrLinks {
     public static let hostServiceGuide = URL(string: "https://raychiutw.github.io/purrdr/host-service/")!
 }
 
-// MARK: - 方案列
+// MARK: - 方案列與功能列
 
-/// 一個方案：名稱、總扣款金額(最醒目)與期間、試用。整列是一個按鈕，選取時打勾。
+/// 一個方案：名稱、總扣款金額(最醒目)與期間、試用。整列是一個按鈕，選取時列尾打勾(同勾選列，DESIGN.md「選擇控制」)。
 struct PlanRow: View {
     let plan: PlusPlan
     let isSelected: Bool
@@ -260,8 +330,7 @@ struct PlanRow: View {
 
     var body: some View {
         Button(action: select) {
-            // 選中的卡片右上角打勾、沒選的不畫(同勾選列，DESIGN.md「選擇控制」),外框另外標示。
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(plan.displayName)
                         .font(.headline)
@@ -280,16 +349,10 @@ struct PlanRow: View {
                     .opacity(isSelected ? 1 : 0)
                     .accessibilityHidden(true)
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(isSelected ? AnyShapeStyle(.tint) : AnyShapeStyle(.clear), lineWidth: 2)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.pressableCard(cornerRadius: 12))
+        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(plan.accessibilityLabel))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
@@ -297,39 +360,46 @@ struct PlanRow: View {
     }
 }
 
-// MARK: - 已訂閱與續訂提示
-
-/// 已訂閱：方案、續訂或結束日期、管理訂閱(系統 UI,取消也在這裡)。
-struct SubscriptionSummary: View {
-    let subscription: MemberSubscription
-    let plans: [PlusPlan]
-    let manage: () -> Void
+/// 一列 Plus 功能:彩色圖示、名稱、一行說明,列尾是目前狀態與 ›(可點時)。
+struct PlusFeatureRow: View {
+    let symbol: String
+    let color: Color
+    let title: LocalizedStringKey
+    let detail: LocalizedStringKey
+    let value: String?
+    let isLink: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("You’re subscribed", systemImage: "checkmark.seal.fill")
-                .font(.headline)
-            if let plan = plans.first(where: { $0.id == subscription.productID }) {
-                Text(plan.displayName)
-            }
-            Text(subscription.summary)
-                .foregroundStyle(.secondaryText)
-                .accessibilityIdentifier("plus.summary")
-            if subscription.store == .appStore {
-                Button("Manage Subscription", action: manage)
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("plus.manage")
-            } else {
-                Text("This subscription is billed through Google Play. Manage it there.")
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(color, in: RoundedRectangle(cornerRadius: 7))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
             }
+            Spacer(minLength: 8)
+            if let value {
+                Text(value)
+                    .foregroundStyle(.secondaryText)
+            }
+            if isLink {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
     }
 }
+
+// MARK: - 已訂閱與續訂提示
 
 /// 訂閱到期或退款後：說明推播與主機同步已停止，聊天與終端機不受影響。
 struct RenewalPrompt: View {
