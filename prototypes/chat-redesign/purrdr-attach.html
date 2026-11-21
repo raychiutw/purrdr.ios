@@ -1,0 +1,131 @@
+<title>Purrdr 附加原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 原型(拋棄式):聊天輸入框「＋附加」三種做法 × 三種狀態，以定稿的 A1 浮動膠囊輸入框為底。 */
+:root{
+  --page:#e8ebe9; --fg:#17201c; --muted:#66706b; --ground:#ffffff; --surface:#f3f4f3; --surface2:#e9ecea;
+  --line:#dde2df; --accent:#0b7a5c; --accent-soft:#e2f2ec; --on-accent:#ffffff; --red:#d92d20; --frame:#17201c; --bar:#ffffffee;
+  --glass:rgba(255,255,255,.62); --glass-edge:rgba(255,255,255,.8); --glass-shadow:rgba(0,0,0,.14);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000; --surface:#151817; --surface2:#1f2321; --line:#2a2f2c;
+  --accent:#3ccf9e; --accent-soft:#10291f; --on-accent:#03140d; --red:#ff6b5e; --frame:#333836; --bar:#1a1d1cee;
+  --glass:rgba(38,42,40,.6); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000; --surface:#151817; --surface2:#1f2321; --line:#2a2f2c;
+  --accent:#3ccf9e; --accent-soft:#10291f; --on-accent:#03140d; --red:#ff6b5e; --frame:#333836; --bar:#1a1d1cee;
+  --glass:rgba(38,42,40,.6); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font-family:var(--sans);margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 120px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:20px;margin:0} .lede{color:var(--muted);margin:0;font-size:14px;line-height:1.6;max-width:70ch}
+.stage{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.col{flex:0 1 380px;width:380px;max-width:100%;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cap{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:center}
+.notes{flex:1 1 300px;min-width:0;font-size:14px;line-height:1.6;color:var(--muted)} .notes b{color:var(--fg)} .notes ul{padding-left:18px;margin:6px 0}
+.phone{width:100%;height:740px;border:8px solid var(--frame);border-radius:42px;background:var(--ground);overflow:hidden;position:relative}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border:1px solid var(--glass-edge);box-shadow:0 6px 24px var(--glass-shadow)}
+.list{position:absolute;inset:0;padding:70px 16px 220px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.hdr{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;z-index:2}
+.back{width:34px;height:34px;border-radius:17px;display:grid;place-items:center}
+.ttl{border-radius:999px;padding:6px 16px;font-size:14px;font-weight:600}
+.user{align-self:flex-end;max-width:80%;background:var(--surface2);border-radius:20px 20px 6px 20px;padding:9px 13px;font-size:15px}
+.agent{font-size:15px;line-height:1.5}
+.dock{position:absolute;left:0;right:0;bottom:0;padding:20px 12px 14px;background:linear-gradient(transparent,var(--ground) 45%);display:flex;flex-direction:column;gap:8px;z-index:2}
+.composer{border-radius:26px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.ph{font-size:15px;color:var(--muted);padding:2px 4px}
+.row{display:flex;align-items:center;gap:6px}
+.cbtn{width:32px;height:32px;border-radius:16px;display:grid;place-items:center;border:1px solid var(--line);font-size:18px;transition:transform .2s}
+.cbtn.on{transform:rotate(45deg);background:var(--surface2)}
+.chip{height:32px;border-radius:16px;padding:0 10px;display:inline-flex;align-items:center;font-size:13px;border:1px solid var(--line)}
+.send{margin-left:auto;width:32px;height:32px;border-radius:16px;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font-weight:700}
+/* 附件小卡 */
+.strip{display:flex;gap:8px;overflow-x:auto;padding:2px}
+.att{flex:none;position:relative;border-radius:14px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;max-width:190px}
+.att .x{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:10px;background:var(--fg);color:var(--ground);font-size:12px;display:grid;place-items:center}
+.att .pic{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#9bd3bd,#e6b98b)}
+.att .ico{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:11px}
+.att .tx{min-width:0;font-size:12.5px;line-height:1.3} .att .tx b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600} .att .tx span{color:var(--muted)}
+.att.photo{padding:0;width:64px;height:64px} .att.photo .pic{width:64px;height:64px;border-radius:14px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tile{position:relative;aspect-ratio:1;border-radius:12px;background:var(--surface);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:flex-end;padding:6px;font-size:11px;overflow:hidden}
+.tile .pic{position:absolute;inset:0;background:linear-gradient(135deg,#9bd3bd,#e6b98b)} .tile .x{position:absolute;top:4px;right:4px;width:18px;height:18px;border-radius:9px;background:#000a;color:#fff;font-size:11px;display:grid;place-items:center}
+.tile .big{position:absolute;top:28%;left:0;right:0;text-align:center;font-weight:700;color:var(--accent);font-size:15px}
+.tile b{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis} .tile span{position:relative;color:var(--muted)}
+/* V1 選單 */
+.menu{position:absolute;left:14px;bottom:110px;width:220px;border-radius:18px;padding:6px;z-index:4}
+.mi{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;font-size:15px;border-radius:12px}
+.mi+.mi{border-top:.5px solid var(--line)} .mi i{font-style:normal;color:var(--muted)}
+/* V2 sheet */
+.scrim{position:absolute;inset:0;background:#0005;z-index:3}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--ground);border-radius:24px 24px 0 0;padding:10px 14px 22px;z-index:4;display:flex;flex-direction:column;gap:12px}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--line);align-self:center}
+.recent{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.recent div{aspect-ratio:1;border-radius:8px;background:linear-gradient(135deg,#9bd3bd,#e6b98b);position:relative}
+.recent div.sel::after{content:"✓";position:absolute;right:4px;top:4px;width:18px;height:18px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-size:11px;display:grid;place-items:center}
+.acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.act{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px}
+.act .c{width:52px;height:52px;border-radius:16px;background:var(--surface);display:grid;place-items:center;font-size:20px}
+/* V3 展開列 */
+.fan{display:flex;gap:10px;padding-left:4px}
+.fan .f{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--fg)}
+.fan .f .c{width:46px;height:46px;border-radius:23px;display:grid;place-items:center;font-size:18px}
+/* 拖放 */
+.drop{position:absolute;inset:8px;border:2.5px dashed var(--accent);border-radius:30px;background:color-mix(in srgb,var(--accent) 10%,transparent);z-index:5;display:grid;place-items:center;text-align:center;font-size:16px;font-weight:600;color:var(--accent)}
+.drop small{display:block;font-weight:400;color:var(--muted);font-size:13px;margin-top:4px}
+.ctrl{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--bar);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:22px;padding:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 32px);box-shadow:0 6px 24px #0002;z-index:9}
+.seg{display:flex;background:var(--surface2);border-radius:14px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:7px 11px;border-radius:11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ground);font-weight:600;box-shadow:0 1px 3px #0002}
+</style>
+
+<div class="wrap">
+  <h1>輸入框的「＋附加」</h1>
+  <p class="lede">原型(拋棄式)。以定稿的 A1 浮動膠囊輸入框為底，比較三種附加的做法。三種都是：任何檔案類型、可多選、單一檔案上限 25 MiB、送出前可個別移除;照片用系統選取器(不要求相簿權限),檔案用系統「檔案」(含 iCloud 等雲端)。內容是示意。</p>
+  <div class="stage">
+    <div class="col"><div class="cap" id="cap"></div><div class="phone" id="phone"></div></div>
+    <div class="notes" id="notes"></div>
+  </div>
+</div>
+<div class="ctrl" role="toolbar" aria-label="切換">
+  <div class="seg" id="segV"><button data-v="1">1 系統選單</button><button data-v="2">2 底部面板</button><button data-v="3">3 展開圓鈕</button></div>
+  <div class="seg" id="segS"><button data-s="open">點了＋</button><button data-s="picked">已選 3 個</button><button data-s="drop">iPad 拖進來</button></div>
+</div>
+<script>
+const S={v:'1',s:'open'};
+const NOTES={
+'1':'<b>1 系統選單</b>:點「＋」跳出系統選單(照片圖庫、拍照、檔案、貼上),選了就開對應的系統畫面。附件在輸入框裡排成一排小卡：照片是方形縮圖，檔案是圖示＋檔名＋大小。<ul><li>最像系統(「備忘錄」「郵件」的附加),實作最單純。</li><li>多選照片要進照片選取器才能選。</li></ul>',
+'2':'<b>2 底部面板</b>:點「＋」從下方升起面板，上方是最近的照片可以直接點選多張，下方四顆大按鈕(相機、照片、檔案、貼上)。附件在輸入框裡同樣排成小卡。<ul><li>選照片最快(像「訊息」的照片列)。</li><li>要讀最近的照片需要相簿權限(或用系統的有限存取),比 1 多一道權限。</li></ul>',
+'3':'<b>3 展開圓鈕</b>:點「＋」轉成「×」,輸入框上方展開四顆玻璃圓鈕。附件在輸入框裡排成方格(三欄),檔案也是一格。<ul><li>不遮住對話，操作就在拇指旁邊。</li><li>附件多時方格佔較多高度。</li></ul>'
+};
+const COMMON='<p><b>三種共通</b></p><ul><li>「＋」VoiceOver 念「附加」;每張小卡可移除，VoiceOver 念「檔名、大小、移除」。</li><li>超過 25 MiB 的檔案不加入，說明一句「這個檔案超過 25 MB」。</li><li>iPad:把照片或檔案從其他 app 拖進聊天，整個輸入區顯示放開的提示，放開就加入。</li></ul>';
+const strip='<div class="strip"><div class="att photo"><div class="pic"></div><span class="x">×</span></div><div class="att"><div class="ico">PDF</div><div class="tx"><b>報價單-11月.pdf</b><span>2.4 MB</span></div><span class="x">×</span></div><div class="att"><div class="ico">ZIP</div><div class="tx"><b>logs.zip</b><span>8.1 MB</span></div><span class="x">×</span></div></div>';
+const tiles='<div class="tiles"><div class="tile"><div class="pic"></div><span class="x">×</span></div><div class="tile"><span class="big">PDF</span><b>報價單-11月.pdf</b><span>2.4 MB</span><span class="x">×</span></div><div class="tile"><span class="big">ZIP</span><b>logs.zip</b><span>8.1 MB</span><span class="x">×</span></div></div>';
+function render(){
+  const picked=S.s==='picked';
+  const open=S.s==='open';
+  const att=picked?(S.v==='3'?tiles:strip):'';
+  const fan=(S.v==='3'&&open)?'<div class="fan"><div class="f"><span class="c glass">▦</span>照片</div><div class="f"><span class="c glass">◉</span>拍照</div><div class="f"><span class="c glass">▤</span>檔案</div><div class="f"><span class="c glass">⧉</span>貼上</div></div>':'';
+  let over='';
+  if(open&&S.v==='1') over='<div class="menu glass"><div class="mi">照片圖庫<i>▦</i></div><div class="mi">拍照<i>◉</i></div><div class="mi">檔案<i>▤</i></div><div class="mi">貼上<i>⧉</i></div></div>';
+  if(open&&S.v==='2') over='<div class="scrim"></div><div class="sheet"><div class="grab"></div><div style="font-size:13px;color:var(--muted)">最近的照片 · 已選 2</div><div class="recent"><div class="sel"></div><div></div><div class="sel"></div><div></div><div></div><div></div><div></div><div></div></div><div class="acts"><div class="act"><span class="c">◉</span>拍照</div><div class="act"><span class="c">▦</span>所有照片</div><div class="act"><span class="c">▤</span>檔案</div><div class="act"><span class="c">⧉</span>貼上</div></div><div style="background:var(--accent);color:var(--on-accent);text-align:center;border-radius:14px;padding:12px;font-weight:600">加入 2 張</div></div>';
+  if(S.s==='drop') over='<div class="drop"><div>放開以加入<small>2 張照片、1 個檔案</small></div></div>';
+  document.getElementById('phone').innerHTML=`
+    <div class="hdr"><span class="back glass">‹</span><span class="ttl glass">garden-journal</span><span style="width:34px"></span></div>
+    <div class="list"><div class="user">這是客戶給的報價單和錯誤紀錄</div><div class="agent">好，傳上來我看一下。</div></div>
+    <div class="dock">${fan}<div class="composer glass">${att}<div class="ph">${picked?'加一句說明…':'訊息'}</div>
+      <div class="row"><span class="cbtn ${open&&S.v!=='1'?'on':''}">＋</span><span class="chip">Opus 4.1 ▾</span><span class="chip">接受編輯 ▾</span><span class="send">↑</span></div></div></div>
+    ${over}`;
+  document.getElementById('cap').textContent={'1':'1 系統選單','2':'2 底部面板','3':'3 展開圓鈕'}[S.v]+' · '+{open:'點了＋',picked:'已選 3 個',drop:'iPad 拖進來'}[S.s];
+  document.getElementById('notes').innerHTML=NOTES[S.v]+COMMON;
+  document.querySelectorAll('#segV button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.v));
+  document.querySelectorAll('#segS button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===S.s));
+  const h='v'+S.v+'-'+S.s; if(location.hash!=='#'+h){try{history.replaceState(null,'','#'+h)}catch(e){}}
+}
+function fromHash(){const m=(location.hash||'').match(/^#v([123])-(open|picked|drop)$/);if(m){S.v=m[1];S.s=m[2];}render();}
+document.getElementById('segV').onclick=e=>{const b=e.target.closest('button');if(b){S.v=b.dataset.v;render();}};
+document.getElementById('segS').onclick=e=>{const b=e.target.closest('button');if(b){S.s=b.dataset.s;render();}};
+window.addEventListener('hashchange',fromHash);fromHash();
+</script>
