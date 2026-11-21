@@ -633,34 +633,22 @@ struct PendingSendBubbleView: View {
     let sendNow: () -> Void
 
     var body: some View {
-        HStack {
-            Spacer(minLength: 44)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(pending.text.isEmpty ? String(localized: "\(imageCount) Attachments") : pending.text)
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 18))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18)
-                            .strokeBorder(.secondaryText, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    }
-                    .opacity(0.75)
-                    .accessibilityLabel(Text("Your message, not sent yet. \(pending.text)"))
-                HStack(spacing: 4) {
-                    Text("Sending in \(pending.remainingSeconds)s")
-                        .foregroundStyle(.secondaryText)
-                        .monospacedDigit()
-                        .accessibilityIdentifier("conversation.pendingSend.countdown")
-                    Text(verbatim: "·").foregroundStyle(.secondaryText).accessibilityHidden(true)
-                    Button(action: undo) { HitTarget("Undo") }
-                        .fontWeight(.semibold)
-                        .accessibilityIdentifier("conversation.pendingSend.undo")
-                    Text(verbatim: "·").foregroundStyle(.secondaryText).accessibilityHidden(true)
-                    Button(action: sendNow) { HitTarget("Send Now") }
-                        .accessibilityIdentifier("conversation.pendingSend.sendNow")
-                }
-                .font(.caption)
+        PendingBubbleRow(
+            text: pending.text.isEmpty ? String(localized: "\(imageCount) Attachments") : pending.text,
+            bubbleLabel: Text("Your message, not sent yet. \(pending.text)")
+        ) {
+            HStack(spacing: 4) {
+                Text("Sending in \(pending.remainingSeconds)s")
+                    .foregroundStyle(.secondaryText)
+                    .monospacedDigit()
+                    .accessibilityIdentifier("conversation.pendingSend.countdown")
+                Text(verbatim: "·").foregroundStyle(.secondaryText).accessibilityHidden(true)
+                Button(action: undo) { HitTarget("Undo") }
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("conversation.pendingSend.undo")
+                Text(verbatim: "·").foregroundStyle(.secondaryText).accessibilityHidden(true)
+                Button(action: sendNow) { HitTarget("Send Now") }
+                    .accessibilityIdentifier("conversation.pendingSend.sendNow")
             }
         }
         .accessibilityElement(children: .contain)
@@ -679,28 +667,12 @@ struct QueuedPromptBubbleView: View {
     let delete: () -> Void
 
     var body: some View {
-        HStack {
-            Spacer(minLength: 44)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(prompt.text)
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 18))
-                    .overlay {
-                        if prompt.problem != nil {
-                            RoundedRectangle(cornerRadius: 18).strokeBorder(.red, lineWidth: 1.5)
-                        }
-                    }
-                    .opacity(prompt.problem == nil ? 0.75 : 1)
-                    .contextMenu {
-                        if prompt.problem == nil {
-                            Button("Cancel Sending", systemImage: "xmark", role: .destructive, action: delete)
-                        }
-                    }
-                    .accessibilityLabel(accessibilityLabel)
-                status
-                    .font(.caption)
+        PendingBubbleRow(text: prompt.text, isProblem: prompt.problem != nil, bubbleLabel: accessibilityLabel) {
+            status
+        }
+        .contextMenu {
+            if prompt.problem == nil {
+                Button("Cancel Sending", systemImage: "xmark", role: .destructive, action: delete)
             }
         }
         .accessibilityElement(children: .contain)

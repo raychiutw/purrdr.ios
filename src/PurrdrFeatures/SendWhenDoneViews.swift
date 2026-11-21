@@ -102,23 +102,7 @@ struct SendWhenDoneQueueView: View {
                 Button("Delete", systemImage: "trash", role: .destructive) { Task { await model.remove(item.id) } }
                     .accessibilityIdentifier("conversation.sendWhenDone.delete")
             } label: {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(verbatim: "\(number)")
-                        .font(.caption.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondaryText)
-                    Text(item.text)
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 18))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18)
-                        .strokeBorder(.secondaryText, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                }
-                .opacity(0.75)
+                PendingBubbleBody(text: item.text, number: number)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Queued message \(number): \(item.text)"))
