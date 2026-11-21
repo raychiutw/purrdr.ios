@@ -1461,6 +1461,17 @@
         }
       }
     },
+    "Bypass Permissions isn’t turned on for this chat. Start a new chat with it turned on to use it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天沒有開啟「略過權限」。請新增聊天並開啟它再使用。"
+          }
+        }
+      }
+    },
     "Camera Access Is Off" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2873,6 +2884,17 @@
         }
       }
     },
+    "Couldn’t read the current mode from the screen. Try again, or check the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀不到畫面上目前的模式。請再試一次，或到終端機確認。"
+          }
+        }
+      }
+    },
     "Couldn’t read this device’s ID from the keychain. Unlock this device and try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3023,6 +3045,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法把按鍵送到主機。請到終端機查看面板。"
+          }
+        }
+      }
+    },
+    "Couldn’t send the keys to the host. Try again, or check the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按鍵沒有送到主機。請再試一次，或到終端機確認。"
           }
         }
       }
@@ -6143,6 +6176,17 @@
         }
       }
     },
+    "Opens the list of modes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟模式清單。"
+          }
+        }
+      }
+    },
     "Opens the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8750,17 +8794,6 @@
         }
       }
     },
-    "Tap to switch to the next mode. Touch and hold to choose one." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點一下切換到下一個模式,長按選擇模式。"
-          }
-        }
-      }
-    },
     "Terminal" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10231,6 +10264,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個配對碼不正確或已經用過。請在主機上再執行一次配對指令，取得新的配對碼。"
+          }
+        }
+      }
+    },
+    "This pane is running a different chat now, so the mode wasn’t changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Pane 已換成別的對話，所以沒有切換模式。"
           }
         }
       }
