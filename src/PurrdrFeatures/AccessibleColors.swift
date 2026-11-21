@@ -139,3 +139,21 @@ extension AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xFF, green: 0x9F, blue: 0x97)   // #2C2C2E 7.1:1
     )
 }
+
+extension AccessibleColors {
+    /// 數據用量長條圖的兩階綠(#354,原型 `prototypes/data-usage/`,已以色盲檢查腳本驗證):
+    /// 行動網路(淺色深綠、深色亮綠)與 Wi-Fi(淺色淺綠、深色暗綠)。亮度差別讓兩段不只靠色相分辨;圖例與數值另有文字。
+    static let dataUsageCellular = ContrastPalette(
+        light: ThemeColor(red: 0x0B, green: 0x7A, blue: 0x5C),
+        dark: ThemeColor(red: 0x2B, green: 0xB3, blue: 0x83),
+        lightHighContrast: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
+        darkHighContrast: ThemeColor(red: 0x5D, green: 0xE0, blue: 0xB3)
+    )
+
+    static let dataUsageWifi = ContrastPalette(
+        light: ThemeColor(red: 0x5B, green: 0xB8, blue: 0x94),
+        dark: ThemeColor(red: 0x12, green: 0x7A, blue: 0x59),
+        lightHighContrast: ThemeColor(red: 0x4A, green: 0xA8, blue: 0x84),
+        darkHighContrast: ThemeColor(red: 0x1A, green: 0x8F, blue: 0x6A)
+    )
+}

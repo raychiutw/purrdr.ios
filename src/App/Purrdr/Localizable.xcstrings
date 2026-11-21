@@ -825,6 +825,17 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "30 Days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 天"
+          }
+        }
+      }
+    },
     "443" : {
       "extractionState" : "manual",
       "shouldTranslate" : false,
@@ -837,6 +848,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "5 小時"
+          }
+        }
+      }
+    },
+    "7 Days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7 天"
           }
         }
       }
@@ -1788,6 +1810,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "擷取"
+          }
+        }
+      }
+    },
+    "Category" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分類"
+          }
+        }
+      }
+    },
+    "Cellular" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行動網路"
+          }
+        }
+      }
+    },
+    "Cellular %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行動網路 %@"
           }
         }
       }
@@ -3303,6 +3358,17 @@
         }
       }
     },
+    "Counts only data sent and received between Purrdr and your hosts over SSH or HTTPS — not other programs on your computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只計算 Purrdr 與你的主機之間經 SSH 或 HTTPS 送出與收到的資料，不含電腦上其他程式的用量。"
+          }
+        }
+      }
+    },
     "Create" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3376,6 +3442,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料"
+          }
+        }
+      }
+    },
+    "Data Usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "數據用量"
+          }
+        }
+      }
+    },
+    "Day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日"
           }
         }
       }
@@ -3464,6 +3552,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已刪除"
+          }
+        }
+      }
+    },
+    "Deleted Host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已刪除的主機"
           }
         }
       }
@@ -3640,6 +3739,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個版本不再提醒"
+          }
+        }
+      }
+    },
+    "Double-tap to change." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按兩下以更改。"
           }
         }
       }
@@ -4062,6 +4172,17 @@
         }
       }
     },
+    "From" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起"
+          }
+        }
+      }
+    },
     "Game Console" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4428,6 +4549,39 @@
         }
       }
     },
+    "Hosts · 30 Days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機 · 30 天"
+          }
+        }
+      }
+    },
+    "Hosts · 7 Days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機 · 7 天"
+          }
+        }
+      }
+    },
+    "Hosts · Today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機 · 今天"
+          }
+        }
+      }
+    },
     "Hosts: %lld · Last used %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4446,6 +4600,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "家"
+          }
+        }
+      }
+    },
+    "How much data Purrdr uses to talk to your hosts." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 與你的主機之間用了多少資料。"
           }
         }
       }
@@ -4853,6 +5018,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放大文字"
+          }
+        }
+      }
+    },
+    "Last 30 Days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近 30 天"
           }
         }
       }
@@ -6617,6 +6793,17 @@
         }
       }
     },
+    "Period" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "期間"
+          }
+        }
+      }
+    },
     "Permission Mode" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7211,6 +7398,17 @@
         }
       }
     },
+    "Received" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收到"
+          }
+        }
+      }
+    },
     "Reconnect" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7482,6 +7680,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "必填"
+          }
+        }
+      }
+    },
+    "Reset Statistics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重設統計"
+          }
+        }
+      }
+    },
+    "Reset Statistics?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要重設統計嗎？"
           }
         }
       }
@@ -7900,6 +8120,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已送出"
+          }
+        }
+      }
+    },
+    "Sent & Received" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送出與收到"
           }
         }
       }
@@ -8685,6 +8916,28 @@
         }
       }
     },
+    "Stored on this device only, counting since %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統計只存在這支裝置，從 %@ 開始計算。"
+          }
+        }
+      }
+    },
+    "Stored on this device only. Nothing is counted yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "統計只存在這支裝置，目前還沒有資料。"
+          }
+        }
+      }
+    },
     "Studio Mac" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8890,6 +9143,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已被接管"
+          }
+        }
+      }
+    },
+    "Tap a bar to see that day." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一根長條查看那天的用量。"
           }
         }
       }
@@ -9807,6 +10071,17 @@
         }
       }
     },
+    "This Launch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這次開啟"
+          }
+        }
+      }
+    },
     "This agent’s transcript can’t be read yet. Use the host’s terminal to see it." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9836,6 +10111,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個聊天還沒準備好,暫時無法排入佇列。請稍後再試。"
+          }
+        }
+      }
+    },
+    "This clears all data usage recorded on this device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會清除這支裝置上記錄的所有數據用量。"
           }
         }
       }
@@ -10632,6 +10918,17 @@
         }
       }
     },
+    "To" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "迄"
+          }
+        }
+      }
+    },
     "To compare, run ssh-keygen -lf on a host key file on that computer." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10650,6 +10947,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為了標記註記，Purrdr 會以 %@ 更新 ~/.claude/plugins/store 裡 Claude Code 的註記檔。可以在設定中復原 Purrdr 的變更。"
+          }
+        }
+      }
+    },
+    "Today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天"
           }
         }
       }
@@ -10694,6 +11002,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檔案太大，無法在這裡預覽(%@)。請在主機上開啟。"
+          }
+        }
+      }
+    },
+    "Total" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加總"
           }
         }
       }
@@ -11629,6 +11948,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你離開期間 · %@ · 工作 %lld 分鐘"
+          }
+        }
+      }
+    },
+    "Wi-Fi" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi"
+          }
+        }
+      }
+    },
+    "Wi-Fi & Cellular" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wi-Fi 與行動網路"
           }
         }
       }
