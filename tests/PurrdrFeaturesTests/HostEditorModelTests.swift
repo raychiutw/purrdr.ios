@@ -76,8 +76,8 @@ struct HostEditorModelTests {
         model.herdrSession = session
     }
 
-    @Test("第一次連線先確認 host key 指紋，確認後才登入測試;儲存時存下 pin、herdr 設定與 OS")
-    func firstConnectionConfirmsHostKeyThenSaves() async throws {
+    @Test("Tailscale SSH 第一次連線自動記住 host key,不問;儲存時存下 pin、herdr 設定與 OS")
+    func firstConnectionRemembersHostKeyThenSaves() async throws {
         let store = MemoryHostStore()
         let healthy = await Self.healthyHost(HerdrInstallation(session: "work"))
         let factory = ChannelFactory(await Self.unverifiedHost(), healthy)
@@ -85,10 +85,6 @@ struct HostEditorModelTests {
         Self.fill(model, session: "work")
 
         await model.test()
-        #expect(model.phase == .confirmHostKey(Self.fingerprint))
-        #expect(!model.canSave)
-
-        await model.trustPresentedHostKey()
 
         guard case .tested(let report) = model.phase else { Issue.record("測試沒有成功:\(model.phase)"); return }
         #expect(report.herdrVersion == HerdrVersion("0.9.5"))
@@ -118,11 +114,11 @@ struct HostEditorModelTests {
         #expect(model.save() == nil)
     }
 
-    @Test("編輯主機只改名稱時沿用已存的 pin;改了位址才重新確認")
+    @Test("編輯主機只改名稱時沿用已存的 pin;改了位址就重新記住新主機的 key")
     func pinIsKeptUnlessEndpointChanges() async {
         let existing = HostConfiguration(
             name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
-        let factory = ChannelFactory(await Self.healthyHost(), await Self.unverifiedHost())
+        let factory = ChannelFactory(await Self.healthyHost(), await Self.unverifiedHost(), await Self.healthyHost())
         let model = HostEditorModel(store: MemoryHostStore(), editing: existing, makeChannel: factory.make)
 
         model.name = "Studio Mac"
@@ -130,11 +126,10 @@ struct HostEditorModelTests {
         model.address = "100.64.0.9"
         await model.test()
 
-        #expect(factory.pins == [Self.fingerprint, nil])
-        #expect(model.phase == .confirmHostKey(Self.fingerprint))
+        #expect(factory.pins == [Self.fingerprint, nil, Self.fingerprint])
     }
 
-    @Test("指紋改變時阻擋並警告，顯示目前出示與已存的指紋;只 pin 剛剛出示的那一把")
+    @Test("指紋改變時阻擋並警告，顯示目前出示與已存的指紋;不能信任新 key、不能儲存")
     func changedHostKeyIsBlocked() async throws {
         let existing = HostConfiguration(
             name: "Studio", endpoint: SSHEndpoint(host: "studio-mac", username: "demo"), hostKeyPin: Self.fingerprint)
@@ -148,8 +143,9 @@ struct HostEditorModelTests {
         #expect(!model.canSave)
 
         await model.trustPresentedHostKey()
-        #expect(factory.pins == [Self.fingerprint, Self.otherFingerprint])
-        #expect(model.save()?.ssh?.hostKeyPin == Self.otherFingerprint)
+        #expect(factory.pins == [Self.fingerprint], "不該以新 key 重測")
+        #expect(model.phase == .hostKeyChanged(presented: Self.otherFingerprint, pinned: Self.fingerprint))
+        #expect(model.save() == nil)
     }
 
     @Test("herdr 低於 0.9.5:提示版本，使用者確認後才執行 herdr update,再重新測試")

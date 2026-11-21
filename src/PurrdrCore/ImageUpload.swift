@@ -28,10 +28,12 @@ public struct UploadFileName: Hashable, Sendable {
 ///
 /// - 指令只帶檔名與大小,bytes 走 exec 的 stdin(ADR-0003:沒有 SFTP;也避開 sshd 單一參數 128 KiB 的上限)。
 ///   app 送完 bytes 後送 EOF。
-/// - 寫到 `~/.purrdr/uploads/` 的隱藏暫存檔，收到的大小與宣告的不同(上傳中斷)就刪掉暫存檔、失敗結束;
+/// - 寫到系統暫存目錄(`TMPDIR`,沒設定用 `/tmp`)底下的 `purrdr-uploads-<uid>/`(與主機服務共用,名稱來自 schema 的 `x-upload-folder`)
+///   的隱藏暫存檔;資料夾已存在時必須是自己的真資料夾(不是 symlink、擁有者是自己、權限剛好 700),否則 exit 71、不寫入。收到的大小與宣告的不同(上傳中斷)就刪掉暫存檔、失敗結束;
 ///   相同才 `mv` 成正式檔。同名檔案已存在則拒絕，永不覆寫(§8.4)。
-/// - `umask 077`,上傳資料夾強制 700:只有本人可讀。
-/// - 成功後刪掉上傳資料夾裡 7 天(10,080 分鐘)前的檔案(含中斷留下的暫存檔),印出絕對路徑。
+/// - `umask 077`,上傳資料夾 700:只有本人可讀。
+/// - 成功後刪掉上傳資料夾與舊版 `~/.purrdr/uploads/` 裡 7 天(10,080 分鐘)前的檔案(含中斷留下的暫存檔),
+///   舊資料夾空了就移除,印出絕對路徑。
 /// - 腳本不含反斜線(fish 在單引號內仍處理 `\`)、不明確 `exit 0`(行為規格 §3.2)。
 public enum HostUploadCommand {
     static let script = HostScriptTimeLimit.posixUpload("""
@@ -44,9 +46,15 @@ public enum HostUploadCommand {
         case $name in
           '' | .* | *[!A-Za-z0-9.-]*) exit 64 ;;
         esac
-        d=$HOME/.purrdr/uploads
-        mkdir -p "$d" || exit 71
-        chmod 700 "$d" || exit 71
+        d=${TMPDIR:-/tmp}
+        d=${d%/}/\(HostServiceProtocol.uploadFolder)-$(id -u) || exit 71
+        if [ -L "$d" ]; then echo "upload folder is a symlink" >&2; exit 71; fi
+        mkdir -m 700 "$d" 2> /dev/null
+        if [ ! -d "$d" ] || [ -L "$d" ] || [ ! -O "$d" ]; then echo "upload folder is not owned by you" >&2; exit 71; fi
+        case $(ls -ld "$d" | cut -c1-10) in
+          drwx------) ;;
+          *) echo "upload folder is accessible by others" >&2; exit 71 ;;
+        esac
         tmp=$(mktemp "$d/.upload.XXXXXX") || exit 71
         trap 'rm -f "$tmp"' EXIT
         trap 'rm -f "$tmp"; exit 70' HUP INT TERM PIPE
@@ -57,6 +65,11 @@ public enum HostUploadCommand {
         mv "$tmp" "$d/$name" || exit 71
         tmp=
         find "$d" -type f -mmin +10080 -exec rm -f {} + 2> /dev/null
+        old=$HOME/.purrdr/uploads
+        if [ -d "$old" ] && [ ! -L "$old" ]; then
+          find "$old" -type f -mmin +10080 -exec rm -f {} + 2> /dev/null
+          rmdir "$old" 2> /dev/null
+        fi
         printf '%s/%s
         ' "$d" "$name"
         """, transferSizeParameter: 2)
