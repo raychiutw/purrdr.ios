@@ -45,9 +45,14 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 ## Liquid Glass
 
-- 只出現在導覽層與控制層：工具列(含主機篩選)、輸入列、終端機按鍵列。
-- 內容層(泡泡、code block、subagent 卡片、核准選項、列表列)不用玻璃，也不疊玻璃。
-- 自訂玻璃只用 regular 變體，包在 `GlassEffectContainer`。
+依據 HIG〈Materials〉:「Liquid Glass forms a distinct functional layer for controls and navigation elements … that floats above the content layer」、「allows content to scroll and peek through from beneath these elements」、「Don’t use Liquid Glass in the content layer」、「overusing this material in multiple custom controls can provide a subpar user experience」。
+
+- **只用在導覽層與控制層**:工具列(含主機篩選、返回鈕、標題膠囊)、輸入列(輸入框與裡面的附加、模型、權限模式、送出)、工作中膠囊、浮動橫幅、終端機按鍵列、浮在內容上的按鈕(回到最新)。
+- **內容層不用玻璃，也不疊玻璃**:訊息泡泡、Markdown、code block、表格、檔案與圖片卡片、subagent 卡片、「需要你」卡片與選項、列表列。內容層要區隔用系統標準材質(ultra-thin／thin／regular／thick)或中性底色。例外照 HIG:滑桿、開關這類短暫互動的控制，按住時可以呈現玻璃。
+- **內容從玻璃底下捲過去**:畫面以內容為主，玻璃控制浮在內容上，內容延伸到螢幕上下邊緣(不在頂列與輸入列下面留實心色塊),讓可視區域盡量大;捲動內容的上下留白等於玻璃控制的高度，最後一則不被遮住。
+- **可讀性**:玻璃後面的內容太亮或太花時，在玻璃下加淡出漸層或暗化層(HIG:內容明亮時可加約 35% 的暗化層);玻璃上的字與符號維持 HIG 對比。
+- **少而集中**:同一個畫面的玻璃控制越少越好;一組相關按鈕放在同一個容器(`GlassEffectContainer`),不要每顆各自一片玻璃(避免 glass on glass)。
+- 自訂玻璃只用 regular 變體;系統元件(工具列、`.glass` 按鈕樣式、標準 toolbar)優先，它們會自動套用。
 
 ## 畫面重點
 
