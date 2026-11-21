@@ -1776,7 +1776,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "內建 SSH"
+            "value" : "原生 SSH"
           }
         }
       }
@@ -13085,13 +13085,13 @@
         }
       }
     },
-    "Windows uses OpenSSH" : {
+    "Windows uses built-in SSH" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Windows 用 OpenSSH"
+            "value" : "Windows 用原生 SSH"
           }
         }
       }

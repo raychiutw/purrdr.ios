@@ -176,7 +176,7 @@ struct AddHostGuideView: View {
         case .system: "What kind of host is it?"
         case .install: "Install the Purrdr host service"
         case .pair: "Pair this iPhone with the host"
-        case .sshMethod: model.system == .windows ? "Windows uses OpenSSH" : "Pick a kind of SSH"
+        case .sshMethod: model.system == .windows ? "Windows uses built-in SSH" : "Pick a kind of SSH"
         case .enable: "Let the host accept connections"
         case .details: "Which host and which account?"
         case .location: "Where will you connect from?"
@@ -573,7 +573,7 @@ struct AddHostGuideView: View {
                         symbol: "sparkles") { model.choose(.tailscale) }
                 case .native:
                     option(
-                        "native", model.system == .windows ? "OpenSSH" : "Built-in SSH",
+                        "native", "Built-in SSH",
                         detail: "Sign in with an account and password or key", symbol: "terminal") { model.choose(.native) }
                 }
             }
