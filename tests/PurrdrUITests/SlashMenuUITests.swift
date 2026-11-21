@@ -120,7 +120,9 @@ final class SlashMenuUITests: XCTestCase {
         let card = element("panel.card", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: 10), "送出 /model 後沒有出現面板卡片")
         // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
-        element("composer.hideKeyboard", in: app).tap()
+        // 送出就收起鍵盤(#329);還聚焦才點。
+        let hide = element("composer.hideKeyboard", in: app)
+        if hide.waitForExistence(timeout: 1) { hide.tap() }
         XCTAssertTrue(app.staticTexts["Select model"].exists)
         let first = element("panel.option.0", in: app)
         XCTAssertTrue(first.exists)
@@ -153,7 +155,9 @@ final class SlashMenuUITests: XCTestCase {
         let card = element("panel.card", in: app)
         XCTAssertTrue(card.waitForExistence(timeout: 10), "送出 /effort 後沒有出現面板卡片")
         // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
-        element("composer.hideKeyboard", in: app).tap()
+        // 送出就收起鍵盤(#329);還聚焦才點。
+        let hide = element("composer.hideKeyboard", in: app)
+        if hide.waitForExistence(timeout: 1) { hide.tap() }
         XCTAssertTrue(app.staticTexts["Effort"].exists)
         let levels = element("panel.levels", in: app)
         XCTAssertTrue(levels.exists)

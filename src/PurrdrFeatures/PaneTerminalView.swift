@@ -815,7 +815,16 @@ final class TerminalScreenContainer: UIView {
     }
 
     private func layoutDesktop() {
-        guard let rule else { return }
+        // 還沒收到電腦的格數(第一個 full frame 之前):先照容器大小排版，
+        // SwiftTerm 才會回報格數讓連線開起來;frame 沒設會是 .zero，連線與畫面都出不來。
+        guard let rule else {
+            if terminalView.frame != bounds {
+                terminalView.transform = .identity
+                terminalView.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+                terminalView.frame = bounds
+            }
+            return
+        }
         zoom = rule.clampedZoom(zoom)
         origin = rule.clampedOrigin(origin, zoom: zoom)
         applyTransform(rule)

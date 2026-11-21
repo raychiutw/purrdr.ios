@@ -83,7 +83,9 @@ final class ScreenshotTourUITests: XCTestCase {
         element("slash.row.model", in: app).tap()
         element("composer.send", in: app).tap()
         XCTAssertTrue(element("panel.card", in: app).waitForExistence(timeout: 10), "沒有 /model 面板卡片")
-        element("composer.hideKeyboard", in: app).tap()
+        // 送出就收起鍵盤(#329);還聚焦才點。
+        let hide = element("composer.hideKeyboard", in: app)
+        if hide.waitForExistence(timeout: 1) { hide.tap() }
         capture("05-model-panel", app)
     }
 
@@ -96,7 +98,9 @@ final class ScreenshotTourUITests: XCTestCase {
         element("slash.row.effort", in: app).tap()
         element("composer.send", in: app).tap()
         XCTAssertTrue(element("panel.levels", in: app).waitForExistence(timeout: 10), "沒有 /effort 面板卡片")
-        element("composer.hideKeyboard", in: app).tap()
+        // 送出就收起鍵盤(#329);還聚焦才點。
+        let hide = element("composer.hideKeyboard", in: app)
+        if hide.waitForExistence(timeout: 1) { hide.tap() }
         capture("06-effort-panel", app)
     }
 
@@ -108,7 +112,9 @@ final class ScreenshotTourUITests: XCTestCase {
         text.typeEnglish("!git status")
         element("composer.send", in: app).tap()
         XCTAssertTrue(element("conversation.shell", in: app).waitForExistence(timeout: 15), "沒有 shell 區塊")
-        element("composer.hideKeyboard", in: app).tap()
+        // 送出就收起鍵盤(#329);還聚焦才點。
+        let hide = element("composer.hideKeyboard", in: app)
+        if hide.waitForExistence(timeout: 1) { hide.tap() }
         capture("07-shell-command", app)
     }
 

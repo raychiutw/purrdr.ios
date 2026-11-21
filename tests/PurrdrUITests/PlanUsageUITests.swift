@@ -61,7 +61,7 @@ final class PlanUsageUITests: XCTestCase {
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
         let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
-        XCTAssertTrue(message.contains("settings.json"), "沒說明會改什麼:\(message)")
+        XCTAssertTrue(message.contains("Claude Code setting"), "沒說明會改什麼:\(message)")
         XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
         alert.buttons["Change Settings"].tap()
 
