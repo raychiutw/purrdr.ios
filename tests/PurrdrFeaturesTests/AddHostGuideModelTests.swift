@@ -174,13 +174,4 @@ struct AddHostGuideModelTests {
         model.address = "other-mac"
         #expect(model.save() == nil)
     }
-
-    @Test("原生 SSH 目前交給主機編輯頁(後續票接手)")
-    func otherPathsHandOffToEditor() {
-        let native = Self.model()
-        native.choose(.ssh)
-        native.choose(.macOS)
-        native.choose(.native)
-        #expect(native.handoff == .editor(.openSSH))
-    }
 }

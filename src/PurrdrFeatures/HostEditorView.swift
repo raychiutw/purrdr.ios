@@ -191,12 +191,6 @@ struct HostEditorView: View {
                 Text("Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n\(presented.description)\n\nKey you trusted:\n\(pinned.description)")
             }
         }
-        .alert("Add This Device’s Key?", isPresented: presenting(\.isConfirmingKeyInstall)) {
-            Button("Add Key") { Task { await model.confirmKeyInstall() } }
-            Button("Cancel", role: .cancel) { model.dismissPrompt() }
-        } message: {
-            Text("Purrdr signs in to \(model.username)@\(model.address) once with this password and adds this device’s public key to ~/.ssh/authorized_keys (administrators_authorized_keys for a Windows administrator). After that it signs in with the key. The password isn’t saved.")
-        }
         .alert("Update herdr?", isPresented: presenting(\.isOutdated)) {
             if model.canUpdateHerdr {
                 Button("Update") { Task { await model.updateHerdr() } }
@@ -419,56 +413,11 @@ struct HostEditorView: View {
                 }
             }
             .accessibilityIdentifier("hostEditor.devicePublicKey")
-            keyInstallRows(publicKey)
         } else if let problem = model.deviceKeyProblem {
             ErrorLabel(problem)
         } else {
             ProgressView()
                 .task { await model.loadDeviceKey() }
-        }
-    }
-
-    /// 用這台電腦的密碼加入公鑰(#285):密碼只用一次;失敗時仍可拷貝指令手動加入。
-    @ViewBuilder
-    private func keyInstallRows(_ publicKey: SSHPublicKey) -> some View {
-        LabeledContent("Password") {
-            SecureField("Password", text: $model.keyInstallPassword, prompt: Text("Password on that computer"))
-                .multilineTextAlignment(.leading)
-                .existingPasswordContent()
-                // return 只收起鍵盤，不代按「用密碼加入公鑰」(ADR-0002:寫入主機要按按鈕確認)。
-                .focusOrder(.keyInstallPassword, focus: $focus, next: nextField(after: .keyInstallPassword))
-                .accessibilityIdentifier("hostEditor.keyInstallPassword")
-        }
-        .id(HostEditorModel.InputField.keyInstallPassword)
-        if model.phase == .installingKey {
-            HStack {
-                ProgressView()
-                Text("Adding the key to \(model.address)…")
-            }
-        } else {
-            Button("Add Key Using Password") { model.requestKeyInstall() }
-                .disabled(!model.canInstallDeviceKey)
-                .accessibilityIdentifier("hostEditor.installKey")
-        }
-        if case .keyInstallFailed(let message) = model.phase {
-            ErrorLabel(message)
-                .accessibilityIdentifier("hostEditor.keyInstallResult")
-            NavigationLink {
-                DevicePublicKeyView(publicKey: publicKey, username: model.username)
-            } label: {
-                Label("Copy Command Instead", systemImage: "document.on.document")
-            }
-            .accessibilityIdentifier("hostEditor.keyInstallManual")
-        } else if let outcome = model.keyInstallOutcome {
-            Label {
-                switch outcome {
-                case .added: Text("Key added. Purrdr signs in with this device’s key.")
-                case .alreadyPresent: Text("The key was already on the host.")
-                }
-            } icon: {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint)
-            }
-            .accessibilityIdentifier("hostEditor.keyInstallResult")
         }
     }
 
@@ -644,7 +593,6 @@ extension HostEditorModel.Phase {
         return false
     }
 
-    var isConfirmingKeyInstall: Bool { self == .confirmKeyInstall }
 }
 
 extension HostConfiguration.ConnectionMethod {

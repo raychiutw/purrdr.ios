@@ -182,30 +182,6 @@ final class AddHostUITests: XCTestCase {
         XCTAssertTrue(waitForKeyboardToHide(app), "捲動表單後鍵盤沒有收起")
     }
 
-    /// 用密碼加入公鑰：密碼欄輸入後收起鍵盤，「Add Key Using Password」點得到;密碼欄不跳強密碼建議。
-    @MainActor
-    func testKeyInstallPasswordDismissesKeyboard() {
-        let app = XCUIApplication.launchUITesting()
-        openAddHost(app)
-        choose("openSSH", in: app)
-        for (identifier, text) in [("name", "Studio"), ("address", "studio"), ("username", "ray")] {
-            let element = field(identifier, in: app)
-            element.tap()
-            element.typeEnglish(text)
-        }
-        let password = app.secureTextFields["hostEditor.keyInstallPassword"]
-        XCTAssertTrue(scrollTo(password, in: app), "沒有加入公鑰的密碼欄")
-        password.tap()
-        password.typeEnglish("hunter2")
-        XCTAssertFalse(app.buttons["Use Strong Password"].exists, "跳出了強密碼建議")
-
-        tapKeyboardDone(app)
-
-        XCTAssertTrue(waitForKeyboardToHide(app), "加入公鑰的密碼欄按「完成」後鍵盤沒有收起")
-        let install = app.buttons["hostEditor.installKey"]
-        XCTAssertTrue(scrollTo(install, in: app) && install.isHittable && install.isEnabled, "「Add Key Using Password」點不到")
-    }
-
     // MARK: - 輔助
 
     @MainActor

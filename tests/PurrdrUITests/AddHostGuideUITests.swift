@@ -89,6 +89,100 @@ final class AddHostGuideUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["tailscale ip -4"].waitForExistence(timeout: 5))
     }
 
+    /// 原生 SSH(#342):開啟 SSH → 在哪裡連 → 主機與帳號 → 密碼 → 測試連線並加入;密碼路徑不出現「key」。
+    @MainActor
+    func testNativeSSHPasswordPath() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        openGuide(app)
+        app.buttons["guide.option.ssh"].tap()
+        app.buttons["guide.option.macOS"].tapWhenReady()
+        app.buttons["guide.option.native"].tapWhenReady()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Remote Login")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["guide.next"].tap()
+
+        app.buttons["guide.option.home"].tapWhenReady()
+        let address = app.textFields["guide.field.address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 5))
+        app.buttons["How do I find this?"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["ipconfig getifaddr en0"].waitForExistence(timeout: 5))
+        address.tap()
+        address.typeEnglish("192.168.1.20")
+        let username = app.textFields["guide.field.username"]
+        username.tap()
+        username.typeEnglish("ray")
+        app.buttons["guide.next"].tap()
+
+        app.buttons["guide.option.password"].tapWhenReady()
+        let password = app.secureTextFields["guide.field.password"]
+        XCTAssertTrue(password.waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "key")).firstMatch.exists, "密碼路徑出現了「key」")
+        XCTAssertFalse(app.buttons["guide.next"].isEnabled)
+        password.tap()
+        password.typeEnglish("hunter2")
+        app.buttons["guide.next"].tap()
+
+        // 第一次連線:只問信任／取消(Demo 主機若直接通過就沒有這一步)。
+        let trust = app.buttons["guide.trust"]
+        let save = app.buttons["guide.save"]
+        XCTAssertTrue(trust.waitForExistence(timeout: 15) || save.exists, "沒有進到信任或加入\n\(app.debugDescription)")
+        if trust.exists { trust.tap() }
+        XCTAssertTrue(save.waitForExistence(timeout: 15))
+        save.tap()
+        XCTAssertTrue(app.buttons["guide.done"].waitForExistence(timeout: 5))
+    }
+
+    /// 原生 SSH 的金鑰路徑:三步,指令帶這支裝置的公鑰並可拷貝。
+    @MainActor
+    func testNativeSSHKeyPath() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        openGuide(app)
+        app.buttons["guide.option.ssh"].tap()
+        app.buttons["guide.option.linux"].tapWhenReady()
+        app.buttons["guide.option.native"].tapWhenReady()
+        XCTAssertTrue(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "openssh-server")).firstMatch.waitForExistence(timeout: 5))
+        app.buttons["guide.next"].tap()
+        app.buttons["guide.option.tailscale"].tapWhenReady()
+        let address = app.textFields["guide.field.address"]
+        XCTAssertTrue(address.waitForExistence(timeout: 5))
+        address.tap()
+        address.typeEnglish("studio.tail1234.ts.net")
+        let username = app.textFields["guide.field.username"]
+        username.tap()
+        username.typeEnglish("ray")
+        app.buttons["guide.next"].tap()
+
+        app.buttons["guide.option.deviceKey"].tapWhenReady()
+        XCTAssertTrue(app.buttons["guide.copy"].waitForExistence(timeout: 10), "沒有可拷貝的公鑰指令")
+        XCTAssertTrue(app.buttons["guide.share"].exists)
+        XCTAssertTrue(app.buttons["guide.next"].isEnabled)
+    }
+
+    /// 匯入私鑰收在「Other Ways」;對外連線有路由器提醒。
+    @MainActor
+    func testImportedKeyIsUnderOtherWays() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        openGuide(app)
+        app.buttons["guide.option.ssh"].tap()
+        app.buttons["guide.option.windows"].tapWhenReady()
+        app.buttons["guide.option.native"].tapWhenReady()
+        app.buttons["guide.next"].tapWhenReady()
+        app.buttons["guide.option.outside"].tapWhenReady()
+        XCTAssertTrue(app.staticTexts["guide.notice"].waitForExistence(timeout: 5), "對外連線沒有路由器提醒")
+        let address = app.textFields["guide.field.address"]
+        address.tap()
+        address.typeEnglish("203.0.113.9")
+        let username = app.textFields["guide.field.username"]
+        username.tap()
+        username.typeEnglish("ray")
+        app.buttons["guide.next"].tap()
+
+        XCTAssertFalse(app.buttons["guide.option.importedKey"].exists)
+        app.buttons["guide.otherWays"].tapWhenReady()
+        XCTAssertTrue(app.buttons["guide.option.importedKey"].waitForExistence(timeout: 5))
+    }
+
     /// HTTPS:準備 Tailscale、裝主機服務、掃 QR code 配對(`-uiTestingPairingScan`)、測試、存檔。
     @MainActor
     func testHTTPSPathScansAndSavesHost() {
