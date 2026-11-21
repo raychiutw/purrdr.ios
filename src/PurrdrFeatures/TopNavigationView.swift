@@ -69,7 +69,8 @@ public struct TopNavigationView: View {
                 case .settings:
                     SettingsView(
                         model: settings,
-                        openWelcome: { navigation.showWelcome() }, appLock: appLock
+                        openWelcome: { navigation.showWelcome() }, appLock: appLock,
+                        dataUsage: { hosts.dataUsage() }
                     ) {
                         navigation.sheet = nil
                     }

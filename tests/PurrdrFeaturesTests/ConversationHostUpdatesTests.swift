@@ -40,7 +40,8 @@ struct ConversationHostUpdatesTests {
         let updates = HostUpdates(client: HerdrClient(connection: connection), sleep: RecordingSleeper().sleep)
         let task = Task { await updates.liveUpdates.attach() }
         try await waitUntil { await connection.requests.count == 3 }
-        try await HostUpdatesTests.settle()
+        // 同步點(#324):訂閱收到 ack 並對帳完才算連上;聊天只有這時才不自己讀快照，不能靠等一段時間。
+        try await waitUntil { await MainActor.run { updates.isSubscribed } }
         return (updates, task)
     }
 

@@ -177,9 +177,11 @@ struct HTTPSHostConnectionTests {
         defer { Task { await service.stop() } }
         let client = HerdrClient(connection: Self.connection(to: service))
         _ = try await client.snapshot()
+        // 同步點(#324):事件串流在連線被判定斷線時結束，讀到結束才送下一個請求，不靠等一段時間。
+        let events = try await client.subscribe([])
 
         await service.dropConnections()
-        try await Task.sleep(for: .milliseconds(200))
+        do { for try await _ in events {} } catch {}
         let snapshot = try await client.snapshot()
 
         #expect(snapshot.agents.count == 2)

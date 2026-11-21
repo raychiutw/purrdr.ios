@@ -46,9 +46,13 @@ struct HostUpdatesTests {
         return (updates, task)
     }
 
-    /// 等一段實際時間，讓不該發生的請求有機會出現。
-    static func settle() async throws {
-        try await Task.sleep(for: .milliseconds(300))
+    /// 同步點(取代等實際時間，#324):送一個哨兵事件，等它的快照讀取出現。
+    /// 事件與快照讀取是串列處理的，哨兵之前多出來的請求一定排在它前面;所以哨兵的讀取一出現，
+    /// 之後對「沒有多餘請求」的斷言就是確定的，不靠等多久。`before` 是送哨兵前已有的請求數。
+    static func barrier(_ connection: FakeHostConnection, before: Int, subscription: Int = 0) async throws {
+        await connection.expect("session.snapshot", reply: snapshot)
+        await connection.send(event: workspaceUpdated, toSubscription: subscription)
+        try await waitUntil { await connection.requests.count == before + 1 }
     }
 
     @Test("連上即對帳：讀快照、訂閱，訂閱開始時再讀一次;沒有事件就沒有其他請求")
@@ -61,9 +65,9 @@ struct HostUpdatesTests {
         defer { task.cancel() }
 
         try await waitUntil { await connection.requests.count == 3 }
-        try await Self.settle()
+        try await Self.barrier(connection, before: 3)
 
-        #expect(await Self.methods(connection) == ["session.snapshot", "events.subscribe", "session.snapshot"])
+        #expect(await Self.methods(connection) == ["session.snapshot", "events.subscribe", "session.snapshot", "session.snapshot"])
         #expect(updates.phase == .loaded)
         #expect(updates.snapshot?.agents.count == 3)
     }
@@ -83,9 +87,9 @@ struct HostUpdatesTests {
         try await waitUntil { await connection.requests.count == 4 }
         await connection.send(event: Self.statusChanged("w1:pA"), toSubscription: 0)
         try await waitUntil { await connection.requests.count == 5 }
-        try await Self.settle()
+        try await Self.barrier(connection, before: 5)
 
-        #expect(await connection.requests.count == 5)
+        #expect(await connection.requests.count == 6)
         #expect(await sleeper.requested.isEmpty, "事件後等了固定延遲")
     }
 
@@ -109,8 +113,8 @@ struct HostUpdatesTests {
         await connection.releaseHeld()
 
         try await waitUntil { await connection.requests.count == 5 }
-        try await Self.settle()
-        #expect(await Self.methods(connection) == ["session.snapshot", "events.subscribe"] + Array(repeating: "session.snapshot", count: 3))
+        try await Self.barrier(connection, before: 5)
+        #expect(await Self.methods(connection) == ["session.snapshot", "events.subscribe"] + Array(repeating: "session.snapshot", count: 4))
         #expect(updates.hasQueuedResync == false)
     }
 
@@ -132,8 +136,8 @@ struct HostUpdatesTests {
         await connection.releaseHeld()
 
         try await waitUntil { await connection.requests.count == 5 }
-        try await Self.settle()
-        #expect(await connection.requests.count == 5)
+        try await Self.barrier(connection, before: 5)
+        #expect(await connection.requests.count == 6)
     }
 
     /// 第一次連上之後的(重)訂閱：以手上快照的 pane 訂閱，訂閱開始時讀一次快照對帳，不先讀。
@@ -157,10 +161,10 @@ struct HostUpdatesTests {
         await connection.send(event: Self.eventsLost, toSubscription: 0)
 
         try await waitUntil { await connection.requests.count == 5 }
-        try await Self.settle()
+        try await Self.barrier(connection, before: 5, subscription: 1)
         #expect(await connection.subscriptionsClosed.first == true)
-        #expect(await Self.methods(connection).suffix(3) == ["session.snapshot", "events.subscribe", "session.snapshot"])
-        #expect(await connection.requests.count == 5, "重新訂閱前多讀了快照")
+        #expect(await Self.methods(connection).suffix(4) == ["session.snapshot", "events.subscribe", "session.snapshot", "session.snapshot"])
+        #expect(await connection.requests.count == 6, "重新訂閱前多讀了快照")
         #expect(await sleeper.requested.isEmpty)
     }
 
@@ -179,10 +183,10 @@ struct HostUpdatesTests {
         await connection.finish(subscription: 0)
 
         try await waitUntil { await connection.requests.count == 5 }
-        try await Self.settle()
+        try await Self.barrier(connection, before: 5, subscription: 1)
         #expect(await sleeper.requested == [.seconds(1)])
-        #expect(await Self.methods(connection).suffix(3) == ["session.snapshot", "events.subscribe", "session.snapshot"])
-        #expect(await connection.requests.count == 5, "重連前多讀了快照")
+        #expect(await Self.methods(connection).suffix(4) == ["session.snapshot", "events.subscribe", "session.snapshot", "session.snapshot"])
+        #expect(await connection.requests.count == 6, "重連前多讀了快照")
     }
 
     @Test("重連時手上的 pane 已經關掉(herdr 回 pane_not_found):讀快照換成現有的 pane 再訂閱，不退避")
@@ -255,9 +259,9 @@ struct HostUpdatesTests {
         defer { viewers.forEach { $0.cancel() } }
 
         try await waitUntil { await connection.requests.count == 3 }
-        try await Self.settle()
+        try await Self.barrier(connection, before: 3)
 
-        #expect(await Self.methods(connection) == ["session.snapshot", "events.subscribe", "session.snapshot"])
+        #expect(await Self.methods(connection) == ["session.snapshot", "events.subscribe", "session.snapshot", "session.snapshot"])
         #expect(list.sections.flatMap(\.rows).count == 3)
     }
 

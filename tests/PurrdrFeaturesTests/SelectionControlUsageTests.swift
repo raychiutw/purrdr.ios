@@ -12,7 +12,7 @@ struct SelectionControlUsageTests {
         "TopNavigationView.swift": 1,
     ]
     /// 可以把 Picker 放在選單裡的檔案：主機篩選與主機挑選鈕。
-    static let hostMenuFiles: Set = ["HostPickerViews.swift", "TopNavigationView.swift"]
+    static let hostMenuFiles: Set = ["HostPickerViews.swift", "TopNavigationView.swift", "DataUsageView.swift"]
 
     /// SwiftUI 的 `Picker(`(前面不接英文字母：`hostPicker(`、`photosPicker(` 不算)。
     static func isPicker(_ line: Substring) -> Bool {

@@ -248,6 +248,13 @@ public final class HostsModel {
         return HostSettings(hostTheme: member.hostTheme, youShouldKnow: member.youShouldKnow, codexLauncher: launcher)
     }
 
+    /// 數據用量頁的 model(#354):主機選單是 Demo 主機加上所有已存主機,標題的主機就是目前主機(#334),改它就是改目前主機。
+    public func dataUsage() -> DataUsageModel {
+        DataUsageModel(
+            meter: trafficMeter ?? TrafficMeter(store: InMemoryTrafficStore()), hosts: hostOptions { _ in true }, currentHost: agentList.currentHost,
+            currentHostChanged: { [weak self] in self?.agentList.currentHost = $0 })
+    }
+
     /// 方案用量畫面的 model(#177):打開畫面時建立。主機選單是 Demo 主機加上所有已存主機，預設選取中主機。
     public func planUsage() -> PlanUsageModel {
         PlanUsageModel(
