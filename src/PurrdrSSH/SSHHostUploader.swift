@@ -1,7 +1,7 @@
 import Foundation
 import PurrdrCore
 
-/// 上傳到主機的 SSH 實作：bytes 經 exec 的 stdin 寫到主機的 `~/.purrdr/uploads/`,回傳主機上的絕對路徑(行為規格 F7、#286)。
+/// 上傳到主機的 SSH 實作：bytes 經 exec 的 stdin 寫到主機系統暫存目錄底下的 `purrdr-uploads-<uid>/`,回傳主機上的絕對路徑(行為規格 F7、#286)。
 public struct SSHHostUploader: HostUploading {
     /// stdin 每次寫入的大小(中斷時能盡早發現)。
     static let chunkSize = 64 * 1024

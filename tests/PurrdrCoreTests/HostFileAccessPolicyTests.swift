@@ -47,6 +47,20 @@ struct HostFileAccessPolicyTests {
             == .allowed(HostFileTarget(path: "/Users/demo/.purrdr/uploads/a1.jpg", root: nil)))
     }
 
+    @Test("新的上傳資料夾(含 TMPDIR 不在標準位置時)與舊的 .purrdr/uploads 都放行;名稱像的資料夾不放行")
+    func temporaryUploadFolders() {
+        let allowed = ["/var/folders/zz/demo/T/purrdr-uploads-501/a1.jpg", "/run/user/1000/purrdr-uploads-1000/a1.jpg",
+                       #"C:\Users\demo\AppData\Local\Temp\purrdr-uploads\a1.jpg"#, "/home/demo/.purrdr/uploads/a1.jpg"]
+        for path in allowed {
+            let scope = HostFileAccessScope(workingDirectories: [], mentionedPaths: [path])
+            #expect(HostFileAccessPolicy.decision(for: path, in: scope) == .allowed(HostFileTarget(path: path, root: nil)), "\(path)")
+        }
+        for path in ["/run/user/1000/purrdr-uploads-x/a1.jpg", "/home/demo/my-purrdr-uploads/a1.jpg"] {
+            let scope = HostFileAccessScope(workingDirectories: [], mentionedPaths: [path])
+            #expect(HostFileAccessPolicy.decision(for: path, in: scope) == .denied, "\(path)")
+        }
+    }
+
     @Test("Windows 主機(#226):工作目錄比對不分大小寫、`\\` 與 `/` 都是分隔，帶原本的工作目錄給主機")
     func windowsWorkingDirectory() {
         let scope = HostFileAccessScope(workingDirectories: [#"C:\Users\Demo\Ledger"#], mentionedPaths: [])

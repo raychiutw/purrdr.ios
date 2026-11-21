@@ -226,7 +226,7 @@ struct WindowsRealHostIntegrationTests {
         defer { Task { await temp.remove() } }
         let home = temp.path + #"\家"#
         try await temp.makeDirectory(home + #"\專案"#)
-        let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["USERPROFILE": home]))
+        let channel = WindowsHostChannel(EnvironmentChannel(base: ssh, environment: ["USERPROFILE": home, "TEMP": home]))
         var bytes = Data((0..<300_000).map { UInt8(truncatingIfNeeded: $0 &* 31) })
         bytes.append(contentsOf: [0x0D, 0x0A, 0x1A, 0x00])
 
@@ -234,7 +234,7 @@ struct WindowsRealHostIntegrationTests {
         log("上傳圖片…")
         let path = try await SSHHostUploader(channel: channel).upload(bytes, named: name)
         log("圖片:\(path)")
-        #expect(path == home + #"\.purrdr\uploads\purrdr-test-1.jpg"#)
+        #expect(path == home + #"\purrdr-uploads\purrdr-test-1.jpg"#)
         #expect(try await temp.sha256(of: path) == SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined())
         await #expect(throws: HostUploadError.self) { _ = try await SSHHostUploader(channel: channel).upload(bytes, named: name) }
 

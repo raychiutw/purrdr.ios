@@ -182,7 +182,7 @@ _避免_:停止按鈕列、中斷列、狀態列、Toolbar、Stop banner
 _避免_:強制停止、終止、Kill、中斷(中斷是停止的說法)
 
 **上傳到主機**(Host upload):
-聊天輸入列把使用者挑的圖片或檔案放到主機的 Purrdr 上傳資料夾(`~/.purrdr/uploads`),再把主機上的絕對路徑放進 prompt;圖片在送出時上傳，檔案挑好就上傳、路徑插入輸入框。SSH 與 HTTPS 主機共用同一個介面。
+聊天輸入列把使用者挑的圖片或檔案放到主機的 Purrdr 上傳資料夾(系統暫存目錄底下的 `purrdr-uploads`,Unix 後接 uid;舊版在 `~/.purrdr/uploads`),再把主機上的絕對路徑放進 prompt;圖片在送出時上傳，檔案挑好就上傳、路徑插入輸入框。SSH 與 HTTPS 主機共用同一個介面。
 _避免_:附件上傳、傳檔、SFTP、檔案傳輸(主機取檔是反方向)
 
 **展開編輯**(Expanded composer):

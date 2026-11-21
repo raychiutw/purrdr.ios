@@ -10,6 +10,8 @@ public enum HostServiceProtocol {
     public static let excludedFileLocations = [".ssh", ".gnupg", ".aws", ".azure", ".config/gcloud", ".kube", ".docker", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/gh", ".cargo/credentials", ".cargo/credentials.toml", ".password-store", ".local/share/keyrings", "Library/Keychains", ".codex/auth.json", ".claude/.credentials.json", ".claude.json", ".purrdr/host-service", ".purrdr/push-*", ".env", ".env.*", ".vault-token", ".terraform.d", ".m2/settings.xml", ".git/config", ".bash_history", ".zsh_history", "ConsoleHost_history.txt", "Library/Application Support/Google/Chrome", "Library/Application Support/Microsoft Edge", "Library/Application Support/BraveSoftware", "Library/Application Support/Firefox", "Library/Cookies", "Library/Safari", ".mozilla", ".config/google-chrome", ".config/chromium", ".config/microsoft-edge", ".config/BraveSoftware", "AppData/Local/Google/Chrome/User Data", "AppData/Local/Microsoft/Edge/User Data", "AppData/Local/BraveSoftware", "AppData/Roaming/Mozilla/Firefox", "AppData/Roaming/Microsoft/Credentials", "AppData/Roaming/Microsoft/Protect"]
     /// 主機取檔在工作目錄以外可放行的系統暫存目錄(schema 的 `x-temporary-file-locations`)。
     public static let temporaryFileLocations = ["/tmp", "/private/tmp", "/var/folders", "/private/var/folders"]
+    /// 暫存目錄底下的上傳資料夾名稱(schema 的 `x-upload-folder`;Unix 之後接 `-<uid>`)。
+    public static let uploadFolder = "purrdr-uploads"
     /// 主機取檔的大小上限(schema 的 `x-maximum-file-size`)。
     public static let maximumFileSize = 26214400
     /// 主機取檔一次讀取最多回傳的 bytes(schema 的 `x-maximum-file-chunk`)。
@@ -2819,7 +2821,7 @@ extension HostServiceProtocol {
 }
 
 extension HostServiceProtocol {
-    /// 上傳圖片或檔案(raychiutw/purrdr.host#16):開始一次分塊上傳。主機服務在家目錄的 .purrdr/uploads/ 建暫存檔，檔名由主機服務產生(不採用 app 給的名稱),超過 7 天的上傳檔定期刪除。size 超過 x-maximum-file-size 回 upload_too_large。中繼資料剝除在 app 端做，主機服務不解析內容。
+    /// 上傳圖片或檔案(raychiutw/purrdr.host#16):開始一次分塊上傳。主機服務在系統暫存目錄底下的上傳資料夾(x-upload-folder)建暫存檔，檔名由主機服務產生(不採用 app 給的名稱),超過 7 天的上傳檔定期刪除。size 超過 x-maximum-file-size 回 upload_too_large。中繼資料剝除在 app 端做，主機服務不解析內容。
     public struct FileUploadStart: Codable, Sendable, Equatable {
         /// 也是這次上傳的 upload_id。
         public var requestId: String

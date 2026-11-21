@@ -176,20 +176,19 @@ struct HostEditorView: View {
                 .accessibilityIdentifier("hostEditor.save")
             }
         }
-        .alert("Trust This Host?", isPresented: presenting(\.isConfirmingHostKey)) {
-            Button("Trust") { Task { await model.trustPresentedHostKey() } }
-            Button("Cancel", role: .cancel) { model.dismissPrompt() }
-        } message: {
+        .sheet(isPresented: presenting(\.isConfirmingHostKey)) {
             if case .confirmHostKey(let fingerprint) = model.phase {
-                Text("This is the first connection to \(model.address). It identifies itself with this key:\n\n\(fingerprint.description)\n\nTrust it only if it matches ssh-keygen -lf on that computer.")
+                HostTrustView(
+                    address: model.address, fingerprint: fingerprint,
+                    trust: { Task { await model.trustPresentedHostKey() } }, cancel: { model.dismissPrompt() })
             }
         }
-        .alert("Host Key Changed", isPresented: presenting(\.isHostKeyChanged)) {
-            Button("Trust New Key", role: .destructive) { Task { await model.trustPresentedHostKey() } }
-            Button("Cancel", role: .cancel) { model.dismissPrompt() }
+        // 指紋變了:只能停下來,沒有「信任新的」。要重新連,得刪掉這台主機再新增。
+        .alert("This Computer’s Identity Changed", isPresented: presenting(\.isHostKeyChanged)) {
+            Button("OK", role: .cancel) { model.dismissPrompt() }
         } message: {
             if case .hostKeyChanged(let presented, let pinned) = model.phase {
-                Text("This host now identifies itself with a different key. Reinstalling or resetting it does this, and so does someone intercepting the connection. If you didn’t reinstall or reset it, stop.\n\nPresented key:\n\(presented.description)\n\nSaved key:\n\(pinned.description)")
+                Text("Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n\(presented.description)\n\nKey you trusted:\n\(pinned.description)")
             }
         }
         .alert("Add This Device’s Key?", isPresented: presenting(\.isConfirmingKeyInstall)) {

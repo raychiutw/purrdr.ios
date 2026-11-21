@@ -55,7 +55,7 @@ struct WindowsHostPathTests {
             == #"C:\Users\demo\.claude\projects\C--work\abc"#)
     }
 
-    @Test("圖片上傳：主機回 C:\\…\\.purrdr\\uploads\\<檔名> 就是成功")
+    @Test("圖片上傳：主機回 C:\\…\\<資料夾>\\<檔名> 就是成功")
     func imageUploadPath() async throws {
         let name = HostUploadName("m3x-abc.jpg")!
         let path = #"C:\Users\Demo User\.purrdr\uploads\m3x-abc.jpg"#

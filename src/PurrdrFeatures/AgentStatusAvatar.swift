@@ -44,26 +44,30 @@ struct AgentStatusAvatar: View {
 /// 狀態符號：列背景色的圓底，裡面是狀態的形狀與顏色。
 private struct StatusBadge: View {
     let status: AgentStatus
+    // 狀態符號與頭像一起隨字級放大(#314:固定字級會被稽核判為 Dynamic Type 不支援)。
+    @ScaledMetric(relativeTo: .subheadline) private var symbolSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .subheadline) private var frameSize: CGFloat = 14
 
     var body: some View {
         Image(systemName: status.symbol)
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: symbolSize, weight: .semibold))
             .foregroundStyle(status.tone.style)
-            .frame(width: 14, height: 14)
+            .frame(width: frameSize, height: frameSize)
             .padding(2)
             .background(.listRowSurface, in: Circle())
-            // 頭像固定大小，狀態跟著頭像，不隨字級放大。
-            .dynamicTypeSize(...DynamicTypeSize.large)
     }
 }
 
 /// 只有終端機的 Tab:中性底色的終端機符號，大小與 Agent 種類頭像相同。
 private struct TerminalAvatar: View {
+    @ScaledMetric(relativeTo: .subheadline) private var symbolSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = AgentKindAvatar.baseSide
+
     var body: some View {
         Image(systemName: "terminal")
-            .font(.system(size: 16, weight: .semibold))
+            .font(.system(size: symbolSize, weight: .semibold))
             .foregroundStyle(.white)
-            .frame(width: 36, height: 36)
+            .frame(width: side, height: side)
             .background(RoundedRectangle(cornerRadius: 10).fill(AgentKindAvatarStyle(kind: .unknown("")).palette.color))
     }
 }
