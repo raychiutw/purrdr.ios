@@ -45,14 +45,8 @@ struct BlockedPromptView: View {
             if let details = prompt.details {
                 PromptDetailsView(details: details)
             }
-            if model.isReadOnly {
-                // 唯讀裝置(#60):不顯示選項，說明到主機或可寫入的裝置回答。
-                Label("This device is paired read-only. Answer on the host or from a device that can send.", systemImage: "lock")
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("prompt.readOnly")
-            } else {
+            // 唯讀裝置(#60)不顯示選項;說明只在頂部橫幅(#349,同一資訊只出現一處)。
+            if !model.isReadOnly {
                 choices(prompt)
             }
             if let notice = model.answerNotice {
@@ -107,14 +101,7 @@ struct BlockedPromptView: View {
             Text("Couldn’t read the choices. These send common answers; check the terminal if you’re not sure.")
                 .font(.subheadline)
                 .foregroundStyle(.secondaryText)
-            if let update = model.screenUpdateRequiredMessage {
-                // HTTPS 主機的主機服務太舊、讀不了畫面(#303):說明更新後才看得到選項。
-                Label(update, systemImage: "arrow.down.circle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("prompt.hostServiceUpdate")
-            }
+            // 主機服務太舊、讀不了畫面(#303)的說明只在頂部橫幅(#349)。
             VStack(spacing: 8) {
                 answerButton(.generic(.confirm), title: String(localized: "Confirm (Return)"), identifier: "prompt.generic.confirm")
                 answerButton(.generic(.one), title: String(localized: "Choose 1"), identifier: "prompt.generic.one")

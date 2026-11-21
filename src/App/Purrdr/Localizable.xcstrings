@@ -637,6 +637,17 @@
         }
       }
     },
+    "%lld subagents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個子 Agent"
+          }
+        }
+      }
+    },
     "%lld tool calls" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -816,6 +827,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個步驟"
+          }
+        }
+      }
+    },
+    "1 subagent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個子 Agent"
           }
         }
       }
@@ -1601,6 +1623,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "返回編輯"
+          }
+        }
+      }
+    },
+    "Background Agents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景子 Agent"
           }
         }
       }
@@ -4447,17 +4480,6 @@
         }
       }
     },
-    "Hides the background agents" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隱藏背景 Agent"
-          }
-        }
-      }
-    },
     "Hides the messages from while you were away" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6250,6 +6272,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有可恢復的購買項目"
+          }
+        }
+      }
+    },
+    "Nothing to show yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前沒有內容。"
           }
         }
       }
@@ -8751,17 +8784,6 @@
         }
       }
     },
-    "Show Context and Todos" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示 Context 與待辦"
-          }
-        }
-      }
-    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8802,6 +8824,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示 Spaces"
+          }
+        }
+      }
+    },
+    "Show Status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示狀態"
           }
         }
       }
@@ -10661,17 +10694,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置配對成唯讀，不能更新主機服務或變更自動更新。"
-          }
-        }
-      }
-    },
-    "This device is paired read-only. Answer on the host or from a device that can send." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這支裝置以唯讀方式配對。請在主機上，或用可以送出的裝置回答。"
           }
         }
       }

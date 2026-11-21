@@ -22,14 +22,15 @@ struct ConversationProgressTests {
         #expect(setup.model.header.progressText == "37%")
     }
 
-    @Test("有 TodoWrite：副標尾端「37% · Todos 1/3」，待辦清單依序列出完成與未完成")
+    @Test("有 TodoWrite：頂列只有 context「37%」，待辦只在狀態 sheet 的清單(依序列出完成與未完成)")
     func headerShowsTodos() async throws {
         let setup = try ConversationModelTests.setup(transcript: ConversationModelTests.fixture + Data(Self.todoLine.utf8))
         await setup.host.bridge.expect(ConversationModelTests.bridge, reply: ConversationModelTests.snapshot())
 
         await setup.model.poll()
 
-        #expect(setup.model.header.progressText == "37% · Todos 1/3")
+        #expect(setup.model.header.progressText == "37%")
+        #expect(setup.model.statusSummary.sheet.progress.todos.map(\.status) == [.completed, .inProgress, .pending])
         #expect(setup.model.progress.todos.map(\.text) == ["寫測試", "改實作", "收尾"])
     }
 

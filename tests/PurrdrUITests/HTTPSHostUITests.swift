@@ -60,7 +60,7 @@ final class HTTPSHostUITests: XCTestCase {
 
         let card = app.descendants(matching: .any)["prompt.card"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "沒有提示卡")
-        XCTAssertTrue(app.descendants(matching: .any)["prompt.readOnly"].firstMatch.exists, "提示卡沒有說明唯讀")
+        XCTAssertFalse(app.descendants(matching: .any)["prompt.readOnly"].firstMatch.exists, "提示卡不該再重複說明唯讀(只在橫幅，#349)")
         XCTAssertFalse(app.descendants(matching: .any)["prompt.option.1"].firstMatch.exists, "唯讀裝置不應該有回答選項")
         // 唯讀只在頂部浮動橫幅說明一次(#348):輸入列不再重複，橫幅浮在內容上(不貼齊螢幕邊緣)。
         let banners = app.descendants(matching: .any).matching(identifier: "conversation.banner")

@@ -68,6 +68,18 @@ struct StopBar: View {
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("conversation.working")
+            // 背景子 Agent 併進這顆膠囊(#349):點了開狀態 sheet 看清單。
+            if let count = model.statusSummary.working?.runningBackgroundAgents, count > 0 {
+                Button { model.showsStatusSheet = true } label: {
+                    Text(count == 1 ? String(localized: "1 subagent") : String(localized: "\(count) subagents"))
+                        .monospacedDigit()
+                        .frame(minHeight: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint(Text("Shows the background agents"))
+                .accessibilityIdentifier("stopBar.subagents")
+            }
         }
         .font(.footnote)
         .foregroundStyle(Color.primary)
