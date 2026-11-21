@@ -5,8 +5,8 @@ import SwiftUI
 /// 新增／編輯主機(行為規格 F1.2、§8.2、§8.3;HIG 檢核 20.3)。
 ///
 /// 儲存前必須通過連線測試;第一次連線以 alert 確認 host key 指紋;herdr 過舊時確認後更新。
-/// OpenSSH 主機可用這支裝置的金鑰、匯入的私鑰或密碼登入;公鑰與加入指令在同一個 sheet 內 push。
-/// 順序(#250):名稱 → 圖示 → 連線方式(卡片單選)→ 選了才出現該方式的欄位;輸入值一律靠左。
+/// OpenSSH 主機可用這支裝置的金鑰(三步在同一頁)、匯入的私鑰或密碼登入。
+/// 順序(#346):名稱與圖示(最上面)→ 連線方式(勾選列)→ 位址／Port／帳號 → 登入方式 → 進階 → 測試連線;輸入值一律靠左。
 /// HTTPS 主機填位址、Port 與配對碼;配對碼旁的掃描鈕開 app 內相機掃主機配對指令的 QR code。
 struct HostEditorView: View {
     @State private var model: HostEditorModel
@@ -92,7 +92,9 @@ struct HostEditorView: View {
                 if model.connectionFields.contains(.advanced) {
                     advancedSection
                 }
+            }
 
+            if model.connectionMethod != nil {
                 Section {
                     testStatus
                 } footer: {
@@ -386,7 +388,7 @@ struct HostEditorView: View {
             Group {
                 switch model.authentication {
                 case .deviceKey:
-                    Text("The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first.")
+                    Text("The key is created in this device’s Secure Enclave, and the private key never leaves it. Follow the steps above to let this device in.")
                 case .importedKey:
                     Text("Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys and keys protected by a passphrase aren’t supported. The key is kept in this device’s keychain.")
                 case .password:
@@ -400,6 +402,20 @@ struct HostEditorView: View {
     @ViewBuilder
     private var deviceKeyRows: some View {
         if let publicKey = model.devicePublicKey {
+            // 金鑰三步在同一頁(#346):打開終端機、貼上指令、回來測試連線。
+            ForEach(Array(model.deviceKeySteps.enumerated()), id: \.offset) { index, step in
+                HStack(alignment: .top, spacing: 12) {
+                    Text(verbatim: "\(index + 1)")
+                        .font(.footnote.bold())
+                        .foregroundStyle(.onProminentFill)
+                        .frame(width: 26, height: 26)
+                        .background(.prominentFill, in: .circle)
+                        .accessibilityHidden(true)
+                    InstructionView(instruction: step)
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("hostEditor.keyStep.\(index + 1)")
+            }
             NavigationLink {
                 DevicePublicKeyView(publicKey: publicKey, username: model.username)
             } label: {

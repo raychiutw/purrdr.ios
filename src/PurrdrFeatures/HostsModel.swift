@@ -620,7 +620,7 @@ public final class HostsModel {
     /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。`method`:新增時預選的連線方式。
     public func makeEditor(editing: HostConfiguration? = nil, method: HostConfiguration.ConnectionMethod? = nil) -> HostEditorModel {
         let editor = HostEditorModel(
-            store: store, editing: editing, credentials: credentials, hostService: hostService, consent: hostConsent,
+            store: store, editing: editing, credentials: credentials, hostService: hostService,
             icon: editing.map { icon(for: $0.id) } ?? .default, saveIcon: setIcon(_:for:), makeChannel: makeChannel)
         if editing == nil, let method { editor.connectionMethod = method }
         return editor
@@ -665,11 +665,11 @@ public final class HostsModel {
         if HostServicePairingLink.isPairingLink(url) {
             return HostEditorModel(
                 store: store, pairing: try HostServicePairingLink(url: url), credentials: credentials, hostService: hostService,
-                consent: hostConsent, saveIcon: setIcon(_:for:), makeChannel: makeChannel)
+                saveIcon: setIcon(_:for:), makeChannel: makeChannel)
         }
         return HostEditorModel(
             store: store, importing: try HostShareLink.decode(url), credentials: credentials, hostService: hostService,
-            consent: hostConsent, saveIcon: setIcon(_:for:), makeChannel: makeChannel)
+            saveIcon: setIcon(_:for:), makeChannel: makeChannel)
     }
 
     // MARK: - 連線韌性(行為規格 §7.4、§7.5)

@@ -2929,17 +2929,6 @@
         }
       }
     },
-    "Couldn’t add the key on the host. %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法在主機上加入公鑰。%@"
-          }
-        }
-      }
-    },
     "Couldn’t ask herdr about plugins. Make sure herdr is running on the host. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6705,6 +6694,39 @@
         }
       }
     },
+    "On Windows, if this account is an administrator, open PowerShell as an administrator and paste this line instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Windows 上，如果這個帳號是系統管理員，請以系統管理員身分打開 PowerShell，改貼上這一行。"
+          }
+        }
+      }
+    },
+    "On Windows, paste this line instead and press Enter." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Windows 上，改貼上這一行，然後按 Enter。"
+          }
+        }
+      }
+    },
+    "On a Mac or Linux, paste this line and press Enter." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Mac 或 Linux 上，貼上這一行，然後按 Enter。"
+          }
+        }
+      }
+    },
     "On that computer, install Tailscale and sign in with the same account." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6756,6 +6778,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在那台電腦打開終端機，貼上這行，按 Enter。"
+          }
+        }
+      }
+    },
+    "On that computer, open Terminal. On Windows, open PowerShell." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開「終端機」。Windows 請打開 PowerShell。"
           }
         }
       }
@@ -10566,13 +10599,13 @@
         }
       }
     },
-    "The key is created in this device’s Secure Enclave, and the private key never leaves it. Add its public key to the host first." : {
+    "The key is created in this device’s Secure Enclave, and the private key never leaves it. Follow the steps above to let this device in." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "金鑰在這支裝置的 Secure Enclave 裡產生，私鑰永遠不會離開它。請先把它的公鑰加到主機上。"
+            "value" : "金鑰在這支裝置的 Secure Enclave 內產生，私鑰不會離開裝置。照上面的步驟讓這支裝置登入。"
           }
         }
       }

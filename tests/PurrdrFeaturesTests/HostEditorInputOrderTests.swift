@@ -4,7 +4,8 @@ import PurrdrFeatures
 import PurrdrTestSupport
 import Testing
 
-/// 主機編輯頁的輸入欄位順序(#312):return 依畫面順序跳到下一個顯示中的欄位，最後一個收起鍵盤。
+/// 主機編輯頁的輸入欄位順序(#312、#346):名稱 → 位址／Port／帳號 → 登入方式 → 進階;
+/// return 依畫面順序跳到下一個顯示中的欄位，最後一個收起鍵盤。
 @MainActor
 @Suite("主機編輯頁：輸入欄位順序")
 struct HostEditorInputOrderTests {
@@ -30,7 +31,7 @@ struct HostEditorInputOrderTests {
     }
 
     @Test(
-        "OpenSSH 依登入方式：密碼欄、私鑰欄;這支裝置的金鑰還沒載入時沒有加入公鑰的密碼欄",
+        "OpenSSH 依登入方式：密碼欄、私鑰欄;這支裝置的金鑰沒有輸入欄(金鑰三步只有指令與按鈕)",
         arguments: [
             (.password, [.name, .address, .port, .username, .password]),
             (.importedKey, [.name, .address, .port, .username, .privateKey]),
@@ -46,8 +47,8 @@ struct HostEditorInputOrderTests {
         #expect(model.inputFields(showsAdvanced: false) == expected)
     }
 
-    @Test("這支裝置的金鑰載入後：加入公鑰的密碼欄在帳號之後")
-    func keyInstallPasswordAfterDeviceKeyLoads() async {
+    @Test("這支裝置的金鑰載入後：仍沒有輸入欄，不再有用密碼加入公鑰的密碼欄(#346)")
+    func deviceKeyHasNoInputAfterLoading() async {
         let model = HostEditorModel(
             store: MemoryHostStore(),
             credentials: HostCredentials(secrets: MemorySecretStore(), deviceKey: EphemeralDeviceKey(comment: "purrdr@iPhone")),
@@ -56,7 +57,7 @@ struct HostEditorInputOrderTests {
         model.authentication = .deviceKey
         await model.loadDeviceKey()
 
-        #expect(model.inputFields(showsAdvanced: false) == [.name, .address, .port, .username, .keyInstallPassword])
+        #expect(model.inputFields(showsAdvanced: false) == [.name, .address, .port, .username])
     }
 
     @Test("return 的去向：有下一個欄位就到下一個，最後一個是 nil(收起鍵盤)")
