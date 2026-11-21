@@ -394,25 +394,25 @@ public struct ConversationView: View {
             }
         case .waitingForSession:
             ContentUnavailableView {
-                Label("Waiting for the Session", systemImage: "hourglass")
+                Label("Getting Ready", systemImage: "hourglass")
             } description: {
                 if model.agentKind == "codex" {
-                    Text("Codex reports its session after you send the first message. Its messages appear here once it does.")
+                    Text("Its messages appear here after you send the first message.")
                 } else {
-                    Text("The agent hasn’t reported which session it’s in yet. Its messages appear here once it does.")
+                    Text("Waiting for the agent to get ready. Its messages appear here soon.")
                 }
             }
         case .missingSession:
             ContentUnavailableView {
                 Label("Can’t Identify This Chat", systemImage: "questionmark.bubble")
             } description: {
-                Text("The agent didn’t report its session, so its messages can’t be told apart from other chats in the same folder. Make sure the herdr integration for this agent is installed; it reports the session when one starts.")
+                Text("This chat can’t be shown yet. Update this agent’s herdr integration on the host, then open the chat again.")
             }
         case .unsupported:
             ContentUnavailableView {
                 Label("Chat History Isn’t Available", systemImage: "terminal")
             } description: {
-                Text("This agent’s transcript can’t be read yet. Use the host’s terminal to see it.")
+                Text("This agent’s chat can’t be shown yet. Use the terminal to see it.")
             }
         case .agentGone:
             ContentUnavailableView {
@@ -495,10 +495,10 @@ extension ConversationModel.Banner {
     var text: LocalizedStringKey {
         switch self {
         case .offline: "Offline — showing the last loaded conversation."
-        case .unreadable: "Can’t read this chat’s transcript on the host. Check the file’s permissions."
+        case .unreadable: "Couldn’t open this chat’s record on the host."
         case .readFailed: "Couldn’t update the conversation. Retrying…"
-        case .ambiguous: "More than one transcript matches this chat’s session, so none is shown."
-        case .compressed: "Codex compressed this chat’s transcript, so it can’t be shown here. Open the chat on the host to see it."
+        case .ambiguous: "More than one saved chat matches this one, so none is shown."
+        case .compressed: "Codex shortened this chat, so it can’t be shown here. Open the chat on the host to see it."
         }
     }
 

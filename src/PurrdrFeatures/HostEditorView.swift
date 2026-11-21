@@ -113,7 +113,7 @@ struct HostEditorView: View {
                     Text("Host Key")
                         .foregroundStyle(.secondaryText)
                 } footer: {
-                    Text("To compare, run ssh-keygen -lf on a host key file on that computer.")
+                    Text("To compare, run this on that computer: ssh-keygen -lf <host key file>")
                         .foregroundStyle(.secondaryText)
                 }
             }
@@ -203,7 +203,7 @@ struct HostEditorView: View {
         } message: {
             if case .needsUpdate(let version) = model.phase {
                 if model.canUpdateHerdr {
-                    Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Purrdr will update herdr as \(model.username)@\(model.address).")
+                    Text("herdr on this host is \(version.description); Purrdr needs \(HerdrVersion.minimumSupported.description) or newer. Purrdr will update it, signed in as \(model.username)@\(model.address).")
                 } else {
                     Text("This host has herdr \(version.description). Purrdr needs \(HerdrVersion.minimumSupported.description) or later. Update herdr on the host, then test the connection again.")
                 }
@@ -276,7 +276,7 @@ struct HostEditorView: View {
             field("Port", text: $model.port, prompt: method.usesHostService ? "443" : "22", identifier: "port", focus: .port)
                 .numberKeyboard()
             if model.connectionFields.contains(.username) {
-                field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username", focus: .username)
+                field("Account Name", text: $model.username, prompt: "Your account on that computer", identifier: "username", focus: .username)
                     .usernameContent()
             }
         } header: {
@@ -292,12 +292,12 @@ struct HostEditorView: View {
     private func connectionFooter(_ method: HostConfiguration.ConnectionMethod) -> some View {
         switch method {
         case .tailscaleSSH:
-            Text("Tailscale checks who you are on your tailnet, so no key or password is needed.")
+            Text("Tailscale knows it’s you, so no password or key is needed.")
         case .openSSH:
             EmptyView()
         case .https:
             VStack(alignment: .leading, spacing: 8) {
-                Text("Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS.")
+                Text("On the host, install the Purrdr host service and run purrdr-host-service pair. Then scan the QR code it shows. Login Shell and Files aren’t available this way.")
                 Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
                     .accessibilityIdentifier("hostEditor.hostServiceGuide")
             }
@@ -388,11 +388,11 @@ struct HostEditorView: View {
             Group {
                 switch model.authentication {
                 case .deviceKey:
-                    Text("The key is created in this device’s Secure Enclave, and the private key never leaves it. Follow the steps above to let this device in.")
+                    Text("The key stays on this device and never leaves it. Follow the steps above to let this device in.")
                 case .importedKey:
-                    Text("Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys and keys protected by a passphrase aren’t supported. The key is kept in this device’s keychain.")
+                    Text("Paste the private key file you use to sign in to that computer. Keys with a passphrase aren’t supported. The key stays on this device.")
                 case .password:
-                    Text("The password is kept in this device’s keychain.")
+                    Text("The password stays on this device.")
                 }
             }
             .foregroundStyle(.secondaryText)
@@ -445,7 +445,7 @@ struct HostEditorView: View {
                     .accessibilityIdentifier("hostEditor.replaceKey")
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("OpenSSH private key, \(model.privateKeyText.split(whereSeparator: \.isNewline).count) lines")
+                    Text("Private key, \(model.privateKeyText.split(whereSeparator: \.isNewline).count) lines")
                     Text(verbatim: publicKey.fingerprint.description)
                         .font(.footnote.monospaced())
                         .foregroundStyle(.secondaryText)
@@ -548,7 +548,7 @@ struct HostEditorView: View {
             case .restartServerRequired:
                 // Windows 沒有 live handoff:更新只換了執行檔。
                 Label {
-                    Text("herdr is updated. Restart the herdr server on this host to use the new version, then test the connection again.")
+                    Text("herdr is updated. Restart herdr on this host to use the new version, then test the connection again.")
                 } icon: {
                     Image(systemName: "arrow.clockwise.circle.fill").foregroundStyle(.orange)
                 }
@@ -628,7 +628,7 @@ extension HostConfiguration.ConnectionMethod {
     var summary: LocalizedStringKey {
         switch self {
         case .tailscaleSSH: "Tailscale confirms who you are. No password or key needed."
-        case .openSSH: "Sign in to the host’s own SSH server with a key or password."
+        case .openSSH: "Sign in to the host with a password or key."
         case .https: "Pair with the Purrdr host service. Login Shell and Files aren’t available."
         }
     }

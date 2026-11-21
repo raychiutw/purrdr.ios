@@ -70,7 +70,7 @@ public struct NewChatView: View {
                 } footer: {
                     if !model.canBrowseFolders {
                         // HTTPS 主機沒有資料夾瀏覽(#287)。
-                        Text("Enter the folder’s full path on the host.")
+                        Text("Type the folder’s location on the host.")
                             .accessibilityIdentifier("newChat.fullPathHint")
                     }
                 }

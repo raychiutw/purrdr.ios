@@ -97,7 +97,7 @@ public final class CodexLauncherModel {
     static func describe(_ error: any Error) -> String {
         switch error {
         case CodexLauncherError.codexAlreadyThere:
-            String(localized: "~/.local/bin/codex already exists on this host, so Purrdr left it unchanged.")
+            String(localized: "A Codex launcher that Purrdr didn’t add is already on this host, so Purrdr left it unchanged.")
         case HostFilesError.changedSinceRead:
             String(localized: "Files on the host changed while Purrdr was updating them. Nothing was changed; try again.")
         default:

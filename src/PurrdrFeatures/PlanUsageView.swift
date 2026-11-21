@@ -120,7 +120,7 @@ public struct PlanUsageView: View {
         case .unsupportedConnection:
             PlanUsageMessage(
                 systemImage: "nosign", title: "Plan usage isn’t available for this connection method",
-                detail: "\(hostName) connects over HTTPS. Choose an SSH host to check plan usage.")
+                detail: "\(hostName) can’t show plan usage. Choose another host.")
         case .failed(let failure):
             PlanUsageMessage(
                 systemImage: "exclamationmark.triangle", title: "Couldn’t check \(hostName)", detail: "\(failure.text) Pull down to try again.")
@@ -209,12 +209,7 @@ public struct PlanUsageView: View {
 
     private var consentMessage: String {
         guard case .confirming(let user) = model.state else { return "" }
-        return String(localized: """
-            Claude Code shares plan usage only with its status line. To show it here, Purrdr will change \
-            ~/.claude/settings.json on this host as the user “\(user)”: the status line command becomes \
-            ~/.purrdr/claude-usage/statusline.sh, which saves the usage and then runs your current status line. \
-            Turning this off restores your original settings.
-            """)
+        return String(localized: "To show plan usage, Purrdr changes one Claude Code setting on this host (signed in as \(user)). Turning this off puts it back.")
     }
 }
 
@@ -223,9 +218,9 @@ extension PlanUsageFailure {
     var text: String {
         switch self {
         case .codexNotFound:
-            String(localized: "This host can’t find Codex. Install Codex on the host, or make sure it’s on the PATH.")
+            String(localized: "This host can’t find Codex. Install Codex there first.")
         case .codexNotSignedIn:
-            String(localized: "Codex isn’t signed in with ChatGPT on this host. Run codex login on the host first.")
+            String(localized: "Codex isn’t signed in on this host. On the host, run: codex login")
         case .codexUnreadableResponse:
             String(localized: "Purrdr couldn’t read Codex’s answer. Updating Codex on the host may help.")
         case .codexTimedOut:

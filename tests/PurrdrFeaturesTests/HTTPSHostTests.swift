@@ -515,7 +515,7 @@ struct HTTPSDeviceTokenRejectionTests {
         let notOnTailnet = HostErrorText.message(for: HostServiceError.notOnTailnet)
         let hostOffline = HostErrorText.message(for: HostServiceError.unreachable)
 
-        #expect(notOnTailnet == String(localized: "This device isn’t connected to your tailnet. Turn on Tailscale on this device, then try again."))
+        #expect(notOnTailnet == String(localized: "Tailscale is off on this device. Turn it on, then try again."))
         #expect(hostOffline == String(localized: "The host didn’t answer. Make sure it’s awake and connected to Tailscale."))
     }
 

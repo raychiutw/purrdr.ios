@@ -33,7 +33,7 @@ struct MultiHostTests {
     static let bridge = HerdrCommand.bridge()
     /// 錄製 snapshot 裡的 session(兩台主機都回同一份錄製，所以 pane id 與 session 都相同)。
     static let sessionA = "00000000-0000-0000-0000-000000000002"
-    static let timedOut = "The host didn’t answer in time. Make sure it’s awake and both devices are on your tailnet."
+    static let timedOut = "The host didn’t answer in time. Make sure it’s awake and Tailscale is on for both devices."
 
     static func model(
         _ channels: ChannelsByAddress, preferences: any HostChatPreferencesStore = InMemoryHostChatPreferencesStore(),

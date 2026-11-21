@@ -30,14 +30,14 @@ public struct WelcomeView: View {
 
                 Section {
                     requirement(
-                        "A Host Running herdr", systemImage: "desktopcomputer", id: "host",
-                        detail: "A Mac, Linux, or Windows host with your agents running in herdr 0.9.5 or later.")
+                        "A Host Running Your Agents", systemImage: "desktopcomputer", id: "host",
+                        detail: "A Mac, Linux, or Windows host with your agents running in herdr.")
                     requirement(
                         "SSH Access", systemImage: "lock.shield", id: "ssh",
-                        detail: "Tailscale SSH needs no keys or passwords. With OpenSSH, Purrdr makes a key on this iPhone or iPad for you to add to the host.")
+                        detail: "Tailscale needs no password or key. Otherwise, Purrdr makes a key on this iPhone or iPad for you to add to the host.")
                     requirement(
                         "Notifications Are Optional", systemImage: "bell.badge", id: "notifications",
-                        detail: "With Purrdr Plus, a small host plugin tells you when an agent needs you. Chat and the terminal work without it.")
+                        detail: "With Purrdr Plus, a small helper on your host tells you when an agent needs you. Chat and the terminal work without it.")
                 } header: {
                     Text("What You Need")
                         .foregroundStyle(.secondaryText)

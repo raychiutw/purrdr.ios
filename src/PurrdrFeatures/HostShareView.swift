@@ -34,7 +34,7 @@ struct HostShareView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
             } footer: {
-                Text("Includes the address, user name, herdr settings, and host key fingerprint. Passwords and private keys are never shared.")
+                Text("Includes the address and account. Passwords and keys are never shared.")
                     .foregroundStyle(.secondaryText)
             }
             Section {

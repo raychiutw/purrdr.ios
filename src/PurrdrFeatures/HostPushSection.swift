@@ -34,7 +34,7 @@ struct HostPushSection: View {
             Text("Notifications")
                 .foregroundStyle(.secondaryText)
         } footer: {
-            Text("Purrdr adds a small herdr plugin to each host you turn on. When an agent needs you, the host tells Purrdr’s server, which notifies this device. Notifications show only the workspace name — never what the agent said. Notifications from Windows hosts are best-effort.")
+            Text("Purrdr adds a small helper to each host you turn on. When an agent needs you, this device gets a notification. Notifications show only the workspace name, never what the agent said. On Windows hosts, notifications may be delayed.")
                 .foregroundStyle(.secondaryText)
         }
     }
@@ -130,9 +130,9 @@ struct HostPushRow: View {
                 } else if model.otherDevices > 0 {
                     Text("Off · Other devices here: \(model.otherDevices)")
                 } else if push.installsViaHostService {
-                    Text("Off · Installs via the host service")
+                    Text("Off")
                 } else {
-                    Text("Off · Installs over SSH")
+                    Text("Off")
                 }
             }
         }
@@ -324,7 +324,7 @@ struct PushProblemRow: View {
             HostServicePushUpdateRow(update: update)
                 .accessibilityIdentifier("settings.push.problem")
         case .deviceIDUnavailable:
-            Label("Couldn’t read this device’s ID from the keychain. Unlock this device and try again.", systemImage: "lock")
+            Label("Couldn’t read this device’s ID. Unlock this device and try again.", systemImage: "lock")
                 .accessibilityIdentifier("settings.push.problem")
         case .failed(let message), .mutedSyncFailed(let message), .kindsUpdateFailed(let message):
             Label { Text(verbatim: message) } icon: { Image(systemName: "exclamationmark.triangle") }
@@ -375,16 +375,16 @@ extension View {
         } message: { push in
             if push.installsViaHostService {
                 if push.model.pluginAlreadyInstalled {
-                    Text("The Purrdr plugin is already on this host. The host service will save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing.")
+                    Text("The Purrdr notification helper is already on this host. The host service will add this device to it. Turning notifications off removes only this device.")
                 } else {
-                    Text("The host service will run “herdr plugin install” on this host as the user running the host service, and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off.")
+                    Text("The host service will install a small notification helper on this host. Turning notifications off removes only this device; the helper is removed when the last device turns off.")
                 }
             } else if push.model.pluginAlreadyInstalled {
                 let user = push.model.confirmingUser ?? ""
-                Text("The Purrdr plugin is already on this host. Purrdr will save a pairing key for this device in ~/.purrdr as \(user). Turning notifications off removes only this device’s pairing.")
+                Text("The Purrdr notification helper is already on this host. Purrdr will add this device to it, as \(user). Turning notifications off removes only this device.")
             } else {
                 let user = push.model.confirmingUser ?? ""
-                Text("Purrdr will run “herdr plugin install” on this host as \(user) and save a pairing key for this device in ~/.purrdr. Turning notifications off removes only this device’s pairing; the plugin is removed when the last device turns off.")
+                Text("Purrdr will install a small notification helper on this host, as \(user). Turning notifications off removes only this device; the helper is removed when the last device turns off.")
             }
         }
     }

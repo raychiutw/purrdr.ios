@@ -289,7 +289,7 @@ public final class HostUpdates {
         case is SSHConnectionError, is HostServiceError:
             phase = .failed(HostErrorText.message(for: error))
         default:
-            phase = .failed(String(localized: "Couldn’t read this host’s herdr status."))
+            phase = .failed(String(localized: "Couldn’t read this host’s status."))
         }
     }
 }

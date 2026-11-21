@@ -24,7 +24,7 @@ struct DevicePublicKeyView: View {
                 Text("Public Key")
                     .foregroundStyle(.secondaryText)
             } footer: {
-                Text("The private key stays in this device’s Secure Enclave and never leaves it. Add this public key to each host you sign in to.")
+                Text("The key stays on this device and never leaves it. Add its public key to each host you sign in to.")
                     .foregroundStyle(.secondaryText)
             }
 
@@ -81,14 +81,14 @@ extension AuthorizedKeyCommand.Platform {
     }
 
     func footer(username: String) -> String {
-        let user = username.isEmpty ? String(localized: "the user Purrdr signs in as") : username
+        let user = username.isEmpty ? String(localized: "the account Purrdr signs in as") : username
         return switch self {
         case .macOSAndLinux:
             String(localized: "Run this in Terminal on the host, signed in as \(user). On a Mac, also turn on Remote Login in System Settings › General › Sharing.")
         case .windows:
             String(localized: "Run this in PowerShell on the host, signed in as \(user).")
         case .windowsAdministrator:
-            String(localized: "If \(user) is an administrator, Windows OpenSSH reads this file instead. Run this in PowerShell as administrator.")
+            String(localized: "If \(user) is an administrator account, run this instead, in PowerShell opened as administrator.")
         }
     }
 }

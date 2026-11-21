@@ -310,7 +310,7 @@ package final class HostConnectionFlow {
                 wroteSecret = false
             }
         } catch {
-            phase = .failed(String(localized: "Couldn’t save this host’s password or key on this device. \(error.localizedDescription)"))
+            phase = .failed(String(localized: "Couldn’t save this host’s sign-in details on this device. \(error.localizedDescription)"))
             return nil
         }
         do {
@@ -332,7 +332,7 @@ package final class HostConnectionFlow {
             if let newToken { try hostService.tokens.setDeviceToken(newToken, for: host.id) }
             if existing != nil { try credentials.secrets.setSecret(nil, for: host.id) }
         } catch {
-            phase = .failed(String(localized: "Couldn’t save this host’s device token on this device. \(error.localizedDescription)"))
+            phase = .failed(String(localized: "Couldn’t save this host’s pairing on this device. \(error.localizedDescription)"))
             return nil
         }
         do {

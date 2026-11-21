@@ -167,7 +167,7 @@ public final class HostServiceStatusModel {
         case HostServiceManagementError.updateInProgress:
             String(localized: "An update of the host service is already in progress.")
         case HostServiceManagementError.updateFailed:
-            String(localized: "The host couldn’t start the update. Check that it can reach GitHub, then try again.")
+            String(localized: "The host couldn’t start the update. Make sure it’s online, then try again.")
         case HostServiceManagementError.notInstalledCopy:
             String(localized: "This host service isn’t the installed copy, so it can’t be managed from Purrdr.")
         default:

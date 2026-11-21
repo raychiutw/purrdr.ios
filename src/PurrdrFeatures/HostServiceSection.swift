@@ -102,7 +102,7 @@ struct HostServiceSection: View {
             outcome(Text("Updated to \(version)."), symbol: "checkmark.circle.fill", tint: .tint)
         case .rolledBack(let version, let runningVersion):
             outcome(
-                Text("\(version) didn’t start, so the host put \(runningVersion) back."), symbol: "arrow.uturn.backward.circle.fill",
+                Text("\(version) didn’t start, so \(runningVersion) was put back."), symbol: "arrow.uturn.backward.circle.fill",
                 tint: .orange)
         case .upToDate(let version):
             outcome(Text("Already up to date (\(version))."), symbol: "checkmark.circle.fill", tint: .tint)

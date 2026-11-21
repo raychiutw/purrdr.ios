@@ -188,7 +188,7 @@ public struct DataUsageView: View {
 
     private var footnote: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Counts only data sent and received between Purrdr and your hosts over SSH or HTTPS — not other programs on your host.")
+            Text("Counts only the data Purrdr sends to and receives from your hosts.")
             if let since = model.countingSince {
                 Text("Stored on this device only, counting since \(since.formatted(date: .abbreviated, time: .omitted)).")
             } else {

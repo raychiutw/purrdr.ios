@@ -446,7 +446,7 @@ extension View {
 /// Shell 模式提示(F6.4):Claude 聊天的草稿以 `!` 開頭時，說明這會在 agent 的 shell 執行，不會送給 Claude。
 struct ShellModeHint: View {
     var body: some View {
-        Label("This runs in the agent’s shell and won’t be sent to Claude.", systemImage: "terminal")
+        Label("This runs on the host and won’t be sent to Claude.", systemImage: "terminal")
             .font(.footnote)
             .foregroundStyle(.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -534,7 +534,7 @@ extension SendNotice {
         case .noResponse: String(localized: "The agent didn’t pick up the message. It may be stuck on a prompt; check the terminal, then try again.")
         case .unconfirmed(.connectionLost): String(localized: "The connection dropped while sending. The message may have arrived; check the chat before sending again.")
         case .unconfirmed(.mayBeInTerminal): String(localized: "Couldn’t confirm delivery. The message may be stuck in the terminal.")
-        case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
+        case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but Codex hasn’t confirmed it yet. Check the host before trying again.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .attachmentLimit: String(localized: "You can attach up to 10 items to a message.")

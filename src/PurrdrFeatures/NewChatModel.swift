@@ -255,9 +255,9 @@ public final class NewChatModel {
     package static func message(for error: any Error) -> String {
         switch error {
         case NewChatFolderError.notFound, HerdrError.herdr(code: "folder_not_found", _):
-            String(localized: "There’s no such folder on the host. Check the path, or choose a folder on the host.")
+            String(localized: "There’s no such folder on the host. Check the location, or choose a folder on the host.")
         case NewChatFolderError.absolutePathRequired:
-            String(localized: "Enter the folder’s full path on the host, like /Users/you/project. This host can’t browse folders.")
+            String(localized: "Type the folder’s location on the host, like /Users/you/project. This host can’t show a folder list.")
         case NewChatFolderError.unexpectedResponse, NewChatFolderError.failed:
             FolderPickerModel.message(for: error)
         case TranscriptReadError.absent:
@@ -267,7 +267,7 @@ public final class NewChatModel {
         case HerdrError.herdr(_, let message):
             message
         case HerdrError.noResponse, HerdrError.malformedResponse, HerdrError.deadlineExceeded:
-            String(localized: "Couldn’t reach herdr on this host.")
+            String(localized: "Couldn’t reach your agents on this host. Make sure herdr is running there.")
         default:
             HostErrorText.message(for: error)
         }

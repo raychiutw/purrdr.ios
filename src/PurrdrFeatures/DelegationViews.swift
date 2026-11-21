@@ -321,13 +321,13 @@ struct SubagentScreen: View {
                 ContentUnavailableView {
                     Label("Starting", systemImage: "hourglass")
                 } description: {
-                    Text("The subagent’s transcript appears here once it starts writing.")
+                    Text("The subagent’s messages appear here once it starts.")
                 }
             case .notOnHost:
                 ContentUnavailableView {
                     Label("Not on This Host", systemImage: "questionmark.folder")
                 } description: {
-                    Text("This subagent’s transcript isn’t on this host.")
+                    Text("This subagent’s messages aren’t on this host.")
                 }
             case .unavailable(let reason):
                 ContentUnavailableView {

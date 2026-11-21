@@ -33,9 +33,9 @@ struct HostServiceUpdateView: View {
 
     private var explanation: Text {
         if commands.canUpdateItself {
-            Text("Purrdr host service \(version) is available for \(hostName). The host service updates itself automatically; to update now, run this on the host. Paired devices stay paired.")
+            Text("Purrdr host service \(version) is ready for \(hostName). To update now, run this on the host:")
         } else {
-            Text("Purrdr host service \(version) is available for \(hostName). This host runs \(commands.installedVersion), which can’t update itself: run the install command on the host once. From 0.5.0 on, the host service updates itself, or you can run purrdr-host-service update. Paired devices stay paired.")
+            Text("Purrdr host service \(version) is ready for \(hostName) (now \(commands.installedVersion)). Run the install command on the host once; after that it updates itself.")
         }
     }
 

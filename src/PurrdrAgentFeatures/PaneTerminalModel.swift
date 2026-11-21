@@ -231,8 +231,8 @@ public final class PaneTerminalModel: TerminalSessionModel {
             finish(.disconnected, generation: generation)
         case .failed(_, let message):
             finish(.unavailable(message.contains("command not found")
-                ? String(localized: "herdr isn’t installed on this host, or isn’t on its PATH.")
-                : (message.isEmpty ? String(localized: "herdr couldn’t open this pane.") : message)), generation: generation)
+                ? String(localized: "herdr isn’t installed on this host.")
+                : (message.isEmpty ? String(localized: "Couldn’t open this Pane.") : message)), generation: generation)
         }
     }
 

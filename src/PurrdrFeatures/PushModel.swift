@@ -538,7 +538,7 @@ public final class PushModel {
             try await installer.remove()
         } catch PushPluginError.pluginUninstallFailed(let message) {
             // 配對已移除(外掛沒有配對就什麼都不送),當成已關閉並說明。
-            problem = .failed(String(localized: "Notifications are off, but herdr couldn’t remove the Purrdr plugin: \(message)"))
+            problem = .failed(String(localized: "Notifications are off, but the notification helper couldn’t be removed: \(message)"))
         } catch {
             state = .on
             problem = Self.problem(for: error)
@@ -608,7 +608,7 @@ public final class PushModel {
         case BackendError.unreachable:
             describe(error)
         case is PushDeviceIDError:
-            String(localized: "Couldn’t read this device’s ID from the keychain. Unlock this device and try again.")
+            String(localized: "Couldn’t read this device’s ID. Unlock this device and try again.")
         default:
             String(localized: "Couldn’t change which notifications this host sends: \(error.localizedDescription)")
         }
@@ -629,9 +629,9 @@ public final class PushModel {
     static func describe(_ error: any Error) -> String {
         switch error {
         case PushPluginError.pluginInstallFailed(let message):
-            String(localized: "herdr couldn’t install the Purrdr plugin: \(message)")
+            String(localized: "Couldn’t install the notification helper: \(message)")
         case PushPluginError.pluginListFailed(let message):
-            String(localized: "Couldn’t ask herdr about plugins. Make sure herdr is running on the host. \(message)")
+            String(localized: "Couldn’t check notifications on this host. Make sure herdr is running there. \(message)")
         case HostServiceError.readOnlyDevice:
             String(localized: "This device is paired read-only with the host service, so it can’t turn on notifications there.")
         case BackendError.unreachable:

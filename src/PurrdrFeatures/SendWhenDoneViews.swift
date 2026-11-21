@@ -40,7 +40,7 @@ struct SendWhenDoneToggle: View {
         switch availability {
         case .available: ""
         case .needsHostService:
-            "Send When Done needs the Purrdr host service (0.7.0 or later) on this host. Hosts connected over SSH can’t use it."
+            "Send When Done needs the Purrdr host service on this host. Install or update it first."
         case .readOnlyDevice:
             "This device is paired read-only, so it can’t queue messages."
         }

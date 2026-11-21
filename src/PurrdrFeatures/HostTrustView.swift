@@ -18,7 +18,7 @@ struct HostTrustView: View {
                 }
                 Section {
                     DisclosureGroup("Details") {
-                        Text("This computer identifies itself with this key. To check it yourself, run ssh-keygen -lf on a host key file on that computer and compare.")
+                        Text("This computer is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>")
                             .foregroundStyle(.secondaryText)
                         Text(verbatim: fingerprint.description)
                             .font(.body.monospaced())
