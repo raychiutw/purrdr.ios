@@ -195,7 +195,13 @@ public final class AgentListModel {
         guard let readings = try? await transcripts.previewReadings(of: requests) else { return false }
         for request in requests {
             if let reading = readings[request.key] {
-                previews[request.key] = reading.preview ?? previews[request.key]
+                var preview = reading.preview
+                // 附加的部分沒帶 context 或待辦時沿用上次的(檔尾視窗不一定含 TodoWrite)。
+                if var fresh = preview, let older = previews[request.key]?.progress {
+                    fresh.progress = (fresh.progress ?? AgentProgress()).merging(over: older)
+                    preview = fresh
+                }
+                previews[request.key] = preview ?? previews[request.key]
                 previewVersions[request.key] = reading.version
             }
             previewSessions[request.key] = sessions[request.key]
@@ -248,6 +254,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     /// 已釘選、已靜音(標題後的小圖示)。
     public var isPinned: Bool
     public var isMuted: Bool
+    /// context 百分比與待辦進度(#307);讀不出時為 `nil`。
+    public var progress: AgentProgress?
 
     /// 主機身分 + pane id:不同主機的同一個 pane id 是不同的列(也是 UI 測試的 `agent.row.<id>`)。
     public var id: String { "\(host.storedValue)/\(paneID)" }
@@ -256,7 +264,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public init(
         host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, workspace: String? = nil, subtitle: String,
         hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
-        isUnread: Bool = false, isPinned: Bool = false, isMuted: Bool = false
+        isUnread: Bool = false, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil
     ) {
         self.host = host
         self.paneID = paneID
@@ -271,6 +279,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
         self.isUnread = isUnread
         self.isPinned = isPinned
         self.isMuted = isMuted
+        self.progress = progress
     }
 
     /// 預覽行(行為規格 F2.4)。

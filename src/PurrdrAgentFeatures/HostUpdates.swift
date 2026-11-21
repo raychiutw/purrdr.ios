@@ -65,6 +65,9 @@ public final class HostUpdates {
 
     @ObservationIgnored private var snapshotReaders: [UUID: AsyncStream<Set<String>>.Continuation] = [:]
 
+    /// 每讀到一份快照就同步呼叫(離線佇列重連後補送,#301)。
+    @ObservationIgnored public var onSnapshot: (@MainActor (HostSnapshot) -> Void)?
+
     private let client: HerdrClient
     private let sleep: Sleep
     private let now: @Sendable () -> Date
@@ -237,6 +240,7 @@ public final class HostUpdates {
         phase = .loaded
         for id in paneWatchers.keys { paneWatchers[id]?.publish(from: fresh) }
         for reader in snapshotReaders.values { reader.yield(namedPanes) }
+        onSnapshot?(fresh)
     }
 
     /// 把訂閱的事件併成「要重讀」的觸發：最多暫存一個，讀取期間的事件都併進它。

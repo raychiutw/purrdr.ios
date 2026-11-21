@@ -128,11 +128,14 @@ public struct MessagePreview: Sendable, Equatable {
     public var date: Date?
     /// 是使用者自己送出的訊息。
     public var isFromUser: Bool
+    /// context 百分比與待辦進度(#307);對話紀錄讀不出時為 `nil`。
+    public var progress: AgentProgress?
 
-    public init(text: String, date: Date?, isFromUser: Bool) {
+    public init(text: String, date: Date?, isFromUser: Bool, progress: AgentProgress? = nil) {
         self.text = text
         self.date = date
         self.isFromUser = isFromUser
+        self.progress = progress
     }
 }
 

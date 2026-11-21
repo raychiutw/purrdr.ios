@@ -674,6 +674,87 @@ struct PendingSendBubbleView: View {
     }
 }
 
+/// 離線佇列裡的訊息(#301,原型 #t301-b 泡泡上標「排隊中」):半透明的使用者泡泡，下方「排隊中 · 連上後送出」;
+/// 長按取消。沒送出的泡泡紅框，下方寫原因與「放回輸入框」「刪除」。
+struct QueuedPromptBubbleView: View {
+    let prompt: QueuedPrompt
+    let putBack: () -> Void
+    let delete: () -> Void
+
+    var body: some View {
+        HStack {
+            Spacer(minLength: 44)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(prompt.text)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay {
+                        if prompt.problem != nil {
+                            RoundedRectangle(cornerRadius: 18).strokeBorder(.red, lineWidth: 1.5)
+                        }
+                    }
+                    .opacity(prompt.problem == nil ? 0.75 : 1)
+                    .contextMenu {
+                        if prompt.problem == nil {
+                            Button("Cancel Sending", systemImage: "xmark", role: .destructive, action: delete)
+                        }
+                    }
+                    .accessibilityLabel(accessibilityLabel)
+                status
+                    .font(.caption)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("conversation.queued")
+    }
+
+    private var accessibilityLabel: Text {
+        if let problem = prompt.problem {
+            Text("Your message, not sent: \(problem.text). \(prompt.text)")
+        } else {
+            Text("Your message, queued until reconnected. \(prompt.text)")
+        }
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let problem = prompt.problem {
+            HStack(spacing: 4) {
+                ErrorLabel(String(localized: "Not sent: \(problem.text)"))
+                    .accessibilityIdentifier("conversation.queued.problem")
+                Button(action: putBack) { HitTarget("Put Back") }
+                    .fontWeight(.semibold)
+                    .accessibilityIdentifier("conversation.queued.putBack")
+                Button(role: .destructive, action: delete) { HitTarget("Delete") }
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("conversation.queued.delete")
+            }
+        } else {
+            HStack(spacing: 4) {
+                Label("Queued · Sends when reconnected", systemImage: "clock")
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("conversation.queued.status")
+                Button(action: delete) { HitTarget("Cancel") }
+                    .accessibilityIdentifier("conversation.queued.cancel")
+            }
+        }
+    }
+}
+
+extension QueuedPrompt.Problem {
+    var text: String {
+        switch self {
+        case .expired: String(localized: "queued for more than 10 minutes")
+        case .conversationChanged: String(localized: "the conversation changed")
+        case .needsAnswer: String(localized: "the agent is waiting for your answer")
+        case .notDelivered: String(localized: "the host didn’t accept it")
+        case .mayHaveBeenSent: String(localized: "it may have arrived, check the chat")
+        }
+    }
+}
+
 extension EchoFailure {
     var text: String {
         switch self {

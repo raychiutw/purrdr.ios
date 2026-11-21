@@ -22,12 +22,21 @@ public struct OutgoingPrompt: Sendable, Equatable {
     public let expectedSession: String?
     /// 按下送出的時間。
     public let createdAt: Date
+    /// 對象所在的 Workspace(離線佇列重連後比對 pane 沒變,#301);不知道時是 `nil`。
+    public let workspaceID: String?
+    /// 按下送出時連得上主機;`false` 時離線佇列接手(#301)。
+    public let isHostReachable: Bool
 
-    public init(text: String, paneID: String, expectedSession: String?, createdAt: Date) {
+    public init(
+        text: String, paneID: String, expectedSession: String?, createdAt: Date,
+        workspaceID: String? = nil, isHostReachable: Bool = true
+    ) {
         self.text = text
         self.paneID = paneID
         self.expectedSession = expectedSession
         self.createdAt = createdAt
+        self.workspaceID = workspaceID
+        self.isHostReachable = isHostReachable
     }
 }
 
