@@ -175,16 +175,12 @@ struct AddHostGuideModelTests {
         #expect(model.save() == nil)
     }
 
-    @Test("原生 SSH 與 HTTPS 目前交給主機編輯頁(後續票接手)")
+    @Test("原生 SSH 目前交給主機編輯頁(後續票接手)")
     func otherPathsHandOffToEditor() {
         let native = Self.model()
         native.choose(.ssh)
         native.choose(.macOS)
         native.choose(.native)
         #expect(native.handoff == .editor(.openSSH))
-
-        let https = Self.model()
-        https.choose(.https)
-        #expect(https.handoff == .editor(.https))
     }
 }

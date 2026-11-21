@@ -2,13 +2,13 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 導覽列中間：workspace 名稱與下一行的狀態、主機名(#270)。
+/// 導覽列中間：workspace 名稱與下一行的狀態、主機名、context 百分比(#270、#349)。
 ///
 /// 資訊行寧可整段拿掉也不截斷(`ViewThatFits` 依序試 `displayVariants`);VoiceOver 念完整內容。
 struct ConversationTitleView: View {
     let title: String
     let header: ConversationHeader
-    @State private var showsProgress = false
+    @Bindable var model: ConversationModel
 
     var body: some View {
         VStack(spacing: 1) {
@@ -22,13 +22,10 @@ struct ConversationTitleView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
         .floatingGlass(in: Capsule())
-        // 點標題由下方升起 sheet:上方 context、下方待辦清單(#307)。沒有進度時不可點。
+        // 點標題由下方升起狀態 sheet(#349):context、待辦、背景子 Agent、做完再送開關;一律打得開。
         .contentShape(Rectangle())
-        .onTapGesture { if !header.progress.isEmpty { showsProgress = true } }
-        .accessibilityAction(named: Text("Show Context and Todos")) { if !header.progress.isEmpty { showsProgress = true } }
-        .sheet(isPresented: $showsProgress) {
-            AgentProgressSheet(title: title, progress: header.progress)
-        }
+        .onTapGesture { model.showsStatusSheet = true }
+        .accessibilityAction(named: Text("Show Status")) { model.showsStatusSheet = true }
     }
 }
 

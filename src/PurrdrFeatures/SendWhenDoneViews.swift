@@ -2,31 +2,26 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 輸入列的「做完再送」膠囊(#305,原型 #t305-b):高度同加入圖片鈕、底色同(卡片內的 bordered)。
+/// 狀態 sheet 的「做完再送」開關(#305、#349:開關從輸入列移到狀態 sheet)。
 /// 開著時送出的訊息排進主機的佇列、Agent 做完後依序送出。SSH 主機、舊版主機服務與唯讀裝置停用，點了說明原因。
 struct SendWhenDoneToggle: View {
     @Bindable var model: SendWhenDoneModel
-    var identifier = "composer.sendWhenDone"
-    /// 放在輸入列的玻璃卡片裡(#187):不再疊玻璃。
-    var isInCard = true
+    var identifier = "status.sendWhenDone"
 
     var body: some View {
         Button {
             model.toggle()
         } label: {
-            Label {
-                Text("Send When Done")
-                    .font(.footnote.weight(.medium))
-                    .lineLimit(1)
-            } icon: {
-                Image(systemName: model.isEnabled ? "checkmark.circle.fill" : "hourglass")
+            HStack {
+                Label("Send When Done", systemImage: model.isEnabled ? "checkmark.circle.fill" : "hourglass")
+                Spacer()
+                Text(model.isEnabled ? "On" : "Off")
+                    .foregroundStyle(.secondaryText)
             }
-            .padding(.horizontal, 8)
-            .frame(minHeight: 30)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
-        .composerSecondaryButtonStyle(isInCard: isInCard)
-        .buttonBorderShape(.capsule)
-        .frame(minHeight: 44)
+        .buttonStyle(.plain)
         .opacity(model.availability == .available ? 1 : 0.5)
         .accessibilityLabel(Text("Send When Done"))
         .accessibilityValue(Text(model.isEnabled ? "On" : "Off"))

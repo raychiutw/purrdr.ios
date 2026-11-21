@@ -631,6 +631,18 @@ public final class HostsModel {
         AddHostGuideModel(store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
     }
 
+    /// 匯入連結(主機分享連結、配對 QR code)開的引導,資料已齊時直接到測試連線(#344);引導接不了(原生 SSH、壞連結)時丟錯。
+    public func makeImportGuide(_ url: URL) throws -> AddHostGuideModel {
+        try AddHostGuideModel(
+            store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel, shortcut: .importLink(url))
+    }
+
+    /// 同步來、這支裝置還沒配對的 HTTPS 主機:直接到配對步驟(#344)。
+    public func makePairingGuide(for host: HostConfiguration) throws -> AddHostGuideModel {
+        try AddHostGuideModel(
+            store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel, shortcut: .needsPairing(host))
+    }
+
     /// 新增入口開引導還是舊的主機編輯頁。正式一律是引導;UI 測試預設走編輯頁(原生 SSH、HTTPS 的欄位流程測試還沒改寫,
     /// #342、#344、#346 接手後移除),`-uiTestingAddHostGuide` 才開引導。
     @ObservationIgnored public var usesAddHostGuide = true

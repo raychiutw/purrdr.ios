@@ -16,11 +16,16 @@ struct AgentStatusAvatar: View {
     /// 沒有值時不畫狀態(只有終端機的 Tab)。
     let status: AgentStatus?
 
+    /// 頭像方塊最大放大到的字級(使用者決定:大字級時不要放得太大;文字列照常隨字級放大)。
+    /// 只夾方塊與狀態圓點的大小;方塊裡的字母與符號仍用實際字級,才不會被稽核判為 Dynamic Type 不支援。
+    static let largestTypeSize = DynamicTypeSize.accessibility1
+
     var body: some View {
         avatar
             .overlay(alignment: .bottomTrailing) {
                 if let status {
                     StatusBadge(status: status)
+                        .dynamicTypeSize(...Self.largestTypeSize)
                         .offset(x: 4, y: 4)
                 }
             }
@@ -61,14 +66,25 @@ private struct StatusBadge: View {
 /// 只有終端機的 Tab:中性底色的終端機符號，大小與 Agent 種類頭像相同。
 private struct TerminalAvatar: View {
     @ScaledMetric(relativeTo: .subheadline) private var symbolSize: CGFloat = 16
+
+    var body: some View {
+        AvatarBox(fill: AgentKindAvatarStyle(kind: .unknown("")).palette.color)
+            .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
+            .overlay {
+                Image(systemName: "terminal")
+                    .font(.system(size: symbolSize, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+    }
+}
+
+/// 頭像的圓角方塊:大小隨字級放大,呼叫端在外面夾上限(方塊裡的字母與符號不在夾住的範圍內)。
+struct AvatarBox: View {
+    let fill: Color
     @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = AgentKindAvatar.baseSide
 
     var body: some View {
-        Image(systemName: "terminal")
-            .font(.system(size: symbolSize, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: side, height: side)
-            .background(RoundedRectangle(cornerRadius: 10).fill(AgentKindAvatarStyle(kind: .unknown("")).palette.color))
+        RoundedRectangle(cornerRadius: 10).fill(fill).frame(width: side, height: side)
     }
 }
 

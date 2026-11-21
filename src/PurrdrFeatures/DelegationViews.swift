@@ -472,60 +472,7 @@ struct WorkflowAgentRow: View {
 
 // MARK: - 背景 agents 列
 
-/// 背景 agents 列(F10,Claude 才有):收合時一行摘要;展開列出狀態、種類、任務、經過時間 · tokens。
-/// 執行中列的經過時間每秒前進;任務文字與某 subagent 卡描述完全相同的列可開其對話紀錄。
-/// 折疊狀態跟著畫面(每個聊天)、不持久化。
-struct AgentsBarView: View {
-    let pane: AgentsPane
-    let readAt: Date?
-    let conversation: ConversationModel
-    @State private var expanded = false
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let since = readAt.map { max(0, context.date.timeIntervalSince($0)) } ?? 0
-            VStack(alignment: .leading, spacing: 6) {
-                Button {
-                    withAnimation { expanded.toggle() }
-                } label: {
-                    HStack(spacing: 8) {
-                        DelegationStatusIcon(status: pane.rows.contains { $0.state == .running } ? .running
-                            : pane.rows.contains { $0.state == .failed } ? .failed : .completed)
-                        Text(DelegationText.summary(of: pane, secondsSinceRead: since))
-                            .font(.footnote)
-                            .multilineTextAlignment(.leading)
-                        Spacer()
-                        Image(systemName: expanded ? "chevron.down" : "chevron.up")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                    }
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint(Text(expanded ? "Hides the background agents" : "Shows the background agents"))
-                .accessibilityIdentifier("agentsBar.summary")
-                if expanded {
-                    ForEach(pane.rows) { row in
-                        if let card = conversation.subagentCard(forTask: row.task), conversation.canOpen(card) {
-                            NavigationLink(value: DelegationRoute.subagent(card)) {
-                                AgentsBarRow(row: row, since: since)
-                            }
-                        } else {
-                            AgentsBarRow(row: row, since: since)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 4)
-        .background(.bar)
-        .accessibilityIdentifier("agentsBar")
-    }
-}
-
+/// 背景 agents 的一列(狀態、種類、任務、經過時間 · tokens)。清單在狀態 sheet(#349),工作中膠囊只帶數量。
 struct AgentsBarRow: View {
     let row: AgentsPane.Row
     let since: TimeInterval

@@ -637,6 +637,17 @@
         }
       }
     },
+    "%lld subagents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個子 Agent"
+          }
+        }
+      }
+    },
     "%lld tool calls" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -816,6 +827,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個步驟"
+          }
+        }
+      }
+    },
+    "1 subagent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 個子 Agent"
           }
         }
       }
@@ -1495,6 +1517,17 @@
         }
       }
     },
+    "App Store" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store"
+          }
+        }
+      }
+    },
     "Appearance" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1612,6 +1645,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "返回編輯"
+          }
+        }
+      }
+    },
+    "Background Agents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景子 Agent"
           }
         }
       }
@@ -2507,6 +2551,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "組字中"
+          }
+        }
+      }
+    },
+    "Computer address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦位址"
           }
         }
       }
@@ -3474,7 +3529,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只計算 Purrdr 與你的主機之間經 SSH 或 HTTPS 送出與收到的資料，不含主機上其他程式的用量。"
+            "value" : "只計算 Purrdr 與你的主機之間經 SSH 或 HTTPS 送出與收到的資料，不含電腦上其他程式的用量。"
           }
         }
       }
@@ -3996,6 +4051,17 @@
         }
       }
     },
+    "Enter It Manually" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動輸入"
+          }
+        }
+      }
+    },
     "Enter Manually" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4348,6 +4414,17 @@
         }
       }
     },
+    "Get Tailscale on both devices" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩邊都裝好 Tailscale"
+          }
+        }
+      }
+    },
     "Get notified when an agent needs you, finishes, or may be stuck" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4454,17 +4531,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "收起鍵盤"
-          }
-        }
-      }
-    },
-    "Hides the background agents" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隱藏背景 Agent"
           }
         }
       }
@@ -5011,6 +5077,17 @@
         }
       }
     },
+    "Install the Purrdr host service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安裝 Purrdr 主機服務"
+          }
+        }
+      }
+    },
     "Install the Purrdr host service for send-when-done and stuck alerts" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5073,6 +5150,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Windows 內建，只要打開就好。"
+          }
+        }
+      }
+    },
+    "I’ve Got Tailscale on Both" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩邊都裝好了"
+          }
+        }
+      }
+    },
+    "I’ve Installed It" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我已經裝好了"
           }
         }
       }
@@ -6276,6 +6375,17 @@
         }
       }
     },
+    "Nothing to show yet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前沒有內容。"
+          }
+        }
+      }
+    },
     "Nothing was interrupted. Answer its question instead." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6540,6 +6650,17 @@
         }
       }
     },
+    "On that computer, install Tailscale and sign in with the same account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦裝 Tailscale,用同一個帳號登入。"
+          }
+        }
+      }
+    },
     "On that computer, open PowerShell, paste this line, then press Enter." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6558,6 +6679,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在那台電腦打開終端機，貼上這行，按 Enter。"
+          }
+        }
+      }
+    },
+    "On this iPhone, install Tailscale and sign in." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在這支 iPhone 裝 Tailscale 並登入。"
           }
         }
       }
@@ -6914,6 +7046,17 @@
         }
       }
     },
+    "Pair this iPhone with the computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓這支 iPhone 與電腦配對"
+          }
+        }
+      }
+    },
     "Pair with the Purrdr host service. Login Shell and Files aren’t available." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7053,6 +7196,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上 OpenSSH 格式的 ed25519 或 ECDSA 私鑰。不支援 RSA 金鑰與有 passphrase 保護的金鑰。金鑰存放在這支裝置的鑰匙圈。"
+          }
+        }
+      }
+    },
+    "Paste this line too. A QR code appears on that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再貼上這一行。那台電腦的畫面會出現 QR code。"
           }
         }
       }
@@ -7536,7 +7690,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 已停止連線，因為這台主機看起來不是你之前信任的那一台。主機重灌或重設過會這樣，有人攔截連線也會。如果你沒有重灌或重設過，請不要連線。\n\n如果有，請刪除這台主機再重新新增。\n\n現在的指紋：\n%@\n\n你先前信任的指紋：\n%@"
+            "value" : "Purrdr 已停止連線，因為這台電腦看起來不是你之前信任的那一台。電腦重灌或重設過會這樣，有人攔截連線也會。如果你沒有重灌或重設過，請不要連線。\n\n如果有，請刪除這台主機再重新新增。\n\n現在的指紋：\n%@\n\n你先前信任的指紋：\n%@"
           }
         }
       }
@@ -8773,17 +8927,6 @@
         }
       }
     },
-    "Show Context and Todos" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "顯示 Context 與待辦"
-          }
-        }
-      }
-    },
     "Show Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8824,6 +8967,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示 Spaces"
+          }
+        }
+      }
+    },
+    "Show Status" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示狀態"
           }
         }
       }
@@ -10484,7 +10638,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台主機的身分變了"
+            "value" : "這台電腦的身分變了"
           }
         }
       }
@@ -10583,7 +10737,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這台主機用下面這組指紋表明身分。想自己確認的話，在那台主機對主機金鑰檔執行 ssh-keygen -lf，再比對。"
+            "value" : "這台電腦用下面這組指紋表明身分。想自己確認的話，在那台電腦對主機金鑰檔執行 ssh-keygen -lf，再比對。"
           }
         }
       }
@@ -10683,17 +10837,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置配對成唯讀，不能更新主機服務或變更自動更新。"
-          }
-        }
-      }
-    },
-    "This device is paired read-only. Answer on the host or from a device that can send." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這支裝置以唯讀方式配對。請在主機上，或用可以送出的裝置回答。"
           }
         }
       }
@@ -11045,7 +11188,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Purrdr 第一次連到 %@，要信任這台主機嗎？"
+            "value" : "Purrdr 第一次連到 %@，要信任這台電腦嗎？"
           }
         }
       }
@@ -11397,7 +11540,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要比對的話，在那台主機上對 host key 檔執行 ssh-keygen -lf。"
+            "value" : "要比對的話，在那台電腦上對 host key 檔執行 ssh-keygen -lf。"
           }
         }
       }
@@ -11507,7 +11650,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "要信任這台主機嗎？"
+            "value" : "要信任這台電腦嗎？"
           }
         }
       }
@@ -12168,6 +12311,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用這個資料夾"
+          }
+        }
+      }
+    },
+    "Use What I Typed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用我輸入的內容"
           }
         }
       }
