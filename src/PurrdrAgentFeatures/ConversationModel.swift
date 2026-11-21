@@ -363,6 +363,10 @@ public final class ConversationModel {
     private let delivery: PromptDelivery
     /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
     private let sendPipeline: SendPipeline
+    /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
+    public let undoSend: UndoSendCountdown?
+    /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
+    public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
@@ -464,6 +468,7 @@ public final class ConversationModel {
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
         sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
+        undoSend = sendSteps.lazy.compactMap { $0 as? UndoSendCountdown }.first
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
@@ -996,7 +1001,8 @@ public final class ConversationModel {
         case .proceed(let prepared):
             await deliver(prepared)
         case .halt(let halt):
-            if halt.restoresDraft { restoreDraft(text) }
+            // 放回的是使用者打的原文(不是步驟改過的);步驟等待期間(撤回倒數)又打了字時，原文放在前面、不蓋掉新打的。
+            if halt.restoresDraft { draft = draft.isEmpty ? text : text + "\n" + draft }
         }
     }
 

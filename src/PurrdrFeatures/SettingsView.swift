@@ -59,6 +59,22 @@ public struct SettingsView: View {
                         .foregroundStyle(.secondaryText)
                 }
 
+                // 送出可撤回(#300):0–10 秒,0 為關閉。
+                Section {
+                    Stepper(value: $model.undoSendSeconds, in: UndoSendSettings.range) {
+                        LabeledContent("Undo Send") {
+                            Text(model.undoSendSeconds == 0 ? String(localized: "Off") : String(localized: "\(model.undoSendSeconds) s"))
+                                .monospacedDigit()
+                        }
+                    }
+                    .accessibilityValue(Text(model.undoSendSeconds == 0
+                        ? String(localized: "Off") : String(localized: "\(model.undoSendSeconds) seconds")))
+                    .accessibilityIdentifier("settings.undoSend")
+                } footer: {
+                    Text("After you send, the message waits this long so you can undo it.")
+                        .foregroundStyle(.secondaryText)
+                }
+
                 if let appLock {
                     AppLockSettingsSection(lock: appLock)
                 }

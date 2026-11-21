@@ -121,6 +121,8 @@ struct PurrdrApp: App {
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
         hosts.haptics = SystemHaptics()
         hosts.reviewPrompt = Self.makeReviewPrompt(uiTesting: uiTesting)
+        // 送出可撤回(#300):UI 測試預設關閉(其他測試送出不等倒數);`-uiTestingUndoSend` 開 10 秒倒數(來得及點撤回)。
+        if uiTesting { hosts.undoSendSeconds = { arguments.contains("-uiTestingUndoSend") ? 10 : 0 } }
         hosts.load()
         _hosts = State(initialValue: hosts)
         // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。

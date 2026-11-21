@@ -136,7 +136,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
     }
 
-    /// 設定頁只有外觀、鍵盤與觸覺、App 鎖(#284)、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
+    /// 設定頁只有外觀、鍵盤與觸覺、送出可撤回(#300)、App 鎖(#284)、支援、關於(#274,原型 purrdr-settings C);主機設定不在這裡。
     @MainActor
     func testSettingsHasOnlyAppWideSections() {
         let app = XCUIApplication.launchUITesting()
@@ -148,9 +148,14 @@ final class SettingsUITests: XCTestCase {
             scrollTo(text, in: app)
             XCTAssertTrue(text.exists, "設定頁沒有「\(header)」")
         }
+        // 送出可撤回(#300):0–10 秒的 Stepper,說明在註腳。
+        let undoSend = app.steppers["settings.undoSend"].firstMatch
+        scrollTo(undoSend, in: app)
+        XCTAssertTrue(undoSend.exists, "設定頁沒有送出可撤回")
+        XCTAssertTrue(app.staticTexts["After you send, the message waits this long so you can undo it."].firstMatch.exists)
     }
 
-    /// 設定頁只有原型有的段落說明(外觀下的「自動」)與支援段的隱私揭露(#276 的例外)。
+    /// 設定頁只有原型有的段落說明(外觀下的「自動」、送出可撤回的秒數說明)與支援段的隱私揭露(#276 的例外)。
     @MainActor
     func testSettingsShowsPrototypeFooterAndPrivacyDisclosure() {
         let app = XCUIApplication.launchUITesting()
