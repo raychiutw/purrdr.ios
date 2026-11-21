@@ -379,6 +379,34 @@ public final class AddHostGuideModel {
         }
     }
 
+    /// 貼上的私鑰不能用時的說明(RSA、passphrase、不是 OpenSSH 格式…);沒貼或可用時 `nil`。
+    public var privateKeyProblem: String? {
+        guard authentication == .importedKey, !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        do {
+            _ = try SSHPrivateKey(openSSH: privateKey)
+            return nil
+        } catch {
+            return HostErrorText.keyImportMessage(error)
+        }
+    }
+
+    /// 這個私鑰問題可以改用這支裝置的金鑰解決(RSA 或不支援的種類)。
+    public var privateKeyOffersDeviceKey: Bool {
+        guard authentication == .importedKey, !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        do {
+            _ = try SSHPrivateKey(openSSH: privateKey)
+            return false
+        } catch {
+            return error == .rsaNotSupported || error.isUnsupportedKeyType
+        }
+    }
+
+    /// 改用這支裝置的金鑰:清掉貼上的私鑰，到金鑰三步。
+    public func useDeviceKeyInstead() {
+        privateKey = ""
+        choose(authentication: .deviceKey)
+    }
+
     /// 密碼頁的提示。密碼路徑不提到金鑰;匯入私鑰才說。
     public var credentialPrompt: String {
         authentication == .importedKey

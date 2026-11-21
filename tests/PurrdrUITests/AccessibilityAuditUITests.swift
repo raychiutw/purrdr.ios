@@ -225,8 +225,7 @@ final class AccessibilityAuditUITests: XCTestCase {
 
             XCTAssertTrue(app.buttons["hosts.add"].waitForExistence(timeout: 5))
             app.buttons["hosts.add"].tap()
-            // AX5 時「Test Connection」在畫面外(Form 是 lazy),以第一個欄位判斷表單已開。
-            XCTAssertTrue(app.textFields["hostEditor.name"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["guide.option.ssh"].waitForExistence(timeout: 5))
             try audit(app, "新增主機", contentSize: size)
             app.terminate()
         }

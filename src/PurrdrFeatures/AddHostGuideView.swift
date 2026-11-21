@@ -333,6 +333,14 @@ struct AddHostGuideView: View {
                     #endif
                     .focused($focus, equals: .privateKey)
                     .accessibilityIdentifier("guide.field.privateKey")
+                if let problem = model.privateKeyProblem {
+                    ErrorLabel(problem)
+                        .accessibilityIdentifier("guide.keyProblem")
+                    if model.privateKeyOffersDeviceKey {
+                        Button("Use This Device’s Key Instead") { model.useDeviceKeyInstead() }
+                            .accessibilityIdentifier("guide.useDeviceKey")
+                    }
+                }
             } else {
                 SecureField("Password", text: $model.password)
                     .font(.title3)

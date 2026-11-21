@@ -183,6 +183,40 @@ final class AddHostGuideUITests: XCTestCase {
         XCTAssertTrue(app.buttons["guide.option.importedKey"].waitForExistence(timeout: 5))
     }
 
+    /// 匯入 RSA 私鑰:說明不支援，並可一鍵改用這支裝置的金鑰。
+    @MainActor
+    func testImportingRSAKeyOffersDeviceKey() {
+        let app = XCUIApplication.launchUITesting(flags: [])
+        openGuide(app)
+        app.buttons["guide.option.ssh"].tap()
+        app.buttons["guide.option.macOS"].tapWhenReady()
+        app.buttons["guide.option.native"].tapWhenReady()
+        app.buttons["guide.next"].tapWhenReady()
+        app.buttons["guide.option.home"].tapWhenReady()
+        let address = app.textFields["guide.field.address"]
+        address.tapWhenReady()
+        address.typeEnglish("192.168.1.20")
+        let username = app.textFields["guide.field.username"]
+        username.tap()
+        username.typeEnglish("ray")
+        app.buttons["guide.next"].tap()
+        app.buttons["guide.otherWays"].tapWhenReady()
+        app.buttons["guide.option.importedKey"].tapWhenReady()
+
+        let keyField = app.textViews["guide.field.privateKey"]
+        XCTAssertTrue(keyField.waitForExistence(timeout: 5))
+        keyField.tap()
+        keyField.typeEnglish("-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----")
+
+        let problem = app.descendants(matching: .any)["guide.keyProblem"].firstMatch
+        XCTAssertTrue(problem.waitForExistence(timeout: 5))
+        XCTAssertTrue(problem.label.contains("supported"), problem.label)
+        let useDeviceKey = app.buttons["guide.useDeviceKey"]
+        XCTAssertTrue(useDeviceKey.waitForExistence(timeout: 5))
+        useDeviceKey.tap()
+        XCTAssertTrue(app.buttons["guide.copy"].waitForExistence(timeout: 10), "沒有改用這支裝置的金鑰")
+    }
+
     /// HTTPS:準備 Tailscale、裝主機服務、掃 QR code 配對(`-uiTestingPairingScan`)、測試、存檔。
     @MainActor
     func testHTTPSPathScansAndSavesHost() {

@@ -236,6 +236,29 @@ struct AddHostGuideNativeSSHTests {
     }
 }
 
+@MainActor
+@Suite("新增主機引導：匯入私鑰的說明")
+struct AddHostGuidePrivateKeyProblemTests {
+    @Test("貼上 RSA 私鑰:說明不支援並提供改用這支裝置的金鑰;空的或有效的沒有說明")
+    func rsaKeyExplainsAndOffersDeviceKey() {
+        let model = AddHostGuideModel(store: MemoryHostStore(), makeChannel: ChannelFactory().make)
+        model.choose(.ssh)
+        model.choose(.macOS)
+        model.choose(.native)
+        model.choose(authentication: .importedKey)
+        #expect(model.privateKeyProblem == nil, "還沒貼")
+
+        model.privateKey = "-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----"
+
+        #expect(model.privateKeyProblem?.contains("supported") == true)
+        #expect(model.privateKeyOffersDeviceKey)
+        model.useDeviceKeyInstead()
+        #expect(model.authentication == .deviceKey)
+        #expect(model.privateKey.isEmpty)
+        #expect(model.step == .keySetup)
+    }
+}
+
 @Suite("新增主機引導：return 鍵的下一欄")
 struct AddHostGuideFieldOrderTests {
     @Test("位址 → Port → 帳號;配對的位址 → Port → 配對碼;最後一欄與密碼、私鑰沒有下一欄(收鍵盤,#312)")

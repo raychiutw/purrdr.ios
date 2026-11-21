@@ -673,7 +673,7 @@ extension HostEditorModel.HostServiceCheck {
     }
 }
 
-private extension SSHKeyImportError {
+extension SSHKeyImportError {
     var isUnsupportedKeyType: Bool {
         if case .unsupportedKeyType = self { return true }
         return false
