@@ -483,6 +483,21 @@ enum WindowsScripts {
         $o.Flush()
         """#
 
+    /// `SSHPushTestNotifier.script`:同樣的檢查、輸出與 exit code(66 沒有配對、70 連不上)。參數：配對資料夾名稱。純 ASCII。
+    static let pushTest = #"""
+        $f=PPath ('.purrdr/'+$a[0]+'/pairing')
+        if(-not [IO.File]::Exists($f)){exit 66}
+        $k=$null;$e=$null
+        foreach($l in [IO.File]::ReadAllLines($f)){if($l.StartsWith('key=')){$k=$l.Substring(4)}elseif($l.StartsWith('endpoint=')){$e=$l.Substring(9)}}
+        if(-not $k -or $k -cnotmatch '^[0-9a-f]{64}$' -or -not $e){exit 66}
+        $n='';if($a.Count -gt 1 -and $a[1]){$n=',"host_name":"'+$a[1]+'"'}
+        $c=0
+        try{$r=Invoke-WebRequest -UseBasicParsing -Uri $e -Method Post -ContentType 'application/json' -Body ('{"key":"'+$k+'","event":"test"'+$n+'}') -TimeoutSec 10;$c=[int]$r.StatusCode}
+        catch{if($_.Exception.Response){$c=[int]$_.Exception.Response.StatusCode}else{[Console]::Error.Write($_.Exception.Message);exit 70}}
+        PWrite "$c`\n"
+        $o.Flush()
+        """#
+
     // MARK: - 主機取檔(#226)
 
     /// `HostFileFetchScript.follow` 的 PowerShell 版，協定相同。參數(`$a`):閒置、總長秒數、大小上限。

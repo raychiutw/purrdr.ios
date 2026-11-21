@@ -14,8 +14,6 @@ public final class FakePushPluginHost: Sendable {
         var statusFailure: PushPluginError?
         var updateMutedFailure: (any Error & Sendable)?
         var calls: [String] = []
-        var testFailure: (any Error & Sendable)?
-        var testHostNames: [String?] = []
     }
 
     public let user: String
@@ -69,14 +67,6 @@ public final class FakePushPluginHost: Sendable {
         state.withLock { $0.updateMutedFailure = failure }
     }
 
-    /// 之後的測試通知丟出 `failure`;`nil` 恢復。
-    public func setTestNotificationFailure(_ failure: (any Error & Sendable)?) {
-        state.withLock { $0.testFailure = failure }
-    }
-
-    /// 依序收到的測試通知所帶的電腦名稱。
-    public var testNotificationHostNames: [String?] { state.withLock { $0.testHostNames } }
-
     /// 依序收到的操作(`status <裝置>`、`install <裝置>`、`remove <裝置>`、`updateMuted <裝置>`)。
     public var calls: [String] { state.withLock { $0.calls } }
 
@@ -115,16 +105,6 @@ public final class FakePushPluginHost: Sendable {
                     state.pluginInstalled = false
                     state.pluginInstalledByPurrdr = false
                 }
-            }
-        }
-
-        var sendsTestNotifications: Bool { true }
-
-        func sendTestNotification(hostName: String?) async throws {
-            try host.state.withLock { state in
-                state.calls.append("test \(deviceID)")
-                state.testHostNames.append(hostName)
-                if let failure = state.testFailure { throw failure }
             }
         }
 

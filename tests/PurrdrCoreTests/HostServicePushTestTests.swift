@@ -8,9 +8,9 @@ import Testing
 struct HostServicePushTestTests {
     static let deviceID = PushDeviceID(rawValue: "aaaaaaaaaaaaaaaa")!
 
-    private static func installer(_ service: FakeHostService, token: String = "token-ok") -> HostServicePushPluginInstaller {
-        HostServicePushPluginInstaller(
-            connection: HTTPSHostConnection(address: service.address, deviceToken: { token }), deviceID: deviceID)
+    private static func notifier(_ service: FakeHostService, hostName: String?) -> HostServicePushTestNotifier {
+        HostServicePushTestNotifier(
+            connection: HTTPSHostConnection(address: service.address, deviceToken: { "token-ok" }), deviceID: deviceID, hostName: hostName)
     }
 
     @Test("送出裝置 id 與清理過的電腦名稱,成功就回來")
@@ -18,7 +18,7 @@ struct HostServicePushTestTests {
         let service = try await FakeHostService.start(.init(hostServiceVersion: "0.11.0"))
         defer { Task { await service.stop() } }
 
-        try await Self.installer(service).sendTestNotification(hostName: "Studio\u{7}Mac")
+        try await Self.notifier(service, hostName: "Studio\u{7}Mac").send()
 
         let sent = try #require(service.messages(ofType: "push.test").first)
         #expect(sent["device_id"] as? String == Self.deviceID.rawValue)
@@ -30,7 +30,7 @@ struct HostServicePushTestTests {
         let service = try await FakeHostService.start(.init(hostServiceVersion: "0.11.0"))
         defer { Task { await service.stop() } }
 
-        try await Self.installer(service).sendTestNotification(hostName: " \n ")
+        try await Self.notifier(service, hostName: " \n ").send()
 
         let sent = try #require(service.messages(ofType: "push.test").first)
         #expect(sent["host_name"] == nil)
@@ -41,23 +41,23 @@ struct HostServicePushTestTests {
         let service = try await FakeHostService.start(.init(hostServiceVersion: "0.10.0"))
         defer { Task { await service.stop() } }
 
-        await #expect(throws: PushTestError.hostServiceOutdated(installed: "0.10.0")) {
-            try await Self.installer(service).sendTestNotification(hostName: nil)
+        await #expect(throws: HostServiceError.hostServiceUpdateRequired(.pushTest, installedVersion: "0.10.0")) {
+            try await Self.notifier(service, hostName: nil).send()
         }
         #expect(service.messages(ofType: "push.test").isEmpty)
     }
 
     @Test("沒有配對、後台的錯誤碼各對應專屬錯誤")
     func errorsMapToTestErrors() async throws {
-        let cases: [(String?, PushTestError)] = [
+        let cases: [(String?, PushTestNotificationError)] = [
             (nil, .notPaired), ("subscription_required", .subscriptionRequired), ("rate_limited", .rateLimited),
-            ("apns_failed", .deliveryFailed("apns_failed")), ("http 502", .deliveryFailed("http 502")),
+            ("apns_failed", .apnsFailed), ("http 502", .failed("http 502")),
         ]
         for (failure, expected) in cases {
             let service = try await FakeHostService.start(.init(hostServiceVersion: "0.11.0", pushTestFailure: failure, pushTestPaired: failure != nil))
             defer { Task { await service.stop() } }
             await #expect(throws: expected) {
-                try await Self.installer(service).sendTestNotification(hostName: "Mac")
+                try await Self.notifier(service, hostName: "Mac").send()
             }
         }
     }
@@ -67,8 +67,8 @@ struct HostServicePushTestTests {
         let service = try await FakeHostService.start(.init(readOnlyTokens: ["token-ok"], hostServiceVersion: "0.11.0"))
         defer { Task { await service.stop() } }
 
-        await #expect(throws: PushTestError.readOnlyDevice) {
-            try await Self.installer(service).sendTestNotification(hostName: "Mac")
+        await #expect(throws: HostServiceError.readOnlyDevice) {
+            try await Self.notifier(service, hostName: "Mac").send()
         }
     }
 }
