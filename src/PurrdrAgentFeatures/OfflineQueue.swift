@@ -209,6 +209,7 @@ public final class OfflineQueue {
         case .noResponse, .unconfirmed: .mayHaveBeenSent
         case .needsAnswer: .needsAnswer
         case .rejected, .readOnlyDevice: .notDelivered
+        case .paneChanged: .conversationChanged
         }
     }
 

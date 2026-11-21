@@ -149,7 +149,9 @@ struct OfflineQueueTests {
         #expect(queue.entries.map(\.problem) == [.needsAnswer, .needsAnswer])
 
         for (outcome, problem) in [(PromptOutcome.rejected(message: "no"), QueuedPrompt.Problem.notDelivered),
-                                   (.unconfirmed(.connectionLost), .mayHaveBeenSent), (.noResponse, .mayHaveBeenSent)] {
+                                   (.unconfirmed(.connectionLost), .mayHaveBeenSent), (.noResponse, .mayHaveBeenSent),
+                                   // 主機送出前比對發現對話已變更(#304 的 pane_changed):什麼都沒送出，標成對話已變更。
+                                   (.paneChanged, .conversationChanged)] {
             let deliveries = Deliveries()
             deliveries.outcome = outcome
             let queue = Self.queue(deliveries: deliveries)
