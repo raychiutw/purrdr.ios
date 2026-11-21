@@ -34,7 +34,23 @@ extension XCUIElement {
     @MainActor
     @discardableResult
     func waitUntilExists(timeout: TimeInterval) -> Bool {
-        UITestWait.until(timeout: timeout) { existsWithoutIdle }
+        guard UITestWait.until(timeout: timeout, { existsWithoutIdle }) else { return false }
+        waitUntilFrameStops()
+        return true
+    }
+
+    /// 出現後等位置停下來(最多 1 秒)：換頁、sheet 轉場中元素已經存在，但這時點下去會落空
+    /// (舊的 `waitForExistence` 固定多等 1 秒，剛好把這件事遮住)。位置一直在變的元素等滿 1 秒就放行。
+    @MainActor
+    func waitUntilFrameStops() {
+        let deadline = Date().addingTimeInterval(1)
+        var previous = frame
+        while Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.08))
+            let current = frame
+            if current == previous { return }
+            previous = current
+        }
     }
 
     /// 不等 app idle 的存在檢查(`waitForExistence` 內部用的 `existsNoRetry`)。
