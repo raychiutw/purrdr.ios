@@ -74,8 +74,9 @@ final class ConversationUITests: XCTestCase {
         let copy = element("conversation.code.copy", in: app)
         XCTAssertTrue(copy.waitForExistence(timeout: 10), "程式碼區塊沒有複製鈕")
         XCTAssertEqual(copy.label, "Copy Code")
-        XCTAssertGreaterThanOrEqual(copy.frame.width, 44)
-        XCTAssertGreaterThanOrEqual(copy.frame.height, 44)
+        // 圓角框裁切後座標有浮點誤差(43.9999…),容許 0.01pt。
+        XCTAssertGreaterThanOrEqual(copy.frame.width, 43.99)
+        XCTAssertGreaterThanOrEqual(copy.frame.height, 43.99)
         XCTAssertTrue(app.scrollViews["conversation.code"].exists, "程式碼區塊不在自己的橫捲容器內")
     }
 

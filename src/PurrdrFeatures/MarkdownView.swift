@@ -218,6 +218,8 @@ struct CodeBlockView: View {
 /// GFM 表格：逐欄對齊;寬於螢幕時在自己的容器內橫捲(頁面永不橫捲)。
 struct TableView: View {
     let table: MarkdownTable
+    /// 框的寬度:表格至少撐滿框，更寬才在框內橫捲。
+    @State private var frameWidth: CGFloat = 0
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -229,6 +231,7 @@ struct TableView: View {
                             .foregroundStyle(.secondaryText)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 7)
+                            .frame(maxWidth: .infinity, alignment: frameAlignment(column))
                             .background(.fill.quaternary)
                             .gridColumnAlignment(alignment(column))
                     }
@@ -236,19 +239,31 @@ struct TableView: View {
                 ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
                     Divider()
                     GridRow {
-                        ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                        ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
                             InlineText(cell)
                                 .font(.footnote.monospacedDigit())
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 7)
+                                .frame(maxWidth: .infinity, alignment: frameAlignment(column))
                         }
                     }
                 }
             }
+            .frame(minWidth: frameWidth, alignment: .leading)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { frameWidth = $0 }
         .clipShape(ContentFrame.shape)
         .overlay(ContentFrame.shape.strokeBorder(.separator))
         .accessibilityIdentifier("conversation.table")
+    }
+
+    private func frameAlignment(_ column: Int) -> Alignment {
+        guard column < table.alignments.count else { return .leading }
+        switch table.alignments[column] {
+        case .leading: return .leading
+        case .center: return .center
+        case .trailing: return .trailing
+        }
     }
 
     private func alignment(_ column: Int) -> HorizontalAlignment {
