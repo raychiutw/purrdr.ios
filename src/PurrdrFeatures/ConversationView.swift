@@ -208,6 +208,8 @@ public struct ConversationView: View {
             scroll.visibleRowsChanged(count: ids.count)
         }
         .defaultScrollAnchor(.bottom)
+        // 可見範圍改變(鍵盤收放、輸入框長高)時留在底部，不靠位移補救(#255、#315)。
+        .defaultScrollAnchor(.bottom, for: .sizeChanges)
         // 重新載入、換 session 讀取中:舊訊息留著，頂端只放一條不遮擋的細進度條(#329)。
         .overlay(alignment: .top) {
             if model.isRefreshing {
@@ -245,19 +247,10 @@ public struct ConversationView: View {
             // 可見範圍小時 LazyVStack 可能停在底部卻一列都沒長出來(#191),同樣再捲一次。
             if !userIsScrolling,
                scroll.returnsToContent(metrics, at: .now) || scroll.refillsVisibleRange(metrics, visibleRows: visibleIDs.count) {
-                // 先捲到最後一列(LazyVStack 才排出那一列);同一個排版又停在內容之外時，捲到最後一列多捲了一個底部 inset
-                // (可見範圍小、底部 inset 大),改以量到的底部位移再捲一次(#251)。
-                let byOffset = scroll.returnsByOffset(metrics)
+                // 捲到最後一列(LazyVStack 才排出那一列);不再以位移補救(#255):A1 版面的上下留白是 safeAreaBar,
+                // 邊緣錨定的 ScrollPosition 會跟著底部。
                 scroll.returnedToContent(metrics)
-                if byOffset {
-                } else {
-                    scrollToLastRow(proxy, isNewContent: false)
-                }
-            }
-            // 以位移捲過後 ScrollPosition 停在那個位移、不跟著底部：內容變高(列排出實際高度)或可見範圍變了(停止列、鍵盤)就以新的底部位移再捲(#251)。
-            if !userIsScrolling, scroll.followsByOffset(metrics) {
-                scroll.followedByOffset(metrics)
-                position.scrollTo(y: metrics.bottomScrollPositionY)
+                scrollToLastRow(proxy, isNewContent: false)
             }
             // 距頂端 ≤ 1 個畫面高就讀上一頁。
             if userHasDragged, metrics.distanceFromTop <= metrics.containerHeight, model.older == .available {
