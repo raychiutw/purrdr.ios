@@ -186,11 +186,11 @@ struct HostEditorView: View {
             }
         }
         // 指紋變了:只能停下來,沒有「信任新的」。要重新連,得刪掉這台主機再新增。
-        .alert("This Computer’s Identity Changed", isPresented: presenting(\.isHostKeyChanged)) {
+        .alert("This Host’s Identity Changed", isPresented: presenting(\.isHostKeyChanged)) {
             Button("OK", role: .cancel) { model.dismissPrompt() }
         } message: {
             if case .hostKeyChanged(let presented, let pinned) = model.phase {
-                Text("Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n\(presented.description)\n\nKey you trusted:\n\(pinned.description)")
+                Text("Purrdr stopped because this host no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n\(presented.description)\n\nKey you trusted:\n\(pinned.description)")
             }
         }
         .alert("Update herdr?", isPresented: presenting(\.isOutdated)) {

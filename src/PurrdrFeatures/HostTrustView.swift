@@ -13,12 +13,12 @@ struct HostTrustView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("This is the first time Purrdr connects to \(address). Trust this computer?")
+                    Text("This is the first time Purrdr connects to \(address). Trust this host?")
                         .accessibilityIdentifier("hostTrust.question")
                 }
                 Section {
                     DisclosureGroup("Details") {
-                        Text("This computer is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>")
+                        Text("This host is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>")
                             .foregroundStyle(.secondaryText)
                         Text(verbatim: fingerprint.description)
                             .font(.body.monospaced())
@@ -28,7 +28,7 @@ struct HostTrustView: View {
                     .accessibilityIdentifier("hostTrust.details")
                 }
             }
-            .navigationTitle("Trust This Computer?")
+            .navigationTitle("Trust This Host?")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif

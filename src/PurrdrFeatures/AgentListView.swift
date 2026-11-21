@@ -133,9 +133,9 @@ public struct AgentListView: View {
         case .noHosts:
             // 還沒有任何主機(#332):說明加主要按鈕(系統 glass prominent),次要是試用 Demo。
             ContentUnavailableView {
-                Label("No Computers Yet", systemImage: "desktopcomputer")
+                Label("No Hosts Yet", systemImage: "desktopcomputer")
             } description: {
-                Text("Add the computer where your agents run, and they show up here. Or look around with sample conversations first.")
+                Text("Add the host where your agents run, and they show up here. Or look around with sample conversations first.")
             } actions: {
                 if let window {
                     Button("Add Host") { window.openAddHost() }

@@ -1106,7 +1106,7 @@
         }
       }
     },
-    "Add This Computer" : {
+    "Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -1117,7 +1117,7 @@
         }
       }
     },
-    "Add the computer where your agents run, and they show up here. Or look around with sample conversations first." : {
+    "Add the host where your agents run, and they show up here. Or look around with sample conversations first." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2610,7 +2610,7 @@
         }
       }
     },
-    "Computer address" : {
+    "Host address" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -2621,7 +2621,7 @@
         }
       }
     },
-    "Computer name or IP" : {
+    "Host name or IP" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4359,7 +4359,7 @@
         }
       }
     },
-    "First time connecting to this computer" : {
+    "First time connecting to this host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -4934,7 +4934,7 @@
         }
       }
     },
-    "How do you want to connect to your computer?" : {
+    "How do you want to connect to your host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -5550,7 +5550,7 @@
         }
       }
     },
-    "Let the computer accept connections" : {
+    "Let the host accept connections" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -6166,7 +6166,7 @@
         }
       }
     },
-    "No Computers Yet" : {
+    "No Hosts Yet" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7310,7 +7310,7 @@
         }
       }
     },
-    "Pair this iPhone with the computer" : {
+    "Pair this iPhone with the host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7574,7 +7574,7 @@
         }
       }
     },
-    "Pick the computer your agents run on." : {
+    "Pick the host your agents run on." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -7959,7 +7959,7 @@
         }
       }
     },
-    "Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n%@\n\nKey you trusted:\n%@" : {
+    "Purrdr stopped because this host no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n%@\n\nKey you trusted:\n%@" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8025,7 +8025,7 @@
         }
       }
     },
-    "Purrdr will warn you if this computer’s identity ever changes." : {
+    "Purrdr will warn you if this host’s identity ever changes." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -8223,7 +8223,7 @@
         }
       }
     },
-    "Recommended · works on most computers" : {
+    "Recommended · works on most hosts" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9048,7 +9048,7 @@
         }
       }
     },
-    "Set up your router first so connections from outside can reach this computer." : {
+    "Set up your router first so connections from outside can reach this host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -9158,7 +9158,7 @@
         }
       }
     },
-    "Share to Computer" : {
+    "Share to Host" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -10951,7 +10951,7 @@
         }
       }
     },
-    "This Computer’s Identity Changed" : {
+    "This Host’s Identity Changed" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11061,7 +11061,7 @@
         }
       }
     },
-    "This computer is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>" : {
+    "This host is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11072,7 +11072,7 @@
         }
       }
     },
-    "This computer looks different" : {
+    "This host looks different" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11083,7 +11083,7 @@
         }
       }
     },
-    "This computer’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this computer yourself." : {
+    "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11490,7 +11490,7 @@
         }
       }
     },
-    "This is the first time Purrdr connects to %@. Trust this computer?" : {
+    "This is the first time Purrdr connects to %@. Trust this host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -11996,7 +11996,7 @@
         }
       }
     },
-    "Trust This Computer?" : {
+    "Trust This Host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12007,7 +12007,7 @@
         }
       }
     },
-    "Trust this computer?" : {
+    "Trust this host?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12953,7 +12953,7 @@
         }
       }
     },
-    "What kind of computer is it?" : {
+    "What kind of host is it?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
@@ -12997,7 +12997,7 @@
         }
       }
     },
-    "Which computer and which account?" : {
+    "Which host and which account?" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {

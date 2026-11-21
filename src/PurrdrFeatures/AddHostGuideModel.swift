@@ -368,7 +368,7 @@ public final class AddHostGuideModel {
     /// 填主機頁的提醒(對外連線要先設定路由器)。
     public var detailsNotice: String? {
         guard sshMethod == .native, location == .outside else { return nil }
-        return String(localized: "Set up your router first so connections from outside can reach this computer.")
+        return String(localized: "Set up your router first so connections from outside can reach this host.")
     }
 
     static let windowsLocalIP =
