@@ -46,7 +46,7 @@ final class AccountUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
         app.openAccountSheet()
 
-        XCTAssertTrue(app.staticTexts["ray@example.com"].waitUntilExists(timeout: 10), "沒有顯示會員")
+        XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.waitUntilExists(timeout: 10), "沒有顯示會員")
         let action = app.buttons["account.plusSetup.action"]
         XCTAssertTrue(action.wait(for: NSPredicate(format: "label == %@", "Activate"), timeout: 10), "等待的條件沒有成立")
         XCTAssertEqual(app.element("account.plusSetup.join").value as? String, "Done")

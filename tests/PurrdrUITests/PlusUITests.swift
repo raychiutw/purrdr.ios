@@ -138,7 +138,7 @@ final class PlusUITests: XCTestCase {
         app.scrollIntoView(app.descendants(matching: .any)["plus.terms"].firstMatch, search: .down)
         XCTAssertFalse(app.descendants(matching: .any)["plus.restore"].firstMatch.exists, "已訂閱不該有恢復購買")
         XCTAssertFalse(app.descendants(matching: .any)["plus.redeem"].firstMatch.exists, "已訂閱不該有兌換代碼")
-        for _ in 0..<4 { app.swipeDown() }
+        XCTAssertTrue(app.scrollIntoView(notifications, search: .up, limit: 8), "捲不回通知功能列")
 
         notifications.tap()
         XCTAssertTrue(app.descendants(matching: .any)["sheet.account"].firstMatch.waitUntilExists(timeout: 10), "點功能列沒有到帳號頁")

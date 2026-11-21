@@ -34,13 +34,20 @@ extension XCUIElement {
     @MainActor
     @discardableResult
     func waitUntilExists(timeout: TimeInterval) -> Bool {
-        guard UITestWait.until(timeout: timeout, { existsWithoutIdle }) else { return false }
-        waitUntilFrameStops()
-        return true
+        UITestWait.until(timeout: timeout) { existsWithoutIdle }
     }
 
     /// 出現後等位置停下來(最多 1 秒)：換頁、sheet 轉場中元素已經存在，但這時點下去會落空
     /// (舊的 `waitForExistence` 固定多等 1 秒，剛好把這件事遮住)。位置一直在變的元素等滿 1 秒就放行。
+    /// 只給確定唯一的元素用(`firstMatch`):查詢有多個符合時取 `frame` 會失敗，所以不放進一般的 `waitUntilExists`。
+    @MainActor
+    @discardableResult
+    func waitUntilExistsAndSettled(timeout: TimeInterval) -> Bool {
+        guard waitUntilExists(timeout: timeout) else { return false }
+        waitUntilFrameStops()
+        return true
+    }
+
     @MainActor
     func waitUntilFrameStops() {
         let deadline = Date().addingTimeInterval(1)
@@ -192,6 +199,8 @@ extension XCUIApplication {
         let row = element("agent.row.\(host)/\(paneID)")
         XCTAssertTrue(reveal(row), "沒有看到 \(host) 主機的 Agent \(paneID)", file: file, line: line)
         row.tap()
+        // 推進聊天畫面的轉場中，標題列的按鈕已經存在但點不到：等標題列停下。
+        XCTAssertTrue(element("conversation.header").waitUntilExistsAndSettled(timeout: 15), "沒有開出聊天畫面", file: file, line: line)
     }
 
     /// 以 UI 測試模式啟動並進入某個 Demo 主機 Agent 的聊天。

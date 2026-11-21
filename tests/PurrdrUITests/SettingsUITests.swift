@@ -57,15 +57,15 @@ final class SettingsUITests: XCTestCase {
         }
 
         XCTAssertTrue(app.buttons["Automatic"].waitUntilExists(timeout: 5))
-        XCTAssertTrue(app.buttons["Automatic"].isSelected, "預設不是自動")
+        XCTAssertTrue(app.buttons["Automatic"].wait(timeout: 5) { $0.isSelected }, "預設不是自動")
         app.buttons["Dark"].tap()
-        XCTAssertTrue(app.buttons["Dark"].isSelected)
+        XCTAssertTrue(app.buttons["Dark"].wait(timeout: 5) { $0.isSelected })
         app.terminate()
 
         let relaunched = XCUIApplication.launchUITesting()
         openSettings(in: relaunched)
         XCTAssertTrue(relaunched.buttons["Dark"].waitUntilExists(timeout: 5))
-        XCTAssertTrue(relaunched.buttons["Dark"].isSelected, "重開 app 後沒有保留深色")
+        XCTAssertTrue(relaunched.buttons["Dark"].wait(timeout: 5) { $0.isSelected }, "重開 app 後沒有保留深色")
     }
 
     /// 外觀即時生效(#322):設定 sheet 開著時切換，sheet 本身立刻變深或變淺;切回自動回到系統的深淺色。
