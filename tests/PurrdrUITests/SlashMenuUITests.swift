@@ -124,10 +124,8 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertFalse(first.isSelected, "游標一開始在目前的模型(第二列)")
         XCTAssertGreaterThanOrEqual(first.frame.height, 44)
 
-        first.tap()
-        let moved = NSPredicate(format: "isSelected == true")
-        expectation(for: moved, evaluatedWith: first)
-        waitForExpectations(timeout: 10)
+        // 面板卡片在面板監看的輪詢期間可能吃掉點擊：重點到游標移過去。
+        tap(first, until: NSPredicate(format: "isSelected == true"), on: first, "點第一列後游標沒有移過去")
 
         tap(app.element("panel.adjust.right"), until: NSPredicate(format: "exists == true"),
             on: app.staticTexts["◐ High effort"], "←/→ 調整沒有反映")

@@ -99,7 +99,8 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertTrue(banner.waitUntilGone(timeout: 5), "取消後應回到一般輸入")
         XCTAssertTrue(app.staticTexts["Which color should the chart use?"].exists, "取消不應回答問題")
 
-        XCTAssertTrue(app.waitForKeyboardToHide(), "取消後鍵盤沒有收起")
+        // 取消後選項列隨輸入列重排：等位置停下再點。
+        app.waitForSettledLayout([typeSomething], timeout: 3)
         typeSomething.tap()
         XCTAssertTrue(banner.waitUntilExists(timeout: 5))
         app.element("composer.text").typeEnglish("Forest green")
