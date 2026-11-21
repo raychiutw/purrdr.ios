@@ -27,9 +27,6 @@ struct ChangesView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .navigationDestination(for: ChangesFileRoute.self) { route in
-                ChangesFileView(model: model, path: route.path, submit: submit)
-            }
             .safeAreaInset(edge: .bottom, spacing: 0) { ChangesReviewBar(model: model, submit: submit) }
             .task { if model.phase == .loading { await model.load() } }
             .refreshable { await model.load() }
@@ -58,7 +55,11 @@ struct ChangesView: View {
         List {
             Section {
                 ForEach(model.files) { file in
-                    NavigationLink(value: ChangesFileRoute(path: file.path)) {
+                    // 目的地直接寫在連結上：變更頁本身是以 `navigationDestination(isPresented:)` 推入的，
+                    // 再登記 value 型的目的地會讓堆疊多推一層。
+                    NavigationLink {
+                        ChangesFileView(model: model, path: file.path, submit: submit)
+                    } label: {
                         ChangedFileRow(file: file, commentCount: model.comments.count { $0.path == file.path })
                     }
                     .accessibilityIdentifier("changes.file.\(file.path)")
@@ -78,10 +79,6 @@ struct ChangesView: View {
         guard let branch = model.branch else { return count }
         return "\(branch) · \(count)"
     }
-}
-
-struct ChangesFileRoute: Hashable {
-    let path: String
 }
 
 /// 變更清單的一列：種類標記(字母，不只靠顏色)、檔名與資料夾、+/−。

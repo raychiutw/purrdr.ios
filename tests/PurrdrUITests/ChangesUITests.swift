@@ -39,7 +39,9 @@ final class ChangesUITests: XCTestCase {
         XCTAssertTrue(file.waitForExistence(timeout: 10))
         file.tap()
 
-        let line = app.buttons["changes.line.5"].firstMatch
+        let diff = app.descendants(matching: .any)["changes.diff"].firstMatch
+        XCTAssertTrue(diff.waitForExistence(timeout: 10), "沒有打開 diff")
+        let line = app.descendants(matching: .any)["changes.line.5"].firstMatch
         XCTAssertTrue(line.waitForExistence(timeout: 10), "沒有 diff 的行")
         line.tap()
         let field = app.textFields["changes.comment.field"].firstMatch
