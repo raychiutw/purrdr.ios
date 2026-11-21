@@ -27,6 +27,9 @@ public actor SQLiteConversationCache: ConversationCache {
         public static let standard = Limits(maxChats: 200, maxTotalBytes: 32 << 20, maxChatBytes: 4 << 20)
     }
 
+    /// 正式的時鐘(Unix 秒);預設值用常數而不是 closure 字面值(#105 的做法)。
+    public static let wallClock: @Sendable () -> Double = { Date().timeIntervalSince1970 }
+
     private let file: URL
     private let limits: Limits
     private let now: @Sendable () -> Double
@@ -37,7 +40,7 @@ public actor SQLiteConversationCache: ConversationCache {
     /// - Parameters:
     ///   - file: 資料庫檔案(資料夾不存在會建立)。
     ///   - now: 最近使用時間的來源(測試用單調遞增的假時鐘)。
-    public init(file: URL, limits: Limits = .standard, now: @escaping @Sendable () -> Double = { Date().timeIntervalSince1970 }) {
+    public init(file: URL, limits: Limits = .standard, now: @escaping @Sendable () -> Double = SQLiteConversationCache.wallClock) {
         self.file = file
         self.limits = limits
         self.now = now
