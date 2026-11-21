@@ -14,6 +14,14 @@ _避免_:電腦、伺服器、機器、Device、Computer
 app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。
 _避免_:Transport、Auth mode(例外：網路傳輸層的型別沿用 `*Transport`,如 `URLSessionHostServiceTransport`、`PaneTerminalTransport`、`BackendTransport`,指收送位元組的那一層，不是連線方式)
 
+**新增主機引導**(Add host guide):
+新增一台主機時一頁問一件事、帶使用者在主機上做好準備並填完連線設定的流程，最後測試連線。編輯已存的主機不經引導(用主機編輯頁)。畫面上 OpenSSH 稱「原生 SSH」。
+_避免_:精靈、Wizard、Onboarding(那是 app 第一次開啟的歡迎頁)
+
+**主機身分確認**:
+第一次以 SSH 連到一台主機時，使用者決定是否信任它出示的 host key,信任後記住它的指紋;之後指紋變了一律擋下。Tailscale SSH 由 tailnet 身分保證，不必確認。
+_避免_:配對(那是 HTTPS 的連線配對)、驗證主機
+
 **選取中主機**:
 新聊天開在它上面、套用它的主題、它的錯誤佔滿畫面的那台主機。存在本機，重新啟動後選回同一台。不影響列表上看得到哪些主機：所有主機的 Agent 一律合併在同一個 Agent 列表。
 _避免_:目前主機、Active host
