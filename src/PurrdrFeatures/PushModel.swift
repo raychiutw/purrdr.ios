@@ -618,8 +618,11 @@ public final class PushModel {
         switch error {
         case BackendError.unreachable:
             String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
+        case BackendError.signedOut:
+            String(localized: "Couldn’t send the test notification because you’re signed out. Sign in again and try once more.")
         default:
-            String(localized: "Couldn’t send the test notification: \(error.localizedDescription)")
+            // 系統或後台的原文使用者看不懂也幫不上忙:只說沒送出、稍後再試。
+            String(localized: "Couldn’t send the test notification. Try again in a moment.")
         }
     }
 

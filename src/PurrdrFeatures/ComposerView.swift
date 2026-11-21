@@ -715,7 +715,7 @@ struct QueuedPromptBubbleView: View {
 
     private var accessibilityLabel: Text {
         if let problem = prompt.problem {
-            Text("Your message, not sent: \(problem.text). \(prompt.text)")
+            Text(verbatim: "\(problem.text) \(prompt.text)")
         } else {
             Text("Your message, queued until reconnected. \(prompt.text)")
         }
@@ -725,7 +725,7 @@ struct QueuedPromptBubbleView: View {
     private var status: some View {
         if let problem = prompt.problem {
             HStack(spacing: 4) {
-                ErrorLabel(String(localized: "Not sent: \(problem.text)"))
+                ErrorLabel(problem.text)
                     .accessibilityIdentifier("conversation.queued.problem")
                 Button(action: putBack) { HitTarget("Put Back") }
                     .fontWeight(.semibold)
@@ -749,11 +749,11 @@ struct QueuedPromptBubbleView: View {
 extension QueuedPrompt.Problem {
     var text: String {
         switch self {
-        case .expired: String(localized: "queued for more than 10 minutes")
-        case .conversationChanged: String(localized: "the conversation changed")
-        case .needsAnswer: String(localized: "the agent is waiting for your answer")
-        case .notDelivered: String(localized: "the host didn’t accept it")
-        case .mayHaveBeenSent: String(localized: "it may have arrived, check the chat")
+        case .expired: String(localized: "This message waited more than 10 minutes, so it wasn’t sent.")
+        case .conversationChanged: String(localized: "The conversation changed, so this message wasn’t sent.")
+        case .needsAnswer: String(localized: "The agent is waiting for your answer, so this message wasn’t sent.")
+        case .notDelivered: String(localized: "The host didn’t accept this message.")
+        case .mayHaveBeenSent: String(localized: "This message may have arrived. Check the chat before sending it again.")
         }
     }
 }

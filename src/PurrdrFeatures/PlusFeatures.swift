@@ -51,15 +51,11 @@ struct PlusFeatureStatus: Equatable {
     func value(for feature: PlusFeature) -> String? {
         switch feature {
         case .notifications:
-            switch notifyingHostCount {
-            case 0: String(localized: "Off")
-            case 1: String(localized: "1 host")
-            default: String(localized: "\(notifyingHostCount) hosts")
-            }
+            notifyingHostCount == 0 ? String(localized: "Off") : String(localized: "\(notifyingHostCount) hosts")
         case .hostSync:
             isHostSyncOn ? String(localized: "On") : String(localized: "Off")
         case .devices:
-            deviceCount.map { $0 == 1 ? String(localized: "1 device") : String(localized: "\($0) devices") }
+            deviceCount.map { String(localized: "\($0) devices") }
         }
     }
 }
