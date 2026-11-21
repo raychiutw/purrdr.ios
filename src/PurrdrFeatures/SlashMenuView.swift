@@ -6,16 +6,19 @@ import SwiftUI
 ///
 /// - 只有 `/` 時依來源分組(內建、專案、使用者、各 plugin、其他);輸入名稱後是沒有標題的單一排名清單(#45)。
 ///   每列以指令名開頭，參數提示淡色等寬，說明在第二行。
-/// - 高度最多 260pt,內捲;點選不收鍵盤。硬體鍵盤上下選擇時高亮列捲進畫面。
+/// - 高度最多 260pt(清單用 LazyVStack,畫面外的列不進無障礙樹,#256),內捲;點選不收鍵盤。硬體鍵盤上下選擇時高亮列捲進畫面。
 /// - 清單不完整(主機上的發現逾時)時，底部照實標示。
 /// - 內容層：不用玻璃，用 bar 背景(和送出提示一樣)。
 struct SlashMenuView: View {
     let menu: SlashMenuModel
+    /// 內容高度(上限 `maximumHeight`):清單是 lazy,畫面外的列不進無障礙樹(#256),所以高度不能靠 fixedSize 量整份內容，改由捲動區回報。
+    @State private var contentHeight = SlashMenuView.maximumHeight
+    private static let maximumHeight: CGFloat = 260
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if menu.isLoading {
                         Label("Loading Commands…", systemImage: "ellipsis")
                             .font(.footnote)
@@ -64,13 +67,17 @@ struct SlashMenuView: View {
                 }
             }
             .scrollBounceBehavior(.basedOnSize)
+            .onScrollGeometryChange(for: CGFloat.self) { $0.contentSize.height } action: { _, height in
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { contentHeight = min(height, Self.maximumHeight) }
+            }
             .onChange(of: menu.highlighted) { _, name in
                 guard let name else { return }
                 proxy.scrollTo(name)
             }
         }
-        .frame(maxHeight: 260)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(height: contentHeight)
         // 不透明底：選單蓋在訊息上，半透明的 `.bar` 讓次要色文字對比不足(#35 audit)。
         .background(.background, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))

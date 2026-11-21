@@ -282,15 +282,6 @@ enum AccessibilityAuditExclusions {
             return context.compactAccessories.contains { $0.contains(middle) }
         },
         Rule(
-            types: [.dynamicType, .textClipped],
-            reason: "AX 字級時 slash 選單開著、對應不到元素的 SwiftUI 節點:選單內捲到可見範圍外的列(audit 時有時無，master 上 10 輪約一半回報)。"
-                + "#249/#251 截圖(0.45.0 Mac mini,testSlashMenuAndPanels AX5)確認畫面上看得到的列都隨字級放大、未截斷;"
-                + "改成 LazyVStack 讓畫面外的列不進無障礙樹會使選單(fixedSize)排不出列，不可行。使用者同意此排除(2026-11-20)"
-        ) { issue, context in
-            context.isAccessibilitySize && context.slashMenu != nil && issue.element == nil
-                && issue.detailedDescription.contains("SwiftUI.AccessibilityNode")
-        },
-        Rule(
             types: .sufficientElementDescription,
             reason: "markdown 表格的數字格(例如「12.50」):數值本身就是內容"
         ) { issue, _ in
