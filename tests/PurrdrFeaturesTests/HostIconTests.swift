@@ -106,7 +106,6 @@ struct HostIconTests {
         HostEditorModelTests.fill(editor)
         editor.icon = .console
         await editor.test()
-        await editor.trustPresentedHostKey()
 
         let saved = try #require(editor.save())
 
