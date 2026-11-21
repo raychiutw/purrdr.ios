@@ -66,6 +66,8 @@ public protocol TerminalSessionModel: AnyObject, Observable {
     /// 大小模式(#357):只有 Pane 終端機有;登入 Shell 一律配合手機。
     var supportsSizeMode: Bool { get }
     var sizeMode: TerminalSizeMode { get }
+    /// 保留電腦版面卻讀不到電腦上的格數,這次以手機的格數接上(#357)。
+    var keepDesktopFallback: Bool { get }
     func setSizeMode(_ mode: TerminalSizeMode)
     /// 保留電腦版面時，電腦上 Pane 目前的格數(來自 full frame);還沒收到是 `nil`。
     var displaySize: TerminalGridSize? { get }
@@ -76,6 +78,7 @@ public protocol TerminalSessionModel: AnyObject, Observable {
 extension TerminalSessionModel {
     public var supportsSizeMode: Bool { false }
     public var sizeMode: TerminalSizeMode { .fitPhone }
+    public var keepDesktopFallback: Bool { false }
     public func setSizeMode(_ mode: TerminalSizeMode) {}
     public var displaySize: TerminalGridSize? { nil }
     public var keepsDesktopLayout: Bool { false }

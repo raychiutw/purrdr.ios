@@ -171,6 +171,14 @@ public final class HostEditorModel {
     private let existing: HostConfiguration?
     /// 連線測試、主機身分確認、herdr 版本檢查與儲存:與新增主機引導共用(#340)。
     private let flow: HostConnectionFlow
+
+    /// 失敗說明的「詳細資訊」(原始錯誤內容;沒有時 `nil`,#359)。
+    public var failureDetails: String? { flow.failureDetails }
+
+    /// 接上數據用量計量(#353):連線測試與配對的流量記在這台主機底下。
+    package func attachTraffic(_ provider: @escaping (UUID) -> TrafficRecording) {
+        flow.traffic = provider
+    }
     private let originalIcon: HostIcon
     /// 儲存後套用圖示(主機 id 存好才知道)。
     private let saveIcon: @MainActor (HostIcon, UUID) -> Void

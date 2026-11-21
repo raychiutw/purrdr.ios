@@ -37,6 +37,14 @@ package enum HostErrorText {
         }
     }
 
+    /// 說明裡不放的原始內容(herdr 的回覆、更新失敗的輸出),畫面收進預設收合的「詳細資訊」(#359);沒有時 `nil`。
+    package static func details(for error: any Error) -> String? {
+        switch error {
+        case HostProbeError.herdr(let message), HostProbeError.updateFailed(let message): message.isEmpty ? nil : message
+        default: nil
+        }
+    }
+
     /// 匯入私鑰失敗的說明。
     package static func keyImportMessage(_ error: SSHKeyImportError) -> String {
         switch error {
@@ -157,10 +165,10 @@ package enum HostErrorText {
             String(localized: "This isn’t available on Windows hosts yet.")
         case WindowsCommandError.commandTooLong:
             String(localized: "This request is too long for a Windows host.")
-        case HostProbeError.herdr(let message):
-            message
-        case HostProbeError.updateFailed(let message):
-            String(localized: "Couldn’t update herdr. \(message)")
+        case HostProbeError.herdr:
+            String(localized: "herdr on this host reported a problem. Try again.")
+        case HostProbeError.updateFailed:
+            String(localized: "Couldn’t update herdr. Try again.")
         default:
             String(localized: "Couldn’t reach this host. Try again.")
         }

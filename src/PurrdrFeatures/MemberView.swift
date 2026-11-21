@@ -394,15 +394,13 @@ struct AccountView: View {
         }
         .navigationDestination(item: $pairingHost) { id in
             if let hosts, let host = hosts.hosts.first(where: { $0.id == id }) {
-                // 與主機頁點「還沒配對」的主機開的是同一個編輯器;存好回到帳號頁，那台主機的開關就能用。
-                HostEditorView(model: hosts.makeEditor(editing: host)) { saved in
-                    hosts.didSave(saved)
-                    pairingHost = nil
-                } onCancel: {
-                    pairingHost = nil
-                } onIconSaved: {
-                    pairingHost = nil
-                }
+                // 與主機頁點「還沒配對」的主機開的是同一個引導(直接到配對那一步);存好回到帳號頁，那台主機的開關就能用。
+                AddHostGuideScreen(
+                    make: { (try? hosts.makePairingGuide(for: host)) ?? hosts.makeAddHostGuide() },
+                    onSaved: { _ in pairingHost = nil },
+                    onCancel: { pairingHost = nil },
+                    onAdded: { hosts.didSave($0) },
+                    hostPush: { id in hosts.hostPushes.first { $0.host == .host(id) } })
             }
         }
         .onChange(of: signedInMember?.id) { _, id in

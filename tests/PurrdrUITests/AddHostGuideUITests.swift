@@ -8,7 +8,7 @@ final class AddHostGuideUITests: XCTestCase {
 
     @MainActor
     func testTailscaleSSHPathSavesHost() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         openGuide(app)
 
         XCTAssertTrue(app.staticTexts["guide.title"].exists)
@@ -56,7 +56,7 @@ final class AddHostGuideUITests: XCTestCase {
 
     @MainActor
     func testBackAndCancelLeaveNoHost() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         openGuide(app)
         XCTAssertFalse(app.buttons["guide.back"].exists, "第一頁不能返回")
 
@@ -76,7 +76,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 欄位的「怎麼查」點開有指令可拷貝。
     @MainActor
     func testFieldHelpShowsCommand() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         openGuide(app)
         app.buttons["guide.option.ssh"].tap()
         app.buttons["guide.option.macOS"].tapWhenReady()
@@ -92,7 +92,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 原生 SSH(#342):開啟 SSH → 在哪裡連 → 主機與帳號 → 密碼 → 測試連線並加入;密碼路徑不出現「key」。
     @MainActor
     func testNativeSSHPasswordPath() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         openGuide(app)
         app.buttons["guide.option.ssh"].tap()
         app.buttons["guide.option.macOS"].tapWhenReady()
@@ -135,7 +135,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 原生 SSH 的金鑰路徑:三步,指令帶這支裝置的公鑰並可拷貝。
     @MainActor
     func testNativeSSHKeyPath() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         openGuide(app)
         app.buttons["guide.option.ssh"].tap()
         app.buttons["guide.option.linux"].tapWhenReady()
@@ -162,7 +162,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 匯入私鑰收在「Other Ways」;對外連線有路由器提醒。
     @MainActor
     func testImportedKeyIsUnderOtherWays() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         openGuide(app)
         app.buttons["guide.option.ssh"].tap()
         app.buttons["guide.option.windows"].tapWhenReady()
@@ -183,10 +183,44 @@ final class AddHostGuideUITests: XCTestCase {
         XCTAssertTrue(app.buttons["guide.option.importedKey"].waitForExistence(timeout: 5))
     }
 
+    /// 匯入 RSA 私鑰:說明不支援，並可一鍵改用這支裝置的金鑰。
+    @MainActor
+    func testImportingRSAKeyOffersDeviceKey() {
+        let app = XCUIApplication.launchUITesting(flags: [])
+        openGuide(app)
+        app.buttons["guide.option.ssh"].tap()
+        app.buttons["guide.option.macOS"].tapWhenReady()
+        app.buttons["guide.option.native"].tapWhenReady()
+        app.buttons["guide.next"].tapWhenReady()
+        app.buttons["guide.option.home"].tapWhenReady()
+        let address = app.textFields["guide.field.address"]
+        address.tapWhenReady()
+        address.typeEnglish("192.168.1.20")
+        let username = app.textFields["guide.field.username"]
+        username.tap()
+        username.typeEnglish("ray")
+        app.buttons["guide.next"].tap()
+        app.buttons["guide.otherWays"].tapWhenReady()
+        app.buttons["guide.option.importedKey"].tapWhenReady()
+
+        let keyField = app.textViews["guide.field.privateKey"]
+        XCTAssertTrue(keyField.waitForExistence(timeout: 5))
+        keyField.tap()
+        keyField.typeEnglish("-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----")
+
+        let problem = app.descendants(matching: .any)["guide.keyProblem"].firstMatch
+        XCTAssertTrue(problem.waitForExistence(timeout: 5))
+        XCTAssertTrue(problem.label.contains("supported"), problem.label)
+        let useDeviceKey = app.buttons["guide.useDeviceKey"]
+        XCTAssertTrue(useDeviceKey.waitForExistence(timeout: 5))
+        useDeviceKey.tap()
+        XCTAssertTrue(app.buttons["guide.copy"].waitForExistence(timeout: 10), "沒有改用這支裝置的金鑰")
+    }
+
     /// HTTPS:準備 Tailscale、裝主機服務、掃 QR code 配對(`-uiTestingPairingScan`)、測試、存檔。
     @MainActor
     func testHTTPSPathScansAndSavesHost() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide", "-uiTestingPairingScan"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPairingScan"])
         openGuide(app)
         app.buttons["guide.option.https"].tap()
 
@@ -223,7 +257,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 掃不了時手動輸入配對碼。
     @MainActor
     func testHTTPSManualPairing() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         openGuide(app)
         app.buttons["guide.option.https"].tap()
         app.buttons["guide.next"].tapWhenReady()
@@ -244,7 +278,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 捷徑:配對 QR code 連結直接到測試連線。
     @MainActor
     func testPairingLinkGoesStraightToTest() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         XCTAssertTrue(app.buttons["toolbar.more"].waitForExistence(timeout: 10))
         app.open(URL(string: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")!)
         XCTAssertTrue(app.buttons["guide.save"].waitForExistence(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
@@ -253,7 +287,7 @@ final class AddHostGuideUITests: XCTestCase {
     /// 捷徑:同步來、這支裝置還沒配對的主機直接到配對。
     @MainActor
     func testUnpairedHostGoesStraightToPairing() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide", "-seedUnpairedHTTPSHost"])
+        let app = XCUIApplication.launchUITesting(flags: ["-seedUnpairedHTTPSHost"])
         let more = app.buttons["toolbar.more"]
         XCTAssertTrue(more.waitForExistence(timeout: 10))
         more.tap()
@@ -281,7 +315,7 @@ final class AddHostGuideUITests: XCTestCase {
     @MainActor
     func testAccessibilityAudit() throws {
         for size in [nil, "UICTContentSizeCategoryAccessibilityXXXL"] {
-            let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"], contentSize: size)
+            let app = XCUIApplication.launchUITesting(flags: [], contentSize: size)
             openGuide(app)
             try audit(app, "新增主機引導(選連線方式)", contentSize: size)
             app.buttons["guide.option.ssh"].tap()
@@ -299,18 +333,18 @@ final class AddHostGuideUITests: XCTestCase {
     /// 最後一頁的通知(#345):Plus 會員看得到這台主機的開關;沒有 Plus 只有一行加入提示。
     @MainActor
     func testFinishedPageOffersNotificationsToPlusMember() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide", "-uiTestingPlusMember"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
         finishTailscalePath(app)
-        XCTAssertTrue(app.otherElements["guide.notifications"].waitForExistence(timeout: 10), "Plus 會員看不到通知開關")
+        XCTAssertTrue(app.descendants(matching: .any)["guide.notifications"].waitForExistence(timeout: 10), "Plus 會員看不到通知開關")
         XCTAssertFalse(app.buttons["guide.joinPlus"].exists)
     }
 
     @MainActor
     func testFinishedPageOffersJoinPlusToNonMember() {
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: [])
         finishTailscalePath(app)
         XCTAssertTrue(app.buttons["guide.joinPlus"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.otherElements["guide.notifications"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["guide.notifications"].exists)
     }
 
     @MainActor

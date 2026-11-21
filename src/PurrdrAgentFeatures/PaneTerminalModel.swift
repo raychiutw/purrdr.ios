@@ -37,11 +37,15 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public private(set) var displaySize: TerminalGridSize?
     public var supportsSizeMode: Bool { !isViewOnly }
     public var keepsDesktopLayout: Bool { supportsSizeMode && sizeMode == .keepDesktop }
+    /// 保留電腦版面卻讀不到 Pane 在電腦上的格數(電腦沒開 herdr 等),這次是以手機的格數接上的(#357)。
+    public private(set) var keepDesktopFallback = false
 
     private let defaults: UserDefaults
     /// 保留模式下最後一次看到的電腦格數;換成配合手機後還要靠它還原。
     private var desktopSize: TerminalGridSize?
     private let client: PaneTerminalClient
+    /// 讀 Pane 在電腦上的格數;保留模式接上時 handshake 帶它，herdr 一接上就把 Pane 改成 handshake 的尺寸(#357)。
+    private let nativeSize: (@Sendable () async -> TerminalGridSize?)?
     private let resizeDebounce: Duration
     /// 去抖用的等待;測試注入假的。
     private let sleep: Sleep
@@ -56,8 +60,10 @@ public final class PaneTerminalModel: TerminalSessionModel {
 
     public init(
         client: PaneTerminalClient, paneID: String, title: String, resizeDebounce: Duration = .milliseconds(250),
-        sleep: @escaping Sleep = Sleeping.task, defaults: UserDefaults = .standard
+        sleep: @escaping Sleep = Sleeping.task, defaults: UserDefaults = .standard,
+        nativeSize: (@Sendable () async -> TerminalGridSize?)? = nil
     ) {
+        self.nativeSize = nativeSize
         self.defaults = defaults
         self.sizeMode = TerminalSizeSettings.mode(in: defaults)
         self.client = client
@@ -178,11 +184,21 @@ public final class PaneTerminalModel: TerminalSessionModel {
         self.outbox = outbox
         let client = client
         let paneID = paneID
+        let lookup = sizeMode == .keepDesktop ? nativeSize : nil
+        let wantsDesktop = sizeMode == .keepDesktop
         Task { [weak self] in
+            // 保留電腦版面:帶 Pane 目前的格數,讀不到才退回手機的格數。
+            var handshake = size
+            var fellBack = wantsDesktop
+            if let native = await lookup?() {
+                handshake = (min(native.columns, Self.maxColumns), min(native.rows, Self.maxRows))
+                fellBack = false
+            }
+            if let self, self.generation == generation { self.keepDesktopFallback = fellBack }
             let connection: PaneTerminalConnection
             do {
                 connection = try await client.control(
-                    target: paneID, columns: size.columns, rows: size.rows, takeover: takeover
+                    target: paneID, columns: handshake.columns, rows: handshake.rows, takeover: takeover
                 )
             } catch {
                 self?.finish(.disconnected, generation: generation)

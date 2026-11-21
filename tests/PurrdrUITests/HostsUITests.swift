@@ -1,58 +1,9 @@
 import XCTest
 
-/// 主機清單與新增主機(UI 測試只用 Demo 主機，不連網路)。
+/// 主機清單與主機編輯(UI 測試只用 Demo 主機，不連網路);新增主機的流程在 `AddHostGuideUITests`。
 final class HostsUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
-    }
-
-    /// 沒有主機時選的是 Demo 主機;新增主機表單先選連線方式才出現連線欄位，填完必填欄位才能測試，測試前不能儲存。
-    @MainActor
-    func testAddHostFormRequiresTestBeforeSaving() {
-        let app = XCUIApplication.launchUITesting()
-
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        let hostsItem = app.buttons["menu.hosts"]
-        XCTAssertTrue(hostsItem.waitForExistence(timeout: 5))
-        hostsItem.tap()
-
-        let demo = app.buttons["hosts.demo"]
-        XCTAssertTrue(demo.waitForExistence(timeout: 5))
-        XCTAssertTrue(demo.isSelected, "沒有主機時應選取 Demo 主機")
-
-        app.buttons["hosts.add"].tap()
-        let name = app.textFields["hostEditor.name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 5))
-        name.tap()
-        name.typeEnglish("Studio")
-        XCTAssertFalse(app.textFields["hostEditor.address"].exists, "還沒選連線方式就出現連線欄位")
-        XCTAssertFalse(app.buttons["hostEditor.test"].exists, "還沒選連線方式就能測試")
-        XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled, "沒測試就能儲存")
-        let method = app.buttons["hostEditor.method.tailscaleSSH"]
-        XCTAssertTrue(method.waitForExistence(timeout: 5) || scrollTo(method, in: app), "沒有顯示連線方式")
-        method.tap()
-
-        let test = app.buttons["hostEditor.test"]
-        XCTAssertTrue(test.waitForExistence(timeout: 5) || scrollTo(test, in: app))
-        XCTAssertFalse(test.isEnabled, "必填欄位沒填就能測試")
-        for (identifier, text) in [("address", "studio-mac"), ("username", "demo")] {
-            let field = app.textFields["hostEditor.\(identifier)"]
-            XCTAssertTrue(field.exists || scrollTo(field, in: app), "沒有 \(identifier) 欄位")
-            field.tap()
-            field.typeEnglish(text)
-        }
-        XCTAssertTrue(test.exists || scrollTo(test, in: app))
-        XCTAssertTrue(test.isEnabled)
-        XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled)
-
-        // 有未存的變更時，取消要先確認放棄。
-        app.buttons["Cancel"].firstMatch.tap()
-        let discard = app.buttons["Discard Changes"]
-        XCTAssertTrue(discard.waitForExistence(timeout: 5))
-        discard.tap()
-        XCTAssertTrue(app.buttons["hosts.add"].waitForExistence(timeout: 5))
     }
 
     /// 頁首只有標題(#236):沒有主機時也不在清單最上面放說明文字。
@@ -64,116 +15,6 @@ final class HostsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["hosts.demo"].waitForExistence(timeout: 5))
         let description = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Add a computer that runs herdr"))
         XCTAssertEqual(description.count, 0, "主機清單仍有說明文字")
-    }
-
-    /// OpenSSH 主機預設用這支裝置的金鑰：公鑰以可選取的文字顯示，有拷貝、分享，以及 macOS／Linux／Windows 的加入指令。
-    @MainActor
-    func testOpenSSHShowsDevicePublicKeyWithCommands() {
-        let app = XCUIApplication.launchUITesting()
-        openAddHost(app)
-
-        chooseOpenSSH(app)
-        let publicKey = app.buttons["hostEditor.devicePublicKey"]
-        XCTAssertTrue(publicKey.waitForExistence(timeout: 5) || scrollTo(publicKey, in: app), "沒有這支裝置的公鑰入口")
-        publicKey.tap()
-
-        let keyText = app.staticTexts["deviceKey.publicKey"]
-        XCTAssertTrue(keyText.waitForExistence(timeout: 5))
-        XCTAssertTrue(keyText.label.hasPrefix("ecdsa-sha2-nistp256 "), "公鑰不是 OpenSSH 一行格式:\(keyText.label)")
-        XCTAssertTrue(app.staticTexts["deviceKey.fingerprint"].label.hasPrefix("SHA256:"))
-        XCTAssertTrue(app.buttons["deviceKey.copy"].exists)
-        XCTAssertTrue(app.buttons["deviceKey.share"].exists)
-        // 清單是 lazy:捲動後公鑰那一列可能不在畫面上，先記下文字。
-        let key = keyText.label
-        for platform in ["macOSAndLinux", "windows", "windowsAdministrator"] {
-            let command = app.staticTexts["deviceKey.command.\(platform)"]
-            XCTAssertTrue(command.waitForExistence(timeout: 5) || scrollTo(command, in: app), "沒有 \(platform) 的指令")
-            XCTAssertTrue(command.label.contains(key), "\(platform) 的指令沒有包含公鑰")
-        }
-    }
-
-    /// #346:編輯頁欄位由上而下是 連線方式 → 位址／Port／帳號 → 登入方式;金鑰三步在同一頁，沒有用密碼加公鑰的入口。
-    @MainActor
-    func testOpenSSHFieldOrderAndKeySteps() {
-        let app = XCUIApplication.launchUITesting()
-        openAddHost(app)
-        chooseOpenSSH(app)
-
-        let ids = ["hostEditor.method.openSSH", "hostEditor.address", "hostEditor.port", "hostEditor.username", "hostEditor.signIn"]
-        // 只往下捲:順序錯的話，前面的欄位捲過就找不到。每一項捲到可點，並與上一項(還在畫面上時)比座標。
-        var previous: XCUIElement?
-        for id in ids {
-            let element = app.descendants(matching: .any)[id].firstMatch
-            XCTAssertTrue(element.isHittable || scrollTo(element, in: app), "沒有 \(id)")
-            if let previous, previous.isHittable {
-                XCTAssertLessThan(previous.frame.minY, element.frame.minY, "\(id) 應在上一項之後")
-            }
-            previous = element
-        }
-
-        for step in 1...3 {
-            let element = app.descendants(matching: .any)["hostEditor.keyStep.\(step)"].firstMatch
-            XCTAssertTrue(element.waitForExistence(timeout: 5) || scrollTo(element, in: app), "沒有金鑰第 \(step) 步")
-        }
-        XCTAssertFalse(app.secureTextFields["hostEditor.keyInstallPassword"].exists, "不該再有用密碼加入公鑰的入口")
-        XCTAssertFalse(app.buttons["hostEditor.installKey"].exists)
-    }
-
-    /// 匯入 RSA 私鑰：說明不支援，並可一鍵改用這支裝置的金鑰。
-    @MainActor
-    func testImportingRSAKeyOffersDeviceKey() {
-        let app = XCUIApplication.launchUITesting()
-        openAddHost(app)
-        chooseOpenSSH(app)
-
-        // 登入方式攤開成勾選列(#313):直接點「Imported Key」那一列。
-        let importedKey = app.buttons["Imported Key"].firstMatch
-        XCTAssertTrue(importedKey.waitForExistence(timeout: 5) || scrollTo(importedKey, in: app))
-        importedKey.tap()
-        let keyField = app.textViews["hostEditor.privateKey"]
-        XCTAssertTrue(keyField.waitForExistence(timeout: 5))
-        keyField.tap()
-        keyField.typeEnglish("-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY-----")
-
-        let problem = app.descendants(matching: .any)["hostEditor.keyProblem"].firstMatch
-        XCTAssertTrue(problem.waitForExistence(timeout: 5) || scrollTo(problem, in: app))
-        XCTAssertTrue(problem.label.contains("isn’t supported"))
-        let useDeviceKey = app.buttons["hostEditor.useDeviceKey"]
-        XCTAssertTrue(useDeviceKey.exists || scrollTo(useDeviceKey, in: app))
-        useDeviceKey.tap()
-
-        XCTAssertTrue(app.buttons["hostEditor.devicePublicKey"].waitForExistence(timeout: 5) || scrollTo(app.buttons["hostEditor.devicePublicKey"], in: app))
-    }
-
-    @MainActor
-    private func openAddHost(_ app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
-        app.buttons["menu.hosts"].tap()
-        let add = app.buttons["hosts.add"]
-        XCTAssertTrue(add.waitForExistence(timeout: 5))
-        add.tap()
-    }
-
-    @MainActor
-    private func chooseOpenSSH(_ app: XCUIApplication) {
-        let openSSH = app.buttons["hostEditor.method.openSSH"]
-        XCTAssertTrue(openSSH.waitForExistence(timeout: 5) || scrollTo(openSSH, in: app), "沒有 OpenSSH 連線方式")
-        openSSH.tap()
-    }
-
-    /// 往下捲到元素出現(表單比畫面長)。
-    @MainActor
-    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        // 軟體鍵盤擋住下半部時，元素要在鍵盤上緣之上才算點得到。
-        let keyboard = app.keyboards.firstMatch
-        func isReachable() -> Bool {
-            element.isHittable && (!keyboard.exists || element.frame.maxY < keyboard.frame.minY)
-        }
-        for _ in 0..<6 where !isReachable() { app.swipeUp() }
-        for _ in 0..<6 where !isReachable() { app.swipeDown() }
-        return element.exists
     }
 
     static let seededRow = "hosts.row.5EED0000-0000-4000-8000-000000000001"
@@ -189,9 +30,9 @@ final class HostsUITests: XCTestCase {
         hostsItem.tap()
     }
 
-    /// 掃 QR code／點分享連結(深層連結)→ 主機 sheet 開出帶好欄位的新增主機表單，仍要測試才能儲存。
+    /// 掃 QR code／點分享連結(深層連結)→ 主機 sheet 開出新增主機引導，資料已齊，直接到測試連線，通過後才能加入。
     @MainActor
-    func testShareLinkOpensPrefilledEditor() throws {
+    func testShareLinkOpensGuideAtTest() throws {
         let app = XCUIApplication.launchUITesting()
         XCTAssertTrue(app.buttons["toolbar.more"].waitForExistence(timeout: 10))
         // HostShareLink:name Studio Mac、host studio-mac、port 22、user demo。
@@ -200,17 +41,15 @@ final class HostsUITests: XCTestCase {
             .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
         app.open(try XCTUnwrap(URL(string: "purrdr://host?d=\(encoded)")))
 
-        let name = app.textFields["hostEditor.name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 10))
-        XCTAssertEqual(name.value as? String, "Studio Mac")
-        // 圖示格(#239)與連線方式卡片(#250)把連線欄位推到畫面外，Form 不建立畫面外的列，先捲過去。
-        let address = app.textFields["hostEditor.address"]
-        XCTAssertTrue(address.exists || scrollTo(address, in: app), "沒有位址欄位")
-        XCTAssertEqual(address.value as? String, "studio-mac")
-        let username = app.textFields["hostEditor.username"]
-        XCTAssertTrue(username.exists || scrollTo(username, in: app), "沒有帳號欄位")
-        XCTAssertEqual(username.value as? String, "demo")
-        XCTAssertFalse(app.buttons["hostEditor.save"].isEnabled, "匯入後沒測試就能儲存")
+        let save = app.buttons["guide.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
+        save.tap()
+        app.buttons["guide.done"].tapWhenReady()
+        app.buttons["toolbar.more"].tap()
+        app.buttons["menu.hosts"].tap()
+        XCTAssertTrue(
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Studio Mac")).firstMatch.waitForExistence(timeout: 5),
+            "主機清單沒有匯入的主機")
     }
 
     /// 列尾 ⓘ 開那台主機的編輯器(VoiceOver 念「主機名 詳細資訊」);點列本身仍是選取並關閉 sheet。
@@ -357,5 +196,14 @@ extension XCUIElement {
             typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: value.count))
         }
         typeEnglish(text)
+    }
+}
+
+private extension XCUIElement {
+    /// 等元素出現(換頁動畫)再點。
+    @MainActor
+    func tapWhenReady() {
+        XCTAssertTrue(waitForExistence(timeout: 5), "\(identifier) 沒有出現")
+        tap()
     }
 }

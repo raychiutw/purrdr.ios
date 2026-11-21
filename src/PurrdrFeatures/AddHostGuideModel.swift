@@ -26,7 +26,7 @@ public struct AddHostGuideInstruction: Equatable, Sendable {
 ///
 /// 只負責「問什麼、順序、文字」:連線測試、主機身分確認、儲存都交給共用的 `HostConnectionFlow`(#340)。
 /// 步驟資料集中在這裡(依作業系統與連線方式組出步驟與指令),畫面只呈現;後續票(原生 SSH、HTTPS、失敗提醒)加步驟與答案即可。
-/// 目前有 Tailscale SSH 與 HTTPS 路徑(#344),以及匯入與待配對的捷徑;選了原生 SSH 時 `handoff` 要求畫面改開主機編輯頁。
+/// 有 Tailscale SSH、原生 SSH 與 HTTPS 路徑,以及匯入與待配對的捷徑。
 @MainActor
 @Observable
 public final class AddHostGuideModel {
@@ -93,12 +93,20 @@ public final class AddHostGuideModel {
         case pairAddress
         case pairPort
         case pairingCode
-    }
+        /// 原生 SSH 的密碼、匯入的私鑰(多行)。
+        case password
+        case privateKey
 
-    /// 這個引導接不了、要換成別的畫面。
-    public enum Handoff: Equatable, Sendable {
-        /// 主機編輯頁,預選這種連線方式。
-        case editor(HostConfiguration.ConnectionMethod)
+        /// return 鍵移到的下一欄;最後一欄或沒有 return 的欄位是 `nil`(收鍵盤，#312)。
+        public var next: Field? {
+            switch self {
+            case .address: .port
+            case .port: .username
+            case .pairAddress: .pairPort
+            case .pairPort: .pairingCode
+            case .username, .pairingCode, .password, .privateKey: nil
+            }
+        }
     }
 
     /// 從別處帶著資料進來的捷徑(#344):跳過前面的步驟。
@@ -110,7 +118,7 @@ public final class AddHostGuideModel {
     }
 
     public enum ShortcutError: Error, Equatable, Sendable {
-        /// 引導接不了(例如原生 SSH 的分享連結要另外填登入方式):畫面改開主機編輯頁。
+        /// 引導接不了(例如缺主機服務位址的 HTTPS 主機)。
         case needsEditor
     }
 
@@ -136,7 +144,6 @@ public final class AddHostGuideModel {
     public var pairPort = "443"
     public var pairingCode = ""
     public var username = ""
-    public private(set) var handoff: Handoff?
     /// 儲存完成的主機。
     public private(set) var savedHost: HostConfiguration?
     /// 最後一頁的通知選項(`loadNotificationOffer()` 之後才有)。
@@ -148,6 +155,8 @@ public final class AddHostGuideModel {
     @ObservationIgnored private let isPlusActive: @MainActor () async -> Bool
     /// 匯入或待配對時沿用的主機名稱。
     @ObservationIgnored private var presetName: String?
+    /// 匯入的原生 SSH 連結:選完電腦種類直接到登入方式。
+    @ObservationIgnored private var continuesAtLogin = false
     @ObservationIgnored private var history: [Step] = []
 
     public init(
@@ -206,9 +215,25 @@ public final class AddHostGuideModel {
                 flow.acceptSharedPin(of: shared)
                 step = .test
             case .openSSH:
-                throw ShortcutError.needsEditor
+                // 位址、Port、帳號與 host key 已帶入:只問電腦種類(金鑰指令要依它),再選登入方式,不問連線方式與位址。
+                kind = .ssh
+                sshMethod = .native
+                address = shared.endpoint.host
+                port = String(shared.endpoint.port)
+                username = shared.endpoint.username
+                flow.acceptSharedPin(of: shared)
+                continuesAtLogin = true
+                step = .system
             }
         }
+    }
+
+    /// 失敗說明的「詳細資訊」(原始錯誤內容;沒有時 `nil`,#359)。
+    public var failureDetails: String? { flow.failureDetails }
+
+    /// 接上數據用量計量(#353):連線測試與配對的流量記在這台新主機底下。
+    package func attachTraffic(_ provider: @escaping (UUID) -> TrafficRecording) {
+        flow.traffic = provider
     }
 
     private func load(_ address: HostServiceAddress) {
@@ -266,7 +291,7 @@ public final class AddHostGuideModel {
 
     public func choose(_ system: HostOperatingSystem) {
         self.system = system
-        push(kind == .https ? .install : .sshMethod)
+        push(kind == .https ? .install : (continuesAtLogin ? .login : .sshMethod))
     }
 
     public func choose(_ method: SSHMethod) {
@@ -352,6 +377,34 @@ public final class AddHostGuideModel {
         case .failure(let error):
             deviceKeyProblem = HostErrorText.message(for: error)
         }
+    }
+
+    /// 貼上的私鑰不能用時的說明(RSA、passphrase、不是 OpenSSH 格式…);沒貼或可用時 `nil`。
+    public var privateKeyProblem: String? {
+        guard authentication == .importedKey, !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        do {
+            _ = try SSHPrivateKey(openSSH: privateKey)
+            return nil
+        } catch {
+            return HostErrorText.keyImportMessage(error)
+        }
+    }
+
+    /// 這個私鑰問題可以改用這支裝置的金鑰解決(RSA 或不支援的種類)。
+    public var privateKeyOffersDeviceKey: Bool {
+        guard authentication == .importedKey, !privateKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+        do {
+            _ = try SSHPrivateKey(openSSH: privateKey)
+            return false
+        } catch {
+            return error == .rsaNotSupported || error.isUnsupportedKeyType
+        }
+    }
+
+    /// 改用這支裝置的金鑰:清掉貼上的私鑰，到金鑰三步。
+    public func useDeviceKeyInstead() {
+        privateKey = ""
+        choose(authentication: .deviceKey)
     }
 
     /// 密碼頁的提示。密碼路徑不提到金鑰;匯入私鑰才說。
@@ -440,7 +493,7 @@ public final class AddHostGuideModel {
                     ? String(localized: "On that computer, open PowerShell, paste this line, press Enter, and type the name that appears here.")
                     : String(localized: "On that computer, open Terminal, paste this line, press Enter, and type the name that appears here."),
                 command: isWindows ? "$env:USERNAME" : "whoami")
-        case .port, .pairAddress, .pairPort, .pairingCode:
+        case .port, .pairAddress, .pairPort, .pairingCode, .password, .privateKey:
             return nil
         }
     }
@@ -465,7 +518,6 @@ public final class AddHostGuideModel {
         guard canGoBack, let previous = history.popLast() else { return }
         if step == .test { flow.cancelTest() }
         flow.phase = .editing
-        handoff = nil
         step = previous
     }
 

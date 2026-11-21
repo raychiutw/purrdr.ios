@@ -92,6 +92,10 @@ public struct AgentListView: View {
                 try? await Task.sleep(for: .seconds(1))
             }
         }
+        // 「離開期間」徽章的輪數(#308):有徽章的列變動時才算(每個聊天、每個開啟時間只算一次)。
+        .task(id: model.agentRows.filter(\.isAway).map(\.id)) {
+            await model.refreshAwayTurns()
+        }
         .task(id: RunKey(active: scenePhase == .active, lists: model.runKey)) {
             guard scenePhase == .active else { return }
             // 同一份列表開在好幾個視窗時，每台主機的即時更新各只跑一份(`AgentListModel.liveUpdates`,#31)。
@@ -501,6 +505,13 @@ struct AgentRowView: View {
         return parts.compactMap { $0 }.joined(separator: ", ")
     }
 
+    /// 「While away」,算出輪數後是「While away · +N turns」(#308)。
+    static func awayBadgeText(turns: Int?) -> String {
+        guard let turns, turns > 0 else { return String(localized: "While away") }
+        let turnsText = String(localized: "\(turns) turns")
+        return String(localized: "While away · +\(turnsText)")
+    }
+
     /// AX 字級時不限制行數(DESIGN.md:支援到 AX5 不截斷)。
     private func lines(_ limit: Int) -> Int? {
         dynamicTypeSize.isAccessibilitySize ? nil : limit
@@ -526,7 +537,7 @@ struct AgentRowView: View {
             }
             // 離開超過 15 分鐘後有新回覆(#308):名稱後的小標籤，文字說明、不只靠顏色。
             if row.isAway {
-                Text("While away")
+                Text(Self.awayBadgeText(turns: row.awayTurns))
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondaryText)
                     .padding(.horizontal, 6)

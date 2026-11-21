@@ -141,6 +141,33 @@ public final class MergedAgentListModel {
 
     private let modeStore: any AgentListModeStore
 
+    /// 離開期間的輪數讀取(路徑與開啟時間 → 輪數);`nil` 時由各主機的列表讀對話紀錄(#308)。
+    @ObservationIgnored public var awayTurnCounter: (@MainActor (ChatRoute, Date) async -> Int?)?
+    /// 已算出的輪數,依「聊天 + 開啟時間」;開啟時間變了(又進過聊天)就作廢。
+    private var awayTurnCounts: [ChatRoute: (openedAt: Date, turns: Int)] = [:]
+
+    /// 替有「離開期間」徽章的列算輪數(每個聊天、每個開啟時間只算一次;畫面在列表出現與列變動時呼叫)。
+    public func refreshAwayTurns() async {
+        let visible = visibleChats
+        for source in sources {
+            guard let snapshot = source.list.snapshot else { continue }
+            let projection = projectionSource(of: source)
+            for agent in snapshot.agents {
+                let route = ChatRoute(host: source.host, paneID: agent.paneID)
+                guard ChatUnread.State(agent: agent, source: projection, visible: visible).isAway,
+                      let session = agent.sessionID, let openedAt = source.actions.preferences.opened[session] else { continue }
+                if awayTurnCounts[route]?.openedAt == openedAt { continue }
+                let turns: Int?
+                if let awayTurnCounter {
+                    turns = await awayTurnCounter(route, openedAt)
+                } else {
+                    turns = await source.list.awayTurns(paneID: agent.paneID, openedAt: openedAt)
+                }
+                if let turns { awayTurnCounts[route] = (openedAt, turns) }
+            }
+        }
+    }
+
     public init(modeStore: any AgentListModeStore = InMemoryAgentListModeStore()) {
         self.modeStore = modeStore
         // 未知或缺值(新安裝)一律是 Agents。
@@ -203,12 +230,17 @@ public final class MergedAgentListModel {
         return projectionSources.filter { $0.host == currentHost }
     }
 
-    private var projectionSources: [AgentListProjection.Source] {
-        sources.map { source in
-            AgentListProjection.Source(
-                host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
-                name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
+    private var projectionSources: [AgentListProjection.Source] { sources.map(projectionSource(of:)) }
+
+    private func projectionSource(of source: Source) -> AgentListProjection.Source {
+        var projection = AgentListProjection.Source(
+            host: source.host, label: source.host == selected ? nil : HostLabel(name: source.name, icon: source.icon),
+            name: source.name, icon: source.icon, snapshot: source.list.snapshot, previews: source.list.previews, preferences: source.actions.preferences)
+        for (route, count) in awayTurnCounts where route.host == source.host {
+            let session = source.list.snapshot?.agents.first { $0.paneID == route.paneID }?.sessionID
+            if let session, source.actions.preferences.opened[session] == count.openedAt { projection.awayTurns[route.paneID] = count.turns }
         }
+        return projection
     }
 
     /// Spaces 檢視(#275):每個「主機 · workspace」一段，段內每個 Tab 一列;套用主機篩選，沒有搜尋。

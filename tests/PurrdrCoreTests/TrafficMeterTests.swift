@@ -145,6 +145,18 @@ struct TrafficMeterTests {
         #expect(store.load().isEmpty)
     }
 
+    @Test("用量檔排除 iCloud 備份(每次原子寫入換新檔，每次都要標)")
+    func fileStoreIsExcludedFromBackup() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("traffic-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = FileTrafficStore(url: url)
+
+        store.save([TrafficDay(day: "2026-11-21")])
+        store.save([TrafficDay(day: "2026-11-22")])
+
+        #expect(try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
+    }
+
     @Test("TrafficSink 沒接計量時不記，接上後轉給計量")
     func sinkForwards() {
         let meter = meter(Clock("2026-11-21T10:00:00+08:00"))

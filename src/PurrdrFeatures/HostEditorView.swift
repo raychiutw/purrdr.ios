@@ -543,8 +543,20 @@ struct HostEditorView: View {
             case .connected(let check):
                 connectedRow(Text("Connected · herdr \(check.herdrVersion)"), summary: check.summary)
             case .failed(let message):
-                ErrorLabel(message)
-                    .accessibilityIdentifier("hostEditor.result")
+                VStack(alignment: .leading, spacing: 8) {
+                    ErrorLabel(message)
+                        .accessibilityIdentifier("hostEditor.result")
+                    if let details = model.failureDetails {
+                    DisclosureGroup("Details") {
+                        Text(verbatim: details)
+                            .font(.footnote.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier("hostEditor.details")
+                    }
+                    .font(.footnote)
+                }
+                }
             case .restartServerRequired:
                 // Windows 沒有 live handoff:更新只換了執行檔。
                 Label {
@@ -661,7 +673,7 @@ extension HostEditorModel.HostServiceCheck {
     }
 }
 
-private extension SSHKeyImportError {
+extension SSHKeyImportError {
     var isUnsupportedKeyType: Bool {
         if case .unsupportedKeyType = self { return true }
         return false

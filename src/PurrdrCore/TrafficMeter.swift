@@ -95,6 +95,13 @@ public struct FileTrafficStore: TrafficStore {
         guard let data = try? JSONEncoder().encode(days) else { return }
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: url, options: .atomic)
+        #if canImport(Darwin)
+        // 只屬於這支裝置的用量:不進 iCloud 備份(#353)。原子寫入每次換新檔，所以每次都要標。
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var excluded = url
+        try? excluded.setResourceValues(values)
+        #endif
     }
 }
 

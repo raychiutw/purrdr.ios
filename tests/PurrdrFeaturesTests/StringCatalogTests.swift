@@ -123,11 +123,10 @@ struct StringCatalogTests {
     }
 
     /// 英文畫面文字維持 Host(GLOSSARY「用詞對應」):不用 Computer 稱呼主機。
-    /// 日常語意(「that computer」、電腦版面)與 Pane 終端機大小模式的 Keep Computer Layout 不在此限。
+    /// 日常語意(「that computer」、電腦版面)不在此限。
     @Test("英文畫面文字不用 Computer 稱呼主機(日常語意的小寫 computer 除外)")
     func englishUsesHostWording() throws {
-        let exempt: Set<String> = ["Keep Computer Layout"]
-        for entry in try Self.entries() where !exempt.contains(entry.key) {
+        for entry in try Self.entries() {
             #expect(!entry.key.contains("Computer"), "「\(entry.key)」用了 Computer,英文請說 host")
         }
     }

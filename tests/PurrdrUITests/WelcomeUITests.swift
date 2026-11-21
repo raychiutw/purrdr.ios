@@ -51,7 +51,8 @@ final class WelcomeUITests: XCTestCase {
 
         app.buttons["welcome.addHost"].tap()
 
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.hosts"].waitForExistence(timeout: 5))
+        // 直接進新增主機引導(#332:歡迎頁、空列表、主機清單的新增都走引導)。
+        XCTAssertTrue(app.buttons["guide.option.ssh"].waitForExistence(timeout: 5), "沒有直接開出新增主機引導")
     }
 
     @MainActor

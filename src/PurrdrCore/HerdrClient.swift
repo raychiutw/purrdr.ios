@@ -611,6 +611,15 @@ private struct WirePane: Decodable {
     var label: String?
     var terminalTitleStripped: String?
     var restoreError: String?
+    var scroll: Scroll?
+
+    struct Scroll: Decodable {
+        var viewportRows: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case viewportRows = "viewport_rows"
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
@@ -621,12 +630,14 @@ private struct WirePane: Decodable {
         case label
         case terminalTitleStripped = "terminal_title_stripped"
         case restoreError = "restore_error"
+        case scroll
     }
 
     var pane: Pane {
         Pane(
             id: paneID, workspaceID: workspaceID, tabID: tabID, agentKind: agent.nonEmpty, cwd: cwd.nonEmpty,
-            label: label.nonEmpty, terminalTitle: terminalTitleStripped.nonEmpty, restoreError: restoreError.nonEmpty
+            label: label.nonEmpty, terminalTitle: terminalTitleStripped.nonEmpty, restoreError: restoreError.nonEmpty,
+            viewportRows: scroll?.viewportRows
         )
     }
 }

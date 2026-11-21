@@ -163,7 +163,7 @@ final class ScreenshotTourUITests: XCTestCase {
     @MainActor
     func test12AddHostGuide() {
         // 沒有主機的空狀態(#332)進新增主機引導的第一頁(#341)。
-        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts", "-uiTestingAddHostGuide"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"])
         let add = app.buttons["agentList.addHost"]
         XCTAssertTrue(add.waitForExistence(timeout: 10), "沒有沒有主機的空狀態")
         add.tap()

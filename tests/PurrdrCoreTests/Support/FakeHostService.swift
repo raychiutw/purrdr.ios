@@ -113,6 +113,10 @@ final class FakeHostService: Sendable {
         var pushStatusFailure: String?
         /// 有值時 `push.remove` 移除外掛失敗(`push_plugin_failed`);配對已移除。
         var pushRemoveFailure: String?
+        /// 有值時 `push.test` 以 `push_send_failed` 失敗(帶這個訊息,後台的錯誤碼或 `http <狀態碼>`)。
+        var pushTestFailure: String?
+        /// `false` 時這支裝置沒有推播配對,`push.test` 回 `push_not_paired`;預設已配對。
+        var pushTestPaired = true
         /// 上傳收滿時回報的路徑;`nil` 時是 `/Users/demo/.purrdr/uploads/<主機產生的名稱>[.<副檔名>]`。
         var uploadedPath: String?
         /// 有值時 `file.upload.start` 以這個錯誤碼失敗。
@@ -453,7 +457,7 @@ final class FakeHostService: Sendable {
             return [.text(Self.example("server.\(type.replacingOccurrences(of: ".", with: "-"))-result.json", requestID: requestID))]
         case "host_service.status", "host_service.update", "host_service.set_auto_update":
             return [.text(hostServiceReply(type, message: message, requestID: requestID, authorization: authorization, settings: settings))]
-        case "push.status", "push.install", "push.remove", "push.update_muted":
+        case "push.status", "push.install", "push.remove", "push.update_muted", "push.test":
             return respondToPush(type, message: message, requestID: requestID, authorization: authorization, settings: settings)
         case "sessions.list":
             // 範例(兩個 session);`cwd` 為 `/empty` 表示資料夾沒有過去的 session(#309)。
@@ -530,6 +534,10 @@ final class FakeHostService: Sendable {
             switch type {
             case "push.status":
                 if let failure = settings.pushStatusFailure { return errorReply("push_plugin_failed", failure) }
+            case "push.test":
+                guard settings.pushTestPaired else { return errorReply("push_not_paired", "not paired") }
+                if let failure = settings.pushTestFailure { return errorReply("push_send_failed", failure) }
+                return ["type": "push.test.result", "request_id": requestID as Any]
             case "push.update_muted":
                 // 已配對時只改靜音清單，不碰外掛(主機服務的規則)。
                 guard host.pairings[deviceID] != nil else { return errorReply("push_not_paired", "not paired") }

@@ -298,7 +298,13 @@ public final class HostsModel {
 
     /// 某台主機上某個 Pane 的終端機 model(標題)。
     public func terminal(_ route: ChatRoute, title: String) -> PaneTerminalModel {
-        PaneTerminalModel(client: member(for: route.host).terminals, paneID: route.paneID, title: title)
+        let member = member(for: route.host)
+        let client = member.client
+        let paneID = route.paneID
+        // 保留電腦版面時接上的格數:herdr 一接上就把 Pane 改成 handshake 的尺寸，所以要帶 Pane 目前的格數(#357)。
+        return PaneTerminalModel(client: member.terminals, paneID: paneID, title: title, nativeSize: {
+            (try? await client.snapshot())?.nativeSize(ofPane: paneID).map { TerminalGridSize(columns: $0.columns, rows: $0.rows) }
+        })
     }
 
     /// 「⋯」選單要不要有登入 Shell 與檔案：有任何一台支援就有(挑選鈕能選;HTTPS 主機沒有，ADR-0010)。
@@ -636,6 +642,7 @@ public final class HostsModel {
             store: store, editing: editing, credentials: credentials, hostService: hostService,
             icon: editing.map { icon(for: $0.id) } ?? .default, saveIcon: setIcon(_:for:), makeChannel: makeChannel)
         if editing == nil, let method { editor.connectionMethod = method }
+        editor.attachTraffic(trafficProvider)
         return editor
     }
 
@@ -649,27 +656,34 @@ public final class HostsModel {
 
     /// 所有新增入口(歡迎頁、主機清單「＋」、「⋯」選單)開的新增主機引導(#341)。
     public func makeAddHostGuide() -> AddHostGuideModel {
-        AddHostGuideModel(
+        let guide = AddHostGuideModel(
             store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel)
+        guide.attachTraffic(trafficProvider)
+        return guide
+    }
+
+    /// 連線測試、配對與撤銷等「還沒有連線」的流量依主機 id 記進數據用量(#353);沒有計量時不記。
+    private var trafficProvider: (UUID) -> TrafficRecording {
+        { [trafficMeter] id in trafficMeter?.recorder(for: id.uuidString) ?? { _, _ in } }
     }
 
     /// 匯入連結(主機分享連結、配對 QR code)開的引導,資料已齊時直接到測試連線(#344);引導接不了(原生 SSH、壞連結)時丟錯。
     public func makeImportGuide(_ url: URL) throws -> AddHostGuideModel {
-        try AddHostGuideModel(
+        let guide = try AddHostGuideModel(
             store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
             shortcut: .importLink(url))
+        guide.attachTraffic(trafficProvider)
+        return guide
     }
 
     /// 同步來、這支裝置還沒配對的 HTTPS 主機:直接到配對步驟(#344)。
     public func makePairingGuide(for host: HostConfiguration) throws -> AddHostGuideModel {
-        try AddHostGuideModel(
+        let guide = try AddHostGuideModel(
             store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
             shortcut: .needsPairing(host))
+        guide.attachTraffic(trafficProvider)
+        return guide
     }
-
-    /// 新增入口開引導還是舊的主機編輯頁。正式一律是引導;UI 測試預設走編輯頁(原生 SSH、HTTPS 的欄位流程測試還沒改寫,
-    /// #342、#344、#346 接手後移除),`-uiTestingAddHostGuide` 才開引導。
-    @ObservationIgnored public var usesAddHostGuide = true
 
     /// 沒有已存主機時，列表要不要直接列出 Demo(#332)。預設 true(測試與預覽);app 正式啟動設 false，
     /// 這時沒有主機就顯示空狀態，按「試用 Demo」或在主機清單選 Demo 才進入。
@@ -930,6 +944,7 @@ public final class HostsModel {
         let provider = credentials.provider(
             method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
         let channel = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
+        if let meter = trafficMeter { (channel as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
         // 這條連線是刪除主機時另開的，不在任何地方重用：刪完配對就關閉。
         pushService.forget(
             hostID: host.id.uuidString, installer: pushService.sshInstaller(channel: channel, herdr: settings.herdr)
@@ -944,6 +959,7 @@ public final class HostsModel {
         let provider = credentials.provider(
             method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
         let base = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
+        if let meter = trafficMeter { (base as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
         let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { _ in }
         let diagnostics = diagnostics
         Task {
@@ -959,15 +975,17 @@ public final class HostsModel {
     /// HTTPS 主機的推播配對：以讀出的權杖另開一條連線刪掉配對，之後撤銷權杖並關閉連線。沒有配對時直接撤銷。
     private func forgetHostServicePush(of host: HostConfiguration, address: HostServiceAddress, deviceToken: String) {
         let pairing = hostService.pairing
+        let recorder = trafficMeter?.recorder(for: host.id.uuidString)
         guard let pushService, pushService.store.keyHash(forHost: host.id.uuidString) != nil,
               let connection = hostService.makeConnection(address, { deviceToken }) as? HTTPSHostConnection
         else {
-            hostService.revokeWithoutWaiting(deviceToken, at: address)
+            hostService.revokeWithoutWaiting(deviceToken, at: address, traffic: recorder)
             return
         }
+        connection.attachTraffic(recorder)
         pushService.forget(hostID: host.id.uuidString, installer: pushService.hostServiceInstaller(connection: connection)) {
             await connection.disconnect()
-            try? await pairing.revoke(address: address, deviceToken: deviceToken)
+            try? await pairing.revoke(address: address, deviceToken: deviceToken, traffic: recorder)
         }
     }
 
@@ -1028,6 +1046,12 @@ public struct HostPush: Identifiable {
     public let model: PushModel
 
     public var id: HostSelection { host }
+
+    /// 這台主機能不能送測試通知:HTTPS 主機要主機服務 0.11.0 以上(版本還不知道就先不提供)。
+    public var supportsTestNotification: Bool {
+        guard installsViaHostService else { return true }
+        return hostServiceVersion.map { $0 >= HostServiceFeature.pushTest.minimumVersion } ?? false
+    }
 }
 
 /// 列表上一台主機的連線與 model:各自的通道、herdr client、列表、列操作、草稿、推播開關、「You should know」註記與主機主題。
@@ -1102,6 +1126,10 @@ final class HostMember {
         if let configuration, let pushService, !configuration.connectionMethod.usesHostService {
             push.testSender = SSHPushTestSender(service: pushService, channel: channel, hostName: configuration.name)
         }
+        // HTTPS 主機經主機服務的 `push.test`(0.11.0 起;版本不足時列上不顯示按鈕,見 `HostPush.supportsTestNotification`)。
+        if let configuration, let pushService, configuration.connectionMethod.usesHostService, let https = connection as? HTTPSHostConnection {
+            push.testSender = HostServicePushTestSender(service: pushService, connection: https, hostName: configuration.name)
+        }
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
@@ -1124,6 +1152,18 @@ struct SSHPushTestSender: PushTestNotificationSending {
     func sendTest(hostID: String) async throws {
         let deviceID = try await service.device().id
         try await SSHPushTestNotifier(channel: channel, deviceID: deviceID, hostName: hostName).send()
+    }
+}
+
+/// 經主機服務送測試通知(#328、`push.test`);每次才讀這支裝置的推播 id。
+struct HostServicePushTestSender: PushTestNotificationSending {
+    let service: PushService
+    let connection: HTTPSHostConnection
+    let hostName: String
+
+    func sendTest(hostID: String) async throws {
+        let deviceID = try await service.device().id
+        try await HostServicePushTestNotifier(connection: connection, deviceID: deviceID, hostName: hostName).send()
     }
 }
 
