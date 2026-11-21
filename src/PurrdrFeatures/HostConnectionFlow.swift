@@ -107,6 +107,15 @@ package final class HostConnectionFlow {
     @ObservationIgnored private var pairing: Pairing?
     @ObservationIgnored package private(set) var attempt = 0
 
+    /// 數據用量(#353):依這台主機的 id 取得計量入口;連線測試、更新 herdr、配對與撤銷的流量記在即將儲存(或已存)的這台主機底下。
+    @ObservationIgnored package var traffic: ((UUID) -> TrafficRecording)?
+    private var recorder: TrafficRecording? { traffic?(hostID) }
+
+    private func metered(_ channel: any HostChannel) -> any HostChannel {
+        (channel as? SSHHostChannel)?.attachTraffic(recorder)
+        return channel
+    }
+
     package init(
         store: any HostStore, existing: HostConfiguration? = nil, credentials: HostCredentials = HostCredentials(),
         hostService: HostServiceAccess = HostServiceAccess(),
@@ -150,7 +159,7 @@ package final class HostConnectionFlow {
         guard case .ssh(let ssh) = draft.connection else { return await testHostService(draft) }
         let current = beginAttempt()
         phase = .testing
-        let channel = makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential(for: ssh))
+        let channel = metered(makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential(for: ssh)))
         let result: Result<HostProbeReport, any Error>
         do {
             result = .success(try await HostProbe(channel: channel, herdr: ssh.settings.herdr).run())
@@ -192,6 +201,7 @@ package final class HostConnectionFlow {
         do {
             let testToken = try await deviceToken(address: address, pairingCode: pairingCode)
             let connection = hostService.makeConnection(address) { testToken.deviceToken }
+            (connection as? HTTPSHostConnection)?.attachTraffic(recorder)
             let snapshot: HostSnapshot
             do {
                 snapshot = try await HerdrClient(connection: connection).snapshot()
@@ -228,7 +238,8 @@ package final class HostConnectionFlow {
         if let pairing, pairing.address == address, pairing.code == code {
             return TestToken(deviceToken: pairing.device.deviceToken, readOnly: pairing.device.readOnly)
         }
-        let device = try await hostService.pairing.pair(address: address, pairingCode: code, deviceName: hostService.deviceName)
+        let device = try await hostService.pairing.pair(
+            address: address, pairingCode: code, deviceName: hostService.deviceName, traffic: recorder)
         discardUnsavedPairing()
         pairing = Pairing(address: address, code: code, device: device)
         return TestToken(deviceToken: device.deviceToken, readOnly: device.readOnly)
@@ -238,7 +249,7 @@ package final class HostConnectionFlow {
     package func discardUnsavedPairing() {
         guard let pairing, !pairing.isSaved else { return }
         self.pairing = nil
-        hostService.revokeWithoutWaiting(pairing.device.deviceToken, at: pairing.address)
+        hostService.revokeWithoutWaiting(pairing.device.deviceToken, at: pairing.address, traffic: recorder)
     }
 
     /// 取消進行中的測試。
@@ -275,7 +286,7 @@ package final class HostConnectionFlow {
     package func updateHerdr(_ draft: HostConnectionDraft) async -> Bool {
         guard case .ssh(let ssh) = draft.connection, case .needsUpdate = phase else { return false }
         phase = .updating
-        let channel = makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential(for: ssh))
+        let channel = metered(makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential(for: ssh)))
         let outcome: HerdrUpdateOutcome
         do {
             outcome = try await HostProbe(channel: channel, herdr: ssh.settings.herdr).updateHerdr()
@@ -359,7 +370,7 @@ package final class HostConnectionFlow {
 
     /// 開通道用的憑證來源(給需要自己開通道的流程，例如加入公鑰)。
     package func openChannel(for ssh: SSHConnectionDraft, credential: @escaping SSHCredentialProvider) -> any HostChannel {
-        makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential)
+        metered(makeChannel(ssh.settings.endpoint, ssh.settings.hostKeyPin, credential))
     }
 
     private func credential(for ssh: SSHConnectionDraft) -> SSHCredentialProvider {

@@ -28,9 +28,9 @@ public struct HostServiceAccess {
     }
 
     /// 不等待地請主機服務撤銷這個權杖(失敗也不影響：主機離線時可在主機上撤銷)。
-    func revokeWithoutWaiting(_ deviceToken: String, at address: HostServiceAddress) {
+    func revokeWithoutWaiting(_ deviceToken: String, at address: HostServiceAddress, traffic: TrafficRecording? = nil) {
         let pairing = pairing
-        Task { try? await pairing.revoke(address: address, deviceToken: deviceToken) }
+        Task { try? await pairing.revoke(address: address, deviceToken: deviceToken, traffic: traffic) }
     }
 
     /// 已存的 HTTPS 主機的連線。

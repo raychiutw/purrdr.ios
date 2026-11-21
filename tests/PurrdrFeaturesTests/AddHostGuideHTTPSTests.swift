@@ -166,6 +166,19 @@ struct AddHostGuideHTTPSTests {
         #expect(try rig.tokens.deviceToken(for: saved.id) == "token-paired")
     }
 
+    @Test("新增主機時的配對與撤銷也計入數據用量:記在即將儲存的那台主機底下(#353)")
+    func pairingAndRevokeAreMetered() async throws {
+        let rig = try await Self.rig(shortcut: .importLink(Self.pairingURL))
+        let meter = TrafficMeter(store: InMemoryTrafficStore())
+        rig.model.attachTraffic { meter.recorder(for: $0.uuidString) }
+
+        await rig.model.testConnection()
+        let saved = try #require(rig.model.save())
+
+        let usage = try #require(meter.today()[saved.id.uuidString]?[.other])
+        #expect(usage.sent > 0 && usage.received > 0, "配對請求送出的與收到的位元組")
+    }
+
     @Test("匯入 HTTPS 主機分享連結:沒有配對碼，到配對那一步，位址已帶入")
     func httpsShareLinkGoesToPair() async throws {
         let shared = SharedHost(

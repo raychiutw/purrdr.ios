@@ -214,6 +214,11 @@ public final class AddHostGuideModel {
         }
     }
 
+    /// 接上數據用量計量(#353):連線測試與配對的流量記在這台新主機底下。
+    package func attachTraffic(_ provider: @escaping (UUID) -> TrafficRecording) {
+        flow.traffic = provider
+    }
+
     private func load(_ address: HostServiceAddress) {
         pairAddress = address.hostName
         pairPort = String(address.port)

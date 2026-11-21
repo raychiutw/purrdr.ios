@@ -642,6 +642,7 @@ public final class HostsModel {
             store: store, editing: editing, credentials: credentials, hostService: hostService,
             icon: editing.map { icon(for: $0.id) } ?? .default, saveIcon: setIcon(_:for:), makeChannel: makeChannel)
         if editing == nil, let method { editor.connectionMethod = method }
+        editor.attachTraffic(trafficProvider)
         return editor
     }
 
@@ -655,22 +656,33 @@ public final class HostsModel {
 
     /// 所有新增入口(歡迎頁、主機清單「＋」、「⋯」選單)開的新增主機引導(#341)。
     public func makeAddHostGuide() -> AddHostGuideModel {
-        AddHostGuideModel(
+        let guide = AddHostGuideModel(
             store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel)
+        guide.attachTraffic(trafficProvider)
+        return guide
+    }
+
+    /// 連線測試、配對與撤銷等「還沒有連線」的流量依主機 id 記進數據用量(#353);沒有計量時不記。
+    private var trafficProvider: (UUID) -> TrafficRecording {
+        { [trafficMeter] id in trafficMeter?.recorder(for: id.uuidString) ?? { _, _ in } }
     }
 
     /// 匯入連結(主機分享連結、配對 QR code)開的引導,資料已齊時直接到測試連線(#344);引導接不了(原生 SSH、壞連結)時丟錯。
     public func makeImportGuide(_ url: URL) throws -> AddHostGuideModel {
-        try AddHostGuideModel(
+        let guide = try AddHostGuideModel(
             store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
             shortcut: .importLink(url))
+        guide.attachTraffic(trafficProvider)
+        return guide
     }
 
     /// 同步來、這支裝置還沒配對的 HTTPS 主機:直接到配對步驟(#344)。
     public func makePairingGuide(for host: HostConfiguration) throws -> AddHostGuideModel {
-        try AddHostGuideModel(
+        let guide = try AddHostGuideModel(
             store: store, credentials: credentials, hostService: hostService, isPlusActive: guidePlusCheck, makeChannel: makeChannel,
             shortcut: .needsPairing(host))
+        guide.attachTraffic(trafficProvider)
+        return guide
     }
 
     /// 沒有已存主機時，列表要不要直接列出 Demo(#332)。預設 true(測試與預覽);app 正式啟動設 false，
@@ -932,6 +944,7 @@ public final class HostsModel {
         let provider = credentials.provider(
             method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
         let channel = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
+        if let meter = trafficMeter { (channel as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
         // 這條連線是刪除主機時另開的，不在任何地方重用：刪完配對就關閉。
         pushService.forget(
             hostID: host.id.uuidString, installer: pushService.sshInstaller(channel: channel, herdr: settings.herdr)
@@ -946,6 +959,7 @@ public final class HostsModel {
         let provider = credentials.provider(
             method: host.connectionMethod, authentication: host.authentication, hostID: nil, entered: secret)
         let base = makeChannel(settings.endpoint, settings.hostKeyPin, provider)
+        if let meter = trafficMeter { (base as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
         let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { _ in }
         let diagnostics = diagnostics
         Task {
@@ -961,15 +975,17 @@ public final class HostsModel {
     /// HTTPS 主機的推播配對：以讀出的權杖另開一條連線刪掉配對，之後撤銷權杖並關閉連線。沒有配對時直接撤銷。
     private func forgetHostServicePush(of host: HostConfiguration, address: HostServiceAddress, deviceToken: String) {
         let pairing = hostService.pairing
+        let recorder = trafficMeter?.recorder(for: host.id.uuidString)
         guard let pushService, pushService.store.keyHash(forHost: host.id.uuidString) != nil,
               let connection = hostService.makeConnection(address, { deviceToken }) as? HTTPSHostConnection
         else {
-            hostService.revokeWithoutWaiting(deviceToken, at: address)
+            hostService.revokeWithoutWaiting(deviceToken, at: address, traffic: recorder)
             return
         }
+        connection.attachTraffic(recorder)
         pushService.forget(hostID: host.id.uuidString, installer: pushService.hostServiceInstaller(connection: connection)) {
             await connection.disconnect()
-            try? await pairing.revoke(address: address, deviceToken: deviceToken)
+            try? await pairing.revoke(address: address, deviceToken: deviceToken, traffic: recorder)
         }
     }
 
