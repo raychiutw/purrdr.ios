@@ -3358,13 +3358,13 @@
         }
       }
     },
-    "Counts only data sent and received between Purrdr and your hosts over SSH or HTTPS — not other programs on your computer." : {
+    "Counts only data sent and received between Purrdr and your hosts over SSH or HTTPS — not other programs on your host." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只計算 Purrdr 與你的主機之間經 SSH 或 HTTPS 送出與收到的資料，不含電腦上其他程式的用量。"
+            "value" : "只計算 Purrdr 與你的主機之間經 SSH 或 HTTPS 送出與收到的資料，不含主機上其他程式的用量。"
           }
         }
       }

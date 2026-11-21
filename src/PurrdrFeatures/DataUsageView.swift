@@ -1,3 +1,4 @@
+import Accessibility
 import Charts
 import PurrdrAgentFeatures
 import PurrdrCore
@@ -52,9 +53,11 @@ public struct DataUsageView: View {
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(DataUsageColors.groupedBackground)
         .navigationTitle("Data Usage")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar { ToolbarItem(placement: .principal) { HostCapsule(model: model) } }
         .sheet(item: $optionsSheet) { sheet in
             DataUsageOptionsSheet(model: model, sheet: sheet)
@@ -185,7 +188,7 @@ public struct DataUsageView: View {
 
     private var footnote: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Counts only data sent and received between Purrdr and your hosts over SSH or HTTPS — not other programs on your computer.")
+            Text("Counts only data sent and received between Purrdr and your hosts over SSH or HTTPS — not other programs on your host.")
             if let since = model.countingSince {
                 Text("Stored on this device only, counting since \(since.formatted(date: .abbreviated, time: .omitted)).")
             } else {
@@ -350,7 +353,9 @@ private struct DataUsageOptionsSheet: View {
                 }
             }
             .navigationTitle(sheet == .period ? Text("Period") : Text("Category"))
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("sheet.done") }
             }
@@ -386,7 +391,9 @@ private struct DataUsageHostSheet: View {
             .monospacedDigit()
             .accessibilityIdentifier("dataUsage.hostDetail")
             .navigationTitle(row?.isDeleted == true ? String(localized: "Deleted Host") : (row?.name ?? ""))
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.accessibilityIdentifier("sheet.done") }
             }
@@ -400,7 +407,6 @@ private struct DataUsageChart: View {
     let bars: [DataUsageBar]
     let selectedDay: String?
     let select: (String?) -> Void
-    @State private var pickedDate: Date?
 
     private struct Mark: Identifiable {
         var id: String { "\(bar.day)/\(segment.kind)" }
@@ -434,11 +440,8 @@ private struct DataUsageChart: View {
                 .foregroundStyle(mark.segment.kind.color)
                 .cornerRadius(3)
                 .opacity(selectedDay == nil || selectedDay == mark.bar.day ? 1 : 0.35)
-                .accessibilityLabel(Text(mark.bar.date, format: .dateTime.month().day()))
-                .accessibilityValue(Text(verbatim: "\(mark.segment.kind.title) \(DataUsageFormat.bytes(mark.segment.bytes))"))
             }
         }
-        .chartXSelection(value: $pickedDate)
         .chartYAxis {
             AxisMarks(position: .trailing) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 3]))
@@ -455,10 +458,46 @@ private struct DataUsageChart: View {
                     .font(.caption2).foregroundStyle(Color.secondaryText)
             }
         }
-        .onChange(of: pickedDate) { _, date in
-            guard let date else { return }
-            select(bars.first { Calendar.current.isDate($0.date, inSameDayAs: date) }?.day)
+        // 點一根長條:用點的位置換算成那天(不靠 chartXSelection,它在 iOS 要按住或拖曳)。
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle().fill(.clear).contentShape(Rectangle())
+                    .onTapGesture(coordinateSpace: .local) { location in
+                        guard let plot = proxy.plotFrame else { return }
+                        let x = location.x - geometry[plot].origin.x
+                        guard let date: Date = proxy.value(atX: x) else { return }
+                        select(bars.first { Calendar.current.isDate($0.date, inSameDayAs: date) }?.day)
+                    }
+            }
         }
+        // VoiceOver:每根念日期與各段(行動網路、Wi-Fi 等)的量。
+        .accessibilityChartDescriptor(DataUsageChartDescriptor(bars: bars))
+    }
+}
+
+/// 圖表的 VoiceOver 描述:X 軸是日期,每個類別(行動網路、Wi-Fi…)一條數列。
+private struct DataUsageChartDescriptor: AXChartDescriptorRepresentable {
+    let bars: [DataUsageBar]
+
+    func makeChartDescriptor() -> AXChartDescriptor {
+        let labels = bars.map { $0.date.formatted(.dateTime.month().day()) }
+        let peak = max(Double(bars.map(\.total).max() ?? 0), 1)
+        let xAxis = AXCategoricalDataAxisDescriptor(title: String(localized: "Day"), categoryOrder: labels)
+        let yAxis = AXNumericDataAxisDescriptor(
+            title: String(localized: "Data Usage"), range: 0...peak, gridlinePositions: []
+        ) { DataUsageFormat.bytes(Int($0)) }
+        var kinds: [DataUsageSegment.Kind] = []
+        for kind in bars.flatMap({ $0.segments.map(\.kind) }) where !kinds.contains(kind) { kinds.append(kind) }
+        let series = kinds.map { kind in
+            AXDataSeriesDescriptor(
+                name: kind.title, isContinuous: false,
+                dataPoints: bars.enumerated().map { index, bar in
+                    AXDataPoint(x: labels[index], y: Double(bar.segments.first { $0.kind == kind }?.bytes ?? 0))
+                })
+        }
+        return AXChartDescriptor(
+            title: String(localized: "Data Usage"), summary: nil, xAxis: xAxis, yAxis: yAxis, additionalAxes: [],
+            series: series.isEmpty ? [AXDataSeriesDescriptor(name: String(localized: "Total"), isContinuous: false, dataPoints: [])] : series)
     }
 }
 
@@ -522,7 +561,17 @@ extension DataUsageSegment.Kind {
         switch self {
         case .total, .cellular, .received: AccessibleColors.dataUsageCellular.color
         case .wifi, .sent: AccessibleColors.dataUsageWifi.color
-        case .other: Color(.systemGray)
+        case .other: DataUsageColors.neutral
         }
     }
+}
+
+private enum DataUsageColors {
+    #if canImport(UIKit)
+    static let groupedBackground = Color(uiColor: .systemGroupedBackground)
+    static let neutral = Color(uiColor: .systemGray)
+    #else
+    static let groupedBackground = Color(nsColor: .windowBackgroundColor)
+    static let neutral = Color.gray
+    #endif
 }

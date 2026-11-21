@@ -48,16 +48,18 @@ final class DataUsageUITests: XCTestCase {
         let period = app.buttons["dataUsage.period"]
         XCTAssertTrue(period.label.contains("30 Days"), period.label)
         period.tap()
-        XCTAssertTrue(app.buttons["30 Days"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["30 Days"].isSelected, "預設不是 30 天")
-        app.buttons["7 Days"].tap()
+        let thirty = optionRow("30 Days", in: app)
+        XCTAssertTrue(thirty.waitForExistence(timeout: 5))
+        XCTAssertTrue(thirty.isSelected, "預設不是 30 天")
+        optionRow("7 Days", in: app).tap()
         app.buttons["sheet.done"].tap()
         XCTAssertTrue(app.buttons["dataUsage.period"].label.contains("7 Days"))
 
         app.buttons["dataUsage.category"].tap()
-        XCTAssertTrue(app.buttons["Total"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Total"].isSelected, "預設不是加總")
-        app.buttons["Sent & Received"].tap()
+        let total = optionRow("Total", in: app)
+        XCTAssertTrue(total.waitForExistence(timeout: 5))
+        XCTAssertTrue(total.isSelected, "預設不是加總")
+        optionRow("Sent & Received", in: app).tap()
         app.buttons["sheet.done"].tap()
         let legend = element("dataUsage.legend", in: app)
         XCTAssertTrue(legend.waitForExistence(timeout: 5))
@@ -71,7 +73,7 @@ final class DataUsageUITests: XCTestCase {
         let chart = element("dataUsage.chart", in: app)
         XCTAssertTrue(chart.waitForExistence(timeout: 5))
         XCTAssertFalse(element("dataUsage.selection", in: app).exists)
-        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)).tap()
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()
         XCTAssertTrue(element("dataUsage.selection", in: app).waitForExistence(timeout: 5), "點長條沒有出現那天的數字")
     }
 
@@ -116,16 +118,24 @@ final class DataUsageUITests: XCTestCase {
         let reset = app.buttons["dataUsage.reset"]
         XCTAssertTrue(scrollTo(reset, in: app))
         reset.tap()
-        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
-        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons.matching(identifier: "dataUsage.resetConfirm").firstMatch.waitForExistence(timeout: 5))
+        // 點對話框外面收起(不確認)。
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.3)).tap()
+        XCTAssertTrue(app.buttons.matching(identifier: "dataUsage.resetConfirm").firstMatch.waitForNonExistence(timeout: 5), "對話框沒收起")
         XCTAssertTrue(element("dataUsage.today", in: app).label.contains("10 MB"), "取消後數字不該變")
 
         reset.tap()
-        let confirm = app.buttons["dataUsage.resetConfirm"]
+        let confirm = app.buttons.matching(identifier: "dataUsage.resetConfirm").firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         confirm.tap()
         let today = element("dataUsage.today", in: app)
         XCTAssertTrue(today.label.contains("Zero"), "重設後今天不是 0:\(today.label)")
+    }
+
+    /// 選項 sheet 裡的勾選列(列帶著 `dataUsage.periodOptions`／`categoryOptions`;膠囊按鈕的標籤也一樣,所以用 identifier 分開)。
+    @MainActor
+    private func optionRow(_ label: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label == %@ AND identifier ENDSWITH 'Options'", label)).firstMatch
     }
 
     @MainActor
