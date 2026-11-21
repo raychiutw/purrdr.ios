@@ -158,6 +158,29 @@ struct HostServiceUpdateTests {
         #expect(Self.versions(model) == ["A Older": "0.9.0", "B Same": "0.10.1", "C Newer": "0.11.0"])
     }
 
+    @Test("查最新 Release 卡住時，主機服務版本照樣先讀到(不被 GitHub 拖住);查到後才標示可更新")
+    func slowReleaseCheckDoesNotHoldBackHostVersions() async {
+        let (store, tokens) = Self.hosts()
+        let releases = GatedHostServiceReleases(latest: "0.10.1")
+        let model = Self.model(
+            releases: releases, store: store, tokens: tokens,
+            connections: await Self.connections(reporting: ["0.9.0", "0.10.1", "0.11.0"]), dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
+
+        let check = Task { await model.checkHostServiceVersions() }
+        var waited = 0
+        while Self.versions(model).count < 3, waited < 2_000 {
+            try? await Task.sleep(for: .milliseconds(1))
+            waited += 1
+        }
+
+        #expect(Self.versions(model) == ["A Older": "0.9.0", "B Same": "0.10.1", "C Newer": "0.11.0"])
+        #expect(Self.updates(model).isEmpty)
+        await releases.open()
+        await check.value
+        #expect(Self.updates(model) == ["A Older": "0.10.1"])
+    }
+
     @Test("沒有已配對的 HTTPS 主機時不查最新 Release(不為了 SSH 主機連網路)")
     func noHTTPSHostsSkipsReleaseCheck() async {
         let store = MemoryHostStore()
@@ -227,6 +250,26 @@ private actor CountingHostServiceReleases: HostServiceReleaseSource {
     func latestVersion() async -> String? {
         calls += 1
         return latest
+    }
+}
+
+/// `open()` 之前查最新版本會一直等(模擬 GitHub 很慢或被擋)。
+private actor GatedHostServiceReleases: HostServiceReleaseSource {
+    let latest: String?
+    private var isOpen = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    init(latest: String?) { self.latest = latest }
+
+    func latestVersion() async -> String? {
+        if !isOpen { await withCheckedContinuation { waiting.append($0) } }
+        return latest
+    }
+
+    func open() {
+        isOpen = true
+        waiting.forEach { $0.resume() }
+        waiting = []
     }
 }
 

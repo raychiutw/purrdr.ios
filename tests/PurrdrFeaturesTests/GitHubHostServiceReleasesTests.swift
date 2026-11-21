@@ -49,4 +49,29 @@ struct GitHubHostServiceReleasesTests {
 
         #expect(github.requests(to: Self.path).count == 2)
     }
+
+    @Test("快取過期後重新查")
+    func expiredCacheIsRefetched() async {
+        let github = HTTPStub()
+        github.on(
+            "GET", Self.path, .json(200, #"{"tag_name": "host-service-v0.10.1"}"#), .json(200, #"{"tag_name": "host-service-v0.11.0"}"#))
+        let releases = GitHubHostServiceReleases(session: github.urlSession, apiBaseURL: github.baseURL, cacheDuration: .zero)
+
+        #expect(await releases.latestVersion() == "0.10.1")
+        #expect(await releases.latestVersion() == "0.11.0")
+    }
+
+    @Test("同時查只送一個請求")
+    func concurrentChecksShareOneRequest() async {
+        let github = HTTPStub()
+        github.on("GET", Self.path, .json(200, #"{"tag_name": "host-service-v0.10.1"}"#))
+        let releases = Self.releases(github)
+
+        async let first = releases.latestVersion()
+        async let second = releases.latestVersion()
+        async let third = releases.latestVersion()
+
+        #expect(await [first, second, third] == ["0.10.1", "0.10.1", "0.10.1"])
+        #expect(github.requests(to: Self.path).count == 1)
+    }
 }

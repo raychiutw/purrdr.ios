@@ -25,18 +25,21 @@ public struct FixedHostServiceReleases: HostServiceReleaseSource {
 /// 從 raychiutw/purrdr.host 的最新 GitHub Release 取得(公開 repo,不需要權杖)。
 ///
 /// 主機服務每次發版，app 不用改版號或重新包版就知道有新版。Release 的 tag 是 `host-service-v<版本>`。
-/// 取得的版本快取 `cacheDuration`(未帶權杖的 GitHub API 每個 IP 每小時 60 次);失敗不快取，下次再試。
+/// 取得的版本快取 `cacheDuration`(未帶權杖的 GitHub API 每個 IP 每小時 60 次;以單調時鐘計時，不受改系統時間影響);
+/// 失敗不快取，下次再試。同時查只送一個請求。
 public actor GitHubHostServiceReleases: HostServiceReleaseSource {
     static let repository = "raychiutw/purrdr.host"
     static let tagPrefix = "host-service-v"
 
     private let session: URLSession
     private let apiBaseURL: URL
-    private let cacheDuration: TimeInterval
-    private var cached: (version: String, fetchedAt: Date)?
+    private let cacheDuration: Duration
+    private let clock = ContinuousClock()
+    private var cached: (version: String, fetchedAt: ContinuousClock.Instant)?
+    private var inFlight: Task<String?, Never>?
 
     public init(
-        session: URLSession = .shared, apiBaseURL: URL = URL(string: "https://api.github.com")!, cacheDuration: TimeInterval = 6 * 60 * 60
+        session: URLSession = .shared, apiBaseURL: URL = URL(string: "https://api.github.com")!, cacheDuration: Duration = .seconds(6 * 60 * 60)
     ) {
         self.session = session
         self.apiBaseURL = apiBaseURL
@@ -44,22 +47,27 @@ public actor GitHubHostServiceReleases: HostServiceReleaseSource {
     }
 
     public func latestVersion() async -> String? {
-        if let cached, Date().timeIntervalSince(cached.fetchedAt) < cacheDuration { return cached.version }
-        guard let version = await fetch() else { return nil }
-        cached = (version, Date())
+        if let cached, cached.fetchedAt.duration(to: clock.now) < cacheDuration { return cached.version }
+        if let inFlight { return await inFlight.value }
+        let (session, apiBaseURL) = (session, apiBaseURL)
+        let task = Task { await Self.fetch(session: session, apiBaseURL: apiBaseURL) }
+        inFlight = task
+        let version = await task.value
+        inFlight = nil
+        if let version { cached = (version, clock.now) }
         return version
     }
 
-    private func fetch() async -> String? {
-        var request = URLRequest(url: apiBaseURL.appending(path: "repos/\(Self.repository)/releases/latest"))
+    private static func fetch(session: URLSession, apiBaseURL: URL) async -> String? {
+        var request = URLRequest(url: apiBaseURL.appending(path: "repos/\(repository)/releases/latest"))
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 15
         guard let (data, response) = try? await session.data(for: request),
             (response as? HTTPURLResponse)?.statusCode == 200,
             let release = try? JSONDecoder().decode(Release.self, from: data),
-            release.tagName.hasPrefix(Self.tagPrefix)
+            release.tagName.hasPrefix(tagPrefix)
         else { return nil }
-        let version = String(release.tagName.dropFirst(Self.tagPrefix.count))
+        let version = String(release.tagName.dropFirst(tagPrefix.count))
         return HostServiceVersion(version) == nil ? nil : version
     }
 

@@ -369,17 +369,19 @@ public final class HostsModel {
     }
 
     /// 讀每台已配對 HTTPS 主機的主機服務版本(主機清單出現時;已連線的主機不多花一個請求)與最新版本。連不上的略過;
-    /// 沒有已配對的 HTTPS 主機時不查最新版本。
+    /// 沒有已配對的 HTTPS 主機時不查最新版本。最新版本這次取不到時沿用上次取到的。
     public func checkHostServiceVersions() async {
         let targets = hosts.compactMap { host -> (UUID, any HostConnection)? in
             guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id) else { return nil }
             return (host.id, hostServiceConnection(for: host, address: address))
         }
         guard !targets.isEmpty else { return }
-        if let latest = await hostServiceUpdates.releases.latestVersion() { latestHostServiceVersion = latest }
+        // 與讀主機版本同時查：GitHub 慢或被擋時不拖住主機版本(推播區塊也靠它判斷功能)。
+        async let latest = hostServiceUpdates.releases.latestVersion()
         for (id, connection) in targets {
             if let version = try? await connection.hostServiceVersion() { hostServiceVersions[id] = version }
         }
+        if let latest = await latest { latestHostServiceVersion = latest }
     }
 
     /// 主機編輯頁的主機服務與已配對裝置區塊(#290、#291)用的連線：已配對的 HTTPS 主機才有。
