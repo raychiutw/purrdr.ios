@@ -323,8 +323,11 @@ public final class HostsModel {
             updates: member.list.updates,
             // 送出管線(#299):機密偵測在最前面(#302,只在本機判斷),再來是撤回倒數(#300),
             // 倒數結束時離線就排進那台主機的離線佇列(#301)。
+            // 「做完再送」開著時排進主機的佇列(#305),不經撤回倒數與離線佇列。
             sendSteps: [
-                SecretCheck(), UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 }),
+                SecretCheck(),
+                SendWhenDoneStep(model: SendWhenDoneModel(host: member.sendWhenDoneHost, paneID: route.paneID)),
+                UndoSendCountdown(seconds: { [weak self] in self?.undoSendSeconds() ?? 0 }),
                 OfflineQueueStep(queue: offlineQueue(for: route.host)),
             ])
         // 註記屬於聊天所在的主機(#23):寫回也寫到那台。
@@ -973,6 +976,8 @@ final class HostMember {
     let uploader: any HostUploading
     /// 變更頁的唯讀 git 讀取(#310)。
     let gitChanges: any GitChangesReading
+    /// 主機上的 Send When Done 佇列(#305);只有 HTTPS 主機(主機服務)有，其他是 `nil`。
+    let sendWhenDoneHost: (any SendWhenDoneHosting)?
 
     /// - Parameters:
     ///   - connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
@@ -989,6 +994,7 @@ final class HostMember {
         self.channel = channel
         uploader = uploads ?? SSHHostUploader(channel: channel)
         gitChanges = git ?? SSHGitChanges(channel: channel)
+        sendWhenDoneHost = configuration?.connectionMethod.usesHostService == true ? connection as? any SendWhenDoneHosting : nil
         let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
         let connection = connection ?? SSHHostConnection(
             channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))

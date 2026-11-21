@@ -411,7 +411,7 @@ final class FakeHostService: Sendable {
             }
             object["request_id"] = requestID
             return [.text(Self.json(object))]
-        case "devices.list", "devices.revoke":
+        case "devices.list", "devices.revoke", "queue.list", "queue.add", "queue.remove", "queue.reorder":
             let reply = state.withLock { state -> String? in
                 guard let queue = state.settings.deviceReplies[type], let first = queue.first else { return nil }
                 if queue.count > 1 { state.settings.deviceReplies[type] = Array(queue.dropFirst()) }

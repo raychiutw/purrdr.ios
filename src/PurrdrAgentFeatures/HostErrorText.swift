@@ -120,6 +120,10 @@ package enum HostErrorText {
             String(localized: "The host service sent a response Purrdr doesn’t understand. Update Purrdr and the host service.")
         case .paneChanged:
             String(localized: "This chat changed on the host, so nothing was sent.")
+        case .queueFull:
+            String(localized: "The Send When Done queue is full (20 messages). Wait for some to send or delete one.")
+        case .queueItemUnknown:
+            String(localized: "That message already left the queue. Refreshing the list.")
         }
     }
 

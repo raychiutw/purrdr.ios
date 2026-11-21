@@ -201,6 +201,10 @@ public enum HostServiceError: Error, Equatable, Sendable {
     case unexpectedResponse
     /// 送出前比對(`expected_session`／`expected_screen`)不符：對象的對話或畫面已變更，什麼都沒送出(#304)。
     case paneChanged
+    /// 這個 pane 的 Send When Done 佇列已滿(20 則)。
+    case queueFull
+    /// 要刪除或重排的訊息已不在佇列裡(已送出或被別支裝置刪掉)。
+    case queueItemUnknown
 
     /// 要重新配對才能再連(權杖無效或已撤銷);不自動重連。
     public var requiresPairing: Bool {

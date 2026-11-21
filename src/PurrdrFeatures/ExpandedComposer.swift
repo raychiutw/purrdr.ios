@@ -55,6 +55,9 @@ struct ExpandedComposer: View {
                 if model.canAttachImages && model.typedAnswer == nil {
                     AddImageButton(model: model, identifier: "composer.expanded.addImage")
                 }
+                if let sendWhenDone = model.sendWhenDone, model.typedAnswer == nil {
+                    SendWhenDoneToggle(model: sendWhenDone, identifier: "composer.expanded.sendWhenDone", isInCard: false)
+                }
                 Spacer()
                 Button(action: collapse) {
                     Text("Done")

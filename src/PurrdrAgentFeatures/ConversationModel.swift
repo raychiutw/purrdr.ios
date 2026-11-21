@@ -399,6 +399,15 @@ public final class ConversationModel {
         offlineQueue?.remove(id)
     }
 
+    /// 管線裡的 Send When Done(#305):輸入列的「做完再送」開關與主機上的佇列;沒有這個步驟時是 `nil`。
+    public let sendWhenDone: SendWhenDoneModel?
+
+    /// 編輯 Send When Done 佇列裡的一則:從主機佇列拿掉，文字放回輸入框(接在目前的草稿前面)。
+    public func editSendWhenDone(_ id: SendWhenDoneItem.ID) async {
+        guard let text = await sendWhenDone?.takeBack(id) else { return }
+        draft = draft.isEmpty ? text : text + "\n" + draft
+    }
+
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
     public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
     private let slashDiscovery: (any SlashDiscovering)?
@@ -526,6 +535,7 @@ public final class ConversationModel {
         delivery = PromptDelivery(client: client, sleep: sleep)
         sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
         undoSend = sendSteps.lazy.compactMap { $0 as? UndoSendCountdown }.first
+        sendWhenDone = sendSteps.lazy.compactMap { ($0 as? SendWhenDoneStep)?.model }.first
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)

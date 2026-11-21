@@ -320,6 +320,9 @@ struct ComposerBar: View {
             if model.supportsPermissionMode && model.typedAnswer == nil {
                 PermissionModeCapsule(model: model)
             }
+            if let sendWhenDone = model.sendWhenDone, model.typedAnswer == nil {
+                SendWhenDoneToggle(model: sendWhenDone)
+            }
             Spacer(minLength: 0)
             if isFocused {
                 hideKeyboardButton
