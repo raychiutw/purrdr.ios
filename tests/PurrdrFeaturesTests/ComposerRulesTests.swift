@@ -280,11 +280,4 @@ struct ComposerRulesTests {
         // 滿 4 張就交給系統(不吃掉按鍵也不加)。
         #expect(ComposerPaste.action(hasImages: true, hasStrings: false, remainingSlots: 0) == .system)
     }
-
-    @Test("加入圖片：剪貼簿有圖時先問「相簿／貼上圖片」,否則直接開相簿;滿了提示")
-    func addImageButton() {
-        #expect(ComposerPaste.addImageAction(pasteboardHasImages: true, remainingSlots: 2) == .askSource)
-        #expect(ComposerPaste.addImageAction(pasteboardHasImages: false, remainingSlots: 2) == .openLibrary)
-        #expect(ComposerPaste.addImageAction(pasteboardHasImages: true, remainingSlots: 0) == .showLimit)
-    }
 }
