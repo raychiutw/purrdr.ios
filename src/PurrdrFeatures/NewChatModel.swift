@@ -129,6 +129,8 @@ public final class NewChatModel {
         case loaded([ResumableSession])
         /// 這台主機不能續接,原因給畫面顯示。
         case unavailable(String)
+        /// 主機服務版本不足:畫面附更新指令。
+        case updateRequired(HostServiceUpdateCommands)
         case failed(String)
     }
 
@@ -176,14 +178,24 @@ public final class NewChatModel {
         if let resumeSupport {
             support = resumeSupport
         } else {
-            support = await launcher.resumeSupport()
-            resumeSupport = support
+            do {
+                support = try await launcher.resumeSupport()
+            } catch is CancellationError {
+                return
+            } catch {
+                // 連不上不等於「需要主機服務」:說明原因、不記住,按「再試一次」或換資料夾時重讀。
+                guard folder == trimmedFolder, agent == self.agent else { return }
+                sessions = .failed(Self.message(for: error))
+                return
+            }
+            // 只記住不會變的結果(能續接、SSH);版本太舊時使用者更新後要能立刻再讀到。
+            if support == .available || support == .needsHostService { resumeSupport = support }
         }
         switch support {
         case .needsHostService:
-            sessions = .unavailable(String(localized: "Resuming a past chat needs the Purrdr host service. This host connects over SSH."))
-        case .updateRequired:
-            sessions = .unavailable(String(localized: "Resuming a past chat needs a newer Purrdr host service. Update it on the host."))
+            sessions = .unavailable(String(localized: "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it."))
+        case .updateRequired(let installed):
+            sessions = .updateRequired(HostServiceUpdates.commands(installed: installed ?? "0.0.0"))
         case .available:
             sessions = .loading
             do {
@@ -248,6 +260,8 @@ public final class NewChatModel {
             String(localized: "Enter the folder’s full path on the host, like /Users/you/project. This host can’t browse folders.")
         case NewChatFolderError.unexpectedResponse, NewChatFolderError.failed:
             FolderPickerModel.message(for: error)
+        case TranscriptReadError.absent:
+            String(localized: "That chat’s record is no longer on the host, so it can’t be resumed. Pick another chat, or start a new one.")
         case HerdrError.herdr(code: "demo_unsupported", _):
             String(localized: "The Demo host can’t start new chats. Add your own host to try this.")
         case HerdrError.herdr(_, let message):

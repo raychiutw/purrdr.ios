@@ -175,10 +175,20 @@ public struct NewChatView: View {
             } header: {
                 Text("Chat").foregroundStyle(.secondaryText)
             }
+        case .updateRequired(let commands):
+            Section {
+                HostServiceCommandRows(
+                    message: "Update the Purrdr host service to resume past chats. Run this on the computer:",
+                    commands: commands, identifier: "newChat.sessions.update")
+            } header: {
+                Text("Chat").foregroundStyle(.secondaryText)
+            }
         case .failed(let message):
             Section {
                 ErrorLabel(message)
                     .accessibilityIdentifier("newChat.sessions.error")
+                Button("Try Again") { Task { await model.refreshSessions() } }
+                    .accessibilityIdentifier("newChat.sessions.retry")
             } header: {
                 Text("Chat").foregroundStyle(.secondaryText)
             }

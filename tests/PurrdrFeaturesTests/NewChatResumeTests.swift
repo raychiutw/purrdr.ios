@@ -62,7 +62,7 @@ struct NewChatResumeTests {
         #expect(await connection.unmetExpectations.isEmpty)
     }
 
-    @Test("SSH 主機(沒有主機服務):清單不可用並說明需要主機服務,不送 sessions.list")
+    @Test("SSH 主機(沒有主機服務):清單不可用並說明,不送 sessions.list,說明不提 SSH 這類技術名詞")
     func sshNeedsHostService() async {
         let connection = FakeHostConnection()
         let model = Self.model(connection)
@@ -72,10 +72,11 @@ struct NewChatResumeTests {
 
         guard case .unavailable(let reason) = model.sessions else { Issue.record("sessions: \(model.sessions)"); return }
         #expect(reason.contains("host service"))
+        #expect(!reason.contains("SSH"))
         #expect(await connection.requests.isEmpty)
     }
 
-    @Test("主機服務版本太舊:說明更新主機服務,不送 sessions.list")
+    @Test("主機服務版本太舊:附依已安裝版本的更新指令,不送 sessions.list")
     func outdatedHostService() async {
         let connection = FakeHostConnection()
         await connection.setHostServiceVersion("0.6.0")
@@ -84,9 +85,44 @@ struct NewChatResumeTests {
 
         await model.refreshSessions()
 
-        guard case .unavailable(let reason) = model.sessions else { Issue.record("sessions: \(model.sessions)"); return }
-        #expect(reason.contains("newer"))
+        #expect(model.sessions == .updateRequired(HostServiceUpdates.commands(installed: "0.6.0")))
         #expect(await connection.requests.isEmpty)
+    }
+
+    @Test("一時連不上主機:說明並可重試,不當成「需要主機服務」也不記住;重試成功就讀清單")
+    func unreachableHostCanRetry() async {
+        let connection = FakeHostConnection()
+        await connection.setHostServiceVersionFailure(HostServiceError.unreachable)
+        await connection.expect("sessions.list", reply: Self.sessionsReply)
+        let model = Self.model(connection)
+        model.folder = "/Users/demo/ledger"
+
+        await model.refreshSessions()
+
+        guard case .failed = model.sessions else { Issue.record("sessions: \(model.sessions)"); return }
+
+        await connection.setHostServiceVersionFailure(nil)
+        await connection.setHostServiceVersion("0.7.0")
+        await model.refreshSessions()
+
+        guard case .loaded(let sessions) = model.sessions else { Issue.record("sessions: \(model.sessions)"); return }
+        #expect(sessions.count == 2)
+    }
+
+    @Test("續接的 session 對話紀錄已不在主機上(transcript_absent):說明這份記錄找不到,不是通用錯誤")
+    func absentTranscriptHasOwnMessage() async {
+        let connection = FakeHostConnection()
+        await connection.setHostServiceVersion("0.7.0")
+        await connection.expect("workspace.create", reply: Self.created)
+        await connection.expect("agent.start", failure: TranscriptReadError.absent)
+        let model = Self.model(connection)
+        model.folder = "/Users/demo/ledger"
+        model.choice = .resume("48b84c34-58a1-465f-94b2-370ed0699957")
+
+        let workspace = await model.start()
+
+        #expect(workspace == nil)
+        #expect(model.error?.contains("no longer on the host") == true, "error: \(model.error ?? "nil")")
     }
 
     @Test("續接時第一則訊息可以留空;全新的聊天仍要訊息")
