@@ -3,7 +3,7 @@ import CoreGraphics
 /// 全螢幕看圖(#330)的縮放規則：不依賴 UIKit／SwiftUI，畫面只把手勢接到這組規則。
 /// 座標以容器中心為原點；`fitted` 是圖片在 1× 時等比縮進容器後的尺寸。
 struct ImageViewerZoom: Equatable {
-    static let maximumZoom: CGFloat = 8
+    static let maximumZoom = ZoomMath.maximumZoom
     static let doubleTapZoom: CGFloat = 2.5
     /// 1× 時向下拖超過這麼多(pt)放開就關閉。
     static let dismissDistance: CGFloat = 120
@@ -12,7 +12,7 @@ struct ImageViewerZoom: Equatable {
     var fitted: CGSize
 
     /// 捏合結果夾在 1× 到上限之間(放開時彈回)。
-    func clampedZoom(_ zoom: CGFloat) -> CGFloat { min(max(zoom, 1), Self.maximumZoom) }
+    func clampedZoom(_ zoom: CGFloat) -> CGFloat { ZoomMath.clampedZoom(zoom) }
 
     /// 放大後圖片超出容器的一半，就是單邊可平移的最大值;沒超出的方向不能動。
     func maximumOffset(zoom: CGFloat) -> CGSize {
@@ -41,11 +41,9 @@ struct ImageViewerZoom: Equatable {
     /// 捏合進行中:以手指中心(`anchor`,相對容器中心)為不動點縮放——手指下的那一點縮放後仍在手指下。
     /// 進行中可略超出範圍(橡皮筋感),放開時再以 `clampedZoom`／`clampedOffset` 夾回。
     func pinched(zoom start: CGFloat, offset: CGSize, magnification: CGFloat, at anchor: CGPoint) -> (zoom: CGFloat, offset: CGSize) {
-        let zoom = min(max(start * magnification, 0.8), Self.maximumZoom * 1.2)
-        let ratio = zoom / start
-        // 手指下的圖上的點 p = (anchor - offset) / start;縮放後仍要在 anchor,所以新的 offset = anchor - zoom * p。
-        return (zoom, CGSize(
-            width: anchor.x - ratio * (anchor.x - offset.width), height: anchor.y - ratio * (anchor.y - offset.height)))
+        let zoom = ZoomMath.rubberBandedZoom(start * magnification)
+        let moved = ZoomMath.anchored(origin: CGPoint(x: offset.width, y: offset.height), anchor: anchor, ratio: zoom / start)
+        return (zoom, CGSize(width: moved.x, height: moved.y))
     }
 
     /// 放大後才能單指平移。
