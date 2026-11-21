@@ -5285,6 +5285,17 @@
         }
       }
     },
+    "Notifications can be turned on after this device pairs with the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置配對這台主機後就能開啟通知。"
+          }
+        }
+      }
+    },
     "Notifications need Purrdr Plus." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5666,6 +5677,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配對"
+          }
+        }
+      }
+    },
+    "Pair This Host First" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先配對這台主機"
+          }
+        }
+      }
+    },
+    "Pair This Host First %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先配對這台主機 %@"
           }
         }
       }

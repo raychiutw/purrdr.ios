@@ -406,8 +406,10 @@ struct PushModelTests {
         let https = HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)
         hostStore.hosts = [MultiHostTests.studio, https]
         let companion = DemoCompanionHost(id: UUID(), name: "Studio Mac", icon: .macMini, channel: FakeHost())
+        // 已在這支裝置配對(沒有權杖的是「需要先配對」,見 HostServiceUpdateTests)。
         let hosts = HostsModel(
-            store: hostStore, demoChannel: FakeHost(), demoCompanions: [companion], push: service(),
+            store: hostStore, demoChannel: FakeHost(), demoCompanions: [companion],
+            hostService: HostServiceAccess(tokens: InMemoryDeviceTokenStore(tokens: [https.id: "token-saved"])), push: service(),
             makeChannel: ChannelsByAddress([:]).make)
         hosts.load()
         hosts.select(.demo)
@@ -423,9 +425,11 @@ struct PushModelTests {
     @Test("HTTPS 主機取不到主機服務連線(例如替身連線):明確標成不支援，不是無聲失效")
     func httpsHostWithoutHostServiceConnectionIsUnsupported() {
         let hostStore = MemoryHostStore()
-        hostStore.hosts = [HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)]
+        let box = HostConfiguration(name: "Box", hostService: HostServiceAddress("box.tail1234.ts.net")!)
+        hostStore.hosts = [box]
+        let tokens = InMemoryDeviceTokenStore(tokens: [box.id: "token-saved"])
         let hosts = HostsModel(
-            store: hostStore, demoChannel: FakeHost(), hostService: HostServiceAccess { _, _ in FakeHostConnection() },
+            store: hostStore, demoChannel: FakeHost(), hostService: HostServiceAccess(tokens: tokens) { _, _ in FakeHostConnection() },
             push: service(), makeChannel: ChannelsByAddress([:]).make)
         hosts.load()
 

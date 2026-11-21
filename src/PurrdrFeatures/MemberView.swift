@@ -15,22 +15,25 @@ public struct MemberView: View {
     let pushDevices: PushDevicesModel?
     /// 主機同步(步驟四)。
     let hostSync: HostSyncModel?
+    /// 還沒配對的 HTTPS 主機在通知列開配對(#295;與主機頁同一個編輯器)。
+    let hosts: HostsModel?
     @Environment(\.dismiss) private var dismiss
 
     public init(
         model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
-        hostSync: HostSyncModel? = nil
+        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil
     ) {
         self.model = model
         self.plus = plus
         self.pushes = pushes
         self.pushDevices = pushDevices
         self.hostSync = hostSync
+        self.hosts = hosts
     }
 
     public var body: some View {
         NavigationStack {
-            MemberContent(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
+            MemberContent(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
@@ -48,16 +51,18 @@ public struct MemberContent: View {
     let pushes: [HostPush]
     let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
+    let hosts: HostsModel?
 
     public init(
         model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
-        hostSync: HostSyncModel? = nil
+        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil
     ) {
         self.model = model
         self.plus = plus
         self.pushes = pushes
         self.pushDevices = pushDevices
         self.hostSync = hostSync
+        self.hosts = hosts
     }
 
     public var body: some View {
@@ -94,7 +99,7 @@ public struct MemberContent: View {
                 }
             }
         } else {
-            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync)
+            AccountView(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts)
         }
     }
 
@@ -245,7 +250,10 @@ struct AccountView: View {
     let pushes: [HostPush]
     let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
+    let hosts: HostsModel?
     @State private var confirmingDeletion = false
+    /// 從通知列開配對的主機(#295)。
+    @State private var pairingHost: UUID?
     @State private var signingIn = false
     @State private var showingPlus = false
     @State private var offeringFeatureSetup = false
@@ -284,7 +292,7 @@ struct AccountView: View {
                 plusSection(plus: plus, progress: progress)
                 if progress.isPlusActive {
                     // 四步完成、步驟卡收合後，通知與主機同步仍可隨時開關(spec #261 原型 A)。
-                    HostPushSection(pushes: pushes) { showingPlus = true }
+                    HostPushSection(pushes: pushes, openPlus: { showingPlus = true }, pair: { pairingHost = $0 })
                 }
                 if signedInMember != nil, let pushDevices {
                     // 訂閱到期也顯示：仍可遠端關閉遺失的裝置。
@@ -323,6 +331,19 @@ struct AccountView: View {
         .navigationDestination(isPresented: $showingPlus) {
             if let plus {
                 PlusView(model: plus, member: model)
+            }
+        }
+        .navigationDestination(item: $pairingHost) { id in
+            if let hosts, let host = hosts.hosts.first(where: { $0.id == id }) {
+                // 與主機頁點「還沒配對」的主機開的是同一個編輯器;存好回到帳號頁，那台主機的開關就能用。
+                HostEditorView(model: hosts.makeEditor(editing: host)) { saved in
+                    hosts.didSave(saved)
+                    pairingHost = nil
+                } onCancel: {
+                    pairingHost = nil
+                } onIconSaved: {
+                    pairingHost = nil
+                }
             }
         }
         .onChange(of: signedInMember?.id) { _, id in

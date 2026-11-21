@@ -89,6 +89,35 @@ struct HostServiceUpdateTests {
         #expect(supportByName["D SSH"] == .supported)
     }
 
+    @Test("通知區塊：這支裝置還沒配對的 HTTPS 主機要先配對(#295);配對後可開，主機服務太舊仍要更新")
+    func pushNeedsPairingUntilPaired() async throws {
+        let (store, _) = Self.hosts()
+        let tokens = InMemoryDeviceTokenStore()
+        let connections = await Self.connections(reporting: ["0.5.0", "0.6.0", "0.7.0"])
+        let model = Self.model(
+            latest: "0.7.0", store: store, tokens: tokens, connections: connections, dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
+        await model.checkHostServiceVersions()
+
+        let before = Dictionary(uniqueKeysWithValues: model.hostPushes.map { ($0.name, $0.support) })
+        #expect(before["A Older"] == .needsPairing)
+        #expect(before["B Same"] == .needsPairing)
+        #expect(before["D SSH"] == .supported)
+
+        // 在這支裝置配對(與主機頁的編輯器相同：先存權杖再存主機);存檔後主機連線重建，依序是 A、B。
+        connections.connections = await Self.connections(reporting: ["0.5.0", "0.6.0"]).connections
+        for name in ["A Older", "B Same"] {
+            let host = try #require(store.hosts.first { $0.name == name })
+            try tokens.setDeviceToken("token-\(name)", for: host.id)
+            model.didSave(host)
+        }
+        await model.checkHostServiceVersions()
+
+        let after = Dictionary(uniqueKeysWithValues: model.hostPushes.map { ($0.name, $0.support) })
+        #expect(after["A Older"] == .needsHostService(version: "0.6.0", update: HostServiceUpdates.commands(installed: "0.5.0")))
+        #expect(after["B Same"] == .supported)
+    }
+
     @Test("關閉提示後同一個新版本不再出現(存在這支裝置);app 知道更新的版本時再提示")
     func dismissedUpdateStaysHiddenUntilNewerRelease() async throws {
         let (store, tokens) = Self.hosts()
