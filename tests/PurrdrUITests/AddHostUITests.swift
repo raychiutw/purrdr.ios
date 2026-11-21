@@ -72,7 +72,7 @@ final class AddHostUITests: XCTestCase {
         address.tapWhenReady()
         address.typeEnglish("studio.tail1234.ts.net\n")
 
-        XCTAssertTrue(app.textFields["guide.field.pairPort"].wait(for: NSPredicate(format: "hasKeyboardFocus == true"), timeout: 3), "位址欄按 return 沒有移到 Port")
+        XCTAssertTrue(app.textFields["guide.field.pairPort"].wait(timeout: 3) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }, "位址欄按 return 沒有移到 Port")
 
         let code = app.textFields["guide.field.pairingCode"]
         code.tap()

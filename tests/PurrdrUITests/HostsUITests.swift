@@ -161,8 +161,7 @@ final class HostsUITests: XCTestCase {
         XCTAssertTrue(field.waitUntilExists(timeout: 5))
         field.clearAndType("Office Mac")
         app.buttons["hosts.rename.confirm"].firstMatch.tap()
-        let renamed = expectation(for: NSPredicate(format: "label CONTAINS %@", "Office Mac"), evaluatedWith: row)
-        wait(for: [renamed], timeout: 5)
+        row.expectLabel(containing: "Office Mac", timeout: 5)
 
         // 選單的刪除：先確認，取消就不刪。
         row.press(forDuration: 1)

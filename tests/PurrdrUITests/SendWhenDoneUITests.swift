@@ -50,9 +50,7 @@ final class SendWhenDoneUITests: XCTestCase {
         queue("first message", in: app)
         queue("second message", in: app)
         let items = app.descendants(matching: .any).matching(identifier: "conversation.sendWhenDone.item")
-        let both = NSPredicate(format: "count == 2")
-        expectation(for: both, evaluatedWith: items)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(UITestWait.until(timeout: 10) { items.count == 2 }, "佇列沒有兩則")
         XCTAssertTrue(queuedTexts(in: app)[0].contains("first message"))
         XCTAssertTrue(queuedTexts(in: app)[1].contains("second message"))
 
@@ -63,8 +61,7 @@ final class SendWhenDoneUITests: XCTestCase {
         moveUp.tap()
 
         let reordered = NSPredicate(format: "label CONTAINS 'second message'")
-        expectation(for: reordered, evaluatedWith: items.element(boundBy: 0))
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(items.element(boundBy: 0).wait(for: reordered, timeout: 10), "等待的條件沒有成立")
         XCTAssertTrue(queuedTexts(in: app)[1].contains("first message"), "順序沒有對調:\(queuedTexts(in: app))")
     }
 }

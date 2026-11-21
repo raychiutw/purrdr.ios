@@ -120,8 +120,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let screen = app.element("terminal.screen")
         XCTAssertTrue(screen.waitUntilExists(timeout: 10), "沒有終端機畫面")
         let shown = NSPredicate(format: "value CONTAINS %@", "demo@purrdr")
-        expectation(for: shown, evaluatedWith: screen)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(screen.wait(for: shown, timeout: 10), "等待的條件沒有成立")
         capture("08-terminal", app)
     }
 

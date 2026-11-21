@@ -51,8 +51,7 @@ final class AppLockUITests: XCTestCase {
 
         toggle.switches.firstMatch.tap()
 
-        expectation(for: NSPredicate(format: "value == '1'"), evaluatedWith: toggle)
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == '1'"), timeout: 5), "等待的條件沒有成立")
         XCTAssertFalse(app.staticTexts["appLock.title"].exists, "在前景開啟不該馬上鎖住")
     }
 

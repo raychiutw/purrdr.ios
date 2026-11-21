@@ -20,16 +20,14 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertEqual(capsule.frame.midY, attach.frame.midY, accuracy: 2, "膠囊應與附加鈕同一列")
 
         let normal = NSPredicate(format: "value == 'Normal'")
-        expectation(for: normal, evaluatedWith: capsule)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(capsule.wait(for: normal, timeout: 10), "等待的條件沒有成立")
 
         capsule.tap()
         let accept = app.buttons["Accept Edits"].firstMatch
         XCTAssertTrue(accept.waitUntilExists(timeout: 10), "sheet 裡沒有 Accept Edits 勾選列")
         accept.tap()
         let switched = NSPredicate(format: "value == 'Accept Edits'")
-        expectation(for: switched, evaluatedWith: capsule)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(capsule.wait(for: switched, timeout: 10), "等待的條件沒有成立")
         XCTAssertFalse(app.buttons["permissionMode.done"].exists, "切換成功後 sheet 應收起")
 
         capsule.tap()
@@ -37,8 +35,7 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(plan.waitUntilExists(timeout: 10))
         plan.tap()
         let planValue = NSPredicate(format: "value == 'Plan'")
-        expectation(for: planValue, evaluatedWith: capsule)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(capsule.wait(for: planValue, timeout: 10), "等待的條件沒有成立")
     }
 
     /// 模型膠囊(#350):在附加鈕與權限模式膠囊之間;點開 sheet 以勾選列選模型,選定後收起。
@@ -64,7 +61,6 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(quick.waitUntilExists(timeout: 10), "sheet 裡沒有 Quick 勾選列")
         quick.tap()
         let gone = NSPredicate(format: "exists == false")
-        expectation(for: gone, evaluatedWith: picker)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(picker.wait(for: gone, timeout: 10), "等待的條件沒有成立")
     }
 }

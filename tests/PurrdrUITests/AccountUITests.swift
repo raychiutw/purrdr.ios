@@ -48,8 +48,7 @@ final class AccountUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["ray@example.com"].waitUntilExists(timeout: 10), "沒有顯示會員")
         let action = app.buttons["account.plusSetup.action"]
-        expectation(for: NSPredicate(format: "label == %@", "Activate"), evaluatedWith: action)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(action.wait(for: NSPredicate(format: "label == %@", "Activate"), timeout: 10), "等待的條件沒有成立")
         XCTAssertEqual(app.element("account.plusSetup.join").value as? String, "Done")
         action.tap()
 
@@ -63,8 +62,7 @@ final class AccountUITests: XCTestCase {
         app.openAccountSheet()
 
         let action = app.buttons["account.plusSetup.action"]
-        expectation(for: NSPredicate(format: "label == %@", "Choose Hosts"), evaluatedWith: action)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(action.wait(for: NSPredicate(format: "label == %@", "Choose Hosts"), timeout: 10), "等待的條件沒有成立")
         action.tap()
         let toggle = app.switches["account.push.5EED0000-0000-4000-8000-000000000001"]
         XCTAssertTrue(toggle.waitUntilExists(timeout: 5), "沒有主機的通知開關")
@@ -78,8 +76,7 @@ final class AccountUITests: XCTestCase {
         for _ in 0..<6 where !(sync.exists && sync.isHittable) {
             app.element("sheet.account").swipeDown()
         }
-        expectation(for: NSPredicate(format: "value == %@", "Next Step"), evaluatedWith: sync)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(sync.wait(for: NSPredicate(format: "value == %@", "Next Step"), timeout: 10), "等待的條件沒有成立")
         app.buttons["account.plusSetup.action"].tap()
 
         let collapsed = app.element("member.plus")
@@ -90,8 +87,7 @@ final class AccountUITests: XCTestCase {
 
         // 收合後仍可關閉那台主機的通知。
         toggle.tap()
-        expectation(for: NSPredicate(format: "value == %@", "Notifications Off"), evaluatedWith: toggle)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "Notifications Off"), timeout: 10), "等待的條件沒有成立")
 
         // 主機同步在「通知裝置」之後，要往下捲才進畫面。
         let hostSync = app.switches["settings.hostSync"]

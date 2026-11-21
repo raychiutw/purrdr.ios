@@ -63,10 +63,10 @@ final class SlashMenuUITests: XCTestCase {
     /// 卡片在送鍵期間整張停用(`isOperatingPanel`),但畫面可能已經先反映上一次操作(面板監看的輪詢比送鍵的回應早到，
     /// 分段控制也會先自己改選取),這時的點擊會被吃掉。重點一次以上是安全的：←/→ 到底會停住，卡片消失後就不再點。
     @MainActor
-    private func tap(_ control: XCUIElement, until done: NSPredicate, on target: XCUIElement, _ message: String) {
+    private func tap(_ control: XCUIElement, until done: (XCUIElement) -> Bool, on target: XCUIElement, _ message: String) {
         for _ in 0..<3 {
             control.tap()
-            if target.wait(for: done, timeout: 5) { return }
+            if target.wait(timeout: 5, until: done) { return }
         }
         XCTFail(message)
     }
@@ -125,12 +125,12 @@ final class SlashMenuUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(first.frame.height, 44)
 
         // 面板卡片在面板監看的輪詢期間可能吃掉點擊：重點到游標移過去。
-        tap(first, until: NSPredicate(format: "isSelected == true"), on: first, "點第一列後游標沒有移過去")
+        tap(first, until: { $0.isSelected }, on: first, "點第一列後游標沒有移過去")
 
-        tap(app.element("panel.adjust.right"), until: NSPredicate(format: "exists == true"),
+        tap(app.element("panel.adjust.right"), until: { $0.exists },
             on: app.staticTexts["◐ High effort"], "←/→ 調整沒有反映")
 
-        tap(app.element("panel.action.enter"), until: NSPredicate(format: "exists == false"), on: card, "選定後卡片沒有消失")
+        tap(app.element("panel.action.enter"), until: { !$0.exists }, on: card, "選定後卡片沒有消失")
     }
 
     /// 選定 `/effort` 後按送出 → 面板卡片有攤開的層級列(#83、#313);點層級送方向鍵，按「confirm」後卡片消失(#34)。
@@ -158,8 +158,8 @@ final class SlashMenuUITests: XCTestCase {
         app.waitForSettledLayout([card, xhigh], timeout: 3)
         XCTAssertFalse(xhigh.isSelected, "一開始是 medium")
 
-        tap(xhigh, until: NSPredicate(format: "isSelected == true"), on: xhigh, "點層級沒有反映")
+        tap(xhigh, until: { $0.isSelected }, on: xhigh, "點層級沒有反映")
 
-        tap(app.element("panel.action.enter"), until: NSPredicate(format: "exists == false"), on: card, "確認後卡片沒有消失")
+        tap(app.element("panel.action.enter"), until: { !$0.exists }, on: card, "確認後卡片沒有消失")
     }
 }

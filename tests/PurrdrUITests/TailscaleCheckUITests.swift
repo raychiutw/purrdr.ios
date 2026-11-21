@@ -19,8 +19,7 @@ final class TailscaleCheckUITests: XCTestCase {
         app.element("tailscaleCheck.cancel").tap()
 
         let gone = NSPredicate(format: "exists == false")
-        expectation(for: gone, evaluatedWith: prompt)
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(prompt.wait(for: gone, timeout: 5), "等待的條件沒有成立")
         let cancelled = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'Tailscale sign-in was canceled'")).firstMatch
         XCTAssertTrue(cancelled.waitUntilExists(timeout: 5), "列表沒有說明驗證已取消")
     }

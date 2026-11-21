@@ -126,8 +126,7 @@ final class SettingsUITests: XCTestCase {
         XCTAssertEqual(copy.label, "Copy Diagnostics")
         copy.tap()
 
-        expectation(for: NSPredicate(format: "label == %@", "Copied"), evaluatedWith: copy)
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(copy.wait(for: NSPredicate(format: "label == %@", "Copied"), timeout: 5), "等待的條件沒有成立")
     }
 
     /// String Catalog 真的套用到 package 裡的畫面(畫面字串在 PurrdrFeatures,catalog 在 app)。
@@ -202,12 +201,10 @@ final class SettingsUITests: XCTestCase {
         XCTAssertTrue(message.contains("demo"), "沒說明以哪個使用者:\(message)")
         alert.buttons["Install"].tap()
 
-        expectation(for: NSPredicate(format: "value == %@", "1"), evaluatedWith: toggle)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "1"), timeout: 10), "等待的條件沒有成立")
 
         toggle.switches.firstMatch.tap()
-        expectation(for: NSPredicate(format: "value == %@", "0"), evaluatedWith: toggle)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(toggle.wait(for: NSPredicate(format: "value == %@", "0"), timeout: 10), "等待的條件沒有成立")
         XCTAssertFalse(app.alerts.firstMatch.exists, "移除不該再問同意")
     }
 

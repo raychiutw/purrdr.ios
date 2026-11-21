@@ -100,7 +100,7 @@ final class PaneTerminalUITests: XCTestCase {
         screen.expectValue(containing: "demo@purrdr ledger %")
         let input = app.descendants(matching: .any)["terminal.input"].firstMatch
         XCTAssertTrue(input.waitUntilExists(timeout: 5), "沒有終端機輸入元件")
-        XCTAssertTrue(input.wait(for: NSPredicate(format: "hasKeyboardFocus == true"), timeout: 5), "輸入元件沒有取得焦點")
+        XCTAssertTrue(input.wait(timeout: 5) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }, "輸入元件沒有取得焦點")
         app.switchKeyboard(to: .zhuyin)
 
         // 模擬器接著實體鍵盤，軟體鍵盤在畫面外;以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。

@@ -169,7 +169,7 @@ final class PushSettingsUITests: XCTestCase {
         done.tap()
 
         XCTAssertTrue(app.scrollSheet("sheet.account", to: https, search: .down, timeout: 10), "沒有回到帳號頁的通知列")
-        XCTAssertTrue(https.wait(for: NSPredicate(format: "isEnabled == true"), timeout: 10), "配對後開關仍不能點")
+        XCTAssertTrue(https.wait(timeout: 10) { $0.isEnabled }, "配對後開關仍不能點")
     }
 
     /// 連不上的主機：開啟失敗寫出原因與「點開關重試」,開關仍可點。

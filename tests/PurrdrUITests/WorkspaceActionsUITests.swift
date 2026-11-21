@@ -29,8 +29,7 @@ final class WorkspaceActionsUITests: XCTestCase {
 
         XCTAssertTrue(field.waitUntilGone(timeout: 5), "儲存後表單沒有關閉")
         let renamed = NSPredicate(format: "label CONTAINS %@", "Budget")
-        expectation(for: renamed, evaluatedWith: row("w1:p1", in: app))
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(row("w1:p1", in: app).wait(for: renamed, timeout: 5), "等待的條件沒有成立")
     }
 
     /// 關閉是破壞性動作：先確認，確認後列消失。
