@@ -170,15 +170,59 @@ struct SSHGitChangesTests {
 
 #endif
 
-/// 跑不了腳本的主機(Windows 主機的通道、Demo 主機不認得的指令)回 unsupported。
+/// Windows 主機(#310):變更頁指令換成唯讀的 PowerShell 版(經 stdin stub，不把 POSIX 腳本送過去)，輸出格式與 POSIX 版相同。
+@Suite("SSH 主機的 git 變更：Windows")
+struct SSHGitChangesWindowsTests {
+    @Test("status 與 diff 指令換成純 ASCII 的 PowerShell 腳本:唯讀 git、同樣的參數與 exit code")
+    func translatesToReadOnlyPowerShell() throws {
+        let status = try WindowsCommand.translate(GitChangesCommand.status(cwd: "C:/Users/demo/project"))
+        let diff = try WindowsCommand.translate(GitChangesCommand.diff(
+            cwd: "C:/Users/demo/project", marker: "purrdr-diff-1", limits: .standard,
+            files: [GitChange(path: "src/a.swift", kind: .modified), GitChange(path: "new.txt", kind: .untracked)]))
+
+        for invocation in [status, diff] {
+            #expect(!invocation.command.contains("/bin/sh"), "不送 POSIX 腳本")
+            let script = String(decoding: try #require(invocation.stdinScript), as: UTF8.self)
+            let program = script.components(separatedBy: "$a=@(")[0] + script  // 腳本本體
+            #expect(program.utf8.allSatisfy { $0 < 128 }, "引數以外的腳本純 ASCII")
+            #expect(script.contains("GIT_OPTIONAL_LOCKS"), "唯讀:不更新 index")
+            #expect(script.contains("--no-ext-diff") && script.contains("--no-textconv"))
+            #expect(script.contains("rev-parse") && script.contains("--show-toplevel"))
+            #expect(script.contains("exit 65") && script.contains("exit 66") && script.contains("exit 69") && script.contains("exit 64"))
+            #expect(!script.contains("checkout") && !script.contains("reset") && !script.contains("clean"), "沒有寫入類的 git 指令")
+        }
+        let diffScript = String(decoding: try #require(diff.stdinScript), as: UTF8.self)
+        #expect(diffScript.contains("'purrdr-diff-1'") && diffScript.contains("'src/a.swift'") && diffScript.contains("'untracked'"))
+    }
+
+    @Test("通道送出 stub、輸出照 POSIX 版格式解析")
+    func readsStatusThroughTheChannel() async throws {
+        let host = FakeHost()
+        let stub = try WindowsCommand.translate(GitChangesCommand.status(cwd: "C:/Users/demo/project")).command
+        let output = GitChangesCommand.statusOutput(
+            GitWorkingTreeStatus(branch: "main", files: [GitChange(path: "a.swift", kind: .modified)]), root: "C:/Users/demo/project")
+        await host.expect(stub, reply: FakeReply(stdout: output))
+
+        let status = try await SSHGitChanges(channel: WindowsHostChannel(host)).gitStatus(cwd: "C:/Users/demo/project")
+
+        #expect(status.branch == "main")
+        #expect(status.files == [GitChange(path: "a.swift", kind: .modified)])
+    }
+}
+
+/// 跑不了腳本的主機(Demo 主機不認得的指令 exit 127)回 unsupported。
 @Suite("SSH 主機的 git 變更：不支援的主機")
 struct SSHGitChangesUnsupportedTests {
-    @Test("Windows 主機不送 POSIX 腳本，回 unsupported")
-    func windowsHostIsUnsupported() async throws {
-        let host = FakeHost()
-        let changes = SSHGitChanges(channel: WindowsHostChannel(host))
+    @Test("通道回 WindowsCommandError.unsupported(其他指令)也轉成 unsupported")
+    func unsupportedCommandErrorMapsToUnsupported() async throws {
+        let changes = SSHGitChanges(channel: UnsupportedCommandChannel())
 
-        await #expect(throws: GitChangesError.unsupported) { try await changes.gitStatus(cwd: "C:/Users/demo/project") }
-        #expect(await host.executions.isEmpty)
+        await #expect(throws: GitChangesError.unsupported) { try await changes.gitStatus(cwd: "C:/x") }
     }
+}
+
+private struct UnsupportedCommandChannel: HostChannel {
+    func execute(_ command: String) async throws -> any ExecSession { throw WindowsCommandError.unsupported(command) }
+    func openPTY(_ request: PTYRequest) async throws -> any PTYSession { throw WindowsCommandError.unsupported("pty") }
+    func disconnect() async {}
 }

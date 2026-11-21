@@ -160,6 +160,13 @@ public enum GitChangesCommand {
         (["/bin/sh", "-c", PosixShell.quote(script), tag] + arguments.map(PosixShell.quote)).joined(separator: " ")
     }
 
+    /// 變更頁指令的參數(`status 資料夾` 或 `diff …`);不是變更頁指令回 `nil`(Windows 版換成 PowerShell 腳本用)。
+    static func arguments(in command: String) -> [String]? {
+        let prefix = ["/bin/sh", "-c", PosixShell.quote(script), tag].joined(separator: " ") + " "
+        guard command.hasPrefix(prefix) else { return nil }
+        return PosixShell.unquote(String(command.dropFirst(prefix.count)))
+    }
+
     /// 認得的變更頁指令(Demo 主機用)。
     public enum Request: Sendable, Equatable {
         case status(cwd: String)
