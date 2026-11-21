@@ -35,8 +35,16 @@ public final class AddHostGuideModel {
         case sshMethod
         /// 讓電腦接受連線。
         case enable
+        /// 原生 SSH:在哪裡連(家裡、Tailscale、對外)。
+        case location
         /// 主機名稱、Port、帳號。
         case details
+        /// 原生 SSH:密碼或金鑰。
+        case login
+        /// 密碼,或匯入的私鑰。
+        case credential
+        /// 金鑰三步:打開終端機、貼上指令、測試連線。
+        case keySetup
         /// 測試連線(含第一次連線的信任確認)。
         case test
         case finished
@@ -51,6 +59,16 @@ public final class AddHostGuideModel {
         case tailscale
         /// 原生 SSH(Windows 是 OpenSSH)。
         case native
+    }
+
+    /// 原生 SSH 從哪裡連到電腦。
+    public enum Location: Hashable, Sendable {
+        /// 只在家裡(同一個 Wi-Fi)。
+        case home
+        /// 透過 Tailscale(MagicDNS 名稱或 Tailscale IP)。
+        case viaTailscale
+        /// 對外 IP 或網域。
+        case outside
     }
 
     /// 要填的欄位(附「怎麼查」)。
@@ -71,6 +89,14 @@ public final class AddHostGuideModel {
     public var kind: Kind = .ssh
     public private(set) var system: HostOperatingSystem?
     public private(set) var sshMethod: SSHMethod?
+    public private(set) var location: Location?
+    public private(set) var authentication: HostConfiguration.OpenSSHAuthentication?
+    /// 密碼路徑填的密碼。
+    public var password = ""
+    /// 匯入私鑰路徑貼上的私鑰。
+    public var privateKey = ""
+    /// 這支裝置的公鑰(金鑰路徑;`loadDeviceKey()` 取得)。
+    public private(set) var devicePublicKey: SSHPublicKey?
     public var address = ""
     public var port = "22"
     public var username = ""
@@ -80,12 +106,14 @@ public final class AddHostGuideModel {
     public var phase: HostConnectionPhase { flow.phase }
 
     @ObservationIgnored private let flow: HostConnectionFlow
+    @ObservationIgnored private let credentials: HostCredentials
     @ObservationIgnored private var history: [Step] = []
 
     public init(
         store: any HostStore, credentials: HostCredentials = HostCredentials(), hostService: HostServiceAccess = HostServiceAccess(),
         makeChannel: @escaping @MainActor (SSHEndpoint, HostKeyFingerprint?, @escaping SSHCredentialProvider) -> any HostChannel
     ) {
+        self.credentials = credentials
         flow = HostConnectionFlow(store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
     }
 
@@ -94,15 +122,23 @@ public final class AddHostGuideModel {
     public var canGoBack: Bool { !history.isEmpty && step != .finished }
 
     /// 目前第幾步、共幾步(VoiceOver 與進度點)。
-    public var progress: (position: Int, total: Int) { (min(history.count + 1, Self.pathLength), Self.pathLength) }
-
-    private static let pathLength = 6
+    public var progress: (position: Int, total: Int) {
+        let total = sshMethod == .native ? 9 : 6
+        return (min(history.count + 1, total), total)
+    }
 
     /// 目前這一頁的「下一步」按鈕能不能按(開啟 SSH 那頁一律可以)。
     public var canAdvance: Bool {
         switch step {
         case .enable: true
         case .details: draft != nil
+        case .credential:
+            switch authentication {
+            case .password?: !password.isEmpty
+            case .importedKey?: (try? SSHPrivateKey(openSSH: privateKey)) != nil
+            default: false
+            }
+        case .keySetup: devicePublicKey != nil
         default: false
         }
     }
@@ -126,8 +162,19 @@ public final class AddHostGuideModel {
         sshMethod = method
         switch method {
         case .tailscale: push(.enable)
-        case .native: handoff = .editor(.openSSH)
+        case .native: push(.enable)
         }
+    }
+
+    public func choose(_ location: Location) {
+        self.location = location
+        push(.details)
+    }
+
+    /// 選登入方式:密碼、這支裝置的金鑰,或匯入現有私鑰(其他方式)。
+    public func choose(authentication: HostConfiguration.OpenSSHAuthentication) {
+        self.authentication = authentication
+        push(authentication == .deviceKey ? .keySetup : .credential)
     }
 
     /// 選了作業系統之後可選的 SSH 方式:Windows 沒有 Tailscale SSH,只有 OpenSSH。
@@ -148,10 +195,76 @@ public final class AddHostGuideModel {
                 AddHostGuideInstruction(
                     text: String(localized: "Open Terminal, paste this line, then press Enter."), command: "tailscale set --ssh"),
             ]
-        case .native?, nil:
+        case .native?:
+            switch system {
+            case .macOS?:
+                [AddHostGuideInstruction(
+                    text: String(localized: "On that computer, open System Settings, go to General, then Sharing, and turn on Remote Login."))]
+            case .linux?:
+                [AddHostGuideInstruction(
+                    text: String(localized: "On that computer, open Terminal, paste this line, then press Enter."),
+                    command: Self.linuxEnableSSH)]
+            case .windows?:
+                [
+                    AddHostGuideInstruction(
+                        text: String(localized: "On that computer, open PowerShell as an administrator (right-click it and choose Run as administrator).")),
+                    AddHostGuideInstruction(
+                        text: String(localized: "Paste this line, then press Enter."), command: Self.windowsEnableSSH),
+                ]
+            case nil:
+                []
+            }
+        case nil:
             []
         }
     }
+
+    static let linuxEnableSSH =
+        "if command -v apt >/dev/null; then sudo apt install -y openssh-server && sudo systemctl enable --now ssh; "
+        + "else sudo dnf install -y openssh-server && sudo systemctl enable --now sshd; fi"
+    static let windowsEnableSSH =
+        "Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Start-Service sshd; Set-Service -Name sshd -StartupType Automatic"
+
+    /// 金鑰路徑:把這支裝置的公鑰加進電腦(三步裡的第二步)。公鑰還沒取得時是空的。
+    public var keyInstructions: [AddHostGuideInstruction] {
+        guard let key = devicePublicKey else { return [] }
+        let terminal = system == .windows
+            ? String(localized: "On that computer, open PowerShell, paste this line, then press Enter.")
+            : String(localized: "On that computer, open Terminal, paste this line, then press Enter.")
+        if system == .windows {
+            return [
+                AddHostGuideInstruction(text: terminal, command: AuthorizedKeyCommand.command(adding: key, on: .windows)),
+                AddHostGuideInstruction(
+                    text: String(localized: "If this account is an administrator, open PowerShell as an administrator and paste this line instead."),
+                    command: AuthorizedKeyCommand.command(adding: key, on: .windowsAdministrator)),
+            ]
+        }
+        return [AddHostGuideInstruction(text: terminal, command: AuthorizedKeyCommand.command(adding: key, on: .macOSAndLinux))]
+    }
+
+    /// 取得這支裝置的公鑰(第一次會在 Secure Enclave 產生金鑰)。
+    public func loadDeviceKey() async {
+        guard devicePublicKey == nil else { return }
+        let deviceKey = credentials.deviceKey
+        let result = await Task.detached { Result { try deviceKey.publicKey() } }.value
+        if case .success(let key) = result { devicePublicKey = key }
+    }
+
+    /// 密碼頁的提示。密碼路徑不提到金鑰;匯入私鑰才說。
+    public var credentialPrompt: String {
+        authentication == .importedKey
+            ? String(localized: "Paste the private key you already use for that computer.")
+            : String(localized: "Type the password you use to sign in to that computer.")
+    }
+
+    /// 填主機頁的提醒(對外連線要先設定路由器)。
+    public var detailsNotice: String? {
+        guard sshMethod == .native, location == .outside else { return nil }
+        return String(localized: "Set up your router first so connections from outside can reach this computer.")
+    }
+
+    static let windowsLocalIP =
+        "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | Select-Object -First 1).IPAddress"
 
     static let tailscaleDownload = URL(string: "https://tailscale.com/download")!
 
@@ -162,9 +275,19 @@ public final class AddHostGuideModel {
             : String(localized: "On that computer, open Terminal, paste this line, then press Enter.")
         switch field {
         case .address:
-            guard sshMethod == .tailscale else { return nil }
+            let command: String
+            switch (sshMethod, location) {
+            case (.tailscale?, _), (_, .viaTailscale?): command = "tailscale ip -4"
+            case (_, .home?):
+                switch system {
+                case .windows?: command = Self.windowsLocalIP
+                case .linux?: command = "hostname -I"
+                default: command = "ipconfig getifaddr en0"
+                }
+            default: return nil
+            }
             return AddHostGuideInstruction(
-                text: String(localized: "\(terminal) Type the numbers that appear here."), command: "tailscale ip -4")
+                text: String(localized: "\(terminal) Type the numbers that appear here."), command: command)
         case .username:
             return AddHostGuideInstruction(
                 text: String(localized: "\(terminal) Type the name that appears here."),
@@ -180,8 +303,9 @@ public final class AddHostGuideModel {
     public func advance() {
         guard canAdvance else { return }
         switch step {
-        case .enable: push(.details)
-        case .details: push(.test)
+        case .enable: push(sshMethod == .native ? .location : .details)
+        case .details: push(sshMethod == .native ? .login : .test)
+        case .credential, .keySetup: push(.test)
         default: break
         }
     }
@@ -240,7 +364,16 @@ public final class AddHostGuideModel {
         else { return nil }
         let endpoint = SSHEndpoint(host: host, port: port, username: user)
         let settings = HostConfiguration.SSHSettings(endpoint: endpoint, herdr: HerdrInstallation(), hostKeyPin: flow.pin(for: endpoint))
-        return HostConnectionDraft(name: Self.defaultName(for: host), connection: .ssh(SSHConnectionDraft(settings: settings)))
+        var ssh = SSHConnectionDraft(settings: settings)
+        if sshMethod == .native {
+            ssh.authentication = authentication ?? .password
+            switch authentication {
+            case .password?: ssh.secret = .password(password)
+            case .importedKey?: ssh.secret = .privateKey(privateKey, passphrase: nil)
+            default: break
+            }
+        }
+        return HostConnectionDraft(name: Self.defaultName(for: host), connection: .ssh(ssh))
     }
 
     /// 主機名稱的第一段(`studio.tail1234.ts.net` → `studio`);IP 位址整串當名稱。

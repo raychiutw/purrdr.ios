@@ -941,6 +941,17 @@
         }
       }
     },
+    "A public IP or domain name of that computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那台電腦對外的 IP 或網域名稱"
+          }
+        }
+      }
+    },
     "AWS key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1051,28 +1062,6 @@
         }
       }
     },
-    "Add Key" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入公鑰"
-          }
-        }
-      }
-    },
-    "Add Key Using Password" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用密碼加入公鑰"
-          }
-        }
-      }
-    },
     "Add This Computer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1084,17 +1073,6 @@
         }
       }
     },
-    "Add This Device’s Key?" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入這支裝置的公鑰？"
-          }
-        }
-      }
-    },
     "Added" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1102,17 +1080,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增"
-          }
-        }
-      }
-    },
-    "Adding the key to %@…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在把公鑰加到 %@…"
           }
         }
       }
@@ -1447,6 +1414,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個選項請在終端機回答。"
+          }
+        }
+      }
+    },
+    "Anywhere, with Tailscale" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Tailscale 隨處連線"
+          }
+        }
+      }
+    },
+    "Anywhere, with a public address" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用對外位址隨處連線"
           }
         }
       }
@@ -2456,6 +2445,17 @@
         }
       }
     },
+    "Come back here and tap Test Connection." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到這裡，按「測試連線」。"
+          }
+        }
+      }
+    },
     "Commands" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2760,17 +2760,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝指令"
-          }
-        }
-      }
-    },
-    "Copy Command Instead" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "改用拷貝指令"
           }
         }
       }
@@ -4747,6 +4736,17 @@
         }
       }
     },
+    "How do you sign in?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用什麼方式登入？"
+          }
+        }
+      }
+    },
     "How do you want to connect to your computer?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4835,6 +4835,17 @@
         }
       }
     },
+    "If this account is an administrator, open PowerShell as an administrator and paste this line instead." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果這個帳號是系統管理員，請改用系統管理員身分開啟 PowerShell，貼上這一行。"
+          }
+        }
+      }
+    },
     "Image" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4886,6 +4897,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機目前還不能預覽圖片。"
+          }
+        }
+      }
+    },
+    "Import a Key You Already Have" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入你已經有的金鑰"
           }
         }
       }
@@ -5154,13 +5176,13 @@
         }
       }
     },
-    "Key added. Purrdr signs in with this device’s key." : {
+    "Key" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已加入公鑰。Purrdr 會用這支裝置的金鑰登入。"
+            "value" : "金鑰"
           }
         }
       }
@@ -5326,6 +5348,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "讓電腦接受連線"
+          }
+        }
+      }
+    },
+    "Let this device in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓這支裝置進入電腦"
           }
         }
       }
@@ -6518,6 +6551,17 @@
         }
       }
     },
+    "On that computer, open PowerShell as an administrator (right-click it and choose Run as administrator)." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦上，以系統管理員身分開啟 PowerShell(在 PowerShell 上按右鍵，選「以系統管理員身分執行」)。"
+          }
+        }
+      }
+    },
     "On that computer, open PowerShell, paste this line, then press Enter." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6525,6 +6569,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在那台電腦打開 PowerShell，貼上這行，按 Enter。"
+          }
+        }
+      }
+    },
+    "On that computer, open System Settings, go to General, then Sharing, and turn on Remote Login." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在那台電腦打開「系統設定」，進入「一般」，再進入「共享」，打開「遠端登入」。"
           }
         }
       }
@@ -6540,6 +6595,17 @@
         }
       }
     },
+    "On the same Wi-Fi as that computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "和那台電腦連同一個 Wi-Fi"
+          }
+        }
+      }
+    },
     "Online" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6547,6 +6613,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "線上"
+          }
+        }
+      }
+    },
+    "Only at home" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只在家裡連"
           }
         }
       }
@@ -6815,6 +6892,17 @@
         }
       }
     },
+    "Other Ways" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他方式"
+          }
+        }
+      }
+    },
     "Output truncated at 20,000 characters" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6991,17 +7079,6 @@
         }
       }
     },
-    "Password on that computer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "那台主機的密碼"
-          }
-        }
-      }
-    },
     "Paste" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7031,6 +7108,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貼上 OpenSSH 格式的 ed25519 或 ECDSA 私鑰。不支援 RSA 金鑰與有 passphrase 保護的金鑰。金鑰存放在這支裝置的鑰匙圈。"
+          }
+        }
+      }
+    },
+    "Paste the private key you already use for that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上你原本用來登入那台電腦的私鑰。"
+          }
+        }
+      }
+    },
+    "Paste this line, then press Enter." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上這一行，按 Enter。"
+          }
+        }
+      }
+    },
+    "Paste your private key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貼上你的私鑰"
           }
         }
       }
@@ -7497,17 +7607,6 @@
         }
       }
     },
-    "Purrdr signs in to %@@%@ once with this password and adds this device’s public key to ~/.ssh/authorized_keys (administrators_authorized_keys for a Windows administrator). After that it signs in with the key. The password isn’t saved." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Purrdr 會用這組密碼以 %@@%@ 登入一次，把這支裝置的公鑰加到 ~/.ssh/authorized_keys(Windows 的管理員是 administrators_authorized_keys),之後改用金鑰登入。密碼不會儲存。"
-          }
-        }
-      }
-    },
     "Purrdr stopped because this computer no longer looks like the one you trusted before. This happens if it was reinstalled or reset, and also if someone is intercepting the connection. If you didn’t reinstall or reset it, don’t connect.\n\nIf you did, delete this host and add it again.\n\nKey now:\n%@\n\nKey you trusted:\n%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7735,6 +7834,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "收到"
+          }
+        }
+      }
+    },
+    "Recommended when you’re away from home" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不在家時建議用這個"
           }
         }
       }
@@ -8560,6 +8670,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "到「設定」App 設定裝置密碼後才能使用 App 鎖。"
+          }
+        }
+      }
+    },
+    "Set up your router first so connections from outside can reach this computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先在路由器設定好，讓外面連得進這台電腦。"
           }
         }
       }
@@ -10236,17 +10357,6 @@
         }
       }
     },
-    "The key was already on the host." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機上已經有這把公鑰。"
-          }
-        }
-      }
-    },
     "The name is only used on this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10265,6 +10375,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "密碼存放在這支裝置的鑰匙圈。"
+          }
+        }
+      }
+    },
+    "The password you use to sign in to that computer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你登入那台電腦用的密碼"
           }
         }
       }
@@ -11677,6 +11798,17 @@
         }
       }
     },
+    "Type the password you use to sign in to that computer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入你登入那台電腦用的密碼。"
+          }
+        }
+      }
+    },
     "Type your answer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11695,6 +11827,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在下方訊息框輸入你的回答。"
+          }
+        }
+      }
+    },
+    "Type your password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入密碼"
           }
         }
       }
@@ -12150,6 +12293,17 @@
         }
       }
     },
+    "Use a key made by this device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用這支裝置產生的金鑰"
+          }
+        }
+      }
+    },
     "Used" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12377,6 +12531,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要 Agent 做什麼?"
+          }
+        }
+      }
+    },
+    "Where will you connect from?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你要從哪裡連線？"
           }
         }
       }
