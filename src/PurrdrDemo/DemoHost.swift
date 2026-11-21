@@ -207,10 +207,31 @@ public actor DemoHost: HostChannel {
         return DemoEchoShell()
     }
 
+    /// UI 測試的觸發(#371):把情境裡「過一段時間才發生」的事立刻發生(斷網、大量輸出、工作結束、驗證完成)。
+    public func trigger() async {
+        triggered = true
+        switch scenario {
+        case .goesOffline:
+            offlineScheduled = true
+            await goOffline()
+        case .workingAfterPrompt:
+            pendingReplies = pendingReplies.map {
+                PendingReply(paneID: $0.paneID, sessionID: $0.sessionID, due: now(), lines: $0.lines)
+            }
+        case .tailscaleCheck:
+            checkRelease?.yield()
+        default:
+            break
+        }
+    }
+
+    private var triggered = false
+
     // MARK: - Tailscale check mode 情境
 
     private var checkPassed = false
     private var checkWait: Task<Void, any Error>?
+    private var checkRelease: AsyncStream<Void>.Continuation?
 
     /// check mode 情境：還沒驗證過就回報驗證網址並等待(`completesAfter` 後視為驗證完成;`nil` = 等到取消)。
     /// 同時的指令一起等同一次驗證;取消後下一個指令重新要求驗證。
@@ -221,10 +242,17 @@ public actor DemoHost: HostChannel {
             wait = checkWait
         } else {
             let cancel: @Sendable () async -> Void = { [weak self] in await self?.cancelTailscaleCheck() }
+            let (release, continuation) = AsyncStream<Void>.makeStream()
+            checkRelease = continuation
+            // 驗證完成：過了 `completesAfter`,或被 `trigger()`(UI 測試)放行。
+            let timer = completesAfter.map { delay in
+                Task { try? await Task.sleep(for: delay); continuation.yield() }
+            }
             wait = Task { [tailscaleCheck] in
                 tailscaleCheck?(TailscaleCheckPrompt(url: Self.tailscaleCheckURL, cancel: cancel))
-                defer { tailscaleCheck?(nil) }
-                try await Task.sleep(for: completesAfter ?? .seconds(60 * 60))
+                defer { tailscaleCheck?(nil); timer?.cancel() }
+                for await _ in release { break }
+                try Task.checkCancellation()
             }
             checkWait = wait
         }
@@ -368,7 +396,7 @@ public actor DemoHost: HostChannel {
             largeOutputAt = now() + delay
             return
         }
-        guard let due = largeOutputAt, now() >= due else { return }
+        guard let due = largeOutputAt, triggered || now() >= due else { return }
         largeOutputWritten = true
         appended[ledger.sessionID, default: []] += DemoTranscripts.largeOutput(at: Date())
     }
