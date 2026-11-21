@@ -43,12 +43,12 @@ struct ConversationImageTests {
     }
 
     static func uploadedFiles(_ setup: Setup) -> [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: setup.uploads.url(".purrdr/uploads").path(percentEncoded: false))) ?? []).sorted()
+        ((try? FileManager.default.contentsOfDirectory(atPath: setup.uploads.temporaryDirectory.appending(path: "\(HostServiceProtocol.uploadFolder)-\(getuid())").path(percentEncoded: false))) ?? []).sorted()
     }
 
     static func uploadPath(_ setup: Setup, _ name: String) -> String {
-        let home = setup.uploads.home.path(percentEncoded: false)
-        return (home.hasSuffix("/") ? home : home + "/") + ".purrdr/uploads/" + name
+        let temporary = setup.uploads.temporaryDirectory.path(percentEncoded: false)
+        return (temporary.hasSuffix("/") ? temporary : temporary + "/") + "\(HostServiceProtocol.uploadFolder)-\(getuid())/" + name
     }
 
     // MARK: - 加入

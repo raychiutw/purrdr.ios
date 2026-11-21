@@ -225,15 +225,15 @@ enum WindowsScripts {
 
     // MARK: - 上傳(bytes 走 stdin,ADR-0003)
 
-    /// 上傳到主機(圖片與一般檔案)到 `%USERPROFILE%\.purrdr\uploads`:與 POSIX 版相同的檢查與 exit code(64 檔名、71 建立失敗、72 讀 stdin、
-    /// 73 已存在、75 大小不符)。先寫隱藏的暫存檔，大小相同才改名(改名不覆寫);刪掉 7 天前的檔案。參數：檔名、大小。
-    /// 上傳資料夾在使用者設定檔資料夾底下，繼承它的 ACL(只有本人、SYSTEM 與 Administrators)。
+    /// 上傳到主機(圖片與一般檔案)到 `%TEMP%\purrdr-uploads`(與主機服務共用):與 POSIX 版相同的檢查與 exit code(64 檔名、71 建立失敗、72 讀 stdin、
+    /// 73 已存在、75 大小不符)。先寫隱藏的暫存檔，大小相同才改名(改名不覆寫);刪掉新、舊資料夾裡 7 天前的檔案，舊的 `%USERPROFILE%\.purrdr\uploads` 空了就移除。參數：檔名、大小。
+    /// `%TEMP%` 在使用者設定檔資料夾底下，繼承它的 ACL(只有本人、SYSTEM 與 Administrators);上傳資料夾是 reparse point(symlink、junction)時失敗。
     static let hostUpload = #"""
         $n=$a[0];$z=[long]$a[1]
         \#(uploadLimit(transferSizeArgument: 1))
         if($n -cnotmatch '^[A-Za-z0-9-][A-Za-z0-9.-]*$'){exit 64}
-        $d=Join-Path $env:USERPROFILE '.purrdr\uploads'
-        try{[void][IO.Directory]::CreateDirectory($d)}catch{exit 71}
+        $d=Join-Path $env:TEMP '\#(HostServiceProtocol.uploadFolder)'
+        try{[void][IO.Directory]::CreateDirectory($d);if((Get-Item -LiteralPath $d -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){exit 71}}catch{exit 71}
         $t=Join-Path $d ('.upload.'+[Guid]::NewGuid().ToString('N'));$purrdrLimit.Files+=$t
         $p=Join-Path $d $n
         try{
@@ -244,6 +244,11 @@ enum WindowsScripts {
         try{[IO.File]::Move($t,$p)}catch{if(Test-Path -LiteralPath $p){exit 73};exit 71}
         $t=$null
         $old=(Get-Date).AddDays(-7);Get-ChildItem -LiteralPath $d -Force -File|?{$_.LastWriteTime -lt $old}|Remove-Item -Force -ErrorAction SilentlyContinue
+        $legacy=Join-Path $env:USERPROFILE '.purrdr\uploads'
+        if([IO.Directory]::Exists($legacy) -and -not ((Get-Item -LiteralPath $legacy -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)){
+        Get-ChildItem -LiteralPath $legacy -Force -File|?{$_.LastWriteTime -lt $old}|Remove-Item -Force -ErrorAction SilentlyContinue
+        if(-not (Get-ChildItem -LiteralPath $legacy -Force|Select-Object -First 1)){Remove-Item -LiteralPath $legacy -Force -ErrorAction SilentlyContinue}
+        }
         PWrite "$p`n"
         }finally{if($t){Remove-Item -LiteralPath $t -Force -ErrorAction SilentlyContinue}}
         """#
