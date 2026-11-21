@@ -91,6 +91,8 @@ struct StringCatalogTests {
     /// 新增主機引導(#341)給沒有電腦概念的人看，指「那台電腦」「帳號」用口語(GLOSSARY「新增主機引導」),
     /// 這些字串的「電腦」「帳號」不算避免用詞;其餘用詞照常檢查。
     static let addHostGuideKeys: Set<String> = [
+        "Computer address", "On that computer, install Tailscale and sign in with the same account.",
+        "Paste this line too. A QR code appears on that computer.", "Pair this iPhone with the computer",
         "Add This Computer", "Computer name or IP", "First time connecting to this computer",
         "herdr is updated. Restart the herdr server on that computer, then try again.",
         "herdr on that computer is too old. Update herdr there, then try again.",
