@@ -438,8 +438,14 @@ extension HostServiceProtocol.ServerMessage {
              .hostServiceStatusResult,
              .hostServiceUpdateResult,
              .hostServiceSetAutoUpdateResult,
-             .paneReadResult, .sessionsListResult, .gitStatusResult, .gitDiffResult,
-             .queueListResult, .queueAddResult, .queueRemoveResult, .queueReorderResult,
+             .paneReadResult,
+             .sessionsListResult,
+             .gitStatusResult,
+             .gitDiffResult,
+             .queueListResult,
+             .queueAddResult,
+             .queueRemoveResult,
+             .queueReorderResult,
              // 不屬於任何串流的推送：`deliver` 交給 `queue.changed` 的觀察者(Send When Done,#305)。
              .queueChanged: nil
         }
@@ -499,6 +505,7 @@ extension HostServiceProtocol.ServerMessage {
         case .queueAddResult(let message): message.requestId
         case .queueRemoveResult(let message): message.requestId
         case .queueReorderResult(let message): message.requestId
+        // `queue.changed` 是這條連線的廣播，不對應請求也不屬於串流。
         case .transcriptUpdate, .subscribedEvent, .eventsEnded, .paneTerminalFrame, .paneTerminalClosed, .queueChanged: nil
         }
     }

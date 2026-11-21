@@ -4689,6 +4689,17 @@
         }
       }
     },
+    "Host Service %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 連線助理 %@"
+          }
+        }
+      }
+    },
     "Host Service %@ Available" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7640,13 +7651,13 @@
         }
       }
     },
-    "Point the camera at the QR code shown by purrdr-host-service pair." : {
+    "Point the camera at the QR code shown by purrdr pair." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把相機對準 purrdr-host-service pair 顯示的 QR code。"
+            "value" : "把相機對準 purrdr pair 顯示的 QR code。"
           }
         }
       }

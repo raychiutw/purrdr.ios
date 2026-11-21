@@ -135,6 +135,21 @@ jobs:
       - name: 比對 purrdr.host 的同步副本
         run: scripts/sync-purrdr-host.sh --check
 
+  # 升版本號(MARKETING_VERSION)時要同時寫版本說明:目前版本號在 CHANGELOG.md 要有對應的 "## <版本號>" 段落。
+  # 發版時 GitHub Release 的「本版更新」就是取這一段(見 testflight.yml)。
+  changelog:
+    name: 版本說明(CHANGELOG.md)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 目前版本號有版本說明
+        run: |
+          set -euo pipefail
+          version="$(scripts/marketing-version.sh HEAD)"
+          scripts/changelog-section.sh "$version" > /dev/null
+
   # CI 不做 UI 測試(太久);UI 測試在本機跑，只跑有修改到的類別(見 AGENTS.md「常用指令」)。
   app:
     name: App 編譯(xcodebuild build)

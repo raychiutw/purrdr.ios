@@ -221,3 +221,48 @@ jobs:
             --build-number "$GITHUB_RUN_ID" \
             --timeout 1800 \
             --interval 30
+
+  # TestFlight 上傳成功後，為這個版本建立 GitHub Release(tag 是 v<版本號>,指向這次發版的 commit)。
+  # 「本版更新」取自 CHANGELOG.md 那個版本的段落(scripts/changelog-section.sh);沒有對應段落只出 warning，不擋發行。
+  # 同一個版本手動重新上傳時 Release 已存在，就略過。Release 失敗不影響已上傳的 build。
+  github-release:
+    name: 建立 GitHub Release
+    needs: deploy
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: 建立 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(scripts/marketing-version.sh HEAD)"
+          TAG="v${VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，略過"
+            exit 0
+          fi
+
+          if notes="$(scripts/changelog-section.sh "$VERSION")"; then
+            :
+          else
+            echo "::warning::CHANGELOG.md 沒有 \"## ${VERSION}\" 的版本說明，Release 只放安裝說明"
+            notes="這個版本沒有版本說明。"
+          fi
+
+          {
+            printf '## 本版更新\n\n%s\n\n' "$notes"
+            printf '## 安裝\n\n'
+            printf '目前以 TestFlight 發行(build %s)。完整說明與支援:https://raychiutw.github.io/purrdr/\n' "$GITHUB_RUN_ID"
+          } > "$RUNNER_TEMP/release-notes.md"
+
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "Purrdr ${VERSION}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --latest
