@@ -348,6 +348,8 @@ struct ComposerBar: View {
     }
 
     private func send() {
+        // 送出就收起鍵盤，看得到 Agent 的回覆;被步驟擋下放回草稿時，再點輸入框繼續打(#329)。
+        isFocused = false
         Task { await model.send() }
     }
 
@@ -1049,8 +1051,8 @@ final class KeyHandlingTextView: UITextView {
         setNeedsLayout()
     }
 
-    /// 開頭的 skill／slash 指令用系統綠(實機回報 2026-11-20),其餘是主要文字色。組字中不動(改屬性會打斷組字)。
-    func highlightSlashToken() {
+    /// 開頭的 skill／slash 指令用主色(`tintColor`,跟著 SwiftUI 的 tint 與主機主題;#329),其餘是主要文字色。組字中不動(改屬性會打斷組字)。
+    func highlightSlashToken(force: Bool = false) {
         guard markedTextRange == nil else { return }
         let storage = textStorage
         let whole = NSRange(location: 0, length: storage.length)
@@ -1058,20 +1060,24 @@ final class KeyHandlingTextView: UITextView {
         var current: NSRange?
         if storage.length > 0 {
             var effective = NSRange()
-            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == Self.skillColor {
+            if storage.attribute(.foregroundColor, at: 0, effectiveRange: &effective) as? UIColor == tintColor {
                 current = effective
             }
         }
-        guard current != token else { return }
+        guard force || current != token else { return }
         storage.beginEditing()
         storage.addAttribute(.foregroundColor, value: UIColor.label, range: whole)
-        if let token { storage.addAttribute(.foregroundColor, value: Self.skillColor, range: token) }
+        if let token { storage.addAttribute(.foregroundColor, value: tintColor as UIColor, range: token) }
         storage.endEditing()
         // 接著打的字照一般顏色，不延續指令的綠色。
         typingAttributes[.foregroundColor] = UIColor.label
     }
 
-    private static let skillColor = UIColor(Color.skillName)
+    /// 主題、深淺色或高對比改變時 tint 跟著變:重畫指令著色。
+    override func tintColorDidChange() {
+        super.tintColorDidChange()
+        highlightSlashToken(force: true)
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

@@ -42,15 +42,6 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xD1, green: 0xD1, blue: 0xD6)   // 黑底 13.8:1、#1C1C1E 11.2:1、#2C2C2E 9.2:1
     )
 
-    /// skill／slash 指令名稱(輸入框開頭的「/名稱」、使用者訊息開頭的指令、「已載入 skill」的名稱;實機回報 2026-11-20 要用系統綠)。
-    /// 深色就是系統綠;淺色的系統綠在白底只有 2.2:1,改用同色相較深的值，泡泡(#E9E9EA)上仍 ≥ 4.5:1。
-    static let skillName = ContrastPalette(
-        light: ThemeColor(red: 0x18, green: 0x70, blue: 0x30),             // 白底 6.0:1、泡泡 #E9E9EA 5.0:1
-        dark: ThemeColor(red: 0x30, green: 0xD1, blue: 0x58),              // 系統綠：黑底 10.4:1、#2C2C2E 6.9:1
-        lightHighContrast: ThemeColor(red: 0x0E, green: 0x55, blue: 0x23), // 白底 8.9:1
-        darkHighContrast: ThemeColor(red: 0x30, green: 0xDB, blue: 0x5B)   // 系統綠高對比：#2C2C2E 7.6:1
-    )
-
     /// 主色上的字與符號(ADR-0011):主色本身只有 Asset Catalog 的 `AccentColor` 一份，這組只配它當底。
     /// 淺色白字(`#0B7A5C` 5.3:1、高對比 `#075C45` 8.0:1),深色黑字(`#3CCF9E` 10.6:1、高對比 `#5DE0B3` 12.8:1)。
     static let onAccent = ContrastPalette(
@@ -64,9 +55,6 @@ enum AccessibleColors {
 extension ShapeStyle where Self == Color {
     /// 承載資訊的次要文字顏色(取代系統 `.secondary`／`.tertiary` 文字)。圖示、分隔線、底色等純裝飾仍用系統階層色。
     static var secondaryText: Color { AccessibleColors.secondaryText.color }
-
-    /// skill／slash 指令名稱的系統綠(`AccessibleColors.skillName`)。
-    static var skillName: Color { AccessibleColors.skillName.color }
 
     /// 主色(`AccentColor`)底上的字與符號。
     static var onAccent: Color { AccessibleColors.onAccent.color }

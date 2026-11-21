@@ -184,11 +184,22 @@ public struct ConversationView: View {
             .scrollTargetLayout()
         }
         .scrollPosition($position)
+        // 捲動與點訊息區都收起鍵盤(#329);用 simultaneousGesture,連結、卡片與按鈕的點擊照常。
+        .scrollDismissesKeyboard(.immediately)
+        .simultaneousGesture(TapGesture().onEnded { KeyboardDismissal.dismiss() })
         .onScrollTargetVisibilityChange(idType: String.self) { ids in
             visibleIDs = ids
             scroll.visibleRowsChanged(count: ids.count)
         }
         .defaultScrollAnchor(.bottom)
+        // 重新載入、換 session 讀取中:舊訊息留著，頂端只放一條不遮擋的細進度條(#329)。
+        .overlay(alignment: .top) {
+            if model.isRefreshing {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .accessibilityIdentifier("conversation.refreshing")
+            }
+        }
         // 下拉重新整理(#270,取代標題列的重新載入鈕):重讀後切回跟隨尾端並捲到底(F5.12)。
         .refreshable {
             await model.reload()
@@ -458,7 +469,7 @@ struct ConversationItemView: View {
             ToolRunView(run: run)
         case .skill(let skill):
             // skill 名稱用系統綠(實機回報 2026-11-20)。
-            CapsuleNote(text: Text("Loaded skill: \(Text(verbatim: skill.name).foregroundStyle(Color.skillName))"), symbol: "book.closed")
+            CapsuleNote(text: Text("Loaded skill: \(Text(verbatim: skill.name).foregroundStyle(.tint))"), symbol: "book.closed")
                 .accessibilityIdentifier("conversation.skill")
         case .note(let note):
             CapsuleNote(text: note.text, symbol: "info.circle")
@@ -598,13 +609,13 @@ struct UserBubbleView: View {
     let bubble: UserBubble
     @Environment(\.bubbleImages) private var context
 
-    /// 開頭的 skill／slash 指令用系統綠(實機回報 2026-11-20),其餘照泡泡的文字色。
+    /// 開頭的 skill／slash 指令用主色(有主機主題時是主題 accent;#329),其餘照泡泡的文字色。
     static func highlighted(_ text: String) -> AttributedString {
         var attributed = AttributedString(text)
         if let range = SlashToken.range(in: text),
            let start = AttributedString.Index(range.lowerBound, within: attributed),
            let end = AttributedString.Index(range.upperBound, within: attributed) {
-            attributed[start..<end].foregroundColor = .skillName
+            attributed[start..<end].foregroundColor = Color.commandText
         }
         return attributed
     }

@@ -25,15 +25,6 @@ struct AccessibleColorsTests {
         Self.expectReadable(AccessibleColors.secondaryText)
     }
 
-    @Test("skill 名稱的系統綠：深淺色對背景與使用者泡泡 ≥ 4.5:1,高對比 ≥ 7:1(深色是系統綠，淺色是較深的系統綠)")
-    func skillNameContrast() {
-        Self.expectReadable(AccessibleColors.skillName)
-        // 使用者泡泡(`.fill.secondary` 疊在主要背景上):淺色約 #E9E9EA,深色約 #262629。
-        #expect(AccessibleColors.skillName.light.contrastRatio(with: ThemeColor(red: 0xE9, green: 0xE9, blue: 0xEA)) >= 4.5)
-        #expect(AccessibleColors.skillName.dark.contrastRatio(with: ThemeColor(red: 0x26, green: 0x26, blue: 0x29)) >= 4.5)
-        #expect(AccessibleColors.skillName.dark == ThemeColor(red: 0x30, green: 0xD1, blue: 0x58), "深色是系統綠")
-    }
-
     static func expectReadable(_ palette: ContrastPalette) {
         let cases: [(String, ThemeColor, [ThemeColor], Double)] = [
             ("淺色", palette.light, Self.lightSecondaryBackgrounds, 4.5),
