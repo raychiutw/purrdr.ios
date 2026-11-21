@@ -1,6 +1,7 @@
 # 新增主機引導(拋棄式，PROTOTYPE,#339)
 
-- `purrdr-add-host-guide.html`:同一份步驟資料的三種版面(1 一頁一題＋進度點、2 卡片堆疊、3 清單推進),可以點著走完 SSH(Tailscale SSH／原生 SSH／Windows OpenSSH、在家或在外面、密碼或金鑰、信任這台電腦)與 HTTPS(準備 Tailscale、裝主機服務、配對)的每條路徑。
+- `purrdr-add-host-guide-v1.html`(第 1 版):三種版面(1 一頁一題＋進度點、2 卡片堆疊、3 清單推進)。
+- `purrdr-add-host-guide.html`(第 2 版，使用者要求以 HIG 液態玻璃膠囊控制重新設計):1 膠囊選項、2 底部玻璃面板、3 單一導覽膠囊。選項、按鈕、進度、拷貝／分享是玻璃膠囊;步驟、指令、欄位是內容層不用玻璃,可以點著走完 SSH(Tailscale SSH／原生 SSH／Windows OpenSSH、在家或在外面、密碼或金鑰、信任這台電腦)與 HTTPS(準備 Tailscale、裝主機服務、配對)的每條路徑。
 - 規格:#332;決定見 grill(2026-11-21)。
 
 ## 結論

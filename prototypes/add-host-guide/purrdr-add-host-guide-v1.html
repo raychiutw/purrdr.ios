@@ -1,0 +1,159 @@
+<title>Purrdr 新增主機引導原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 原型(拋棄式,#339):新增主機引導三種版面，同一份步驟資料;液態玻璃膠囊風(DESIGN.md)。 */
+:root{
+  --page:#e8ebe9; --fg:#17201c; --muted:#66706b; --ground:#f2f2f7; --card:#fff; --surface2:#e9ecea; --line:#dde2df;
+  --accent:#0b7a5c; --accent-soft:#e2f2ec; --on-accent:#fff; --red:#d92d20; --frame:#17201c; --bar:#ffffffee; --code:#f3f5f4;
+  --glass:rgba(255,255,255,.62); --glass-edge:rgba(255,255,255,.85); --glass-shadow:rgba(0,0,0,.12);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif; --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000; --card:#1c1c1e; --surface2:#2c2c2e; --line:#2f3431;
+  --accent:#3ccf9e; --accent-soft:#10291f; --on-accent:#03140d; --red:#ff6b5e; --frame:#333836; --bar:#1a1d1cee; --code:#151817;
+  --glass:rgba(40,44,42,.6); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000; --card:#1c1c1e; --surface2:#2c2c2e; --line:#2f3431;
+  --accent:#3ccf9e; --accent-soft:#10291f; --on-accent:#03140d; --red:#ff6b5e; --frame:#333836; --bar:#1a1d1cee; --code:#151817;
+  --glass:rgba(40,44,42,.6); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font-family:var(--sans);margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 130px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:20px;margin:0} .lede{color:var(--muted);margin:0;font-size:14px;line-height:1.6;max-width:70ch}
+.stage{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.col{flex:0 1 380px;width:380px;max-width:100%;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cap{font-size:12px;letter-spacing:.06em;color:var(--muted);font-weight:600;text-align:center}
+.notes{flex:1 1 300px;min-width:0;font-size:14px;line-height:1.6;color:var(--muted)} .notes b{color:var(--fg)} .notes ul{padding-left:18px;margin:6px 0}
+.phone{width:100%;height:760px;border:8px solid var(--frame);border-radius:42px;background:var(--ground);overflow:hidden;position:relative}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border:1px solid var(--glass-edge);box-shadow:0 6px 24px var(--glass-shadow)}
+.top{position:absolute;top:0;left:0;right:0;padding:10px 12px 16px;display:flex;align-items:center;gap:8px;z-index:3;background:linear-gradient(var(--ground),transparent)}
+.ib{width:34px;height:34px;border-radius:17px;display:grid;place-items:center;cursor:pointer}
+.ttl{border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600;margin:0 auto}
+.dots{display:flex;gap:5px;justify-content:center;margin:0 auto}
+.dots i{width:7px;height:7px;border-radius:4px;background:var(--line)} .dots i.on{background:var(--accent);width:18px}
+.body{position:absolute;inset:0;overflow-y:auto;padding:64px 16px 120px;display:flex;flex-direction:column;gap:14px}
+.body>*{flex:none}
+.q{font-size:24px;font-weight:700;letter-spacing:-.01em;margin:8px 4px 0;text-wrap:balance}
+.sub{font-size:15px;color:var(--muted);margin:0 4px;line-height:1.5}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{background:var(--card);border-radius:18px;padding:14px;display:flex;gap:12px;align-items:center;cursor:pointer;border:2px solid transparent}
+.opt.sel{border-color:var(--accent)}
+.opt .ic{width:36px;height:36px;border-radius:10px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;flex:none}
+.opt .tx{flex:1;min-width:0} .opt b{display:block;font-size:16px} .opt span{font-size:13px;color:var(--muted)}
+.badge{font-size:11px;color:var(--accent);font-weight:700;margin-left:6px}
+.step{display:flex;gap:12px;align-items:flex-start;background:var(--card);border-radius:18px;padding:14px}
+.step .n{width:26px;height:26px;border-radius:13px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.step .tx{flex:1;min-width:0;font-size:15px;line-height:1.5}
+.cmd{margin-top:8px;background:var(--code);border:1px solid var(--line);border-radius:12px;padding:10px;font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.cmdbtns{display:flex;gap:8px;margin-top:8px}
+.pill{height:32px;border-radius:16px;padding:0 12px;display:inline-flex;align-items:center;font-size:13px;background:var(--surface2);cursor:pointer}
+.field{background:var(--card);border-radius:18px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;color:var(--muted)} .field .in{font-size:17px}
+.field .how{font-size:12.5px;color:var(--accent);cursor:pointer}
+.how-box{font-size:13.5px;color:var(--fg);line-height:1.5}
+.cta{position:absolute;left:12px;right:12px;bottom:14px;z-index:3;border-radius:999px;padding:15px;text-align:center;font-weight:700;font-size:16px;background:var(--accent);color:var(--on-accent);cursor:pointer;box-shadow:0 8px 24px var(--glass-shadow)}
+.cta2{position:absolute;left:12px;right:12px;bottom:76px;z-index:3;text-align:center;font-size:15px;color:var(--accent);cursor:pointer}
+.ok{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:30px 0 0}
+.ok .big{width:64px;height:64px;border-radius:32px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:30px}
+.trust{background:var(--card);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.trust details{font-size:13px;color:var(--muted)}
+.row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:18px;padding:12px 14px;font-size:15px}
+.tog{width:46px;height:28px;border-radius:14px;background:var(--accent);position:relative}.tog::after{content:"";position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#fff}
+/* V2 卡片堆疊 */
+.V2 .body{padding-top:70px}
+.V2 .stack{position:relative}
+.V2 .stack::before,.V2 .stack::after{content:"";position:absolute;left:14px;right:14px;height:20px;border-radius:22px;background:var(--card);opacity:.55;top:-10px;z-index:-1}
+.V2 .stack::after{left:28px;right:28px;top:-20px;opacity:.3}
+.V2 .sheetcard{background:var(--card);border-radius:24px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 10px 30px var(--glass-shadow)}
+.V2 .sheetcard .opt,.V2 .sheetcard .step,.V2 .sheetcard .field,.V2 .sheetcard .row,.V2 .sheetcard .trust{background:var(--ground)}
+/* V3 清單推進 */
+.V3 .q{font-size:20px}
+.V3 .crumb{display:flex;flex-direction:column;gap:6px}
+.V3 .crumb .row{padding:10px 14px;font-size:14px;color:var(--muted)} .V3 .crumb .row b{color:var(--fg);font-weight:600}
+.ctrl{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--bar);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:22px;padding:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 32px);box-shadow:0 6px 24px #0002;z-index:9}
+.seg{display:flex;background:var(--surface2);border-radius:14px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:7px 11px;border-radius:11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--card);font-weight:600;box-shadow:0 1px 3px #0002}
+</style>
+
+<div class="wrap">
+  <h1>新增主機引導</h1>
+  <p class="lede">原型(拋棄式,#339)。同一份步驟，三種版面;點選項、底部按鈕往下走，左上角返回。路徑：SSH 或 HTTPS → SSH 選系統與方式 → 開啟 SSH → (原生 SSH)在哪裡連 → 主機名稱、Port、帳號 → 登入方式 → 信任這台電腦 → 完成與開通知;HTTPS:準備 Tailscale → 裝主機服務 → 配對。指令與數字是示意。</p>
+  <div class="stage">
+    <div class="col"><div class="cap" id="cap"></div><div class="phone" id="phone"></div></div>
+    <div class="notes" id="notes"></div>
+  </div>
+</div>
+<div class="ctrl" role="toolbar" aria-label="切換">
+  <div class="seg" id="segV"><button data-v="1">1 一頁一題</button><button data-v="2">2 卡片堆疊</button><button data-v="3">3 清單推進</button></div>
+  <div class="seg"><button id="restart">從頭</button></div>
+</div>
+<script>
+const A={kind:null,os:null,way:null,where:null,auth:null}; let hist=['kind']; let V='1'; let how=null;
+const STEPS={
+ kind:()=>({q:'用什麼方式連到電腦？',opts:[['ssh','SSH','建議 · 大多數電腦都能用','⌘'],['https','HTTPS(主機服務)','在電腦裝 Purrdr 主機服務，可用「做完再送」與卡住提醒','◎']],key:'kind',next:v=>v==='ssh'?'os':'ts'}),
+ os:()=>({q:'那台電腦是？',opts:[['mac','Mac','',''],['linux','Linux','',''],['win','Windows','','']],key:'os',next:()=>'way'}),
+ way:()=>A.os==='win'?({q:'Windows 用 OpenSSH',sub:'Windows 內建，只要打開就好。',opts:[['native','OpenSSH','用帳號與密碼或金鑰登入','⌘']],key:'way',next:()=>'enable'})
+   :({q:'選一種 SSH',opts:[['tailscale','Tailscale SSH','建議 · 不用密碼也不用金鑰，在哪裡都連得到','✦'],['native','原生 SSH','用帳號與密碼或金鑰登入','⌘']],key:'way',next:()=>'enable'}),
+ enable:()=>{
+   const cmd={tailscale:'tailscale set --ssh',macN:null,linuxN:'sudo apt install -y openssh-server && sudo systemctl enable --now ssh',winN:'Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Start-Service sshd; Set-Service sshd -StartupType Automatic'};
+   let steps;
+   if(A.way==='tailscale') steps=[['在那台電腦安裝 Tailscale 並登入。',null,'下載頁'],['打開終端機，貼上這行，按 Enter。',cmd.tailscale]];
+   else if(A.os==='mac') steps=[['打開「系統設定」。'],['點「一般」→「共享」。'],['打開「遠端登入」。']];
+   else if(A.os==='linux') steps=[['打開終端機，貼上這行，按 Enter。',cmd.linuxN]];
+   else steps=[['在開始選單找「PowerShell」,按右鍵選「以系統管理員身分執行」。'],['貼上這行，按 Enter。',cmd.winN]];
+   return {q:'讓電腦接受連線',steps,cta:'我已經開好了',next:()=>A.way==='tailscale'?'addr':'where'};},
+ where:()=>({q:'在哪裡連？',opts:[['home','只在家裡','手機和電腦連同一個 Wi-Fi','⌂'],['out','在外面也要連','出門用行動網路也能連','↗']],key:'where',next:v=>v==='out'?'outhow':'addr'}),
+ outhow:()=>({q:'在外面怎麼連？',opts:[['ts','透過 Tailscale','建議 · 兩邊裝 Tailscale,不用設定路由器','✦'],['pub','對外 IP 或主機域名','要先在路由器設定好讓外面連得進來','◇']],key:'outhow',next:()=>'addr'}),
+ addr:()=>{const hostHow=A.way==='tailscale'||A.outhow==='ts'?['tailscale status --self','填出現的電腦名稱']:A.outhow==='pub'?null:[A.os==='win'?'(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Wi-Fi).IPAddress':A.os==='mac'?'ipconfig getifaddr en0':'hostname -I','填出現的數字'];
+   const userHow=A.os==='win'?'$env:USERNAME':'whoami';
+   return {q:'連到哪台、用哪個帳號？',fields:[['主機名稱或 IP',A.way==='tailscale'||A.outhow==='ts'?'studio-mac':A.outhow==='pub'?'myhome.example.com':'192.168.1.20',hostHow],['Port','22',null],['帳號','ray',[userHow,'填出現的文字']]],cta:'下一步',next:()=>A.way==='tailscale'?'trust':'auth'};},
+ auth:()=>({q:'怎麼登入？',opts:[['pw','密碼','輸入那台電腦的登入密碼','•'],['key','金鑰','建議 · 不用每次輸入密碼','⚿']],key:'auth',next:v=>v==='pw'?'pw':'key'}),
+ pw:()=>({q:'輸入密碼',fields:[['密碼','••••••••',null]],cta:'測試連線',next:()=>'trust'}),
+ key:()=>({q:'把這支手機加到電腦',steps:[['在那台電腦打開終端機。'],['貼上這行，按 Enter。',A.os==='win'?'Add-Content $env:USERPROFILE\\.ssh\\authorized_keys "ecdsa-sha2-nistp256 AAAAE2Vj… purrdr-iphone"':'echo "ecdsa-sha2-nistp256 AAAAE2Vj… purrdr-iphone" >> ~/.ssh/authorized_keys'],['回到這裡按「測試連線」。']],extra:'<details style="font-size:13px;color:var(--muted);margin:0 4px"><summary>其他方式</summary>匯入你已經有的私鑰</details>',cta:'測試連線',next:()=>'trust'}),
+ trust:()=>A.way==='tailscale'?STEPS.done():({q:'第一次連到這台電腦',trust:true,cta:'信任',cta2:'取消',next:()=>'done'}),
+ ts:()=>({q:'先準備 Tailscale',steps:[['在 iPhone 安裝 Tailscale 並登入。',null,'App Store'],['在那台電腦安裝 Tailscale,用同一個帳號登入。',null,'下載頁']],cta:'兩邊都好了',next:()=>'install'}),
+ install:()=>({q:'在電腦安裝主機服務',sub:'在那台電腦打開終端機(Windows 是 PowerShell),貼上，按 Enter。',steps:[['Mac 或 Linux:','curl -fsSL https://github.com/raychiutw/purrdr.host/releases/latest/download/install.sh | sh'],['Windows:','irm https://github.com/raychiutw/purrdr.host/releases/latest/download/install.ps1 | iex']],cta:'裝好了',next:()=>'pair'}),
+ pair:()=>({q:'配對',steps:[['再貼上這行，按 Enter,畫面會出現 QR code。','purrdr-host-service pair']],cta:'掃描 QR code',cta2:'手動輸入',next:()=>'done'}),
+ done:()=>({done:true,cta:'完成'})
+};
+function cmdBlock(c){return c?`<div class="cmd">${c}</div><div class="cmdbtns"><span class="pill">拷貝</span><span class="pill">分享到電腦</span></div>`:'';}
+function render(){
+  const id=hist[hist.length-1]; const s=STEPS[id](); const total=8; const idx=Math.min(hist.length,total);
+  let inner='';
+  if(s.done){ inner=`<div class="ok"><div class="big">✓</div><div class="q" style="margin:0">連上了</div><p class="sub">Studio Mac 已加入。</p></div><div class="row"><span>開啟這台的通知</span><span class="tog"></span></div><p class="sub" style="font-size:13px">Agent 需要你或做完時通知你。</p>${A.kind==='ssh'?'<p class="sub" style="font-size:13px">想用「做完再送」、卡住提醒？可以再裝主機服務。</p>':''}`; }
+  else {
+    inner=`<div class="q">${s.q}</div>${s.sub?`<p class="sub">${s.sub}</p>`:''}`;
+    if(s.opts) inner+=`<div class="opts">${s.opts.map(([v,b,t,ic])=>`<div class="opt ${A[s.key]===v?'sel':''}" data-v="${v}">${ic?`<span class="ic">${ic}</span>`:''}<div class="tx"><b>${b}${/建議/.test(t)?'':''}</b>${t?`<span>${t}</span>`:''}</div><span style="color:var(--muted)">›</span></div>`).join('')}</div>`;
+    if(s.steps) inner+=s.steps.map((st,i)=>`<div class="step"><span class="n">${i+1}</span><div class="tx">${st[0]}${cmdBlock(st[1])}${st[2]?`<div class="cmdbtns"><span class="pill">${st[2]}</span>${st[2]==='下載頁'?'<span class="pill">分享到電腦</span>':''}</div>`:''}</div></div>`).join('');
+    if(s.fields) inner+=s.fields.map(([l,v,h],i)=>`<div class="field"><label>${l}</label><div class="in">${v}</div>${h?`<span class="how" data-how="${i}">怎麼查？</span>${how===i?`<div class="how-box">在那台電腦打開終端機，貼上這行，按 Enter,${h[1]}。${cmdBlock(h[0])}</div>`:''}`:''}</div>`).join('');
+    if(s.trust) inner+=`<div class="trust"><b style="font-size:16px">要信任這台電腦嗎?</b><span style="font-size:14px;color:var(--muted)">之後如果它的身分變了，Purrdr 會擋下來提醒你。</span><details><summary>詳細資訊</summary>SHA256:9f2c…a41b · 想自己核對，在那台電腦執行 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</details></div>`;
+    if(s.extra) inner+=s.extra;
+  }
+  const wrapInner=V==='2'?`<div class="stack"><div class="sheetcard">${inner}</div></div>`:V==='3'?`<div class="crumb">${hist.slice(0,-1).map(h=>{const v=A[STEPS[h]().key];return v?`<div class="row"><span>${STEPS[h]().q}</span><b>${(STEPS[h]().opts.find(o=>o[0]===v)||[])[1]||''}</b></div>`:''}).join('')}</div>${inner}`:inner;
+  const top=V==='1'?`<div class="top"><span class="ib glass" id="back">‹</span><div class="dots">${[...Array(total)].map((_,i)=>`<i class="${i===idx-1?'on':''}"></i>`).join('')}</div><span class="ib glass">✕</span></div>`
+    :`<div class="top"><span class="ib glass" id="back">‹</span><span class="ttl glass">新增主機 · ${idx}/${total}</span><span class="ib glass">✕</span></div>`;
+  const showCta=s.cta&&!(s.opts&&!s.done);
+  document.getElementById('phone').className='phone V'+V;
+  document.getElementById('phone').innerHTML=`${top}<div class="body">${wrapInner}</div>${showCta?`<div class="cta" id="cta">${s.cta}</div>`:''}${s.cta2?`<div class="cta2" id="cta2">${s.cta2}</div>`:''}`;
+  document.getElementById('cap').textContent={'1':'1 一頁一題(進度點)','2':'2 卡片堆疊','3':'3 清單推進'}[V];
+  document.getElementById('notes').innerHTML={
+   '1':'<b>1 一頁一題</b>:每頁一個大問題，上方進度點，選項是大卡片，點了直接到下一頁;要做事的頁面是編號步驟＋可拷貝的指令，底部一顆主要按鈕。<ul><li>最像 iOS 的設定流程(例如設定新 iPhone)。</li></ul>',
+   '2':'<b>2 卡片堆疊</b>:每一步是一張浮起來的卡，後面疊著前面幾張的邊，標題膠囊寫「新增主機 · 3/8」。<ul><li>有「一步一步往前」的感覺，卡片外框讓內容更集中。</li></ul>',
+   '3':'<b>3 清單推進</b>:上面保留已經回答過的題目與答案(可點回去改),下面是目前這一題，像在填一張逐步展開的表。<ul><li>隨時看得到前面選了什麼，改答案最方便。</li></ul>'}[V]+'<p><b>三種共通</b></p><ul><li>每頁只問一件事;要在電腦上做的事是一步一句＋「拷貝」「分享到電腦」(AGENTS.md:給沒有電腦概念的人看)。</li><li>欄位旁「怎麼查？」點開才顯示查法與指令。</li><li>第一次連線只問「要信任這台電腦嗎」,指紋收在詳細資訊;Tailscale SSH 不問。</li><li>最後一頁接「開啟這台的通知」(沒有 Plus 時改成加入提示)。</li><li>返回、關閉、頂部與底部按鈕是玻璃控制。</li></ul>';
+  document.querySelectorAll('#segV button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===V));
+}
+function go(id){if(!id)return; how=null; if(id==='done'&&hist[hist.length-1]==='done')return; hist.push(id); render();}
+document.getElementById('phone').onclick=e=>{
+  const id=hist[hist.length-1]; const s=STEPS[id]();
+  const o=e.target.closest('.opt'); if(o){A[s.key]=o.dataset.v; go(s.next(o.dataset.v)); return;}
+  const h=e.target.closest('[data-how]'); if(h){how=how===+h.dataset.how?null:+h.dataset.how; render(); return;}
+  if(e.target.closest('#cta')){ if(s.done){hist=['kind'];Object.keys(A).forEach(k=>A[k]=null);render();} else go(s.next()); return;}
+  if(e.target.closest('#cta2')){ if(id==='trust'){hist.pop();render();} else go(s.next()); return;}
+  if(e.target.closest('#back')&&hist.length>1){hist.pop(); how=null; render();}
+};
+document.getElementById('segV').onclick=e=>{const b=e.target.closest('button');if(b){V=b.dataset.v;render();}};
+document.getElementById('restart').onclick=()=>{hist=['kind'];Object.keys(A).forEach(k=>A[k]=null);render();};
+render();
+</script>

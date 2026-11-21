@@ -60,7 +60,28 @@ h1{font-size:20px;margin:0} .lede{color:var(--muted);margin:0;font-size:14px;lin
 .trust details{font-size:13px;color:var(--muted)}
 .row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:18px;padding:12px 14px;font-size:15px}
 .tog{width:46px;height:28px;border-radius:14px;background:var(--accent);position:relative}.tog::after{content:"";position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:11px;background:#fff}
-/* V2 卡片堆疊 */
+/* 第 2 版：HIG 液態玻璃膠囊控制。玻璃＝控制與導覽(選項、按鈕、進度、拷貝／分享);步驟說明、指令、欄位是內容層，不用玻璃。背景柔和色塊讓玻璃看得出層次。 */
+.phone::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 40% at 15% 10%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%),radial-gradient(50% 35% at 90% 85%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%);pointer-events:none}
+.opt{border-radius:999px;padding:10px 14px 10px 10px;background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border:1px solid var(--glass-edge);box-shadow:0 6px 24px var(--glass-shadow)}
+.opt .ic{border-radius:999px}
+.opt.sel{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent),0 6px 24px var(--glass-shadow)}
+.pill{background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--glass-edge);color:var(--accent);font-weight:600}
+.cta{background:color-mix(in srgb,var(--accent) 88%,transparent);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid color-mix(in srgb,#fff 35%,transparent)}
+.cta2{left:50%;right:auto;transform:translateX(-50%);border-radius:999px;padding:9px 18px;background:var(--glass);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--glass-edge)}
+.step,.field,.trust,.row{background:var(--card)}
+.V1 .dots{padding:9px 14px;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--glass-edge)}
+.V2 .body{padding-bottom:300px}
+.V2 .hero{display:grid;place-items:center;padding:30px 0 6px}
+.V2 .hero span{width:84px;height:84px;border-radius:26px;display:grid;place-items:center;font-size:38px;color:var(--accent);background:var(--glass);border:1px solid var(--glass-edge);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)}
+.V2 .q,.V2 .sub{text-align:center}
+.V2 .panel{position:absolute;left:10px;right:10px;bottom:10px;z-index:3;border-radius:32px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--glass);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%);border:1px solid var(--glass-edge);box-shadow:0 10px 40px var(--glass-shadow)}
+.V2 .panel .opt{background:color-mix(in srgb,var(--card) 70%,transparent);box-shadow:none}
+.V2 .panel .cta,.V2 .panel .cta2{position:static;transform:none;align-self:stretch;text-align:center}
+.V3 .navcap{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;z-index:3;display:flex;align-items:center;gap:4px;padding:6px;border-radius:999px;background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border:1px solid var(--glass-edge);box-shadow:0 10px 30px var(--glass-shadow);white-space:nowrap}
+.V3 .navcap .b{height:40px;border-radius:999px;padding:0 14px;display:grid;place-items:center;font-size:15px;cursor:pointer}
+.V3 .navcap .go{background:var(--accent);color:var(--on-accent);font-weight:700;padding:0 20px}
+.V3 .navcap .prog{font-size:12px;color:var(--muted);padding:0 8px}
+/* 舊 V2 卡片堆疊(第 1 版) */
 .V2 .body{padding-top:70px}
 .V2 .stack{position:relative}
 .V2 .stack::before,.V2 .stack::after{content:"";position:absolute;left:14px;right:14px;height:20px;border-radius:22px;background:var(--card);opacity:.55;top:-10px;z-index:-1}
@@ -79,14 +100,14 @@ h1{font-size:20px;margin:0} .lede{color:var(--muted);margin:0;font-size:14px;lin
 
 <div class="wrap">
   <h1>新增主機引導</h1>
-  <p class="lede">原型(拋棄式,#339)。同一份步驟，三種版面;點選項、底部按鈕往下走，左上角返回。路徑：SSH 或 HTTPS → SSH 選系統與方式 → 開啟 SSH → (原生 SSH)在哪裡連 → 主機名稱、Port、帳號 → 登入方式 → 信任這台電腦 → 完成與開通知;HTTPS:準備 Tailscale → 裝主機服務 → 配對。指令與數字是示意。</p>
+  <p class="lede">原型(拋棄式,#339,第 2 版：以 HIG 液態玻璃膠囊控制重新設計)。同一份步驟，三種版面;點選項、底部按鈕往下走，左上角返回。路徑：SSH 或 HTTPS → SSH 選系統與方式 → 開啟 SSH → (原生 SSH)在哪裡連 → 主機名稱、Port、帳號 → 登入方式 → 信任這台電腦 → 完成與開通知;HTTPS:準備 Tailscale → 裝主機服務 → 配對。指令與數字是示意。</p>
   <div class="stage">
     <div class="col"><div class="cap" id="cap"></div><div class="phone" id="phone"></div></div>
     <div class="notes" id="notes"></div>
   </div>
 </div>
 <div class="ctrl" role="toolbar" aria-label="切換">
-  <div class="seg" id="segV"><button data-v="1">1 一頁一題</button><button data-v="2">2 卡片堆疊</button><button data-v="3">3 清單推進</button></div>
+  <div class="seg" id="segV"><button data-v="1">1 膠囊選項</button><button data-v="2">2 底部玻璃面板</button><button data-v="3">3 單一導覽膠囊</button></div>
   <div class="seg"><button id="restart">從頭</button></div>
 </div>
 <script>
@@ -131,17 +152,25 @@ function render(){
     if(s.trust) inner+=`<div class="trust"><b style="font-size:16px">要信任這台電腦嗎?</b><span style="font-size:14px;color:var(--muted)">之後如果它的身分變了，Purrdr 會擋下來提醒你。</span><details><summary>詳細資訊</summary>SHA256:9f2c…a41b · 想自己核對，在那台電腦執行 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub</details></div>`;
     if(s.extra) inner+=s.extra;
   }
-  const wrapInner=V==='2'?`<div class="stack"><div class="sheetcard">${inner}</div></div>`:V==='3'?`<div class="crumb">${hist.slice(0,-1).map(h=>{const v=A[STEPS[h]().key];return v?`<div class="row"><span>${STEPS[h]().q}</span><b>${(STEPS[h]().opts.find(o=>o[0]===v)||[])[1]||''}</b></div>`:''}).join('')}</div>${inner}`:inner;
-  const top=V==='1'?`<div class="top"><span class="ib glass" id="back">‹</span><div class="dots">${[...Array(total)].map((_,i)=>`<i class="${i===idx-1?'on':''}"></i>`).join('')}</div><span class="ib glass">✕</span></div>`
-    :`<div class="top"><span class="ib glass" id="back">‹</span><span class="ttl glass">新增主機 · ${idx}/${total}</span><span class="ib glass">✕</span></div>`;
+  const heroIc={kind:'⌘',os:'▣',way:'✦',enable:'⚙',where:'⌂',outhow:'↗',addr:'⌖',auth:'⚿',pw:'•',key:'⚿',trust:'⛉',ts:'✦',install:'⤓',pair:'▦',done:'✓'}[id]||'◎';
+  let wrapInner=inner, panel='';
+  if(V==='2'&&!s.done&&s.opts){
+    const qpart=`<div class="hero"><span>${heroIc}</span></div><div class="q">${s.q}</div>${s.sub?`<p class="sub">${s.sub}</p>`:''}`;
+    wrapInner=qpart; panel=`<div class="panel">${inner.slice(inner.indexOf('<div class="opts">'))}</div>`;
+  } else if(V==='2'){ wrapInner=`<div class="hero"><span>${heroIc}</span></div>`+inner; }
+  const top=V==='3'?`<div class="top"><span class="ttl glass">新增主機</span></div>`:`<div class="top"><span class="ib glass" id="back">‹</span><div class="dots">${[...Array(total)].map((_,i)=>`<i class="${i===idx-1?'on':''}"></i>`).join('')}</div><span class="ib glass">✕</span></div>`;
   const showCta=s.cta&&!(s.opts&&!s.done);
   document.getElementById('phone').className='phone V'+V;
-  document.getElementById('phone').innerHTML=`${top}<div class="body">${wrapInner}</div>${showCta?`<div class="cta" id="cta">${s.cta}</div>`:''}${s.cta2?`<div class="cta2" id="cta2">${s.cta2}</div>`:''}`;
-  document.getElementById('cap').textContent={'1':'1 一頁一題(進度點)','2':'2 卡片堆疊','3':'3 清單推進'}[V];
+  let bottom='';
+  if(V==='3'){ bottom=`<div class="navcap"><span class="b" id="back">‹ 返回</span><span class="prog">${idx}/${total}</span>${showCta?`<span class="b go" id="cta">${s.cta} ›</span>`:''}${s.cta2?`<span class="b" id="cta2">${s.cta2}</span>`:''}</div>`; }
+  else if(V==='2'){ bottom=panel||`<div class="panel">${showCta?`<div class="cta" id="cta">${s.cta}</div>`:''}${s.cta2?`<div class="cta2" id="cta2">${s.cta2}</div>`:''}</div>`; }
+  else { bottom=`${showCta?`<div class="cta" id="cta">${s.cta}</div>`:''}${s.cta2?`<div class="cta2" id="cta2">${s.cta2}</div>`:''}`; }
+  document.getElementById('phone').innerHTML=`${top}<div class="body">${wrapInner}</div>${bottom}`;
+  document.getElementById('cap').textContent={'1':'1 膠囊選項','2':'2 底部玻璃面板','3':'3 單一導覽膠囊'}[V];
   document.getElementById('notes').innerHTML={
-   '1':'<b>1 一頁一題</b>:每頁一個大問題，上方進度點，選項是大卡片，點了直接到下一頁;要做事的頁面是編號步驟＋可拷貝的指令，底部一顆主要按鈕。<ul><li>最像 iOS 的設定流程(例如設定新 iPhone)。</li></ul>',
-   '2':'<b>2 卡片堆疊</b>:每一步是一張浮起來的卡，後面疊著前面幾張的邊，標題膠囊寫「新增主機 · 3/8」。<ul><li>有「一步一步往前」的感覺，卡片外框讓內容更集中。</li></ul>',
-   '3':'<b>3 清單推進</b>:上面保留已經回答過的題目與答案(可點回去改),下面是目前這一題，像在填一張逐步展開的表。<ul><li>隨時看得到前面選了什麼，改答案最方便。</li></ul>'}[V]+'<p><b>三種共通</b></p><ul><li>每頁只問一件事;要在電腦上做的事是一步一句＋「拷貝」「分享到電腦」(AGENTS.md:給沒有電腦概念的人看)。</li><li>欄位旁「怎麼查？」點開才顯示查法與指令。</li><li>第一次連線只問「要信任這台電腦嗎」,指紋收在詳細資訊;Tailscale SSH 不問。</li><li>最後一頁接「開啟這台的通知」(沒有 Plus 時改成加入提示)。</li><li>返回、關閉、頂部與底部按鈕是玻璃控制。</li></ul>';
+   '1':'<b>1 膠囊選項</b>:一頁一題，選項是全寬的玻璃膠囊(圖示＋名稱＋一句說明),點了直接下一頁;頂部進度點在一顆玻璃膠囊裡;要做事的頁面底部一顆主色玻璃膠囊按鈕。<ul><li>最直接，選項大、好按。</li></ul>',
+   '2':'<b>2 底部玻璃面板</b>:上方一個大圖示與問題，選項與按鈕集中在底部一片浮動的玻璃面板(像設定新 iPhone、Apple Pay 加卡)。<ul><li>拇指範圍內完成所有操作，最有 iOS 26 的感覺。</li></ul>',
+   '3':'<b>3 單一導覽膠囊</b>:返回、進度、下一步合成底部一顆玻璃膠囊(像 iOS 26 的 Safari 底部膠囊);選項仍是玻璃膠囊。<ul><li>控制最少、最集中，內容區最大。</li></ul>'}[V]+'<p><b>三種共通</b></p><ul><li>每頁只問一件事;要在電腦上做的事是一步一句＋「拷貝」「分享到電腦」(AGENTS.md:給沒有電腦概念的人看)。</li><li>欄位旁「怎麼查？」點開才顯示查法與指令。</li><li>第一次連線只問「要信任這台電腦嗎」,指紋收在詳細資訊;Tailscale SSH 不問。</li><li>最後一頁接「開啟這台的通知」(沒有 Plus 時改成加入提示)。</li><li>依 HIG〈Materials〉:選項、按鈕、進度、拷貝／分享是玻璃膠囊(控制層);步驟說明、指令、欄位與信任說明是內容層，不用玻璃。</li></ul>';
   document.querySelectorAll('#segV button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===V));
 }
 function go(id){if(!id)return; how=null; if(id==='done'&&hist[hist.length-1]==='done')return; hist.push(id); render();}
