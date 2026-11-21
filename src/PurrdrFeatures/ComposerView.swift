@@ -73,11 +73,9 @@ struct ComposerBar: View {
     }
 
     var body: some View {
-        if model.isReadOnly {
-            ReadOnlyComposerNotice()
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-        } else {
+        // 唯讀裝置(#60):沒有輸入框與送出鈕;說明只在頂部浮動橫幅出現一次(#348),輸入列不重複。
+        // 這裡讀 `model.isReadOnly` 而不是橫幅:離線時橫幅是「離線」,但輸入列仍然不能送。
+        if !model.isReadOnly {
             composer
                 .onChange(of: model.lastSlashInsertion) { _, insertion in
                     // 選定後念出插入了哪個指令(文中選定時輸入框其他文字不變，光看朗讀不知道插了什麼,#230)。
@@ -148,7 +146,9 @@ struct ComposerBar: View {
                         .padding(.top, 4)
                     buttonRow
                 }
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                .floatingGlass(in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("composer.card")
                 .overlay {
                     // 聚焦時中性邊框(F6.1);主色只留給送出鈕(HIG CO-4,#236)。
                     RoundedRectangle(cornerRadius: Self.cardCornerRadius)
@@ -445,21 +445,6 @@ struct ShellModeHint: View {
             .padding(.vertical, 8)
             .background(.bar, in: RoundedRectangle(cornerRadius: 12))
             .accessibilityIdentifier("composer.shellHint")
-    }
-}
-
-/// 唯讀裝置(#60):輸入列換成說明，沒有輸入框與送出鈕。
-struct ReadOnlyComposerNotice: View {
-    var body: some View {
-        Label("This device is paired read-only, so it can’t send anything to this host.", systemImage: "lock")
-            .font(.footnote)
-            .foregroundStyle(.secondaryText)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(.bar, in: RoundedRectangle(cornerRadius: 12))
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("composer.readOnly")
     }
 }
 

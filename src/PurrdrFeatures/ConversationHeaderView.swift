@@ -18,6 +18,10 @@ struct ConversationTitleView: View {
                 .accessibilityAddTraits(.isHeader)
             ConversationHeaderLine(header: header)
         }
+        // 標題膠囊(#348 A1):浮在內容上的玻璃,內容從底下捲過去;減少透明度時改不透明底。
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .floatingGlass(in: Capsule())
         // 點標題由下方升起 sheet:上方 context、下方待辦清單(#307)。沒有進度時不可點。
         .contentShape(Rectangle())
         .onTapGesture { if !header.progress.isEmpty { showsProgress = true } }
