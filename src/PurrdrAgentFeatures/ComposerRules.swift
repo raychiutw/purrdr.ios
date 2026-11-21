@@ -235,10 +235,12 @@ public struct PromptEcho: Sendable, Equatable, Identifiable {
     public var imageFiles: [String]
     /// 已上傳到主機的路徑(重試時照樣送，不重傳)。
     public var imagePaths: [String]
+    /// 一般檔案(非圖片)上傳後的路徑:對話紀錄的使用者訊息裡這些路徑行還在文字裡，配對時要算進去。
+    public var filePaths: [String]
 
     public init(
         id: String, text: String, date: Date, state: State = .sending, knownUserIDs: Set<String>, imageCount: Int = 0,
-        imageFiles: [String] = [], imagePaths: [String] = []
+        imageFiles: [String] = [], imagePaths: [String] = [], filePaths: [String] = []
     ) {
         self.id = id
         self.text = text
@@ -248,6 +250,7 @@ public struct PromptEcho: Sendable, Equatable, Identifiable {
         self.imageCount = imageCount
         self.imageFiles = imageFiles
         self.imagePaths = imagePaths
+        self.filePaths = filePaths
     }
 }
 
@@ -271,7 +274,7 @@ public enum EchoMatching {
         for bubble in bubbles where !consumed.contains(bubble.id) {
             let bubbleKey = key(bubble.text)
             guard let index = remaining.firstIndex(where: {
-                !$0.knownUserIDs.contains(bubble.id) && $0.imageCount == bubble.imageCount && key($0.text) == bubbleKey
+                !$0.knownUserIDs.contains(bubble.id) && $0.imageCount == bubble.imageCount && key(UploadedImages.prompt(text: $0.text, paths: $0.filePaths)) == bubbleKey
             }) else { continue }
             consumed.insert(bubble.id)
             remaining.remove(at: index)

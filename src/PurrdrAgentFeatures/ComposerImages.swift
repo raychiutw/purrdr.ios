@@ -4,17 +4,30 @@ import ImageIO
 import PurrdrCore
 import UniformTypeIdentifiers
 
-/// 輸入列上的一張圖片附件(行為規格 F7)。
+/// 輸入列上的一個附件(行為規格 F7、#352):圖片(縮圖卡)或一般檔案(圖示、檔名、大小卡)。
 public struct ComposerAttachment: Identifiable, Equatable, Sendable {
+    public enum Kind: Sendable, Equatable { case image, file }
+
     public var id: String { fileName.value }
-    public let fileName: UploadFileName
+    public let kind: Kind
+    /// 上傳到主機與手機副本用的檔名。
+    public let fileName: HostUploadName
+    /// 卡片上顯示的檔名(圖片是副本檔名)。
+    public let displayName: String
+    public let byteCount: Int
     public let pixelWidth: Int
     public let pixelHeight: Int
     /// 已上傳到主機的絕對路徑。送出失敗(什麼都沒送出)後再送，不重傳。
     public var uploadedPath: String?
 
-    public init(fileName: UploadFileName, pixelWidth: Int, pixelHeight: Int, uploadedPath: String? = nil) {
+    public init(
+        kind: Kind = .image, fileName: HostUploadName, displayName: String? = nil, byteCount: Int = 0, pixelWidth: Int = 0, pixelHeight: Int = 0,
+        uploadedPath: String? = nil
+    ) {
+        self.kind = kind
         self.fileName = fileName
+        self.displayName = displayName ?? fileName.value
+        self.byteCount = byteCount
         self.pixelWidth = pixelWidth
         self.pixelHeight = pixelHeight
         self.uploadedPath = uploadedPath
@@ -26,9 +39,15 @@ public protocol AttachmentStore: Sendable {
     func save(_ data: Data, as name: String) throws
     /// 副本的位置;沒有這個檔案時是 `nil`。
     func url(of name: String) -> URL?
+    /// 刪掉副本(檔案附件移除或送出後;沒有這個檔案時什麼都不做)。
+    func remove(_ name: String)
 }
 
-/// 存在一個資料夾裡的圖片副本。只接受 `UploadFileName` 允許的檔名。
+extension AttachmentStore {
+    public func remove(_ name: String) {}
+}
+
+/// 存在一個資料夾裡的圖片副本。只接受 `HostUploadName` 允許的檔名。
 public struct FileAttachmentStore: AttachmentStore {
     public let directory: URL
 
@@ -43,15 +62,20 @@ public struct FileAttachmentStore: AttachmentStore {
     }
 
     public func save(_ data: Data, as name: String) throws {
-        guard UploadFileName(name) != nil else { throw CocoaError(.fileWriteInvalidFileName) }
+        guard HostUploadName(name) != nil else { throw CocoaError(.fileWriteInvalidFileName) }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: directory.appending(path: name), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
     public func url(of name: String) -> URL? {
-        guard UploadFileName(name) != nil else { return nil }
+        guard HostUploadName(name) != nil else { return nil }
         let url = directory.appending(path: name)
         return FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) ? url : nil
+    }
+
+    public func remove(_ name: String) {
+        guard HostUploadName(name) != nil else { return }
+        try? FileManager.default.removeItem(at: directory.appending(path: name))
     }
 }
 

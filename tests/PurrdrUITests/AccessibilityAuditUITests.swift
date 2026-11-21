@@ -153,7 +153,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             XCTAssertTrue(element("slash.row.demo-kit:changelog", in: app).waitForExistence(timeout: 10))
             // 選單出現時輸入列上方的元素還在收合、玻璃在淡入：等版面停下再稽核(#249:量到的是動畫中被蓋住一半的加入圖片鈕)。
             let menu = element("slash.menu", in: app)
-            XCTAssertTrue(waitForSettledLayout([menu, element("composer.addImage", in: app), text], timeout: 5), "版面沒有停下")
+            XCTAssertTrue(waitForSettledLayout([menu, element("composer.attach", in: app), text], timeout: 5), "版面沒有停下")
             try audit(app, "slash 選單", contentSize: size)
             text.typeEnglish("model")
             element("slash.row.model", in: app).tap()

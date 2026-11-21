@@ -102,7 +102,7 @@ struct StringCatalogTests {
 
     /// 帶數量、單數與複數寫法不同的字串:英文要有 plural 變化(`one`／`other`),不能寫「1 images」。
     static let pluralKeys = [
-        "%lld Images", "%lld comments", "%lld files", "%lld devices", "%lld hosts", "%lld turns",
+        "%lld Attachments", "%lld comments", "%lld files", "%lld devices", "%lld hosts", "%lld turns",
     ]
 
     @Test("帶數量的字串用 plural 變化，不寫死複數(1 images)")

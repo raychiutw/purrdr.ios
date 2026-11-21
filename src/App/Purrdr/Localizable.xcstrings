@@ -253,7 +253,7 @@
         }
       }
     },
-    "%lld Images" : {
+    "%lld Attachments" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -262,13 +262,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Image"
+                  "value" : "%lld Attachment"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Images"
+                  "value" : "%lld Attachments"
                 }
               }
             }
@@ -280,7 +280,7 @@
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld 張圖片"
+                  "value" : "%lld 個附件"
                 }
               }
             }
@@ -1051,6 +1051,17 @@
         }
       }
     },
+    "Add %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入 %lld 個"
+          }
+        }
+      }
+    },
     "Add Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1058,17 +1069,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增主機"
-          }
-        }
-      }
-    },
-    "Add Image" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入圖片"
           }
         }
       }
@@ -1135,6 +1135,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增"
+          }
+        }
+      }
+    },
+    "Adding %@…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加入 %@…"
           }
         }
       }
@@ -1256,6 +1267,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "所有主機"
+          }
+        }
+      }
+    },
+    "All Photos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有照片"
           }
         }
       }
@@ -1579,6 +1601,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "截至 %@。這些數字是 Codex 回報的，屬於這台主機上 Codex 登入的 ChatGPT 方案。"
+          }
+        }
+      }
+    },
+    "Attach" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加"
+          }
+        }
+      }
+    },
+    "Attached file %@, %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已附加檔案 %1$@，%2$@"
           }
         }
       }
@@ -2173,17 +2217,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選 2"
-          }
-        }
-      }
-    },
-    "Choose File" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選擇檔案"
           }
         }
       }
@@ -3970,6 +4003,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從主機下載檔案並顯示預覽。"
+          }
+        }
+      }
+    },
+    "Drop to Attach" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放開以附加"
           }
         }
       }
@@ -7211,17 +7255,6 @@
         }
       }
     },
-    "Paste Image" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "貼上圖片"
-          }
-        }
-      }
-    },
     "Paste an ed25519 or ECDSA private key in OpenSSH format. RSA keys and keys protected by a passphrase aren’t supported. The key is kept in this device’s keychain." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7310,13 +7343,13 @@
         }
       }
     },
-    "Photo Library" : {
+    "Photo %lld" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "照片圖庫"
+            "value" : "第 %lld 張照片"
           }
         }
       }
@@ -7959,6 +7992,17 @@
         }
       }
     },
+    "Recent Photos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近的照片"
+          }
+        }
+      }
+    },
     "Recommended · no password or key, works anywhere" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8032,6 +8076,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "剩餘"
+          }
+        }
+      }
+    },
+    "Remove %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除 %@"
           }
         }
       }
@@ -12282,17 +12337,6 @@
         }
       }
     },
-    "Uploading %@…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在上傳 %@…"
-          }
-        }
-      }
-    },
     "Use Claude Code once on %@, then pull down to refresh." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12803,13 +12847,13 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
-    "You can attach up to 4 images to a message." : {
+    "You can attach up to 10 items to a message." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一則訊息最多附加 4 張圖片。"
+            "value" : "一則訊息最多附加 10 個項目。"
           }
         }
       }
