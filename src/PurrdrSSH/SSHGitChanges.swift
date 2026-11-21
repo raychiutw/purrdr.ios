@@ -32,15 +32,31 @@ public struct SSHGitChanges: GitChangesReading {
     }
 
     public func gitStatus(cwd: String) async throws -> GitWorkingTreeStatus {
+        try await readStatus(cwd: cwd).status
+    }
+
+    public func gitDiff(cwd: String, path: String?) async throws -> GitDiffSet {
+        let loaded = try await readStatus(cwd: cwd)
+        return try await readDiff(cwd: cwd, loaded: loaded, path: path)
+    }
+
+    /// 第一次載入:一次清單加一次 diff(diff 用同一份清單,不再重跑 status)。
+    public func gitChanges(cwd: String) async throws -> (status: GitWorkingTreeStatus, diffs: GitDiffSet) {
+        let loaded = try await readStatus(cwd: cwd)
+        return (loaded.status, try await readDiff(cwd: cwd, loaded: loaded, path: nil))
+    }
+
+    private func readStatus(cwd: String) async throws -> (status: GitWorkingTreeStatus, root: String) {
         let result = try await run(GitChangesCommand.status(cwd: cwd), deadline: HostCommandDeadline.standard)
         return try GitChangesCommand.parseStatus(result.stdout)
     }
 
-    public func gitDiff(cwd: String, path: String?) async throws -> GitDiffSet {
-        var files = try await gitStatus(cwd: cwd).files
+    private func readDiff(cwd: String, loaded: (status: GitWorkingTreeStatus, root: String), path: String?) async throws -> GitDiffSet {
+        var files = loaded.status.files
         if let path { files = files.filter { $0.path == path } }
-        let separator = cwd.hasSuffix("/") ? "" : "/"
-        let excluded = Set(files.filter { HostFileAccessPolicy.isExcluded(cwd + separator + $0.path) }.map(\.path))
+        // git 的路徑相對 repo 根目錄:排除清單比對「根目錄加相對路徑」,不是工作目錄加路徑。
+        let separator = loaded.root.hasSuffix("/") ? "" : "/"
+        let excluded = Set(files.filter { HostFileAccessPolicy.isExcluded(loaded.root + separator + $0.path) }.map(\.path))
         let requested = files.filter { !excluded.contains($0.path) }
         var sections: [Int: Data] = [:]
         var truncated = false
@@ -75,6 +91,9 @@ public struct SSHGitChanges: GitChangesReading {
         case .some(0): return result
         case .some(GitChangesCommand.notRepositoryExitCode): throw GitChangesError.notGitRepository
         case .some(GitChangesCommand.noGitExitCode): throw GitChangesError.gitNotInstalled
+        // 工作目錄已不存在(Agent 換了資料夾或刪掉):與主機服務的 cwd_not_allowed 同一個說明。
+        case .some(GitChangesCommand.missingFolderExitCode): throw GitChangesError.cwdNotAllowed
+        case .some(GitChangesCommand.usageExitCode): throw GitChangesError.failed("unexpected arguments for the git script")
         case .some(127): throw GitChangesError.unsupported
         default:
             throw GitChangesError.failed(String(decoding: result.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
@@ -87,6 +106,7 @@ public enum GitChangesCommand {
     static let notRepositoryExitCode: Int32 = 65
     static let missingFolderExitCode: Int32 = 66
     static let noGitExitCode: Int32 = 69
+    static let usageExitCode: Int32 = 64
     private static let tag = "purrdr-git"
 
     /// 參數：`status 工作目錄` 或 `diff 工作目錄 標記 單檔上限 總量上限 (種類 路徑)…`。
@@ -102,7 +122,7 @@ public enum GitChangesCommand {
         cd -- "$root" || exit \(missingFolderExitCode)
         case $1 in
         status)
-          printf 'branch %s\\n' "$(git symbolic-ref --short -q HEAD)"
+          printf 'branch %s\\nroot %s\\n' "$(git symbolic-ref --short -q HEAD)" "$root"
           git -c core.quotepath=off status --porcelain=v1 -z --untracked-files=all --no-renames --ignore-submodules=all
           ;;
         diff)
@@ -124,7 +144,7 @@ public enum GitChangesCommand {
             shift 2
           done | head -c $((total + 1))
           ;;
-        *) exit 64 ;;
+        *) exit \(usageExitCode) ;;
         esac
         """)
 
@@ -165,9 +185,9 @@ public enum GitChangesCommand {
         }
     }
 
-    /// `status` 的輸出(Demo 主機用):分支一行，之後是 porcelain v1 `-z` 的項目。
-    public static func statusOutput(_ status: GitWorkingTreeStatus) -> Data {
-        var output = Data("branch \(status.branch ?? "")\n".utf8)
+    /// `status` 的輸出(Demo 主機用):分支與 repo 根目錄各一行，之後是 porcelain v1 `-z` 的項目。
+    public static func statusOutput(_ status: GitWorkingTreeStatus, root: String) -> Data {
+        var output = Data("branch \(status.branch ?? "")\nroot \(root)\n".utf8)
         for file in status.files {
             let code = switch file.kind {
             case .added: "A "
@@ -185,11 +205,17 @@ public enum GitChangesCommand {
         Data(diffs.enumerated().map { "\n\(marker) \($0.offset)\n\($0.element)" }.joined().utf8)
     }
 
-    static func parseStatus(_ stdout: Data) throws -> GitWorkingTreeStatus {
-        guard let newline = stdout.firstIndex(of: 0x0A) else { throw GitChangesError.failed("malformed git status output") }
-        let branchLine = String(decoding: stdout[..<newline], as: UTF8.self)
-        guard branchLine.hasPrefix("branch ") else { throw GitChangesError.failed("malformed git status output") }
+    static func parseStatus(_ stdout: Data) throws -> (status: GitWorkingTreeStatus, root: String) {
+        let malformed = GitChangesError.failed("malformed git status output")
+        guard let branchEnd = stdout.firstIndex(of: 0x0A) else { throw malformed }
+        let branchLine = String(decoding: stdout[..<branchEnd], as: UTF8.self)
+        let afterBranch = stdout.index(after: branchEnd)
+        guard branchLine.hasPrefix("branch "), let rootEnd = stdout[afterBranch...].firstIndex(of: 0x0A) else { throw malformed }
+        let rootLine = String(decoding: stdout[afterBranch..<rootEnd], as: UTF8.self)
+        guard rootLine.hasPrefix("root ") else { throw malformed }
         let branch = String(branchLine.dropFirst("branch ".count))
+        let root = String(rootLine.dropFirst("root ".count))
+        let newline = rootEnd
         let entries = stdout[stdout.index(after: newline)...].split(separator: 0, omittingEmptySubsequences: true)
         let files = entries.compactMap { entry -> GitChange? in
             let text = String(decoding: entry, as: UTF8.self)
@@ -208,7 +234,7 @@ public enum GitChangesCommand {
             }
             return GitChange(path: path, kind: kind)
         }
-        return GitWorkingTreeStatus(branch: branch.isEmpty ? nil : branch, files: files.sorted { $0.path < $1.path })
+        return (GitWorkingTreeStatus(branch: branch.isEmpty ? nil : branch, files: files.sorted { $0.path < $1.path }), root)
     }
 
     /// 依標記切開每個檔案的輸出：序號 → 那段 bytes。

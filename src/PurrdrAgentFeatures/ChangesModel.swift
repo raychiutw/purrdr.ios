@@ -81,9 +81,7 @@ public final class ChangesModel {
     public func load() async {
         phase = .loading
         do {
-            async let status = reader.gitStatus(cwd: cwd)
-            async let all = reader.gitDiff(cwd: cwd, path: nil)
-            let (loadedStatus, loadedDiffs) = try await (status, all)
+            let (loadedStatus, loadedDiffs) = try await reader.gitChanges(cwd: cwd)
             truncated = loadedDiffs.truncated
             var byPath: [String: FileDiff] = [:]
             for file in loadedDiffs.files { byPath[file.path] = Self.fileDiff(file.content) }

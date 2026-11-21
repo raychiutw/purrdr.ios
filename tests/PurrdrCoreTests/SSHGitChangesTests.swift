@@ -83,6 +83,38 @@ struct SSHGitChangesTests {
         #expect(!host.commands.contains { $0.contains(".env") })
     }
 
+    @Test("第一次載入(清單加全部 diff)只跑兩次指令:一次清單、一次 diff")
+    func firstLoadRunsTwoCommands() async throws {
+        try makeChanges()
+
+        let loaded = try await changes.gitChanges(cwd: cwd)
+
+        #expect(loaded.status.files.count == 6)
+        #expect(loaded.diffs.files.count == 6)
+        #expect(host.commands.count == 2, "指令數:\(host.commands.count)")
+    }
+
+    @Test("排除清單以 repo 根目錄加 git 相對路徑比對:工作目錄在名叫 .ssh 的子資料夾時，別處的檔案不被誤擋")
+    func exclusionUsesRepositoryRoot() async throws {
+        try makeChanges()
+        try host.write(Data("x\n".utf8), to: "project/.ssh/note.txt")
+
+        let diff = try await changes.gitDiff(cwd: cwd + "/.ssh", path: nil)
+
+        let byPath = Dictionary(uniqueKeysWithValues: diff.files.map { ($0.path, $0) })
+        #expect(byPath["README.md"]?.content == .hunks("@@ -1,3 +1,3 @@\n # Garden\n \n-Water daily.\n+Water twice daily.\n"))
+        // 真的在排除清單裡的路徑(repo 根目錄下的 .ssh)仍然不讀。
+        #expect(byPath[".ssh/note.txt"]?.content == .omitted(.excluded))
+        #expect(byPath["config/.env"]?.content == .omitted(.excluded))
+    }
+
+    @Test("工作目錄已不存在(腳本 exit 66)換成 cwdNotAllowed,不是通用失敗")
+    func missingFolderIsReported() async throws {
+        await #expect(throws: GitChangesError.cwdNotAllowed) {
+            try await changes.gitStatus(cwd: cwd + "/no-such-folder")
+        }
+    }
+
     @Test("單檔 diff 只回那個檔案")
     func diffOfOneFile() async throws {
         try makeChanges()
