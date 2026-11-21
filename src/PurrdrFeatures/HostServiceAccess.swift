@@ -173,6 +173,8 @@ private struct UITestingHostServiceConnection: HostConnection {
     let channel: any HostChannel
     let deviceToken: @Sendable () throws -> String?
     let hostService: UITestingHostServiceState
+    /// 主機端的 Send When Done 佇列(#305):在記憶體裡。
+    let sendWhenDoneState = UITestingSendWhenDoneHost()
 
     func hostServiceVersion() async throws -> String? { hostService.installedVersion }
 
@@ -202,6 +204,77 @@ private struct UITestingHostServiceConnection: HostConnection {
 
     func disconnect() async {
         await base.disconnect()
+    }
+}
+
+/// UI 測試的 Send When Done(#305):佇列在記憶體,不會自己送出;唯讀權杖停用。
+extension UITestingHostServiceConnection: SendWhenDoneHosting {
+    func sendWhenDoneAvailability() async -> SendWhenDoneAvailability {
+        (try? await isReadOnlyDevice()) == true ? .readOnlyDevice : .available
+    }
+
+    func sendWhenDoneQueues() async throws -> [SendWhenDoneQueue] { await sendWhenDoneState.queues() }
+
+    func sendWhenDoneAdd(paneID: String, text: String, expectedSession: String) async throws -> String {
+        try await sendWhenDoneState.add(paneID: paneID, text: text, expectedSession: expectedSession)
+    }
+
+    func sendWhenDoneRemove(paneID: String, itemID: String) async throws {
+        try await sendWhenDoneState.remove(paneID: paneID, itemID: itemID)
+    }
+
+    func sendWhenDoneReorder(paneID: String, itemIDs: [String]) async throws {
+        try await sendWhenDoneState.reorder(paneID: paneID, itemIDs: itemIDs)
+    }
+
+    func sendWhenDoneChanges() async throws -> AsyncThrowingStream<SendWhenDoneChange, any Error> {
+        await sendWhenDoneState.changes()
+    }
+}
+
+/// UI 測試的主機端佇列:記憶體裡的佇列,每次變動推給訂閱者(同主機服務的 `queue.changed`)。
+actor UITestingSendWhenDoneHost {
+    private var queueByPane: [String: SendWhenDoneQueue] = [:]
+    private var observers: [AsyncThrowingStream<SendWhenDoneChange, any Error>.Continuation] = []
+    private var nextItem = 0
+
+    func queues() -> [SendWhenDoneQueue] { Array(queueByPane.values) }
+
+    func add(paneID: String, text: String, expectedSession: String) throws -> String {
+        nextItem += 1
+        let item = SendWhenDoneItem(id: "ui-q\(nextItem)", text: text, expectedSession: expectedSession)
+        var queue = queueByPane[paneID] ?? SendWhenDoneQueue(paneID: paneID, items: [])
+        queue.items.append(item)
+        publish(queue)
+        return item.id
+    }
+
+    func remove(paneID: String, itemID: String) throws {
+        guard var queue = queueByPane[paneID], queue.items.contains(where: { $0.id == itemID }) else {
+            throw HostServiceError.queueItemUnknown
+        }
+        queue.items.removeAll { $0.id == itemID }
+        publish(queue)
+    }
+
+    /// 與主機服務相同:識別碼必須恰好是目前佇列的所有識別碼。
+    func reorder(paneID: String, itemIDs: [String]) throws {
+        guard var queue = queueByPane[paneID], Set(queue.items.map(\.id)) == Set(itemIDs), queue.items.count == itemIDs.count else {
+            throw HostServiceError.queueItemUnknown
+        }
+        queue.items = itemIDs.compactMap { id in queue.items.first { $0.id == id } }
+        publish(queue)
+    }
+
+    func changes() -> AsyncThrowingStream<SendWhenDoneChange, any Error> {
+        let (stream, continuation) = AsyncThrowingStream<SendWhenDoneChange, any Error>.makeStream()
+        observers.append(continuation)
+        return stream
+    }
+
+    private func publish(_ queue: SendWhenDoneQueue) {
+        queueByPane[queue.paneID] = queue
+        for observer in observers { observer.yield(SendWhenDoneChange(queue: queue)) }
     }
 }
 

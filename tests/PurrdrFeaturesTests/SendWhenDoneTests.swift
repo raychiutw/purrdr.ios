@@ -51,6 +51,50 @@ struct SendWhenDoneTests {
         #expect(model.availability == .available)
     }
 
+    @Test("調整順序:往前移動一格,送出重排請求、畫面換成新順序")
+    func movesItemUp() async {
+        let host = FakeSendWhenDoneHost(queues: [SendWhenDoneQueue(paneID: Self.paneID, items: [Self.item("q1"), Self.item("q2"), Self.item("q3")])])
+        let model = SendWhenDoneModel(host: host, paneID: Self.paneID, sleep: { _ in })
+        let task = await Self.running(model, host: host)
+        defer { task.cancel() }
+
+        await model.move("q3", by: -1)
+
+        #expect(model.items.map(\.id) == ["q1", "q3", "q2"])
+        #expect(await host.calls.contains(.reorder(paneID: Self.paneID, itemIDs: ["q1", "q3", "q2"])))
+        #expect(model.notice == nil)
+    }
+
+    @Test("調整順序:頭尾不能再移出去,不送請求")
+    func cannotMovePastEnds() async {
+        let host = FakeSendWhenDoneHost(queues: [SendWhenDoneQueue(paneID: Self.paneID, items: [Self.item("q1"), Self.item("q2")])])
+        let model = SendWhenDoneModel(host: host, paneID: Self.paneID, sleep: { _ in })
+        let task = await Self.running(model, host: host)
+        defer { task.cancel() }
+
+        #expect(!model.canMove("q1", by: -1))
+        #expect(model.canMove("q1", by: 1))
+        #expect(!model.canMove("q2", by: 1))
+        await model.move("q1", by: -1)
+
+        #expect(model.items.map(\.id) == ["q1", "q2"])
+        #expect(await !host.calls.contains { if case .reorder = $0 { true } else { false } })
+    }
+
+    @Test("調整順序:主機拒絕時換回原本的順序並說明")
+    func moveFailureRestoresOrder() async {
+        let host = FakeSendWhenDoneHost(queues: [SendWhenDoneQueue(paneID: Self.paneID, items: [Self.item("q1"), Self.item("q2")])])
+        let model = SendWhenDoneModel(host: host, paneID: Self.paneID, sleep: { _ in })
+        let task = await Self.running(model, host: host)
+        defer { task.cancel() }
+        await host.setFailure(HostServiceError.unreachable)
+
+        await model.move("q2", by: -1)
+
+        #expect(model.items.map(\.id) == ["q1", "q2"])
+        #expect(model.notice != nil)
+    }
+
     @Test("主機推 queue.changed:更新自己的佇列，別的 pane 的變動略過")
     func appliesPushedChanges() async {
         let host = FakeSendWhenDoneHost(queues: [SendWhenDoneQueue(paneID: Self.paneID, items: [Self.item("q1"), Self.item("q2")])])

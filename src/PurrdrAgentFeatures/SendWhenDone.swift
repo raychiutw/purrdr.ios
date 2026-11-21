@@ -98,6 +98,30 @@ public final class SendWhenDoneModel {
         return await removeItem(id) ? text : nil
     }
 
+    /// 這則可不可以往前(`offset` < 0)或往後(> 0)移動 `offset` 格。
+    public func canMove(_ id: SendWhenDoneItem.ID, by offset: Int) -> Bool {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return false }
+        return items.indices.contains(index + offset)
+    }
+
+    /// 調整順序(送出的先後):這則往前或往後移動 `offset` 格。畫面先換、再請主機重排;
+    /// 主機拒絕或連不上時換回原本的順序並留下說明,佇列已不同(剛送出或別支裝置改了)時重讀。
+    public func move(_ id: SendWhenDoneItem.ID, by offset: Int) async {
+        guard canMove(id, by: offset), let host, let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let before = items
+        var reordered = items
+        reordered.insert(reordered.remove(at: index), at: index + offset)
+        items = reordered
+        do {
+            try await host.sendWhenDoneReorder(paneID: paneID, itemIDs: reordered.map(\.id))
+            notice = nil
+        } catch {
+            items = before
+            notice = HostErrorText.message(for: error)
+            if let queues = try? await host.sendWhenDoneQueues() { apply(queues) }
+        }
+    }
+
     /// - Returns: 這則是不是被這次操作從佇列拿掉的。
     private func removeItem(_ id: SendWhenDoneItem.ID) async -> Bool {
         guard let host else { return false }
