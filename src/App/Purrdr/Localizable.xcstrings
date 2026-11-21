@@ -4293,6 +4293,17 @@
         }
       }
     },
+    "Fit This Phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配合這支手機"
+          }
+        }
+      }
+    },
     "Focused" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5249,6 +5260,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "K7QM-2XPA"
+          }
+        }
+      }
+    },
+    "Keep Computer Layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留電腦版面"
           }
         }
       }
@@ -6954,6 +6976,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟模式清單。"
+          }
+        }
+      }
+    },
+    "Opens the size options." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟大小選項。"
           }
         }
       }
@@ -9301,6 +9334,17 @@
         }
       }
     },
+    "Size" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大小"
+          }
+        }
+      }
+    },
     "Slack token" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10467,6 +10511,17 @@
         }
       }
     },
+    "The layout on your computer changes to match this phone, and returns when you leave." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦上的版面會跟著這支手機變動,離開後恢復。"
+          }
+        }
+      }
+    },
     "The name is only used on this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11453,6 +11508,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要貼上的內容太大，無法送到終端機。"
+          }
+        }
+      }
+    },
+    "This phone shows the pane at your computer’s size, so the layout on your computer doesn’t change." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支手機以電腦上的 Pane 大小顯示,電腦上的版面不會改變。"
           }
         }
       }
