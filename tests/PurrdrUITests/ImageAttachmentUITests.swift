@@ -16,11 +16,16 @@ final class ImageAttachmentUITests: XCTestCase {
     @MainActor
     private func openLedger() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
+        openLedger(in: app)
+        return app
+    }
+
+    @MainActor
+    private func openLedger(in app: XCUIApplication) {
         let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
         row.tap()
         XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10))
-        return app
     }
 
     @MainActor
@@ -65,9 +70,9 @@ final class ImageAttachmentUITests: XCTestCase {
         // 讀剪貼簿內容時系統可能問「允許貼上」。
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
-        element("composer.addImage", in: app).tap()
-        XCTAssertTrue(app.buttons["Paste Image"].waitForExistence(timeout: 5))
-        app.buttons["Paste Image"].tap()
+        element("composer.attach", in: app).tap()
+        XCTAssertTrue(element("attach.paste", in: app).waitForExistence(timeout: 5))
+        element("attach.paste", in: app).tap()
         for label in ["Allow Paste", "允許貼上"] where springboard.buttons[label].waitForExistence(timeout: 2) {
             springboard.buttons[label].tap()
         }
@@ -104,8 +109,8 @@ final class ImageAttachmentUITests: XCTestCase {
         let add = element("composer.expanded.addImage", in: app)
         XCTAssertTrue(add.waitForExistence(timeout: 5), "展開畫面沒有「加入圖片」")
         add.tap()
-        XCTAssertTrue(app.buttons["Paste Image"].waitForExistence(timeout: 5))
-        app.buttons["Paste Image"].tap()
+        XCTAssertTrue(element("attach.paste", in: app).waitForExistence(timeout: 5))
+        element("attach.paste", in: app).tap()
         for label in ["Allow Paste", "允許貼上"] where springboard.buttons[label].waitForExistence(timeout: 2) {
             springboard.buttons[label].tap()
         }
@@ -125,20 +130,54 @@ final class ImageAttachmentUITests: XCTestCase {
         XCTAssertFalse(element("composer.attachment.0", in: app).exists, "展開畫面移除的附件回到輸入列還在")
     }
 
-    /// 剪貼簿有圖時，「加入圖片」先問「相簿／貼上圖片」;按鈕有 label、至少 44pt。
+    /// 「＋」念「附加」、至少 44pt;點了升起面板:最近的照片(替身)、所有照片、檔案、貼上(#352)。
     @MainActor
-    func testAddImageAsksSourceWhenPasteboardHasImage() {
-        Self.putImageOnPasteboard()
-        let app = openLedger()
+    func testAttachPanelShowsRecentPhotosAndActions() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingRecentPhotos"])
+        openLedger(in: app)
 
-        let add = element("composer.addImage", in: app)
-        XCTAssertTrue(add.waitForExistence(timeout: 5), "沒有「加入圖片」")
-        XCTAssertEqual(add.label, "Add Image")
+        let add = element("composer.attach", in: app)
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "沒有「附加」")
+        XCTAssertEqual(add.label, "Attach")
         XCTAssertGreaterThanOrEqual(add.frame.width, 44)
         XCTAssertGreaterThanOrEqual(add.frame.height, 44)
         add.tap()
 
-        XCTAssertTrue(app.buttons["Photo Library"].waitForExistence(timeout: 5), "沒有問「相簿」")
-        XCTAssertTrue(app.buttons["Paste Image"].exists, "沒有問「貼上圖片」")
+        XCTAssertTrue(element("attach.panel", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("attach.recent.0", in: app).waitForExistence(timeout: 5), "沒有最近的照片")
+        for id in ["attach.photos", "attach.files", "attach.paste"] {
+            XCTAssertTrue(element(id, in: app).exists, "面板沒有 \(id)")
+        }
+    }
+
+    /// 最近的照片可多選，「加入 N」把它們放進輸入框成小卡，可個別移除。
+    @MainActor
+    func testPickRecentPhotosAddsCardsAndRemoves() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingRecentPhotos"])
+        openLedger(in: app)
+        element("composer.attach", in: app).tap()
+        XCTAssertTrue(element("attach.recent.0", in: app).waitForExistence(timeout: 5))
+
+        element("attach.recent.0", in: app).tap()
+        element("attach.recent.1", in: app).tap()
+        XCTAssertTrue(element("attach.add", in: app).label.contains("2"), "按鈕沒顯示選了 2 張")
+        element("attach.add", in: app).tap()
+
+        XCTAssertTrue(element("composer.attachment.1", in: app).waitForExistence(timeout: 10), "沒有兩張小卡")
+        element("composer.attachment.remove.0", in: app).tap()
+        XCTAssertTrue(element("composer.attachment.1", in: app).waitForNonExistence(timeout: 5), "移除一張後應剩一張")
+        XCTAssertTrue(element("composer.attachment.0", in: app).exists)
+    }
+
+    /// 沒有相簿權限：面板只顯示按鈕，沒有最近的照片。
+    @MainActor
+    func testAttachPanelWithoutPhotoAccessShowsOnlyButtons() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPhotosDenied"])
+        openLedger(in: app)
+        element("composer.attach", in: app).tap()
+
+        XCTAssertTrue(element("attach.panel", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(element("attach.photos", in: app).exists)
+        XCTAssertFalse(element("attach.recent.0", in: app).waitForExistence(timeout: 2), "沒有權限不該有最近的照片")
     }
 }

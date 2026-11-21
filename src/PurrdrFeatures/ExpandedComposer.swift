@@ -53,7 +53,7 @@ struct ExpandedComposer: View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
                 if model.canAttachImages && model.typedAnswer == nil {
-                    AddImageButton(model: model, identifier: "composer.expanded.addImage")
+                    AttachButton(model: model, identifier: "composer.expanded.attach")
                 }
                 Spacer()
                 Button(action: collapse) {

@@ -19,6 +19,24 @@
         }
       }
     },
+    "NSPhotoLibraryUsageDescription" : {
+      "comment" : "相簿權限說明：「＋附加」面板顯示最近的照片(#352)。",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr shows your recent photos so you can attach them to a chat. Photos stay on your device until you send them."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr 會顯示你最近的照片，讓你附加到聊天。照片在你送出前都留在這支裝置上。"
+          }
+        }
+      }
+    },
     "NSFaceIDUsageDescription" : {
       "comment" : "Face ID 權限說明:App 鎖(#284)。",
       "extractionState" : "manual",

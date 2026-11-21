@@ -215,19 +215,19 @@ public final class ConversationModel {
 
     // MARK: 圖片(F7)
 
-    /// 一則最多幾張圖片。
-    public static let maximumImages = 4
+    /// 一則最多幾個附件(圖片與檔案合計,#352)。
+    public static let maximumAttachments = 10
     /// 輸入列上的圖片附件(送出被接受時才清)。
     public private(set) var attachments: [ComposerAttachment] = []
     @ObservationIgnored private let images: ComposerImages?
     /// 這台主機能不能附加圖片(有上傳器;目前只有 Unix 主機)。
     public var canAttachImages: Bool { images != nil }
-    public var remainingImageSlots: Int { max(0, Self.maximumImages - attachments.count) }
+    public var remainingImageSlots: Int { max(0, Self.maximumAttachments - attachments.count) }
 
     /// 加入圖片(相簿、相機、貼上):長邊縮到 2048px、JPEG,存手機副本。超過 4 張的部分、原始大小超過單張上限的不加入並提示。
     public func addImages(_ items: [Data]) async {
         guard let images, !items.isEmpty else { return }
-        if items.count > remainingImageSlots { notice = .imageLimit }
+        if items.count > remainingImageSlots { notice = .attachmentLimit }
         for data in items.prefix(remainingImageSlots) {
             // 單張上限以使用者挑的原始圖片判斷，不因縮小而改變(#76)。
             guard data.count <= ImageUploadLimit.maximumSize else {
@@ -246,17 +246,20 @@ public final class ConversationModel {
                 notice = .imageUnreadable
                 continue
             }
-            attachments.append(ComposerAttachment(fileName: name, pixelWidth: prepared.width, pixelHeight: prepared.height))
+            attachments.append(
+                ComposerAttachment(
+                    fileName: HostUploadName(name), byteCount: prepared.jpeg.count, pixelWidth: prepared.width, pixelHeight: prepared.height))
             saveAttachments()
         }
     }
 
-    /// 已滿 4 張時點「加入圖片」:提示上限(F7)。
-    public func noteImageLimit() { notice = .imageLimit }
+    /// 已滿時點「附加」:提示上限(F7)。
+    public func noteImageLimit() { notice = .attachmentLimit }
 
     /// 移除附件。送出(上傳)中不能移除。
     public func removeAttachment(_ id: String) {
         guard !isSending else { return }
+        if let removed = attachments.first(where: { $0.id == id }), removed.kind == .file { images?.store.remove(removed.fileName.value) }
         attachments.removeAll { $0.id == id }
         saveAttachments()
     }
@@ -277,21 +280,26 @@ public final class ConversationModel {
 
     // MARK: 檔案(#286)
 
-    /// 正在上傳到主機的檔案(原始檔名);沒有時是 `nil`。
-    public private(set) var uploadingFileName: String?
+    /// 正在讀取、準備加成附件的檔案(原始檔名);沒有時是 `nil`。
+    public private(set) var loadingFileName: String?
     /// 能不能附加檔案：有上傳到主機、不是唯讀裝置。
     public var canAttachFiles: Bool { images != nil && !isReadOnly }
 
-    /// 附加一般檔案：上傳到主機，把主機上的路徑插入輸入框。已知大小超過上限時不讀內容。
+    /// 附加一般檔案：讀進來存手機副本、在輸入列成一張附件卡，送出時才上傳(#352)。已知大小超過上限時不讀內容。
+    /// 圖片檔(副檔名 png、jpg…)走圖片附件，與相簿一致。
     public func addFile(named originalName: String, size: Int?, load: @Sendable () async throws -> Data) async {
-        guard let images, canAttachFiles, uploadingFileName == nil else { return }
+        guard let images, canAttachFiles, loadingFileName == nil else { return }
+        guard remainingImageSlots > 0 else {
+            notice = .attachmentLimit
+            return
+        }
         let limit = HostUploadLimit.maximumFileSize
         if let size, size > limit {
             notice = .fileTooLarge(size: size, limit: limit)
             return
         }
-        uploadingFileName = originalName
-        defer { uploadingFileName = nil }
+        loadingFileName = originalName
+        defer { loadingFileName = nil }
         let data: Data
         do {
             data = try await load()
@@ -303,12 +311,23 @@ public final class ConversationModel {
             notice = .fileTooLarge(size: data.count, limit: limit)
             return
         }
-        do {
-            let path = try await images.uploader.upload(data, named: images.makeFileName(originalName))
-            insertIntoDraft(path)
-        } catch {
-            notice = Self.uploadNotice(for: error, otherwise: .fileUploadFailed)
+        if UploadedImages.hasImageExtension(originalName) {
+            await addImages([data])
+            return
         }
+        guard remainingImageSlots > 0 else {
+            notice = .attachmentLimit
+            return
+        }
+        let name = images.makeFileName(originalName)
+        do {
+            try images.store.save(data, as: name.value)
+        } catch {
+            notice = .fileUnreadable
+            return
+        }
+        attachments.append(ComposerAttachment(kind: .file, fileName: name, displayName: originalName, byteCount: data.count))
+        saveAttachments()
     }
 
     /// 主機服務太舊時提示更新，其他失敗用 `otherwise`。
@@ -332,7 +351,7 @@ public final class ConversationModel {
             let name = attachments[index].fileName
             guard let url = images.store.url(of: name.value) else { throw CocoaError(.fileReadNoSuchFile) }
             let data = try Data(contentsOf: url)
-            let path = try await images.uploader.upload(data, named: HostUploadName(name))
+            let path = try await images.uploader.upload(data, named: name)
             if let current = attachments.firstIndex(where: { $0.fileName == name }) {
                 attachments[current].uploadedPath = path
             }
@@ -1022,7 +1041,7 @@ public final class ConversationModel {
         if canQueueOffline { return !isSending && hasText && attachments.isEmpty }
         guard hasTarget else { return false }
         if typedAnswer != nil { return answerInFlight == nil && hasText }
-        return !isSending && uploadingFileName == nil && (hasText || !attachments.isEmpty)
+        return !isSending && loadingFileName == nil && (hasText || !attachments.isEmpty)
     }
 
     /// Shell 模式(F6.4):Claude 聊天的草稿以 `!` 開頭，輸入列上方提示會在 agent 的 shell 執行。
@@ -1147,7 +1166,8 @@ public final class ConversationModel {
         let sentImages = attachments
         let echo = PromptEcho(
             id: UUID().uuidString, text: text, date: clock.now(), knownUserIDs: userMessageIDs,
-            imageCount: sentImages.count, imageFiles: sentImages.map(\.fileName.value)
+            imageCount: sentImages.filter { $0.kind == .image }.count,
+            imageFiles: sentImages.filter { $0.kind == .image }.map(\.fileName.value)
         )
         echoes.append(echo)
         rebuildEntries()
@@ -1161,7 +1181,10 @@ public final class ConversationModel {
             notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
             return
         }
-        if let index = echoes.firstIndex(where: { $0.id == echo.id }) { echoes[index].imagePaths = paths }
+        if let index = echoes.firstIndex(where: { $0.id == echo.id }) {
+            echoes[index].imagePaths = paths
+            echoes[index].filePaths = zip(sentImages, paths).filter { $0.0.kind == .file }.map(\.1)
+        }
         let prompt = UploadedImages.prompt(text: text, paths: paths)
         switch await freshTarget() {
         case .success(let agent):
@@ -1171,6 +1194,7 @@ public final class ConversationModel {
             // 附件只在送出被接受時清(什麼都沒送出時草稿放回、圖片也留著，已上傳的不重傳)。
             if !Self.nothingSent(notice) {
                 attachments.removeAll { attachment in sentImages.contains { $0.fileName == attachment.fileName } }
+                for sent in sentImages where sent.kind == .file { images?.store.remove(sent.fileName.value) }
                 saveAttachments()
             }
             if notice == .needsAnswer {
@@ -2117,8 +2141,8 @@ public enum SendNotice: Sendable, Equatable {
     case noResponse
     /// 不知道有沒有送到。
     case unconfirmed(UnconfirmedReason)
-    /// 一則最多 4 張圖片(F7)。
-    case imageLimit
+    /// 一則最多 10 個附件(F7、#352)。
+    case attachmentLimit
     /// 讀不出圖片。
     case imageUnreadable
     /// 原始圖片超過單張上限(`ImageUploadLimit.maximumSize`)。

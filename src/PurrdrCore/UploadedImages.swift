@@ -13,6 +13,12 @@ public enum UploadedImages {
     public static let legacyFolder = ".purrdr/uploads"
     static let extensions = ["jpg", "jpeg", "png", "heic", "webp"]
 
+    /// 檔名的副檔名是不是圖片(對話紀錄會把這種上傳路徑當圖片;其他副檔名的檔案路徑留在文字裡)。
+    public static func hasImageExtension(_ fileName: String) -> Bool {
+        guard let dot = fileName.lastIndex(of: "."), dot != fileName.startIndex else { return false }
+        return extensions.contains(fileName[fileName.index(after: dot)...].lowercased())
+    }
+
     public static func prompt(text: String, paths: [String]) -> String {
         guard !paths.isEmpty else { return text }
         let joined = paths.joined(separator: "\n")

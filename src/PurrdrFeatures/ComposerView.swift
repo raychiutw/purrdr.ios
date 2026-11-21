@@ -45,6 +45,7 @@ struct ComposerBar: View {
     @State private var availableHeight: CGFloat?
     /// 輸入框回報的「展開」鈕顯示條件。
     @State private var showsExpandButton = false
+    @State private var isDropTargeted = false
     @State private var isExpanded = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -97,7 +98,7 @@ struct ComposerBar: View {
             if let notice = model.notice {
                 SendNoticeView(notice: notice) { model.dismissNotice() }
             }
-            if let fileName = model.uploadingFileName {
+            if let fileName = model.loadingFileName {
                 FileUploadProgressView(fileName: fileName)
             }
             if let option = model.typedAnswer {
@@ -149,6 +150,16 @@ struct ComposerBar: View {
                 .floatingGlass(in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("composer.card")
+                .onDrop(of: ComposerDrop.types, isTargeted: $isDropTargeted) { ComposerDrop.handle($0, into: model) }
+                .overlay {
+                    if isDropTargeted {
+                        RoundedRectangle(cornerRadius: Self.cardCornerRadius)
+                            .strokeBorder(.tint, style: StrokeStyle(lineWidth: 2.5, dash: [8, 6]))
+                            .overlay { Text("Drop to Attach").font(.headline).foregroundStyle(.tint) }
+                            .background(.softAccentFill(opacity: 0.1), in: RoundedRectangle(cornerRadius: Self.cardCornerRadius))
+                            .allowsHitTesting(false)
+                    }
+                }
                 .overlay {
                     // 聚焦時中性邊框(F6.1);主色只留給送出鈕(HIG CO-4,#236)。
                     RoundedRectangle(cornerRadius: Self.cardCornerRadius)
@@ -315,7 +326,7 @@ struct ComposerBar: View {
     private var buttonRow: some View {
         HStack(spacing: 8) {
             if model.canAttachImages && model.typedAnswer == nil {
-                AddImageButton(model: model, isInCard: true)
+                AttachButton(model: model, isInCard: true)
             }
             if model.supportsPermissionMode && model.typedAnswer == nil {
                 ModelCapsule(model: model)
@@ -526,7 +537,7 @@ extension SendNotice {
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
-        case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
+        case .attachmentLimit: String(localized: "You can attach up to 10 items to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
         case .uploadFailed: String(localized: "Couldn’t upload the image to the host. Your message wasn’t sent; try again.")
@@ -550,7 +561,7 @@ extension SendNotice {
         case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
         case .rejected, .noResponse, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
-        case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
+        case .attachmentLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .fileTooLarge, .fileUnreadable: "doc"
         case .fileUploadFailed: "exclamationmark.triangle"
         case .hostServiceUpdateRequired: "arrow.down.circle"
@@ -625,7 +636,7 @@ struct PendingSendBubbleView: View {
         HStack {
             Spacer(minLength: 44)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(pending.text.isEmpty ? String(localized: "\(imageCount) Images") : pending.text)
+                Text(pending.text.isEmpty ? String(localized: "\(imageCount) Attachments") : pending.text)
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)

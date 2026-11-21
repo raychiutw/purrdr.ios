@@ -609,7 +609,7 @@ final class ConversationUITests: XCTestCase {
         let app = openLedger()
         let text = element("composer.text", in: app)
         let send = element("composer.send", in: app)
-        let addImage = element("composer.addImage", in: app)
+        let addImage = element("composer.attach", in: app)
         XCTAssertTrue(text.waitForExistence(timeout: 10))
         XCTAssertTrue(addImage.exists, "沒有加入圖片鈕")
         attachScreenshot(of: app, named: "composer-idle")

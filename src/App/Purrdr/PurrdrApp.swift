@@ -25,6 +25,7 @@ struct PurrdrApp: App {
     private let welcome: WelcomeModel
     /// 配對碼掃描(#250):UI 測試以旗標模擬，不開真相機。
     private let pairingCodeScanSource: PairingCodeScanSource
+    private let recentPhotoSource: RecentPhotoSource
     /// App 鎖(#284):所有視窗共用一份鎖定狀態。
     private let appLock: AppLock
     /// 數據用量的流量計量(#353)與網路類型監看(監看物件要活著)。
@@ -156,6 +157,7 @@ struct PurrdrApp: App {
         welcome = WelcomeModel(store: uiTesting
             ? InMemoryWelcomeStore(hasSeen: !arguments.contains("-showWelcome")) : UserDefaultsWelcomeStore())
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
+        recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
 
@@ -169,6 +171,11 @@ struct PurrdrApp: App {
         defaults.set(arguments.contains("-uiTestingAppLock"), forKey: AppLock.enabledKey)
         return AppLock(
             authenticator: UITestingDeviceOwnerAuthenticator(hasPasscode: !arguments.contains("-uiTestingNoPasscode")), defaults: defaults)
+    }
+
+    /// `-uiTestingRecentPhotos`:「＋」面板有 6 張替身照片;沒帶(`-uiTestingPhotosDenied` 或預設)就是沒有相簿權限。UI 測試一律不碰系統相簿。
+    private static func recentPhotoSource(_ arguments: [String]) -> RecentPhotoSource {
+        arguments.contains("-uiTestingRecentPhotos") ? .simulated(count: 6) : .simulatedDenied
     }
 
     /// `-uiTestingPairingScan`:掃描畫面一開就像掃到配對 QR code;`-uiTestingCameraDenied`:沒有相機權限。
@@ -355,6 +362,7 @@ struct PurrdrApp: App {
             .appAppearance()
             .appLockCover(appLock)
             .environment(\.pairingCodeScanSource, pairingCodeScanSource)
+            .environment(\.recentPhotoSource, recentPhotoSource)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in
