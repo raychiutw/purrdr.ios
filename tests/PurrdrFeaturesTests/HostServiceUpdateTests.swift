@@ -32,13 +32,22 @@ struct HostServiceUpdateTests {
         return connections
     }
 
+    /// `latest` 是 GitHub Release 回報的最新主機服務版本;`nil` 是取不到。
     static func model(
-        latest: String, store: MemoryHostStore, tokens: InMemoryDeviceTokenStore, connections: HostServiceConnections,
+        latest: String?, store: MemoryHostStore, tokens: InMemoryDeviceTokenStore, connections: HostServiceConnections,
         dismissals: any HostServiceUpdateStore
+    ) -> HostsModel {
+        model(releases: FixedHostServiceReleases(latest), store: store, tokens: tokens, connections: connections, dismissals: dismissals)
+    }
+
+    static func model(
+        releases: any HostServiceReleaseSource, store: MemoryHostStore, tokens: InMemoryDeviceTokenStore,
+        connections: HostServiceConnections, dismissals: any HostServiceUpdateStore
     ) -> HostsModel {
         HostsModel(
             store: store, demoChannel: FakeHost(), hostService: connections.access(tokens: tokens),
-            hostServiceUpdates: HostServiceUpdates(latestVersion: latest, store: dismissals), push: pushService(), makeChannel: ChannelFactory().make)
+            hostServiceUpdates: HostServiceUpdates(releases: releases, store: dismissals), push: pushService(),
+            makeChannel: ChannelFactory().make)
     }
 
     /// 通知區塊要有推播服務才判斷各主機能不能開;這些測試不會真的送後台請求。
@@ -58,7 +67,11 @@ struct HostServiceUpdateTests {
         Dictionary(uniqueKeysWithValues: model.rows.compactMap { row in row.hostServiceUpdate.map { (row.title, $0) } })
     }
 
-    @Test("主機服務比 app 已知的最新版舊才標示可更新(依版本數字比較);同版、較新與 SSH 主機不標示")
+    static func versions(_ model: HostsModel) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: model.rows.compactMap { row in row.hostServiceVersion.map { (row.title, $0) } })
+    }
+
+    @Test("主機服務比最新 Release 舊才標示可更新(依版本數字比較);同版、較新與 SSH 主機不標示")
     func rowsShowOutdatedHostService() async {
         let (store, tokens) = Self.hosts()
         let connections = await Self.connections(reporting: ["0.9.0", "0.10.0", "0.11.0"])
@@ -89,7 +102,7 @@ struct HostServiceUpdateTests {
         #expect(supportByName["D SSH"] == .supported)
     }
 
-    @Test("關閉提示後同一個新版本不再出現(存在這支裝置);app 知道更新的版本時再提示")
+    @Test("關閉提示後同一個新版本不再出現(存在這支裝置);有更新的 Release 時再提示")
     func dismissedUpdateStaysHiddenUntilNewerRelease() async throws {
         let (store, tokens) = Self.hosts()
         let dismissals = InMemoryHostServiceUpdateStore()
@@ -117,16 +130,47 @@ struct HostServiceUpdateTests {
         #expect(Self.updates(newerRelease) == ["A Older": "0.12.0", "B Same": "0.12.0", "C Newer": "0.12.0"])
     }
 
-    @Test("app 已知的最新主機服務版本與 vendor/purrdr-host/VERSION 同步來的主機服務版本一致(發行主機服務時一起遞增)")
-    func latestVersionMatchesSyncedHostServiceVersion() throws {
-        let versionFile = URL(filePath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "vendor/purrdr-host/VERSION")
-        let contents = try String(contentsOf: versionFile, encoding: .utf8)
-        let prefix = "host_service_version="
-        let line = try #require(contents.split(separator: "\n").first { $0.hasPrefix(prefix) })
+    @Test("取不到最新版本時不標示可更新(不誤報),主機服務版本照樣讀")
+    func unknownLatestVersionOffersNothing() async {
+        let (store, tokens) = Self.hosts()
+        let model = Self.model(
+            latest: nil, store: store, tokens: tokens,
+            connections: await Self.connections(reporting: ["0.9.0", "0.10.0", "0.11.0"]), dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
 
-        #expect(HostServiceUpdates.latestKnownVersion == String(line.dropFirst(prefix.count)))
+        await model.checkHostServiceVersions()
+
+        #expect(Self.updates(model).isEmpty)
+        #expect(Self.versions(model)["A Older"] == "0.9.0")
+    }
+
+    @Test("主機列顯示 HTTPS 主機目前的主機服務版本;SSH 主機與還沒讀到的不顯示")
+    func rowsShowCurrentHostServiceVersion() async {
+        let (store, tokens) = Self.hosts()
+        let model = Self.model(
+            latest: "0.10.1", store: store, tokens: tokens,
+            connections: await Self.connections(reporting: ["0.9.0", "0.10.1", "0.11.0"]), dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
+        #expect(Self.versions(model).isEmpty)
+
+        await model.checkHostServiceVersions()
+
+        #expect(Self.versions(model) == ["A Older": "0.9.0", "B Same": "0.10.1", "C Newer": "0.11.0"])
+    }
+
+    @Test("沒有已配對的 HTTPS 主機時不查最新 Release(不為了 SSH 主機連網路)")
+    func noHTTPSHostsSkipsReleaseCheck() async {
+        let store = MemoryHostStore()
+        store.hosts = [HostConfiguration(name: "D SSH", endpoint: SSHEndpoint(host: "studio-mac", username: "ray"))]
+        let releases = CountingHostServiceReleases(latest: "0.10.1")
+        let model = Self.model(
+            releases: releases, store: store, tokens: InMemoryDeviceTokenStore(), connections: HostServiceConnections(),
+            dismissals: InMemoryHostServiceUpdateStore())
+        model.load()
+
+        await model.checkHostServiceVersions()
+
+        #expect(await releases.calls == 0)
     }
 
     @Test("0.5.0 起的主機服務提示執行 update 指令;0.4.x 以前沒有 update,提示重跑一行安裝指令")
@@ -170,6 +214,19 @@ struct HostServiceUpdateTests {
         let base = "https://github.com/raychiutw/purrdr.host/releases/latest/download/"
         #expect(HostServiceUpdates.posixInstallCommand == "curl -fsSL \(base)install.sh | sh")
         #expect(HostServiceUpdates.windowsInstallCommand == "irm \(base)install.ps1 | iex")
+    }
+}
+
+/// 記下查了幾次最新版本。
+private actor CountingHostServiceReleases: HostServiceReleaseSource {
+    let latest: String?
+    private(set) var calls = 0
+
+    init(latest: String?) { self.latest = latest }
+
+    func latestVersion() async -> String? {
+        calls += 1
+        return latest
     }
 }
 

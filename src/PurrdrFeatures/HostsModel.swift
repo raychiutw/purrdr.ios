@@ -15,14 +15,17 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var icon: HostIcon
     /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
     public var needsPairing: Bool
-    /// HTTPS 主機的主機服務比這版 app 已知的最新版舊：可更新到的版本(#198)。
+    /// HTTPS 主機目前的主機服務版本(讀到之前、SSH 主機是 `nil`,#362)。
+    public var hostServiceVersion: String?
+    /// HTTPS 主機的主機服務比最新 Release 舊：可更新到的版本(#198)。
     public var hostServiceUpdate: String?
     /// 有可更新版本時，依這台主機已安裝的版本要執行的更新指令。
     public var hostServiceUpdateCommands: HostServiceUpdateCommands?
 
     public init(
         id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
-        needsPairing: Bool = false, hostServiceUpdate: String? = nil, hostServiceUpdateCommands: HostServiceUpdateCommands? = nil
+        needsPairing: Bool = false, hostServiceVersion: String? = nil, hostServiceUpdate: String? = nil,
+        hostServiceUpdateCommands: HostServiceUpdateCommands? = nil
     ) {
         self.id = id
         self.title = title
@@ -31,6 +34,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
         self.isSelected = isSelected
         self.icon = icon
         self.needsPairing = needsPairing
+        self.hostServiceVersion = hostServiceVersion
         self.hostServiceUpdate = hostServiceUpdate
         self.hostServiceUpdateCommands = hostServiceUpdateCommands
     }
@@ -118,6 +122,8 @@ public final class HostsModel {
     private let hostServiceUpdates: HostServiceUpdates
     /// HTTPS 主機回報的主機服務版本(`checkHostServiceVersions` 讀到的)。
     private var hostServiceVersions: [UUID: String] = [:]
+    /// 最新的主機服務版本(`checkHostServiceVersions` 從 `hostServiceUpdates.releases` 取得;取不到是 `nil`,#362)。
+    private var latestHostServiceVersion: String?
     /// 使用者關閉了更新提示的版本(從 `hostServiceUpdates` 的存放處讀出，observable)。
     private var dismissedHostServiceUpdates: [UUID: String] = [:]
     /// 已建立的 HTTPS 主機連線(以主機 id)。
@@ -357,17 +363,20 @@ public final class HostsModel {
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
                 isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id),
-                hostServiceUpdate: update,
+                hostServiceVersion: hostServiceVersions[host.id], hostServiceUpdate: update,
                 hostServiceUpdateCommands: update.flatMap { _ in hostServiceVersions[host.id].map(HostServiceUpdates.commands(installed:)) })
         }
     }
 
-    /// 讀每台已配對 HTTPS 主機的主機服務版本(主機清單出現時;已連線的主機不多花一個請求)。連不上的略過。
+    /// 讀每台已配對 HTTPS 主機的主機服務版本(主機清單出現時;已連線的主機不多花一個請求)與最新版本。連不上的略過;
+    /// 沒有已配對的 HTTPS 主機時不查最新版本。
     public func checkHostServiceVersions() async {
         let targets = hosts.compactMap { host -> (UUID, any HostConnection)? in
             guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id) else { return nil }
             return (host.id, hostServiceConnection(for: host, address: address))
         }
+        guard !targets.isEmpty else { return }
+        if let latest = await hostServiceUpdates.releases.latestVersion() { latestHostServiceVersion = latest }
         for (id, connection) in targets {
             if let version = try? await connection.hostServiceVersion() { hostServiceVersions[id] = version }
         }
@@ -381,7 +390,7 @@ public final class HostsModel {
         return hostServiceConnection(for: host, address: address)
     }
 
-    /// 不再提示這台主機更新到目前提示的版本(app 知道更新的版本時再提示)。
+    /// 不再提示這台主機更新到目前提示的版本(有更新的 Release 時再提示)。
     public func dismissHostServiceUpdate(for id: UUID) {
         guard let offered = hostServiceUpdate(for: id) else { return }
         dismissedHostServiceUpdates[id] = offered
@@ -389,7 +398,8 @@ public final class HostsModel {
     }
 
     private func hostServiceUpdate(for id: UUID) -> String? {
-        guard let installed = hostServiceVersions[id], let offered = hostServiceUpdates.offeredVersion(installed: installed),
+        guard let installed = hostServiceVersions[id],
+            let offered = HostServiceUpdates.offeredVersion(installed: installed, latest: latestHostServiceVersion),
             dismissedHostServiceUpdates[id] != offered
         else { return nil }
         return offered

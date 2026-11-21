@@ -3619,6 +3619,17 @@
         }
       }
     },
+    "Host Service %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機服務 %@"
+          }
+        }
+      }
+    },
     "Host Service %@ Available" : {
       "extractionState" : "manual",
       "localizations" : {
