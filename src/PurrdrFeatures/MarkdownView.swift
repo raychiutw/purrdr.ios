@@ -102,7 +102,7 @@ private struct BlockView: View {
     }
 }
 
-/// 行內文字：連結只會是 http(s)(解析時已過濾)與主機路徑(#229);行內 code 用等寬字、**沒有底色**(iOS 換行時底色會畫成一條)。
+/// 行內文字：連結只會是 http(s)(解析時已過濾)與主機路徑(#229);行內 code 用等寬字加中性淡底(#351;原型的 `.md code`)。
 struct InlineText: View {
     let inlines: [MarkdownInline]
 
@@ -128,6 +128,7 @@ struct InlineText: View {
             case .code(let code):
                 var run = AttributedString(code)
                 run.inlinePresentationIntent = intent(bold: bold, italic: italic).union(.code)
+                run.backgroundColor = Color.primary.opacity(0.08)
                 result += run
             case .strong(let children):
                 result += attributed(children, bold: true, italic: italic)
@@ -191,17 +192,19 @@ struct CodeBlockView: View {
                 }
             }
             .padding(.leading, 12)
+            Divider()
             ScrollView(.horizontal) {
                 Text(code)
                     .font(.callout.monospaced())
                     .fixedSize(horizontal: true, vertical: false)
                     .textSelection(.enabled)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    .padding(12)
             }
             .accessibilityIdentifier("conversation.code")
         }
-        .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 10))
+        .background(.fill.quaternary, in: ContentFrame.shape)
+        .clipShape(ContentFrame.shape)
+        .overlay(ContentFrame.shape.strokeBorder(.separator))
     }
 
     /// 複製的程式碼去掉結尾換行、CRLF 轉 LF。
@@ -215,30 +218,52 @@ struct CodeBlockView: View {
 /// GFM 表格：逐欄對齊;寬於螢幕時在自己的容器內橫捲(頁面永不橫捲)。
 struct TableView: View {
     let table: MarkdownTable
+    /// 框的寬度:表格至少撐滿框，更寬才在框內橫捲。
+    @State private var frameWidth: CGFloat = 0
 
     var body: some View {
         ScrollView(.horizontal) {
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+            Grid(alignment: .leading, horizontalSpacing: 0, verticalSpacing: 0) {
                 GridRow {
                     ForEach(Array(table.header.enumerated()), id: \.offset) { column, cell in
                         InlineText(cell)
-                            .font(.subheadline.bold())
+                            .font(.footnote.bold())
+                            .foregroundStyle(.secondaryText)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .frame(maxWidth: .infinity, alignment: frameAlignment(column))
+                            .background(.fill.quaternary)
                             .gridColumnAlignment(alignment(column))
                     }
                 }
-                Divider()
                 ForEach(Array(table.rows.enumerated()), id: \.offset) { _, row in
+                    Divider()
                     GridRow {
-                        ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                        ForEach(Array(row.enumerated()), id: \.offset) { column, cell in
                             InlineText(cell)
-                                .font(.subheadline)
+                                .font(.footnote.monospacedDigit())
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .frame(maxWidth: .infinity, alignment: frameAlignment(column))
                         }
                     }
                 }
             }
-            .padding(.vertical, 4)
+            .frame(minWidth: frameWidth, alignment: .leading)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { frameWidth = $0 }
+        .clipShape(ContentFrame.shape)
+        .overlay(ContentFrame.shape.strokeBorder(.separator))
         .accessibilityIdentifier("conversation.table")
+    }
+
+    private func frameAlignment(_ column: Int) -> Alignment {
+        guard column < table.alignments.count else { return .leading }
+        switch table.alignments[column] {
+        case .leading: return .leading
+        case .center: return .center
+        case .trailing: return .trailing
+        }
     }
 
     private func alignment(_ column: Int) -> HorizontalAlignment {
@@ -249,6 +274,11 @@ struct TableView: View {
         case .trailing: return .trailing
         }
     }
+}
+
+/// 表格與程式碼區塊共用的圓角框(#351):12pt 圓角加分隔線描邊。
+enum ContentFrame {
+    static let shape = RoundedRectangle(cornerRadius: 12)
 }
 
 /// 系統剪貼簿。

@@ -81,10 +81,17 @@ private struct TerminalAvatar: View {
 /// 頭像的圓角方塊:大小隨字級放大,呼叫端在外面夾上限(方塊裡的字母與符號不在夾住的範圍內)。
 struct AvatarBox: View {
     let fill: Color
-    @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = AgentKindAvatar.baseSide
+    private let compact: Bool
+    @ScaledMetric private var side: CGFloat
+
+    init(fill: Color, compact: Bool = false) {
+        self.fill = fill
+        self.compact = compact
+        _side = ScaledMetric(wrappedValue: compact ? 20 : AgentKindAvatar.baseSide, relativeTo: compact ? .caption : .subheadline)
+    }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 10).fill(fill).frame(width: side, height: side)
+        RoundedRectangle(cornerRadius: compact ? 6 : 10).fill(fill).frame(width: side, height: side)
     }
 }
 

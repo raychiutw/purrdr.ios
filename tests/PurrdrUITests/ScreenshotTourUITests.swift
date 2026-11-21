@@ -188,6 +188,9 @@ final class ScreenshotTourUITests: XCTestCase {
     func testDesign03Chat() {
         captureDesign("03-chat") { app in
             _ = self.openChat("w1:p1", in: app)
+            // 訊息呈現(#351):Agent 回覆的頭像、表格與程式碼區塊都在畫面內。
+            XCTAssertTrue(self.element("conversation.agent.header", in: app).waitForExistence(timeout: 10), "沒有 Agent 回覆開頭")
+            XCTAssertTrue(self.element("conversation.table", in: app).exists, "沒有表格")
         }
     }
 
