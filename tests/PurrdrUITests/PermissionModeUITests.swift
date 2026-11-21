@@ -45,4 +45,31 @@ final class PermissionModeUITests: XCTestCase {
         expectation(for: planValue, evaluatedWith: capsule)
         waitForExpectations(timeout: 10)
     }
+
+    /// 模型膠囊(#350):在附加鈕與權限模式膠囊之間;點開 sheet 以勾選列選模型,選定後收起。
+    @MainActor
+    func testModelCapsuleOpensSheetAndSwitchesModel() {
+        let app = XCUIApplication.launchUITesting()
+        let row = element("agent.row.demo/w1:p1", in: app)
+        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
+        row.tap()
+        let capsule = element("composer.model", in: app)
+        let attach = element("composer.addImage", in: app)
+        let permission = element("composer.permissionMode", in: app)
+        XCTAssertTrue(capsule.waitForExistence(timeout: 10), "沒有模型膠囊")
+        XCTAssertGreaterThan(capsule.frame.minX, attach.frame.maxX - 1, "模型膠囊應在附加鈕右邊")
+        XCTAssertLessThan(capsule.frame.maxX, permission.frame.minX + 1, "模型膠囊應在權限膠囊左邊")
+        XCTAssertEqual(capsule.frame.midY, attach.frame.midY, accuracy: 2, "模型膠囊應與附加鈕同一列")
+        XCTAssertFalse((capsule.value as? String ?? "").isEmpty, "膠囊應顯示目前的模型")
+
+        capsule.tap()
+        let picker = element("model.picker", in: app)
+        XCTAssertTrue(picker.waitForExistence(timeout: 15), "sheet 裡沒有模型勾選列")
+        let quick = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Quick'")).firstMatch
+        XCTAssertTrue(quick.waitForExistence(timeout: 10), "sheet 裡沒有 Quick 勾選列")
+        quick.tap()
+        let gone = NSPredicate(format: "exists == false")
+        expectation(for: gone, evaluatedWith: picker)
+        waitForExpectations(timeout: 10)
+    }
 }

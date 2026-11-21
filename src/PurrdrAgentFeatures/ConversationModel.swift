@@ -1750,6 +1750,65 @@ public final class ConversationModel {
         }
     }
 
+    // MARK: - 模型膠囊(#350)
+
+    /// 輸入框模型膠囊顯示的目前模型(取自對話紀錄最新的模型 id);還沒讀到是 `nil`。
+    public var modelName: String? { metadata.model.map(TranscriptMetadata.displayName(ofModel:)) }
+
+    /// 模型選擇 sheet 開著(從送出 `/model` 到選定或取消)。畫面據此不在對話裡重複畫同一張面板卡片。
+    public private(set) var isChoosingModel = false
+
+    /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
+    /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
+    public var canChooseModel: Bool {
+        currentAgent?.kind == "claude" && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
+            && prompt == nil && panel == nil && agentStatus != .working && agentStatus != .blocked && !isChoosingModel
+    }
+
+    /// 點模型膠囊:送 `/model`(不產生回音泡泡),之後由既有的面板監看讀到畫面上的面板。
+    /// 什麼都沒送出(Agent 不在、對話已變更、唯讀…)時 sheet 不開,原因放在 `notice`。
+    public func beginChoosingModel() async {
+        guard canChooseModel else { return }
+        isChoosingModel = true
+        notice = nil
+        switch await freshTarget() {
+        case .success(let agent):
+            let outcome = await delivery.send("/model", to: agent, expectedSession: boundSessionID ?? knownSessionID)
+            switch outcome {
+            case .submittedCommand:
+                watchForPanel()
+            case .noResponse:
+                notice = .noResponse
+                isChoosingModel = false
+            default:
+                isChoosingModel = false
+            }
+        case .failure(let failure):
+            notice = failure.notice
+            isChoosingModel = false
+        }
+    }
+
+    /// 在 sheet 點選一個模型:移動面板游標到那一列,再按面板自己的 Enter 確認(永不送數字)。
+    public func chooseModel(_ option: SlashPanelOption) async {
+        guard let panel, isChoosingModel else { return }
+        await operatePanel(.select(option))
+        // 面板的 Enter 是「設為預設」(寫進使用者設定);膠囊只改這個 session,所以有 `s`(只用在這個 session)就按它。
+        if let confirm = panel.actions.first(where: { $0.key == "s" }) ?? panel.actions.first(where: { $0.key == "enter" }) {
+            await operatePanel(.action(confirm))
+        }
+        isChoosingModel = false
+    }
+
+    /// sheet 關閉(選定後或使用者下滑／按完成):面板還開著就按 Esc 取消,不改模型。
+    public func finishChoosingModel() async {
+        guard isChoosingModel else { return }
+        isChoosingModel = false
+        if let esc = panel?.actions.first(where: { $0.key == "esc" }) {
+            await operatePanel(.action(esc))
+        }
+    }
+
     // MARK: - 權限模式(#306)
 
     /// 從畫面讀到的 Claude 權限模式;還沒讀到或認不出是 `nil`。

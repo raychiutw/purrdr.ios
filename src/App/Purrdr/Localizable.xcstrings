@@ -3050,6 +3050,17 @@
         }
       }
     },
+    "Couldn’t open the model list. Try again, or check the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟模型清單。請再試一次，或到終端機查看。"
+          }
+        }
+      }
+    },
     "Couldn’t open this folder." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5671,6 +5682,17 @@
         }
       }
     },
+    "Model" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型"
+          }
+        }
+      }
+    },
     "Modified" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6793,6 +6815,17 @@
         }
       }
     },
+    "Opens the list of models." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟模型清單。"
+          }
+        }
+      }
+    },
     "Opens the list of modes." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7757,6 +7790,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "唯讀"
+          }
+        }
+      }
+    },
+    "Reading the model list…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在讀取模型清單…"
           }
         }
       }

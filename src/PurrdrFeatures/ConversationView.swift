@@ -178,7 +178,8 @@ public struct ConversationView: View {
                 BlockedPromptView(model: model)
                     .id(ConversationFollowTarget.promptRowID)
                 // slash 指令開出的面板(#45):對 herdr 不可見，從畫面讀出後以原生卡片顯示。
-                if let panel = model.panel {
+                // 從模型膠囊開的面板在 sheet 裡選,對話裡不重複畫(#350)。
+                if let panel = model.panel, !model.isChoosingModel {
                     SlashPanelCard(model: model, panel: panel)
                         .id(ConversationFollowTarget.panelRowID)
                 }
