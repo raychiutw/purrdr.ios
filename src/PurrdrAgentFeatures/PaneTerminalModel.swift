@@ -32,6 +32,15 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public let paneID: String
     public let title: String
 
+    public private(set) var sizeMode: TerminalSizeMode
+    /// 電腦上 Pane 目前的格數(保留模式下取自 full frame)。
+    public private(set) var displaySize: TerminalGridSize?
+    public var supportsSizeMode: Bool { !isViewOnly }
+    public var keepsDesktopLayout: Bool { supportsSizeMode && sizeMode == .keepDesktop }
+
+    private let defaults: UserDefaults
+    /// 保留模式下最後一次看到的電腦格數;換成配合手機後還要靠它還原。
+    private var desktopSize: TerminalGridSize?
     private let client: PaneTerminalClient
     private let resizeDebounce: Duration
     /// 去抖用的等待;測試注入假的。
@@ -47,8 +56,10 @@ public final class PaneTerminalModel: TerminalSessionModel {
 
     public init(
         client: PaneTerminalClient, paneID: String, title: String, resizeDebounce: Duration = .milliseconds(250),
-        sleep: @escaping Sleep = Sleeping.task
+        sleep: @escaping Sleep = Sleeping.task, defaults: UserDefaults = .standard
     ) {
+        self.defaults = defaults
+        self.sizeMode = TerminalSizeSettings.mode(in: defaults)
         self.client = client
         self.paneID = paneID
         self.title = title
@@ -113,6 +124,8 @@ public final class PaneTerminalModel: TerminalSessionModel {
             connect(takeover: false)
             return
         }
+        // 保留電腦版面:手機大小只記著(切換模式時用),不送給主機。
+        guard !keepsDesktopLayout else { return }
         resizeTask?.cancel()
         let debounce = resizeDebounce
         let sleep = sleep
@@ -203,8 +216,13 @@ public final class PaneTerminalModel: TerminalSessionModel {
         case .frame(let frame):
             if status == .connecting {
                 status = .connected
-                // 開啟期間尺寸變了：handshake 用的是舊格數，補送一次。
-                sendResizeIfNeeded()
+                // 開啟期間尺寸變了：handshake 用的是舊格數，補送一次(保留模式不送)。
+                if !keepsDesktopLayout { sendResizeIfNeeded() }
+            }
+            if frame.full, keepsDesktopLayout {
+                let size = TerminalGridSize(columns: frame.columns, rows: frame.rows)
+                desktopSize = size
+                displaySize = size
             }
             render(frame.bytes)
         case .closed(let reason):
@@ -298,6 +316,25 @@ public final class PaneTerminalModel: TerminalSessionModel {
     public func scrollPage(_ direction: TerminalInput.ScrollDirection, rows: Int) {
         guard isInteractive, rows > 0 else { return }
         outbox?.yield(.input(.scroll(direction, lines: rows, column: 0, row: 0, source: .pageKey)))
+    }
+
+    // MARK: - 大小模式
+
+    /// 切換大小模式並記在這支裝置。已連線時:換成配合手機立刻送一次手機的格數;換回保留則把電腦原本的格數還回去。
+    public func setSizeMode(_ mode: TerminalSizeMode) {
+        guard mode != sizeMode else { return }
+        sizeMode = mode
+        TerminalSizeSettings.setMode(mode, in: defaults)
+        guard isInteractive else { return }
+        switch mode {
+        case .fitPhone:
+            sentSize = nil
+            sendResizeIfNeeded()
+        case .keepDesktop:
+            guard let desktopSize else { return }
+            sentSize = (desktopSize.columns, desktopSize.rows)
+            outbox?.yield(.input(.resize(columns: desktopSize.columns, rows: desktopSize.rows)))
+        }
     }
 
     // MARK: - 字級

@@ -224,3 +224,15 @@
 fixture 裡的 terminal id(`term_660523e11df7c5`)是當次測試 pane 的隨機 id,已不存在。
 
 重新錄製：建一個專用 workspace(`herdr workspace create --no-focus`),在該 pane 換成上述乾淨 bash,執行 `docs/research/tools/session-control/runfx.sh <terminal_id> <pane_id>`,再以 `PII_PATTERN='<自己的帳號|主機名|家目錄>' python3 export.py fx <輸出目錄>` 匯出。
+
+## controller 不送 resize 時的尺寸行為(#357,待真主機驗證)
+
+背景:行為規格寫 controller 的 `terminal.resize` 會改變 Pane 的 PTY 尺寸,接上期間鎖在 controller 尺寸,離開時恢復。#357 的「保留電腦版面」模式因此**不送 `terminal.resize`**,以 full frame 的 `width`／`height` 當顯示格數。這份實作只依文件推論,**尚未在真主機驗證**,下列項目要在 SSH 與 HTTPS 各驗一次:
+
+1. 接上前後,電腦上該 Pane 的欄列數不變(`herdr pane list` 或在電腦上看版面)。
+2. 第一個 frame(`full: true`)的 `width`／`height` 是 Pane 原本的尺寸,而不是 handshake 的 `--cols`／`--rows`。
+3. **handshake 本身需要 `--cols`／`--rows`**(`HerdrCommand.terminalSessionControl`;HTTPS 的 `pane.terminal.open` 同):保留模式目前帶的是手機視圖放得下的格數。若 herdr 接上時就把 Pane 鎖成這個尺寸,保留模式沒有效果;替代方案是 handshake 改帶 Pane 目前的尺寸(需另有來源,例如 snapshot 或先 observe 一次讀到第一個 frame)。
+4. 離開(release)後 Pane 回到原尺寸。
+5. 電腦端調整視窗時,controller 是否收到新的 full frame(畫面隨之重新縮放,故事 16)。
+
+驗證結果補在這裡。若第 2、3 項不成立,需調整 `PaneTerminalModel.connect` 的 handshake 尺寸。

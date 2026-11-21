@@ -15,12 +15,15 @@ struct PaneTerminalModelTests {
     }
 
     /// 去抖的等待注入假的(預設一直等到被取消)，測試不依賴真實時間。
+    /// `mode` 預設配合手機(既有的尺寸測試照舊);每個 model 用自己的偏好，不碰真正的 UserDefaults。
     static func makeModel(
         _ host: FakeHost, debounce: Duration = .milliseconds(30),
-        sleep: @escaping Sleep = RecordingSleeper().sleep
+        sleep: @escaping Sleep = RecordingSleeper().sleep, mode: TerminalSizeMode = .fitPhone
     ) -> PaneTerminalModel {
-        PaneTerminalModel(client: PaneTerminalClient(channel: host), paneID: "w1:p1", title: "Tidy up the CSV export",
-                          resizeDebounce: debounce, sleep: sleep)
+        let defaults = UserDefaults(suiteName: "PaneTerminalModelTests-\(UUID().uuidString)")!
+        TerminalSizeSettings.setMode(mode, in: defaults)
+        return PaneTerminalModel(client: PaneTerminalClient(channel: host), paneID: "w1:p1", title: "Tidy up the CSV export",
+                                 resizeDebounce: debounce, sleep: sleep, defaults: defaults)
     }
 
     /// 把錄製檔的 stdout 送進假主機。`finish: false` 時只送 frame(連線保持開著)。
@@ -87,10 +90,10 @@ struct PaneTerminalModelTests {
     /// 開好一條連線並收到第一個 frame。
     static func connected(
         _ host: FakeHost, debounce: Duration = .milliseconds(30),
-        sleep: @escaping Sleep = RecordingSleeper().sleep
+        sleep: @escaping Sleep = RecordingSleeper().sleep, mode: TerminalSizeMode = .fitPhone
     ) async -> PaneTerminalModel {
         await host.expect(control(), reply: FakeReply(keepsOpen: true))
-        let model = makeModel(host, debounce: debounce, sleep: sleep)
+        let model = makeModel(host, debounce: debounce, sleep: sleep, mode: mode)
         model.viewDidResize(columns: 40, rows: 12)
         _ = await host.waitForExecutions(1, timeout: Self.timeout)
         await host.send(.stdout(Fixtures.sessionControlLines("01-handshake-echo-release.stdout.ndjson")[0] + [0x0A]), toExecution: 0)

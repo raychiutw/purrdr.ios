@@ -170,6 +170,29 @@ final class PaneTerminalUITests: XCTestCase {
         waitForScreen(screen, toContain: "demo@purrdr ledger % l")
     }
 
+    /// 保留電腦版面(#357):預設有大小膠囊,點開 sheet 以勾選列切換;「配合這支手機」會說明電腦版面會跟著變。
+    @MainActor
+    func testSizeCapsuleSwitchesBetweenKeepingAndFittingPhone() {
+        let app = XCUIApplication.launchUITesting()
+        let screen = openTerminal(app)
+        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+
+        let capsule = app.buttons["terminal.size"].firstMatch
+        XCTAssertTrue(capsule.waitForExistence(timeout: 10), "沒有大小膠囊")
+        XCTAssertEqual(capsule.value as? String, "Keep Computer Layout")
+        capsule.tap()
+        let fit = app.buttons["Fit This Phone"].firstMatch
+        XCTAssertTrue(fit.waitForExistence(timeout: 5), "sheet 裡沒有「Fit This Phone」")
+        fit.tap()
+        let note = app.descendants(matching: .any)["terminal.size.note"].firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.label.contains("layout on your computer changes"), "沒有說明會影響電腦版面:\(note.label)")
+
+        // 還原偏好,不影響其他測試。
+        app.buttons["Keep Computer Layout"].firstMatch.tap()
+        app.buttons["Done"].firstMatch.tap()
+    }
+
     @MainActor
     func testPaneInUseOffersTakeOver() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoPaneInUse"])
