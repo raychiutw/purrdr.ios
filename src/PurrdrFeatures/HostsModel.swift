@@ -15,14 +15,17 @@ public struct HostRow: Identifiable, Equatable, Sendable {
     public var icon: HostIcon
     /// HTTPS 主機在這支裝置還沒有裝置權杖(例如主機同步帶來的):要先連線配對。
     public var needsPairing: Bool
-    /// HTTPS 主機的主機服務比這版 app 已知的最新版舊：可更新到的版本(#198)。
+    /// HTTPS 主機目前的主機服務版本(讀到之前、SSH 主機是 `nil`,#362)。
+    public var hostServiceVersion: String?
+    /// HTTPS 主機的主機服務比最新 Release 舊：可更新到的版本(#198)。
     public var hostServiceUpdate: String?
     /// 有可更新版本時，依這台主機已安裝的版本要執行的更新指令。
     public var hostServiceUpdateCommands: HostServiceUpdateCommands?
 
     public init(
         id: UUID, title: String, subtitle: String, session: String?, isSelected: Bool, icon: HostIcon = .default,
-        needsPairing: Bool = false, hostServiceUpdate: String? = nil, hostServiceUpdateCommands: HostServiceUpdateCommands? = nil
+        needsPairing: Bool = false, hostServiceVersion: String? = nil, hostServiceUpdate: String? = nil,
+        hostServiceUpdateCommands: HostServiceUpdateCommands? = nil
     ) {
         self.id = id
         self.title = title
@@ -31,6 +34,7 @@ public struct HostRow: Identifiable, Equatable, Sendable {
         self.isSelected = isSelected
         self.icon = icon
         self.needsPairing = needsPairing
+        self.hostServiceVersion = hostServiceVersion
         self.hostServiceUpdate = hostServiceUpdate
         self.hostServiceUpdateCommands = hostServiceUpdateCommands
     }
@@ -126,6 +130,8 @@ public final class HostsModel {
     private let hostServiceUpdates: HostServiceUpdates
     /// HTTPS 主機回報的主機服務版本(`checkHostServiceVersions` 讀到的)。
     private var hostServiceVersions: [UUID: String] = [:]
+    /// 最新的主機服務版本(`checkHostServiceVersions` 從 `hostServiceUpdates.releases` 取得;取不到是 `nil`,#362)。
+    private var latestHostServiceVersion: String?
     /// 使用者關閉了更新提示的版本(從 `hostServiceUpdates` 的存放處讀出，observable)。
     private var dismissedHostServiceUpdates: [UUID: String] = [:]
     /// 已建立的 HTTPS 主機連線(以主機 id)。
@@ -394,20 +400,25 @@ public final class HostsModel {
             return HostRow(
                 id: host.id, title: host.name, subtitle: subtitle, session: host.ssh?.herdr.session,
                 isSelected: selection == .host(host.id), icon: icon(for: host.id), needsPairing: unpairedHostIDs.contains(host.id),
-                hostServiceUpdate: update,
+                hostServiceVersion: hostServiceVersions[host.id], hostServiceUpdate: update,
                 hostServiceUpdateCommands: update.flatMap { _ in hostServiceVersions[host.id].map(HostServiceUpdates.commands(installed:)) })
         }
     }
 
-    /// 讀每台已配對 HTTPS 主機的主機服務版本(主機清單出現時;已連線的主機不多花一個請求)。連不上的略過。
+    /// 讀每台已配對 HTTPS 主機的主機服務版本(主機清單出現時;已連線的主機不多花一個請求)與最新版本。連不上的略過;
+    /// 沒有已配對的 HTTPS 主機時不查最新版本。最新版本這次取不到時沿用上次取到的。
     public func checkHostServiceVersions() async {
         let targets = hosts.compactMap { host -> (UUID, any HostConnection)? in
             guard case .https(let address) = host.connection, !unpairedHostIDs.contains(host.id) else { return nil }
             return (host.id, hostServiceConnection(for: host, address: address))
         }
+        guard !targets.isEmpty else { return }
+        // 與讀主機版本同時查：GitHub 慢或被擋時不拖住主機版本(推播區塊也靠它判斷功能)。
+        async let latest = hostServiceUpdates.releases.latestVersion()
         for (id, connection) in targets {
             if let version = try? await connection.hostServiceVersion() { hostServiceVersions[id] = version }
         }
+        if let latest = await latest { latestHostServiceVersion = latest }
     }
 
     /// 主機編輯頁的主機服務與已配對裝置區塊(#290、#291)用的連線：已配對的 HTTPS 主機才有。
@@ -418,7 +429,7 @@ public final class HostsModel {
         return hostServiceConnection(for: host, address: address)
     }
 
-    /// 不再提示這台主機更新到目前提示的版本(app 知道更新的版本時再提示)。
+    /// 不再提示這台主機更新到目前提示的版本(有更新的 Release 時再提示)。
     public func dismissHostServiceUpdate(for id: UUID) {
         guard let offered = hostServiceUpdate(for: id) else { return }
         dismissedHostServiceUpdates[id] = offered
@@ -426,7 +437,8 @@ public final class HostsModel {
     }
 
     private func hostServiceUpdate(for id: UUID) -> String? {
-        guard let installed = hostServiceVersions[id], let offered = hostServiceUpdates.offeredVersion(installed: installed),
+        guard let installed = hostServiceVersions[id],
+            let offered = HostServiceUpdates.offeredVersion(installed: installed, latest: latestHostServiceVersion),
             dismissedHostServiceUpdates[id] != offered
         else { return nil }
         return offered
@@ -596,6 +608,7 @@ public final class HostsModel {
     /// 不認得的配對(主機已移除)不動。
     @discardableResult
     public func open(_ route: PushRoute, pairings: any PushPairingStore) -> PushDestination? {
+        if route.event == PushRoute.testEvent { return nil }
         guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
               hosts.contains(where: { $0.id == id }) else { return nil }
         if route.event != nil { return .hostEditor(id) }
@@ -1084,6 +1097,11 @@ final class HostMember {
             preferences.load().muted
         }
         self.push = push
+        // 測試通知(#328):SSH 主機由主機上的腳本送(與外掛同一條路:主機 → 後台 → APNs);HTTPS 主機還沒有，Demo 主機沒有真的外掛。
+        // Windows 也有 PowerShell 版,所以不分作業系統。
+        if let configuration, let pushService, !configuration.connectionMethod.usesHostService {
+            push.testSender = SSHPushTestSender(service: pushService, channel: channel, hostName: configuration.name)
+        }
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
@@ -1094,6 +1112,18 @@ final class HostMember {
             downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
+    }
+}
+
+/// 經 SSH 在主機上送測試通知(#328);每次才讀這支裝置的推播 id。
+struct SSHPushTestSender: PushTestNotificationSending {
+    let service: PushService
+    let channel: any HostChannel
+    let hostName: String
+
+    func sendTest(hostID: String) async throws {
+        let deviceID = try await service.device().id
+        try await SSHPushTestNotifier(channel: channel, deviceID: deviceID, hostName: hostName).send()
     }
 }
 

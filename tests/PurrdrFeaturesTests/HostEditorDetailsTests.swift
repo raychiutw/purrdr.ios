@@ -29,7 +29,7 @@ struct HostEditorDetailsTests {
 
     @Test("主機服務配對指令與比對指紋的指令是可拷貝的固定字串")
     func commandsForCopying() {
-        #expect(HostEditorModel.hostServicePairCommand == "purrdr-host-service pair")
+        #expect(HostEditorModel.hostServicePairCommand == "purrdr pair")
         #expect(HostKeyFingerprint.compareCommand.hasPrefix("ssh-keygen -lf "))
         #expect(!HostKeyFingerprint.compareCommand.contains("<"), "不能留佔位符,拷貝後才能直接執行")
     }

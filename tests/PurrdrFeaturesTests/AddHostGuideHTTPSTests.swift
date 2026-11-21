@@ -60,7 +60,7 @@ struct AddHostGuideHTTPSTests {
         #expect(model.step == .install)
         model.advance()
         #expect(model.step == .pair)
-        #expect(model.pairInstructions.compactMap(\.command) == ["purrdr-host-service pair"])
+        #expect(model.pairInstructions.compactMap(\.command) == ["purrdr pair"])
         #expect(model.progress.total == 6)
         #expect(model.progress.position == 5)
     }
