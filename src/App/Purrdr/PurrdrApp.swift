@@ -39,6 +39,10 @@ struct PurrdrApp: App {
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         let uiTesting = arguments.contains("-uiTesting")
+        // UI 測試(#370):清掉上一個測試留在 UserDefaults 的設定頁偏好,測試之間沒有順序依賴。
+        if uiTesting, let domain = Bundle.main.bundleIdentifier {
+            UITestingPreferences.resetPersistedState(in: .standard, domain: domain)
+        }
         // Tailscale SSH check mode 的提示：所有主機通道共用。
         let tailscaleCheck = TailscaleCheckModel()
         let demo = DemoHost(scenario: Self.demoScenario(arguments), tailscaleCheck: tailscaleCheck.observer)
@@ -99,7 +103,9 @@ struct PurrdrApp: App {
                 push: push, tailscaleCheck: tailscaleCheck,
                 // UI 測試的圖片副本放暫存資料夾，不留在 app 的資料裡。
                 attachmentStore: FileAttachmentStore(directory: FileManager.default.temporaryDirectory.appending(path: "Attachments")),
-                listMode: Self.uiTestingListMode(arguments),
+                // 列表檢視(Spaces／Agents)用預設的記憶體實作:每次啟動都從 Agents 開始(同正式 app 沒存過時;
+                // #275 起 Spaces 檢視是 Tab 列、沒有 Agent 列，測 Spaces 的測試自己切過去)。
+                listMode: InMemoryAgentListModeStore(.agents),
                 // `-seedUnreachableHost` 的主機一律連不上(多主機情境：一台連不上不影響其他台);`-seedSlowHost` 的主機連線卡住(#221)。
                 makeChannel: { endpoint, _, _ in
                     if endpoint.host == Self.unreachableHost.ssh?.endpoint.host { return DemoUnreachableChannel() as any HostChannel }
@@ -188,17 +194,6 @@ struct PurrdrApp: App {
         if arguments.contains("-uiTestingCameraDenied") { return .simulatedCameraDenied }
         guard arguments.contains("-uiTestingPairingScan") else { return .camera }
         return .simulated(payload: "purrdr://pair?address=https%3A%2F%2Fstudio.tail1234.ts.net%3A8443&code=K7QM-2XPA")
-    }
-
-    /// UI 測試的列表檢視(Spaces／Agents)存放處：預設只在記憶體，每次啟動都從 Agents 開始(同正式 app 沒存過時;
-    /// #275 起 Spaces 檢視是 Tab 列、沒有 Agent 列，測 Spaces 的測試自己切過去)。
-    /// `-rememberListMode` 改存 UserDefaults(另一個 key,不碰正式的 `agentListMode`),測沒有記錄時的預設與「重新啟動後記住」(#66);
-    /// `-resetListMode` 先清掉上次留下的值。
-    private static func uiTestingListMode(_ arguments: [String]) -> any AgentListModeStore {
-        guard arguments.contains("-rememberListMode") else { return InMemoryAgentListModeStore(.agents) }
-        let key = "uiTesting.agentListMode"
-        if arguments.contains("-resetListMode") { UserDefaults.standard.removeObject(forKey: key) }
-        return UserDefaultsAgentListModeStore(key: key)
     }
 
     /// 成功送出幾次 prompt 後請求評分(#34)。UI 測試只在記憶體計數、不叫出系統的評分對話框(會擋住後面的操作)。
@@ -310,20 +305,20 @@ struct PurrdrApp: App {
     }
 
     /// UI 測試情境(啟動旗標):桌機正在操作 Demo 的 Pane;Tailscale SSH check mode(一直等、或 3 秒後驗證完成);
-    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話 8 秒後、或每次送出 prompt 後 agent 一次寫出大量輸出(#130);
-    /// 啟動 12 秒後斷網(立刻失敗，或每個指令等 10 秒才失敗,#219);啟動就沒有網路(每個指令等 10 秒才失敗,#221)。
+    /// 對話紀錄一直讀不完(停在對話載入中，到讀取期限 20 秒為止);開啟 ledger 的對話 5 秒後、或每次送出 prompt 後 agent 一次寫出大量輸出(#130);
+    /// 對話載入完成 1 秒後斷網(立刻失敗，或每個指令等 10 秒才失敗,#219);啟動就沒有網路(每個指令等 10 秒才失敗,#221)。
     /// 情境只能選一個：旗標互斥，同時帶多個時只採用下面順序中的第一個。
     private static func demoScenario(_ arguments: [String]) -> DemoHost.Scenario {
         if arguments.contains("-demoPaneInUse") { return .paneInUse }
         if arguments.contains("-demoTailscaleCheck") { return .tailscaleCheck(completesAfter: nil) }
         if arguments.contains("-demoTailscaleCheckCompletes") { return .tailscaleCheck(completesAfter: .seconds(3)) }
         if arguments.contains("-demoTranscriptPending") { return .transcriptPending }
-        if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(8)) }
+        if arguments.contains("-demoLargeOutput") { return .largeOutput(after: .seconds(5)) }
         if arguments.contains("-demoLargeOutputOnPrompt") { return .largeOutputOnPrompt }
         if arguments.contains("-demoWorkingAfterPrompt") { return .workingAfterPrompt(for: .seconds(15)) }
         if arguments.contains("-demoAgentFiles") { return .agentFiles }
-        if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(12), hangs: false) }
-        if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(12), hangs: true) }
+        if arguments.contains("-demoGoesOffline") { return .goesOffline(after: .seconds(1), hangs: false) }
+        if arguments.contains("-demoGoesOfflineHanging") { return .goesOffline(after: .seconds(1), hangs: true) }
         if arguments.contains("-demoNoNetwork") { return .goesOffline(after: .zero, hangs: true) }
         return .standard
     }

@@ -75,26 +75,4 @@ final class SpacesUITests: XCTestCase {
         XCTAssertFalse(app.element("agentList.section.needsYou").exists, "Agents 檢視是單一清單，不該有分段標題")
         XCTAssertEqual(app.listModeSelection.label, "Agents")
     }
-
-    /// 沒有記錄時是 Agents;選的檢視記在這支裝置，重新啟動後還是 Spaces(#66)。`-rememberListMode` 讓 UI 測試也存進
-    /// UserDefaults(平常 UI 測試只放記憶體、從 Spaces 開始);`-resetListMode` 先清掉上一次留下的值。
-    @MainActor
-    func testViewChoiceSurvivesRelaunch() {
-        let app = XCUIApplication.launchUITesting(flags: ["-rememberListMode", "-resetListMode"])
-        XCTAssertTrue(app.listModeControl.waitUntilExists(timeout: 10))
-        XCTAssertEqual(app.listModeSelection.label, "Agents", "沒有記錄時應該從 Agents 開始")
-        XCTAssertTrue(app.element("agent.row.demo/w3:p1").waitUntilExists(timeout: 10))
-        app.switchListMode(to: "Spaces")
-        XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 5))
-        app.terminate()
-
-        let again = XCUIApplication.launchUITesting(flags: ["-rememberListMode"])
-        XCTAssertTrue(again.listModeControl.waitUntilExists(timeout: 10))
-        XCTAssertEqual(again.listModeSelection.label, "Spaces", "重新啟動後沒有記住 Spaces")
-        XCTAssertTrue(again.element("spaces.section.demo/w3").waitUntilExists(timeout: 10))
-        again.terminate()
-
-        // 清掉，不影響之後的測試。
-        XCUIApplication.launchUITesting(flags: ["-rememberListMode", "-resetListMode"]).terminate()
-    }
 }

@@ -101,8 +101,12 @@ final class AnswerPromptUITests: XCTestCase {
 
         // 取消後選項列隨輸入列重排：等位置停下再點。
         app.waitForSettledLayout([typeSomething], timeout: 3)
-        typeSomething.tap()
-        XCTAssertTrue(banner.waitUntilExists(timeout: 5))
+        // 取消後卡片還在重排時點擊可能被吃掉：點到自訂回答的橫幅出現為止。
+        for _ in 0..<3 where !banner.exists {
+            typeSomething.tap()
+            _ = banner.waitUntilExists(timeout: 3)
+        }
+        XCTAssertTrue(banner.exists)
         app.element("composer.text").typeEnglish("Forest green")
         app.element("composer.send").tap()
 
