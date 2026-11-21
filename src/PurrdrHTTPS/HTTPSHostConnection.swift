@@ -12,6 +12,8 @@ public actor HTTPSHostConnection: HostConnection {
     private let address: HostServiceAddress
     private let deviceToken: @Sendable () throws -> String?
     private let transport: any WebSocketConnecting
+    /// 流量計量(#353):WebSocket 收送的訊息位元組;建立後才接上也算。
+    private let trafficSink: TrafficSink
     private let appVersion: String?
     private let heartbeat: HostServiceHeartbeat
     private let quickHeartbeat: HostServiceHeartbeat
@@ -44,15 +46,22 @@ public actor HTTPSHostConnection: HostConnection {
     public init(
         address: HostServiceAddress, deviceToken: @escaping @Sendable () throws -> String?,
         transport: any WebSocketConnecting = URLSessionHostServiceTransport(), appVersion: String? = nil,
-        heartbeat: HostServiceHeartbeat = .standard, quickHeartbeat: HostServiceHeartbeat = .quick, sleep: @escaping Sleep = Sleeping.task
+        heartbeat: HostServiceHeartbeat = .standard, quickHeartbeat: HostServiceHeartbeat = .quick, sleep: @escaping Sleep = Sleeping.task,
+        traffic: TrafficRecording? = nil
     ) {
+        trafficSink = TrafficSink(traffic)
         self.address = address
         self.deviceToken = deviceToken
-        self.transport = transport
+        self.transport = MeteredWebSocketTransport(base: transport, sink: trafficSink)
         self.appVersion = appVersion
         self.heartbeat = heartbeat
         self.quickHeartbeat = quickHeartbeat
         self.sleep = sleep
+    }
+
+    /// 接上流量計量(#353)。
+    public nonisolated func attachTraffic(_ recording: TrafficRecording?) {
+        trafficSink.attach(recording)
     }
 
     /// 握手得到的主機服務與 herdr 伺服器資訊(連線測試顯示用)。

@@ -87,6 +87,8 @@ public final class HostsModel {
     public weak var changeRecorder: (any HostChangeRecorder)?
     /// 對話作答的觸覺(composition root 注入系統觸覺;測試不播放)。
     public var haptics: any Haptics = SilentHaptics()
+    /// 數據用量的流量計量(#353):建立主機連線時接上(之後建的連線才算;app 啟動時就設好)。
+    public var trafficMeter: TrafficMeter?
     /// 成功送出幾次 prompt 後請求評分(#34);`nil` 時不請求。所有主機、所有聊天共用一份計數。
     public var reviewPrompt: ReviewPrompt?
     /// 送出可撤回的秒數(#300),每次送出時讀;預設讀本機偏好(設定頁改的那一個)。
@@ -812,6 +814,7 @@ public final class HostsModel {
     private func hostServiceConnection(for host: HostConfiguration, address: HostServiceAddress) -> any HostConnection {
         if let connection = hostServiceConnections[host.id] { return connection }
         let connection = hostService.connection(for: host, address: address)
+        if let meter = trafficMeter { (connection as? HTTPSHostConnection)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
         hostServiceConnections[host.id] = connection
         return connection
     }
@@ -821,6 +824,7 @@ public final class HostsModel {
         // Windows 主機的指令換成 PowerShell 方言(#26);其他原樣。作業系統未知(主機同步帶來的新主機)時先偵測，
         // 不對可能是 Windows 的主機送 POSIX 指令。
         let base = makeChannel(settings.endpoint, settings.hostKeyPin, credentials.provider(for: host))
+        if let meter = trafficMeter { (base as? SSHHostChannel)?.attachTraffic(meter.recorder(for: host.id.uuidString)) }
         let id = host.id
         let channel = host.operatingSystem?.channel(base) ?? OperatingSystemDetectingChannel(base) { [weak self] operatingSystem in
             await self?.recordOperatingSystem(operatingSystem, for: id)
