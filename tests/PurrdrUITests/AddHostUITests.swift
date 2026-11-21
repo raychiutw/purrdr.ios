@@ -104,7 +104,130 @@ final class AddHostUITests: XCTestCase {
         XCTAssertLessThan(name.frame.minX, app.windows.firstMatch.frame.midX, "輸入框沒有緊接在標籤後")
     }
 
+    // MARK: - 收鍵盤(#312)
+
+    /// 密碼登入：輸入密碼後按鍵盤上方的「完成」收起鍵盤，下面的「測試連線」點得到。
+    @MainActor
+    func testDoneDismissesKeyboardAfterPassword() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        choose("openSSH", in: app)
+        let passwordMethod = app.buttons["Password"]
+        XCTAssertTrue(passwordMethod.exists || scrollTo(passwordMethod, in: app), "沒有密碼登入")
+        passwordMethod.tap()
+
+        let password = app.secureTextFields["hostEditor.password"]
+        XCTAssertTrue(scrollTo(password, in: app), "沒有密碼欄")
+        password.tap()
+        password.typeEnglish("hunter2")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現軟體鍵盤")
+
+        tapKeyboardDone(app)
+
+        XCTAssertTrue(waitForKeyboardToHide(app), "按「完成」後鍵盤沒有收起")
+        let test = app.buttons["hostEditor.test"]
+        XCTAssertTrue(scrollTo(test, in: app) && test.isHittable, "鍵盤收起後「Test Connection」點不到")
+    }
+
+    /// 連接埠是數字鍵盤(沒有 return):「完成」一樣收得起來。
+    @MainActor
+    func testDoneDismissesNumberPad() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        choose("tailscaleSSH", in: app)
+        let port = field("port", in: app)
+        port.tap()
+        port.typeText("0")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現數字鍵盤")
+
+        tapKeyboardDone(app)
+
+        XCTAssertTrue(waitForKeyboardToHide(app), "數字鍵盤按「完成」後沒有收起")
+    }
+
+    /// 單行欄位按 return 跳到下一個欄位;最後一個欄位按 return 收起鍵盤。
+    @MainActor
+    func testReturnMovesToNextFieldThenDismisses() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        choose("https", in: app)
+        let address = field("address", in: app)
+        address.tap()
+        address.typeEnglish("studio.tail1234.ts.net\n")
+
+        XCTAssertTrue(hasKeyboardFocus(field("port", in: app)), "位址欄按 return 沒有移到 Port")
+
+        let code = field("pairingCode", in: app)
+        code.tap()
+        code.typeEnglish("K7QM-2XPA\n")
+        XCTAssertTrue(waitForKeyboardToHide(app), "最後一個欄位(配對碼)按 return 沒有收起鍵盤")
+    }
+
+    /// 往下捲表單(看下面的欄位與按鈕)時鍵盤收起。
+    @MainActor
+    func testScrollingFormDismissesKeyboard() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        choose("openSSH", in: app)
+        let username = field("username", in: app)
+        username.tap()
+        username.typeEnglish("ray")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "沒有出現軟體鍵盤")
+
+        // 從表單左側留白往上拖(不從輸入框開始，免得拖成選取文字)。
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.55)).press(
+            forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.15)))
+
+        XCTAssertTrue(waitForKeyboardToHide(app), "捲動表單後鍵盤沒有收起")
+    }
+
+    /// 用密碼加入公鑰：密碼欄輸入後收起鍵盤，「Add Key Using Password」點得到;密碼欄不跳強密碼建議。
+    @MainActor
+    func testKeyInstallPasswordDismissesKeyboard() {
+        let app = XCUIApplication.launchUITesting()
+        openAddHost(app)
+        choose("openSSH", in: app)
+        for (identifier, text) in [("name", "Studio"), ("address", "studio"), ("username", "ray")] {
+            let element = field(identifier, in: app)
+            element.tap()
+            element.typeEnglish(text)
+        }
+        let password = app.secureTextFields["hostEditor.keyInstallPassword"]
+        XCTAssertTrue(scrollTo(password, in: app), "沒有加入公鑰的密碼欄")
+        password.tap()
+        password.typeEnglish("hunter2")
+        XCTAssertFalse(app.buttons["Use Strong Password"].exists, "跳出了強密碼建議")
+
+        tapKeyboardDone(app)
+
+        XCTAssertTrue(waitForKeyboardToHide(app), "加入公鑰的密碼欄按「完成」後鍵盤沒有收起")
+        let install = app.buttons["hostEditor.installKey"]
+        XCTAssertTrue(scrollTo(install, in: app) && install.isHittable && install.isEnabled, "「Add Key Using Password」點不到")
+    }
+
     // MARK: - 輔助
+
+    @MainActor
+    private func tapKeyboardDone(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        let done = app.buttons["hostEditor.keyboardDone"]
+        XCTAssertTrue(done.waitForExistence(timeout: 3), "鍵盤上方沒有「完成」", file: file, line: line)
+        XCTAssertEqual(done.label, "Done", file: file, line: line)
+        done.tap()
+    }
+
+    @MainActor
+    private func waitForKeyboardToHide(_ app: XCUIApplication) -> Bool {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.keyboards.firstMatch)
+        return XCTWaiter().wait(for: [gone], timeout: 3) == .completed
+    }
+
+    @MainActor
+    private func hasKeyboardFocus(_ element: XCUIElement) -> Bool {
+        let focused = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hasKeyboardFocus == true"), object: element)
+        return XCTWaiter().wait(for: [focused], timeout: 3) == .completed
+    }
+
 
     @MainActor
     private func openAddHost(_ app: XCUIApplication) {

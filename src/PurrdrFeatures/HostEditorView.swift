@@ -13,6 +13,8 @@ struct HostEditorView: View {
     @State private var confirmingDiscard = false
     @State private var scanning = false
     @State private var showsAdvanced = false
+    /// 鍵盤焦點所在的欄位(#312):return 依畫面順序往下，「完成」與捲動收起鍵盤。
+    @FocusState private var focus: HostEditorModel.InputField?
     @Environment(\.pairingCodeScanSource) private var scanSource
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
@@ -49,9 +51,20 @@ struct HostEditorView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            form
+                // 焦點移到的欄位(return 跳到下一個)捲到看得見的地方。
+                .onChange(of: focus) { _, field in
+                    guard let field else { return }
+                    withAnimation { proxy.scrollTo(field) }
+                }
+        }
+    }
+
+    private var form: some View {
         Form {
             Section {
-                field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name")
+                field("Name", text: $model.name, prompt: "Studio Mac", identifier: "name", focus: .name)
             } header: {
                 Text("Host")
                     .foregroundStyle(.secondaryText)
@@ -112,6 +125,16 @@ struct HostEditorView: View {
             }
         }
         .refreshable(refreshHostStatus)
+        // 捲動表單就收起鍵盤(#312):`.interactively` 只在手指拖進鍵盤時才收，往下捲看下面的按鈕時鍵盤仍擋著。
+        // 數字鍵盤與多行私鑰沒有能收鍵盤的 return,另有鍵盤上方的「完成」。
+        .scrollDismissesKeyboard(.immediately)
+        // 這個 Form(sheet 裡、有 refreshable)在 iOS 26 上 `.scrollDismissesKeyboard` 不起作用(UI 測試實測),
+        // 所以垂直拖動時自己清掉焦點;最短距離避開點按。
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24).onChanged { drag in
+                guard focus != nil, abs(drag.translation.height) > abs(drag.translation.width) else { return }
+                focus = nil
+            })
         .modifier(PairedDevicesDialogs(model: hostStatus?.pairedDevices))
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
@@ -123,6 +146,13 @@ struct HostEditorView: View {
         #endif
         .interactiveDismissDisabled(model.hasChanges)
         .toolbar {
+            #if os(iOS)
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focus = nil }
+                    .accessibilityIdentifier("hostEditor.keyboardDone")
+            }
+            #endif
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") {
                     if model.hasChanges { confirmingDiscard = true } else { cancel() }
@@ -242,12 +272,13 @@ struct HostEditorView: View {
         Section {
             field(
                 "Address", text: $model.address, prompt: method.usesHostService ? "my-mac.tailnet.ts.net" : "my-mac or 100.64.0.1",
-                identifier: "address")
+                identifier: "address", focus: .address)
             .addressKeyboard()
-            field("Port", text: $model.port, prompt: method.usesHostService ? "443" : "22", identifier: "port")
+            field("Port", text: $model.port, prompt: method.usesHostService ? "443" : "22", identifier: "port", focus: .port)
                 .numberKeyboard()
             if model.connectionFields.contains(.username) {
-                field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username")
+                field("User Name", text: $model.username, prompt: "Your user on that computer", identifier: "username", focus: .username)
+                    .usernameContent()
             }
         } header: {
             Text("Connection Details")
@@ -280,7 +311,7 @@ struct HostEditorView: View {
             HStack(spacing: 8) {
                 field(
                     "Pairing Code", text: $model.pairingCode, prompt: model.needsPairingCode ? "K7QM-2XPA" : "Unchanged",
-                    identifier: "pairingCode", uppercase: true)
+                    identifier: "pairingCode", focus: .pairingCode, uppercase: true)
                 // 欄位也顯示成大寫：硬體鍵盤與貼上不受全大寫鍵盤影響。另一個交易才改，TextField 才會跟著更新。
                 .onChange(of: model.pairingCode) { _, code in
                     let uppercased = code.uppercased()
@@ -310,8 +341,8 @@ struct HostEditorView: View {
     private var advancedSection: some View {
         Section {
             DisclosureGroup(isExpanded: $showsAdvanced) {
-                field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath")
-                field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession")
+                field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath", focus: .herdrPath)
+                field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession", focus: .herdrSession)
             } label: {
                 Text("Advanced")
             }
@@ -345,8 +376,11 @@ struct HostEditorView: View {
                 LabeledContent("Password") {
                     SecureField("Password", text: $model.password, prompt: Text(model.hasStoredSecret ? "Unchanged" : "Required"))
                         .multilineTextAlignment(.leading)
+                        .existingPasswordContent()
+                        .focusOrder(.password, focus: $focus, next: nextField(after: .password))
                         .accessibilityIdentifier("hostEditor.password")
                 }
+                .id(HostEditorModel.InputField.password)
             }
         } header: {
             Text("Sign In")
@@ -397,8 +431,12 @@ struct HostEditorView: View {
         LabeledContent("Password") {
             SecureField("Password", text: $model.keyInstallPassword, prompt: Text("Password on that computer"))
                 .multilineTextAlignment(.leading)
+                .existingPasswordContent()
+                // return 只收起鍵盤，不代按「用密碼加入公鑰」(ADR-0002:寫入主機要按按鈕確認)。
+                .focusOrder(.keyInstallPassword, focus: $focus, next: nextField(after: .keyInstallPassword))
                 .accessibilityIdentifier("hostEditor.keyInstallPassword")
         }
+        .id(HostEditorModel.InputField.keyInstallPassword)
         if model.phase == .installingKey {
             HStack {
                 ProgressView()
@@ -457,6 +495,8 @@ struct HostEditorView: View {
                     .frame(minHeight: 120)
                     .autocorrectionDisabled()
                     .plainTextInput()
+                    // 多行輸入：return 是換行，收鍵盤靠「完成」或捲動。
+                    .focused($focus, equals: .privateKey)
                     .accessibilityLabel("Private Key")
                     .accessibilityIdentifier("hostEditor.privateKey")
                 if model.privateKeyText.isEmpty && model.hasStoredSecret {
@@ -465,6 +505,7 @@ struct HostEditorView: View {
                         .foregroundStyle(.secondaryText)
                 }
             }
+            .id(HostEditorModel.InputField.privateKey)
             .task(id: model.privateKeyText) {
                 // 打字時不要每個字都檢查一次。
                 try? await Task.sleep(for: .milliseconds(300))
@@ -549,9 +590,15 @@ struct HostEditorView: View {
         }
     }
 
+    /// 單行欄位按 return 要移到的欄位;`nil` 收起鍵盤。
+    private func nextField(after field: HostEditorModel.InputField) -> HostEditorModel.InputField? {
+        model.inputField(after: field, showsAdvanced: showsAdvanced)
+    }
+
     /// `uppercase`:全大寫鍵盤(配對碼)。要設在 TextField 上：外層再設會被這裡的 `.plainTextInput()` 蓋掉。
     private func field(
-        _ label: LocalizedStringKey, text: Binding<String>, prompt: LocalizedStringKey, identifier: String, uppercase: Bool = false
+        _ label: LocalizedStringKey, text: Binding<String>, prompt: LocalizedStringKey, identifier: String,
+        focus inputField: HostEditorModel.InputField, uppercase: Bool = false
     ) -> some View {
         LabeledContent(label) {
             // 輸入值靠左：靠右時尾端空白會被吃掉、看不見(#250)。
@@ -565,8 +612,10 @@ struct HostEditorView: View {
                     field.plainTextInput()
                 }
             }
+            .focusOrder(inputField, focus: $focus, next: nextField(after: inputField))
             .accessibilityIdentifier("hostEditor.\(identifier)")
         }
+        .id(inputField)
     }
 
     /// alert 用的 binding:關閉由按鈕自己處理(按鈕動作與關閉的先後順序不保證)。
@@ -675,6 +724,34 @@ private extension View {
         #else
         self
         #endif
+    }
+
+    /// 主機上既有的密碼：不跳「建議強密碼」(#312)。
+    func existingPasswordContent() -> some View {
+        #if os(iOS)
+        textContentType(.password)
+        #else
+        self
+        #endif
+    }
+
+    /// 帳號欄標成使用者名稱，密碼自動填入才配得上對。
+    func usernameContent() -> some View {
+        #if os(iOS)
+        textContentType(.username)
+        #else
+        self
+        #endif
+    }
+
+    /// 單行欄位的焦點與 return:有下一個欄位就移過去(鍵上寫「下一個」),最後一個收起鍵盤(「完成」)。
+    func focusOrder(
+        _ field: HostEditorModel.InputField, focus: FocusState<HostEditorModel.InputField?>.Binding,
+        next: HostEditorModel.InputField?
+    ) -> some View {
+        focused(focus, equals: field)
+            .submitLabel(next == nil ? .done : .next)
+            .onSubmit { focus.wrappedValue = next }
     }
 
     func plainTextInput() -> some View {
