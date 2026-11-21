@@ -543,8 +543,6 @@ extension SendNotice {
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but its transcript hasn’t confirmed it yet. Check the host before trying again.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
-        case .permissionModeFailed(let attempts, let target):
-            String(localized: "Tried \(attempts) times, but the screen doesn’t show \(PermissionModeCapsule.name(of: target)) mode. Try again, or check the terminal.")
         case .imageLimit: String(localized: "You can attach up to 4 images to a message.")
         case .imageUnreadable: String(localized: "Couldn’t read that image.")
         case .imageTooLarge: String(localized: "This image is over 20 MB.")
@@ -568,7 +566,7 @@ extension SendNotice {
         case .agentGone, .superseded: "xmark.bubble"
         case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
-        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed, .permissionModeFailed: "exclamationmark.triangle"
+        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
         case .imageLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .fileTooLarge, .fileUnreadable: "doc"
         case .fileUploadFailed: "exclamationmark.triangle"
@@ -717,7 +715,7 @@ struct QueuedPromptBubbleView: View {
 
     private var accessibilityLabel: Text {
         if let problem = prompt.problem {
-            Text("Your message, not sent: \(problem.text). \(prompt.text)")
+            Text(verbatim: "\(problem.text) \(prompt.text)")
         } else {
             Text("Your message, queued until reconnected. \(prompt.text)")
         }
@@ -727,7 +725,7 @@ struct QueuedPromptBubbleView: View {
     private var status: some View {
         if let problem = prompt.problem {
             HStack(spacing: 4) {
-                ErrorLabel(String(localized: "Not sent: \(problem.text)"))
+                ErrorLabel(problem.text)
                     .accessibilityIdentifier("conversation.queued.problem")
                 Button(action: putBack) { HitTarget("Put Back") }
                     .fontWeight(.semibold)
@@ -751,11 +749,11 @@ struct QueuedPromptBubbleView: View {
 extension QueuedPrompt.Problem {
     var text: String {
         switch self {
-        case .expired: String(localized: "queued for more than 10 minutes")
-        case .conversationChanged: String(localized: "the conversation changed")
-        case .needsAnswer: String(localized: "the agent is waiting for your answer")
-        case .notDelivered: String(localized: "the host didn’t accept it")
-        case .mayHaveBeenSent: String(localized: "it may have arrived, check the chat")
+        case .expired: String(localized: "This message waited more than 10 minutes, so it wasn’t sent.")
+        case .conversationChanged: String(localized: "The conversation changed, so this message wasn’t sent.")
+        case .needsAnswer: String(localized: "The agent is waiting for your answer, so this message wasn’t sent.")
+        case .notDelivered: String(localized: "The host didn’t accept this message.")
+        case .mayHaveBeenSent: String(localized: "This message may have arrived. Check the chat before sending it again.")
         }
     }
 }

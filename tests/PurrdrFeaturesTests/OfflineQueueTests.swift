@@ -22,19 +22,19 @@ struct OfflineQueueTests {
     /// 記下補送的內容，回應指定的結果。
     @MainActor
     final class Deliveries {
-        var sent: [(text: String, paneID: String)] = []
+        var sent: [(text: String, paneID: String, expectedSession: String?)] = []
         var outcome: PromptOutcome = .delivered
 
-        var deliver: @MainActor (String, Agent) async -> PromptOutcome {
-            { text, agent in
-                self.sent.append((text, agent.paneID))
+        var deliver: @MainActor (String, Agent, String?) async -> PromptOutcome {
+            { text, agent, expectedSession in
+                self.sent.append((text, agent.paneID, expectedSession))
                 return self.outcome
             }
         }
     }
 
     static func prompt(_ text: String = "整理 CSV 匯出", pane: String = "w1:p6", session: String? = "s-1", at date: Date = start) -> OutgoingPrompt {
-        OutgoingPrompt(text: text, paneID: pane, expectedSession: session, createdAt: date, workspaceID: "w1", isHostReachable: false)
+        OutgoingPrompt(text: text, paneID: pane, expectedSession: session, createdAt: date, workspaceID: "w1")
     }
 
     static func snapshot(pane: String = "w1:p6", workspace: String = "w1", session: String? = "s-1", status: AgentStatus = .idle) -> HostSnapshot {
@@ -48,6 +48,17 @@ struct OfflineQueueTests {
         store: any OfflineQueueStore = InMemoryOfflineQueueStore(), now: Now = Now(), deliveries: Deliveries = Deliveries()
     ) -> OfflineQueue {
         OfflineQueue(host: host, store: store, now: now.clock, deliver: deliveries.deliver)
+    }
+
+    @Test("補送帶排入時的 session(HTTPS 主機在送出前比對)")
+    func deliveryCarriesQueuedSession() async {
+        let deliveries = Deliveries()
+        let queue = Self.queue(deliveries: deliveries)
+        queue.enqueue(Self.prompt("帶 session", session: "s-1"))
+
+        await queue.reconcile(with: Self.snapshot())
+
+        #expect(deliveries.sent.map(\.expectedSession) == ["s-1"])
     }
 
     @Test("重連後的 Agent 列表：pane 與 session 都沒變、不到 10 分鐘，依序補送並移出佇列")
@@ -214,15 +225,16 @@ struct OfflineQueueTests {
     func stepQueuesWhenOffline() async {
         let queue = Self.queue()
         let step = OfflineQueueStep(queue: queue)
-        let clock = SendPipelineClock(now: { Self.start })
-        let online = OutgoingPrompt(text: "連得上", paneID: "w1:p6", expectedSession: "s-1", createdAt: Self.start)
+        let online = SendPipelineClock(now: { Self.start })
+        let offline = SendPipelineClock(now: { Self.start }, isHostReachable: { false })
+        let prompt = OutgoingPrompt(text: "連得上", paneID: "w1:p6", expectedSession: "s-1", createdAt: Self.start)
 
-        #expect(await step.process(online, clock: clock) == .proceed(online))
+        #expect(await step.process(prompt, clock: online) == .proceed(prompt))
         #expect(queue.entries.isEmpty)
-        #expect(await step.process(Self.prompt("離線"), clock: clock) == .halt(SendHalt(restoresDraft: false)))
+        #expect(await step.process(Self.prompt("離線"), clock: offline) == .halt(SendHalt(restoresDraft: false)))
         #expect(queue.entries.map(\.text) == ["離線"])
         for _ in 2...OfflineQueue.limit { queue.enqueue(Self.prompt()) }
-        #expect(await step.process(Self.prompt("滿了"), clock: clock) == .halt(SendHalt(restoresDraft: true)))
+        #expect(await step.process(Self.prompt("滿了"), clock: offline) == .halt(SendHalt(restoresDraft: true)))
         #expect(queue.entries.count == 30)
     }
 
@@ -262,6 +274,30 @@ struct OfflineQueueTests {
         #expect(setup.model.queuedPrompts.map(\.text) == ["連上再送"])
         #expect(queue.entries.first?.sessionID == ConversationModelTests.sessionID)
         #expect(queue.entries.first?.workspaceID == "w1")
+    }
+
+    @Test("聊天：倒數期間斷線，倒數結束時才判斷:排進佇列、不送主機;倒數期間恢復連線則照送")
+    func reachabilityIsDecidedWhenCountdownEnds() async throws {
+        let queue = Self.queue()
+        let countdown = UndoSendCountdown(seconds: { 5 })
+        let setup = try await ConversationSendTests.opened { client, transcripts, drafts in
+            ConversationModel(
+                client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
+                knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
+                clock: TestClock().clock, drafts: drafts, sendSteps: [countdown, OfflineQueueStep(queue: queue)],
+                sleep: RecordingSleeper().sleep)
+        }
+        setup.model.draft = "倒數中斷線"
+        let sending = Task { await setup.model.send() }
+        await UndoSendTests.until { countdown.pending != nil }
+        #expect(!setup.model.isOffline)
+
+        await Self.goOffline(setup)
+        countdown.sendNow()
+        await sending.value
+
+        #expect(setup.model.queuedPrompts.map(\.text) == ["倒數中斷線"])
+        #expect(await ConversationSendTests.promptRequests(setup).isEmpty)
     }
 
     @Test("聊天：重連後讀到的 Agent 列表交給佇列補送")
@@ -323,7 +359,7 @@ struct OfflineQueueTests {
         let queue = model.offlineQueue(for: .demo)
         queue.enqueue(OutgoingPrompt(
             text: "重連後補送", paneID: ConversationModelTests.paneID, expectedSession: ConversationModelTests.sessionID,
-            createdAt: Date(), workspaceID: "w1", isHostReachable: false))
+            createdAt: Date(), workspaceID: "w1"))
 
         await model.agentList.load()
         await queue.waitUntilIdle()
@@ -332,6 +368,28 @@ struct OfflineQueueTests {
         let prompts = await demo.executions.map(\.stdinText).filter { $0.contains(#""method":"agent.prompt""#) }
         #expect(prompts.count == 1)
         #expect(prompts.first?.contains("重連後補送") == true)
+    }
+
+    @Test("主機：補送前重讀的新鮮快照 session 已換，不送、標成對話已變更")
+    func freshSnapshotWithDifferentSessionIsNotDelivered() async {
+        let demo = FakeHost()
+        let bridge = HerdrCommand.bridge()
+        await demo.expect(bridge, reply: .recorded("session.snapshot.ndjson"))
+        await demo.expect(bridge, reply: ConversationModelTests.snapshot { $0["agent_session"] = ["source": "herdr:claude", "agent": "claude", "kind": "id", "value": "other-session"] })
+        let model = HostsModel(
+            store: MemoryHostStore(), demoChannel: demo, offlineQueues: InMemoryOfflineQueueStore(), makeChannel: ChannelFactory().make)
+        model.load()
+        let queue = model.offlineQueue(for: .demo)
+        queue.enqueue(OutgoingPrompt(
+            text: "不能送到別的對話", paneID: ConversationModelTests.paneID, expectedSession: ConversationModelTests.sessionID,
+            createdAt: Date(), workspaceID: "w1"))
+
+        await model.agentList.load()
+        await queue.waitUntilIdle()
+
+        #expect(queue.entries.first?.problem == .conversationChanged)
+        let prompts = await demo.executions.map(\.stdinText).filter { $0.contains(#""method":"agent.prompt""#) }
+        #expect(prompts.isEmpty)
     }
 
     @Test("主機：同一台主機的聊天共用一份佇列")

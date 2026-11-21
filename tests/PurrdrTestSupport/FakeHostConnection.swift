@@ -36,7 +36,17 @@ public actor FakeHostConnection: HostConnection {
         reportedHostServiceVersion = version
     }
 
-    public func hostServiceVersion() async throws -> String? { reportedHostServiceVersion }
+    /// 設了就讓 `hostServiceVersion()` 丟這個錯(連不上主機);`nil` 回復正常。
+    private var hostServiceVersionFailure: (any Error)?
+
+    public func setHostServiceVersionFailure(_ failure: (any Error)?) {
+        hostServiceVersionFailure = failure
+    }
+
+    public func hostServiceVersion() async throws -> String? {
+        if let hostServiceVersionFailure { throw hostServiceVersionFailure }
+        return reportedHostServiceVersion
+    }
 
     /// `checksSendExpectations()` 的回答(#304);`true` 像 0.7.0 起的主機服務，送出請求帶比對欄位。
     private var checksExpectations = false

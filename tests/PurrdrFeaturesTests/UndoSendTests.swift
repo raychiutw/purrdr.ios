@@ -57,6 +57,22 @@ struct UndoSendTests {
         #expect(await sleeper.requested.isEmpty)
     }
 
+    @Test("倒數中離開聊天(送出的 task 被取消):不送出、文字放回、倒數收掉")
+    func cancellationHaltsWithoutSending() async throws {
+        let sleeper = SteppingSleeper()
+        let countdown = UndoSendCountdown(seconds: { 3 })
+        let task = Task { await countdown.process(Self.prompt(), clock: Self.clock(sleeper)) }
+        await Self.until { countdown.pending != nil }
+
+        task.cancel()
+        // 取消後要自己結束;沒處理取消就會一直等,以時限呈現成斷言失敗而不是掛住。
+        let outcome = await boundedOutcome { await task.value }
+
+        #expect(try outcome?.get() == .halt(SendHalt(restoresDraft: true)))
+        if outcome == nil { countdown.undo() }
+        #expect(countdown.pending == nil)
+    }
+
     @Test("倒數：訊息先留在本機，每秒減一，到 0 才交給下一步")
     func countsDownThenProceeds() async {
         let sleeper = SteppingSleeper()

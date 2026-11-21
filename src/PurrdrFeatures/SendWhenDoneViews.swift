@@ -53,7 +53,7 @@ struct SendWhenDoneToggle: View {
 }
 
 /// 對話最下面的 Send When Done 佇列(#305):分隔線「Sent in order when done」,暫停原因在泡泡上方，
-/// 編號的虛線泡泡依送出順序;點泡泡可編輯(放回輸入框)或刪除。
+/// 編號的虛線泡泡依送出順序;點泡泡可編輯(放回輸入框)、往前或往後移動一格調整順序、或刪除。
 struct SendWhenDoneQueueView: View {
     let conversation: ConversationModel
     let model: SendWhenDoneModel
@@ -95,6 +95,15 @@ struct SendWhenDoneQueueView: View {
             Menu {
                 Button("Edit", systemImage: "pencil") { Task { await conversation.editSendWhenDone(item.id) } }
                     .accessibilityIdentifier("conversation.sendWhenDone.edit")
+                // 調整送出順序:往前或往後一格(VoiceOver 也從這裡操作)。
+                if model.canMove(item.id, by: -1) {
+                    Button("Move Up", systemImage: "arrow.up") { Task { await model.move(item.id, by: -1) } }
+                        .accessibilityIdentifier("conversation.sendWhenDone.moveUp")
+                }
+                if model.canMove(item.id, by: 1) {
+                    Button("Move Down", systemImage: "arrow.down") { Task { await model.move(item.id, by: 1) } }
+                        .accessibilityIdentifier("conversation.sendWhenDone.moveDown")
+                }
                 Button("Delete", systemImage: "trash", role: .destructive) { Task { await model.remove(item.id) } }
                     .accessibilityIdentifier("conversation.sendWhenDone.delete")
             } label: {
@@ -118,7 +127,7 @@ struct SendWhenDoneQueueView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Queued message \(number): \(item.text)"))
-            .accessibilityHint(Text("Opens options to edit or delete."))
+            .accessibilityHint(Text("Opens options to edit, reorder, or delete."))
             .accessibilityIdentifier("conversation.sendWhenDone.item")
         }
     }

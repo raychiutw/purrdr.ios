@@ -53,3 +53,34 @@ struct HostServiceUpdateView: View {
         }
     }
 }
+
+/// 主機服務太舊、某個功能還不能用:一句動作說明加依已安裝版本的更新指令(可選取、可拷貝)。
+/// 給新增聊天、變更頁這類「要更新才能用」的地方共用;`identifier` 區分各處的 accessibility id。
+struct HostServiceCommandRows: View {
+    let message: LocalizedStringKey
+    let commands: HostServiceUpdateCommands
+    let identifier: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(message, systemImage: "arrow.down.circle")
+            command(String(localized: "macOS and Linux"), commands.posix, key: "posix")
+            command(String(localized: "Windows (PowerShell)"), commands.windows, key: "windows")
+        }
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func command(_ title: String, _ command: String, key: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: title)
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+            Text(verbatim: command)
+                .font(.footnote.monospaced())
+                .textSelection(.enabled)
+            Button("Copy Command", systemImage: "document.on.document") { Clipboard.copy(command) }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("\(identifier).copy.\(key)")
+        }
+    }
+}

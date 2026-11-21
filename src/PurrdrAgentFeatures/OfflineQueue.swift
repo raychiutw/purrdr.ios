@@ -104,15 +104,15 @@ public final class OfflineQueue {
     @ObservationIgnored private let host: String
     @ObservationIgnored private let store: any OfflineQueueStore
     @ObservationIgnored private let now: @Sendable () -> Date
-    @ObservationIgnored private let deliver: @MainActor (String, Agent) async -> PromptOutcome
+    @ObservationIgnored private let deliver: @MainActor (String, Agent, String?) async -> PromptOutcome
     @ObservationIgnored private var reconciling: Task<Void, Never>?
 
     /// - Parameters:
     ///   - host: 這台主機在本機存放的 key(`HostSelection.storedValue`)。
-    ///   - deliver: 補送一則給 Agent(由建立者以新鮮的快照與 `PromptDelivery` 實作)。
+    ///   - deliver: 補送一則給 Agent,第三個參數是排入時的 session(由建立者以新鮮的快照與 `PromptDelivery` 實作)。
     public init(
         host: String, store: any OfflineQueueStore, now: @escaping @Sendable () -> Date = Date.init,
-        deliver: @escaping @MainActor (String, Agent) async -> PromptOutcome
+        deliver: @escaping @MainActor (String, Agent, String?) async -> PromptOutcome
     ) {
         self.host = host
         self.store = store
@@ -204,7 +204,7 @@ public final class OfflineQueue {
 
     /// 補送一則;送到回 `nil`。
     private func send(_ entry: QueuedPrompt, to agent: Agent) async -> QueuedPrompt.Problem? {
-        switch await deliver(entry.text, agent) {
+        switch await deliver(entry.text, agent, entry.sessionID) {
         case .delivered, .submittedCommand: nil
         case .noResponse, .unconfirmed: .mayHaveBeenSent
         case .needsAnswer: .needsAnswer
@@ -218,8 +218,8 @@ public final class OfflineQueue {
     }
 }
 
-/// 送出管線的離線佇列步驟(#301):按下送出時連不上主機，訊息排進這台主機的佇列(輸入框維持清空);
-/// 佇列滿了不收，文字放回輸入框。連得上時直接通過。
+/// 送出管線的離線佇列步驟(#301):輪到它時(撤回倒數結束後)連不上主機，訊息排進這台主機的佇列(輸入框維持清空);
+/// 佇列滿了不收，文字放回輸入框。連得上時直接通過。連線狀態在這一刻才問(`SendPipelineClock.isHostReachable`)。
 @MainActor
 public struct OfflineQueueStep: SendStep {
     public let queue: OfflineQueue
@@ -229,7 +229,7 @@ public struct OfflineQueueStep: SendStep {
     }
 
     public func process(_ prompt: OutgoingPrompt, clock: SendPipelineClock) async -> SendStepResult {
-        guard !prompt.isHostReachable else { return .proceed(prompt) }
+        guard !clock.isHostReachable() else { return .proceed(prompt) }
         return .halt(SendHalt(restoresDraft: !queue.enqueue(prompt)))
     }
 }

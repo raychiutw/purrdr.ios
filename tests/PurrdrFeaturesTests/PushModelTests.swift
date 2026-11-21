@@ -643,6 +643,29 @@ struct PushModelTests {
         #expect(!message.isEmpty)
     }
 
+    struct InternalDetail: Error, LocalizedError {
+        var errorDescription: String? { "SQLITE_CONSTRAINT: foreign key mismatch at 0x7fff" }
+    }
+
+    @Test("測試通知：看不懂的錯誤不把系統原文丟給使用者")
+    func testNotificationFailureHidesTechnicalDetail() async throws {
+        platform.status = .authorized
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let service = service()
+        service.testNotifications = TestSender(failure: InternalDetail(), sent: Recorder())
+        let model = model(service)
+        await turnOn(model)
+
+        await model.sendTestNotification()
+
+        guard case .failed(let message) = model.testNotification else {
+            Issue.record("預期失敗,實際 \(model.testNotification)")
+            return
+        }
+        #expect(!message.contains("SQLITE"))
+        #expect(!message.isEmpty)
+    }
+
     static let studioHash = String(repeating: "1", count: 64)
     static let linuxHash = String(repeating: "2", count: 64)
 

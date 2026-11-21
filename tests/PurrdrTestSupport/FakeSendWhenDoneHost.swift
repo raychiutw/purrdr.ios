@@ -60,6 +60,13 @@ public actor FakeSendWhenDoneHost: SendWhenDoneHosting {
     public func sendWhenDoneReorder(paneID: String, itemIDs: [String]) async throws {
         calls.append(.reorder(paneID: paneID, itemIDs: itemIDs))
         try throwFailure()
+        // 與主機相同:識別碼必須恰好是目前佇列的所有識別碼。
+        guard var queue = queues[paneID], Set(queue.items.map(\.id)) == Set(itemIDs), queue.items.count == itemIDs.count else {
+            throw HostServiceError.queueItemUnknown
+        }
+        queue.items = itemIDs.compactMap { id in queue.items.first { $0.id == id } }
+        queues[paneID] = queue
+        broadcast(SendWhenDoneChange(queue: queue))
     }
 
     public func sendWhenDoneChanges() async throws -> AsyncThrowingStream<SendWhenDoneChange, any Error> {

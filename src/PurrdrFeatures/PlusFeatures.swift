@@ -10,17 +10,9 @@ enum PlusFeature: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .notifications: "bell.badge.fill"
+        case .notifications: "bell.badge"
         case .hostSync: "arrow.triangle.2.circlepath"
         case .devices: "iphone"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .notifications: .orange
-        case .hostSync: .blue
-        case .devices: .green
         }
     }
 
@@ -51,15 +43,11 @@ struct PlusFeatureStatus: Equatable {
     func value(for feature: PlusFeature) -> String? {
         switch feature {
         case .notifications:
-            switch notifyingHostCount {
-            case 0: String(localized: "Off")
-            case 1: String(localized: "1 host")
-            default: String(localized: "\(notifyingHostCount) hosts")
-            }
+            notifyingHostCount == 0 ? String(localized: "Off") : String(localized: "\(notifyingHostCount) hosts")
         case .hostSync:
             isHostSyncOn ? String(localized: "On") : String(localized: "Off")
         case .devices:
-            deviceCount.map { $0 == 1 ? String(localized: "1 device") : String(localized: "\($0) devices") }
+            deviceCount.map { String(localized: "\($0) devices") }
         }
     }
 }

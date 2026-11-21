@@ -65,49 +65,13 @@ struct HTTPSSendExpectationTests {
         #expect(outcome == .delivered)
     }
 
-    @Test("回答的按鍵與文字帶 session 與畫面指紋;畫面還是看到的那個就照送")
-    func answerCarriesScreenFingerprint() async throws {
-        let screen = "Do you want to proceed?\n❯ 1. Yes\n  2. No\n"
-        let service = try await FakeHostService.start(.init(hostServiceVersion: "0.7.0", paneScreens: [Self.paneID: screen]))
-        defer { Task { await service.stop() } }
-        let client = HerdrClient(connection: Self.connection(to: service))
-        let expectation = SendExpectation(session: Self.session, screen: SendExpectation.fingerprint(ofScreen: screen))
-
-        try await client.sendKeys(paneID: Self.paneID, keys: ["2"], expecting: expectation)
-        let keys = try Self.lastMessage(service)
-        try await client.sendText(paneID: Self.paneID, text: "yes", expecting: expectation)
-        let text = try Self.lastMessage(service)
-
-        for sent in [keys, text] {
-            #expect(sent["expected_session"] as? String == Self.session)
-            #expect(sent["expected_screen"] as? String == SendExpectation.fingerprint(ofScreen: screen))
-        }
-    }
-
-    @Test("回答時畫面已變：主機服務回 pane_changed,丟 HostServiceError.paneChanged")
-    func changedScreenIsPaneChanged() async throws {
-        let service = try await FakeHostService.start(.init(hostServiceVersion: "0.7.0", paneScreens: [Self.paneID: "下一題\n❯ 1. A\n"]))
-        defer { Task { await service.stop() } }
-        let client = HerdrClient(connection: Self.connection(to: service))
-        let stale = SendExpectation(session: Self.session, screen: SendExpectation.fingerprint(ofScreen: "上一題\n❯ 1. Yes\n"))
-
-        await #expect(throws: HostServiceError.paneChanged) {
-            try await client.sendKeys(paneID: Self.paneID, keys: ["1"], expecting: stale)
-        }
-    }
-
-    @Test("畫面指紋是畫面文字 UTF-8 的 SHA-256(小寫 hex,與主機服務同一個定義)")
-    func fingerprintMatchesHostServiceDefinition() {
-        #expect(SendExpectation.fingerprint(ofScreen: "abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
-    }
-
     @Test("SSH 主機(沒有主機服務):herdr 請求不帶比對欄位，由 app 送前重讀 snapshot 比對")
     func sshRequestsCarryNoExpectation() async throws {
         let connection = FakeHostConnection()
         await connection.expect("agent.prompt", reply: Data(#"{"id":"purrdr:agent.prompt","result":{"type":"agent_prompted"}}"#.utf8))
         await connection.expect("pane.send_keys", reply: Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8))
         let client = HerdrClient(connection: connection)
-        let expectation = SendExpectation(session: Self.session, screen: SendExpectation.fingerprint(ofScreen: "x"))
+        let expectation = SendExpectation(session: Self.session)
 
         _ = try await client.prompt(target: Self.paneID, text: "hi", wait: nil, expecting: expectation)
         try await client.sendKeys(paneID: Self.paneID, keys: ["1"], expecting: expectation)

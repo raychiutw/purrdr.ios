@@ -248,12 +248,12 @@ private struct HostPushKindsRow: View {
     }
 
     private func needsUpdate(_ kind: PushKind) -> Bool {
-        !model.kinds.contains(kind) && kind.needsHostServiceUpdate(installedVersion: push.hostServiceVersion)
+        !model.kinds.contains(kind) && kind.needsHostServiceUpdate(installed: push.hostServiceVersion)
     }
 
     /// 主機服務太舊、送不出「可能卡住」「仍在等你」時要的最低版本。
     private var outdatedObserverVersion: String? {
-        guard push.installsViaHostService, PushKind.stuck.needsHostServiceUpdate(installedVersion: push.hostServiceVersion)
+        guard push.installsViaHostService, PushKind.stuck.needsHostServiceUpdate(installed: push.hostServiceVersion)
         else { return nil }
         return HostServiceFeature.agentObserver.minimumVersion.description
     }

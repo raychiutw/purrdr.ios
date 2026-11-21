@@ -127,7 +127,7 @@ public struct PlusView: View {
         }
         featuresSection(showsStatus: true)
         Section {
-            PlusFeatureRow(symbol: "terminal.fill", color: .gray, title: "Chat, Terminal, and the Demo Host",
+            PlusFeatureRow(symbol: "terminal", title: "Chat, Terminal, and the Demo Host",
                 detail: "Work without a member account or subscription.", value: nil, isLink: false)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("plus.free")
@@ -167,13 +167,13 @@ public struct PlusView: View {
                 if features.dismissesOnOpen { dismiss() }
                 features.open(feature)
             } label: {
-                PlusFeatureRow(symbol: feature.symbol, color: feature.color, title: feature.title,
+                PlusFeatureRow(symbol: feature.symbol, title: feature.title,
                     detail: feature.detail, value: value, isLink: true)
             }
             .buttonStyle(.pressableRow())
             .accessibilityIdentifier("plus.feature.\(feature.rawValue)")
         } else {
-            PlusFeatureRow(symbol: feature.symbol, color: feature.color, title: feature.title,
+            PlusFeatureRow(symbol: feature.symbol, title: feature.title,
                 detail: feature.detail, value: value, isLink: false)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier(feature == .notifications && !showsStatus ? "plus.benefits" : "plus.feature.\(feature.rawValue)")
@@ -360,10 +360,9 @@ struct PlanRow: View {
     }
 }
 
-/// 一列 Plus 功能:彩色圖示、名稱、一行說明,列尾是目前狀態與 ›(可點時)。
+/// 一列 Plus 功能:主色線條圖示、名稱、一行說明,列尾是目前狀態與 ›(可點時)。
 struct PlusFeatureRow: View {
     let symbol: String
-    let color: Color
     let title: LocalizedStringKey
     let detail: LocalizedStringKey
     let value: String?
@@ -372,10 +371,9 @@ struct PlusFeatureRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.white)
+                .font(.title3)
+                .foregroundStyle(.tint)
                 .frame(width: 30, height: 30)
-                .background(color, in: RoundedRectangle(cornerRadius: 7))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

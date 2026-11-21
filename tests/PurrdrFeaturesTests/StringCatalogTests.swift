@@ -101,4 +101,22 @@ struct StringCatalogTests {
             }
         }
     }
+
+    /// 帶數量、單數與複數寫法不同的字串:英文要有 plural 變化(`one`／`other`),不能寫「1 images」。
+    static let pluralKeys = [
+        "%lld Images", "%lld comments", "%lld files", "%lld devices", "%lld hosts", "%lld turns",
+    ]
+
+    @Test("帶數量的字串用 plural 變化，不寫死複數(1 images)")
+    func countedStringsUsePlurals() throws {
+        let data = try Data(contentsOf: Self.catalogURL)
+        let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let strings = try #require(root["strings"] as? [String: [String: Any]])
+        for key in Self.pluralKeys {
+            let entry = try #require(strings[key], "catalog 沒有「\(key)」")
+            let english = (entry["localizations"] as? [String: Any])?["en"] as? [String: Any]
+            let plural = (english?["variations"] as? [String: Any])?["plural"] as? [String: Any]
+            #expect(plural?["one"] != nil && plural?["other"] != nil, "「\(key)」沒有英文的 one／other 複數變化")
+        }
+    }
 }

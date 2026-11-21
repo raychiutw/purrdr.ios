@@ -223,10 +223,34 @@
     "%lld Images" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Image"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Images"
+                }
+              }
+            }
+          }
+        },
         "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 張圖片"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 張圖片"
+                }
+              }
+            }
           }
         }
       }
@@ -278,10 +302,34 @@
     "%lld comments" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld comment"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld comments"
+                }
+              }
+            }
+          }
+        },
         "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 則評論"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 則評論"
+                }
+              }
+            }
           }
         }
       }
@@ -311,10 +359,34 @@
     "%lld devices" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld device"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld devices"
+                }
+              }
+            }
+          }
+        },
         "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 支"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 支"
+                }
+              }
+            }
           }
         }
       }
@@ -344,10 +416,34 @@
     "%lld files" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld file"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld files"
+                }
+              }
+            }
+          }
+        },
         "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 個檔案"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 個檔案"
+                }
+              }
+            }
           }
         }
       }
@@ -355,10 +451,34 @@
     "%lld hosts" : {
       "extractionState" : "manual",
       "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld host"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld hosts"
+                }
+              }
+            }
+          }
+        },
         "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 台主機"
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 台主機"
+                }
+              }
+            }
           }
         }
       }
@@ -495,6 +615,41 @@
         }
       }
     },
+    "%lld turns" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld turn"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld turns"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant" : {
+          "variations" : {
+            "plural" : {
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld 輪"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld weeks" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -588,17 +743,6 @@
         }
       }
     },
-    "1 device" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 支"
-          }
-        }
-      }
-    },
     "1 failed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -606,17 +750,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個失敗"
-          }
-        }
-      }
-    },
-    "1 host" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 台主機"
           }
         }
       }
@@ -1461,6 +1594,17 @@
         }
       }
     },
+    "Bypass Permissions isn’t turned on for this chat. Start a new chat with it turned on to use it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個聊天沒有開啟「略過權限」。請新增聊天並開啟它再使用。"
+          }
+        }
+      }
+    },
     "Camera Access Is Off" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1666,28 +1810,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "變更"
-          }
-        }
-      }
-    },
-    "Changes need host service %@ or later." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "變更頁需要主機服務 %@ 以上。"
-          }
-        }
-      }
-    },
-    "Changes need host service %@ or later. This host has %@." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "變更頁需要主機服務 %@ 以上，這台主機是 %@。"
           }
         }
       }
@@ -2873,6 +2995,17 @@
         }
       }
     },
+    "Couldn’t read the current mode from the screen. Try again, or check the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀不到畫面上目前的模式。請再試一次，或到終端機確認。"
+          }
+        }
+      }
+    },
     "Couldn’t read this device’s ID from the keychain. Unlock this device and try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3027,13 +3160,35 @@
         }
       }
     },
-    "Couldn’t send the test notification: %@" : {
+    "Couldn’t send the keys to the host. Try again, or check the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法傳送測試通知：%@"
+            "value" : "按鍵沒有送到主機。請再試一次，或到終端機確認。"
+          }
+        }
+      }
+    },
+    "Couldn’t send the test notification because you’re signed out. Sign in again and try once more." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你已登出，所以沒有送出測試通知。請重新登入後再試一次。"
+          }
+        }
+      }
+    },
+    "Couldn’t send the test notification. Try again in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有送出測試通知。請稍後再試。"
           }
         }
       }
@@ -4515,17 +4670,6 @@
         }
       }
     },
-    "Install git on the host to see the agent’s changes." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在主機上安裝 git 才看得到 Agent 的變更。"
-          }
-        }
-      }
-    },
     "Install the Purrdr host service on the host and run purrdr-host-service pair, then scan its QR code or enter the address, port, and pairing code it shows. Login Shell and Files aren’t available over HTTPS." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5131,6 +5275,28 @@
         }
       }
     },
+    "Move Down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下移"
+          }
+        }
+      }
+    },
+    "Move Up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上移"
+          }
+        }
+      }
+    },
     "Moves the panel’s selection to this option." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5637,17 +5803,6 @@
         }
       }
     },
-    "Not sent: %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有送出：%@"
-          }
-        }
-      }
-    },
     "Not started" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6088,13 +6243,13 @@
         }
       }
     },
-    "Opens options to edit or delete." : {
+    "Opens options to edit, reorder, or delete." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "開啟選項,可編輯或刪除。"
+            "value" : "開啟選項,可編輯、調整順序或刪除。"
           }
         }
       }
@@ -6139,6 +6294,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以全螢幕打開圖片。"
+          }
+        }
+      }
+    },
+    "Opens the list of modes." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟模式清單。"
           }
         }
       }
@@ -7364,24 +7530,13 @@
         }
       }
     },
-    "Resuming a past chat needs a newer Purrdr host service. Update it on the host." : {
+    "Resuming a past chat needs the Purrdr host service on the computer. This host doesn’t have it." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "續接過去的聊天需要較新的 Purrdr 主機服務，請在主機上更新。"
-          }
-        }
-      }
-    },
-    "Resuming a past chat needs the Purrdr host service. This host connects over SSH." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "續接過去的聊天需要 Purrdr 主機服務；這台主機是以 SSH 連線。"
+            "value" : "續接過去的聊天需要主機上有 Purrdr 主機服務，這台主機沒有。"
           }
         }
       }
@@ -8750,17 +8905,6 @@
         }
       }
     },
-    "Tap to switch to the next mode. Touch and hold to choose one." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "點一下切換到下一個模式,長按選擇模式。"
-          }
-        }
-      }
-    },
     "Terminal" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8834,6 +8978,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字大小"
+          }
+        }
+      }
+    },
+    "That chat’s record is no longer on the host, so it can’t be resumed. Pick another chat, or start a new one." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "那段聊天的紀錄已不在主機上，無法續接。請選別的聊天，或開始新的聊天。"
           }
         }
       }
@@ -9069,6 +9224,17 @@
         }
       }
     },
+    "The agent is waiting for your answer, so this message wasn’t sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在等你回答，所以這則訊息沒有送出。"
+          }
+        }
+      }
+    },
     "The agent is working. Its reply will appear here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9076,17 +9242,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent 正在工作，回覆會顯示在這裡。"
-          }
-        }
-      }
-    },
-    "The agent’s working directory isn’t inside a git repository." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 的工作目錄不在 git repo 裡。"
           }
         }
       }
@@ -9131,6 +9286,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "與這台主機的連線中斷了。重新連線會開啟新的 shell。"
+          }
+        }
+      }
+    },
+    "The conversation changed, so this message wasn’t sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對話已經變了，所以這則訊息沒有送出。"
           }
         }
       }
@@ -9219,6 +9385,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機不接受這把金鑰。請確認它的公鑰在主機上的 ~/.ssh/authorized_keys 裡，並檢查使用者名稱。"
+          }
+        }
+      }
+    },
+    "The host didn’t accept this message." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機沒有接受這則訊息。"
           }
         }
       }
@@ -9663,6 +9840,17 @@
         }
       }
     },
+    "This computer doesn’t have git yet. After you install it, tap Try Again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機還沒有 git。安裝後請點「再試一次」。"
+          }
+        }
+      }
+    },
     "This device can’t create a key in the Secure Enclave. Import a key or use a password." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9890,6 +10078,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上沒有這個資料夾，或你沒有權限開啟。"
+          }
+        }
+      }
+    },
+    "This folder isn’t tracked by git, so there are no changes to show." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個資料夾沒有被 git 追蹤，所以沒有變更可看。"
           }
         }
       }
@@ -10180,6 +10379,28 @@
         }
       }
     },
+    "This message may have arrived. Check the chat before sending it again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這則訊息可能已經送到。再送一次之前，請先看看聊天。"
+          }
+        }
+      }
+    },
+    "This message waited more than 10 minutes, so it wasn’t sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這則訊息等了超過 10 分鐘，所以沒有送出。"
+          }
+        }
+      }
+    },
     "This needs a newer Purrdr host service (this host has %@). Update the host service on the host; Hosts shows the command." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10231,6 +10452,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個配對碼不正確或已經用過。請在主機上再執行一次配對指令，取得新的配對碼。"
+          }
+        }
+      }
+    },
+    "This pane is running a different chat now, so the mode wasn’t changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Pane 已換成別的對話，所以沒有切換模式。"
           }
         }
       }
@@ -10983,6 +11215,28 @@
         }
       }
     },
+    "Update the Purrdr host service to resume past chats. Run this on the computer:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 Purrdr 主機服務才能續接過去的聊天。請在主機上執行："
+          }
+        }
+      }
+    },
+    "Update the Purrdr host service to see changes. Run this on the computer:" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新 Purrdr 主機服務才能查看變更。請在主機上執行："
+          }
+        }
+      }
+    },
     "Update the host service to turn on notifications. Run this on the host:" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11368,24 +11622,13 @@
         }
       }
     },
-    "While you were away · %lld turns · worked %lld min" : {
+    "While you were away · %@ · worked %lld min" : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你離開期間 · %lld 輪 · 工作 %lld 分鐘"
-          }
-        }
-      }
-    },
-    "While you were away · 1 turn · worked %lld min" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你離開期間 · 1 輪 · 工作 %lld 分鐘"
+            "value" : "你離開期間 · %@ · 工作 %lld 分鐘"
           }
         }
       }
@@ -11673,17 +11916,6 @@
         }
       }
     },
-    "Your message, not sent: %@. %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你的訊息，沒有送出：%1$@。%2$@"
-          }
-        }
-      }
-    },
     "Your message, queued until reconnected. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11942,17 +12174,6 @@
         }
       }
     },
-    "it may have arrived, check the chat" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可能已經送到，請看一下聊天"
-          }
-        }
-      }
-    },
     "left" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12002,17 +12223,6 @@
         }
       }
     },
-    "queued for more than 10 minutes" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "排隊超過 10 分鐘"
-          }
-        }
-      }
-    },
     "sk- key" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12020,39 +12230,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "sk- 金鑰"
-          }
-        }
-      }
-    },
-    "the agent is waiting for your answer" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agent 在等你回答"
-          }
-        }
-      }
-    },
-    "the conversation changed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "對話已變更"
-          }
-        }
-      }
-    },
-    "the host didn’t accept it" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機沒有接受"
           }
         }
       }

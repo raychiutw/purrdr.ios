@@ -53,14 +53,14 @@ enum HerdrOperation {
         case .paneSendKeys:
             let keys = try JSONDecoder().decode(SendKeysParams.self, from: line.params)
             self = .request(make: { .paneSendKeys(.init(
-                    requestId: $0, paneId: keys.paneID, keys: keys.keys, expectedSession: keys.expectedSession, expectedScreen: keys.expectedScreen)) }) { id, reply, _ in
+                    requestId: $0, paneId: keys.paneID, keys: keys.keys, expectedSession: keys.expectedSession)) }) { id, reply, _ in
                 guard case .paneSendKeysResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
         case .paneSendText:
             let text = try JSONDecoder().decode(SendTextParams.self, from: line.params)
             self = .request(make: { .paneSendText(.init(
-                    requestId: $0, paneId: text.paneID, text: text.text, expectedSession: text.expectedSession, expectedScreen: text.expectedScreen)) }) { id, reply, _ in
+                    requestId: $0, paneId: text.paneID, text: text.text, expectedSession: text.expectedSession)) }) { id, reply, _ in
                 guard case .paneSendTextResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
             }
@@ -71,8 +71,7 @@ enum HerdrOperation {
                     until: wait.until.compactMap(HostServiceProtocol.AgentStatus.init(rawValue:)), timeoutMs: wait.timeoutMs)
             }
             self = .request(make: { .agentPrompt(.init(
-                    requestId: $0, paneId: prompt.target, text: prompt.text, wait: wait, expectedSession: prompt.expectedSession,
-                    expectedScreen: prompt.expectedScreen)) }) { id, reply, _ in
+                    requestId: $0, paneId: prompt.target, text: prompt.text, wait: wait, expectedSession: prompt.expectedSession)) }) { id, reply, _ in
                 guard case .agentPromptResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.prompted(id: id, delivery: result.delivery)
             }
@@ -152,18 +151,16 @@ enum HerdrOperation {
         }
     }
 
-    /// 送出類 params 的 `expected_session`／`expected_screen`:`HerdrClient` 只在 `checksSendExpectations()` 為真時帶(#304)。
+    /// 送出類 params 的 `expected_session`:`HerdrClient` 只在 `checksSendExpectations()` 為真時帶(#304)。
     private struct SendKeysParams: Decodable {
         var paneID: String
         var keys: [String]
         var expectedSession: String?
-        var expectedScreen: String?
 
         enum CodingKeys: String, CodingKey {
             case paneID = "pane_id"
             case keys
             case expectedSession = "expected_session"
-            case expectedScreen = "expected_screen"
         }
     }
 
@@ -171,13 +168,11 @@ enum HerdrOperation {
         var paneID: String
         var text: String
         var expectedSession: String?
-        var expectedScreen: String?
 
         enum CodingKeys: String, CodingKey {
             case paneID = "pane_id"
             case text
             case expectedSession = "expected_session"
-            case expectedScreen = "expected_screen"
         }
     }
 
@@ -187,12 +182,10 @@ enum HerdrOperation {
         var text: String
         var wait: Wait?
         var expectedSession: String?
-        var expectedScreen: String?
 
         enum CodingKeys: String, CodingKey {
             case target, text, wait
             case expectedSession = "expected_session"
-            case expectedScreen = "expected_screen"
         }
 
         struct Wait: Decodable {

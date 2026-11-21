@@ -41,7 +41,7 @@ public final class UndoSendCountdown: SendStep {
     /// 倒數中的訊息;沒有倒數時是 `nil`。
     public private(set) var pending: Pending?
     @ObservationIgnored private let seconds: @MainActor () -> Int
-    @ObservationIgnored private var decision: CheckedContinuation<Bool, Never>?
+    @ObservationIgnored private let decision = UserDecision()
     @ObservationIgnored private var ticker: Task<Void, Never>?
 
     public init(seconds: @escaping @MainActor () -> Int) {
@@ -51,9 +51,8 @@ public final class UndoSendCountdown: SendStep {
     public func process(_ prompt: OutgoingPrompt, clock: SendPipelineClock) async -> SendStepResult {
         let total = UndoSendSettings.clamped(seconds())
         // 同時只有一則倒數(輸入列送出中不能再送);萬一又來一則就不攔。
-        guard total > 0, decision == nil else { return .proceed(prompt) }
-        let sends = await withCheckedContinuation { continuation in
-            decision = continuation
+        guard total > 0, !decision.isWaiting else { return .proceed(prompt) }
+        let sends = await decision.wait {
             pending = Pending(text: prompt.text, remainingSeconds: total)
             ticker = Task { [weak self, sleep = clock.sleep] in
                 for _ in 0..<total {
@@ -63,6 +62,8 @@ public final class UndoSendCountdown: SendStep {
                 }
             }
         }
+        // 取消(離開聊天)時走到這裡:收掉倒數,不送出。
+        clearCountdown()
         return sends ? .proceed(prompt) : .halt(SendHalt(restoresDraft: true))
     }
 
@@ -83,11 +84,14 @@ public final class UndoSendCountdown: SendStep {
     }
 
     private func finish(sends: Bool) {
-        guard let decision else { return }
-        self.decision = nil
+        guard decision.isWaiting else { return }
+        clearCountdown()
+        decision.resolve(sends)
+    }
+
+    private func clearCountdown() {
         ticker?.cancel()
         ticker = nil
         pending = nil
-        decision.resume(returning: sends)
     }
 }

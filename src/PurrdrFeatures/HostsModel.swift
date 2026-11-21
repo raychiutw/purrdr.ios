@@ -712,9 +712,9 @@ public final class HostsModel {
             version: HostServiceFeature.pushPlugin.minimumVersion.description, update: HostServiceUpdates.commands(installed: installed))
     }
 
-    private func hostServiceVersion(of host: HostSelection) -> String? {
+    private func hostServiceVersion(of host: HostSelection) -> HostServiceVersion? {
         guard case .host(let id) = host else { return nil }
-        return hostServiceVersions[id]
+        return hostServiceVersions[id].flatMap(HostServiceVersion.init)
     }
 
     private func usesHostService(_ host: HostSelection) -> Bool {
@@ -756,10 +756,12 @@ public final class HostsModel {
     /// 某台主機的離線佇列(#301):第一次用到時從本機讀回。補送前以新鮮的快照確認 Agent 目前的狀態。
     public func offlineQueue(for host: HostSelection) -> OfflineQueue {
         if let queue = offlineQueues[host] { return queue }
-        let queue = OfflineQueue(host: host.storedValue, store: offlineQueueStore) { [weak self] text, agent in
+        let queue = OfflineQueue(host: host.storedValue, store: offlineQueueStore) { [weak self] text, agent, expectedSession in
             guard let client = self?.member(for: host).client else { return .rejected(message: "") }
             let fresh = (try? await client.snapshot())?.agents.first { $0.paneID == agent.paneID } ?? agent
-            return await PromptDelivery(client: client).send(text, to: fresh)
+            // 重讀的快照 session 已不是排入時的:什麼都不送(HTTPS 主機另在送出前比對)。
+            if let expectedSession, let session = fresh.sessionID, session != expectedSession { return .paneChanged }
+            return await PromptDelivery(client: client).send(text, to: fresh, expectedSession: expectedSession)
         }
         offlineQueues[host] = queue
         return queue
@@ -944,8 +946,8 @@ public struct HostPush: Identifiable {
     public let support: HostPushSupport
     /// HTTPS 主機：由主機服務代裝外掛(不是 SSH)。
     public let installsViaHostService: Bool
-    /// HTTPS 主機回報的主機服務版本(還沒連上或 SSH 主機是 `nil`);較新的通知種類依它判斷能不能選(#311)。
-    public var hostServiceVersion: String? = nil
+    /// HTTPS 主機回報的主機服務版本(還沒連上、看不懂或 SSH 主機是 `nil`);較新的通知種類依它判斷能不能選(#311)。
+    public var hostServiceVersion: HostServiceVersion? = nil
     public let model: PushModel
 
     public var id: HostSelection { host }

@@ -60,8 +60,8 @@ struct ConversationSendExpectationTests {
         #expect(model.echoes.isEmpty)
     }
 
-    @Test("回答選擇題帶 session 與看到的畫面指紋")
-    func answerCarriesScreenFingerprint() async throws {
+    @Test("回答選擇題只帶 session,不帶畫面指紋(主機讀畫面的行數與 app 不同，指紋必不符)")
+    func answerCarriesSessionOnly() async throws {
         let (connection, model) = await Self.opened(status: "blocked")
         let screen = PaneScreens.text("claude-bash")
         await connection.expect("pane.read", reply: Self.paneRead(text: screen))
@@ -73,7 +73,7 @@ struct ConversationSendExpectationTests {
 
         let sent = try await Self.params(of: "pane.send_keys", in: connection)
         #expect(sent["expected_session"] as? String == Self.session)
-        #expect(sent["expected_screen"] as? String == SendExpectation.fingerprint(ofScreen: screen))
+        #expect(sent["expected_screen"] == nil)
     }
 
     @Test("回答時題目已變：解鎖選項、提示題目已變更，並立刻重讀畫面")
@@ -92,5 +92,21 @@ struct ConversationSendExpectationTests {
         #expect(!model.isAnswering(option))
         #expect(model.canAnswer(.option(option)))
         #expect(await connection.unmetExpectations.isEmpty)
+    }
+
+    @Test("切換權限模式的 Shift+Tab 帶 session;主機回對話已變更就不再按、說明切換失敗")
+    func permissionModeKeysCarrySession() async throws {
+        let (connection, model) = await Self.opened()
+        await model.poll()
+        let ok = Data(#"{"id":"purrdr:pane.send_keys","result":{"type":"ok"}}"#.utf8)
+        await connection.expect("pane.read", reply: Self.paneRead(text: "> \n  ? for shortcuts\n"))
+        await connection.expect("pane.send_keys", failure: HostServiceError.paneChanged)
+
+        await model.setPermissionMode(.plan)
+
+        let sent = try await Self.params(of: "pane.send_keys", in: connection)
+        #expect(sent["expected_session"] as? String == Self.session)
+        #expect(model.permissionModeFailure == .paneChanged(target: .plan))
+        _ = ok
     }
 }

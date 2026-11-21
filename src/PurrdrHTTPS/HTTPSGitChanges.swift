@@ -10,7 +10,7 @@ extension HTTPSHostConnection: GitChangesReading {
         let reply = try await withDeadline(HostCommandDeadline.standard) {
             try await self.send { .gitStatus(.init(requestId: $0, cwd: cwd)) }
         }
-        guard case .gitStatusResult(let result) = reply else { throw GitChangesError.failed("unexpected reply to git.status") }
+        guard case .gitStatusResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
         return GitWorkingTreeStatus(branch: result.branch, files: result.files.map { GitChange(path: $0.path, kind: $0.change) })
     }
 
@@ -20,10 +20,10 @@ extension HTTPSHostConnection: GitChangesReading {
         let reply = try await withDeadline(HostCommandDeadline.transfer(bytes: HostServiceProtocol.maximumFileSize)) {
             try await self.send { .gitDiff(.init(requestId: $0, cwd: cwd, path: path)) }
         }
-        guard case .gitDiffResult(let result) = reply else { throw GitChangesError.failed("unexpected reply to git.diff") }
+        guard case .gitDiffResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
         let files = try result.files.map { file -> GitFileDiff in
             if let omitted = file.omitted { return GitFileDiff(path: file.path, kind: file.change, content: .omitted(omitted)) }
-            guard let diff = file.diff else { throw GitChangesError.failed("git.diff file without diff") }
+            guard let diff = file.diff else { throw HostServiceError.unexpectedResponse }
             return GitFileDiff(path: file.path, kind: file.change, content: .hunks(diff))
         }
         return GitDiffSet(files: files, truncated: result.truncated)

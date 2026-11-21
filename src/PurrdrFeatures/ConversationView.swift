@@ -691,9 +691,8 @@ struct AwayDividerView: View {
     }
 
     static func text(_ summary: AwaySummary) -> String {
-        summary.turns == 1
-            ? String(localized: "While you were away · 1 turn · worked \(summary.workMinutes) min")
-            : String(localized: "While you were away · \(summary.turns) turns · worked \(summary.workMinutes) min")
+        let turns = String(localized: "\(summary.turns) turns")
+        return String(localized: "While you were away · \(turns) · worked \(summary.workMinutes) min")
     }
 }
 

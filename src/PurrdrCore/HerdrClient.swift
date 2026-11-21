@@ -12,12 +12,13 @@ public struct HerdrClient: Sendable {
     }
 
     /// 這支裝置是否配對成唯讀(HTTPS 連線方式;唯讀時送 prompt、文字與按鍵都會被拒絕)。
-    public func hostServiceVersion() async throws -> String? {
-        try await connection.hostServiceVersion()
-    }
-
     public func isReadOnlyDevice() async throws -> Bool {
         try await connection.isReadOnlyDevice()
+    }
+
+    /// 主機服務的版本;沒有主機服務的連線方式(SSH)是 `nil`,連不上時丟錯誤。
+    public func hostServiceVersion() async throws -> String? {
+        try await connection.hostServiceVersion()
     }
 
     /// 關掉底層連線(卡住的請求跟著失敗);下一個請求重新連線。
@@ -290,20 +291,17 @@ private struct PromptParams: Encodable {
     var wait: Wait?
     /// 送出前比對(#304);`nil` 不編碼。
     var expectedSession: String?
-    var expectedScreen: String?
 
     init(target: String, text: String, wait: Wait?, expected: SendExpectation) {
         self.target = target
         self.text = text
         self.wait = wait
         expectedSession = expected.session
-        expectedScreen = expected.screen
     }
 
     enum CodingKeys: String, CodingKey {
         case target, text, wait
         case expectedSession = "expected_session"
-        case expectedScreen = "expected_screen"
     }
 
     struct Wait: Encodable {
@@ -338,20 +336,17 @@ private struct SendKeysParams: Encodable {
     var paneID: String
     var keys: [String]
     var expectedSession: String?
-    var expectedScreen: String?
 
     init(paneID: String, keys: [String], expected: SendExpectation) {
         self.paneID = paneID
         self.keys = keys
         expectedSession = expected.session
-        expectedScreen = expected.screen
     }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case keys
         case expectedSession = "expected_session"
-        case expectedScreen = "expected_screen"
     }
 }
 
@@ -359,20 +354,17 @@ private struct SendTextParams: Encodable {
     var paneID: String
     var text: String
     var expectedSession: String?
-    var expectedScreen: String?
 
     init(paneID: String, text: String, expected: SendExpectation) {
         self.paneID = paneID
         self.text = text
         expectedSession = expected.session
-        expectedScreen = expected.screen
     }
 
     enum CodingKeys: String, CodingKey {
         case paneID = "pane_id"
         case text
         case expectedSession = "expected_session"
-        case expectedScreen = "expected_screen"
     }
 }
 

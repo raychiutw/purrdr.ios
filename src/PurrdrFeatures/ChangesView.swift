@@ -181,9 +181,15 @@ private struct ChangesProblemView: View {
         ContentUnavailableView {
             Label(title, systemImage: symbol)
         } description: {
-            Text(verbatim: message)
+            if case .hostServiceUpdateRequired(let installed) = problem {
+                HostServiceCommandRows(
+                    message: "Update the Purrdr host service to see changes. Run this on the computer:",
+                    commands: HostServiceUpdates.commands(installed: installed ?? "0.0.0"), identifier: "changes.update")
+            } else {
+                Text(verbatim: message)
+            }
         } actions: {
-            if problem == .failed || problem == .agentMoved {
+            if problem == .failed || problem == .agentMoved || problem == .gitNotInstalled {
                 Button("Try Again", action: retry)
                     .frame(minHeight: 44)
             }
@@ -211,15 +217,10 @@ private struct ChangesProblemView: View {
     private var message: String {
         switch problem {
         case .unsupported: String(localized: "This host can’t show git changes yet.")
-        case .notGitRepository: String(localized: "The agent’s working directory isn’t inside a git repository.")
+        case .notGitRepository: String(localized: "This folder isn’t tracked by git, so there are no changes to show.")
         case .agentMoved: String(localized: "The agent is no longer working in this folder. Go back and open the changes again.")
-        case .gitNotInstalled: String(localized: "Install git on the host to see the agent’s changes.")
-        case .hostServiceUpdateRequired(let installed):
-            if let installed {
-                String(localized: "Changes need host service \(HostServiceFeature.gitChanges.minimumVersion.description) or later. This host has \(installed).")
-            } else {
-                String(localized: "Changes need host service \(HostServiceFeature.gitChanges.minimumVersion.description) or later.")
-            }
+        case .gitNotInstalled: String(localized: "This computer doesn’t have git yet. After you install it, tap Try Again.")
+        case .hostServiceUpdateRequired: ""
         case .failed: String(localized: "Check the connection and try again.")
         }
     }

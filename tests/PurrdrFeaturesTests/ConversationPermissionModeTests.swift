@@ -70,22 +70,9 @@ struct ConversationPermissionModeTests {
         #expect(await Self.shiftTabCount(setup) == 0)
     }
 
-    @Test("點一下切到下一個模式")
-    func cycleGoesToNext() async throws {
-        let setup = try await Self.opened()
-        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.acceptEdits))
-        await setup.model.refreshPermissionMode()
-        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.acceptEdits))
-        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
-        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.plan))
-
-        await setup.model.cyclePermissionMode()
-
-        #expect(setup.model.permissionMode == .plan)
-    }
-
     @Test("畫面一直對不上:試滿次數後說明「試了 N 次」,保留實際模式,可再試")
     func failureExplainsAndAllowsRetry() async throws {
+        // 目標是 Plan:畫面一直停在 Normal(沒有切換成功),不是輪替一圈。
         let setup = try await Self.opened()
         await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.normal))
         for _ in 0..<AgentPermissionMode.maximumSwitchAttempts {
@@ -93,10 +80,10 @@ struct ConversationPermissionModeTests {
             await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.normal))
         }
 
-        await setup.model.setPermissionMode(.bypassPermissions)
+        await setup.model.setPermissionMode(.plan)
 
         #expect(await Self.shiftTabCount(setup) == AgentPermissionMode.maximumSwitchAttempts)
-        #expect(setup.model.notice == .permissionModeFailed(attempts: AgentPermissionMode.maximumSwitchAttempts, target: .bypassPermissions))
+        #expect(setup.model.permissionModeFailure == .notReached(attempts: AgentPermissionMode.maximumSwitchAttempts, target: .plan))
         #expect(setup.model.permissionMode == .normal)
         #expect(!setup.model.isSwitchingPermissionMode)
         #expect(setup.model.canSwitchPermissionMode)
@@ -110,7 +97,7 @@ struct ConversationPermissionModeTests {
 
         await setup.model.setPermissionMode(.plan)
 
-        #expect(setup.model.notice == .panelKeysFailed)
+        #expect(setup.model.permissionModeFailure == .keysFailed(target: .plan))
         #expect(!setup.model.isSwitchingPermissionMode)
     }
 
@@ -121,5 +108,58 @@ struct ConversationPermissionModeTests {
         await setup.model.poll()
 
         #expect(!setup.model.supportsPermissionMode)
+    }
+
+    @Test("主機沒開略過權限:輪替一圈回到起點就停,說明主機沒開、不連按")
+    func bypassUnavailableStopsAfterOneCycle() async throws {
+        let setup = try await Self.opened()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.normal))
+        for shown in [AgentPermissionMode.acceptEdits, .plan, .normal] {
+            await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+            await setup.host.bridge.expect(Self.bridge, reply: Self.screen(shown))
+        }
+
+        await setup.model.setPermissionMode(.bypassPermissions)
+
+        #expect(await Self.shiftTabCount(setup) == 3)
+        #expect(setup.model.permissionModeFailure == .bypassUnavailable)
+        #expect(setup.model.permissionMode == .normal)
+        #expect(setup.model.canSwitchPermissionMode)
+    }
+
+    @Test("再試一次:對上次失敗的目標重來,成功後清掉失敗")
+    func retryRepeatsFailedTarget() async throws {
+        let setup = try await Self.opened()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.normal))
+        await setup.host.bridge.expect(Self.bridge, reply: FakeReply(stdout: Data(), exitCode: 1))
+        await setup.model.setPermissionMode(.acceptEdits)
+        #expect(setup.model.permissionModeFailure == .keysFailed(target: .acceptEdits))
+        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.normal))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.acceptEdits))
+
+        await setup.model.retryPermissionMode()
+
+        #expect(setup.model.permissionMode == .acceptEdits)
+        #expect(setup.model.permissionModeFailure == nil)
+    }
+
+    @Test("切換中離開聊天(取消):不再讀畫面、不當成失敗")
+    func cancellationStopsSwitching() async throws {
+        let sleeper = RecordingSleeper()
+        let setup = try ConversationAnswerTests.setup(sleeper: sleeper)
+        await setup.host.bridge.expect(Self.bridge, reply: ConversationAnswerTests.snapshot(status: "idle"))
+        await setup.model.poll()
+        await setup.host.bridge.expect(Self.bridge, reply: Self.screen(.normal))
+        await setup.host.bridge.expect(Self.bridge, reply: PromptReplies.keysAccepted)
+        let task = Task { await setup.model.setPermissionMode(.plan) }
+        while await !sleeper.requested.contains(.milliseconds(300)) { await Task.yield() }
+
+        task.cancel()
+        await task.value
+
+        #expect(await Self.shiftTabCount(setup) == 1)
+        #expect(setup.model.permissionModeFailure == nil)
+        #expect(!setup.model.isSwitchingPermissionMode)
     }
 }

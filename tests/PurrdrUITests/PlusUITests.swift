@@ -128,6 +128,11 @@ final class PlusUITests: XCTestCase {
         }
         let notifications = app.descendants(matching: .any)["plus.feature.notifications"].firstMatch
         XCTAssertTrue(notifications.label.contains("Off"), "還沒開通知時列尾該是關閉:\(notifications.label)")
+        // 直接開 Plus 頁(沒先開過帳號頁)列尾也要有通知裝置數:頁面自己讀清單。
+        let devices = app.descendants(matching: .any)["plus.feature.devices"].firstMatch
+        let devicesCount = NSPredicate(format: "label CONTAINS 'device'")
+        expectation(for: devicesCount, evaluatedWith: devices)
+        waitForExpectations(timeout: 10)
         XCTAssertTrue(app.descendants(matching: .any)["plus.free"].firstMatch.exists, "沒有「不需要訂閱」")
 
         // 已訂閱時不顯示恢復購買與兌換代碼(#325);往下捲到條款,確認整頁都沒有。

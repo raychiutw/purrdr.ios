@@ -22,7 +22,7 @@ public struct SecretReview: Sendable, Equatable, Identifiable {
 public final class SecretCheck: SendStep {
     /// 等使用者決定的偵測結果;沒有時是 `nil`。
     public private(set) var review: SecretReview?
-    @ObservationIgnored private var decision: CheckedContinuation<Bool, Never>?
+    @ObservationIgnored private let decision = UserDecision()
 
     public init() {}
 
@@ -33,17 +33,9 @@ public final class SecretCheck: SendStep {
         // 上一則還沒決定就又送出(理論上 sheet 開著時送不出):舊的當作返回編輯。
         decide(sendAnyway: false)
         let next = SecretReview(findings: findings)
-        let sendAnyway = await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                decision = continuation
-                review = next
-            }
-        } onCancel: {
-            // 離開聊天(送出的 task 被取消):當作返回編輯;只收掉自己這一次。
-            Task { @MainActor in
-                if self.review?.id == next.id { self.decide(sendAnyway: false) }
-            }
-        }
+        // 離開聊天(送出的 task 被取消)時 `UserDecision` 當作返回編輯。
+        let sendAnyway = await decision.wait { review = next }
+        if review?.id == next.id { review = nil }
         return sendAnyway ? .proceed(prompt) : .halt(SendHalt(restoresDraft: true))
     }
 
@@ -59,8 +51,6 @@ public final class SecretCheck: SendStep {
 
     private func decide(sendAnyway: Bool) {
         review = nil
-        let pending = decision
-        decision = nil
-        pending?.resume(returning: sendAnyway)
+        decision.resolve(sendAnyway)
     }
 }

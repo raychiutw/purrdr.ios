@@ -187,7 +187,7 @@ struct AgentImageViewer: View {
     @State private var zoom: CGFloat = 1
     @State private var offset: CGSize = .zero
     /// 手勢開始時的值(手勢進行中 `zoom`／`offset` 會跟著變)。
-    @State private var pinchStart: CGFloat?
+    @State private var pinchStart: (zoom: CGFloat, offset: CGSize)?
     @State private var panStart: CGSize?
     /// 1× 時下滑關閉的拖動量(只影響畫面，放開才判斷)。
     @State private var dismissDrag: CGFloat = 0
@@ -259,10 +259,14 @@ struct AgentImageViewer: View {
     private func pinch(_ rules: ImageViewerZoom) -> some Gesture {
         MagnifyGesture()
             .onChanged { value in
-                let start = pinchStart ?? zoom
+                let start = pinchStart ?? (zoom, offset)
                 pinchStart = start
-                // 進行中可略超出範圍(橡皮筋感),放開時夾回。
-                zoom = min(max(start * value.magnification, 0.8), ImageViewerZoom.maximumZoom * 1.2)
+                // 以手指中心為不動點縮放(規則在 ImageViewerZoom.pinched);進行中可略超出範圍,放開時夾回。
+                let anchor = CGPoint(
+                    x: (value.startAnchor.x - 0.5) * rules.container.width, y: (value.startAnchor.y - 0.5) * rules.container.height)
+                let result = rules.pinched(zoom: start.zoom, offset: start.offset, magnification: value.magnification, at: anchor)
+                zoom = result.zoom
+                offset = result.offset
             }
             .onEnded { _ in
                 pinchStart = nil

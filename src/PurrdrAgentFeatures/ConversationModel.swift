@@ -358,8 +358,6 @@ public final class ConversationModel {
 
     /// 畫面上正在等回答的提示。
     public private(set) var prompt: BlockedPrompt?
-    /// 最近一次找出 `prompt` 的畫面指紋;回答時交給主機比對(#304)。讀不到畫面時為 `nil`。
-    @ObservationIgnored private var promptScreen: String?
     /// 已送出、還在等結果的回答(選項全部鎖住)。
     public private(set) var answerInFlight: PromptAnswer?
     /// 最近一次已送達的回答(畫面清楚顯示選了什麼);Agent 寫出新的文字後收起(#213,`AnsweredCardAnchor`)。
@@ -384,16 +382,16 @@ public final class ConversationModel {
     /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
-    public let undoSend: UndoSendCountdown?
+    public var undoSend: UndoSendCountdown? { sendPipeline.step(UndoSendCountdown.self) }
     /// 管線裡的離線佇列(#301):離線時送出的訊息排在這台主機的佇列;沒有這個步驟時離線不能送出。
-    public var offlineQueue: OfflineQueue? { sendPipeline.steps.lazy.compactMap { ($0 as? OfflineQueueStep)?.queue }.first }
+    public var offlineQueue: OfflineQueue? { sendPipeline.step(OfflineQueueStep.self)?.queue }
     /// 這個聊天(pane)排隊中與沒送出的訊息，畫在對話最下面。
     public var queuedPrompts: [QueuedPrompt] { offlineQueue?.entries(forPane: paneID) ?? [] }
 
     /// 放回輸入框：拿出佇列，文字接在目前的草稿前面(不蓋掉新打的)。
     public func putBack(_ id: QueuedPrompt.ID) {
         guard let text = offlineQueue?.takeBack(id) else { return }
-        draft = draft.isEmpty ? text : text + "\n" + draft
+        putBackInDraft(text)
     }
 
     /// 取消排隊中的訊息，或刪除沒送出的。
@@ -402,16 +400,16 @@ public final class ConversationModel {
     }
 
     /// 管線裡的 Send When Done(#305):輸入列的「做完再送」開關與主機上的佇列;沒有這個步驟時是 `nil`。
-    public let sendWhenDone: SendWhenDoneModel?
+    public var sendWhenDone: SendWhenDoneModel? { sendPipeline.step(SendWhenDoneStep.self)?.model }
 
     /// 編輯 Send When Done 佇列裡的一則:從主機佇列拿掉，文字放回輸入框(接在目前的草稿前面)。
     public func editSendWhenDone(_ id: SendWhenDoneItem.ID) async {
         guard let text = await sendWhenDone?.takeBack(id) else { return }
-        draft = draft.isEmpty ? text : text + "\n" + draft
+        putBackInDraft(text)
     }
 
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
-    public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
+    public var secretCheck: SecretCheck? { sendPipeline.step(SecretCheck.self) }
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
@@ -536,8 +534,6 @@ public final class ConversationModel {
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
         sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
-        undoSend = sendSteps.lazy.compactMap { $0 as? UndoSendCountdown }.first
-        sendWhenDone = sendSteps.lazy.compactMap { ($0 as? SendWhenDoneStep)?.model }.first
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
@@ -1099,13 +1095,14 @@ public final class ConversationModel {
         notice = nil
         let outgoing = OutgoingPrompt(
             text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now(),
-            workspaceID: currentAgent?.workspaceID, isHostReachable: !isOffline)
-        switch await sendPipeline.prepare(outgoing) {
+            workspaceID: currentAgent?.workspaceID)
+        // 連線狀態在步驟輪到時才讀:撤回倒數期間可能斷線或恢復。
+        switch await sendPipeline.prepare(outgoing, isHostReachable: { [weak self] in !(self?.isOffline ?? false) }) {
         case .proceed(let prepared):
             await deliver(prepared)
         case .halt(let halt):
             // 放回的是使用者打的原文(不是步驟改過的);步驟等待期間(撤回倒數)又打了字時，原文放在前面、不蓋掉新打的。
-            if halt.restoresDraft { draft = draft.isEmpty ? text : text + "\n" + draft }
+            if halt.restoresDraft { putBackInDraft(text) }
         }
     }
 
@@ -1127,7 +1124,7 @@ public final class ConversationModel {
             paths = try await uploadAttachments()
         } catch {
             removeEcho(echo.id)
-            restoreDraft(text)
+            putBackInDraft(text)
             notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
             return
         }
@@ -1150,7 +1147,7 @@ public final class ConversationModel {
             }
         case .failure(let failure):
             removeEcho(echo.id)
-            restoreDraft(text)
+            putBackInDraft(text)
             notice = failure.notice
         }
     }
@@ -1246,16 +1243,13 @@ public final class ConversationModel {
         answerSent = nil
         answerNotice = nil
         haptics.play(.selection)
-        // 第一個輸入另帶看到的畫面：之後的輸入送出時畫面已因前一個輸入改變(#304)。
-        let session = SendExpectation(session: boundSessionID ?? knownSessionID)
-        var expectation = SendExpectation(session: session.session, screen: promptScreen)
+        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
         do {
             for input in inputs {
                 switch input {
                 case .keys(let keys): try await client.sendKeys(paneID: paneID, keys: keys, expecting: expectation)
                 case .text(let text): try await client.sendText(paneID: paneID, text: text, expecting: expectation)
                 }
-                expectation = session
             }
         } catch {
             guard answerInFlight == answer else { return }
@@ -1394,13 +1388,11 @@ public final class ConversationModel {
         screenThisPoll = await readScreen()
         guard let screen = screenThisPoll else {
             // 讀不到畫面 = 未知：永不當成新提示，只看逾時。
-            promptScreen = nil
             if blocked, prompt == nil { prompt = .unrecognized }
             if prompt != nil { agentStatus = .blocked }
             checkAnswerDeadline()
             return
         }
-        promptScreen = SendExpectation.fingerprint(ofScreen: screen)
         let parsed = BlockedPromptParser.parse(screen: screen, agentKind: agent.kind)
         let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
         if next != nil { agentStatus = .blocked }
@@ -1522,7 +1514,7 @@ public final class ConversationModel {
             setEcho(id, state: .failed(.noResponse))
         } else {
             removeEcho(id)
-            restoreDraft(text)
+            putBackInDraft(text)
         }
     }
 
@@ -1534,9 +1526,9 @@ public final class ConversationModel {
         }
     }
 
-    /// 被拒的文字放回輸入框(使用者這段時間又打了字就不蓋掉)。
-    private func restoreDraft(_ text: String) {
-        if draft.isEmpty { draft = text }
+    /// 沒送出的文字放回輸入框:接在目前的草稿前面,使用者這段時間打的字不蓋掉(放回輸入框的一律走這裡)。
+    private func putBackInDraft(_ text: String) {
+        draft = draft.isEmpty ? text : text + "\n" + draft
     }
 
     private func setEcho(_ id: String, state: PromptEcho.State) {
@@ -1755,44 +1747,61 @@ public final class ConversationModel {
         await refreshPermissionMode()
     }
 
-    /// 點一下:切到輪替的下一個模式。
-    public func cyclePermissionMode() async {
-        guard let current = permissionMode else { return }
-        await setPermissionMode(current.next())
+    /// 最近一次切換失敗的原因(#306);切換成功、再試或換 Agent 時清掉。膠囊的 sheet 顯示說明與「再試一次」。
+    public private(set) var permissionModeFailure: PermissionModeFailure?
+
+    /// 對上次失敗的目標再切一次。
+    public func retryPermissionMode() async {
+        guard let target = permissionModeFailure?.target else { return }
+        await setPermissionMode(target)
     }
 
     /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
-    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面。失敗以提示說明,可再試。
+    /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面;按鍵帶 `expected_session`,對話已換掉就不按。
+    /// 目標是略過權限時,輪替一圈回到看過的模式就停(這個 session 啟動時沒開,再按也不會出現)。
+    /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
     public func setPermissionMode(_ target: AgentPermissionMode) async {
         guard supportsPermissionMode, !isSwitchingPermissionMode else { return }
         guard !isReadOnly else {
             notice = .readOnlyDevice
             return
         }
+        permissionModeFailure = nil
         switchingPermissionMode = target
         defer { switchingPermissionMode = nil }
         guard var current = await readPermissionMode() else {
-            notice = .permissionModeFailed(attempts: 0, target: target)
+            permissionModeFailure = .unreadable(target: target)
             return
         }
         permissionMode = current
+        let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
+        var visited: Set<AgentPermissionMode> = [current]
         var attempts = 0
         while current != target, attempts < AgentPermissionMode.maximumSwitchAttempts {
             do {
-                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"])
+                try await client.sendKeys(paneID: paneID, keys: ["shift+tab"], expecting: expectation)
+            } catch is CancellationError {
+                return
             } catch {
-                notice = .panelKeysFailed
+                permissionModeFailure = error as? HostServiceError == .paneChanged
+                    ? .paneChanged(target: target) : .keysFailed(target: target)
                 haptics.play(.error)
                 return
             }
             attempts += 1
-            try? await sleep(.milliseconds(300))
+            do { try await sleep(.milliseconds(300)) } catch { return }
             guard let read = await readPermissionMode() else { break }
+            let wrapped = read != current && !visited.insert(read).inserted
             current = read
             permissionMode = read
+            if wrapped, target == .bypassPermissions, current != target {
+                permissionModeFailure = .bypassUnavailable
+                haptics.play(.error)
+                return
+            }
         }
         if current != target {
-            notice = .permissionModeFailed(attempts: attempts, target: target)
+            permissionModeFailure = .notReached(attempts: attempts, target: target)
             haptics.play(.error)
         } else {
             haptics.play(.selection)
@@ -2036,6 +2045,26 @@ public enum SendNotice: Sendable, Equatable {
     case panelKeysFailed
     /// 這支裝置配對成唯讀，什麼都沒送出。
     case readOnlyDevice
-    /// 切換權限模式試了 `attempts` 次，畫面上沒有看到 `target`(#306)。
-    case permissionModeFailed(attempts: Int, target: AgentPermissionMode)
+}
+
+/// 切換權限模式失敗的原因(#306)。
+public enum PermissionModeFailure: Equatable, Sendable {
+    /// 試了 `attempts` 次，畫面上沒有看到 `target`。
+    case notReached(attempts: Int, target: AgentPermissionMode)
+    /// 輪替一圈沒有出現略過權限:這個 session 啟動時沒有開。
+    case bypassUnavailable
+    /// 讀不到畫面，不知道目前是哪個模式。
+    case unreadable(target: AgentPermissionMode)
+    /// 按鍵沒送到主機。
+    case keysFailed(target: AgentPermissionMode)
+    /// 對話已被換成別的(送出前比對不符)，什麼都沒按。
+    case paneChanged(target: AgentPermissionMode)
+
+    /// 再試一次要切到的模式;略過權限沒開時再試沒有意義。
+    public var target: AgentPermissionMode? {
+        switch self {
+        case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
+        case .bypassUnavailable: nil
+        }
+    }
 }

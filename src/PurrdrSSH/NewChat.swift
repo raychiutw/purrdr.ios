@@ -139,8 +139,9 @@ public actor NewChatLauncher {
     }
 
     /// 這台主機能不能續接(#309):沒有主機服務(SSH)或版本不足都不能,畫面據此說明。
-    public func resumeSupport() async -> ResumeSupport {
-        guard let version = try? await client.hostServiceVersion() else { return .needsHostService }
+    /// 連不上主機時丟錯誤(不是「需要主機服務」),呼叫端說明並讓使用者重試。
+    public func resumeSupport() async throws -> ResumeSupport {
+        guard let version = try await client.hostServiceVersion() else { return .needsHostService }
         return HostServiceFeature.sessionResume.isAvailable(onHostServiceVersion: version) ? .available : .updateRequired(installed: version)
     }
 

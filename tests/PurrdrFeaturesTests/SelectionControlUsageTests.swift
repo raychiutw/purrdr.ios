@@ -11,9 +11,8 @@ struct SelectionControlUsageTests {
         "PlanUsageView.swift": 1,
         "TopNavigationView.swift": 1,
     ]
-    /// 可以把 Picker 放在選單裡的檔案：主機篩選與主機挑選鈕;權限模式膠囊(#306,使用者選定的設計:點一下輪替、
-    /// 長按開選單,選單內仍是 `.inline` 勾選列)。
-    static let hostMenuFiles: Set = ["HostPickerViews.swift", "TopNavigationView.swift", "PermissionModeCapsule.swift"]
+    /// 可以把 Picker 放在選單裡的檔案：主機篩選與主機挑選鈕。
+    static let hostMenuFiles: Set = ["HostPickerViews.swift", "TopNavigationView.swift"]
 
     /// SwiftUI 的 `Picker(`(前面不接英文字母：`hostPicker(`、`photosPicker(` 不算)。
     static func isPicker(_ line: Substring) -> Bool {

@@ -74,7 +74,7 @@ enum DemoGitChanges {
         switch request {
         case .status(let cwd):
             guard isInRepository(cwd) else { return (Data(), 65) }
-            return (GitChangesCommand.statusOutput(status), 0)
+            return (GitChangesCommand.statusOutput(status, root: repository), 0)
         case .diff(let cwd, let marker, let files):
             guard isInRepository(cwd) else { return (Data(), 65) }
             return (GitChangesCommand.diffOutput(marker: marker, diffs: files.map { diffs[$0.path] ?? "" }), 0)

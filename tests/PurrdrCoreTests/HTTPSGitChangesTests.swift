@@ -70,6 +70,19 @@ struct HTTPSGitChangesTests {
         await #expect(throws: GitChangesError.cwdNotAllowed) { try await connection.gitStatus(cwd: Self.cwd) }
     }
 
+    @Test("主機服務回了不是預期種類的訊息:丟 unexpectedResponse(與其他 adapter 一致)")
+    func unexpectedReplyIsUnexpectedResponse() async throws {
+        let service = try await Self.start([
+            "git.status": [try Self.example("server.git-diff-result.json")],
+            "git.diff": [try Self.example("server.git-status-result.json")],
+        ])
+        defer { Task { await service.stop() } }
+        let connection = Self.connection(service)
+
+        await #expect(throws: HostServiceError.unexpectedResponse) { try await connection.gitStatus(cwd: Self.cwd) }
+        await #expect(throws: HostServiceError.unexpectedResponse) { try await connection.gitDiff(cwd: Self.cwd, path: nil) }
+    }
+
     @Test("0.7.0 之前的主機服務：不送出，要求更新主機服務")
     func olderHostServiceRequiresUpdate() async throws {
         let service = try await Self.start([:], hostServiceVersion: "0.6.0")
