@@ -6,7 +6,7 @@ import SwiftUI
 ///
 /// 儲存前必須通過連線測試;第一次連線以 alert 確認 host key 指紋;herdr 過舊時確認後更新。
 /// OpenSSH 主機可用這支裝置的金鑰(三步在同一頁)、匯入的私鑰或密碼登入。
-/// 順序(#346):名稱與圖示(最上面)→ 連線方式(勾選列)→ 位址／Port／帳號 → 登入方式 → 進階 → 測試連線;輸入值一律靠左。
+/// 順序(#346):名稱與圖示(最上面)→ 連線方式(勾選列)→ 位址／Port／帳號 → 登入方式 → 詳細資訊 → 測試連線;輸入值一律靠左。
 /// HTTPS 主機填位址、Port 與配對碼;配對碼旁的掃描鈕開 app 內相機掃主機配對指令的 QR code。
 struct HostEditorView: View {
     @State private var model: HostEditorModel
@@ -38,7 +38,7 @@ struct HostEditorView: View {
     ) {
         _model = State(initialValue: model)
         // 有自訂 herdr 設定的主機一打開就看得到。
-        _showsAdvanced = State(initialValue: !(model.herdrPath.isEmpty && model.herdrSession.isEmpty))
+        _showsAdvanced = State(initialValue: model.detailsExpandedInitially)
         self.onSaved = onSaved
         self.onCancel = onCancel
         self.onIconSaved = onIconSaved
@@ -99,21 +99,6 @@ struct HostEditorView: View {
                     testStatus
                 } footer: {
                     Text("Purrdr tests the connection before saving the host.")
-                        .foregroundStyle(.secondaryText)
-                }
-            }
-
-            if let fingerprint = model.hostKeyFingerprint {
-                Section {
-                    Text(fingerprint.description)
-                        .font(.body.monospaced())
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("hostEditor.fingerprint")
-                } header: {
-                    Text("Host Key")
-                        .foregroundStyle(.secondaryText)
-                } footer: {
-                    Text("To compare, run this on that computer: ssh-keygen -lf <host key file>")
                         .foregroundStyle(.secondaryText)
                 }
             }
@@ -181,7 +166,7 @@ struct HostEditorView: View {
         .sheet(isPresented: presenting(\.isConfirmingHostKey)) {
             if case .confirmHostKey(let fingerprint) = model.phase {
                 HostTrustView(
-                    address: model.address, fingerprint: fingerprint,
+                    address: model.address, fingerprint: fingerprint, operatingSystem: model.hostOperatingSystem,
                     trust: { Task { await model.trustPresentedHostKey() } }, cancel: { model.dismissPrompt() })
             }
         }
@@ -297,7 +282,8 @@ struct HostEditorView: View {
             EmptyView()
         case .https:
             VStack(alignment: .leading, spacing: 8) {
-                Text("On the host, install the Purrdr host service and run purrdr-host-service pair. Then scan the QR code it shows. Login Shell and Files aren’t available this way.")
+                Text("On the host, install the Purrdr host service and run the command below. Then scan the QR code it shows. Login Shell and Files aren’t available this way.")
+                InstructionView(instruction: AddHostGuideInstruction(text: String(localized: "Run this on the host:"), command: HostEditorModel.hostServicePairCommand))
                 Link("How to Install the Host Service", destination: PurrdrLinks.hostServiceGuide)
                     .accessibilityIdentifier("hostEditor.hostServiceGuide")
             }
@@ -336,14 +322,28 @@ struct HostEditorView: View {
         }
     }
 
-    /// herdr 路徑與 Session 收在「進階」(HTTPS 的 herdr session 由主機服務決定)。
+    /// herdr 路徑與 Session 收在「詳細資訊」(與主機指紋同一組)(HTTPS 的 herdr session 由主機服務決定)。
     private var advancedSection: some View {
         Section {
             DisclosureGroup(isExpanded: $showsAdvanced) {
+                if let fingerprint = model.hostKeyFingerprint {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Host Key")
+                            .font(.subheadline.weight(.semibold))
+                        Text(fingerprint.description)
+                            .font(.body.monospaced())
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("hostEditor.fingerprint")
+                        InstructionView(
+                            instruction: AddHostGuideInstruction(
+                                text: String(localized: "To compare, run this on that computer:"),
+                                command: HostKeyFingerprint.compareCommand(on: model.hostOperatingSystem)))
+                    }
+                }
                 field("herdr Path", text: $model.herdrPath, prompt: "herdr", identifier: "herdrPath", focus: .herdrPath)
                 field("Session", text: $model.herdrSession, prompt: "Default", identifier: "herdrSession", focus: .herdrSession)
             } label: {
-                Text("Advanced")
+                Text("Details")
             }
             .accessibilityIdentifier("hostEditor.advanced")
         } footer: {

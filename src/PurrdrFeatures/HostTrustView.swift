@@ -6,6 +6,8 @@ import SwiftUI
 struct HostTrustView: View {
     let address: String
     let fingerprint: HostKeyFingerprint
+    /// 主機的作業系統(決定比對指令的路徑);不知道時給 macOS／Linux 的。
+    var operatingSystem: HostOperatingSystem?
     let trust: () -> Void
     let cancel: () -> Void
 
@@ -18,12 +20,16 @@ struct HostTrustView: View {
                 }
                 Section {
                     DisclosureGroup("Details") {
-                        Text("This host is identified by the code below. To check it yourself, run this on that computer and compare: ssh-keygen -lf <host key file>")
+                        Text("This host is identified by the code below.")
                             .foregroundStyle(.secondaryText)
                         Text(verbatim: fingerprint.description)
                             .font(.body.monospaced())
                             .textSelection(.enabled)
                             .accessibilityIdentifier("hostTrust.fingerprint")
+                        InstructionView(
+                            instruction: AddHostGuideInstruction(
+                                text: String(localized: "To check it yourself, run this on that computer and compare:"),
+                                command: HostKeyFingerprint.compareCommand(on: operatingSystem)))
                     }
                     .accessibilityIdentifier("hostTrust.details")
                 }

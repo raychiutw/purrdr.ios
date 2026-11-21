@@ -374,9 +374,6 @@ struct AccountView: View {
                     Button("Sign Out") { Task { await model.signOut() } }
                     Button("Delete Member", role: .destructive) { confirmingDeletion = true }
                         .accessibilityIdentifier("member.delete")
-                } footer: {
-                    Text("Deleting your member account removes it and its data from Purrdr right away. Subscriptions billed by Apple continue until you cancel them in Settings.")
-                        .foregroundStyle(.secondaryText)
                 }
             }
         }
@@ -583,9 +580,6 @@ struct SignInMethodsView: View {
                     }
                     .accessibilityIdentifier("member.identity.\(identity.method.rawValue)")
                 }
-            } footer: {
-                Text("Link another sign-in method to reach the same member from either. Keep at least one.")
-                    .foregroundStyle(.secondaryText)
             }
 
             let unlinked = SignInMethod.allCases.filter { member.identity($0) == nil }

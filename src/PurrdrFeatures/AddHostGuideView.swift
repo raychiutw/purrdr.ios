@@ -418,9 +418,10 @@ struct AddHostGuideView: View {
                             .font(.footnote.monospaced())
                             .textSelection(.enabled)
                             .accessibilityIdentifier("guide.fingerprint")
-                        Text("To compare, run this on that computer: ssh-keygen -lf <host key file>")
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
+                        InstructionView(
+                            instruction: AddHostGuideInstruction(
+                                text: String(localized: "To compare, run this on that computer:"),
+                                command: HostKeyFingerprint.compareCommand(on: model.system)))
                     }
                     .padding(.top, 6)
                 }

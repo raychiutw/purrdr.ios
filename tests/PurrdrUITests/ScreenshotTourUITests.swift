@@ -139,9 +139,8 @@ final class ScreenshotTourUITests: XCTestCase {
 
     @MainActor
     func test10Account() {
-        let app = XCUIApplication.uiTesting()
-        app.launch()
-        // 通知與主機同步在帳號頁的「設定 Purrdr Plus」步驟卡(#246)。
+        // 沒登入的帳號 sheet 直接是登入頁(#328),所以以已加入會員的假後台啟動才看得到步驟卡(#246)。
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
         XCTAssertTrue(app.buttons["toolbar.account"].waitForExistence(timeout: 10))
         app.buttons["toolbar.account"].tap()
         XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10), "帳號頁沒有步驟卡")
@@ -153,6 +152,38 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
         XCTAssertTrue(element("sheet.welcome", in: app).waitForExistence(timeout: 10))
         capture("11-welcome", app)
+    }
+
+    @MainActor
+    func test12AddHostGuide() {
+        // 沒有主機的空狀態(#332)進新增主機引導的第一頁(#341)。
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts", "-uiTestingAddHostGuide"])
+        let add = app.buttons["agentList.addHost"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10), "沒有沒有主機的空狀態")
+        add.tap()
+        XCTAssertTrue(app.buttons["guide.option.ssh"].waitForExistence(timeout: 5), "沒有開出新增主機引導")
+        capture("12-add-host-guide", app)
+    }
+
+    @MainActor
+    func test13DataUsage() {
+        // 設定 → 數據用量(#354):以種子資料畫出摘要、長條圖與各台主機。
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"])
+        app.openMoreMenuItem("menu.settings")
+        let entry = app.buttons["settings.dataUsage"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5), "設定沒有數據用量")
+        entry.tap()
+        XCTAssertTrue(element("dataUsage.chart", in: app).waitForExistence(timeout: 10), "沒有長條圖")
+        capture("13-data-usage", app)
+    }
+
+    @MainActor
+    func test14PlusPaywall() {
+        // Purrdr Plus 頁(#323):已加入會員、未開通時是付費牆。
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember", "-seedHost"])
+        app.openPlusPaywall()
+        XCTAssertTrue(element("plus.disclosure", in: app).waitForExistence(timeout: 15), "沒有付費牆")
+        capture("14-plus", app)
     }
 
     // MARK: - 設計稿比對(#267、#276):重做的頁面各存淺色與深色，與原型並排確認
