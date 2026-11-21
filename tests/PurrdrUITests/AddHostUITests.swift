@@ -140,7 +140,7 @@ final class AddHostUITests: XCTestCase {
         app.buttons["guide.next"].tapWhenReady()
         app.buttons["guide.option.linux"].tapWhenReady()
         app.buttons["guide.next"].tapWhenReady()
-        XCTAssertTrue(app.buttons["guide.scan"].waitForExistence(timeout: 5), "沒有到配對那一頁")
+        XCTAssertTrue(app.buttons["Enter It Manually"].firstMatch.waitForExistence(timeout: 5), "沒有到配對那一頁")
     }
 
     /// Tailscale SSH 路徑到填主機那一頁(位址、Port、帳號)。

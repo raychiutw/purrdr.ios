@@ -166,7 +166,7 @@ final class HTTPSHostUITests: XCTestCase {
         app.buttons["guide.next"].tapWhenReady()
         app.buttons["guide.option.linux"].tapWhenReady()
         app.buttons["guide.next"].tapWhenReady()
-        XCTAssertTrue(app.buttons["guide.scan"].waitForExistence(timeout: 5), "沒有到配對那一頁")
+        XCTAssertTrue(app.buttons["Enter It Manually"].firstMatch.waitForExistence(timeout: 5), "沒有到配對那一頁")
     }
 
     /// 手動輸入位址與配對碼，按下一步開始測試連線。
