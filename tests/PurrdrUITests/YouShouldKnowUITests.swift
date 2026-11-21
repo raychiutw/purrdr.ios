@@ -87,7 +87,7 @@ final class YouShouldKnowUITests: XCTestCase {
         let alert = app.alerts.firstMatch
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有詢問同意")
         let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
-        XCTAssertTrue(message.contains("config.toml") && message.contains("demo"), "沒說明讀寫什麼、以哪個使用者:\(message)")
+        XCTAssertTrue(message.contains("colors") && message.contains("demo"), "沒說明讀寫什麼、以哪個使用者:\(message)")
         alert.buttons["Use Theme"].firstMatch.tap()
 
         let name = element("settings.hostTheme.name", in: app)

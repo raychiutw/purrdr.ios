@@ -132,8 +132,6 @@ struct SignedOutAccountView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
-                SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
-                    .padding(.top, 12)
                 Text("Chat and terminal don’t need a member account.")
                     .font(.footnote)
                     .foregroundStyle(.secondaryText)
@@ -141,6 +139,12 @@ struct SignedOutAccountView: View {
                     .padding(.top, 4)
             }
             .padding(.horizontal)
+        }
+        // 登入鈕固定在底部:AX 字級時也不必捲動才看得到(HIG:Sign in with Apple 要一眼看得到)。
+        .safeAreaInset(edge: .bottom) {
+            SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
+                .padding()
+                .background(.bar)
         }
         .accessibilityIdentifier("account.signedOut")
     }

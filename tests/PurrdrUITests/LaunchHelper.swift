@@ -107,10 +107,9 @@ extension XCUIApplication {
     /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
     @MainActor
     func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
+        // 沒登入時帳號頁直接是登入頁(#328)。
         openAccount(file: file, line: line)
-        let join = buttons["account.plusSetup.action"].firstMatch
-        XCTAssertTrue(join.waitForExistence(timeout: 10), "帳號頁沒有「加入」", file: file, line: line)
-        join.tap()
+        XCTAssertTrue(buttons["member.signIn.apple"].firstMatch.waitForExistence(timeout: 10), "帳號頁沒有登入頁", file: file, line: line)
     }
 
     /// 開已存主機(`-seedHost` 的 Studio Mac)的主機頁(#274:主機主題、You should know、Codex 啟動器在這裡)。

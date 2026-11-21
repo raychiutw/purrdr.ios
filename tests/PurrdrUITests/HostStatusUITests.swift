@@ -55,9 +55,12 @@ final class HostStatusUITests: XCTestCase {
         XCTAssertTrue(info.waitForExistence(timeout: 5), "主機清單沒有 Studio")
         info.tap()
         XCTAssertTrue(app.buttons["hostEditor.save"].waitForExistence(timeout: 5), "沒有開啟主機頁")
-        for _ in 0..<6 {
+        // 表單是 lazy 的,欄位愈來愈多(#274、#346):一次捲一點,直到最後一個區塊(已配對裝置)出現。
+        let last = app.descendants(matching: .any)["hostStatus.hostService.autoUpdate"].firstMatch
+        for _ in 0..<14 where !last.exists || !last.isHittable {
             app.swipeUp()
         }
+        app.swipeUp()
     }
 }
 
