@@ -15,6 +15,8 @@ struct HostEditorView: View {
     @State private var showsAdvanced = false
     /// 鍵盤焦點所在的欄位(#312):return 依畫面順序往下，「完成」與捲動收起鍵盤。
     @FocusState private var focus: HostEditorModel.InputField?
+    /// 私鑰欄在畫面上的位置(全域座標),拖動起點在裡面時不收鍵盤。
+    @State private var privateKeyFrame = CGRect.null
     @Environment(\.pairingCodeScanSource) private var scanSource
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
@@ -131,8 +133,10 @@ struct HostEditorView: View {
         // 這個 Form(sheet 裡、有 refreshable)在 iOS 26 上 `.scrollDismissesKeyboard` 不起作用(UI 測試實測),
         // 所以垂直拖動時自己清掉焦點;最短距離避開點按。
         .simultaneousGesture(
-            DragGesture(minimumDistance: 24).onChanged { drag in
+            DragGesture(minimumDistance: 24, coordinateSpace: .global).onChanged { drag in
                 guard focus != nil, abs(drag.translation.height) > abs(drag.translation.width) else { return }
+                // 從私鑰欄(多行輸入)開始的拖動是在欄內捲動或選字，不收鍵盤(#312、#329)。
+                guard !privateKeyFrame.contains(drag.startLocation) else { return }
                 focus = nil
             })
         .modifier(PairedDevicesDialogs(model: hostStatus?.pairedDevices))
@@ -497,6 +501,7 @@ struct HostEditorView: View {
                     .plainTextInput()
                     // 多行輸入：return 是換行，收鍵盤靠「完成」或捲動。
                     .focused($focus, equals: .privateKey)
+                    .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { privateKeyFrame = $0 }
                     .accessibilityLabel("Private Key")
                     .accessibilityIdentifier("hostEditor.privateKey")
                 if model.privateKeyText.isEmpty && model.hasStoredSecret {

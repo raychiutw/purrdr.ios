@@ -77,3 +77,8 @@ extension EnvironmentValues {
         hostAppColors?[keyPath: color].map(Color.init) ?? Color.accentColor
     }
 }
+
+extension Color {
+    /// 承載文字的主色(跟著 tint 與主機主題;#329):AttributedString 的指令著色拿不到 `.tint` 樣式，用它取代直接寫 accentColor。
+    static var commandText: Color { .accentColor }
+}

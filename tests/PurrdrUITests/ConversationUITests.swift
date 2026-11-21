@@ -30,12 +30,11 @@ final class ConversationUITests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
     }
 
-    /// 點輸入列的「收起鍵盤」,等它消失(輸入框不再聚焦)。
+    /// 確保鍵盤收起:還聚焦就點輸入列的「收起鍵盤」(送出後鍵盤本來就會收起,#329),等輸入框不再聚焦。
     @MainActor
     private func hideKeyboard(in app: XCUIApplication) {
         let hide = element("composer.hideKeyboard", in: app)
-        XCTAssertTrue(hide.waitForExistence(timeout: 5), "沒有收起鍵盤鈕")
-        hide.tap()
+        if hide.waitForExistence(timeout: 1) { hide.tap() }
         XCTAssertTrue(hide.waitForNonExistence(timeout: 5), "鍵盤沒有收起")
     }
 
@@ -471,6 +470,51 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "鍵盤沒有收起")
         XCTAssertEqual(text.value as? String, "Half a thought", "草稿不見了")
         XCTAssertFalse(element("conversation.echo", in: app).exists, "收起鍵盤不該送出")
+    }
+
+    /// 送出後立刻收起鍵盤(#329)。
+    @MainActor
+    func testSendingDismissesKeyboard() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        text.typeEnglish("Ship it")
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+
+        element("composer.send", in: app).tap()
+
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "送出後鍵盤沒有收起")
+    }
+
+    /// 點聊天的訊息區收起鍵盤(#329)。
+    @MainActor
+    func testTappingConversationDismissesKeyboard() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+
+        app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
+
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "點訊息區後鍵盤沒有收起")
+    }
+
+    /// 上下滑動聊天收起鍵盤(#329)。
+    @MainActor
+    func testScrollingConversationDismissesKeyboard() {
+        let app = openLedger()
+        let text = element("composer.text", in: app)
+        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        text.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+
+        let window = app.windows.firstMatch
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).press(
+            forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "滑動後鍵盤沒有收起")
     }
 
     /// 多行草稿時輸入框長高超過舊的 4 行上限(#137):7 行全部攤開、不內捲。

@@ -56,6 +56,8 @@ public final class ConversationModel {
     }
 
     public private(set) var phase: Phase = .loading
+    /// 重新載入、換 session 的讀取進行中:畫面保留舊訊息，只顯示不遮擋的更新指示(#329)。
+    public private(set) var isRefreshing = false
     public private(set) var items: [ConversationItem] = []
     /// 畫面上是快取的內容(離線)。
     public private(set) var isOffline = false
@@ -704,6 +706,7 @@ public final class ConversationModel {
         // 背景 agents 窗格只有 Claude 有。
         if agent.kind == "claude" { await readAgentsPaneIfNeeded() }
         guard let target = agent.transcriptTarget else {
+            if isRefreshing { clearDisplay() }
             waitForSession(agent)
             return
         }
@@ -711,7 +714,7 @@ public final class ConversationModel {
         if boundSessionID != target.sessionKey {
             // 新的 session(輪替，或回收 slot 中的新聊天):丟掉舊對話、游標與快取(F5.1 第 4 點)。
             if boundSessionID != nil { await cache.remove(chatKey: chatKey) }
-            unbind()
+            unbind(keepingDisplay: true)
             boundSessionID = target.sessionKey
         }
         format = target.format
@@ -750,6 +753,7 @@ public final class ConversationModel {
 
     private func read(_ target: TranscriptTarget) async {
         let generation = generation
+        defer { if generation == self.generation { isRefreshing = false } }
         do {
             if let file, following?.path == file.path {
                 // 新內容由追蹤送來(#165),不讀尾端。
@@ -832,6 +836,7 @@ public final class ConversationModel {
             // 新 session 在第一個 prompt 前可能還沒有檔案：可用的空聊天，下次輪詢再找(R-I09)。
             guard generation == self.generation else { return }
             file = nil
+            if isRefreshing { clearDisplay() }
             banner = nil
             phase = .ready
         case TranscriptReadError.unreadable:
@@ -841,12 +846,14 @@ public final class ConversationModel {
             // 不開任何檔、不依新舊猜;下次輪詢重新定位(使用者可能已刪掉多餘的檔)。
             guard generation == self.generation else { return }
             file = nil
+            if isRefreshing { clearDisplay() }
             banner = .ambiguous
             phase = .ready
         case TranscriptReadError.compressed:
             // 只有 `.zst`:不是「還沒有檔案」,也不在手機上解壓;下次輪詢重新定位(Codex 可能又寫了新的 rollout)。
             guard generation == self.generation else { return }
             file = nil
+            if isRefreshing { clearDisplay() }
             banner = .compressed
             phase = .ready
         default:
@@ -939,6 +946,7 @@ public final class ConversationModel {
     /// 連不上主機：畫面空著時，唯讀顯示同一 session 的快取(只在快取屬於列表看到的 session 時,R-B16)。
     private func showOffline() async {
         isOffline = true
+        isRefreshing = false
         // 斷線前的狀態已過時：不能留著 working 讓停止鈕可按(#220)。
         if agentStatus == .working { stopNeedsReconnect = true }
         agentStatus = nil
@@ -1863,7 +1871,7 @@ public final class ConversationModel {
     /// 重新載入(F5.7):清掉這個聊天的快取、游標與歷史(含停止追蹤的 workflow),重新定位並讀視窗。
     public func reload() async {
         await cache.remove(chatKey: chatKey)
-        unbind()
+        unbind(keepingDisplay: true)
         banner = nil
         await poll()
     }
@@ -1911,7 +1919,8 @@ public final class ConversationModel {
 
     // MARK: - 內部
 
-    private func unbind() {
+    /// 解除目前的對話綁定。`keepingDisplay` 時畫面上的訊息留到新內容讀回來(#329),`isRefreshing` 標示讀取中。
+    private func unbind(keepingDisplay: Bool = false) {
         stopFollowingUpdates()
         if let path = file?.path {
             let transcripts = transcripts
@@ -1921,6 +1930,14 @@ public final class ConversationModel {
         workflowModels = [:]
         boundSessionID = nil
         file = nil
+        isRefreshing = keepingDisplay
+        if keepingDisplay { return }
+        clearDisplay()
+    }
+
+    /// 清掉顯示中的訊息(沒有新內容可換上時，例如新 session 還沒有對話紀錄)。
+    private func clearDisplay() {
+        isRefreshing = false
         recent = []
         segments = []
         olderMessages = []
