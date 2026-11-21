@@ -1,6 +1,6 @@
 import XCTest
 
-/// 主機頁(ⓘ)下方的主機服務區塊(#290)。UI 測試替身：主機服務有新版 0.7.1,立即更新後重新連線就是新版。
+/// 主機頁(ⓘ)下方的主機服務區塊(#290)。UI 測試替身：主機服務有新版 1.0.1,立即更新後重新連線就是新版。
 final class HostStatusUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -14,7 +14,7 @@ final class HostStatusUITests: XCTestCase {
 
         let version = app.descendants(matching: .any)["hostStatus.hostService.version"].firstMatch
         XCTAssertTrue(version.waitForExistence(timeout: 10), "沒有主機服務版本")
-        XCTAssertTrue(app.descendants(matching: .any)["hostStatus.hostService.latest"].firstMatch.label.contains("0.7.1"))
+        XCTAssertTrue(app.descendants(matching: .any)["hostStatus.hostService.latest"].firstMatch.label.contains("1.0.1"))
 
         let autoUpdate = app.switches["hostStatus.hostService.autoUpdate"]
         XCTAssertTrue(autoUpdate.exists)
@@ -27,8 +27,8 @@ final class HostStatusUITests: XCTestCase {
         update.tap()
         let updated = app.descendants(matching: .any)["hostStatus.hostService.updateResult"].firstMatch
         XCTAssertTrue(updated.waitForExistence(timeout: 20), "沒有更新結果")
-        XCTAssertTrue(updated.label.contains("Updated to 0.7.1"), updated.label)
-        XCTAssertTrue(version.label.contains("0.7.1"), "版本沒有換成新版")
+        XCTAssertTrue(updated.label.contains("Updated to 1.0.1"), updated.label)
+        XCTAssertTrue(version.label.contains("1.0.1"), "版本沒有換成新版")
     }
 
     /// 唯讀裝置(啟動時已用唯讀權杖配對):看得到狀態，立即更新與自動更新停用並說明。

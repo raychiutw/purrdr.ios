@@ -140,13 +140,14 @@ struct SignedOutAccountView: View {
             }
             .padding(.horizontal)
         }
+        // 識別碼要掛在 ScrollView 本身:掛在 safeAreaInset 外層會蓋掉登入鈕自己的識別碼。
+        .accessibilityIdentifier("account.signedOut")
         // 登入鈕固定在底部:AX 字級時也不必捲動才看得到(HIG:Sign in with Apple 要一眼看得到)。
         .safeAreaInset(edge: .bottom) {
             SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
                 .padding()
                 .background(.bar)
         }
-        .accessibilityIdentifier("account.signedOut")
     }
 }
 
