@@ -52,6 +52,8 @@ public final class MergedAgentListModel {
     public enum Content: Equatable {
         /// 第一次載入、還沒有任何列：列表骨架與各主機的連線狀態(不整頁轉圈,#221)。
         case loading
+        /// 還沒有加入任何主機、也沒試用 Demo(#332):說明與「新增主機」「試用 Demo」按鈕。
+        case noHosts
         /// 裝置沒有網路、也沒有任何列：離線畫面與再試一次(不等連線逾時,#221)。
         case offline
         /// 沒有任何列，每台主機都讀不到:選取中主機的錯誤佔滿畫面。
@@ -119,6 +121,10 @@ public final class MergedAgentListModel {
     public var currentHostDidChange: (@MainActor (HostSelection?) -> Void)?
     /// 目前主機是某台主機時，把它設成選取中主機(主機清單接上)。
     public var selectHost: (@MainActor (HostSelection) -> Void)?
+    /// 沒有主機時等著第一台主機(#332):由 `HostsModel` 依「沒有已存主機、也還沒試用 Demo」設定。
+    public var isAwaitingFirstHost = false
+    /// 空狀態的「試用 Demo」:由 `HostsModel` 接上。
+    public var enterDemo: (@MainActor () -> Void)?
 
     /// 篩選選單的主機項目(依列表的主機順序)。
     public var hostFilterOptions: [HostOption] {
@@ -244,6 +250,7 @@ public final class MergedAgentListModel {
     }
 
     public var content: Content {
+        if isAwaitingFirstHost { return .noHosts }
         if hasAgents { return .list }
         if !isNetworkAvailable { return .offline }
         if let message = allFailedMessage { return .failed(message) }

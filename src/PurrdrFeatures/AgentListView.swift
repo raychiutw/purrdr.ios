@@ -130,6 +130,29 @@ public struct AgentListView: View {
         switch model.content {
         case .loading:
             loadingList
+        case .noHosts:
+            // 還沒有任何主機(#332):說明加主要按鈕(系統 glass prominent),次要是試用 Demo。
+            ContentUnavailableView {
+                Label("No Computers Yet", systemImage: "desktopcomputer")
+            } description: {
+                Text("Add the computer where your agents run, and they show up here. Or look around with sample conversations first.")
+            } actions: {
+                if let window {
+                    Button("Add Host") { window.openAddHost() }
+                        .filledProminentButtonStyle()
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.large)
+                        .accessibilityIdentifier("agentList.addHost")
+                }
+                Button("Try the Demo") { model.enterDemo?() }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    .foregroundStyle(Color.primary)
+                    .accessibilityIdentifier("agentList.tryDemo")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("agentList.noHosts")
         case .offline:
             // 沒網路就直接說，不等連線逾時(#221);網路恢復後自動重連。
             ContentUnavailableView {

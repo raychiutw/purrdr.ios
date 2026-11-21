@@ -54,6 +54,17 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
     }
 
+    /// 沒有主機的空狀態(#332)。
+    @MainActor
+    func testAgentListNoHosts() throws {
+        for size in [nil, Self.ax5] {
+            let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"], contentSize: size)
+            XCTAssertTrue(element("agentList.addHost", in: app).waitForExistence(timeout: 15))
+            try audit(app, "Agent 列表(沒有主機)", contentSize: size)
+            app.terminate()
+        }
+    }
+
     /// 版面圖(Spaces 檢視點有多個 pane 的 Tab,#275)。
     @MainActor
     func testLayout() throws {

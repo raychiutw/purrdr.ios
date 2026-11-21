@@ -65,7 +65,7 @@ public struct TopNavigationView: View {
             .sheet(item: $navigation.sheet) { sheet in
                 switch sheet {
                 case .hosts:
-                    HostListView(model: hosts, importURL: $navigation.pendingHostImport, editHostID: $navigation.pendingHostEditor)
+                    HostListView(model: hosts, importURL: $navigation.pendingHostImport, editHostID: $navigation.pendingHostEditor, addHost: $navigation.pendingAddHost)
                 case .settings:
                     SettingsView(
                         model: settings,

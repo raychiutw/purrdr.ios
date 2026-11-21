@@ -204,6 +204,7 @@ public final class HostsModel {
         offlineQueueStore = offlineQueues
         rebuildMembers()
         agentList.selectHost = { [weak self] host in self?.select(host) }
+        agentList.enterDemo = { [weak self] in self?.enterDemo() }
         agentList.currentHostDidChange = { [weak self] host in self?.currentHostStore.save(host) }
     }
 
@@ -646,6 +647,18 @@ public final class HostsModel {
     /// #342、#344、#346 接手後移除),`-uiTestingAddHostGuide` 才開引導。
     @ObservationIgnored public var usesAddHostGuide = true
 
+    /// 沒有已存主機時，列表要不要直接列出 Demo(#332)。預設 true(測試與預覽);app 正式啟動設 false，
+    /// 這時沒有主機就顯示空狀態，按「試用 Demo」或在主機清單選 Demo 才進入。
+    public var demoEntered = true {
+        didSet { agentList.isAwaitingFirstHost = hosts.isEmpty && !demoEntered }
+    }
+
+    /// 進入 Demo 主機。
+    public func enterDemo() {
+        demoEntered = true
+        select(.demo)
+    }
+
     /// 從主機分享連結或主機配對指令的 QR code(`purrdr://pair?…`)新增主機：帶入欄位的編輯器。
     /// 連結不合法時丟 `HostShareLinkError` 或 `HostServicePairingLinkError`。
     public func makeImportEditor(_ url: URL) throws -> HostEditorModel {
@@ -789,6 +802,7 @@ public final class HostsModel {
                     notes: member.youShouldKnow)
             }
         }
+        agentList.isAwaitingFirstHost = hosts.isEmpty && !demoEntered
         agentList.update(sources: sources, selected: selection)
     }
 

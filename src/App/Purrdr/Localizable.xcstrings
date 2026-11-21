@@ -1117,6 +1117,17 @@
         }
       }
     },
+    "Add the computer where your agents run, and they show up here. Or look around with sample conversations first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增 Agent 所在的電腦，它們就會出現在這裡。也可以先用範例對話逛逛。"
+          }
+        }
+      }
+    },
     "Added" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5986,6 +5997,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有變更"
+          }
+        }
+      }
+    },
+    "No Computers Yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有電腦"
           }
         }
       }
