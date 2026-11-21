@@ -84,6 +84,8 @@ final class FakeHostService: Sendable {
         var fileReplies: [String: [String]] = [:]
         /// 已配對裝置訊息(`devices.list`／`devices.revoke`)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
         var deviceReplies: [String: [String]] = [:]
+        /// git 讀取訊息(`git.status`／`git.diff`,#310)的回應：訊息種類 → 依序回的 JSON 物件(不含 `request_id`)。
+        var gitReplies: [String: [String]] = [:]
         /// `agent.prompt` 成功時回報的 `delivery`。
         var promptDelivery: String?
         /// 有值時 `agent.prompt` 以 `herdr_error` 失敗，帶這個 herdr 錯誤碼。
@@ -387,6 +389,17 @@ final class FakeHostService: Sendable {
             let reply = state.withLock { state -> String? in
                 guard let queue = state.settings.fileReplies[type], let first = queue.first else { return nil }
                 if queue.count > 1 { state.settings.fileReplies[type] = Array(queue.dropFirst()) }
+                return first
+            }
+            guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {
+                return [.text(Self.error(requestID, "invalid_message"))]
+            }
+            object["request_id"] = requestID
+            return [.text(Self.json(object))]
+        case "git.status", "git.diff":
+            let reply = state.withLock { state -> String? in
+                guard let queue = state.settings.gitReplies[type], let first = queue.first else { return nil }
+                if queue.count > 1 { state.settings.gitReplies[type] = Array(queue.dropFirst()) }
                 return first
             }
             guard let reply, var object = try? JSONSerialization.jsonObject(with: Data(reply.utf8)) as? [String: Any] else {

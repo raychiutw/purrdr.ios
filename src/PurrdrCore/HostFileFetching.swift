@@ -149,6 +149,11 @@ public enum HostFileAccessPolicy {
         return locations
     }
 
+    /// 路徑在排除清單裡(變更頁的 diff 也不讀這些檔案，#310)。
+    package static func isExcluded(_ path: String) -> Bool {
+        isExcluded(HostPathSyntax.components(path).map(String.init))
+    }
+
     private static func isExcluded(_ segments: [String]) -> Bool {
         let folded = segments.map { $0.lowercased() }
         return excludedLocations.contains { location in

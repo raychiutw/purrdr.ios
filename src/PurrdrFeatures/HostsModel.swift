@@ -322,6 +322,8 @@ public final class HostsModel {
         model.youShouldKnow = member.youShouldKnow
         // 圖片縮圖讀聊天所在的主機(#225)。
         model.agentFiles = member.agentFiles
+        // 變更頁讀聊天所在主機的 git(#310)。
+        model.gitChanges = member.gitChanges
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
         return model
     }
@@ -759,6 +761,8 @@ public final class HostsModel {
                 host: host, configuration: configuration, channel: UnsupportedHostChannel(), connection: connection,
                 // 主機取檔走同一條主機服務連線(#227);UI 測試的替身連線沒有取檔。
                 files: (connection as? any HostFileFetching) ?? UnsupportedHostFileFetcher(), uploads: connection as? any HostUploading,
+                // 變更頁走主機服務的 git.status／git.diff(#310);UI 測試的替身連線沒有。
+                git: (connection as? any GitChangesReading) ?? UnsupportedGitChanges(),
                 preferences: preferences.store(for: host),
                 push: pushService, consent: hostConsent)
         case .tailscaleSSH(let settings), .openSSH(let settings, _):
@@ -933,19 +937,24 @@ final class HostMember {
     let agentFiles: AgentFileLoads
     /// 聊天附加的圖片與檔案上傳到主機(#286)。
     let uploader: any HostUploading
+    /// 變更頁的唯讀 git 讀取(#310)。
+    let gitChanges: any GitChangesReading
 
     /// - Parameters:
     ///   - connection: 上層功能用的主機連線;`nil` 時是包住 `channel` 的 SSH 連線。
     ///   - files: 主機取檔;`nil` 時經 `channel` 跑 SSH 的取檔腳本(主機跑不了時是 unsupported)。
+    ///   - git: 變更頁的 git 讀取;`nil` 時經 `channel` 跑唯讀 git 指令(#310)。
     ///   - uploads: 上傳到主機;`nil` 時經 `channel` 的 exec＋stdin(Windows 主機由 `WindowsHostChannel` 換成 PowerShell 版，#68)。
     init(
         host: HostSelection, configuration: HostConfiguration?, channel: any HostChannel, connection: (any HostConnection)? = nil,
-        files: (any HostFileFetching)? = nil, uploads: (any HostUploading)? = nil, preferences: any ChatPreferencesStore, push pushService: PushService?,
+        files: (any HostFileFetching)? = nil, uploads: (any HostUploading)? = nil, git: (any GitChangesReading)? = nil,
+        preferences: any ChatPreferencesStore, push pushService: PushService?,
         consent: any HostWriteConsentStore
     ) {
         self.host = host
         self.channel = channel
         uploader = uploads ?? SSHHostUploader(channel: channel)
+        gitChanges = git ?? SSHGitChanges(channel: channel)
         let herdr = configuration?.ssh?.herdr ?? HerdrInstallation()
         let connection = connection ?? SSHHostConnection(
             channel: channel, herdr: herdr, followDiagnostics: DiagnosticLog.systemNotice(category: "transcript-follow"))
