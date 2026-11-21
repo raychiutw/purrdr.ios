@@ -1,0 +1,142 @@
+<title>Purrdr 數據用量原型</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 原型(拋棄式):設定裡的「數據用量」頁三種版面;液態玻璃膠囊風，圖照 HIG Charts。兩色已以色盲檢查(行動網路深、Wi-Fi 淺，同色系;另有圖例與數值)。 */
+:root{
+  --page:#e8ebe9; --fg:#17201c; --muted:#66706b; --ground:#f2f2f7; --card:#ffffff; --surface2:#e9ecea; --line:#dde2df;
+  --cell:#0b7a5c; --wifi:#5bb894; --accent:#0b7a5c; --on-accent:#fff; --red:#d92d20; --frame:#17201c; --bar:#ffffffee;
+  --glass:rgba(255,255,255,.62); --glass-edge:rgba(255,255,255,.85); --glass-shadow:rgba(0,0,0,.12);
+  --sans:-apple-system,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000; --card:#1c1c1e; --surface2:#2c2c2e; --line:#2f3431;
+  --cell:#2bb383; --wifi:#127a59; --accent:#3ccf9e; --on-accent:#03140d; --red:#ff6b5e; --frame:#333836; --bar:#1a1d1cee;
+  --glass:rgba(40,44,42,.6); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.5); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#0d0f0e; --fg:#e8ece9; --muted:#97a19c; --ground:#000; --card:#1c1c1e; --surface2:#2c2c2e; --line:#2f3431;
+  --cell:#2bb383; --wifi:#127a59; --accent:#3ccf9e; --on-accent:#03140d; --red:#ff6b5e; --frame:#333836; --bar:#1a1d1cee;
+  --glass:rgba(40,44,42,.6); --glass-edge:rgba(255,255,255,.14); --glass-shadow:rgba(0,0,0,.5); color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font-family:var(--sans);margin:0;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 120px}
+.wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:20px;margin:0} .lede{color:var(--muted);margin:0;font-size:14px;line-height:1.6;max-width:70ch}
+.stage{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.col{flex:0 1 380px;width:380px;max-width:100%;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cap{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:center}
+.notes{flex:1 1 300px;min-width:0;font-size:14px;line-height:1.6;color:var(--muted)} .notes b{color:var(--fg)} .notes ul{padding-left:18px;margin:6px 0}
+.phone{width:100%;height:780px;border:8px solid var(--frame);border-radius:42px;background:var(--ground);overflow:hidden;position:relative}
+.scroll{position:absolute;inset:0;overflow-y:auto;padding:64px 16px 30px;display:flex;flex-direction:column;gap:14px}
+.scroll>*{flex:none}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);border:1px solid var(--glass-edge);box-shadow:0 6px 24px var(--glass-shadow)}
+.hdr{position:absolute;top:0;left:0;right:0;padding:10px 12px 18px;display:flex;align-items:center;gap:8px;z-index:3;background:linear-gradient(var(--ground),transparent)}
+.back{width:34px;height:34px;border-radius:17px;display:grid;place-items:center}
+.ttl{border-radius:999px;padding:6px 16px;font-size:15px;font-weight:600;margin:0 auto}
+.num{font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{height:32px;border-radius:16px;padding:0 12px;display:inline-flex;align-items:center;gap:4px;font-size:13px;background:var(--surface2);cursor:pointer}
+.card{background:var(--card);border-radius:20px;padding:14px}
+.sec{font-size:13px;color:var(--muted);padding:0 4px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)} .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.chart{position:relative;height:160px;margin-top:10px}
+.grid{position:absolute;left:0;right:30px;border-top:1px dashed var(--line);font-size:10px;color:var(--muted)}
+.grid span{position:absolute;right:-30px;top:-7px}
+.bars{position:absolute;left:0;right:30px;top:0;bottom:16px;display:flex;align-items:flex-end;gap:2px}
+.bar{flex:1;display:flex;flex-direction:column-reverse;gap:2px;cursor:pointer;min-width:0;height:100%;justify-content:flex-start}
+.bar i{display:block;width:100%}
+.bar i.c{background:var(--cell);border-radius:0 0 3px 3px} .bar i.w{background:var(--wifi);border-radius:3px 3px 0 0}
+.bar.sel i{outline:2px solid var(--fg);outline-offset:0}
+.bar:not(.sel):hover{opacity:.8}
+.axis{position:absolute;left:0;right:30px;bottom:0;display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+.tip{border-radius:14px;padding:8px 12px;font-size:12.5px;display:flex;gap:14px;align-items:center;margin-top:10px}
+.tip b{font-size:13px}
+.hero{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{border-radius:20px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.tile .l{font-size:12px;color:var(--muted)} .tile .v{font-size:26px;font-weight:700;letter-spacing:-.01em} .tile .s{font-size:12px;color:var(--muted)}
+.big{text-align:center;padding:6px 0 2px} .big .v{font-size:44px;font-weight:700;letter-spacing:-.02em} .big .l{font-size:13px;color:var(--muted)}
+.list{background:var(--card);border-radius:20px;overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;padding:11px 14px;font-size:15px;position:relative}
+.row+.row::before{content:"";position:absolute;left:52px;right:0;top:0;border-top:.5px solid var(--line)}
+.hic{width:30px;height:30px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;font-size:14px;flex:none}
+.row .tx{flex:1;min-width:0} .row .tx span{display:block;font-size:12px;color:var(--muted)}
+.row .v{color:var(--muted);font-size:14px}
+.hbar{height:8px;border-radius:4px;background:var(--surface2);overflow:hidden;display:flex;gap:2px;margin-top:5px}
+.hbar i{display:block;height:100%}
+.pillrow{border-radius:999px;padding:8px 14px;display:flex;align-items:center;gap:10px}
+.reset{color:var(--red);text-align:center;font-size:15px;background:var(--card);border-radius:20px;padding:13px}
+.foot{font-size:12px;color:var(--muted);padding:0 4px;line-height:1.5}
+.detail{position:absolute;left:0;right:0;bottom:0;background:var(--ground);border-radius:24px 24px 0 0;padding:10px 16px 22px;z-index:5;display:flex;flex-direction:column;gap:10px;box-shadow:0 -10px 30px #0003}
+.scrim{position:absolute;inset:0;background:#0005;z-index:4}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--line);align-self:center}
+.kv{display:flex;justify-content:space-between;font-size:15px;background:var(--card);border-radius:14px;padding:11px 14px}
+.ctrl{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));background:var(--bar);backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:22px;padding:8px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 32px);box-shadow:0 6px 24px #0002;z-index:9}
+.seg{display:flex;background:var(--surface2);border-radius:14px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;padding:7px 11px;border-radius:11px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--card);font-weight:600;box-shadow:0 1px 3px #0002}
+</style>
+
+<div class="wrap">
+  <h1>數據用量</h1>
+  <p class="lede">原型(拋棄式)。設定裡的「數據用量」:只算這個 app 和各台主機之間的傳輸量。預設看加總;用選單膠囊切換期間與分類(點膠囊開勾選列，DESIGN.md「選單膠囊」)。點一根長條看那天的明細，點一台主機看送出與收到。數字是示意。</p>
+  <div class="stage">
+    <div class="col"><div class="cap" id="cap"></div><div class="phone" id="phone"></div></div>
+    <div class="notes" id="notes"></div>
+  </div>
+</div>
+<div class="ctrl" role="toolbar" aria-label="切換">
+  <div class="seg" id="segV"><button data-v="1">1 兩格摘要</button><button data-v="2">2 大數字</button><button data-v="3">3 主機為主</button></div>
+</div>
+<script>
+// 示意資料：30 天，每天 Wi-Fi 與行動網路(MB)
+const days=[...Array(30)].map((_,i)=>{const d=new Date(2026,10,21-29+i);const w=Math.round(18+14*Math.abs(Math.sin(i*1.7))+ (i%7===5?22:0));const c=Math.round(3+9*Math.abs(Math.cos(i*1.3))+(i>24?8:0));return{d,w,c};});
+const hosts=[{n:'Studio Mac',ic:'🖥',today:[38.2,9.4],m:[612,148],up:[41,9]},{n:'Build Box',ic:'▤',today:[4.1,1.2],m:[96,22],up:[7,2]},{n:'Demo',ic:'✦',today:[0.3,0],m:[4,0],up:[0,0]}];
+const S={v:'1',sel:29,host:null,cat:'加總'};
+const fmt=mb=>mb>=1000?(mb/1000).toFixed(2)+' GB':mb.toFixed(mb<10?1:0)+' MB';
+function chart(){
+  const max=Math.max(...days.map(x=>x.w+x.c)); const top=Math.ceil(max/20)*20;
+  const bars=days.map((x,i)=>`<div class="bar ${i===S.sel?'sel':''}" data-i="${i}" role="img" aria-label="${x.d.getMonth()+1}/${x.d.getDate()} Wi-Fi ${x.w} MB 行動網路 ${x.c} MB"><i class="c" style="height:${x.c/top*100}%"></i><i class="w" style="height:${x.w/top*100}%"></i></div>`).join('');
+  const s=days[S.sel];
+  return `<div class="legend"><span><i style="background:var(--cell)"></i>行動網路</span><span><i style="background:var(--wifi)"></i>Wi-Fi</span></div>
+  <div class="chart"><div class="grid" style="top:0"><span class="num">${top}</span></div><div class="grid" style="top:calc((100% - 16px)/2)"><span class="num">${top/2}</span></div><div class="grid" style="top:calc(100% - 16px)"><span>0</span></div>
+  <div class="bars">${bars}</div><div class="axis"><span>10/23</span><span>11/7</span><span>今天</span></div></div>
+  <div class="tip glass"><b>${s.d.getMonth()+1}月${s.d.getDate()}日</b><span class="num">行動網路 ${fmt(s.c)}</span><span class="num">Wi-Fi ${fmt(s.w)}</span></div>`;
+}
+const hostRows=(mode)=>hosts.map((h,i)=>{const t=mode==='m'?h.m:h.today;const tot=t[0]+t[1];
+  return `<div class="row" data-h="${i}"><span class="hic">${h.ic}</span><div class="tx">${h.n}<span class="num">行動網路 ${fmt(t[1])}</span>${S.v==='3'?`<div class="hbar"><i style="width:${t[1]/700*100}%;background:var(--cell)"></i><i style="width:${t[0]/700*100}%;background:var(--wifi)"></i></div>`:''}</div><span class="v num">${fmt(tot)} ›</span></div>`;}).join('');
+function render(){
+  const today=days[29]; const session={w:21.6,c:4.8};
+  let body='';
+  if(S.v==='1'){
+    body=`<div class="hero"><div class="tile glass"><span class="l">這次開啟</span><span class="v num">${fmt(session.w+session.c)}</span><span class="s num">行動網路 ${fmt(session.c)}</span></div><div class="tile glass"><span class="l">今天</span><span class="v num">${fmt(today.w+today.c)}</span><span class="s num">行動網路 ${fmt(today.c)}</span></div></div>
+    <div class="chips"><span class="chip glass">最近 30 天 ▾</span><span class="chip glass">${S.cat} ▾</span></div>
+    <div class="card">${chart()}</div>
+    <div class="sec">主機 · 今天</div><div class="list">${hostRows('t')}</div>
+    <div class="reset">重設統計</div><div class="foot">只計算 Purrdr 和主機之間傳的資料，不含電腦上其他程式。統計存在這支裝置，從 11 月 1 日開始。</div>`;
+  } else if(S.v==='2'){
+    body=`<div class="big"><div class="l">今天</div><div class="v num">${fmt(today.w+today.c)}</div><div class="l num">這次開啟 ${fmt(session.w+session.c)} · 行動網路 ${fmt(today.c)}</div></div>
+    <div class="chips" style="justify-content:center"><span class="chip glass">最近 30 天 ▾</span><span class="chip glass">${S.cat} ▾</span><span class="chip glass">所有主機 ▾</span></div>
+    <div class="card">${chart()}</div>
+    <div class="sec">主機</div>${hosts.map((h,i)=>`<div class="pillrow glass" data-h="${i}"><span class="hic">${h.ic}</span><span style="flex:1">${h.n}</span><span class="num" style="color:var(--muted)">${fmt(h.today[0]+h.today[1])} ›</span></div>`).join('')}
+    <div class="reset">重設統計</div>`;
+  } else {
+    body=`<div class="chips"><span class="chip glass">今天 ▾</span><span class="chip glass">${S.cat} ▾</span></div>
+    <div class="list">${hostRows('t')}</div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center"><div><div class="sec" style="padding:0">合計 · 今天</div><div style="font-size:24px;font-weight:700" class="num">${fmt(today.w+today.c)}</div></div><div style="text-align:right;font-size:12px;color:var(--muted)" class="num">這次開啟 ${fmt(session.w+session.c)}<br>行動網路 ${fmt(today.c)}</div></div>
+    <div class="sec">最近 30 天</div><div class="card">${chart()}</div>
+    <div class="reset">重設統計</div>`;
+  }
+  let detail='';
+  if(S.host!==null){const h=hosts[S.host];detail=`<div class="scrim" data-close></div><div class="detail"><div class="grab"></div><div style="font-size:17px;font-weight:700">${h.n}</div><div class="sec" style="padding:0">今天</div><div class="kv"><span>收到</span><span class="num">${fmt(h.today[0]+h.today[1]-h.up[0]/10)}</span></div><div class="kv"><span>送出</span><span class="num">${fmt(h.up[0]/10)}</span></div><div class="kv"><span>行動網路</span><span class="num">${fmt(h.today[1])}</span></div><div class="sec" style="padding:0">最近 30 天</div><div class="kv"><span>合計</span><span class="num">${fmt(h.m[0]+h.m[1])}</span></div></div>`;}
+  document.getElementById('phone').innerHTML=`<div class="hdr"><span class="back glass">‹</span><span class="ttl glass">數據用量</span><span style="width:34px"></span></div><div class="scroll">${body}</div>${detail}`;
+  document.getElementById('cap').textContent={'1':'1 兩格摘要','2':'2 大數字','3':'3 主機為主'}[S.v];
+  document.getElementById('notes').innerHTML={
+    '1':'<b>1 兩格摘要</b>:最上面兩個玻璃方塊「這次開啟」「今天」,下方一行行動網路的量;接著期間與分類的膠囊、30 天長條圖、各主機今天的用量、重設統計與說明。<ul><li>照你同意的順序，最直接。</li></ul>',
+    '2':'<b>2 大數字</b>:今天的總量一個大數字置中，下方小字是這次開啟與行動網路;期間、分類、主機三個膠囊置中;主機一台一顆玻璃膠囊。<ul><li>最有 iOS 26 的感覺，主機多時列表較長。</li></ul>',
+    '3':'<b>3 主機為主</b>:先看每台主機今天用多少(每列一條小橫條，行動網路深、Wi-Fi 淺),再看合計與 30 天圖。<ul><li>適合主機多、想找出是哪一台在耗流量。</li></ul>'
+  }[S.v]+'<p><b>三種共通</b></p><ul><li>預設看加總;分類膠囊可切「加總／Wi-Fi 與行動網路／送出與收到」,期間膠囊切「今天／7 天／30 天」(點開是勾選列 sheet)。</li><li>長條圖：行動網路(深綠)在下、Wi-Fi(淺綠)在上，兩段之間留縫;有圖例與點選後的數值，不只靠顏色;VoiceOver 每根念日期與兩個數字。</li><li>點長條看那天的明細，點主機開 sheet 看收到與送出。</li><li>重設統計會先確認。</li></ul>';
+  document.querySelectorAll('#segV button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===S.v));
+}
+document.getElementById('segV').onclick=e=>{const b=e.target.closest('button');if(b){S.v=b.dataset.v;S.host=null;render();}};
+document.getElementById('phone').onclick=e=>{const b=e.target.closest('.bar');if(b){S.sel=+b.dataset.i;render();return;}const h=e.target.closest('[data-h]');if(h){S.host=+h.dataset.h;render();return;}if(e.target.closest('[data-close]')){S.host=null;render();}};
+render();
+</script>
