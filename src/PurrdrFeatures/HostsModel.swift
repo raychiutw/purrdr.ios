@@ -754,10 +754,12 @@ public final class HostsModel {
     /// 某台主機的離線佇列(#301):第一次用到時從本機讀回。補送前以新鮮的快照確認 Agent 目前的狀態。
     public func offlineQueue(for host: HostSelection) -> OfflineQueue {
         if let queue = offlineQueues[host] { return queue }
-        let queue = OfflineQueue(host: host.storedValue, store: offlineQueueStore) { [weak self] text, agent in
+        let queue = OfflineQueue(host: host.storedValue, store: offlineQueueStore) { [weak self] text, agent, expectedSession in
             guard let client = self?.member(for: host).client else { return .rejected(message: "") }
             let fresh = (try? await client.snapshot())?.agents.first { $0.paneID == agent.paneID } ?? agent
-            return await PromptDelivery(client: client).send(text, to: fresh)
+            // 重讀的快照 session 已不是排入時的:什麼都不送(HTTPS 主機另在送出前比對)。
+            if let expectedSession, let session = fresh.sessionID, session != expectedSession { return .paneChanged }
+            return await PromptDelivery(client: client).send(text, to: fresh, expectedSession: expectedSession)
         }
         offlineQueues[host] = queue
         return queue

@@ -22,12 +22,12 @@ struct OfflineQueueTests {
     /// 記下補送的內容，回應指定的結果。
     @MainActor
     final class Deliveries {
-        var sent: [(text: String, paneID: String)] = []
+        var sent: [(text: String, paneID: String, expectedSession: String?)] = []
         var outcome: PromptOutcome = .delivered
 
-        var deliver: @MainActor (String, Agent) async -> PromptOutcome {
-            { text, agent in
-                self.sent.append((text, agent.paneID))
+        var deliver: @MainActor (String, Agent, String?) async -> PromptOutcome {
+            { text, agent, expectedSession in
+                self.sent.append((text, agent.paneID, expectedSession))
                 return self.outcome
             }
         }
@@ -48,6 +48,17 @@ struct OfflineQueueTests {
         store: any OfflineQueueStore = InMemoryOfflineQueueStore(), now: Now = Now(), deliveries: Deliveries = Deliveries()
     ) -> OfflineQueue {
         OfflineQueue(host: host, store: store, now: now.clock, deliver: deliveries.deliver)
+    }
+
+    @Test("補送帶排入時的 session(HTTPS 主機在送出前比對)")
+    func deliveryCarriesQueuedSession() async {
+        let deliveries = Deliveries()
+        let queue = Self.queue(deliveries: deliveries)
+        queue.enqueue(Self.prompt("帶 session", session: "s-1"))
+
+        await queue.reconcile(with: Self.snapshot())
+
+        #expect(deliveries.sent.map(\.expectedSession) == ["s-1"])
     }
 
     @Test("重連後的 Agent 列表：pane 與 session 都沒變、不到 10 分鐘，依序補送並移出佇列")
@@ -357,6 +368,28 @@ struct OfflineQueueTests {
         let prompts = await demo.executions.map(\.stdinText).filter { $0.contains(#""method":"agent.prompt""#) }
         #expect(prompts.count == 1)
         #expect(prompts.first?.contains("重連後補送") == true)
+    }
+
+    @Test("主機：補送前重讀的新鮮快照 session 已換，不送、標成對話已變更")
+    func freshSnapshotWithDifferentSessionIsNotDelivered() async {
+        let demo = FakeHost()
+        let bridge = HerdrCommand.bridge()
+        await demo.expect(bridge, reply: .recorded("session.snapshot.ndjson"))
+        await demo.expect(bridge, reply: ConversationModelTests.snapshot { $0["agent_session"] = ["source": "herdr:claude", "agent": "claude", "kind": "id", "value": "other-session"] })
+        let model = HostsModel(
+            store: MemoryHostStore(), demoChannel: demo, offlineQueues: InMemoryOfflineQueueStore(), makeChannel: ChannelFactory().make)
+        model.load()
+        let queue = model.offlineQueue(for: .demo)
+        queue.enqueue(OutgoingPrompt(
+            text: "不能送到別的對話", paneID: ConversationModelTests.paneID, expectedSession: ConversationModelTests.sessionID,
+            createdAt: Date(), workspaceID: "w1"))
+
+        await model.agentList.load()
+        await queue.waitUntilIdle()
+
+        #expect(queue.entries.first?.problem == .conversationChanged)
+        let prompts = await demo.executions.map(\.stdinText).filter { $0.contains(#""method":"agent.prompt""#) }
+        #expect(prompts.isEmpty)
     }
 
     @Test("主機：同一台主機的聊天共用一份佇列")

@@ -104,15 +104,15 @@ public final class OfflineQueue {
     @ObservationIgnored private let host: String
     @ObservationIgnored private let store: any OfflineQueueStore
     @ObservationIgnored private let now: @Sendable () -> Date
-    @ObservationIgnored private let deliver: @MainActor (String, Agent) async -> PromptOutcome
+    @ObservationIgnored private let deliver: @MainActor (String, Agent, String?) async -> PromptOutcome
     @ObservationIgnored private var reconciling: Task<Void, Never>?
 
     /// - Parameters:
     ///   - host: 這台主機在本機存放的 key(`HostSelection.storedValue`)。
-    ///   - deliver: 補送一則給 Agent(由建立者以新鮮的快照與 `PromptDelivery` 實作)。
+    ///   - deliver: 補送一則給 Agent,第三個參數是排入時的 session(由建立者以新鮮的快照與 `PromptDelivery` 實作)。
     public init(
         host: String, store: any OfflineQueueStore, now: @escaping @Sendable () -> Date = Date.init,
-        deliver: @escaping @MainActor (String, Agent) async -> PromptOutcome
+        deliver: @escaping @MainActor (String, Agent, String?) async -> PromptOutcome
     ) {
         self.host = host
         self.store = store
@@ -204,7 +204,7 @@ public final class OfflineQueue {
 
     /// 補送一則;送到回 `nil`。
     private func send(_ entry: QueuedPrompt, to agent: Agent) async -> QueuedPrompt.Problem? {
-        switch await deliver(entry.text, agent) {
+        switch await deliver(entry.text, agent, entry.sessionID) {
         case .delivered, .submittedCommand: nil
         case .noResponse, .unconfirmed: .mayHaveBeenSent
         case .needsAnswer: .needsAnswer
