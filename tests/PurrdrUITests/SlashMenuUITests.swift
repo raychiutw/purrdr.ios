@@ -117,9 +117,10 @@ final class SlashMenuUITests: XCTestCase {
         // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
         // 送出就收起鍵盤(#329);還聚焦才點。
         app.dismissKeyboard()
-        XCTAssertTrue(app.staticTexts["Select model"].exists)
+        XCTAssertTrue(app.staticTexts["Select model"].waitUntilExists(timeout: 5))
         let first = app.element("panel.option.0")
-        XCTAssertTrue(first.exists)
+        XCTAssertTrue(first.waitUntilExists(timeout: 5))
+        app.waitForSettledLayout([card, first], timeout: 3)
         XCTAssertFalse(first.isSelected, "游標一開始在目前的模型(第二列)")
         XCTAssertGreaterThanOrEqual(first.frame.height, 44)
 
@@ -151,11 +152,12 @@ final class SlashMenuUITests: XCTestCase {
         // 收起鍵盤：鍵盤開著時可見範圍很小，卡片上半部可能捲到導覽列底下，點擊會打在導覽列上。
         // 送出就收起鍵盤(#329);還聚焦才點。
         app.dismissKeyboard()
-        XCTAssertTrue(app.staticTexts["Effort"].exists)
+        XCTAssertTrue(app.staticTexts["Effort"].waitUntilExists(timeout: 5))
         let levels = app.element("panel.levels")
-        XCTAssertTrue(levels.exists)
+        XCTAssertTrue(levels.waitUntilExists(timeout: 5))
         let xhigh = levels.buttons["xhigh"]
-        XCTAssertTrue(xhigh.exists)
+        XCTAssertTrue(xhigh.waitUntilExists(timeout: 5))
+        app.waitForSettledLayout([card, xhigh], timeout: 3)
         XCTAssertFalse(xhigh.isSelected, "一開始是 medium")
 
         tap(xhigh, until: NSPredicate(format: "isSelected == true"), on: xhigh, "點層級沒有反映")

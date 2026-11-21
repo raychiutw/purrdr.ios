@@ -395,7 +395,7 @@ final class ConversationUITests: XCTestCase {
         suggestion.tap()
 
         XCTAssertEqual(text.value as? String, "Add a test for CSV export with commas in the memo", "輸入框不是建議文字")
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
         XCTAssertTrue(suggestion.waitUntilGone(timeout: 5), "輸入框有字時建議應收起")
         XCTAssertTrue(app.element("composer.send").isEnabled)
         XCTAssertFalse(app.element("conversation.echo").exists, "點建議不該送出")
@@ -474,7 +474,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
         text.typeEnglish("Ship it")
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
 
         app.element("composer.send").tap()
 
@@ -488,7 +488,7 @@ final class ConversationUITests: XCTestCase {
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
 
         app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
 
@@ -502,7 +502,7 @@ final class ConversationUITests: XCTestCase {
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
 
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).press(

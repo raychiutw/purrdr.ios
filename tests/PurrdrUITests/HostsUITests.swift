@@ -81,7 +81,7 @@ final class HostsUITests: XCTestCase {
                 let name = app.textFields["hostEditor.name"]
                 XCTAssertTrue(name.waitUntilExists(timeout: 5))
                 name.tap()
-                XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "沒有叫出鍵盤")
+                XCTAssertTrue(app.waitForKeyboard(), "沒有叫出鍵盤")
                 if edits { name.typeEnglish("2") }
 
                 let cancel = app.navigationBars.buttons.matching(identifier: "Cancel").firstMatch.exists

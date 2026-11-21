@@ -189,7 +189,7 @@ extension XCUIApplication {
     @MainActor
     func switchKeyboard(to layout: KeyboardLayout) {
         let keyboard = keyboards.firstMatch
-        guard keyboard.exists else { return }
+        guard waitForKeyboard() else { return }
         let markers = layout == .english ? ["q", "Q"] : ["ㄅ"]
         // 地球鍵在鍵盤元素外(底部 home indicator 旁)。
         let nextKeyboard = buttons["Next keyboard"].firstMatch

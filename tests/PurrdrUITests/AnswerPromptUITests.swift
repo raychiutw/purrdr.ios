@@ -92,13 +92,14 @@ final class AnswerPromptUITests: XCTestCase {
         typeSomething.tap()
         let banner = app.element("composer.typedAnswer")
         XCTAssertTrue(banner.waitUntilExists(timeout: 5), "沒有顯示正在打自訂回答")
-        XCTAssertTrue(app.keyboards.firstMatch.waitUntilExists(timeout: 5), "輸入框應取得焦點")
+        XCTAssertTrue(app.waitForKeyboard(), "輸入框應取得焦點")
         XCTAssertEqual(app.element("composer.text").label, "Type your answer", "提示應改成打回答")
 
         app.element("composer.typedAnswer.cancel").tap()
         XCTAssertTrue(banner.waitUntilGone(timeout: 5), "取消後應回到一般輸入")
         XCTAssertTrue(app.staticTexts["Which color should the chart use?"].exists, "取消不應回答問題")
 
+        XCTAssertTrue(app.waitForKeyboardToHide(), "取消後鍵盤沒有收起")
         typeSomething.tap()
         XCTAssertTrue(banner.waitUntilExists(timeout: 5))
         app.element("composer.text").typeEnglish("Forest green")

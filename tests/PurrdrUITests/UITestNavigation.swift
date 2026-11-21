@@ -10,16 +10,20 @@ import XCTest
 enum UITestWait {
     /// 輪詢間隔。檢查本身(取 accessibility 快照)就要幾十毫秒，這個值只是不讓它空轉。
     static let pollInterval: TimeInterval = 0.1
+    static let maxPollInterval: TimeInterval = 0.5
 
     /// 先立刻檢查一次，不成立才每隔 `pollInterval` 再查，到 `timeout` 為止。回傳條件最後是否成立。
     @MainActor
     static func until(timeout: TimeInterval, _ condition: () -> Bool) -> Bool {
         if condition() { return true }
         let deadline = Date().addingTimeInterval(timeout)
+        var interval = pollInterval
         while Date() < deadline {
             // 用 run loop 睡，讓主執行緒仍處理 XCTest 的事件。
-            RunLoop.current.run(until: Date().addingTimeInterval(pollInterval))
+            RunLoop.current.run(until: Date().addingTimeInterval(interval))
             if condition() { return true }
+            // 每次取快照都在打擾 app 的主執行緒(終端機等忙碌畫面會被拖慢)：愈等愈疏，上限 0.5 秒。
+            interval = min(interval * 1.5, maxPollInterval)
         }
         return condition()
     }
@@ -207,6 +211,40 @@ extension XCUIApplication {
             return !keyboard.exists
         }
         XCTAssertTrue(gone, "鍵盤沒有收起", file: file, line: line)
+        // 鍵盤收起後輸入列與對話還在動(捲回最新一列)：等版面停下再讓測試去點。
+        _ = waitForSettledLayout([element("composer.text")], timeout: 3)
+    }
+
+    /// 等這些元素的位置連續兩次取樣都不變(動畫、捲動停下)。
+    @MainActor
+    @discardableResult
+    func waitForSettledLayout(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var previous = elements.map(\.frame)
+        while Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            let current = elements.map(\.frame)
+            if current == previous { return true }
+            previous = current
+        }
+        return false
+    }
+
+    /// 等軟體鍵盤出現並停止移動(動畫中點擊或滑動會落在還沒定位的版面上)。
+    @MainActor
+    @discardableResult
+    func waitForKeyboard(timeout: TimeInterval = 5) -> Bool {
+        let keyboard = keyboards.firstMatch
+        guard keyboard.waitUntilExists(timeout: timeout) else { return false }
+        let deadline = Date().addingTimeInterval(3)
+        var previous = keyboard.frame
+        while Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+            let current = keyboard.frame
+            if current == previous { return true }
+            previous = current
+        }
+        return false
     }
 
     /// 等鍵盤收起(自己按「完成」或 return 之後)。

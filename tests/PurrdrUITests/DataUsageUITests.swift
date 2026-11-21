@@ -124,7 +124,7 @@ final class DataUsageUITests: XCTestCase {
         XCTAssertTrue(confirm.waitUntilExists(timeout: 5))
         confirm.tap()
         let today = app.element("dataUsage.today")
-        XCTAssertTrue(today.label.contains("Zero"), "重設後今天不是 0:\(today.label)")
+        today.expectLabel(containing: "Zero", timeout: 5)
     }
 
     /// 選項 sheet 裡的勾選列(列帶著 `dataUsage.periodOptions`／`categoryOptions`;膠囊按鈕的標籤也一樣,所以用 identifier 分開)。

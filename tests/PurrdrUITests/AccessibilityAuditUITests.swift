@@ -12,20 +12,6 @@ final class AccessibilityAuditUITests: XCTestCase {
         continueAfterFailure = true
     }
 
-    /// 等這些元素的位置連續兩次取樣都不變(動畫、捲動停下)。
-    @MainActor
-    private func waitForSettledLayout(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        var previous = elements.map(\.frame)
-        while Date() < deadline {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-            let current = elements.map(\.frame)
-            if current == previous { return true }
-            previous = current
-        }
-        return false
-    }
-
     // MARK: - Agent 列表
 
     @MainActor
@@ -117,7 +103,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             let stop = app.element("stopBar.stop")
             XCTAssertTrue(stop.waitUntilExists(timeout: 15))
             // 停止列出現時輸入卡片長高、對話跟著捲動：等版面停下再稽核。
-            XCTAssertTrue(waitForSettledLayout([stop, app.element("conversation.working")], timeout: 5), "版面沒有停下")
+            XCTAssertTrue(app.waitForSettledLayout([stop, app.element("conversation.working")], timeout: 5), "版面沒有停下")
             try audit(app, "對話(工作中)", contentSize: size)
             // 工作中指示在輸入卡片正上方的漸層帶：不論 audit 有沒有回報，都以截圖量實際對比(#220)。
             let workingLabel = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Writing'")).firstMatch
@@ -132,7 +118,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             menuItem.tap()
             let confirm = app.buttons["stopBar.forceQuit.confirm"].firstMatch
             XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "沒有強制結束的確認對話框")
-            XCTAssertTrue(waitForSettledLayout([confirm], timeout: 5), "確認對話框沒有停下")
+            XCTAssertTrue(app.waitForSettledLayout([confirm], timeout: 5), "確認對話框沒有停下")
             try audit(app, "強制結束確認", contentSize: size)
             app.terminate()
         }
@@ -148,7 +134,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             XCTAssertTrue(app.element("slash.row.demo-kit:changelog").waitUntilExists(timeout: 10))
             // 選單出現時輸入列上方的元素還在收合、玻璃在淡入：等版面停下再稽核(#249:量到的是動畫中被蓋住一半的加入圖片鈕)。
             let menu = app.element("slash.menu")
-            XCTAssertTrue(waitForSettledLayout([menu, app.element("composer.attach"), text], timeout: 5), "版面沒有停下")
+            XCTAssertTrue(app.waitForSettledLayout([menu, app.element("composer.attach"), text], timeout: 5), "版面沒有停下")
             try audit(app, "slash 選單", contentSize: size)
             text.typeEnglish("model")
             app.element("slash.row.model").tap()
@@ -158,7 +144,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             // 送出就收起鍵盤(#329);還聚焦才點。
             app.dismissKeyboard()
             // 收起鍵盤後對話還在捲回最新一列：等版面停下再稽核(#251:AX5 量到捲動中的舊位置，截圖是另一塊)。
-            XCTAssertTrue(waitForSettledLayout([panel, app.element("composer.text")], timeout: 5), "版面沒有停下")
+            XCTAssertTrue(app.waitForSettledLayout([panel, app.element("composer.text")], timeout: 5), "版面沒有停下")
             try audit(app, "/model 面板卡片", contentSize: size)
             app.terminate()
         }
