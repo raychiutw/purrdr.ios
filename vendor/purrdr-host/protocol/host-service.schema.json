@@ -18,7 +18,9 @@
   ],
   "x-excluded-file-locations-description": "主機取檔(file.stat、file.read)的排除清單：路徑任何位置連續出現這些段落就拒絕(不分大小寫;* 結尾比對段落開頭)。SSH 金鑰、GPG、雲端與套件憑證、keychain、密碼庫、Agent 的登入憑證與設定、Purrdr 主機服務與推播配對、.env、git 設定(可能含權杖)、shell 歷史、瀏覽器設定與 cookie、Windows 認證管理員與 DPAPI。主機服務另外拒讀它實際的 --state-dir。主機服務與 app(HostFileAccessPolicy、SSH 取檔腳本)共用。",
   "x-temporary-file-locations": ["/tmp", "/private/tmp", "/var/folders", "/private/var/folders"],
-  "x-temporary-file-locations-description": "主機取檔在工作目錄以外、只因對話紀錄提到而放行時，允許的系統暫存目錄(POSIX;macOS 的 /tmp 與 /var/folders 解析後在 /private 底下)。另外還有主機的 TMPDIR／TEMP、Windows 家目錄的 AppData/Local/Temp、家目錄的 .purrdr/uploads 與這段對話紀錄的 tool-results 資料夾。",
+  "x-temporary-file-locations-description": "主機取檔在工作目錄以外、只因對話紀錄提到而放行時，允許的系統暫存目錄(POSIX;macOS 的 /tmp 與 /var/folders 解析後在 /private 底下)。另外還有主機的 TMPDIR／TEMP、Windows 家目錄的 AppData/Local/Temp、上傳資料夾(在暫存目錄底下)、舊版家目錄的 .purrdr/uploads(保留一個版本,讓升級前的上傳檔還讀得到)與這段對話紀錄的 tool-results 資料夾。",
+  "x-upload-folder": "purrdr-uploads",
+  "x-upload-folder-description": "上傳圖片與檔案的資料夾名稱，位置在系統暫存目錄底下(macOS／Linux 的 TMPDIR、沒設定時 /tmp;Windows 的 TEMP)。Unix 之後接 -<uid>(例如 purrdr-uploads-501),權限 0700;已存在的資料夾必須是自己的真資料夾(不是 symlink、擁有者是自己、別人進不去)才使用。主機服務與 app 的 SSH 上傳共用。舊版寫在家目錄的 .purrdr/uploads,不再寫入，只照 7 天規則清理。",
   "x-maximum-file-size": 26214400,
   "x-maximum-file-chunk": 1048576,
   "x-maximum-file-size-description": "主機取檔與上傳的大小上限(25 MiB),以及一次 file.read 回傳或 file.upload.chunk 送出的 bytes 上限(1 MiB)。主機服務、app 與 SSH 取檔腳本共用。",
@@ -1296,7 +1298,7 @@
       "required": ["type", "request_id", "plugin_installed", "paired", "other_devices"]
     },
     "FileUploadStart": {
-      "description": "上傳圖片或檔案(raychiutw/purrdr.host#16):開始一次分塊上傳。主機服務在家目錄的 .purrdr/uploads/ 建暫存檔，檔名由主機服務產生(不採用 app 給的名稱),超過 7 天的上傳檔定期刪除。size 超過 x-maximum-file-size 回 upload_too_large。中繼資料剝除在 app 端做，主機服務不解析內容。",
+      "description": "上傳圖片或檔案(raychiutw/purrdr.host#16):開始一次分塊上傳。主機服務在系統暫存目錄底下的上傳資料夾(x-upload-folder)建暫存檔，檔名由主機服務產生(不採用 app 給的名稱),超過 7 天的上傳檔定期刪除。size 超過 x-maximum-file-size 回 upload_too_large。中繼資料剝除在 app 端做，主機服務不解析內容。",
       "type": "object",
       "x-write": true,
       "properties": {
