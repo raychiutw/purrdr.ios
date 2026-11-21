@@ -779,7 +779,7 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(element("prompt.option.3", in: app).isHittable, "回到底部後最後一個選項應可點")
     }
 
-    /// #130:往上翻看舊訊息時 agent 一次寫出超過 64 KiB(`-demoLargeOutput`:開啟 8 秒後寫出 321 行):
+    /// #130:往上翻看舊訊息時 agent 一次寫出超過 64 KiB(`-demoLargeOutput`:對話載入後 5 秒寫出 321 行):
     /// 畫面不空白，正在看的舊訊息還在原處，新訊息接在後面。
     @MainActor
     func testLargeOutputWhileReadingKeepsMessages() {
@@ -792,8 +792,8 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(element("conversation.beginning", in: app).waitForExistence(timeout: 5), "沒有翻到對話開頭")
         XCTAssertTrue(jump.waitForExistence(timeout: 5), "往上翻後應是閱讀中")
 
-        // 開啟後 8 秒寫出;已完成的 agent 每 4 秒輪詢一次。等寫出之後的兩次輪詢。
-        Thread.sleep(forTimeInterval: 18)
+        // 對話載入後 5 秒寫出;已完成的 agent 每 4 秒輪詢一次。等寫出之後的兩次輪詢。
+        Thread.sleep(forTimeInterval: 9)
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-large-output-while-reading"
         shot.lifetime = .keepAlways
@@ -831,20 +831,19 @@ final class ConversationUITests: XCTestCase {
         // 軟體鍵盤＋You should know 卡片會把對話的可見範圍擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
         hideKeyboard(in: app)
         XCTAssertTrue(sentMessage("Check the logs once more", in: app).waitForExistence(timeout: 5), "沒有回音")
-        // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);等兩次輪詢與捲動穩定。
-        Thread.sleep(forTimeInterval: 10)
+        // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);輪詢到最新的訊息出現。
+        let summaries = app.descendants(matching: .any).matching(identifier: "conversation.agent")
+            .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'"))
+        XCTAssertTrue(poll(timeout: 20) { summaries.allElementsBoundByIndex.contains(where: \.isHittable) }, "跟隨中最新的訊息應在畫面上")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-large-output-after-send"
         shot.lifetime = .keepAlways
         add(shot)
 
         XCTAssertGreaterThan(visibleMessageRows(in: app), 0, "送出後畫面上沒有任何訊息列(空白)")
-        let summaries = app.descendants(matching: .any).matching(identifier: "conversation.agent")
-            .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'"))
-        XCTAssertTrue(summaries.allElementsBoundByIndex.contains(where: \.isHittable), "跟隨中最新的訊息應在畫面上")
     }
 
-    /// #210:送出後 agent 工作中、還沒回覆(`-demoWorkingAfterPrompt`,工作 15 秒)。送出的訊息與工作中指示在畫面上，
+    /// #210:送出後 agent 工作中、還沒回覆(`-demoWorkingAfterPrompt`,工作 15 秒;測試不等回覆)。送出的訊息與工作中指示在畫面上，
     /// 不可被一整片空白推到畫面外。
     @MainActor
     func testSendingWhileAgentWorksKeepsSentMessageVisible() {
@@ -859,7 +858,8 @@ final class ConversationUITests: XCTestCase {
         hideKeyboard(in: app)
         XCTAssertTrue(element("conversation.working", in: app).waitForExistence(timeout: 5), "沒有工作中指示")
         // 等追蹤接上使用者那一行、即時預覽出現，捲動穩定;回覆在 15 秒後才來。
-        Thread.sleep(forTimeInterval: 5)
+        let sent = sentMessage("Add a header row too?", in: app)
+        XCTAssertTrue(poll(timeout: 10) { sent.exists && sent.isHittable }, "送出的訊息應在畫面上")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-working-after-send"
         shot.lifetime = .keepAlways
@@ -920,7 +920,9 @@ final class ConversationUITests: XCTestCase {
         XCTAssertLessThan(spinner.midY, screen.height * 0.7, "轉圈沒有置中")
     }
 
-    /// #219:聊天時斷網(啟動 12 秒後所有主機指令立刻失敗)。頂端顯示連線中斷，畫面仍可操作：能捲動、能返回列表。
+    /// #219:聊天時斷網(對話載入完成 1 秒後所有主機指令立刻失敗)。頂端顯示連線中斷，畫面仍可操作：能捲動、能返回列表。
+    /// 其餘情境(打字中、工作中的 Codex、「需要你」)在 model 測試驗資料面(`ConversationHeaderTests`、`ConversationModelTests`),
+    /// 這裡只留兩個煙霧測試(#371)。
     @MainActor
     func testGoingOfflineWhileChattingKeepsAppResponsive() throws {
         try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline")
@@ -930,24 +932,6 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testGoingOfflineWithHangingConnectionsKeepsAppResponsive() throws {
         try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOfflineHanging")
-    }
-
-    /// #219:正在打字(軟體鍵盤開著、對話可見範圍很小)時斷網，橫幅插入後畫面仍可操作。
-    @MainActor
-    func testGoingOfflineWhileTypingKeepsAppResponsive() throws {
-        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", typing: true)
-    }
-
-    /// #219:工作中的 agent(Codex,沒有對話紀錄;每 2 秒輪詢、讀畫面)斷網，畫面仍可操作。
-    @MainActor
-    func testGoingOfflineWhileAgentWorksKeepsAppResponsive() throws {
-        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", paneID: "w3:p1", hasMessages: false)
-    }
-
-    /// #219:「需要你」的 agent(提示卡占去大半畫面)斷網，畫面仍可操作。
-    @MainActor
-    func testGoingOfflineWhileAgentIsBlockedKeepsAppResponsive() throws {
-        try assertStaysResponsiveWhenGoingOffline(flag: "-demoGoesOffline", paneID: "w2:p1")
     }
 
     @MainActor
@@ -993,5 +977,16 @@ final class ConversationUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         return element.value as? String
+    }
+
+    /// 輪詢到條件成立(先檢查一次，之後每 0.1 秒)或到上限;不固定多等。
+    @MainActor
+    private func poll(timeout: TimeInterval, until condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return condition()
     }
 }

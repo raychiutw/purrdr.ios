@@ -575,6 +575,24 @@ struct DemoHostTailscaleCheckTests {
     }
 }
 
+/// 斷網情境的計時從「對話載入完成」(第一次定位對話紀錄)起算，不是從 app 啟動(#371)。
+@Suite("Demo 主機:斷網的起算點")
+struct DemoHostOfflineStartTests {
+    @Test("斷網從第一次定位對話紀錄起算：定位前一直連得上，定位後過了延遲才斷網")
+    func offlineCountsFromTranscriptLocate() async throws {
+        let host = DemoHost(scenario: .goesOffline(after: .milliseconds(1), hangs: false))
+        _ = try await HerdrClient(channel: host).snapshot()
+        try await Task.sleep(for: .milliseconds(100))
+        _ = try await HerdrClient(channel: host).snapshot()
+
+        let reader = TranscriptReader(channel: host)
+        _ = try await reader.locate(sessionID: "d3m0d3m0-0000-4000-8000-000000000001", cwd: "/Users/demo/ledger")
+        try await Task.sleep(for: .milliseconds(100))
+
+        await #expect(throws: SSHConnectionError.timedOut) { _ = try await HerdrClient(channel: host).snapshot() }
+    }
+}
+
 /// 手動推進的時間(Demo 主機「送出後工作中」的到期判斷用，不真的等)。
 final class ManualDemoClock: Sendable {
     private let current = Mutex(ContinuousClock.now)
