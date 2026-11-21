@@ -14,6 +14,7 @@ enum HerdrMethod: String {
     case worktreeCreate = "worktree.create"
     case agentStart = "agent.start"
     case paneRead = "pane.read"
+    case sessionsList = "sessions.list"
     /// 事件串流，走 `herdrEvents`,不是單次請求。
     case eventsSubscribe = "events.subscribe"
 
@@ -22,6 +23,7 @@ enum HerdrMethod: String {
         switch self {
         case .workspaceCreate, .workspaceRename, .workspaceClose, .worktreeCreate, .agentStart: .workspaceOperations
         case .paneRead: .paneRead
+        case .sessionsList: .sessionResume
         default: nil
         }
     }
@@ -112,7 +114,7 @@ enum HerdrOperation {
             self = .request(make: {
                 .agentStart(.init(
                     requestId: $0, paneId: params.paneID, name: params.name, kind: params.kind, permissionMode: permissionMode,
-                    timeoutMs: params.timeoutMs))
+                    resumeSession: params.resumeSession, timeoutMs: params.timeoutMs))
             }) { id, reply, _ in
                 guard case .agentStartResult = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.ok(id: id)
@@ -129,6 +131,13 @@ enum HerdrOperation {
             }) { id, reply, _ in
                 guard case .paneReadResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
                 return try HerdrResponseLine.paneRead(id: id, text: result.text)
+            }
+        case .sessionsList:
+            let params = try JSONDecoder().decode(SessionsListParams.self, from: line.params)
+            guard let kind = HostServiceProtocol.ResumableAgentKind(rawValue: params.agentKind) else { throw HostServiceError.unsupported(line.method) }
+            self = .request(make: { .sessionsList(.init(requestId: $0, cwd: params.cwd, agentKind: kind)) }) { id, reply, _ in
+                guard case .sessionsListResult(let result) = reply else { throw HostServiceError.unexpectedResponse }
+                return try HerdrResponseLine.sessionsList(id: id, sessions: result.sessions)
             }
         case .eventsSubscribe:
             throw HostServiceError.unsupported(line.method)
@@ -243,17 +252,29 @@ enum HerdrOperation {
         }
     }
 
+    private struct SessionsListParams: Decodable {
+        var cwd: String
+        var agentKind: String
+
+        enum CodingKeys: String, CodingKey {
+            case cwd
+            case agentKind = "agent_kind"
+        }
+    }
+
     /// herdr `agent.start` 的 params(`HerdrClient` 送出的形狀)。
     private struct AgentStartParams: Decodable {
         var name: String
         var kind: String
         var paneID: String
         var args: [String]?
+        var resumeSession: String?
         var timeoutMs: Int?
 
         enum CodingKeys: String, CodingKey {
             case name, kind, args
             case paneID = "pane_id"
+            case resumeSession = "resume_session"
             case timeoutMs = "timeout_ms"
         }
     }

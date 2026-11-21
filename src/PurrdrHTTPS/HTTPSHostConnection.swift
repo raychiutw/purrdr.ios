@@ -602,6 +602,16 @@ enum HerdrResponseLine {
         }
     }
 
+    /// `sessions.list` 的結果(#309):`HerdrClient` 讀 `sessions` 的 id、modified、summary。
+    static func sessionsList(id: String?, sessions: [HostServiceProtocol.HistorySession]) throws -> Data {
+        try encode(Envelope(id: id, result: SessionsListed(type: "sessions_list", sessions: sessions)))
+    }
+
+    private struct SessionsListed: Encodable {
+        var type: String
+        var sessions: [HostServiceProtocol.HistorySession]
+    }
+
     static func subscriptionStarted(id: String?) throws -> Data {
         try encode(Envelope(id: id, result: Typed(type: "subscription_started")))
     }

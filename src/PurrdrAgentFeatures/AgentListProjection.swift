@@ -179,7 +179,8 @@ extension AgentRow {
         self.init(
             host: host, paneID: agent.paneID, kind: agent.kind, title: title, workspace: AgentRowText.workspaceName(for: agent),
             subtitle: subtitle, hostLabel: label,
-            preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted
+            preview: rowPreview, time: time, status: status, isUnread: chat.isUnread, isPinned: chat.pinnedAt != nil, isMuted: chat.isMuted,
+            progress: preview?.progress
         )
     }
 }
