@@ -117,7 +117,7 @@ struct AddHostGuideModelTests {
         #expect(model.address == "studio-mac")
     }
 
-    @Test("走完 Tailscale SSH:測試連線、第一次連線只問信任、信任後通過並儲存成 Tailscale SSH 主機")
+    @Test("走完 Tailscale SSH:測試連線(第一次連線自動記住 key,不問信任)、通過後儲存成 Tailscale SSH 主機")
     func tailscalePathSavesHost() async throws {
         let store = MemoryHostStore()
         let healthy = await HostEditorModelTests.healthyHost()
@@ -127,11 +127,8 @@ struct AddHostGuideModelTests {
 
         await model.testConnection()
         #expect(model.step == .test)
-        #expect(model.phase == .confirmHostKey(Self.fingerprint))
-        #expect(store.hosts.isEmpty)
-
-        await model.trustHostKey()
         guard case .tested = model.phase else { Issue.record("應該通過測試:\(model.phase)"); return }
+        #expect(store.hosts.isEmpty, "測試通過還沒儲存")
 
         let saved = try #require(model.save())
         #expect(model.step == .finished)
@@ -156,8 +153,9 @@ struct AddHostGuideModelTests {
     @Test("沒通過測試不能儲存;返回回到填主機，不留下主機")
     func notTestedLeavesNothing() async {
         let store = MemoryHostStore()
-        let factory = ChannelFactory(await HostEditorModelTests.unverifiedHost())
-        let model = Self.model(store: store, factory: factory)
+        let broken = FakeHost()
+        await broken.failConnection(with: SSHConnectionError.hostKeyChanged(presented: Self.fingerprint, pinned: HostEditorModelTests.otherFingerprint))
+        let model = Self.model(store: store, factory: ChannelFactory(broken))
         Self.atDetails(model)
         await model.testConnection()
         #expect(model.save() == nil)

@@ -12609,7 +12609,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "herdr 已更新。請在那台電腦重新啟動 herdr 伺服器，再試一次。"
+            "value" : "herdr 已更新。請在那台電腦重新啟動 herdr server，再試一次。"
           }
         }
       }

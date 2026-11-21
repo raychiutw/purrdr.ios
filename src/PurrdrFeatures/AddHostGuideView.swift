@@ -194,9 +194,9 @@ struct AddHostGuideView: View {
                 HStack(alignment: .top, spacing: 12) {
                     Text(verbatim: "\(index + 1)")
                         .font(.footnote.bold())
-                        .foregroundStyle(.onAccent)
+                        .foregroundStyle(.onProminentFill)
                         .frame(width: 26, height: 26)
-                        .background(.tint, in: .circle)
+                        .background(.prominentFill, in: .circle)
                         .accessibilityHidden(true)
                     InstructionView(instruction: instruction)
                 }
