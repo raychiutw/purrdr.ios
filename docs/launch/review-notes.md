@@ -34,7 +34,7 @@ PURRDR PLUS (AUTO-RENEWABLE SUBSCRIPTION)
 Purrdr Plus adds notifications when an agent needs you and host-list sync between devices. Chat, the terminal, and the Demo are free and never require an account or subscription.
 To test: ⋯ > Purrdr Plus. Tap "Sign In to Subscribe" and use Sign in with Apple (Google sign-in is also offered) with your sandbox Apple Account; a member account is created on the spot. Then choose Monthly (US$4.99) or Yearly (US$39.99), each with a 2-week free trial. "Restore Purchases" and "Redeem Code" are on the same screen. Terms of Use (Apple standard EULA) and the Privacy Policy are linked at the bottom of the paywall.
 After subscribing, the subscription status appears on the Purrdr Plus and ⋯ > Member screens. The notification toggle (⋯ > Settings) needs a real host, because it installs a small plugin on that computer; on the Demo host it explains "Choose your own host first. The demo host can't send notifications."
-Account deletion: ⋯ > Member > Delete Member…
+Account deletion: ⋯ > Member > Delete Member
 
 Contact: lean.lean@gmail.com
 ```
@@ -60,7 +60,7 @@ Contact: lean.lean@gmail.com
 | 訂閱要先登入;Sign in with Apple 與 Google | `PlusView`(`Sign In to Subscribe`)、`MemberView` |
 | 價格、試用 | `src/App/Purrdr.storekit`、`subscriptions.md`(`StoreKitConfigurationTests` 檢查) |
 | 付費牆底部有使用條款與隱私權政策 | `PlusView`(`plus.terms`、`plus.privacy`),`PurrdrLinks` |
-| 刪除會員 | `MemberView`(`Delete Member…`) |
+| 刪除會員 | `MemberView`(`Delete Member`) |
 
 ## 送審前的前提(否則審查會卡在登入或訂閱)
 

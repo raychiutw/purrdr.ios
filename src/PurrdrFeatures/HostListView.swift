@@ -70,12 +70,8 @@ public struct HostListView: View {
             .navigationTitle("Hosts")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    // 回到列表的入口旁標示需要處理的 workspace 數(行為規格 F2.8)。
-                    HStack(spacing: 6) {
-                        AttentionBadge(count: model.agentList.attentionCount)
-                        Button("Done") { dismiss() }
-                            .accessibilityIdentifier("sheet.done")
-                    }
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("sheet.done")
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
