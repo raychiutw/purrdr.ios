@@ -49,6 +49,10 @@ final class UnreadPinnedUITests: XCTestCase {
             XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(sheet) 的「完成」旁有數字徽章")
             XCTAssertEqual(done.label, "Done", "「完成」多念了徽章")
             done.tap()
+            // 等 sheet 收完再點列表，否則點擊落在收合中的 sheet 上。
+            let closed = NSPredicate(format: "exists == false")
+            expectation(for: closed, evaluatedWith: app.descendants(matching: .any)[sheet].firstMatch)
+            waitForExpectations(timeout: 5)
         }
 
         ledger.tap()
