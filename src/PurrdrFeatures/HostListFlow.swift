@@ -1,13 +1,22 @@
 import Foundation
 import Observation
+import PurrdrCore
 
 /// 主機清單 sheet 內 push 的畫面。
 enum HostRoute: Hashable {
+    /// 新增主機引導(#341)。
     case add
+    /// 以主機編輯頁新增(引導還沒涵蓋的連線方式，預選該方式)。
+    case addInEditor(HostConfiguration.ConnectionMethod?)
     case edit(UUID)
     case share(UUID)
     case hostServiceUpdate(UUID)
     case importLink(URL)
+
+    var addMethod: HostConfiguration.ConnectionMethod? {
+        if case .addInEditor(let method) = self { return method }
+        return nil
+    }
 
     var hostID: UUID? {
         if case .edit(let id) = self { return id }

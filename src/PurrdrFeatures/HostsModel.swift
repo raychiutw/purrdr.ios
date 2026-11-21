@@ -616,12 +616,23 @@ public final class HostsModel {
         return open(route, pairings: pushService.store)
     }
 
-    /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。
-    public func makeEditor(editing: HostConfiguration? = nil) -> HostEditorModel {
-        HostEditorModel(
+    /// 新增主機(`editing` 為 `nil`)或編輯既有主機的畫面 model。`method`:新增時預選的連線方式。
+    public func makeEditor(editing: HostConfiguration? = nil, method: HostConfiguration.ConnectionMethod? = nil) -> HostEditorModel {
+        let editor = HostEditorModel(
             store: store, editing: editing, credentials: credentials, hostService: hostService, consent: hostConsent,
             icon: editing.map { icon(for: $0.id) } ?? .default, saveIcon: setIcon(_:for:), makeChannel: makeChannel)
+        if editing == nil, let method { editor.connectionMethod = method }
+        return editor
     }
+
+    /// 所有新增入口(歡迎頁、主機清單「＋」、「⋯」選單)開的新增主機引導(#341)。
+    public func makeAddHostGuide() -> AddHostGuideModel {
+        AddHostGuideModel(store: store, credentials: credentials, hostService: hostService, makeChannel: makeChannel)
+    }
+
+    /// 新增入口開引導還是舊的主機編輯頁。正式一律是引導;UI 測試預設走編輯頁(原生 SSH、HTTPS 的欄位流程測試還沒改寫,
+    /// #342、#344、#346 接手後移除),`-uiTestingAddHostGuide` 才開引導。
+    @ObservationIgnored public var usesAddHostGuide = true
 
     /// 從主機分享連結或主機配對指令的 QR code(`purrdr://pair?…`)新增主機：帶入欄位的編輯器。
     /// 連結不合法時丟 `HostShareLinkError` 或 `HostServicePairingLinkError`。
