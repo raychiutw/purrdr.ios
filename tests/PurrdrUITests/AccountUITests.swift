@@ -7,24 +7,23 @@ final class AccountUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// 沒登入:帳號 sheet 直接是登入頁(#328,原型 A),不出現步驟卡與帳號頁的區塊。
     @MainActor
-    func testAccountButtonOpensSetupStepsAtJoin() {
+    func testSignedOutAccountOpensSignInPage() {
         let app = XCUIApplication.launchUITesting()
         let account = app.buttons["toolbar.account"]
         XCTAssertTrue(account.waitForExistence(timeout: 10), "列表右上角沒有帳號鈕")
         XCTAssertEqual(account.label, "Account")
         account.tap()
 
-        XCTAssertTrue(element("sheet.account", in: app).waitForExistence(timeout: 10), "沒有開出帳號頁")
-        XCTAssertTrue(app.staticTexts["Not a Member Yet"].exists)
-        for step in ["join", "activate", "notifications", "sync"] {
-            XCTAssertTrue(element("account.plusSetup.\(step)", in: app).exists, "步驟卡沒有 \(step)")
-        }
-        // 只有目前那一步(加入會員)有按鈕。
-        XCTAssertEqual(app.buttons.matching(identifier: "account.plusSetup.action").count, 1)
-        XCTAssertEqual(app.buttons["account.plusSetup.action"].label, "Join")
-        XCTAssertEqual(element("account.plusSetup.join", in: app).value as? String, "Next Step")
-        XCTAssertEqual(element("account.plusSetup.notifications", in: app).value as? String, "Not Yet")
+        XCTAssertTrue(element("account.signedOut", in: app).waitForExistence(timeout: 10), "沒登入沒有直接顯示登入頁")
+        XCTAssertTrue(app.staticTexts["Sign In to Purrdr"].exists)
+        XCTAssertTrue(app.buttons["member.signIn.apple"].exists, "沒有 Apple 登入鈕")
+        XCTAssertTrue(app.buttons["member.signIn.google"].exists, "沒有 Google 登入鈕")
+        XCTAssertTrue(app.staticTexts["Chat and terminal don’t need a member account."].exists)
+        XCTAssertFalse(element("account.plusSetup", in: app).exists, "沒登入不該有步驟卡")
+        XCTAssertFalse(element("sheet.account", in: app).exists, "沒登入不該是帳號頁")
+        XCTAssertFalse(app.staticTexts["Not a Member Yet"].exists)
     }
 
     /// 帳號鈕在最右上角(HIG),「⋯」在它左邊。
@@ -100,40 +99,38 @@ final class AccountUITests: XCTestCase {
         XCTAssertEqual(hostSync.value as? String, "1")
     }
 
-    /// 未開通時通知與同步不能開啟，畫面說明下一步。
+    /// 已登入、未開通時通知與同步不能開啟，畫面說明下一步。
     @MainActor
     func testLockedFeaturesExplainNextStep() {
-        let app = XCUIApplication.launchUITesting()
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
         openAccount(in: app)
 
         let hint = element("account.lockedHint", in: app)
         XCTAssertTrue(hint.waitForExistence(timeout: 5), "沒有說明通知與同步要先做什麼")
-        XCTAssertTrue(hint.label.contains("Join as a member first"), hint.label)
+        XCTAssertTrue(hint.label.contains("Activate it next"), hint.label)
         XCTAssertFalse(app.switches["account.push.demo"].exists, "未開通不該有通知開關")
         XCTAssertFalse(app.switches["settings.hostSync"].exists, "未開通不該有主機同步開關")
     }
 
     @MainActor
-    func testJoinPushesSignInInsideAccountSheet() {
-        let app = XCUIApplication.launchUITesting()
-        openAccount(in: app)
-
-        app.buttons["account.plusSetup.action"].tap()
-
-        XCTAssertTrue(app.buttons["member.signIn.apple"].waitForExistence(timeout: 10), "沒有進入登入頁")
-        // 同一個 sheet 內 push:返回帳號頁。
-        app.navigationBars.firstMatch.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(element("sheet.account", in: app).waitForExistence(timeout: 5), "沒有回到帳號頁")
-    }
-
-    @MainActor
     func testTraditionalChineseAccount() {
-        let app = XCUIApplication.launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember", "-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
         openAccount(in: app)
 
         XCTAssertTrue(app.navigationBars["帳號"].waitForExistence(timeout: 5), "帳號頁標題不是繁體中文")
         XCTAssertTrue(app.staticTexts["設定 Purrdr Plus"].exists)
-        XCTAssertEqual(app.buttons["account.plusSetup.action"].label, "加入")
+        XCTAssertEqual(app.buttons["account.plusSetup.action"].label, "開通")
+    }
+
+    @MainActor
+    func testTraditionalChineseSignedOutAccount() {
+        let app = XCUIApplication.launchUITesting(flags: ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"])
+        let account = app.buttons["toolbar.account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 10))
+        account.tap()
+
+        XCTAssertTrue(app.navigationBars["登入"].waitForExistence(timeout: 5), "登入頁標題不是繁體中文")
+        XCTAssertTrue(app.staticTexts["登入 Purrdr"].exists)
     }
 
     // MARK: - 輔助
