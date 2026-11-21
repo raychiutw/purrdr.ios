@@ -220,6 +220,11 @@ struct AddHostGuideView: View {
             VStack(spacing: 12) {
                 instructions(model.pairInstructions)
                 manualPairing
+                Link(destination: PurrdrLinks.hostServicePairing(prefersChinese: Locale.current.language.languageCode?.identifier == "zh")) {
+                    Label("Full Instructions on the Website", systemImage: "safari")
+                        .font(.footnote)
+                }
+                .accessibilityIdentifier("guide.pairingHelp")
             }
         case .enable:
             instructions(model.enableInstructions)

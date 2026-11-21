@@ -318,6 +318,10 @@ public enum PurrdrLinks {
     public static let support = URL(string: "https://raychiutw.github.io/purrdr/support/")!
     /// 主機服務(HTTPS 連線方式)的安裝、配對、更新與解除安裝說明(#198)。
     public static let hostServiceGuide = URL(string: "https://raychiutw.github.io/purrdr/host-service/")!
+    /// 同一頁的「配對」一節(網頁有繁中與英文兩段,各有錨點;#332 配對頁的小連結)。
+    public static func hostServicePairing(prefersChinese: Bool) -> URL {
+        URL(string: "https://raychiutw.github.io/purrdr/host-service/#\(prefersChinese ? "pair" : "pair-en")")!
+    }
 }
 
 // MARK: - 方案列與功能列
