@@ -382,16 +382,16 @@ public final class ConversationModel {
     /// 送出前依序經過的步驟(#299):機密偵測、撤回倒數、離線佇列…由建立者注入。
     private let sendPipeline: SendPipeline
     /// 送出管線裡的撤回倒數(#300):畫面以它在對話最下面畫出倒數中的訊息;沒有這個步驟時是 `nil`。
-    public let undoSend: UndoSendCountdown?
+    public var undoSend: UndoSendCountdown? { sendPipeline.step(UndoSendCountdown.self) }
     /// 管線裡的離線佇列(#301):離線時送出的訊息排在這台主機的佇列;沒有這個步驟時離線不能送出。
-    public var offlineQueue: OfflineQueue? { sendPipeline.steps.lazy.compactMap { ($0 as? OfflineQueueStep)?.queue }.first }
+    public var offlineQueue: OfflineQueue? { sendPipeline.step(OfflineQueueStep.self)?.queue }
     /// 這個聊天(pane)排隊中與沒送出的訊息，畫在對話最下面。
     public var queuedPrompts: [QueuedPrompt] { offlineQueue?.entries(forPane: paneID) ?? [] }
 
     /// 放回輸入框：拿出佇列，文字接在目前的草稿前面(不蓋掉新打的)。
     public func putBack(_ id: QueuedPrompt.ID) {
         guard let text = offlineQueue?.takeBack(id) else { return }
-        draft = draft.isEmpty ? text : text + "\n" + draft
+        putBackInDraft(text)
     }
 
     /// 取消排隊中的訊息，或刪除沒送出的。
@@ -400,16 +400,16 @@ public final class ConversationModel {
     }
 
     /// 管線裡的 Send When Done(#305):輸入列的「做完再送」開關與主機上的佇列;沒有這個步驟時是 `nil`。
-    public let sendWhenDone: SendWhenDoneModel?
+    public var sendWhenDone: SendWhenDoneModel? { sendPipeline.step(SendWhenDoneStep.self)?.model }
 
     /// 編輯 Send When Done 佇列裡的一則:從主機佇列拿掉，文字放回輸入框(接在目前的草稿前面)。
     public func editSendWhenDone(_ id: SendWhenDoneItem.ID) async {
         guard let text = await sendWhenDone?.takeBack(id) else { return }
-        draft = draft.isEmpty ? text : text + "\n" + draft
+        putBackInDraft(text)
     }
 
     /// 管線裡的機密偵測步驟(#302):畫面依它的 `review` 開說明 sheet。
-    public var secretCheck: SecretCheck? { sendPipeline.steps.lazy.compactMap { $0 as? SecretCheck }.first }
+    public var secretCheck: SecretCheck? { sendPipeline.step(SecretCheck.self) }
     private let slashDiscovery: (any SlashDiscovering)?
     private let haptics: any Haptics
     /// 主機收下 prompt(成功送出)時呼叫;請求評分用(#34)。
@@ -534,8 +534,6 @@ public final class ConversationModel {
         self.sleep = sleep
         delivery = PromptDelivery(client: client, sleep: sleep)
         sendPipeline = SendPipeline(steps: sendSteps, clock: SendPipelineClock(now: clock.now, sleep: sleep))
-        undoSend = sendSteps.lazy.compactMap { $0 as? UndoSendCountdown }.first
-        sendWhenDone = sendSteps.lazy.compactMap { ($0 as? SendWhenDoneStep)?.model }.first
         self.slashDiscovery = slashDiscovery
         slash = SlashMenuModel(loader: { nil })
         draft = drafts.text(chatKey: paneID, session: knownSessionID)
@@ -1104,7 +1102,7 @@ public final class ConversationModel {
             await deliver(prepared)
         case .halt(let halt):
             // 放回的是使用者打的原文(不是步驟改過的);步驟等待期間(撤回倒數)又打了字時，原文放在前面、不蓋掉新打的。
-            if halt.restoresDraft { draft = draft.isEmpty ? text : text + "\n" + draft }
+            if halt.restoresDraft { putBackInDraft(text) }
         }
     }
 
@@ -1126,7 +1124,7 @@ public final class ConversationModel {
             paths = try await uploadAttachments()
         } catch {
             removeEcho(echo.id)
-            restoreDraft(text)
+            putBackInDraft(text)
             notice = Self.uploadNotice(for: error, otherwise: .uploadFailed)
             return
         }
@@ -1149,7 +1147,7 @@ public final class ConversationModel {
             }
         case .failure(let failure):
             removeEcho(echo.id)
-            restoreDraft(text)
+            putBackInDraft(text)
             notice = failure.notice
         }
     }
@@ -1516,7 +1514,7 @@ public final class ConversationModel {
             setEcho(id, state: .failed(.noResponse))
         } else {
             removeEcho(id)
-            restoreDraft(text)
+            putBackInDraft(text)
         }
     }
 
@@ -1528,9 +1526,9 @@ public final class ConversationModel {
         }
     }
 
-    /// 被拒的文字放回輸入框(使用者這段時間又打了字就不蓋掉)。
-    private func restoreDraft(_ text: String) {
-        if draft.isEmpty { draft = text }
+    /// 沒送出的文字放回輸入框:接在目前的草稿前面,使用者這段時間打的字不蓋掉(放回輸入框的一律走這裡)。
+    private func putBackInDraft(_ text: String) {
+        draft = draft.isEmpty ? text : text + "\n" + draft
     }
 
     private func setEcho(_ id: String, state: PromptEcho.State) {

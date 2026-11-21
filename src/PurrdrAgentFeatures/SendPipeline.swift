@@ -94,6 +94,11 @@ public struct SendPipeline {
         self.clock = clock
     }
 
+    /// 管線裡某種步驟(畫面要讀它的狀態,例如倒數中的訊息);沒有就是 `nil`。取步驟的唯一入口。
+    public func step<Step: SendStep>(_ type: Step.Type) -> Step? {
+        steps.lazy.compactMap { $0 as? Step }.first
+    }
+
     /// 依序跑步驟;有步驟擋下就停，後面的不跑。`isHostReachable` 給步驟輪到時查連線狀態(離線佇列在倒數結束時才判斷)。
     public func prepare(_ prompt: OutgoingPrompt, isHostReachable: @escaping @MainActor @Sendable () -> Bool = { true }) async -> SendStepResult {
         var current = prompt

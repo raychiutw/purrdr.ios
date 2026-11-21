@@ -12,12 +12,13 @@ public struct HerdrClient: Sendable {
     }
 
     /// 這支裝置是否配對成唯讀(HTTPS 連線方式;唯讀時送 prompt、文字與按鍵都會被拒絕)。
-    public func hostServiceVersion() async throws -> String? {
-        try await connection.hostServiceVersion()
-    }
-
     public func isReadOnlyDevice() async throws -> Bool {
         try await connection.isReadOnlyDevice()
+    }
+
+    /// 主機服務的版本;沒有主機服務的連線方式(SSH)是 `nil`,連不上時丟錯誤。
+    public func hostServiceVersion() async throws -> String? {
+        try await connection.hostServiceVersion()
     }
 
     /// 關掉底層連線(卡住的請求跟著失敗);下一個請求重新連線。

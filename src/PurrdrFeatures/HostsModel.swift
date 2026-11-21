@@ -710,9 +710,9 @@ public final class HostsModel {
             version: HostServiceFeature.pushPlugin.minimumVersion.description, update: HostServiceUpdates.commands(installed: installed))
     }
 
-    private func hostServiceVersion(of host: HostSelection) -> String? {
+    private func hostServiceVersion(of host: HostSelection) -> HostServiceVersion? {
         guard case .host(let id) = host else { return nil }
-        return hostServiceVersions[id]
+        return hostServiceVersions[id].flatMap(HostServiceVersion.init)
     }
 
     private func usesHostService(_ host: HostSelection) -> Bool {
@@ -942,8 +942,8 @@ public struct HostPush: Identifiable {
     public let support: HostPushSupport
     /// HTTPS 主機：由主機服務代裝外掛(不是 SSH)。
     public let installsViaHostService: Bool
-    /// HTTPS 主機回報的主機服務版本(還沒連上或 SSH 主機是 `nil`);較新的通知種類依它判斷能不能選(#311)。
-    public var hostServiceVersion: String? = nil
+    /// HTTPS 主機回報的主機服務版本(還沒連上、看不懂或 SSH 主機是 `nil`);較新的通知種類依它判斷能不能選(#311)。
+    public var hostServiceVersion: HostServiceVersion? = nil
     public let model: PushModel
 
     public var id: HostSelection { host }

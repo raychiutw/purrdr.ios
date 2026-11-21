@@ -23,8 +23,13 @@ public enum PushKind: String, Sendable, CaseIterable, Hashable {
 
     /// 回報 `installedVersion` 的主機服務太舊、送不出這個種類;版本未知(還沒連上)時不擋。
     public func needsHostServiceUpdate(installedVersion: String?) -> Bool {
-        guard let feature = requiredHostServiceFeature, let installedVersion else { return false }
-        return !feature.isAvailable(onHostServiceVersion: installedVersion)
+        needsHostServiceUpdate(installed: installedVersion.flatMap(HostServiceVersion.init))
+    }
+
+    /// 同上,已解析成 `HostServiceVersion` 的版本。
+    public func needsHostServiceUpdate(installed: HostServiceVersion?) -> Bool {
+        guard let feature = requiredHostServiceFeature, let installed else { return false }
+        return installed < feature.minimumVersion
     }
 
     /// wire 上的陣列：依 `allCases` 的順序，讓同一組種類每次送出都一樣。

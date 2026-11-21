@@ -3,8 +3,9 @@ import PurrdrCore
 import SwiftUI
 
 extension AgentProgress.ContextLevel {
-    /// 70% 起橙、85% 起紅;其餘是次要文字色。
-    var style: AnyShapeStyle {
+    /// 圓環與進度條的顏色(唯一對應):70% 起橙、85% 起紅;其餘是次要文字色。
+    /// 只用在圖形;百分比文字維持一般文字色(DESIGN.md「狀態色」:顏色只上符號與圓點)。
+    var tint: AnyShapeStyle {
         switch self {
         case .normal: AnyShapeStyle(.secondaryText)
         case .warning: AnyShapeStyle(Color.orange)
@@ -25,13 +26,13 @@ struct ContextMeter: View {
                 Circle().stroke(.quaternary, lineWidth: 2.5)
                 Circle()
                     .trim(from: 0, to: CGFloat(min(max(percent, 0), 100)) / 100)
-                    .stroke(level.style, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                    .stroke(level.tint, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
             .frame(width: 13, height: 13)
             Text(verbatim: "\(percent)%")
                 .font(.caption.monospacedDigit())
-                .foregroundStyle(level.style)
+                .foregroundStyle(.secondaryText)
         }
         .accessibilityHidden(true)
         .accessibilityIdentifier("agent.row.context")
@@ -70,9 +71,8 @@ struct AgentProgressSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(verbatim: "\(percent)%")
                                 .font(.largeTitle.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(progress.contextLevel.style)
                             ProgressView(value: Double(min(max(percent, 0), 100)), total: 100)
-                                .tint(progress.contextLevel == .normal ? nil : progress.contextLevel == .warning ? Color.orange : Color.red)
+                                .tint(progress.contextLevel.tint)
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(Text("Context \(percent)%"))
