@@ -111,16 +111,17 @@ private struct SpacesSectionHeader: View {
 struct AgentKindAvatar: View {
     let kind: AgentKind
     static let baseSide: CGFloat = 36
-    // 方塊與字母一起隨字級放大(#314:固定字級的字母會被稽核判為 Dynamic Type 不支援)。
-    @ScaledMetric(relativeTo: .subheadline) private var side: CGFloat = baseSide
+    // 方塊隨字級放大但有上限(#314、使用者決定);字母用實際字級(固定字級的字母會被稽核判為 Dynamic Type 不支援)。
 
     var body: some View {
         let style = AgentKindAvatarStyle(kind: kind)
-        Text(verbatim: style.letter)
-            .font(.subheadline.bold())
-            .foregroundStyle(.white)
-            .frame(width: side, height: side)
-            .background(RoundedRectangle(cornerRadius: 10).fill(style.palette.color))
+        AvatarBox(fill: style.palette.color)
+            .dynamicTypeSize(...AgentStatusAvatar.largestTypeSize)
+            .overlay {
+                Text(verbatim: style.letter)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+            }
     }
 }
 

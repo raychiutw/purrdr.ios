@@ -30,12 +30,9 @@ public struct ConversationHeader: Equatable, Sendable {
         self.progress = progress
     }
 
-    /// 副標尾端的進度：「62% · 待辦 3/7」;兩者都沒有時為 `nil`。
+    /// 頂列一行尾端的 context 百分比(「62%」);沒有時為 `nil`。待辦只在狀態 sheet(#349,同一資訊只出現一處)。
     public var progressText: String? {
-        var parts: [String] = []
-        if let percent = progress.contextPercent { parts.append("\(percent)%") }
-        if progress.todoTotal > 0 { parts.append(String(localized: "Todos \(progress.todoDone)/\(progress.todoTotal)")) }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        progress.contextPercent.map { "\($0)%" }
     }
 
     /// 畫面寬度不夠時依序嘗試的文字：最長的在前，每次從後面整段拿掉，最後只剩狀態。
@@ -43,7 +40,7 @@ public struct ConversationHeader: Equatable, Sendable {
         let plain = (0...segments.count).reversed().map { count in
             ([status.title] + segments.prefix(count)).joined(separator: " · ")
         }
-        // 有進度時先試帶進度的(「Working · studio · 62% · Todos 3/7」),放不下再整段拿掉主機名，最後才拿掉進度(#307)。
+        // 有進度時先試帶進度的(「Working · studio · 62%」),放不下再整段拿掉主機名，最後才拿掉進度(#307)。
         guard let progressText else { return plain }
         return plain.map { "\($0) · \(progressText)" } + plain
     }

@@ -12,7 +12,7 @@ import SwiftUI
 /// - 畫面可見且 app 在前景時才輪詢與回報在場。
 /// - 底部是輸入列(`ComposerBar`,功能層 `safeAreaBar`);送出時切回跟隨尾端，讓回音落在視野內。
 public struct ConversationView: View {
-    let model: ConversationModel
+    @Bindable var model: ConversationModel
     @Environment(\.scenePhase) private var scenePhase
     /// Reduce Motion:自動捲到底不做動畫，直接跳過去(HIG:減少自動、重複的動畫)。
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -46,18 +46,16 @@ public struct ConversationView: View {
             .toolbar {
                 // 標題是 workspace 名稱，副標是狀態與主機名(#270);右邊只有終端機鈕，重新載入改成下拉。
                 ToolbarItem(placement: .principal) {
-                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header)
+                    ConversationTitleView(title: displayTitle, header: model.statusSummary.header, model: model)
                 }
                 .sharedBackgroundVisibility(.hidden)    // 標題自己是玻璃膠囊，不讓工具列再疊一層(glass on glass)
             }
             .safeAreaBar(edge: .top) { banner }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let pane = model.agentsPane, !pane.rows.isEmpty {
-                    AgentsBarView(pane: pane, readAt: model.agentsPaneReadAt, conversation: model)
-                }
-            }
             .safeAreaBar(edge: .bottom) { ComposerBar(model: model, conversationHeight: conversationHeight) }
             .forceQuitConfirmation(model: model)
+            .sheet(isPresented: $model.showsStatusSheet) {
+                ConversationStatusSheet(title: displayTitle, model: model)
+            }
             .secretCheckSheet(model.secretCheck)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
@@ -757,10 +755,12 @@ struct AwayDividerView: View {
     }
 }
 
-/// 置中的系統註記膠囊。
+/// skill 載入與系統註記:預設收成一行(#349，同工具串),點一下展開全文;大字級不截斷。
 struct CapsuleNote: View {
     let text: Text
     let symbol: String
+    @State private var expanded = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(text: Text, symbol: String) {
         self.text = text
@@ -772,13 +772,16 @@ struct CapsuleNote: View {
     }
 
     var body: some View {
-        Label { text } icon: { Image(systemName: symbol) }
-            .font(.footnote)
-            .foregroundStyle(.secondaryText)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(.fill.tertiary, in: Capsule())
-            .frame(maxWidth: .infinity)
+        Button { expanded.toggle() } label: {
+            Label { text } icon: { Image(systemName: symbol) }
+                .font(.footnote)
+                .foregroundStyle(Color.secondaryText)
+                .lineLimit(expanded || dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

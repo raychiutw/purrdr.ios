@@ -60,7 +60,7 @@ final class HTTPSHostUITests: XCTestCase {
 
         let card = app.descendants(matching: .any)["prompt.card"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "沒有提示卡")
-        XCTAssertTrue(app.descendants(matching: .any)["prompt.readOnly"].firstMatch.exists, "提示卡沒有說明唯讀")
+        XCTAssertFalse(app.descendants(matching: .any)["prompt.readOnly"].firstMatch.exists, "提示卡不該再重複說明唯讀(只在橫幅，#349)")
         XCTAssertFalse(app.descendants(matching: .any)["prompt.option.1"].firstMatch.exists, "唯讀裝置不應該有回答選項")
         // 唯讀只在頂部浮動橫幅說明一次(#348):輸入列不再重複，橫幅浮在內容上(不貼齊螢幕邊緣)。
         let banners = app.descendants(matching: .any).matching(identifier: "conversation.banner")
@@ -219,6 +219,11 @@ final class HTTPSHostUITests: XCTestCase {
             XCTAssertTrue(scrollTo(field, in: app), "沒有 \(identifier) 欄位")
             field.tap()
             field.typeEnglish(text)
+            // 表單捲動會收鍵盤(#312),鍵盤上方的「Done」收起後再找下一個欄位，不靠捲動時鍵盤還在不在。
+            let done = app.buttons["hostEditor.keyboardDone"]
+            if done.waitForExistence(timeout: 3) { done.tap() }
+            let hidden = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.keyboards.firstMatch)
+            _ = XCTWaiter().wait(for: [hidden], timeout: 3)
         }
     }
 

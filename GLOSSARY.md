@@ -8,7 +8,9 @@ herdr 自己的概念(Workspace、Tab、Pane、Agent 狀態)沿用 herdr 官方�
 
 **主機**(Host):
 使用者的一台電腦，上面跑著 herdr,app 透過某種連線方式連進去。一台主機有一種作業系統(macOS、Linux 或 Windows)和一種連線方式。
-_避免_:電腦、伺服器、機器、Device、Computer(例外：新增主機引導(#341)給沒有電腦概念的人看，指要在上面做事的那一台時口語說「電腦」「帳號」;其餘畫面照舊用「主機」)
+_避免_:伺服器、機器、Device、Computer
+
+用詞對應(2026-11-21 使用者決定):畫面文字對使用者說「電腦」「帳號」,全 app 適用;文件、程式與型別用「主機」「使用者名稱」(`username`)。
 
 **連線方式**:
 app 連上主機的方式，分成 **Tailscale SSH**(由 Tailscale 依 tailnet 身分放行，不需金鑰或密碼)、**OpenSSH**(主機自己的 sshd,用金鑰或密碼)與 **HTTPS**(經 Tailscale Serve 連到主機服務，用裝置權杖)。HTTPS 不支援登入 Shell。
@@ -215,7 +217,7 @@ _避免_:Device token(那是 APNs 的)、推播主機
 
 **會員**(Member):
 以 Sign in with Apple 或 Google 登入 Purrdr 後台的使用者身分;一個會員可以連結兩種登入方式，用任一種都登入同一個會員。只有訂閱功能需要會員;聊天與終端機不需要登入。
-_避免_:用「帳號」指會員這個身分(「帳號」只當畫面名稱，見帳號頁)、User、Account
+_避免_:User、Account(畫面可說「帳號」,見帳號頁;領域概念與文件仍用「會員」)
 
 **帳號頁**(Account):
 聊天列表最右上角的帳號鈕開的畫面(#246):會員資料(頭像、名稱、登入方式、登出、刪除會員)與 Purrdr Plus 開通(設定 Purrdr Plus 步驟)。「帳號」只是畫面與按鈕的名稱;領域概念仍是會員，說的是使用者身分時用「會員」。
