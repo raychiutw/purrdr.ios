@@ -218,8 +218,8 @@ public final class OfflineQueue {
     }
 }
 
-/// 送出管線的離線佇列步驟(#301):按下送出時連不上主機，訊息排進這台主機的佇列(輸入框維持清空);
-/// 佇列滿了不收，文字放回輸入框。連得上時直接通過。
+/// 送出管線的離線佇列步驟(#301):輪到它時(撤回倒數結束後)連不上主機，訊息排進這台主機的佇列(輸入框維持清空);
+/// 佇列滿了不收，文字放回輸入框。連得上時直接通過。連線狀態在這一刻才問(`SendPipelineClock.isHostReachable`)。
 @MainActor
 public struct OfflineQueueStep: SendStep {
     public let queue: OfflineQueue
@@ -229,7 +229,7 @@ public struct OfflineQueueStep: SendStep {
     }
 
     public func process(_ prompt: OutgoingPrompt, clock: SendPipelineClock) async -> SendStepResult {
-        guard !prompt.isHostReachable else { return .proceed(prompt) }
+        guard !clock.isHostReachable() else { return .proceed(prompt) }
         return .halt(SendHalt(restoresDraft: !queue.enqueue(prompt)))
     }
 }

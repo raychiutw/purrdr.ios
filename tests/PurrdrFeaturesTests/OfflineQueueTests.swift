@@ -34,7 +34,7 @@ struct OfflineQueueTests {
     }
 
     static func prompt(_ text: String = "整理 CSV 匯出", pane: String = "w1:p6", session: String? = "s-1", at date: Date = start) -> OutgoingPrompt {
-        OutgoingPrompt(text: text, paneID: pane, expectedSession: session, createdAt: date, workspaceID: "w1", isHostReachable: false)
+        OutgoingPrompt(text: text, paneID: pane, expectedSession: session, createdAt: date, workspaceID: "w1")
     }
 
     static func snapshot(pane: String = "w1:p6", workspace: String = "w1", session: String? = "s-1", status: AgentStatus = .idle) -> HostSnapshot {
@@ -214,15 +214,16 @@ struct OfflineQueueTests {
     func stepQueuesWhenOffline() async {
         let queue = Self.queue()
         let step = OfflineQueueStep(queue: queue)
-        let clock = SendPipelineClock(now: { Self.start })
-        let online = OutgoingPrompt(text: "連得上", paneID: "w1:p6", expectedSession: "s-1", createdAt: Self.start)
+        let online = SendPipelineClock(now: { Self.start })
+        let offline = SendPipelineClock(now: { Self.start }, isHostReachable: { false })
+        let prompt = OutgoingPrompt(text: "連得上", paneID: "w1:p6", expectedSession: "s-1", createdAt: Self.start)
 
-        #expect(await step.process(online, clock: clock) == .proceed(online))
+        #expect(await step.process(prompt, clock: online) == .proceed(prompt))
         #expect(queue.entries.isEmpty)
-        #expect(await step.process(Self.prompt("離線"), clock: clock) == .halt(SendHalt(restoresDraft: false)))
+        #expect(await step.process(Self.prompt("離線"), clock: offline) == .halt(SendHalt(restoresDraft: false)))
         #expect(queue.entries.map(\.text) == ["離線"])
         for _ in 2...OfflineQueue.limit { queue.enqueue(Self.prompt()) }
-        #expect(await step.process(Self.prompt("滿了"), clock: clock) == .halt(SendHalt(restoresDraft: true)))
+        #expect(await step.process(Self.prompt("滿了"), clock: offline) == .halt(SendHalt(restoresDraft: true)))
         #expect(queue.entries.count == 30)
     }
 
@@ -262,6 +263,30 @@ struct OfflineQueueTests {
         #expect(setup.model.queuedPrompts.map(\.text) == ["連上再送"])
         #expect(queue.entries.first?.sessionID == ConversationModelTests.sessionID)
         #expect(queue.entries.first?.workspaceID == "w1")
+    }
+
+    @Test("聊天：倒數期間斷線，倒數結束時才判斷:排進佇列、不送主機;倒數期間恢復連線則照送")
+    func reachabilityIsDecidedWhenCountdownEnds() async throws {
+        let queue = Self.queue()
+        let countdown = UndoSendCountdown(seconds: { 5 })
+        let setup = try await ConversationSendTests.opened { client, transcripts, drafts in
+            ConversationModel(
+                client: client, transcripts: transcripts, paneID: ConversationSendTests.paneID,
+                knownSessionID: ConversationModelTests.sessionID, cache: InMemoryConversationCache(),
+                clock: TestClock().clock, drafts: drafts, sendSteps: [countdown, OfflineQueueStep(queue: queue)],
+                sleep: RecordingSleeper().sleep)
+        }
+        setup.model.draft = "倒數中斷線"
+        let sending = Task { await setup.model.send() }
+        await UndoSendTests.until { countdown.pending != nil }
+        #expect(!setup.model.isOffline)
+
+        await Self.goOffline(setup)
+        countdown.sendNow()
+        await sending.value
+
+        #expect(setup.model.queuedPrompts.map(\.text) == ["倒數中斷線"])
+        #expect(await ConversationSendTests.promptRequests(setup).isEmpty)
     }
 
     @Test("聊天：重連後讀到的 Agent 列表交給佇列補送")
@@ -323,7 +348,7 @@ struct OfflineQueueTests {
         let queue = model.offlineQueue(for: .demo)
         queue.enqueue(OutgoingPrompt(
             text: "重連後補送", paneID: ConversationModelTests.paneID, expectedSession: ConversationModelTests.sessionID,
-            createdAt: Date(), workspaceID: "w1", isHostReachable: false))
+            createdAt: Date(), workspaceID: "w1"))
 
         await model.agentList.load()
         await queue.waitUntilIdle()

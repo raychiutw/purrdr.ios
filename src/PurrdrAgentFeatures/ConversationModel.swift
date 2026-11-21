@@ -1097,8 +1097,9 @@ public final class ConversationModel {
         notice = nil
         let outgoing = OutgoingPrompt(
             text: text, paneID: paneID, expectedSession: boundSessionID ?? knownSessionID, createdAt: clock.now(),
-            workspaceID: currentAgent?.workspaceID, isHostReachable: !isOffline)
-        switch await sendPipeline.prepare(outgoing) {
+            workspaceID: currentAgent?.workspaceID)
+        // 連線狀態在步驟輪到時才讀:撤回倒數期間可能斷線或恢復。
+        switch await sendPipeline.prepare(outgoing, isHostReachable: { [weak self] in !(self?.isOffline ?? false) }) {
         case .proceed(let prepared):
             await deliver(prepared)
         case .halt(let halt):

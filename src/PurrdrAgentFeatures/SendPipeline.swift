@@ -1,14 +1,21 @@
 import Foundation
 import PurrdrCore
 
-/// 送出管線的時鐘(測試注入):現在時間與等待。撤回倒數、離線佇列的過期判斷都用它。
+/// 送出管線給步驟的環境(測試注入):現在時間、等待,以及**此刻**連不連得上主機。
+/// 撤回倒數、離線佇列的過期判斷用時鐘;離線佇列在輪到它時才問連線狀態(倒數期間連線可能變了)。
 public struct SendPipelineClock: Sendable {
     public var now: @Sendable () -> Date
     public var sleep: Sleep
+    /// 此刻連得上主機嗎;不是送出當下的快照,步驟輪到時才呼叫。
+    public var isHostReachable: @MainActor @Sendable () -> Bool
 
-    public init(now: @escaping @Sendable () -> Date = { Date() }, sleep: @escaping Sleep = Sleeping.task) {
+    public init(
+        now: @escaping @Sendable () -> Date = { Date() }, sleep: @escaping Sleep = Sleeping.task,
+        isHostReachable: @escaping @MainActor @Sendable () -> Bool = { true }
+    ) {
         self.now = now
         self.sleep = sleep
+        self.isHostReachable = isHostReachable
     }
 }
 
@@ -24,19 +31,16 @@ public struct OutgoingPrompt: Sendable, Equatable {
     public let createdAt: Date
     /// 對象所在的 Workspace(離線佇列重連後比對 pane 沒變,#301);不知道時是 `nil`。
     public let workspaceID: String?
-    /// 按下送出時連得上主機;`false` 時離線佇列接手(#301)。
-    public let isHostReachable: Bool
 
     public init(
         text: String, paneID: String, expectedSession: String?, createdAt: Date,
-        workspaceID: String? = nil, isHostReachable: Bool = true
+        workspaceID: String? = nil
     ) {
         self.text = text
         self.paneID = paneID
         self.expectedSession = expectedSession
         self.createdAt = createdAt
         self.workspaceID = workspaceID
-        self.isHostReachable = isHostReachable
     }
 }
 
@@ -90,15 +94,49 @@ public struct SendPipeline {
         self.clock = clock
     }
 
-    /// 依序跑步驟;有步驟擋下就停，後面的不跑。
-    public func prepare(_ prompt: OutgoingPrompt) async -> SendStepResult {
+    /// 依序跑步驟;有步驟擋下就停，後面的不跑。`isHostReachable` 給步驟輪到時查連線狀態(離線佇列在倒數結束時才判斷)。
+    public func prepare(_ prompt: OutgoingPrompt, isHostReachable: @escaping @MainActor @Sendable () -> Bool = { true }) async -> SendStepResult {
         var current = prompt
+        var stepClock = clock
+        stepClock.isHostReachable = isHostReachable
         for step in steps {
-            switch await step.process(current, clock: clock) {
+            switch await step.process(current, clock: stepClock) {
             case .proceed(let next): current = next
             case .halt(let halt): return .halt(halt)
             }
         }
         return .proceed(current)
+    }
+}
+
+/// 管線步驟「等使用者決定」的共用機制(撤回倒數、機密偵測):等到有人 `resolve`;
+/// 等的 task 被取消(離開聊天)就當作「不送」,只收掉自己這一次。
+@MainActor
+final class UserDecision {
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private var generation = 0
+
+    var isWaiting: Bool { continuation != nil }
+
+    /// 登記後呼叫 `start`(設定畫面狀態),等結果;`true` 是照送。
+    func wait(start: () -> Void) async -> Bool {
+        generation += 1
+        let mine = generation
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                start()
+            }
+        } onCancel: {
+            Task { @MainActor in
+                if self.generation == mine { self.resolve(false) }
+            }
+        }
+    }
+
+    func resolve(_ sends: Bool) {
+        guard let pending = continuation else { return }
+        continuation = nil
+        pending.resume(returning: sends)
     }
 }
