@@ -132,9 +132,10 @@ struct PurrdrApp: App {
         hosts.haptics = SystemHaptics()
         // 流量計量(#353):存在 Application Support(只在這支裝置;UI 測試只放記憶體)。
         let trafficStore: any TrafficStore = uiTesting
-            ? InMemoryTrafficStore()
+            ? InMemoryTrafficStore(days: arguments.contains("-seedDataUsage") ? Self.seededTrafficDays() : [])
             : FileTrafficStore(url: URL.applicationSupportDirectory.appending(path: "traffic-usage.json"))
         let trafficMeter = TrafficMeter(store: trafficStore)
+        if uiTesting, arguments.contains("-seedDataUsage") { Self.seedLaunchTraffic(trafficMeter) }
         trafficNetwork = TrafficNetworkMonitor(meter: trafficMeter)
         self.trafficMeter = trafficMeter
         hosts.trafficMeter = trafficMeter
@@ -211,6 +212,36 @@ struct PurrdrApp: App {
             app: app, client: { hosts.herdrClient }, hostCount: { hosts.hosts.count }, defaults: .standard,
             platform: SystemPlatformServices(), links: AppStoreConfiguration.settingsLinks
         )
+    }
+
+    /// UI 測試情境 `-seedDataUsage`(#354):過去 29 天的用量(Studio Mac 每天 Wi-Fi 20 MB 加行動網路 3 MB、Build Box 每天 1 MB、
+    /// 已刪除的主機 2 MB),搭配 `-seedHost`、`-seedUnreachableHost`。
+    private static func seededTrafficDays() -> [TrafficDay] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return (1...29).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            let parts = calendar.dateComponents([.year, .month, .day], from: date)
+            let key = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+            return TrafficDay(day: key, hosts: [
+                seededHost.id.uuidString: [
+                    .wifi: TrafficBytes(sent: 2_000_000, received: 18_000_000),
+                    .cellular: TrafficBytes(sent: 1_000_000, received: 2_000_000),
+                ],
+                unreachableHost.id.uuidString: [.wifi: TrafficBytes(sent: 0, received: 1_000_000)],
+                "9E9E9E9E-0000-4000-8000-000000000001": [.wifi: TrafficBytes(sent: 0, received: 2_000_000)],
+            ])
+        }
+    }
+
+    /// 今天與這次開啟:Studio Mac 行動網路 2 MB(送出 0.5、收到 1.5)加 Wi-Fi 收到 8 MB,共 10 MB。
+    private static func seedLaunchTraffic(_ meter: TrafficMeter) {
+        let id = seededHost.id.uuidString
+        meter.setNetwork(.cellular)
+        meter.record(hostID: id, direction: .sent, bytes: 500_000)
+        meter.record(hostID: id, direction: .received, bytes: 1_500_000)
+        meter.setNetwork(.wifi)
+        meter.record(hostID: id, direction: .received, bytes: 8_000_000)
     }
 
     /// UI 測試情境 `-seedHost`:已存一台主機(通道仍是 Demo 主機)，測主機清單的管理動作。
