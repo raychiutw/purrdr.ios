@@ -322,3 +322,21 @@ extension XCUIApplication {
         return top...max(top, bottom)
     }
 }
+
+extension XCUIApplication {
+    /// 等整個畫面停下來：連續兩張截圖相同(最多等 `timeout` 秒;有永遠在動的元素就放行)。
+    /// 比對的是像素，不受查詢是否唯一影響;每張截圖約 0.2 秒，只給稽核這類要量畫面的地方用。
+    @MainActor
+    @discardableResult
+    func waitForVisualSettle(timeout: TimeInterval = 3) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var previous = screenshot().pngRepresentation
+        while Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+            let current = screenshot().pngRepresentation
+            if current == previous { return true }
+            previous = current
+        }
+        return false
+    }
+}

@@ -65,9 +65,7 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     private func openChat(_ paneID: String, in app: XCUIApplication) -> XCUIElement {
-        let row = app.element("agent.row.demo/\(paneID)")
-        XCTAssertTrue(app.reveal(row), "列表上沒有 \(paneID)")
-        row.tap()
+        app.openConversation(paneID: paneID)
         let text = app.element("composer.text")
         XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
         return text
