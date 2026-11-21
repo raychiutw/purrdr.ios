@@ -65,6 +65,8 @@ struct PurrdrApp: App {
             await plus.refresh()
             return plus.isPlusActive
         }
+        // 測試通知:後台與主機外掛目前沒有這條路徑,正式 app 不提供;UI 測試用替身演出成功與失敗。
+        if uiTesting { push.testNotifications = UITestingPushTestSender(fails: arguments.contains("-uiTestingPushTestFails")) }
         let hosts: HostsModel
         if uiTesting {
             // 祕密只放記憶體;裝置金鑰是軟體金鑰(模擬器沒有 Secure Enclave)。

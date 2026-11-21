@@ -67,7 +67,7 @@ public struct MemberContent: View {
 
     public var body: some View {
         content
-            .navigationTitle("Account")
+            .navigationTitle(model.phase == .signedOut ? "Sign In" : "Account")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -86,7 +86,10 @@ public struct MemberContent: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.phase == .unknown {
+        if model.phase == .signedOut {
+            // 沒登入直接是登入頁(#328,原型 A);登入完成後 phase 變成 signedIn,換成帳號頁。
+            SignedOutAccountView(model: model)
+        } else if model.phase == .unknown {
             if model.isWorking {
                 ProgressView()
             } else {
@@ -105,6 +108,41 @@ public struct MemberContent: View {
 
     private var noticePresented: Binding<Bool> {
         Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
+    }
+}
+
+/// 沒登入的帳號頁(#328,原型 A):Purrdr 圖示、標題、說明與兩個登入鈕,不出現步驟卡。
+struct SignedOutAccountView: View {
+    let model: MemberModel
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.onProminentFill)
+                    .frame(width: 80, height: 80)
+                    .background(.prominentFill, in: RoundedRectangle(cornerRadius: 18))
+                    .accessibilityHidden(true)
+                    .padding(.top, 24)
+                Text("Sign In to Purrdr")
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                Text("Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync hosts between iPhone and iPad.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+                    .multilineTextAlignment(.center)
+                SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
+                    .padding(.top, 12)
+                Text("Chat and terminal don’t need a member account.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 4)
+            }
+            .padding(.horizontal)
+        }
+        .accessibilityIdentifier("account.signedOut")
     }
 }
 
@@ -463,7 +501,7 @@ struct AccountView: View {
     }
 }
 
-/// 帳號頁頂端的頭像與名稱;未加入會員顯示「?」。
+/// 帳號頁頂端的頭像與名稱;未加入會員顯示人頭圖。
 private struct AccountHeader: View {
     let member: Member?
 
@@ -491,27 +529,33 @@ private struct AccountHeader: View {
     }
 }
 
-/// 帳號頭像：主色填色(`prominentFill`)圓底上的頭像字;沒有字時用人像符號，未加入會員(`nil`)用「?」。帳號鈕與帳號頁共用。
+/// 帳號頭像：主色填色(`prominentFill`)圓底上的頭像字;沒有字時用人像符號，未加入會員(`nil`)用系統人頭圖。帳號鈕與帳號頁共用。
 struct AccountAvatar: View {
     let member: Member?
 
     var body: some View {
-        ZStack {
-            Circle().fill(.prominentFill)
-            Group {
-                if let member {
-                    if let initial = member.avatarInitial {
-                        Text(verbatim: initial)
-                    } else {
-                        Image(systemName: "person.fill")
+        Group {
+            if let member {
+                ZStack {
+                    Circle().fill(.prominentFill)
+                    Group {
+                        if let initial = member.avatarInitial {
+                            Text(verbatim: initial)
+                        } else {
+                            Image(systemName: "person.fill")
+                        }
                     }
-                } else {
-                    // 圖示而非文字：AX 字級時帳號鈕收進溢出選單，選單項目會把畫面上的「?」當名稱。
-                    Image(systemName: "questionmark")
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.onProminentFill)
                 }
+            } else {
+                // 沒登入:系統人頭圖(圖示而非文字，AX 字級時帳號鈕收進溢出選單，選單項目不會把畫面上的符號當名稱)。
+                Image(systemName: "person.crop.circle")
+                    .resizable()
+                    .scaledToFit()
+                    .fontWeight(.light)
+                    .foregroundStyle(.secondaryText)
             }
-            .fontWeight(.semibold)
-            .foregroundStyle(.onProminentFill)
         }
         .accessibilityHidden(true)
     }

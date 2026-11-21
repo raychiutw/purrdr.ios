@@ -1747,6 +1747,17 @@
         }
       }
     },
+    "Chat and terminal don’t need a member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天與終端機不需要會員。"
+          }
+        }
+      }
+    },
     "Chat, Terminal, and the Demo Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2587,6 +2598,17 @@
         }
       }
     },
+    "Couldn’t Send Test Notification" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法傳送測試通知"
+          }
+        }
+      }
+    },
     "Couldn’t add the key on the host. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3001,6 +3023,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法把按鍵送到主機。請到終端機查看面板。"
+          }
+        }
+      }
+    },
+    "Couldn’t send the test notification: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法傳送測試通知：%@"
           }
         }
       }
@@ -4511,6 +4544,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中斷 agent 目前這一輪。按住可強制結束。"
+          }
+        }
+      }
+    },
+    "It should arrive on this device in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後這支裝置就會收到。"
           }
         }
       }
@@ -7595,6 +7639,17 @@
         }
       }
     },
+    "Send Test Notification" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送測試通知"
+          }
+        }
+      }
+    },
     "Send When Done" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8090,6 +8145,17 @@
         }
       }
     },
+    "Sign In to Purrdr" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入 Purrdr"
+          }
+        }
+      }
+    },
     "Sign In to Subscribe" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8130,6 +8196,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用金鑰或密碼登入主機自己的 sshd。"
+          }
+        }
+      }
+    },
+    "Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync hosts between iPhone and iPad." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後可以開通 Purrdr Plus、在 Agent 需要你時收到通知，並在 iPhone 和 iPad 之間同步主機。"
           }
         }
       }
@@ -8702,6 +8779,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "測試連線"
+          }
+        }
+      }
+    },
+    "Test Notification Sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已傳送測試通知"
           }
         }
       }

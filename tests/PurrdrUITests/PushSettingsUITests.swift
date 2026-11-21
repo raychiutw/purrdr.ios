@@ -44,6 +44,49 @@ final class PushSettingsUITests: XCTestCase {
         expectValue("Next Step", of: element("account.plusSetup.sync", in: app))
     }
 
+    /// 通知開著的主機有「傳送測試通知」(#328);通知沒開的主機沒有。成功以提示說明。
+    @MainActor
+    func testSendTestNotificationReportsSuccess() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost"])
+        openAccount(app)
+        let toggle = app.switches["account.push.\(Self.seededHost)"]
+        XCTAssertTrue(reveal(toggle, in: app))
+        let test = app.buttons["account.push.\(Self.seededHost).test"]
+        XCTAssertFalse(test.exists, "通知沒開不該有傳送測試通知")
+        toggle.tap()
+        let install = app.alerts.buttons["settings.push.install"].firstMatch
+        XCTAssertTrue(install.waitForExistence(timeout: 10))
+        install.tap()
+        expectValue("Notifications On", of: toggle)
+
+        XCTAssertTrue(reveal(test, in: app), "通知開著沒有傳送測試通知")
+        test.tap()
+        XCTAssertTrue(app.alerts["Test Notification Sent"].waitForExistence(timeout: 5), "沒有成功提示")
+        app.alerts.buttons["OK"].tap()
+    }
+
+    /// 測試通知失敗時提示說明原因。
+    @MainActor
+    func testSendTestNotificationReportsFailure() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember", "-seedHost", "-uiTestingPushTestFails"])
+        openAccount(app)
+        let toggle = app.switches["account.push.\(Self.seededHost)"]
+        XCTAssertTrue(reveal(toggle, in: app))
+        toggle.tap()
+        let install = app.alerts.buttons["settings.push.install"].firstMatch
+        XCTAssertTrue(install.waitForExistence(timeout: 10))
+        install.tap()
+        expectValue("Notifications On", of: toggle)
+
+        let test = app.buttons["account.push.\(Self.seededHost).test"]
+        XCTAssertTrue(reveal(test, in: app))
+        test.tap()
+        let alert = app.alerts["Couldn’t Send Test Notification"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "沒有失敗提示")
+        XCTAssertTrue(alert.staticTexts.allElementsBoundByIndex.contains { $0.label.contains("Couldn’t send the test notification") }, "沒有說明原因")
+        alert.buttons["OK"].tap()
+    }
+
     /// 開著通知的主機可展開選種類(#292):預設「需要你」「完成」都開(SSH 主機沒有「主機服務」);關掉「完成」後只剩「需要你」,最後一個不能關。
     @MainActor
     func testChooseNotificationKindsPerHost() {

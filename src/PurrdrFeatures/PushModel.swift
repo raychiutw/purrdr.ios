@@ -135,6 +135,12 @@ public struct PushConfiguration: Sendable {
     }
 }
 
+/// 「傳送測試通知」(#328):請後端或主機對這支裝置送一則測試通知。
+/// 目前後台與主機外掛都沒有這條路徑(`POST /v1/push` 要配對密鑰、只在主機上),所以正式 app 沒有注入實作。
+public protocol PushTestNotificationSending: Sendable {
+    func sendTest(hostID: String) async throws
+}
+
 /// 推播的共用部分：後台、權限與 token、配對紀錄、這支裝置。每台主機的開關是 `PushModel`。
 @MainActor
 public final class PushService {
@@ -146,6 +152,8 @@ public final class PushService {
     private let loadDevice: @MainActor () throws -> PushDeviceIdentity
     private var loadedDevice: PushDeviceIdentity?
     private var models: [WeakPushModel] = []
+    /// 傳送測試通知的管道;`nil` 時不提供這個功能。
+    public var testNotifications: (any PushTestNotificationSending)?
 
     /// - Parameters:
     ///   - loadDevice: 這支裝置(Keychain 的推播 id、預設名稱與型號);讀不到(還沒第一次解鎖)時丟錯，之後用到時再試。
@@ -386,6 +394,39 @@ public final class PushModel {
 
     public var isAvailable: Bool { service != nil && installer != nil }
 
+    /// 測試通知的結果。
+    public enum TestNotification: Equatable {
+        case idle
+        case sending
+        case sent
+        case failed(String)
+    }
+
+    public private(set) var testNotification: TestNotification = .idle
+
+    /// 通知開著、而且有送出管道時才能送測試通知。
+    public var canSendTestNotification: Bool {
+        state == .on && hostID != nil && service?.testNotifications != nil
+    }
+
+    /// 使用者看過結果提示(或重新開始)。
+    public func dismissTestNotification() {
+        if testNotification != .sending { testNotification = .idle }
+    }
+
+    /// 送測試通知;結果在 `testNotification`(失敗附原因)。
+    public func sendTestNotification() async {
+        guard canSendTestNotification, testNotification != .sending,
+              let sender = service?.testNotifications, let hostID else { return }
+        testNotification = .sending
+        do {
+            try await sender.sendTest(hostID: hostID)
+            testNotification = .sent
+        } catch {
+            testNotification = .failed(Self.describeTestFailure(error))
+        }
+    }
+
     /// 使用者打開開關。
     public func requestOn() async {
         guard state == .off, let service, let installer else { return }
@@ -570,6 +611,15 @@ public final class PushModel {
             String(localized: "Couldn’t read this device’s ID from the keychain. Unlock this device and try again.")
         default:
             String(localized: "Couldn’t change which notifications this host sends: \(error.localizedDescription)")
+        }
+    }
+
+    static func describeTestFailure(_ error: any Error) -> String {
+        switch error {
+        case BackendError.unreachable:
+            String(localized: "Couldn’t reach Purrdr’s server. Check your connection and try again.")
+        default:
+            String(localized: "Couldn’t send the test notification: \(error.localizedDescription)")
         }
     }
 

@@ -84,4 +84,14 @@ struct PlusSetupProgressTests {
         #expect(!after.offersFeatureSetup(after: after), "原本就開通了不再問")
         #expect(!alreadyOn.offersFeatureSetup(after: before), "通知與同步都已開啟不問")
     }
+
+    @Test("未登入：通知與同步即使開著也不打勾(#328)")
+    func signedOutDoesNotCountNotificationsOrSync() {
+        let progress = PlusSetupProgress(isMember: false, isPlusActive: false, isNotificationsOn: true, isHostSyncOn: true)
+
+        #expect(progress.state(of: .turnOnNotifications) == .upcoming)
+        #expect(progress.state(of: .syncHosts) == .upcoming)
+        #expect(progress.completedCount == 0)
+        #expect(progress.currentStep == .joinMember)
+    }
 }
