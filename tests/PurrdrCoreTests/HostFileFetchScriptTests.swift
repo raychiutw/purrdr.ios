@@ -38,10 +38,13 @@ struct HostFileFetchScriptTests {
         let target = HostFileTarget(path: home + "/ledger/a.png", root: home + "/ledger")
 
         guard case .file = try await fetcher.status(of: target) else { Issue.record("沒有狀態"); return }
+        // 以第一個請求回應後的指令數為基準:負載高時 1 秒時限可能在第一個請求回應前就到,adapter 會先重開;
+        // 要證明的是「閒置結束之後,下一個請求剛好重開一條」,與開頭花了幾條無關。
+        let opened = shell.commands.count
         await shell.waitUntilFinished(timeout: .seconds(10))
         guard case .file = try await fetcher.status(of: target) else { Issue.record("重開後沒有狀態"); return }
 
-        #expect(shell.commands.count == 2, "閒置結束後重開一條")
+        #expect(shell.commands.count == opened + 1, "閒置結束後重開一條")
     }
 
     /// 把取檔腳本的閒置時限改成 1 秒。
