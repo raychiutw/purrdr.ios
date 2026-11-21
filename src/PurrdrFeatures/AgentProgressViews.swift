@@ -72,7 +72,7 @@ struct AgentProgressSheet: View {
                                 .font(.largeTitle.weight(.semibold).monospacedDigit())
                                 .foregroundStyle(progress.contextLevel.style)
                             ProgressView(value: Double(min(max(percent, 0), 100)), total: 100)
-                                .tint(progress.contextLevel == .normal ? Color.accentColor : progress.contextLevel == .warning ? .orange : .red)
+                                .tint(progress.contextLevel == .normal ? nil : progress.contextLevel == .warning ? Color.orange : Color.red)
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(Text("Context \(percent)%"))
@@ -111,7 +111,7 @@ private struct TodoRow: View {
             case .completed:
                 Image(systemName: "checkmark.square.fill").foregroundStyle(.secondaryText)
             case .inProgress:
-                Image(systemName: "square").foregroundStyle(.green)
+                Image(systemName: "square").foregroundStyle(.tint)
             case .pending:
                 Image(systemName: "square").foregroundStyle(.secondaryText)
             }
