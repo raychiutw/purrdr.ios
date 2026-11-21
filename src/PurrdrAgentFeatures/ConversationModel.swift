@@ -58,6 +58,11 @@ public final class ConversationModel {
     public private(set) var phase: Phase = .loading
     /// 重新載入、換 session 的讀取進行中:畫面保留舊訊息，只顯示不遮擋的更新指示(#329)。
     public private(set) var isRefreshing = false
+    /// 載入超過這麼久才出現系統進度指示(HIG〈Loading〉:內容理想上立刻出現，等待超過一兩秒才用進度指示)。
+    nonisolated public static let loadingIndicatorDelay: Duration = .seconds(1.5)
+    private var loadingIndicatorArmed = false
+    /// 還沒有任何內容、載入已超過 `loadingIndicatorDelay`:畫面在骨架下方加系統進度指示。有快取或內容先到就不會出現。
+    public var showsLoadingIndicator: Bool { loadingIndicatorArmed && phase == .loading && items.isEmpty }
     public private(set) var items: [ConversationItem] = []
     /// 畫面上是快取的內容(離線)。
     public private(set) var isOffline = false
@@ -612,6 +617,7 @@ public final class ConversationModel {
         await reopen()
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await self.reportPresence(sleep: sleep) }
+            group.addTask { await self.armLoadingIndicator(sleep: sleep) }
             if let updates {
                 group.addTask { await updates.liveUpdates.attach() }
                 group.addTask { await self.wakeOnChanges(from: updates) }
@@ -639,6 +645,14 @@ public final class ConversationModel {
         await client.endQuickDisconnectDetection()
         // 畫面不在了：主機推送尾端的連線方式(HTTPS)停止追蹤。下次開啟從游標重新開始。
         if isCurrentRun, currentRunID == nil, let path = file?.path { await transcripts.stopFollowing(path: path) }
+    }
+
+    /// 載入超過 `loadingIndicatorDelay` 還沒有內容才開啟進度指示。
+    private func armLoadingIndicator(sleep: Sleep) async {
+        loadingIndicatorArmed = false
+        guard phase == .loading, items.isEmpty else { return }
+        do { try await sleep(Self.loadingIndicatorDelay) } catch { return }
+        loadingIndicatorArmed = true
     }
 
     /// 目前的 `run()`;舊的 run 晚於新的結束時據此不收新的資源。

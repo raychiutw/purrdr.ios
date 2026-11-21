@@ -141,4 +141,56 @@ struct ConversationFastLoadTests {
         #expect(open.model.items.isEmpty == false)
         #expect(open.model.phase == .ready)
     }
+
+    // MARK: - 進度指示(HIG〈Loading〉:超過一兩秒才出現)
+
+    /// 開聊天、快照卡住，睡眠只讓 `loadingIndicatorDelay` 到期(其他等待不到期)。
+    static func openSlow(cache: any ConversationCache, delayElapses: Bool) async throws -> (model: ConversationModel, run: Task<Void, Never>, connection: FakeHostConnection) {
+        let connection = await Self.connection()
+        await connection.hold("session.snapshot")
+        let model = Self.model(connection, cache: cache)
+        let sleeper = RecordingSleeper { $0 == ConversationModel.loadingIndicatorDelay && delayElapses }
+        let run = Task { await model.run(sleep: sleeper.sleep) }
+        try await waitUntil { await connection.heldCount == 1 }
+        if delayElapses { try await waitUntil { await MainActor.run { model.showsLoadingIndicator } } }
+        return (model, run, connection)
+    }
+
+    @Test("沒有快取、還沒超過門檻：只有骨架，沒有進度指示")
+    func noIndicatorBeforeThreshold() async throws {
+        let open = try await Self.openSlow(cache: InMemoryConversationCache(), delayElapses: false)
+        defer { open.run.cancel() }
+
+        #expect(open.model.phase == .loading)
+        #expect(open.model.showsLoadingIndicator == false)
+    }
+
+    @Test("沒有快取、超過門檻仍沒有內容：出現進度指示；內容一到就消失")
+    func indicatorAppearsAfterThresholdThenGoes() async throws {
+        let open = try await Self.openSlow(cache: InMemoryConversationCache(), delayElapses: true)
+        defer { open.run.cancel() }
+        #expect(open.model.showsLoadingIndicator)
+
+        await open.connection.releaseHeld()
+        try await waitUntil { await MainActor.run { open.model.items.isEmpty == false } }
+
+        #expect(open.model.showsLoadingIndicator == false)
+    }
+
+    @Test("有快取：即使等待超過門檻也不出現進度指示")
+    func noIndicatorWhenCached() async throws {
+        let cache = InMemoryConversationCache()
+        await Self.fillCache(cache)
+        let connection = await Self.connection()
+        await connection.hold("session.snapshot")
+        let model = Self.model(connection, cache: cache)
+        let sleeper = RecordingSleeper { $0 == ConversationModel.loadingIndicatorDelay }
+        let run = Task { await model.run(sleep: sleeper.sleep) }
+        defer { run.cancel() }
+        try await waitUntil { await connection.heldCount == 1 }
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(model.items.isEmpty == false)
+        #expect(model.showsLoadingIndicator == false)
+    }
 }

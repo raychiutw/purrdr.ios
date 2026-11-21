@@ -386,7 +386,13 @@ public struct ConversationView: View {
     private var placeholder: some View {
         switch model.phase {
         case .loading:
-            loadingSkeleton
+            VStack(spacing: 20) {
+                loadingSkeleton
+                // 等超過約 1.5 秒才出現，用系統的 ProgressView(HIG〈Progress indicators〉)。
+                if model.showsLoadingIndicator {
+                    ProgressView().accessibilityIdentifier("conversation.loadingIndicator")
+                }
+            }
         case .waitingForSession:
             ContentUnavailableView {
                 Label("Waiting for the Session", systemImage: "hourglass")
