@@ -138,14 +138,27 @@ public final class MergedAgentListModel {
 
     /// 對話出現在畫面上：記下開啟時間(這之前的回覆都算讀過)。
     public func chatAppeared(_ route: ChatRoute) {
+        // 第一個視窗進來時，先記下上次離開的時間(markOpened 會蓋掉它)，離開期間摘要要用(#308)。
+        if visibleCounts[route] == nil, let opened = openedAt(route) { awayStarts[route] = opened }
         visibleCounts[route, default: 0] += 1
         markOpened(route)
+    }
+
+    /// 這個聊天這次開著之前，上次離開的時間(#308)。開著期間不變;只有進聊天(`chatAppeared`)之後才有，沒開過的聊天是 `nil`。
+    public func awayStart(for route: ChatRoute) -> Date? { awayStarts[route] }
+
+    private var awayStarts: [ChatRoute: Date] = [:]
+
+    private func openedAt(_ route: ChatRoute) -> Date? {
+        guard let session = snapshot(for: route.host)?.agents.first(where: { $0.paneID == route.paneID })?.sessionID else { return nil }
+        return actions(for: route.host)?.preferences.opened[session]
     }
 
     /// 對話離開畫面：再記一次開啟時間(看著的時候來的回覆也算讀過)。
     public func chatDisappeared(_ route: ChatRoute) {
         markOpened(route)
         if let count = visibleCounts[route] { visibleCounts[route] = count > 1 ? count - 1 : nil }
+        if visibleCounts[route] == nil { awayStarts[route] = nil }
     }
 
     /// 以列表看到的 session 記開啟時間;沒有 session 時不記(行為規格 F2.6:否則下一個用這個 pane 的聊天會被當成讀過)。

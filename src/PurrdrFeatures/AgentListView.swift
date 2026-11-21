@@ -453,6 +453,7 @@ struct AgentRowView: View {
         let parts: [String?] = [
             AgentKind(rawKind: row.kind).displayName, row.workspace, String(localized: row.status.title),
             row.isPinned ? String(localized: "Pinned") : nil, row.isMuted ? String(localized: "Muted") : nil,
+            row.isAway ? String(localized: "New since you were away") : nil,
             preview.isEmpty ? nil : preview, row.time?.text(),
             row.progress?.contextPercent.map { String(localized: "Context \($0)%") },
             row.progress.flatMap { $0.todoTotal > 0 ? String(localized: "Todos \($0.todoDone) of \($0.todoTotal) done") : nil },
@@ -482,6 +483,16 @@ struct AgentRowView: View {
                     .imageScale(.small)
                     .foregroundStyle(secondary)
                     .accessibilityLabel(Text("Muted"))
+            }
+            // 離開超過 15 分鐘後有新回覆(#308):名稱後的小標籤，文字說明、不只靠顏色。
+            if row.isAway {
+                Text("While away")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondaryText)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.fill.tertiary, in: Capsule())
+                    .accessibilityHidden(true)
             }
             if !dynamicTypeSize.isAccessibilitySize {
                 Spacer(minLength: 8)

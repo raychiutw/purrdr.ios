@@ -1960,6 +1960,17 @@
         }
       }
     },
+    "Collapsed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已收合"
+          }
+        }
+      }
+    },
     "Color chats and the terminal with this host’s herdr theme. Colors without enough contrast fall back to the system colors." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3368,6 +3379,17 @@
         }
       }
     },
+    "Expanded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已展開"
+          }
+        }
+      }
+    },
     "Expired" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3672,6 +3694,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏背景 Agent"
+          }
+        }
+      }
+    },
+    "Hides the messages from while you were away" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏離開期間的訊息"
           }
         }
       }
@@ -4830,6 +4863,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增 Worktree…"
+          }
+        }
+      }
+    },
+    "New since you were away" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離開期間有新回覆"
           }
         }
       }
@@ -7349,6 +7393,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示背景 Agent"
+          }
+        }
+      }
+    },
+    "Shows the messages from while you were away" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示離開期間的訊息"
           }
         }
       }
@@ -10396,6 +10451,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要 Agent 做什麼?"
+          }
+        }
+      }
+    },
+    "While away" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離開期間"
+          }
+        }
+      }
+    },
+    "While you were away · %lld turns · worked %lld min" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你離開期間 · %lld 輪 · 工作 %lld 分鐘"
+          }
+        }
+      }
+    },
+    "While you were away · 1 turn · worked %lld min" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你離開期間 · 1 輪 · 工作 %lld 分鐘"
           }
         }
       }

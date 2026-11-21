@@ -251,6 +251,8 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public var status: AgentStatus
     /// 有還沒讀過的回覆(行為規格 F2.6)。
     public var isUnread: Bool
+    /// 離開超過 15 分鐘後有新回覆(列表列的「離開期間」徽章，#308)。
+    public var isAway: Bool
     /// 已釘選、已靜音(標題後的小圖示)。
     public var isPinned: Bool
     public var isMuted: Bool
@@ -264,7 +266,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
     public init(
         host: HostSelection = .demo, paneID: String, kind: String = "claude", title: String, workspace: String? = nil, subtitle: String,
         hostLabel: HostLabel? = nil, preview: Preview, time: Time?, status: AgentStatus,
-        isUnread: Bool = false, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil
+        isUnread: Bool = false, isAway: Bool = false, isPinned: Bool = false, isMuted: Bool = false, progress: AgentProgress? = nil
     ) {
         self.host = host
         self.paneID = paneID
@@ -277,6 +279,7 @@ public struct AgentRow: Identifiable, Equatable, Sendable {
         self.time = time
         self.status = status
         self.isUnread = isUnread
+        self.isAway = isAway
         self.isPinned = isPinned
         self.isMuted = isMuted
         self.progress = progress

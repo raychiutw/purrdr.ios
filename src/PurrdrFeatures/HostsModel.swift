@@ -323,6 +323,8 @@ public final class HostsModel {
         // 圖片縮圖讀聊天所在的主機(#225)。
         model.agentFiles = member.agentFiles
         model.onPromptDelivered = { [weak self] in self?.reviewPrompt?.promptDelivered() }
+        // 離開期間摘要(#308):上次離開這個聊天的時間。
+        model.awayStart = { [weak self] in self?.agentList.awayStart(for: route) }
         return model
     }
 
