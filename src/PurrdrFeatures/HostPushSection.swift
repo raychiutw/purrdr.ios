@@ -20,6 +20,9 @@ struct HostPushSection: View {
                 if push.support == .supported, push.model.state == .on {
                     HostPushKindsRow(push: push)
                 }
+                if push.model.canSendTestNotification {
+                    HostPushTestRow(push: push)
+                }
                 if case .needsHostService(_, let update) = push.support {
                     HostServicePushUpdateRow(update: update)
                 }
@@ -156,6 +159,55 @@ private struct HostPushRow: View {
             } else {
                 await model.turnOff()
             }
+        }
+    }
+}
+
+/// 通知開著的主機:「傳送測試通知」(#328),結果以提示說明,失敗附原因。
+private struct HostPushTestRow: View {
+    let push: HostPush
+
+    private var model: PushModel { push.model }
+
+    var body: some View {
+        Button {
+            Task { await model.sendTestNotification() }
+        } label: {
+            HStack {
+                Text("Send Test Notification")
+                Spacer()
+                if model.testNotification == .sending { ProgressView() }
+            }
+        }
+        .disabled(model.testNotification == .sending)
+        .accessibilityIdentifier("account.push.\(push.host.storedValue).test")
+        .alert(resultTitle, isPresented: resultPresented) {
+            Button("OK", role: .cancel) { model.dismissTestNotification() }
+        } message: {
+            Text(resultMessage)
+        }
+    }
+
+    private var resultPresented: Binding<Bool> {
+        Binding(
+            get: {
+                switch model.testNotification {
+                case .sent, .failed: true
+                case .idle, .sending: false
+                }
+            },
+            set: { if !$0 { model.dismissTestNotification() } })
+    }
+
+    private var resultTitle: LocalizedStringKey {
+        if case .failed = model.testNotification { return "Couldn’t Send Test Notification" }
+        return "Test Notification Sent"
+    }
+
+    private var resultMessage: String {
+        switch model.testNotification {
+        case .failed(let message): message
+        default: String(localized: "It should arrive on this device in a moment.")
         }
     }
 }

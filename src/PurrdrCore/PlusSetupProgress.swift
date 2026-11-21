@@ -63,8 +63,9 @@ public struct PlusSetupProgress: Equatable, Sendable {
         switch step {
         case .joinMember: isMember
         case .activatePlus: isPlusActive
-        case .turnOnNotifications: isNotificationsOn
-        case .syncHosts: isHostSyncOn
+        // 沒登入時,本機殘留的通知與同步狀態不算完成(#328)。
+        case .turnOnNotifications: isMember && isNotificationsOn
+        case .syncHosts: isMember && isHostSyncOn
         }
     }
 }
