@@ -33,6 +33,7 @@ struct AddHostGuideView: View {
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
     let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
     @State private var expandedHelp: AddHostGuideModel.Field?
+    @State private var showOtherWays = false
     @FocusState private var focus: AddHostGuideModel.Field?
 
     var body: some View {
@@ -440,13 +441,20 @@ struct AddHostGuideView: View {
             option("deviceKey", "Key", detail: "Use a key made by this device", symbol: "key") {
                 model.choose(authentication: .deviceKey)
             }
-            DisclosureGroup("Other Ways") {
+            Button {
+                withAnimation { showOtherWays.toggle() }
+            } label: {
+                Label("Other Ways", systemImage: showOtherWays ? "chevron.down" : "chevron.forward")
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("guide.otherWays")
+            if showOtherWays {
                 Button("Import a Key You Already Have") { model.choose(authentication: .importedKey) }
                     .buttonStyle(.glass)
                     .accessibilityIdentifier("guide.option.importedKey")
             }
-            .font(.footnote)
-            .accessibilityIdentifier("guide.otherWays")
         case .credential, .keySetup:
             primary("Test Connection", id: "guide.next", enabled: model.canAdvance) { model.advance() }
         case .details:

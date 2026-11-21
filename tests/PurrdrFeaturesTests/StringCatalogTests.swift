@@ -102,6 +102,14 @@ struct StringCatalogTests {
         "Share to Computer", "Sign in with an account and password or key", "This computer looks different",
         "This computer’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this computer yourself.",
         "Trust this computer?", "What kind of computer is it?", "Which computer and which account?",
+        // 原生 SSH(#342)
+        "A public IP or domain name of that computer", "Let this device in",
+        "If this account is an administrator, open PowerShell as an administrator and paste this line instead.",
+        "On that computer, open PowerShell as an administrator (right-click it and choose Run as administrator).",
+        "On that computer, open System Settings, go to General, then Sharing, and turn on Remote Login.",
+        "On the same Wi-Fi as that computer", "Paste the private key you already use for that computer.",
+        "Set up your router first so connections from outside can reach this computer.",
+        "The password you use to sign in to that computer", "Type the password you use to sign in to that computer.",
     ]
 
     @Test("繁體中文不用 GLOSSARY 避免的詞與中國大陸用語")
