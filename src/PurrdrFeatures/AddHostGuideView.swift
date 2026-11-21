@@ -7,19 +7,27 @@ struct AddHostGuideScreen: View {
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
     let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
+    /// 存好主機的當下(還在最後一頁):讓 app 先登記這台主機,最後一頁才拿得到它的通知開關。
+    let onAdded: (HostConfiguration) -> Void
+    /// 這台主機的推播開關(最後一頁用)。
+    let hostPush: (UUID) -> HostPush?
 
     init(
         make: () -> AddHostGuideModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
+        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil },
         onOpenEditor: @escaping (HostConfiguration.ConnectionMethod) -> Void
     ) {
         _model = State(initialValue: make())
+        self.onAdded = onAdded
+        self.hostPush = hostPush
         self.onSaved = onSaved
         self.onCancel = onCancel
         self.onOpenEditor = onOpenEditor
     }
 
     var body: some View {
-        AddHostGuideView(model: model, onSaved: onSaved, onCancel: onCancel, onOpenEditor: onOpenEditor)
+        AddHostGuideView(
+            model: model, onSaved: onSaved, onCancel: onCancel, onOpenEditor: onOpenEditor, onAdded: onAdded, hostPush: hostPush)
     }
 }
 
@@ -32,6 +40,9 @@ struct AddHostGuideView: View {
     let onCancel: () -> Void
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
     let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
+    var onAdded: (HostConfiguration) -> Void = { _ in }
+    var hostPush: (UUID) -> HostPush? = { _ in nil }
+    @Environment(\.openURL) private var openURL
     @State private var expandedHelp: AddHostGuideModel.Field?
     @State private var showOtherWays = false
     @State private var scanning = false
@@ -79,6 +90,7 @@ struct AddHostGuideView: View {
             if model.step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }
             if model.step == .test, model.phase == .editing { await model.testConnection() }
             if model.step == .keySetup { await model.loadDeviceKey() }
+            if model.step == .finished { await model.loadNotificationOffer() }
         }
         .sheet(isPresented: $scanning) {
             PairingCodeScannerView(source: scanSource) { model.applyScannedCode($0) }
@@ -219,7 +231,9 @@ struct AddHostGuideView: View {
             keySetup
         case .test:
             testContent
-        case .kind, .system, .sshMethod, .location, .login, .finished:
+        case .finished:
+            finishedContent
+        case .kind, .system, .sshMethod, .location, .login:
             EmptyView()
         }
     }
@@ -410,8 +424,17 @@ struct AddHostGuideView: View {
             ErrorLabel(String(localized: "This computer’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this computer yourself."))
                 .accessibilityIdentifier("guide.result")
         case .failed(let message):
-            ErrorLabel(message)
-                .accessibilityIdentifier("guide.result")
+            VStack(alignment: .leading, spacing: 10) {
+                ErrorLabel(message)
+                    .accessibilityIdentifier("guide.result")
+                ForEach(model.failureReminders, id: \.self) { reminder in
+                    Label(reminder, systemImage: "lightbulb")
+                        .font(.footnote)
+                        .foregroundStyle(.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("guide.reminder")
+            }
         case .needsUpdate:
             ErrorLabel(String(localized: "herdr on that computer is too old. Update herdr there, then try again."))
                 .accessibilityIdentifier("guide.result")
@@ -433,6 +456,41 @@ struct AddHostGuideView: View {
                 .controlSize(.large)
                 .padding(.top, 24)
                 .accessibilityIdentifier("guide.testing")
+        }
+    }
+
+    /// 最後一頁:有 Plus 給這台主機的通知開關,沒有就一行加入提示;SSH 主機另提主機服務。都不擋完成。
+    @ViewBuilder
+    private var finishedContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            switch model.notificationOffer {
+            case .toggle?:
+                if let host = model.savedHost, let push = hostPush(host.id) {
+                    List { HostPushRow(push: push, pair: { _ in }) }
+                        .scrollDisabled(true)
+                        .frame(height: 76)
+                        .clipShape(.rect(cornerRadius: 18))
+                        .accessibilityIdentifier("guide.notifications")
+                }
+            case .joinPlus?:
+                Button {
+                    if let url = URL(string: "purrdr://plus") { openURL(url) }
+                } label: {
+                    Label("Want notifications? Join Purrdr Plus", systemImage: "bell.badge")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .accessibilityIdentifier("guide.joinPlus")
+            case nil:
+                EmptyView()
+            }
+            if model.suggestsHostService {
+                Label(
+                    "Want send-when-done and stuck alerts? You can also install the host service on that computer.",
+                    systemImage: "lock.shield")
+                    .font(.footnote)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("guide.hostServiceHint")
+            }
         }
     }
 
@@ -572,7 +630,9 @@ struct AddHostGuideView: View {
                 .buttonStyle(.glass)
                 .accessibilityIdentifier("guide.trustCancel")
         case .tested, .connected:
-            primary("Add This Computer", id: "guide.save", enabled: true) { _ = model.save() }
+            primary("Add This Computer", id: "guide.save", enabled: true) {
+                if let host = model.save() { onAdded(host) }
+            }
         case .hostKeyChanged:
             primary("Go Back", id: "guide.back.changed", enabled: true) { back() }
         case .failed, .needsUpdate, .restartServerRequired:

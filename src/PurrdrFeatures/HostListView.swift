@@ -183,19 +183,23 @@ public struct HostListView: View {
         Group {
             switch route {
             case .add:
-                AddHostGuideScreen(make: model.makeAddHostGuide) { host in
-                    saved(host)
+                AddHostGuideScreen(make: model.makeAddHostGuide) { _ in
+                    dismiss()  // 主機在存好時已登記(onAdded)
                 } onCancel: {
                     flow.path.removeLast()
+                } onAdded: { model.didSave($0) } hostPush: { id in
+                    model.hostPushes.first { $0.host == .host(id) }
                 } onOpenEditor: { method in
                     // 引導還沒涵蓋這種連線方式:換成主機編輯頁(預選該方式)。
                     flow.path = [.addInEditor(method)]
                 }
             case .importGuide(let url):
-                AddHostGuideScreen(make: { (try? model.makeImportGuide(url)) ?? model.makeAddHostGuide() }) { host in
-                    saved(host)
+                AddHostGuideScreen(make: { (try? model.makeImportGuide(url)) ?? model.makeAddHostGuide() }) { _ in
+                    dismiss()  // 主機在存好時已登記(onAdded)
                 } onCancel: {
                     flow.path.removeLast()
+                } onAdded: { model.didSave($0) } hostPush: { id in
+                    model.hostPushes.first { $0.host == .host(id) }
                 } onOpenEditor: { method in
                     flow.path = [.addInEditor(method)]
                 }
@@ -204,10 +208,12 @@ public struct HostListView: View {
                     make: {
                         model.hosts.first { $0.id == id }.flatMap { try? model.makePairingGuide(for: $0) } ?? model.makeAddHostGuide()
                     }
-                ) { host in
-                    saved(host)
+                ) { _ in
+                    dismiss()  // 主機在存好時已登記(onAdded)
                 } onCancel: {
                     flow.path.removeLast()
+                } onAdded: { model.didSave($0) } hostPush: { id in
+                    model.hostPushes.first { $0.host == .host(id) }
                 } onOpenEditor: { method in
                     flow.path = [.addInEditor(method)]
                 }
