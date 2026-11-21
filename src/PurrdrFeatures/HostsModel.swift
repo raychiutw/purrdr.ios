@@ -673,10 +673,6 @@ public final class HostsModel {
             shortcut: .needsPairing(host))
     }
 
-    /// 新增入口開引導還是舊的主機編輯頁。正式一律是引導;UI 測試預設走編輯頁(原生 SSH、HTTPS 的欄位流程測試還沒改寫,
-    /// #342、#344、#346 接手後移除),`-uiTestingAddHostGuide` 才開引導。
-    @ObservationIgnored public var usesAddHostGuide = true
-
     /// 沒有已存主機時，列表要不要直接列出 Demo(#332)。預設 true(測試與預覽);app 正式啟動設 false，
     /// 這時沒有主機就顯示空狀態，按「試用 Demo」或在主機清單選 Demo 才進入。
     public var demoEntered = true {

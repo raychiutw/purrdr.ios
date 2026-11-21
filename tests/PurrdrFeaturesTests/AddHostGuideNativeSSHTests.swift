@@ -38,7 +38,6 @@ struct AddHostGuideNativeSSHTests {
     func nativeStaysInGuide() {
         let model = Self.model()
         Self.atEnable(model)
-        #expect(model.handoff == nil)
         #expect(model.step == .enable)
         model.advance()
         #expect(model.step == .location)

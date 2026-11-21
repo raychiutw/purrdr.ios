@@ -77,7 +77,7 @@ public struct HostListView: View {
                         .accessibilityIdentifier("sheet.done")
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Add Host", systemImage: "plus") { flow.path.append(model.usesAddHostGuide ? .add : .addInEditor(nil)) }
+                    Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
                         .accessibilityIdentifier("hosts.add")
                 }
             }
@@ -189,9 +189,6 @@ public struct HostListView: View {
                     flow.path.removeLast()
                 } onAdded: { model.didSave($0) } hostPush: { id in
                     model.hostPushes.first { $0.host == .host(id) }
-                } onOpenEditor: { method in
-                    // 引導還沒涵蓋這種連線方式:換成主機編輯頁(預選該方式)。
-                    flow.path = [.addInEditor(method)]
                 }
             case .importGuide(let url):
                 AddHostGuideScreen(make: { (try? model.makeImportGuide(url)) ?? model.makeAddHostGuide() }) { _ in
@@ -200,8 +197,6 @@ public struct HostListView: View {
                     flow.path.removeLast()
                 } onAdded: { model.didSave($0) } hostPush: { id in
                     model.hostPushes.first { $0.host == .host(id) }
-                } onOpenEditor: { method in
-                    flow.path = [.addInEditor(method)]
                 }
             case .pairGuide(let id):
                 AddHostGuideScreen(
@@ -214,13 +209,10 @@ public struct HostListView: View {
                     flow.path.removeLast()
                 } onAdded: { model.didSave($0) } hostPush: { id in
                     model.hostPushes.first { $0.host == .host(id) }
-                } onOpenEditor: { method in
-                    flow.path = [.addInEditor(method)]
                 }
-            case .addInEditor, .edit:
+            case .edit:
                 HostEditorView(
-                    model: model.makeEditor(
-                        editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }, method: route.addMethod),
+                    model: model.makeEditor(editing: route.hostID.flatMap { id in model.hosts.first { $0.id == id } }),
                     hostSettings: route.hostID.flatMap(model.hostSettings(for:)),
                     hostStatusConnection: route.hostID.flatMap(model.hostStatusConnection(for:)),
                     onRemoveHost: removeHostAction(for: route.hostID)
@@ -244,16 +236,8 @@ public struct HostListView: View {
                 if let host = model.hosts.first(where: { $0.id == id }), let link = model.shareLink(for: id) {
                     HostShareView(name: host.name, link: link)
                 }
-            case .importLink(let url):
-                if let editor = try? model.makeImportEditor(url) {
-                    HostEditorView(model: editor) { host in
-                        saved(host)
-                    } onCancel: {
-                        flow.path.removeLast()
-                    } onIconSaved: {
-                        dismiss()
-                    }
-                } else {
+            case .importFailed:
+                do {
                     ContentUnavailableView(
                         "Can’t Add This Host", systemImage: "qrcode",
                         description: Text("This link isn’t a Purrdr host, or it was made by a newer version of Purrdr."))
@@ -317,21 +301,21 @@ public struct HostListView: View {
         Binding { renaming?.name ?? "" } set: { renaming?.name = $0 }
     }
 
-    /// 還沒配對的 HTTPS 主機:新增主機引導直接到配對步驟(UI 測試預設仍開主機編輯頁)。
+    /// 還沒配對的 HTTPS 主機:新增主機引導直接到配對步驟。
     private func openPairing(of row: HostRow) {
-        flow.path.append(model.usesAddHostGuide ? .pairGuide(row.id) : .edit(row.id))
+        flow.path.append(.pairGuide(row.id))
     }
 
     private func openPendingImport() {
         guard let url = importURL else { return }
         importURL = nil
-        flow.path = [model.usesAddHostGuide && (try? model.makeImportGuide(url)) != nil ? .importGuide(url) : .importLink(url)]
+        flow.path = [(try? model.makeImportGuide(url)) != nil ? .importGuide(url) : .importFailed]
     }
 
     private func openPendingAdd() {
         guard addHost else { return }
         addHost = false
-        flow.path = [model.usesAddHostGuide ? .add : .addInEditor(nil)]
+        flow.path = [.add]
     }
 
     private func openPendingEditor() {

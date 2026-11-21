@@ -6,7 +6,6 @@ struct AddHostGuideScreen: View {
     @State private var model: AddHostGuideModel
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
-    let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
     /// 存好主機的當下(還在最後一頁):讓 app 先登記這台主機,最後一頁才拿得到它的通知開關。
     let onAdded: (HostConfiguration) -> Void
     /// 這台主機的推播開關(最後一頁用)。
@@ -14,20 +13,18 @@ struct AddHostGuideScreen: View {
 
     init(
         make: () -> AddHostGuideModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
-        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil },
-        onOpenEditor: @escaping (HostConfiguration.ConnectionMethod) -> Void
+        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil }
     ) {
         _model = State(initialValue: make())
         self.onAdded = onAdded
         self.hostPush = hostPush
         self.onSaved = onSaved
         self.onCancel = onCancel
-        self.onOpenEditor = onOpenEditor
     }
 
     var body: some View {
         AddHostGuideView(
-            model: model, onSaved: onSaved, onCancel: onCancel, onOpenEditor: onOpenEditor, onAdded: onAdded, hostPush: hostPush)
+            model: model, onSaved: onSaved, onCancel: onCancel, onAdded: onAdded, hostPush: hostPush)
     }
 }
 
@@ -39,7 +36,6 @@ struct AddHostGuideView: View {
     let onSaved: (HostConfiguration) -> Void
     let onCancel: () -> Void
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
-    let onOpenEditor: (HostConfiguration.ConnectionMethod) -> Void
     var onAdded: (HostConfiguration) -> Void = { _ in }
     var hostPush: (UUID) -> HostPush? = { _ in nil }
     @Environment(\.openURL) private var openURL
@@ -82,9 +78,6 @@ struct AddHostGuideView: View {
         #endif
         .toolbar { toolbar }
         .interactiveDismissDisabled()
-        .onChange(of: model.handoff) { _, handoff in
-            if case .editor(let method)? = handoff { onOpenEditor(method) }
-        }
         // 進到測試連線那頁就開始測;失敗後按「再試一次」。
         .task(id: model.step) {
             if model.step == .pair, !model.pairAddress.isEmpty { manualExpanded = true }

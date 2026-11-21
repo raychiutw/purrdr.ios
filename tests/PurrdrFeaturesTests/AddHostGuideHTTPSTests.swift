@@ -49,7 +49,6 @@ struct AddHostGuideHTTPSTests {
         let model = try await Self.rig().model
         model.choose(.https)
         #expect(model.step == .tailscale)
-        #expect(model.handoff == nil)
         let links = model.tailscaleInstructions.compactMap(\.link)
         #expect(links.contains(AddHostGuideModel.tailscaleAppStore))
         #expect(links.contains(AddHostGuideModel.tailscaleDownload))

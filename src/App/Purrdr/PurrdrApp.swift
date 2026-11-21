@@ -136,8 +136,6 @@ struct PurrdrApp: App {
         }
         // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
-        // 新增主機引導(#341):UI 測試預設仍開主機編輯頁(還沒改寫的編輯頁測試),`-uiTestingAddHostGuide` 才開引導。
-        if uiTesting { hosts.usesAddHostGuide = arguments.contains("-uiTestingAddHostGuide") }
         // 沒有主機時的空狀態(#332):正式啟動一律從空狀態開始;UI 測試預設直接列 Demo,`-uiTestingNoHosts` 才看空狀態。
         hosts.demoEntered = uiTesting && !arguments.contains("-uiTestingNoHosts")
         hosts.haptics = SystemHaptics()

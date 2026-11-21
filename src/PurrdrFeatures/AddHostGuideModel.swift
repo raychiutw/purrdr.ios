@@ -26,7 +26,7 @@ public struct AddHostGuideInstruction: Equatable, Sendable {
 ///
 /// 只負責「問什麼、順序、文字」:連線測試、主機身分確認、儲存都交給共用的 `HostConnectionFlow`(#340)。
 /// 步驟資料集中在這裡(依作業系統與連線方式組出步驟與指令),畫面只呈現;後續票(原生 SSH、HTTPS、失敗提醒)加步驟與答案即可。
-/// 目前有 Tailscale SSH 與 HTTPS 路徑(#344),以及匯入與待配對的捷徑;選了原生 SSH 時 `handoff` 要求畫面改開主機編輯頁。
+/// 有 Tailscale SSH、原生 SSH 與 HTTPS 路徑,以及匯入與待配對的捷徑。
 @MainActor
 @Observable
 public final class AddHostGuideModel {
@@ -95,12 +95,6 @@ public final class AddHostGuideModel {
         case pairingCode
     }
 
-    /// 這個引導接不了、要換成別的畫面。
-    public enum Handoff: Equatable, Sendable {
-        /// 主機編輯頁,預選這種連線方式。
-        case editor(HostConfiguration.ConnectionMethod)
-    }
-
     /// 從別處帶著資料進來的捷徑(#344):跳過前面的步驟。
     public enum Shortcut: Sendable {
         /// 主機分享連結或配對 QR code 的連結。
@@ -110,7 +104,7 @@ public final class AddHostGuideModel {
     }
 
     public enum ShortcutError: Error, Equatable, Sendable {
-        /// 引導接不了(例如原生 SSH 的分享連結要另外填登入方式):畫面改開主機編輯頁。
+        /// 引導接不了(例如缺主機服務位址的 HTTPS 主機)。
         case needsEditor
     }
 
@@ -136,7 +130,6 @@ public final class AddHostGuideModel {
     public var pairPort = "443"
     public var pairingCode = ""
     public var username = ""
-    public private(set) var handoff: Handoff?
     /// 儲存完成的主機。
     public private(set) var savedHost: HostConfiguration?
     /// 最後一頁的通知選項(`loadNotificationOffer()` 之後才有)。
@@ -148,6 +141,8 @@ public final class AddHostGuideModel {
     @ObservationIgnored private let isPlusActive: @MainActor () async -> Bool
     /// 匯入或待配對時沿用的主機名稱。
     @ObservationIgnored private var presetName: String?
+    /// 匯入的原生 SSH 連結:選完電腦種類直接到登入方式。
+    @ObservationIgnored private var continuesAtLogin = false
     @ObservationIgnored private var history: [Step] = []
 
     public init(
@@ -206,7 +201,15 @@ public final class AddHostGuideModel {
                 flow.acceptSharedPin(of: shared)
                 step = .test
             case .openSSH:
-                throw ShortcutError.needsEditor
+                // 位址、Port、帳號與 host key 已帶入:只問電腦種類(金鑰指令要依它),再選登入方式,不問連線方式與位址。
+                kind = .ssh
+                sshMethod = .native
+                address = shared.endpoint.host
+                port = String(shared.endpoint.port)
+                username = shared.endpoint.username
+                flow.acceptSharedPin(of: shared)
+                continuesAtLogin = true
+                step = .system
             }
         }
     }
@@ -266,7 +269,7 @@ public final class AddHostGuideModel {
 
     public func choose(_ system: HostOperatingSystem) {
         self.system = system
-        push(kind == .https ? .install : .sshMethod)
+        push(kind == .https ? .install : (continuesAtLogin ? .login : .sshMethod))
     }
 
     public func choose(_ method: SSHMethod) {
@@ -465,7 +468,6 @@ public final class AddHostGuideModel {
         guard canGoBack, let previous = history.popLast() else { return }
         if step == .test { flow.cancelTest() }
         flow.phase = .editing
-        handoff = nil
         step = previous
     }
 
