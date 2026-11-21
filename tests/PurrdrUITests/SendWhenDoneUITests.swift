@@ -34,8 +34,13 @@ final class SendWhenDoneUITests: XCTestCase {
         let row = element("agent.row.\(Self.httpsHost)/w1:p1", in: app)
         XCTAssertTrue(app.reveal(row), "沒有看到 HTTPS 主機的 Agent")
         row.tap()
-        let toggle = element("composer.sendWhenDone", in: app)
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "沒有做完再送開關")
+        // 開關在狀態 sheet(#349),不在輸入列。
+        XCTAssertFalse(element("composer.sendWhenDone", in: app).exists, "輸入列不該再有做完再送開關")
+        let header = element("conversation.header", in: app)
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        header.tap()
+        let toggle = element("status.sendWhenDone", in: app)
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "狀態 sheet 沒有做完再送開關")
         // 主機服務的佇列可用性讀回來之前,點開關只會說明原因:等到能打開為止。
         sleep(3)
         for _ in 0..<5 where toggle.value as? String != "On" {
@@ -45,6 +50,7 @@ final class SendWhenDoneUITests: XCTestCase {
         // 已知問題(待查,見 PR 說明):UI 測試裡點「做完再送」膠囊沒有反應(值一直是 Off、也沒有說明對話框);
         // 同一條接線在 model 層的 UITestingSendWhenDoneTests 是通的。查清楚前不讓它擋住整批 UI 測試。
         try XCTSkipUnless(toggle.value as? String == "On", "做完再送膠囊點了沒有反應(待查)")
+        app.buttons["Done"].tap()
 
         queue("first message", in: app)
         queue("second message", in: app)

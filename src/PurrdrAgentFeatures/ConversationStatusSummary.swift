@@ -22,6 +22,10 @@ public struct ConversationStatusSummary: Equatable {
         public var progress: AgentProgress
         /// 背景子 Agent 窗格;沒有時是 `nil`。
         public var backgroundAgents: AgentsPane?
+        /// 這個對話有「做完再送」開關(開關在 sheet 裡，不在輸入列)。
+        public var hasSendWhenDone: Bool
+        /// 點標題一律打得開(context、待辦、背景子 Agent、開關都在裡面;沒有內容時 sheet 顯示空狀態)。
+        public var isOpenable: Bool { true }
     }
 
     /// 目前唯一的一條提醒。
@@ -46,10 +50,10 @@ public struct ConversationStatusSummary: Equatable {
     public init(
         header: ConversationHeader, banner: ConversationModel.Banner?, isOffline: Bool, isReadOnly: Bool,
         hostServiceUpdateMessage: String?, stopNeedsReconnect: Bool, workingSince: Date?, stopPhase: StopPhase?,
-        isWritingLive: Bool, progress: AgentProgress, agentsPane: AgentsPane?
+        isWritingLive: Bool, progress: AgentProgress, agentsPane: AgentsPane?, hasSendWhenDone: Bool = false
     ) {
         self.header = header
-        sheet = Sheet(progress: progress, backgroundAgents: agentsPane)
+        sheet = Sheet(progress: progress, backgroundAgents: agentsPane, hasSendWhenDone: hasSendWhenDone)
         // 與原本的停止列相同：唯讀、離線沒有;工作中或停止進度還在時才有。
         if !isReadOnly, !isOffline, header.status == .working || stopPhase != nil {
             working = Working(
@@ -106,7 +110,8 @@ extension ConversationModel {
         ConversationStatusSummary(
             header: header, banner: banner, isOffline: isOffline, isReadOnly: isReadOnly,
             hostServiceUpdateMessage: screenUpdateRequiredMessage, stopNeedsReconnect: stopNeedsReconnect, workingSince: workingSince,
-            stopPhase: stopPhase, isWritingLive: livePreview != nil, progress: progress, agentsPane: agentsPane)
+            stopPhase: stopPhase, isWritingLive: livePreview != nil, progress: progress, agentsPane: agentsPane,
+            hasSendWhenDone: sendWhenDone != nil)
     }
 
     /// 還沒送出的訊息，統一成一份清單。

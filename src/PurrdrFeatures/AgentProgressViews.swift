@@ -57,36 +57,67 @@ struct TodoCount: View {
     }
 }
 
-/// 聊天點標題升起的 sheet(#307):上方是 context 數字與條，下方是完整待辦清單(已完成打勾加刪除線、未完成空框、進行中綠框)。
-struct AgentProgressSheet: View {
+/// 聊天點標題升起的狀態 sheet(#307、#349):context 數字與條、完整待辦清單(已完成打勾加刪除線、未完成空框、進行中綠框)、
+/// 背景子 Agent 清單與「做完再送」開關。這些資訊只在這裡出現(頂列只有 context 百分比，工作中膠囊只帶子 Agent 數)。
+struct ConversationStatusSheet: View {
     let title: String
-    let progress: AgentProgress
+    let model: ConversationModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let sheet = model.statusSummary.sheet
         NavigationStack {
             List {
-                if let percent = progress.contextPercent {
+                if let percent = sheet.progress.contextPercent {
                     Section("Context") {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(verbatim: "\(percent)%")
                                 .font(.largeTitle.weight(.semibold).monospacedDigit())
                             ProgressView(value: Double(min(max(percent, 0), 100)), total: 100)
-                                .tint(progress.contextLevel.tint)
+                                .tint(sheet.progress.contextLevel.tint)
                         }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(Text("Context \(percent)%"))
                         .accessibilityIdentifier("progress.context")
                     }
                 }
-                if !progress.todos.isEmpty {
+                if !sheet.progress.todos.isEmpty {
                     Section {
-                        ForEach(Array(progress.todos.enumerated()), id: \.offset) { _, todo in
+                        ForEach(Array(sheet.progress.todos.enumerated()), id: \.offset) { _, todo in
                             TodoRow(todo: todo)
                         }
                     } header: {
-                        Text("Todos \(progress.todoDone)/\(progress.todoTotal)")
+                        Text("Todos \(sheet.progress.todoDone)/\(sheet.progress.todoTotal)")
                     }
+                }
+                if let pane = sheet.backgroundAgents, !pane.rows.isEmpty {
+                    Section("Background Agents") {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            let since = model.agentsPaneReadAt.map { max(0, context.date.timeIntervalSince($0)) } ?? 0
+                            VStack(alignment: .leading, spacing: 0) {
+                                ForEach(pane.rows) { row in
+                                    if let card = model.subagentCard(forTask: row.task), model.canOpen(card) {
+                                        NavigationLink(value: DelegationRoute.subagent(card)) {
+                                            AgentsBarRow(row: row, since: since)
+                                        }
+                                    } else {
+                                        AgentsBarRow(row: row, since: since)
+                                    }
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("status.backgroundAgents")
+                    }
+                }
+                if sheet.hasSendWhenDone, let sendWhenDone = model.sendWhenDone {
+                    Section {
+                        SendWhenDoneToggle(model: sendWhenDone)
+                    }
+                }
+                if sheet.progress.isEmpty, sheet.backgroundAgents?.rows.isEmpty ?? true, !sheet.hasSendWhenDone {
+                    Text("Nothing to show yet.")
+                        .foregroundStyle(.secondaryText)
+                        .accessibilityIdentifier("status.empty")
                 }
             }
             .navigationTitle(title)
@@ -96,9 +127,12 @@ struct AgentProgressSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
+            .navigationDestination(for: DelegationRoute.self) { route in
+                DelegationDestination(route: route, conversation: model)
+            }
         }
         .presentationDetents([.medium, .large])
-        .accessibilityIdentifier("progress.sheet")
+        .accessibilityIdentifier("status.sheet")
     }
 }
 
