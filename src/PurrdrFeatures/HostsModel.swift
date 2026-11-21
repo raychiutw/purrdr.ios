@@ -608,6 +608,7 @@ public final class HostsModel {
     /// 不認得的配對(主機已移除)不動。
     @discardableResult
     public func open(_ route: PushRoute, pairings: any PushPairingStore) -> PushDestination? {
+        if route.event == PushRoute.testEvent { return nil }
         guard let hostID = pairings.host(forKeyHash: route.keyHash), let id = UUID(uuidString: hostID),
               hosts.contains(where: { $0.id == id }) else { return nil }
         if route.event != nil { return .hostEditor(id) }
@@ -1096,6 +1097,11 @@ final class HostMember {
             preferences.load().muted
         }
         self.push = push
+        // 測試通知(#328):SSH 主機由主機上的腳本送(與外掛同一條路:主機 → 後台 → APNs);HTTPS 主機還沒有，Demo 主機沒有真的外掛。
+        // Windows 也有 PowerShell 版,所以不分作業系統。
+        if let configuration, let pushService, !configuration.connectionMethod.usesHostService {
+            push.testSender = SSHPushTestSender(service: pushService, channel: channel, hostName: configuration.name)
+        }
         actions.mutedChanged = { muted in Task { await push.syncMuted(muted) } }
         let hostID = configuration?.id.uuidString ?? HostsModel.demoID
         let hostFiles = HostFiles.longRunning(channel: channel, diagnostics: DiagnosticLog.systemNotice(category: "host-files"))
@@ -1106,6 +1112,18 @@ final class HostMember {
             downloadDirectory: AgentFileLoads.defaultDownloadDirectory.appending(path: hostID, directoryHint: .isDirectory))
         youShouldKnow = YouShouldKnowModel(host: YouShouldKnowHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
         hostTheme = HostThemeModel(host: HostThemeHost(channel: channel, files: hostFiles), hostID: hostID, consent: consent)
+    }
+}
+
+/// 經 SSH 在主機上送測試通知(#328);每次才讀這支裝置的推播 id。
+struct SSHPushTestSender: PushTestNotificationSending {
+    let service: PushService
+    let channel: any HostChannel
+    let hostName: String
+
+    func sendTest(hostID: String) async throws {
+        let deviceID = try await service.device().id
+        try await SSHPushTestNotifier(channel: channel, deviceID: deviceID, hostName: hostName).send()
     }
 }
 

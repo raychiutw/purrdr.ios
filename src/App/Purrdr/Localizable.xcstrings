@@ -1550,6 +1550,17 @@
         }
       }
     },
+    "Apple’s notification service didn’t accept the test notification. Try again in a moment." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 的通知服務沒有接受這則測試通知，請稍後再試。"
+          }
+        }
+      }
+    },
     "Argument: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10148,6 +10159,41 @@
         }
       }
     },
+    "Test notifications need Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送測試通知需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Test: %@ needs you" : {
+      "comment" : "測試通知標題(後台 APNs payload 的 title-loc-key,%@ 是主機清單上的主機名稱)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "測試：%@ 需要你"
+          }
+        }
+      }
+    },
+    "Test: Purrdr needs you" : {
+      "comment" : "測試通知標題(沒帶主機名稱時;後台 APNs payload 的 title-loc-key)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "測試：Purrdr 需要你"
+          }
+        }
+      }
+    },
     "Text" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10478,6 +10524,17 @@
         }
       }
     },
+    "The host couldn’t reach Purrdr’s server. Check the host’s internet connection and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦連不上 Purrdr 後台。請檢查電腦的網路連線後再試一次。"
+          }
+        }
+      }
+    },
     "The host couldn’t save the file." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10628,6 +10685,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連得到電腦，但 Purrdr 連線助理沒有在執行。請在電腦上啟動它後再試一次。"
+          }
+        }
+      }
+    },
+    "The host needs curl to send a test notification." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電腦需要有 curl 才能傳送測試通知。"
           }
         }
       }
@@ -11138,6 +11206,17 @@
         }
       }
     },
+    "This device isn’t paired with the host for notifications. Turn notifications off and on again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置尚未與電腦配對通知。請把通知關掉再重新開啟。"
+          }
+        }
+      }
+    },
     "This device isn’t paired with this host. Edit the host and pair again with a new pairing code." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11475,6 +11554,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這是公鑰。請改貼私鑰檔(沒有 .pub 的那個)。"
+          }
+        }
+      }
+    },
+    "This is a test. When an agent needs your reply or finishes, you'll get a notice like this." : {
+      "comment" : "測試通知內文(後台 APNs payload 的 loc-key)",
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是測試通知。之後 Agent 需要你回覆或做完時，會像這樣通知你。"
           }
         }
       }
@@ -13452,6 +13543,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你已付款，但無法連上 Purrdr 來開啟 Purrdr Plus。下次在連網狀態下開啟 Purrdr 時會自動完成。"
+          }
+        }
+      }
+    },
+    "You’ve sent too many notifications in a minute. Wait a moment and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一分鐘內傳送的通知太多了，請稍等一下再試。"
           }
         }
       }

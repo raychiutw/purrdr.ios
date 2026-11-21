@@ -49,6 +49,48 @@ public protocol PushPluginInstalling: Sendable {
     func updateMuted(_ muted: Set<String>) async throws
 }
 
+/// 「傳送測試通知」(#328)送出失敗的原因。SSH(app 經主機送)與 HTTPS(主機服務的 `push.test`)共用，畫面說明只對這個型別。
+public enum PushTestNotificationError: Error, Equatable {
+    /// 這支裝置在這台主機上沒有(有效的)推播配對:沒有配對檔、後台 404 `pairing_not_found` 或 410 `pairing_revoked`。
+    case notPaired
+    /// 後台 403 `subscription_required`:需要 Purrdr Plus。
+    case subscriptionRequired
+    /// 後台 429 `rate_limited`:每組配對每 60 秒 10 次(與狀態推播共用)。
+    case rateLimited
+    /// 後台 502 `apns_failed`:Apple 推播服務拒絕。
+    case apnsFailed
+    /// 主機沒有 `curl`。
+    case curlMissing
+    /// 主機連不上 Purrdr 後台;附 curl／PowerShell 的訊息。
+    case backendUnreachable(String)
+    /// 後台回了其他錯誤;附 HTTP 狀態碼。
+    case backendRejected(statusCode: Int)
+    /// 其他原因。
+    case failed(String)
+
+    /// 後台的錯誤碼(`error` 欄位)對應;不認得回 `nil`。
+    public init?(errorCode: String) {
+        switch errorCode {
+        case "pairing_not_found", "pairing_revoked": self = .notPaired
+        case "subscription_required": self = .subscriptionRequired
+        case "rate_limited": self = .rateLimited
+        case "apns_failed": self = .apnsFailed
+        default: return nil
+        }
+    }
+
+    /// 後台的 HTTP 狀態碼對應(2xx 不是錯誤，呼叫端先判斷)。
+    public init(statusCode: Int) {
+        switch statusCode {
+        case 403: self = .subscriptionRequired
+        case 404, 410: self = .notPaired
+        case 429: self = .rateLimited
+        case 502: self = .apnsFailed
+        default: self = .backendRejected(statusCode: statusCode)
+        }
+    }
+}
+
 /// 可能代裝推播外掛的主機連線(主機服務 0.6.0 起，#265)。
 public protocol PushPluginInstallerProviding: Sendable {
     /// 依裝置 id 建立推播外掛安裝;這條連線不能代裝時是 `nil`。
