@@ -15,14 +15,15 @@ struct ConversationStatusSummaryTests {
     static func summary(
         agentStatus: AgentStatus? = .idle, isOffline: Bool = false, banner: ConversationModel.Banner? = nil, isReadOnly: Bool = false,
         hostServiceUpdateMessage: String? = nil, stopNeedsReconnect: Bool = false, workingSince: Date? = nil,
-        stopPhase: StopPhase? = nil, isWritingLive: Bool = false, progress: AgentProgress = AgentProgress(), agentsPane: AgentsPane? = nil
+        stopPhase: StopPhase? = nil, isWritingLive: Bool = false, progress: AgentProgress = AgentProgress(), agentsPane: AgentsPane? = nil,
+        hasSendWhenDone: Bool = false
     ) -> ConversationStatusSummary {
         ConversationStatusSummary(
             header: ConversationHeader(agent: nil, title: "ledger", status: agentStatus, isOffline: isOffline, hostName: "studio", progress: progress),
             banner: banner, isOffline: isOffline, isReadOnly: isReadOnly,
             hostServiceUpdateMessage: hostServiceUpdateMessage, stopNeedsReconnect: stopNeedsReconnect, workingSince: workingSince,
             stopPhase: stopPhase, isWritingLive: isWritingLive, progress: progress,
-            agentsPane: agentsPane)
+            agentsPane: agentsPane, hasSendWhenDone: hasSendWhenDone)
     }
 
     static func row(_ id: Int, _ state: DelegationStatus) -> AgentsPane.Row {
@@ -86,6 +87,36 @@ struct ConversationStatusSummaryTests {
 
         #expect(summary.sheet.progress.contextPercent == 62)
         #expect(summary.header.progressText == "62%")
+    }
+
+    @Test("待辦只在狀態 sheet:頂列一行不帶待辦數，有待辦也只多 context")
+    func todosOnlyInSheet() {
+        let progress = AgentProgress(contextPercent: 62, todos: [
+            .init(text: "寫測試", status: .completed), .init(text: "改實作", status: .pending),
+        ])
+        let summary = Self.summary(progress: progress)
+
+        #expect(summary.header.progressText == "62%")
+        #expect(summary.header.displayVariants.allSatisfy { !$0.contains("Todo") })
+        #expect(summary.sheet.progress.todos.count == 2)
+    }
+
+    @Test("狀態 sheet 含做完再送開關(只有支援的對話)，並且永遠可開")
+    func sheetCarriesSendWhenDoneToggle() {
+        #expect(Self.summary(hasSendWhenDone: true).sheet.hasSendWhenDone)
+        #expect(!Self.summary().sheet.hasSendWhenDone)
+        #expect(Self.summary().sheet.isOpenable)
+    }
+
+    @Test("背景子 Agent 清單只在狀態 sheet，膠囊只帶數量;沒在工作時清單仍在 sheet")
+    func backgroundAgentsListedOnlyInSheet() {
+        let pane = AgentsPane(rows: [Self.row(1, .running), Self.row(2, .completed)])
+        let idle = Self.summary(agentStatus: .idle, agentsPane: pane)
+
+        #expect(idle.working == nil)
+        #expect(idle.sheet.backgroundAgents == pane)
+        let working = Self.summary(agentStatus: .working, workingSince: Self.since, agentsPane: pane)
+        #expect(working.working?.runningBackgroundAgents == 1)
     }
 
     @Test("離線：橫幅是離線，頂列離線;斷線前在工作時帶「重連後才能停止」")
