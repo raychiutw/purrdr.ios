@@ -94,4 +94,16 @@ struct PlusSetupProgressTests {
         #expect(progress.completedCount == 0)
         #expect(progress.currentStep == .joinMember)
     }
+
+    @Test("已登入、沒有 Plus：本機有通知與同步也不打勾，只顯示 1/4(#404)")
+    func memberWithoutPlusDoesNotCountNotificationsOrSync() {
+        let progress = PlusSetupProgress(isMember: true, isPlusActive: false, isNotificationsOn: true, isHostSyncOn: true)
+
+        #expect(progress.state(of: .joinMember) == .done)
+        #expect(progress.state(of: .activatePlus) == .current)
+        #expect(progress.state(of: .turnOnNotifications) == .upcoming)
+        #expect(progress.state(of: .syncHosts) == .upcoming)
+        #expect(progress.completedCount == 1)
+        #expect(!progress.isComplete)
+    }
 }
