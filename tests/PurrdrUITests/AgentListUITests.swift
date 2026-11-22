@@ -108,7 +108,12 @@ final class AgentListUITests: XCTestCase {
                 app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 5),
                 "tab bar 沒有 \(tab.rawValue)")
         }
-        app.openAccountSheet()
+        // 未登入時帳號鈕開的是「登入或加入」選擇頁(#408),不是帳號頁。
+        app.openAccount()
+        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "大字級下沒有開出登入或加入選擇頁")
+        let signIn = app.buttons["account.entry.signIn"]
+        app.scrollIntoView(signIn, search: .down)
+        XCTAssertTrue(signIn.waitUntilExists(timeout: 5), "大字級下找不到「登入」")
     }
 
     /// 右上角的帳號圓圈跟新增聊天的玻璃鈕看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來 44pt(XCUI 的 frame 只報內容 36pt)。
