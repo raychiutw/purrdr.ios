@@ -19,6 +19,8 @@ public protocol HostSyncStore: AnyObject {
     func removePartition(of memberID: String)
     /// 清除所有會員的分區(登入已失效或冷啟動時沒有會員)。
     func removeAllPartitions()
+    /// 合併後留下的是另一個會員(#410):把舊會員分區的紀錄搬到新會員,舊的不留。
+    func movePartition(from oldID: String, to newID: String)
 }
 
 /// 只在記憶體。依會員分區(#405):沒有會員時讀到未開啟與空紀錄、寫入不留下。
@@ -55,6 +57,11 @@ public final class InMemoryHostSyncStore: HostSyncStore {
     public func removePartition(of memberID: String) { partitions[memberID] = nil }
 
     public func removeAllPartitions() { partitions = [:] }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        partitions[newID] = partitions.removeValue(forKey: oldID)
+    }
 }
 
 /// 存在 UserDefaults(`hostSync.enabled.<會員 ID>`、`hostSync.journal.<會員 ID>`);沒有會員時讀到未開啟、寫入不留下。
@@ -94,6 +101,14 @@ public final class UserDefaultsHostSyncStore: HostSyncStore {
             for base in [Self.enabledKey, Self.journalKey] where key.hasPrefix("\(base).") {
                 defaults.removeObject(forKey: key)
             }
+        }
+    }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        for base in [Self.enabledKey, Self.journalKey] {
+            defaults.set(defaults.object(forKey: "\(base).\(oldID)"), forKey: "\(base).\(newID)")
+            defaults.removeObject(forKey: "\(base).\(oldID)")
         }
     }
 }
@@ -170,6 +185,8 @@ public final class HostSyncModel: HostChangeRecorder {
     func removeLocalState(of memberID: String) { store.removePartition(of: memberID) }
 
     func removeAllLocalState() { store.removeAllPartitions() }
+
+    func moveLocalState(from oldID: String, to newID: String) { store.movePartition(from: oldID, to: newID) }
 
     /// 同步一次(開啟時):上傳這支裝置還沒上傳的修改與刪除，再把後台的結果併回來。
     /// 同步中又被要求同步時，做完這次再做一次。

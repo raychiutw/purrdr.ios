@@ -242,29 +242,6 @@ struct MemberModelTests {
         #expect(request.json?["provider"] as? String == "google")
     }
 
-    @Test("連結時併入了另一個空的會員，提示使用者")
-    func linkMerged() async throws {
-        let model = try await signedInModel()
-        google.on("POST", "/token", .json(200, #"{"id_token": "google-id-token"}"#))
-        backend.on("POST", "/v1/members/me/identities", .json(200, #"{"member": \#(Replies.linkedMember), "mergedMemberId": "member-9"}"#))
-
-        await model.linkGoogle(browser: Self.approvingBrowser)
-
-        #expect(model.notice == .merged)
-    }
-
-    @Test("要連結的登入方式屬於另一個有資料的會員時，說明怎麼處理，會員不變")
-    func linkConflict() async throws {
-        let model = try await signedInModel()
-        google.on("POST", "/token", .json(200, #"{"id_token": "google-id-token"}"#))
-        backend.on("POST", "/v1/members/me/identities", .json(409, Replies.error("identity_in_use")))
-
-        await model.linkGoogle(browser: Self.approvingBrowser)
-
-        #expect(model.notice == .identityInUse)
-        #expect(model.phase == .signedIn(Replies.expectedAppleMember))
-    }
-
     @Test("用 Sign in with Apple 連結時帶 authorization code 給後台")
     func linkApple() async throws {
         let model = try await signedInModel()

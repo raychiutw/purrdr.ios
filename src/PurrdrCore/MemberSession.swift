@@ -17,8 +17,13 @@ public actor MemberSession {
 
     public struct LinkResult: Sendable, Equatable {
         public var member: Member
-        /// 連結時併入並刪除的空會員 ID;沒有合併時是 `nil`。
-        public var mergedMemberID: String?
+    }
+
+    public struct MergeResult: Sendable, Equatable {
+        /// 留下的會員(可能是對方,不一定是原本登入的那個)。
+        public var member: Member
+        /// 被刪除的會員 ID。
+        public var mergedMemberID: String
     }
 
     /// 存取權杖剩下不到這麼久就先換新的，避免送出途中過期。
@@ -80,12 +85,31 @@ public actor MemberSession {
         return try body.domain()
     }
 
-    /// 連結另一種登入方式。
+    /// 連結另一種登入方式。身分已屬於另一個會員時丟 `BackendError.mergeRequired`(附兩邊摘要),不會合併。
     public func link(_ credential: SignInCredential) async throws -> LinkResult {
         let response = try await authorized(BackendRequest(method: "POST", path: "/v1/members/me/identities", body: try Wire.encode(credential)))
         let link = try Wire.decode(Wire.Link.self, from: response)
         remember(link.member)
-        return LinkResult(member: try link.member.domain(), mergedMemberID: link.mergedMemberId)
+        return LinkResult(member: try link.member.domain())
+    }
+
+    /// 確認合併(呼叫端先要求裝置擁有者驗證;憑證要重新帶,同連結)。
+    /// 留下的可能是對方會員,原本的存取權杖屬於被刪的會員,所以換上回應附的新存取權杖(更新權杖不變)。
+    /// 兩邊都有有效訂閱丟 `.backend(409, subscription_conflict)`,什麼都沒動。
+    public func merge(_ credential: SignInCredential) async throws -> MergeResult {
+        let response = try await authorized(
+            BackendRequest(method: "POST", path: "/v1/members/me/identities/merge", body: try Wire.encode(credential)))
+        let merged = try Wire.decode(Wire.Merge.self, from: response)
+        guard let expiresAt = Wire.date(merged.accessTokenExpiresAt) else { throw BackendError.invalidResponse }
+        do {
+            try tokenStore.setAccessToken(StoredAccessToken(token: merged.accessToken, expiresAt: expiresAt))
+        } catch {
+            diagnostics(.tokenStorageFailed)
+            throw error
+        }
+        accessToken = (merged.accessToken, expiresAt)
+        remember(merged.member)
+        return MergeResult(member: try merged.member.domain(), mergedMemberID: merged.mergedMemberId)
     }
 
     /// 解除連結(後台要求至少保留一種)。
@@ -264,7 +288,7 @@ public actor MemberSession {
             case .unreachable: diagnostics(.refreshUnavailable(reason: "unreachable"))
             case .backend(let status, let code, _): diagnostics(.refreshUnavailable(reason: "\(status) \(code)"))
             case .invalidResponse: diagnostics(.refreshUnavailable(reason: "invalid_response"))
-            case .signedOut, .subscriptionInUse: break
+            case .signedOut, .subscriptionInUse, .mergeRequired: break
             }
             throw error
         }
@@ -316,6 +340,9 @@ public actor MemberSession {
                 throw BackendError.subscriptionInUse(
                     ownerEmail: envelope.error.details?.ownerEmail, canTransfer: envelope.error.details?.canTransfer ?? true)
             }
+            if envelope.error.code == BackendErrorCode.mergeRequired, let details = envelope.error.mergeDetails {
+                throw BackendError.mergeRequired(details.domain())
+            }
             throw BackendError.backend(status: response.status, code: envelope.error.code, message: envelope.error.message)
         }
         return response
@@ -350,7 +377,43 @@ private enum Wire {
 
     struct Link: Decodable {
         var member: MemberBody
-        var mergedMemberId: String?
+    }
+
+    struct Merge: Decodable {
+        var member: MemberBody
+        var mergedMemberId: String
+        var accessToken: String
+        var accessTokenExpiresAt: String
+    }
+
+    /// `merge_required` 的 `error.details`(合併確認摘要)。
+    struct MergeDetails: Decodable {
+        var canMerge: Bool
+        var current: Side
+        var other: Side
+
+        struct Side: Decodable {
+            var identities: [Identity]
+            var hasActiveSubscription: Bool
+            var hostCount: Int
+
+            struct Identity: Decodable {
+                var provider: String
+                var email: String?
+            }
+        }
+
+        func domain() -> MemberMergeSummary {
+            func side(_ side: Side) -> MemberMergeSummary.Side {
+                .init(
+                    // 不認得的登入方式(之後新增的)略過。
+                    identities: side.identities.compactMap { identity in
+                        SignInMethod(rawValue: identity.provider).map { .init(method: $0, email: identity.email) }
+                    },
+                    hasActiveSubscription: side.hasActiveSubscription, hostCount: side.hostCount)
+            }
+            return MemberMergeSummary(canMerge: canMerge, current: side(current), other: side(other))
+        }
     }
 
     struct MemberBody: Codable {
@@ -574,6 +637,8 @@ private enum Wire {
             var message: String
             /// `subscription_in_use` 的 `details`;其他錯誤的 `details`(例如合併摘要)形狀不同,讀不懂就略過。
             var details: InUseDetails?
+            /// `merge_required` 的 `details`。
+            var mergeDetails: MergeDetails?
 
             enum CodingKeys: String, CodingKey { case code, message, details }
 
@@ -582,6 +647,7 @@ private enum Wire {
                 code = try container.decode(String.self, forKey: .code)
                 message = try container.decode(String.self, forKey: .message)
                 details = try? container.decodeIfPresent(InUseDetails.self, forKey: .details)
+                mergeDetails = try? container.decodeIfPresent(MergeDetails.self, forKey: .details)
             }
         }
 

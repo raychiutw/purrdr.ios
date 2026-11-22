@@ -84,3 +84,44 @@ public struct SignInDevice: Equatable, Identifiable, Sendable {
         self.isCurrent = isCurrent
     }
 }
+
+/// 合併確認摘要(409 `merge_required` 的 `error.details`,#410):兩個會員各自的登入方式、訂閱與主機數。
+/// email 後台已遮蔽(只留第一個字元與網域);不含對方的會員 ID。
+public struct MemberMergeSummary: Equatable, Sendable {
+    public struct Side: Equatable, Sendable {
+        public struct Identity: Equatable, Sendable {
+            public var method: SignInMethod
+            public var email: String?
+
+            public init(method: SignInMethod, email: String?) {
+                self.method = method
+                self.email = email
+            }
+        }
+
+        public var identities: [Identity]
+        /// 有有效訂閱(含帳單寬限期與重試期)。
+        public var hasActiveSubscription: Bool
+        /// 主機數(不含已刪除的)。
+        public var hostCount: Int
+
+        public init(identities: [Identity], hasActiveSubscription: Bool, hostCount: Int) {
+            self.identities = identities
+            self.hasActiveSubscription = hasActiveSubscription
+            self.hostCount = hostCount
+        }
+    }
+
+    /// 兩邊都有有效訂閱時是 `false`:一個會員只能有一個訂閱,要先讓其中一邊不再有效。
+    public var canMerge: Bool
+    /// 目前登入的會員。
+    public var current: Side
+    /// 擁有這個登入方式的另一個會員。
+    public var other: Side
+
+    public init(canMerge: Bool, current: Side, other: Side) {
+        self.canMerge = canMerge
+        self.current = current
+        self.other = other
+    }
+}

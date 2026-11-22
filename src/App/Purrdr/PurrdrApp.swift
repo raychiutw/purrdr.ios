@@ -205,7 +205,9 @@ struct PurrdrApp: App {
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
         allowsTestingLinks = uiTesting
-        usesTestingSignIn = uiTesting && arguments.contains("-uiTestingSignUp")
+        usesTestingSignIn = uiTesting
+            && (arguments.contains("-uiTestingSignUp") || arguments.contains("-uiTestingLinkMerge")
+                || arguments.contains("-uiTestingLinkMergeBlocked"))
         forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
@@ -416,6 +418,11 @@ struct PurrdrApp: App {
             ("-uiTestingOwnedByOtherMember", .ownedByAnotherMember), ("-uiTestingPendingReviewMember", .pendingReview),
         ]
         if let match = scenarios.first(where: { arguments.contains($0.flag) }) { return UITestingBackendTransport(scenario: match.scenario) }
+        // 帳號頁「登入方式」新增 Google 時發現它已屬另一個會員(合併確認,#410)。
+        if arguments.contains("-uiTestingLinkMerge") || arguments.contains("-uiTestingLinkMergeBlocked") {
+            return UITestingBackendTransport(
+                scenario: .none, linkFindsAnotherMember: true, mergeBlocked: arguments.contains("-uiTestingLinkMergeBlocked"))
+        }
         if arguments.contains("-uiTestingMember") { return UITestingBackendTransport(isPlusActive: false) }
         // 沒登入,按 Apple／Google 登入或註冊會直接登入假後台(登入與加入流程,#408)。
         if arguments.contains("-uiTestingSignUp") { return UITestingBackendTransport(isPlusActive: false, startsSignedIn: false) }

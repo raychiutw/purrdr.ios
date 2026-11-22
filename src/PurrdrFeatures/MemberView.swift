@@ -220,7 +220,9 @@ struct SignInButtons: View {
             let credential = SignInCredential(
                 method: method, idToken: copy == .signUp ? "ui-testing-new" : "ui-testing-existing", nonce: "ui-testing",
                 authorizationCode: method == .apple ? "ui-testing" : nil)
-            Task { await model.signIn(with: credential, joining: copy == .signUp) }
+            Task {
+                if linking { await model.link(with: credential) } else { await model.signIn(with: credential, joining: copy == .signUp) }
+            }
         } label: {
             Text(method == .apple ? (copy == .signUp ? "Sign up with Apple" : "Sign in with Apple") : googleTitle)
                 .font(.body.weight(.medium))
@@ -745,10 +747,12 @@ struct AccountAvatar: View {
     }
 }
 
-/// 登入方式：目前的登入方式、解除連結、連結另一種。
+/// 登入方式(#410、設計稿第 28 組):已綁定的方式與移除(至少保留一種)、新增另一種;
+/// 新增、移除、合併都要先確認身分。新增時發現已屬另一個會員,出合併確認頁(兩邊摘要)。
 struct SignInMethodsView: View {
-    let model: MemberModel
+    @Bindable var model: MemberModel
     let member: Member
+    @State private var removing: SignInMethod?
 
     var body: some View {
         List {
@@ -756,17 +760,21 @@ struct SignInMethodsView: View {
                 ForEach(member.identities, id: \.method) { identity in
                     LabeledContent {
                         if member.identities.count > 1 {
-                            Button("Unlink", role: .destructive) { Task { await model.unlink(identity.method) } }
-                                .accessibilityLabel(Text("Unlink \(identity.method.displayName)"))
+                            Button("Remove", role: .destructive) { removing = identity.method }
+                                .accessibilityLabel(Text("Remove \(identity.method.displayName)"))
+                                .accessibilityIdentifier("member.identity.remove.\(identity.method.rawValue)")
                         }
                     } label: {
-                        Text("Using \(identity.method.displayName)")
+                        Text(verbatim: identity.method.shortName)
                         if let email = identity.email {
-                            Text(email)
+                            Text(verbatim: email)
                         }
                     }
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("member.identity.\(identity.method.rawValue)")
                 }
+            } footer: {
+                Text("Keep at least one sign-in method. Adding or removing one asks you to confirm it’s you.")
             }
 
             let unlinked = SignInMethod.allCases.filter { member.identity($0) == nil }
@@ -775,7 +783,7 @@ struct SignInMethodsView: View {
                     SignInButtons(model: model, linking: true, methods: unlinked)
                         .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 } header: {
-                    Text("Link Another Method")
+                    Text("Add Sign-In Method")
                         .foregroundStyle(.secondaryText)
                 }
             }
@@ -786,6 +794,90 @@ struct SignInMethodsView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .confirmationDialog(
+            removing.map { Text("Remove \($0.displayName)?") } ?? Text(verbatim: ""),
+            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible, presenting: removing
+        ) { method in
+            Button("Remove", role: .destructive) { Task { await model.unlink(method) } }
+                .accessibilityIdentifier("member.identity.remove.confirm")
+        } message: { method in
+            Text("You won’t be able to sign in with \(method.displayName) anymore. You’ll confirm it’s you next.")
+        }
+        .sheet(isPresented: Binding(get: { model.pendingMerge != nil }, set: { if !$0 { model.cancelMerge() } })) {
+            if let proposal = model.pendingMerge {
+                MergeConfirmView(model: model, summary: proposal.summary)
+            }
+        }
+    }
+}
+
+/// 合併確認頁(設計稿第 28 組「新增 Google 時發現已是會員」):兩邊的摘要,確認後才合併。
+struct MergeConfirmView: View {
+    let model: MemberModel
+    let summary: MemberMergeSummary
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("That sign-in method already belongs to another member. Combine the two members into one? Both methods will then sign in to the same member, and their hosts and notification devices are combined.")
+                        .listRowBackground(Color.clear)
+                }
+                Section {
+                    MergeSideRow(title: "This member", side: summary.current)
+                        .accessibilityIdentifier("member.merge.current")
+                    MergeSideRow(title: "The other member", side: summary.other)
+                        .accessibilityIdentifier("member.merge.other")
+                } footer: {
+                    if !summary.canMerge {
+                        Text("Members that both have an active subscription can’t be combined. Cancel one of them first.")
+                            .accessibilityIdentifier("member.merge.blocked")
+                    }
+                }
+                Section {
+                    Button("Combine Members") { Task { await model.confirmMerge() } }
+                        .disabled(!summary.canMerge || model.isWorking)
+                        .accessibilityIdentifier("member.merge.confirm")
+                    Button("Cancel", role: .cancel) { model.cancelMerge() }
+                        .accessibilityIdentifier("member.merge.cancel")
+                } footer: {
+                    Text("You’ll confirm it’s you before the members are combined.")
+                }
+            }
+            .appGroupedList()
+            .navigationTitle("Add Sign-In Method")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .accessibilityIdentifier("sheet.merge")
+        }
+    }
+}
+
+private struct MergeSideRow: View {
+    let title: LocalizedStringKey
+    let side: MemberMergeSummary.Side
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+            Text(verbatim: side.identities.map { identity in
+                [identity.method.shortName, identity.email].compactMap { $0 }.joined(separator: " ")
+            }.formatted(.list(type: .and)))
+            Text(verbatim: details)
+                .font(.subheadline)
+                .foregroundStyle(.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var details: String {
+        var parts = [side.hasActiveSubscription ? String(localized: "Has Purrdr Plus") : String(localized: "No subscription")]
+        if side.hostCount > 0 { parts.append(String(localized: "\(side.hostCount) hosts")) }
+        return parts.joined(separator: " · ")
     }
 }
 
@@ -810,7 +902,8 @@ extension MemberNotice {
     var title: LocalizedStringKey {
         switch self {
         case .failed: "Couldn’t Finish"
-        case .identityInUse: "Already Used by Another Member"
+        case .subscriptionConflict: "Can’t Combine Members"
+        case .subscriptionInUse: "Subscription Belongs to Another Member"
         case .methodAlreadyLinked: "Already Linked"
         case .merged: "Members Combined"
         case .deleted: "Member Deleted"
@@ -823,12 +916,14 @@ extension MemberNotice {
         switch self {
         case .failed(let message):
             message
-        case .identityInUse:
-            String(localized: "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here.")
+        case .subscriptionConflict:
+            String(localized: "Both members have an active subscription, and a member can only have one. Cancel one of them first, then try again. Nothing was changed.")
+        case .subscriptionInUse:
+            String(localized: "That subscription already belongs to another member.")
         case .methodAlreadyLinked:
             String(localized: "This member already has that kind of sign-in method. Unlink it first.")
         case .merged:
-            String(localized: "That sign-in method had an empty member of its own. It was combined into this one.")
+            String(localized: "Both sign-in methods now sign in to the same member. Hosts and notification devices were combined.")
         case .deleted:
             String(localized: "Your member account and its data were deleted. If you subscribed to Purrdr Plus, cancel it in Settings › Apple Account › Subscriptions so you aren’t charged again.")
         case .signedOut:

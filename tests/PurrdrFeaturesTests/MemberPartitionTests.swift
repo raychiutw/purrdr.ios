@@ -135,6 +135,58 @@ struct MemberPartitionTests {
         #expect(syncStore.isEnabled)
     }
 
+    // MARK: - 合併(#410)
+
+    @Test("合併後留下的是另一個會員:通知與同步紀錄搬到新會員的分區,原會員的分區不留")
+    func mergeMovesRecordsToKeptMember() {
+        let push = pushService()
+        let sync = makeSync()
+        localState.attach(push: push, hostSync: sync, pushModels: { [] })
+        localState.activate(Replies.expectedAppleMember)
+        seedNotificationsAndSync()
+        let journal = syncStore.journal
+
+        localState.migrate(to: Replies.expectedGoogleMember)
+
+        #expect(partition.memberID == "member-2")
+        #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+        #expect(syncStore.isEnabled)
+        #expect(syncStore.journal == journal)
+        partition.activate("member-1")
+        #expect(pairings.pairings.isEmpty, "被刪的會員不該留下本機紀錄")
+        #expect(syncStore.isEnabled == false)
+    }
+
+    @Test("UserDefaults 版:搬分區帶走配對、註冊 token、種類與同步紀錄")
+    func userDefaultsMovePartition() throws {
+        let suite = "member-partition-move-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let partition = MemberPartition()
+        let pushStore = UserDefaultsPushPairingStore(defaults: defaults, partition: partition)
+        let syncStore = UserDefaultsHostSyncStore(defaults: defaults, partition: partition)
+        partition.activate("member-a")
+        pushStore.setKeyHash(Self.keyHashA, forHost: "studio")
+        pushStore.setRegisteredToken("token", forKeyHash: Self.keyHashA)
+        pushStore.setKinds([.blocked], forKeyHash: Self.keyHashA)
+        syncStore.isEnabled = true
+        syncStore.journal.recordSave(UUID(), at: Date(timeIntervalSince1970: 1_794_729_600))
+        let journal = syncStore.journal
+
+        pushStore.movePartition(from: "member-a", to: "member-b")
+        syncStore.movePartition(from: "member-a", to: "member-b")
+        partition.activate("member-b")
+
+        #expect(pushStore.keyHash(forHost: "studio") == Self.keyHashA)
+        #expect(pushStore.registeredTokens[Self.keyHashA] == "token")
+        #expect(pushStore.kinds(forKeyHash: Self.keyHashA) == [.blocked])
+        #expect(syncStore.isEnabled)
+        #expect(syncStore.journal == journal)
+        partition.activate("member-a")
+        #expect(pushStore.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+    }
+
     // MARK: - 升級
 
     @Test("升級時舊的全域狀態被清除")

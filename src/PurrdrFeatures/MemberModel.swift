@@ -38,6 +38,15 @@ public final class MemberModel {
     public func dismissMemberNotFound() { memberNotFound = false }
     private var signInCount = 0
 
+    /// 新增登入方式時發現它已屬於另一個會員(#410):等使用者看過兩邊摘要、確認後才合併。
+    public struct MergeProposal: Equatable, Sendable {
+        public var summary: MemberMergeSummary
+        /// 剛驗證的憑證;確認合併時重新帶給後台。
+        var credential: SignInCredential
+    }
+
+    public private(set) var pendingMerge: MergeProposal?
+
     /// 目前這次操作是否以「暫時連不上」收尾(讀到本機快照就算成功,但後台沒答)。
     private var endedLimited = false
     private let session: MemberSession
@@ -45,11 +54,13 @@ public final class MemberModel {
     private var pendingApple: (nonce: String, linking: Bool, joining: Bool)?
     /// 通知與主機同步的本機狀態依會員分區(#405);`nil` 時不管本機狀態(只有測試)。
     private let localState: MemberLocalState?
+    /// 新增、移除登入方式與合併前,要求裝置擁有者驗證(Face ID／Touch ID／密碼);`nil` 時不驗證(只有測試)。
+    private let confirmOwner: (@MainActor @Sendable () async -> Bool)?
 
     /// 登入中的裝置(#409):帳號頁列出並撤銷其他裝置。
     public let signInDevices: SignInDevicesModel
 
-    /// - Parameter confirmOwner: 撤銷其他裝置等會改動帳號的操作前,要求裝置擁有者驗證;`nil` 時不驗證(只有測試)。
+    /// - Parameter confirmOwner: 撤銷其他裝置、新增與移除登入方式、合併等會改動帳號的操作前,要求裝置擁有者驗證;`nil` 時不驗證(只有測試)。
     public init(
         session: MemberSession, google: GoogleSignIn, localState: MemberLocalState? = nil,
         confirmOwner: (@MainActor @Sendable () async -> Bool)? = nil
@@ -57,6 +68,7 @@ public final class MemberModel {
         self.session = session
         self.google = google
         self.localState = localState
+        self.confirmOwner = confirmOwner
         signInDevices = SignInDevicesModel(session: session, confirmOwner: confirmOwner)
     }
 
@@ -114,6 +126,11 @@ public final class MemberModel {
         await submit(credential, linking: false, joining: joining)
     }
 
+    /// 直接以憑證連結另一種登入方式(測試替身與 UI 測試用)。
+    public func link(with credential: SignInCredential) async {
+        await submit(credential, linking: true)
+    }
+
     /// 用 Google 登入;`browser` 由畫面以系統瀏覽器提供。
     public func signInWithGoogle(browser: GoogleSignIn.Browser, joining: Bool = true) async {
         await googleCredential(browser: browser, linking: false, joining: joining)
@@ -124,13 +141,45 @@ public final class MemberModel {
         await googleCredential(browser: browser, linking: true)
     }
 
-    /// 解除連結;後台要求至少保留一種登入方式。
+    /// 目前的會員還有不只一種登入方式,才能移除其中一種(至少保留一種)。
+    public var canUnlink: Bool {
+        if case .signedIn(let member) = phase { return member.identities.count > 1 }
+        return false
+    }
+
+    /// 移除一種登入方式;先確認裝置擁有者(#410)。至少保留一種:只剩一種時不問、不送,提示原因。
     public func unlink(_ method: SignInMethod) async {
+        // 只擋「移除唯一一種」;沒連結的方式交給後台回 identity_not_linked。
+        if case .signedIn(let member) = phase, member.identities.count <= 1, member.identity(method) != nil {
+            notice = .failed(String(localized: "Keep at least one sign-in method."))
+            return
+        }
         await run {
+            guard await ownerConfirmed() else { return }
             let member = try await session.unlink(method)
             phase = .signedIn(member)
             localState?.activate(member)
         }
+    }
+
+    /// 確認合併(#410):兩邊都有有效訂閱時不能合併;要再確認一次裝置擁有者。
+    /// 留下的可能是對方會員:本機的通知與同步紀錄搬到它的分區,通知與同步維持開啟。
+    public func confirmMerge() async {
+        guard let proposal = pendingMerge, proposal.summary.canMerge else { return }
+        await run {
+            guard await ownerConfirmed() else { return }
+            let result = try await session.merge(proposal.credential)
+            pendingMerge = nil
+            phase = .signedIn(result.member)
+            localState?.migrate(to: result.member)
+            localState?.activate(result.member)
+            notice = .merged
+        }
+    }
+
+    /// 取消合併:收起摘要,什麼都不送。
+    public func cancelMerge() {
+        pendingMerge = nil
     }
 
     /// 刪除會員。完成後回到未登入，並提醒 Apple 訂閱要自行取消。
@@ -183,10 +232,15 @@ public final class MemberModel {
     private func submit(_ credential: SignInCredential, linking: Bool, joining: Bool = true) async {
         await run {
             if linking {
-                let result = try await session.link(credential)
-                phase = .signedIn(result.member)
-                localState?.activate(result.member)
-                if result.mergedMemberID != nil { notice = .merged }
+                guard await ownerConfirmed() else { return }
+                do {
+                    let result = try await session.link(credential)
+                    phase = .signedIn(result.member)
+                    localState?.activate(result.member)
+                } catch BackendError.mergeRequired(let summary) {
+                    // 不是錯誤:這個登入方式已是另一個會員,先讓使用者看兩邊摘要再決定。
+                    pendingMerge = MergeProposal(summary: summary, credential: credential)
+                }
             } else {
                 // 已登入時再登入:換會員前先撤銷上一位的推播配對(登入後就沒有他的權杖了)。
                 if case .signedIn = phase, !(await leaveLocalState()) { return }
@@ -197,6 +251,12 @@ public final class MemberModel {
                 lastSignIn = SignInEvent(id: signInCount, memberCreated: result.memberCreated)
             }
         }
+    }
+
+    /// 會改動帳號的操作先確認是裝置擁有者本人(`confirmOwner` 為 `nil` 時視為通過,只有測試)。
+    private func ownerConfirmed() async -> Bool {
+        guard let confirmOwner else { return true }
+        return await confirmOwner()
     }
 
     /// 撤銷並清除目前會員的本機狀態;撤銷不了時提示並回 `false`。
@@ -230,10 +290,18 @@ public final class MemberModel {
             isConnectionLimited = false
             localState?.discardAll()
             notice = .signedOut
+        } catch BackendError.subscriptionInUse {
+            notice = .subscriptionInUse
+        } catch BackendError.mergeRequired {
+            // 只有連結會處理;其他操作不會收到,收到就當一般錯誤。
+            notice = .failed(String(localized: "Something went wrong. Try again."))
         } catch let BackendError.backend(status, code, _) where status == 404 && code == "member_not_found" {
             // 登入頁查無會員(後台不新建):不是錯誤,問使用者要不要加入(#434)。
             memberNotFound = true
         } catch let BackendError.backend(status, code, message) {
+            // 合併被後台擋下:摘要已過時,收起。
+            if code == BackendErrorCode.subscriptionConflict || code == BackendErrorCode.providerAlreadyLinked
+                || code == "no_merge_needed" { pendingMerge = nil }
             if status >= 500, case .signedIn = phase { isConnectionLimited = true }
             notice = MemberNotice(code: code, message: message)
         } catch BackendError.unreachable {
@@ -249,11 +317,13 @@ public final class MemberModel {
 public enum MemberNotice: Equatable {
     /// 一般錯誤，附給人看的說明。
     case failed(String)
-    /// 要連結的登入方式屬於另一個有訂閱或同步資料的會員。
-    case identityInUse
+    /// 合併時兩邊都有有效訂閱(一個會員只能有一個):要先讓其中一邊不再有效。
+    case subscriptionConflict
+    /// 這個商店訂閱已屬於另一個會員。
+    case subscriptionInUse
     /// 已經有同一種登入方式。
     case methodAlreadyLinked
-    /// 連結時併入了另一個空的會員。
+    /// 兩個會員已合併成一個。
     case merged
     /// 會員已刪除;提醒 Apple 訂閱要自行取消。
     case deleted
@@ -264,8 +334,10 @@ public enum MemberNotice: Equatable {
 
     init(code: String, message: String) {
         switch code {
-        case "identity_in_use": self = .identityInUse
-        case "provider_already_linked": self = .methodAlreadyLinked
+        case BackendErrorCode.subscriptionConflict: self = .subscriptionConflict
+        case BackendErrorCode.subscriptionInUse: self = .subscriptionInUse
+        case BackendErrorCode.providerAlreadyLinked: self = .methodAlreadyLinked
+        case "no_merge_needed": self = .failed(String(localized: "That sign-in method is already part of this member."))
         case "last_identity": self = .failed(String(localized: "Keep at least one sign-in method."))
         case "apple_revoke_failed": self = .failed(String(localized: "Couldn’t reach Apple to finish deleting. Nothing was deleted. Try again later."))
         case "invalid_id_token": self = .failed(String(localized: "The sign-in didn’t go through. Try again."))

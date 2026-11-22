@@ -1172,6 +1172,17 @@
         }
       }
     },
+    "Add Sign-In Method" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增登入方式"
+          }
+        }
+      }
+    },
     "Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1432,17 +1443,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已經連結過"
-          }
-        }
-      }
-    },
-    "Already Used by Another Member" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已被其他會員使用"
           }
         }
       }
@@ -1979,6 +1979,28 @@
         }
       }
     },
+    "Both members have an active subscription, and a member can only have one. Cancel one of them first, then try again. Nothing was changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩個會員都有有效的訂閱,但一個會員只能有一個。請先取消其中一個再試,目前沒有任何變更。"
+          }
+        }
+      }
+    },
+    "Both sign-in methods now sign in to the same member. Hosts and notification devices were combined." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩種登入方式現在都會登入同一個會員,主機與通知裝置也已合在一起。"
+          }
+        }
+      }
+    },
     "Branch" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2096,6 +2118,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法加入這台主機"
+          }
+        }
+      }
+    },
+    "Can’t Combine Members" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法合併會員"
           }
         }
       }
@@ -2870,6 +2903,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已收合"
+          }
+        }
+      }
+    },
+    "Combine Members" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併會員"
           }
         }
       }
@@ -5250,6 +5294,17 @@
         }
       }
     },
+    "Has Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 Purrdr Plus"
+          }
+        }
+      }
+    },
     "Hide Keyboard" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6067,6 +6122,17 @@
         }
       }
     },
+    "Keep at least one sign-in method. Adding or removing one asks you to confirm it’s you." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請至少保留一種登入方式。新增或移除都會要求確認是你本人。"
+          }
+        }
+      }
+    },
     "Keep at least one. To get none, turn off notifications for this host. Devices that get notifications are managed in your account." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6294,17 +6360,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連結"
-          }
-        }
-      }
-    },
-    "Link Another Method" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連結其他登入方式"
           }
         }
       }
@@ -6613,6 +6668,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "會員已合併"
+          }
+        }
+      }
+    },
+    "Members that both have an active subscription can’t be combined. Cancel one of them first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兩邊都有有效訂閱的會員無法合併,請先取消其中一個。"
           }
         }
       }
@@ -7141,6 +7207,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有記錄輸出"
+          }
+        }
+      }
+    },
+    "No subscription" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有訂閱"
           }
         }
       }
@@ -9433,6 +9510,17 @@
         }
       }
     },
+    "Remove" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
+          }
+        }
+      }
+    },
     "Remove %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9440,6 +9528,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移除 %@"
+          }
+        }
+      }
+    },
+    "Remove %@?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要移除 %@ 嗎?"
           }
         }
       }
@@ -11193,6 +11292,17 @@
         }
       }
     },
+    "Subscription Belongs to Another Member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱屬於另一個會員"
+          }
+        }
+      }
+    },
     "Subscription Moved" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11635,24 +11745,35 @@
         }
       }
     },
-    "That sign-in method belongs to another member with a subscription or synced hosts. Sign in with it, delete that member, then link it here." : {
+    "That sign-in method already belongs to another member. Combine the two members into one? Both methods will then sign in to the same member, and their hosts and notification devices are combined." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這種登入方式屬於另一個有訂閱或主機同步資料的會員。請先用它登入、刪除那個會員，再回來連結。"
+            "value" : "這個登入方式已經屬於另一個會員。要把兩個會員合併成一個嗎?合併後兩種方式都能登入同一個會員,主機與通知裝置會合在一起。"
           }
         }
       }
     },
-    "That sign-in method had an empty member of its own. It was combined into this one." : {
+    "That sign-in method is already part of this member." : {
       "extractionState" : "manual",
       "localizations" : {
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這種登入方式原本有一個沒有資料的會員，已合併到目前的會員。"
+            "value" : "這個登入方式已經是這個會員的一部分。"
+          }
+        }
+      }
+    },
+    "That subscription already belongs to another member." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個訂閱已經屬於另一個會員。"
           }
         }
       }
@@ -12247,6 +12368,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機上的版面會跟著這支手機變動,離開後恢復。"
+          }
+        }
+      }
+    },
+    "The other member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一個會員"
           }
         }
       }
@@ -13253,6 +13385,17 @@
         }
       }
     },
+    "This member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前的會員"
+          }
+        }
+      }
+    },
     "This member already has a subscription, and a member can have only one. To move this one, cancel the other first and wait for its period to end." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14078,28 +14221,6 @@
         }
       }
     },
-    "Unlink" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解除連結"
-          }
-        }
-      }
-    },
-    "Unlink %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解除連結 %@"
-          }
-        }
-      }
-    },
     "Unlock" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14617,17 +14738,6 @@
         }
       }
     },
-    "Using %@" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 %@"
-          }
-        }
-      }
-    },
     "Version" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15131,6 +15241,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "You won’t be able to sign in with %@ anymore. You’ll confirm it’s you next." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除後就不能再用 %@ 登入。接下來會確認是你本人。"
+          }
+        }
+      }
+    },
     "You: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15336,6 +15457,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的兩個舊會員已合併。另一個訂閱(%@)標為待處理:請在該商店取消,避免重複付費。"
+          }
+        }
+      }
+    },
+    "You’ll confirm it’s you before the members are combined." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併前會先確認是你本人。"
           }
         }
       }

@@ -42,6 +42,8 @@ public protocol PushPairingStore: AnyObject {
     func removePartition(of memberID: String)
     /// 清除所有會員的分區(登入已失效或冷啟動時沒有會員)。
     func removeAllPartitions()
+    /// 合併後留下的是另一個會員(#410):把舊會員分區的紀錄搬到新會員,舊的不留(後台的配對已跟著歸新會員)。
+    func movePartition(from oldID: String, to newID: String)
     /// 配對有增減或分區被清除後呼叫(主機名稱對應表跟著更新,#431);`PushService` 建立時接上。
     var onPairingsChanged: (@MainActor () -> Void)? { get set }
 }
@@ -110,6 +112,12 @@ public final class InMemoryPushPairingStore: PushPairingStore {
 
     public func removeAllPartitions() {
         partitions = [:]
+        onPairingsChanged?()
+    }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        partitions[newID] = partitions.removeValue(forKey: oldID)
         onPairingsChanged?()
     }
 }
@@ -190,6 +198,15 @@ public final class UserDefaultsPushPairingStore: PushPairingStore {
             for base in [Self.pairingsKey, Self.registeredTokensKey, Self.kindsKey] where key.hasPrefix("\(base).") {
                 defaults.removeObject(forKey: key)
             }
+        }
+        onPairingsChanged?()
+    }
+
+    public func movePartition(from oldID: String, to newID: String) {
+        guard oldID != newID else { return }
+        for base in [Self.pairingsKey, Self.registeredTokensKey, Self.kindsKey] {
+            defaults.set(defaults.object(forKey: "\(base).\(oldID)"), forKey: "\(base).\(newID)")
+            defaults.removeObject(forKey: "\(base).\(oldID)")
         }
         onPairingsChanged?()
     }

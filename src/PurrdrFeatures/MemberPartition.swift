@@ -66,6 +66,16 @@ public final class MemberLocalState {
         }
     }
 
+    /// 合併後留下的是另一個會員(#410):這支裝置的通知與同步紀錄搬到新會員的分區(後台的配對、同步資料已歸新會員),
+    /// 不重新註冊也不清除,通知與同步維持開啟。留下的就是目前的會員時什麼都不做。
+    public func migrate(to member: Member) {
+        guard let previous = partition.memberID, previous != member.id else { return }
+        push?.store.movePartition(from: previous, to: member.id)
+        hostSync?.moveLocalState(from: previous, to: member.id)
+        partition.activate(member.id)
+        reload()
+    }
+
     /// 登出、刪除會員或換會員之前呼叫:撤銷這支裝置的推播配對、停止同步並清除目前會員的分區。
     /// 撤銷後台配對時連不上就不清除、回 `false`(呼叫端要先提示使用者,否則配對還有效、對方的通知照收)。
     /// `force` 為 `true`(使用者選了「仍要登出」,#420)時連不上也照樣清除本機的配對紀錄、回 `true`;

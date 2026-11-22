@@ -38,6 +38,12 @@ final class UITestingBackendTransport: BackendTransport {
     private let transferred = Mutex(false)
     /// 一開始就有更新權杖(已登入)。`false` 是 `-uiTestingSignUp`:沒登入,Apple／Google 按鈕直接以固定憑證登入這個假後台(#408)。
     let startsSignedIn: Bool
+    /// `-uiTestingLinkMerge`(#410):連結 Google 時發現它已屬於另一個會員(回合併確認摘要);沒帶就直接連結成功。
+    let linkFindsAnotherMember: Bool
+    /// 兩邊都有有效訂閱(`-uiTestingLinkMergeBlocked`):摘要的 `canMerge` 是 `false`。
+    let mergeBlocked: Bool
+    /// 這個會員已綁定 Google(連結或合併成功之後)。
+    private let googleLinked = Mutex(false)
 
     private struct Device {
         var id: String
@@ -58,9 +64,11 @@ final class UITestingBackendTransport: BackendTransport {
         self.init(scenario: isPlusActive ? .active : .none, startsSignedIn: startsSignedIn)
     }
 
-    init(scenario: Scenario, startsSignedIn: Bool = true) {
+    init(scenario: Scenario, startsSignedIn: Bool = true, linkFindsAnotherMember: Bool = false, mergeBlocked: Bool = false) {
         self.scenario = scenario
         self.startsSignedIn = startsSignedIn
+        self.linkFindsAnotherMember = linkFindsAnotherMember
+        self.mergeBlocked = mergeBlocked
     }
 
     private static func entitles(_ scenario: Scenario) -> Bool {
@@ -76,11 +84,11 @@ final class UITestingBackendTransport: BackendTransport {
             // 登入或註冊:ID token 含 `new` 的是新會員(`memberCreated: true`),其餘是既有會員。
             let idToken = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["idToken"] as? String
             let created = idToken?.contains("new") == true
-            return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","memberCreated":\#(created),"autoLinked":false,"member":\#(Self.memberJSON)}"#)
+            return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","memberCreated":\#(created),"autoLinked":false,"member":\#(memberBody)}"#)
         case ("POST", "/v1/sessions/refresh"):
-            return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","member":\#(Self.memberJSON)}"#)
+            return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","member":\#(memberBody)}"#)
         case ("GET", "/v1/members/me"):
-            return Self.json(#"{"member":\#(Self.memberJSON)}"#)
+            return Self.json(#"{"member":\#(memberBody)}"#)
         case ("GET", "/v1/members/me/subscription"):
             return Self.json(subscriptionJSON.map { #"{"subscription":\#($0)}"# } ?? #"{"subscription":null}"#)
         case ("POST", "/v1/members/me/subscription/app-store"):
@@ -92,6 +100,18 @@ final class UITestingBackendTransport: BackendTransport {
         case ("POST", "/v1/members/me/subscription/transfer"):
             transferred.withLock { $0 = true }
             return Self.json(#"{"subscription":\#(Self.subscription()),"appAccountTokenUpdated":true}"#)
+        case ("POST", "/v1/members/me/identities"):
+            if googleLinked.withLock({ $0 }) { return Self.error(409, "provider_already_linked") }
+            if linkFindsAnotherMember { return BackendResponse(status: 409, body: Data(mergeRequired.utf8)) }
+            googleLinked.withLock { $0 = true }
+            return Self.json(#"{"member":\#(memberBody),"mergedMemberId":null}"#)
+        case ("POST", "/v1/members/me/identities/merge"):
+            if mergeBlocked { return Self.error(409, "subscription_conflict") }
+            googleLinked.withLock { $0 = true }
+            return Self.json(#"{"member":\#(memberBody),"mergedMemberId":"ui-testing-other-member","accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z"}"#)
+        case ("DELETE", "/v1/members/me/identities/google"):
+            googleLinked.withLock { $0 = false }
+            return Self.json(#"{"member":\#(memberBody)}"#)
         case ("GET", "/v1/members/me/sessions"):
             return Self.json(Self.sessionsJSON)
         case ("DELETE", let path) where path.hasPrefix("/v1/members/me/sessions/"):
@@ -189,6 +209,21 @@ final class UITestingBackendTransport: BackendTransport {
 
     static let memberJSON =
         #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"}]}"#
+
+    /// 目前的會員(連結或合併 Google 之後多一種登入方式)。
+    private var memberBody: String {
+        guard googleLinked.withLock({ $0 }) else { return Self.memberJSON }
+        return #"{"id":"ui-testing-member","identities":[{"provider":"apple","email":"ray@example.com","linkedAt":"2026-01-01T00:00:00.000Z"},{"provider":"google","email":"ray@gmail.com","linkedAt":"2026-01-02T00:00:00.000Z"}]}"#
+    }
+
+    /// 連結時發現已屬另一個會員:合併確認摘要(`error.details`)。
+    private var mergeRequired: String {
+        #"{"error":{"code":"merge_required","message":"UI testing backend","details":{"canMerge":\#(!mergeBlocked),"current":{"identities":[{"provider":"apple","email":"r***@example.com"}],"hasActiveSubscription":\#(mergeBlocked || isPlusActive),"hostCount":2},"other":{"identities":[{"provider":"google","email":"r***@gmail.com"}],"hasActiveSubscription":\#(mergeBlocked),"hostCount":1}}}}"#
+    }
+
+    private static func error(_ status: Int, _ code: String) -> BackendResponse {
+        BackendResponse(status: status, body: Data(#"{"error":{"code":"\#(code)","message":"UI testing backend"}}"#.utf8))
+    }
 
     /// 目前情境的訂閱 JSON;沒有訂閱(或轉移前屬於別人)是 `nil`。
     private var subscriptionJSON: String? {
