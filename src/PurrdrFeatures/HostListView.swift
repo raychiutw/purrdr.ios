@@ -29,6 +29,7 @@ public struct HostListView: View {
     @State private var flow = HostListFlow()
     @State private var renaming: HostRenaming?
     @State private var actionError: String?
+    @State private var confirmingRemoveDemo = false
 
     public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil), addHost: Binding<Bool> = .constant(false)) {
         self.model = model
@@ -77,16 +78,21 @@ public struct HostListView: View {
                     }
                 }
                 if let chrome { chrome.tools }
-                Section {
-                    Button {
-                        model.enterDemo()
-                        if let chrome { chrome.didEnterDemo() } else { dismiss() }
-                    } label: {
-                        HostRowView(
-                            title: String(localized: "Demo"), subtitle: String(localized: "Sample conversations, no computer connected"),
-                            session: nil, isSelected: model.selection == .demo, icon: .default)
+                if model.demoEntered {
+                    // 範例主機(#394):啟用後才列出,可隨時移除。
+                    Section {
+                        Button {
+                            model.enterDemo()
+                            if let chrome { chrome.didEnterDemo() } else { dismiss() }
+                        } label: {
+                            HostRowView(
+                                title: String(localized: "Demo"), subtitle: String(localized: "Sample conversations, no host connected"),
+                                session: nil, isSelected: model.selection == .demo, icon: .default)
+                        }
+                        .accessibilityIdentifier("hosts.demo")
+                        Button("Remove Demo Host", role: .destructive) { confirmingRemoveDemo = true }
+                            .accessibilityIdentifier("hosts.demo.remove")
                     }
-                    .accessibilityIdentifier("hosts.demo")
                 }
                 if let message = actionError ?? model.loadError {
                     Section {
@@ -148,6 +154,13 @@ public struct HostListView: View {
             } message: { _ in
                 Text("This host is removed from this device, and this device is signed out of it. Nothing else on the host changes.")
             }
+        }
+        .confirmationDialog("Remove the Demo Host?", isPresented: $confirmingRemoveDemo, titleVisibility: .visible) {
+            Button("Remove Demo Host", role: .destructive) { model.removeDemo() }
+                .accessibilityIdentifier("hosts.demo.remove.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You can bring it back anytime from Try the Demo when adding a host.")
         }
         .onAppear(perform: openPendingImport)
         .onChange(of: importURL) { openPendingImport() }
@@ -234,6 +247,11 @@ public struct HostListView: View {
                     flow.path.removeLast()
                 } onAdded: { model.didSave($0) } hostPush: { id in
                     model.hostPushes.first { $0.host == .host(id) }
+                } onTryDemo: {
+                    // 範例主機入口(#394):啟用後回到清單,tab 切到聊天。
+                    model.enterDemo()
+                    flow.path = []
+                    if let chrome { chrome.didEnterDemo() } else { dismiss() }
                 }
             case .importGuide(let url):
                 AddHostGuideScreen(make: { (try? model.makeImportGuide(url)) ?? model.makeAddHostGuide() }) { _ in

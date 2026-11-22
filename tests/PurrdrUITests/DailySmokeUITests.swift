@@ -213,7 +213,7 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 沒有電腦：空狀態的「新增主機」開引導，取消後試用 Demo。
+    /// 沒有主機：空狀態的「新增主機」開引導，取消後體驗範例主機;可從主機 tab 移除,也可從新增主機引導再啟用(#394)。
     @MainActor
     func testNoHostsGuideAndDemo() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"])
@@ -230,6 +230,20 @@ final class DailySmokeUITests: XCTestCase {
         step("試用 Demo") {
             app.buttons["agentList.tryDemo"].tapWhenReady()
             XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出 Demo 的 Agent")
+        }
+        step("移除範例主機回到空狀態") {
+            app.openTab(.hosts)
+            app.buttons["hosts.demo.remove"].tapWhenReady()
+            app.buttons["hosts.demo.remove.confirm"].firstMatch.tapWhenReady()
+            XCTAssertFalse(app.buttons["hosts.demo"].waitForExistence(timeout: 2), "移除後範例主機還在主機清單")
+            app.openTab(.chats)
+            XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 5), "移除後沒有回到空狀態")
+        }
+        step("新增主機引導第一頁可以體驗範例主機") {
+            app.openTab(.hosts)
+            app.buttons["hosts.add"].tapWhenReady()
+            app.buttons["guide.tryDemo"].tapWhenReady()
+            XCTAssertTrue(app.reveal(app.element("agent.row.demo/w1:p1")), "沒有列出範例主機的 Agent")
         }
     }
 

@@ -23,8 +23,10 @@ struct WindowSidebar: View {
                 ForEach(hosts.rows) { row in
                     hostButton(.host(row.id), title: row.title, icon: row.icon, isSelected: row.isSelected)
                 }
-                hostButton(.demo, title: String(localized: "Demo"), icon: .default, isSelected: hosts.selection == .demo)
-                    .accessibilityIdentifier("sidebar.host.demo")
+                if hosts.demoEntered {
+                    hostButton(.demo, title: String(localized: "Demo"), icon: .default, isSelected: hosts.selection == .demo)
+                        .accessibilityIdentifier("sidebar.host.demo")
+                }
             }
             Section("Workspaces") {
                 Label("All Workspaces", systemImage: "square.grid.2x2")

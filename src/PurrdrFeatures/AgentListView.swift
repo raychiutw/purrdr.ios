@@ -158,10 +158,7 @@ public struct AgentListView: View {
                         .accessibilityIdentifier("agentList.addHost")
                 }
                 Button("Try the Demo") { model.enterDemo?() }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.large)
-                    .foregroundStyle(Color.primary)
+                    .buttonStyle(.borderless)
                     .accessibilityIdentifier("agentList.tryDemo")
             }
             .accessibilityElement(children: .contain)

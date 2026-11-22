@@ -319,7 +319,7 @@ public final class HostsModel {
     /// 檔案與主機 tab 頂列的主機選單(#390):只改選取中主機、不列「所有主機」,在那裡換主機不動聊天列表的篩選。
     /// 範例主機啟用前不列入。
     public func selectedHostPicker() -> HostPickerModel {
-        HostPickerModel(options: hostOptions { _ in true }.filter { $0.id != .demo || demoEntered }, preferred: [selection]) { [weak self] in
+        HostPickerModel(options: hostOptions { _ in true }, preferred: [selection]) { [weak self] in
             self?.select($0)
         }
     }
@@ -338,9 +338,9 @@ public final class HostsModel {
         .newChat(options: hostOptions { _ in true }, currentHost: agentList.currentHost, selection: selection)
     }
 
-    /// Demo 主機加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
+    /// 已啟用的範例主機(#394)加上符合條件的已存主機(主機挑選鈕與方案用量的主機選單)。
     private func hostOptions(_ isIncluded: (HostConfiguration) -> Bool) -> [HostOption] {
-        [HostOption(id: .demo, name: name(of: .demo))]
+        (demoEntered ? [HostOption(id: .demo, name: name(of: .demo))] : [])
             + hosts.filter(isIncluded).map { HostOption(id: .host($0.id), name: $0.name, icon: icon(for: $0.id)) }
     }
 
@@ -705,7 +705,19 @@ public final class HostsModel {
     /// 沒有已存主機時，列表要不要直接列出 Demo(#332)。預設 true(測試與預覽);app 正式啟動設 false，
     /// 這時沒有主機就顯示空狀態，按「試用 Demo」或在主機清單選 Demo 才進入。
     public var demoEntered = true {
-        didSet { agentList.isAwaitingFirstHost = hosts.isEmpty && !demoEntered }
+        didSet {
+            agentList.isAwaitingFirstHost = hosts.isEmpty && !demoEntered
+            if oldValue != demoEntered { demoEnteredDidChange?(demoEntered) }
+        }
+    }
+
+    /// 範例主機啟用或移除時通知(app 記下來,重開後保持)。
+    public var demoEnteredDidChange: (@MainActor (Bool) -> Void)?
+
+    /// 移除範例主機(主機 tab 的「移除範例主機」):不再列入各主機選單;選取中的是它就回到已存主機。
+    public func removeDemo() {
+        demoEntered = false
+        if selection == .demo { select(validSelection(nil)) } else { rebuildMembers() }
     }
 
     /// 進入 Demo 主機。

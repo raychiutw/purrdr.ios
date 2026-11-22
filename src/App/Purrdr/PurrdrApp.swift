@@ -151,7 +151,14 @@ struct PurrdrApp: App {
         // `-demoNoNetwork`:裝置一直沒有網路(#221;Demo 主機同時斷網)。
         if uiTesting, arguments.contains("-demoNoNetwork") { hosts.simulatesNoNetwork = true }
         // 沒有主機時的空狀態(#332):正式啟動一律從空狀態開始;UI 測試預設直接列 Demo,`-uiTestingNoHosts` 才看空狀態。
-        hosts.demoEntered = uiTesting && !arguments.contains("-uiTestingNoHosts")
+        // 正式啟動沿用上次的選擇(#394:啟用後才出現在主機選單,移除後不再出現);UI 測試不留紀錄。
+        let demoKey = "demoHostEnabled"
+        if uiTesting {
+            hosts.demoEntered = !arguments.contains("-uiTestingNoHosts")
+        } else {
+            hosts.demoEntered = UserDefaults.standard.bool(forKey: demoKey)
+            hosts.demoEnteredDidChange = { UserDefaults.standard.set($0, forKey: demoKey) }
+        }
         hosts.haptics = SystemHaptics()
         // 流量計量(#353):存在 Application Support(只在這支裝置;UI 測試只放記憶體)。
         let trafficStore: any TrafficStore = uiTesting

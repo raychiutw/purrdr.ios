@@ -10,12 +10,15 @@ struct AddHostGuideScreen: View {
     let onAdded: (HostConfiguration) -> Void
     /// 這台主機的推播開關(最後一頁用)。
     let hostPush: (UUID) -> HostPush?
+    let onTryDemo: (() -> Void)?
 
     init(
         make: () -> AddHostGuideModel, onSaved: @escaping (HostConfiguration) -> Void, onCancel: @escaping () -> Void,
-        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil }
+        onAdded: @escaping (HostConfiguration) -> Void = { _ in }, hostPush: @escaping (UUID) -> HostPush? = { _ in nil },
+        onTryDemo: (() -> Void)? = nil
     ) {
         _model = State(initialValue: make())
+        self.onTryDemo = onTryDemo
         self.onAdded = onAdded
         self.hostPush = hostPush
         self.onSaved = onSaved
@@ -24,7 +27,7 @@ struct AddHostGuideScreen: View {
 
     var body: some View {
         AddHostGuideView(
-            model: model, onSaved: onSaved, onCancel: onCancel, onAdded: onAdded, hostPush: hostPush)
+            model: model, onSaved: onSaved, onCancel: onCancel, onAdded: onAdded, hostPush: hostPush, onTryDemo: onTryDemo)
     }
 }
 
@@ -38,6 +41,8 @@ struct AddHostGuideView: View {
     /// 這個引導接不了的路徑(目前是原生 SSH 與 HTTPS):換成主機編輯頁。
     var onAdded: (HostConfiguration) -> Void = { _ in }
     var hostPush: (UUID) -> HostPush? = { _ in nil }
+    /// 第一頁最下面的「體驗範例主機」(#394);沒有就不顯示(帳號頁補配對等不是新增主機的入口)。
+    var onTryDemo: (() -> Void)?
     @Environment(\.openURL) private var openURL
     @State private var expandedHelp: AddHostGuideModel.Field?
     @State private var showOtherWays = false
@@ -571,6 +576,12 @@ struct AddHostGuideView: View {
             option(
                 "https", "HTTPS (Host Service)", detail: "Install the Purrdr host service for send-when-done and stuck alerts",
                 symbol: "lock.shield") { model.choose(.https) }
+            if let onTryDemo {
+                Button("Try the Demo", action: onTryDemo)
+                    .buttonStyle(.borderless)
+                    .controlSize(.large)
+                    .accessibilityIdentifier("guide.tryDemo")
+            }
         case .tailscale:
             primary("I’ve Got Tailscale on Both", id: "guide.next", enabled: true) { model.advance() }
         case .install:
