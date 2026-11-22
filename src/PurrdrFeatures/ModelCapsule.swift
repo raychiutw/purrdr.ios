@@ -4,6 +4,8 @@ import SwiftUI
 
 /// 模型膠囊(#350、#382):輸入列展開時下方一列、附加鈕右邊。顯示目前的模型與 effort 加 `▾`(不被截斷，版面給理想寬度),
 /// 高度與底色同附加鈕(DESIGN.md「選單膠囊」);點一下送 `/model`,sheet 裡用勾選列選(同「選擇控制」)。
+/// 狀態(#384):切換中(膠囊內轉圈)、停用(Agent 等你回覆、工作中、唯讀、離線、Codex:仍可點開,sheet 只顯示目前模型與原因)、
+/// 失敗(對話維持原模型,輸入列上方的 notice 說明)。
 struct ModelCapsule: View {
     let model: ConversationModel
 
@@ -14,15 +16,22 @@ struct ModelCapsule: View {
     /// 模型名稱加 effort(「Opus 5.5 · 中」);還沒讀到時是「Model」。
     private var title: String { model.modelSummary ?? String(localized: "Model") }
 
+    private var isDimmed: Bool { model.modelChoiceLock != nil }
+
     var body: some View {
         Button {
             isPresented = true
             Task { await model.beginChoosingModel() }
         } label: {
             HStack(spacing: 4) {
+                if model.isSwitchingModel {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .accessibilityIdentifier("composer.model.switching")
+                }
                 Text(verbatim: title)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.primary)
+                    .foregroundStyle(isDimmed ? Color.secondaryText : Color.primary)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.down")
@@ -36,7 +45,7 @@ struct ModelCapsule: View {
         .composerSecondaryButtonStyle()
         .buttonBorderShape(.capsule)
         .frame(minHeight: 44)
-        .disabled(!model.canChooseModel)
+        .disabled(model.isSwitchingModel)
         .accessibilityLabel(Text("Model"))
         .accessibilityValue(Text(verbatim: model.modelSummary ?? ""))
         .accessibilityHint(Text("Opens the list of models."))
@@ -47,64 +56,129 @@ struct ModelCapsule: View {
     }
 }
 
-/// 模型選擇 sheet:勾選列攤開 `/model` 面板的選項;面板還沒出現時轉圈。
+/// 模型選擇 sheet(#384,原型 Model):模型列(名稱、一行描述、勾選)、「投入程度」列與子頁、Ultracode 開關。
+/// medium detent(可拉到 large),關閉在左上 xmark。面板讀不到、Agent 忙或不能切換時只顯示目前模型與原因。
 struct ModelSheet: View {
     let model: ConversationModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            List {
-                if let panel = model.panel, !panel.options.isEmpty {
-                    Section {
-                        Picker(String(localized: "Model"), selection: selection(panel)) {
-                            ForEach(panel.options) { option in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(verbatim: option.label)
-                                    if let detail = option.detail {
-                                        Text(verbatim: detail)
-                                            .font(.footnote)
-                                            .foregroundStyle(.secondaryText)
-                                    }
+            ModelListPage(model: model)
+                .navigationTitle("Choose Model")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Label("Close", systemImage: "xmark")
+                        }
+                        .accessibilityIdentifier("model.close")
+                    }
+                }
+                .navigationDestination(isPresented: Binding(
+                    get: { model.modelSheetPage == .effort },
+                    set: { shown in if !shown { Task { await model.closeEffortPage() } } }
+                )) {
+                    EffortPage(model: model)
+                }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+private struct ModelListPage: View {
+    let model: ConversationModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        List {
+            if let panel = model.panel, !panel.options.isEmpty, model.isChoosingModel {
+                Section {
+                    Picker(String(localized: "Model"), selection: selection(panel)) {
+                        ForEach(panel.options) { option in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(verbatim: option.label)
+                                if let detail = option.detail {
+                                    Text(verbatim: detail)
+                                        .font(.footnote)
+                                        .foregroundStyle(.secondaryText)
                                 }
-                                .tag(option.index)
                             }
+                            .tag(option.index)
                         }
-                        .pickerStyle(.inline)
-                        .labelsHidden()
-                        .disabled(model.isOperatingPanel)
-                        .accessibilityIdentifier("model.picker")
                     }
-                } else if model.isChoosingModel {
-                    Section {
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                    .disabled(model.isOperatingPanel)
+                    .accessibilityIdentifier("model.picker")
+                }
+                Section {
+                    Button {
+                        Task { await model.openEffortPage() }
+                    } label: {
                         HStack {
-                            ProgressView()
-                            Text("Reading the model list…")
+                            Text("Effort")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if model.effortDisplayName == ConversationModel.effortName(of: "medium") {
+                                RecommendedBadge()
+                            }
+                            Text(verbatim: model.effortDisplayName ?? "")
                                 .foregroundStyle(.secondaryText)
+                            Image(systemName: "chevron.forward")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                                .accessibilityHidden(true)
                         }
-                        .accessibilityIdentifier("model.loading")
+                        .contentShape(Rectangle())
                     }
-                } else {
-                    Section {
-                        Label("Couldn’t open the model list. Try again, or check the terminal.", systemImage: "exclamationmark.triangle")
-                            .font(.footnote)
-                            .accessibilityIdentifier("model.failure")
+                    .buttonStyle(.plain)
+                    .disabled(model.isOperatingPanel)
+                    .accessibilityIdentifier("model.effort")
+                }
+            } else if model.isChoosingModel && !model.modelPanelUnreadable {
+                Section {
+                    HStack {
+                        ProgressView()
+                        Text("Reading the model list…")
+                            .foregroundStyle(.secondaryText)
                     }
+                    .accessibilityIdentifier("model.loading")
                 }
-            }
-            .appGroupedList()
-            .navigationTitle("Model")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("model.done")
-                }
+            } else {
+                currentOnly
             }
         }
-        .presentationDetents([.medium])
+        .appGroupedList()
+    }
+
+    /// 只顯示目前模型與原因(停用、Codex、面板讀不到)。
+    @ViewBuilder
+    private var currentOnly: some View {
+        Section {
+            HStack {
+                Text(verbatim: model.modelSummary ?? String(localized: "Model"))
+                Spacer()
+                Image(systemName: "checkmark")
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
+            }
+            .accessibilityIdentifier("model.current")
+        } footer: {
+            if let lock = model.modelChoiceLock {
+                Text(lock.explanation)
+                    .accessibilityIdentifier("model.lock")
+            } else {
+                ErrorLabel(String(localized: "Couldn’t open the model list. Try again, or check the terminal."))
+                    .font(.footnote)
+                    .accessibilityIdentifier("model.failure")
+            }
+        }
     }
 
     private func selection(_ panel: SlashPanel) -> Binding<Int> {
@@ -118,5 +192,121 @@ struct ModelSheet: View {
                 }
             }
         )
+    }
+}
+
+/// 投入程度子頁:層級勾選列(中為推薦、最高有用量提醒)與 Ultracode 開關(僅目前模型支援 xhigh 時出現)。
+/// 點層級只移動面板的滑桿,按返回(或關閉 sheet)才確認。
+private struct EffortPage: View {
+    let model: ConversationModel
+
+    var body: some View {
+        List {
+            if let slider = model.effortSlider {
+                Section {
+                    Picker(String(localized: "Effort"), selection: selection(slider)) {
+                        ForEach(Array(slider.levels.enumerated()), id: \.offset) { index, level in
+                            HStack(spacing: 8) {
+                                Text(verbatim: ConversationModel.effortName(of: level) ?? level)
+                                if level.lowercased() == "medium" {
+                                    RecommendedBadge()
+                                }
+                                if level.lowercased() == "max" {
+                                    HeavyUsageBadge()
+                                }
+                            }
+                            .tag(index)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                    .disabled(model.isOperatingPanel)
+                    .accessibilityIdentifier("effort.picker")
+                }
+                if model.showsUltracode {
+                    Section {
+                        Toggle("Ultracode", isOn: Binding(
+                            get: { model.ultracodeIsOn },
+                            set: { _ in Task { await model.toggleUltracode() } }
+                        ))
+                        .disabled(model.isOperatingPanel)
+                        .accessibilityIdentifier("effort.ultracode")
+                    } footer: {
+                        explanation
+                    }
+                } else {
+                    Section {
+                    } footer: {
+                        explanation
+                    }
+                }
+            } else if model.modelPanelUnreadable {
+                Section {
+                    ErrorLabel(String(localized: "Couldn’t open the effort settings. Go back and try again, or check the terminal."))
+                        .font(.footnote)
+                        .accessibilityIdentifier("effort.failure")
+                }
+            } else {
+                Section {
+                    HStack {
+                        ProgressView()
+                        Text("Reading the effort settings…")
+                            .foregroundStyle(.secondaryText)
+                    }
+                    .accessibilityIdentifier("effort.loading")
+                }
+            }
+        }
+        .appGroupedList()
+        .navigationTitle("Effort")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+
+    private var explanation: some View {
+        Text("Higher effort answers more thoroughly, but takes longer and uses your quota faster. Changes become the default for new sessions.")
+    }
+
+    private func selection(_ slider: SlashPanelSlider) -> Binding<Int> {
+        Binding(
+            get: { slider.current ?? -1 },
+            set: { level in Task { await model.chooseEffortLevel(level) } }
+        )
+    }
+}
+
+private struct RecommendedBadge: View {
+    var body: some View {
+        Text("Recommended")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.secondaryText)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.fill.tertiary, in: Capsule())
+    }
+}
+
+private struct HeavyUsageBadge: View {
+    var body: some View {
+        Label("3.5× or more usage", systemImage: "exclamationmark.triangle")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.secondaryText)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.fill.tertiary, in: Capsule())
+    }
+}
+
+extension ConversationModel.ModelChoiceLock {
+    /// 模型選項停用時說明為什麼(說明同權限模式)。
+    var explanation: LocalizedStringKey {
+        switch self {
+        case .readOnlyDevice: "This device is paired read-only, so it can’t change the model."
+        case .offline: "Can’t reach the host, so the model can’t be changed."
+        case .waitingForYou: "The agent is waiting for your reply. Answer first, then change the model."
+        case .working: "The agent is working. Change the model once it’s done."
+        case .unsupportedAgent: "This agent’s model can only be changed in its terminal."
+        }
     }
 }

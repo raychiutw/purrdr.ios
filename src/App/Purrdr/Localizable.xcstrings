@@ -924,6 +924,17 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "3.5× or more usage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3.5 倍或更多使用量"
+          }
+        }
+      }
+    },
     "30 Days" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2100,6 +2111,17 @@
         }
       }
     },
+    "Can’t reach the host, so the model can’t be changed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連不上主機,無法更換模型。"
+          }
+        }
+      }
+    },
     "Can’t reach the host. Your message wasn’t sent." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2415,6 +2437,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇主機"
+          }
+        }
+      }
+    },
+    "Choose Model" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型選擇"
           }
         }
       }
@@ -3248,6 +3281,17 @@
         }
       }
     },
+    "Couldn’t open the effort settings. Go back and try again, or check the terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟投入程度。請返回再試一次,或到終端機查看。"
+          }
+        }
+      }
+    },
     "Couldn’t open the model list. Try again, or check the terminal." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3651,6 +3695,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法送出:%@"
+          }
+        }
+      }
+    },
+    "Couldn’t switch the model. This chat keeps using its current model." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法切換模型。這個聊天仍使用原本的模型。"
           }
         }
       }
@@ -4256,6 +4311,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已修改 1 個檔案"
+          }
+        }
+      }
+    },
+    "Effort" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投入程度"
           }
         }
       }
@@ -4905,6 +4971,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "高"
+          }
+        }
+      }
+    },
+    "Higher effort answers more thoroughly, but takes longer and uses your quota faster. Changes become the default for new sessions." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "較高的投入程度回應更詳盡,但更久、也更快用掉使用量。改了會成為新 session 的預設。"
           }
         }
       }
@@ -8641,6 +8718,17 @@
         }
       }
     },
+    "Reading the effort settings…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在讀取投入程度…"
+          }
+        }
+      }
+    },
     "Reading the model list…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8670,6 +8758,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近的照片"
+          }
+        }
+      }
+    },
+    "Recommended" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推薦"
           }
         }
       }
@@ -10975,6 +11074,28 @@
         }
       }
     },
+    "The agent is waiting for your reply. Answer first, then change the model." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在等你回覆。請先回覆,再更換模型。"
+          }
+        }
+      }
+    },
+    "The agent is working. Change the model once it’s done." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在工作。完成後再更換模型。"
+          }
+        }
+      }
+    },
     "The agent is working. Its reply will appear here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11635,6 +11756,17 @@
         }
       }
     },
+    "This agent’s model can only be changed in its terminal." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Agent 的模型只能在它的終端機更換。"
+          }
+        }
+      }
+    },
     "This agent’s screen" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11763,6 +11895,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這支裝置是唯讀配對,無法切換模式。"
+          }
+        }
+      }
+    },
+    "This device is paired read-only, so it can’t change the model." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這支裝置配成唯讀,所以不能更換模型。"
           }
         }
       }
@@ -13018,6 +13161,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入密碼"
+          }
+        }
+      }
+    },
+    "Ultracode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultracode"
           }
         }
       }

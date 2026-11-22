@@ -111,6 +111,29 @@ final class DailySmokeUITests: XCTestCase {
             app.buttons["Done"].tap()
             XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5), "面板沒有關閉")
         }
+        step("模型選擇 sheet 與投入程度子頁(#384)") {
+            let text = app.element("composer.text")
+            text.tap()
+            let capsule = app.element("composer.model")
+            XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有模型膠囊")
+            capsule.tap()
+            XCTAssertTrue(app.element("model.picker").waitUntilExists(timeout: 15), "sheet 裡沒有模型勾選列")
+            let effortRow = app.element("model.effort")
+            XCTAssertTrue(effortRow.waitUntilExists(timeout: 10), "sheet 裡沒有投入程度列")
+            effortRow.tap()
+            XCTAssertTrue(app.element("effort.picker").waitUntilExists(timeout: 15), "子頁沒有層級勾選列")
+            XCTAssertTrue(app.element("effort.ultracode").waitUntilExists(timeout: 5), "子頁沒有 Ultracode 開關")
+            let high = app.buttons.matching(NSPredicate(format: "label CONTAINS 'High' AND NOT label CONTAINS 'Extra'")).firstMatch
+            XCTAssertTrue(high.waitUntilExists(timeout: 5), "子頁沒有 High 層級")
+            high.tap()
+            XCTAssertTrue(high.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "點層級沒有打勾")
+            // 返回確認投入程度並回到模型列。
+            app.navigationBars.buttons.firstMatch.tap()
+            XCTAssertTrue(app.element("model.picker").waitUntilExists(timeout: 15), "返回後沒有回到模型列")
+            app.element("model.close").tap()
+            XCTAssertTrue(app.element("model.picker").waitUntilGone(timeout: 5), "xmark 沒有關閉 sheet")
+            app.dismissKeyboard()
+        }
         step("變更頁") {
             app.conversationMoreItem("changes.open").tap()
             let summary = app.descendants(matching: .any)["changes.summary"].firstMatch

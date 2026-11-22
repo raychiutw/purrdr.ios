@@ -185,7 +185,7 @@ struct ComposerBar: View {
             }
             editor
                 .composerCardRole(.editor)
-            if form.showsModelCapsule && model.supportsPermissionMode && model.typedAnswer == nil {
+            if form.showsModelCapsule && model.showsModelCapsule && model.typedAnswer == nil {
                 ModelCapsule(model: model)
                     .composerCardRole(.model)
             }
@@ -514,6 +514,7 @@ extension SendNotice {
         case .unconfirmed(.mayBeInTerminal): String(localized: "Couldn’t confirm delivery. The message may be stuck in the terminal.")
         case .unconfirmed(.codexNoReceipt): String(localized: "Sent to Codex, but Codex hasn’t confirmed it yet. Check the host before trying again.")
         case .panelKeysFailed: String(localized: "Couldn’t send the keys to the host. Check the panel in the terminal.")
+        case .modelSwitchFailed: String(localized: "Couldn’t switch the model. This chat keeps using its current model.")
         case .readOnlyDevice: String(localized: "This device is paired read-only, so it can’t send anything to this host.")
         case .attachmentLimit: String(localized: "You can attach up to 10 items to a message.")
         case .attachOffline: String(localized: "Attachments can be added once you’re connected.")
@@ -539,7 +540,7 @@ extension SendNotice {
         case .agentGone, .superseded: "xmark.bubble"
         case .readOnlyDevice: "lock"
         case .offline: "wifi.slash"
-        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed: "exclamationmark.triangle"
+        case .rejected, .noResponse, .uploadFailed, .panelKeysFailed, .modelSwitchFailed: "exclamationmark.triangle"
         case .attachmentLimit, .imageUnreadable, .imageTooLarge: "photo"
         case .attachOffline: "wifi.slash"
         case .fileTooLarge, .fileUnreadable: "doc"

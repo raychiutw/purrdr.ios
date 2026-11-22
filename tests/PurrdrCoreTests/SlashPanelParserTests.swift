@@ -66,6 +66,22 @@ struct SlashPanelParserTests {
         #expect(!panel.notes.contains { $0.contains("Smarter") })
     }
 
+    @Test("Ultracode 開關(#384):effort 面板軌道右邊的 `Ultracode  off|on` 解析成狀態;沒有那個控制項(其他面板)是 nil;Tab 切換")
+    func ultracodeToggle() throws {
+        let off = try #require(Self.parse("claude-panel-effort"))
+        #expect(off.ultracode == false)
+        #expect(off.keys(for: .toggleUltracode) == ["tab"])
+
+        let screen = PaneScreens.text("claude-panel-effort").replacingOccurrences(of: "Ultracode  off", with: "Ultracode  on ")
+        let on = try #require(SlashPanelParser.parse(screen: screen, agentKind: "claude"))
+        #expect(on.ultracode == true)
+        #expect(on.slider?.levels == off.slider?.levels, "開關不影響層級解析")
+
+        let model = try #require(Self.parse("claude-panel-model"))
+        #expect(model.ultracode == nil)
+        #expect(model.keys(for: .toggleUltracode) == nil, "沒有開關就不送 Tab")
+    }
+
     @Test("沒有提示行、有選單且沒有輸入框的確認畫面(Switch model?)也是面板;沒有動作時給確認與取消")
     func claudeConfirmWithoutHint() throws {
         let panel = try #require(Self.parse("claude-panel-confirm"))
