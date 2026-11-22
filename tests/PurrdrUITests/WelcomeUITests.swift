@@ -11,14 +11,14 @@ final class WelcomeUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
 
         let sheet = app.descendants(matching: .any)["sheet.welcome"]
-        XCTAssertTrue(sheet.waitForExistence(timeout: 10))
+        XCTAssertTrue(sheet.waitUntilExists(timeout: 10))
         XCTAssertTrue(app.staticTexts["What You Need"].exists || app.otherElements["What You Need"].exists)
         XCTAssertTrue(app.buttons["welcome.rate"].exists)
         XCTAssertTrue(app.buttons["welcome.addHost"].exists)
 
         app.buttons["welcome.demo"].tap()
 
-        XCTAssertTrue(sheet.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(sheet.waitUntilGone(timeout: 5))
         XCTAssertTrue(app.reveal(app.descendants(matching: .any)["agent.row.demo/w2:p1"].firstMatch))
     }
 
@@ -27,9 +27,9 @@ final class WelcomeUITests: XCTestCase {
     func testHostRequirementIncludesWindows() {
         for flags in [[], ["-AppleLanguages", "(zh-Hant)", "-AppleLocale", "zh_TW"]] {
             let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"] + flags)
-            XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10))
             let host = app.descendants(matching: .any)["welcome.requirement.host"].firstMatch
-            XCTAssertTrue(host.waitForExistence(timeout: 5), "沒有主機的準備事項")
+            XCTAssertTrue(host.waitUntilExists(timeout: 5), "沒有主機的準備事項")
             XCTAssertTrue(host.label.contains("Windows"), "沒提到 Windows:\(host.label)")
             XCTAssertTrue(host.label.contains("Linux"), host.label)
             app.terminate()
@@ -47,19 +47,19 @@ final class WelcomeUITests: XCTestCase {
     @MainActor
     func testAddHostOpensHosts() {
         let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 10))
 
         app.buttons["welcome.addHost"].tap()
 
         // 直接進新增主機引導(#332:歡迎頁、空列表、主機清單的新增都走引導)。
-        XCTAssertTrue(app.buttons["guide.option.ssh"].waitForExistence(timeout: 5), "沒有直接開出新增主機引導")
+        XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5), "沒有直接開出新增主機引導")
     }
 
     @MainActor
     func testSettingsReopensWelcome() {
         let app = XCUIApplication.launchUITesting()
         app.open(URL(string: "purrdr://settings")!)
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.settings"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["sheet.settings"].waitUntilExists(timeout: 10))
 
         let row = app.buttons["settings.welcome"]
         for _ in 0..<6 where !row.isHittable {
@@ -67,6 +67,6 @@ final class WelcomeUITests: XCTestCase {
         }
         row.tap()
 
-        XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["sheet.welcome"].waitUntilExists(timeout: 5))
     }
 }

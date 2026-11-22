@@ -9,22 +9,13 @@ final class PaneTerminalUITests: XCTestCase {
     /// 從 Agent 對話標題列的終端機鈕，打開該 Agent 自己的 Pane(#37 故事 43)。
     @MainActor
     private func openTerminal(_ app: XCUIApplication) -> XCUIElement {
-        let row = app.descendants(matching: .any)["agent.row.demo/w1:p1"].firstMatch
-        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        row.tap()
+        app.openConversation(paneID: "w1:p1")
         let button = app.buttons["terminal.open"].firstMatch
-        XCTAssertTrue(button.waitForExistence(timeout: 10), "對話標題列沒有終端機鈕")
+        XCTAssertTrue(button.waitUntilExists(timeout: 10), "對話標題列沒有終端機鈕")
         button.tap()
         let screen = app.descendants(matching: .any)["terminal.screen"].firstMatch
-        XCTAssertTrue(screen.waitForExistence(timeout: 10), "沒有打開終端機")
+        XCTAssertTrue(screen.waitUntilExists(timeout: 10), "沒有打開終端機")
         return screen
-    }
-
-    @MainActor
-    private func waitForScreen(_ screen: XCUIElement, toContain text: String, file: StaticString = #filePath, line: UInt = #line) {
-        let predicate = NSPredicate { _, _ in (screen.value as? String)?.contains(text) == true }
-        let found = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: nil)], timeout: 10)
-        XCTAssertEqual(found, .completed, "畫面沒有出現「\(text)」:\(screen.value ?? "nil")", file: file, line: line)
     }
 
     @MainActor
@@ -32,7 +23,7 @@ final class PaneTerminalUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let screen = openTerminal(app)
 
-        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        screen.expectValue(containing: "demo@purrdr ledger %")
         let status = app.descendants(matching: .any)["terminal.status"].firstMatch
         XCTAssertTrue(status.label.contains("Tidy up the CSV export"), "標題不對:\(status.label)")
         XCTAssertTrue(status.label.contains("Connected"), "狀態不對:\(status.label)")
@@ -42,7 +33,7 @@ final class PaneTerminalUITests: XCTestCase {
     func testKeyBarKeysAreLabeledAndAtLeast44Points() {
         let app = XCUIApplication.launchUITesting()
         let screen = openTerminal(app)
-        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        screen.expectValue(containing: "demo@purrdr ledger %")
 
         let expected = [
             "esc": "Escape", "tab": "Tab", "ctrl": "Control", "alt": "Alt",
@@ -78,16 +69,16 @@ final class PaneTerminalUITests: XCTestCase {
     func testKeyboardInputIsTakenOverByTerminalInput() {
         let app = XCUIApplication.launchUITesting()
         let screen = openTerminal(app)
-        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        screen.expectValue(containing: "demo@purrdr ledger %")
 
         let input = app.descendants(matching: .any)["terminal.input"].firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 5), "沒有終端機輸入元件")
+        XCTAssertTrue(input.waitUntilExists(timeout: 5), "沒有終端機輸入元件")
         XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, true, "輸入元件要是焦點")
 
         app.typeEnglish("ls")
-        waitForScreen(screen, toContain: "demo@purrdr ledger % ls")
+        screen.expectValue(containing: "demo@purrdr ledger % ls")
         app.buttons["terminal.key.esc"].firstMatch.tap()
-        waitForScreen(screen, toContain: "ls^[")
+        screen.expectValue(containing: "ls^[")
 
         let keyboard = app.buttons["terminal.key.keyboard"].firstMatch
         keyboard.tap()
@@ -96,7 +87,7 @@ final class PaneTerminalUITests: XCTestCase {
         keyboard.tap()
         XCTAssertEqual(input.value(forKey: "hasKeyboardFocus") as? Bool, true, "叫出鍵盤後輸入元件回到焦點")
         app.typeEnglish("x")
-        waitForScreen(screen, toContain: "ls^[x")
+        screen.expectValue(containing: "ls^[x")
     }
 
     /// 注音組字(#140):浮層出現在游標格子、念得出組字文字，確認前不送;放棄組字後浮層消失。
@@ -104,9 +95,10 @@ final class PaneTerminalUITests: XCTestCase {
     func testZhuyinCompositionShowsOverlayAtCursor() {
         let app = XCUIApplication.launchUITesting(flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
         let screen = openTerminal(app)
-        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        screen.expectValue(containing: "demo@purrdr ledger %")
         let input = app.descendants(matching: .any)["terminal.input"].firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 5), "沒有終端機輸入元件")
+        XCTAssertTrue(input.waitUntilExists(timeout: 5), "沒有終端機輸入元件")
+        XCTAssertTrue(input.wait(timeout: 5) { ($0.value(forKey: "hasKeyboardFocus") as? Bool) == true }, "輸入元件沒有取得焦點")
         app.switchKeyboard(to: .zhuyin)
 
         // 模擬器接著實體鍵盤，軟體鍵盤在畫面外;以注音的實體鍵盤配置按 s、u、3(ㄋ、ㄧ、ˇ)。typeText 不經過輸入法。
@@ -115,12 +107,11 @@ final class PaneTerminalUITests: XCTestCase {
         }
 
         let overlay = app.descendants(matching: .any)["terminal.composition"].firstMatch
-        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "組字時沒有浮層")
+        XCTAssertTrue(overlay.waitUntilExists(timeout: 5), "組字時沒有浮層")
         XCTAssertEqual(overlay.value as? String, "ㄋㄧˇ")
         // 輸入元件的無障礙範圍以游標格子為中心撐到 44×44pt(#249),比對中心：游標格子的中心落在浮層第一格裡(#251)。
         // 終端機畫面剛開時還在重排，輸入元件跟著游標移動：等它與浮層在同一列再量(完整跑時量到過移動前的位置)。
-        let sameRow = NSPredicate { _, _ in abs(overlay.frame.midY - input.frame.midY) <= 1 }
-        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: sameRow, object: nil)], timeout: 5)
+        _ = UITestWait.until(timeout: 5) { abs(overlay.frame.midY - input.frame.midY) <= 1 }
         let cursorOffset = input.frame.midX - overlay.frame.minX
         XCTAssertTrue((0...12).contains(cursorOffset), "浮層要從游標格子開始(游標中心在浮層左緣右邊 \(cursorOffset)pt)")
         XCTAssertEqual(overlay.frame.midY, input.frame.midY, accuracy: 1, "浮層要在游標那一列")
@@ -128,8 +119,8 @@ final class PaneTerminalUITests: XCTestCase {
 
         // 模擬器的注音輸入法不會出候選字，改用按鍵列結束組字：先放棄組字(浮層消失)再送 Esc。
         app.buttons["terminal.key.esc"].firstMatch.tap()
-        XCTAssertTrue(overlay.waitForNonExistence(timeout: 5), "放棄組字後浮層要消失")
-        waitForScreen(screen, toContain: "demo@purrdr ledger % ^[")
+        XCTAssertTrue(overlay.waitUntilGone(timeout: 5), "放棄組字後浮層要消失")
+        screen.expectValue(containing: "demo@purrdr ledger % ^[")
         XCTAssertFalse((screen.value as? String)?.contains("ㄋ") == true, "放棄的注音不能送出")
     }
 
@@ -137,7 +128,7 @@ final class PaneTerminalUITests: XCTestCase {
     func testStickyControlIsShownWithoutColorAndSendsControlC() {
         let app = XCUIApplication.launchUITesting()
         let screen = openTerminal(app)
-        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        screen.expectValue(containing: "demo@purrdr ledger %")
 
         let ctrl = app.buttons["terminal.key.ctrl"].firstMatch
         ctrl.tap()
@@ -146,11 +137,11 @@ final class PaneTerminalUITests: XCTestCase {
         XCTAssertTrue(ctrl.isSelected, "Ctrl 鎖定要有 selected 特性")
 
         app.typeEnglish("c")
-        waitForScreen(screen, toContain: "^C")
+        screen.expectValue(containing: "^C")
         XCTAssertEqual(ctrl.value as? String, "Off", "送出後 Ctrl 要放開")
 
         app.buttons["terminal.key.esc"].firstMatch.tap()
-        waitForScreen(screen, toContain: "^[")
+        screen.expectValue(containing: "^[")
     }
 
     /// 手指往下滑回看先前的輸出(Demo 的 Pane 依 terminal.scroll 捲主機端 scrollback),打字後回到最新(#88 故事 17、19)。
@@ -158,16 +149,16 @@ final class PaneTerminalUITests: XCTestCase {
     func testSwipingDownScrollsBackToEarlierOutput() {
         let app = XCUIApplication.launchUITesting()
         let screen = openTerminal(app)
-        waitForScreen(screen, toContain: "Wrote export/ledger-2026-11.csv")
+        screen.expectValue(containing: "Wrote export/ledger-2026-11.csv")
         XCTAssertFalse((screen.value as? String)?.contains("python export.py") == true, "一開始就看得到最上面，測不出捲動")
 
         for _ in 0..<8 where (screen.value as? String)?.contains("python export.py") != true {
             screen.swipeDown()
         }
-        waitForScreen(screen, toContain: "python export.py")
+        screen.expectValue(containing: "python export.py")
 
         app.typeEnglish("l")
-        waitForScreen(screen, toContain: "demo@purrdr ledger % l")
+        screen.expectValue(containing: "demo@purrdr ledger % l")
     }
 
     /// 保留電腦版面(#357):預設有大小膠囊,點開 sheet 以勾選列切換;「配合這支手機」會說明電腦版面會跟著變。
@@ -175,17 +166,17 @@ final class PaneTerminalUITests: XCTestCase {
     func testSizeCapsuleSwitchesBetweenKeepingAndFittingPhone() {
         let app = XCUIApplication.launchUITesting()
         let screen = openTerminal(app)
-        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        screen.expectValue(containing: "demo@purrdr ledger %")
 
         let capsule = app.buttons["terminal.size"].firstMatch
-        XCTAssertTrue(capsule.waitForExistence(timeout: 10), "沒有大小膠囊")
+        XCTAssertTrue(capsule.waitUntilExists(timeout: 10), "沒有大小膠囊")
         XCTAssertEqual(capsule.value as? String, "Keep Host Layout")
         capsule.tap()
         let fit = app.buttons["Fit This Phone"].firstMatch
-        XCTAssertTrue(fit.waitForExistence(timeout: 5), "sheet 裡沒有「Fit This Phone」")
+        XCTAssertTrue(fit.waitUntilExists(timeout: 5), "sheet 裡沒有「Fit This Phone」")
         fit.tap()
         let note = app.descendants(matching: .any)["terminal.size.note"].firstMatch
-        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertTrue(note.waitUntilExists(timeout: 5))
         XCTAssertTrue(note.label.contains("layout on your computer changes"), "沒有說明會影響電腦版面:\(note.label)")
 
         // 還原偏好,不影響其他測試。
@@ -199,11 +190,11 @@ final class PaneTerminalUITests: XCTestCase {
         let screen = openTerminal(app)
 
         let takeOver = app.buttons["terminal.takeOver"].firstMatch
-        XCTAssertTrue(takeOver.waitForExistence(timeout: 10), "被佔用時沒有「接管」")
+        XCTAssertTrue(takeOver.waitUntilExists(timeout: 10), "被佔用時沒有「接管」")
         XCTAssertTrue(app.descendants(matching: .any)["terminal.status"].firstMatch.label.contains("In Use Elsewhere"))
 
         takeOver.tap()
-        waitForScreen(screen, toContain: "demo@purrdr ledger %")
+        screen.expectValue(containing: "demo@purrdr ledger %")
         XCTAssertFalse(takeOver.exists, "接上後「接管」要消失")
     }
 }

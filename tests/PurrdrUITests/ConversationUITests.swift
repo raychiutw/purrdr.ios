@@ -8,34 +8,13 @@ final class ConversationUITests: XCTestCase {
 
     @MainActor
     private func openLedger() -> XCUIApplication {
-        open(paneID: "w1:p1")
-    }
-
-    @MainActor
-    private func open(paneID: String, flags: [String] = [], contentSize: String? = nil) -> XCUIApplication {
-        let app = XCUIApplication.launchUITesting(flags: flags, contentSize: contentSize)
-        let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
-        XCTAssertTrue(app.reveal(row), "沒有看到 Demo 主機的 Agent")
-        row.tap()
-        return app
-    }
-
-    @MainActor
-    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)[identifier].firstMatch
+        XCUIApplication.launchUITestingConversation(paneID: "w1:p1")
     }
 
     /// 送出的訊息：還沒確認的回音，或對話紀錄已確認的使用者泡泡(追蹤可能立刻讀到，#165)。
+    @MainActor
     private func sentMessage(_ text: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
-    }
-
-    /// 確保鍵盤收起:還聚焦就點輸入列的「收起鍵盤」(送出後鍵盤本來就會收起,#329),等輸入框不再聚焦。
-    @MainActor
-    private func hideKeyboard(in app: XCUIApplication) {
-        let hide = element("composer.hideKeyboard", in: app)
-        if hide.waitForExistence(timeout: 1) { hide.tap() }
-        XCTAssertTrue(hide.waitForNonExistence(timeout: 5), "鍵盤沒有收起")
     }
 
     /// 點開 Agent 看到對話：使用者泡泡、工具串摘要、已載入 skill、agent 的 markdown 回覆。
@@ -43,20 +22,20 @@ final class ConversationUITests: XCTestCase {
     func testOpeningAgentShowsConversation() {
         let app = openLedger()
 
-        XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10), "沒有使用者泡泡")
+        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "沒有使用者泡泡")
         XCTAssertTrue(app.staticTexts["Loaded skill: tdd"].exists, "skill 沒有顯示成「Loaded skill」")
         XCTAssertTrue(app.staticTexts["Edited 1 file · 3 steps"].exists, "工具串沒有收合成一行摘要")
-        XCTAssertTrue(element("conversation.table", in: app).exists, "沒有表格")
-        XCTAssertTrue(element("conversation.beginning", in: app).exists, "頂端沒有「對話開頭」")
+        XCTAssertTrue(app.element("conversation.table").exists, "沒有表格")
+        XCTAssertTrue(app.element("conversation.beginning").exists, "頂端沒有「對話開頭」")
     }
 
     /// 只有 http(s) 連結可點;file:// 連結只留文字(R-V03)。
     @MainActor
     func testOnlyWebLinksAreLinks() {
         let app = openLedger()
-        XCTAssertTrue(element("conversation.user", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10))
 
-        XCTAssertTrue(app.links["RFC 4180"].waitForExistence(timeout: 5), "https 連結不可點")
+        XCTAssertTrue(app.links["RFC 4180"].waitUntilExists(timeout: 5), "https 連結不可點")
         XCTAssertFalse(app.links["the README"].exists, "file:// 連結不該可點")
 
         // 連結是系統連結藍(#93),以截圖附件確認。
@@ -71,8 +50,8 @@ final class ConversationUITests: XCTestCase {
     func testCodeBlockHasCopyButton() {
         let app = openLedger()
 
-        let copy = element("conversation.code.copy", in: app)
-        XCTAssertTrue(copy.waitForExistence(timeout: 10), "程式碼區塊沒有複製鈕")
+        let copy = app.element("conversation.code.copy")
+        XCTAssertTrue(copy.waitUntilExists(timeout: 10), "程式碼區塊沒有複製鈕")
         XCTAssertEqual(copy.label, "Copy Code")
         // 圓角框裁切後座標有浮點誤差(43.9999…),容許 0.01pt。
         XCTAssertGreaterThanOrEqual(copy.frame.width, 43.99)
@@ -85,13 +64,13 @@ final class ConversationUITests: XCTestCase {
     func testTableAndCodeStayWithinScreenWidth() {
         let app = openLedger()
         let window = app.windows.firstMatch
-        let table = element("conversation.table", in: app)
-        XCTAssertTrue(revealInConversation(table, in: app), "沒有表格")
+        let table = app.element("conversation.table")
+        XCTAssertTrue(app.revealInConversation(table), "沒有表格")
         XCTAssertLessThanOrEqual(table.frame.maxX, window.frame.maxX + 1, "表格超出畫面右緣")
         XCTAssertGreaterThanOrEqual(table.frame.minX, window.frame.minX - 1, "表格超出畫面左緣")
 
         let code = app.scrollViews["conversation.code"]
-        XCTAssertTrue(revealInConversation(code, in: app), "沒有程式碼區塊")
+        XCTAssertTrue(app.revealInConversation(code), "沒有程式碼區塊")
         XCTAssertLessThanOrEqual(code.frame.maxX, window.frame.maxX + 1, "程式碼區塊超出畫面右緣")
         XCTAssertGreaterThanOrEqual(code.frame.minX, window.frame.minX - 1, "程式碼區塊超出畫面左緣")
     }
@@ -100,8 +79,8 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testAgentTurnStartsWithAvatarAndName() {
         let app = openLedger()
-        let header = element("conversation.agent.header", in: app)
-        XCTAssertTrue(header.waitForExistence(timeout: 10), "Agent 回覆開頭沒有頭像與名稱")
+        let header = app.element("conversation.agent.header")
+        XCTAssertTrue(header.waitUntilExists(timeout: 10), "Agent 回覆開頭沒有頭像與名稱")
         XCTAssertTrue(app.staticTexts["Claude Code"].exists, "開頭沒有 Agent 名稱")
     }
 
@@ -110,7 +89,7 @@ final class ConversationUITests: XCTestCase {
     func testToolRunExpandsToShowCalls() {
         let app = openLedger()
         let summary = app.staticTexts["Edited 1 file · 3 steps"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 10))
+        XCTAssertTrue(summary.waitUntilExists(timeout: 10))
         // 上下版面的輸入列較高(#187),摘要可能在導覽列底下：一小段一小段往回捲，直到摘要在可見範圍上緣，展開的呼叫才看得到。
         let window = app.windows.firstMatch
         let navigationBottom = app.navigationBars.firstMatch.frame.maxY
@@ -121,7 +100,7 @@ final class ConversationUITests: XCTestCase {
 
         summary.tap()
 
-        XCTAssertTrue(app.staticTexts["Edit"].waitForExistence(timeout: 5), "展開後沒有看到每個呼叫")
+        XCTAssertTrue(app.staticTexts["Edit"].waitUntilExists(timeout: 5), "展開後沒有看到每個呼叫")
     }
 
     // MARK: - 檔案情境(`-demoAgentFiles`:ledger 的對話換成寫檔、讀圖、提到主機路徑的一段)
@@ -129,8 +108,8 @@ final class ConversationUITests: XCTestCase {
     /// 開啟檔案情境的 ledger。
     @MainActor
     private func openAgentFiles() -> XCUIApplication {
-        let app = open(paneID: "w1:p1", flags: ["-demoAgentFiles"])
-        XCTAssertTrue(app.scrollViews.firstMatch.waitForExistence(timeout: 10), "對話沒有開啟")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoAgentFiles"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
         // 這裡看的是對話裡的卡片：先略過輸入列上方的註記，卡片才整張放得進可視區。
         dismissNote(in: app)
         return app
@@ -139,47 +118,13 @@ final class ConversationUITests: XCTestCase {
     /// 略過 ledger 輸入列上方的 You should know 註記(第一次要同意)。
     @MainActor
     private func dismissNote(in app: XCUIApplication) {
-        let note = element("youShouldKnow.note", in: app)
-        XCTAssertTrue(note.waitForExistence(timeout: 15), "ledger 沒有註記")
+        let note = app.element("youShouldKnow.note")
+        XCTAssertTrue(note.waitUntilExists(timeout: 15), "ledger 沒有註記")
         app.buttons["youShouldKnow.dismiss"].tap()
         let allow = app.alerts.firstMatch.buttons["Allow"].firstMatch
-        XCTAssertTrue(allow.waitForExistence(timeout: 5), "略過註記沒有詢問同意")
+        XCTAssertTrue(allow.waitUntilExists(timeout: 5), "略過註記沒有詢問同意")
         allow.tap()
-        XCTAssertTrue(note.waitForNonExistence(timeout: 10), "略過後註記沒有消失")
-    }
-
-    /// 識別碼相同、label 以 `prefix` 開頭的元素(卡片標題、縮圖等同一種元素有好幾個時)。
-    private func element(_ identifier: String, labelPrefix prefix: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier == %@ AND label BEGINSWITH %@", identifier, prefix)).firstMatch
-    }
-
-    /// 對話從底部開啟、列是 lazy 的：元素還沒建立或在畫面外時一次捲一點(先往上找)，直到它整個在對話區內。
-    @MainActor
-    @discardableResult
-    private func revealInConversation(_ target: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 10) -> Bool {
-        let list = app.scrollViews.firstMatch
-        guard list.waitForExistence(timeout: timeout) else { return false }
-        _ = target.waitForExistence(timeout: 3)
-        for attempt in 0..<16 {
-            let visible = visibleConversationRange(of: list, in: app)
-            if target.exists, target.isHittable, target.frame.minY >= visible.lowerBound, target.frame.maxY <= visible.upperBound {
-                return true
-            }
-            // 還沒排出來(LazyVStack 只排可見附近的列):先往下(較新的訊息)找幾次，再往上找(#251)。
-            let isBelow = target.exists ? target.frame.midY > (visible.lowerBound + visible.upperBound) / 2 : attempt < 8
-            // 在看得到的範圍裡拖，不從蓋在對話上的卡片開始。
-            let height = visible.upperBound - visible.lowerBound
-            let origin = app.coordinate(withNormalizedOffset: .zero)
-            func point(_ fraction: CGFloat) -> XCUICoordinate {
-                origin.withOffset(CGVector(dx: list.frame.midX, dy: visible.lowerBound + height * fraction))
-            }
-            let start = point(isBelow ? 0.8 : 0.2)
-            let end = point(isBelow ? 0.3 : 0.7)
-            start.press(forDuration: 0.1, thenDragTo: end)
-            _ = target.waitForExistence(timeout: 1)
-        }
-        return target.exists && target.isHittable
+        XCTAssertTrue(note.waitUntilGone(timeout: 10), "略過後註記沒有消失")
     }
 
     /// QuickLook 預覽的導覽列。iOS 27 的標題是不含副檔名的檔名(旁邊有選單箭頭),以開頭比對(#251)。
@@ -195,19 +140,6 @@ final class ConversationUITests: XCTestCase {
         (done.exists ? done : bar.buttons.firstMatch).tap()
     }
 
-    /// 對話真正看得到的範圍：導覽列下緣到輸入列上方的元素(建議卡、註記、停止列、輸入框)之間。
-    /// 捲動視圖本身一路延伸到輸入列與導覽列底下，只看它的 frame 會點到蓋在上面的卡片(#251)。
-    @MainActor
-    private func visibleConversationRange(of list: XCUIElement, in app: XCUIApplication) -> ClosedRange<CGFloat> {
-        let top = max(list.frame.minY, app.navigationBars.firstMatch.frame.maxY)
-        let covers = ["conversation.suggestion", "youShouldKnow.note", "youShouldKnow.compact", "stopBar.stop", "composer.text"]
-            .map { app.descendants(matching: .any)[$0].firstMatch }
-            .filter(\.exists)
-            .map { $0.frame.minY - 8 }
-        let bottom = min(list.frame.maxY, covers.min() ?? list.frame.maxY)
-        return top...max(top, bottom)
-    }
-
     /// 檔案卡片(#224):agent 改了 CSVExport.swift、新建了 CSVQuotingTests.swift(#228 另有 history.csv、draft.csv),
     /// 卡片標題念出動作、檔名、類型與路徑;內容來自對話紀錄，超過 8 行可展開。
     @MainActor
@@ -215,13 +147,13 @@ final class ConversationUITests: XCTestCase {
         let app = openAgentFiles()
         let header = "conversation.agentFile.header"
         for prefix in ["Created file draft.csv", "Created file history.csv"] {
-            XCTAssertTrue(revealInConversation(element(header, labelPrefix: prefix, in: app), in: app), "沒有 \(prefix) 的卡片")
+            XCTAssertTrue(app.revealInConversation(app.element(header, labelPrefix: prefix)), "沒有 \(prefix) 的卡片")
         }
 
-        let created = element(header, labelPrefix: "Created file CSVQuotingTests.swift, Code", in: app)
-        XCTAssertTrue(revealInConversation(created, in: app), "新建卡片標題不對")
-        let edited = element(header, labelPrefix: "Edited file CSVExport.swift, Code", in: app)
-        XCTAssertTrue(revealInConversation(edited, in: app), "修改卡片標題不對")
+        let created = app.element(header, labelPrefix: "Created file CSVQuotingTests.swift, Code")
+        XCTAssertTrue(app.revealInConversation(created), "新建卡片標題不對")
+        let edited = app.element(header, labelPrefix: "Edited file CSVExport.swift, Code")
+        XCTAssertTrue(app.revealInConversation(edited), "修改卡片標題不對")
         XCTAssertTrue(edited.label.contains("1 lines added, 1 removed"), "\(edited.label)")
         XCTAssertFalse(edited.label.contains("Path:"), "路徑是進階資訊，收合時標題不念：\(edited.label)")
 
@@ -231,17 +163,17 @@ final class ConversationUITests: XCTestCase {
         XCTAssertFalse(pathText.exists, "路徑不該預設顯示")
         let disclosures = app.descendants(matching: .any).matching(identifier: "conversation.agentFile.disclosure")
         let disclosure = disclosures.element(boundBy: 0)
-        XCTAssertTrue(revealInConversation(disclosure, in: app), "沒有「Details」揭露控制")
+        XCTAssertTrue(app.revealInConversation(disclosure), "沒有「Details」揭露控制")
         XCTAssertGreaterThanOrEqual(disclosure.frame.height, 43.9)
         disclosure.tap()
-        XCTAssertTrue(element("conversation.agentFile.path", in: app).waitForExistence(timeout: 3), "展開後沒有路徑")
+        XCTAssertTrue(app.element("conversation.agentFile.path").waitUntilExists(timeout: 3), "展開後沒有路徑")
 
-        let toggle = element("conversation.agentFile.toggle", in: app)
-        XCTAssertTrue(revealInConversation(toggle, in: app), "新建的測試檔超過 8 行，應該可以展開")
+        let toggle = app.element("conversation.agentFile.toggle")
+        XCTAssertTrue(app.revealInConversation(toggle), "新建的測試檔超過 8 行，應該可以展開")
         XCTAssertGreaterThanOrEqual(toggle.frame.height, 44)
         toggle.tap()
         let lastLine = app.staticTexts[#"    #expect(CSVExport.columns.first == "date")"#]
-        XCTAssertTrue(revealInConversation(lastLine, in: app), "展開後沒有看到後面的行")
+        XCTAssertTrue(app.revealInConversation(lastLine), "展開後沒有看到後面的行")
         XCTAssertEqual(toggle.label, "Show Less")
 
         let shot = XCTAttachment(screenshot: app.screenshot())
@@ -255,20 +187,20 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testAgentImagesShowThumbnails() {
         let app = openAgentFiles()
-        let previewHeader = element("conversation.agentImage.header", labelPrefix: "Read file export-preview.png, Image", in: app)
-        XCTAssertTrue(revealInConversation(previewHeader, in: app), "沒有預覽圖的圖片卡片")
+        let previewHeader = app.element("conversation.agentImage.header", labelPrefix: "Read file export-preview.png, Image")
+        XCTAssertTrue(app.revealInConversation(previewHeader), "沒有預覽圖的圖片卡片")
 
-        let thumbnail = element("conversation.agentImage.thumbnail", labelPrefix: "Image export-preview.png", in: app)
-        XCTAssertTrue(thumbnail.waitForExistence(timeout: 15), "預覽圖沒有自動載入縮圖")
-        XCTAssertTrue(revealInConversation(thumbnail, in: app))
+        let thumbnail = app.element("conversation.agentImage.thumbnail", labelPrefix: "Image export-preview.png")
+        XCTAssertTrue(thumbnail.waitUntilExists(timeout: 15), "預覽圖沒有自動載入縮圖")
+        XCTAssertTrue(app.revealInConversation(thumbnail))
         XCTAssertFalse(app.staticTexts["docs/export-preview.png"].exists)
         thumbnail.tap()
-        XCTAssertTrue(element("agentImage.viewer", in: app).waitForExistence(timeout: 5), "沒有全螢幕檢視")
-        let done = element("agentImage.viewer.done", in: app)
+        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 5), "沒有全螢幕檢視")
+        let done = app.element("agentImage.viewer.done")
         XCTAssertGreaterThanOrEqual(done.frame.height, 44)
 
         // #330:雙點兩下放大、再雙點兩下縮回;1× 下滑關閉。
-        let image = element("agentImage.viewer.image", in: app)
+        let image = app.element("agentImage.viewer.image")
         XCTAssertEqual(image.value as? String, "Not zoomed")
         image.doubleTap()
         let zoomed = waitForValue(of: image, beginning: "Zoomed in")
@@ -278,29 +210,29 @@ final class ConversationUITests: XCTestCase {
         XCTAssertEqual(image.value as? String, "Not zoomed", "再雙點兩下沒有縮回")
         let start = image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
         start.press(forDuration: 0.1, thenDragTo: image.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)))
-        XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5), "1× 下滑沒有關閉")
+        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5), "1× 下滑沒有關閉")
 
         // 「Done」照舊可關閉。
-        XCTAssertTrue(revealInConversation(thumbnail, in: app))
+        XCTAssertTrue(app.revealInConversation(thumbnail))
         thumbnail.tap()
-        XCTAssertTrue(element("agentImage.viewer.done", in: app).waitForExistence(timeout: 5))
-        element("agentImage.viewer.done", in: app).tap()
-        XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.element("agentImage.viewer.done").waitUntilExists(timeout: 5))
+        app.element("agentImage.viewer.done").tap()
+        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5))
 
         // 路徑收在揭露控制裡。
-        let disclosure = element("conversation.agentImage.disclosure", in: app)
-        XCTAssertTrue(revealInConversation(disclosure, in: app))
+        let disclosure = app.element("conversation.agentImage.disclosure")
+        XCTAssertTrue(app.revealInConversation(disclosure))
         disclosure.tap()
-        XCTAssertTrue(element("conversation.agentImage.path", in: app).waitForExistence(timeout: 3), "展開後沒有路徑")
+        XCTAssertTrue(app.element("conversation.agentImage.path").waitUntilExists(timeout: 3), "展開後沒有路徑")
 
-        let load = element("conversation.agentImage.load", in: app)
-        XCTAssertTrue(revealInConversation(load, in: app), "超過 8 MiB 的掃描檔應該等點擊")
+        let load = app.element("conversation.agentImage.load")
+        XCTAssertTrue(app.revealInConversation(load), "超過 8 MiB 的掃描檔應該等點擊")
         let note = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Not loaded automatically")).firstMatch
         XCTAssertTrue(note.exists, "沒有顯示大小與說明")
         XCTAssertGreaterThanOrEqual(load.frame.height, 44)
         load.tap()
-        let scan = element("conversation.agentImage.thumbnail", labelPrefix: "Image statement-scan.png", in: app)
-        XCTAssertTrue(scan.waitForExistence(timeout: 15), "點了之後掃描檔沒有載入")
+        let scan = app.element("conversation.agentImage.thumbnail", labelPrefix: "Image statement-scan.png")
+        XCTAssertTrue(scan.waitUntilExists(timeout: 15), "點了之後掃描檔沒有載入")
 
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-image-cards"
@@ -313,21 +245,21 @@ final class ConversationUITests: XCTestCase {
     func testOpeningAFileShowsQuickLookAndShare() {
         let app = openAgentFiles()
         let open = app.buttons["Open CSVQuotingTests.swift"].firstMatch
-        XCTAssertTrue(revealInConversation(open, in: app), "新建的測試檔沒有「Open」")
+        XCTAssertTrue(app.revealInConversation(open), "新建的測試檔沒有「Open」")
         XCTAssertGreaterThanOrEqual(open.frame.height, 44)
         open.tap()
 
         let preview = quickLookBar(named: "CSVQuotingTests", in: app)
-        XCTAssertTrue(preview.waitForExistence(timeout: 15), "沒有出現 QuickLook 預覽")
+        XCTAssertTrue(preview.waitUntilExists(timeout: 15), "沒有出現 QuickLook 預覽")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-file-quicklook"
         shot.lifetime = .keepAlways
         add(shot)
         closeQuickLook(preview)
-        XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(preview.waitUntilGone(timeout: 5))
 
         let share = app.buttons["Share CSVQuotingTests.swift"].firstMatch
-        XCTAssertTrue(revealInConversation(share, in: app), "下載好之後沒有「Share」")
+        XCTAssertTrue(app.revealInConversation(share), "下載好之後沒有「Share」")
         XCTAssertGreaterThanOrEqual(share.frame.height, 44)
     }
 
@@ -335,12 +267,12 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testOpeningAFileOverTheLimitExplains() {
         let app = openAgentFiles()
-        let history = element("conversation.agentFile.header", labelPrefix: "Created file history.csv", in: app)
-        XCTAssertTrue(revealInConversation(history, in: app), "沒有 history.csv 的卡片")
+        let history = app.element("conversation.agentFile.header", labelPrefix: "Created file history.csv")
+        XCTAssertTrue(app.revealInConversation(history), "沒有 history.csv 的卡片")
         history.tap()
 
         let note = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Too large to open here")).firstMatch
-        XCTAssertTrue(note.waitForExistence(timeout: 10), "沒有超過上限的說明")
+        XCTAssertTrue(note.waitUntilExists(timeout: 10), "沒有超過上限的說明")
         XCTAssertTrue(note.label.contains("Open it on the host."))
     }
 
@@ -349,10 +281,10 @@ final class ConversationUITests: XCTestCase {
     func testOpeningADeletedFileExplains() {
         let app = openAgentFiles()
         let open = app.buttons["Open draft.csv"].firstMatch
-        XCTAssertTrue(revealInConversation(open, in: app), "沒有 draft.csv 的「Open」")
+        XCTAssertTrue(app.revealInConversation(open), "沒有 draft.csv 的「Open」")
         open.tap()
 
-        XCTAssertTrue(app.staticTexts["This file is no longer on the host."].waitForExistence(timeout: 10), "沒有缺檔說明")
+        XCTAssertTrue(app.staticTexts["This file is no longer on the host."].waitUntilExists(timeout: 10), "沒有缺檔說明")
     }
 
     /// 訊息內主機路徑(#229):回覆提到報告 PDF 與預覽圖，路徑是連結;點 PDF 在 app 內以 QuickLook 開，
@@ -361,25 +293,25 @@ final class ConversationUITests: XCTestCase {
     func testHostPathsInMessagesOpenInApp() {
         let app = openAgentFiles()
         let report = app.links["/Users/demo/ledger/docs/export-report.pdf"].firstMatch
-        XCTAssertTrue(revealInConversation(report, in: app), "訊息中的 PDF 路徑不是連結")
+        XCTAssertTrue(app.revealInConversation(report), "訊息中的 PDF 路徑不是連結")
         report.tap()
 
         let preview = quickLookBar(named: "export-report", in: app)
-        XCTAssertTrue(preview.waitForExistence(timeout: 15), "點了路徑沒有出現 QuickLook 預覽")
+        XCTAssertTrue(preview.waitUntilExists(timeout: 15), "點了路徑沒有出現 QuickLook 預覽")
         XCTAssertEqual(app.state, .runningForeground, "路徑不該交給系統開")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-host-path-quicklook"
         shot.lifetime = .keepAlways
         add(shot)
         closeQuickLook(preview)
-        XCTAssertTrue(preview.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(preview.waitUntilGone(timeout: 5))
 
         let image = app.links["/Users/demo/ledger/docs/export-preview.png"].firstMatch
-        XCTAssertTrue(revealInConversation(image, in: app), "訊息中的圖片路徑不是連結")
+        XCTAssertTrue(app.revealInConversation(image), "訊息中的圖片路徑不是連結")
         image.tap()
-        XCTAssertTrue(element("agentImage.viewer", in: app).waitForExistence(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
-        element("agentImage.viewer.done", in: app).tap()
-        XCTAssertTrue(element("agentImage.viewer", in: app).waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 10), "點了圖片路徑沒有全螢幕檢視")
+        app.element("agentImage.viewer.done").tap()
+        XCTAssertTrue(app.element("agentImage.viewer").waitUntilGone(timeout: 5))
     }
 
     // MARK: - 送出(F6)
@@ -388,9 +320,9 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testSendingEchoesAndAgentReplies() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        let send = element("composer.send", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
+        let text = app.element("composer.text")
+        let send = app.element("composer.send")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
         XCTAssertFalse(send.isEnabled, "空白時送出鈕應停用")
         XCTAssertHitTarget(send)
 
@@ -401,8 +333,8 @@ final class ConversationUITests: XCTestCase {
 
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
         // 軟體鍵盤＋You should know 卡片會把對話擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
-        hideKeyboard(in: app)
-        XCTAssertTrue(sentMessage("Add a header row too?", in: app).waitForExistence(timeout: 5), "沒有回音")
+        app.dismissKeyboard()
+        XCTAssertTrue(sentMessage("Add a header row too?", in: app).waitUntilExists(timeout: 5), "沒有回音")
         // agent 訊息是一個元素，label 以「Agent:」開頭(#35)。
         let reply = app.descendants(matching: .any).matching(identifier: "conversation.agent")
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch
@@ -410,42 +342,42 @@ final class ConversationUITests: XCTestCase {
         let echoOrReply = app.descendants(matching: .any).matching(NSPredicate(
             format: "label CONTAINS %@ OR (identifier == 'conversation.agent' AND label CONTAINS 'This is the demo host')",
             "Add a header row too?")).firstMatch
-        XCTAssertTrue(echoOrReply.waitForExistence(timeout: 5), "沒有回音")
-        XCTAssertTrue(reply.waitForExistence(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
-        XCTAssertFalse(element("conversation.echo", in: app).exists, "對話紀錄確認後回音應消失")
+        XCTAssertTrue(echoOrReply.waitUntilExists(timeout: 5), "沒有回音")
+        XCTAssertTrue(reply.waitUntilExists(timeout: 15), "對話紀錄沒有接上 agent 的回覆")
+        XCTAssertFalse(app.element("conversation.echo").exists, "對話紀錄確認後回音應消失")
     }
 
     /// 送出可撤回(#300):送出後訊息先以倒數泡泡出現，撤回把文字放回輸入框;再送一次按「立即送出」就變成回音。
     @MainActor
     func testUndoSendRestoresDraftAndSendNowDelivers() {
-        let app = open(paneID: "w1:p1", flags: ["-uiTestingUndoSend"])
-        let text = element("composer.text", in: app)
-        let send = element("composer.send", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-uiTestingUndoSend"])
+        let text = app.element("composer.text")
+        let send = app.element("composer.send")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
         text.tap()
         text.typeEnglish("Wait, not yet")
         send.tap()
-        hideKeyboard(in: app)
+        app.dismissKeyboard()
 
-        let countdown = element("conversation.pendingSend.countdown", in: app)
-        XCTAssertTrue(countdown.waitForExistence(timeout: 5), "沒有倒數泡泡")
+        let countdown = app.element("conversation.pendingSend.countdown")
+        XCTAssertTrue(countdown.waitUntilExists(timeout: 5), "沒有倒數泡泡")
         XCTAssertTrue(countdown.label.hasPrefix("Sending in"), "倒數文字：\(countdown.label)")
-        let undo = element("conversation.pendingSend.undo", in: app)
+        let undo = app.element("conversation.pendingSend.undo")
         XCTAssertHitTarget(undo)
         undo.tap()
-        XCTAssertFalse(element("conversation.pendingSend", in: app).exists, "撤回後倒數泡泡應消失")
+        XCTAssertFalse(app.element("conversation.pendingSend").exists, "撤回後倒數泡泡應消失")
         XCTAssertEqual(text.value as? String, "Wait, not yet", "撤回應把文字放回輸入框")
-        XCTAssertFalse(element("conversation.echo", in: app).exists, "撤回後不應有回音")
+        XCTAssertFalse(app.element("conversation.echo").exists, "撤回後不應有回音")
 
         send.tap()
-        let sendNow = element("conversation.pendingSend.sendNow", in: app)
-        XCTAssertTrue(sendNow.waitForExistence(timeout: 5), "沒有立即送出")
+        let sendNow = app.element("conversation.pendingSend.sendNow")
+        XCTAssertTrue(sendNow.waitUntilExists(timeout: 5), "沒有立即送出")
         sendNow.tap()
         let echoOrReply = app.descendants(matching: .any).matching(NSPredicate(
             format: "label CONTAINS %@ OR (identifier == 'conversation.agent' AND label CONTAINS 'This is the demo host')",
             "Wait, not yet")).firstMatch
-        XCTAssertTrue(echoOrReply.waitForExistence(timeout: 5), "立即送出後沒有回音")
-        XCTAssertFalse(element("conversation.pendingSend", in: app).exists, "立即送出後倒數泡泡應消失")
+        XCTAssertTrue(echoOrReply.waitUntilExists(timeout: 5), "立即送出後沒有回音")
+        XCTAssertFalse(app.element("conversation.pendingSend").exists, "立即送出後倒數泡泡應消失")
     }
 
     /// 建議提示詞(#123):ledger 完成時輸入列上方有 Claude Code 的建議;點了只填入輸入框、叫出鍵盤，不送出，
@@ -454,26 +386,26 @@ final class ConversationUITests: XCTestCase {
     func testSuggestionFillsComposerWithoutSending() {
         let app = openLedger()
         dismissNote(in: app)
-        let suggestion = element("conversation.suggestion", in: app)
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "沒有建議")
+        let suggestion = app.element("conversation.suggestion")
+        let text = app.element("composer.text")
+        XCTAssertTrue(suggestion.waitUntilExists(timeout: 10), "沒有建議")
         XCTAssertEqual(suggestion.label, "Suggestion: Add a test for CSV export with commas in the memo, Fill In")
         XCTAssertGreaterThanOrEqual(suggestion.frame.height, 44)
 
         suggestion.tap()
 
         XCTAssertEqual(text.value as? String, "Add a test for CSV export with commas in the memo", "輸入框不是建議文字")
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
-        XCTAssertTrue(suggestion.waitForNonExistence(timeout: 5), "輸入框有字時建議應收起")
-        XCTAssertTrue(element("composer.send", in: app).isEnabled)
-        XCTAssertFalse(element("conversation.echo", in: app).exists, "點建議不該送出")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
+        XCTAssertTrue(suggestion.waitUntilGone(timeout: 5), "輸入框有字時建議應收起")
+        XCTAssertTrue(app.element("composer.send").isEnabled)
+        XCTAssertFalse(app.element("conversation.echo").exists, "點建議不該送出")
         let sent = app.descendants(matching: .any).matching(identifier: "conversation.user")
             .matching(NSPredicate(format: "label CONTAINS 'commas in the memo'")).firstMatch
-        XCTAssertFalse(sent.waitForExistence(timeout: 5), "對話紀錄不該新增訊息")
+        XCTAssertFalse(sent.waitUntilExists(timeout: 5), "對話紀錄不該新增訊息")
 
         // 把字刪光：建議再出現(#240)。
         text.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 60))
-        XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "輸入框刪光後建議沒有再出現")
+        XCTAssertTrue(suggestion.waitUntilExists(timeout: 5), "輸入框刪光後建議沒有再出現")
     }
 
     /// 軟體鍵盤出現時(#196):You should know 卡片讓位(收成一行或暫時拿掉),對話至少留 132pt、看得到訊息;
@@ -482,18 +414,18 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testSoftKeyboardKeepsConversationVisible() throws {
         // iPhone 17 在預設字級與 AX1 都放得下完整註記與鍵盤(AX1 對話還剩約 135pt),不必讓位(#251);AX2 才要讓位。
-        let app = open(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityL")
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 15), "沒有註記")
-        XCTAssertFalse(element("conversation.suggestion", in: app).exists, "註記完整顯示時建議卡不該同時出現")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", contentSize: "UICTContentSizeCategoryAccessibilityL")
+        let text = app.element("composer.text")
+        XCTAssertTrue(app.element("youShouldKnow.note").waitUntilExists(timeout: 15), "沒有註記")
+        XCTAssertFalse(app.element("conversation.suggestion").exists, "註記完整顯示時建議卡不該同時出現")
         text.tap()
         let keyboard = app.keyboards.firstMatch
-        XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(keyboard.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
         guard keyboard.frame.height > 150 else { throw XCTSkip("模擬器接著硬體鍵盤，沒有軟體鍵盤") }
 
-        let compact = element("youShouldKnow.compact", in: app)
+        let compact = app.element("youShouldKnow.compact")
         // 讓位規則(#196):放得下一行就收成一行，連一行都放不下就暫時拿掉(AX2 的 iPhone 17 是後者)。
-        XCTAssertTrue(element("youShouldKnow.note", in: app).waitForNonExistence(timeout: 5), "鍵盤出現時完整卡片應讓位")
+        XCTAssertTrue(app.element("youShouldKnow.note").waitUntilGone(timeout: 5), "鍵盤出現時完整卡片應讓位")
         text.typeEnglish("Typing while reading")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "soft-keyboard-typing"
@@ -501,16 +433,16 @@ final class ConversationUITests: XCTestCase {
         add(shot)
 
         let top = app.navigationBars.firstMatch.frame.maxY
-        let bottom = [compact, element("conversation.suggestion", in: app)].filter(\.exists).map(\.frame.minY).min() ?? text.frame.minY
+        let bottom = [compact, app.element("conversation.suggestion")].filter(\.exists).map(\.frame.minY).min() ?? text.frame.minY
         XCTAssertGreaterThanOrEqual(bottom - top, 132, "對話只剩 \(bottom - top)pt")
         let rows = app.descendants(matching: .any).matching(NSPredicate(
             format: "identifier == 'conversation.agent' OR identifier == 'conversation.user'")).allElementsBoundByIndex
         XCTAssertTrue(rows.contains { $0.frame.maxY > top + 20 && $0.frame.minY < bottom - 20 }, "打字時看不到任何訊息")
 
-        hideKeyboard(in: app)
-        XCTAssertTrue(compact.waitForExistence(timeout: 5), "收起鍵盤時註記應回到一行(暫時拿掉的也回到一行)")
+        app.dismissKeyboard()
+        XCTAssertTrue(compact.waitUntilExists(timeout: 5), "收起鍵盤時註記應回到一行(暫時拿掉的也回到一行)")
         compact.tap()
-        XCTAssertTrue(element("youShouldKnow.note", in: app).waitForExistence(timeout: 5), "點一行的註記後完整卡片沒有回來")
+        XCTAssertTrue(app.element("youShouldKnow.note").waitUntilExists(timeout: 5), "點一行的註記後完整卡片沒有回來")
         XCTAssertFalse(app.keyboards.firstMatch.exists, "點註記不該叫出鍵盤")
     }
 
@@ -518,73 +450,73 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testHideKeyboardKeepsDraft() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
-        XCTAssertFalse(element("composer.hideKeyboard", in: app).exists, "沒聚焦時不該有收起鍵盤鈕")
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
+        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "沒聚焦時不該有收起鍵盤鈕")
 
         text.tap()
         text.typeEnglish("Half a thought")
-        let hide = element("composer.hideKeyboard", in: app)
-        XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
+        let hide = app.element("composer.hideKeyboard")
+        XCTAssertTrue(hide.waitUntilExists(timeout: 5), "聚焦時沒有收起鍵盤鈕")
         XCTAssertEqual(hide.label, "Hide Keyboard")
         hide.tap()
 
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "鍵盤沒有收起")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "鍵盤沒有收起")
         XCTAssertEqual(text.value as? String, "Half a thought", "草稿不見了")
-        XCTAssertFalse(element("conversation.echo", in: app).exists, "收起鍵盤不該送出")
+        XCTAssertFalse(app.element("conversation.echo").exists, "收起鍵盤不該送出")
     }
 
     /// 送出後立刻收起鍵盤(#329)。
     @MainActor
     func testSendingDismissesKeyboard() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
         text.typeEnglish("Ship it")
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
 
-        element("composer.send", in: app).tap()
+        app.element("composer.send").tap()
 
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "送出後鍵盤沒有收起")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "送出後鍵盤沒有收起")
     }
 
     /// 點聊天的訊息區收起鍵盤(#329)。
     @MainActor
     func testTappingConversationDismissesKeyboard() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
 
         app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).tap()
 
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "點訊息區後鍵盤沒有收起")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "點訊息區後鍵盤沒有收起")
     }
 
     /// 上下滑動聊天收起鍵盤(#329)。
     @MainActor
     func testScrollingConversationDismissesKeyboard() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+        XCTAssertTrue(app.waitForKeyboard(), "鍵盤沒有叫出來")
 
         let window = app.windows.firstMatch
         window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2)).press(
             forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
 
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5), "滑動後鍵盤沒有收起")
+        XCTAssertTrue(app.keyboards.firstMatch.waitUntilGone(timeout: 5), "滑動後鍵盤沒有收起")
     }
 
     /// 多行草稿時輸入框長高超過舊的 4 行上限(#137):7 行全部攤開、不內捲。
     @MainActor
     func testComposerGrowsBeyondFourLines() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
         text.typeEnglish("1\n2")
         let twoLines = text.frame.height
@@ -594,7 +526,7 @@ final class ConversationUITests: XCTestCase {
 
         text.typeEnglish("\n4\n5\n6\n7")
         // 上限是鍵盤上方可用高度的 40%(#137):收起鍵盤再量，不依賴模擬器接的是軟體還是實體鍵盤(#190)。
-        hideKeyboard(in: app)
+        app.dismissKeyboard()
         let sevenLines = text.frame.height
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "composer-seven-lines"
@@ -607,10 +539,10 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testComposerStacksFullWidthEditorAboveButtons() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        let send = element("composer.send", in: app)
-        let addImage = element("composer.attach", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        let send = app.element("composer.send")
+        let addImage = app.element("composer.attach")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         XCTAssertTrue(addImage.exists, "沒有加入圖片鈕")
         attachScreenshot(of: app, named: "composer-idle")
 
@@ -626,8 +558,8 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(addImage.frame.height, 44)
 
         text.tap()
-        let hide = element("composer.hideKeyboard", in: app)
-        XCTAssertTrue(hide.waitForExistence(timeout: 5), "聚焦時沒有收起鍵盤鈕")
+        let hide = app.element("composer.hideKeyboard")
+        XCTAssertTrue(hide.waitUntilExists(timeout: 5), "聚焦時沒有收起鍵盤鈕")
         XCTAssertGreaterThanOrEqual(hide.frame.minY, text.frame.maxY - 1, "收起鍵盤鈕要在按鈕列")
         XCTAssertLessThan(hide.frame.maxX, send.frame.minX + 1, "收起鍵盤鈕在送出鈕左邊")
         text.typeEnglish("Line one")
@@ -640,9 +572,9 @@ final class ConversationUITests: XCTestCase {
     /// 注音組字(#187):組字文字跟一般文字一樣換行，輸入框跟著長高;按鈕列留在下方。
     @MainActor
     func testZhuyinCompositionWrapsAndGrowsComposer() {
-        let app = open(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-AppleKeyboards", "(zh_Hant-Zhuyin@sw=Zhuyin;hw=Automatic)"])
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
         app.switchKeyboard(to: .zhuyin)
         let idleHeight = text.frame.height
@@ -656,7 +588,7 @@ final class ConversationUITests: XCTestCase {
         attachScreenshot(of: app, named: "composer-composing")
         XCTAssertTrue((text.value as? String)?.contains("ㄋ") == true, "沒有在組字(\(String(describing: text.value)))")
         XCTAssertGreaterThan(text.frame.height, idleHeight + 30, "組字換行後沒有長高(\(idleHeight) → \(text.frame.height))")
-        XCTAssertGreaterThanOrEqual(element("composer.send", in: app).frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
+        XCTAssertGreaterThanOrEqual(app.element("composer.send").frame.minY, text.frame.maxY - 1, "送出鈕要在輸入框下方")
     }
 
     @MainActor
@@ -672,30 +604,30 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testExpandedEditorKeepsDraftWhenCollapsed() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        let expand = element("composer.expand", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        let expand = app.element("composer.expand")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         XCTAssertFalse(expand.exists, "沒聚焦、空白時不該有展開鈕")
 
         text.tap()
-        XCTAssertTrue(expand.waitForExistence(timeout: 5), "聚焦時沒有展開鈕")
+        XCTAssertTrue(expand.waitUntilExists(timeout: 5), "聚焦時沒有展開鈕")
         XCTAssertEqual(expand.label, "Expand")
         XCTAssertHitTarget(expand)
         text.typeEnglish("1\n2\n3")
         expand.tap()
 
-        let expanded = element("composer.expanded.text", in: app)
-        XCTAssertTrue(expanded.waitForExistence(timeout: 5), "沒有開出展開畫面")
+        let expanded = app.element("composer.expanded.text")
+        XCTAssertTrue(expanded.waitUntilExists(timeout: 5), "沒有開出展開畫面")
         XCTAssertEqual(expanded.value as? String, "1\n2\n3", "展開畫面不是同一份草稿")
         XCTAssertGreaterThan(expanded.frame.height, text.frame.height, "展開畫面的輸入框沒有比輸入列大")
         expanded.tap()
         expanded.typeEnglish("\n4")
-        element("composer.expanded.done", in: app).tap()
+        app.element("composer.expanded.done").tap()
 
-        XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "「完成」沒有收回")
+        XCTAssertTrue(expanded.waitUntilGone(timeout: 5), "「完成」沒有收回")
         XCTAssertEqual(text.value as? String, "1\n2\n3\n4", "收回後草稿不見了")
-        XCTAssertFalse(element("conversation.echo", in: app).exists, "收回不該送出")
-        XCTAssertFalse(element("composer.hideKeyboard", in: app).exists, "收回後輸入列不該聚焦")
+        XCTAssertFalse(app.element("conversation.echo").exists, "收回不該送出")
+        XCTAssertFalse(app.element("composer.hideKeyboard").exists, "收回後輸入列不該聚焦")
         XCTAssertTrue(expand.exists, "沒聚焦、4 行時應有展開鈕")
     }
 
@@ -703,19 +635,19 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testSendingFromExpandedEditorReturnsToConversation() {
         let app = openLedger()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
-        element("composer.expand", in: app).tap()
+        app.element("composer.expand").tap()
 
-        let expanded = element("composer.expanded.text", in: app)
-        XCTAssertTrue(expanded.waitForExistence(timeout: 5), "沒有開出展開畫面")
+        let expanded = app.element("composer.expanded.text")
+        XCTAssertTrue(expanded.waitUntilExists(timeout: 5), "沒有開出展開畫面")
         expanded.tap()
         expanded.typeEnglish("Sent from the big editor")
-        let send = element("composer.expanded.send", in: app)
-        let done = element("composer.expanded.done", in: app)
+        let send = app.element("composer.expanded.send")
+        let done = app.element("composer.expanded.done")
         let keyboard = app.keyboards.firstMatch
-        if keyboard.waitForExistence(timeout: 5) {
+        if keyboard.exists {
             XCTAssertLessThanOrEqual(send.frame.maxY, keyboard.frame.minY + 1, "送出鈕被鍵盤擋住")
             XCTAssertLessThanOrEqual(done.frame.maxY, keyboard.frame.minY + 1, "完成鈕被鍵盤擋住")
         }
@@ -724,8 +656,8 @@ final class ConversationUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(send.frame.height, 44)
         send.tap()
 
-        XCTAssertTrue(expanded.waitForNonExistence(timeout: 5), "送出後沒有回到對話")
-        XCTAssertTrue(sentMessage("Sent from the big editor", in: app).waitForExistence(timeout: 5), "沒有回音")
+        XCTAssertTrue(expanded.waitUntilGone(timeout: 5), "送出後沒有回到對話")
+        XCTAssertTrue(sentMessage("Sent from the big editor", in: app).waitUntilExists(timeout: 5), "沒有回音")
         XCTAssertEqual(text.value as? String ?? "", "", "送出後輸入框應清空")
     }
 
@@ -733,11 +665,11 @@ final class ConversationUITests: XCTestCase {
     @MainActor
     func testComposerAtAccessibilitySizeStaysWithinAvailableHeight() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
-        let ledger = element("agent.row.demo/w1:p1", in: app)
+        let ledger = app.element("agent.row.demo/w1:p1")
         XCTAssertTrue(app.reveal(ledger), "列表沒有 ledger")
         ledger.tap()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
         text.typeEnglish("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
         // 模擬器接著硬體鍵盤時軟體鍵盤在畫面外，可見範圍到視窗底。
@@ -758,39 +690,39 @@ final class ConversationUITests: XCTestCase {
     /// 「Jump to Latest」只在不在底部時出現：開啟時(在底部)沒有;往上捲出現;自己捲回底部或點它都消失(#93)。
     @MainActor
     func testJumpToLatestOnlyWhenAwayFromBottom() {
-        let app = open(paneID: "w2:p1")
-        XCTAssertTrue(element("prompt.card", in: app).waitForExistence(timeout: 10), "沒有提示卡")
-        let jump = element("conversation.jumpToLatest", in: app)
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
+        XCTAssertTrue(app.element("prompt.card").waitUntilExists(timeout: 10), "沒有提示卡")
+        let jump = app.element("conversation.jumpToLatest")
         let list = app.scrollViews.firstMatch
-        XCTAssertFalse(jump.waitForExistence(timeout: 2), "在底部時不該顯示")
+        XCTAssertFalse(jump.waitUntilExists(timeout: 2), "在底部時不該顯示")
 
         list.swipeDown()
         list.swipeDown()
-        XCTAssertTrue(jump.waitForExistence(timeout: 5), "往上捲後應顯示")
+        XCTAssertTrue(jump.waitUntilExists(timeout: 5), "往上捲後應顯示")
 
         for _ in 0..<4 { list.swipeUp() }
-        XCTAssertTrue(jump.waitForNonExistence(timeout: 5), "自己捲回底部後應隱藏")
+        XCTAssertTrue(jump.waitUntilGone(timeout: 5), "自己捲回底部後應隱藏")
 
         list.swipeDown()
         list.swipeDown()
-        XCTAssertTrue(jump.waitForExistence(timeout: 5), "再往上捲應顯示")
+        XCTAssertTrue(jump.waitUntilExists(timeout: 5), "再往上捲應顯示")
         jump.tap()
-        XCTAssertTrue(jump.waitForNonExistence(timeout: 5), "點了回到最新後應隱藏")
-        XCTAssertTrue(element("prompt.option.3", in: app).isHittable, "回到底部後最後一個選項應可點")
+        XCTAssertTrue(jump.waitUntilGone(timeout: 5), "點了回到最新後應隱藏")
+        XCTAssertTrue(app.element("prompt.option.3").isHittable, "回到底部後最後一個選項應可點")
     }
 
     /// #130:往上翻看舊訊息時 agent 一次寫出超過 64 KiB(`-demoLargeOutput`:對話載入後 5 秒寫出 321 行):
     /// 畫面不空白，正在看的舊訊息還在原處，新訊息接在後面。
     @MainActor
     func testLargeOutputWhileReadingKeepsMessages() {
-        let app = open(paneID: "w1:p1", flags: ["-demoLargeOutput"])
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutput"])
         let first = app.staticTexts["Tidy up the CSV export: dates first, and escape commas in notes."]
-        XCTAssertTrue(first.waitForExistence(timeout: 10), "對話沒有載入完成")
+        XCTAssertTrue(first.waitUntilExists(timeout: 10), "對話沒有載入完成")
         let list = app.scrollViews.firstMatch
-        let jump = element("conversation.jumpToLatest", in: app)
+        let jump = app.element("conversation.jumpToLatest")
         for _ in 0..<4 { list.swipeDown() }
-        XCTAssertTrue(element("conversation.beginning", in: app).waitForExistence(timeout: 5), "沒有翻到對話開頭")
-        XCTAssertTrue(jump.waitForExistence(timeout: 5), "往上翻後應是閱讀中")
+        XCTAssertTrue(app.element("conversation.beginning").waitUntilExists(timeout: 5), "沒有翻到對話開頭")
+        XCTAssertTrue(jump.waitUntilExists(timeout: 5), "往上翻後應是閱讀中")
 
         // 對話載入後 5 秒寫出;已完成的 agent 每 4 秒輪詢一次。等寫出之後的兩次輪詢。
         Thread.sleep(forTimeInterval: 9)
@@ -800,12 +732,12 @@ final class ConversationUITests: XCTestCase {
         add(shot)
 
         XCTAssertTrue(first.exists && first.isHittable, "正在看的舊訊息不見了(畫面被取代或停在內容之外)")
-        XCTAssertTrue(element("conversation.beginning", in: app).exists, "對話開頭不見了(改讀了新視窗)")
+        XCTAssertTrue(app.element("conversation.beginning").exists, "對話開頭不見了(改讀了新視窗)")
         XCTAssertTrue(jump.exists, "應仍在閱讀中")
         jump.tap()
         let summary = app.descendants(matching: .any).matching(identifier: "conversation.agent")
             .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'")).firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 5), "新訊息沒有接在後面")
+        XCTAssertTrue(summary.waitUntilExists(timeout: 5), "新訊息沒有接在後面")
     }
 
     /// 畫面上看得到(可點)的訊息列：使用者泡泡、agent 文字、工具串、回音。
@@ -820,21 +752,21 @@ final class ConversationUITests: XCTestCase {
     /// (`-demoLargeOutputOnPrompt`)。送出時切回跟隨並捲到底，畫面不可變成一片空白，最新的訊息在畫面上。
     @MainActor
     func testSendingThenLargeOutputKeepsMessagesVisible() {
-        let app = open(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
-        XCTAssertTrue(element("conversation.agent", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoLargeOutputOnPrompt"])
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
+        XCTAssertTrue(app.element("conversation.agent").waitUntilExists(timeout: 10), "對話沒有載入完成")
 
         text.tap()
         text.typeEnglish("Check the logs once more")
-        element("composer.send", in: app).tap()
+        app.element("composer.send").tap()
         // 軟體鍵盤＋You should know 卡片會把對話的可見範圍擠到不到一列：收起鍵盤，不依賴模擬器的鍵盤設定(#190)。
-        hideKeyboard(in: app)
-        XCTAssertTrue(sentMessage("Check the logs once more", in: app).waitForExistence(timeout: 5), "沒有回音")
+        app.dismissKeyboard()
+        XCTAssertTrue(sentMessage("Check the logs once more", in: app).waitUntilExists(timeout: 5), "沒有回音")
         // 回覆與大量輸出在下一次輪詢讀到(已完成的 agent 每 4 秒一次);輪詢到最新的訊息出現。
         let summaries = app.descendants(matching: .any).matching(identifier: "conversation.agent")
             .matching(NSPredicate(format: "label CONTAINS 'I read all 160 export logs'"))
-        XCTAssertTrue(poll(timeout: 20) { summaries.allElementsBoundByIndex.contains(where: \.isHittable) }, "跟隨中最新的訊息應在畫面上")
+        XCTAssertTrue(UITestWait.until(timeout: 20) { summaries.allElementsBoundByIndex.contains(where: \.isHittable) }, "跟隨中最新的訊息應在畫面上")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-large-output-after-send"
         shot.lifetime = .keepAlways
@@ -847,26 +779,26 @@ final class ConversationUITests: XCTestCase {
     /// 不可被一整片空白推到畫面外。
     @MainActor
     func testSendingWhileAgentWorksKeepsSentMessageVisible() {
-        let app = open(paneID: "w1:p1", flags: ["-demoWorkingAfterPrompt"])
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
-        XCTAssertTrue(element("conversation.agent", in: app).waitForExistence(timeout: 10), "對話沒有載入完成")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoWorkingAfterPrompt"])
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
+        XCTAssertTrue(app.element("conversation.agent").waitUntilExists(timeout: 10), "對話沒有載入完成")
 
         text.tap()
         text.typeEnglish("Add a header row too?")
-        element("composer.send", in: app).tap()
-        hideKeyboard(in: app)
-        XCTAssertTrue(element("conversation.working", in: app).waitForExistence(timeout: 5), "沒有工作中指示")
+        app.element("composer.send").tap()
+        app.dismissKeyboard()
+        XCTAssertTrue(app.element("conversation.working").waitUntilExists(timeout: 5), "沒有工作中指示")
         // 等追蹤接上使用者那一行、即時預覽出現，捲動穩定;回覆在 15 秒後才來。
         let sent = sentMessage("Add a header row too?", in: app)
-        XCTAssertTrue(poll(timeout: 10) { sent.exists && sent.isHittable }, "送出的訊息應在畫面上")
+        XCTAssertTrue(UITestWait.until(timeout: 10) { sent.exists && sent.isHittable }, "送出的訊息應在畫面上")
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-working-after-send"
         shot.lifetime = .keepAlways
         add(shot)
 
         XCTAssertTrue(sentMessage("Add a header row too?", in: app).isHittable, "送出的訊息應在畫面上")
-        XCTAssertTrue(element("conversation.working", in: app).isHittable, "工作中指示應在畫面上")
+        XCTAssertTrue(app.element("conversation.working").isHittable, "工作中指示應在畫面上")
         XCTAssertFalse(app.descendants(matching: .any).matching(identifier: "conversation.agent")
             .matching(NSPredicate(format: "label CONTAINS 'This is the demo host'")).firstMatch.exists, "回覆不該這麼早到")
     }
@@ -874,14 +806,14 @@ final class ConversationUITests: XCTestCase {
     /// 「需要你」的 agent 拒收：草稿放回輸入框，提示先回答。
     @MainActor
     func testBlockedAgentKeepsDraftAndExplains() {
-        let app = open(paneID: "w2:p1")
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10))
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w2:p1")
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10))
         text.tap()
         text.typeEnglish("Go ahead")
-        element("composer.send", in: app).tap()
+        app.element("composer.send").tap()
 
-        XCTAssertTrue(element("composer.notice", in: app).waitForExistence(timeout: 10), "沒有提示先回答")
+        XCTAssertTrue(app.element("composer.notice").waitUntilExists(timeout: 10), "沒有提示先回答")
         XCTAssertEqual(text.value as? String, "Go ahead", "被拒時草稿應放回輸入框")
     }
 
@@ -890,19 +822,19 @@ final class ConversationUITests: XCTestCase {
     func testComposerStaysAtBottomWhileConversationLoads() {
         // 基準：同一台模擬器上載入完成後的輸入框位置(不寫死機型幾何)。
         let loaded = openLedger()
-        XCTAssertTrue(element("conversation.user", in: loaded).waitForExistence(timeout: 10), "對話沒有載入完成")
-        let loadedText = element("composer.text", in: loaded)
-        XCTAssertTrue(loadedText.waitForExistence(timeout: 5), "載入完成後沒有輸入列")
+        XCTAssertTrue(loaded.element("conversation.user").waitUntilExists(timeout: 10), "對話沒有載入完成")
+        let loadedText = loaded.element("composer.text")
+        XCTAssertTrue(loadedText.waitUntilExists(timeout: 5), "載入完成後沒有輸入列")
         let expected = loadedText.frame
         loaded.terminate()
 
         // 對話紀錄的讀取有 20 秒期限(HostCommandDeadline.standard),期限到了就離開載入中：下面的等待合計在期限內，
         // 量完再確認仍在載入中，量到的才是載入中的位置。
-        let app = open(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
-        let loading = element("conversation.loading", in: app)
-        XCTAssertTrue(loading.waitForExistence(timeout: 10), "沒有停在載入中")
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 5), "載入中沒有輸入列")
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoTranscriptPending"])
+        let loading = app.element("conversation.loading")
+        XCTAssertTrue(loading.waitUntilExists(timeout: 10), "沒有停在載入中")
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 5), "載入中沒有輸入列")
         let actual = text.frame
         let spinner = loading.frame
         let screen = app.windows.firstMatch.frame
@@ -936,28 +868,28 @@ final class ConversationUITests: XCTestCase {
 
     @MainActor
     private func assertStaysResponsiveWhenGoingOffline(flag: String, paneID: String = "w1:p1", hasMessages: Bool = true, typing: Bool = false) throws {
-        let app = open(paneID: paneID, flags: [flag])
-        XCTAssertTrue(element("composer.text", in: app).waitForExistence(timeout: 10), "聊天畫面沒有開啟")
+        let app = XCUIApplication.launchUITestingConversation(paneID: paneID, flags: [flag])
+        XCTAssertTrue(app.element("composer.text").waitUntilExists(timeout: 10), "聊天畫面沒有開啟")
         let message = app.descendants(matching: .any).matching(NSPredicate(
             format: "identifier IN %@", ["conversation.user", "conversation.agent", "conversation.toolRun"])).firstMatch
-        XCTAssertTrue(!hasMessages || message.waitForExistence(timeout: 10), "對話沒有載入完成")
+        XCTAssertTrue(!hasMessages || message.waitUntilExists(timeout: 10), "對話沒有載入完成")
         if typing {
-            let text = element("composer.text", in: app)
+            let text = app.element("composer.text")
             text.tap()
             let keyboard = app.keyboards.firstMatch
-            XCTAssertTrue(keyboard.waitForExistence(timeout: 5), "鍵盤沒有叫出來")
+            XCTAssertTrue(keyboard.waitUntilExists(timeout: 5), "鍵盤沒有叫出來")
             guard keyboard.frame.height > 150 else { throw XCTSkip("模擬器接著硬體鍵盤，沒有軟體鍵盤") }
             text.typeEnglish("Typing while the network drops")
         }
         let offline = app.staticTexts["Offline — showing the last loaded conversation."]
-        XCTAssertTrue(offline.waitForExistence(timeout: 60), "斷網後沒有顯示連線中斷橫幅")
+        XCTAssertTrue(offline.waitUntilExists(timeout: 60), "斷網後沒有顯示連線中斷橫幅")
 
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "conversation-offline"
         shot.lifetime = .keepAlways
         add(shot)
 
-        if typing { hideKeyboard(in: app) }
+        if typing { app.dismissKeyboard() }
         if hasMessages {
             let list = app.scrollViews.firstMatch
             list.swipeDown()
@@ -965,7 +897,7 @@ final class ConversationUITests: XCTestCase {
         }
         app.navigationBars.buttons.element(boundBy: 0).tap()
         let row = app.descendants(matching: .any)["agent.row.demo/\(paneID)"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "斷網後點返回沒有回到列表")
+        XCTAssertTrue(row.waitUntilExists(timeout: 10), "斷網後點返回沒有回到列表")
     }
 
     /// 等元素的 accessibility value 以指定文字開頭(縮放有動畫)。
@@ -977,16 +909,5 @@ final class ConversationUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         return element.value as? String
-    }
-
-    /// 輪詢到條件成立(先檢查一次，之後每 0.1 秒)或到上限;不固定多等。
-    @MainActor
-    private func poll(timeout: TimeInterval, until condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        repeat {
-            if condition() { return true }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        } while Date() < deadline
-        return condition()
     }
 }

@@ -17,7 +17,7 @@ final class UnreadPinnedUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         let needsYou = row("w2:p1", in: app)
-        XCTAssertTrue(needsYou.waitForExistence(timeout: 10))
+        XCTAssertTrue(needsYou.waitUntilExists(timeout: 10))
         XCTAssertTrue(app.reveal(ledger))
 
         ledger.swipeRight()
@@ -25,7 +25,7 @@ final class UnreadPinnedUITests: XCTestCase {
         // 已釘選在最上方;捲回頂端。
         app.collectionViews.firstMatch.swipeDown()
 
-        XCTAssertTrue(ledger.waitForExistence(timeout: 5))
+        XCTAssertTrue(ledger.waitUntilExists(timeout: 5))
         XCTAssertLessThan(ledger.frame.minY, needsYou.frame.minY, "已釘選的列不在最上方")
         XCTAssertTrue(ledger.label.contains("Pinned"), "列沒有念出已釘選:\(ledger.label)")
     }
@@ -36,23 +36,21 @@ final class UnreadPinnedUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         let ledger = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(ledger))
-        expectation(for: NSPredicate(format: "value == %@", "Unread"), evaluatedWith: ledger)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(ledger.wait(for: NSPredicate(format: "value == %@", "Unread"), timeout: 10), "等待的條件沒有成立")
 
         // 有需要你的 workspace 時，主機與設定 sheet 的「完成」旁也不放數字徽章(#322)。
         for (menuItem, sheet) in [("menu.hosts", "sheet.hosts"), ("menu.settings", "sheet.settings")] {
             app.buttons["toolbar.more"].tap()
             app.buttons[menuItem].tap()
             let done = app.buttons["sheet.done"]
-            XCTAssertTrue(done.waitForExistence(timeout: 5), "\(sheet) 沒有「完成」")
+            XCTAssertTrue(done.waitUntilExists(timeout: 5), "\(sheet) 沒有「完成」")
             XCTAssertTrue(app.descendants(matching: .any)[sheet].firstMatch.exists, "沒有開出 \(sheet)")
             XCTAssertFalse(app.descendants(matching: .any)["attention.badge"].firstMatch.exists, "\(sheet) 的「完成」旁有數字徽章")
             XCTAssertEqual(done.label, "Done", "「完成」多念了徽章")
             done.tap()
             // 等 sheet 收完再點列表，否則點擊落在收合中的 sheet 上。
             let closed = NSPredicate(format: "exists == false")
-            expectation(for: closed, evaluatedWith: app.descendants(matching: .any)[sheet].firstMatch)
-            waitForExpectations(timeout: 5)
+            XCTAssertTrue(app.descendants(matching: .any)[sheet].firstMatch.wait(for: closed, timeout: 5), "等待的條件沒有成立")
         }
 
         ledger.tap()
@@ -60,7 +58,6 @@ final class UnreadPinnedUITests: XCTestCase {
 
         let read = row("w1:p1", in: app)
         XCTAssertTrue(app.reveal(read))
-        expectation(for: NSPredicate(format: "value != %@", "Unread"), evaluatedWith: read)
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(read.wait(for: NSPredicate(format: "value != %@", "Unread"), timeout: 5), "等待的條件沒有成立")
     }
 }

@@ -11,11 +11,6 @@ final class ScreenshotTourUITests: XCTestCase {
     }
 
     @MainActor
-    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any)[identifier].firstMatch
-    }
-
-    @MainActor
     private func capture(_ name: String, _ app: XCUIApplication) {
         // 用整個螢幕的截圖:`app.screenshot()` 要先取 app 的 accessibility 快照，聊天在輪詢、畫面一直更新時會逾時。
         let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -27,21 +22,21 @@ final class ScreenshotTourUITests: XCTestCase {
     /// 打開某個 Demo Agent 的聊天，回傳輸入框。
     @MainActor
     private func openChat(_ paneID: String, in app: XCUIApplication) -> XCUIElement {
-        let row = element("agent.row.demo/\(paneID)", in: app)
+        let row = app.element("agent.row.demo/\(paneID)")
         XCTAssertTrue(app.reveal(row), "列表上沒有 \(paneID)")
         row.tap()
-        let text = element("composer.text", in: app)
-        XCTAssertTrue(text.waitForExistence(timeout: 10), "沒有輸入框")
+        let text = app.element("composer.text")
+        XCTAssertTrue(text.waitUntilExists(timeout: 10), "沒有輸入框")
         return text
     }
 
     @MainActor
     func test01AgentListSpaces() {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 10))
         // Spaces 檢視(#275):每個「主機 · workspace」一段，列出 Tab。
         app.switchListMode(to: "Spaces")
-        XCTAssertTrue(element("spaces.section.demo/w3", in: app).waitForExistence(timeout: 10), "沒有 workspace 段落")
+        XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 10), "沒有 workspace 段落")
         capture("01-agent-list", app)
     }
 
@@ -49,7 +44,7 @@ final class ScreenshotTourUITests: XCTestCase {
     func test02NeedsYouAnswer() {
         let app = XCUIApplication.launchUITesting()
         _ = openChat("w2:p1", in: app)
-        XCTAssertTrue(app.staticTexts["Do you want to proceed?"].waitForExistence(timeout: 15), "沒有「需要你」的提問")
+        XCTAssertTrue(app.staticTexts["Do you want to proceed?"].waitUntilExists(timeout: 15), "沒有「需要你」的提問")
         capture("02-needs-you", app)
     }
 
@@ -58,7 +53,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         _ = openChat("w2:p1", in: app)
         let card = app.staticTexts["Check how the widget refreshes"]
-        XCTAssertTrue(card.waitForExistence(timeout: 10), "沒有 subagent 卡")
+        XCTAssertTrue(card.waitUntilExists(timeout: 10), "沒有 subagent 卡")
         // 讓 subagent 卡在畫面中間。
         for _ in 0..<4 where !card.isHittable { app.swipeDown() }
         capture("03-subagent", app)
@@ -70,7 +65,7 @@ final class ScreenshotTourUITests: XCTestCase {
         let text = openChat("w1:p1", in: app)
         text.tap()
         text.typeEnglish("/")
-        XCTAssertTrue(element("slash.row.demo-kit:changelog", in: app).waitForExistence(timeout: 10), "沒有 slash 選單")
+        XCTAssertTrue(app.element("slash.row.demo-kit:changelog").waitUntilExists(timeout: 10), "沒有 slash 選單")
         capture("04-slash-menu", app)
     }
 
@@ -80,12 +75,11 @@ final class ScreenshotTourUITests: XCTestCase {
         let text = openChat("w1:p1", in: app)
         text.tap()
         text.typeEnglish("/model")
-        element("slash.row.model", in: app).tap()
-        element("composer.send", in: app).tap()
-        XCTAssertTrue(element("panel.card", in: app).waitForExistence(timeout: 10), "沒有 /model 面板卡片")
+        app.element("slash.row.model").tap()
+        app.element("composer.send").tap()
+        XCTAssertTrue(app.element("panel.card").waitUntilExists(timeout: 10), "沒有 /model 面板卡片")
         // 送出就收起鍵盤(#329);還聚焦才點。
-        let hide = element("composer.hideKeyboard", in: app)
-        if hide.waitForExistence(timeout: 1) { hide.tap() }
+        app.dismissKeyboard()
         capture("05-model-panel", app)
     }
 
@@ -95,12 +89,11 @@ final class ScreenshotTourUITests: XCTestCase {
         let text = openChat("w1:p1", in: app)
         text.tap()
         text.typeEnglish("/effort")
-        element("slash.row.effort", in: app).tap()
-        element("composer.send", in: app).tap()
-        XCTAssertTrue(element("panel.levels", in: app).waitForExistence(timeout: 10), "沒有 /effort 面板卡片")
+        app.element("slash.row.effort").tap()
+        app.element("composer.send").tap()
+        XCTAssertTrue(app.element("panel.levels").waitUntilExists(timeout: 10), "沒有 /effort 面板卡片")
         // 送出就收起鍵盤(#329);還聚焦才點。
-        let hide = element("composer.hideKeyboard", in: app)
-        if hide.waitForExistence(timeout: 1) { hide.tap() }
+        app.dismissKeyboard()
         capture("06-effort-panel", app)
     }
 
@@ -110,11 +103,10 @@ final class ScreenshotTourUITests: XCTestCase {
         let text = openChat("w1:p1", in: app)
         text.tap()
         text.typeEnglish("!git status")
-        element("composer.send", in: app).tap()
-        XCTAssertTrue(element("conversation.shell", in: app).waitForExistence(timeout: 15), "沒有 shell 區塊")
+        app.element("composer.send").tap()
+        XCTAssertTrue(app.element("conversation.shell").waitUntilExists(timeout: 15), "沒有 shell 區塊")
         // 送出就收起鍵盤(#329);還聚焦才點。
-        let hide = element("composer.hideKeyboard", in: app)
-        if hide.waitForExistence(timeout: 1) { hide.tap() }
+        app.dismissKeyboard()
         capture("07-shell-command", app)
     }
 
@@ -123,13 +115,12 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         _ = openChat("w1:p1", in: app)
         let open = app.buttons["terminal.open"].firstMatch
-        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        XCTAssertTrue(open.waitUntilExists(timeout: 10))
         open.tap()
-        let screen = element("terminal.screen", in: app)
-        XCTAssertTrue(screen.waitForExistence(timeout: 10), "沒有終端機畫面")
+        let screen = app.element("terminal.screen")
+        XCTAssertTrue(screen.waitUntilExists(timeout: 10), "沒有終端機畫面")
         let shown = NSPredicate(format: "value CONTAINS %@", "demo@purrdr")
-        expectation(for: shown, evaluatedWith: screen)
-        waitForExpectations(timeout: 10)
+        XCTAssertTrue(screen.wait(for: shown, timeout: 10), "等待的條件沒有成立")
         capture("08-terminal", app)
     }
 
@@ -137,8 +128,8 @@ final class ScreenshotTourUITests: XCTestCase {
     func test09MultipleHostsOneUnreachable() {
         // 正式 Demo 的示範主機(#34,與 review-notes.md 相同):Studio Mac 與連不上的 Build Box。
         let app = XCUIApplication.launchUITesting(flags: ["-demoCompanions"])
-        XCTAssertTrue(element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10))
-        let unreachable = element("agentList.error.DE300000-0000-4000-8000-000000000002", in: app)
+        XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 10))
+        let unreachable = app.element("agentList.error.DE300000-0000-4000-8000-000000000002")
         XCTAssertTrue(app.reveal(unreachable, timeout: 20), "沒有連不上的主機")
         capture("09-multiple-hosts", app)
     }
@@ -147,16 +138,16 @@ final class ScreenshotTourUITests: XCTestCase {
     func test10Account() {
         // 沒登入的帳號 sheet 直接是登入頁(#328),所以以已加入會員的假後台啟動才看得到步驟卡(#246)。
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember"])
-        XCTAssertTrue(app.buttons["toolbar.account"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["toolbar.account"].waitUntilExists(timeout: 10))
         app.buttons["toolbar.account"].tap()
-        XCTAssertTrue(element("account.plusSetup", in: app).waitForExistence(timeout: 10), "帳號頁沒有步驟卡")
+        XCTAssertTrue(app.element("account.plusSetup").waitUntilExists(timeout: 10), "帳號頁沒有步驟卡")
         capture("10-account", app)
     }
 
     @MainActor
     func test11Welcome() {
         let app = XCUIApplication.launchUITesting(flags: ["-showWelcome"])
-        XCTAssertTrue(element("sheet.welcome", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.element("sheet.welcome").waitUntilExists(timeout: 10))
         capture("11-welcome", app)
     }
 
@@ -165,9 +156,9 @@ final class ScreenshotTourUITests: XCTestCase {
         // 沒有主機的空狀態(#332)進新增主機引導的第一頁(#341)。
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingNoHosts"])
         let add = app.buttons["agentList.addHost"]
-        XCTAssertTrue(add.waitForExistence(timeout: 10), "沒有沒有主機的空狀態")
+        XCTAssertTrue(add.waitUntilExists(timeout: 10), "沒有沒有主機的空狀態")
         add.tap()
-        XCTAssertTrue(app.buttons["guide.option.ssh"].waitForExistence(timeout: 5), "沒有開出新增主機引導")
+        XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5), "沒有開出新增主機引導")
         capture("12-add-host-guide", app)
     }
 
@@ -177,9 +168,9 @@ final class ScreenshotTourUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"])
         app.openMoreMenuItem("menu.settings")
         let entry = app.buttons["settings.dataUsage"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 5), "設定沒有數據用量")
+        XCTAssertTrue(entry.waitUntilExists(timeout: 5), "設定沒有數據用量")
         entry.tap()
-        XCTAssertTrue(element("dataUsage.chart", in: app).waitForExistence(timeout: 10), "沒有長條圖")
+        XCTAssertTrue(app.element("dataUsage.chart").waitUntilExists(timeout: 10), "沒有長條圖")
         capture("13-data-usage", app)
     }
 
@@ -188,7 +179,7 @@ final class ScreenshotTourUITests: XCTestCase {
         // Purrdr Plus 頁(#323):已加入會員、未開通時是付費牆。
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingMember", "-seedHost"])
         app.openPlusPaywall()
-        XCTAssertTrue(element("plus.disclosure", in: app).waitForExistence(timeout: 15), "沒有付費牆")
+        XCTAssertTrue(app.element("plus.disclosure").waitUntilExists(timeout: 15), "沒有付費牆")
         capture("14-plus", app)
     }
 
@@ -209,7 +200,7 @@ final class ScreenshotTourUITests: XCTestCase {
     @MainActor
     func testDesign01AgentsView() {
         captureDesign("01-agents") { app in
-            XCTAssertTrue(self.element("agent.row.demo/w2:p1", in: app).waitForExistence(timeout: 10), "沒有 Agents 列")
+            XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 10), "沒有 Agents 列")
         }
     }
 
@@ -217,7 +208,7 @@ final class ScreenshotTourUITests: XCTestCase {
     func testDesign02SpacesView() {
         captureDesign("02-spaces") { app in
             app.switchListMode(to: "Spaces")
-            XCTAssertTrue(self.element("spaces.section.demo/w3", in: app).waitForExistence(timeout: 10), "沒有 workspace 段落")
+            XCTAssertTrue(app.element("spaces.section.demo/w3").waitUntilExists(timeout: 10), "沒有 workspace 段落")
         }
     }
 
@@ -226,8 +217,8 @@ final class ScreenshotTourUITests: XCTestCase {
         captureDesign("03-chat") { app in
             _ = self.openChat("w1:p1", in: app)
             // 訊息呈現(#351):Agent 回覆的頭像、表格與程式碼區塊都在畫面內。
-            XCTAssertTrue(self.element("conversation.agent.header", in: app).waitForExistence(timeout: 10), "沒有 Agent 回覆開頭")
-            XCTAssertTrue(self.element("conversation.table", in: app).exists, "沒有表格")
+            XCTAssertTrue(app.element("conversation.agent.header").waitUntilExists(timeout: 10), "沒有 Agent 回覆開頭")
+            XCTAssertTrue(app.element("conversation.table").exists, "沒有表格")
         }
     }
 
@@ -235,7 +226,7 @@ final class ScreenshotTourUITests: XCTestCase {
     func testDesign04NeedsYou() {
         captureDesign("04-needs-you") { app in
             _ = self.openChat("w2:p1", in: app)
-            XCTAssertTrue(app.staticTexts["Do you want to proceed?"].waitForExistence(timeout: 15), "沒有「需要你」的提問")
+            XCTAssertTrue(app.staticTexts["Do you want to proceed?"].waitUntilExists(timeout: 15), "沒有「需要你」的提問")
         }
     }
 
@@ -243,7 +234,7 @@ final class ScreenshotTourUITests: XCTestCase {
     func testDesign05NewChat() {
         captureDesign("05-new-chat") { app in
             app.openMoreMenuItem("menu.newChat")
-            XCTAssertTrue(app.textFields["newChat.folder"].waitForExistence(timeout: 10), "沒有開出新增聊天")
+            XCTAssertTrue(app.textFields["newChat.folder"].waitUntilExists(timeout: 10), "沒有開出新增聊天")
         }
     }
 
@@ -251,7 +242,7 @@ final class ScreenshotTourUITests: XCTestCase {
     func testDesign06Files() {
         captureDesign("06-files") { app in
             app.openMoreMenuItem("menu.files")
-            XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitForExistence(timeout: 10), "沒有列出家目錄")
+            XCTAssertTrue(app.buttons["files.row.ledger"].firstMatch.waitUntilExists(timeout: 10), "沒有列出家目錄")
         }
     }
 
@@ -259,7 +250,7 @@ final class ScreenshotTourUITests: XCTestCase {
     func testDesign07Settings() {
         captureDesign("07-settings") { app in
             app.openMoreMenuItem("menu.settings")
-            XCTAssertTrue(self.element("sheet.settings", in: app).waitForExistence(timeout: 10), "沒有開出設定")
+            XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
         }
     }
 }

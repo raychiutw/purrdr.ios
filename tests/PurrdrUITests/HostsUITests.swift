@@ -12,7 +12,7 @@ final class HostsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting()
         openHosts(app)
 
-        XCTAssertTrue(app.buttons["hosts.demo"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["hosts.demo"].waitUntilExists(timeout: 5))
         let description = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Add a computer that runs herdr"))
         XCTAssertEqual(description.count, 0, "主機清單仍有說明文字")
     }
@@ -23,10 +23,10 @@ final class HostsUITests: XCTestCase {
     @MainActor
     private func openHosts(_ app: XCUIApplication) {
         let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        XCTAssertTrue(more.waitUntilExists(timeout: 10))
         more.tap()
         let hostsItem = app.buttons["menu.hosts"]
-        XCTAssertTrue(hostsItem.waitForExistence(timeout: 5))
+        XCTAssertTrue(hostsItem.waitUntilExists(timeout: 5))
         hostsItem.tap()
     }
 
@@ -34,7 +34,7 @@ final class HostsUITests: XCTestCase {
     @MainActor
     func testShareLinkOpensGuideAtTest() throws {
         let app = XCUIApplication.launchUITesting()
-        XCTAssertTrue(app.buttons["toolbar.more"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["toolbar.more"].waitUntilExists(timeout: 10))
         // HostShareLink:name Studio Mac、host studio-mac、port 22、user demo。
         let payload = #"{"host":"studio-mac","method":"tailscaleSSH","name":"Studio Mac","port":22,"user":"demo","v":1}"#
         let encoded = Data(payload.utf8).base64EncodedString()
@@ -42,13 +42,13 @@ final class HostsUITests: XCTestCase {
         app.open(try XCTUnwrap(URL(string: "purrdr://host?d=\(encoded)")))
 
         let save = app.buttons["guide.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
+        XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
         save.tap()
         app.buttons["guide.done"].tapWhenReady()
         app.buttons["toolbar.more"].tap()
         app.buttons["menu.hosts"].tap()
         XCTAssertTrue(
-            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Studio Mac")).firstMatch.waitForExistence(timeout: 5),
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Studio Mac")).firstMatch.waitUntilExists(timeout: 5),
             "主機清單沒有匯入的主機")
     }
 
@@ -58,12 +58,12 @@ final class HostsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openHosts(app)
         let info = app.buttons[Self.seededInfo]
-        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertTrue(info.waitUntilExists(timeout: 5))
         XCTAssertEqual(info.label, "Studio Mac Details")
 
         info.tap()
 
-        XCTAssertTrue(app.navigationBars["Edit Host"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Edit Host"].waitUntilExists(timeout: 5))
         XCTAssertEqual(app.textFields["hostEditor.name"].value as? String, "Studio Mac")
     }
 
@@ -76,12 +76,12 @@ final class HostsUITests: XCTestCase {
                 let app = XCUIApplication.launchUITesting(flags: ["-seedHost"] + flags)
                 openHosts(app)
                 let info = app.buttons[Self.seededInfo]
-                XCTAssertTrue(info.waitForExistence(timeout: 5))
+                XCTAssertTrue(info.waitUntilExists(timeout: 5))
                 info.tap()
                 let name = app.textFields["hostEditor.name"]
-                XCTAssertTrue(name.waitForExistence(timeout: 5))
+                XCTAssertTrue(name.waitUntilExists(timeout: 5))
                 name.tap()
-                XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "沒有叫出鍵盤")
+                XCTAssertTrue(app.waitForKeyboard(), "沒有叫出鍵盤")
                 if edits { name.typeEnglish("2") }
 
                 let cancel = app.navigationBars.buttons.matching(identifier: "Cancel").firstMatch.exists
@@ -93,10 +93,10 @@ final class HostsUITests: XCTestCase {
                 if edits {
                     let discard = app.buttons["Discard Changes"].firstMatch
                     let discardZh = app.buttons["放棄變更"].firstMatch
-                    XCTAssertTrue(discard.waitForExistence(timeout: 5) || discardZh.exists, "沒有放棄確認")
+                    XCTAssertTrue(UITestWait.until(timeout: 5) { discard.exists || discardZh.exists }, "沒有放棄確認")
                     (discard.exists ? discard : discardZh).tap()
                 }
-                XCTAssertTrue(app.buttons[Self.seededInfo].waitForExistence(timeout: 5), "沒有回到主機清單")
+                XCTAssertTrue(app.buttons[Self.seededInfo].waitUntilExists(timeout: 5), "沒有回到主機清單")
                 XCTAssertEqual(app.state, .runningForeground)
                 app.terminate()
             }
@@ -109,10 +109,10 @@ final class HostsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openHosts(app)
         let info = app.buttons[Self.seededInfo]
-        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertTrue(info.waitUntilExists(timeout: 5))
         info.tap()
         let desktop = app.buttons["hostEditor.icon.desktop"]
-        XCTAssertTrue(desktop.waitForExistence(timeout: 5))
+        XCTAssertTrue(desktop.waitUntilExists(timeout: 5))
         XCTAssertTrue(desktop.isSelected, "沒選過圖示的主機是桌機")
         for raw in ["laptop", "macMini", "rack", "pc", "display", "board", "console", "home", "cloud", "terminal", "none"] {
             XCTAssertTrue(app.buttons["hostEditor.icon.\(raw)"].exists, raw)
@@ -128,9 +128,9 @@ final class HostsUITests: XCTestCase {
 
         // 儲存後同一般儲存關閉主機 sheet;再開一次確認圖示存起來了。
         openHosts(app)
-        XCTAssertTrue(info.waitForExistence(timeout: 5))
+        XCTAssertTrue(info.waitUntilExists(timeout: 5))
         info.tap()
-        XCTAssertTrue(app.buttons["hostEditor.icon.board"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["hostEditor.icon.board"].waitUntilExists(timeout: 5))
         XCTAssertTrue(app.buttons["hostEditor.icon.board"].isSelected)
     }
 
@@ -140,49 +140,48 @@ final class HostsUITests: XCTestCase {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openHosts(app)
         let row = app.buttons[Self.seededRow]
-        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.waitUntilExists(timeout: 5))
         XCTAssertTrue(row.isSelected, "已存主機應是選取中主機")
 
         // 分享:在同一個 sheet 內 push,顯示 QR code 與分享連結。
         row.press(forDuration: 1)
         app.buttons["Share…"].firstMatch.tap()
         // `.accessibilityElement()` 讓 QR code 以 Other(而非 Image)出現在 accessibility tree。
-        XCTAssertTrue(app.descendants(matching: .any)["hostShare.qr"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["hostShare.qr"].firstMatch.waitUntilExists(timeout: 5))
         XCTAssertTrue(app.buttons["hostShare.link"].exists)
         app.navigationBars["Share Host"].buttons["Hosts"].tap()
 
         // 重新命名。
-        if !row.waitForExistence(timeout: 5) { print(app.debugDescription) }
+        if !row.waitUntilExists(timeout: 5) { print(app.debugDescription) }
         XCTAssertTrue(row.exists)
         row.press(forDuration: 1)
         app.buttons["Rename…"].firstMatch.tap()
         // alert 裡的 TextField 不會帶上 SwiftUI 的 accessibilityIdentifier,改從 alert 找。
         let field = app.alerts["Rename Host"].textFields.firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(field.waitUntilExists(timeout: 5))
         field.clearAndType("Office Mac")
         app.buttons["hosts.rename.confirm"].firstMatch.tap()
-        let renamed = expectation(for: NSPredicate(format: "label CONTAINS %@", "Office Mac"), evaluatedWith: row)
-        wait(for: [renamed], timeout: 5)
+        row.expectLabel(containing: "Office Mac", timeout: 5)
 
         // 選單的刪除：先確認，取消就不刪。
         row.press(forDuration: 1)
         app.buttons["Delete…"].firstMatch.tap()
         let confirm = app.buttons["hosts.delete.confirm"].firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "刪除主機要先確認")
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "刪除主機要先確認")
         // iOS 27 的確認對話框沒有 Cancel 按鈕，點對話框外取消。
         let dismissRegion = app.otherElements["PopoverDismissRegion"].firstMatch
         XCTAssertTrue(dismissRegion.exists, "確認對話框沒有可點外面取消的區域")
         dismissRegion.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()
-        XCTAssertTrue(confirm.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(confirm.waitUntilGone(timeout: 5))
         XCTAssertTrue(row.exists, "取消後主機還在")
 
         // 滑動的刪除：確認後才移除;選取改回 Demo 主機。
         row.swipeLeft()
         app.buttons["hosts.delete"].tap()
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "刪除主機要先確認")
+        XCTAssertTrue(confirm.waitUntilExists(timeout: 5), "刪除主機要先確認")
         XCTAssertTrue(row.exists, "確認前不該移除")
         confirm.tap()
-        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(row.waitUntilGone(timeout: 5))
         XCTAssertTrue(app.buttons["hosts.demo"].isSelected)
     }
 }
@@ -199,11 +198,3 @@ extension XCUIElement {
     }
 }
 
-private extension XCUIElement {
-    /// 等元素出現(換頁動畫)再點。
-    @MainActor
-    func tapWhenReady() {
-        XCTAssertTrue(waitForExistence(timeout: 5), "\(identifier) 沒有出現")
-        tap()
-    }
-}
