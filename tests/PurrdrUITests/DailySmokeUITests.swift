@@ -168,7 +168,8 @@ final class DailySmokeUITests: XCTestCase {
     /// 沒有「⋯」選單;對話隱藏 tab bar、返回後回來。
     @MainActor
     func testTabsAndSignedOutAccount() {
-        let app = XCUIApplication.launchUITesting()
+        // `-uiTestingSignUp`:沒登入,Apple／Google 按鈕直接登入假後台(下面的加入流程用)。
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSignUp"])
 
         step("沒有「⋯」選單,右上依 tab 不同") {
             XCTAssertTrue(app.buttons["toolbar.newChat"].firstMatch.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天")
@@ -207,10 +208,34 @@ final class DailySmokeUITests: XCTestCase {
             app.navigationBars.buttons.element(boundBy: 0).tap()
             XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "返回後 tab bar 沒有回來")
         }
-        step("未登入的帳號頁是登入頁") {
+        step("未登入的帳號頁先選登入或加入會員") {
             app.openAccount()
-            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有直接顯示登入頁")
-            XCTAssertTrue(app.buttons["member.signIn.apple"].exists, "沒有 Apple 登入鈕")
+            XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有顯示選擇頁")
+            XCTAssertTrue(app.buttons["account.entry.signIn"].exists, "沒有「登入」")
+            XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
+            XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該先看到 Apple 登入鈕")
+        }
+        step("加入會員:略過 Plus,通知鎖定,完成頁是會員已建立") {
+            app.buttons["account.entry.join"].tap()
+            XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 5), "加入第 1 步沒有 Apple 註冊鈕")
+            XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
+            XCTAssertTrue(app.buttons["member.entry.back"].exists, "第 1 步左上應是返回")
+            app.buttons["member.signIn.apple"].tap()
+
+            XCTAssertTrue(app.element("account.join.paywall").waitUntilExists(timeout: 10), "建立會員後沒有進開通 Plus")
+            XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 2 of 4")
+            XCTAssertFalse(app.buttons["member.entry.back"].exists, "第 2 步起左上不是返回")
+            XCTAssertTrue(app.buttons["member.signIn.cancel"].exists, "第 2 步起左上應是關閉")
+            app.buttons["account.join.secondary"].tap()
+
+            XCTAssertTrue(app.element("account.join.notificationsLocked").waitUntilExists(timeout: 5), "略過 Plus 後通知沒有鎖定")
+            XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 3 of 4")
+            XCTAssertTrue(app.buttons["account.join.primary"].label.contains("Activate Purrdr Plus"))
+            app.buttons["account.join.secondary"].tap()
+
+            XCTAssertTrue(app.element("account.join.doneCreated").waitUntilExists(timeout: 5), "略過 Plus 的完成頁不是「會員已建立」")
+            app.buttons["account.join.primary"].tap()
+            XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "開始使用後沒有回到帳號頁")
         }
     }
 

@@ -149,9 +149,12 @@ extension XCUIApplication {
     /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
     @MainActor
     func openSignInFromAccount(file: StaticString = #filePath, line: UInt = #line) {
-        // 沒登入時帳號頁直接是登入頁(#328)。
+        // 沒登入時帳號頁先選登入或加入(#408):選「登入」進登入頁。
         openAccount(file: file, line: line)
-        XCTAssertTrue(buttons["member.signIn.apple"].firstMatch.waitUntilExists(timeout: 10), "帳號頁沒有登入頁", file: file, line: line)
+        let signIn = buttons["account.entry.signIn"].firstMatch
+        XCTAssertTrue(signIn.waitUntilExists(timeout: 10), "帳號頁沒有選擇頁", file: file, line: line)
+        signIn.tap()
+        XCTAssertTrue(buttons["member.signIn.apple"].firstMatch.waitUntilExists(timeout: 10), "沒有登入頁", file: file, line: line)
     }
 
     /// 主機 tab 總頁的一列(`hosts.edit`、`hosts.share`…):清單是 lazy 的,先捲到看得到再回傳。

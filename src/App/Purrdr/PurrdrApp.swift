@@ -33,6 +33,7 @@ struct PurrdrApp: App {
     private let forcesOpaqueGlass: Bool
     /// `-uiTesting`:處理 `purrdr://testing-…` 測試連結(不重啟換字級)。
     private let allowsTestingLinks: Bool
+    private let usesTestingSignIn: Bool
     /// App 鎖(#284):所有視窗共用一份鎖定狀態。
     private let appLock: AppLock
     /// 數據用量的流量計量(#353)與網路類型監看(監看物件要活著)。
@@ -193,6 +194,7 @@ struct PurrdrApp: App {
         pairingCodeScanSource = Self.pairingCodeScanSource(arguments)
         recentPhotoSource = uiTesting ? Self.recentPhotoSource(arguments) : .system
         allowsTestingLinks = uiTesting
+        usesTestingSignIn = uiTesting && arguments.contains("-uiTestingSignUp")
         forcesOpaqueGlass = uiTesting && UserDefaults.standard.bool(forKey: "uiTestingReduceTransparency")
         appLock = Self.makeAppLock(uiTesting: uiTesting, arguments: arguments)
     }
@@ -369,8 +371,8 @@ struct PurrdrApp: App {
             return MemberSession(transport: UITestingOfflineBackend(), tokenStore: tokens, deviceID: deviceID)
         }
         if uiTesting, let backend = uiTestingMemberBackend(arguments) {
-            return MemberSession(
-                transport: backend, tokenStore: InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken), deviceID: deviceID)
+            let tokens = backend.startsSignedIn ? InMemoryTokenStore(refreshToken: UITestingBackendTransport.refreshToken) : InMemoryTokenStore()
+            return MemberSession(transport: backend, tokenStore: tokens, deviceID: deviceID)
         }
         let baseURL = uiTesting ? URL(string: "https://backend.invalid")! : BackendConfiguration.baseURL
         let tokenStore: any TokenStore = uiTesting ? InMemoryTokenStore() : KeychainTokenStore()
@@ -397,6 +399,8 @@ struct PurrdrApp: App {
     private static func uiTestingMemberBackend(_ arguments: [String]) -> UITestingBackendTransport? {
         if arguments.contains("-uiTestingPlusMember") { return UITestingBackendTransport(isPlusActive: true) }
         if arguments.contains("-uiTestingMember") { return UITestingBackendTransport(isPlusActive: false) }
+        // 沒登入,按 Apple／Google 登入或註冊會直接登入假後台(登入與加入流程,#408)。
+        if arguments.contains("-uiTestingSignUp") { return UITestingBackendTransport(isPlusActive: false, startsSignedIn: false) }
         return nil
     }
 
@@ -413,6 +417,7 @@ struct PurrdrApp: App {
             .environment(\.recentPhotoSource, recentPhotoSource)
             .environment(\.forcesOpaqueGlass, forcesOpaqueGlass)
             .environment(\.allowsTestingLinks, allowsTestingLinks)
+            .environment(\.usesTestingSignIn, usesTestingSignIn)
         }
         .commands { PurrdrCommands() }
         .onChange(of: scenePhase, initial: true) { _, phase in

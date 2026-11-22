@@ -62,7 +62,9 @@ final class PlusUITests: XCTestCase {
         XCTAssertEqual(subscribe.label, "Sign In to Subscribe")
 
         subscribe.tap()
-        XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 10))
+        // 先選登入或加入(#408),選擇頁左上是關閉。
+        XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
+        XCTAssertTrue(app.buttons["account.entry.join"].exists)
         app.buttons["member.signIn.cancel"].tap()
 
         // 深層連結開的是付費牆 sheet(#246),「完成」關掉就回到列表。

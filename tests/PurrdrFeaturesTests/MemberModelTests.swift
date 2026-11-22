@@ -61,6 +61,41 @@ struct MemberModelTests {
         #expect(try tokens.refreshToken() == "refresh-1")
     }
 
+    @Test("登入結果回報有沒有新建會員，畫面依它分流(#408)")
+    func signInReportsWhetherMemberWasCreated() async {
+        backend.on("POST", "/v1/sessions", .json(200, Replies.session(refreshToken: "refresh-1", memberCreated: false, member: Replies.appleMember)))
+        let model = makeModel()
+        await model.restore()
+        #expect(model.lastSignIn == nil)
+
+        _ = model.beginAppleAuthorization(linking: false)
+        await model.completeAppleAuthorization(idToken: "apple-id-token", authorizationCode: "apple-code")
+        let first = model.lastSignIn
+        #expect(first?.memberCreated == false)
+
+        backend.on("POST", "/v1/sessions", .json(200, Replies.session(refreshToken: "refresh-2", memberCreated: true, member: Replies.appleMember)))
+        _ = model.beginAppleAuthorization(linking: false)
+        await model.completeAppleAuthorization(idToken: "apple-id-token", authorizationCode: "apple-code")
+        #expect(model.lastSignIn?.memberCreated == true)
+        #expect(model.lastSignIn != first, "每次登入都是新事件，畫面才會再收到一次")
+    }
+
+    @Test("連結另一種登入方式不算登入事件")
+    func linkingIsNotASignInEvent() async {
+        backend.on("POST", "/v1/sessions", .json(200, Replies.session(refreshToken: "refresh-1", member: Replies.appleMember)))
+        backend.on("POST", "/v1/members/me/identities", .json(200, #"{"member": \#(Replies.googleMember), "mergedMemberId": null}"#))
+        let model = makeModel()
+        await model.restore()
+        _ = model.beginAppleAuthorization(linking: false)
+        await model.completeAppleAuthorization(idToken: "t", authorizationCode: "c")
+        let before = model.lastSignIn
+
+        _ = model.beginAppleAuthorization(linking: true)
+        await model.completeAppleAuthorization(idToken: "t2", authorizationCode: "c2")
+
+        #expect(model.lastSignIn == before)
+    }
+
     @Test("Sign in with Apple 取消時不提示也不連後台")
     func appleCanceled() async {
         let model = makeModel()
@@ -347,9 +382,9 @@ enum Replies {
     ]}
     """#
 
-    static func session(accessToken: String = "access-1", expiresIn seconds: TimeInterval = 900, refreshToken: String, member: String) -> String {
+    static func session(accessToken: String = "access-1", expiresIn seconds: TimeInterval = 900, refreshToken: String, memberCreated: Bool = true, member: String) -> String {
         let expiresAt = ISO8601DateFormatter().string(from: Date().addingTimeInterval(seconds))
-        return #"{"accessToken": "\#(accessToken)", "accessTokenExpiresAt": "\#(expiresAt)", "refreshToken": "\#(refreshToken)", "memberCreated": true, "member": \#(member)}"#
+        return #"{"accessToken": "\#(accessToken)", "accessTokenExpiresAt": "\#(expiresAt)", "refreshToken": "\#(refreshToken)", "memberCreated": \#(memberCreated), "member": \#(member)}"#
     }
 
     static func error(_ code: String, _ message: String = "Something happened.") -> String {

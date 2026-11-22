@@ -15,6 +15,8 @@ final class UITestingBackendTransport: BackendTransport {
     static let legacyDeviceID = "legacy-5eed00000000000000000000000000d3"
 
     let isPlusActive: Bool
+    /// 一開始就有更新權杖(已登入)。`false` 是 `-uiTestingSignUp`:沒登入,Apple／Google 按鈕直接以固定憑證登入這個假後台(#408)。
+    let startsSignedIn: Bool
 
     private struct Device {
         var id: String
@@ -31,12 +33,18 @@ final class UITestingBackendTransport: BackendTransport {
         Device(id: legacyDeviceID, name: nil, model: nil, keyHashes: [], hostCount: 1, lastRegisteredAt: 1_794_643_200_000),
     ])
 
-    init(isPlusActive: Bool) {
+    init(isPlusActive: Bool, startsSignedIn: Bool = true) {
         self.isPlusActive = isPlusActive
+        self.startsSignedIn = startsSignedIn
     }
 
     func send(_ request: BackendRequest) async throws -> BackendResponse {
         switch (request.method, request.path) {
+        case ("POST", "/v1/sessions"):
+            // 登入或註冊:ID token 含 `new` 的是新會員(`memberCreated: true`),其餘是既有會員。
+            let idToken = request.body.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["idToken"] as? String
+            let created = idToken?.contains("new") == true
+            return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","memberCreated":\#(created),"autoLinked":false,"member":\#(Self.memberJSON)}"#)
         case ("POST", "/v1/sessions/refresh"):
             return Self.json(#"{"accessToken":"ui-testing-access","accessTokenExpiresAt":"2099-01-01T00:00:00.000Z","refreshToken":"\#(Self.refreshToken)","member":\#(Self.memberJSON)}"#)
         case ("GET", "/v1/members/me"):

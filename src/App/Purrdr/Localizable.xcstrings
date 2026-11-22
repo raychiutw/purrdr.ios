@@ -1018,6 +1018,17 @@
         }
       }
     },
+    "A member account unlocks Purrdr Plus, notifications from your agents, and a host list that syncs across iPhone, iPad, and Android." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會員可以開通 Purrdr Plus,收 Agent 的通知,並在 iPhone、iPad 與 Android 之間同步主機清單。"
+          }
+        }
+      }
+    },
     "A public IP or domain name of that computer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1282,6 +1293,17 @@
         }
       }
     },
+    "After you sign in, you go straight to Account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後直接回到帳號頁。"
+          }
+        }
+      }
+    },
     "Agent" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1421,6 +1443,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已被其他會員使用"
+          }
+        }
+      }
+    },
+    "Already a member" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已經是會員"
+          }
+        }
+      }
+    },
+    "Already a member? Sign In" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已經是會員?登入"
           }
         }
       }
@@ -2254,17 +2298,6 @@
         }
       }
     },
-    "Chat and terminal don’t need a member account." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "聊天與終端機不需要會員。"
-          }
-        }
-      }
-    },
     "Chat, Terminal, and the Demo Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2272,6 +2305,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聊天、終端機與 範例主機"
+          }
+        }
+      }
+    },
+    "Chat, terminal, and host management don’t need a member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天、終端機與主機管理不需要會員。"
           }
         }
       }
@@ -2613,6 +2657,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要關閉「%@」嗎?"
+          }
+        }
+      }
+    },
+    "Close. Continue in Account Later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉,之後在帳號頁繼續"
           }
         }
       }
@@ -3853,6 +3908,17 @@
         }
       }
     },
+    "Create Your Member Account" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立會員"
+          }
+        }
+      }
+    },
     "Created" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4190,6 +4256,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成"
+          }
+        }
+      }
+    },
+    "Done for Now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成,之後再說"
           }
         }
       }
@@ -4590,6 +4667,17 @@
         }
       }
     },
+    "Finish Setup" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成設定"
+          }
+        }
+      }
+    },
     "Finished" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4619,6 +4707,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第一次連到這台主機"
+          }
+        }
+      }
+    },
+    "First time here. We’ll set up Plus with you." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一次使用,帶你開通 Plus"
           }
         }
       }
@@ -4788,6 +4887,17 @@
         }
       }
     },
+    "Get Started" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始使用"
+          }
+        }
+      }
+    },
     "Get Tailscale on both devices" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4795,6 +4905,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "兩邊都裝好 Tailscale"
+          }
+        }
+      }
+    },
+    "Get notified when an agent needs you or finishes. Turn it on per host. You can change it later in the Hosts tab." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 需要你或做完時通知你。逐台主機開啟,之後可在主機 tab 修改。"
           }
         }
       }
@@ -5359,6 +5480,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "如果這個帳號是系統管理員，請改用系統管理員身分開啟 PowerShell，貼上這一行。"
+          }
+        }
+      }
+    },
+    "If this email already belongs to a member, you’ll be signed in to that member." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一個 email 已經是會員時,會直接登入那個會員。"
           }
         }
       }
@@ -6232,6 +6364,17 @@
         }
       }
     },
+    "Member Created" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會員已建立"
+          }
+        }
+      }
+    },
     "Member Deleted" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6694,6 +6837,17 @@
         }
       }
     },
+    "No hosts yet. Add one in the Hosts tab, then turn on notifications there." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有主機。請先在主機 tab 新增一台,再開啟通知。"
+          }
+        }
+      }
+    },
     "No internet connection. Showing agents from your last connection." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6815,6 +6969,17 @@
         }
       }
     },
+    "Not Now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後再說"
+          }
+        }
+      }
+    },
     "Not Paired on This Device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6899,6 +7064,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚未加入會員"
+          }
+        }
+      }
+    },
+    "Not a member yet? Join" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還不是會員?加入會員"
           }
         }
       }
@@ -7101,6 +7277,17 @@
         }
       }
     },
+    "Notifications are on for %@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已開啟 %@ 的通知。"
+          }
+        }
+      }
+    },
     "Notifications can be turned on after this device pairs with the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7130,6 +7317,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通知需要 Purrdr Plus。"
+          }
+        }
+      }
+    },
+    "Notifications need Purrdr Plus. You chose to activate it later, so this step is skipped for now." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知需要 Purrdr Plus。你剛才選了稍後再開通,所以這一步先略過。"
           }
         }
       }
@@ -7438,6 +7636,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只在家裡連"
+          }
+        }
+      }
+    },
+    "Only names, addresses, and connection methods sync. Keys, passwords, and pairing tokens always stay on this device." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只同步名稱、位址與連線方式。金鑰、密碼與配對權杖永遠留在這支裝置。"
           }
         }
       }
@@ -8069,6 +8278,17 @@
         }
       }
     },
+    "Pick one way to create it. You can link the other one later in Account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一種方式建立。之後可以在帳號頁再綁定另一種。"
+          }
+        }
+      }
+    },
     "Pick the host your agents run on." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8186,6 +8406,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要看用量,請先把主機服務更新到 %@ 以上。更新方式在主機上操作。"
+          }
+        }
+      }
+    },
+    "Plus gives you notifications and host sync. Chat and terminal aren’t affected." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus 讓你收通知、同步主機清單。聊天與終端機不受影響。"
           }
         }
       }
@@ -8384,6 +8615,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Purrdr Plus 屬於你的 Purrdr 會員。登入後，你的購買項目會自動加入。"
+          }
+        }
+      }
+    },
+    "Purrdr Plus is on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purrdr Plus 已開通。"
           }
         }
       }
@@ -9411,6 +9653,17 @@
         }
       }
     },
+    "See the same hosts on every iPhone, iPad, and Android device where you’re signed in to this member account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在你登入同一個會員的 iPhone、iPad 與 Android 上看到同樣的主機。"
+          }
+        }
+      }
+    },
     "Select a Chat" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9704,6 +9957,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定…"
+          }
+        }
+      }
+    },
+    "Setup Complete" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定完成"
           }
         }
       }
@@ -10093,6 +10357,17 @@
         }
       }
     },
+    "Sign Up with Google" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Google 註冊"
+          }
+        }
+      }
+    },
     "Sign in to the host with a password or key." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10100,28 +10375,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用密碼或金鑰登入主機。"
-          }
-        }
-      }
-    },
-    "Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync hosts between iPhone and iPad." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "登入後可以開通 Purrdr Plus、在 Agent 需要你時收到通知，並在 iPhone 和 iPad 之間同步主機。"
-          }
-        }
-      }
-    },
-    "Sign in to use Purrdr Plus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "登入以使用 Purrdr Plus"
           }
         }
       }
@@ -10192,6 +10445,28 @@
         }
       }
     },
+    "Sign in with the method you used when you joined." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用你加入會員時的方式登入。"
+          }
+        }
+      }
+    },
+    "Sign up with Apple" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Apple 註冊"
+          }
+        }
+      }
+    },
     "Sign-In Methods" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10221,6 +10496,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "大小"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "略過"
           }
         }
       }
@@ -13121,6 +13407,17 @@
         }
       }
     },
+    "Turning on a host installs a notification helper on it. You can remove it completely." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟時會在主機上安裝通知幫手(可完整移除)。"
+          }
+        }
+      }
+    },
     "Type the folder’s location on the host, like /Users/you/project. This host can’t show a folder list." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14236,6 +14533,17 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
+    "You can activate Purrdr Plus later in Account. Notifications and host sync need it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "之後可以在帳號頁開通 Purrdr Plus,開通後才能收通知、同步主機清單。"
+          }
+        }
+      }
+    },
     "You can attach up to 10 items to a message." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14357,6 +14665,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "送出的內容會當成回答交給 Agent。"
+          }
+        }
+      }
+    },
+    "Your host list syncs to your other devices." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機清單會同步到你的其他裝置。"
           }
         }
       }

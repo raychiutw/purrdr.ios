@@ -22,6 +22,17 @@ public final class MemberModel {
     /// 要提示使用者的事(錯誤或完成通知)。畫面顯示後設回 `nil`。
     public var notice: MemberNotice?
 
+    /// 一次登入(不含連結另一種登入方式)的結果(#408):登入與加入分流依 `memberCreated` 決定下一頁。
+    /// 每次登入的 `id` 都不同,畫面用 `onChange` 就收得到每一次。
+    public struct SignInEvent: Equatable, Sendable {
+        public var id: Int
+        /// 後台回報這次登入新建了會員。
+        public var memberCreated: Bool
+    }
+
+    public private(set) var lastSignIn: SignInEvent?
+    private var signInCount = 0
+
     /// 目前這次操作是否以「暫時連不上」收尾(讀到本機快照就算成功,但後台沒答)。
     private var endedLimited = false
     private let session: MemberSession
@@ -82,6 +93,11 @@ public final class MemberModel {
         if !canceled {
             notice = .failed(String(localized: "Sign in with Apple didn’t finish. Try again."))
         }
+    }
+
+    /// 直接以憑證登入(測試替身與 UI 測試用,正式畫面走 Apple／Google 按鈕)。
+    public func signIn(with credential: SignInCredential) async {
+        await submit(credential, linking: false)
     }
 
     /// 用 Google 登入;`browser` 由畫面以系統瀏覽器提供。
@@ -160,9 +176,11 @@ public final class MemberModel {
             } else {
                 // 已登入時再登入:換會員前先撤銷上一位的推播配對(登入後就沒有他的權杖了)。
                 if case .signedIn = phase, !(await leaveLocalState()) { return }
-                let member = try await session.signIn(credential).member
-                phase = .signedIn(member)
-                localState?.activate(member)
+                let result = try await session.signIn(credential)
+                phase = .signedIn(result.member)
+                localState?.activate(result.member)
+                signInCount += 1
+                lastSignIn = SignInEvent(id: signInCount, memberCreated: result.memberCreated)
             }
         }
     }

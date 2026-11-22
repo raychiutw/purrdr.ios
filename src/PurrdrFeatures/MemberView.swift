@@ -17,6 +17,8 @@ public struct MemberView: View {
     let hostSync: HostSyncModel?
     /// 還沒配對的 HTTPS 主機在通知列開配對(#295;與主機頁同一個編輯器)。
     let hosts: HostsModel?
+    /// 沒登入時的流程(#408):選擇、登入、加入。
+    @State private var entry = AccountEntryFlow()
     @Environment(\.dismiss) private var dismiss
 
     public init(
@@ -33,13 +35,19 @@ public struct MemberView: View {
 
     public var body: some View {
         NavigationStack {
-            MemberContent(model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts)
-                .toolbar {
+            MemberContent(
+                model: model, plus: plus, pushes: pushes, pushDevices: pushDevices, hostSync: hostSync, hosts: hosts, entry: $entry
+            )
+            .toolbar {
+                if entry.shownScreen(phase: model.phase, hasPlus: plus != nil) != nil {
+                    AccountEntryToolbar(entry: $entry, onClose: { dismiss() })
+                } else {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
                             .accessibilityIdentifier("member.done")
                     }
                 }
+            }
         }
     }
 }
@@ -52,10 +60,11 @@ public struct MemberContent: View {
     let pushDevices: PushDevicesModel?
     let hostSync: HostSyncModel?
     let hosts: HostsModel?
+    @Binding var entry: AccountEntryFlow
 
     public init(
         model: MemberModel, plus: SubscriptionModel? = nil, pushes: [HostPush] = [], pushDevices: PushDevicesModel? = nil,
-        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil
+        hostSync: HostSyncModel? = nil, hosts: HostsModel? = nil, entry: Binding<AccountEntryFlow>
     ) {
         self.model = model
         self.plus = plus
@@ -63,16 +72,25 @@ public struct MemberContent: View {
         self.pushDevices = pushDevices
         self.hostSync = hostSync
         self.hosts = hosts
+        self._entry = entry
     }
 
     public var body: some View {
         content
-            .navigationTitle(model.phase == .signedOut ? "Sign In" : "Account")
+            .navigationTitle(entry.navigationTitle(phase: model.phase, hasPlus: plus != nil))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
         .task {
             if model.phase == .unknown { await model.restore() }
+        }
+        // 登入結果決定下一頁:登入進帳號頁、加入進步驟(#408)。
+        .onChange(of: model.lastSignIn) { _, event in
+            guard let event else { return }
+            entry.signedIn(memberCreated: event.memberCreated)
+        }
+        .onChange(of: model.phase) { _, phase in
+            if phase == .signedOut { entry.reset() }
         }
         .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
             if notice == .deleted {
@@ -92,9 +110,15 @@ public struct MemberContent: View {
 
     @ViewBuilder
     private var content: some View {
-        if model.phase == .signedOut {
-            // 沒登入直接是登入頁(#328,原型 A);登入完成後 phase 變成 signedIn,換成帳號頁。
-            SignedOutAccountView(model: model)
+        if let screen = entry.shownScreen(phase: model.phase, hasPlus: plus != nil) {
+            // 沒登入先選「登入」或「加入會員」(#408);加入第 2 步起是步驟流程。
+            if screen == .join, entry.join.step != .createMember, let plus {
+                JoinFlowPages(
+                    model: model, entry: $entry, plus: plus, pushes: pushes, hostSync: hostSync, hostCount: hosts?.hosts.count ?? 0,
+                    signedInMember: signedInMember)
+            } else {
+                AccountEntryPages(model: model, entry: $entry)
+            }
         } else if model.phase == .unknown {
             if model.isWorking {
                 ProgressView()
@@ -115,66 +139,27 @@ public struct MemberContent: View {
     private var noticePresented: Binding<Bool> {
         Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
     }
-}
 
-/// 沒登入的帳號頁(#328,原型 A):Purrdr 圖示、標題、說明與兩個登入鈕,不出現步驟卡。
-struct SignedOutAccountView: View {
-    let model: MemberModel
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Image(systemName: "pawprint.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.onProminentFill)
-                    .frame(width: 80, height: 80)
-                    .background(.prominentFill, in: RoundedRectangle(cornerRadius: 18))
-                    .accessibilityHidden(true)
-                    .padding(.top, 24)
-                Text("Sign In to Purrdr")
-                    .font(.title2.bold())
-                    .multilineTextAlignment(.center)
-                Text("Sign in to turn on Purrdr Plus, get notified when an agent needs you, and sync hosts between iPhone and iPad.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondaryText)
-                    .multilineTextAlignment(.center)
-                Text("Chat and terminal don’t need a member account.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 4)
-            }
-            .padding(.horizontal)
-        }
-        // 識別碼要掛在 ScrollView 本身:掛在 safeAreaInset 外層會蓋掉登入鈕自己的識別碼。
-        .accessibilityIdentifier("account.signedOut")
-        // 登入鈕固定在底部:AX 字級時也不必捲動才看得到(HIG:Sign in with Apple 要一眼看得到)。
-        .safeAreaInset(edge: .bottom) {
-            SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
-                .padding()
-                .background(.bar)
-        }
+    private var signedInMember: Member? {
+        if case .signedIn(let member) = model.phase { return member }
+        return nil
     }
 }
 
-/// 只有登入的 sheet(付費牆的「登入以訂閱」):登入完成就自動關閉。
+/// 只有登入的 sheet(付費牆的「登入以訂閱」):先選登入或加入,登入完成就自動關閉。
 struct SignInSheet: View {
     let model: MemberModel
+    @State private var entry = AccountEntryFlow()
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            SignInView(model: model)
-                .navigationTitle("Join as a Member")
+            AccountEntryPages(model: model, entry: $entry)
+                .navigationTitle(entry.navigationTitle(phase: model.phase, hasPlus: false))
                 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") { dismiss() }
-                            .accessibilityIdentifier("member.signIn.cancel")
-                    }
-                }
+                .toolbar { AccountEntryToolbar(entry: $entry, onClose: { dismiss() }) }
         }
         .onChange(of: model.phase) { _, phase in
             if case .signedIn = phase { dismiss() }
@@ -182,54 +167,66 @@ struct SignInSheet: View {
     }
 }
 
-// MARK: - 登入頁
-
-/// 登入頁：只有標題(#236),下方固定兩個登入按鈕(不需捲動就看得到)。
-struct SignInView: View {
-    let model: MemberModel
-
-    var body: some View {
-        ScrollView {
-            Text("Sign in to use Purrdr Plus")
-                .font(.title2.bold())
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
-        }
-        .safeAreaInset(edge: .bottom) {
-            SignInButtons(model: model, linking: false, methods: SignInMethod.allCases)
-                .padding()
-                .background(.bar)
-        }
-    }
-}
+// MARK: - 登入
 
 /// Sign in with Apple 與 Google 按鈕：同寬、同高、同圓角(Apple 按鈕不得小於其他登入按鈕)。
 struct SignInButtons: View {
     let model: MemberModel
     let linking: Bool
     let methods: [SignInMethod]
+    /// 登入頁「登入」、加入頁「註冊」的按鈕說法(連結另一種方式時是「繼續」)。
+    var copy: AccountEntryFlow.SignInCopy = .signIn
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.usesTestingSignIn) private var usesTestingSignIn
     @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     /// 跟著字級放大，但最高 88 pt,免得 AX 字級時把說明擠出畫面。
     @ScaledMetric(relativeTo: .body) private var scaledHeight: CGFloat = 50
     private var height: CGFloat { min(max(scaledHeight, 50), 88) }
-    static let cornerRadius: CGFloat = 12
+    static let cornerRadius: CGFloat = 25
 
     var body: some View {
         VStack(spacing: 12) {
             ForEach(methods, id: \.self) { method in
-                switch method {
-                case .apple: appleButton
-                case .google: googleButton
+                if usesTestingSignIn {
+                    testingButton(method)
+                } else {
+                    switch method {
+                    case .apple: appleButton
+                    case .google: googleButton
+                    }
                 }
             }
         }
         .disabled(model.isWorking)
     }
 
+    private var googleTitle: LocalizedStringKey {
+        if linking { return "Continue with Google" }
+        return copy == .signUp ? "Sign Up with Google" : "Sign in with Google"
+    }
+
+    /// UI 測試:不開系統登入,直接以固定憑證登入假後台(註冊頁的憑證讓假後台新建會員,登入頁的是既有會員)。
+    private func testingButton(_ method: SignInMethod) -> some View {
+        Button {
+            let credential = SignInCredential(
+                method: method, idToken: copy == .signUp ? "ui-testing-new" : "ui-testing-existing", nonce: "ui-testing",
+                authorizationCode: method == .apple ? "ui-testing" : nil)
+            Task { await model.signIn(with: credential) }
+        } label: {
+            Text(method == .apple ? (copy == .signUp ? "Sign up with Apple" : "Sign in with Apple") : googleTitle)
+                .font(.body.weight(.medium))
+                .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
+                .foregroundStyle(.primary)
+                .background(AppSurface.page, in: Capsule())
+                .overlay(Capsule().strokeBorder(.secondary, lineWidth: 1))
+                .contentShape(Capsule())
+        }
+        .accessibilityIdentifier(method == .apple ? "member.signIn.apple" : "member.signIn.google")
+    }
+
     private var appleButton: some View {
-        SignInWithAppleButton(linking ? .continue : .signIn) { request in
+        SignInWithAppleButton(linking ? .continue : (copy == .signUp ? .signUp : .signIn)) { request in
             request.requestedScopes = [.email]
             request.nonce = model.beginAppleAuthorization(linking: linking)
         } onCompletion: { result in
@@ -249,7 +246,7 @@ struct SignInButtons: View {
         // 淺色背景用 black,深色背景用 white(HIG:black 不可放在深色背景)。
         .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
-        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
+        .clipShape(Capsule())
         .accessibilityIdentifier("member.signIn.apple")
     }
 
@@ -275,15 +272,15 @@ struct SignInButtons: View {
                 }
             }
         } label: {
-            Text(linking ? "Continue with Google" : "Sign in with Google")
+            Text(googleTitle)
                 .font(.body.weight(.medium))
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
                 .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
                 .foregroundStyle(.primary)
-                .background(AppSurface.page, in: RoundedRectangle(cornerRadius: Self.cornerRadius))
-                .overlay(RoundedRectangle(cornerRadius: Self.cornerRadius).strokeBorder(.secondary, lineWidth: 1))
-                .contentShape(RoundedRectangle(cornerRadius: Self.cornerRadius))
+                .background(AppSurface.page, in: Capsule())
+                .overlay(Capsule().strokeBorder(.secondary, lineWidth: 1))
+                .contentShape(Capsule())
         }
         .buttonStyle(.pressableCard(cornerRadius: Self.cornerRadius))
         .accessibilityIdentifier("member.signIn.google")
@@ -303,7 +300,6 @@ struct AccountView: View {
     @State private var confirmingDeletion = false
     /// 從通知列開配對的主機(#295)。
     @State private var pairingHost: UUID?
-    @State private var signingIn = false
     @State private var showingPlus = false
     @State private var offeringFeatureSetup = false
     /// 每次加一：步驟卡「選擇主機」捲到「通知」區塊。
@@ -405,10 +401,6 @@ struct AccountView: View {
         .appGroupedList()
         .accessibilityIdentifier("sheet.account")
         .disabled(model.isWorking)
-        .navigationDestination(isPresented: $signingIn) {
-            SignInView(model: model)
-                .navigationTitle("Join as a Member")
-        }
         .navigationDestination(isPresented: $showingPlus) {
             if let plus {
                 PlusView(model: plus, member: model, features: plusFeatures)
@@ -424,9 +416,6 @@ struct AccountView: View {
                     onAdded: { hosts.didSave($0) },
                     hostPush: { id in hosts.hostPushes.first { $0.host == .host(id) } })
             }
-        }
-        .onChange(of: signedInMember?.id) { _, id in
-            if id != nil { signingIn = false }
         }
         .onChange(of: progress) { previous, current in
             // 只有從這裡進付費牆開通才問;開帳號頁時讀回訂閱不算剛開通。
@@ -503,7 +492,7 @@ struct AccountView: View {
 
     private func perform(_ step: AccountSetupProgress.Step) {
         switch step {
-        case .joinMember: signingIn = true
+        case .joinMember: break  // 已登入才會看到帳號頁,這一步已完成
         case .activatePlus: showingPlus = true
         case .turnOnNotifications: notificationsScrollRequest += 1
         case .syncHosts: Task { await hostSync?.setEnabled(true) }
@@ -664,6 +653,64 @@ extension MemberNotice {
             String(localized: "Your sign-in expired. Sign in again to continue.")
         case .signOutBackendUnreachable:
             String(localized: "Couldn’t notify Purrdr, so this device’s notification pairing may still be active. You can sign out anyway.")
+        }
+    }
+}
+
+
+// MARK: - 沒登入流程的外框(標題、左上動作、步驟)
+
+extension AccountEntryFlow {
+    /// 目前要顯示的沒登入流程畫面;`nil` 表示顯示帳號頁。
+    ///
+    /// 已登入時,剛登入完成、還在換頁的那一刻(登入頁、建立會員頁)照舊顯示,免得閃出帳號頁;
+    /// 沒有 Purrdr Plus 的 model 時加入流程到建立會員為止。
+    func shownScreen(phase: MemberModel.Phase, hasPlus: Bool) -> Screen? {
+        switch (phase, screen) {
+        case (.signedOut, .account): .choose
+        case (.signedOut, let screen): screen
+        case (.signedIn, .signIn): .signIn
+        case (.signedIn, .join): hasPlus || join.step == .createMember ? .join : nil
+        default: nil
+        }
+    }
+
+    func navigationTitle(phase: MemberModel.Phase, hasPlus: Bool) -> LocalizedStringKey {
+        guard shownScreen(phase: phase, hasPlus: hasPlus) != nil else { return "Account" }
+        switch title {
+        case .account: return "Account"
+        case .signIn: return "Sign In"
+        case .join: return "Join as a Member"
+        }
+    }
+}
+
+/// 沒登入流程的 toolbar:左上圓形「返回」或「關閉」,右上加入流程的「n / 4」。
+struct AccountEntryToolbar: ToolbarContent {
+    @Binding var entry: AccountEntryFlow
+    let onClose: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            switch entry.leadingAction {
+            case .back:
+                Button { entry.back() } label: { Image(systemName: "chevron.backward") }
+                    .accessibilityLabel(Text("Back"))
+                    .accessibilityIdentifier("member.entry.back")
+            case .close:
+                Button(action: onClose) { Image(systemName: "xmark") }
+                    .accessibilityLabel(entry.screen == .join ? Text("Close. Continue in Account Later") : Text("Close"))
+                    .accessibilityIdentifier("member.signIn.cancel")
+            }
+        }
+        if let indicator = entry.stepIndicator {
+            ToolbarItem(placement: .confirmationAction) {
+                Text(verbatim: "\(indicator.current) / \(indicator.total)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityLabel(Text("Step \(indicator.current) of \(indicator.total)"))
+                    .accessibilityIdentifier("member.entry.step")
+            }
         }
     }
 }

@@ -7,23 +7,59 @@ final class AccountUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 沒登入:帳號 sheet 直接是登入頁(#328,原型 A),不出現步驟卡與帳號頁的區塊。
+    /// 沒登入:帳號 sheet 先選「登入」或「加入會員」(#408),不出現登入鈕、步驟卡與帳號頁的區塊。
     @MainActor
-    func testSignedOutAccountOpensSignInPage() {
+    func testSignedOutAccountAsksSignInOrJoin() {
         let app = XCUIApplication.launchUITesting()
         let account = app.buttons["toolbar.account"]
         XCTAssertTrue(account.waitUntilExists(timeout: 10), "列表右上角沒有帳號鈕")
         XCTAssertEqual(account.label, "Account")
         account.tap()
 
-        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有直接顯示登入頁")
-        XCTAssertTrue(app.staticTexts["Sign In to Purrdr"].exists)
-        XCTAssertTrue(app.buttons["member.signIn.apple"].exists, "沒有 Apple 登入鈕")
-        XCTAssertTrue(app.buttons["member.signIn.google"].exists, "沒有 Google 登入鈕")
-        XCTAssertTrue(app.staticTexts["Chat and terminal don’t need a member account."].exists)
+        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有顯示選擇頁")
+        XCTAssertTrue(app.staticTexts["Purrdr Member"].exists)
+        XCTAssertTrue(app.buttons["account.entry.signIn"].exists, "沒有「登入」")
+        XCTAssertTrue(app.buttons["account.entry.join"].exists, "沒有「加入會員」")
+        XCTAssertFalse(app.buttons["member.signIn.apple"].exists, "選擇前不該有登入鈕")
+        XCTAssertTrue(app.staticTexts["Chat, terminal, and host management don’t need a member account."].exists)
         XCTAssertFalse(app.element("account.plusSetup").exists, "沒登入不該有步驟卡")
         XCTAssertFalse(app.element("sheet.account").exists, "沒登入不該是帳號頁")
         XCTAssertFalse(app.staticTexts["Not a Member Yet"].exists)
+    }
+
+    /// 登入(#408):選「登入」→ Apple 登入 → 直接進帳號頁,不走加入步驟。
+    @MainActor
+    func testSignInGoesStraightToAccount() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSignUp"])
+        app.openAccount()
+        XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
+        app.buttons["account.entry.signIn"].tap()
+
+        XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒有登入頁")
+        XCTAssertFalse(app.staticTexts["member.entry.step"].exists, "登入不標加入步驟")
+        XCTAssertTrue(app.buttons["member.entry.back"].exists)
+        app.buttons["member.signIn.apple"].tap()
+
+        XCTAssertTrue(app.element("sheet.account").waitUntilExists(timeout: 10), "登入後沒有進帳號頁")
+        XCTAssertFalse(app.element("account.join.paywall").exists, "登入不該走加入步驟")
+        XCTAssertTrue(app.staticTexts["ray@example.com"].firstMatch.exists)
+    }
+
+    /// 登入頁與加入頁互相切換,返回回到選擇頁(#408)。
+    @MainActor
+    func testSwitchBetweenSignInAndJoin() {
+        let app = XCUIApplication.launchUITesting(flags: ["-uiTestingSignUp"])
+        app.openAccount()
+        XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
+        app.buttons["account.entry.signIn"].tap()
+        XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5))
+        app.buttons["account.entry.switch"].tap()
+        XCTAssertTrue(app.element("account.entry.joinPage").waitUntilExists(timeout: 5), "沒切到加入頁")
+        XCTAssertEqual(app.staticTexts["member.entry.step"].label, "Step 1 of 4")
+        app.buttons["account.entry.switch"].tap()
+        XCTAssertTrue(app.element("account.entry.signInPage").waitUntilExists(timeout: 5), "沒切回登入頁")
+        app.buttons["member.entry.back"].tap()
+        XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 5), "返回沒回到選擇頁")
     }
 
     /// 登入保留(#406):後台連不上時仍是登入狀態,帳號頁說明「暫時連不上」,不是登入頁。

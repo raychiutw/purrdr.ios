@@ -240,7 +240,10 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             app.openAccount()
-            // 沒登入時帳號頁直接是登入頁(#328)。
+            // 沒登入時帳號頁先選登入或加入(#408)。
+            XCTAssertTrue(app.buttons["account.entry.signIn"].waitUntilExists(timeout: 10))
+            try audit(app, "登入或加入", contentSize: size)
+            app.buttons["account.entry.signIn"].tap()
             XCTAssertTrue(app.buttons["member.signIn.apple"].waitUntilExists(timeout: 10))
             try audit(app, "登入", contentSize: size)
             app.terminate()
