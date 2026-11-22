@@ -161,6 +161,15 @@ extension XCUIApplication {
         tapToolbarItem("toolbar.account", overflowLabel: "Account", file: file, line: line)
     }
 
+    /// 打開對話右上角的「更多」選單並回傳其中的項目(`terminal.open`、`changes.open`、`layout.show`,#381)。
+    @MainActor
+    func conversationMoreItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        tapToolbarItem("conversation.more", overflowLabel: "More", file: file, line: line)
+        let item = buttons[identifier].firstMatch
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "「更多」選單沒有 \(identifier)", file: file, line: line)
+        return item
+    }
+
     /// 點工具列右側的項目。AX 字級時系統把右側的項目收進工具列的溢出選單(More):
     /// 選單項目沒有 identifier,以 VoiceOver 也會念的名稱找(名稱不對就是 a11y 問題)。
     @MainActor

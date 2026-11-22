@@ -76,7 +76,7 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 **其他 token 收斂**(審查 R29、R35):
 - 玻璃只用一個 regular 變體(見「Liquid Glass」);卡片圓角 22pt(與 sheet 圓角同心);section header 用 footnote 字級、不全大寫、用 `secondaryText`。
 - 字級全用 text style,不手寫 pt 數;tab 圖示用 filled SF Symbols。
-- 選單一律系統 `Menu`／`Picker`,勾選與圖示的位置交給系統(勾在前、圖示在後);sheet 內清單的勾在列尾。
+- 選單一律系統 `Menu`／`Picker`,勾選與圖示的位置交給系統(勾與圖示都在前,iOS 26 系統行為);sheet 內清單的勾在列尾。
 - 所有觸控目標 ≥ 44pt(頂列右上按鈕、輸入列 `+` 與送出、終端機按鍵、麵包屑、再試一次、停止、排隊「取消」都一樣);左右邊距統一 16pt。
 
 ### 狀態色(#237)

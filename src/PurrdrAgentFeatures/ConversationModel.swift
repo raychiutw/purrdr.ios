@@ -186,6 +186,54 @@ public final class ConversationModel {
     /// 能不能開變更頁(有 git 讀取、知道 Agent 的工作目錄)。
     public var canOpenChanges: Bool { gitChanges != nil && currentAgent?.cwd != nil }
 
+    /// 更多選單裡「Git 變更」項目的狀態(#381):可用時帶分支與檔案數，不可用時停用並寫原因。
+    public enum GitMenuState: Sendable, Equatable {
+        /// 還沒讀過(或暫時讀不到):項目可點，進變更頁自己再讀。
+        case checking
+        case available(branch: String?, fileCount: Int)
+        case unavailable(GitUnavailableReason)
+
+        public var isEnabled: Bool {
+            if case .unavailable = self { false } else { true }
+        }
+    }
+
+    public enum GitUnavailableReason: Sendable, Equatable {
+        /// 這種連線方式或主機讀不了 git(含還不知道 Agent 的工作目錄)。
+        case unsupported
+        case notGitRepository
+        case gitNotInstalled
+        case agentMoved
+        case hostServiceUpdateRequired
+    }
+
+    public private(set) var gitMenu: GitMenuState = .checking
+
+    /// 讀一次 git 狀態，更新更多選單的「Git 變更」項目。只有明確的原因才停用;暫時讀不到維持可點。
+    public func refreshGitMenu() async {
+        guard let gitChanges else {
+            gitMenu = .unavailable(.unsupported)
+            return
+        }
+        guard let cwd = currentAgent?.cwd else {
+            gitMenu = .checking
+            return
+        }
+        do {
+            let status = try await gitChanges.gitStatus(cwd: cwd)
+            gitMenu = .available(branch: status.branch, fileCount: status.files.count)
+        } catch {
+            switch ChangesProblem(error) {
+            case .unsupported: gitMenu = .unavailable(.unsupported)
+            case .notGitRepository: gitMenu = .unavailable(.notGitRepository)
+            case .gitNotInstalled: gitMenu = .unavailable(.gitNotInstalled)
+            case .agentMoved: gitMenu = .unavailable(.agentMoved)
+            case .hostServiceUpdateRequired: gitMenu = .unavailable(.hostServiceUpdateRequired)
+            case .failed: gitMenu = .checking
+            }
+        }
+    }
+
     /// 能不能送出變更頁的評論：與輸入列相同的目標條件(唯讀、離線、送出中都不行)。
     public var canSendReview: Bool { hasTarget && !isReadOnly && !isSending && typedAnswer == nil }
 
@@ -503,6 +551,8 @@ public final class ConversationModel {
     private var currentAgent: Agent?
     /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
     public var agentKind: String? { currentAgent?.kind }
+    /// Agent 所在的 workspace(更多選單的「顯示版面」用,#381)。
+    public var workspaceID: String? { currentAgent?.workspaceID }
     /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
     private var consumedUserIDs = Set<String>()
     private var lastPolledStatus: AgentStatus?

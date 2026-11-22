@@ -85,17 +85,13 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertTrue(capsule.wait(for: NSPredicate(format: "value == 'Accept Edits'"), timeout: 10), "沒有切換成 Accept Edits")
         }
         step("變更頁") {
-            let open = app.buttons["changes.open"].firstMatch
-            XCTAssertTrue(open.waitUntilExists(timeout: 10), "對話標題列沒有變更鈕")
-            open.tap()
+            app.conversationMoreItem("changes.open").tap()
             let summary = app.descendants(matching: .any)["changes.summary"].firstMatch
             XCTAssertTrue(summary.waitUntilExists(timeout: 10), "沒有變更清單")
             back(app)
         }
         step("終端機") {
-            let open = app.buttons["terminal.open"].firstMatch
-            XCTAssertTrue(open.waitUntilExists(timeout: 10), "對話標題列沒有終端機鈕")
-            open.tap()
+            app.conversationMoreItem("terminal.open").tap()
             XCTAssertTrue(app.descendants(matching: .any)["terminal.screen"].firstMatch.waitUntilExists(timeout: 10), "沒有打開終端機")
         }
     }

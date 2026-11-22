@@ -120,9 +120,18 @@ public struct AgentListView: View {
         if let title = model.terminalTitle(of: route), let makeTerminal {
             PaneTerminalScreen(model: makeTerminal(route, title))
         } else {
-            ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: makeTerminal.map { make in
-                { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
-            }, otherNeedsYou: model.needsYouCount(excluding: route))
+            ConversationScreen(
+                model: makeConversation(route, model.sessionID(of: route)),
+                makeTerminal: makeTerminal.map { make in
+                    { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
+                },
+                otherNeedsYou: model.needsYouCount(excluding: route),
+                layoutSnapshot: { [model] in model.snapshot(for: route.host) },
+                openLayoutTarget: { [model] target in
+                    switch target {
+                    case .chat(let paneID), .terminal(let paneID): model.openedChat = ChatRoute(host: route.host, paneID: paneID)
+                    }
+                })
             // 進入與離開對話各記一次開啟時間;開著時不算未讀(行為規格 F2.6)。
             .onAppear { model.chatAppeared(route) }
             .onDisappear { model.chatDisappeared(route) }
@@ -421,12 +430,21 @@ struct ConversationScreen: View {
     @State private var changes: ChangesModel?
     /// 其他「需要你」的 Agent 數(返回鈕旁的數字,#390);0 不顯示。
     let otherNeedsYou: Int
+    /// 更多選單的「顯示版面」(#381):讀聊天所在主機的 snapshot(開啟當下，不即時更新);沒有時不顯示這一項。
+    let layoutSnapshot: (@MainActor () -> HostSnapshot?)?
+    /// 版面圖選了 Pane 之後的動作(開那個 Pane)。
+    let openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)?
+    @State private var showsLayout = false
+    @State private var pendingLayoutTarget: PaneOpenTarget?
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
-        window: TopNavigationModel? = nil, route: ChatRoute? = nil, otherNeedsYou: Int = 0
+        window: TopNavigationModel? = nil, route: ChatRoute? = nil, otherNeedsYou: Int = 0,
+        layoutSnapshot: (@MainActor () -> HostSnapshot?)? = nil, openLayoutTarget: (@MainActor (PaneOpenTarget) -> Void)? = nil
     ) {
         self.otherNeedsYou = otherNeedsYou
+        self.layoutSnapshot = layoutSnapshot
+        self.openLayoutTarget = openLayoutTarget
         _model = State(wrappedValue: model())
         self.makeTerminal = makeTerminal
         self.window = window
@@ -445,18 +463,28 @@ struct ConversationScreen: View {
                     }
                 }
                 #endif
-                if makeTerminal != nil {
-                    // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
-                    ToolbarItem(placement: .primaryAction) {
-                        PaneTerminalButton { openTerminal() }
-                    }
+                // 右上角只有一顆「更多」(#381):Pane 終端機、Git 變更、顯示版面。
+                ToolbarItem(placement: .primaryAction) {
+                    ConversationMoreMenu(
+                        model: model, canOpenTerminal: makeTerminal != nil, canShowLayout: layoutSnapshot != nil,
+                        openTerminal: openTerminal, openChanges: { changes = model.makeChanges() },
+                        showLayout: { showsLayout = true })
                 }
-                // 變更鈕(#310):知道 Agent 的工作目錄、連線方式讀得了 git 才顯示。
-                if model.canOpenChanges {
-                    ToolbarItem(placement: .primaryAction) {
-                        ChangesButton { changes = model.makeChanges() }
-                    }
+            }
+            .task(id: model.canOpenChanges) { await model.refreshGitMenu() }
+            .sheet(isPresented: $showsLayout) {
+                if let workspaceID = model.workspaceID, let snapshot = layoutSnapshot?() {
+                    let label = snapshot.workspaces.first { $0.id == workspaceID }?.label ?? workspaceID
+                    SpacesLayoutSheet(
+                        workspaceLabel: label, layout: SpacesLayout(snapshot: snapshot, workspaceID: workspaceID),
+                        onChoose: { pendingLayoutTarget = $0 })
                 }
+            }
+            .onChange(of: showsLayout) { _, shown in
+                // sheet 關閉後才開選到的 Pane(不能在關 sheet 的同一刻 push)。
+                guard !shown, let target = pendingLayoutTarget else { return }
+                pendingLayoutTarget = nil
+                openLayoutTarget?(target)
             }
             .navigationDestination(isPresented: Binding(get: { changes != nil }, set: { if !$0 { changes = nil } })) {
                 if let changes {

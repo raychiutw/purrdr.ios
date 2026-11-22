@@ -169,9 +169,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         for size in [nil, Self.ax5] {
             let app = XCUIApplication.launchUITesting(contentSize: size)
             _ = openChat("w1:p1", in: app)
-            let open = app.buttons["terminal.open"].firstMatch
-            XCTAssertTrue(open.waitUntilExists(timeout: 10))
-            open.tap()
+            app.conversationMoreItem("terminal.open").tap()
             XCTAssertTrue(app.element("terminal.screen").waitUntilExists(timeout: 10))
             try audit(app, "終端機", contentSize: size)
             app.terminate()

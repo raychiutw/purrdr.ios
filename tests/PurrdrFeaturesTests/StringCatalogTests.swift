@@ -86,6 +86,7 @@ struct StringCatalogTests {
     static let newHostWording: Set<String> = [
         "Add Host…", "Add a host to browse its files.", "Files Aren’t Available",
         "Files need an SSH connection. This host connects through the host service.", "No Hosts",
+        "Not available on this host", "Git isn’t installed on the host", "Update the host service",
     ]
 
     /// GLOSSARY.md 的「避免」用詞，以及常見的中國大陸用語(台灣用語為準)。

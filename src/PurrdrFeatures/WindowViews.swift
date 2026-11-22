@@ -213,7 +213,13 @@ struct WindowDetail: View {
             ConversationScreen(
                 model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
                 makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route,
-                otherNeedsYou: hosts.agentList.needsYouCount(excluding: route))
+                otherNeedsYou: hosts.agentList.needsYouCount(excluding: route),
+                layoutSnapshot: { hosts.agentList.snapshot(for: route.host) },
+                openLayoutTarget: { target in
+                    switch target {
+                    case .chat(let paneID), .terminal(let paneID): navigation.selectedChat = ChatRoute(host: route.host, paneID: paneID)
+                    }
+                })
         } else {
             ContentUnavailableView("Select a Chat", systemImage: "bubble.left.and.bubble.right")
                 .accessibilityIdentifier("detail.empty")

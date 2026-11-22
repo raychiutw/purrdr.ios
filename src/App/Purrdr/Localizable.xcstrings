@@ -187,6 +187,17 @@
       "shouldTranslate" : false,
       "localizations" : {}
     },
+    "%@ · %lld files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld 個檔案"
+          }
+        }
+      }
+    },
     "%@ · Hosts: %lld · Last used %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4436,6 +4447,17 @@
         }
       }
     },
+    "Folder unknown" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不知道資料夾"
+          }
+        }
+      }
+    },
     "Force Quit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4590,6 +4612,17 @@
         }
       }
     },
+    "Git Changes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Git 變更"
+          }
+        }
+      }
+    },
     "Git Isn’t Installed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4597,6 +4630,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "電腦沒有 git"
+          }
+        }
+      }
+    },
+    "Git isn’t installed on the host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機沒有安裝 Git"
           }
         }
       }
@@ -6551,6 +6595,17 @@
         }
       }
     },
+    "Not a Git folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是 Git 資料夾"
+          }
+        }
+      }
+    },
     "Not a Member Yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6558,6 +6613,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚未加入會員"
+          }
+        }
+      }
+    },
+    "Not available on this host" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台主機不能用"
           }
         }
       }
@@ -7493,6 +7559,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pane"
+          }
+        }
+      }
+    },
+    "Pane Terminal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pane 終端機"
           }
         }
       }
@@ -10557,6 +10634,17 @@
         }
       }
     },
+    "The agent moved to another folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 已換到別的資料夾"
+          }
+        }
+      }
+    },
     "The answer may not have arrived. Check the agent, then try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11169,6 +11257,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前還無法顯示這個 Agent 的對話，請用終端機查看。"
+          }
+        }
+      }
+    },
+    "This agent’s screen" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Agent 的畫面"
+          }
+        }
+      }
+    },
+    "This agent’s working folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Agent 的工作資料夾"
           }
         }
       }
@@ -12021,6 +12131,17 @@
         }
       }
     },
+    "This tab’s pane layout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 Tab 的 Pane 配置"
+          }
+        }
+      }
+    },
     "This window’s host was removed from this device." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12765,6 +12886,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新 Purrdr 連線助理才能查看變更。請在電腦上執行："
+          }
+        }
+      }
+    },
+    "Update the host service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請更新主機服務"
           }
         }
       }

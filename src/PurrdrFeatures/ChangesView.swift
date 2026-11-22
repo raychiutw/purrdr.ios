@@ -2,18 +2,6 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 聊天標題列的變更鈕(#310):打開這個 Agent 工作目錄的變更頁。
-struct ChangesButton: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label("Changes", systemImage: "plus.forwardslash.minus")
-        }
-        .accessibilityIdentifier("changes.open")
-    }
-}
-
 /// 變更頁(#310,原型 `#t310-a`「清單 → 單檔 diff」):分支與檔案數、變更清單(種類、+/−),點檔案推入單檔 diff。
 /// 有評論時底部固定「N 則評論，共 M 個檔案 · 送出評論」。
 struct ChangesView: View {
