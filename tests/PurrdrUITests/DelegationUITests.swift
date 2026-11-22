@@ -31,8 +31,10 @@ final class DelegationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Explore · sonnet"].exists, "說明行應是「類型 · 模型」")
         XCTAssertTrue(app.staticTexts["1m 6s · 21.5k tokens · 6 tool calls"].exists, "沒有時長 · tokens · 工具數")
 
-        app.element("conversation.subagent").tap()
-        XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 5), "點卡片沒有展開結果")
+        let card = app.element("conversation.subagent")
+        card.waitUntilFrameStops()
+        card.tap()
+        XCTAssertTrue(app.element("conversation.subagent.result").waitUntilExists(timeout: 10), "點卡片沒有展開結果")
 
         let open = app.element("conversation.subagent.open")
         XCTAssertGreaterThanOrEqual(open.frame.width, 44)

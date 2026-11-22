@@ -26,7 +26,7 @@ final class ShellCommandUITests: XCTestCase {
 
         let block = app.element("conversation.shell")
         XCTAssertTrue(block.waitUntilExists(timeout: 15), "對話紀錄沒有接上 shell 區塊")
-        XCTAssertTrue(app.staticTexts["$ ls Sources"].exists, "沒有 `$ 指令`")
+        XCTAssertTrue(app.staticTexts["$ ls Sources"].waitUntilExists(timeout: 5), "沒有 `$ 指令`")
         let stdout = app.element("conversation.shell.stdout")
         XCTAssertTrue(stdout.waitUntilExists(timeout: 5), "沒有輸出")
         XCTAssertTrue((stdout.label).hasPrefix("demo: this is the demo host"))

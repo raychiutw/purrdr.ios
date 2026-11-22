@@ -57,6 +57,7 @@ public struct ConversationView: View {
                 ConversationStatusSheet(title: displayTitle, model: model)
             }
             .secretCheckSheet(model.secretCheck)
+            .slashPanelSheet(model: model)
             .environment(\.bubbleImages, BubbleImageContext(
                 localImage: { [model] in model.localImage(forHostPath: $0) },
                 show: { viewerImage = ViewerImage(url: $0) }
@@ -188,12 +189,7 @@ public struct ConversationView: View {
                 // 「需要你」的提示放在最後一則(提問)下方，內容層(F8、HIG 20.7)。
                 BlockedPromptView(model: model)
                     .id(ConversationFollowTarget.promptRowID)
-                // slash 指令開出的面板(#45):對 herdr 不可見，從畫面讀出後以原生卡片顯示。
-                // 從模型膠囊開的面板在 sheet 裡選,對話裡不重複畫(#350)。
-                if let panel = model.panel, !model.isChoosingModel {
-                    SlashPanelCard(model: model, panel: panel)
-                        .id(ConversationFollowTarget.panelRowID)
-                }
+                // slash 指令開出的面板(#45)改在底部 sheet 顯示(`slashPanelSheet`,#366):放在對話最下面會被浮動的輸入框蓋住。
                 // 即時預覽在列表最底下(工作中狀態在輸入卡片上方的膠囊);agent 停止工作就消失(F5.11)。
                 if model.showsWorkingIndicator, model.workingSince != nil {
                     WorkingIndicatorView(preview: model.livePreview)
@@ -314,11 +310,6 @@ public struct ConversationView: View {
             if model.prompt != nil, scroll.autoScrollsOnNewContent { withAnimation(scrollAnimation) { scrollToLastRow(proxy) } }
         }
         // 面板出現時捲到它;內容更新(選項排出、游標移動)讓卡片長高時也再捲，按鈕不留在輸入列底下。
-        .onChange(of: model.panel) { old, new in
-            // 面板一出現就切回跟隨(使用者剛送出指令，要看的就是這張卡片)。
-            if new != nil, old == nil { scroll.jumpToLatest() }
-            if new != nil, scroll.autoScrollsOnNewContent { scrollToPanel(proxy, appearing: old == nil) }
-        }
         .onChange(of: model.undoSend?.pending == nil) {
             // 倒數中的訊息出現：切到跟隨尾端並捲到它(同回音,F6.5)。
             guard model.undoSend?.pending != nil else { return }
@@ -351,18 +342,10 @@ public struct ConversationView: View {
     /// 指定列則由 LazyVStack 實際排出那一列(#191)。
     /// `isNewContent`:跟隨新出現的內容(訊息、面板、需要你、工作中指示、回音)時重新計算連續捲回的次數;
     /// 停在內容之外而捲回時不算，否則兩個排版輪流時連續捲回沒有上限(#251)。
-    private func scrollToPanel(_ proxy: ScrollViewProxy, appearing: Bool) {
-        if appearing {
-            withAnimation(scrollAnimation) { scrollToLastRow(proxy) }
-        } else {
-            scrollToLastRow(proxy)
-        }
-    }
-
     private func scrollToLastRow(_ proxy: ScrollViewProxy, isNewContent: Bool = true) {
         if isNewContent { scroll.followedNewContent() }
         let target = ConversationFollowTarget.target(
-            showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil, showsPanel: model.panel != nil,
+            showsWorkingRow: model.showsWorkingIndicator && model.workingSince != nil,
             showsPromptCard: model.prompt != nil || model.lastAnswer != nil, lastEntryID: model.entries.last?.id)
         switch target {
         case .row(let id): proxy.scrollTo(id, anchor: .bottom)

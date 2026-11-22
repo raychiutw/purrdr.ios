@@ -209,3 +209,31 @@ struct SlashPanelCard: View {
         Task { await model.operatePanel(input) }
     }
 }
+
+/// slash 指令開出的面板(`/model`、`/effort`…)以底部 sheet 顯示(#366):對話最下面的卡片會被浮動的輸入框蓋住下半的按鈕。
+/// 面板關掉(選定或 Esc)時 sheet 跟著收起；使用者下滑關掉時按 Esc 取消，不改設定。從模型膠囊開的面板另有自己的 sheet(#350)。
+private struct SlashPanelSheet: ViewModifier {
+    let model: ConversationModel
+
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: Binding(
+            get: { model.panel != nil && !model.isChoosingModel },
+            set: { shown in if !shown { Task { await model.dismissPanel() } } }
+        )) {
+            if let panel = model.panel {
+                ScrollView {
+                    SlashPanelCard(model: model, panel: panel)
+                        .padding()
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+        }
+    }
+}
+
+extension View {
+    func slashPanelSheet(model: ConversationModel) -> some View {
+        modifier(SlashPanelSheet(model: model))
+    }
+}

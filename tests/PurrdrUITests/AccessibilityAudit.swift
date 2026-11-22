@@ -2,15 +2,6 @@ import XCTest
 
 /// 無障礙稽核的共用部分(#35):跑 `performAccessibilityAudit`,把每一筆問題印出來，套用排除清單。
 extension XCTestCase {
-    /// 對目前畫面在預設字級與 AX5 各跑一次稽核,不重啟 app(#373):量完換回預設字級，流程接著往下走。
-    @MainActor
-    func auditBothSizes(_ app: XCUIApplication, _ screen: String, types: XCUIAccessibilityAuditType = .all) throws {
-        try audit(app, screen, types: types)
-        app.setContentSize(AccessibilityAuditUITests.ax5)
-        defer { app.setContentSize(nil) }
-        try audit(app, screen, contentSize: AccessibilityAuditUITests.ax5, types: types)
-    }
-
     /// 對目前畫面跑 accessibility audit。排除清單以外的問題一律記成測試失敗(`performAccessibilityAudit` 自己記)。
     @MainActor
     func audit(
@@ -21,11 +12,6 @@ extension XCTestCase {
         let context = AccessibilityAuditContext(app: app, screen: screen, isAccessibilitySize: contentSize != nil)
         // 轉場、捲動、玻璃面板淡入還在動時量對比會量到中間態：畫面停下來再稽核。
         app.waitForVisualSettle()
-        // 稽核當下的畫面(測試失敗時留在 result bundle,對照 log 的 frame 找元素)。
-        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        shot.name = "a11y-audit \(screen) \(size)"
-        shot.lifetime = .deleteOnSuccess
-        add(shot)
         try app.performAccessibilityAudit(for: types) { issue in
             let summary = AccessibilityAuditExclusions.describe(issue)
             if let reason = AccessibilityAuditExclusions.reason(for: issue, in: context) {

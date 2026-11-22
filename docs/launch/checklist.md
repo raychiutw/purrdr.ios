@@ -21,7 +21,7 @@
 | 1.9 | App 資訊：類別(開發者工具／生產力工具)、隱私權政策網址、授權合約用 Apple 標準 EULA | 主 session | ⬜ |
 | 1.10 | 年齡分級問卷 | 主 session | ⬜ ⚠️ Agent 與終端機會顯示主機上任意文字，依問卷如實回答 |
 | 1.11 | App 隱私：照 `privacy-labels.md` 逐題填 | 主 session | ⬜ |
-| 1.12 | 中繼資料(英文、繁中)、截圖(6.9 吋 iPhone、13 吋 iPad,`scripts/screenshots.sh`) | 主 session | ⬜ |
+| 1.12 | 中繼資料(英文、繁中)、截圖(6.9 吋 iPhone、13 吋 iPad,在模擬器以 Demo 主機手動拍) | 主 session | ⬜ |
 | 1.15 | 供應地區：排除歐盟 27 國(DSA 貿易商狀態)與中國大陸(ICP 備案),共 147 個地區(`app-store-metadata.md`) | 主 session | ✅ |
 | 1.13 | 審查資訊：備註貼 `review-notes.md` 的英文段落、勾「不需要登入」、聯絡資訊 | 主 session | ⬜ |
 | 1.14 | 出口合規(2026-11-16 決定 A 案):`ITSAppUsesNonExemptEncryption = NO` 維持。理由：app **只用作業系統提供的加密**——CryptoKit(swift-crypto 在 Apple 平台轉呼叫 CryptoKit;swift-nio-ssh 的金鑰交換、AES-GCM、簽章都走它)、CommonCrypto、系統 TLS(URLSession)。已移除自寫的 bcrypt／Blowfish 與 `_CryptoExtras`(AES-CTR);有 passphrase 的 OpenSSH 私鑰改成明確錯誤，請使用者先 `ssh-keygen -p -N "" -f <私鑰>` 移除 passphrase。**日後不可再引入非系統加密**(自寫演算法、`_CryptoExtras`、OpenSSL／libsodium 等),否則要重新評估出口合規 | 本 repo | ✅ |
@@ -74,7 +74,7 @@
 | # | 步驟 | 誰做 | 狀態 |
 |---|---|---|---|
 | 5.1 | 依 `review-notes.md`「送審前的前提」逐項確認(後台、商品、通知網址、網站、信箱) | 主 session | ⬜ |
-| 5.2 | 以送審 build 跑 `scripts/screenshots.sh`,核對 `review-notes.md` 的 Demo 描述(#36 驗收條件) | 主 session | ⬜ |
+| 5.2 | 以送審 build 在模擬器手動走一遍 Demo,核對 `review-notes.md` 的 Demo 描述(#36 驗收條件) | 主 session | ⬜ |
 | 5.3 | Sandbox 帳號在 TestFlight build 實測：登入、試用購買、恢復購買、兌換 Offer Code、刪除會員 | 主 session | ⬜ |
 | 5.4 | 版本頁勾選兩個訂閱商品一起送審，提交 | 主 session | ⬜ |
 

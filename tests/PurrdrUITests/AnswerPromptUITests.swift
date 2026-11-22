@@ -55,10 +55,6 @@ final class AnswerPromptUITests: XCTestCase {
         XCTAssertGreaterThan(long.frame.height, short.frame.height + 10, "長選項應多行顯示，不截斷")
         XCTAssertTrue(long.label.contains("/Users/demo/weather-app"), "長選項的朗讀內容應完整:\(long.label)")
 
-        let shot = XCTAttachment(screenshot: card.screenshot())
-        shot.name = "prompt-options"
-        shot.lifetime = .keepAlways
-        add(shot)
     }
 
     /// 「ask me」:兩題 AskUserQuestion 逐題作答，再到檢閱畫面送出。

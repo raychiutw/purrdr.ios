@@ -58,10 +58,6 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(working.label.hasPrefix("Codex"), "列首頭像沒有念出 agent 種類:\(working.label)")
         XCTAssertLessThan(needsYou.frame.minY, working.frame.minY)
         XCTAssertFalse(app.descendants(matching: .any)["agentList.section.needsYou"].exists, "單一清單不該有分段標題")
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "chat-list-agents"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
     }
 
     @MainActor

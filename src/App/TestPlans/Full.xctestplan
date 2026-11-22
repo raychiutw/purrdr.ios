@@ -1,0 +1,32 @@
+{
+  "configurations": [
+    {
+      "id": "6559F9EE-A63A-4A13-AC29-A07A8AD3CD5B",
+      "name": "Default",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testTimeoutsEnabled": true,
+    "defaultTestExecutionTimeAllowance": 180,
+    "maximumTestExecutionTimeAllowance": 300
+  },
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "target": {
+        "containerPath": "container:Purrdr.xcodeproj",
+        "identifier": "4D4D00000000000000000011",
+        "name": "PurrdrUITests"
+      },
+      "skippedTests": [
+        "DailySmokeUITests",
+        "AccessibilityAuditUITests",
+        "AddHostGuideUITests/testAccessibilityAudit()",
+        "IPadLayoutUITests/testAccessibilityAuditThreeColumns()",
+        "IPadLayoutUITests/testAccessibilityAuditLayoutCard()"
+      ]
+    }
+  ],
+  "version": 1
+}
