@@ -54,6 +54,11 @@ public actor HostFileLoader {
         }
     }
 
+    /// 只查狀態(不讀內容):檔案卡片顯示大小或原因(#429)。成功回大小。
+    public func size(of path: String, scope: HostFileAccessScope) async -> Result<Int, HostFileProblem> {
+        await HostFileFetchAttempt.run(path, scope: scope, fetcher: fetcher) { _, _, size in size }
+    }
+
     private func touch(_ key: CacheKey) {
         recentlyUsed.removeAll { $0 == key }
         recentlyUsed.append(key)

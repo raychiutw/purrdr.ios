@@ -13946,6 +13946,17 @@
         }
       }
     },
+    "Too large to open here. Open it on the host." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案太大，無法在這裡開啟。請在主機上開啟。"
+          }
+        }
+      }
+    },
     "Too large to preview here (%@). Open it on the host." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15435,6 +15446,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "送出的內容會當成回答交給 Agent。"
+          }
+        }
+      }
+    },
+    "Your file %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你送出的檔案 %@"
           }
         }
       }

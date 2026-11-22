@@ -117,4 +117,53 @@ struct AgentFileLoadsTests {
         let reads = await fetcher.requests.filter { if case .read(let path, _, _) = $0 { path == report } else { false } }
         #expect(reads.count == 1, "第二次只查狀態")
     }
+
+    @Test("使用者送出的非圖片檔案:只查狀態(大小),不讀內容;缺檔、被拒、不在上傳資料夾的路徑各有原因(#429)")
+    func userFileInfo() async {
+        let upload = "/var/folders/zz/demo/T/purrdr-uploads-501/report-1.pdf"
+        let cleared = "/var/folders/zz/demo/T/purrdr-uploads-501/cleared-2.zip"
+        let scope = HostFileAccessScope(workingDirectories: [], mentionedPaths: [], promptMentionedPaths: [upload, cleared, "/Users/demo/notes.txt"])
+        let fetcher = FakeHostFileFetcher(files: [upload: Data(count: 1234)])
+        let loads = AgentFileLoads(fetcher: fetcher)
+
+        await loads.inspect(upload, scope: scope)
+        await loads.inspect(cleared, scope: scope)
+        await loads.inspect("/Users/demo/notes.txt", scope: scope)
+
+        #expect(loads.infos[upload] == .available(size: 1234))
+        #expect(loads.infos[cleared] == .missing)
+        #expect(loads.infos["/Users/demo/notes.txt"] == .denied)
+        #expect(await fetcher.readCount == 0)
+    }
+
+    @Test("使用者送出的檔案點開:下載到快取,超過 25 MiB 不下載(#429)")
+    func userFileOpens() async {
+        let upload = "/var/folders/zz/demo/T/purrdr-uploads-501/data-3.csv"
+        let scope = HostFileAccessScope(workingDirectories: [], mentionedPaths: [], promptMentionedPaths: [upload])
+        let fetcher = FakeHostFileFetcher(files: [upload: Data("a,b\n".utf8)])
+        let loads = AgentFileLoads(fetcher: fetcher, downloadDirectory: FileManager.default.temporaryDirectory.appending(path: "u429-\(UUID().uuidString)"))
+
+        let file = await loads.open(upload, scope: scope)
+
+        #expect(file?.lastPathComponent == "data-3.csv")
+        guard case .ready = loads.opens[upload] else { Issue.record("沒有下載好"); return }
+    }
+
+    @Test("已送出圖片情境:使用者送出的檔案卡片取自上傳路徑,CSV 還在主機、壓縮檔已被清掉(#429)")
+    func sentFilesScenario() async throws {
+        let connection = SSHHostConnection(channel: DemoHost(scenario: .sentImages))
+        let model = ConversationModel(
+            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: "w1:p1",
+            knownSessionID: nil, cache: InMemoryConversationCache())
+        await model.poll()
+        let bubbles = model.items.compactMap { item -> UserBubble? in if case .user(let bubble) = item { bubble } else { nil } }
+        let files = bubbles.flatMap(\.filePaths)
+        #expect(files == [DemoHostFileFetcher.sentFilePath, DemoHostFileFetcher.clearedFilePath])
+        #expect(bubbles.last?.displayText == "And these files.")
+
+        let loads = AgentFileLoads(fetcher: DemoHostFileFetcher())
+        for path in files { await loads.inspect(path, scope: model.fileAccessScope) }
+        guard case .available = loads.infos[DemoHostFileFetcher.sentFilePath] else { Issue.record("CSV 沒有查到大小"); return }
+        #expect(loads.infos[DemoHostFileFetcher.clearedFilePath] == .missing)
+    }
 }

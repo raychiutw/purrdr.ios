@@ -33,6 +33,27 @@ struct UploadedImagesTests {
         #expect(bubble.imagePaths == ["/home/me/.purrdr/uploads/a-1.jpg", "/home/me/.purrdr/uploads/b-2.png"])
     }
 
+    @Test("使用者送出的非圖片檔案:上傳資料夾底下的路徑行是檔案卡片(#429),顯示文字拿掉路徑行,文字本身不變(回音配對用)")
+    func userFilePaths() throws {
+        let report = "/var/folders/zz/demo/T/purrdr-uploads-501/report-1.pdf"
+        let notes = "/Users/me/.purrdr/uploads/notes-2.txt"
+        let bubble = try #require(bubble([.text("Please read these\n\n\(report)\n\(notes)\n/Users/me/other/secret.pdf")]))
+        #expect(bubble.filePaths == [report, notes])
+        #expect(bubble.displayText == "Please read these\n\n/Users/me/other/secret.pdf")
+        #expect(bubble.text.contains(report))
+        #expect(bubble.imageCount == 0)
+    }
+
+    @Test("Windows 使用者資料夾名稱有空白的上傳檔案也認得;沒有檔案時 filePaths 為空")
+    func windowsAndNone() throws {
+        let path = #"C:\Users\Demo User\AppData\Local\Temp\purrdr-uploads\data-3.csv"#
+        let bubble = try #require(bubble([.text("Data\n\n\(path)")]))
+        #expect(bubble.filePaths == [path])
+        let plain = try #require(self.bubble([.text("hello")]))
+        #expect(plain.filePaths.isEmpty)
+        #expect(plain.displayText == "hello")
+    }
+
     @Test("新的上傳資料夾(暫存目錄底下的 purrdr-uploads、Unix 後接 uid、Windows 在 %TEMP%)與舊的 .purrdr/uploads 都認得")
     func newAndLegacyFolders() throws {
         let paths = [

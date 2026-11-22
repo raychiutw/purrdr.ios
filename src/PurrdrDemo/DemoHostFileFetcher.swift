@@ -21,12 +21,17 @@ public struct DemoHostFileFetcher: HostFileFetching {
     public static let sentImagePath = DemoHost.uploadFolder + "/export-preview.png"
     public static let clearedImagePath = DemoHost.uploadFolder + "/cleared-screenshot.png"
 
+    /// 使用者送出的檔案(#429):一份還在主機上傳資料夾的 CSV、一份已被主機清掉的壓縮檔。
+    public static let sentFilePath = DemoHost.uploadFolder + "/budget.csv"
+    public static let clearedFilePath = DemoHost.uploadFolder + "/old-archive.zip"
+
     public init() {}
 
     static func file(at path: String) -> Data? {
         switch path {
         case previewPath, sentImagePath: DemoImages.preview
         case scanPath: DemoImages.scan
+        case sentFilePath: Data("month,amount\njan,120\nfeb,95\n".utf8)
         case exportPath: Data(DemoTranscripts.exportSource.utf8)
         case quotingTestsPath: Data(DemoTranscripts.quotingTests.utf8)
         case reportPath: DemoDocuments.report

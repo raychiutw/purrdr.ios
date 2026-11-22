@@ -746,8 +746,9 @@ struct UserBubbleView: View {
                         images: known + Array(repeating: nil, count: max(0, bubble.imageCount - known.count)),
                         hostPaths: bubble.imagePaths)
                 }
-                if !bubble.text.isEmpty {
-                    Text(Self.highlighted(bubble.text))
+                ForEach(bubble.filePaths, id: \.self) { UserFileCardView(path: $0) }
+                if !bubble.displayText.isEmpty {
+                    Text(Self.highlighted(bubble.displayText))
                         .textSelection(.enabled)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
@@ -762,7 +763,7 @@ struct UserBubbleView: View {
         }
         // VoiceOver:一則訊息一個元素(HIG 20.5,#35)。有圖片時圖片可點開，泡泡改成容器。
         // 合併後念「Your message.」+ 內容 + 時間(作者、內容、時間一次念完)。
-        .accessibilityElement(children: bubble.imageCount > 0 ? .contain : .combine)
+        .accessibilityElement(children: bubble.imageCount > 0 || !bubble.filePaths.isEmpty ? .contain : .combine)
         .accessibilityLabel { label in
             Text("Your message.")
             label

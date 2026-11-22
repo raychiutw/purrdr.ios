@@ -228,6 +228,10 @@ enum DemoTranscripts {
                 text: "Compare these two exports.",
                 paths: [DemoHostFileFetcher.sentImagePath, DemoHostFileFetcher.clearedImagePath])),
             assistantText("d3m0-s-02", "2026-11-16T10:00:06.000Z", "The first export has the date column first; the second image is no longer readable."),
+            userPrompt("d3m0-s-03", "2026-11-16T10:01:00.000Z", UploadedImages.prompt(
+                text: "And these files.",
+                paths: [DemoHostFileFetcher.sentFilePath, DemoHostFileFetcher.clearedFilePath])),
+            assistantText("d3m0-s-04", "2026-11-16T10:01:05.000Z", "Got the budget; the archive is gone from the host."),
         ]
     )
 

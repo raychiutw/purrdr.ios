@@ -42,6 +42,33 @@ public enum UploadedImages {
         return (kept.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines), paths)
     }
 
+    /// 一整行是上傳資料夾底下的非圖片檔案絕對路徑(使用者在聊天附加的檔案，#429;路徑行留在使用者訊息文字裡)。
+    package static func isUploadFilePath(_ line: String) -> Bool {
+        guard HostPathSyntax.isAbsolute(line), HostPathSyntax.isWindowsDrivePath(line) || !line.contains(" ") else { return false }
+        let components = HostPathSyntax.components(line)
+        guard components.count >= 3, let name = components.last, !name.isEmpty, !hasImageExtension(String(name)) else { return false }
+        let parent = components[components.count - 2]
+        if isUploadFolderName(parent) { return true }
+        return components.count >= 4 && parent == "uploads" && components[components.count - 3] == ".purrdr"
+    }
+
+    /// 文字裡的上傳檔案路徑行(依出現順序、不重複)。
+    package static func filePaths(in text: String) -> [String] {
+        var paths: [String] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if isUploadFilePath(trimmed), !paths.contains(trimmed) { paths.append(trimmed) }
+        }
+        return paths
+    }
+
+    /// 拿掉上傳檔案路徑行後的文字(畫面顯示用;檔案改以卡片呈現)。
+    package static func removingFilePaths(from text: String) -> String {
+        text.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !isUploadFilePath($0.trimmingCharacters(in: .whitespaces)) }
+            .joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// `[Image: source: <路徑>]`(Claude 的註記)。
     private static func sourcePath(_ line: String) -> String? {
         let prefix = "[Image: source: "

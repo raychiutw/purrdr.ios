@@ -100,6 +100,18 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 5), "點縮圖沒有開全螢幕檢視")
     }
 
+    /// 使用者送出的兩份檔案(#429):一份經主機讀回縮小檔案卡片(大小、點開以 QuickLook),一份已被主機清掉顯示說明。
+    @MainActor
+    func testSentFilesShowCards() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        let size = app.element("conversation.userFile.size")
+        XCTAssertTrue(app.revealInConversation(size), "使用者送出的檔案沒有顯示大小")
+        XCTAssertTrue(app.element("conversation.userFile.note").waitUntilExists(timeout: 10), "被主機清掉的檔案沒有說明")
+        app.buttons["conversation.userFile"].firstMatch.tap()
+        XCTAssertTrue(app.otherElements["QLPreviewControllerView"].waitUntilExists(timeout: 10), "點檔案卡片沒有以 QuickLook 開啟")
+    }
+
     // MARK: - 檔案情境(`-demoAgentFiles`:ledger 的對話換成寫檔、讀圖、提到主機路徑的一段)
 
     /// 略過 ledger 輸入列上方的 You should know 註記(第一次要同意)。

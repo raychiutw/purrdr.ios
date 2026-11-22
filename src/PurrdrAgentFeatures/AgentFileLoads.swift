@@ -113,6 +113,35 @@ public final class AgentFileLoads {
         }
     }
 
+    /// 只查狀態的檔案資訊(#429):使用者送出的非圖片檔案卡片顯示大小或原因，不下載內容。
+    public enum Info: Equatable {
+        case available(size: Int)
+        case tooLarge(size: Int)
+        case missing
+        case denied
+        case unsupported
+        case failed
+    }
+
+    /// 主機路徑 → 檔案資訊。
+    public private(set) var infos: [String: Info] = [:]
+
+    /// 查檔案大小與是否還在(只查狀態;取消時維持原狀)。
+    public func inspect(_ path: String, scope: HostFileAccessScope) async {
+        switch await loader.size(of: path, scope: scope) {
+        case .success(let size): infos[path] = size > HostFileFetchLimits.maximumSize ? .tooLarge(size: size) : .available(size: size)
+        case .failure(let problem):
+            guard let shown = Shown(problem) else { return }
+            infos[path] = switch shown {
+            case .tooLarge(let size): .tooLarge(size: size)
+            case .missing: .missing
+            case .denied: .denied
+            case .unsupported: .unsupported
+            case .failed: .failed
+            }
+        }
+    }
+
     /// 載入與點開共用：拿不到檔案時畫面顯示的原因;取消回 `nil`(回到未載入)。
     enum Shown {
         case tooLarge(size: Int)
