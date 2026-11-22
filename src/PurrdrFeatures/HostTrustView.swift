@@ -34,6 +34,7 @@ struct HostTrustView: View {
                     .accessibilityIdentifier("hostTrust.details")
                 }
             }
+            .appGroupedList()
             .navigationTitle("Trust This Host?")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

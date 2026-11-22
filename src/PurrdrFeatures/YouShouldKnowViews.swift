@@ -67,7 +67,7 @@ struct YouShouldKnowNoteView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // 同 slash 選單：不透明的 `.background` + `.separator` 邊(#67 audit)。原本的 `.background.secondary`(#F2F2F7)上
         // tint 文字按鈕(#D91E36)只有 4.49:1;半透明填色則會透出後面捲動中的訊息。
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .background(AppSurface.page, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
         .accessibilityElement(children: .contain)
         .youShouldKnowConsent(model)
@@ -141,7 +141,7 @@ struct YouShouldKnowCompactNoteView: View {
         }
         .buttonStyle(.pressableRow(cornerRadius: 16))
         // 同完整卡片：內容層、不透明底(#67 audit)。
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .background(AppSurface.page, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
         .accessibilityLabel(Text("\(note.tag ?? String(localized: "You should know")): \(note.line)"))
         .accessibilityHint(Text("Shows the whole note."))

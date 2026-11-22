@@ -213,6 +213,7 @@ public struct AgentListView: View {
         }
         #if os(iOS)
         .listStyle(.insetGrouped)
+        .appGroupedList()
         #endif
         .contentMargins(.top, 0, for: .scrollContent)
         .accessibilityIdentifier("agentList.loading")
@@ -260,6 +261,7 @@ public struct AgentListView: View {
         }
         #if os(iOS)
         .listStyle(.insetGrouped)
+        .appGroupedList()
         #endif
         .contentMargins(.top, 0, for: .scrollContent)
         // 換檢視就是另一份清單：重建 List,捲回最上面，不停在原本捲到的位置(#40)。

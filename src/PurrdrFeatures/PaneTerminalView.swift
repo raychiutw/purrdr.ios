@@ -148,7 +148,7 @@ struct TerminalBanner: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary)
+        .background(AppSurface.card)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.banner")
     }

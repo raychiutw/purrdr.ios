@@ -103,6 +103,7 @@ private struct PermissionModeSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("Permission Mode")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

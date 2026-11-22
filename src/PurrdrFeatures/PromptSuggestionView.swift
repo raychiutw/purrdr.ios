@@ -49,7 +49,7 @@ struct PromptSuggestionView: View {
             .contentShape(.rect)
         }
         .buttonStyle(.pressableRow(cornerRadius: 16))
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
+        .background(AppSurface.page, in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.separator))
         .accessibilityLabel(Text("Suggestion: \(suggestion), Fill In"))
         .accessibilityHint(Text("Puts the suggestion in the message box without sending it."))

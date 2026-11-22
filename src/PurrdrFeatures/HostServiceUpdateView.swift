@@ -25,6 +25,7 @@ struct HostServiceUpdateView: View {
                     .accessibilityIdentifier("hostServiceUpdate.dismiss")
             }
         }
+        .appGroupedList()
         .navigationTitle("Update Host Service")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

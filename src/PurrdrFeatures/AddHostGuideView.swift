@@ -257,7 +257,7 @@ struct AddHostGuideView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 18))
+        .background(AppSurface.card, in: .rect(cornerRadius: 18))
     }
 
     private func pairField(
@@ -300,7 +300,7 @@ struct AddHostGuideView: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.background.secondary, in: .rect(cornerRadius: 18))
+                .background(AppSurface.card, in: .rect(cornerRadius: 18))
                 .accessibilityElement(children: .contain)
             }
         }
@@ -357,7 +357,7 @@ struct AddHostGuideView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 18))
+        .background(AppSurface.card, in: .rect(cornerRadius: 18))
     }
 
     /// 金鑰三步:打開終端機並貼上指令,回來測試連線。
@@ -411,7 +411,7 @@ struct AddHostGuideView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: .rect(cornerRadius: 18))
+        .background(AppSurface.card, in: .rect(cornerRadius: 18))
     }
 
     private func identifier(_ field: AddHostGuideModel.Field) -> String {
@@ -451,7 +451,7 @@ struct AddHostGuideView: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.background.secondary, in: .rect(cornerRadius: 18))
+            .background(AppSurface.card, in: .rect(cornerRadius: 18))
         case .hostKeyChanged:
             ErrorLabel(String(localized: "This host’s identity is different from the one you trusted before. Someone may be intercepting the connection. Don’t continue unless you changed this host yourself."))
                 .accessibilityIdentifier("guide.result")

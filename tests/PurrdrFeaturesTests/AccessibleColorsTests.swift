@@ -15,7 +15,7 @@ struct AccessibleColorsTests {
         ThemeColor(red: 0xFF, green: 0xFF, blue: 0xFF), ThemeColor(red: 0xF2, green: 0xF2, blue: 0xF7),
         ThemeColor(red: 0xEF, green: 0xEF, blue: 0xF0),
     ]
-    /// 深色底提亮(#379):視窗固定 elevated,頁面 #1C1C1E、卡片 #2C2C2E、再內一層 #3A3A3C;純黑留給終端機與全螢幕圖片。
+    /// 深色底提亮(#379):頁面 #1C1C1E、卡片 #2C2C2E、再內一層 #3A3A3C(AppSurface);純黑留給終端機與全螢幕圖片。
     static let darkSecondaryBackgrounds = [
         ThemeColor(red: 0x00, green: 0x00, blue: 0x00), ThemeColor(red: 0x1C, green: 0x1C, blue: 0x1E),
         ThemeColor(red: 0x2C, green: 0x2C, blue: 0x2E), ThemeColor(red: 0x3A, green: 0x3A, blue: 0x3C),

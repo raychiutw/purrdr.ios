@@ -11,7 +11,7 @@ struct FloatingGlass<S: InsettableShape>: ViewModifier {
     func body(content: Content) -> some View {
         if reduceTransparency || forcesOpaque {
             content
-                .background(.background, in: shape)
+                .background(AppSurface.page, in: shape)
                 .overlay { shape.strokeBorder(.separator, lineWidth: 1) }
         } else {
             content.glassEffect(.regular, in: shape)

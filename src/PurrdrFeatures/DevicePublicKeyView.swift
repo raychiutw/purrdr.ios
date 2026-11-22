@@ -56,6 +56,7 @@ struct DevicePublicKeyView: View {
                 }
             }
         }
+        .appGroupedList()
         .navigationTitle("This Device’s Key")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

@@ -58,6 +58,7 @@ public struct PlanUsageView: View {
                 footnote
             }
         }
+        .appGroupedList()
         .navigationTitle("Plan Usage")
         .refreshable { await model.refresh() }
         .toolbar { options }

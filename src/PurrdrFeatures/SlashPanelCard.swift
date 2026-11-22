@@ -44,7 +44,7 @@ struct SlashPanelCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.secondary, in: RoundedRectangle(cornerRadius: 16))
+        .background(AppSurface.card, in: RoundedRectangle(cornerRadius: 16))
         .disabled(model.isOperatingPanel)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("panel.card")

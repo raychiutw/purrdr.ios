@@ -36,6 +36,7 @@ struct WindowSidebar: View {
                 }
             }
         }
+        .appGroupedList()
         .navigationTitle(hostTitle)
         .accessibilityIdentifier("sidebar")
     }

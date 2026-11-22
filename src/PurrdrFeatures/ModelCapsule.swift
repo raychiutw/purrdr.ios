@@ -88,6 +88,7 @@ private struct ModelSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("Model")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

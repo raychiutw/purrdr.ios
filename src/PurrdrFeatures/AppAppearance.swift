@@ -40,7 +40,10 @@ private struct AppAppearanceModifier: ViewModifier {
         // 設在所在 UIWindow 的 overrideUserInterfaceStyle,不用 `preferredColorScheme`(#322):
         // 後者不會更新已經開著的 sheet(sheet 停在開啟時的深淺色)。視窗層級的覆寫同一個視窗裡的
         // sheet、alert 都跟著變，自動(`.unspecified`)也確實回到系統值。
-        content.background { WindowAppearanceApplier(style: appearance.userInterfaceStyle) }
+        // 頁面底色:深色是提亮的 #1C1C1E(#379,見 `AppSurface`);畫面自己沒有底色的地方(對話、檔案)靠這一層。
+        content
+            .background { AppSurface.page.ignoresSafeArea() }
+            .background { WindowAppearanceApplier(style: appearance.userInterfaceStyle) }
         #else
         content.preferredColorScheme(appearance.colorScheme)
         #endif
@@ -48,24 +51,6 @@ private struct AppAppearanceModifier: ViewModifier {
 }
 
 #if os(iOS)
-/// 視窗層級的外觀與底色層次(#379)。
-///
-/// 深色頁面底色由系統的純黑改為提亮值:視窗固定用 `elevated` 介面層級,系統的語意底色就整組上移一階——
-/// 頁面(`systemBackground`、`systemGroupedBackground`)#1C1C1E、卡片與 grouped 列(`secondarySystemBackground`、
-/// `secondarySystemGroupedBackground`)#2C2C2E、再內一層 #3A3A3C。所有畫面用的是語意色,所以全 app 一致、
-/// 切換畫面不跳色,「增加對比」與淺色(介面層級對淺色沒有影響)照系統。
-/// sheet 本來就是 elevated,所以與頁面同色階、sheet 內的列是 #2C2C2E(使用者決定接受,不逐列自訂背景;設計稿的 sheet 再高一階留待後續票)。
-package enum AppWindowSurface {
-    @MainActor
-    package static func apply(to window: UIWindow, style: UIUserInterfaceStyle) {
-        if window.overrideUserInterfaceStyle != style {
-            window.overrideUserInterfaceStyle = style
-        }
-        // 不先讀:UITraitOverrides 取沒設過的 trait 會觸發 assertion。
-        window.traitOverrides.userInterfaceLevel = .elevated
-    }
-}
-
 /// 把外觀套到自己所在的 UIWindow。
 private struct WindowAppearanceApplier: UIViewRepresentable {
     let style: UIUserInterfaceStyle
@@ -92,8 +77,8 @@ private struct WindowAppearanceApplier: UIViewRepresentable {
         }
 
         private func apply() {
-            guard let window else { return }
-            AppWindowSurface.apply(to: window, style: style)
+            guard let window, window.overrideUserInterfaceStyle != style else { return }
+            window.overrideUserInterfaceStyle = style
         }
     }
 }

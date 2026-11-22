@@ -86,6 +86,7 @@ private struct TerminalSizeSheet: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle("Size")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

@@ -70,6 +70,7 @@ struct ChangesView: View {
                     .accessibilityIdentifier("changes.summary")
             }
         }
+        .appGroupedList()
         .accessibilityIdentifier("changes.list")
     }
 
@@ -377,7 +378,7 @@ private struct ReviewCommentCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(10)
-            .background(.background, in: RoundedRectangle(cornerRadius: 10))
+            .background(AppSurface.page, in: RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator))
             .contentShape(Rectangle())
         }
@@ -421,6 +422,7 @@ private struct ChangesCommentEditor: View {
                     }
                 }
             }
+            .appGroupedList()
             .navigationTitle(Text("Line \(line.number ?? 0)"))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
