@@ -54,3 +54,15 @@ extension View {
             .listRowBackground(AppSurface.groupedRow)
     }
 }
+
+extension View {
+    /// NavigationStack 內容的底色用 `AppSurface.page`(沒有自己底色的空狀態、對話)。
+    @ViewBuilder
+    func appNavigationBackground() -> some View {
+        #if os(iOS)
+        containerBackground(AppSurface.page, for: .navigation)
+        #else
+        self
+        #endif
+    }
+}

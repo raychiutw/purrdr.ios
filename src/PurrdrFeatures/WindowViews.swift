@@ -197,20 +197,26 @@ struct WindowDetail: View {
 
     var body: some View {
         NavigationStack {
-            if let route = navigation.selectedChat, let title = hosts.agentList.terminalTitle(of: route) {
-                // agent 以外的 pane(Spaces 的終端機列、版面圖的終端機方塊):開它的 Pane 終端機(#40)。
-                PaneTerminalScreen(model: hosts.terminal(route, title: title))
-            } else if let route = navigation.selectedChat {
-                ConversationScreen(
-                    model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
-                    makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route)
-            } else {
-                ContentUnavailableView("Select a Chat", systemImage: "bubble.left.and.bubble.right")
-                    .accessibilityIdentifier("detail.empty")
-            }
+            detailContent
+                .appNavigationBackground()
         }
         // 換一個聊天就整個重建(對話 model、推入的終端機)。
         .id(navigation.selectedChat)
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        if let route = navigation.selectedChat, let title = hosts.agentList.terminalTitle(of: route) {
+            // agent 以外的 pane(Spaces 的終端機列、版面圖的終端機方塊):開它的 Pane 終端機(#40)。
+            PaneTerminalScreen(model: hosts.terminal(route, title: title))
+        } else if let route = navigation.selectedChat {
+            ConversationScreen(
+                model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
+                makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route)
+        } else {
+            ContentUnavailableView("Select a Chat", systemImage: "bubble.left.and.bubble.right")
+                .accessibilityIdentifier("detail.empty")
+        }
     }
 }
 
@@ -229,6 +235,7 @@ public struct PaneWindowView: View {
 
     public var body: some View {
         NavigationStack {
+            Group {
             if let route = window.route(hostIDs: hosts.listedHostIDs) {
                 PaneWindowContent(window: window, route: route, hosts: hosts)
             } else {
@@ -239,6 +246,8 @@ public struct PaneWindowView: View {
                 )
                 .navigationTitle(window.title)
             }
+            }
+            .appNavigationBackground()
         }
         // 跟主視窗一樣套用選取中主機的主題(#23)。
         .selectedHostTheme(hosts)
