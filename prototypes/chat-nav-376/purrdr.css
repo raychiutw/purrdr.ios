@@ -134,7 +134,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFa
 .sheettop .st{position:absolute;left:0;right:0;text-align:center;font-size:17px;font-weight:600;pointer-events:none}
 .sheet .gl2{display:flex;flex-direction:column;overflow:hidden}
 
-/* 選單(系統 Menu 樣式:勾在前、圖示在後) */
+/* 選單(照 iOS 26 系統 Menu:勾與圖示都在文字前) */
 .menu{position:absolute;border-radius:24px;padding:6px 0;z-index:8;min-width:240px}
 .mi{width:100%;min-height:48px;border:none;background:transparent;color:var(--text);display:flex;align-items:center;gap:10px;padding:0 16px 0 12px;font-size:17px;text-align:left}
 .mi .ck{width:20px;display:flex;justify-content:center;flex-shrink:0}
