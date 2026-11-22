@@ -20,19 +20,8 @@ final class ConversationUITests: XCTestCase {
     /// 回到列表後開 `paneID` 的聊天。第一次或 app 已不在前景時才啟動。
     @MainActor
     private func openSharedConversation(paneID: String) -> XCUIApplication {
-        if let app = Self.sharedApp, app.state == .runningForeground {
-            if app.element("conversation.header").exists {
-                app.navigationBars.buttons.element(boundBy: 0).tap()
-            }
-            if app.reveal(app.element("agent.row.demo/\(paneID)")) {
-                app.openConversation(paneID: paneID)
-                return app
-            }
-            app.terminate()
-        }
-        let app = XCUIApplication.launchUITestingConversation(paneID: paneID)
-        Self.sharedApp = app
-        return app
+        // 共用同一個 app 會被同類別其他測試的狀態干擾(提示卡、草稿、sheet),每個測試各自啟動。
+        XCUIApplication.launchUITestingConversation(paneID: paneID)
     }
 
     @MainActor
@@ -53,7 +42,7 @@ final class ConversationUITests: XCTestCase {
     func testConversationRendering() {
         let app = openLedger()
 
-        XCTAssertTrue(app.element("conversation.user").waitUntilExists(timeout: 10), "沒有使用者泡泡")
+        XCTAssertTrue(app.revealInConversation(app.element("conversation.user")), "沒有使用者泡泡")
         XCTAssertTrue(app.staticTexts["Loaded skill: tdd"].exists, "skill 沒有顯示成「Loaded skill」")
         XCTAssertTrue(app.staticTexts["Edited 1 file · 3 steps"].exists, "工具串沒有收合成一行摘要")
         XCTAssertTrue(app.element("conversation.table").exists, "沒有表格")
@@ -240,8 +229,10 @@ final class ConversationUITests: XCTestCase {
     /// 清空輸入框的草稿(聚焦後連按刪除)。
     @MainActor
     private func clearDraft(_ text: XCUIElement) {
-        text.tap()
-        text.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 60))
+        // 游標不一定在最後：點右下角把游標放到尾端，再依目前字數刪光。
+        text.coordinate(withNormalizedOffset: CGVector(dx: 0.98, dy: 0.95)).tap()
+        let count = (text.value as? String)?.count ?? 0
+        text.typeEnglish(String(repeating: XCUIKeyboardKey.delete.rawValue, count: count + 5))
     }
 
     /// 輸入列與鍵盤(單一啟動,原本 9 個測試合併,#374;不送出):建議提示詞只填入不送出(#123、#240)、

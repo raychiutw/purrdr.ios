@@ -28,7 +28,7 @@ final class PermissionModeUITests: XCTestCase {
         accept.tap()
         let switched = NSPredicate(format: "value == 'Accept Edits'")
         XCTAssertTrue(capsule.wait(for: switched, timeout: 10), "等待的條件沒有成立")
-        XCTAssertFalse(app.buttons["permissionMode.done"].exists, "切換成功後 sheet 應收起")
+        XCTAssertTrue(app.buttons["permissionMode.done"].waitUntilGone(timeout: 5), "切換成功後 sheet 應收起")
 
         capsule.tap()
         let plan = app.buttons["Plan"].firstMatch
