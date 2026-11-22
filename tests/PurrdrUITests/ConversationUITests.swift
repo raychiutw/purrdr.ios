@@ -85,6 +85,21 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Edit"].waitUntilExists(timeout: 5), "展開後沒有看到每個呼叫")
     }
 
+    // MARK: - 已送出圖片情境(`-demoSentImages`,#428:手機沒有副本，經主機讀回縮圖)
+
+    /// 使用者送出的兩張圖：一張經主機取檔讀回縮圖、可點開全螢幕;一張已被主機清掉，顯示「主機上已找不到」。
+    @MainActor
+    func testSentImagesReadBackFromHost() {
+        let app = XCUIApplication.launchUITestingConversation(paneID: "w1:p1", flags: ["-demoSentImages"])
+        XCTAssertTrue(app.scrollViews.firstMatch.waitUntilExists(timeout: 10), "對話沒有開啟")
+        let thumbnail = app.element("conversation.sentImage.thumbnail")
+        XCTAssertTrue(app.revealInConversation(thumbnail), "已送出的圖片沒有經主機讀回縮圖")
+        XCTAssertTrue(
+            app.element("conversation.sentImage.note").waitUntilExists(timeout: 10), "被主機清掉的圖片沒有說明")
+        thumbnail.tap()
+        XCTAssertTrue(app.element("agentImage.viewer").waitUntilExists(timeout: 5), "點縮圖沒有開全螢幕檢視")
+    }
+
     // MARK: - 檔案情境(`-demoAgentFiles`:ledger 的對話換成寫檔、讀圖、提到主機路徑的一段)
 
     /// 略過 ledger 輸入列上方的 You should know 註記(第一次要同意)。

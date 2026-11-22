@@ -29,6 +29,8 @@ struct ViewerImage: Identifiable, Equatable {
 struct BubbleImagesView: View {
     /// 每張圖的副本位置;`nil` 表示只有主機上有。
     let images: [URL?]
+    /// 每張圖在主機上的路徑(依序對應 `images`);手機沒有副本時經主機取檔讀回縮圖(#428)。
+    var hostPaths: [String?] = []
     @Environment(\.bubbleImages) private var context
 
     static let longEdge: CGFloat = 220
@@ -50,6 +52,8 @@ struct BubbleImagesView: View {
                     .accessibilityLabel(Text("Image \(index + 1)"))
                     .accessibilityHint(Text("Opens the image full screen."))
                     .accessibilityIdentifier("conversation.image")
+                } else if index < hostPaths.count, let path = hostPaths[index] {
+                    HostSentImageView(path: path, index: index)
                 } else {
                     Label("Image", systemImage: "photo")
                         .font(.caption)

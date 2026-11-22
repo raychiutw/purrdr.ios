@@ -34,6 +34,9 @@ public actor DemoHost: HostChannel {
         case workingAfterPrompt(for: Duration)
         /// 檔案情境(#224、#225、#228、#229):ledger 的對話換成寫檔、讀圖、提到主機路徑的那一段，卡片集中在畫面底部。
         case agentFiles
+        /// 已送出圖片的情境(#428):ledger 的對話只有使用者送出的兩張圖(手機上沒有副本)——
+        /// 一張還在主機的上傳資料夾(經主機取檔讀回縮圖)、一張已被主機清掉。
+        case sentImages
         /// 聊天中斷網(#219):第一次定位對話紀錄(對話載入完成，#371)後 `after`,開著的請求與訂閱以連線中斷結束，之後每個指令都連不上。
         /// `hangs` 為 `true` 時像 Tailscale 不通，開連線等 10 秒(SSH 連線期限)才失敗;否則立刻失敗(飛航模式)。
         case goesOffline(after: Duration, hangs: Bool)
@@ -86,7 +89,11 @@ public actor DemoHost: HostChannel {
 
     /// 這個情境的 Claude Code 對話紀錄。
     private var transcripts: [DemoTranscripts.Session] {
-        scenario == .agentFiles ? [DemoTranscripts.agentFiles, DemoTranscripts.weather] : DemoTranscripts.sessions
+        switch scenario {
+        case .agentFiles: [DemoTranscripts.agentFiles, DemoTranscripts.weather]
+        case .sentImages: [DemoTranscripts.sentImages, DemoTranscripts.weather]
+        default: DemoTranscripts.sessions
+        }
     }
 
     /// 「送出後工作中」到期判斷用的現在時間(測試注入手動時鐘)。

@@ -59,4 +59,39 @@ struct AgentFileLoadsTests {
         ]))
         #expect(model.fileAccessScope.transcriptPaths.count == 1)
     }
+
+    @Test("已送出圖片情境：對話的存取範圍帶使用者 prompt 的上傳路徑，放行且標成使用者上傳(#428)")
+    func sentImagesScope() async throws {
+        let connection = SSHHostConnection(channel: DemoHost(scenario: .sentImages))
+        let model = ConversationModel(
+            client: HerdrClient(connection: connection), transcripts: TranscriptReader(connection: connection), paneID: "w1:p1",
+            knownSessionID: nil, cache: InMemoryConversationCache())
+        await model.poll()
+
+        let sent = DemoHostFileFetcher.sentImagePath
+        #expect(model.fileAccessScope.promptMentionedPaths.isSuperset(of: [sent, DemoHostFileFetcher.clearedImagePath]))
+        #expect(HostFileAccessPolicy.decision(for: sent, in: model.fileAccessScope) == .allowed(HostFileTarget(path: sent, root: nil, isUserUpload: true)))
+
+        let loads = AgentFileLoads(fetcher: DemoHostFileFetcher())
+        await loads.load(sent, scope: model.fileAccessScope)
+        await loads.load(DemoHostFileFetcher.clearedImagePath, scope: model.fileAccessScope)
+        guard case .loaded = loads.states[sent] else { Issue.record("沒有讀回縮圖"); return }
+        #expect(loads.states[DemoHostFileFetcher.clearedImagePath] == .missing)
+    }
+
+    @Test("使用者上傳的圖片：版本沒變只查狀態、被清掉是缺檔、不在上傳資料夾的 prompt 路徑被拒(#428)")
+    func userUploadLoading() async {
+        let upload = "/var/folders/zz/demo/T/purrdr-uploads-501/a.png"
+        let scope = HostFileAccessScope(workingDirectories: [], mentionedPaths: [], promptMentionedPaths: [upload, "/Users/demo/notes.txt"])
+        let fetcher = FakeHostFileFetcher(files: [upload: Data("png".utf8)])
+        let loads = AgentFileLoads(fetcher: fetcher)
+
+        await loads.load(upload, scope: scope)
+        await loads.load(upload, scope: scope)
+        await loads.load("/Users/demo/notes.txt", scope: scope)
+
+        guard case .loaded = loads.states[upload] else { Issue.record("沒有載入"); return }
+        #expect(loads.states["/Users/demo/notes.txt"] == .denied)
+        #expect(await fetcher.readCount == 1)
+    }
 }

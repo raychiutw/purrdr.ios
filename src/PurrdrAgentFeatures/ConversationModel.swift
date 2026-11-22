@@ -255,11 +255,12 @@ public final class ConversationModel {
     /// 能不能送出變更頁的評論：與輸入列相同的目標條件(唯讀、離線、送出中都不行)。
     public var canSendReview: Bool { hasTarget && !isReadOnly && !isSending && typedAnswer == nil }
 
-    /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229),與對話紀錄本身(附檔資料夾)。
+    /// 主機取檔的存取範圍(#225):Agent 的工作目錄、目前對話紀錄裡 Agent 寫出的路徑(#229)、對話紀錄本身(附檔資料夾),
+    /// 與使用者 prompt 裡的路徑(只放行 Purrdr 上傳資料夾，#428)。
     public var fileAccessScope: HostFileAccessScope {
         HostFileAccessScope(
             workingDirectories: currentAgent?.cwd.map { [$0] } ?? [], mentionedPaths: HostFileAccessScope.mentionedPaths(in: items),
-            transcriptPaths: file.map { [$0.path] } ?? [])
+            transcriptPaths: file.map { [$0.path] } ?? [], promptMentionedPaths: HostFileAccessScope.promptMentionedPaths(in: items))
     }
 
     /// 輸入列上方的註記：只顯示這個輸入框要送往的 session 的那則(行為規格 F17)。

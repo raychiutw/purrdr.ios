@@ -211,6 +211,17 @@ enum DemoTranscripts {
         ]
     )
 
+    /// 已送出圖片情境(`DemoHost.Scenario.sentImages`,#428)的 ledger 對話:使用者送出兩張上傳圖(一張還在主機、一張已被清掉)。
+    static let sentImages = Session(
+        sessionID: ledger.sessionID, cwd: ledger.cwd, paneID: ledger.paneID,
+        lines: [
+            userPrompt("d3m0-s-01", "2026-11-16T10:00:00.000Z", UploadedImages.prompt(
+                text: "Compare these two exports.",
+                paths: [DemoHostFileFetcher.sentImagePath, DemoHostFileFetcher.clearedImagePath])),
+            assistantText("d3m0-s-02", "2026-11-16T10:00:06.000Z", "The first export has the date column first; the second image is no longer readable."),
+        ]
+    )
+
     /// ledger 的 agent 新建的測試檔(寫檔情境)。
     static let quotingTests = """
     import Testing

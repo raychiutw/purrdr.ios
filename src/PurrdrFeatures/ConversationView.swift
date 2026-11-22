@@ -742,7 +742,9 @@ struct UserBubbleView: View {
                 if bubble.imageCount > 0 {
                     // 主機路徑依檔名找手機上的副本;路徑數不足(例如只有圖片區塊)的部分顯示「Image」標籤。
                     let known = bubble.imagePaths.map { context.localImage($0) }
-                    BubbleImagesView(images: known + Array(repeating: nil, count: max(0, bubble.imageCount - known.count)))
+                    BubbleImagesView(
+                        images: known + Array(repeating: nil, count: max(0, bubble.imageCount - known.count)),
+                        hostPaths: bubble.imagePaths)
                 }
                 if !bubble.text.isEmpty {
                     Text(Self.highlighted(bubble.text))
