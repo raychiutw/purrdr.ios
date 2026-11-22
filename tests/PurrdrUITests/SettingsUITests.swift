@@ -36,9 +36,7 @@ final class SettingsUITests: XCTestCase {
             app.scrollIntoView(entry, search: .down)
             XCTAssertTrue(entry.waitUntilExists(timeout: 5), "設定頁沒有 \(identifier)")
         }
-        let dataUsage = app.element("settings.dataUsage")
-        app.scrollIntoView(dataUsage, search: .down)
-        XCTAssertFalse(app.staticTexts["How much data Purrdr uses to talk to your hosts."].exists, "數據用量列下方不該有說明")
+        XCTAssertFalse(app.element("settings.dataUsage").exists, "數據用量已移到流量 tab")
         expectHeaders(["App Lock", "Support", "About"])
         // 捲到最後一列(隱私權政策):herdr 版本列可能只露出一部分，露出部分就算 hittable,值卻還沒進 accessibility 樹。
         let privacy = app.element("settings.privacy")
@@ -131,7 +129,7 @@ final class SettingsUITests: XCTestCase {
         let rate = app.buttons["為 Purrdr 評分"]
         app.scrollIntoView(rate, search: .down)
         XCTAssertTrue(rate.waitUntilExists(timeout: 5), "沒有「為 Purrdr 評分」")
-        XCTAssertEqual(app.buttons["sheet.done"].label, "完成")
+        XCTAssertFalse(app.buttons["sheet.done"].exists, "設定是 tab,沒有「完成」")
     }
 
     /// Codex 啟動器(#24,ADR-0002)在主機頁(#274):打開先問同意(說明會加什麼、以哪個使用者),確認才安裝;關閉就移除。
@@ -165,13 +163,7 @@ final class SettingsUITests: XCTestCase {
 
     @MainActor
     private func openSettings(in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」")
-        more.tap()
-        let item = app.buttons["menu.settings"]
-        XCTAssertTrue(item.waitUntilExists(timeout: 5))
-        item.tap()
-        XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        app.openSettingsTab()
     }
 
     /// 元素截圖的平均亮度(0 黑～1 白)。

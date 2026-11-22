@@ -13,14 +13,7 @@ final class DataUsageUITests: XCTestCase {
     @MainActor
     private func openDataUsage(flags: [String] = []) -> XCUIApplication {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost", "-seedDataUsage"] + flags)
-        XCTAssertTrue(app.buttons["toolbar.more"].waitUntilExists(timeout: 10))
-        app.buttons["toolbar.more"].tap()
-        let settings = app.buttons["menu.settings"]
-        XCTAssertTrue(settings.waitUntilExists(timeout: 5), "頂部選單沒有設定")
-        settings.tap()
-        let entry = app.buttons["settings.dataUsage"]
-        XCTAssertTrue(entry.waitUntilExists(timeout: 5), "設定沒有數據用量")
-        entry.tap()
+        app.openTab(.traffic)
         XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 5))
         return app
     }

@@ -110,10 +110,7 @@ final class AddHostUITests: XCTestCase {
 
     @MainActor
     private func openGuide(_ app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10))
-        more.tap()
-        app.buttons["menu.hosts"].tap()
+        app.openHostsTab()
         let add = app.buttons["hosts.add"]
         XCTAssertTrue(add.waitUntilExists(timeout: 5))
         add.tap()

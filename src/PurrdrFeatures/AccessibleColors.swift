@@ -42,6 +42,14 @@ enum AccessibleColors {
         darkHighContrast: ThemeColor(red: 0xD1, green: 0xD1, blue: 0xD6)   // 黑底 13.8:1、#1C1C1E 11.2:1、#2C2C2E 9.2:1
     )
 
+    /// tab bar 選取態的圖示與標籤(DESIGN.md「深色層次與新色票」):淺色 `#075C45`(對白 8.0:1)、深色 `#3CCF9E`。
+    static let tabSelection = ContrastPalette(
+        light: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
+        dark: ThemeColor(red: 0x3C, green: 0xCF, blue: 0x9E),
+        lightHighContrast: ThemeColor(red: 0x07, green: 0x5C, blue: 0x45),
+        darkHighContrast: ThemeColor(red: 0x5D, green: 0xE0, blue: 0xB3)
+    )
+
     /// 主色上的字與符號(ADR-0011):主色本身只有 Asset Catalog 的 `AccentColor` 一份，這組只配它當底。
     /// 淺色白字(`#0B7A5C` 5.3:1、高對比 `#075C45` 8.0:1),深色黑字(`#3CCF9E` 10.6:1、高對比 `#5DE0B3` 12.8:1)。
     static let onAccent = ContrastPalette(

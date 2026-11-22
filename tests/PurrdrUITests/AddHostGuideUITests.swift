@@ -15,10 +15,7 @@ final class AddHostGuideUITests: XCTestCase {
 
         // 捷徑:同步來、這支裝置還沒配對的主機標示要配對，點它直接到配對頁;配對儲存後標示消失。
         step("未配對的 HTTPS 主機直接到配對") {
-            let more = app.buttons["toolbar.more"]
-            XCTAssertTrue(more.waitUntilExists(timeout: 10))
-            more.tap()
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
             let row = app.buttons["hosts.row.5EED0000-0000-4000-8000-000000000003"]
             XCTAssertTrue(row.waitUntilExists(timeout: 5))
             XCTAssertTrue(row.label.contains("Not Paired on This Device"), "沒有標示要配對:\(row.label)")
@@ -35,8 +32,7 @@ final class AddHostGuideUITests: XCTestCase {
             XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有通過連線測試")
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
-            more.tap()
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
             XCTAssertTrue(row.waitUntilExists(timeout: 5))
             XCTAssertFalse(row.label.contains("Not Paired on This Device"), "配對後不應該再標示")
             app.buttons["hosts.demo"].tap()
@@ -80,9 +76,7 @@ final class AddHostGuideUITests: XCTestCase {
             XCTAssertTrue(app.buttons["guide.done"].waitUntilExists(timeout: 5))
             app.buttons["guide.done"].tap()
 
-            XCTAssertTrue(app.buttons["toolbar.more"].waitUntilExists(timeout: 10), "沒有回到 Agent 列表")
-            app.buttons["toolbar.more"].tap()
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
             XCTAssertTrue(
                 app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "studio-mac")).firstMatch.waitUntilExists(timeout: 5),
                 "主機清單沒有新增的主機")
@@ -157,9 +151,7 @@ final class AddHostGuideUITests: XCTestCase {
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
 
-            XCTAssertTrue(app.buttons["toolbar.more"].waitUntilExists(timeout: 10), "沒有回到 Agent 列表")
-            app.buttons["toolbar.more"].tap()
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
             // 配對的位址與前一段未配對的主機相同，主機清單不一定多一列:只確認回到主機清單。
             XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機清單")
         }
@@ -191,10 +183,7 @@ final class AddHostGuideUITests: XCTestCase {
 
     @MainActor
     private func openGuide(_ app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10))
-        more.tap()
-        app.buttons["menu.hosts"].tap()
+        app.openHostsTab()
         let add = app.buttons["hosts.add"]
         XCTAssertTrue(add.waitUntilExists(timeout: 5))
         add.tap()

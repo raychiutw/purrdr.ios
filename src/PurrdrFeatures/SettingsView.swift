@@ -16,20 +16,29 @@ public struct SettingsView: View {
     let openWelcome: () -> Void
     /// App 鎖(#284);`nil` 時不顯示。
     let appLock: AppLock?
-    /// 數據用量頁(#354)的 model 工廠;`nil` 時不顯示入口。
-    let dataUsage: (@MainActor () -> DataUsageModel)?
-    let done: () -> Void
+    /// 設定 tab 最右上角的帳號鈕(#390);`nil` 時(舊的 sheet 用法)改放右上「Done」。
+    let account: AnyView?
+    let done: (() -> Void)?
 
     public init(
         model: SettingsModel,
         openWelcome: @escaping () -> Void = {}, appLock: AppLock? = nil,
-        dataUsage: (@MainActor () -> DataUsageModel)? = nil, done: @escaping () -> Void
+        done: @escaping () -> Void
     ) {
-        self.dataUsage = dataUsage
         self.model = model
         self.appLock = appLock
         self.openWelcome = openWelcome
+        self.account = nil
         self.done = done
+    }
+
+    /// 設定 tab:大標題「Settings」、右上只有帳號鈕。
+    init(model: SettingsModel, openWelcome: @escaping () -> Void, appLock: AppLock?, account: AnyView) {
+        self.model = model
+        self.appLock = appLock
+        self.openWelcome = openWelcome
+        self.account = account
+        self.done = nil
     }
 
     public var body: some View {
@@ -83,17 +92,6 @@ public struct SettingsView: View {
                     AppLockSettingsSection(lock: appLock)
                 }
 
-                if let dataUsage {
-                    Section {
-                        NavigationLink {
-                            DataUsageScreen(make: dataUsage)
-                        } label: {
-                            Label("Data Usage", systemImage: "chart.bar")
-                        }
-                        .accessibilityIdentifier("settings.dataUsage")
-                    }
-                }
-
                 Section {
                     Button("Show Welcome", systemImage: "hand.wave") { openWelcome() }
                         .accessibilityIdentifier("settings.welcome")
@@ -130,9 +128,15 @@ public struct SettingsView: View {
             .accessibilityIdentifier("sheet.settings")
             .navigationTitle("Settings")
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done", action: done)
-                        .accessibilityIdentifier("sheet.done")
+                if let done {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done", action: done)
+                            .accessibilityIdentifier("sheet.done")
+                    }
+                }
+                if let account {
+                    ToolbarItem(placement: .primaryAction) { account }
+                        .sharedBackgroundVisibility(.hidden)
                 }
             }
         }

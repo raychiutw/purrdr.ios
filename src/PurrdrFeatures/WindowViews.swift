@@ -202,7 +202,8 @@ struct WindowDetail: View {
             } else if let route = navigation.selectedChat {
                 ConversationScreen(
                     model: hosts.conversation(route, sessionID: hosts.agentList.sessionID(of: route)),
-                    makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route)
+                    makeTerminal: { hosts.terminal(ChatRoute(host: route.host, paneID: $0), title: $1) }, window: navigation, route: route,
+                    otherNeedsYou: hosts.agentList.needsYouCount(excluding: route))
             } else {
                 ContentUnavailableView("Select a Chat", systemImage: "bubble.left.and.bubble.right")
                     .accessibilityIdentifier("detail.empty")

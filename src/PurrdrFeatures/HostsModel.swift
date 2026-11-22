@@ -316,6 +316,23 @@ public final class HostsModel {
         return .remembering(scope, options: options, fallback: selection, store: hostPickerStore)
     }
 
+    /// 檔案與主機 tab 頂列的主機選單(#390):只改選取中主機、不列「所有主機」,在那裡換主機不動聊天列表的篩選。
+    /// 範例主機啟用前不列入。
+    public func selectedHostPicker() -> HostPickerModel {
+        HostPickerModel(options: hostOptions { _ in true }.filter { $0.id != .demo || demoEntered }, preferred: [selection]) { [weak self] in
+            self?.select($0)
+        }
+    }
+
+    /// 選取中主機沒有登入 Shell 與檔案(HTTPS 主機,ADR-0010)。檔案 tab 顯示「不支援」。
+    public var selectedHostSupportsFiles: Bool {
+        guard case .host(let id) = selection, let host = hosts.first(where: { $0.id == id }) else { return true }
+        return host.supportsLoginShell
+    }
+
+    /// 沒有任何主機可看(沒有已存主機、也還沒進入範例主機):檔案與主機 tab 顯示空狀態。
+    public var hasNoHostToShow: Bool { hosts.isEmpty && !demoEntered }
+
     /// 新增聊天的主機挑選鈕(#245):所有主機;預設聊天列表目前篩選的主機(#244),所有主機時用選取中主機。
     public func newChatHostPicker() -> HostPickerModel {
         .newChat(options: hostOptions { _ in true }, currentHost: agentList.currentHost, selection: selection)

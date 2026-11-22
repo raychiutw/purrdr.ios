@@ -4,16 +4,18 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import SwiftUI
 
-/// 設定裡的「數據用量」入口:進頁面時才建立 model。
+/// 流量 tab 的入口:進頁面時才建立 model。
 struct DataUsageScreen: View {
     @State private var model: DataUsageModel
+    let account: AnyView?
 
-    init(make: () -> DataUsageModel) {
+    init(make: () -> DataUsageModel, account: AnyView? = nil) {
         _model = State(wrappedValue: make())
+        self.account = account
     }
 
     var body: some View {
-        DataUsageView(model: model)
+        DataUsageView(model: model, account: account)
     }
 }
 
@@ -27,9 +29,17 @@ public struct DataUsageView: View {
     @State private var detailHostID: String?
     @State private var confirmsReset = false
     @State private var selectedDate: Date?
+    /// 流量 tab 最右上角的帳號鈕(#390);有的話是 tab 版面:大標題、主機選單放在內容最上面。
+    private let account: AnyView?
 
     public init(model: DataUsageModel) {
         self.model = model
+        account = nil
+    }
+
+    init(model: DataUsageModel, account: AnyView?) {
+        self.model = model
+        self.account = account
     }
 
     enum OptionsSheet: String, Identifiable {
@@ -40,6 +50,9 @@ public struct DataUsageView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if account != nil {
+                    HostCapsule(model: model)
+                }
                 summaryTiles
                 chips
                 chartCard
@@ -56,9 +69,16 @@ public struct DataUsageView: View {
         .background(DataUsageColors.groupedBackground)
         .navigationTitle("Data Usage")
         #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(account == nil ? .inline : .large)
         #endif
-        .toolbar { ToolbarItem(placement: .principal) { HostCapsule(model: model) } }
+        .toolbar {
+            if let account {
+                ToolbarItem(placement: .primaryAction) { account }
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                ToolbarItem(placement: .principal) { HostCapsule(model: model) }
+            }
+        }
         .sheet(item: $optionsSheet) { sheet in
             DataUsageOptionsSheet(model: model, sheet: sheet)
         }

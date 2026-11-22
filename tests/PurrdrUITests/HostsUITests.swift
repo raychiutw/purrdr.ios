@@ -16,12 +16,7 @@ final class HostsUITests: XCTestCase {
 
     @MainActor
     private func openHosts(_ app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10))
-        more.tap()
-        let hostsItem = app.buttons["menu.hosts"]
-        XCTAssertTrue(hostsItem.waitUntilExists(timeout: 5))
-        hostsItem.tap()
+        app.openHostsTab()
     }
 
     /// 在主機清單打開已存主機的編輯器，點名稱欄叫出鍵盤(`edits` 為真時再改名)，按左上角取消(#333:不能閃退)。
@@ -163,7 +158,7 @@ final class HostsUITests: XCTestCase {
 
         // 掃 QR code／點分享連結(深層連結)→ 主機 sheet 開出新增主機引導，資料已齊，直接到測試連線，通過後才能加入。
         step("分享連結開引導直接到測試連線") {
-            XCTAssertTrue(app.buttons["toolbar.more"].waitUntilExists(timeout: 10))
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 10))
             // HostShareLink:name Studio Mac、host studio-mac、port 22、user demo。
             let payload = #"{"host":"studio-mac","method":"tailscaleSSH","name":"Studio Mac","port":22,"user":"demo","v":1}"#
             let encoded = Data(payload.utf8).base64EncodedString()
@@ -174,8 +169,7 @@ final class HostsUITests: XCTestCase {
             XCTAssertTrue(save.waitUntilExists(timeout: 15), "沒有直接到測試連線\n\(app.debugDescription)")
             save.tap()
             app.buttons["guide.done"].tapWhenReady()
-            app.buttons["toolbar.more"].tap()
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
             XCTAssertTrue(
                 app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Studio Mac")).firstMatch.waitUntilExists(timeout: 5),
                 "主機清單沒有匯入的主機")

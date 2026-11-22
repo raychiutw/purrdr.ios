@@ -182,10 +182,11 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     @MainActor
     private func openMenu(_ item: String, in app: XCUIApplication) {
-        app.tapToolbarItem("toolbar.more", overflowLabel: "More")
-        let button = app.buttons[item]
-        XCTAssertTrue(button.waitUntilExists(timeout: 5))
-        button.tap()
+        switch item {
+        case "menu.hosts": app.openHostsTab()
+        case "menu.newChat": app.openNewChatSheet()
+        default: XCTFail("沒有這個入口 \(item)")
+        }
     }
 
     @MainActor

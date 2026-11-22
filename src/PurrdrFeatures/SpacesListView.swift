@@ -143,6 +143,7 @@ struct PaneTerminalScreen: View {
     var body: some View {
         #if canImport(UIKit)
         PaneTerminalView(model: model)
+            .hidesTabBarWhenCompact()
         #else
         EmptyView()
         #endif

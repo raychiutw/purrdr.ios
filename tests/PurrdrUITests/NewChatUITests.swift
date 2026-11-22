@@ -10,7 +10,7 @@ final class NewChatUITests: XCTestCase {
     @MainActor
     private func openNewChat() -> XCUIApplication {
         let app = XCUIApplication.launchUITesting()
-        app.openMoreMenuItem("menu.newChat")
+        app.openNewChatSheet()
         XCTAssertTrue(app.textFields["newChat.folder"].waitUntilExists(timeout: 5), "沒有開出新增對話")
         return app
     }

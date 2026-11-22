@@ -69,9 +69,9 @@ struct WindowNavigationTests {
         first.perform(.settings, visibleAgents: visible)
 
         #expect(first.selectedChat == route("w2:p1"))
-        #expect(first.sheet == .settings)
+        #expect(first.tab == .settings)
         #expect(second.selectedChat == nil)
-        #expect(second.sheet == nil)
+        #expect(second.tab == .chats)
     }
 
     @Test("搜尋快捷鍵讓搜尋欄取得焦點")

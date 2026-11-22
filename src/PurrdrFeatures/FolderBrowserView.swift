@@ -10,11 +10,20 @@ public struct FolderBrowserView: View {
     let model: FolderBrowserModel
     /// 標題列中間的主機挑選鈕(#245);沒有時副標顯示主機名稱。
     let hostPicker: HostPickerModel?
+    /// 頂層 tab(#390):主機選單的「新增主機…」與最右上角的帳號鈕。
+    let addHost: (() -> Void)?
+    let account: AnyView?
     @State private var importing = false
 
     public init(model: FolderBrowserModel, hostPicker: HostPickerModel? = nil) {
+        self.init(model: model, hostPicker: hostPicker, addHost: nil, account: nil)
+    }
+
+    init(model: FolderBrowserModel, hostPicker: HostPickerModel?, addHost: (() -> Void)?, account: AnyView?) {
         self.model = model
         self.hostPicker = hostPicker
+        self.addHost = addHost
+        self.account = account
     }
 
     public var body: some View {
@@ -28,7 +37,7 @@ public struct FolderBrowserView: View {
                 if let hostPicker {
                     // 主機挑選鈕佔標題位置;目前在哪一層看下面的路徑麵包屑(#273)。
                     ToolbarItem(placement: .principal) {
-                        HostPickerButton(model: hostPicker, identifier: "files.host")
+                        HostPickerButton(model: hostPicker, identifier: "files.host", addHost: addHost)
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -41,6 +50,11 @@ public struct FolderBrowserView: View {
                             .disabled(model.path == nil)
                             .accessibilityIdentifier("files.upload")
                     }
+                }
+                if let account {
+                    ToolbarSpacer(.fixed, placement: .primaryAction)
+                    ToolbarItem(placement: .primaryAction) { account }
+                        .sharedBackgroundVisibility(.hidden)
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item]) { result in

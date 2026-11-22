@@ -101,24 +101,20 @@ final class AgentListUITests: XCTestCase {
         XCTAssertTrue(search.waitUntilGone(timeout: 5), "Spaces 檢視不該有搜尋欄")
     }
 
-    /// AX 字級的選單只有一層(#268,使用者實機截圖):帳號併進「⋯」,選單直接列出所有項目，沒有「更多」第二層，
-    /// 也沒有 Agents／Spaces 切換。
+    /// AX 字級下 5 個 tab 都在 tab bar 上,帳號與新增聊天仍可從工具列(或溢出選單)點到。
     @MainActor
-    func testMoreMenuIsOneLevelAtAccessibilitySize() {
+    func testTabBarAndAccountReachableAtAccessibilitySize() {
         let app = XCUIApplication.launchUITesting(contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
         XCTAssertTrue(app.listModeControl.waitUntilExists(timeout: 15))
-        XCTAssertFalse(app.buttons["toolbar.account"].exists, "AX 字級時帳號應併進「⋯」")
-        // 工具列只剩主機篩選與「⋯」:系統不會把它們收進溢出選單(溢出選單裡「⋯」會變成「更多 ›」第二層)。
-        XCTAssertFalse(app.buttons["OverflowBarButtonItem"].exists, "工具列被收進溢出選單，選單會變成兩層")
-        let more = app.buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.exists, "工具列沒有「⋯」")
-        more.tap()
-        for item in ["menu.account", "menu.newChat", "menu.hosts", "menu.settings"] {
-            XCTAssertTrue(app.buttons[item].firstMatch.waitUntilExists(timeout: 5), "選單沒有直接列出 \(item)")
+        for tab in [AppTab.chats, .files, .hosts, .traffic, .settings] {
+            XCTAssertTrue(
+                app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch.waitUntilExists(timeout: 5),
+                "tab bar 沒有 \(tab.rawValue)")
         }
+        app.openAccountSheet()
     }
 
-    /// 右上角的帳號圓圈跟「⋯」看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來 44pt(XCUI 的 frame 只報內容 36pt)。
+    /// 右上角的帳號圓圈跟新增聊天的玻璃鈕看起來一樣大(實機回報 2026-11-20):工具列玻璃鈕畫出來 44pt(XCUI 的 frame 只報內容 36pt)。
     @MainActor
     func testAccountButtonMatchesMoreButton() {
         let app = XCUIApplication.launchUITesting()

@@ -571,6 +571,17 @@
         }
       }
     },
+    "%lld other Agents need you" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另外 %lld 個 Agent 需要你"
+          }
+        }
+      }
+    },
     "%lld panes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1084,6 +1095,17 @@
         }
       }
     },
+    "Add Host…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增主機…"
+          }
+        }
+      }
+    },
     "Add This Host" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1091,6 +1113,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加入這台電腦"
+          }
+        }
+      }
+    },
+    "Add a host to browse its files." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增主機後才能瀏覽它的檔案。"
           }
         }
       }
@@ -2096,6 +2129,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聊天、終端機與 Demo 電腦不需要訂閱。"
+          }
+        }
+      }
+    },
+    "Chats" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聊天"
           }
         }
       }
@@ -3683,7 +3727,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "數據用量"
+            "value" : "網路流量"
           }
         }
       }
@@ -4234,6 +4278,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Files Aren’t Available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用檔案"
+          }
+        }
+      }
+    },
+    "Files need an SSH connection. This host connects through the host service." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案需要 SSH 連線,這台主機是經主機服務連線的。"
           }
         }
       }
@@ -6151,6 +6217,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有電腦"
+          }
+        }
+      }
+    },
+    "No Hosts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有主機"
           }
         }
       }
@@ -12072,6 +12149,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加總"
+          }
+        }
+      }
+    },
+    "Traffic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "流量"
           }
         }
       }

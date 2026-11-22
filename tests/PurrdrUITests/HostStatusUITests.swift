@@ -46,10 +46,7 @@ final class HostStatusUITests: XCTestCase {
 
     @MainActor
     private func openStatus(_ app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"]
-        XCTAssertTrue(more.waitUntilExists(timeout: 10))
-        more.tap()
-        app.buttons["menu.hosts"].tap()
+        app.openHostsTab()
         // 主機狀態區塊在主機頁(列尾 ⓘ)最下方。
         let info = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "hosts.info.", "Studio")).firstMatch
         XCTAssertTrue(info.waitUntilExists(timeout: 5), "主機清單沒有 Studio")

@@ -18,9 +18,9 @@ final class PlanUsageUITests: XCTestCase {
     @MainActor
     private func openPlanUsage(_ app: XCUIApplication) {
         XCTAssertTrue(app.element("agent.row.demo/w2:p1").waitUntilExists(timeout: 10))
-        app.buttons["toolbar.more"].tap()
-        let item = app.buttons["menu.planUsage"]
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "頂部選單沒有「方案用量」")
+        app.openHostsTab()
+        let item = app.buttons["hosts.tool.planUsage"]
+        XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機 tab 沒有「方案用量」")
         item.tap()
     }
 

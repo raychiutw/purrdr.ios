@@ -86,10 +86,8 @@ final class HTTPSHostUITests: XCTestCase {
                 .matching(NSPredicate(format: "identifier BEGINSWITH %@ AND NOT (identifier BEGINSWITH %@)", "agent.row.", "agent.row.demo/"))
                 .firstMatch
             XCTAssertTrue(row.waitUntilExists(timeout: 10), "列表沒有 HTTPS 主機的 Agent")
-            app.buttons["toolbar.more"].tap()
-            XCTAssertTrue(app.buttons["menu.hosts"].waitUntilExists(timeout: 5))
-            XCTAssertTrue(app.buttons["menu.loginShell"].exists, "選取中主機是 HTTPS 時，Demo 仍能開登入 Shell")
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
+            XCTAssertTrue(app.buttons["hosts.tool.loginShell"].waitUntilExists(timeout: 5), "選取中主機是 HTTPS 時，Demo 仍能開登入 Shell")
 
             let updates = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "hosts.update."))
             XCTAssertTrue(updates.firstMatch.waitUntilExists(timeout: 10), "主機清單沒有更新提示")
@@ -117,10 +115,7 @@ final class HTTPSHostUITests: XCTestCase {
     private func openPairStep(_ app: XCUIApplication) {
         // 已在主機清單(例如取消上一段引導後)就直接用「＋」。
         if !app.buttons["hosts.add"].waitUntilExists(timeout: 2) {
-            let more = app.buttons["toolbar.more"]
-            XCTAssertTrue(more.waitUntilExists(timeout: 10))
-            more.tap()
-            app.buttons["menu.hosts"].tap()
+            app.openHostsTab()
         }
         let add = app.buttons["hosts.add"]
         XCTAssertTrue(add.waitUntilExists(timeout: 5))

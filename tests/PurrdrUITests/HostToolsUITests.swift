@@ -1,6 +1,6 @@
 import XCTest
 
-/// 「⋯」選單的登入 Shell 與檔案(行為規格 F13):Demo 主機的回顯 shell 與記憶體裡的資料夾。
+/// 主機 tab 的登入 Shell 與檔案 tab(行為規格 F13):Demo 主機的回顯 shell 與記憶體裡的資料夾。
 final class HostToolsUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -8,12 +8,18 @@ final class HostToolsUITests: XCTestCase {
 
     @MainActor
     private func openMenuItem(_ id: String, in app: XCUIApplication) {
-        let more = app.buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.waitUntilExists(timeout: 10), "沒有「⋯」選單")
-        more.tap()
-        let item = app.buttons[id].firstMatch
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "選單沒有 \(id)")
-        item.tap()
+        switch id {
+        case "menu.files":
+            app.openTab(.files)
+        case "menu.newChat":
+            app.openNewChatSheet()
+        default:
+            // 登入 Shell 在主機 tab。
+            app.openHostsTab()
+            let item = app.buttons["hosts.tool.loginShell"].firstMatch
+            XCTAssertTrue(item.waitUntilExists(timeout: 5), "主機 tab 沒有登入 Shell")
+            item.tap()
+        }
     }
 
     @MainActor
@@ -85,19 +91,17 @@ final class HostToolsUITests: XCTestCase {
 
         let status = app.descendants(matching: .any)["terminal.status"].firstMatch
         XCTAssertTrue(status.waitForLabel(containing: "Demo", timeout: 10), "沒有換到 Demo:\(status.label)")
-        // 選取中主機沒變：最後檔案的挑選鈕仍預設 Studio Mac。
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         openMenuItem("menu.loginShell", in: app)
         XCTAssertTrue(app.buttons["loginShell.host"].firstMatch.waitUntilExists(timeout: 10))
         XCTAssertTrue(app.buttons["loginShell.host"].firstMatch.label.contains("Demo"), "沒有記住上次選的主機")
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "離開登入 Shell 後 tab bar 沒有回來")
 
+        // 檔案 tab 跟著選取中主機(Studio Mac),不沿用登入 Shell 的選擇。
         openMenuItem("menu.files", in: app)
         XCTAssertTrue(app.buttons["files.host"].firstMatch.waitUntilExists(timeout: 10), "檔案沒有主機挑選鈕")
-        // 工具列中間那格最高 36pt,挑選鈕的底色往外多畫 4pt(上下共 8pt),看起來跟 44pt 的返回鈕一樣高。
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        XCTAssertEqual(app.buttons["files.host"].firstMatch.frame.height + 8, back.frame.height, accuracy: 1, "主機挑選鈕看起來要跟返回鈕一樣高")
         XCTAssertTrue(app.buttons["files.host"].firstMatch.label.contains("Studio Mac"), "檔案不該沿用登入 Shell 的選擇")
     }
 

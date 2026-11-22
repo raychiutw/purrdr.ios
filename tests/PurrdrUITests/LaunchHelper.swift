@@ -92,16 +92,49 @@ extension XCUIApplication {
     }
 }
 
+/// 頂層 tab(#390;名稱是 tab bar 按鈕的英文標籤)。
+enum AppTab: String {
+    case chats = "Chats"
+    case files = "Files"
+    case hosts = "Hosts"
+    case traffic = "Traffic"
+    case settings = "Settings"
+}
+
 extension XCUIApplication {
-    /// 點列表工具列的「⋯」再點選單項目(新增聊天也在選單裡，#241)。
+    /// 點底部 tab bar 的 tab(聊天 tab 有「需要你」badge 時標籤尾端會多念數量,所以比對開頭)。
     @MainActor
-    func openMoreMenuItem(_ identifier: String, file: StaticString = #filePath, line: UInt = #line) {
-        let more = buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
-        more.tap()
-        let item = buttons[identifier].firstMatch
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "「⋯」選單沒有 \(identifier)", file: file, line: line)
-        item.tap()
+    func openTab(_ tab: AppTab, file: StaticString = #filePath, line: UInt = #line) {
+        // iPad 寬視窗的 tab bar 在上方(浮動工具列),不一定在 `tabBars` 底下:找不到再找一般按鈕。
+        var button = tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch
+        if !button.waitUntilExists(timeout: 3) {
+            button = buttons.matching(NSPredicate(format: "label BEGINSWITH %@", tab.rawValue)).firstMatch
+        }
+        XCTAssertTrue(button.waitUntilExists(timeout: 10), "tab bar 沒有 \(tab.rawValue)", file: file, line: line)
+        if !button.isSelected { button.tap() }
+    }
+
+    /// 設定 tab(#390:不再是「⋯」選單的 sheet)。
+    @MainActor
+    func openSettingsTab(file: StaticString = #filePath, line: UInt = #line) {
+        openTab(.settings, file: file, line: line)
+        XCTAssertTrue(element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定", file: file, line: line)
+    }
+
+    /// 主機 tab 的清單。
+    @MainActor
+    func openHostsTab(file: StaticString = #filePath, line: UInt = #line) {
+        openTab(.hosts, file: file, line: line)
+        XCTAssertTrue(buttons["hosts.add"].waitUntilExists(timeout: 10), "沒有開出主機清單", file: file, line: line)
+    }
+
+    /// 聊天 tab 右上的新增聊天(`square.and.pencil`)。
+    @MainActor
+    func openNewChatSheet(file: StaticString = #filePath, line: UInt = #line) {
+        openTab(.chats, file: file, line: line)
+        let button = buttons["toolbar.newChat"].firstMatch
+        XCTAssertTrue(button.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天", file: file, line: line)
+        button.tap()
     }
 
     /// 帳號鈕(#246)開帳號頁，再點步驟卡的「加入」進登入頁(UI 測試沒有會員後台，一律未加入會員)。
@@ -115,34 +148,20 @@ extension XCUIApplication {
     /// 開已存主機(`-seedHost` 的 Studio Mac)的主機頁(#274:主機主題、You should know、Codex 啟動器在這裡)。
     @MainActor
     func openSeededHostPage(file: StaticString = #filePath, line: UInt = #line) {
-        let more = buttons["toolbar.more"].firstMatch
-        XCTAssertTrue(more.waitUntilExists(timeout: 10), "列表工具列沒有「⋯」", file: file, line: line)
-        more.tap()
-        buttons["menu.hosts"].firstMatch.tap()
+        openHostsTab(file: file, line: line)
         let info = buttons["hosts.info.5EED0000-0000-4000-8000-000000000001"].firstMatch
         XCTAssertTrue(info.waitUntilExists(timeout: 10), "主機清單沒有 Studio Mac 的 ⓘ", file: file, line: line)
         info.tap()
         XCTAssertTrue(textFields["hostEditor.name"].firstMatch.waitUntilExists(timeout: 10), "沒有開出主機頁", file: file, line: line)
     }
 
-    /// 開帳號頁：一般字級點右上角的帳號鈕;AX 字級時帳號併在「⋯」選單裡(#268)。
+    /// 開帳號頁:點右上角的帳號鈕(每個 tab 都有;AX 字級時系統把它收進工具列的溢出選單,#268)。
     @MainActor
     func openAccount(file: StaticString = #filePath, line: UInt = #line) {
-        let account = buttons["toolbar.account"].firstMatch
-        let more = buttons["toolbar.more"].firstMatch
-        // 依畫面狀態分支，不以逾時當條件：工具列出現時帳號鈕與「⋯」同時存在(一般字級)或只剩「⋯」(AX 字級)。
-        XCTAssertTrue(UITestWait.until(timeout: 15) { account.exists || more.exists }, "工具列沒有帳號鈕也沒有「⋯」", file: file, line: line)
-        if account.exists {
-            account.tap()
-            return
-        }
-        more.tap()
-        let item = buttons["menu.account"].firstMatch
-        XCTAssertTrue(item.waitUntilExists(timeout: 5), "「⋯」選單沒有帳號", file: file, line: line)
-        item.tap()
+        tapToolbarItem("toolbar.account", overflowLabel: "Account", file: file, line: line)
     }
 
-    /// 點列表工具列右側的項目。AX 字級時系統把右側的「⋯」與帳號鈕收進工具列的溢出選單(More):
+    /// 點工具列右側的項目。AX 字級時系統把右側的項目收進工具列的溢出選單(More):
     /// 選單項目沒有 identifier,以 VoiceOver 也會念的名稱找(名稱不對就是 a11y 問題)。
     @MainActor
     func tapToolbarItem(_ identifier: String, overflowLabel: String, file: StaticString = #filePath, line: UInt = #line) {
@@ -161,7 +180,7 @@ extension XCUIApplication {
         overflowItem.tap()
     }
 
-    /// 付費牆不在「⋯」選單(#241),未加入會員時帳號頁也還沒有「開通」:以深層連結開(#246)。
+    /// 付費牆沒有固定入口,未加入會員時帳號頁也還沒有「開通」:以深層連結開(#246)。
     @MainActor
     func openPlusPaywall() {
         open(URL(string: "purrdr://plus")!)

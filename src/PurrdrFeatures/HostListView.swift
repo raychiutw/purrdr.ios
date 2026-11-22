@@ -6,6 +6,15 @@ import SwiftUI
 ///
 /// 新增、編輯、分享(QR code)與匯入都在同一個 sheet 內 push,不疊第二個 sheet。
 /// 列尾 ⓘ 開編輯器;刪除會撤銷這支裝置的配對，滑動與選單都先確認(#235)。
+/// 主機 tab 的頂列內容與工具入口(#390;內容之後由主機 tab 的票接手)。
+struct HostTabChrome {
+    var principal: AnyView
+    var account: AnyView
+    var tools: AnyView
+    /// 清單上點「Demo」後回聊天 tab(Demo 的對話在那裡)。
+    var didEnterDemo: () -> Void
+}
+
 public struct HostListView: View {
     let model: HostsModel
     /// 等著匯入的主機分享連結(深層連結帶進來的);開啟後清掉。
@@ -14,6 +23,8 @@ public struct HostListView: View {
     @Binding var editHostID: UUID?
     /// 要直接開新增主機引導(Agent 列表空狀態的「新增主機」);開啟後清掉。
     @Binding var addHost: Bool
+    /// 主機 tab 的頂列內容(#390);`nil` 時是 sheet。
+    private let chrome: HostTabChrome?
     @Environment(\.dismiss) private var dismiss
     @State private var flow = HostListFlow()
     @State private var renaming: HostRenaming?
@@ -21,9 +32,26 @@ public struct HostListView: View {
 
     public init(model: HostsModel, importURL: Binding<URL?> = .constant(nil), editHostID: Binding<UUID?> = .constant(nil), addHost: Binding<Bool> = .constant(false)) {
         self.model = model
+        chrome = nil
         _importURL = importURL
         _editHostID = editHostID
         _addHost = addHost
+    }
+
+    /// 主機 tab:頂列中間是主機選單、右上新增主機與帳號;存好、挑選後留在 tab(回到清單,不是關 sheet)。
+    init(
+        model: HostsModel, chrome: HostTabChrome, importURL: Binding<URL?>, editHostID: Binding<UUID?>, addHost: Binding<Bool>
+    ) {
+        self.model = model
+        self.chrome = chrome
+        _importURL = importURL
+        _editHostID = editHostID
+        _addHost = addHost
+    }
+
+    /// 存好或完成引導後:sheet 關閉;tab 回到清單。
+    private func finish() {
+        if chrome == nil { dismiss() } else { flow.path = [] }
     }
 
     public var body: some View {
@@ -48,10 +76,11 @@ public struct HostListView: View {
                         }
                     }
                 }
+                if let chrome { chrome.tools }
                 Section {
                     Button {
                         model.enterDemo()
-                        dismiss()
+                        if let chrome { chrome.didEnterDemo() } else { dismiss() }
                     } label: {
                         HostRowView(
                             title: String(localized: "Demo"), subtitle: String(localized: "Sample conversations, no computer connected"),
@@ -71,14 +100,29 @@ public struct HostListView: View {
             .accessibilityIdentifier("sheet.hosts")
             .task { await model.checkHostServiceVersions() }
             .navigationTitle("Hosts")
+            #if os(iOS)
+            // 主機 tab 的頂列中間是主機選單,不再顯示大標題(設計稿 Host)。
+            .navigationBarTitleDisplayMode(chrome == nil ? .automatic : .inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("sheet.done")
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
-                        .accessibilityIdentifier("hosts.add")
+                if let chrome {
+                    ToolbarItem(placement: .principal) { chrome.principal }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
+                            .accessibilityIdentifier("hosts.add")
+                    }
+                    ToolbarSpacer(.fixed, placement: .primaryAction)
+                    ToolbarItem(placement: .primaryAction) { chrome.account }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                            .accessibilityIdentifier("sheet.done")
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Add Host", systemImage: "plus") { flow.path.append(.add) }
+                            .accessibilityIdentifier("hosts.add")
+                    }
                 }
             }
             .navigationDestination(for: HostRoute.self) { route in
@@ -168,7 +212,7 @@ public struct HostListView: View {
                 openPairing(of: row)
             } else {
                 model.select(.host(row.id))
-                dismiss()
+                if chrome == nil { dismiss() }
             }
         } label: {
             HostRowView(
@@ -184,7 +228,7 @@ public struct HostListView: View {
             switch route {
             case .add:
                 AddHostGuideScreen(make: model.makeAddHostGuide) { _ in
-                    dismiss()  // 主機在存好時已登記(onAdded)
+                    finish()  // 主機在存好時已登記(onAdded)
                 } onCancel: {
                     flow.path.removeLast()
                 } onAdded: { model.didSave($0) } hostPush: { id in
@@ -192,7 +236,7 @@ public struct HostListView: View {
                 }
             case .importGuide(let url):
                 AddHostGuideScreen(make: { (try? model.makeImportGuide(url)) ?? model.makeAddHostGuide() }) { _ in
-                    dismiss()  // 主機在存好時已登記(onAdded)
+                    finish()  // 主機在存好時已登記(onAdded)
                 } onCancel: {
                     flow.path.removeLast()
                 } onAdded: { model.didSave($0) } hostPush: { id in
@@ -204,7 +248,7 @@ public struct HostListView: View {
                         model.hosts.first { $0.id == id }.flatMap { try? model.makePairingGuide(for: $0) } ?? model.makeAddHostGuide()
                     }
                 ) { _ in
-                    dismiss()  // 主機在存好時已登記(onAdded)
+                    finish()  // 主機在存好時已登記(onAdded)
                 } onCancel: {
                     flow.path.removeLast()
                 } onAdded: { model.didSave($0) } hostPush: { id in
@@ -221,7 +265,7 @@ public struct HostListView: View {
                 } onCancel: {
                     flow.path.removeLast()
                 } onIconSaved: {
-                    dismiss()
+                    finish()
                 }
             case .hostServiceUpdate(let id):
                 if let row = model.rows.first(where: { $0.id == id }), let version = row.hostServiceUpdate,
@@ -258,7 +302,7 @@ public struct HostListView: View {
 
     private func saved(_ host: HostConfiguration) {
         model.didSave(host)
-        dismiss()
+        finish()
     }
 
     private func confirmDeletion(_ request: HostDeletionRequest) {

@@ -41,7 +41,7 @@ struct WelcomeTests {
         navigation.launched(welcome: WelcomeModel(store: InMemoryWelcomeStore(hasSeen: true)))
         #expect(navigation.sheet == nil)
 
-        navigation.sheet = .settings
+        navigation.tab = .settings
         navigation.showWelcome()
         #expect(navigation.sheet == .welcome)
     }
@@ -57,16 +57,18 @@ struct WelcomeTests {
 
         #expect(hosts.demoEntered)
         #expect(navigation.sheet == nil)
+        #expect(navigation.tab == .chats)
     }
 
-    @Test("歡迎頁的「新增主機」換成主機 sheet 並直接進新增主機引導(同一時間只開一個 sheet)")
+    @Test("歡迎頁的「新增主機」收起歡迎頁、選主機 tab 並直接進新增主機引導")
     func addHostOpensHosts() {
         let navigation = TopNavigationModel()
         navigation.launched(welcome: WelcomeModel(store: InMemoryWelcomeStore()))
 
         navigation.welcomeAddHost()
 
-        #expect(navigation.sheet == .hosts)
+        #expect(navigation.sheet == nil)
+        #expect(navigation.tab == .hosts)
         #expect(navigation.pendingAddHost)
     }
 }

@@ -5,6 +5,8 @@ import SwiftUI
 struct HostPickerButton: View {
     let model: HostPickerModel
     let identifier: String
+    /// 選單最下面的「新增主機…」(頂層 tab 的主機選單才有,#390)。
+    var addHost: (() -> Void)?
 
     var body: some View {
         Menu {
@@ -16,6 +18,11 @@ struct HostPickerButton: View {
                 Text("Host")
             }
             .pickerStyle(.inline)
+            if let addHost {
+                Divider()
+                Button("Add Host…", systemImage: "plus", action: addHost)
+                    .accessibilityIdentifier("hostMenu.addHost")
+            }
         } label: {
             HStack(spacing: 6) {
                 HostIconBadge(model.selectedOption?.icon ?? .default, diameter: 24)
@@ -48,7 +55,7 @@ struct HostPickerButton: View {
     }
 }
 
-/// 「⋯」選單推進來的登入 Shell:換主機就掛斷舊的 shell、在新主機開一個新的(#245)。
+/// 主機 tab 推進來的登入 Shell:換主機就掛斷舊的 shell、在新主機開一個新的(#245)。
 struct LoginShellScreen: View {
     let hosts: HostsModel
     let picker: HostPickerModel
@@ -77,13 +84,22 @@ private struct LoginShellContent: View {
     }
 }
 
-/// 「⋯」選單推進來的檔案瀏覽:換主機就從那台的家目錄重新開始(#245)。
+/// 檔案 tab 的檔案瀏覽:換主機就從那台的家目錄重新開始(#245)。
 struct FilesScreen: View {
     let hosts: HostsModel
     let picker: HostPickerModel
+    let addHost: (() -> Void)?
+    let account: AnyView?
+
+    init(hosts: HostsModel, picker: HostPickerModel, addHost: (() -> Void)? = nil, account: AnyView? = nil) {
+        self.hosts = hosts
+        self.picker = picker
+        self.addHost = addHost
+        self.account = account
+    }
 
     var body: some View {
-        FilesContent(model: hosts.folderBrowser(on: picker.selection), picker: picker)
+        FilesContent(model: hosts.folderBrowser(on: picker.selection), picker: picker, addHost: addHost, account: account)
             .id(picker.selection)
     }
 }
@@ -91,13 +107,17 @@ struct FilesScreen: View {
 private struct FilesContent: View {
     @State private var model: FolderBrowserModel
     let picker: HostPickerModel
+    let addHost: (() -> Void)?
+    let account: AnyView?
 
-    init(model: @autoclosure () -> FolderBrowserModel, picker: HostPickerModel) {
+    init(model: @autoclosure () -> FolderBrowserModel, picker: HostPickerModel, addHost: (() -> Void)?, account: AnyView?) {
         _model = State(wrappedValue: model())
         self.picker = picker
+        self.addHost = addHost
+        self.account = account
     }
 
     var body: some View {
-        FolderBrowserView(model: model, hostPicker: picker)
+        FolderBrowserView(model: model, hostPicker: picker, addHost: addHost, account: account)
     }
 }

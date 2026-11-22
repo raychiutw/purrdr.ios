@@ -22,7 +22,9 @@
       "selectedTests": [
         "DailySmokeUITests/testListAndChat()",
         "DailySmokeUITests/testNeedsYouAndSubagent()",
-        "DailySmokeUITests/testMenusAndSignedOutAccount()",
+        "DailySmokeUITests/testTabsAndSignedOutAccount()",
+        "DailySmokeUITests/testFilesHostMenuDoesNotChangeChatFilter()",
+        "DailySmokeUITests/testChatsTabBadgeCountsNeedsYou()",
         "DailySmokeUITests/testPlusMemberAccount()",
         "DailySmokeUITests/testDataUsage()",
         "DailySmokeUITests/testNoHostsGuideAndDemo()",

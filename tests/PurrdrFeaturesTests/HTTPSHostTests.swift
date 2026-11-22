@@ -452,13 +452,13 @@ struct HTTPSHostsModelTests {
         #expect(http.requests == [.init(url: Self.address.revokeURL, bearerToken: "token-saved", body: nil)])
     }
 
-    @Test("深層連結 purrdr://pair 開啟主機 sheet,帶著要配對的連結")
+    @Test("深層連結 purrdr://pair 選主機 tab,帶著要配對的連結")
     func pairingLinkOpensHosts() throws {
         let navigation = TopNavigationModel()
         let link = try #require(URL(string: "purrdr://pair?address=studio.tail1234.ts.net&code=K7QM-2XPA"))
 
         #expect(navigation.open(link))
-        #expect(navigation.sheet == .hosts)
+        #expect(navigation.tab == .hosts)
         #expect(navigation.pendingHostImport == link)
     }
 }

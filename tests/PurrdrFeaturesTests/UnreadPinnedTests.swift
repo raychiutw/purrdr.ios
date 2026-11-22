@@ -332,5 +332,24 @@ struct UnreadPinnedTests {
         model.chatAppeared(ChatRoute(host: Self.studio, paneID: "w1:pB"))
         #expect(model.attentionCount == 1, "兄弟 w1:pA blocked 仍要算")
     }
-}
 
+    // MARK: - 聊天 tab 的「需要你」數
+
+    @Test("聊天 tab badge:所有主機的 blocked Agent 各算一個(不算未讀,不受主機篩選影響);排除指定的聊天")
+    func needsYouCountsBlockedAgentsOnly() async {
+        let clock = MarkerClock(Self.t0)
+        let studio = await Self.host(Self.studio, clock: clock, snapshots: [{
+            SnapshotEdit.agent("w1:pA", in: &$0) { $0["agent_status"] = "blocked" }
+            SnapshotEdit.agent("w1:pB", in: &$0) { $0["agent_status"] = "blocked" }
+        }])
+        let model = Self.merged([studio])
+        await model.load()
+        studio.source.list.previews = ["w1:p6": Self.preview(Self.t0)]
+
+        #expect(model.needsYouCount() == 2, "兩個 blocked;p6 只是未讀,不算")
+        #expect(model.needsYouCount(excluding: ChatRoute(host: Self.studio, paneID: "w1:pA")) == 1, "對話返回鈕旁的「另外 N 個」")
+
+        model.currentHost = Self.lab
+        #expect(model.needsYouCount() == 2, "主機篩選不影響 tab badge")
+    }
+}

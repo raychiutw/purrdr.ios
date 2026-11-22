@@ -82,6 +82,12 @@ struct StringCatalogTests {
         }
     }
 
+    /// 已採新詞「主機」的字串(#390),等 #394 反轉規則。
+    static let newHostWording: Set<String> = [
+        "Add Host…", "Add a host to browse its files.", "Files Aren’t Available",
+        "Files need an SSH connection. This host connects through the host service.", "No Hosts",
+    ]
+
     /// GLOSSARY.md 的「避免」用詞，以及常見的中國大陸用語(台灣用語為準)。
     static let avoidedWords = [
         "伺服器", "機器", "帳戶", "授權碼", "會話",
@@ -104,6 +110,8 @@ struct StringCatalogTests {
     @Test("繁體中文畫面文字不用「主機」「使用者名稱」(畫面稱電腦、帳號)")
     func chineseUsesComputerAndAccountWording() throws {
         for entry in try Self.entries() {
+            // 新詞彙(2026-11-22,GLOSSARY)已改稱「主機」,#390 的 tab 字串先用新詞;#394 反轉這條規則後整個例外與測試一起換掉。
+            if Self.newHostWording.contains(entry.key) { continue }
             for chinese in entry.chinese {
                 for word in ["主機", "使用者名稱"] {
                     #expect(!chinese.contains(word), "「\(entry.key)」→「\(chinese)」用了「\(word)」，畫面請說電腦／帳號")

@@ -118,29 +118,80 @@ final class DailySmokeUITests: XCTestCase {
         }
     }
 
-    /// 「⋯」選單:設定、新增聊天;帳號(未登入是登入頁)。
+    /// 5 個 tab(#390):設定、主機、檔案、流量各自是 tab;新增聊天在聊天 tab 右上;帳號(未登入是登入頁)四個以上的 tab 都有;
+    /// 沒有「⋯」選單;對話隱藏 tab bar、返回後回來。
     @MainActor
-    func testMenusAndSignedOutAccount() {
+    func testTabsAndSignedOutAccount() {
         let app = XCUIApplication.launchUITesting()
 
-        step("設定") {
-            app.openMoreMenuItem("menu.settings")
-            XCTAssertTrue(app.element("sheet.settings").waitUntilExists(timeout: 10), "沒有開出設定")
+        step("沒有「⋯」選單,右上依 tab 不同") {
+            XCTAssertTrue(app.buttons["toolbar.newChat"].firstMatch.waitUntilExists(timeout: 10), "聊天 tab 沒有新增聊天")
+            XCTAssertFalse(app.buttons["toolbar.more"].exists, "不該再有「⋯」選單")
+            app.openTab(.files)
+            XCTAssertTrue(app.buttons["files.upload"].firstMatch.waitUntilExists(timeout: 10), "檔案 tab 沒有上傳")
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "檔案 tab 沒有帳號鈕")
+            XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
+            app.openHostsTab()
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
+            app.openTab(.traffic)
+            XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "流量 tab 沒有網路流量頁")
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
+            XCTAssertFalse(app.buttons["hosts.add"].exists, "流量 tab 右上不放動作")
+        }
+        step("設定 tab 沒有「完成」,只有帳號鈕") {
+            app.openSettingsTab()
             XCTAssertTrue(app.staticTexts["Automatic follows your device’s Light or Dark setting."].firstMatch.waitUntilExists(timeout: 5))
-            app.buttons["sheet.done"].firstMatch.tapWhenReady()
-            XCTAssertTrue(app.element("sheet.settings").waitUntilGone(timeout: 5), "設定沒有關閉")
+            XCTAssertFalse(app.buttons["sheet.done"].exists, "設定 tab 不是 sheet,不該有「完成」")
+            XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "設定 tab 沒有帳號鈕")
         }
         step("新增聊天") {
-            app.openMoreMenuItem("menu.newChat")
+            app.openNewChatSheet()
             XCTAssertTrue(app.element("sheet.newChat").waitUntilExists(timeout: 10), "沒有開出新增聊天")
             app.swipeDown(velocity: .fast)
             XCTAssertTrue(app.element("sheet.newChat").waitUntilGone(timeout: 5), "新增聊天沒有關閉")
+        }
+        step("對話隱藏 tab bar,返回後回來") {
+            app.openConversation(paneID: "w1:p1")
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilGone(timeout: 5), "對話裡不該有 tab bar")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            XCTAssertTrue(app.tabBars.firstMatch.waitUntilExists(timeout: 5), "返回後 tab bar 沒有回來")
         }
         step("未登入的帳號頁是登入頁") {
             app.openAccount()
             XCTAssertTrue(app.element("account.signedOut").waitUntilExists(timeout: 10), "沒登入沒有直接顯示登入頁")
             XCTAssertTrue(app.buttons["member.signIn.apple"].exists, "沒有 Apple 登入鈕")
         }
+    }
+
+    /// 兩個主機值(#390):在檔案 tab 換「選取中主機」不改聊天 tab 的「目前主機」篩選。
+    @MainActor
+    func testFilesHostMenuDoesNotChangeChatFilter() {
+        let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedUnreachableHost"])
+        app.filterHosts("Studio Mac")
+        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac")
+
+        app.openTab(.files)
+        let picker = app.buttons["files.host"].firstMatch
+        XCTAssertTrue(picker.waitUntilExists(timeout: 10), "檔案 tab 沒有主機選單")
+        picker.tap()
+        XCTAssertFalse(app.buttons["All Hosts"].exists, "檔案 tab 的主機選單不該列所有主機")
+        XCTAssertTrue(app.buttons["hostMenu.addHost"].firstMatch.exists, "主機選單沒有新增主機…")
+        app.buttons["Build Box"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["files.host"].firstMatch.waitForLabel(containing: "Build Box", timeout: 5))
+
+        app.openTab(.chats)
+        XCTAssertEqual(app.buttons["toolbar.currentHost"].firstMatch.label, "Showing: Studio Mac", "換選取中主機不該改聊天的目前主機")
+    }
+
+    /// 聊天 tab 的 badge 是「需要你」的 Agent 數。
+    @MainActor
+    func testChatsTabBadgeCountsNeedsYou() {
+        let app = XCUIApplication.launchUITesting()
+        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Chats")).firstMatch
+        XCTAssertTrue(tab.waitUntilExists(timeout: 10))
+        // badge 可能念在標籤尾端,也可能是元素的 value。
+        let shows = UITestWait.until(timeout: 15) { tab.exists && (tab.label.contains("1") || (tab.value as? String)?.contains("1") == true) }
+        XCTAssertTrue(shows, "聊天 tab 沒有標示 1 個需要你:\(tab.label) / \(String(describing: tab.value))")
     }
 
     /// Purrdr Plus 會員：帳號頁、通知、通知裝置。
@@ -160,10 +211,7 @@ final class DailySmokeUITests: XCTestCase {
     func testDataUsage() {
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost", "-seedDataUsage"])
         step("數據用量摘要") {
-            app.openMoreMenuItem("menu.settings")
-            let entry = app.buttons["settings.dataUsage"]
-            app.scrollIntoView(entry, search: .down)
-            entry.tapWhenReady()
+            app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "沒有數據用量頁")
             XCTAssertTrue(app.element("dataUsage.today").waitUntilExists(timeout: 5), "沒有今天的用量")
         }
@@ -178,9 +226,9 @@ final class DailySmokeUITests: XCTestCase {
             app.buttons["agentList.addHost"].tap()
             XCTAssertTrue(app.buttons["guide.option.ssh"].waitUntilExists(timeout: 5), "沒有開出新增主機引導")
             app.buttons["guide.cancel"].tapWhenReady()
-            // 引導開在主機 sheet 裡：取消後若 sheet 還在就關掉，回到空狀態。
-            let done = app.buttons["sheet.done"].firstMatch
-            if done.waitUntilExists(timeout: 2) { done.tap() }
+            // 引導開在主機 tab 裡：取消後回到主機清單，再回聊天 tab 看到空狀態。
+            XCTAssertTrue(app.buttons["hosts.add"].waitUntilExists(timeout: 5), "沒有回到主機清單")
+            app.openTab(.chats)
             XCTAssertTrue(app.descendants(matching: .any)["agentList.noHosts"].waitUntilExists(timeout: 5), "沒有回到空狀態")
         }
         step("試用 Demo") {

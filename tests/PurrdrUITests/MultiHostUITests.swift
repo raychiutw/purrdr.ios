@@ -42,8 +42,8 @@ final class MultiHostUITests: XCTestCase {
         // 只有圖示的工具列鈕是 36～44pt 寬;帶「All Hosts」與 ▾ 才會超過 100pt。
         XCTAssertGreaterThan(filter.frame.width, 100, "主機篩選只有圖示，沒有名稱與 ▾:\(filter.frame)")
         XCTAssertGreaterThanOrEqual(filter.frame.height, 36, "主機篩選太矮:\(filter.frame)")
-        let more = app.buttons["toolbar.more"].firstMatch
-        XCTAssertLessThan(filter.frame.maxX, more.frame.minX, "主機篩選蓋到「⋯」")
+        let newChat = app.buttons["toolbar.newChat"].firstMatch
+        XCTAssertLessThan(filter.frame.maxX, newChat.frame.minX, "主機篩選蓋到新增聊天")
     }
 
     /// 主機篩選(#244):Spaces 檢視只留篩選那台主機的 workspace 段落(#275);篩選選單帶各主機，第一項是所有主機。

@@ -26,16 +26,16 @@ final class AccountUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Not a Member Yet"].exists)
     }
 
-    /// 帳號鈕在最右上角(HIG),「⋯」在它左邊。
+    /// 帳號鈕在最右上角(HIG),新增聊天在它左邊。
     @MainActor
-    func testAccountButtonIsRightmostAfterMore() {
+    func testAccountButtonIsRightmostAfterNewChat() {
         let app = XCUIApplication.launchUITesting()
         let account = app.buttons["toolbar.account"]
-        let more = app.buttons["toolbar.more"]
+        let newChat = app.buttons["toolbar.newChat"]
         XCTAssertTrue(account.waitUntilExists(timeout: 10))
-        XCTAssertTrue(more.exists)
+        XCTAssertTrue(newChat.exists)
 
-        XCTAssertGreaterThan(account.frame.minX, more.frame.maxX - 1, "帳號鈕不在「⋯」右邊")
+        XCTAssertGreaterThan(account.frame.minX, newChat.frame.maxX - 1, "帳號鈕不在新增聊天右邊")
         let rightmost = app.navigationBars.firstMatch.buttons.allElementsBoundByIndex.map(\.frame.maxX).max() ?? 0
         XCTAssertEqual(account.frame.maxX, rightmost, accuracy: 1, "帳號鈕不是最右邊")
     }

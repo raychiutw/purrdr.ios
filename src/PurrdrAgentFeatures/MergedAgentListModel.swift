@@ -208,6 +208,15 @@ public final class MergedAgentListModel {
     /// 需要處理的 workspace 數(導覽入口的數字;不設 app 圖示徽章)。
     public var attentionCount: Int { ChatUnread.attentionCount(sources: projectionSources, visible: visibleChats) }
 
+    /// 「需要你」(blocked)的 Agent 數:聊天 tab 的 badge(#390)。所有主機合計,不受主機篩選影響;
+    /// `excluding` 是目前開著的聊天(對話返回鈕旁顯示「另外 N 個」)。
+    public func needsYouCount(excluding route: ChatRoute? = nil) -> Int {
+        sources.reduce(0) { count, source in
+            guard let agents = source.list.snapshot?.agents else { return count }
+            return count + agents.filter { $0.effectiveStatus == .blocked && ChatRoute(host: source.host, paneID: $0.paneID) != route }.count
+        }
+    }
+
     package func update(sources: [Source], selected: HostSelection) {
         self.selected = selected
         self.sources = sources.filter { $0.host == selected } + sources.filter { $0.host != selected }

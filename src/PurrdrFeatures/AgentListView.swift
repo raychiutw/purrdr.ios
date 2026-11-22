@@ -122,7 +122,7 @@ public struct AgentListView: View {
         } else {
             ConversationScreen(model: makeConversation(route, model.sessionID(of: route)), makeTerminal: makeTerminal.map { make in
                 { @MainActor paneID, title in make(ChatRoute(host: route.host, paneID: paneID), title) }
-            })
+            }, otherNeedsYou: model.needsYouCount(excluding: route))
             // 進入與離開對話各記一次開啟時間;開著時不算未讀(行為規格 F2.6)。
             .onAppear { model.chatAppeared(route) }
             .onDisappear { model.chatDisappeared(route) }
@@ -387,6 +387,23 @@ public struct AgentListView: View {
     }
 }
 
+/// 對話返回鈕旁的小數字:其他「需要你」的 Agent 數。
+struct OtherNeedsYouCount: View {
+    let count: Int
+
+    var body: some View {
+        Text(count, format: .number)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 7)
+            .frame(minWidth: 22, minHeight: 22)
+            .background(.red, in: Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("\(count) other Agents need you"))
+            .accessibilityIdentifier("conversation.otherNeedsYou")
+    }
+}
+
 /// 持有對話 model 的容器:navigationDestination 的內容可能被重建，model 只在第一次建立。
 ///
 /// `window` 有值時(split view 的對話欄)，終端機推入與否也記在視窗的導覽狀態(Command-Shift-T 也能打開);
@@ -400,11 +417,14 @@ struct ConversationScreen: View {
     @State private var terminal: PaneTerminalModel?
     /// 推入中的變更頁(#310)。
     @State private var changes: ChangesModel?
+    /// 其他「需要你」的 Agent 數(返回鈕旁的數字,#390);0 不顯示。
+    let otherNeedsYou: Int
 
     init(
         model: @autoclosure () -> ConversationModel, makeTerminal: (@MainActor (String, String) -> PaneTerminalModel)?,
-        window: TopNavigationModel? = nil, route: ChatRoute? = nil
+        window: TopNavigationModel? = nil, route: ChatRoute? = nil, otherNeedsYou: Int = 0
     ) {
+        self.otherNeedsYou = otherNeedsYou
         _model = State(wrappedValue: model())
         self.makeTerminal = makeTerminal
         self.window = window
@@ -413,7 +433,16 @@ struct ConversationScreen: View {
 
     var body: some View {
         ConversationView(model: model)
+            .hidesTabBarWhenCompact()
             .toolbar {
+                #if os(iOS)
+                if otherNeedsYou > 0 {
+                    // 返回鈕旁:其他需要你的 Agent 數(HIG:重要資訊的 badge);VoiceOver 念「另外 N 個 Agent 需要你」。
+                    ToolbarItem(placement: .topBarLeading) {
+                        OtherNeedsYouCount(count: otherNeedsYou)
+                    }
+                }
+                #endif
                 if makeTerminal != nil {
                     // 標題列的終端機鈕：打開這個 Agent 自己的 Pane(#37 故事 43)。
                     ToolbarItem(placement: .primaryAction) {
@@ -448,7 +477,7 @@ struct ConversationScreen: View {
                     if let route, window?.openedTerminal == route { window?.openedTerminal = nil }
                 }
             )) {
-                if let terminal { PaneTerminalView(model: terminal) }
+                if let terminal { PaneTerminalView(model: terminal).hidesTabBarWhenCompact() }
             }
             #endif
     }

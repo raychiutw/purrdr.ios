@@ -213,7 +213,7 @@ extension XCUIApplication {
         return app
     }
 
-    /// 開帳號 sheet(一般字級點右上角帳號鈕;AX 字級在「⋯」選單裡)並等 `sheet.account` 出現。
+    /// 開帳號 sheet(點右上角帳號鈕;AX 字級在溢出選單裡)並等 `sheet.account` 出現。
     @MainActor
     func openAccountSheet(file: StaticString = #filePath, line: UInt = #line) {
         openAccount(file: file, line: line)
