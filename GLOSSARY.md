@@ -79,6 +79,14 @@ herdr 的三層結構:Workspace 底下有 Tab,Tab 切成多個 Pane;Pane 是真�
 在某個 Pane 裡被 herdr 偵測到的 coding agent 程序，例如 Claude Code、Codex。
 _避免_:Bot、Assistant、Session
 
+**Agent 種類**(Agent kind):
+herdr 給每種 Agent 的正式名稱，例如 `claude`、`codex`、`agy`、`opencode`;herdr 接受的別名(例如 `antigravity`、`open-code`)一律視為同一個種類。herdr 回報了但 Purrdr 認不得的字串是「其他種類」,照原文顯示。
+_避免_:Agent 類型、Agent type、integration、執行檔名稱
+
+**Agent 設定檔**(Agent profile):
+某一種 Agent 種類在 Purrdr 裡的規則與能力：怎麼顯示、對話紀錄怎麼讀、輸入規則、畫面怎麼解析、session 規則，以及每項規則驗證過的 Agent 版本。沒有的能力就是沒有(畫面不提供)。認不得的種類用通用設定檔。
+_避免_:Driver、Adapter、Agent 外掛
+
 **Agent 狀態**:
 herdr 回報的 `blocked`／`working`／`done`／`idle`／`unknown`。UI 上 `blocked` 稱為「需要你」。
 
@@ -140,7 +148,7 @@ _避免_:Badge count、Notifications
 _避免_:額度(畫面不用)、Usage(英文畫面以 Plan Usage 區分)、流量(那是網路流量)、context 用量與 token 數(那是 context,不是方案用量)
 
 **用量週期**:
-服務方案計算方案用量的時間範圍，例如 5 小時、每週;各有自己的重置時間。
+服務方案計算方案用量的時間範圍，例如 5 小時、每週;各有自己的重置時間。有的方案依模型群組分開計算(例如 Antigravity 的 Gemini 群組與第三方模型群組各有 5 小時與每週),同一個用量週期會有多份。
 _避免_:視窗(那是 iPad 的 app 視窗)、Window
 
 ## 網路流量
