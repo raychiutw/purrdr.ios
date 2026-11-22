@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import PurrdrAgentFeatures
 import PurrdrCore
@@ -72,5 +73,52 @@ struct AgentFileCardDisplayTests {
         #expect(ready.offersOpen)
         #expect(ready.shareableFile == URL(filePath: "/tmp/report.pdf"))
         #expect(ready.note == nil)
+    }
+
+    @Test("縮圖規則(#427):PDF 與圖片檔自動縮圖;文字與程式碼沿用內容摘要;其他種類顯示類型圖示")
+    func thumbnailPresentation() {
+        func presentation(_ name: String, snapshot: AgentFileSnapshot? = nil, origin: AgentFileReference.Origin = .created) -> AgentFileCardDisplay.Preview {
+            AgentFileCardDisplay(file: AgentFileReference(origin: origin, path: "/Users/demo/ledger/\(name)", snapshot: snapshot)).preview
+        }
+        #expect(presentation("report.pdf") == .thumbnail)
+        #expect(presentation("chart.png") == .thumbnail)
+        #expect(presentation("a.swift", snapshot: .content("let a = 1", isTruncated: false)) == .snapshot)
+        #expect(presentation("a.csv", snapshot: .content("a,b", isTruncated: false)) == .snapshot)
+        #expect(presentation("backup.zip") == .typeIcon)
+        #expect(presentation("history.csv") == .typeIcon)
+        #expect(AgentFileCardDisplay(file: AgentFileReference(origin: .created, path: "/a/backup.zip")).symbol == "doc.zipper")
+        #expect(AgentFileCardDisplay(file: AgentFileReference(origin: .created, path: "/a/song.mp3")).symbol == "waveform")
+    }
+
+    @Test("縮圖區的說明(#427):超過 8 MiB 顯示大小與載入，超過 25 MiB 無法開啟，缺檔說已找不到")
+    func thumbnailNotes() {
+        let over = AgentFileThumbnailDisplay(state: .overAutomaticLimit(size: 9 * 1024 * 1024))
+        #expect(over.note == "9.4 MB · Not loaded automatically")
+        #expect(over.offersLoad)
+        #expect(AgentFileThumbnailDisplay(state: .tooLarge(size: 30 * 1024 * 1024)).note == "Too large to open here (31.5 MB). Open it on the host.")
+        #expect(AgentFileThumbnailDisplay(state: .missing).note == "This file is no longer on the host.")
+        #expect(AgentFileThumbnailDisplay(state: .loading).note == nil)
+        #expect(AgentFileThumbnailDisplay(state: .failed).offersRetry)
+    }
+
+    @Test("PDF 第一頁縮圖(#427):解出尺寸合理的圖;不是 PDF 的資料解不出")
+    func pdfFirstPageThumbnail() async throws {
+        let pdf = Self.makePDF(width: 612, height: 792)
+        let decoded = try #require(await AgentImageDecoder.decodeThumbnail(pdf, kind: .pdf, maxPixels: 512))
+        #expect(max(decoded.image.width, decoded.image.height) == 512)
+        #expect(decoded.image.width < decoded.image.height)
+        #expect(await AgentImageDecoder.decodeThumbnail(Data("not a pdf".utf8), kind: .pdf, maxPixels: 512) == nil)
+    }
+
+    static func makePDF(width: CGFloat, height: CGFloat) -> Data {
+        let data = NSMutableData()
+        var box = CGRect(x: 0, y: 0, width: width, height: height)
+        let context = CGContext(consumer: CGDataConsumer(data: data)!, mediaBox: &box, nil)!
+        context.beginPDFPage(nil)
+        context.setFillColor(CGColor(red: 0, green: 0, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 50, y: 50, width: 200, height: 200))
+        context.endPDFPage()
+        context.closePDF()
+        return data as Data
     }
 }

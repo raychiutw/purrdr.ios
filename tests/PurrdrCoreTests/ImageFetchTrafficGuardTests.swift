@@ -97,6 +97,28 @@ struct ImageFetchTrafficGuardTests {
         // 兩次完整傳輸(base64 後 4/3)約 2.8 MB,加上 40 次查狀態與分塊請求;改成每次捲進畫面都重讀會到約 28 MB。
         #expect(bytes <= Int(Double(2 * Self.screenshotSize) * 4 / 3 * 1.1) + 60_000)
     }
+
+    @Test("檔案卡片縮圖(#427):2 MiB 的 PDF 捲進畫面 20 次，版本沒變只傳一次內容")
+    func pdfThumbnailStaysWithinBudget() async throws {
+        let shell = try LocalShellHost.temporary(feedsStdin: true)
+        let home = shell.home.path(percentEncoded: false).replacing(/\/$/, with: "")
+        let size = 2 * 1024 * 1024
+        try shell.write(Data("%PDF-1.4\n".utf8) + Data((0..<size).map { UInt8($0 % 251) }), to: "ledger/report.pdf")
+        let meter = Meter(shell: shell)
+        let loader = HostFileLoader(fetcher: SSHHostFileFetcher(channel: meter))
+        let scope = HostFileAccessScope(workingDirectories: [home + "/ledger"], mentionedPaths: [])
+
+        for _ in 0..<20 {
+            guard case .loaded = await loader.load(home + "/ledger/report.pdf", scope: scope) else { Issue.record("PDF 沒有載入"); return }
+        }
+        let bytes = await meter.bytes
+        let channels = await meter.channels
+        print("流量守門 PDF 縮圖：通道 \(channels) 條，估算位元組 \(bytes)")
+
+        #expect(channels == 1, "一條長駐通道")
+        // 一次完整傳輸(base64 後 4/3)加 20 次查狀態;每次重讀會到約 56 MB。
+        #expect(bytes <= Int(Double(size) * 4 / 3 * 1.1) + 60_000)
+    }
 }
 
 #endif

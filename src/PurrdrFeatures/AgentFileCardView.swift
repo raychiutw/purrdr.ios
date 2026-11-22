@@ -3,6 +3,7 @@ import PurrdrAgentFeatures
 import PurrdrCore
 import QuickLook
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 檔案卡片的顯示規則(#224)。
 struct AgentFileCardDisplay {
@@ -42,6 +43,16 @@ struct AgentFileCardDisplay {
         }
     }
 
+    /// 卡片上方的預覽(#427):PDF 與圖片自動縮圖;文字、程式碼等有對話紀錄內容的沿用內容摘要;其他顯示類型圖示。
+    enum Preview: Equatable { case thumbnail, snapshot, typeIcon }
+
+    var preview: Preview {
+        switch file.kind {
+        case .pdf, .image: .thumbnail
+        default: file.snapshot == nil ? .typeIcon : .snapshot
+        }
+    }
+
     var symbol: String {
         switch file.kind {
         case .text, .markdown: "doc.text"
@@ -49,8 +60,19 @@ struct AgentFileCardDisplay {
         case .image: "photo"
         case .pdf: "doc.richtext"
         case .data: "tablecells"
-        case .other: "doc"
+        case .other: Self.typeSymbol(forExtension: file.fileExtension)
         }
+    }
+
+    /// 其他種類依系統的檔案類型(UTType)挑圖示。
+    private static func typeSymbol(forExtension fileExtension: String) -> String {
+        guard let type = UTType(filenameExtension: fileExtension) else { return "doc" }
+        if type.conforms(to: .audio) { return "waveform" }
+        if type.conforms(to: .movie) || type.conforms(to: .video) { return "film" }
+        if type.conforms(to: .archive) { return "doc.zipper" }
+        if type.conforms(to: .spreadsheet) { return "tablecells" }
+        if type.conforms(to: .presentation) { return "rectangle.on.rectangle" }
+        return "doc"
     }
 
     /// 「Created · Code · 312 bytes」、「Edited · Code · +1 −1」。
@@ -106,6 +128,28 @@ struct AgentFileCardDisplay {
         let text = lines.map(\.text).joined(separator: "\n")
         return text.isEmpty ? nil : text
     }
+}
+
+/// 檔案卡片縮圖區(#427)的說明:超過 8 MiB 顯示大小與「載入」、超過 25 MiB 無法開啟、缺檔、被拒、主機不支援。
+struct AgentFileThumbnailDisplay {
+    let state: AgentFileLoads.State?
+
+    /// 縮圖區顯示的說明;縮圖或載入中時 `nil`。
+    var note: String? {
+        switch state {
+        case .overAutomaticLimit(let size): String(localized: "\(AgentImageCardDisplay.size(size)) · Not loaded automatically")
+        case .tooLarge(let size):
+            String(localized: "Too large to open here (\(AgentImageCardDisplay.size(size))). Open it on the host.")
+        case .missing: String(localized: "This file is no longer on the host.")
+        case .denied: String(localized: "Purrdr doesn’t open files in this location.")
+        case .unsupported: String(localized: "Opening files isn’t available for this host yet.")
+        case .failed: String(localized: "Couldn’t download the file.")
+        case .loaded, .loading, nil: nil
+        }
+    }
+
+    var offersLoad: Bool { if case .overAutomaticLimit = state { true } else { false } }
+    var offersRetry: Bool { state == .failed }
 }
 
 /// 點開檔案(#228)的顯示規則。
@@ -168,6 +212,9 @@ struct AgentFileCardView: View {
                 .accessibilityHint(context.loads == nil ? Text(verbatim: "") : Text("Downloads the file from the host and shows a preview."))
                 .accessibilityAction { if openDisplay.offersOpen { open() } }
             AgentFileCardDetails(card: card, display: display, identifier: "conversation.agentFile")
+            if display.preview == .thumbnail, context.loads != nil {
+                AgentFileThumbnailView(card: card, open: open)
+            }
             if context.loads != nil {
                 AgentFileOpenRow(card: card, display: openDisplay, open: open, cancel: { context.loads?.cancelOpen(card.file.path) })
             }
@@ -315,6 +362,12 @@ struct AgentFileCardHeader: View {
             Text(verbatim: card.file.name)
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if display.preview == .typeIcon, let byteCount = card.file.byteCount {
+                Text(Int64(byteCount).formatted(.byteCount(style: .file)))
+                    .font(.caption)
+                    .foregroundStyle(.secondaryText)
+                    .accessibilityIdentifier("conversation.agentFile.size")
+            }
             if let date = card.date {
                 Text(date, format: .dateTime.hour().minute())
                     .font(.caption2)

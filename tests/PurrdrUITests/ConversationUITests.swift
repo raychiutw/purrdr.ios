@@ -222,6 +222,15 @@ final class ConversationUITests: XCTestCase {
         XCTAssertTrue(app.revealInConversation(share), "下載好之後沒有「Share」")
         XCTAssertGreaterThanOrEqual(share.frame.height, 44)
 
+        // 檔案縮圖(#427):PDF 卡片自動顯示第一頁縮圖，點縮圖以 QuickLook 開。
+        let pdfThumbnail = app.element("conversation.agentFile.thumbnail", labelPrefix: "Preview of export-report.pdf")
+        XCTAssertTrue(app.revealInConversation(pdfThumbnail), "PDF 卡片沒有自動顯示縮圖")
+        pdfThumbnail.tap()
+        let pdfBar = quickLookBar(named: "export-report", in: app)
+        XCTAssertTrue(pdfBar.waitUntilExists(timeout: 15), "點縮圖沒有出現 QuickLook 預覽")
+        closeQuickLook(pdfBar)
+        XCTAssertTrue(pdfBar.waitUntilGone(timeout: 5))
+
         // 訊息內主機路徑(#229):PDF 在 app 內以 QuickLook 開，圖片全螢幕看(不交給系統 openURL)。
         let report = app.links["/Users/demo/ledger/docs/export-report.pdf"].firstMatch
         XCTAssertTrue(app.revealInConversation(report), "訊息中的 PDF 路徑不是連結")

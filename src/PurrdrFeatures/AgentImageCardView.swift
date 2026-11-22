@@ -51,6 +51,36 @@ enum AgentImageDecoder {
         let image: CGImage
     }
 
+    /// 檔案卡片的縮圖(#427):圖片同 `decode`,PDF 畫第一頁(白底);其他種類沒有縮圖。
+    static func decodeThumbnail(_ data: Data, kind: AgentFileKind, maxPixels: Int) async -> Decoded? {
+        switch kind {
+        case .pdf: await Task.detached(priority: .userInitiated) { renderFirstPage(of: data, maxPixels: maxPixels) }.value
+        case .image: await decode(data, maxPixels: maxPixels)
+        default: nil
+        }
+    }
+
+    /// 以 CoreGraphics 畫 PDF 第一頁，長邊 `maxPixels`;加密、空白文件或不是 PDF 回 `nil`。
+    private static func renderFirstPage(of data: Data, maxPixels: Int) -> Decoded? {
+        guard let provider = CGDataProvider(data: data as CFData), let document = CGPDFDocument(provider),
+              !document.isEncrypted || document.isUnlocked, let page = document.page(at: 1) else { return nil }
+        var box = page.getBoxRect(.cropBox)
+        if page.rotationAngle % 180 != 0 { box = CGRect(x: 0, y: 0, width: box.height, height: box.width) }
+        guard box.width > 0, box.height > 0 else { return nil }
+        let scale = CGFloat(maxPixels) / max(box.width, box.height)
+        let width = max(1, Int((box.width * scale).rounded())), height = max(1, Int((box.height * scale).rounded()))
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let target = CGRect(x: 0, y: 0, width: width, height: height)
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(target)
+        context.concatenate(page.getDrawingTransform(.cropBox, rect: target, rotate: 0, preserveAspectRatio: true))
+        context.drawPDFPage(page)
+        return context.makeImage().map(Decoded.init)
+    }
+
     static func decode(_ data: Data, maxPixels: Int) async -> Decoded? {
         await Task.detached(priority: .userInitiated) {
             guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }

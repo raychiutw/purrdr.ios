@@ -6375,6 +6375,28 @@
         }
       }
     },
+    "Load" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "載入"
+          }
+        }
+      }
+    },
+    "Load %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "載入 %@"
+          }
+        }
+      }
+    },
     "Load Image" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6437,6 +6459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在載入圖片"
+          }
+        }
+      }
+    },
+    "Loading preview" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在載入預覽"
           }
         }
       }
@@ -8802,6 +8835,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Port"
+          }
+        }
+      }
+    },
+    "Preview of %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的預覽"
           }
         }
       }

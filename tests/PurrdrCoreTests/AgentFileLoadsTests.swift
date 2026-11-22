@@ -94,4 +94,27 @@ struct AgentFileLoadsTests {
         #expect(loads.states["/Users/demo/notes.txt"] == .denied)
         #expect(await fetcher.readCount == 1)
     }
+
+    @Test("檔案卡片縮圖(#427):PDF 在 8 MiB 內自動載入、超過要點擊、超過 25 MiB 無法載入;版本沒變重看不重抓")
+    func pdfThumbnailLoading() async {
+        let report = "/Users/demo/ledger/report.pdf"
+        let over = "/Users/demo/ledger/big.pdf"
+        let huge = "/Users/demo/ledger/huge.pdf"
+        let fetcher = FakeHostFileFetcher(files: [
+            report: Data("%PDF".utf8), over: Data(count: HostFileFetchLimits.automaticLoad + 1),
+            huge: Data(count: HostFileFetchLimits.maximumSize + 1),
+        ])
+        let loads = AgentFileLoads(fetcher: fetcher)
+
+        await loads.load(report, scope: Self.scope)
+        await loads.load(report, scope: Self.scope)
+        await loads.load(over, scope: Self.scope)
+        await loads.load(huge, scope: Self.scope, userRequested: true)
+
+        guard case .loaded = loads.states[report] else { Issue.record("PDF 沒有自動載入"); return }
+        #expect(loads.states[over] == .overAutomaticLimit(size: HostFileFetchLimits.automaticLoad + 1))
+        #expect(loads.states[huge] == .tooLarge(size: HostFileFetchLimits.maximumSize + 1))
+        let reads = await fetcher.requests.filter { if case .read(let path, _, _) = $0 { path == report } else { false } }
+        #expect(reads.count == 1, "第二次只查狀態")
+    }
 }

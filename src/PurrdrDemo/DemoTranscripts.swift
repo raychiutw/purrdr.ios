@@ -194,6 +194,15 @@ enum DemoTranscripts {
                 "type": "create", "filePath": DemoHostFileFetcher.draftPath, "content": historyHeader,
                 "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
             ]),
+            // 檔案縮圖(#427):PDF 報告的卡片自動顯示第一頁縮圖(內容由 `DemoHostFileFetcher` 提供)。
+            assistantTool("d3m0-f-09a", "2026-11-16T10:00:04.500Z", id: "toolu_files_04a", name: "Write", input: [
+                "file_path": DemoHostFileFetcher.reportPath, "content": "%PDF-1.4",
+            ]),
+            toolResult("d3m0-f-09b", "2026-11-16T10:00:04.600Z", id: "toolu_files_04a",
+                       text: "File created successfully at: \(DemoHostFileFetcher.reportPath)", toolUseResult: [
+                "type": "create", "filePath": DemoHostFileFetcher.reportPath, "content": "%PDF-1.4",
+                "structuredPatch": [Any](), "originalFile": NSNull(), "userModified": false,
+            ]),
             assistantTool("d3m0-f-10", "2026-11-16T10:00:05.000Z", id: "toolu_files_05", name: "Bash", input: [
                 "command": "swift run ledger export --all --skip-header >> exports/history.csv && rm exports/draft.csv",
             ]),
