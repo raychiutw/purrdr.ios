@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>需要你玻璃卡與送出中</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0}
+.gcard{position:absolute;left:16px;right:16px;bottom:100px;border-radius:24px;padding:14px;display:flex;flex-direction:column;gap:10px;z-index:3}
+.gq{display:flex;align-items:flex-start;gap:8px;font-size:15px;font-weight:600;line-height:1.35}
+.gopts{display:flex;flex-direction:column;gap:6px}
+.gopt{height:48px;border:none;border-radius:14px;background:var(--fill);color:var(--text);font-size:17px;text-align:left;padding:0 10px 0 14px;display:flex;align-items:center;gap:8px;box-sizing:border-box}
+.gopt .lbl{flex-grow:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gopt .slot{width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--sec)}
+.gopt.picked{background:color-mix(in srgb,var(--accent) 22%,transparent);font-weight:600}
+.gopt.picked .slot{color:var(--accent)}
+.gopt.dim{color:var(--dis)}
+.gerr{display:flex;align-items:flex-start;gap:6px;font-size:14px;line-height:1.4;color:var(--redtext)}
+.tag{position:absolute;z-index:6;font-size:12px;font-weight:600;padding:3px 8px;border-radius:8px;background:#5E5CE6;color:#fff;white-space:nowrap}
+.tag.solid{background:#8E8E93}
+</style></helmet>
+<div class="board" style="width:1760px;height:1880px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<sc-for list="{{t.states}}" as="s" hint-placeholder-count="3">
+<div class="col">
+<div class="cap">{{t.name}} · {{s.label}}</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="purrdr.server,需要你,Ray Mac Mini"><span class="t1">purrdr.server<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="t2"><span class="sb need sm" aria-hidden="true">!</span><span>需要你 · 43%</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="msgs">
+<div class="bubble">後台可以上線了嗎?</div>
+<div>PR #29 已合併。上線前要先決定金鑰怎麼準備,我列了三個選項。</div>
+<div class="meta" style="display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>1 個步驟</div>
+</div>
+<div class="gcard glass" role="group" aria-label="Agent 的問題">
+<div class="gq"><svg width="18" height="18" viewBox="0 0 24 24" fill="var(--orange)" aria-hidden="true" style="flex-shrink:0;margin-top:1px"><path d="M12 2.5l10.5 18.5H1.5L12 2.5zm-1 7v5h2v-5h-2zm0 7v2h2v-2h-2z"></path></svg><span>後台上線要走哪條路?</span></div>
+<sc-if value="{{s.err}}" hint-placeholder-val="{{false}}"><div class="gerr" role="alert"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="flex-shrink:0;margin-top:2px"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 5h2v7h-2zm0 9h2v2h-2z"></path></svg><span>沒有送出,連線中斷了。請再選一次。</span></div></sc-if>
+<div class="gopts">
+<sc-for list="{{s.opts}}" as="o" hint-placeholder-count="4">
+<button class="gopt {{o.cls}}" aria-label="{{o.aria}}" aria-busy="{{o.busy}}"><span class="lbl">{{o.name}}</span><span class="slot" aria-hidden="true">
+<sc-if value="{{o.spin}}" hint-placeholder-val="{{false}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="9" stroke-opacity=".25"></circle><path d="M12 3a9 9 0 0 1 9 9"></path></svg></sc-if>
+<sc-if value="{{o.kbd}}" hint-placeholder-val="{{false}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"></rect><path d="M6 10h1M9 10h1M12 10h1M15 10h1M18 10h0M7 14h10" stroke-linecap="round"></path></svg></sc-if>
+</span></button>
+</sc-for>
+</div>
+</div>
+<div class="composer glass">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">或告訴 Agent 怎麼做</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+<sc-if value="{{s.tags}}" hint-placeholder-val="{{false}}">
+<span class="tag" style="top:112px;left:150px">玻璃:頂端</span>
+<span class="tag solid" style="top:160px;right:24px">實心:訊息</span>
+<span class="tag" style="bottom:372px;right:24px">玻璃:需要你卡片</span>
+<span class="tag" style="bottom:16px;right:24px">玻璃:輸入列</span>
+</sc-if>
+</div>
+</div>
+</sc-for>
+<div class="col">
+<div class="cap">{{t.name}} · sheet 與選單用玻璃</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="purrdr.server,完成"><span class="t1">purrdr.server</span><span class="t2"><span class="sb done sm" aria-hidden="true">✓</span><span>完成 · 43%</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="msgs">
+<div class="bubble">後台可以上線了嗎?</div>
+<div>PR #29 已合併。上線前要先決定金鑰怎麼準備。</div>
+</div>
+<div class="glass" style="position:absolute;left:8px;right:8px;bottom:8px;border-radius:38px;padding:8px 16px 24px;z-index:4" role="dialog" aria-label="加入">
+<div style="width:36px;height:5px;border-radius:3px;background:var(--fill);margin:0 auto 10px"></div>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><button class="ib" style="background:var(--fill)" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button><span style="font-size:17px;font-weight:600">加入</span><span style="width:44px"></span></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+<sc-for list="{{kinds}}" as="k" hint-placeholder-count="3"><button style="height:84px;border:none;border-radius:20px;background:var(--fill);color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:14px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{k.icon}}"></path></svg>{{k.name}}</button></sc-for>
+</div>
+</div>
+<span class="tag" style="bottom:240px;right:24px">玻璃:sheet(部分高度)</span>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const names = ['(a) 一次備齊 Apple 與 Google', '(b) 先只上 App Store', '先不上線', '輸入回答…'];
+    const opts = (picked, err) => names.map((name, i) => {
+      const kbd = i === 3;
+      if (picked === null) return { name, cls: '', spin: false, kbd, busy: 'false', aria: name };
+      if (i === picked) return { name, cls: 'picked', spin: true, kbd: false, busy: 'true', aria: name + ',送出中' };
+      return { name, cls: 'dim', spin: false, kbd, busy: 'false', aria: name + ',停用' };
+    });
+    const states = [
+      { label: '需要你(玻璃浮動卡)', opts: opts(null), err: false, tags: false },
+      { label: '按下選項:送出中,高度不變', opts: opts(1), err: false, tags: false },
+      { label: '送出失敗:恢復選項', opts: opts(null), err: true, tags: true }
+    ];
+    return {
+      themes: [{ cls: 'dark', name: '深色', states }, { cls: 'light', name: '淺色', states }],
+      kinds: [
+        { name: '照片', icon: 'M4 6h16v12H4z M8 14l3-3 3 3 2-2 3 3 M9 9.5h.01' },
+        { name: '相機', icon: 'M4 8h3l2-2h6l2 2h3v10H4z M12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6z' },
+        { name: '檔案', icon: 'M6 3h8l4 4v14H6z M14 3v4h4' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>聊天的圖片與檔案</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0}
+.ph1{background:linear-gradient(135deg,#F2A65A 0%,#C8553D 55%,#3D2B56 100%)}
+.ph2{background:linear-gradient(160deg,#9AD1D4 0%,#3F7CAC 60%,#1F2F4D 100%)}
+.ph3{background:linear-gradient(180deg,#E9EEF5 0%,#E9EEF5 18%,#FFFFFF 18%),#fff}
+.thumbs{align-self:flex-end;display:grid;grid-template-columns:repeat(2,124px);gap:4px}
+.thumbs button{width:124px;height:124px;border:none;border-radius:16px;padding:0}
+.fmini{align-self:flex-end;display:flex;align-items:center;gap:10px;background:var(--bubble);border-radius:16px;padding:8px 12px 8px 8px;max-width:270px;border:none;color:var(--text);text-align:left}
+.ficon{width:44px;height:52px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;letter-spacing:.3px}
+.pdfthumb{background:#fff;border:1px solid var(--sep);position:relative;overflow:hidden}
+.pdfthumb::before{content:"";position:absolute;left:6px;right:6px;top:7px;height:4px;background:#C8553D;border-radius:2px;box-shadow:0 8px 0 -1px #C7C7CC,0 14px 0 -1px #C7C7CC,0 20px 0 -1px #C7C7CC,0 26px 0 -1px #C7C7CC,0 32px 0 -1px #C7C7CC}
+.zip{background:var(--fill);color:var(--sec)}
+.fname{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fsub{font-size:13px;color:var(--sec)}
+.acard{background:var(--card);border-radius:18px;overflow:hidden;border:none;padding:0;color:var(--text);text-align:left;width:100%}
+.acard .hd{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:14px}
+.acard .hd .o{color:var(--sec)}
+.acard .img{height:150px}
+.frow{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:18px;padding:10px 12px;border:none;color:var(--text);text-align:left;width:100%;box-sizing:border-box}
+.frow .tx{flex-grow:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.frow .act{font-size:15px;color:var(--accent);font-weight:600;flex-shrink:0}
+.bar{height:4px;border-radius:2px;background:var(--track);overflow:hidden;margin-top:4px}
+.bar span{display:block;height:100%;background:var(--accent)}
+.viewer{position:absolute;inset:0;background:var(--bg)}
+.vimg{position:absolute;left:0;right:0;top:250px;height:300px}
+.dots{position:absolute;bottom:120px;left:0;right:0;display:flex;justify-content:center;gap:8px}
+.dots span{width:8px;height:8px;border-radius:4px;background:var(--fill)}
+.dots span.on{background:var(--text)}
+</style></helmet>
+<div class="board" style="width:1760px;height:1880px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="col">
+<div class="cap">{{t.name}} · 送出的圖片與檔案(主機讀回縮圖)</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="weather-app,完成"><span class="t1">weather-app</span><span class="t2"><span class="sb done sm" aria-hidden="true">✓</span><span>完成 · 31%</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="msgs">
+<div class="thumbs" role="group" aria-label="2 張圖片"><button class="ph1" aria-label="圖片 1,點兩下全螢幕"></button><button class="ph2" aria-label="圖片 2,點兩下全螢幕"></button></div>
+<button class="fmini" aria-label="spec.pdf,PDF,1.2 MB,點兩下開啟"><span class="ficon pdfthumb" aria-hidden="true"></span><span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="fname">spec.pdf</span><span class="fsub">PDF · 1.2 MB</span></span></button>
+<div class="bubble" style="margin-top:-8px">照這兩張截圖和規格調整天氣卡片</div>
+<div>好,我先看截圖再改。這是改完的預覽:</div>
+<button class="acard" aria-label="產生的圖片 preview.png,點兩下全螢幕"><span class="hd"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 15l3-3 3 3 2-2 3 3"></path></svg><span class="o">產生</span><span style="font-weight:600">preview.png</span></span><span class="img ph2" style="display:block"></span></button>
+</div>
+<div class="composer glass">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">訊息</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 檔案卡片:縮圖與各種狀態</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<button class="ib glass top-l" aria-label="返回"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+<div class="top-c"><button class="titlecap glass" aria-label="ledger,完成"><span class="t1">ledger</span><span class="t2"><span class="sb done sm" aria-hidden="true">✓</span><span>完成 · 22%</span></span></button></div>
+<button class="ib glass top-r" aria-label="更多"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg></button>
+</div>
+<div class="msgs" style="gap:10px">
+<div>報告和資料都整理好了:</div>
+<sc-for list="{{files}}" as="f" hint-placeholder-count="5">
+<button class="frow" aria-label="{{f.aria}}"><span class="ficon {{f.icon}}" aria-hidden="true">{{f.ext}}</span><span class="tx"><span class="fname">{{f.name}}</span><span class="fsub">{{f.sub}}</span><sc-if value="{{f.prog}}" hint-placeholder-val="{{false}}"><span class="bar"><span style="width:{{f.prog}}%"></span></span></sc-if></span><sc-if value="{{f.act}}" hint-placeholder-val="{{false}}"><span class="act">{{f.act}}</span></sc-if></button>
+</sc-for>
+</div>
+<div class="composer glass">
+<button class="cbtn" aria-label="加入"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+<label class="ph">訊息</label>
+<button class="cbtn off" aria-label="送出,停用" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"></path></svg></button>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 圖片檢視器(縮放、左右滑、下滑關閉)</div>
+<div class="phone {{t.cls}}">
+<div class="viewer">
+<div class="vimg ph1" role="img" aria-label="圖片 1 / 2,可雙指縮放"></div>
+<div class="top">
+<button class="ib glass top-l" aria-label="關閉"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+<div class="top-c"><span class="glass" style="height:44px;border-radius:22px;padding:0 16px;display:flex;align-items:center;font-size:15px;font-weight:600">1 / 2</span></div>
+<button class="ib glass top-r" aria-label="分享"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7h14v-7"></path></svg></button>
+</div>
+<div class="dots" aria-hidden="true"><span class="on"></span><span></span></div>
+<div style="position:absolute;bottom:60px;left:0;right:0;text-align:center;font-size:13px;color:var(--sec)">點兩下放大 · 往下滑關閉</div>
+</div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1760,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const files = [
+      { name: 'report.pdf', sub: '新建 · PDF · 2.4 MB', icon: 'pdfthumb', ext: '', act: '', prog: 0, aria: 'report.pdf,PDF,2.4 MB,點兩下開啟' },
+      { name: 'statement-scan.png', sub: '讀取 · 圖片 · 8.8 MB,超過自動載入', icon: 'zip', ext: 'PNG', act: '載入', prog: 0, aria: 'statement-scan.png,8.8 MB,點兩下載入' },
+      { name: 'export.zip', sub: '下載中 · 6.1 / 14 MB', icon: 'zip', ext: 'ZIP', act: '取消', prog: 44, aria: 'export.zip,下載中 44%' },
+      { name: 'history.csv', sub: '31 MB · 超過 25 MB,無法在 app 內開啟', icon: 'zip', ext: 'CSV', act: '', prog: 0, aria: 'history.csv,超過 25 MB,無法開啟' },
+      { name: 'draft.csv', sub: '主機上已經找不到這個檔案', icon: 'zip', ext: 'CSV', act: '', prog: 0, aria: 'draft.csv,主機上已找不到' }
+    ];
+    return { themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }], files };
+  }
+}
+</script>
+</body>
+</html>

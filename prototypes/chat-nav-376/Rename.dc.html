@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>重新命名 Workspace 與 Tab</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="purrdr.css">
+</head>
+<body>
+<x-dc>
+<helmet><style>
+body{margin:0}
+.mscrim2{position:absolute;inset:0;background:var(--scrim);z-index:6;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.lift{position:absolute;left:16px;right:16px;border-radius:22px;background:var(--card);z-index:7;padding:12px 14px;display:flex;gap:12px;align-items:center}
+.lift .t{font-size:17px;font-weight:600}
+.lift .s{font-size:14px;color:var(--sec)}
+.msep{height:8px;background:var(--fill);opacity:.5}
+.mi.red{color:var(--redtext)}
+.alert{position:absolute;left:50%;top:300px;transform:translateX(-50%);width:300px;border-radius:30px;z-index:9;padding:20px 18px 14px;display:flex;flex-direction:column;gap:12px;text-align:center}
+.alert .at{font-size:17px;font-weight:600}
+.alert .am{font-size:14px;color:var(--sec);line-height:1.35;margin-top:-6px}
+.alert .tf{height:40px;border-radius:12px;background:var(--fill);display:flex;align-items:center;padding:0 12px;font-size:17px;text-align:left}
+.alert .btns{display:flex;gap:10px}
+.alert .btns button{flex:1;height:48px;border:none;border-radius:24px;font-size:17px;background:var(--fill);color:var(--text)}
+.alert .btns button.pri{background:var(--accent);color:var(--on);font-weight:600}
+.lrow{display:flex;gap:12px;padding:10px 0;border-bottom:solid 1px var(--sep);align-items:center}
+.lrow .t{font-size:17px;font-weight:600}
+.lrow .s{font-size:14px;color:var(--sec)}
+</style></helmet>
+<div class="board" style="width:1330px;height:1880px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="col">
+<div class="cap">{{t.name}} · 聊天列表長按:Workspace 與 Tab</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<div class="top-c"><button class="hostcap glass" aria-label="目前主機:所有主機">所有主機</button></div>
+<div class="grp glass top-r"><button aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl" style="top:110px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><div class="lrow"><span class="av"><span class="face {{r.kind}}" aria-hidden="true">{{r.av}}</span></span><span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t">{{r.name}}</span><span class="s">{{r.sub}}</span></span></div></sc-for>
+</div>
+<div class="mscrim2"></div>
+<div class="lift" style="top:170px" aria-hidden="true"><span class="av"><span class="face claude">C</span></span><span style="display:flex;flex-direction:column;gap:2px"><span class="t">ledger · tests</span><span class="s">Claude Code · 完成 · Ray Mac Mini</span></span></div>
+<div class="menu glass" role="menu" style="top:258px;left:16px;width:270px">
+<button class="mi" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z M13.5 6.5l4 4"></path></svg><span class="mt">重新命名 Tab…<span class="ms">目前:tests</span></span></button>
+<button class="mi" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16v12H4z M4 7l2-3h5l2 3"></path></svg><span class="mt">重新命名 Workspace…<span class="ms">目前:ledger</span></span></button>
+<button class="mi" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M12 4v16M12 12h9"></path></svg><span class="mt">顯示版面</span></button>
+<button class="mi" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"></circle><circle cx="6" cy="18" r="2.5"></circle><circle cx="18" cy="9" r="2.5"></circle><path d="M6 8.5v7M18 11.5c0 3-6 3-12 4"></path></svg><span class="mt">新增 worktree…</span></button>
+<div class="msep" aria-hidden="true"></div>
+<button class="mi red" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg><span class="mt">關閉 Workspace…</span></button>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · Spaces:長按 Tab 改 Tab、長按標題改 Workspace</div>
+<div class="phone grouped {{t.cls}}">
+<div class="top">
+<div class="top-c"><button class="hostcap glass" aria-label="目前主機:所有主機">所有主機</button></div>
+<div class="grp glass top-r"><button aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl">
+<div class="sh" style="display:flex;align-items:center;gap:6px">ledger<span style="font-size:12px;color:var(--sec)">(長按:重新命名 Workspace…)</span></div>
+<div class="card">
+<div class="cell"><span class="cb"><span class="main"><span>main</span><span class="sub">Claude Code · 完成</span></span></span></div>
+<div class="cell"><span class="cb"><span class="main"><span>tests</span><span class="sub">Claude Code · 工作中</span></span></span></div>
+</div>
+<div class="sh">weather-app</div>
+<div class="card"><div class="cell"><span class="cb"><span class="main"><span>1</span><span class="sub">Claude Code · 需要你</span></span></span></div></div>
+</div>
+<div class="mscrim2"></div>
+<div class="lift" style="top:196px;background:var(--card)" aria-hidden="true"><span style="display:flex;flex-direction:column;gap:2px"><span class="t">tests</span><span class="s">Claude Code · 工作中</span></span></div>
+<div class="menu glass" role="menu" style="top:270px;left:16px;width:270px">
+<button class="mi" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M12 4v16M12 12h9"></path></svg><span class="mt">顯示版面</span></button>
+<button class="mi" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4l10-10-4-4L4 16z M13.5 6.5l4 4"></path></svg><span class="mt">重新命名 Tab…</span></button>
+<button class="mi" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"></circle><circle cx="6" cy="18" r="2.5"></circle><circle cx="18" cy="9" r="2.5"></circle><path d="M6 8.5v7M18 11.5c0 3-6 3-12 4"></path></svg><span class="mt">新增 worktree…</span></button>
+<div class="msep" aria-hidden="true"></div>
+<button class="mi red" role="menuitem"><span class="ck"></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg><span class="mt">關閉 Workspace…</span></button>
+</div>
+</div>
+</div>
+<div class="col">
+<div class="cap">{{t.name}} · 重新命名提示框(預填目前名稱)</div>
+<div class="phone {{t.cls}}">
+<div class="top">
+<div class="top-c"><button class="hostcap glass" aria-label="目前主機:所有主機">所有主機</button></div>
+<div class="grp glass top-r"><button aria-label="帳號"><span class="avatar">R</span></button></div>
+</div>
+<div class="gl" style="top:110px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><div class="lrow"><span class="av"><span class="face {{r.kind}}" aria-hidden="true">{{r.av}}</span></span><span style="display:flex;flex-direction:column;gap:2px;min-width:0"><span class="t">{{r.name}}</span><span class="s">{{r.sub}}</span></span></div></sc-for>
+</div>
+<div class="scrimbg"></div>
+<div class="alert glass" role="alertdialog" aria-label="重新命名 Tab">
+<div class="at">重新命名 Tab</div>
+<div class="am">ledger 裡的 Tab,電腦上的 herdr 也會一起改。</div>
+<div class="tf">tests-ios<span class="caret"></span></div>
+<div class="btns"><button>取消</button><button class="pri">重新命名</button></div>
+</div>
+<div class="kb" style="z-index:10"><sc-for list="{{kb}}" as="r" hint-placeholder-count="4"><div class="kr"><sc-for list="{{r.keys}}" as="k" hint-placeholder-count="10"><div class="key" style="width:{{k.w}}px"></div></sc-for></div></sc-for></div>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1330,"height":1880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const row = (n, w) => ({ keys: Array.from({ length: n }, () => ({ w })) });
+    return {
+      themes: [{ cls: 'dark', name: '深色' }, { cls: 'light', name: '淺色' }],
+      rows: [
+        { kind: 'claude', av: 'C', name: 'ledger · main', sub: 'Claude Code · 完成' },
+        { kind: 'claude', av: 'C', name: 'ledger · tests', sub: 'Claude Code · 完成' },
+        { kind: 'claude', av: 'C', name: 'weather-app · 1', sub: 'Claude Code · 需要你' },
+        { kind: 'codex', av: 'X', name: 'notes · 1', sub: 'Codex · 工作中' }
+      ],
+      kb: [row(10, 32), row(10, 32), row(9, 34), { keys: [{ w: 84 }, { w: 180 }, { w: 84 }] }]
+    };
+  }
+}
+</script>
+</body>
+</html>
