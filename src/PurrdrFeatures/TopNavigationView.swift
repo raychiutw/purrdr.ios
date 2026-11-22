@@ -250,7 +250,7 @@ public struct TopNavigationView: View {
                 FilesTab(hosts: hosts, member: member, openAccount: { navigation.sheet = .member }, addHost: { navigation.openAddHost() })
                     .tint(ProminentFillStyle())
             }
-            Tab("Hosts", systemImage: "macmini.fill", value: TopLevelTab.hosts) {
+            Tab("Hosts", systemImage: "desktopcomputer", value: TopLevelTab.hosts) {
                 HostsTab(
                     hosts: hosts, member: member, plus: plus, importURL: $navigation.pendingHostImport,
                     editHostID: $navigation.pendingHostEditor, addHost: $navigation.pendingAddHost,
