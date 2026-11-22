@@ -19,6 +19,8 @@ Purrdr 的 UI 與 UX 規範。依據是 Apple HIG(研究與逐畫面檢核清單
 
 - 每個自訂顏色都要有 light／dark／各自 high contrast 四個值，放在 Asset Catalog 或程式碼的 `ContrastPalette`(`AccessibleColors`)都可以;四個值都要有對比測試(對它實際出現的背景計算，見 `AccessibleColorsTests`)。
 - 每個畫面 prominent 按鈕最多 2 個。
+- **深色底層次**(#379):深色頁面不用純黑。每個視窗固定 `elevated` 介面層級(`AppWindowSurface`,`appAppearance()` 套用),系統語意底色整組上移一階:頁面 `#1C1C1E`、卡片與 grouped 列 `#2C2C2E`、再內一層 `#3A3A3C`;畫面一律用語意色(`.background`、`.background.secondary`、grouped),不寫死色碼。淺色不受影響。純黑只留給終端機與全螢幕圖片。sheet 本來就是 elevated,與頁面同色階(再高一階需逐列自訂背景,未做)。紅字按鈕文字用 `destructiveText`(深色 `#FF8A82`,系統紅對深色卡片不到 4.5:1);`AccessibleColorsTests` 對 `#3A3A3C` 以內的背景守門。
+- **輸入列按鈕無陰影**:一律 bordered 系列與 `ComposerCircleButtonStyle`(不用玻璃按鈕);送出中仍是主色填色但不可點(`ComposerSendAppearance.sending`,不套系統 disabled,深色不會變黑色圓),「＋」停用時仍看得見(次要文字色)。未選的最近照片有白色圈框加半透明黑底。
 - 主色填色一律經 `prominentFill`(有主機主題時是主題填色)與 `onProminentFill`(主題填色上白字，主色上 `onAccent`):填色寫 `hostFill(in:)` 或 `.prominentFill`,prominent 按鈕用 `filledProminentButtonStyle()`／`filledGlassProminentButtonStyle()`;不要直接用 tint／`Color.accentColor` 當底(`ProminentFillUsageTests` 擋),否則深色模式會變成白字配亮綠。
 - iPad 列表(split view 內容欄)的選取列加 `selectionFill(for:)`:中性灰底 `neutralSelection`(系統 `systemGray5`:`#E5E5EA`／`#2C2C2E`／高對比 `#D8D8DC`／`#363638`),不用主色或主機主題的填色;列內文字維持主要色與 `secondaryText`,不另換字色(#238)。主要文字與 `secondaryText` 對四值都 ≥ 4.5:1(淺色次要 4.8:1 最低，`SelectionAppearanceTests`)。
 
