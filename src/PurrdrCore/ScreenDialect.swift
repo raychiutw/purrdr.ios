@@ -94,15 +94,23 @@ public struct ScreenDialect: Sendable, Equatable {
     }
 
     public let name: String
+    /// 讀取畫面與切換權限模式用真實錄製驗證到哪個版本。
     public let verification: Verification
+    /// 面板與選模型(要在面板上移動游標再選定)的驗證;沒有另外指定時同 `verification`。
+    /// Antigravity 錄過面板的畫面,但沒錄過選定後的結果,所以這一項維持未驗證(#447)。
+    public let panelVerification: Verification
     /// 狀態列格式;`nil` 表示不讀。只讀取、不送按鍵,所以不受驗證開關管制。
     public let statusLine: StatusLineStyle?
     /// slash 指令開出的面板格式;`nil` 表示不解析面板。
     public let panel: PanelStyle?
     /// 認得 `@` 檔案選擇器(Codex):只能關閉。
     public let detectsFilePicker: Bool
-    /// 畫面有權限模式標示、Shift+Tab 輪替(Claude Code)。
+    /// 畫面有權限模式標示、Shift+Tab 輪替(Claude Code、Antigravity)。
     public let hasPermissionModes: Bool
+    /// 這個 Agent 的 Shift+Tab 輪替順序(Antigravity,#447);`nil` 表示用 Claude Code 的輪替(`AgentPermissionMode.next`)。
+    public let permissionModeCycle: [AgentPermissionMode]?
+    /// 只在閒置時切換權限模式:錄製只有閒置時的輪替,工作中按 Shift+Tab 的行為沒驗證過(Antigravity)。
+    public let switchesPermissionModeOnlyWhenIdle: Bool
     /// `/model` 面板一步選定(Claude Code);其他種類只顯示目前模型。
     public let choosesModel: Bool
     /// 顯示目前模型(膠囊):Claude Code 一定顯示,Codex 有讀到模型時也顯示(只顯示)。
@@ -118,18 +126,22 @@ public struct ScreenDialect: Sendable, Equatable {
         if case .verified = verification { true } else { false }
     }
 
-    /// 讀面板、送面板按鍵:有面板格式且驗證過。
-    public var readsPanels: Bool { panel != nil && isVerified }
+    public var isPanelVerified: Bool {
+        if case .verified = panelVerification { true } else { false }
+    }
+
+    /// 讀面板、送面板按鍵:有面板格式且面板驗證過。
+    public var readsPanels: Bool { panel != nil && isPanelVerified }
     /// 切換權限模式(送 Shift+Tab):有權限模式且驗證過。
     public var switchesPermissionMode: Bool { hasPermissionModes && isVerified }
     /// 在 app 內選模型(送 `/model` 與面板按鍵):驗證過才開放。
-    public var canChooseModel: Bool { choosesModel && isVerified }
+    public var canChooseModel: Bool { choosesModel && isPanelVerified }
     /// 選模型不能用的原因;能用時 `nil`。
-    public var modelChoiceUnavailability: FeatureUnavailability? { unavailability(hasCapability: choosesModel) }
+    public var modelChoiceUnavailability: FeatureUnavailability? { unavailability(hasCapability: choosesModel, verification: panelVerification) }
     /// 切換權限模式不能用的原因;能用時 `nil`。
-    public var permissionModeUnavailability: FeatureUnavailability? { unavailability(hasCapability: hasPermissionModes) }
+    public var permissionModeUnavailability: FeatureUnavailability? { unavailability(hasCapability: hasPermissionModes, verification: verification) }
 
-    private func unavailability(hasCapability: Bool) -> FeatureUnavailability? {
+    private func unavailability(hasCapability: Bool, verification: Verification) -> FeatureUnavailability? {
         guard hasCapability else { return .agentLacksFeature }
         guard case .unverified(let documentedFor) = verification else { return nil }
         return .notVerified(documentedFor: documentedFor)
@@ -145,12 +157,17 @@ public struct ScreenDialect: Sendable, Equatable {
 
     /// 測試以 package 建出沒驗證過的方言,驗證開關才有守門的對象。
     package init(
-        name: String, verification: Verification, statusLine: StatusLineStyle? = nil, panel: PanelStyle? = nil, detectsFilePicker: Bool = false,
-        hasPermissionModes: Bool = false, choosesModel: Bool = false, showsModelName: Bool = false,
+        name: String, verification: Verification, panelVerification: Verification? = nil, statusLine: StatusLineStyle? = nil,
+        panel: PanelStyle? = nil, detectsFilePicker: Bool = false, hasPermissionModes: Bool = false,
+        permissionModeCycle: [AgentPermissionMode]? = nil, switchesPermissionModeOnlyWhenIdle: Bool = false,
+        choosesModel: Bool = false, showsModelName: Bool = false,
         showsApprovalPolicy: Bool = false, readsPromptSuggestions: Bool = false, transcriptStartsAfterFirstMessage: Bool = false
     ) {
         self.name = name
         self.verification = verification
+        self.panelVerification = panelVerification ?? verification
+        self.permissionModeCycle = permissionModeCycle
+        self.switchesPermissionModeOnlyWhenIdle = switchesPermissionModeOnlyWhenIdle
         self.statusLine = statusLine
         self.panel = panel
         self.detectsFilePicker = detectsFilePicker
@@ -172,10 +189,14 @@ extension ScreenDialect {
         name: "codex", verification: .verified(agentVersion: "Codex 0.157–0.163"), panel: .codex, detectsFilePicker: true,
         showsModelName: true, showsApprovalPolicy: true, transcriptStartsAfterFirstMessage: true
     )
-    /// Antigravity 1.5.14(#446):只讀狀態列(模式、模型、effort)並顯示;面板、權限模式切換與選模型要送按鍵,
-    /// 之後的票才開放(`hasPermissionModes`／`panel`／`choosesModel` 都還沒開)。
+    /// Antigravity 1.5.14(#446、#447):讀狀態列(模式、模型、effort),以 Shift+Tab 切換權限模式(輪替順序 auto → plan →
+    /// default → accept-edits,與切換後的狀態列都是真實錄製;只在閒置時切換)。`/model`、`/effort` 面板的畫面錄過,但選定
+    /// (Enter)後的結果與是否寫進設定沒錄過,所以選模型維持未驗證(`panelVerification`);需要錄的項目見 Fixtures/README.md。
     static let antigravity = ScreenDialect(
-        name: "antigravity", verification: .verified(agentVersion: "Antigravity CLI 1.5.14"), statusLine: .antigravity, showsModelName: true
+        name: "antigravity", verification: .verified(agentVersion: "Antigravity CLI 1.5.14"),
+        panelVerification: .unverified(documentedFor: "Antigravity CLI 1.5.14"), statusLine: .antigravity,
+        hasPermissionModes: true, permissionModeCycle: [.auto, .plan, .normal, .acceptEdits],
+        switchesPermissionModeOnlyWhenIdle: true, choosesModel: true, showsModelName: true
     )
     /// 其他種類:不讀面板、不切換、不顯示額外資訊(提示解析仍用通用規則)。
     public static let generic = ScreenDialect(name: "generic", verification: .unverified(documentedFor: "none"))
@@ -231,4 +252,29 @@ enum AntigravityStatusLine {
     private static let modes: [String: AgentPermissionMode] = [
         "default": .normal, "auto": .auto, "accept-edits": .acceptEdits, "plan": .plan,
     ]
+}
+
+extension ScreenDialect {
+    /// 按一次 Shift+Tab 到的下一個模式:有自己的輪替(Antigravity)就照它,否則同 Claude Code 的 `AgentPermissionMode.next`。
+    /// 不在輪替裡的目前模式按下去回到輪替的第一個。
+    public func nextPermissionMode(
+        after mode: AgentPermissionMode, available: Set<AgentPermissionMode> = AgentPermissionMode.defaultAvailable
+    ) -> AgentPermissionMode {
+        guard let cycle = permissionModeCycle else { return mode.next(available: available) }
+        guard let index = cycle.firstIndex(of: mode) else { return cycle[0] }
+        return cycle[(index + 1) % cycle.count]
+    }
+
+    /// 有自己輪替的方言可切換的模式(依面板顯示順序,即 `AgentPermissionMode.switchableOrder` 的順序);沒有自己輪替是 `nil`。
+    public var switchablePermissionModes: [AgentPermissionMode]? {
+        permissionModeCycle.map { cycle in AgentPermissionMode.switchableOrder.filter { cycle.contains($0) } }
+    }
+
+    /// 從畫面讀目前的權限模式:有狀態列的讀狀態列(Antigravity),否則讀 Claude Code 的畫面標示;認不出回 `nil`。
+    /// 沒有權限模式的方言一律 `nil`。
+    public func readPermissionMode(in screen: String) -> AgentPermissionMode? {
+        guard hasPermissionModes else { return nil }
+        if statusLine != nil { return readStatusLine(in: screen)?.mode }
+        return PermissionModeScreen.parse(screen)
+    }
 }

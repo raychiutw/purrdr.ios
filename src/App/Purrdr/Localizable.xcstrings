@@ -12163,6 +12163,17 @@
         }
       }
     },
+    "The agent is working. Wait until it’s done to change the mode." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 正在工作。等它做完,再切換模式。"
+          }
+        }
+      }
+    },
     "The agent moved to another folder" : {
       "extractionState" : "manual",
       "localizations" : {

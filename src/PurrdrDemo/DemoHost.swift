@@ -456,7 +456,8 @@ public actor DemoHost: HostChannel {
                 return DemoSnapshot.paneRead(id: id, paneID: paneID, text: Self.workingScreen, ansi: ansi)
             }
             if paneID == DemoAntigravity.paneID, scenario == .antigravity {
-                return DemoSnapshot.paneRead(id: id, paneID: paneID, text: DemoAntigravity.screen, ansi: ansi)
+                let mode = answers.permissionModes[paneID] ?? DemoAntigravity.initialMode
+                return DemoSnapshot.paneRead(id: id, paneID: paneID, text: DemoAntigravity.screen(mode: mode), ansi: ansi)
             }
             return DemoSnapshot.paneRead(id: id, paneID: paneID, text: answers.screen(for: paneID, ansi: ansi), ansi: ansi)
         case "pane.send_keys":

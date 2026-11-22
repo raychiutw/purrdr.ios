@@ -29,18 +29,52 @@ enum DemoAntigravity {
                     text: "Added **Tomatoes: daily at dawn** to `schedule.md`."),
         ], isAntigravity: true)
 
-    /// 閒置畫面(真實錄製 `agy-idle-accept-edits` 的結構):右下角「accept-edits · Gemini 4 Neon · medium」。
-    static let screen = """
+    /// 一開始的權限模式:accept-edits。
+    static let initialMode: AgentPermissionMode = .acceptEdits
+
+    /// Shift+Tab 的輪替:auto → plan → default → accept-edits → auto(真實錄製實測,#447)。
+    static func nextMode(after mode: AgentPermissionMode) -> AgentPermissionMode {
+        switch mode {
+        case .auto: .plan
+        case .plan: .normal
+        case .normal: .acceptEdits
+        default: .auto
+        }
+    }
+
+    /// 閒置畫面(真實錄製 `agy-idle-*` 的結構):輸入框上方是模式的提示行,右下角「模式 · Gemini 4 Neon · medium」
+    /// (default 模式沒有提示行,狀態列也沒有模式那一段)。
+    static func screen(mode: AgentPermissionMode) -> String {
+        let hint: String
+        let status: String
+        switch mode {
+        case .auto:
+            hint = "Auto mode: edits & safe commands auto-approved (shift+tab to cycle)"
+            status = "auto · Gemini 4 Neon · medium"
+        case .plan:
+            hint = "Plan mode: research & plan only (shift+tab to cycle)"
+            status = "plan · Gemini 4 Neon · medium"
+        case .acceptEdits:
+            hint = "Accept-edits mode: file edits auto-approved (shift+tab to cycle)"
+            status = "accept-edits · Gemini 4 Neon · medium"
+        default:
+            hint = ""
+            status = "Gemini 4 Neon · medium"
+        }
+        let rule = String(repeating: "─", count: 98)
+        let pad = String(repeating: " ", count: max(2, 98 - "? for shortcuts".count - status.count))
+        return """
               ▄▀▀▄        Antigravity CLI 1.5.14
              ▀▀▀▀▀▀       demo@example.com (Google AI Pro)
             ▀▀▀▀▀▀▀▀      Gemini 4 Neon (Medium)
            ▄▀▀    ▀▀▄     /Users/demo/garden
 
-        ──────────────────────────────────────────────────────────────────────────────────────────────────
-        > Accept-edits mode: file edits auto-approved (shift+tab to cycle)
-        ──────────────────────────────────────────────────────────────────────────────────────────────────
-        ? for shortcuts                                              accept-edits · Gemini 4 Neon · medium
+        \(rule)
+        > \(hint)
+        \(rule)
+        ? for shortcuts\(pad)\(status)
         """
+    }
 
     /// 送出 prompt 後接在對話紀錄後面的行:`!` 指令與一般訊息都只回示範說明。
     static func reply(to prompt: String, number: Int, startingAt step: Int, at date: Date) -> [String] {

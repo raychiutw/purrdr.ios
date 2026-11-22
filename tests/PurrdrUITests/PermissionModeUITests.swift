@@ -57,10 +57,10 @@ final class PermissionModeUITests: XCTestCase {
         XCTAssertTrue(picker.wait(for: gone, timeout: 10), "等待的條件沒有成立")
     }
 
-    /// Antigravity(#446):標題顯示畫面狀態列讀到的權限模式,模型膠囊顯示「模型 · effort」;狀態面板只顯示、不能切換。
-    /// 只讀狀態列,**不送任何按鍵**。
+    /// Antigravity(#446、#447):標題顯示畫面狀態列讀到的權限模式;狀態面板可切換權限模式(Demo 主機以錄製的輪替順序回應 Shift+Tab);
+    /// 模型沒驗證過,面板只顯示、輸入列的模型膠囊顯示「模型 · effort」。
     @MainActor
-    func testAntigravityShowsModeAndModelReadOnly() {
+    func testAntigravitySwitchesModeAndShowsModel() {
         let app = XCUIApplication.launchUITesting(flags: ["-demoAntigravity"])
         let row = app.element("agent.row.demo/w4:p1")
         XCTAssertTrue(app.reveal(row), "沒有看到 Demo 的 Antigravity Agent")
@@ -72,11 +72,16 @@ final class PermissionModeUITests: XCTestCase {
 
         header.tap()
         XCTAssertTrue(app.element("status.sheet").waitUntilExists(timeout: 5), "點標題沒有開出面板")
-        XCTAssertTrue(app.element("permissionMode.readOnlyRow").waitUntilExists(timeout: 10), "面板沒有唯讀的權限模式")
-        XCTAssertFalse(app.element("permissionMode.picker").exists, "Antigravity 的權限模式不能在手機切換")
+        XCTAssertTrue(app.element("permissionMode.picker").waitUntilExists(timeout: 10), "面板沒有權限模式選項")
+        XCTAssertFalse(app.buttons["Bypass Permissions"].exists, "Antigravity 的輪替沒有略過權限")
+        let plan = app.buttons["Plan"].firstMatch
+        XCTAssertTrue(plan.waitUntilExists(timeout: 10), "面板裡沒有 Plan 勾選列")
+        plan.tap()
+        XCTAssertTrue(plan.wait(for: NSPredicate(format: "isSelected == true"), timeout: 10), "沒有切換成 Plan")
         XCTAssertTrue(app.element("status.model").exists, "面板沒有顯示模型")
         app.buttons["sheet.close"].tap()
         XCTAssertTrue(app.element("status.sheet").waitUntilGone(timeout: 5))
+        XCTAssertTrue(header.wait(for: NSPredicate(format: "label BEGINSWITH 'Plan'"), timeout: 10), "標題沒有顯示 Plan")
 
         app.element("composer.text").tap()
         let capsule = app.element("composer.model")

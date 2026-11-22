@@ -2303,8 +2303,9 @@ public final class ConversationModel {
     }
 
     /// 面板上的模式選項(依輪替順序);目前是 `dontAsk` 時多一列只顯示的它。
+    /// 有自己輪替的 Agent(Antigravity)固定是它輪替裡的幾種。
     public var permissionModeOptions: [AgentPermissionMode] {
-        permissionModeAvailability.options(current: permissionMode)
+        screenDialect.switchablePermissionModes ?? permissionModeAvailability.options(current: permissionMode)
     }
 
     /// Codex 的核准政策原文(例:`on-request`);只顯示,不能在手機切換。其他 Agent 是 `nil`。
@@ -2350,6 +2351,8 @@ public final class ConversationModel {
     public enum PermissionModeLock: Equatable, Sendable {
         case readOnlyDevice
         case offline
+        /// Agent 在工作:這個 Agent 的切換只驗證過閒置時(Antigravity)。
+        case working
         /// Agent 在等使用者回覆:這時 Shift+Tab 會變成「核准」。
         case waitingForYou
     }
@@ -2358,12 +2361,13 @@ public final class ConversationModel {
         if isReadOnly { return .readOnlyDevice }
         if isOffline { return .offline }
         if agentStatus == .blocked { return .waitingForYou }
+        if agentStatus == .working, screenDialect.switchesPermissionModeOnlyWhenIdle { return .working }
         return nil
     }
 
     /// 讀一次畫面:對話紀錄還沒有模式時用它當目前模式,紀錄有值就以紀錄為準(畫面只用來記錄看過哪些模式);認不出沿用上次。
     public func refreshPermissionMode() async {
-        guard supportsPermissionMode, let screen = await readScreen(), let mode = PermissionModeScreen.parse(screen) else { return }
+        guard supportsPermissionMode, let mode = await readPermissionMode() else { return }
         if metadata.permissionMode == nil {
             observeScreen(mode)
         } else {
@@ -2393,6 +2397,8 @@ public final class ConversationModel {
     /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
     public func setPermissionMode(_ target: AgentPermissionMode) async {
         guard supportsPermissionMode, !isSwitchingPermissionMode, target.isSwitchable else { return }
+        // 有自己輪替的 Agent:目標不在輪替裡(例如略過權限)按不出來,一個鍵都不送。
+        if let cycle = screenDialect.permissionModeCycle, !cycle.contains(target) { return }
         guard !isReadOnly else {
             notice = .readOnlyDevice
             return
@@ -2423,7 +2429,15 @@ public final class ConversationModel {
             }
             attempts += 1
             do { try await sleep(.milliseconds(300)) } catch { return }
-            guard let read = await readPermissionMode() else { break }
+            guard var read = await readPermissionMode() else { break }
+            // 有自己輪替的 Agent:畫面可能還沒重畫(讀到的模式沒變),先再讀幾次,不要重複按而跳過目標。
+            var rereads = 0
+            while screenDialect.permissionModeCycle != nil, read == current, rereads < Self.staleModeRereads {
+                rereads += 1
+                do { try await sleep(.milliseconds(300)) } catch { return }
+                guard let again = await readPermissionMode() else { break }
+                read = again
+            }
             let wrapped = read != current && !visited.insert(read).inserted
             current = read
             observeScreen(read)
@@ -2441,9 +2455,17 @@ public final class ConversationModel {
         }
     }
 
+    /// 按了 Shift+Tab 後畫面沒變時最多再讀幾次(每次隔 0.3 秒)才再按。
+    private static let staleModeRereads = 2
+
+    /// 讀畫面認出目前的權限模式(依畫面方言);狀態列方言順便更新狀態列,讓膠囊與標題跟著變。
     private func readPermissionMode() async -> AgentPermissionMode? {
         guard let screen = await readScreen() else { return nil }
-        return PermissionModeScreen.parse(screen)
+        if screenDialect.statusLine != nil, let line = screenDialect.readStatusLine(in: Self.plainText(ansi: screen)) {
+            screenStatusLine = line
+            return line.mode
+        }
+        return screenDialect.readPermissionMode(in: screen)
     }
 
     /// 從 Pane 畫面認出的建議(輸入框有字時保留，清空後再顯示)。

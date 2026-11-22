@@ -181,6 +181,18 @@ AskUserQuestion 的分頁頭與多選、Codex 的 `›` 游標與 `Would you lik
   有 `version`、`plan_tier`、`context_window`(`context_window_size` 1048576)。**`transcript_path` 是錯的**(指向 `~/.gemini/antigravity/brain/…`,
   實際檔案在 `~/.gemini/antigravity-cli/brain/…`),不要依賴它。
 
+### Antigravity 會送按鍵的功能:驗證現況(#447)
+
+- **已用錄製驗證、開放**:回答權限提示與 `ask_question`(單按數字,#445)、**切換權限模式**(Shift+Tab 輪替 auto → plan → default → accept-edits,
+  切換後的狀態列以 `agy-idle-*` 四張畫面對照;只在閒置時切換,錄製沒有工作中按 Shift+Tab 的畫面)。
+- **維持未驗證、不開放**:在 app 內選模型與調 effort(`/model`、`/effort` 面板)。面板畫面已錄(`agy-panel-*`),但沒錄到**選定之後**的結果,
+  所以不知道 Enter 是只改這個 session、還是寫進使用者設定,也不知道 Esc 的後果。要開放需要在專用 workspace 補錄:
+  1. `/model` 移到另一個模型後按 Enter:畫面、狀態列、對話紀錄(`<USER_SETTINGS_CHANGE>`)、`~/.gemini/antigravity-cli` 設定檔有沒有被改;
+  2. `/model` 面板內 `←/→` 調 effort 後 Enter 的結果,以及不同模型 effort 等級數量不同時游標落點;
+  3. `/effort` 單獨面板調整後 Enter、Esc 各自的畫面;
+  4. Agent 工作中按 Shift+Tab 的結果(目前 app 在工作中鎖住切換);
+  5. 權限提示開著時按 Shift+Tab 的結果(herdr 認不出 agy 權限提示,app 看不到 blocked)。
+
 ## Tailscale SSH check mode(`tailscale/`)——依文件模擬、未實測
 
 `tailscale/check-mode.banner.txt`:Tailscale SSH 在 check mode 時送出的 SSH 認證橫幅。**不是錄製的**:作者的 Mac 無法經 Tailscale SSH 連自己，也不變更作者的 ACL。

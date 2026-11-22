@@ -109,7 +109,12 @@ struct DemoAnswers {
     mutating func receivedKeys(_ keys: [String], paneID: String) {
         // Shift+Tab 輪替權限模式(#306):一般 → 接受編輯 → Plan → 一般。
         if keys == ["shift+tab"] {
-            permissionModes[paneID] = (permissionModes[paneID] ?? .normal).next()
+            if paneID == DemoAntigravity.paneID {
+                // Antigravity 的輪替順序是真實錄製的 auto → plan → default → accept-edits(#447)。
+                permissionModes[paneID] = DemoAntigravity.nextMode(after: permissionModes[paneID] ?? DemoAntigravity.initialMode)
+            } else {
+                permissionModes[paneID] = (permissionModes[paneID] ?? .normal).next()
+            }
             return
         }
         if Self.workingPanes.contains(paneID), keys == ["esc"] || keys == ["ctrl+c"] {

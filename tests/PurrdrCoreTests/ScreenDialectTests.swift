@@ -43,13 +43,41 @@ struct ScreenDialectTests {
         #expect(codex.configurableCategories.isEmpty)
     }
 
-    @Test("Antigravity:只讀狀態列並顯示模型;面板、權限模式切換、選模型要送按鍵,還沒開放(#446)")
-    func antigravityReadsOnly() {
+    @Test("Antigravity:狀態列、切換權限模式已用 1.5.14 的錄製驗證;面板與選模型沒錄過選定後的畫面,維持未驗證(#447)")
+    func antigravityKeyFeatures() {
         let agy = Self.dialect("agy")
         #expect(agy.statusLine == .antigravity && agy.showsModelName && agy.isVerified)
-        #expect(!agy.readsPanels && !agy.switchesPermissionMode && !agy.canChooseModel)
-        #expect(agy.configurableCategories.isEmpty)
+        #expect(agy.switchesPermissionMode && agy.permissionModeUnavailability == nil)
+        #expect(!agy.readsPanels && !agy.canChooseModel)
+        #expect(agy.modelChoiceUnavailability == .notVerified(documentedFor: "Antigravity CLI 1.5.14"))
+        #expect(agy.configurableCategories == [.mode])
         #expect(Self.dialect("claude").statusLine == nil && Self.dialect("codex").statusLine == nil)
+    }
+
+    @Test("Antigravity 的 Shift+Tab 輪替是 auto → plan → default → accept-edits → auto(錄製實測),選項依這個順序")
+    func antigravityCycle() {
+        let agy = Self.dialect("agy")
+        #expect(agy.nextPermissionMode(after: .auto) == .plan)
+        #expect(agy.nextPermissionMode(after: .plan) == .normal)
+        #expect(agy.nextPermissionMode(after: .normal) == .acceptEdits)
+        #expect(agy.nextPermissionMode(after: .acceptEdits) == .auto)
+        #expect(agy.switchablePermissionModes == [.normal, .acceptEdits, .plan, .auto])
+        #expect(Self.dialect("claude").switchablePermissionModes == nil)
+        #expect(Self.dialect("claude").nextPermissionMode(after: .normal) == .acceptEdits)
+    }
+
+    @Test("Antigravity 的權限模式讀狀態列(四種模式的真實閒置畫面);面板開著與 Claude 的畫面標示不算", arguments: [
+        ("agy-idle-auto", AgentPermissionMode.auto), ("agy-idle-plan", .plan), ("agy-idle-accept-edits", .acceptEdits), ("agy-idle-default", .normal),
+    ])
+    func antigravityReadsModeFromStatusLine(name: String, mode: AgentPermissionMode) {
+        #expect(Self.dialect("agy").readPermissionMode(in: PaneScreens.text(name)) == mode)
+    }
+
+    @Test("Antigravity 工作中的畫面讀得到模式,讀不出來的畫面回 nil")
+    func antigravityModeUnreadable() {
+        #expect(Self.dialect("agy").readPermissionMode(in: PaneScreens.text("agy-working")) == .normal)
+        #expect(Self.dialect("agy").readPermissionMode(in: "nothing useful\n") == nil)
+        #expect(Self.dialect("unknown-agent").readPermissionMode(in: PaneScreens.text("agy-idle-plan")) == nil)
     }
 
     @Test("herdr 的別名(claude-code)也取到同一份畫面組")

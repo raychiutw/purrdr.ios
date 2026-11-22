@@ -68,6 +68,7 @@ extension ConversationModel.PermissionModeLock {
         case .readOnlyDevice: "This device is paired read-only, so it can’t change the mode."
         case .offline: "Can’t reach the host, so the mode can’t be changed."
         case .waitingForYou: "The agent is waiting for your reply. Answer first, then change the mode."
+        case .working: "The agent is working. Wait until it’s done to change the mode."
         }
     }
 }
@@ -89,24 +90,6 @@ extension PermissionModeFailure {
             String(localized: "Couldn’t send the keys to the host. Try again, or check the terminal.")
         case .paneChanged:
             String(localized: "This pane is running a different chat now, so the mode wasn’t changed.")
-        }
-    }
-}
-
-/// 只讀得到、不能在手機切換的權限模式(Antigravity,#446):顯示目前模式與說明。
-struct ReadOnlyPermissionModeSection: View {
-    let mode: AgentPermissionMode
-
-    var body: some View {
-        Section {
-            LabeledContent("Permission Mode") {
-                Text(verbatim: mode.displayName)
-                    .foregroundStyle(.secondaryText)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("permissionMode.readOnlyRow")
-        } footer: {
-            Text("This is set on the host and can’t be changed here.")
         }
     }
 }
