@@ -228,6 +228,13 @@ struct HostOverviewView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("hosts.demo.addOwn")
+            // 設計稿(#392)範例主機沒有登入 Shell;刻意保留:App Review 要能開 Demo 的模擬終端機(#434,App 內建、不連真電腦)。
+            if overview.showsLoginShell {
+                NavigationLink(value: HostRoute.loginShell) {
+                    HostRowLabel(title: "Login Shell")
+                }
+                .accessibilityIdentifier("hosts.tool.loginShell")
+            }
         } header: {
             Text("This Host")
                 .foregroundStyle(.secondaryText)

@@ -46,14 +46,14 @@ struct HostOverviewTests {
         #expect(model.overview == nil)
     }
 
-    @Test("範例主機:只有範例狀態,沒有用量、登入 Shell、分享與主機服務")
+    @Test("範例主機:只有範例狀態與模擬登入 Shell(App Review 用,#434),沒有用量、分享與主機服務")
     func demoHost() {
         let model = HostsModel(store: MemoryHostStore(), demoChannel: FakeHost(), makeChannel: ChannelFactory().make)
         model.load()
         let overview = model.overview
         #expect(overview?.status == .demo)
         #expect(overview?.showsUsage == false)
-        #expect(overview?.showsLoginShell == false)
+        #expect(overview?.showsLoginShell == true)
         #expect(overview?.canShare == false)
         #expect(overview?.showsHostService == false)
         #expect(overview?.isSaved == false)

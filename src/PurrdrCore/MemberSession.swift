@@ -29,16 +29,21 @@ public actor MemberSession {
     private let now: @Sendable () -> Date
     private let deviceID: @Sendable () -> String?
     private let diagnostics: MemberDiagnostics
+    private let supportsSignInOnly: Bool
     private var accessToken: (token: String, expiresAt: Date)?
     private var renewal: Task<Member, any Error>?
 
     /// - Parameters:
     ///   - deviceID: 這支裝置在後台的 id(app 存在 Keychain 的 UUID);登入時帶上,讓後台一支裝置只留一個工作階段。讀不到時回 `nil`,照常登入。
     ///   - diagnostics: 診斷事件(只有結果碼,不含個資)。
+    ///   - supportsSignInOnly: 後台是否有「登入不新建會員」選項(`createMember: false`,查無會員回 404 `member_not_found`,#434)。
+    ///     後台目前沒有,預設 `false`:登入照舊(查無會員會新建);後台上線該選項後在 composition root 開啟。
     public init(
         transport: any BackendTransport, tokenStore: any TokenStore, now: @escaping @Sendable () -> Date = { Date() },
-        deviceID: @escaping @Sendable () -> String? = { nil }, diagnostics: @escaping MemberDiagnostics = { _ in }
+        deviceID: @escaping @Sendable () -> String? = { nil }, diagnostics: @escaping MemberDiagnostics = { _ in },
+        supportsSignInOnly: Bool = false
     ) {
+        self.supportsSignInOnly = supportsSignInOnly
         self.transport = transport
         self.tokenStore = tokenStore
         self.now = now
@@ -53,9 +58,13 @@ public actor MemberSession {
     }
 
     /// 用 Apple 或 Google 的憑證登入;沒有會員時後台會建立一個。
-    public func signIn(_ credential: SignInCredential) async throws -> SignInResult {
+    /// `createIfMissing` 為 `false`(登入頁)且後台支援時,查無會員不新建、丟 `BackendError.backend(404, "member_not_found")`;
+    /// 後台不支援時這個參數不生效(不送,避免先建後擋留下孤兒會員)。
+    public func signIn(_ credential: SignInCredential, createIfMissing: Bool = true) async throws -> SignInResult {
+        let createMember: Bool? = (!createIfMissing && supportsSignInOnly) ? false : nil
         let response = try await send(BackendRequest(
-            method: "POST", path: "/v1/sessions", body: try Wire.encode(credential, deviceID: deviceID()?.lowercased(), isSignIn: true)))
+            method: "POST", path: "/v1/sessions",
+            body: try Wire.encode(credential, deviceID: deviceID()?.lowercased(), isSignIn: true, createMember: createMember)))
         let session = try Wire.decode(Wire.Session.self, from: response)
         try adopt(session)
         diagnostics(.signedIn)
@@ -323,6 +332,8 @@ private enum Wire {
         /// 登入時才帶(連結另一種登入方式不帶)。
         var deviceId: String?
         var platform: String?
+        /// 只在登入頁(不新建會員)帶 `false`。
+        var createMember: Bool?
     }
 
     struct Session: Decodable {
@@ -581,14 +592,15 @@ private enum Wire {
     }
 
     /// `deviceID` 非 `nil` 表示是「登入」:帶上這支裝置的 id 與平台。連結另一種登入方式(`nil`)只送憑證。
-    static func encode(_ credential: SignInCredential, deviceID: String? = nil, isSignIn: Bool = false) throws -> Data {
+    static func encode(_ credential: SignInCredential, deviceID: String? = nil, isSignIn: Bool = false, createMember: Bool? = nil) throws -> Data {
         try JSONEncoder().encode(Credential(
             provider: credential.method.rawValue,
             idToken: credential.idToken,
             nonce: credential.nonce,
             authorizationCode: credential.authorizationCode,
             deviceId: deviceID,
-            platform: isSignIn ? "ios" : nil
+            platform: isSignIn ? "ios" : nil,
+            createMember: createMember
         ))
     }
 

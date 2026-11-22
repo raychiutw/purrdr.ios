@@ -24,7 +24,7 @@ final class HostToolsUITests: XCTestCase {
 
     @MainActor
     func testLoginShellOpensOnSelectedHost() {
-        // 範例主機沒有登入 Shell(#392);已存主機的通道是 Demo 主機,回顯 shell。
+        // 已存主機的通道是 Demo 主機,回顯 shell(範例主機自己的入口見 testDemoHostKeepsLoginShell)。
         let app = XCUIApplication.launchUITesting(flags: ["-seedHost"])
         openMenuItem("menu.loginShell", in: app)
 
@@ -104,6 +104,15 @@ final class HostToolsUITests: XCTestCase {
         openMenuItem("menu.files", in: app)
         XCTAssertTrue(app.buttons["files.host"].firstMatch.waitUntilExists(timeout: 10), "檔案沒有主機挑選鈕")
         XCTAssertTrue(app.buttons["files.host"].firstMatch.label.contains("Studio Mac"), "檔案不該沿用登入 Shell 的選擇")
+    }
+
+    /// 範例主機總頁保留「登入 Shell」(#434,對設計稿的刻意偏離):進 Demo 的模擬終端機,App Review 用。
+    @MainActor
+    func testDemoHostKeepsLoginShell() {
+        let app = XCUIApplication.launchUITesting()
+        openMenuItem("menu.loginShell", in: app)
+        let status = app.descendants(matching: .any)["terminal.status"].firstMatch
+        XCTAssertTrue(status.waitForLabel(containing: "Demo", timeout: 10), "範例主機的登入 Shell 沒有開到 Demo 終端機:\(status.label)")
     }
 
     /// 檔案換主機後從那台的家目錄重新列出。

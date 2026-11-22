@@ -396,7 +396,7 @@ public final class HostsModel {
             host: selected, name: name(of: selected), icon: icon(of: selected), status: status, connection: method,
             herdrVersion: herdrVersion, address: configuration?.hostService?.description,
             showsUsage: hasUsageSource, showsHostService: pairedHostService,
-            showsLoginShell: configuration?.supportsLoginShell == true && status != .needsPairing,
+            showsLoginShell: (configuration?.supportsLoginShell ?? true) && status != .needsPairing,
             canShare: configuration != nil, hasHostSettings: configuration != nil && status != .needsPairing,
             isSaved: configuration != nil)
     }

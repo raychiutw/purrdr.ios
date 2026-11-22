@@ -28,6 +28,28 @@ struct PermissionModeScreenTests {
         #expect(PermissionModeScreen.parse(Self.screen(footer: footer)) == expected)
     }
 
+    /// 2026-11-22 在本機 Claude Code 2.1.330 的自建 `purrdr-test` workspace 實測(只送 Shift+Tab、不送提示詞;結果記在 #383):
+    /// 啟動就是 bypass permissions,每按一次 Shift+Tab 輸入框下方一行依序是
+    /// `auto mode on` → `manual mode on` → `accept edits on` → `plan mode on` → `bypass permissions on` → `auto mode on`。
+    /// 一般模式在這版有標示 `⏸ manual mode on`(不是沒有標示)。
+    @Test("實測:Shift+Tab 輪替與一般模式的標示字串")
+    func observedRotationOnClaudeCode2_1_330() {
+        let observed: [(footer: String, mode: AgentPermissionMode)] = [
+            ("⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents", .bypassPermissions),
+            ("⏵⏵ auto mode on (shift+tab to cycle) · ← for agents", .auto),
+            ("⏸ manual mode on", .normal),
+            ("⏵⏵ accept edits on (shift+tab to cycle)", .acceptEdits),
+            ("⏸ plan mode on (shift+tab to cycle)", .plan),
+        ]
+        let everything: Set<AgentPermissionMode> = [.normal, .acceptEdits, .plan, .bypassPermissions, .auto]
+        for (index, step) in observed.enumerated() {
+            #expect(PermissionModeScreen.parse(Self.screen(footer: step.footer)) == step.mode)
+            // 輪替順序(含 bypass 與 auto 都可用時):bypass → auto → manual → acceptEdits → plan → bypass。
+            let next = observed[(index + 1) % observed.count].mode
+            #expect(step.mode.next(available: everything) == next, "\(step.mode) 的下一個應是 \(next)")
+        }
+    }
+
     @Test("不是輸入畫面(沒有任何標示)認不出,回 nil")
     func unknownScreen() {
         #expect(PermissionModeScreen.parse("$ ls\nfile.txt\n") == nil)

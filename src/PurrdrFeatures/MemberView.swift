@@ -92,6 +92,14 @@ public struct MemberContent: View {
         .onChange(of: model.phase) { _, phase in
             if phase == .signedOut { entry.reset() }
         }
+        // 登入頁查無這個帳號的會員:擋下並問要不要加入,確認才進加入流程(#434)。
+        .alert("No Member Found", isPresented: Binding(get: { model.memberNotFound }, set: { if !$0 { model.dismissMemberNotFound() } })) {
+            Button("Join") { entry.switchToJoin() }
+                .accessibilityIdentifier("member.notFound.join")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("We couldn’t find a member for this account. Do you want to join?")
+        }
         .alert(model.notice?.title ?? "", isPresented: noticePresented, presenting: model.notice) { notice in
             if notice == .deleted {
                 Link("Manage Subscriptions", destination: URL(string: "https://apps.apple.com/account/subscriptions")!)
@@ -212,7 +220,7 @@ struct SignInButtons: View {
             let credential = SignInCredential(
                 method: method, idToken: copy == .signUp ? "ui-testing-new" : "ui-testing-existing", nonce: "ui-testing",
                 authorizationCode: method == .apple ? "ui-testing" : nil)
-            Task { await model.signIn(with: credential) }
+            Task { await model.signIn(with: credential, joining: copy == .signUp) }
         } label: {
             Text(method == .apple ? (copy == .signUp ? "Sign up with Apple" : "Sign in with Apple") : googleTitle)
                 .font(.body.weight(.medium))
@@ -228,7 +236,7 @@ struct SignInButtons: View {
     private var appleButton: some View {
         SignInWithAppleButton(linking ? .continue : (copy == .signUp ? .signUp : .signIn)) { request in
             request.requestedScopes = [.email]
-            request.nonce = model.beginAppleAuthorization(linking: linking)
+            request.nonce = model.beginAppleAuthorization(linking: linking, joining: copy == .signUp)
         } onCompletion: { result in
             switch result {
             case .success(let authorization):
@@ -268,7 +276,7 @@ struct SignInButtons: View {
                 if linking {
                     await model.linkGoogle(browser: browser)
                 } else {
-                    await model.signInWithGoogle(browser: browser)
+                    await model.signInWithGoogle(browser: browser, joining: copy == .signUp)
                 }
             }
         } label: {

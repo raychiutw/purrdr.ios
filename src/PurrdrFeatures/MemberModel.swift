@@ -31,13 +31,18 @@ public final class MemberModel {
     }
 
     public private(set) var lastSignIn: SignInEvent?
+    /// 登入頁查無這個帳號的會員(#434):畫面問「找不到這個帳號的會員,要加入嗎?」。
+    public private(set) var memberNotFound = false
+
+    /// 收起「查無會員」的詢問(選了加入或取消都呼叫;加入由畫面切到加入頁,使用者再登入一次)。
+    public func dismissMemberNotFound() { memberNotFound = false }
     private var signInCount = 0
 
     /// 目前這次操作是否以「暫時連不上」收尾(讀到本機快照就算成功,但後台沒答)。
     private var endedLimited = false
     private let session: MemberSession
     private let google: GoogleSignIn
-    private var pendingApple: (nonce: String, linking: Bool)?
+    private var pendingApple: (nonce: String, linking: Bool, joining: Bool)?
     /// 通知與主機同步的本機狀態依會員分區(#405);`nil` 時不管本機狀態(只有測試)。
     private let localState: MemberLocalState?
 
@@ -81,9 +86,10 @@ public final class MemberModel {
     }
 
     /// Sign in with Apple 開始前呼叫：產生 nonce,回傳要交給 Apple 的 SHA-256(hex)。
-    public func beginAppleAuthorization(linking: Bool) -> String {
+    /// `joining` 為 `false`(登入頁)時不新建會員:查無會員改問要不要加入(`memberNotFound`,#434)。
+    public func beginAppleAuthorization(linking: Bool, joining: Bool = true) -> String {
         let nonce = GoogleSignIn.randomString()
-        pendingApple = (nonce, linking)
+        pendingApple = (nonce, linking, joining)
         return SHA256.hash(data: Data(nonce.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
@@ -92,7 +98,7 @@ public final class MemberModel {
         guard let pending = pendingApple else { return }
         pendingApple = nil
         let credential = SignInCredential(method: .apple, idToken: idToken, nonce: pending.nonce, authorizationCode: authorizationCode)
-        await submit(credential, linking: pending.linking)
+        await submit(credential, linking: pending.linking, joining: pending.joining)
     }
 
     /// Sign in with Apple 失敗或取消。取消不提示。
@@ -104,13 +110,13 @@ public final class MemberModel {
     }
 
     /// 直接以憑證登入(測試替身與 UI 測試用,正式畫面走 Apple／Google 按鈕)。
-    public func signIn(with credential: SignInCredential) async {
-        await submit(credential, linking: false)
+    public func signIn(with credential: SignInCredential, joining: Bool = true) async {
+        await submit(credential, linking: false, joining: joining)
     }
 
     /// 用 Google 登入;`browser` 由畫面以系統瀏覽器提供。
-    public func signInWithGoogle(browser: GoogleSignIn.Browser) async {
-        await googleCredential(browser: browser, linking: false)
+    public func signInWithGoogle(browser: GoogleSignIn.Browser, joining: Bool = true) async {
+        await googleCredential(browser: browser, linking: false, joining: joining)
     }
 
     /// 連結 Google 登入。
@@ -157,7 +163,7 @@ public final class MemberModel {
 
     // MARK: -
 
-    private func googleCredential(browser: GoogleSignIn.Browser, linking: Bool) async {
+    private func googleCredential(browser: GoogleSignIn.Browser, linking: Bool, joining: Bool = true) async {
         isWorking = true
         defer { isWorking = false }
         let credential: SignInCredential
@@ -171,10 +177,10 @@ public final class MemberModel {
             notice = .failed(String(localized: "Google sign-in didn’t finish. Try again."))
             return
         }
-        await submit(credential, linking: linking)
+        await submit(credential, linking: linking, joining: joining)
     }
 
-    private func submit(_ credential: SignInCredential, linking: Bool) async {
+    private func submit(_ credential: SignInCredential, linking: Bool, joining: Bool = true) async {
         await run {
             if linking {
                 let result = try await session.link(credential)
@@ -184,7 +190,7 @@ public final class MemberModel {
             } else {
                 // 已登入時再登入:換會員前先撤銷上一位的推播配對(登入後就沒有他的權杖了)。
                 if case .signedIn = phase, !(await leaveLocalState()) { return }
-                let result = try await session.signIn(credential)
+                let result = try await session.signIn(credential, createIfMissing: joining)
                 phase = .signedIn(result.member)
                 localState?.activate(result.member)
                 signInCount += 1
@@ -224,6 +230,9 @@ public final class MemberModel {
             isConnectionLimited = false
             localState?.discardAll()
             notice = .signedOut
+        } catch let BackendError.backend(status, code, _) where status == 404 && code == "member_not_found" {
+            // 登入頁查無會員(後台不新建):不是錯誤,問使用者要不要加入(#434)。
+            memberNotFound = true
         } catch let BackendError.backend(status, code, message) {
             if status >= 500, case .signedIn = phase { isConnectionLimited = true }
             notice = MemberNotice(code: code, message: message)

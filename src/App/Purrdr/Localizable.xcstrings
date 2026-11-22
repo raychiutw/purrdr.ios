@@ -5990,6 +5990,17 @@
         }
       }
     },
+    "Join" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入"
+          }
+        }
+      }
+    },
     "Join as a Member" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6998,6 +7009,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有符合的指令"
+          }
+        }
+      }
+    },
+    "No Member Found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到會員"
           }
         }
       }
@@ -14723,6 +14745,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "想用「做完再送」和卡住提醒？也可以在那台主機裝主機服務。"
+          }
+        }
+      }
+    },
+    "We couldn’t find a member for this account. Do you want to join?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到這個帳號的會員,要加入嗎?"
           }
         }
       }

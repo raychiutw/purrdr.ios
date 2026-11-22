@@ -180,10 +180,11 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
             app.openHostsTab()
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
-            // 沒有已存主機時主機 tab 是範例主機:只有範例狀態與「移除範例主機」(#392)。
+            // 沒有已存主機時主機 tab 是範例主機:只有範例狀態、登入 Shell 與「移除範例主機」(#392、#434)。
             XCTAssertTrue(app.element("hosts.status").waitUntilExists(timeout: 10), "主機 tab 沒有連線狀態")
             XCTAssertTrue(app.buttons["hosts.demo.remove"].exists, "範例主機沒有「移除範例主機」")
-            XCTAssertFalse(app.buttons["hosts.tool.loginShell"].exists, "範例主機不該有登入 Shell")
+            // 刻意偏離設計稿(#434):範例主機保留「登入 Shell」,App Review 用它開 Demo 的模擬終端機。
+            XCTAssertTrue(app.overviewRow("hosts.tool.loginShell").exists, "範例主機沒有保留登入 Shell")
             app.openTab(.traffic)
             XCTAssertTrue(app.element("dataUsage.page").waitUntilExists(timeout: 10), "流量 tab 沒有網路流量頁")
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "流量 tab 沒有帳號鈕")
