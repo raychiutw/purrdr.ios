@@ -136,6 +136,8 @@ extension AgentPermissionMode {
         case .acceptEdits: String(localized: "Accept Edits")
         case .plan: String(localized: "Plan")
         case .bypassPermissions: String(localized: "Bypass Permissions")
+        case .auto: String(localized: "Auto")
+        case .dontAsk: String(localized: "Don’t Ask")
         }
     }
 }

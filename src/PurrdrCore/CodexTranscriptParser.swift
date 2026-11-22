@@ -91,6 +91,9 @@ public enum CodexTranscriptParser {
         case "turn_context":
             if let model = payload["model"] as? String, !model.isEmpty { metadata.model = model }
             if let effort = payload["effort"] as? String, effort.wholeMatch(of: /[a-z]{1,16}/) != nil { metadata.effort = effort }
+            if let policy = payload["approval_policy"] as? String, policy.wholeMatch(of: /[A-Za-z][A-Za-z\-_]{0,31}/) != nil {
+                metadata.approvalPolicy = policy
+            }
         case "event_msg":
             guard payload["type"] as? String == "token_count",
                   let usage = (payload["info"] as? [String: Any])?["last_token_usage"] as? [String: Any],

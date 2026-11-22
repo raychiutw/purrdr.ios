@@ -305,11 +305,21 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
     public var model: String?
     public var contextTokens: Int?
     public var effort: String?
+    /// 對話紀錄尾端最後一筆的權限模式原文(`permission-mode` 紀錄或使用者訊息的 `permissionMode`,#383);
+    /// 只收認得的值。畫面以 `AgentPermissionMode(transcriptValue:)` 換成模式。
+    public var permissionMode: String?
+    /// Codex 的核准政策原文(`turn_context` 的 `approval_policy`,例:`on-request`、`never`),只顯示不切換(#383)。
+    public var approvalPolicy: String?
 
-    public init(model: String? = nil, contextTokens: Int? = nil, effort: String? = nil) {
+    public init(
+        model: String? = nil, contextTokens: Int? = nil, effort: String? = nil,
+        permissionMode: String? = nil, approvalPolicy: String? = nil
+    ) {
         self.model = model
         self.contextTokens = contextTokens
         self.effort = effort
+        self.permissionMode = permissionMode
+        self.approvalPolicy = approvalPolicy
     }
 
     /// 依序看過 `lines`,較晚的值覆蓋較早的。只看 assistant 行;`<synthetic>` 模型或 `isApiErrorMessage`
@@ -336,7 +346,10 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
             // 一個數字都沒有是 nil 而不是 0,否則合併時會蓋掉真值。
             if !counts.isEmpty { contextTokens = counts.reduce(0, +) }
             if let effort = object["effort"] as? String, effort.wholeMatch(of: /[a-z]{1,16}/) != nil { self.effort = effort }
+        case "permission-mode":
+            recordPermissionMode(object["permissionMode"])
         case "user":
+            if object["isSidechain"] as? Bool != true { recordPermissionMode(object["permissionMode"]) }
             for case .note(let note) in ClaudeTranscriptParser.messages(in: line).flatMap(\.parts) {
                 if let match = note.firstMatch(of: /Set effort level to ([a-z]{1,16})/) { effort = String(match.output.1) }
                 if let model = Self.model(fromModelCommandOutput: note) { self.model = model }
@@ -344,6 +357,11 @@ public struct TranscriptMetadata: Sendable, Equatable, Codable {
         default:
             break
         }
+    }
+
+    private mutating func recordPermissionMode(_ value: Any?) {
+        guard let value = value as? String, AgentPermissionMode(transcriptValue: value) != nil else { return }
+        permissionMode = value
     }
 
     /// `/model` 本地指令的輸出(註記，已去 ANSI):「Set model to X for this session only」「Set model to X and saved as…」

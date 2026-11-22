@@ -65,7 +65,7 @@ struct CodexTranscriptParserTests {
     @Test("模型與 effort 取最後的 turn_context;context 取 last_token_usage.input_tokens(cached 不重加)")
     func metadata() {
         let metadata = TranscriptFormat.codex.latestMetadata(in: Self.lines)
-        #expect(metadata == TranscriptMetadata(model: "gpt-5.5", contextTokens: 18234, effort: "medium"))
+        #expect(metadata == TranscriptMetadata(model: "gpt-5.5", contextTokens: 18234, effort: "medium", approvalPolicy: "on-request"))
     }
 
     @Test("id 是 codex:<timestamp>:<行雜湊>,同一行每次相同、相同 prompt 稍後重複時不同")

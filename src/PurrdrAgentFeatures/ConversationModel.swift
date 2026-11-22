@@ -723,6 +723,7 @@ public final class ConversationModel {
         recent = cached.messages
         segments = [(cached.windowStart, cached.messages.count)]
         metadata = cached.metadata
+        noteTranscriptPermissionMode()
         older = cached.windowStart > 0 ? .available : .reachedStart
         phase = .ready
         rebuild()
@@ -1046,6 +1047,7 @@ public final class ConversationModel {
         segments = [(chunk.start, recent.count)]
         olderMessages = []
         metadata = format.latestMetadata(in: chunk.lines)
+        notePermissionModes(in: chunk.lines)
         progress = AgentProgress.latest(in: chunk.lines, format: format)
         older = chunk.start > 0 ? .available : .reachedStart
         rebuild()
@@ -1080,6 +1082,7 @@ public final class ConversationModel {
             format.updateMetadata(&metadata, with: line)
             progress.update(with: line, format: format)
         }
+        notePermissionModes(in: chunk.lines)
         trimIfFollowing()
         rebuild()
     }
@@ -1151,6 +1154,7 @@ public final class ConversationModel {
             recent = cached.messages
             segments = [(cached.windowStart, cached.messages.count)]
             metadata = cached.metadata
+            noteTranscriptPermissionMode()
             rebuild()
         }
         if phase == .loading { phase = .ready }
@@ -2197,10 +2201,64 @@ public final class ConversationModel {
         await operatePanel(.action(esc))
     }
 
-    // MARK: - 權限模式(#306)
+    // MARK: - 權限模式(#306、#383)
 
-    /// 從畫面讀到的 Claude 權限模式;還沒讀到或認不出是 `nil`。
-    public private(set) var permissionMode: AgentPermissionMode?
+    /// 畫面讀到的模式與當時對話紀錄的原文。紀錄沒變就用畫面補「剛切換、紀錄尚未寫入」的空檔;紀錄一更新就以紀錄為準。
+    private struct ScreenObservation {
+        var mode: AgentPermissionMode
+        var transcriptValue: String?
+    }
+
+    private var screenObservation: ScreenObservation?
+    /// 這個聊天看過的模式(畫面標示、對話紀錄),用來決定輪替裡有沒有略過權限與自動。
+    private var observedPermissionModes: Set<AgentPermissionMode> = []
+
+    /// Claude 目前的權限模式:對話紀錄尾端最後一筆為準(電腦端改了也會同步),畫面只補空檔;都沒有是 `nil`。
+    public var permissionMode: AgentPermissionMode? {
+        let fromTranscript = metadata.permissionMode.flatMap { AgentPermissionMode(transcriptValue: $0) }
+        if let seen = screenObservation, seen.transcriptValue == metadata.permissionMode { return seen.mode }
+        return fromTranscript ?? screenObservation?.mode
+    }
+
+    /// Shift+Tab 輪替裡有哪些模式:預設一般、接受編輯、Plan;看過略過權限或自動才加入。
+    public var permissionModeAvailability: PermissionModeAvailability {
+        var availability = PermissionModeAvailability()
+        for mode in observedPermissionModes { availability.observe(mode) }
+        if let permissionMode { availability.observe(permissionMode) }
+        return availability
+    }
+
+    /// 面板上的模式選項(依輪替順序);目前是 `dontAsk` 時多一列只顯示的它。
+    public var permissionModeOptions: [AgentPermissionMode] {
+        permissionModeAvailability.options(current: permissionMode)
+    }
+
+    /// Codex 的核准政策原文(例:`on-request`);只顯示,不能在手機切換。其他 Agent 是 `nil`。
+    public var approvalPolicy: String? {
+        currentAgent?.kind == "codex" ? metadata.approvalPolicy : nil
+    }
+
+    private func noteTranscriptPermissionMode() {
+        if let mode = metadata.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
+            observedPermissionModes.insert(mode)
+        }
+    }
+
+    /// 一批對話紀錄行裡出現過的權限模式都記下(同一批有多次切換時,中間的模式也算看過)。
+    private func notePermissionModes(in lines: [String]) {
+        for line in lines where line.contains("\"permissionMode\"") {
+            var scratch = TranscriptMetadata()
+            scratch.update(with: line)
+            if let mode = scratch.permissionMode.flatMap({ AgentPermissionMode(transcriptValue: $0) }) {
+                observedPermissionModes.insert(mode)
+            }
+        }
+    }
+
+    private func observeScreen(_ mode: AgentPermissionMode) {
+        observedPermissionModes.insert(mode)
+        screenObservation = ScreenObservation(mode: mode, transcriptValue: metadata.permissionMode)
+    }
     /// 正在切到這個模式(膠囊顯示進行中)。
     public private(set) var switchingPermissionMode: AgentPermissionMode?
     public var isSwitchingPermissionMode: Bool { switchingPermissionMode != nil }
@@ -2229,10 +2287,14 @@ public final class ConversationModel {
         return nil
     }
 
-    /// 讀一次畫面更新目前模式;認不出沿用上次。
+    /// 讀一次畫面:對話紀錄還沒有模式時用它當目前模式,紀錄有值就以紀錄為準(畫面只用來記錄看過哪些模式);認不出沿用上次。
     public func refreshPermissionMode() async {
-        guard supportsPermissionMode, let screen = await readScreen() else { return }
-        if let mode = PermissionModeScreen.parse(screen) { permissionMode = mode }
+        guard supportsPermissionMode, let screen = await readScreen(), let mode = PermissionModeScreen.parse(screen) else { return }
+        if metadata.permissionMode == nil {
+            observeScreen(mode)
+        } else {
+            observedPermissionModes.insert(mode)
+        }
     }
 
     /// 每次 `run` 第一輪輪詢後讀一次(平常的輪詢不讀畫面,指令預算)。
@@ -2253,14 +2315,16 @@ public final class ConversationModel {
 
     /// 送 Shift+Tab(herdr `shift+tab`)到畫面顯示目標模式,最多 `maximumSwitchAttempts` 次。
     /// 主機服務沒有專屬切換訊息,所以 SSH 與 HTTPS 都是按鍵加讀畫面;按鍵帶 `expected_session`,對話已換掉就不按。
-    /// 目標是略過權限時,輪替一圈回到看過的模式就停(這個 session 啟動時沒開,再按也不會出現)。
+    /// 目標是略過權限或自動時,輪替一圈回到看過的模式就停(這個 session 沒開,再按也不會出現)。
     /// 失敗記在 `permissionModeFailure`,可再試;離開聊天(取消)時直接結束、不算失敗。
     public func setPermissionMode(_ target: AgentPermissionMode) async {
-        guard supportsPermissionMode, !isSwitchingPermissionMode else { return }
+        guard supportsPermissionMode, !isSwitchingPermissionMode, target.isSwitchable else { return }
         guard !isReadOnly else {
             notice = .readOnlyDevice
             return
         }
+        // 離線,或 Agent 在等你回覆(這時 Shift+Tab 會變成「核准」):一個鍵都不送。
+        guard permissionModeLock == nil else { return }
         permissionModeFailure = nil
         switchingPermissionMode = target
         defer { switchingPermissionMode = nil }
@@ -2268,7 +2332,7 @@ public final class ConversationModel {
             permissionModeFailure = .unreadable(target: target)
             return
         }
-        permissionMode = current
+        observeScreen(current)
         let expectation = SendExpectation(session: boundSessionID ?? knownSessionID)
         var visited: Set<AgentPermissionMode> = [current]
         var attempts = 0
@@ -2288,9 +2352,9 @@ public final class ConversationModel {
             guard let read = await readPermissionMode() else { break }
             let wrapped = read != current && !visited.insert(read).inserted
             current = read
-            permissionMode = read
-            if wrapped, target == .bypassPermissions, current != target {
-                permissionModeFailure = .bypassUnavailable
+            observeScreen(read)
+            if wrapped, current != target {
+                permissionModeFailure = .modeUnavailable(target)
                 haptics.play(.error)
                 return
             }
@@ -2551,8 +2615,8 @@ public enum SendNotice: Sendable, Equatable {
 public enum PermissionModeFailure: Equatable, Sendable {
     /// 試了 `attempts` 次，畫面上沒有看到 `target`。
     case notReached(attempts: Int, target: AgentPermissionMode)
-    /// 輪替一圈沒有出現略過權限:這個 session 啟動時沒有開。
-    case bypassUnavailable
+    /// 輪替一圈沒有出現目標模式(略過權限、自動):這個 session 沒有開。
+    case modeUnavailable(AgentPermissionMode)
     /// 讀不到畫面，不知道目前是哪個模式。
     case unreadable(target: AgentPermissionMode)
     /// 按鍵沒送到主機。
@@ -2564,7 +2628,7 @@ public enum PermissionModeFailure: Equatable, Sendable {
     public var target: AgentPermissionMode? {
         switch self {
         case .notReached(_, let target), .unreadable(let target), .keysFailed(let target), .paneChanged(let target): target
-        case .bypassUnavailable: nil
+        case .modeUnavailable: nil
         }
     }
 }

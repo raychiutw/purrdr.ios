@@ -326,6 +326,8 @@ struct DemoAnswers {
         case .normal, .bypassPermissions: "? for shortcuts"
         case .acceptEdits: "⏵⏵ accept edits on (shift+tab to cycle)"
         case .plan: "⏸ plan mode on (shift+tab to cycle)"
+        case .auto: "⏵⏵ auto mode on (shift+tab to cycle)"
+        case .dontAsk: "⏵⏵ don't ask on (shift+tab to cycle)"
         }
         let input = suggestion.map { ansi ? "\u{1B}[0m\u{1B}[2m\($0)\u{1B}[0m" : $0 } ?? ""
         return """

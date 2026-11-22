@@ -105,8 +105,10 @@ struct ConversationStatusSheet: View {
                 }
                 if model.supportsPermissionMode {
                     PermissionModeSection(model: model)
+                } else if let policy = model.approvalPolicy {
+                    ApprovalPolicySection(policy: policy)
                 }
-                if !model.supportsPermissionMode, sheet.progress.isEmpty, sheet.backgroundAgents?.rows.isEmpty ?? true, !sheet.hasSendWhenDone {
+                if !model.supportsPermissionMode, model.approvalPolicy == nil, sheet.progress.isEmpty, sheet.backgroundAgents?.rows.isEmpty ?? true, !sheet.hasSendWhenDone {
                     Text("Nothing to show yet.")
                         .foregroundStyle(.secondaryText)
                         .accessibilityIdentifier("status.empty")

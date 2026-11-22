@@ -127,6 +127,8 @@ extension AgentPermissionMode {
         case .acceptEdits: "chevron.forward.2"
         case .plan: "list.bullet.clipboard"
         case .bypassPermissions: "exclamationmark.shield"
+        case .auto: "wand.and.sparkles"
+        case .dontAsk: "hand.raised.slash"
         }
     }
 }
