@@ -3611,6 +3611,17 @@
         }
       }
     },
+    "Couldn’t turn off notifications for this device. Check your connection and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法關閉這支裝置的通知。請檢查連線後再試一次。"
+          }
+        }
+      }
+    },
     "Couldn’t turn on notifications: %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5902,6 +5913,17 @@
         }
       }
     },
+    "Locked. Needs Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已鎖定。需要 Purrdr Plus"
+          }
+        }
+      }
+    },
     "Log" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6228,6 +6250,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "名稱"
+          }
+        }
+      }
+    },
+    "Needs Purrdr Plus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Purrdr Plus"
           }
         }
       }
@@ -7350,6 +7383,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這台主機目前還不能開啟檔案。"
+          }
+        }
+      }
+    },
+    "Opens Purrdr Plus." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 Purrdr Plus。"
           }
         }
       }

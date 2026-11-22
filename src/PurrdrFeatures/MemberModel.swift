@@ -23,10 +23,13 @@ public final class MemberModel {
     private let session: MemberSession
     private let google: GoogleSignIn
     private var pendingApple: (nonce: String, linking: Bool)?
+    /// 通知與主機同步的本機狀態依會員分區(#405);`nil` 時不管本機狀態(只有測試)。
+    private let localState: MemberLocalState?
 
-    public init(session: MemberSession, google: GoogleSignIn) {
+    public init(session: MemberSession, google: GoogleSignIn, localState: MemberLocalState? = nil) {
         self.session = session
         self.google = google
+        self.localState = localState
     }
 
     /// 啟動時讀取登入狀態;沒有登入過時不連後台。連不上時維持 `.unknown` 並提示。
@@ -34,8 +37,10 @@ public final class MemberModel {
         await run {
             if let member = try await session.currentMember() {
                 phase = .signedIn(member)
+                localState?.activate(member)
             } else {
                 phase = .signedOut
+                localState?.discardAll()
             }
         }
     }
@@ -76,23 +81,31 @@ public final class MemberModel {
     /// 解除連結;後台要求至少保留一種登入方式。
     public func unlink(_ method: SignInMethod) async {
         await run {
-            phase = .signedIn(try await session.unlink(method))
+            let member = try await session.unlink(method)
+            phase = .signedIn(member)
+            localState?.activate(member)
         }
     }
 
     /// 刪除會員。完成後回到未登入，並提醒 Apple 訂閱要自行取消。
+    /// 先撤銷這支裝置的推播配對並清除本機分區(#405);撤銷不了(連不上後台)時照樣刪除:後台刪除會員會一併刪掉它的配對。
     public func deleteMember() async {
         await run {
+            _ = await localState?.leave()
             try await session.deleteMember()
             phase = .signedOut
+            localState?.discardAll()
             notice = .deleted
         }
     }
 
+    /// 登出。先撤銷這支裝置的推播配對並停止同步、清除本機分區(#405);撤銷不了時不登出(配對仍有效,不能假裝登出了)。
     public func signOut() async {
         await run {
+            guard await leaveLocalState() else { return }
             try await session.signOut()
             phase = .signedOut
+            localState?.discardAll()
         }
     }
 
@@ -120,11 +133,23 @@ public final class MemberModel {
             if linking {
                 let result = try await session.link(credential)
                 phase = .signedIn(result.member)
+                localState?.activate(result.member)
                 if result.mergedMemberID != nil { notice = .merged }
             } else {
-                phase = .signedIn(try await session.signIn(credential).member)
+                // 已登入時再登入:換會員前先撤銷上一位的推播配對(登入後就沒有他的權杖了)。
+                if case .signedIn = phase, !(await leaveLocalState()) { return }
+                let member = try await session.signIn(credential).member
+                phase = .signedIn(member)
+                localState?.activate(member)
             }
         }
+    }
+
+    /// 撤銷並清除目前會員的本機狀態;撤銷不了時提示並回 `false`。
+    private func leaveLocalState() async -> Bool {
+        guard let localState, !(await localState.leave()) else { return true }
+        notice = .failed(String(localized: "Couldn’t turn off notifications for this device. Check your connection and try again."))
+        return false
     }
 
     /// 執行一個會員操作，把錯誤轉成提示。
@@ -135,6 +160,7 @@ public final class MemberModel {
             try await operation()
         } catch BackendError.signedOut {
             phase = .signedOut
+            localState?.discardAll()
             notice = .signedOut
         } catch let BackendError.backend(_, code, message) {
             notice = MemberNotice(code: code, message: message)

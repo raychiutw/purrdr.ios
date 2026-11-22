@@ -1,0 +1,349 @@
+#if os(macOS)
+import Foundation
+import PurrdrAgentFeatures
+import PurrdrCore
+import PurrdrFeatures
+import PurrdrTestSupport
+import Testing
+
+/// 通知與主機同步的本機狀態依會員分區(#405、spec #402):
+/// 新會員從未開啟開始、登出與換會員前先撤銷這支裝置的推播配對再清除分區、升級時清掉舊的全域狀態。
+///
+/// Seam:後台是 `HTTPStub`;主機是 `LocalShellHost`(暫存家目錄,herdr 換成 `FakeHerdrPluginCLI`);通知權限是 `FakePushPlatform`。
+@MainActor
+@Suite("本機狀態依會員分區")
+struct MemberPartitionTests {
+    static let deviceID = PushDeviceID(rawValue: "0123456789abcdef")!
+    static let keyHashA = String(repeating: "a", count: 64)
+    static let keyHashB = String(repeating: "b", count: 64)
+
+    let backend = HTTPStub()
+    let tokens = InMemoryTokenStore()
+    let platform = FakePushPlatform()
+    let partition = MemberPartition()
+    let pairings: InMemoryPushPairingStore
+    let syncStore: InMemoryHostSyncStore
+    let session: MemberSession
+    let localState: MemberLocalState
+    let hostStore = MemoryHostStore()
+
+    init() throws {
+        pairings = InMemoryPushPairingStore(partition: partition)
+        syncStore = InMemoryHostSyncStore(partition: partition)
+        session = MemberSession(transport: URLSessionBackendTransport(baseURL: backend.baseURL, session: backend.urlSession), tokenStore: tokens)
+        localState = MemberLocalState(partition: partition, session: session)
+        try tokens.setRefreshToken("refresh-0")
+        backend.on("POST", "/v1/sessions/refresh", .json(200, Replies.session(refreshToken: "refresh-1", member: Replies.appleMember)))
+        backend.on("GET", "/v1/members/me", .json(200, #"{"member": \#(Replies.appleMember)}"#))
+        backend.on("DELETE", "/v1/members/me", .json(200, #"{"deleted": true}"#))
+        backend.on("POST", "/v1/sessions/revoke", .json(200, "{}"))
+        backend.on("GET", "/v1/members/me/subscription", .json(200, SubscriptionReplies.active))
+        platform.token = PushModelTests.token
+    }
+
+    func pushService() -> PushService {
+        PushService(
+            session: session, platform: platform, store: pairings,
+            device: PushDeviceIdentity(id: Self.deviceID, name: "iPhone", model: .iPhone),
+            configuration: PushConfiguration(
+                endpoint: PushModelTests.endpoint, environment: .production, pluginSource: "raychiutw/purrdr.host/host-plugin"),
+            isPlusActive: { true })
+    }
+
+    func makeSync() -> HostSyncModel {
+        let hosts = HostsModel(
+            store: hostStore, demoChannel: FakeHost(), credentials: HostCredentials(secrets: EphemeralHostSecretStore(), deviceKey: EphemeralDeviceKey()),
+            hostService: HostServiceAccess(tokens: InMemoryDeviceTokenStore()), makeChannel: { _, _, _ in FakeHost() })
+        hosts.load()
+        return HostSyncModel(session: session, plus: SubscriptionModel(session: session, store: FakePlusStore()), hosts: hosts, store: syncStore)
+    }
+
+    func makeMemberModel() -> MemberModel {
+        MemberModel(
+            session: session,
+            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: "123-abc.apps.googleusercontent.com")),
+            localState: localState)
+    }
+
+    /// 這個會員在 studio 開了通知、也開了主機同步(只動本機紀錄)。
+    func seedNotificationsAndSync(keyHash: String = keyHashA) {
+        pairings.setKeyHash(keyHash, forHost: "studio")
+        syncStore.isEnabled = true
+        syncStore.journal.recordSave(UUID(), at: Date(timeIntervalSince1970: 1_794_729_600))
+    }
+
+    // MARK: - 分區
+
+    @Test("新會員一律從未開啟開始:換會員後看不到上一位的通知與同步")
+    func newMemberStartsOff() {
+        partition.activate("member-a")
+        seedNotificationsAndSync()
+
+        partition.activate("member-b")
+
+        #expect(pairings.keyHash(forHost: "studio") == nil)
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+        #expect(syncStore.journal == HostSyncJournal())
+    }
+
+    @Test("沒有會員時:讀到空的、寫入不留下")
+    func noMemberHoldsNothing() {
+        pairings.setKeyHash(Self.keyHashA, forHost: "studio")
+        syncStore.isEnabled = true
+
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+        partition.activate("member-a")
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+    }
+
+    @Test("同一個會員回來時,自己的分區還在")
+    func samePartitionSurvivesReactivation() {
+        partition.activate("member-a")
+        seedNotificationsAndSync()
+        partition.activate(nil)
+        partition.activate("member-a")
+
+        #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+        #expect(syncStore.isEnabled)
+    }
+
+    @Test("UserDefaults 版:也依會員分區,換會員看不到上一位的")
+    func userDefaultsStoresArePartitioned() throws {
+        let suite = "member-partition-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let partition = MemberPartition()
+        let pushStore = UserDefaultsPushPairingStore(defaults: defaults, partition: partition)
+        let syncStore = UserDefaultsHostSyncStore(defaults: defaults, partition: partition)
+
+        partition.activate("member-a")
+        pushStore.setKeyHash(Self.keyHashA, forHost: "studio")
+        pushStore.setRegisteredToken("token", forKeyHash: Self.keyHashA)
+        pushStore.setKinds([.blocked], forKeyHash: Self.keyHashA)
+        syncStore.isEnabled = true
+        partition.activate("member-b")
+
+        #expect(pushStore.pairings.isEmpty)
+        #expect(pushStore.registeredTokens.isEmpty)
+        #expect(pushStore.kinds(forKeyHash: Self.keyHashA) == nil)
+        #expect(syncStore.isEnabled == false)
+        partition.activate("member-a")
+        #expect(pushStore.keyHash(forHost: "studio") == Self.keyHashA)
+        #expect(syncStore.isEnabled)
+    }
+
+    // MARK: - 升級
+
+    @Test("升級時舊的全域狀態被清除")
+    func legacyGlobalStateIsRemovedOnUpgrade() throws {
+        let suite = "member-partition-legacy-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(["studio": Self.keyHashA], forKey: "push.pairings")
+        defaults.set([Self.keyHashA: "token"], forKey: "push.registeredTokens")
+        defaults.set([Self.keyHashA: ["blocked"]], forKey: "push.kinds")
+        defaults.set(true, forKey: "hostSync.enabled")
+        defaults.set(Data("{}".utf8), forKey: "hostSync.journal")
+        defaults.set("unrelated", forKey: "appearance")
+        // 新格式(已分區)的紀錄不能被一起清掉。
+        let partition = MemberPartition()
+        partition.activate("member-a")
+        let store = UserDefaultsPushPairingStore(defaults: defaults, partition: partition)
+        store.setKeyHash(Self.keyHashB, forHost: "lab")
+
+        MemberLocalState.removeLegacyGlobalState(from: defaults)
+
+        for key in ["push.pairings", "push.registeredTokens", "push.kinds", "hostSync.enabled", "hostSync.journal"] {
+            #expect(defaults.object(forKey: key) == nil, "\(key) 應被清除")
+        }
+        #expect(defaults.string(forKey: "appearance") == "unrelated")
+        #expect(store.keyHash(forHost: "lab") == Self.keyHashB)
+    }
+
+    // MARK: - 登出與換會員
+
+    @Test("登出:先撤銷這支裝置的推播配對(後台收到請求),再登出,最後清除該會員分區")
+    func signOutRevokesPairingsThenClears() async throws {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+        let member = makeMemberModel()
+        let push = pushService()
+        let sync = makeSync()
+        localState.attach(push: push, hostSync: sync, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+        push.reloadModels()
+        sync.reload()
+        let pushModel = PushModel(service: push, hostID: "studio", installer: nil, muted: { [] })
+        #expect(pushModel.state == .on)
+        #expect(sync.isEnabled)
+
+        await member.signOut()
+
+        #expect(member.phase == .signedOut)
+        let order = backend.requests.map { "\($0.method) \($0.path)" }
+        let revoke = try #require(order.firstIndex(of: "DELETE /v1/members/me/push-pairings/\(Self.keyHashA)"))
+        let signOut = try #require(order.firstIndex(of: "POST /v1/sessions/revoke"))
+        #expect(revoke < signOut, "推播配對要在登出前撤銷(登出後就沒有權杖了)")
+        #expect(pairings.pairings.isEmpty)
+        #expect(sync.isEnabled == false)
+        #expect(syncStore.isEnabled == false)
+        #expect(sync.status == .off)
+        // 重新登入同一個會員:分區已清除,從未開啟開始。
+        partition.activate("member-1")
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.journal == HostSyncJournal(), "同步紀錄也要清除")
+    }
+
+    @Test("離開會員(leave)清除該會員的分區:同一個會員之後回來也是從未開啟開始")
+    func leaveClearsThatMembersPartition() async {
+        let push = pushService()
+        let sync = makeSync()
+        localState.attach(push: push, hostSync: sync, pushModels: { [] })
+        localState.activate(Replies.expectedAppleMember)
+        seedNotificationsAndSync()
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+
+        let left = await localState.leave()
+
+        #expect(left)
+        partition.activate(Replies.expectedAppleMember.id)
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+        #expect(syncStore.journal == HostSyncJournal())
+    }
+
+    @Test("登出:主機上的配對檔也移除(PushModel 關閉),後台配對只撤銷一次")
+    func signOutRemovesHostPairingToo() async throws {
+        let host = try LocalShellHost.temporary()
+        try FakeHerdrPluginCLI.install(on: host)
+        backend.on("POST", "/v1/members/me/push-pairings", .json(201, #"{"registered":true}"#))
+        let member = makeMemberModel()
+        let push = pushService()
+        localState.attach(push: push, hostSync: nil, pushModels: { [] })
+        await member.restore()
+        let pushModel = PushModel(
+            service: push, hostID: "studio", installer: push.sshInstaller(channel: host, herdr: HerdrInstallation()), muted: { [] })
+        await pushModel.requestOn()
+        await pushModel.confirm()
+        try #require(pushModel.state == .on)
+        let pairingFile = host.url(".purrdr/push-0123456789abcdef/pairing")
+        try #require(FileManager.default.fileExists(atPath: pairingFile.path))
+        let keyHash = try #require(pairings.keyHash(forHost: "studio"))
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(keyHash)", .json(200, #"{"revoked":true}"#))
+        localState.attach(push: push, hostSync: nil, pushModels: { [pushModel] })
+
+        await member.signOut()
+
+        #expect(!FileManager.default.fileExists(atPath: pairingFile.path))
+        #expect(pushModel.state == .off)
+        #expect(backend.requests(to: "/v1/members/me/push-pairings/\(keyHash)").count == 1)
+        #expect(pairings.pairings.isEmpty)
+    }
+
+    @Test("撤銷後台配對連不上時不登出:通知配對仍有效,不能假裝登出了")
+    func signOutStopsWhenRevokeCannotReachBackend() async {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .unreachable)
+        let member = makeMemberModel()
+        let push = pushService()
+        localState.attach(push: push, hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+
+        await member.signOut()
+
+        guard case .signedIn = member.phase else {
+            Issue.record("連不上後台撤銷配對時不應登出,phase 是 \(member.phase)")
+            return
+        }
+        #expect(member.notice != nil)
+        #expect(backend.requests(to: "/v1/sessions/revoke").isEmpty)
+        #expect(pairings.keyHash(forHost: "studio") == Self.keyHashA)
+    }
+
+    @Test("刪除會員:同樣先撤銷推播配對再清除分區")
+    func deleteMemberRevokesPairingsFirst() async throws {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+        let member = makeMemberModel()
+        let push = pushService()
+        localState.attach(push: push, hostSync: nil, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+
+        await member.deleteMember()
+
+        let order = backend.requests.map { "\($0.method) \($0.path)" }
+        let revoke = try #require(order.firstIndex(of: "DELETE /v1/members/me/push-pairings/\(Self.keyHashA)"))
+        let delete = try #require(order.firstIndex(of: "DELETE /v1/members/me"))
+        #expect(revoke < delete)
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+    }
+
+    @Test("換會員登入:新會員從未開啟開始,上一位的推播配對已撤銷")
+    func switchingMemberRevokesPreviousAndStartsOff() async throws {
+        backend.on("DELETE", "/v1/members/me/push-pairings/\(Self.keyHashA)", .json(200, #"{"revoked":true}"#))
+        backend.on("POST", "/v1/sessions", .json(200, Replies.session(refreshToken: "refresh-2", member: Replies.googleMember)))
+        let member = makeMemberModel()
+        let push = pushService()
+        let sync = makeSync()
+        localState.attach(push: push, hostSync: sync, pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+        push.reloadModels()
+        sync.reload()
+
+        _ = member.beginAppleAuthorization(linking: false)
+        await member.completeAppleAuthorization(idToken: "other-id-token", authorizationCode: "code")
+
+        #expect(member.phase == .signedIn(Replies.expectedGoogleMember))
+        #expect(backend.requests(to: "/v1/members/me/push-pairings/\(Self.keyHashA)").count == 1)
+        #expect(pairings.pairings.isEmpty)
+        #expect(sync.isEnabled == false)
+        #expect(syncStore.isEnabled == false)
+        let order = backend.requests.map { "\($0.method) \($0.path)" }
+        let revoke = try #require(order.firstIndex(of: "DELETE /v1/members/me/push-pairings/\(Self.keyHashA)"))
+        let signIn = try #require(order.firstIndex(of: "POST /v1/sessions"))
+        #expect(revoke < signIn)
+    }
+
+    @Test("登入失效(後台撤銷了工作階段)時清掉本機分區,下一位不會看到")
+    func remoteSignOutDiscardsPartition() async throws {
+        let member = makeMemberModel()
+        let push = pushService()
+        localState.attach(push: push, hostSync: makeSync(), pushModels: { [] })
+        await member.restore()
+        seedNotificationsAndSync()
+        backend.on("POST", "/v1/sessions/refresh", .json(401, Replies.error("invalid_refresh_token")))
+        backend.on("DELETE", "/v1/members/me/identities/google", .json(401, Replies.error("invalid_access_token")))
+
+        await member.unlink(.google)
+
+        #expect(member.phase == .signedOut)
+        partition.activate("member-1")
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+        #expect(syncStore.journal == HostSyncJournal())
+    }
+
+    @Test("冷啟動時已登出(登入已失效):清掉殘留的會員分區")
+    func coldStartSignedOutDiscardsPartition() async {
+        partition.activate("member-1")
+        seedNotificationsAndSync()
+        partition.activate(nil)
+        try? tokens.setRefreshToken(nil)
+        let member = makeMemberModel()
+        localState.attach(push: pushService(), hostSync: makeSync(), pushModels: { [] })
+
+        await member.restore()
+
+        #expect(member.phase == .signedOut)
+        partition.activate("member-1")
+        #expect(pairings.pairings.isEmpty)
+        #expect(syncStore.isEnabled == false)
+        #expect(syncStore.journal == HostSyncJournal())
+    }
+}
+#endif

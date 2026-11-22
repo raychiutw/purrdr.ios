@@ -94,6 +94,9 @@ struct FilesTab: View {
 /// 主機 tab 的工具列(登入 Shell、方案用量的入口;內容之後由主機 tab 的票接手,#392)。
 struct HostToolRows: View {
     let hosts: HostsModel
+    /// 通知要有 Purrdr Plus(#405):沒有時整列鎖定、點了開付費牆。`nil` 時(UI 測試以外不會)當作沒有 Plus。
+    let plus: SubscriptionModel?
+    let openPlus: () -> Void
 
     @Environment(\.usageSections) private var usage
 
@@ -104,6 +107,7 @@ struct HostToolRows: View {
                 .id(hosts.selection)
         }
         Section {
+            notificationsRow
             NavigationLink {
                 PlanUsageScreen(model: hosts.planUsage())
             } label: {
@@ -119,6 +123,61 @@ struct HostToolRows: View {
                 .accessibilityIdentifier("hosts.tool.loginShell")
             }
         }
+    }
+}
+
+extension HostToolRows {
+    /// 通知(#405、spec #402):有 Plus 才能進去開關;沒有 Plus 顯示鎖定與原因,不誤導成已開啟。
+    @ViewBuilder
+    fileprivate var notificationsRow: some View {
+        Group {
+            if plus?.isPlusActive == true {
+                NavigationLink {
+                    HostNotificationsScreen(hosts: hosts, openPlus: openPlus)
+                } label: {
+                    Label("Notifications", systemImage: "bell")
+                }
+                .accessibilityIdentifier("hosts.tool.notifications")
+            } else {
+                Button(action: openPlus) {
+                    HStack {
+                        Label("Notifications", systemImage: "bell")
+                        Spacer()
+                        Label("Needs Purrdr Plus", systemImage: "lock.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondaryText)
+                    }
+                }
+                .foregroundStyle(.primary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text("Notifications"))
+                .accessibilityValue(Text("Locked. Needs Purrdr Plus"))
+                .accessibilityHint(Text("Opens Purrdr Plus."))
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("hosts.tool.notifications.locked")
+            }
+        }
+        // 剛開 app 時還沒讀過訂閱:讀一次(沒登入不連網路)。
+        .task { await plus?.refresh() }
+    }
+}
+
+/// 主機 tab 的「通知」子頁:每台主機一列的開關(有 Purrdr Plus 才進得來)。
+private struct HostNotificationsScreen: View {
+    let hosts: HostsModel
+    let openPlus: () -> Void
+
+    var body: some View {
+        List {
+            HostPushSection(pushes: hosts.hostPushes, openPlus: openPlus)
+        }
+        .navigationTitle("Notifications")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        // 通知區塊依主機服務版本判斷 HTTPS 主機能不能開。
+        .task { await hosts.checkHostServiceVersions() }
+        .accessibilityIdentifier("hosts.notifications")
     }
 }
 
@@ -142,11 +201,13 @@ private struct LoginShellTool: View {
 struct HostsTab: View {
     let hosts: HostsModel
     let member: MemberModel
+    let plus: SubscriptionModel?
     @Binding var importURL: URL?
     @Binding var editHostID: UUID?
     @Binding var addHost: Bool
     let openAccount: () -> Void
     let openAddHost: () -> Void
+    let openPlus: () -> Void
     let didEnterDemo: () -> Void
 
     var body: some View {
@@ -155,7 +216,7 @@ struct HostsTab: View {
             chrome: HostTabChrome(
                 principal: AnyView(HostPickerButton(model: hosts.selectedHostPicker(), identifier: "hosts.host", addHost: openAddHost)),
                 account: AnyView(AccountButton(member: member, action: openAccount)),
-                tools: AnyView(HostToolRows(hosts: hosts)),
+                tools: AnyView(HostToolRows(hosts: hosts, plus: plus, openPlus: openPlus)),
                 didEnterDemo: didEnterDemo),
             importURL: $importURL, editHostID: $editHostID, addHost: $addHost)
     }

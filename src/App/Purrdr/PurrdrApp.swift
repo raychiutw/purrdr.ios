@@ -65,9 +65,14 @@ struct PurrdrApp: App {
             ? InMemoryHostChatPreferencesStore() : UserDefaultsHostChatPreferencesStore()
         let hostIcons: any HostIconStore = uiTesting ? InMemoryHostIconStore() : UserDefaultsHostIconStore()
         let session = Self.makeMemberSession(uiTesting: uiTesting, arguments: arguments)
+        // 通知與主機同步的本機狀態依會員分區(#405);升級時清掉舊的全域狀態(沒綁會員,登入後依會員重新整理)。
+        let partition = MemberPartition()
+        if !uiTesting { MemberLocalState.removeLegacyGlobalState() }
+        let localState = MemberLocalState(partition: partition, session: session)
         member = MemberModel(
             session: session,
-            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID))
+            google: GoogleSignIn(configuration: GoogleSignIn.Configuration(clientID: BackendConfiguration.googleClientID)),
+            localState: localState
         )
         // StoreKit:在 Xcode 執行時，scheme 指定的 StoreKit 設定檔(src/App/Purrdr.storekit)提供商品，不連 App Store。
         // UI 測試用內容相同的替身(不連網路;命令列 xcodebuild test 不套用 StoreKit 設定檔)。
@@ -78,7 +83,7 @@ struct PurrdrApp: App {
         let push = PushService(
             session: session,
             platform: uiTesting ? UITestingPushPlatform(isAuthorized: Self.uiTestingMemberBackend(arguments) != nil) : PushAppDelegate.platform,
-            store: uiTesting ? InMemoryPushPairingStore() : UserDefaultsPushPairingStore(),
+            store: uiTesting ? InMemoryPushPairingStore(partition: partition) : UserDefaultsPushPairingStore(partition: partition),
             loadDevice: Self.pushDevice(uiTesting: uiTesting),
             configuration: PushConfiguration(
                 endpoint: PushSettings.endpoint, environment: PushSettings.environment, pluginSource: PushSettings.pluginSource)
@@ -176,8 +181,11 @@ struct PurrdrApp: App {
         hosts.load()
         _hosts = State(initialValue: hosts)
         // 主機同步(#30):UI 測試不讀寫這台模擬器的 UserDefaults(後台是 backend.invalid,開啟時一律提示需要 Purrdr Plus)。
-        hostSync = HostSyncModel(
-            session: session, plus: plus, hosts: hosts, store: uiTesting ? InMemoryHostSyncStore() : UserDefaultsHostSyncStore())
+        let hostSync = HostSyncModel(
+            session: session, plus: plus, hosts: hosts,
+            store: uiTesting ? InMemoryHostSyncStore(partition: partition) : UserDefaultsHostSyncStore(partition: partition))
+        self.hostSync = hostSync
+        localState.attach(push: push, hostSync: hostSync, pushModels: { hosts.hostPushes.map(\.model) })
         settings = Self.makeSettings(hosts: hosts)
         // UI 測試預設當作看過(不擋住其他測試);`-showWelcome` 測歡迎頁本身。
         welcome = WelcomeModel(store: uiTesting

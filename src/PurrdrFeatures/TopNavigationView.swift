@@ -252,9 +252,10 @@ public struct TopNavigationView: View {
             }
             Tab("Hosts", systemImage: "desktopcomputer", value: TopLevelTab.hosts) {
                 HostsTab(
-                    hosts: hosts, member: member, importURL: $navigation.pendingHostImport, editHostID: $navigation.pendingHostEditor,
-                    addHost: $navigation.pendingAddHost, openAccount: { navigation.sheet = .member },
-                    openAddHost: { navigation.openAddHost() }, didEnterDemo: { navigation.tab = .chats })
+                    hosts: hosts, member: member, plus: plus, importURL: $navigation.pendingHostImport,
+                    editHostID: $navigation.pendingHostEditor, addHost: $navigation.pendingAddHost,
+                    openAccount: { navigation.sheet = .member }, openAddHost: { navigation.openAddHost() },
+                    openPlus: { navigation.sheet = .plus }, didEnterDemo: { navigation.tab = .chats })
                     .tint(ProminentFillStyle())
             }
             Tab("Traffic", systemImage: "arrow.up.arrow.down", value: TopLevelTab.traffic) {

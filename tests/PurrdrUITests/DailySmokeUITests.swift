@@ -153,6 +153,11 @@ final class DailySmokeUITests: XCTestCase {
             XCTAssertFalse(app.buttons["toolbar.newChat"].exists, "檔案 tab 不該有新增聊天")
             app.openHostsTab()
             XCTAssertTrue(app.buttons["toolbar.account"].firstMatch.exists, "主機 tab 沒有帳號鈕")
+            // 沒登入就沒有 Plus(#405):通知鎖定並寫出原因,不是可開關的列。
+            let locked = app.buttons["hosts.tool.notifications.locked"].firstMatch
+            XCTAssertTrue(locked.waitUntilExists(timeout: 10), "沒有 Plus 時主機 tab 的通知沒有鎖定")
+            XCTAssertTrue((locked.value as? String)?.contains("Needs Purrdr Plus") == true, "鎖定的通知沒有說明需要 Purrdr Plus:\(String(describing: locked.value))")
+            XCTAssertFalse(app.buttons["hosts.tool.notifications"].exists, "沒有 Plus 不該能進通知開關")
             XCTAssertTrue(app.element("usage.enable.claudeCode").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有「啟用用量顯示」(#389)")
             XCTAssertTrue(app.element("usage.row.codex.fiveHour").waitUntilExists(timeout: 10), "主機 tab 的用量區沒有 Codex 5 小時")
             app.openTab(.traffic)
@@ -221,7 +226,16 @@ final class DailySmokeUITests: XCTestCase {
     @MainActor
     func testPlusMemberAccount() {
         let app = XCUIApplication.launchUITesting(flags: ["-uiTestingPlusMember"])
+        step("主機 tab 的通知有 Plus 時不鎖定,可進入開關頁") {
+            app.openHostsTab()
+            let row = app.buttons["hosts.tool.notifications"].firstMatch
+            XCTAssertTrue(row.waitUntilExists(timeout: 10), "有 Plus 時主機 tab 沒有可進入的通知")
+            XCTAssertFalse(app.buttons["hosts.tool.notifications.locked"].exists, "有 Plus 不該鎖定通知")
+            row.tap()
+            XCTAssertTrue(app.element("hosts.notifications").waitUntilExists(timeout: 10), "沒有進到通知開關頁")
+        }
         step("帳號頁與通知裝置") {
+            back(app)
             app.openAccountSheet()
             let device = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "identifier BEGINSWITH 'account.pushDevice.' AND label CONTAINS 'Studio iPad'")).firstMatch
