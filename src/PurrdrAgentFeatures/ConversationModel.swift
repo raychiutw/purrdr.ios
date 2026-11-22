@@ -591,6 +591,8 @@ public final class ConversationModel {
     private var currentAgent: Agent?
     /// 最近一次輪詢看到的 Agent 種類(畫面依種類調整說明，例如 Codex 等 session 的提示)。
     public var agentKind: String? { currentAgent?.kind }
+    /// 第一則訊息送出後才有對話紀錄的 Agent(Codex):等待畫面換成對應說明。
+    public var transcriptStartsAfterFirstMessage: Bool { screenDialect.transcriptStartsAfterFirstMessage }
     /// Agent 所在的 workspace(更多選單的「顯示版面」用,#381)。
     public var workspaceID: String? { currentAgent?.workspaceID }
     /// 已經確認過某則回音的使用者訊息(每個到達只能確認一則)。
@@ -1610,7 +1612,7 @@ public final class ConversationModel {
             checkAnswerDeadline()
             return
         }
-        let parsed = BlockedPromptParser.parse(screen: screen, agentKind: agent.kind)
+        let parsed = BlockedPromptParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
         let next = blocked ? (parsed ?? .unrecognized) : (parsed?.kind == .trust ? parsed : nil)
         if next != nil { agentStatus = .blocked }
         update(prompt: next)
@@ -1864,12 +1866,13 @@ public final class ConversationModel {
 
     /// 面板對 herdr 不可見(狀態仍是 idle):送出 slash 指令後監看 8 秒，0.4 秒與 1.2 秒各多讀一次。
     private func watchForPanel() {
-        guard let kind = currentAgent?.kind, Self.panelAgents.contains(kind) else { return }
+        guard screenDialect.readsPanels else { return }
         panelWatchUntil = clock.now().addingTimeInterval(Self.panelWatch)
         kickPolls(after: [.milliseconds(400), .milliseconds(800)])
     }
 
-    private static let panelAgents: Set<String> = ["claude", "codex"]
+    /// 目前 Agent 的畫面方言(ADR-0013);還沒讀到 Agent 時是通用方言(什麼都不讀、不操作)。
+    private var screenDialect: ScreenDialect { AgentCatalog.profile(forHerdrName: currentAgent?.kind ?? "").screen }
 
     private func kickPolls(after delays: [Duration]) {
         panelKickTask?.cancel()
@@ -1888,14 +1891,14 @@ public final class ConversationModel {
         defer { updatePanelReadability() }
         let watching = panelWatchUntil.map { clock.now() < $0 } ?? false
         if !watching { panelWatchUntil = nil }
-        guard Self.panelAgents.contains(agent.kind), prompt == nil, agentStatus != .working, agentStatus != .blocked else {
+        guard AgentCatalog.profile(forHerdrName: agent.kind).screen.readsPanels, prompt == nil, agentStatus != .working, agentStatus != .blocked else {
             panel = nil
             return
         }
         guard watching || panel != nil || screenThisPoll != nil else { return }
         if screenThisPoll == nil { screenThisPoll = await readScreen() }
         guard let screen = screenThisPoll else { return }
-        let next = SlashPanelParser.parse(screen: screen, agentKind: agent.kind)
+        let next = SlashPanelParser.parse(screen: screen, dialect: AgentCatalog.profile(forHerdrName: agent.kind).screen)
         if next != panel { panel = next }
         if modelSheetPage == .effort, effortBaseline == nil, let next, let slider = next.slider {
             effortBaseline = EffortBaseline(level: slider.current, ultracode: next.ultracode)
@@ -1979,13 +1982,13 @@ public final class ConversationModel {
 
     /// 模型膠囊要顯示:Claude(可切換),或 Codex 有讀到目前模型(只顯示、說明不能在 app 內切換,#384)。
     public var showsModelCapsule: Bool {
-        supportsPermissionMode || (currentAgent?.kind == "codex" && modelName != nil)
+        supportsPermissionMode || (screenDialect.showsModelName && modelName != nil)
     }
 
     /// 能開模型選擇:只有 Claude(`/model` 面板一步選定)、閒置、沒有問題在等、沒有別的面板、
     /// 非唯讀與離線。工作中時 `/model` 會排進佇列,所以不開放。
     public var canChooseModel: Bool {
-        currentAgent?.kind == "claude" && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
+        screenDialect.canChooseModel && hasTarget && !isReadOnly && !isOffline && !isSending && typedAnswer == nil
             && prompt == nil && panel == nil && agentStatus != .working && agentStatus != .blocked && !isChoosingModel
     }
 
@@ -2002,7 +2005,7 @@ public final class ConversationModel {
     }
 
     public var modelChoiceLock: ModelChoiceLock? {
-        if currentAgent != nil, currentAgent?.kind != "claude" { return .unsupportedAgent }
+        if currentAgent != nil, !screenDialect.canChooseModel { return .unsupportedAgent }
         if isReadOnly { return .readOnlyDevice }
         if isOffline { return .offline }
         if agentStatus == .blocked || prompt != nil { return .waitingForYou }
@@ -2246,7 +2249,7 @@ public final class ConversationModel {
 
     /// Codex 的核准政策原文(例:`on-request`);只顯示,不能在手機切換。其他 Agent 是 `nil`。
     public var approvalPolicy: String? {
-        currentAgent?.kind == "codex" ? metadata.approvalPolicy : nil
+        screenDialect.showsApprovalPolicy ? metadata.approvalPolicy : nil
     }
 
     private func noteTranscriptPermissionMode() {
@@ -2275,8 +2278,8 @@ public final class ConversationModel {
     public var isSwitchingPermissionMode: Bool { switchingPermissionMode != nil }
     @ObservationIgnored private var permissionModeProbed = false
 
-    /// 只有 Claude Code 有權限模式。
-    public var supportsPermissionMode: Bool { currentAgent?.kind == "claude" }
+    /// 只有畫面方言有權限模式(Claude Code)且驗證過才開放切換。
+    public var supportsPermissionMode: Bool { screenDialect.switchesPermissionMode }
 
     /// 膠囊可以操作:讀到目前模式、沒在切換、沒離線;唯讀裝置不行(畫面說明)。
     public var canSwitchPermissionMode: Bool {
@@ -2402,7 +2405,7 @@ public final class ConversationModel {
 
     /// Claude Code 在等下一步(完成或閒置——閒置是 herdr 把完成標成看過，#121 故事 5;沒有提示)。
     private func awaitsNextPrompt(_ agent: Agent) -> Bool {
-        agent.kind == "claude" && (agentStatus == .done || agentStatus == .idle) && prompt == nil
+        AgentCatalog.profile(forHerdrName: agent.kind).screen.readsPromptSuggestions && (agentStatus == .done || agentStatus == .idle) && prompt == nil
     }
 
     /// 在等下一步、這段期間還能讀時，讀含 ANSI 的畫面找建議(#121)。在面板判定之前讀，讀到的畫面去掉 ANSI 後

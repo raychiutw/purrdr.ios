@@ -113,7 +113,7 @@ public struct AgentPresentation: Equatable, Sendable {
     }
 }
 
-/// Agent 設定檔(ADR-0013)。目前有顯示、對話紀錄與輸入組;畫面、session 各組由後續票加入。
+/// Agent 設定檔(ADR-0013)。目前有顯示、對話紀錄、輸入與畫面組;session 組由後續票加入。
 /// 沒有的那組是 `nil`,表示那項功能不提供。
 public struct AgentProfile: Equatable, Sendable {
     public let id: AgentID
@@ -122,19 +122,30 @@ public struct AgentProfile: Equatable, Sendable {
     public let transcript: TranscriptDialect?
     /// 輸入組:每種 Agent 都有(通用設定檔是不當 slash、沒有回答方式)。
     public let input: InputDialect
+    /// 畫面組:從 pane 畫面讀面板、權限模式、建議(通用設定檔什麼都不讀)。
+    public let screen: ScreenDialect
 
-    public init(id: AgentID, presentation: AgentPresentation, transcript: TranscriptDialect? = nil, input: InputDialect) {
+    public init(id: AgentID, presentation: AgentPresentation, transcript: TranscriptDialect? = nil, input: InputDialect, screen: ScreenDialect = .generic) {
         self.id = id
         self.presentation = presentation
         self.transcript = transcript
         self.input = input
+        self.screen = screen
     }
 }
 
 /// Agent 設定檔目錄:依種類回傳設定檔,認不得的種類回通用設定檔(照原文顯示、中性頭像)。
 public enum AgentCatalog {
     public static func profile(for id: AgentID) -> AgentProfile {
-        AgentProfile(id: id, presentation: presentation(for: id), transcript: transcript(for: id), input: input(for: id))
+        AgentProfile(id: id, presentation: presentation(for: id), transcript: transcript(for: id), input: input(for: id), screen: screen(for: id))
+    }
+
+    private static func screen(for id: AgentID) -> ScreenDialect {
+        switch id {
+        case .claude: .claude
+        case .codex: .codex
+        default: .generic
+        }
     }
 
     private static func input(for id: AgentID) -> InputDialect {

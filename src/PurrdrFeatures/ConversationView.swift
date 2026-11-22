@@ -411,7 +411,7 @@ public struct ConversationView: View {
             ContentUnavailableView {
                 Label("Getting Ready", systemImage: "hourglass")
             } description: {
-                if model.agentKind == "codex" {
+                if model.transcriptStartsAfterFirstMessage {
                     Text("Its messages appear here after you send the first message.")
                 } else {
                     Text("Waiting for the agent to get ready. Its messages appear here soon.")
