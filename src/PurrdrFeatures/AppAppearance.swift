@@ -54,8 +54,9 @@ private struct AppAppearanceModifier: ViewModifier {
 /// 頁面(`systemBackground`、`systemGroupedBackground`)#1C1C1E、卡片與 grouped 列(`secondarySystemBackground`、
 /// `secondarySystemGroupedBackground`)#2C2C2E、再內一層 #3A3A3C。所有畫面用的是語意色,所以全 app 一致、
 /// 切換畫面不跳色,「增加對比」與淺色(介面層級對淺色沒有影響)照系統。
-/// sheet 本來就是 elevated,所以與頁面同色階(以系統分隔線與暗化層區分)。
+/// sheet 本來就是 elevated,所以與頁面同色階、sheet 內的列是 #2C2C2E(使用者決定接受,不逐列自訂背景;設計稿的 sheet 再高一階留待後續票)。
 package enum AppWindowSurface {
+    @MainActor
     package static func apply(to window: UIWindow, style: UIUserInterfaceStyle) {
         if window.overrideUserInterfaceStyle != style {
             window.overrideUserInterfaceStyle = style
